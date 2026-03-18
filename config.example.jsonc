@@ -319,6 +319,7 @@
       "SubMiner"
     ], // Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.
     "fields": {
+      "word": "Expression", // Word setting.
       "audio": "ExpressionAudio", // Audio setting.
       "image": "Picture", // Image setting.
       "sentence": "Sentence", // Sentence setting.
@@ -347,7 +348,7 @@
       "highlightEnabled": false, // Enable fast local highlighting for words already known in Anki. Values: true | false
       "refreshMinutes": 1440, // Minutes between known-word cache refreshes.
       "matchMode": "headword", // Known-word matching strategy for subtitle annotations. Values: headword | surface
-      "decks": [], // Decks used for known-word cache scope. Supports one or more deck names.
+      "decks": {}, // Decks and fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word", "Word Reading"] }.
       "color": "#a6da95" // Color used for known-word highlights.
     }, // Known words setting.
     "behavior": {
@@ -498,13 +499,21 @@
     "queueCap": 1000, // In-memory write queue cap before overflow policy applies.
     "payloadCapBytes": 256, // Max JSON payload size per event before truncation.
     "maintenanceIntervalMs": 86400000, // Maintenance cadence (prune + rollup + vacuum checks).
+    "retentionMode": "preset", // Retention mode (`preset` uses preset values, `advanced` uses explicit values). Values: preset | advanced
+    "retentionPreset": "balanced", // Retention preset when `retentionMode` is `preset`. Values: minimal | balanced | deep-history
     "retention": {
-      "eventsDays": 7, // Raw event retention window in days.
-      "telemetryDays": 30, // Telemetry retention window in days.
-      "dailyRollupsDays": 365, // Daily rollup retention window in days.
-      "monthlyRollupsDays": 1825, // Monthly rollup retention window in days.
-      "vacuumIntervalDays": 7 // Minimum days between VACUUM runs.
-    } // Retention setting.
+      "eventsDays": 0, // Raw event retention window in days. Use 0 to keep all.
+      "telemetryDays": 0, // Telemetry retention window in days. Use 0 to keep all.
+      "sessionsDays": 0, // Session retention window in days. Use 0 to keep all.
+      "dailyRollupsDays": 0, // Daily rollup retention window in days. Use 0 to keep all.
+      "monthlyRollupsDays": 0, // Monthly rollup retention window in days. Use 0 to keep all.
+      "vacuumIntervalDays": 0 // Minimum days between VACUUM runs. Use 0 to disable.
+    }, // Retention setting.
+    "lifetimeSummaries": {
+      "global": true, // Maintain global lifetime stats rows. Values: true | false
+      "anime": true, // Maintain per-anime lifetime stats rows. Values: true | false
+      "media": true // Maintain per-media lifetime stats rows. Values: true | false
+    } // Lifetime summaries setting.
   }, // Enable/disable immersion tracking.
 
   // ==========================================
@@ -514,6 +523,7 @@
   // ==========================================
   "stats": {
     "toggleKey": "Backquote", // Key code to toggle the stats overlay.
+    "markWatchedKey": "KeyW", // Key code to mark the current video as watched and advance to the next playlist entry.
     "serverPort": 6969, // Port for the stats HTTP server.
     "autoStartServer": true, // Automatically start the stats server on launch. Values: true | false
     "autoOpenBrowser": true // Automatically open the stats dashboard in a browser when the server starts. Values: true | false

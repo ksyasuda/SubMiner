@@ -30,13 +30,37 @@ The same immersion data powers the stats dashboard.
 - Maintenance command: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand.
 - Browser page: open `http://127.0.0.1:5175` directly if the local stats server is already running.
 
-Dashboard tabs:
+### Dashboard Tabs
 
-- Overview: recent sessions, streak calendar, watch-time history, and a tracking snapshot with completed episodes/anime totals
-- Library: cover-art library, per-series progress, episode drill-down, and direct links into mined cards
-- Trends: watch time, sessions, words seen, and per-anime progress/pattern charts
-- Sessions: expandable session history with new-word activity, cumulative totals, and pause/seek/card markers
-- Vocabulary: top repeated words (click a bar to open the word), new-word timeline, frequency rank table with full readings, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons
+#### Overview
+
+Recent sessions, streak calendar, watch-time history, and a tracking snapshot with completed episodes/anime totals.
+
+![Stats Overview](/screenshots/stats-overview.png)
+
+#### Library
+
+Cover-art library with search and sorting, per-series progress, episode drill-down, and direct links into mined cards.
+
+![Stats Library](/screenshots/stats-library.png)
+
+#### Trends
+
+Watch time, sessions, words seen, and per-anime progress/pattern charts with configurable date ranges and grouping.
+
+![Stats Trends](/screenshots/stats-trends.png)
+
+#### Sessions
+
+Expandable session history with new-word activity, cumulative totals, and pause/seek/card markers.
+
+![Stats Sessions](/screenshots/stats-sessions.png)
+
+#### Vocabulary
+
+Top repeated words (click a bar to open the word), new-word timeline, frequency rank table with full readings, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons.
+
+![Stats Vocabulary](/screenshots/stats-vocabulary.png)
 
 Stats server config lives under `stats`:
 
@@ -244,7 +268,7 @@ LIMIT ?;
 - Large-table reads are index-backed for `sample_ms`, session time windows, frequency-ranked words/kanji, and cover-art identity lookups.
 - Workload-dependent tuning knobs remain at defaults unless you change them: `cache_size`, `mmap_size`, `temp_store`, `auto_vacuum`.
 
-### Schema (v12)
+### Schema (v4)
 
 Core tables:
 

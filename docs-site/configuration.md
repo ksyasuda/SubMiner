@@ -733,6 +733,7 @@ Enable automatic Anki card creation and updates with media generation:
     "tags": ["SubMiner"],
     "deck": "Learning::Japanese",
     "fields": {
+      "word": "Expression",
       "audio": "ExpressionAudio",
       "image": "Picture",
       "sentence": "Sentence",
@@ -797,6 +798,7 @@ This example is intentionally compact. The option table below documents availabl
 | `tags`                                  | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                 |
 | `deck`                                  | string                                  | Anki deck to monitor for new cards                                                                                                            |
 | `ankiConnect.knownWords.decks`          | array of strings                        | Decks used for known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                                 |
+| `fields.word`                           | string                                  | Card field for mined word / expression text (default: `Expression`)                                                                            |
 | `fields.audio`                          | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                       |
 | `fields.image`                          | string                                  | Card field for images (default: `Picture`)                                                                                                    |
 | `fields.sentence`                       | string                                  | Card field for sentences (default: `Sentence`)                                                                                                |
