@@ -22,15 +22,54 @@
 
 ## What it does
 
-SubMiner is an Electron overlay that sits on top of mpv. It turns your video player into a full sentence-mining workstation:
+SubMiner is an Electron overlay that sits on top of mpv. It turns your video player into a full sentence-mining workstation — look up any word with Yomitan, mine it to Anki with one key, and track your immersion progress over time.
 
-- **Look up words as you watch** — Yomitan dictionary popups on hover or keyboard-driven token-by-token navigation
-- **One-key Anki mining** — Creates cards with sentence, audio, screenshot, and translation; optional local AnkiConnect proxy auto-enriches Yomitan cards instantly
-- **Reading annotations** — N+1 targeting, frequency-dictionary highlighting, JLPT underlining, and character name dictionary for anime/manga proper nouns
-- **Immersion stats** — Optional local dashboard and overlay for watch time, anime progress, session drill-down, vocabulary growth, mining throughput, and card mining directly from example sentences; exact lifetime totals are kept locally in SQLite by default
+## Features
+
+### Dictionary Lookups While You Watch
+
+Yomitan runs directly inside the overlay. Hover over any word in the subtitles or navigate with keyboard/controller to get full dictionary popups without pausing or switching windows.
+
+### One-Key Anki Mining
+
+Press a single key to send a word to Anki. SubMiner auto-fills the card with the sentence, audio clip, screenshot, and machine translation — all captured from the exact moment you looked it up.
+
+<div align="center">
+  <img src="docs-site/public/screenshots/yomitan-lookup.png" width="800" alt="One-key Anki card creation — Yomitan popup with dictionary entry and mine button over annotated subtitles">
+</div>
+
+### Reading Annotations
+
+Subtitles are annotated in real time with N+1 targeting, frequency-dictionary highlighting, JLPT level tags, and a character name dictionary for anime and manga proper nouns.
+
+<div align="center">
+  <img src="docs-site/public/screenshots/annotations.png" width="800" alt="Subtitle annotations with frequency highlighting, JLPT underlines, known words, N+1 targets, and character names">
+  <br/>
+  <img src="docs-site/public/screenshots/annotations-key.png" width="800" alt="Subtitle annotations with frequency highlighting, JLPT underlines, known words, N+1 targets, and character names">
+</div>
+
+### Immersion Dashboard
+
+A local stats dashboard tracks your watch time, anime progress, vocabulary growth, mining throughput, and session history. Drill down into individual sessions or browse your full library.
+
+<div align="center">
+  <img src="docs-site/public/screenshots/stats-overview.png" width="800" alt="Stats dashboard — overview with watch time, cards mined, streaks, and tracking snapshot">
+  <br /><br />
+  <img src="docs-site/public/screenshots/stats-vocabulary.png" width="800" alt="Vocabulary tab — unique words, known words, top repeated words, and unmined word list">
+  <br /><br />
+  <!-- <img src="docs-site/public/screenshots/stats-library.png" width="800" alt="Library tab — anime grid with episode counts and watch time"> -->
+</div>
+
+### External Integrations
+
+- **AniList** — Automatic episode progress tracking
+- **Jellyfin** — Remote playback, cast device mode
 - **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync
-- **Jellyfin & AniList integration** — Remote playback, cast device mode, and automatic episode progress tracking
-- **Texthooker & API** — Built-in texthooker page and annotated websocket feed for external clients
+- **Texthooker & API** — Custom texthooker page and annotated websocket feed for external clients
+
+<div align="center">
+  <img src="docs-site/public/screenshots/texthooker.png" width="800" alt="Texthooker page with annotated subtitle lines — known words, N+1 targets, character names, and frequency highlighting">
+</div>
 
 ## Quick start
 
@@ -55,10 +94,10 @@ makepkg -si
 **Linux (AppImage):**
 
 ```bash
-wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner.AppImage -O ~/.local/bin/SubMiner.AppImage
-chmod +x ~/.local/bin/SubMiner.AppImage
-wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer
-chmod +x ~/.local/bin/subminer
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner.AppImage -O ~/.local/bin/SubMiner.AppImage \
+	&& chmod +x ~/.local/bin/SubMiner.AppImage
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer \
+	&& chmod +x ~/.local/bin/subminer
 
 ```
 
@@ -69,7 +108,7 @@ chmod +x ~/.local/bin/subminer
 
 **Windows (Installer/ZIP):** download the latest `SubMiner-<version>.exe` installer or portable `.zip` from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Keep `mpv` installed and available on `PATH`.
 
-**From source** — initialize submodules first (`git submodule update --init --recursive`). Bundled Yomitan is built from the `vendor/subminer-yomitan` submodule into `build/yomitan` during `bun run build`, so source builds only need Bun for the JS toolchain. Packaged macOS and Windows installs do not require Bun. Windows installer builds go through `electron-builder`; its bundled `app-builder-lib` NSIS templates already use the third-party `WinShell` plugin for shortcut AppUserModelID assignment, and the `WinShell.dll` binary is supplied by electron-builder's cached `nsis-resources` bundle, so `bun run build:win` does not need a separate repo-local plugin install step. Full install guide: [docs.subminer.moe/installation#from-source](https://docs.subminer.moe/installation#from-source).
+**From source** — see [docs.subminer.moe/installation#from-source](https://docs.subminer.moe/installation#from-source).
 
 ### 2. Launch the app once
 

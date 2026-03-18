@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Superpowers brainstorming
+.superpowers/
+
 # Electron build output
 out/
 dist/
@@ -22,9 +25,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-**/CLAUDE.md
 environment.toml
-**/CLAUDE.md
 .env
 .vscode/*
 
