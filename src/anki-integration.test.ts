@@ -209,6 +209,27 @@ test('AnkiIntegration.refreshKnownWordCache deduplicates concurrent refreshes', 
   }
 });
 
+test('AnkiIntegration resolves merged-away note ids to the kept note id', () => {
+  const ctx = createIntegrationTestContext({
+    stateDirPrefix: 'subminer-anki-integration-note-redirect-',
+  });
+
+  try {
+    const integrationWithInternals = ctx.integration as unknown as {
+      rememberMergedNoteIds: (deletedNoteId: number, keptNoteId: number) => void;
+    };
+    integrationWithInternals.rememberMergedNoteIds(111, 222);
+    integrationWithInternals.rememberMergedNoteIds(222, 333);
+
+    assert.equal(ctx.integration.resolveCurrentNoteId(111), 333);
+    assert.equal(ctx.integration.resolveCurrentNoteId(222), 333);
+    assert.equal(ctx.integration.resolveCurrentNoteId(333), 333);
+    assert.equal(ctx.integration.resolveCurrentNoteId(444), 444);
+  } finally {
+    cleanupIntegrationTestContext(ctx);
+  }
+});
+
 test('AnkiIntegration does not allocate proxy server when proxy transport is disabled', () => {
   const integration = new AnkiIntegration(
     {

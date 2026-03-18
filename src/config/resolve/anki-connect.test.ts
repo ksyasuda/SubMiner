@@ -105,6 +105,36 @@ test('accepts valid proxy settings', () => {
   );
 });
 
+test('accepts configured ankiConnect.fields.word override', () => {
+  const { context, warnings } = makeContext({
+    fields: {
+      word: 'TargetWord',
+    },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.fields.word, 'TargetWord');
+  assert.equal(
+    warnings.some((warning) => warning.path === 'ankiConnect.fields.word'),
+    false,
+  );
+});
+
+test('maps legacy ankiConnect.wordField to modern ankiConnect.fields.word', () => {
+  const { context, warnings } = makeContext({
+    wordField: 'TargetWordLegacy',
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.fields.word, 'TargetWordLegacy');
+  assert.equal(
+    warnings.some((warning) => warning.path === 'ankiConnect.wordField'),
+    false,
+  );
+});
+
 test('warns and falls back for invalid proxy settings', () => {
   const { context, warnings } = makeContext({
     proxy: {

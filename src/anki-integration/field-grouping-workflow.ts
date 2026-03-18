@@ -1,4 +1,5 @@
 import { KikuDuplicateCardInfo, KikuFieldGroupingChoice } from '../types';
+import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 
 export interface FieldGroupingWorkflowNoteInfo {
   noteId: number;
@@ -13,6 +14,7 @@ export interface FieldGroupingWorkflowDeps {
   };
   getConfig: () => {
     fields?: {
+      word?: string;
       audio?: string;
       image?: string;
     };
@@ -48,6 +50,7 @@ export interface FieldGroupingWorkflowDeps {
   hasFieldValue: (noteInfo: FieldGroupingWorkflowNoteInfo, preferredFieldName?: string) => boolean;
   addConfiguredTagsToNote: (noteId: number) => Promise<void>;
   removeTrackedNoteId: (noteId: number) => void;
+  rememberMergedNoteIds: (deletedNoteId: number, keptNoteId: number) => void;
   showStatusNotification: (message: string) => void;
   showNotification: (noteId: number, label: string | number) => Promise<void>;
   showOsdNotification: (message: string) => void;
@@ -156,6 +159,7 @@ export class FieldGroupingWorkflow {
     if (deleteDuplicate) {
       await this.deps.client.deleteNotes([deleteNoteId]);
       this.deps.removeTrackedNoteId(deleteNoteId);
+      this.deps.rememberMergedNoteIds(deleteNoteId, keepNoteId);
     }
 
     this.deps.logInfo('Merged duplicate card:', expression, 'into note:', keepNoteId);
@@ -176,7 +180,8 @@ export class FieldGroupingWorkflow {
     const fields = this.deps.extractFields(noteInfo.fields);
     return {
       noteId: noteInfo.noteId,
-      expression: fields.expression || fields.word || fallbackExpression,
+      expression:
+        getPreferredWordValueFromExtractedFields(fields, this.deps.getConfig()) || fallbackExpression,
       sentencePreview: this.deps.truncateSentence(
         fields[(sentenceCardConfig.sentenceField || 'sentence').toLowerCase()] ||
           (isOriginal ? '' : this.deps.getCurrentSubtitleText() || ''),
@@ -191,7 +196,7 @@ export class FieldGroupingWorkflow {
 
   private getExpression(noteInfo: FieldGroupingWorkflowNoteInfo): string {
     const fields = this.deps.extractFields(noteInfo.fields);
-    return fields.expression || fields.word || '';
+    return getPreferredWordValueFromExtractedFields(fields, this.deps.getConfig());
   }
 
   private async resolveFieldGroupingCallback(): Promise<

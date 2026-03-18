@@ -31,6 +31,11 @@ import {
   NPlusOneMatchMode,
 } from './types';
 import { DEFAULT_ANKI_CONNECT_CONFIG } from './config';
+import {
+  getConfiguredWordFieldCandidates,
+  getConfiguredWordFieldName,
+  getPreferredWordValueFromExtractedFields,
+} from './anki-field-config';
 import { createLogger } from './logger';
 import {
   createUiFeedbackState,
@@ -138,6 +143,7 @@ export class AnkiIntegration {
   private runtime: AnkiIntegrationRuntime;
   private aiConfig: AiConfig;
   private recordCardsMinedCallback: ((count: number, noteIds?: number[]) => void) | null = null;
+  private noteIdRedirects = new Map<number, number>();
 
   constructor(
     config: AnkiConnectConfig,
@@ -337,6 +343,7 @@ export class AnkiIntegration {
   private createFieldGroupingService(): FieldGroupingService {
     return new FieldGroupingService({
       getEffectiveSentenceCardConfig: () => this.getEffectiveSentenceCardConfig(),
+      getConfig: () => this.config,
       isUpdateInProgress: () => this.updateInProgress,
       getDeck: () => this.config.deck,
       withUpdateProgress: <T>(initialMessage: string, action: () => Promise<T>) =>
@@ -450,6 +457,9 @@ export class AnkiIntegration {
       addConfiguredTagsToNote: (noteId) => this.addConfiguredTagsToNote(noteId),
       removeTrackedNoteId: (noteId) => {
         this.previousNoteIds.delete(noteId);
+      },
+      rememberMergedNoteIds: (deletedNoteId, keptNoteId) => {
+        this.rememberMergedNoteIds(deletedNoteId, keptNoteId);
       },
       showStatusNotification: (message) => this.showStatusNotification(message),
       showNotification: (noteId, label) => this.showNotification(noteId, label),
@@ -972,6 +982,7 @@ export class AnkiIntegration {
       findNotes: async (query, options) => (await this.client.findNotes(query, options)) as unknown,
       notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
       getDeck: () => this.config.deck,
+      getWordFieldCandidates: () => this.getConfiguredWordFieldCandidates(),
       resolveFieldName: (info, preferredName) => this.resolveNoteFieldName(info, preferredName),
       logInfo: (message) => {
         log.info(message);
@@ -995,6 +1006,18 @@ export class AnkiIntegration {
       this.resolveNoteFieldName(noteInfo, this.getPreferredSentenceAudioFieldName()) ||
       this.resolveConfiguredFieldName(noteInfo, this.config.fields?.audio)
     );
+  }
+
+  private getConfiguredWordFieldName(): string {
+    return getConfiguredWordFieldName(this.config);
+  }
+
+  private getConfiguredWordFieldCandidates(): string[] {
+    return getConfiguredWordFieldCandidates(this.config);
+  }
+
+  private getPreferredWordValue(fields: Record<string, string>): string {
+    return getPreferredWordValueFromExtractedFields(fields, this.config);
   }
 
   private async generateMediaForMerge(): Promise<{
@@ -1126,5 +1149,33 @@ export class AnkiIntegration {
     callback: ((count: number, noteIds?: number[]) => void) | null,
   ): void {
     this.recordCardsMinedCallback = callback;
+  }
+
+  resolveCurrentNoteId(noteId: number): number {
+    let resolved = noteId;
+    const seen = new Set<number>();
+    while (this.noteIdRedirects.has(resolved) && !seen.has(resolved)) {
+      seen.add(resolved);
+      resolved = this.noteIdRedirects.get(resolved)!;
+    }
+    return resolved;
+  }
+
+  private rememberMergedNoteIds(deletedNoteId: number, keptNoteId: number): void {
+    const resolvedKeepNoteId = this.resolveCurrentNoteId(keptNoteId);
+    const visited = new Set<number>([deletedNoteId]);
+    let current = deletedNoteId;
+
+    while (true) {
+      this.noteIdRedirects.set(current, resolvedKeepNoteId);
+      const next = Array.from(this.noteIdRedirects.entries()).find(
+        ([, targetNoteId]) => targetNoteId === current,
+      )?.[0];
+      if (next === undefined || visited.has(next)) {
+        break;
+      }
+      visited.add(next);
+      current = next;
+    }
   }
 }

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
+import { getConfiguredWordFieldName } from '../anki-field-config';
 import { AnkiConnectConfig } from '../types';
 import { createLogger } from '../logger';
 
@@ -240,7 +241,8 @@ export class KnownWordCacheManager {
       }
       if (allFields.size > 0) return [...allFields];
     }
-    return ['Expression', 'Word', 'Reading', 'Word Reading'];
+    const configuredWordField = getConfiguredWordFieldName(this.deps.getConfig());
+    return [...new Set([configuredWordField, 'Word', 'Reading', 'Word Reading'])];
   }
 
   private buildKnownWordsQuery(): string {

@@ -221,6 +221,7 @@ export interface AnkiConnectConfig {
   };
   tags?: string[];
   fields?: {
+    word?: string;
     audio?: string;
     image?: string;
     sentence?: string;
@@ -722,6 +723,7 @@ export interface ResolvedConfig {
     };
     tags: string[];
     fields: {
+      word: string;
       audio: string;
       image: string;
       sentence: string;

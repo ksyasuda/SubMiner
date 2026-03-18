@@ -14,6 +14,7 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
   const metadata = isObject(ac.metadata) ? (ac.metadata as Record<string, unknown>) : {};
   const proxy = isObject(ac.proxy) ? (ac.proxy as Record<string, unknown>) : {};
   const legacyKeys = new Set([
+    'wordField',
     'audioField',
     'imageField',
     'sentenceField',
@@ -356,6 +357,17 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
         context.resolved.ankiConnect.fields.audio = value;
       },
       context.resolved.ankiConnect.fields.audio,
+      'Expected string.',
+    );
+  }
+  if (!hasOwn(fields, 'word')) {
+    mapLegacy(
+      'wordField',
+      asString,
+      (value) => {
+        context.resolved.ankiConnect.fields.word = value;
+      },
+      context.resolved.ankiConnect.fields.word,
       'Expected string.',
     );
   }
@@ -833,7 +845,12 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
       DEFAULT_CONFIG.ankiConnect.knownWords.matchMode;
   }
 
-  const DEFAULT_FIELDS = ['Expression', 'Word', 'Reading', 'Word Reading'];
+  const DEFAULT_FIELDS = [
+    DEFAULT_CONFIG.ankiConnect.fields.word,
+    'Word',
+    'Reading',
+    'Word Reading',
+  ];
   const knownWordsDecks = knownWordsConfig.decks;
   const legacyNPlusOneDecks = nPlusOneConfig.decks;
   if (isObject(knownWordsDecks)) {

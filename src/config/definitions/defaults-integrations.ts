@@ -23,6 +23,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     },
     tags: ['SubMiner'],
     fields: {
+      word: 'Expression',
       audio: 'ExpressionAudio',
       image: 'Picture',
       sentence: 'Sentence',

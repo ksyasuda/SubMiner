@@ -1,4 +1,5 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
+import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 
 export interface NoteUpdateWorkflowNoteInfo {
   noteId: number;
@@ -13,6 +14,7 @@ export interface NoteUpdateWorkflowDeps {
   };
   getConfig: () => {
     fields?: {
+      word?: string;
       sentence?: string;
       image?: string;
       miscInfo?: string;
@@ -90,8 +92,9 @@ export class NoteUpdateWorkflow {
       const noteInfo = notesInfo[0]!;
       this.deps.appendKnownWordsFromNoteInfo(noteInfo);
       const fields = this.deps.extractFields(noteInfo.fields);
+      const config = this.deps.getConfig();
 
-      const expressionText = (fields.expression || fields.word || '').trim();
+      const expressionText = getPreferredWordValueFromExtractedFields(fields, config).trim();
       const hasExpressionText = expressionText.length > 0;
       if (!hasExpressionText) {
         // Some note types omit Expression/Word; still run enrichment updates and skip duplicate checks.
@@ -122,8 +125,6 @@ export class NoteUpdateWorkflow {
         updatedFields[sentenceField] = processedSentence;
         updatePerformed = true;
       }
-
-      const config = this.deps.getConfig();
 
       if (config.media?.generateAudio) {
         try {

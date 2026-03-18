@@ -24,6 +24,7 @@ function createWorkflowHarness() {
   const updates: Array<{ noteId: number; fields: Record<string, string> }> = [];
   const deleted: number[][] = [];
   const statuses: string[] = [];
+  const rememberedMerges: Array<{ deletedNoteId: number; keptNoteId: number }> = [];
   const mergeCalls: Array<{
     keepNoteId: number;
     deleteNoteId: number;
@@ -99,6 +100,9 @@ function createWorkflowHarness() {
     hasFieldValue: (_noteInfo: NoteInfo, _field?: string) => false,
     addConfiguredTagsToNote: async () => undefined,
     removeTrackedNoteId: () => undefined,
+    rememberMergedNoteIds: (deletedNoteId: number, keptNoteId: number) => {
+      rememberedMerges.push({ deletedNoteId, keptNoteId });
+    },
     showStatusNotification: (message: string) => {
       statuses.push(message);
     },
@@ -113,6 +117,7 @@ function createWorkflowHarness() {
     workflow: new FieldGroupingWorkflow(deps),
     updates,
     deleted,
+    rememberedMerges,
     statuses,
     mergeCalls,
     setManualChoice: (choice: typeof manualChoice) => {
@@ -136,6 +141,7 @@ test('FieldGroupingWorkflow auto merge updates keep note and deletes duplicate b
   assert.equal(harness.updates.length, 1);
   assert.equal(harness.updates[0]?.noteId, 1);
   assert.deepEqual(harness.deleted, [[2]]);
+  assert.deepEqual(harness.rememberedMerges, [{ deletedNoteId: 2, keptNoteId: 1 }]);
   assert.equal(harness.statuses.length, 1);
 });
 

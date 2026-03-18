@@ -11,6 +11,7 @@ export interface DuplicateDetectionDeps {
   findNotes: (query: string, options?: { maxRetries?: number }) => Promise<unknown>;
   notesInfo: (noteIds: number[]) => Promise<unknown>;
   getDeck: () => string | null | undefined;
+  getWordFieldCandidates?: () => string[];
   resolveFieldName: (noteInfo: NoteInfo, preferredName: string) => string | null;
   logInfo?: (message: string) => void;
   logDebug?: (message: string) => void;
@@ -23,7 +24,12 @@ export async function findDuplicateNote(
   noteInfo: NoteInfo,
   deps: DuplicateDetectionDeps,
 ): Promise<number | null> {
-  const sourceCandidates = getDuplicateSourceCandidates(noteInfo, expression);
+  const configuredWordFieldCandidates = deps.getWordFieldCandidates?.() ?? ['Expression', 'Word'];
+  const sourceCandidates = getDuplicateSourceCandidates(
+    noteInfo,
+    expression,
+    configuredWordFieldCandidates,
+  );
   if (sourceCandidates.length === 0) return null;
   deps.logInfo?.(
     `[duplicate] start expr="${expression}" sourceCandidates=${sourceCandidates
@@ -81,6 +87,7 @@ export async function findDuplicateNote(
       noteIds,
       excludeNoteId,
       sourceCandidates.map((candidate) => candidate.value),
+      configuredWordFieldCandidates,
       deps,
     );
   } catch (error) {
@@ -93,6 +100,7 @@ function findFirstExactDuplicateNoteId(
   candidateNoteIds: Iterable<number>,
   excludeNoteId: number,
   sourceValues: string[],
+  candidateFieldNames: string[],
   deps: DuplicateDetectionDeps,
 ): Promise<number | null> {
   const candidates = Array.from(candidateNoteIds).filter((id) => id !== excludeNoteId);
@@ -116,7 +124,6 @@ function findFirstExactDuplicateNoteId(
       const notesInfoResult = (await deps.notesInfo(chunk)) as unknown[];
       const notesInfo = notesInfoResult as NoteInfo[];
       for (const noteInfo of notesInfo) {
-        const candidateFieldNames = ['word', 'expression'];
         for (const candidateFieldName of candidateFieldNames) {
           const resolvedField = deps.resolveFieldName(noteInfo, candidateFieldName);
           if (!resolvedField) continue;
@@ -150,13 +157,15 @@ function getDuplicateCandidateFieldNames(fieldName: string): string[] {
 function getDuplicateSourceCandidates(
   noteInfo: NoteInfo,
   fallbackExpression: string,
+  configuredFieldNames: string[],
 ): Array<{ fieldName: string; value: string }> {
   const candidates: Array<{ fieldName: string; value: string }> = [];
   const dedupeKey = new Set<string>();
+  const configuredFieldNameSet = new Set(configuredFieldNames.map((name) => name.toLowerCase()));
 
   for (const fieldName of Object.keys(noteInfo.fields)) {
     const lower = fieldName.toLowerCase();
-    if (lower !== 'word' && lower !== 'expression') continue;
+    if (!configuredFieldNameSet.has(lower)) continue;
     const value = noteInfo.fields[fieldName]?.value?.trim() ?? '';
     if (!value) continue;
     const key = `${lower}:${normalizeDuplicateValue(value)}`;
@@ -167,9 +176,10 @@ function getDuplicateSourceCandidates(
 
   const trimmedFallback = fallbackExpression.trim();
   if (trimmedFallback.length > 0) {
-    const fallbackKey = `expression:${normalizeDuplicateValue(trimmedFallback)}`;
+    const fallbackFieldName = configuredFieldNames[0]?.toLowerCase() || 'expression';
+    const fallbackKey = `${fallbackFieldName}:${normalizeDuplicateValue(trimmedFallback)}`;
     if (!dedupeKey.has(fallbackKey)) {
-      candidates.push({ fieldName: 'expression', value: trimmedFallback });
+      candidates.push({ fieldName: configuredFieldNames[0] || 'Expression', value: trimmedFallback });
     }
   }
 

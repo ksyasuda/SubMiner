@@ -2598,6 +2598,7 @@ const ensureStatsServerStarted = (): string => {
       knownWordCachePath: path.join(USER_DATA_PATH, 'known-words-cache.json'),
       mpvSocketPath: appState.mpvSocketPath,
       ankiConnectConfig: getResolvedConfig().ankiConnect,
+      resolveAnkiNoteId: (noteId: number) => appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
       addYomitanNote: async (word: string) => {
         const ankiUrl = getResolvedConfig().ankiConnect.url || 'http://127.0.0.1:8765';
         await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {

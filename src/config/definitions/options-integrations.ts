@@ -52,6 +52,12 @@ export function buildIntegrationConfigOptionRegistry(
         'Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.',
     },
     {
+      path: 'ankiConnect.fields.word',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.fields.word,
+      description: 'Card field for the mined word or expression text.',
+    },
+    {
       path: 'ankiConnect.ai.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.ai.enabled,

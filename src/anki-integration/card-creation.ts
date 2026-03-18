@@ -1,4 +1,8 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
+import {
+  getConfiguredWordFieldName,
+  getPreferredWordValueFromExtractedFields,
+} from '../anki-field-config';
 import { AiConfig, AnkiConnectConfig } from '../types';
 import { createLogger } from '../logger';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
@@ -201,7 +205,10 @@ export class CardCreationService {
 
         const noteInfo = notesInfoResult[0]!;
         const fields = this.deps.extractFields(noteInfo.fields);
-        const expressionText = fields.expression || fields.word || '';
+        const expressionText = getPreferredWordValueFromExtractedFields(
+          fields,
+          this.deps.getConfig(),
+        );
         const sentenceAudioField = this.getResolvedSentenceAudioFieldName(noteInfo);
         const sentenceField = this.deps.getEffectiveSentenceCardConfig().sentenceField;
 
@@ -368,7 +375,10 @@ export class CardCreationService {
 
         const noteInfo = notesInfoResult[0]!;
         const fields = this.deps.extractFields(noteInfo.fields);
-        const expressionText = fields.expression || fields.word || '';
+        const expressionText = getPreferredWordValueFromExtractedFields(
+          fields,
+          this.deps.getConfig(),
+        );
 
         const updatedFields: Record<string, string> = {};
         const errors: string[] = [];
@@ -519,7 +529,7 @@ export class CardCreationService {
 
         if (sentenceCardConfig.lapisEnabled || sentenceCardConfig.kikuEnabled) {
           fields.IsSentenceCard = 'x';
-          fields.Expression = sentence;
+          fields[getConfiguredWordFieldName(this.deps.getConfig())] = sentence;
         }
 
         const deck = this.deps.getConfig().deck || 'Default';
