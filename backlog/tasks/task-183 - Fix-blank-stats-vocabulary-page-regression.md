@@ -2,10 +2,11 @@
 id: TASK-183
 title: Fix blank stats vocabulary page regression
 status: Done
+milestone: m-1
 assignee:
   - codex
 created_date: '2026-03-17 16:23'
-updated_date: '2026-03-17 16:29'
+updated_date: '2026-03-18 05:28'
 labels: []
 dependencies: []
 references:
@@ -13,6 +14,7 @@ references:
     /Users/sudacode/projects/japanese/SubMiner/stats/src/components/vocabulary/VocabularyTab.tsx
   - /Users/sudacode/projects/japanese/SubMiner/stats/src/App.tsx
   - /Users/sudacode/projects/japanese/SubMiner/stats/src/lib/api-client.ts
+ordinal: 108500
 ---
 
 ## Description
