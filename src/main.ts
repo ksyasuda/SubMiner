@@ -129,6 +129,7 @@ import {
   openAnilistSetupInBrowser,
   rememberAnilistAttemptedUpdateKey,
 } from './main/runtime/domains/anilist';
+import { DEFAULT_MIN_WATCH_RATIO } from './shared/watch-threshold';
 import {
   createApplyJellyfinMpvDefaultsHandler,
   createBuildApplyJellyfinMpvDefaultsMainDepsHandler,
@@ -452,7 +453,6 @@ const ANILIST_SETUP_RESPONSE_TYPE = 'token';
 const ANILIST_DEFAULT_CLIENT_ID = '36084';
 const ANILIST_REDIRECT_URI = 'https://anilist.subminer.moe/';
 const ANILIST_DEVELOPER_SETTINGS_URL = 'https://anilist.co/settings/developer';
-const ANILIST_UPDATE_MIN_WATCH_RATIO = 0.85;
 const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
@@ -2365,7 +2365,7 @@ const {
     logInfo: (message) => logger.info(message),
     logWarn: (message) => logger.warn(message),
     minWatchSeconds: ANILIST_UPDATE_MIN_WATCH_SECONDS,
-    minWatchRatio: ANILIST_UPDATE_MIN_WATCH_RATIO,
+    minWatchRatio: DEFAULT_MIN_WATCH_RATIO,
   },
 });
 
