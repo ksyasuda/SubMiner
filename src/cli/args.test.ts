@@ -157,6 +157,26 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(hasExplicitCommand(stats), true);
   assert.equal(shouldStartApp(stats), true);
 
+  const statsBackground = parseArgs(['--stats', '--stats-background']) as typeof stats & {
+    statsBackground?: boolean;
+    statsStop?: boolean;
+  };
+  assert.equal(statsBackground.stats, true);
+  assert.equal(statsBackground.statsBackground, true);
+  assert.equal(statsBackground.statsStop, false);
+  assert.equal(hasExplicitCommand(statsBackground), true);
+  assert.equal(shouldStartApp(statsBackground), true);
+
+  const statsStop = parseArgs(['--stats', '--stats-stop']) as typeof stats & {
+    statsBackground?: boolean;
+    statsStop?: boolean;
+  };
+  assert.equal(statsStop.stats, true);
+  assert.equal(statsStop.statsStop, true);
+  assert.equal(statsStop.statsBackground, false);
+  assert.equal(hasExplicitCommand(statsStop), true);
+  assert.equal(shouldStartApp(statsStop), true);
+
   const statsLifetimeRebuild = parseArgs([
     '--stats',
     '--stats-cleanup',

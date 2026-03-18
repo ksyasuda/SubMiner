@@ -159,6 +159,36 @@ test('stats command launches attached app command with response path', async () 
   ]);
 });
 
+test('stats background command launches detached app command with response path', async () => {
+  const context = createContext();
+  context.args.stats = true;
+  (context.args as typeof context.args & { statsBackground?: boolean }).statsBackground = true;
+  const forwarded: string[][] = [];
+
+  const handled = await runStatsCommand(context, {
+    createTempDir: () => '/tmp/subminer-stats-test',
+    joinPath: (...parts) => parts.join('/'),
+    runAppCommandAttached: async () => {
+      throw new Error('attached path should not run for stats -b');
+    },
+    launchAppCommandDetached: (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+    },
+    waitForStatsResponse: async () => ({ ok: true, url: 'http://127.0.0.1:5175' }),
+    removeDir: () => {},
+  } as Parameters<typeof runStatsCommand>[1]);
+
+  assert.equal(handled, true);
+  assert.deepEqual(forwarded, [
+    [
+      '--stats',
+      '--stats-response-path',
+      '/tmp/subminer-stats-test/response.json',
+      '--stats-background',
+    ],
+  ]);
+});
+
 test('stats command returns after startup response even if app process stays running', async () => {
   const context = createContext();
   context.args.stats = true;
@@ -185,11 +215,7 @@ test('stats command returns after startup response even if app process stays run
   const final = await statsCommand;
   assert.equal(final, true);
   assert.deepEqual(forwarded, [
-    [
-      '--stats',
-      '--stats-response-path',
-      '/tmp/subminer-stats-test/response.json',
-    ],
+    ['--stats', '--stats-response-path', '/tmp/subminer-stats-test/response.json'],
   ]);
 });
 
@@ -221,6 +247,50 @@ test('stats cleanup command forwards cleanup vocab flags to the app', async () =
       '--stats-cleanup-vocab',
     ],
   ]);
+});
+
+test('stats stop command forwards stop flag to the app', async () => {
+  const context = createContext();
+  context.args.stats = true;
+  (context.args as typeof context.args & { statsStop?: boolean }).statsStop = true;
+  const forwarded: string[][] = [];
+
+  const handled = await runStatsCommand(context, {
+    createTempDir: () => '/tmp/subminer-stats-test',
+    joinPath: (...parts) => parts.join('/'),
+    runAppCommandAttached: async (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+      return 0;
+    },
+    waitForStatsResponse: async () => ({ ok: true }),
+    removeDir: () => {},
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(forwarded, [
+    ['--stats', '--stats-response-path', '/tmp/subminer-stats-test/response.json', '--stats-stop'],
+  ]);
+});
+
+test('stats stop command exits on process exit without waiting for startup response', async () => {
+  const context = createContext();
+  context.args.stats = true;
+  (context.args as typeof context.args & { statsStop?: boolean }).statsStop = true;
+  let waitedForResponse = false;
+
+  const handled = await runStatsCommand(context, {
+    createTempDir: () => '/tmp/subminer-stats-test',
+    joinPath: (...parts) => parts.join('/'),
+    runAppCommandAttached: async () => 0,
+    waitForStatsResponse: async () => {
+      waitedForResponse = true;
+      return { ok: true };
+    },
+    removeDir: () => {},
+  });
+
+  assert.equal(handled, true);
+  assert.equal(waitedForResponse, false);
 });
 
 test('stats cleanup command forwards lifetime rebuild flag to the app', async () => {

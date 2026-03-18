@@ -123,6 +123,8 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     jellyfinDiscovery: false,
     dictionary: false,
     stats: false,
+    statsBackground: false,
+    statsStop: false,
     statsCleanup: false,
     statsCleanupVocab: false,
     statsCleanupLifetime: false,
@@ -193,6 +195,8 @@ export function applyRootOptionsToArgs(
 export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations): void {
   if (invocations.dictionaryTriggered) parsed.dictionary = true;
   if (invocations.statsTriggered) parsed.stats = true;
+  if (invocations.statsBackground) parsed.statsBackground = true;
+  if (invocations.statsStop) parsed.statsStop = true;
   if (invocations.statsCleanup) parsed.statsCleanup = true;
   if (invocations.statsCleanupVocab) parsed.statsCleanupVocab = true;
   if (invocations.statsCleanupLifetime) parsed.statsCleanupLifetime = true;

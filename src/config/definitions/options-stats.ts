@@ -12,6 +12,12 @@ export function buildStatsConfigOptionRegistry(
       description: 'Key code to toggle the stats overlay.',
     },
     {
+      path: 'stats.markWatchedKey',
+      kind: 'string',
+      defaultValue: defaultConfig.stats.markWatchedKey,
+      description: 'Key code to mark the current video as watched and advance to the next playlist entry.',
+    },
+    {
       path: 'stats.serverPort',
       kind: 'number',
       defaultValue: defaultConfig.stats.serverPort,

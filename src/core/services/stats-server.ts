@@ -17,6 +17,41 @@ function parseIntQuery(raw: string | undefined, fallback: number, maxLimit?: num
   return maxLimit === undefined ? parsed : Math.min(parsed, maxLimit);
 }
 
+function parseTrendRange(raw: string | undefined): '7d' | '30d' | '90d' | 'all' {
+  return raw === '7d' || raw === '30d' || raw === '90d' || raw === 'all' ? raw : '30d';
+}
+
+function parseTrendGroupBy(raw: string | undefined): 'day' | 'month' {
+  return raw === 'month' ? 'month' : 'day';
+}
+
+/** Load known words cache from disk into a Set. Returns null if unavailable. */
+function loadKnownWordsSet(cachePath: string | undefined): Set<string> | null {
+  if (!cachePath || !existsSync(cachePath)) return null;
+  try {
+    const raw = JSON.parse(readFileSync(cachePath, 'utf-8')) as {
+      version?: number;
+      words?: string[];
+    };
+    if (raw.version === 1 && Array.isArray(raw.words)) return new Set(raw.words);
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** Count how many headwords in the given list are in the known words set. */
+function countKnownWords(
+  headwords: string[],
+  knownWordsSet: Set<string>,
+): { totalUniqueWords: number; knownWordCount: number } {
+  let knownWordCount = 0;
+  for (const hw of headwords) {
+    if (knownWordsSet.has(hw)) knownWordCount++;
+  }
+  return { totalUniqueWords: headwords.length, knownWordCount };
+}
+
 export interface StatsServerConfig {
   port: number;
   staticDir: string; // Path to stats/dist/
@@ -139,6 +174,12 @@ export function createStatsApp(
     return c.json(await tracker.getWatchTimePerAnime(limit));
   });
 
+  app.get('/api/stats/trends/dashboard', async (c) => {
+    const range = parseTrendRange(c.req.query('range'));
+    const groupBy = parseTrendGroupBy(c.req.query('groupBy'));
+    return c.json(await tracker.getTrendsDashboard(range, groupBy));
+  });
+
   app.get('/api/stats/sessions', async (c) => {
     const limit = parseIntQuery(c.req.query('limit'), 50, 500);
     const sessions = await tracker.getSessionSummaries(limit);
@@ -159,6 +200,42 @@ export function createStatsApp(
     const limit = parseIntQuery(c.req.query('limit'), 500, 1000);
     const events = await tracker.getSessionEvents(id, limit);
     return c.json(events);
+  });
+
+  app.get('/api/stats/sessions/:id/known-words-timeline', async (c) => {
+    const id = parseIntQuery(c.req.param('id'), 0);
+    if (id <= 0) return c.json([], 400);
+
+    const knownWordsSet = loadKnownWordsSet(options?.knownWordCachePath);
+    if (!knownWordsSet) return c.json([]);
+
+    // Get per-line word occurrences for the session.
+    const wordsByLine = await tracker.getSessionWordsByLine(id);
+
+    // Build cumulative known-word occurrence count per recorded line index.
+    // The stats UI uses line-count progress to align this series with the session
+    // timeline, so preserve the stored line position rather than compressing gaps.
+    const lineGroups = new Map<number, number>();
+    for (const row of wordsByLine) {
+      if (!knownWordsSet.has(row.headword)) {
+        continue;
+      }
+      lineGroups.set(row.lineIndex, (lineGroups.get(row.lineIndex) ?? 0) + row.occurrenceCount);
+    }
+
+    const sortedLineIndices = [...lineGroups.keys()].sort((a, b) => a - b);
+    let knownWordsSeen = 0;
+    const knownByLinesSeen: Array<{ linesSeen: number; knownWordsSeen: number }> = [];
+
+    for (const lineIdx of sortedLineIndices) {
+      knownWordsSeen += lineGroups.get(lineIdx)!;
+      knownByLinesSeen.push({
+        linesSeen: lineIdx,
+        knownWordsSeen,
+      });
+    }
+
+    return c.json(knownByLinesSeen);
   });
 
   app.get('/api/stats/vocabulary', async (c) => {
@@ -274,6 +351,16 @@ export function createStatsApp(
     return c.json({ ok: true });
   });
 
+  app.delete('/api/stats/sessions', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const ids = Array.isArray(body?.sessionIds)
+      ? body.sessionIds.filter((id: unknown) => typeof id === 'number' && id > 0)
+      : [];
+    if (ids.length === 0) return c.body(null, 400);
+    await tracker.deleteSessions(ids);
+    return c.json({ ok: true });
+  });
+
   app.delete('/api/stats/sessions/:sessionId', async (c) => {
     const sessionId = parseIntQuery(c.req.param('sessionId'), 0);
     if (sessionId <= 0) return c.body(null, 400);
@@ -320,18 +407,34 @@ export function createStatsApp(
   });
 
   app.get('/api/stats/known-words', (c) => {
-    const cachePath = options?.knownWordCachePath;
-    if (!cachePath || !existsSync(cachePath)) return c.json([]);
-    try {
-      const raw = JSON.parse(readFileSync(cachePath, 'utf-8')) as {
-        version?: number;
-        words?: string[];
-      };
-      if (raw.version === 1 && Array.isArray(raw.words)) return c.json(raw.words);
-    } catch {
-      /* ignore */
-    }
-    return c.json([]);
+    const knownWordsSet = loadKnownWordsSet(options?.knownWordCachePath);
+    if (!knownWordsSet) return c.json([]);
+    return c.json([...knownWordsSet]);
+  });
+
+  app.get('/api/stats/known-words-summary', async (c) => {
+    const knownWordsSet = loadKnownWordsSet(options?.knownWordCachePath);
+    if (!knownWordsSet) return c.json({ totalUniqueWords: 0, knownWordCount: 0 });
+    const headwords = await tracker.getAllDistinctHeadwords();
+    return c.json(countKnownWords(headwords, knownWordsSet));
+  });
+
+  app.get('/api/stats/anime/:animeId/known-words-summary', async (c) => {
+    const animeId = parseIntQuery(c.req.param('animeId'), 0);
+    if (animeId <= 0) return c.json({ totalUniqueWords: 0, knownWordCount: 0 }, 400);
+    const knownWordsSet = loadKnownWordsSet(options?.knownWordCachePath);
+    if (!knownWordsSet) return c.json({ totalUniqueWords: 0, knownWordCount: 0 });
+    const headwords = await tracker.getAnimeDistinctHeadwords(animeId);
+    return c.json(countKnownWords(headwords, knownWordsSet));
+  });
+
+  app.get('/api/stats/media/:videoId/known-words-summary', async (c) => {
+    const videoId = parseIntQuery(c.req.param('videoId'), 0);
+    if (videoId <= 0) return c.json({ totalUniqueWords: 0, knownWordCount: 0 }, 400);
+    const knownWordsSet = loadKnownWordsSet(options?.knownWordCachePath);
+    if (!knownWordsSet) return c.json({ totalUniqueWords: 0, knownWordCount: 0 });
+    const headwords = await tracker.getMediaDistinctHeadwords(videoId);
+    return c.json(countKnownWords(headwords, knownWordsSet));
   });
 
   app.patch('/api/stats/anime/:animeId/anilist', async (c) => {

@@ -41,6 +41,8 @@ export interface CliInvocations {
   dictionaryTarget: string | null;
   dictionaryLogLevel: string | null;
   statsTriggered: boolean;
+  statsBackground: boolean;
+  statsStop: boolean;
   statsCleanup: boolean;
   statsCleanupVocab: boolean;
   statsCleanupLifetime: boolean;
@@ -144,6 +146,8 @@ export function parseCliPrograms(
   let dictionaryTarget: string | null = null;
   let dictionaryLogLevel: string | null = null;
   let statsTriggered = false;
+  let statsBackground = false;
+  let statsStop = false;
   let statsCleanup = false;
   let statsCleanupVocab = false;
   let statsCleanupLifetime = false;
@@ -256,12 +260,22 @@ export function parseCliPrograms(
     .command('stats')
     .description('Launch the local immersion stats dashboard')
     .argument('[action]', 'cleanup|rebuild|backfill')
+    .option('-b, --background', 'Start the stats server in the background')
+    .option('-s, --stop', 'Stop the background stats server')
     .option('-v, --vocab', 'Clean vocabulary rows in the stats database')
     .option('-l, --lifetime', 'Rebuild lifetime summary rows from retained data')
     .option('--log-level <level>', 'Log level')
     .action((action: string | undefined, options: Record<string, unknown>) => {
       statsTriggered = true;
       const normalizedAction = (action || '').toLowerCase();
+      statsBackground = options.background === true;
+      statsStop = options.stop === true;
+      if (statsBackground && statsStop) {
+        throw new Error('Stats background and stop flags cannot be combined.');
+      }
+      if (normalizedAction && (statsBackground || statsStop)) {
+        throw new Error('Stats background and stop flags cannot be combined with stats actions.');
+      }
       if (normalizedAction === 'cleanup') {
         statsCleanup = true;
         statsCleanupLifetime = options.lifetime === true;
@@ -353,6 +367,8 @@ export function parseCliPrograms(
       dictionaryTarget,
       dictionaryLogLevel,
       statsTriggered,
+      statsBackground,
+      statsStop,
       statsCleanup,
       statsCleanupVocab,
       statsCleanupLifetime,

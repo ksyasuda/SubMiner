@@ -112,6 +112,8 @@ export interface Args {
   jellyfinDiscovery: boolean;
   dictionary: boolean;
   stats: boolean;
+  statsBackground?: boolean;
+  statsStop?: boolean;
   statsCleanup?: boolean;
   statsCleanupVocab?: boolean;
   statsCleanupLifetime?: boolean;

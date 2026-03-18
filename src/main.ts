@@ -334,6 +334,13 @@ import {
   createRunStatsCliCommandHandler,
   writeStatsCliCommandResponse,
 } from './main/runtime/stats-cli-command';
+import {
+  isBackgroundStatsServerProcessAlive,
+  readBackgroundStatsServerState,
+  removeBackgroundStatsServerState,
+  resolveBackgroundStatsServerUrl,
+  writeBackgroundStatsServerState,
+} from './main/runtime/stats-daemon';
 import { resolveLegacyVocabularyPosFromTokens } from './core/services/immersion-tracker/legacy-vocabulary-pos';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import {
@@ -366,6 +373,7 @@ import { createAppLifecycleRuntimeRunner } from './main/startup-lifecycle';
 import {
   registerSecondInstanceHandlerEarly,
   requestSingleInstanceLockEarly,
+  shouldBypassSingleInstanceLockForArgv,
 } from './main/early-single-instance';
 import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
@@ -600,7 +608,10 @@ const appLogger = {
 };
 const runtimeRegistry = createMainRuntimeRegistry();
 const appLifecycleApp = {
-  requestSingleInstanceLock: () => requestSingleInstanceLockEarly(app),
+  requestSingleInstanceLock: () =>
+    shouldBypassSingleInstanceLockForArgv(process.argv)
+      ? true
+      : requestSingleInstanceLockEarly(app),
   quit: () => app.quit(),
   on: (event: string, listener: (...args: unknown[]) => void) => {
     if (event === 'second-instance') {
@@ -633,6 +644,35 @@ app.setPath('userData', USER_DATA_PATH);
 
 let forceQuitTimer: ReturnType<typeof setTimeout> | null = null;
 let statsServer: ReturnType<typeof startStatsServer> | null = null;
+const statsDaemonStatePath = path.join(USER_DATA_PATH, 'stats-daemon.json');
+
+function readLiveBackgroundStatsDaemonState(): {
+  pid: number;
+  port: number;
+  startedAtMs: number;
+} | null {
+  const state = readBackgroundStatsServerState(statsDaemonStatePath);
+  if (!state) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+    return null;
+  }
+  if (state.pid === process.pid && !statsServer) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+    return null;
+  }
+  if (!isBackgroundStatsServerProcessAlive(state.pid)) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+    return null;
+  }
+  return state;
+}
+
+function clearOwnedBackgroundStatsDaemonState(): void {
+  const state = readBackgroundStatsServerState(statsDaemonStatePath);
+  if (state?.pid === process.pid) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+  }
+}
 
 function stopStatsServer(): void {
   if (!statsServer) {
@@ -640,6 +680,7 @@ function stopStatsServer(): void {
   }
   statsServer.close();
   statsServer = null;
+  clearOwnedBackgroundStatsDaemonState();
 }
 
 function requestAppQuit(): void {
@@ -2524,6 +2565,10 @@ const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
 const statsPreloadPath = path.join(__dirname, 'preload-stats.js');
 
 const ensureStatsServerStarted = (): string => {
+  const liveDaemon = readLiveBackgroundStatsDaemonState();
+  if (liveDaemon && liveDaemon.pid !== process.pid) {
+    return resolveBackgroundStatsServerUrl(liveDaemon);
+  }
   const tracker = appState.immersionTracker;
   if (!tracker) {
     throw new Error('Immersion tracker failed to initialize.');
@@ -2565,6 +2610,73 @@ const ensureStatsServerStarted = (): string => {
   }
   appState.statsServer = statsServer;
   return `http://127.0.0.1:${getResolvedConfig().stats.serverPort}`;
+};
+
+const ensureBackgroundStatsServerStarted = (): {
+  url: string;
+  runningInCurrentProcess: boolean;
+} => {
+  const liveDaemon = readLiveBackgroundStatsDaemonState();
+  if (liveDaemon && liveDaemon.pid !== process.pid) {
+    return {
+      url: resolveBackgroundStatsServerUrl(liveDaemon),
+      runningInCurrentProcess: false,
+    };
+  }
+
+  appState.statsStartupInProgress = true;
+  try {
+    ensureImmersionTrackerStarted();
+  } finally {
+    appState.statsStartupInProgress = false;
+  }
+
+  const port = getResolvedConfig().stats.serverPort;
+  const url = ensureStatsServerStarted();
+  writeBackgroundStatsServerState(statsDaemonStatePath, {
+    pid: process.pid,
+    port,
+    startedAtMs: Date.now(),
+  });
+  return { url, runningInCurrentProcess: true };
+};
+
+const stopBackgroundStatsServer = async (): Promise<{ ok: boolean; stale: boolean }> => {
+  const state = readBackgroundStatsServerState(statsDaemonStatePath);
+  if (!state) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+    return { ok: true, stale: true };
+  }
+  if (!isBackgroundStatsServerProcessAlive(state.pid)) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+    return { ok: true, stale: true };
+  }
+
+  try {
+    process.kill(state.pid, 'SIGTERM');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ESRCH') {
+      removeBackgroundStatsServerState(statsDaemonStatePath);
+      return { ok: true, stale: true };
+    }
+    if ((error as NodeJS.ErrnoException)?.code === 'EPERM') {
+      throw new Error(
+        `Insufficient permissions to stop background stats server (pid ${state.pid}).`,
+      );
+    }
+    throw error;
+  }
+
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    if (!isBackgroundStatsServerProcessAlive(state.pid)) {
+      removeBackgroundStatsServerState(statsDaemonStatePath);
+      return { ok: true, stale: false };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  throw new Error('Timed out stopping background stats server.');
 };
 
 const resolveLegacyVocabularyPos = async (row: {
@@ -2675,6 +2787,8 @@ const runStatsCliCommand = createRunStatsCliCommandHandler({
   },
   getImmersionTracker: () => appState.immersionTracker,
   ensureStatsServerStarted: () => ensureStatsServerStarted(),
+  ensureBackgroundStatsServerStarted: () => ensureBackgroundStatsServerStarted(),
+  stopBackgroundStatsServer: () => stopBackgroundStatsServer(),
   openExternal: (url: string) => shell.openExternal(url),
   writeResponse: (responsePath, payload) => {
     writeStatsCliCommandResponse(responsePath, payload);
@@ -2837,7 +2951,12 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     handleInitialArgs: () => handleInitialArgs(),
     shouldUseMinimalStartup: () =>
-      Boolean(appState.initialArgs?.stats && appState.initialArgs?.statsCleanup),
+      Boolean(
+        appState.initialArgs?.stats &&
+        (appState.initialArgs?.statsCleanup ||
+          appState.initialArgs?.statsBackground ||
+          appState.initialArgs?.statsStop),
+      ),
     shouldSkipHeavyStartup: () =>
       Boolean(
         appState.initialArgs &&

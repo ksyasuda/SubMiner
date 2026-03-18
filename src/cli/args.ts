@@ -30,6 +30,8 @@ export interface CliArgs {
   dictionary: boolean;
   dictionaryTarget?: string;
   stats: boolean;
+  statsBackground?: boolean;
+  statsStop?: boolean;
   statsCleanup?: boolean;
   statsCleanupVocab?: boolean;
   statsCleanupLifetime?: boolean;
@@ -103,6 +105,8 @@ export function parseArgs(argv: string[]): CliArgs {
     anilistRetryQueue: false,
     dictionary: false,
     stats: false,
+    statsBackground: false,
+    statsStop: false,
     statsCleanup: false,
     statsCleanupVocab: false,
     statsCleanupLifetime: false,
@@ -172,7 +176,13 @@ export function parseArgs(argv: string[]): CliArgs {
       const value = readValue(argv[i + 1]);
       if (value) args.dictionaryTarget = value;
     } else if (arg === '--stats') args.stats = true;
-    else if (arg === '--stats-cleanup') args.statsCleanup = true;
+    else if (arg === '--stats-background') {
+      args.stats = true;
+      args.statsBackground = true;
+    } else if (arg === '--stats-stop') {
+      args.stats = true;
+      args.statsStop = true;
+    } else if (arg === '--stats-cleanup') args.statsCleanup = true;
     else if (arg === '--stats-cleanup-vocab') args.statsCleanupVocab = true;
     else if (arg === '--stats-cleanup-lifetime') args.statsCleanupLifetime = true;
     else if (arg.startsWith('--stats-response-path=')) {

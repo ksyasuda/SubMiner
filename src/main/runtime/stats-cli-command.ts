@@ -22,6 +22,16 @@ export type StatsCliCommandResponse = {
   error?: string;
 };
 
+type BackgroundStatsStartResult = {
+  url: string;
+  runningInCurrentProcess: boolean;
+};
+
+type BackgroundStatsStopResult = {
+  ok: boolean;
+  stale: boolean;
+};
+
 export function writeStatsCliCommandResponse(
   responsePath: string,
   payload: StatsCliCommandResponse,
@@ -39,6 +49,8 @@ export function createRunStatsCliCommandHandler(deps: {
     rebuildLifetimeSummaries?: () => Promise<LifetimeRebuildSummary>;
   } | null;
   ensureStatsServerStarted: () => string;
+  ensureBackgroundStatsServerStarted: () => BackgroundStatsStartResult;
+  stopBackgroundStatsServer: () => Promise<BackgroundStatsStopResult> | BackgroundStatsStopResult;
   openExternal: (url: string) => Promise<unknown>;
   writeResponse: (responsePath: string, payload: StatsCliCommandResponse) => void;
   exitAppWithCode: (code: number) => void;
@@ -61,14 +73,43 @@ export function createRunStatsCliCommandHandler(deps: {
   return async (
     args: Pick<
       CliArgs,
-      'statsResponsePath' | 'statsCleanup' | 'statsCleanupVocab' | 'statsCleanupLifetime'
+      | 'statsResponsePath'
+      | 'statsBackground'
+      | 'statsStop'
+      | 'statsCleanup'
+      | 'statsCleanupVocab'
+      | 'statsCleanupLifetime'
     >,
     source: CliCommandSource,
   ): Promise<void> => {
     try {
+      if (args.statsStop) {
+        const result = await deps.stopBackgroundStatsServer();
+        deps.logInfo(
+          result.stale
+            ? 'Background stats server is not running; cleaned stale state.'
+            : 'Background stats server stopped.',
+        );
+        writeResponseSafe(args.statsResponsePath, { ok: true });
+        if (source === 'initial') {
+          deps.exitAppWithCode(0);
+        }
+        return;
+      }
+
       const config = deps.getResolvedConfig();
       if (config.immersionTracking?.enabled === false) {
         throw new Error('Immersion tracking is disabled in config.');
+      }
+
+      if (args.statsBackground) {
+        const result = deps.ensureBackgroundStatsServerStarted();
+        deps.logInfo(`Stats dashboard available at ${result.url}`);
+        writeResponseSafe(args.statsResponsePath, { ok: true, url: result.url });
+        if (!result.runningInCurrentProcess && source === 'initial') {
+          deps.exitAppWithCode(0);
+        }
+        return;
       }
 
       deps.ensureImmersionTrackerStarted();

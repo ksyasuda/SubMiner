@@ -73,6 +73,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getKeybindings: IpcDepsRuntimeOptions['getKeybindings'];
   getConfiguredShortcuts: IpcDepsRuntimeOptions['getConfiguredShortcuts'];
   getStatsToggleKey: IpcDepsRuntimeOptions['getStatsToggleKey'];
+  getMarkWatchedKey: IpcDepsRuntimeOptions['getMarkWatchedKey'];
   getControllerConfig: IpcDepsRuntimeOptions['getControllerConfig'];
   saveControllerConfig: IpcDepsRuntimeOptions['saveControllerConfig'];
   saveControllerPreference: IpcDepsRuntimeOptions['saveControllerPreference'];
@@ -220,6 +221,7 @@ export function createMainIpcRuntimeServiceDeps(
     getKeybindings: params.getKeybindings,
     getConfiguredShortcuts: params.getConfiguredShortcuts,
     getStatsToggleKey: params.getStatsToggleKey,
+    getMarkWatchedKey: params.getMarkWatchedKey,
     getControllerConfig: params.getControllerConfig,
     saveControllerConfig: params.saveControllerConfig,
     saveControllerPreference: params.saveControllerPreference,

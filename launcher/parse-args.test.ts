@@ -66,6 +66,28 @@ test('parseArgs maps stats command and log-level override', () => {
   assert.equal(parsed.logLevel, 'debug');
 });
 
+test('parseArgs maps stats background flag', () => {
+  const parsed = parseArgs(['stats', '-b'], 'subminer', {}) as ReturnType<typeof parseArgs> & {
+    statsBackground?: boolean;
+    statsStop?: boolean;
+  };
+
+  assert.equal(parsed.stats, true);
+  assert.equal(parsed.statsBackground, true);
+  assert.equal(parsed.statsStop, false);
+});
+
+test('parseArgs maps stats stop flag', () => {
+  const parsed = parseArgs(['stats', '-s'], 'subminer', {}) as ReturnType<typeof parseArgs> & {
+    statsBackground?: boolean;
+    statsStop?: boolean;
+  };
+
+  assert.equal(parsed.stats, true);
+  assert.equal(parsed.statsStop, true);
+  assert.equal(parsed.statsBackground, false);
+});
+
 test('parseArgs maps stats cleanup to vocab mode by default', () => {
   const parsed = parseArgs(['stats', 'cleanup'], 'subminer', {});
 

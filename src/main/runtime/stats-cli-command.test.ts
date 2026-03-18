@@ -27,6 +27,11 @@ function makeHandler(
       calls.push('ensureStatsServerStarted');
       return 'http://127.0.0.1:6969';
     },
+    ensureBackgroundStatsServerStarted: () => ({
+      url: 'http://127.0.0.1:6969',
+      runningInCurrentProcess: true,
+    }),
+    stopBackgroundStatsServer: async () => ({ ok: true, stale: false }),
     openExternal: async (url) => {
       calls.push(`openExternal:${url}`);
     },
@@ -66,6 +71,88 @@ test('stats cli command starts tracker, server, browser, and writes success resp
     {
       responsePath: '/tmp/subminer-stats-response.json',
       payload: { ok: true, url: 'http://127.0.0.1:6969' },
+    },
+  ]);
+});
+
+test('stats cli command starts background daemon without opening browser', async () => {
+  const { handler, calls, responses } = makeHandler({
+    ensureBackgroundStatsServerStarted: () => {
+      calls.push('ensureBackgroundStatsServerStarted');
+      return { url: 'http://127.0.0.1:6969', runningInCurrentProcess: true };
+    },
+  } as never);
+
+  await handler(
+    {
+      statsResponsePath: '/tmp/subminer-stats-response.json',
+      statsBackground: true,
+    } as never,
+    'initial',
+  );
+
+  assert.deepEqual(calls, [
+    'ensureBackgroundStatsServerStarted',
+    'info:Stats dashboard available at http://127.0.0.1:6969',
+  ]);
+  assert.deepEqual(responses, [
+    {
+      responsePath: '/tmp/subminer-stats-response.json',
+      payload: { ok: true, url: 'http://127.0.0.1:6969' },
+    },
+  ]);
+});
+
+test('stats cli command exits helper app when background daemon is already running elsewhere', async () => {
+  const { handler, calls, responses } = makeHandler({
+    ensureBackgroundStatsServerStarted: () => {
+      calls.push('ensureBackgroundStatsServerStarted');
+      return { url: 'http://127.0.0.1:6969', runningInCurrentProcess: false };
+    },
+  } as never);
+
+  await handler(
+    {
+      statsResponsePath: '/tmp/subminer-stats-response.json',
+      statsBackground: true,
+    } as never,
+    'initial',
+  );
+
+  assert.ok(calls.includes('exitAppWithCode:0'));
+  assert.deepEqual(responses, [
+    {
+      responsePath: '/tmp/subminer-stats-response.json',
+      payload: { ok: true, url: 'http://127.0.0.1:6969' },
+    },
+  ]);
+});
+
+test('stats cli command stops background daemon and treats stale state as success', async () => {
+  const { handler, calls, responses } = makeHandler({
+    stopBackgroundStatsServer: async () => {
+      calls.push('stopBackgroundStatsServer');
+      return { ok: true, stale: true };
+    },
+  } as never);
+
+  await handler(
+    {
+      statsResponsePath: '/tmp/subminer-stats-response.json',
+      statsStop: true,
+    } as never,
+    'initial',
+  );
+
+  assert.deepEqual(calls, [
+    'stopBackgroundStatsServer',
+    'info:Background stats server is not running; cleaned stale state.',
+    'exitAppWithCode:0',
+  ]);
+  assert.deepEqual(responses, [
+    {
+      responsePath: '/tmp/subminer-stats-response.json',
+      payload: { ok: true },
     },
   ]);
 });

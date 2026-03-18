@@ -13,6 +13,13 @@ export function applyStatsConfig(context: ResolveContext): void {
     warn('stats.toggleKey', src.stats.toggleKey, resolved.stats.toggleKey, 'Expected string.');
   }
 
+  const markWatchedKey = asString(src.stats.markWatchedKey);
+  if (markWatchedKey !== undefined) {
+    resolved.stats.markWatchedKey = markWatchedKey;
+  } else if (src.stats.markWatchedKey !== undefined) {
+    warn('stats.markWatchedKey', src.stats.markWatchedKey, resolved.stats.markWatchedKey, 'Expected string.');
+  }
+
   const serverPort = asNumber(src.stats.serverPort);
   if (serverPort !== undefined) {
     resolved.stats.serverPort = serverPort;

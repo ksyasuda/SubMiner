@@ -23,6 +23,7 @@ const SESSION_SUMMARIES = [
     cardsMined: 2,
     lookupCount: 5,
     lookupHits: 4,
+    yomitanLookupCount: 5,
   },
 ];
 
@@ -147,6 +148,45 @@ const WATCH_TIME_PER_ANIME = [
   },
 ];
 
+const TRENDS_DASHBOARD = {
+  activity: {
+    watchTime: [{ label: 'Mar 1', value: 25 }],
+    cards: [{ label: 'Mar 1', value: 5 }],
+    words: [{ label: 'Mar 1', value: 300 }],
+    sessions: [{ label: 'Mar 1', value: 3 }],
+  },
+  progress: {
+    watchTime: [{ label: 'Mar 1', value: 25 }],
+    sessions: [{ label: 'Mar 1', value: 3 }],
+    words: [{ label: 'Mar 1', value: 300 }],
+    newWords: [{ label: 'Mar 1', value: 12 }],
+    cards: [{ label: 'Mar 1', value: 5 }],
+    episodes: [{ label: 'Mar 1', value: 2 }],
+    lookups: [{ label: 'Mar 1', value: 15 }],
+  },
+  ratios: {
+    lookupsPerHundred: [{ label: 'Mar 1', value: 5 }],
+  },
+  animePerDay: {
+    episodes: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 1 }],
+    watchTime: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 25 }],
+    cards: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 5 }],
+    words: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 300 }],
+    lookups: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 15 }],
+    lookupsPerHundred: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 5 }],
+  },
+  animeCumulative: {
+    watchTime: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 25 }],
+    episodes: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 1 }],
+    cards: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 5 }],
+    words: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 300 }],
+  },
+  patterns: {
+    watchTimeByDayOfWeek: [{ label: 'Sun', value: 25 }],
+    watchTimeByHour: [{ label: '12:00', value: 25 }],
+  },
+};
+
 const ANIME_EPISODES = [
   {
     animeId: 1,
@@ -238,6 +278,7 @@ function createMockTracker(
     getEpisodesPerDay: async () => EPISODES_PER_DAY,
     getNewAnimePerDay: async () => NEW_ANIME_PER_DAY,
     getWatchTimePerAnime: async () => WATCH_TIME_PER_ANIME,
+    getTrendsDashboard: async () => TRENDS_DASHBOARD,
     getStreakCalendar: async () => [
       { epochDay: Math.floor(Date.now() / 86_400_000) - 1, totalActiveMin: 30 },
       { epochDay: Math.floor(Date.now() / 86_400_000), totalActiveMin: 45 },
@@ -306,6 +347,37 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.ok(Array.isArray(body));
+  });
+
+  it('GET /api/stats/sessions/:id/known-words-timeline preserves line positions and counts known occurrences', async () => {
+    await withTempDir(async (dir) => {
+      const cachePath = path.join(dir, 'known-words.json');
+      fs.writeFileSync(
+        cachePath,
+        JSON.stringify({
+          version: 1,
+          words: ['知る', '猫'],
+        }),
+      );
+
+      const app = createStatsApp(
+        createMockTracker({
+          getSessionWordsByLine: async () => [
+            { lineIndex: 1, headword: '知る', occurrenceCount: 2 },
+            { lineIndex: 3, headword: '猫', occurrenceCount: 1 },
+            { lineIndex: 3, headword: '見る', occurrenceCount: 4 },
+          ],
+        }),
+        { knownWordCachePath: cachePath },
+      );
+
+      const res = await app.request('/api/stats/sessions/1/known-words-timeline');
+      assert.equal(res.status, 200);
+      assert.deepEqual(await res.json(), [
+        { linesSeen: 1, knownWordsSeen: 2 },
+        { linesSeen: 3, knownWordsSeen: 3 },
+      ]);
+    });
   });
 
   it('GET /api/stats/vocabulary returns word frequency data', async () => {
@@ -427,6 +499,41 @@ describe('stats server API routes', () => {
     const res = await app.request('/api/stats/trends/watch-time-per-anime?limit=999999');
     assert.equal(res.status, 200);
     assert.equal(seenLimit, 365);
+  });
+
+  it('GET /api/stats/trends/dashboard returns chart-ready trends data', async () => {
+    let seenArgs: unknown[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getTrendsDashboard: async (...args: unknown[]) => {
+          seenArgs = args;
+          return TRENDS_DASHBOARD;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/trends/dashboard?range=90d&groupBy=month');
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.deepEqual(seenArgs, ['90d', 'month']);
+    assert.deepEqual(body.activity.watchTime, TRENDS_DASHBOARD.activity.watchTime);
+    assert.deepEqual(body.animePerDay.watchTime, TRENDS_DASHBOARD.animePerDay.watchTime);
+  });
+
+  it('GET /api/stats/trends/dashboard falls back to safe defaults for invalid params', async () => {
+    let seenArgs: unknown[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getTrendsDashboard: async (...args: unknown[]) => {
+          seenArgs = args;
+          return TRENDS_DASHBOARD;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/trends/dashboard?range=weird&groupBy=year');
+    assert.equal(res.status, 200);
+    assert.deepEqual(seenArgs, ['30d', 'day']);
   });
 
   it('GET /api/stats/vocabulary/occurrences returns recent occurrence rows for a word', async () => {

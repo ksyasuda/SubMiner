@@ -5,6 +5,7 @@ import {
   requestSingleInstanceLockEarly,
   resetEarlySingleInstanceStateForTests,
 } from './early-single-instance';
+import * as earlySingleInstance from './early-single-instance';
 
 function createFakeApp(lockValue = true) {
   let requestCalls = 0;
@@ -53,4 +54,17 @@ test('registerSecondInstanceHandlerEarly replays queued argv and forwards new ev
     ['SubMiner.exe', '--start', '--socket', '\\\\.\\pipe\\subminer'],
     ['SubMiner.exe', '--start', '--show-visible-overlay'],
   ]);
+});
+
+test('stats daemon args bypass the normal single-instance lock path', () => {
+  const shouldBypass = (
+    earlySingleInstance as typeof earlySingleInstance & {
+      shouldBypassSingleInstanceLockForArgv?: (argv: string[]) => boolean;
+    }
+  ).shouldBypassSingleInstanceLockForArgv;
+
+  assert.equal(typeof shouldBypass, 'function');
+  assert.equal(shouldBypass?.(['SubMiner', '--stats', '--stats-background']), true);
+  assert.equal(shouldBypass?.(['SubMiner', '--stats', '--stats-stop']), true);
+  assert.equal(shouldBypass?.(['SubMiner', '--stats']), false);
 });
