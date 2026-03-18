@@ -95,7 +95,10 @@ function hasPrioritizedNameMatch(
   token: MergedToken,
   tokenRenderSettings?: Partial<Pick<TokenRenderSettings, 'nameMatchEnabled'>>,
 ): boolean {
-  return (tokenRenderSettings?.nameMatchEnabled ?? DEFAULT_NAME_MATCH_ENABLED) && token.isNameMatch === true;
+  return (
+    (tokenRenderSettings?.nameMatchEnabled ?? DEFAULT_NAME_MATCH_ENABLED) &&
+    token.isNameMatch === true
+  );
 }
 
 function sanitizeFrequencyTopX(value: unknown, fallback: number): number {

@@ -158,7 +158,10 @@ test('promoteStatsWindowLevel raises stats above overlay level on macOS', () => 
       setAlwaysOnTop: (flag: boolean, level?: string, relativeLevel?: number) => {
         calls.push(`always-on-top:${flag}:${level ?? 'none'}:${relativeLevel ?? 0}`);
       },
-      setVisibleOnAllWorkspaces: (visible: boolean, options?: { visibleOnFullScreen?: boolean }) => {
+      setVisibleOnAllWorkspaces: (
+        visible: boolean,
+        options?: { visibleOnFullScreen?: boolean },
+      ) => {
         calls.push(
           `all-workspaces:${visible}:${options?.visibleOnFullScreen === true ? 'fullscreen' : 'plain'}`,
         );

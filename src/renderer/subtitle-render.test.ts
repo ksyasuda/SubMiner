@@ -522,7 +522,10 @@ test('getFrequencyRankLabelForToken returns rank only for frequency-colored toke
   assert.equal(getFrequencyRankLabelForToken(knownToken, settings), '20');
   assert.equal(getFrequencyRankLabelForToken(nPlusOneToken, settings), '20');
   assert.equal(getFrequencyRankLabelForToken(outOfRangeToken, settings), null);
-  assert.equal(getFrequencyRankLabelForToken(nameToken, { ...settings, nameMatchEnabled: true }), null);
+  assert.equal(
+    getFrequencyRankLabelForToken(nameToken, { ...settings, nameMatchEnabled: true }),
+    null,
+  );
 });
 
 test('getJlptLevelLabelForToken returns level when token has jlpt metadata', () => {

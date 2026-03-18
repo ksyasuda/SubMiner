@@ -311,7 +311,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
           mediaId: snapshot.mediaId,
           mediaTitle: snapshot.mediaTitle,
           message: buildBuildingMessage(snapshot.mediaTitle),
-          });
+        });
         deps.logInfo?.('[dictionary:auto-sync] rebuilding merged dictionary for active anime set');
         merged = await deps.buildMergedDictionary(nextActiveMediaIdValues);
       }

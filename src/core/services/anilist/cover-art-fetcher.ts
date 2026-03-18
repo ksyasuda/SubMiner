@@ -257,7 +257,11 @@ export function createCoverArtFetcher(
   logger: Logger,
   options: CoverArtFetcherOptions = {},
 ): CoverArtFetcher {
-  const resolveCanonicalTitle = (db: DatabaseSync, videoId: number, fallbackTitle: string): string => {
+  const resolveCanonicalTitle = (
+    db: DatabaseSync,
+    videoId: number,
+    fallbackTitle: string,
+  ): string => {
     const row = db
       .prepare(
         `

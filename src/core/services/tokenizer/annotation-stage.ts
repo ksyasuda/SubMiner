@@ -638,9 +638,10 @@ export function annotateTokens(
       ? computeTokenKnownStatus(token, deps.isKnownWord, deps.knownWordMatchMode)
       : false;
 
-    const frequencyRank = frequencyEnabled && !prioritizedNameMatch
-      ? filterTokenFrequencyRank(token, pos1Exclusions, pos2Exclusions)
-      : undefined;
+    const frequencyRank =
+      frequencyEnabled && !prioritizedNameMatch
+        ? filterTokenFrequencyRank(token, pos1Exclusions, pos2Exclusions)
+        : undefined;
 
     const jlptLevel =
       jlptEnabled && !prioritizedNameMatch
@@ -650,8 +651,7 @@ export function annotateTokens(
     return {
       ...token,
       isKnown,
-      isNPlusOneTarget:
-        nPlusOneEnabled && !prioritizedNameMatch ? token.isNPlusOneTarget : false,
+      isNPlusOneTarget: nPlusOneEnabled && !prioritizedNameMatch ? token.isNPlusOneTarget : false,
       frequencyRank,
       jlptLevel,
     };
