@@ -30,7 +30,6 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
       totalWatchedMs: 3_600_000,
       activeWatchedMs: 3_000_000,
       linesSeen: 20,
-      wordsSeen: 100,
       tokensSeen: 80,
       cardsMined: 2,
       lookupCount: 10,
@@ -45,33 +44,32 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
       totalSessions: 1,
       totalActiveMin: 50,
       totalLinesSeen: 20,
-      totalWordsSeen: 100,
       totalTokensSeen: 80,
       totalCards: 2,
       cardsPerHour: 2.4,
-      wordsPerMin: 2,
+      tokensPerMin: 2,
       lookupHitRate: 0.8,
     },
   ];
-    const overview: OverviewData = {
-      sessions,
-      rollups,
-      hints: {
-        totalSessions: 15,
-        activeSessions: 0,
-        episodesToday: 2,
-        activeAnimeCount: 3,
-        totalEpisodesWatched: 5,
-        totalAnimeCompleted: 1,
-        totalActiveMin: 50,
-        activeDays: 2,
-        totalCards: 9,
-        totalLookupCount: 100,
-        totalLookupHits: 80,
-        newWordsToday: 5,
-        newWordsThisWeek: 20,
-      },
-    };
+  const overview: OverviewData = {
+    sessions,
+    rollups,
+    hints: {
+      totalSessions: 15,
+      activeSessions: 0,
+      episodesToday: 2,
+      activeAnimeCount: 3,
+      totalEpisodesWatched: 5,
+      totalAnimeCompleted: 1,
+      totalActiveMin: 50,
+      activeDays: 2,
+      totalCards: 9,
+      totalLookupCount: 100,
+      totalLookupHits: 80,
+      newWordsToday: 5,
+      newWordsThisWeek: 20,
+    },
+  };
 
   const summary = buildOverviewSummary(overview, now);
   assert.equal(summary.todayCards, 2);
@@ -88,8 +86,8 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
 test('buildOverviewSummary prefers lifetime totals from hints when provided', () => {
   const now = Date.UTC(2026, 2, 13, 12);
   const today = Math.floor(now / 86_400_000);
-    const overview: OverviewData = {
-      sessions: [
+  const overview: OverviewData = {
+    sessions: [
       {
         sessionId: 2,
         canonicalTitle: 'B',
@@ -101,7 +99,6 @@ test('buildOverviewSummary prefers lifetime totals from hints when provided', ()
         totalWatchedMs: 60_000,
         activeWatchedMs: 60_000,
         linesSeen: 10,
-        wordsSeen: 10,
         tokensSeen: 10,
         cardsMined: 10,
         lookupCount: 1,
@@ -116,11 +113,10 @@ test('buildOverviewSummary prefers lifetime totals from hints when provided', ()
         totalSessions: 1,
         totalActiveMin: 1,
         totalLinesSeen: 10,
-        totalWordsSeen: 10,
         totalTokensSeen: 10,
         totalCards: 10,
         cardsPerHour: 600,
-        wordsPerMin: 10,
+        tokensPerMin: 10,
         lookupHitRate: 1,
       },
     ],
@@ -182,11 +178,10 @@ test('buildTrendDashboard derives dense chart series', () => {
       totalSessions: 2,
       totalActiveMin: 60,
       totalLinesSeen: 30,
-      totalWordsSeen: 120,
       totalTokensSeen: 100,
       totalCards: 3,
       cardsPerHour: 3,
-      wordsPerMin: 2,
+      tokensPerMin: 2,
       lookupHitRate: 0.5,
     },
     {
@@ -195,18 +190,17 @@ test('buildTrendDashboard derives dense chart series', () => {
       totalSessions: 1,
       totalActiveMin: 30,
       totalLinesSeen: 10,
-      totalWordsSeen: 40,
       totalTokensSeen: 30,
       totalCards: 1,
       cardsPerHour: 2,
-      wordsPerMin: 1.33,
+      tokensPerMin: 1.33,
       lookupHitRate: 0.75,
     },
   ];
 
   const dashboard = buildTrendDashboard(rollups);
   assert.equal(dashboard.watchTime.length, 2);
-  assert.equal(dashboard.words[1]?.value, 40);
+  assert.equal(dashboard.words[1]?.value, 30);
   assert.equal(dashboard.sessions[0]?.value, 2);
 });
 

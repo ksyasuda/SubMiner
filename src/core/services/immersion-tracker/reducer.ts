@@ -15,7 +15,6 @@ export function createInitialSessionState(
     totalWatchedMs: 0,
     activeWatchedMs: 0,
     linesSeen: 0,
-    wordsSeen: 0,
     tokensSeen: 0,
     cardsMined: 0,
     lookupCount: 0,
@@ -50,16 +49,6 @@ export function resolveBoundedInt(
 export function sanitizePayload(payload: Record<string, unknown>, maxPayloadBytes: number): string {
   const json = JSON.stringify(payload);
   return json.length <= maxPayloadBytes ? json : JSON.stringify({ truncated: true });
-}
-
-export function calculateTextMetrics(value: string): {
-  words: number;
-  tokens: number;
-} {
-  const words = value.split(/\s+/).filter(Boolean).length;
-  const cjkCount = value.match(/[\u3040-\u30ff\u4e00-\u9fff]/g)?.length ?? 0;
-  const tokens = Math.max(words, cjkCount);
-  return { words, tokens };
 }
 
 export function secToMs(seconds: number): number {

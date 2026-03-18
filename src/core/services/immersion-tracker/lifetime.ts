@@ -7,7 +7,6 @@ interface TelemetryRow {
   cards_mined: number | null;
   lines_seen: number | null;
   tokens_seen: number | null;
-  words_seen: number | null;
 }
 
 interface VideoRow {
@@ -46,7 +45,6 @@ interface RetainedSessionRow {
   totalWatchedMs: number;
   activeWatchedMs: number;
   linesSeen: number;
-  wordsSeen: number;
   tokensSeen: number;
   cardsMined: number;
   lookupCount: number;
@@ -150,7 +148,6 @@ function toRebuildSessionState(row: RetainedSessionRow): SessionState {
     totalWatchedMs: Math.max(0, row.totalWatchedMs),
     activeWatchedMs: Math.max(0, row.activeWatchedMs),
     linesSeen: Math.max(0, row.linesSeen),
-    wordsSeen: Math.max(0, row.wordsSeen),
     tokensSeen: Math.max(0, row.tokensSeen),
     cardsMined: Math.max(0, row.cardsMined),
     lookupCount: Math.max(0, row.lookupCount),
@@ -176,7 +173,6 @@ function getRetainedStaleActiveSessions(db: DatabaseSync): RetainedSessionRow[] 
         COALESCE(t.total_watched_ms, s.total_watched_ms, 0) AS totalWatchedMs,
         COALESCE(t.active_watched_ms, s.active_watched_ms, 0) AS activeWatchedMs,
         COALESCE(t.lines_seen, s.lines_seen, 0) AS linesSeen,
-        COALESCE(t.words_seen, s.words_seen, 0) AS wordsSeen,
         COALESCE(t.tokens_seen, s.tokens_seen, 0) AS tokensSeen,
         COALESCE(t.cards_mined, s.cards_mined, 0) AS cardsMined,
         COALESCE(t.lookup_count, s.lookup_count, 0) AS lookupCount,
@@ -209,7 +205,6 @@ function upsertLifetimeMedia(
   nowMs: number,
   activeMs: number,
   cardsMined: number,
-  wordsSeen: number,
   linesSeen: number,
   tokensSeen: number,
   completed: number,
@@ -223,7 +218,6 @@ function upsertLifetimeMedia(
       total_sessions,
       total_active_ms,
       total_cards,
-      total_words_seen,
       total_lines_seen,
       total_tokens_seen,
       completed,
@@ -232,12 +226,11 @@ function upsertLifetimeMedia(
       CREATED_DATE,
       LAST_UPDATE_DATE
     )
-    VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(video_id) DO UPDATE SET
       total_sessions = total_sessions + 1,
       total_active_ms = total_active_ms + excluded.total_active_ms,
       total_cards = total_cards + excluded.total_cards,
-      total_words_seen = total_words_seen + excluded.total_words_seen,
       total_lines_seen = total_lines_seen + excluded.total_lines_seen,
       total_tokens_seen = total_tokens_seen + excluded.total_tokens_seen,
       completed = MAX(completed, excluded.completed),
@@ -259,7 +252,6 @@ function upsertLifetimeMedia(
     videoId,
     activeMs,
     cardsMined,
-    wordsSeen,
     linesSeen,
     tokensSeen,
     completed,
@@ -276,7 +268,6 @@ function upsertLifetimeAnime(
   nowMs: number,
   activeMs: number,
   cardsMined: number,
-  wordsSeen: number,
   linesSeen: number,
   tokensSeen: number,
   episodesStartedDelta: number,
@@ -291,7 +282,6 @@ function upsertLifetimeAnime(
       total_sessions,
       total_active_ms,
       total_cards,
-      total_words_seen,
       total_lines_seen,
       total_tokens_seen,
       episodes_started,
@@ -301,12 +291,11 @@ function upsertLifetimeAnime(
       CREATED_DATE,
       LAST_UPDATE_DATE
     )
-    VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(anime_id) DO UPDATE SET
       total_sessions = total_sessions + 1,
       total_active_ms = total_active_ms + excluded.total_active_ms,
       total_cards = total_cards + excluded.total_cards,
-      total_words_seen = total_words_seen + excluded.total_words_seen,
       total_lines_seen = total_lines_seen + excluded.total_lines_seen,
       total_tokens_seen = total_tokens_seen + excluded.total_tokens_seen,
       episodes_started = episodes_started + excluded.episodes_started,
@@ -329,7 +318,6 @@ function upsertLifetimeAnime(
     animeId,
     activeMs,
     cardsMined,
-    wordsSeen,
     linesSeen,
     tokensSeen,
     episodesStartedDelta,
@@ -372,7 +360,6 @@ export function applySessionLifetimeSummary(
     SELECT
       active_watched_ms,
       cards_mined,
-      words_seen,
       lines_seen,
       tokens_seen
     FROM imm_session_telemetry
@@ -407,9 +394,6 @@ export function applySessionLifetimeSummary(
   const cardsMined = telemetry
     ? asPositiveNumber(telemetry.cards_mined, session.cardsMined)
     : session.cardsMined;
-  const wordsSeen = telemetry
-    ? asPositiveNumber(telemetry.words_seen, session.wordsSeen)
-    : session.wordsSeen;
   const linesSeen = telemetry
     ? asPositiveNumber(telemetry.lines_seen, session.linesSeen)
     : session.linesSeen;
@@ -470,7 +454,6 @@ export function applySessionLifetimeSummary(
     nowMs,
     activeMs,
     cardsMined,
-    wordsSeen,
     linesSeen,
     tokensSeen,
     watched > 0 ? 1 : 0,
@@ -485,7 +468,6 @@ export function applySessionLifetimeSummary(
       nowMs,
       activeMs,
       cardsMined,
-      wordsSeen,
       linesSeen,
       tokensSeen,
       isFirstSessionForVideoRun ? 1 : 0,
@@ -509,7 +491,6 @@ export function rebuildLifetimeSummaries(db: DatabaseSync): LifetimeRebuildSumma
         total_watched_ms AS totalWatchedMs,
         active_watched_ms AS activeWatchedMs,
         lines_seen AS linesSeen,
-        words_seen AS wordsSeen,
         tokens_seen AS tokensSeen,
         cards_mined AS cardsMined,
         lookup_count AS lookupCount,

@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AreaChart,
   Area,
@@ -12,12 +13,19 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { useSessionDetail } from '../../hooks/useSessions';
+import { getStatsClient } from '../../hooks/useStatsApi';
 import type { KnownWordsTimelinePoint } from '../../hooks/useSessions';
 import { CHART_THEME } from '../../lib/chart-theme';
-import { buildLookupRateDisplay, getYomitanLookupEvents } from '../../lib/yomitan-lookup';
+import {
+  buildSessionChartEvents,
+  type SessionChartMarker,
+  type SessionEventNoteInfo,
+} from '../../lib/session-events';
+import { buildLookupRateDisplay } from '../../lib/yomitan-lookup';
 import { getSessionDisplayWordCount } from '../../lib/session-word-count';
 import { EventType } from '../../types/stats';
 import type { SessionEvent, SessionSummary } from '../../types/stats';
+import { SessionEventOverlay } from './SessionEventOverlay';
 
 interface SessionDetailProps {
   session: SessionSummary;
@@ -40,9 +48,7 @@ function formatTime(ms: number): string {
 }
 
 /** Build a lookup: linesSeen → knownWordsSeen */
-function buildKnownWordsLookup(
-  knownWordsTimeline: KnownWordsTimelinePoint[],
-): Map<number, number> {
+function buildKnownWordsLookup(knownWordsTimeline: KnownWordsTimelinePoint[]): Map<number, number> {
   const map = new Map<number, number>();
   for (const pt of knownWordsTimeline) {
     map.set(pt.linesSeen, pt.knownWordsSeen);
@@ -63,24 +69,17 @@ function lookupKnownWords(map: Map<number, number>, linesSeen: number): number {
   return best > 0 ? map.get(best)! : 0;
 }
 
-interface PauseRegion {
-  startMs: number;
-  endMs: number;
-}
-
-function buildPauseRegions(events: SessionEvent[]): PauseRegion[] {
-  const regions: PauseRegion[] = [];
-  const starts = events.filter((e) => e.eventType === EventType.PAUSE_START);
-  const ends = events.filter((e) => e.eventType === EventType.PAUSE_END);
-
-  for (const start of starts) {
-    const end = ends.find((e) => e.tsMs > start.tsMs);
-    regions.push({
-      startMs: start.tsMs,
-      endMs: end ? end.tsMs : start.tsMs + 2000,
-    });
-  }
-  return regions;
+function extractNoteExpression(note: {
+  noteId: number;
+  fields: Record<string, { value: string }>;
+}): SessionEventNoteInfo {
+  const expression =
+    note.fields?.Expression?.value ??
+    note.fields?.expression?.value ??
+    note.fields?.Word?.value ??
+    note.fields?.word?.value ??
+    '';
+  return { noteId: note.noteId, expression };
 }
 
 interface RatioChartPoint {
@@ -100,7 +99,6 @@ interface FallbackChartPoint {
 type TimelineEntry = {
   sampleMs: number;
   linesSeen: number;
-  wordsSeen: number;
   tokensSeen: number;
 };
 
@@ -108,19 +106,17 @@ export function SessionDetail({ session }: SessionDetailProps) {
   const { timeline, events, knownWordsTimeline, loading, error } = useSessionDetail(
     session.sessionId,
   );
-
-  if (loading) return <div className="text-ctp-overlay2 text-xs p-2">Loading timeline...</div>;
-  if (error) return <div className="text-ctp-red text-xs p-2">Error: {error}</div>;
+  const [activeMarkerKey, setActiveMarkerKey] = useState<string | null>(null);
+  const [noteInfos, setNoteInfos] = useState<Map<number, SessionEventNoteInfo>>(new Map());
+  const [loadingNoteIds, setLoadingNoteIds] = useState<Set<number>>(new Set());
+  const requestedNoteIdsRef = useRef<Set<number>>(new Set());
 
   const sorted = [...timeline].reverse();
   const knownWordsMap = buildKnownWordsLookup(knownWordsTimeline);
   const hasKnownWords = knownWordsMap.size > 0;
 
-  const cardEvents = events.filter((e) => e.eventType === EventType.CARD_MINED);
-  const seekEvents = events.filter(
-    (e) => e.eventType === EventType.SEEK_FORWARD || e.eventType === EventType.SEEK_BACKWARD,
-  );
-  const yomitanLookupEvents = getYomitanLookupEvents(events);
+  const { cardEvents, seekEvents, yomitanLookupEvents, pauseRegions, markers } =
+    buildSessionChartEvents(events);
   const lookupRate = buildLookupRateDisplay(
     session.yomitanLookupCount,
     getSessionDisplayWordCount(session),
@@ -128,7 +124,76 @@ export function SessionDetail({ session }: SessionDetailProps) {
   const pauseCount = events.filter((e) => e.eventType === EventType.PAUSE_START).length;
   const seekCount = seekEvents.length;
   const cardEventCount = cardEvents.length;
-  const pauseRegions = buildPauseRegions(events);
+  const activeMarker = useMemo<SessionChartMarker | null>(
+    () => markers.find((marker) => marker.key === activeMarkerKey) ?? null,
+    [markers, activeMarkerKey],
+  );
+
+  useEffect(() => {
+    if (!activeMarker || activeMarker.kind !== 'card' || activeMarker.noteIds.length === 0) {
+      return;
+    }
+
+    const missingNoteIds = activeMarker.noteIds.filter(
+      (noteId) => !requestedNoteIdsRef.current.has(noteId) && !noteInfos.has(noteId),
+    );
+    if (missingNoteIds.length === 0) {
+      return;
+    }
+
+    for (const noteId of missingNoteIds) {
+      requestedNoteIdsRef.current.add(noteId);
+    }
+
+    let cancelled = false;
+    setLoadingNoteIds((prev) => {
+      const next = new Set(prev);
+      for (const noteId of missingNoteIds) {
+        next.add(noteId);
+      }
+      return next;
+    });
+
+    getStatsClient()
+      .ankiNotesInfo(missingNoteIds)
+      .then((notes) => {
+        if (cancelled) return;
+        setNoteInfos((prev) => {
+          const next = new Map(prev);
+          for (const note of notes) {
+            const info = extractNoteExpression(note);
+            next.set(info.noteId, info);
+          }
+          return next;
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn('Failed to fetch session event Anki note info:', err);
+        }
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingNoteIds((prev) => {
+          const next = new Set(prev);
+          for (const noteId of missingNoteIds) {
+            next.delete(noteId);
+          }
+          return next;
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMarker, noteInfos]);
+
+  const handleOpenNote = (noteId: number) => {
+    void getStatsClient().ankiBrowse(noteId);
+  };
+
+  if (loading) return <div className="text-ctp-overlay2 text-xs p-2">Loading timeline...</div>;
+  if (error) return <div className="text-ctp-red text-xs p-2">Error: {error}</div>;
 
   if (hasKnownWords) {
     return (
@@ -136,8 +201,15 @@ export function SessionDetail({ session }: SessionDetailProps) {
         sorted={sorted}
         knownWordsMap={knownWordsMap}
         cardEvents={cardEvents}
+        seekEvents={seekEvents}
         yomitanLookupEvents={yomitanLookupEvents}
         pauseRegions={pauseRegions}
+        markers={markers}
+        activeMarkerKey={activeMarkerKey}
+        onActiveMarkerChange={setActiveMarkerKey}
+        noteInfos={noteInfos}
+        loadingNoteIds={loadingNoteIds}
+        onOpenNote={handleOpenNote}
         pauseCount={pauseCount}
         seekCount={seekCount}
         cardEventCount={cardEventCount}
@@ -151,8 +223,15 @@ export function SessionDetail({ session }: SessionDetailProps) {
     <FallbackView
       sorted={sorted}
       cardEvents={cardEvents}
+      seekEvents={seekEvents}
       yomitanLookupEvents={yomitanLookupEvents}
       pauseRegions={pauseRegions}
+      markers={markers}
+      activeMarkerKey={activeMarkerKey}
+      onActiveMarkerChange={setActiveMarkerKey}
+      noteInfos={noteInfos}
+      loadingNoteIds={loadingNoteIds}
+      onOpenNote={handleOpenNote}
       pauseCount={pauseCount}
       seekCount={seekCount}
       cardEventCount={cardEventCount}
@@ -168,8 +247,15 @@ function RatioView({
   sorted,
   knownWordsMap,
   cardEvents,
+  seekEvents,
   yomitanLookupEvents,
   pauseRegions,
+  markers,
+  activeMarkerKey,
+  onActiveMarkerChange,
+  noteInfos,
+  loadingNoteIds,
+  onOpenNote,
   pauseCount,
   seekCount,
   cardEventCount,
@@ -179,8 +265,15 @@ function RatioView({
   sorted: TimelineEntry[];
   knownWordsMap: Map<number, number>;
   cardEvents: SessionEvent[];
+  seekEvents: SessionEvent[];
   yomitanLookupEvents: SessionEvent[];
-  pauseRegions: PauseRegion[];
+  pauseRegions: Array<{ startMs: number; endMs: number }>;
+  markers: SessionChartMarker[];
+  activeMarkerKey: string | null;
+  onActiveMarkerChange: (markerKey: string | null) => void;
+  noteInfos: Map<number, SessionEventNoteInfo>;
+  loadingNoteIds: Set<number>;
+  onOpenNote: (noteId: number) => void;
   pauseCount: number;
   seekCount: number;
   cardEventCount: number;
@@ -205,7 +298,7 @@ function RatioView({
   }
 
   if (chartData.length === 0) {
-    return <div className="text-ctp-overlay2 text-xs p-2">No word data for this session.</div>;
+    return <div className="text-ctp-overlay2 text-xs p-2">No token data for this session.</div>;
   }
 
   const tsMin = chartData[0]!.tsMs;
@@ -217,8 +310,9 @@ function RatioView({
   return (
     <div className="bg-ctp-mantle border border-ctp-surface1 rounded-lg p-3 mt-1 space-y-1">
       {/* ── Top: Percentage area chart ── */}
-      <ResponsiveContainer width="100%" height={130}>
-        <AreaChart data={chartData}>
+      <div className="relative">
+        <ResponsiveContainer width="100%" height={130}>
+          <AreaChart data={chartData}>
           <defs>
             <linearGradient id={`knownGrad-${session.sessionId}`} x1="0" y1="1" x2="0" y2="0">
               <stop offset="0%" stopColor="#a6da95" stopOpacity={0.4} />
@@ -297,36 +391,45 @@ function RatioView({
           ))}
 
           {/* Card mine markers */}
-          {cardEvents.map((e, i) => (
-            <ReferenceLine
-              key={`card-${i}`}
-              yAxisId="pct"
-              x={e.tsMs}
-              stroke="#a6da95"
-              strokeWidth={2}
-              strokeOpacity={0.8}
-              label={{
-                value: '\u26CF',
-                position: 'top',
-                fill: '#a6da95',
-                fontSize: 14,
-                fontWeight: 700,
-              }}
-            />
-          ))}
+            {cardEvents.map((e, i) => (
+              <ReferenceLine
+                key={`card-${i}`}
+                yAxisId="pct"
+                x={e.tsMs}
+                stroke="#a6da95"
+                strokeWidth={2}
+                strokeOpacity={0.8}
+              />
+            ))}
+
+            {seekEvents.map((e, i) => {
+              const isBackward = e.eventType === EventType.SEEK_BACKWARD;
+              const stroke = isBackward ? '#f5bde6' : '#8bd5ca';
+              return (
+                <ReferenceLine
+                  key={`seek-${i}`}
+                  yAxisId="pct"
+                  x={e.tsMs}
+                  stroke={stroke}
+                  strokeWidth={1.5}
+                  strokeOpacity={0.75}
+                  strokeDasharray="4 3"
+                />
+              );
+            })}
 
           {/* Yomitan lookup markers */}
-          {yomitanLookupEvents.map((e, i) => (
-            <ReferenceLine
-              key={`yomitan-${i}`}
-              yAxisId="pct"
-              x={e.tsMs}
-              stroke="#b7bdf8"
-              strokeWidth={1.5}
-              strokeDasharray="2 3"
-              strokeOpacity={0.7}
-            />
-          ))}
+            {yomitanLookupEvents.map((e, i) => (
+              <ReferenceLine
+                key={`yomitan-${i}`}
+                yAxisId="pct"
+                x={e.tsMs}
+                stroke="#b7bdf8"
+                strokeWidth={1.5}
+                strokeDasharray="2 3"
+                strokeOpacity={0.7}
+              />
+            ))}
 
           <Area
             yAxisId="pct"
@@ -352,12 +455,23 @@ function RatioView({
             type="monotone"
             isAnimationActive={false}
           />
-        </AreaChart>
-      </ResponsiveContainer>
+          </AreaChart>
+        </ResponsiveContainer>
+        <SessionEventOverlay
+          markers={markers}
+          tsMin={tsMin}
+          tsMax={tsMax}
+          activeMarkerKey={activeMarkerKey}
+          onActiveMarkerChange={onActiveMarkerChange}
+          noteInfos={noteInfos}
+          loadingNoteIds={loadingNoteIds}
+          onOpenNote={onOpenNote}
+        />
+      </div>
 
-      {/* ── Bottom: Word accumulation sparkline ── */}
+      {/* ── Bottom: Token accumulation sparkline ── */}
       <div className="flex items-center gap-2 border-t border-ctp-surface1 pt-1">
-        <span className="text-[9px] text-ctp-overlay0 whitespace-nowrap">total words</span>
+        <span className="text-[9px] text-ctp-overlay0 whitespace-nowrap">total tokens</span>
         <div className="flex-1 h-[28px]">
           <ResponsiveContainer width="100%" height={28}>
             <LineChart data={sparkData}>
@@ -398,8 +512,15 @@ function RatioView({
 function FallbackView({
   sorted,
   cardEvents,
+  seekEvents,
   yomitanLookupEvents,
   pauseRegions,
+  markers,
+  activeMarkerKey,
+  onActiveMarkerChange,
+  noteInfos,
+  loadingNoteIds,
+  onOpenNote,
   pauseCount,
   seekCount,
   cardEventCount,
@@ -408,8 +529,15 @@ function FallbackView({
 }: {
   sorted: TimelineEntry[];
   cardEvents: SessionEvent[];
+  seekEvents: SessionEvent[];
   yomitanLookupEvents: SessionEvent[];
-  pauseRegions: PauseRegion[];
+  pauseRegions: Array<{ startMs: number; endMs: number }>;
+  markers: SessionChartMarker[];
+  activeMarkerKey: string | null;
+  onActiveMarkerChange: (markerKey: string | null) => void;
+  noteInfos: Map<number, SessionEventNoteInfo>;
+  loadingNoteIds: Set<number>;
+  onOpenNote: (noteId: number) => void;
   pauseCount: number;
   seekCount: number;
   cardEventCount: number;
@@ -424,7 +552,7 @@ function FallbackView({
   }
 
   if (chartData.length === 0) {
-    return <div className="text-ctp-overlay2 text-xs p-2">No word data for this session.</div>;
+    return <div className="text-ctp-overlay2 text-xs p-2">No token data for this session.</div>;
   }
 
   const tsMin = chartData[0]!.tsMs;
@@ -432,8 +560,9 @@ function FallbackView({
 
   return (
     <div className="bg-ctp-mantle border border-ctp-surface1 rounded-lg p-3 mt-1 space-y-3">
-      <ResponsiveContainer width="100%" height={130}>
-        <LineChart data={chartData}>
+      <div className="relative">
+        <ResponsiveContainer width="100%" height={130}>
+          <LineChart data={chartData}>
           <XAxis
             dataKey="tsMs"
             type="number"
@@ -454,7 +583,7 @@ function FallbackView({
           <Tooltip
             contentStyle={tooltipStyle}
             labelFormatter={formatTime}
-            formatter={(value: number) => [`${value.toLocaleString()}`, 'Total words']}
+            formatter={(value: number) => [`${value.toLocaleString()}`, 'Total tokens']}
           />
 
           {pauseRegions.map((r, i) => (
@@ -471,32 +600,39 @@ function FallbackView({
             />
           ))}
 
-          {cardEvents.map((e, i) => (
-            <ReferenceLine
-              key={`card-${i}`}
-              x={e.tsMs}
-              stroke="#a6da95"
-              strokeWidth={2}
-              strokeOpacity={0.8}
-              label={{
-                value: '\u26CF',
-                position: 'top',
-                fill: '#a6da95',
-                fontSize: 14,
-                fontWeight: 700,
-              }}
-            />
-          ))}
-          {yomitanLookupEvents.map((e, i) => (
-            <ReferenceLine
-              key={`yomitan-${i}`}
-              x={e.tsMs}
-              stroke="#b7bdf8"
-              strokeWidth={1.5}
-              strokeDasharray="2 3"
-              strokeOpacity={0.7}
-            />
-          ))}
+            {cardEvents.map((e, i) => (
+              <ReferenceLine
+                key={`card-${i}`}
+                x={e.tsMs}
+                stroke="#a6da95"
+                strokeWidth={2}
+                strokeOpacity={0.8}
+              />
+            ))}
+            {seekEvents.map((e, i) => {
+              const isBackward = e.eventType === EventType.SEEK_BACKWARD;
+              const stroke = isBackward ? '#f5bde6' : '#8bd5ca';
+              return (
+                <ReferenceLine
+                  key={`seek-${i}`}
+                  x={e.tsMs}
+                  stroke={stroke}
+                  strokeWidth={1.5}
+                  strokeOpacity={0.75}
+                  strokeDasharray="4 3"
+                />
+              );
+            })}
+            {yomitanLookupEvents.map((e, i) => (
+              <ReferenceLine
+                key={`yomitan-${i}`}
+                x={e.tsMs}
+                stroke="#b7bdf8"
+                strokeWidth={1.5}
+                strokeDasharray="2 3"
+                strokeOpacity={0.7}
+              />
+            ))}
 
           <Line
             dataKey="totalWords"
@@ -504,12 +640,23 @@ function FallbackView({
             strokeWidth={1.5}
             dot={false}
             activeDot={{ r: 3, fill: '#8aadf4', stroke: '#1e2030', strokeWidth: 1 }}
-            name="Total words"
+            name="Total tokens"
             type="monotone"
             isAnimationActive={false}
           />
-        </LineChart>
-      </ResponsiveContainer>
+          </LineChart>
+        </ResponsiveContainer>
+        <SessionEventOverlay
+          markers={markers}
+          tsMin={tsMin}
+          tsMax={tsMax}
+          activeMarkerKey={activeMarkerKey}
+          onActiveMarkerChange={onActiveMarkerChange}
+          noteInfos={noteInfos}
+          loadingNoteIds={loadingNoteIds}
+          onOpenNote={onOpenNote}
+        />
+      </div>
 
       <StatsBar
         hasKnownWords={false}
@@ -596,7 +743,7 @@ function StatsBar({
       )}
       <span className="flex items-center gap-1.5">
         <span className="text-[12px]">{'\u26CF'}</span>
-        <span className="text-ctp-green">
+        <span className="text-ctp-cards-mined">
           {Math.max(cardEventCount, session.cardsMined)} card
           {Math.max(cardEventCount, session.cardsMined) !== 1 ? 's' : ''} mined
         </span>

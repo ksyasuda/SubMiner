@@ -41,7 +41,10 @@ export function MediaDetailView({
     totalSessions: sessions.length,
     totalActiveMs: sessions.reduce((sum, session) => sum + session.activeWatchedMs, 0),
     totalCards: sessions.reduce((sum, session) => sum + session.cardsMined, 0),
-    totalWordsSeen: sessions.reduce((sum, session) => sum + getSessionDisplayWordCount(session), 0),
+    totalTokensSeen: sessions.reduce(
+      (sum, session) => sum + getSessionDisplayWordCount(session),
+      0,
+    ),
     totalLinesSeen: sessions.reduce((sum, session) => sum + session.linesSeen, 0),
     totalLookupCount: sessions.reduce((sum, session) => sum + session.lookupCount, 0),
     totalLookupHits: sessions.reduce((sum, session) => sum + session.lookupHits, 0),

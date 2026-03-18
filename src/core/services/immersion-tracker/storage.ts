@@ -290,7 +290,6 @@ function ensureLifetimeSummaryTables(db: DatabaseSync): void {
       total_sessions INTEGER NOT NULL DEFAULT 0,
       total_active_ms INTEGER NOT NULL DEFAULT 0,
       total_cards INTEGER NOT NULL DEFAULT 0,
-      total_words_seen INTEGER NOT NULL DEFAULT 0,
       total_lines_seen INTEGER NOT NULL DEFAULT 0,
       total_tokens_seen INTEGER NOT NULL DEFAULT 0,
       episodes_started INTEGER NOT NULL DEFAULT 0,
@@ -309,7 +308,6 @@ function ensureLifetimeSummaryTables(db: DatabaseSync): void {
       total_sessions INTEGER NOT NULL DEFAULT 0,
       total_active_ms INTEGER NOT NULL DEFAULT 0,
       total_cards INTEGER NOT NULL DEFAULT 0,
-      total_words_seen INTEGER NOT NULL DEFAULT 0,
       total_lines_seen INTEGER NOT NULL DEFAULT 0,
       total_tokens_seen INTEGER NOT NULL DEFAULT 0,
       completed INTEGER NOT NULL DEFAULT 0,
@@ -574,7 +572,6 @@ export function ensureSchema(db: DatabaseSync): void {
       total_watched_ms INTEGER NOT NULL DEFAULT 0,
       active_watched_ms INTEGER NOT NULL DEFAULT 0,
       lines_seen INTEGER NOT NULL DEFAULT 0,
-      words_seen INTEGER NOT NULL DEFAULT 0,
       tokens_seen INTEGER NOT NULL DEFAULT 0,
       cards_mined INTEGER NOT NULL DEFAULT 0,
       lookup_count INTEGER NOT NULL DEFAULT 0,
@@ -598,7 +595,6 @@ export function ensureSchema(db: DatabaseSync): void {
       total_watched_ms INTEGER NOT NULL DEFAULT 0,
       active_watched_ms INTEGER NOT NULL DEFAULT 0,
       lines_seen INTEGER NOT NULL DEFAULT 0,
-      words_seen INTEGER NOT NULL DEFAULT 0,
       tokens_seen INTEGER NOT NULL DEFAULT 0,
       cards_mined INTEGER NOT NULL DEFAULT 0,
       lookup_count INTEGER NOT NULL DEFAULT 0,
@@ -623,7 +619,7 @@ export function ensureSchema(db: DatabaseSync): void {
       line_index INTEGER,
       segment_start_ms INTEGER,
       segment_end_ms INTEGER,
-      words_delta INTEGER NOT NULL DEFAULT 0,
+      tokens_delta INTEGER NOT NULL DEFAULT 0,
       cards_delta INTEGER NOT NULL DEFAULT 0,
       payload_json TEXT,
       CREATED_DATE INTEGER,
@@ -638,11 +634,10 @@ export function ensureSchema(db: DatabaseSync): void {
       total_sessions INTEGER NOT NULL DEFAULT 0,
       total_active_min REAL NOT NULL DEFAULT 0,
       total_lines_seen INTEGER NOT NULL DEFAULT 0,
-      total_words_seen INTEGER NOT NULL DEFAULT 0,
       total_tokens_seen INTEGER NOT NULL DEFAULT 0,
       total_cards INTEGER NOT NULL DEFAULT 0,
       cards_per_hour REAL,
-      words_per_min REAL,
+      tokens_per_min REAL,
       lookup_hit_rate REAL,
       CREATED_DATE INTEGER,
       LAST_UPDATE_DATE INTEGER,
@@ -656,7 +651,6 @@ export function ensureSchema(db: DatabaseSync): void {
       total_sessions INTEGER NOT NULL DEFAULT 0,
       total_active_min REAL NOT NULL DEFAULT 0,
       total_lines_seen INTEGER NOT NULL DEFAULT 0,
-      total_words_seen INTEGER NOT NULL DEFAULT 0,
       total_tokens_seen INTEGER NOT NULL DEFAULT 0,
       total_cards INTEGER NOT NULL DEFAULT 0,
       CREATED_DATE INTEGER,
@@ -895,7 +889,6 @@ export function ensureSchema(db: DatabaseSync): void {
     addColumnIfMissing(db, 'imm_sessions', 'total_watched_ms', 'INTEGER NOT NULL DEFAULT 0');
     addColumnIfMissing(db, 'imm_sessions', 'active_watched_ms', 'INTEGER NOT NULL DEFAULT 0');
     addColumnIfMissing(db, 'imm_sessions', 'lines_seen', 'INTEGER NOT NULL DEFAULT 0');
-    addColumnIfMissing(db, 'imm_sessions', 'words_seen', 'INTEGER NOT NULL DEFAULT 0');
     addColumnIfMissing(db, 'imm_sessions', 'tokens_seen', 'INTEGER NOT NULL DEFAULT 0');
     addColumnIfMissing(db, 'imm_sessions', 'cards_mined', 'INTEGER NOT NULL DEFAULT 0');
     addColumnIfMissing(db, 'imm_sessions', 'lookup_count', 'INTEGER NOT NULL DEFAULT 0');
@@ -930,13 +923,6 @@ export function ensureSchema(db: DatabaseSync): void {
           ORDER BY t.sample_ms DESC, t.telemetry_id DESC
           LIMIT 1
         ), lines_seen),
-        words_seen = COALESCE((
-          SELECT t.words_seen
-          FROM imm_session_telemetry t
-          WHERE t.session_id = imm_sessions.session_id
-          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
-          LIMIT 1
-        ), words_seen),
         tokens_seen = COALESCE((
           SELECT t.tokens_seen
           FROM imm_session_telemetry t
@@ -1163,17 +1149,17 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
     telemetryInsertStmt: db.prepare(`
       INSERT INTO imm_session_telemetry (
         session_id, sample_ms, total_watched_ms, active_watched_ms,
-        lines_seen, words_seen, tokens_seen, cards_mined, lookup_count,
+        lines_seen, tokens_seen, cards_mined, lookup_count,
         lookup_hits, yomitan_lookup_count, pause_count, pause_ms, seek_forward_count,
         seek_backward_count, media_buffer_events, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `),
     eventInsertStmt: db.prepare(`
       INSERT INTO imm_session_events (
         session_id, ts_ms, event_type, line_index, segment_start_ms, segment_end_ms,
-        words_delta, cards_delta, payload_json, CREATED_DATE, LAST_UPDATE_DATE
+        tokens_delta, cards_delta, payload_json, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
@@ -1310,7 +1296,6 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
       write.totalWatchedMs!,
       write.activeWatchedMs!,
       write.linesSeen!,
-      write.wordsSeen!,
       write.tokensSeen!,
       write.cardsMined!,
       write.lookupCount!,
@@ -1381,7 +1366,7 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
     write.lineIndex ?? null,
     write.segmentStartMs ?? null,
     write.segmentEndMs ?? null,
-    write.wordsDelta ?? 0,
+    write.tokensDelta ?? 0,
     write.cardsDelta ?? 0,
     write.payloadJson ?? null,
     Date.now(),

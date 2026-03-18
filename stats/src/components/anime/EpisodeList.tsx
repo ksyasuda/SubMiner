@@ -80,7 +80,7 @@ export function EpisodeList({
             {sorted.map((ep, idx) => {
               const lookupRate = buildLookupRateDisplay(
                 ep.totalYomitanLookupCount,
-                ep.totalWordsSeen,
+                ep.totalTokensSeen,
               );
 
               return (
@@ -118,7 +118,7 @@ export function EpisodeList({
                     <td className="py-2 pr-3 text-right text-ctp-blue">
                       {formatDuration(ep.totalActiveMs)}
                     </td>
-                    <td className="py-2 pr-3 text-right text-ctp-green">
+                    <td className="py-2 pr-3 text-right text-ctp-cards-mined">
                       {formatNumber(ep.totalCards)}
                     </td>
                     <td className="py-2 pr-3 text-right">

@@ -56,7 +56,6 @@ export interface TelemetryAccumulator {
   totalWatchedMs: number;
   activeWatchedMs: number;
   linesSeen: number;
-  wordsSeen: number;
   tokensSeen: number;
   cardsMined: number;
   lookupCount: number;
@@ -89,7 +88,6 @@ interface QueuedTelemetryWrite {
   totalWatchedMs?: number;
   activeWatchedMs?: number;
   linesSeen?: number;
-  wordsSeen?: number;
   tokensSeen?: number;
   cardsMined?: number;
   lookupCount?: number;
@@ -104,7 +102,7 @@ interface QueuedTelemetryWrite {
   lineIndex?: number | null;
   segmentStartMs?: number | null;
   segmentEndMs?: number | null;
-  wordsDelta?: number;
+  tokensDelta?: number;
   cardsDelta?: number;
   payloadJson?: string | null;
 }
@@ -117,7 +115,7 @@ interface QueuedEventWrite {
   lineIndex?: number | null;
   segmentStartMs?: number | null;
   segmentEndMs?: number | null;
-  wordsDelta?: number;
+  tokensDelta?: number;
   cardsDelta?: number;
   payloadJson?: string | null;
 }
@@ -231,7 +229,6 @@ export interface SessionSummaryQueryRow {
   totalWatchedMs: number;
   activeWatchedMs: number;
   linesSeen: number;
-  wordsSeen: number;
   tokensSeen: number;
   cardsMined: number;
   lookupCount: number;
@@ -255,7 +252,6 @@ export interface LifetimeAnimeRow {
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
-  totalWordsSeen: number;
   totalLinesSeen: number;
   totalTokensSeen: number;
   episodesStarted: number;
@@ -269,7 +265,6 @@ export interface LifetimeMediaRow {
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
-  totalWordsSeen: number;
   totalLinesSeen: number;
   totalTokensSeen: number;
   completed: number;
@@ -374,7 +369,6 @@ export interface SessionTimelineRow {
   totalWatchedMs: number;
   activeWatchedMs: number;
   linesSeen: number;
-  wordsSeen: number;
   tokensSeen: number;
   cardsMined: number;
 }
@@ -385,11 +379,10 @@ export interface ImmersionSessionRollupRow {
   totalSessions: number;
   totalActiveMin: number;
   totalLinesSeen: number;
-  totalWordsSeen: number;
   totalTokensSeen: number;
   totalCards: number;
   cardsPerHour: number | null;
-  wordsPerMin: number | null;
+  tokensPerMin: number | null;
   lookupHitRate: number | null;
 }
 
@@ -421,7 +414,7 @@ export interface MediaLibraryRow {
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
-  totalWordsSeen: number;
+  totalTokensSeen: number;
   lastWatchedMs: number;
   hasCoverArt: number;
 }
@@ -432,7 +425,7 @@ export interface MediaDetailRow {
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
-  totalWordsSeen: number;
+  totalTokensSeen: number;
   totalLinesSeen: number;
   totalLookupCount: number;
   totalLookupHits: number;
@@ -446,7 +439,7 @@ export interface AnimeLibraryRow {
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
-  totalWordsSeen: number;
+  totalTokensSeen: number;
   episodeCount: number;
   episodesTotal: number | null;
   lastWatchedMs: number;
@@ -463,7 +456,7 @@ export interface AnimeDetailRow {
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
-  totalWordsSeen: number;
+  totalTokensSeen: number;
   totalLinesSeen: number;
   totalLookupCount: number;
   totalLookupHits: number;
@@ -491,7 +484,7 @@ export interface AnimeEpisodeRow {
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
-  totalWordsSeen: number;
+  totalTokensSeen: number;
   totalYomitanLookupCount: number;
   lastWatchedMs: number;
 }

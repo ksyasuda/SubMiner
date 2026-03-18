@@ -18,7 +18,6 @@ const SESSION_SUMMARIES = [
     totalWatchedMs: 60_000,
     activeWatchedMs: 50_000,
     linesSeen: 10,
-    wordsSeen: 100,
     tokensSeen: 80,
     cardsMined: 2,
     lookupCount: 5,
@@ -34,11 +33,10 @@ const DAILY_ROLLUPS = [
     totalSessions: 1,
     totalActiveMin: 10,
     totalLinesSeen: 10,
-    totalWordsSeen: 100,
     totalTokensSeen: 80,
     totalCards: 2,
     cardsPerHour: 12,
-    wordsPerMin: 10,
+    tokensPerMin: 10,
     lookupHitRate: 0.8,
   },
 ];
@@ -96,7 +94,7 @@ const ANIME_LIBRARY = [
     totalSessions: 3,
     totalActiveMs: 180_000,
     totalCards: 5,
-    totalWordsSeen: 300,
+    totalTokensSeen: 300,
     episodeCount: 2,
     episodesTotal: 25,
     lastWatchedMs: Date.now(),
@@ -113,7 +111,7 @@ const ANIME_DETAIL = {
   totalSessions: 3,
   totalActiveMs: 180_000,
   totalCards: 5,
-  totalWordsSeen: 300,
+  totalTokensSeen: 300,
   totalLinesSeen: 50,
   totalLookupCount: 20,
   totalLookupHits: 15,
@@ -198,7 +196,7 @@ const ANIME_EPISODES = [
     totalSessions: 1,
     totalActiveMs: 90_000,
     totalCards: 3,
-    totalWordsSeen: 150,
+    totalTokensSeen: 150,
     lastWatchedMs: Date.now(),
   },
 ];
@@ -347,6 +345,47 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.ok(Array.isArray(body));
+  });
+
+  it('GET /api/stats/sessions/:id/events forwards event type filters to the tracker', async () => {
+    let seenSessionId = 0;
+    let seenLimit = 0;
+    let seenTypes: number[] | undefined;
+    const app = createStatsApp(
+      createMockTracker({
+        getSessionEvents: async (sessionId: number, limit?: number, eventTypes?: number[]) => {
+          seenSessionId = sessionId;
+          seenLimit = limit ?? 0;
+          seenTypes = eventTypes;
+          return [];
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/sessions/7/events?limit=12&types=4,5,9');
+    assert.equal(res.status, 200);
+    assert.equal(seenSessionId, 7);
+    assert.equal(seenLimit, 12);
+    assert.deepEqual(seenTypes, [4, 5, 9]);
+  });
+
+  it('GET /api/stats/sessions/:id/timeline requests the full session when no limit is provided', async () => {
+    let seenSessionId = 0;
+    let seenLimit: number | undefined;
+    const app = createStatsApp(
+      createMockTracker({
+        getSessionTimeline: async (sessionId: number, limit?: number) => {
+          seenSessionId = sessionId;
+          seenLimit = limit;
+          return [];
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/sessions/7/timeline');
+    assert.equal(res.status, 200);
+    assert.equal(seenSessionId, 7);
+    assert.equal(seenLimit, undefined);
   });
 
   it('GET /api/stats/sessions/:id/known-words-timeline preserves line positions and counts known occurrences', async () => {

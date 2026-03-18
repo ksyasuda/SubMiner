@@ -8,10 +8,10 @@ import { SessionRow } from '../components/sessions/SessionRow';
 import { EventType, type SessionEvent } from '../types/stats';
 import { buildLookupRateDisplay, getYomitanLookupEvents } from './yomitan-lookup';
 
-test('buildLookupRateDisplay formats lookups per 100 words in short and long forms', () => {
+test('buildLookupRateDisplay formats lookups per 100 tokens in short and long forms', () => {
   assert.deepEqual(buildLookupRateDisplay(23, 1000), {
-    shortValue: '2.3 / 100 words',
-    longValue: '2.3 lookups per 100 words',
+    shortValue: '2.3 / 100 tokens',
+    longValue: '2.3 lookups per 100 tokens',
   });
   assert.equal(buildLookupRateDisplay(0, 0), null);
 });
@@ -38,7 +38,7 @@ test('MediaHeader renders Yomitan lookup count and lookup rate copy', () => {
         totalSessions: 4,
         totalActiveMs: 90_000,
         totalCards: 12,
-        totalWordsSeen: 1000,
+        totalTokensSeen: 1000,
         totalLinesSeen: 120,
         totalLookupCount: 30,
         totalLookupHits: 21,
@@ -48,11 +48,11 @@ test('MediaHeader renders Yomitan lookup count and lookup rate copy', () => {
   );
 
   assert.match(markup, /23/);
-  assert.match(markup, /2\.3 \/ 100 words/);
-  assert.match(markup, /2\.3 lookups per 100 words/);
+  assert.match(markup, /2\.3 \/ 100 tokens/);
+  assert.match(markup, /2\.3 lookups per 100 tokens/);
 });
 
-test('MediaHeader distinguishes word occurrences from known unique words', () => {
+test('MediaHeader distinguishes token occurrences from known unique words', () => {
   const markup = renderToStaticMarkup(
     <MediaHeader
       detail={{
@@ -61,7 +61,7 @@ test('MediaHeader distinguishes word occurrences from known unique words', () =>
         totalSessions: 4,
         totalActiveMs: 90_000,
         totalCards: 12,
-        totalWordsSeen: 30,
+        totalTokensSeen: 30,
         totalLinesSeen: 120,
         totalLookupCount: 30,
         totalLookupHits: 21,
@@ -74,7 +74,7 @@ test('MediaHeader distinguishes word occurrences from known unique words', () =>
     />,
   );
 
-  assert.match(markup, /word occurrences/);
+  assert.match(markup, /token occurrences/);
   assert.match(markup, /known unique words \(50%\)/);
   assert.match(markup, /17 \/ 34/);
 });
@@ -93,7 +93,7 @@ test('EpisodeList renders per-episode Yomitan lookup rate', () => {
           totalSessions: 1,
           totalActiveMs: 1,
           totalCards: 1,
-          totalWordsSeen: 350,
+          totalTokensSeen: 350,
           totalYomitanLookupCount: 7,
           lastWatchedMs: 0,
         },
@@ -102,7 +102,7 @@ test('EpisodeList renders per-episode Yomitan lookup rate', () => {
   );
 
   assert.match(markup, /Lookup Rate/);
-  assert.match(markup, /2\.0 \/ 100 words/);
+  assert.match(markup, /2\.0 \/ 100 tokens/);
 });
 
 test('AnimeOverviewStats renders aggregate Yomitan lookup metrics', () => {
@@ -119,7 +119,7 @@ test('AnimeOverviewStats renders aggregate Yomitan lookup metrics', () => {
         totalSessions: 5,
         totalActiveMs: 100_000,
         totalCards: 8,
-        totalWordsSeen: 800,
+        totalTokensSeen: 800,
         totalLinesSeen: 100,
         totalLookupCount: 50,
         totalLookupHits: 30,
@@ -134,8 +134,8 @@ test('AnimeOverviewStats renders aggregate Yomitan lookup metrics', () => {
 
   assert.match(markup, /Lookups/);
   assert.match(markup, /16/);
-  assert.match(markup, /2\.0 \/ 100 words/);
-  assert.match(markup, /2\.0 lookups per 100 words/);
+  assert.match(markup, /2\.0 \/ 100 tokens/);
+  assert.match(markup, /Yomitan lookups per 100 tokens seen/);
 });
 
 test('SessionRow prefers token-based word count when available', () => {
@@ -152,7 +152,6 @@ test('SessionRow prefers token-based word count when available', () => {
         totalWatchedMs: 0,
         activeWatchedMs: 0,
         linesSeen: 12,
-        wordsSeen: 12,
         tokensSeen: 42,
         cardsMined: 0,
         lookupCount: 0,

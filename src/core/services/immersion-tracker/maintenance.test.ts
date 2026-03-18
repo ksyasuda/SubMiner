@@ -109,16 +109,16 @@ test('raw retention keeps rollups and rollup retention prunes them separately', 
         1, ${nowMs - 90 * 86_400_000}, 0, 0, ${nowMs}, ${nowMs}
       );
       INSERT INTO imm_daily_rollups (
-        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_words_seen,
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
         total_tokens_seen, total_cards
       ) VALUES (
-        ${oldDay}, 1, 1, 10, 1, 1, 1, 1
+        ${oldDay}, 1, 1, 10, 1, 1, 1
       );
       INSERT INTO imm_monthly_rollups (
-        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen, total_words_seen,
+        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
         total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        ${oldMonth}, 1, 1, 10, 1, 1, 1, 1, ${nowMs}, ${nowMs}
+        ${oldMonth}, 1, 1, 10, 1, 1, 1, ${nowMs}, ${nowMs}
       );
     `);
 

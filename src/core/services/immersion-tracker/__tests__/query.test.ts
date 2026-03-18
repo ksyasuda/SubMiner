@@ -32,11 +32,17 @@ import {
   getVocabularyStats,
   getKanjiStats,
   getSessionEvents,
+  getSessionTimeline,
   getSessionWordsByLine,
   getWordOccurrences,
   upsertCoverArt,
 } from '../query.js';
-import { SOURCE_TYPE_LOCAL, EVENT_SUBTITLE_LINE } from '../types.js';
+import {
+  SOURCE_TYPE_LOCAL,
+  EVENT_CARD_MINED,
+  EVENT_SUBTITLE_LINE,
+  EVENT_YOMITAN_LOOKUP,
+} from '../types.js';
 
 function makeDbPath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-imm-query-test-'));
@@ -99,7 +105,6 @@ test('getSessionSummaries returns sessionId and canonicalTitle', () => {
       2_500,
       5,
       10,
-      10,
       1,
       2,
       1,
@@ -124,11 +129,61 @@ test('getSessionSummaries returns sessionId and canonicalTitle', () => {
     assert.equal(row.linesSeen, 5);
     assert.equal(row.totalWatchedMs, 3_000);
     assert.equal(row.activeWatchedMs, 2_500);
-    assert.equal(row.wordsSeen, 10);
     assert.equal(row.tokensSeen, 10);
     assert.equal(row.lookupCount, 2);
     assert.equal(row.lookupHits, 1);
     assert.equal(row.yomitanLookupCount, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getSessionTimeline returns the full session when no limit is provided', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/full-timeline-test.mkv', {
+      canonicalTitle: 'Full Timeline Test',
+      sourcePath: '/tmp/full-timeline-test.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const startedAtMs = 2_000_000;
+    const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
+
+    for (let sample = 0; sample < 205; sample += 1) {
+      const sampleMs = startedAtMs + sample * 500;
+      stmts.telemetryInsertStmt.run(
+        sessionId,
+        sampleMs,
+        sample * 500,
+        sample * 450,
+        sample,
+        sample * 4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        sampleMs,
+        sampleMs,
+      );
+    }
+
+    const rows = getSessionTimeline(db, sessionId);
+
+    assert.equal(rows.length, 205);
+    assert.equal(rows[0]?.linesSeen, 204);
+    assert.equal(rows.at(-1)?.linesSeen, 0);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -146,15 +201,15 @@ test('getDailyRollups limits by distinct days (not rows)', () => {
       `
       INSERT INTO imm_daily_rollups (
         rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
-        total_words_seen, total_tokens_seen, total_cards
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        total_tokens_seen, total_cards
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `,
     );
 
-    insert.run(10, 1, 1, 1, 0, 0, 0, 2);
-    insert.run(10, 2, 1, 1, 0, 0, 0, 3);
-    insert.run(9, 1, 1, 1, 0, 0, 0, 1);
-    insert.run(8, 1, 1, 1, 0, 0, 0, 1);
+    insert.run(10, 1, 1, 1, 0, 0, 2);
+    insert.run(10, 2, 1, 1, 0, 0, 3);
+    insert.run(9, 1, 1, 1, 0, 0, 1);
+    insert.run(8, 1, 1, 1, 0, 0, 1);
 
     const rows = getDailyRollups(db, 2);
     assert.equal(rows.length, 3);
@@ -213,12 +268,11 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
       startedAtMs,
       activeWatchedMs,
       cardsMined,
-      wordsSeen,
       tokensSeen,
       yomitanLookupCount,
     ] of [
-      [sessionOne.sessionId, dayOneStart, 30 * 60_000, 2, 100, 120, 8],
-      [sessionTwo.sessionId, dayTwoStart, 45 * 60_000, 3, 120, 140, 10],
+      [sessionOne.sessionId, dayOneStart, 30 * 60_000, 2, 120, 8],
+      [sessionTwo.sessionId, dayTwoStart, 45 * 60_000, 3, 140, 10],
     ] as const) {
       stmts.telemetryInsertStmt.run(
         sessionId,
@@ -226,7 +280,6 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
         activeWatchedMs,
         activeWatchedMs,
         10,
-        wordsSeen,
         tokensSeen,
         cardsMined,
         0,
@@ -248,7 +301,6 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
             total_watched_ms = ?,
             active_watched_ms = ?,
             lines_seen = ?,
-            words_seen = ?,
             tokens_seen = ?,
             cards_mined = ?,
             yomitan_lookup_count = ?
@@ -259,7 +311,6 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
         activeWatchedMs,
         activeWatchedMs,
         10,
-        wordsSeen,
         tokensSeen,
         cardsMined,
         yomitanLookupCount,
@@ -271,19 +322,19 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
       `
         INSERT INTO imm_daily_rollups (
           rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
-          total_words_seen, total_tokens_seen, total_cards
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          total_tokens_seen, total_cards
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
-    ).run(Math.floor(dayOneStart / 86_400_000), videoId, 1, 30, 10, 100, 120, 2);
+    ).run(Math.floor(dayOneStart / 86_400_000), videoId, 1, 30, 10, 120, 2);
 
     db.prepare(
       `
         INSERT INTO imm_daily_rollups (
           rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
-          total_words_seen, total_tokens_seen, total_cards
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          total_tokens_seen, total_cards
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
-    ).run(Math.floor(dayTwoStart / 86_400_000), videoId, 1, 45, 10, 120, 140, 3);
+    ).run(Math.floor(dayTwoStart / 86_400_000), videoId, 1, 45, 10, 140, 3);
 
     db.prepare(
       `
@@ -349,14 +400,14 @@ test('getQueryHints reads all-time totals from lifetime summary', () => {
       `
       INSERT INTO imm_daily_rollups (
         rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
-        total_words_seen, total_tokens_seen, total_cards
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        total_tokens_seen, total_cards
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `,
     );
 
-    insert.run(10, 1, 1, 12, 0, 0, 0, 2);
-    insert.run(10, 2, 1, 11, 0, 0, 0, 3);
-    insert.run(9, 1, 1, 10, 0, 0, 0, 1);
+    insert.run(10, 1, 1, 12, 0, 0, 2);
+    insert.run(10, 2, 1, 11, 0, 0, 3);
+    insert.run(9, 1, 1, 10, 0, 0, 1);
 
     const hints = getQueryHints(db);
     assert.equal(hints.totalSessions, 4);
@@ -394,7 +445,6 @@ test('getSessionSummaries with no telemetry returns zero aggregates', () => {
     assert.equal(row.totalWatchedMs, 0);
     assert.equal(row.activeWatchedMs, 0);
     assert.equal(row.linesSeen, 0);
-    assert.equal(row.wordsSeen, 0);
     assert.equal(row.tokensSeen, 0);
     assert.equal(row.lookupCount, 0);
     assert.equal(row.lookupHits, 0);
@@ -432,7 +482,6 @@ test('getSessionSummaries uses denormalized session metrics for ended sessions w
         total_watched_ms = ?,
         active_watched_ms = ?,
         lines_seen = ?,
-        words_seen = ?,
         tokens_seen = ?,
         cards_mined = ?,
         lookup_count = ?,
@@ -440,7 +489,7 @@ test('getSessionSummaries uses denormalized session metrics for ended sessions w
         LAST_UPDATE_DATE = ?
       WHERE session_id = ?
       `,
-    ).run(endedAtMs, 8_000, 7_000, 12, 34, 34, 5, 9, 6, endedAtMs, sessionId);
+    ).run(endedAtMs, 8_000, 7_000, 12, 34, 5, 9, 6, endedAtMs, sessionId);
 
     const rows = getSessionSummaries(db, 10);
     const row = rows.find((r) => r.sessionId === sessionId);
@@ -448,7 +497,6 @@ test('getSessionSummaries uses denormalized session metrics for ended sessions w
     assert.equal(row.totalWatchedMs, 8_000);
     assert.equal(row.activeWatchedMs, 7_000);
     assert.equal(row.linesSeen, 12);
-    assert.equal(row.wordsSeen, 34);
     assert.equal(row.tokensSeen, 34);
     assert.equal(row.cardsMined, 5);
     assert.equal(row.lookupCount, 9);
@@ -639,15 +687,15 @@ test('getDailyRollups returns all rows for the most recent rollup days', () => {
     const insertRollup = db.prepare(
       `
       INSERT INTO imm_daily_rollups (
-        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_words_seen,
-        total_tokens_seen, total_cards, cards_per_hour, words_per_min, lookup_hit_rate
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards, cards_per_hour, tokens_per_min, lookup_hit_rate
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     );
-    insertRollup.run(3_000, 1, 1, 10, 20, 30, 40, 2, 0.1, 0.2, 0.3);
-    insertRollup.run(3_000, 2, 2, 10, 20, 30, 40, 3, 0.1, 0.2, 0.3);
-    insertRollup.run(2_999, 3, 1, 5, 10, 15, 20, 1, 0.1, 0.2, 0.3);
-    insertRollup.run(2_998, 4, 1, 5, 10, 15, 20, 1, 0.1, 0.2, 0.3);
+    insertRollup.run(3_000, 1, 1, 10, 20, 40, 2, 0.1, 0.2, 0.3);
+    insertRollup.run(3_000, 2, 2, 10, 20, 40, 3, 0.1, 0.2, 0.3);
+    insertRollup.run(2_999, 3, 1, 5, 10, 20, 1, 0.1, 0.2, 0.3);
+    insertRollup.run(2_998, 4, 1, 5, 10, 20, 1, 0.1, 0.2, 0.3);
 
     const rows = getDailyRollups(db, 1);
     assert.equal(rows.length, 2);
@@ -675,16 +723,16 @@ test('getMonthlyRollups returns all rows for the most recent rollup months', () 
     const insertRollup = db.prepare(
       `
       INSERT INTO imm_monthly_rollups (
-        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen, total_words_seen,
+        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
         total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     );
     const nowMs = Date.now();
-    insertRollup.run(202602, 1, 1, 10, 20, 30, 40, 5, nowMs, nowMs);
-    insertRollup.run(202602, 2, 1, 10, 20, 30, 40, 6, nowMs, nowMs);
-    insertRollup.run(202601, 3, 1, 5, 10, 15, 20, 2, nowMs, nowMs);
-    insertRollup.run(202600, 4, 1, 5, 10, 15, 20, 2, nowMs, nowMs);
+    insertRollup.run(202602, 1, 1, 10, 20, 40, 5, nowMs, nowMs);
+    insertRollup.run(202602, 2, 1, 10, 20, 40, 6, nowMs, nowMs);
+    insertRollup.run(202601, 3, 1, 5, 10, 20, 2, nowMs, nowMs);
+    insertRollup.run(202600, 4, 1, 5, 10, 20, 2, nowMs, nowMs);
 
     const rows = getMonthlyRollups(db, 1);
     assert.equal(rows.length, 2);
@@ -706,9 +754,9 @@ test('getAnimeDailyRollups returns all rows for the most recent rollup days', ()
     const insertRollup = db.prepare(
       `
       INSERT INTO imm_daily_rollups (
-        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_words_seen,
-        total_tokens_seen, total_cards, cards_per_hour, words_per_min, lookup_hit_rate
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards, cards_per_hour, tokens_per_min, lookup_hit_rate
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     );
     const animeId = getOrCreateAnimeRecord(db, {
@@ -738,9 +786,9 @@ test('getAnimeDailyRollups returns all rows for the most recent rollup days', ()
       video2,
     );
 
-    insertRollup.run(4_000, video1, 1, 10, 20, 30, 40, 2, 0.1, 0.2, 0.3);
-    insertRollup.run(4_000, video2, 1, 10, 20, 30, 40, 2, 0.1, 0.2, 0.3);
-    insertRollup.run(3_999, video1, 1, 10, 20, 30, 40, 2, 0.1, 0.2, 0.3);
+    insertRollup.run(4_000, video1, 1, 10, 20, 40, 2, 0.1, 0.2, 0.3);
+    insertRollup.run(4_000, video2, 1, 10, 20, 40, 2, 0.1, 0.2, 0.3);
+    insertRollup.run(3_999, video1, 1, 10, 20, 40, 2, 0.1, 0.2, 0.3);
 
     const rows = getAnimeDailyRollups(db, animeId, 1);
     assert.equal(rows.length, 2);
@@ -1112,6 +1160,78 @@ test('getSessionEvents respects limit parameter', () => {
   }
 });
 
+test('getSessionEvents filters by event type before applying limit', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/events-type-filter.mkv', {
+      canonicalTitle: 'Events Type Filter',
+      sourcePath: '/tmp/events-type-filter.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const startedAtMs = 7_500_000;
+    const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
+
+    for (let i = 0; i < 5; i += 1) {
+      stmts.eventInsertStmt.run(
+        sessionId,
+        startedAtMs + i * 1_000,
+        EVENT_SUBTITLE_LINE,
+        i,
+        0,
+        500,
+        1,
+        0,
+        `{"line":"subtitle-${i}"}`,
+        startedAtMs + i * 1_000,
+        startedAtMs + i * 1_000,
+      );
+    }
+
+    stmts.eventInsertStmt.run(
+      sessionId,
+      startedAtMs + 10_000,
+      EVENT_CARD_MINED,
+      null,
+      null,
+      null,
+      0,
+      1,
+      '{"cardsMined":1}',
+      startedAtMs + 10_000,
+      startedAtMs + 10_000,
+    );
+
+    stmts.eventInsertStmt.run(
+      sessionId,
+      startedAtMs + 11_000,
+      EVENT_YOMITAN_LOOKUP,
+      null,
+      null,
+      null,
+      0,
+      0,
+      null,
+      startedAtMs + 11_000,
+      startedAtMs + 11_000,
+    );
+
+    const filtered = getSessionEvents(db, sessionId, 1, [EVENT_CARD_MINED]);
+    assert.equal(filtered.length, 1);
+    assert.equal(filtered[0]?.eventType, EVENT_CARD_MINED);
+    assert.equal(filtered[0]?.payload, '{"cardsMined":1}');
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getSessionWordsByLine joins word occurrences through imm_words.id', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
@@ -1251,7 +1371,6 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
       3_000,
       10,
       25,
-      25,
       1,
       3,
       2,
@@ -1269,7 +1388,6 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
       5_000,
       4_000,
       11,
-      27,
       27,
       2,
       4,
@@ -1289,7 +1407,6 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
       5_000,
       12,
       28,
-      28,
       3,
       5,
       4,
@@ -1307,7 +1424,6 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
       4_000,
       3_500,
       8,
-      20,
       20,
       1,
       2,
@@ -1329,7 +1445,6 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
         total_sessions,
         total_active_ms,
         total_cards,
-        total_words_seen,
         total_lines_seen,
         total_tokens_seen,
         episodes_started,
@@ -1338,9 +1453,9 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
         last_watched_ms,
         CREATED_DATE,
         LAST_UPDATE_DATE
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
-    ).run(lwaAnimeId, 3, 12_000, 6, 80, 33, 0, 2, 1, 1_000_000, 1_021_000, now, now);
+    ).run(lwaAnimeId, 3, 12_000, 6, 33, 80, 2, 1, 1_000_000, 1_021_000, now, now);
     db.prepare(
       `
       INSERT INTO imm_lifetime_anime (
@@ -1348,7 +1463,6 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
         total_sessions,
         total_active_ms,
         total_cards,
-        total_words_seen,
         total_lines_seen,
         total_tokens_seen,
         episodes_started,
@@ -1357,9 +1471,9 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
         last_watched_ms,
         CREATED_DATE,
         LAST_UPDATE_DATE
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
-    ).run(frierenAnimeId, 1, 3_500, 1, 20, 8, 0, 1, 1, 1_030_000, 1_030_000, now, now);
+    ).run(frierenAnimeId, 1, 3_500, 1, 8, 20, 1, 1, 1_030_000, 1_030_000, now, now);
 
     const animeLibrary = getAnimeLibrary(db);
     assert.equal(animeLibrary.length, 2);
@@ -1400,7 +1514,7 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
     assert.equal(animeDetail?.totalSessions, 3);
     assert.equal(animeDetail?.totalActiveMs, 12_000);
     assert.equal(animeDetail?.totalCards, 6);
-    assert.equal(animeDetail?.totalWordsSeen, 80);
+    assert.equal(animeDetail?.totalTokensSeen, 80);
     assert.equal(animeDetail?.totalLinesSeen, 33);
     assert.equal(animeDetail?.totalLookupCount, 12);
     assert.equal(animeDetail?.totalLookupHits, 8);
@@ -1416,7 +1530,7 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
         totalSessions: row.totalSessions,
         totalActiveMs: row.totalActiveMs,
         totalCards: row.totalCards,
-        totalWordsSeen: row.totalWordsSeen,
+        totalTokensSeen: row.totalTokensSeen,
         totalYomitanLookupCount: row.totalYomitanLookupCount,
       })),
       [
@@ -1427,7 +1541,7 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
           totalSessions: 2,
           totalActiveMs: 7_000,
           totalCards: 3,
-          totalWordsSeen: 52,
+          totalTokensSeen: 52,
           totalYomitanLookupCount: 0,
         },
         {
@@ -1437,7 +1551,7 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
           totalSessions: 1,
           totalActiveMs: 5_000,
           totalCards: 3,
-          totalWordsSeen: 28,
+          totalTokensSeen: 28,
           totalYomitanLookupCount: 0,
         },
       ],
@@ -1506,7 +1620,6 @@ test('anime library and detail still return lifetime rows without retained sessi
         total_sessions,
         total_active_ms,
         total_cards,
-        total_words_seen,
         total_lines_seen,
         total_tokens_seen,
         episodes_started,
@@ -1515,9 +1628,9 @@ test('anime library and detail still return lifetime rows without retained sessi
         last_watched_ms,
         CREATED_DATE,
         LAST_UPDATE_DATE
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
-    ).run(animeId, 12, 4_500, 9, 200, 80, 15, 2, 2, 1_000_000, now, now, now);
+    ).run(animeId, 12, 4_500, 9, 80, 200, 2, 2, 1_000_000, now, now, now);
 
     const library = getAnimeLibrary(db);
     assert.equal(library.length, 1);
@@ -1535,7 +1648,7 @@ test('anime library and detail still return lifetime rows without retained sessi
     assert.equal(detail?.totalSessions, 12);
     assert.equal(detail?.totalActiveMs, 4_500);
     assert.equal(detail?.totalCards, 9);
-    assert.equal(detail?.totalWordsSeen, 200);
+    assert.equal(detail?.totalTokensSeen, 200);
     assert.equal(detail?.totalLinesSeen, 80);
     assert.equal(detail?.episodeCount, 2);
     assert.equal(detail?.totalLookupCount, 0);
@@ -1573,7 +1686,6 @@ test('media library and detail queries read lifetime totals', () => {
         total_sessions,
         total_active_ms,
         total_cards,
-        total_words_seen,
         total_lines_seen,
         total_tokens_seen,
         completed,
@@ -1581,13 +1693,13 @@ test('media library and detail queries read lifetime totals', () => {
         last_watched_ms,
         CREATED_DATE,
         LAST_UPDATE_DATE
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
     );
     const now = Date.now();
     const older = now - 10_000;
-    insertLifetime.run(mediaOne, 3, 12_000, 4, 180, 10, 20, 1, 1_000, now, now, now, now);
-    insertLifetime.run(mediaTwo, 1, 2_000, 2, 40, 4, 6, 0, 900, older, now, now);
+    insertLifetime.run(mediaOne, 3, 12_000, 4, 10, 180, 1, 1_000, now, now, now);
+    insertLifetime.run(mediaTwo, 1, 2_000, 2, 4, 40, 0, 900, older, now, now);
 
     const library = getMediaLibrary(db);
     assert.equal(library.length, 2);
@@ -1598,7 +1710,7 @@ test('media library and detail queries read lifetime totals', () => {
         totalSessions: row.totalSessions,
         totalActiveMs: row.totalActiveMs,
         totalCards: row.totalCards,
-        totalWordsSeen: row.totalWordsSeen,
+        totalTokensSeen: row.totalTokensSeen,
         lastWatchedMs: row.lastWatchedMs,
         hasCoverArt: row.hasCoverArt,
       })),
@@ -1609,7 +1721,7 @@ test('media library and detail queries read lifetime totals', () => {
           totalSessions: 3,
           totalActiveMs: 12_000,
           totalCards: 4,
-          totalWordsSeen: 180,
+          totalTokensSeen: 180,
           lastWatchedMs: now,
           hasCoverArt: 0,
         },
@@ -1619,7 +1731,7 @@ test('media library and detail queries read lifetime totals', () => {
           totalSessions: 1,
           totalActiveMs: 2_000,
           totalCards: 2,
-          totalWordsSeen: 40,
+          totalTokensSeen: 40,
           lastWatchedMs: older,
           hasCoverArt: 0,
         },
@@ -1631,7 +1743,7 @@ test('media library and detail queries read lifetime totals', () => {
     assert.equal(detail.totalSessions, 3);
     assert.equal(detail.totalActiveMs, 12_000);
     assert.equal(detail.totalCards, 4);
-    assert.equal(detail.totalWordsSeen, 180);
+    assert.equal(detail.totalTokensSeen, 180);
     assert.equal(detail.totalLinesSeen, 10);
   } finally {
     db.close();
@@ -1697,7 +1809,6 @@ test('cover art queries reuse a shared blob across duplicate anime art rows', ()
         total_sessions,
         total_active_ms,
         total_cards,
-        total_words_seen,
         total_lines_seen,
         total_tokens_seen,
         completed,
@@ -1705,7 +1816,7 @@ test('cover art queries reuse a shared blob across duplicate anime art rows', ()
         last_watched_ms,
         CREATED_DATE,
         LAST_UPDATE_DATE
-      ) VALUES (?, 1, 1000, 0, 0, 0, 0, 0, ?, ?, ?, ?)
+      ) VALUES (?, 1, 1000, 0, 0, 0, 0, ?, ?, ?, ?)
       `,
     ).run(videoOne, now, now, now, now);
     db.prepare(
@@ -1715,7 +1826,6 @@ test('cover art queries reuse a shared blob across duplicate anime art rows', ()
         total_sessions,
         total_active_ms,
         total_cards,
-        total_words_seen,
         total_lines_seen,
         total_tokens_seen,
         completed,
@@ -1723,7 +1833,7 @@ test('cover art queries reuse a shared blob across duplicate anime art rows', ()
         last_watched_ms,
         CREATED_DATE,
         LAST_UPDATE_DATE
-      ) VALUES (?, 1, 1000, 0, 0, 0, 0, 0, ?, ?, ?, ?)
+      ) VALUES (?, 1, 1000, 0, 0, 0, 0, ?, ?, ?, ?)
       `,
     ).run(videoTwo, now, now - 1, now, now);
 
@@ -1823,20 +1933,20 @@ test('anime/media detail and episode queries use ended-session metrics when tele
     db.prepare(
       `
       INSERT INTO imm_lifetime_anime (
-        anime_id, total_sessions, total_active_ms, total_cards, total_words_seen, total_lines_seen,
+        anime_id, total_sessions, total_active_ms, total_cards, total_lines_seen,
         total_tokens_seen, episodes_started, episodes_completed, first_watched_ms, last_watched_ms,
         CREATED_DATE, LAST_UPDATE_DATE
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
-    ).run(animeId, 3, 12_000, 6, 60, 24, 60, 2, 2, 1_000_000, 1_020_000, now, now);
+    ).run(animeId, 3, 12_000, 6, 24, 60, 2, 2, 1_000_000, 1_020_000, now, now);
     db.prepare(
       `
       INSERT INTO imm_lifetime_media (
-        video_id, total_sessions, total_active_ms, total_cards, total_words_seen, total_lines_seen,
+        video_id, total_sessions, total_active_ms, total_cards, total_lines_seen,
         total_tokens_seen, completed, first_watched_ms, last_watched_ms, CREATED_DATE, LAST_UPDATE_DATE
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
-    ).run(episodeOne, 2, 7_000, 3, 30, 12, 30, 1, 1_000_000, 1_010_000, now, now);
+    ).run(episodeOne, 2, 7_000, 3, 12, 30, 1, 1_000_000, 1_010_000, now, now);
 
     const s1 = startSessionRecord(db, episodeOne, 1_000_000).sessionId;
     const s2 = startSessionRecord(db, episodeOne, 1_010_000).sessionId;
@@ -1849,7 +1959,7 @@ test('anime/media detail and episode queries use ended-session metrics when tele
         status = 2,
         active_watched_ms = ?,
         cards_mined = ?,
-        words_seen = ?,
+        tokens_seen = ?,
         lookup_count = ?,
         lookup_hits = ?,
         LAST_UPDATE_DATE = ?
@@ -1872,7 +1982,7 @@ test('anime/media detail and episode queries use ended-session metrics when tele
         totalSessions: row.totalSessions,
         totalActiveMs: row.totalActiveMs,
         totalCards: row.totalCards,
-        totalWordsSeen: row.totalWordsSeen,
+        totalTokensSeen: row.totalTokensSeen,
       })),
       [
         {
@@ -1880,14 +1990,14 @@ test('anime/media detail and episode queries use ended-session metrics when tele
           totalSessions: 2,
           totalActiveMs: 7_000,
           totalCards: 3,
-          totalWordsSeen: 30,
+          totalTokensSeen: 30,
         },
         {
           videoId: episodeTwo,
           totalSessions: 1,
           totalActiveMs: 5_000,
           totalCards: 3,
-          totalWordsSeen: 30,
+          totalTokensSeen: 30,
         },
       ],
     );
@@ -1897,7 +2007,7 @@ test('anime/media detail and episode queries use ended-session metrics when tele
     assert.equal(mediaDetail?.totalSessions, 2);
     assert.equal(mediaDetail?.totalActiveMs, 7_000);
     assert.equal(mediaDetail?.totalCards, 3);
-    assert.equal(mediaDetail?.totalWordsSeen, 30);
+    assert.equal(mediaDetail?.totalTokensSeen, 30);
     assert.equal(mediaDetail?.totalLookupCount, 9);
     assert.equal(mediaDetail?.totalLookupHits, 7);
     assert.equal(mediaDetail?.totalYomitanLookupCount, 0);

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SessionDetail } from '../components/sessions/SessionDetail';
+import { buildSessionChartEvents } from './session-events';
+import { EventType } from '../types/stats';
 
 test('SessionDetail omits the misleading new words metric', () => {
   const markup = renderToStaticMarkup(
@@ -17,7 +19,6 @@ test('SessionDetail omits the misleading new words metric', () => {
         totalWatchedMs: 0,
         activeWatchedMs: 0,
         linesSeen: 12,
-        wordsSeen: 24,
         tokensSeen: 24,
         cardsMined: 0,
         lookupCount: 0,
@@ -27,6 +28,33 @@ test('SessionDetail omits the misleading new words metric', () => {
     />,
   );
 
-  assert.match(markup, /Total words/);
+  assert.match(markup, /No token data/);
   assert.doesNotMatch(markup, /New words/);
+});
+
+test('buildSessionChartEvents keeps only chart-relevant events and pairs pause ranges', () => {
+  const chartEvents = buildSessionChartEvents([
+    { eventType: EventType.SUBTITLE_LINE, tsMs: 1_000, payload: '{"line":"ignored"}' },
+    { eventType: EventType.PAUSE_START, tsMs: 2_000, payload: null },
+    { eventType: EventType.SEEK_FORWARD, tsMs: 3_000, payload: null },
+    { eventType: EventType.PAUSE_END, tsMs: 4_000, payload: null },
+    { eventType: EventType.CARD_MINED, tsMs: 5_000, payload: '{"cardsMined":1}' },
+    { eventType: EventType.YOMITAN_LOOKUP, tsMs: 6_000, payload: null },
+    { eventType: EventType.SEEK_BACKWARD, tsMs: 7_000, payload: null },
+    { eventType: EventType.LOOKUP, tsMs: 8_000, payload: '{"hit":true}' },
+  ]);
+
+  assert.deepEqual(
+    chartEvents.seekEvents.map((event) => event.eventType),
+    [EventType.SEEK_FORWARD, EventType.SEEK_BACKWARD],
+  );
+  assert.deepEqual(
+    chartEvents.cardEvents.map((event) => event.tsMs),
+    [5_000],
+  );
+  assert.deepEqual(
+    chartEvents.yomitanLookupEvents.map((event) => event.tsMs),
+    [6_000],
+  );
+  assert.deepEqual(chartEvents.pauseRegions, [{ startMs: 2_000, endMs: 4_000 }]);
 });

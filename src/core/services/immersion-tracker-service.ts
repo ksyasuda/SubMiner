@@ -80,7 +80,6 @@ import {
 } from './immersion-tracker/query';
 import {
   buildVideoKey,
-  calculateTextMetrics,
   deriveCanonicalTitle,
   isKanji,
   isRemoteSource,
@@ -334,7 +333,7 @@ export class ImmersionTrackerService {
     return getSessionSummaries(this.db, limit);
   }
 
-  async getSessionTimeline(sessionId: number, limit = 200): Promise<SessionTimelineRow[]> {
+  async getSessionTimeline(sessionId: number, limit?: number): Promise<SessionTimelineRow[]> {
     return getSessionTimeline(this.db, sessionId, limit);
   }
 
@@ -419,8 +418,12 @@ export class ImmersionTrackerService {
     return getKanjiOccurrences(this.db, kanji, limit, offset);
   }
 
-  async getSessionEvents(sessionId: number, limit = 500): Promise<SessionEventRow[]> {
-    return getSessionEvents(this.db, sessionId, limit);
+  async getSessionEvents(
+    sessionId: number,
+    limit = 500,
+    eventTypes?: number[],
+  ): Promise<SessionEventRow[]> {
+    return getSessionEvents(this.db, sessionId, limit, eventTypes);
   }
 
   async getMediaLibrary(): Promise<MediaLibraryRow[]> {
@@ -747,11 +750,10 @@ export class ImmersionTrackerService {
     const nowMs = Date.now();
     const nowSec = nowMs / 1000;
 
-    const metrics = calculateTextMetrics(cleaned);
+    const tokenCount = tokens?.length ?? 0;
     this.sessionState.currentLineIndex += 1;
     this.sessionState.linesSeen += 1;
-    this.sessionState.wordsSeen += metrics.words;
-    this.sessionState.tokensSeen += metrics.tokens;
+    this.sessionState.tokensSeen += tokenCount;
     this.sessionState.pendingTelemetry = true;
 
     const wordOccurrences = new Map<string, CountedWordOccurrence>();
@@ -821,13 +823,13 @@ export class ImmersionTrackerService {
       lineIndex: this.sessionState.currentLineIndex,
       segmentStartMs: secToMs(startSec),
       segmentEndMs: secToMs(endSec),
-      wordsDelta: metrics.words,
+      tokensDelta: tokenCount,
       cardsDelta: 0,
       eventType: EVENT_SUBTITLE_LINE,
       payloadJson: sanitizePayload(
         {
           event: 'subtitle-line',
-          words: metrics.words,
+          tokens: tokenCount,
         },
         this.maxPayloadBytes,
       ),
@@ -876,7 +878,7 @@ export class ImmersionTrackerService {
             sessionId: this.sessionState.sessionId,
             sampleMs: nowMs,
             eventType: EVENT_SEEK_FORWARD,
-            wordsDelta: 0,
+            tokensDelta: 0,
             cardsDelta: 0,
             segmentStartMs: this.sessionState.lastMediaMs,
             segmentEndMs: mediaMs,
@@ -896,7 +898,7 @@ export class ImmersionTrackerService {
             sessionId: this.sessionState.sessionId,
             sampleMs: nowMs,
             eventType: EVENT_SEEK_BACKWARD,
-            wordsDelta: 0,
+            tokensDelta: 0,
             cardsDelta: 0,
             segmentStartMs: this.sessionState.lastMediaMs,
             segmentEndMs: mediaMs,
@@ -940,7 +942,7 @@ export class ImmersionTrackerService {
         sampleMs: nowMs,
         eventType: EVENT_PAUSE_START,
         cardsDelta: 0,
-        wordsDelta: 0,
+        tokensDelta: 0,
         payloadJson: sanitizePayload({ paused: true }, this.maxPayloadBytes),
       });
     } else {
@@ -955,7 +957,7 @@ export class ImmersionTrackerService {
         sampleMs: nowMs,
         eventType: EVENT_PAUSE_END,
         cardsDelta: 0,
-        wordsDelta: 0,
+        tokensDelta: 0,
         payloadJson: sanitizePayload({ paused: false }, this.maxPayloadBytes),
       });
     }
@@ -976,7 +978,7 @@ export class ImmersionTrackerService {
       sampleMs: Date.now(),
       eventType: EVENT_LOOKUP,
       cardsDelta: 0,
-      wordsDelta: 0,
+      tokensDelta: 0,
       payloadJson: sanitizePayload(
         {
           hit,
@@ -996,7 +998,7 @@ export class ImmersionTrackerService {
       sampleMs: Date.now(),
       eventType: EVENT_YOMITAN_LOOKUP,
       cardsDelta: 0,
-      wordsDelta: 0,
+      tokensDelta: 0,
       payloadJson: null,
     });
   }
@@ -1010,7 +1012,7 @@ export class ImmersionTrackerService {
       sessionId: this.sessionState.sessionId,
       sampleMs: Date.now(),
       eventType: EVENT_CARD_MINED,
-      wordsDelta: 0,
+      tokensDelta: 0,
       cardsDelta: count,
       payloadJson: sanitizePayload(
         { cardsMined: count, ...(noteIds?.length ? { noteIds } : {}) },
@@ -1029,7 +1031,7 @@ export class ImmersionTrackerService {
       sampleMs: Date.now(),
       eventType: EVENT_MEDIA_BUFFER,
       cardsDelta: 0,
-      wordsDelta: 0,
+      tokensDelta: 0,
       payloadJson: sanitizePayload(
         {
           buffer: true,
@@ -1062,7 +1064,6 @@ export class ImmersionTrackerService {
       totalWatchedMs: this.sessionState.totalWatchedMs,
       activeWatchedMs: this.sessionState.activeWatchedMs,
       linesSeen: this.sessionState.linesSeen,
-      wordsSeen: this.sessionState.wordsSeen,
       tokensSeen: this.sessionState.tokensSeen,
       cardsMined: this.sessionState.cardsMined,
       lookupCount: this.sessionState.lookupCount,
@@ -1191,7 +1192,6 @@ export class ImmersionTrackerService {
       totalWatchedMs: 0,
       activeWatchedMs: 0,
       linesSeen: 0,
-      wordsSeen: 0,
       tokensSeen: 0,
       cardsMined: 0,
       lookupCount: 0,

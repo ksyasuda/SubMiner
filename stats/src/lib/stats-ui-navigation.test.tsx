@@ -26,7 +26,7 @@ test('EpisodeList renders explicit episode detail button alongside quick peek ro
           totalSessions: 1,
           totalActiveMs: 1,
           totalCards: 1,
-          totalWordsSeen: 350,
+          totalTokensSeen: 350,
           totalYomitanLookupCount: 7,
           lastWatchedMs: 0,
         },

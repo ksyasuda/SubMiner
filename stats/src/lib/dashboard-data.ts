@@ -26,7 +26,7 @@ export interface OverviewSummary {
   activeDays: number;
   totalSessions: number;
   lookupRate: number | null;
-  todayWords: number;
+  todayTokens: number;
   newWordsToday: number;
   newWordsThisWeek: number;
   recentWatchTime: ChartPoint[];
@@ -100,7 +100,7 @@ function buildAggregatedDailyRows(rollups: DailyRollup[]) {
 
     existing.activeMin += rollup.totalActiveMin;
     existing.cards += rollup.totalCards;
-    existing.words += rollup.totalWordsSeen;
+    existing.words += rollup.totalTokensSeen;
     existing.sessions += rollup.totalSessions;
     if (rollup.lookupHitRate != null) {
       const weight = Math.max(rollup.totalSessions, 1);
@@ -185,9 +185,9 @@ export function buildOverviewSummary(
       overview.hints.totalLookupCount > 0
         ? Math.round((overview.hints.totalLookupHits / overview.hints.totalLookupCount) * 100)
         : null,
-    todayWords: Math.max(
+    todayTokens: Math.max(
       todayRow?.words ?? 0,
-      sumBy(todaySessions, (session) => session.wordsSeen),
+      sumBy(todaySessions, (session) => session.tokensSeen),
     ),
     newWordsToday: overview.hints.newWordsToday ?? 0,
     newWordsThisWeek: overview.hints.newWordsThisWeek ?? 0,

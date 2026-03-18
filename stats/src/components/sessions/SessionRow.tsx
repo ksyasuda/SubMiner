@@ -84,7 +84,7 @@ export function SessionRow({
         </div>
         <div className="flex gap-4 text-xs text-center shrink-0">
           <div>
-            <div className="text-ctp-green font-medium font-mono tabular-nums">
+            <div className="text-ctp-cards-mined font-medium font-mono tabular-nums">
               {formatNumber(session.cardsMined)}
             </div>
             <div className="text-ctp-overlay2">cards</div>
@@ -93,7 +93,7 @@ export function SessionRow({
             <div className="text-ctp-mauve font-medium font-mono tabular-nums">
               {formatNumber(displayWordCount)}
             </div>
-            <div className="text-ctp-overlay2">words</div>
+            <div className="text-ctp-overlay2">tokens</div>
           </div>
         </div>
         <div

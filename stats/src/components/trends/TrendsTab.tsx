@@ -97,6 +97,17 @@ export function TrendsTab() {
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
   const [hiddenAnime, setHiddenAnime] = useState<Set<string>>(() => new Set());
   const { data, loading, error } = useTrends(range, groupBy);
+  const cardsMinedColor = 'var(--color-ctp-cards-mined)';
+  const cardsMinedStackedColors = [
+    cardsMinedColor,
+    '#8aadf4',
+    '#c6a0f6',
+    '#f5a97f',
+    '#f5bde6',
+    '#91d7e3',
+    '#ee99a0',
+    '#f4dbd6',
+  ];
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
   if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
@@ -115,19 +126,40 @@ export function TrendsTab() {
   ]);
   const activeHiddenAnime = pruneHiddenAnime(hiddenAnime, animeTitles);
 
-  const filteredEpisodesPerAnime = filterHiddenAnimeData(data.animePerDay.episodes, activeHiddenAnime);
-  const filteredWatchTimePerAnime = filterHiddenAnimeData(data.animePerDay.watchTime, activeHiddenAnime);
+  const filteredEpisodesPerAnime = filterHiddenAnimeData(
+    data.animePerDay.episodes,
+    activeHiddenAnime,
+  );
+  const filteredWatchTimePerAnime = filterHiddenAnimeData(
+    data.animePerDay.watchTime,
+    activeHiddenAnime,
+  );
   const filteredCardsPerAnime = filterHiddenAnimeData(data.animePerDay.cards, activeHiddenAnime);
   const filteredWordsPerAnime = filterHiddenAnimeData(data.animePerDay.words, activeHiddenAnime);
-  const filteredLookupsPerAnime = filterHiddenAnimeData(data.animePerDay.lookups, activeHiddenAnime);
+  const filteredLookupsPerAnime = filterHiddenAnimeData(
+    data.animePerDay.lookups,
+    activeHiddenAnime,
+  );
   const filteredLookupsPerHundredPerAnime = filterHiddenAnimeData(
     data.animePerDay.lookupsPerHundred,
     activeHiddenAnime,
   );
-  const filteredAnimeProgress = filterHiddenAnimeData(data.animeCumulative.episodes, activeHiddenAnime);
-  const filteredCardsProgress = filterHiddenAnimeData(data.animeCumulative.cards, activeHiddenAnime);
-  const filteredWordsProgress = filterHiddenAnimeData(data.animeCumulative.words, activeHiddenAnime);
-  const filteredWatchTimeProgress = filterHiddenAnimeData(data.animeCumulative.watchTime, activeHiddenAnime);
+  const filteredAnimeProgress = filterHiddenAnimeData(
+    data.animeCumulative.episodes,
+    activeHiddenAnime,
+  );
+  const filteredCardsProgress = filterHiddenAnimeData(
+    data.animeCumulative.cards,
+    activeHiddenAnime,
+  );
+  const filteredWordsProgress = filterHiddenAnimeData(
+    data.animeCumulative.words,
+    activeHiddenAnime,
+  );
+  const filteredWatchTimeProgress = filterHiddenAnimeData(
+    data.animeCumulative.watchTime,
+    activeHiddenAnime,
+  );
 
   return (
     <div className="space-y-4">
@@ -145,19 +177,39 @@ export function TrendsTab() {
           color="#8aadf4"
           type="bar"
         />
-        <TrendChart title="Cards Mined" data={data.activity.cards} color="#a6da95" type="bar" />
-        <TrendChart title="Words Seen" data={data.activity.words} color="#8bd5ca" type="bar" />
+        <TrendChart title="Cards Mined" data={data.activity.cards} color={cardsMinedColor} type="bar" />
+        <TrendChart title="Tokens Seen" data={data.activity.words} color="#8bd5ca" type="bar" />
         <TrendChart title="Sessions" data={data.activity.sessions} color="#b7bdf8" type="bar" />
 
         <SectionHeader>Period Trends</SectionHeader>
-        <TrendChart title="Watch Time (min)" data={data.progress.watchTime} color="#8aadf4" type="line" />
+        <TrendChart
+          title="Watch Time (min)"
+          data={data.progress.watchTime}
+          color="#8aadf4"
+          type="line"
+        />
         <TrendChart title="Sessions" data={data.progress.sessions} color="#b7bdf8" type="line" />
-        <TrendChart title="Words Seen" data={data.progress.words} color="#8bd5ca" type="line" />
-        <TrendChart title="New Words Seen" data={data.progress.newWords} color="#c6a0f6" type="line" />
-        <TrendChart title="Cards Mined" data={data.progress.cards} color="#a6da95" type="line" />
-        <TrendChart title="Episodes Watched" data={data.progress.episodes} color="#91d7e3" type="line" />
+        <TrendChart title="Tokens Seen" data={data.progress.words} color="#8bd5ca" type="line" />
+        <TrendChart
+          title="New Words Seen"
+          data={data.progress.newWords}
+          color="#c6a0f6"
+          type="line"
+        />
+        <TrendChart title="Cards Mined" data={data.progress.cards} color={cardsMinedColor} type="line" />
+        <TrendChart
+          title="Episodes Watched"
+          data={data.progress.episodes}
+          color="#91d7e3"
+          type="line"
+        />
         <TrendChart title="Lookups" data={data.progress.lookups} color="#f5bde6" type="line" />
-        <TrendChart title="Lookups / 100 Words" data={data.ratios.lookupsPerHundred} color="#f5a97f" type="line" />
+        <TrendChart
+          title="Lookups / 100 Tokens"
+          data={data.ratios.lookupsPerHundred}
+          color="#f5a97f"
+          type="line"
+        />
 
         <SectionHeader>Anime — Per Day</SectionHeader>
         <AnimeVisibilityFilter
@@ -179,16 +231,27 @@ export function TrendsTab() {
         />
         <StackedTrendChart title="Episodes per Anime" data={filteredEpisodesPerAnime} />
         <StackedTrendChart title="Watch Time per Anime (min)" data={filteredWatchTimePerAnime} />
-        <StackedTrendChart title="Cards Mined per Anime" data={filteredCardsPerAnime} />
-        <StackedTrendChart title="Words Seen per Anime" data={filteredWordsPerAnime} />
+        <StackedTrendChart
+          title="Cards Mined per Anime"
+          data={filteredCardsPerAnime}
+          colorPalette={cardsMinedStackedColors}
+        />
+        <StackedTrendChart title="Tokens Seen per Anime" data={filteredWordsPerAnime} />
         <StackedTrendChart title="Lookups per Anime" data={filteredLookupsPerAnime} />
-        <StackedTrendChart title="Lookups/100w per Anime" data={filteredLookupsPerHundredPerAnime} />
+        <StackedTrendChart
+          title="Lookups/100w per Anime"
+          data={filteredLookupsPerHundredPerAnime}
+        />
 
         <SectionHeader>Anime — Cumulative</SectionHeader>
         <StackedTrendChart title="Watch Time Progress (min)" data={filteredWatchTimeProgress} />
         <StackedTrendChart title="Episodes Progress" data={filteredAnimeProgress} />
-        <StackedTrendChart title="Cards Mined Progress" data={filteredCardsProgress} />
-        <StackedTrendChart title="Words Seen Progress" data={filteredWordsProgress} />
+        <StackedTrendChart
+          title="Cards Mined Progress"
+          data={filteredCardsProgress}
+          colorPalette={cardsMinedStackedColors}
+        />
+        <StackedTrendChart title="Tokens Seen Progress" data={filteredWordsProgress} />
 
         <SectionHeader>Patterns</SectionHeader>
         <TrendChart

@@ -89,9 +89,9 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
                   {s.startedAtMs > 0 ? formatRelativeDate(s.startedAtMs) : '\u2014'}
                 </span>
                 <span className="text-ctp-blue">{formatDuration(s.activeWatchedMs)}</span>
-                <span className="text-ctp-green">{formatNumber(s.cardsMined)} cards</span>
+                <span className="text-ctp-cards-mined">{formatNumber(s.cardsMined)} cards</span>
                 <span className="text-ctp-peach">
-                  {formatNumber(getSessionDisplayWordCount(s))} words
+                  {formatNumber(getSessionDisplayWordCount(s))} tokens
                 </span>
                 <button
                   type="button"
@@ -141,7 +141,7 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
                     );
                   })
                 ) : (
-                  <span className="text-ctp-green">
+                  <span className="text-ctp-cards-mined">
                     +{ev.cardsDelta} {ev.cardsDelta === 1 ? 'card' : 'cards'}
                   </span>
                 )}

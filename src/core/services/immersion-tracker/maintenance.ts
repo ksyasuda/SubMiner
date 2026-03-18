@@ -125,8 +125,8 @@ function upsertDailyRollupsForGroups(
   const upsertStmt = db.prepare(`
     INSERT INTO imm_daily_rollups (
       rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
-      total_words_seen, total_tokens_seen, total_cards, cards_per_hour,
-      words_per_min, lookup_hit_rate, CREATED_DATE, LAST_UPDATE_DATE
+      total_tokens_seen, total_cards, cards_per_hour,
+      tokens_per_min, lookup_hit_rate, CREATED_DATE, LAST_UPDATE_DATE
     )
     SELECT
       CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS rollup_day,
@@ -134,7 +134,6 @@ function upsertDailyRollupsForGroups(
       COUNT(DISTINCT s.session_id) AS total_sessions,
       COALESCE(SUM(sm.max_active_ms), 0) / 60000.0 AS total_active_min,
       COALESCE(SUM(sm.max_lines), 0) AS total_lines_seen,
-      COALESCE(SUM(sm.max_words), 0) AS total_words_seen,
       COALESCE(SUM(sm.max_tokens), 0) AS total_tokens_seen,
       COALESCE(SUM(sm.max_cards), 0) AS total_cards,
       CASE
@@ -144,9 +143,9 @@ function upsertDailyRollupsForGroups(
       END AS cards_per_hour,
       CASE
         WHEN COALESCE(SUM(sm.max_active_ms), 0) > 0
-          THEN COALESCE(SUM(sm.max_words), 0) / (COALESCE(SUM(sm.max_active_ms), 0) / 60000.0)
+          THEN COALESCE(SUM(sm.max_tokens), 0) / (COALESCE(SUM(sm.max_active_ms), 0) / 60000.0)
         ELSE NULL
-      END AS words_per_min,
+      END AS tokens_per_min,
       CASE
         WHEN COALESCE(SUM(sm.max_lookups), 0) > 0
           THEN CAST(COALESCE(SUM(sm.max_hits), 0) AS REAL) / CAST(SUM(sm.max_lookups) AS REAL)
@@ -160,7 +159,6 @@ function upsertDailyRollupsForGroups(
         t.session_id,
         MAX(t.active_watched_ms) AS max_active_ms,
         MAX(t.lines_seen) AS max_lines,
-        MAX(t.words_seen) AS max_words,
         MAX(t.tokens_seen) AS max_tokens,
         MAX(t.cards_mined) AS max_cards,
         MAX(t.lookup_count) AS max_lookups,
@@ -174,11 +172,10 @@ function upsertDailyRollupsForGroups(
       total_sessions = excluded.total_sessions,
       total_active_min = excluded.total_active_min,
       total_lines_seen = excluded.total_lines_seen,
-      total_words_seen = excluded.total_words_seen,
       total_tokens_seen = excluded.total_tokens_seen,
       total_cards = excluded.total_cards,
       cards_per_hour = excluded.cards_per_hour,
-      words_per_min = excluded.words_per_min,
+      tokens_per_min = excluded.tokens_per_min,
       lookup_hit_rate = excluded.lookup_hit_rate,
       CREATED_DATE = COALESCE(imm_daily_rollups.CREATED_DATE, excluded.CREATED_DATE),
       LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
@@ -201,7 +198,7 @@ function upsertMonthlyRollupsForGroups(
   const upsertStmt = db.prepare(`
     INSERT INTO imm_monthly_rollups (
       rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
-      total_words_seen, total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+      total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
     )
     SELECT
       CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) AS rollup_month,
@@ -209,7 +206,6 @@ function upsertMonthlyRollupsForGroups(
       COUNT(DISTINCT s.session_id) AS total_sessions,
       COALESCE(SUM(sm.max_active_ms), 0) / 60000.0 AS total_active_min,
       COALESCE(SUM(sm.max_lines), 0) AS total_lines_seen,
-      COALESCE(SUM(sm.max_words), 0) AS total_words_seen,
       COALESCE(SUM(sm.max_tokens), 0) AS total_tokens_seen,
       COALESCE(SUM(sm.max_cards), 0) AS total_cards,
       ? AS CREATED_DATE,
@@ -220,7 +216,6 @@ function upsertMonthlyRollupsForGroups(
         t.session_id,
         MAX(t.active_watched_ms) AS max_active_ms,
         MAX(t.lines_seen) AS max_lines,
-        MAX(t.words_seen) AS max_words,
         MAX(t.tokens_seen) AS max_tokens,
         MAX(t.cards_mined) AS max_cards
       FROM imm_session_telemetry t
@@ -232,7 +227,6 @@ function upsertMonthlyRollupsForGroups(
       total_sessions = excluded.total_sessions,
       total_active_min = excluded.total_active_min,
       total_lines_seen = excluded.total_lines_seen,
-      total_words_seen = excluded.total_words_seen,
       total_tokens_seen = excluded.total_tokens_seen,
       total_cards = excluded.total_cards,
       CREATED_DATE = COALESCE(imm_monthly_rollups.CREATED_DATE, excluded.CREATED_DATE),

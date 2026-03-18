@@ -218,13 +218,13 @@ test('finalize updates lifetime summary rows from final session metrics', async 
     } | null;
     const mediaRow = db
       .prepare(
-        'SELECT total_sessions, total_cards, total_active_ms, total_words_seen, total_lines_seen FROM imm_lifetime_media WHERE video_id = ?',
+        'SELECT total_sessions, total_cards, total_active_ms, total_tokens_seen, total_lines_seen FROM imm_lifetime_media WHERE video_id = ?',
       )
       .get(videoId) as {
       total_sessions: number;
       total_cards: number;
       total_active_ms: number;
-      total_words_seen: number;
+      total_tokens_seen: number;
       total_lines_seen: number;
     } | null;
     const animeIdRow = db
@@ -675,7 +675,6 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
         total_watched_ms,
         active_watched_ms,
         lines_seen,
-        words_seen,
         tokens_seen,
         cards_mined,
         lookup_count,
@@ -691,7 +690,6 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
         5000,
         4000,
         12,
-        90,
         120,
         2,
         5,
@@ -711,7 +709,7 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
     const sessionRow = restartedApi.db
       .prepare(
         `
-          SELECT ended_at_ms, status, active_watched_ms, words_seen, cards_mined
+          SELECT ended_at_ms, status, active_watched_ms, tokens_seen, cards_mined
           FROM imm_sessions
           WHERE session_id = 1
         `,
@@ -720,7 +718,7 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
       ended_at_ms: number | null;
       status: number;
       active_watched_ms: number;
-      words_seen: number;
+      tokens_seen: number;
       cards_mined: number;
     } | null;
     const globalRow = restartedApi.db
@@ -754,7 +752,7 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
     assert.ok(Number(sessionRow?.ended_at_ms ?? 0) >= sampleMs);
     assert.equal(sessionRow?.status, 2);
     assert.equal(sessionRow?.active_watched_ms, 4000);
-    assert.equal(sessionRow?.words_seen, 90);
+    assert.equal(sessionRow?.tokens_seen, 120);
     assert.equal(sessionRow?.cards_mined, 2);
 
     assert.ok(globalRow);
@@ -782,7 +780,18 @@ test('persists and retrieves minimum immersion tracking fields', async () => {
     tracker = new Ctor({ dbPath });
 
     tracker.handleMediaChange('/tmp/episode-3.mkv', 'Episode 3');
-    tracker.recordSubtitleLine('alpha beta', 0, 1.2);
+    tracker.recordSubtitleLine('alpha beta', 0, 1.2, [
+      makeMergedToken({
+        surface: 'alpha',
+        headword: 'alpha',
+        reading: 'alpha',
+      }),
+      makeMergedToken({
+        surface: 'beta',
+        headword: 'beta',
+        reading: 'beta',
+      }),
+    ]);
     tracker.recordCardsMined(2);
     tracker.recordLookup(true);
     tracker.recordPlaybackPosition(12.5);
@@ -811,14 +820,13 @@ test('persists and retrieves minimum immersion tracking fields', async () => {
     } | null;
     const telemetryRow = db
       .prepare(
-        `SELECT lines_seen, words_seen, tokens_seen, cards_mined
+        `SELECT lines_seen, tokens_seen, cards_mined
          FROM imm_session_telemetry
          ORDER BY sample_ms DESC, telemetry_id DESC
          LIMIT 1`,
       )
       .get() as {
       lines_seen: number;
-      words_seen: number;
       tokens_seen: number;
       cards_mined: number;
     } | null;
@@ -831,7 +839,6 @@ test('persists and retrieves minimum immersion tracking fields', async () => {
 
     assert.ok(telemetryRow);
     assert.ok(Number(telemetryRow?.lines_seen ?? 0) >= 1);
-    assert.ok(Number(telemetryRow?.words_seen ?? 0) >= 2);
     assert.ok(Number(telemetryRow?.tokens_seen ?? 0) >= 2);
     assert.ok(Number(telemetryRow?.cards_mined ?? 0) >= 2);
   } finally {
@@ -1062,6 +1069,87 @@ test('recordSubtitleLine persists counted allowed tokenized vocabulary rows and 
   }
 });
 
+test('recordSubtitleLine counts exact Yomitan tokens for session metrics', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/token-counting.mkv', 'Token Counting');
+    tracker.recordSubtitleLine('猫 猫 日 日 は 知っている', 0, 1, [
+      makeMergedToken({
+        surface: '猫',
+        headword: '猫',
+        reading: 'ねこ',
+        partOfSpeech: PartOfSpeech.noun,
+        pos1: '名詞',
+      }),
+      makeMergedToken({
+        surface: '猫',
+        headword: '猫',
+        reading: 'ねこ',
+        partOfSpeech: PartOfSpeech.noun,
+        pos1: '名詞',
+      }),
+      makeMergedToken({
+        surface: 'は',
+        headword: 'は',
+        reading: 'は',
+        partOfSpeech: PartOfSpeech.particle,
+        pos1: '助詞',
+      }),
+      makeMergedToken({
+        surface: '知っている',
+        headword: '知る',
+        reading: 'しっている',
+        partOfSpeech: PartOfSpeech.other,
+        pos1: '動詞',
+      }),
+    ]);
+
+    const privateApi = tracker as unknown as {
+      flushTelemetry: (force?: boolean) => void;
+      flushNow: () => void;
+    };
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    const summaries = await tracker.getSessionSummaries(10);
+    assert.equal(summaries[0]?.tokensSeen, 4);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('recordSubtitleLine leaves session token counts at zero when tokenization is unavailable', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/no-tokenization.mkv', 'No Tokenization');
+    tracker.recordSubtitleLine('alpha beta gamma', 0, 1.2, null);
+
+    const privateApi = tracker as unknown as {
+      flushTelemetry: (force?: boolean) => void;
+      flushNow: () => void;
+    };
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    const summaries = await tracker.getSessionSummaries(10);
+    assert.equal(summaries[0]?.tokensSeen, 0);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('subtitle-line event payload omits duplicated subtitle text', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -1094,11 +1182,11 @@ test('subtitle-line event payload omits duplicated subtitle text', async () => {
     assert.ok(row?.payloadJson);
     const parsed = JSON.parse(row?.payloadJson ?? '{}') as {
       event?: string;
-      words?: number;
+      tokens?: number;
       text?: string;
     };
     assert.equal(parsed.event, 'subtitle-line');
-    assert.equal(typeof parsed.words, 'number');
+    assert.equal(typeof parsed.tokens, 'number');
     assert.equal('text' in parsed, false);
   } finally {
     tracker?.destroy();
@@ -1548,12 +1636,11 @@ test('zero retention days disables prune checks while preserving rollups', async
         total_sessions,
         total_active_min,
         total_lines_seen,
-        total_words_seen,
         total_tokens_seen,
         total_cards
       ) VALUES
-      (${insertedDailyRollupKeys[0]}, 1, 1, 1, 1, 1, 1, 1),
-      (${insertedDailyRollupKeys[1]}, 1, 1, 1, 1, 1, 1, 1)
+      (${insertedDailyRollupKeys[0]}, 1, 1, 1, 1, 1, 1),
+      (${insertedDailyRollupKeys[1]}, 1, 1, 1, 1, 1, 1)
     `);
     privateApi.db.exec(`
       INSERT INTO imm_monthly_rollups (
@@ -1562,14 +1649,13 @@ test('zero retention days disables prune checks while preserving rollups', async
         total_sessions,
         total_active_min,
         total_lines_seen,
-        total_words_seen,
         total_tokens_seen,
         total_cards,
         CREATED_DATE,
         LAST_UPDATE_DATE
       ) VALUES
-      (${insertedMonthlyRollupKeys[0]}, 1, 1, 1, 1, 1, 1, 1, ${olderMs}, ${olderMs}),
-      (${insertedMonthlyRollupKeys[1]}, 1, 1, 1, 1, 1, 1, 1, ${oldMs}, ${oldMs})
+      (${insertedMonthlyRollupKeys[0]}, 1, 1, 1, 1, 1, 1, ${olderMs}, ${olderMs}),
+      (${insertedMonthlyRollupKeys[1]}, 1, 1, 1, 1, 1, 1, ${oldMs}, ${oldMs})
     `);
 
     privateApi.runMaintenance();
@@ -1668,7 +1754,6 @@ test('monthly rollups are grouped by calendar month', async () => {
         total_watched_ms,
         active_watched_ms,
         lines_seen,
-        words_seen,
         tokens_seen,
         cards_mined,
         lookup_count,
@@ -1684,7 +1769,6 @@ test('monthly rollups are grouped by calendar month', async () => {
         5000,
         5000,
         1,
-        2,
         2,
         0,
         0,
@@ -1725,7 +1809,6 @@ test('monthly rollups are grouped by calendar month', async () => {
         total_watched_ms,
         active_watched_ms,
         lines_seen,
-        words_seen,
         tokens_seen,
         cards_mined,
         lookup_count,
@@ -1741,7 +1824,6 @@ test('monthly rollups are grouped by calendar month', async () => {
         4000,
         4000,
         2,
-        3,
         3,
         1,
         1,
@@ -1786,13 +1868,12 @@ test('flushSingle reuses cached prepared statements', async () => {
         lineIndex?: number | null;
         segmentStartMs?: number | null;
         segmentEndMs?: number | null;
-        wordsDelta?: number;
+        tokensDelta?: number;
         cardsDelta?: number;
         payloadJson?: string | null;
         totalWatchedMs?: number;
         activeWatchedMs?: number;
         linesSeen?: number;
-        wordsSeen?: number;
         tokensSeen?: number;
         cardsMined?: number;
         lookupCount?: number;
@@ -1862,7 +1943,6 @@ test('flushSingle reuses cached prepared statements', async () => {
       totalWatchedMs: 1000,
       activeWatchedMs: 1000,
       linesSeen: 1,
-      wordsSeen: 2,
       tokensSeen: 2,
       cardsMined: 0,
       lookupCount: 0,
@@ -1882,7 +1962,7 @@ test('flushSingle reuses cached prepared statements', async () => {
       lineIndex: 1,
       segmentStartMs: 0,
       segmentEndMs: 1000,
-      wordsDelta: 2,
+      tokensDelta: 2,
       cardsDelta: 0,
       payloadJson: '{"event":"subtitle-line"}',
     });

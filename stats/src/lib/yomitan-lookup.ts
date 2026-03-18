@@ -8,15 +8,15 @@ export interface LookupRateDisplay {
 
 export function buildLookupRateDisplay(
   yomitanLookupCount: number,
-  wordsSeen: number,
+  tokensSeen: number,
 ): LookupRateDisplay | null {
-  if (!Number.isFinite(yomitanLookupCount) || !Number.isFinite(wordsSeen) || wordsSeen <= 0) {
+  if (!Number.isFinite(yomitanLookupCount) || !Number.isFinite(tokensSeen) || tokensSeen <= 0) {
     return null;
   }
-  const per100 = ((Math.max(0, yomitanLookupCount) / wordsSeen) * 100).toFixed(1);
+  const per100 = ((Math.max(0, yomitanLookupCount) / tokensSeen) * 100).toFixed(1);
   return {
-    shortValue: `${per100} / 100 words`,
-    longValue: `${per100} lookups per 100 words`,
+    shortValue: `${per100} / 100 tokens`,
+    longValue: `${per100} lookups per 100 tokens`,
   };
 }
 

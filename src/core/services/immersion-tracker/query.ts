@@ -77,7 +77,6 @@ const ACTIVE_SESSION_METRICS_CTE = `
       MAX(t.total_watched_ms) AS totalWatchedMs,
       MAX(t.active_watched_ms) AS activeWatchedMs,
       MAX(t.lines_seen) AS linesSeen,
-      MAX(t.words_seen) AS wordsSeen,
       MAX(t.tokens_seen) AS tokensSeen,
       MAX(t.cards_mined) AS cardsMined,
       MAX(t.lookup_count) AS lookupCount,
@@ -353,7 +352,6 @@ export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummar
       COALESCE(asm.totalWatchedMs, s.total_watched_ms, 0) AS totalWatchedMs,
       COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
       COALESCE(asm.linesSeen, s.lines_seen, 0) AS linesSeen,
-      COALESCE(asm.wordsSeen, s.words_seen, 0) AS wordsSeen,
       COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
@@ -372,15 +370,30 @@ export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummar
 export function getSessionTimeline(
   db: DatabaseSync,
   sessionId: number,
-  limit = 200,
+  limit?: number,
 ): SessionTimelineRow[] {
+  if (limit === undefined) {
+    const prepared = db.prepare(`
+      SELECT
+        sample_ms AS sampleMs,
+        total_watched_ms AS totalWatchedMs,
+        active_watched_ms AS activeWatchedMs,
+        lines_seen AS linesSeen,
+        tokens_seen AS tokensSeen,
+        cards_mined AS cardsMined
+      FROM imm_session_telemetry
+      WHERE session_id = ?
+      ORDER BY sample_ms DESC, telemetry_id DESC
+    `);
+    return prepared.all(sessionId) as unknown as SessionTimelineRow[];
+  }
+
   const prepared = db.prepare(`
     SELECT
       sample_ms AS sampleMs,
       total_watched_ms AS totalWatchedMs,
       active_watched_ms AS activeWatchedMs,
       lines_seen AS linesSeen,
-      words_seen AS wordsSeen,
       tokens_seen AS tokensSeen,
       cards_mined AS cardsMined
     FROM imm_session_telemetry
@@ -609,11 +622,10 @@ export function getDailyRollups(db: DatabaseSync, limit = 60): ImmersionSessionR
       r.total_sessions AS totalSessions,
       r.total_active_min AS totalActiveMin,
       r.total_lines_seen AS totalLinesSeen,
-      r.total_words_seen AS totalWordsSeen,
       r.total_tokens_seen AS totalTokensSeen,
       r.total_cards AS totalCards,
       r.cards_per_hour AS cardsPerHour,
-      r.words_per_min AS wordsPerMin,
+      r.tokens_per_min AS tokensPerMin,
       r.lookup_hit_rate AS lookupHitRate
     FROM imm_daily_rollups r
     WHERE r.rollup_day IN (SELECT rollup_day FROM recent_days)
@@ -637,11 +649,10 @@ export function getMonthlyRollups(db: DatabaseSync, limit = 24): ImmersionSessio
       total_sessions AS totalSessions,
       total_active_min AS totalActiveMin,
       total_lines_seen AS totalLinesSeen,
-      total_words_seen AS totalWordsSeen,
       total_tokens_seen AS totalTokensSeen,
       total_cards AS totalCards,
       0 AS cardsPerHour,
-      0 AS wordsPerMin,
+      0 AS tokensPerMin,
       0 AS lookupHitRate
     FROM imm_monthly_rollups
     WHERE rollup_month IN (SELECT rollup_month FROM recent_months)
@@ -670,7 +681,6 @@ interface TrendSessionMetricRow {
   canonicalTitle: string | null;
   animeTitle: string | null;
   activeWatchedMs: number;
-  wordsSeen: number;
   tokensSeen: number;
   cardsMined: number;
   yomitanLookupCount: number;
@@ -760,10 +770,8 @@ function makeTrendLabel(value: number): string {
   });
 }
 
-function getTrendSessionWordCount(
-  session: Pick<TrendSessionMetricRow, 'wordsSeen' | 'tokensSeen'>,
-): number {
-  return session.tokensSeen > 0 ? session.tokensSeen : session.wordsSeen;
+function getTrendSessionWordCount(session: Pick<TrendSessionMetricRow, 'tokensSeen'>): number {
+  return session.tokensSeen;
 }
 
 function resolveTrendAnimeTitle(value: {
@@ -796,7 +804,7 @@ function buildAggregatedTrendRows(rollups: ImmersionSessionRollupRow[]) {
     };
     existing.activeMin += Math.round(rollup.totalActiveMin);
     existing.cards += rollup.totalCards;
-    existing.words += rollup.totalWordsSeen;
+    existing.words += rollup.totalTokensSeen;
     existing.sessions += rollup.totalSessions;
     byKey.set(rollup.rollupDayOrMonth, existing);
   }
@@ -1087,7 +1095,6 @@ function getTrendSessionMetrics(
       v.canonical_title AS canonicalTitle,
       a.canonical_title AS animeTitle,
       COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
-      COALESCE(asm.wordsSeen, s.words_seen, 0) AS wordsSeen,
       COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount
@@ -1167,7 +1174,7 @@ export function getTrendsDashboard(
     words: buildPerAnimeFromDailyRollups(
       dailyRollups,
       titlesByVideoId,
-      (rollup) => rollup.totalWordsSeen,
+      (rollup) => rollup.totalTokensSeen,
     ),
     lookups: buildPerAnimeFromSessions(
       sessions,
@@ -1595,12 +1602,25 @@ export function getSessionEvents(
   db: DatabaseSync,
   sessionId: number,
   limit = 500,
+  eventTypes?: number[],
 ): SessionEventRow[] {
+  if (!eventTypes || eventTypes.length === 0) {
+    const stmt = db.prepare(`
+      SELECT event_type AS eventType, ts_ms AS tsMs, payload_json AS payload
+      FROM imm_session_events WHERE session_id = ? ORDER BY ts_ms ASC LIMIT ?
+    `);
+    return stmt.all(sessionId, limit) as SessionEventRow[];
+  }
+
+  const placeholders = eventTypes.map(() => '?').join(', ');
   const stmt = db.prepare(`
     SELECT event_type AS eventType, ts_ms AS tsMs, payload_json AS payload
-    FROM imm_session_events WHERE session_id = ? ORDER BY ts_ms ASC LIMIT ?
+    FROM imm_session_events
+    WHERE session_id = ? AND event_type IN (${placeholders})
+    ORDER BY ts_ms ASC
+    LIMIT ?
   `);
-  return stmt.all(sessionId, limit) as SessionEventRow[];
+  return stmt.all(sessionId, ...eventTypes, limit) as SessionEventRow[];
 }
 
 export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
@@ -1614,7 +1634,7 @@ export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      COALESCE(lm.total_words_seen, 0) AS totalWordsSeen,
+      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
       COUNT(DISTINCT v.video_id) AS episodeCount,
       a.episodes_total AS episodesTotal,
       COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs
@@ -1644,7 +1664,7 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      COALESCE(lm.total_words_seen, 0) AS totalWordsSeen,
+      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
       COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
       COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
@@ -1699,7 +1719,7 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
       COUNT(DISTINCT s.session_id) AS totalSessions,
       COALESCE(SUM(COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0)), 0) AS totalActiveMs,
       COALESCE(SUM(COALESCE(asm.cardsMined, s.cards_mined, 0)), 0) AS totalCards,
-      COALESCE(SUM(COALESCE(asm.wordsSeen, s.words_seen, 0)), 0) AS totalWordsSeen,
+      COALESCE(SUM(COALESCE(asm.tokensSeen, s.tokens_seen, 0)), 0) AS totalTokensSeen,
       COALESCE(SUM(COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount,
       MAX(s.started_at_ms) AS lastWatchedMs
     FROM imm_videos v
@@ -1728,7 +1748,7 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      COALESCE(lm.total_words_seen, 0) AS totalWordsSeen,
+      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
       COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs,
       CASE
         WHEN ma.cover_blob_hash IS NOT NULL OR ma.cover_blob IS NOT NULL THEN 1
@@ -1754,7 +1774,7 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      COALESCE(lm.total_words_seen, 0) AS totalWordsSeen,
+      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
       COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
       COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
@@ -1788,7 +1808,6 @@ export function getMediaSessions(
       COALESCE(asm.totalWatchedMs, s.total_watched_ms, 0) AS totalWatchedMs,
       COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
       COALESCE(asm.linesSeen, s.lines_seen, 0) AS linesSeen,
-      COALESCE(asm.wordsSeen, s.words_seen, 0) AS wordsSeen,
       COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
@@ -1826,11 +1845,10 @@ export function getMediaDailyRollups(
       total_sessions AS totalSessions,
       total_active_min AS totalActiveMin,
       total_lines_seen AS totalLinesSeen,
-      total_words_seen AS totalWordsSeen,
       total_tokens_seen AS totalTokensSeen,
       total_cards AS totalCards,
       cards_per_hour AS cardsPerHour,
-      words_per_min AS wordsPerMin,
+      tokens_per_min AS tokensPerMin,
       lookup_hit_rate AS lookupHitRate
     FROM imm_daily_rollups
     WHERE video_id = ?
@@ -1859,9 +1877,9 @@ export function getAnimeDailyRollups(
     )
     SELECT r.rollup_day AS rollupDayOrMonth, r.video_id AS videoId,
            r.total_sessions AS totalSessions, r.total_active_min AS totalActiveMin,
-           r.total_lines_seen AS totalLinesSeen, r.total_words_seen AS totalWordsSeen,
+           r.total_lines_seen AS totalLinesSeen,
            r.total_tokens_seen AS totalTokensSeen, r.total_cards AS totalCards,
-           r.cards_per_hour AS cardsPerHour, r.words_per_min AS wordsPerMin,
+           r.cards_per_hour AS cardsPerHour, r.tokens_per_min AS tokensPerMin,
            r.lookup_hit_rate AS lookupHitRate
     FROM imm_daily_rollups r
     JOIN imm_videos v ON v.video_id = r.video_id
@@ -2153,7 +2171,6 @@ export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSu
       COALESCE(asm.totalWatchedMs, s.total_watched_ms, 0) AS totalWatchedMs,
       COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
       COALESCE(asm.linesSeen, s.lines_seen, 0) AS linesSeen,
-      COALESCE(asm.wordsSeen, s.words_seen, 0) AS wordsSeen,
       COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,

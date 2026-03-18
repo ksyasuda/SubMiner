@@ -18,7 +18,6 @@ test('MediaSessionList renders expandable session rows with delete affordance', 
           totalWatchedMs: 1_000,
           activeWatchedMs: 900,
           linesSeen: 12,
-          wordsSeen: 24,
           tokensSeen: 24,
           cardsMined: 2,
           lookupCount: 3,
@@ -34,6 +33,6 @@ test('MediaSessionList renders expandable session rows with delete affordance', 
   assert.match(markup, /Session History/);
   assert.match(markup, /aria-expanded="true"/);
   assert.match(markup, /Delete session Episode 7/);
-  assert.match(markup, /Total words/);
-  assert.match(markup, /1 Yomitan lookup/);
+  assert.match(markup, /tokens/);
+  assert.match(markup, /No token data for this session/);
 });

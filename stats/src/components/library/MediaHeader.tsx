@@ -18,7 +18,7 @@ export function MediaHeader({ detail, initialKnownWordsSummary = null }: MediaHe
     detail.totalLookupCount > 0 ? detail.totalLookupHits / detail.totalLookupCount : null;
   const avgSessionMs =
     detail.totalSessions > 0 ? Math.round(detail.totalActiveMs / detail.totalSessions) : 0;
-  const lookupRate = buildLookupRateDisplay(detail.totalYomitanLookupCount, detail.totalWordsSeen);
+  const lookupRate = buildLookupRateDisplay(detail.totalYomitanLookupCount, detail.totalTokensSeen);
 
   const [knownWordsSummary, setKnownWordsSummary] = useState<{
     totalUniqueWords: number;
@@ -55,12 +55,12 @@ export function MediaHeader({ detail, initialKnownWordsSummary = null }: MediaHe
             <div className="text-xs text-ctp-overlay2">total watch time</div>
           </div>
           <div>
-            <div className="text-ctp-green font-medium">{formatNumber(detail.totalCards)}</div>
+            <div className="text-ctp-cards-mined font-medium">{formatNumber(detail.totalCards)}</div>
             <div className="text-xs text-ctp-overlay2">cards mined</div>
           </div>
           <div>
-            <div className="text-ctp-mauve font-medium">{formatNumber(detail.totalWordsSeen)}</div>
-            <div className="text-xs text-ctp-overlay2">word occurrences</div>
+            <div className="text-ctp-mauve font-medium">{formatNumber(detail.totalTokensSeen)}</div>
+            <div className="text-xs text-ctp-overlay2">token occurrences</div>
           </div>
           <div>
             <div className="text-ctp-lavender font-medium">
@@ -79,10 +79,15 @@ export function MediaHeader({ detail, initialKnownWordsSummary = null }: MediaHe
           {knownWordsSummary && knownWordsSummary.totalUniqueWords > 0 ? (
             <div>
               <div className="text-ctp-green font-medium">
-                {formatNumber(knownWordsSummary.knownWordCount)} / {formatNumber(knownWordsSummary.totalUniqueWords)}
+                {formatNumber(knownWordsSummary.knownWordCount)} /{' '}
+                {formatNumber(knownWordsSummary.totalUniqueWords)}
               </div>
               <div className="text-xs text-ctp-overlay2">
-                known unique words ({Math.round((knownWordsSummary.knownWordCount / knownWordsSummary.totalUniqueWords) * 100)}%)
+                known unique words (
+                {Math.round(
+                  (knownWordsSummary.knownWordCount / knownWordsSummary.totalUniqueWords) * 100,
+                )}
+                %)
               </div>
             </div>
           ) : (

@@ -162,7 +162,7 @@ function SessionItem({
         </div>
         <div className="flex gap-4 text-xs text-center shrink-0">
           <div>
-            <div className="text-ctp-green font-medium font-mono tabular-nums">
+            <div className="text-ctp-cards-mined font-medium font-mono tabular-nums">
               {formatNumber(session.cardsMined)}
             </div>
             <div className="text-ctp-overlay2">cards</div>
@@ -171,7 +171,7 @@ function SessionItem({
             <div className="text-ctp-mauve font-medium font-mono tabular-nums">
               {formatNumber(displayWordCount)}
             </div>
-            <div className="text-ctp-overlay2">words</div>
+            <div className="text-ctp-overlay2">tokens</div>
           </div>
         </div>
       </button>
@@ -245,18 +245,18 @@ function AnimeGroupRow({
               {group.sessions.length} sessions · {formatDuration(group.totalActiveMs)} active
             </div>
           </div>
-          <div className="flex gap-4 text-xs text-center shrink-0">
-            <div>
-              <div className="text-ctp-green font-medium font-mono tabular-nums">
-                {formatNumber(group.totalCards)}
-              </div>
-              <div className="text-ctp-overlay2">cards</div>
+        <div className="flex gap-4 text-xs text-center shrink-0">
+          <div>
+            <div className="text-ctp-cards-mined font-medium font-mono tabular-nums">
+              {formatNumber(group.totalCards)}
             </div>
+            <div className="text-ctp-overlay2">cards</div>
+          </div>
             <div>
               <div className="text-ctp-mauve font-medium font-mono tabular-nums">
                 {formatNumber(group.totalWords)}
               </div>
-              <div className="text-ctp-overlay2">words</div>
+              <div className="text-ctp-overlay2">tokens</div>
             </div>
           </div>
           <div
@@ -293,10 +293,7 @@ function AnimeGroupRow({
                   type="button"
                   onClick={() => {
                     if (navigationTarget.type === 'media-detail') {
-                      onNavigateToMediaDetail(
-                        navigationTarget.videoId,
-                        navigationTarget.sessionId,
-                      );
+                      onNavigateToMediaDetail(navigationTarget.videoId, navigationTarget.sessionId);
                       return;
                     }
                     onNavigateToSession(navigationTarget.sessionId);
@@ -319,7 +316,7 @@ function AnimeGroupRow({
                   </div>
                   <div className="flex gap-4 text-xs text-center shrink-0">
                     <div>
-                      <div className="text-ctp-green font-medium font-mono tabular-nums">
+                      <div className="text-ctp-cards-mined font-medium font-mono tabular-nums">
                         {formatNumber(s.cardsMined)}
                       </div>
                       <div className="text-ctp-overlay2">cards</div>
@@ -328,7 +325,7 @@ function AnimeGroupRow({
                       <div className="text-ctp-mauve font-medium font-mono tabular-nums">
                         {formatNumber(getSessionDisplayWordCount(s))}
                       </div>
-                      <div className="text-ctp-overlay2">words</div>
+                      <div className="text-ctp-overlay2">tokens</div>
                     </div>
                   </div>
                 </button>

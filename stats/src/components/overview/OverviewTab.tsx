@@ -122,6 +122,10 @@ export function OverviewTab({ onNavigateToMediaDetail, onNavigateToSession }: Ov
   const summary = buildOverviewSummary(data);
   const streakData = buildStreakCalendar(calendar);
   const showTrackedCardNote = summary.totalTrackedCards === 0 && summary.activeDays > 0;
+  const knownWordPercent =
+    knownWordsSummary && knownWordsSummary.totalUniqueWords > 0
+      ? Math.round((knownWordsSummary.knownWordCount / knownWordsSummary.totalUniqueWords) * 100)
+      : null;
 
   return (
     <div className="space-y-4">
@@ -203,7 +207,7 @@ export function OverviewTab({ onNavigateToMediaDetail, onNavigateToSession }: Ov
           <Tooltip text="Total Anki cards mined from subtitle lines across all sessions">
             <div className="rounded-lg bg-ctp-surface1/60 p-3">
               <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Cards Mined</div>
-              <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-green">
+              <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-cards-mined">
                 {formatNumber(summary.totalTrackedCards)}
               </div>
             </div>
@@ -216,11 +220,11 @@ export function OverviewTab({ onNavigateToMediaDetail, onNavigateToSession }: Ov
               </div>
             </div>
           </Tooltip>
-          <Tooltip text="Total word occurrences encountered in today's sessions">
+          <Tooltip text="Total token occurrences encountered in today's sessions">
             <div className="rounded-lg bg-ctp-surface1/60 p-3">
-              <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Words Today</div>
+              <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Tokens Today</div>
               <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-sky">
-                {formatNumber(summary.todayWords)}
+                {formatNumber(summary.todayTokens)}
               </div>
             </div>
           </Tooltip>
@@ -254,6 +258,9 @@ export function OverviewTab({ onNavigateToMediaDetail, onNavigateToSession }: Ov
                     <span className="text-sm text-ctp-overlay2 ml-1">
                       / {formatNumber(knownWordsSummary.totalUniqueWords)}
                     </span>
+                    {knownWordPercent != null ? (
+                      <span className="text-sm text-ctp-overlay2 ml-1">({knownWordPercent}%)</span>
+                    ) : null}
                   </div>
                 </div>
               </Tooltip>

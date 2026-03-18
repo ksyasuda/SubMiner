@@ -37,20 +37,12 @@ function Metric({ label, value, unit, color, tooltip, sub }: MetricProps) {
   );
 }
 
-export function AnimeOverviewStats({
-  detail,
-  knownWordsSummary,
-}: AnimeOverviewStatsProps) {
-  const lookupRate = buildLookupRateDisplay(
-    detail.totalYomitanLookupCount,
-    detail.totalWordsSeen,
-  );
+export function AnimeOverviewStats({ detail, knownWordsSummary }: AnimeOverviewStatsProps) {
+  const lookupRate = buildLookupRateDisplay(detail.totalYomitanLookupCount, detail.totalTokensSeen);
 
   const knownPct =
     knownWordsSummary && knownWordsSummary.totalUniqueWords > 0
-      ? Math.round(
-          (knownWordsSummary.knownWordCount / knownWordsSummary.totalUniqueWords) * 100,
-        )
+      ? Math.round((knownWordsSummary.knownWordCount / knownWordsSummary.totalUniqueWords) * 100)
       : null;
 
   return (
@@ -76,10 +68,10 @@ export function AnimeOverviewStats({
           tooltip="Number of completed episodes for this anime"
         />
         <Metric
-          label="Words Seen"
-          value={formatNumber(detail.totalWordsSeen)}
+          label="Tokens Seen"
+          value={formatNumber(detail.totalTokensSeen)}
           color="text-ctp-mauve"
-          tooltip="Total word occurrences across all sessions"
+          tooltip="Total token occurrences across all sessions"
         />
       </div>
 
@@ -88,7 +80,7 @@ export function AnimeOverviewStats({
         <Metric
           label="Cards Mined"
           value={formatNumber(detail.totalCards)}
-          color="text-ctp-green"
+          color="text-ctp-cards-mined"
           tooltip="Anki cards created from subtitle lines in this anime"
         />
         <Metric
@@ -102,7 +94,7 @@ export function AnimeOverviewStats({
             label="Lookup Rate"
             value={lookupRate.shortValue}
             color="text-ctp-sapphire"
-            tooltip="Yomitan lookups per 100 words seen"
+            tooltip="Yomitan lookups per 100 tokens seen"
           />
         ) : (
           <Metric
@@ -124,7 +116,7 @@ export function AnimeOverviewStats({
             label="Known Words"
             value="—"
             color="text-ctp-overlay2"
-            tooltip="No word data available yet"
+            tooltip="No token data available yet"
           />
         )}
       </div>

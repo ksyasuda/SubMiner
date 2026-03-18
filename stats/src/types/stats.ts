@@ -9,7 +9,6 @@ export interface SessionSummary {
   totalWatchedMs: number;
   activeWatchedMs: number;
   linesSeen: number;
-  wordsSeen: number;
   tokensSeen: number;
   cardsMined: number;
   lookupCount: number;
@@ -23,11 +22,10 @@ export interface DailyRollup {
   totalSessions: number;
   totalActiveMin: number;
   totalLinesSeen: number;
-  totalWordsSeen: number;
   totalTokensSeen: number;
   totalCards: number;
   cardsPerHour: number | null;
-  wordsPerMin: number | null;
+  tokensPerMin: number | null;
   lookupHitRate: number | null;
 }
 
@@ -38,7 +36,6 @@ export interface SessionTimelinePoint {
   totalWatchedMs: number;
   activeWatchedMs: number;
   linesSeen: number;
-  wordsSeen: number;
   tokensSeen: number;
   cardsMined: number;
 }
@@ -114,7 +111,7 @@ export interface MediaLibraryItem {
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
-  totalWordsSeen: number;
+  totalTokensSeen: number;
   lastWatchedMs: number;
   hasCoverArt: number;
 }
@@ -126,7 +123,7 @@ export interface MediaDetailData {
     totalSessions: number;
     totalActiveMs: number;
     totalCards: number;
-    totalWordsSeen: number;
+    totalTokensSeen: number;
     totalLinesSeen: number;
     totalLookupCount: number;
     totalLookupHits: number;
@@ -157,7 +154,7 @@ export interface AnimeLibraryItem {
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
-  totalWordsSeen: number;
+  totalTokensSeen: number;
   episodeCount: number;
   episodesTotal: number | null;
   lastWatchedMs: number;
@@ -182,7 +179,7 @@ export interface AnimeDetailData {
     totalSessions: number;
     totalActiveMs: number;
     totalCards: number;
-    totalWordsSeen: number;
+    totalTokensSeen: number;
     totalLinesSeen: number;
     totalLookupCount: number;
     totalLookupHits: number;
@@ -204,7 +201,7 @@ export interface AnimeEpisode {
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
-  totalWordsSeen: number;
+  totalTokensSeen: number;
   totalYomitanLookupCount: number;
   lastWatchedMs: number;
 }
