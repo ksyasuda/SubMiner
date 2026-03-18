@@ -10,9 +10,10 @@ export interface PerAnimeDataPoint {
 interface StackedTrendChartProps {
   title: string;
   data: PerAnimeDataPoint[];
+  colorPalette?: string[];
 }
 
-const LINE_COLORS = [
+const DEFAULT_LINE_COLORS = [
   '#8aadf4',
   '#c6a0f6',
   '#a6da95',
@@ -59,8 +60,9 @@ function buildLineData(raw: PerAnimeDataPoint[]) {
   return { points, seriesKeys: topTitles };
 }
 
-export function StackedTrendChart({ title, data }: StackedTrendChartProps) {
+export function StackedTrendChart({ title, data, colorPalette }: StackedTrendChartProps) {
   const { points, seriesKeys } = buildLineData(data);
+  const colors = colorPalette ?? DEFAULT_LINE_COLORS;
 
   const tooltipStyle = {
     background: '#363a4f',
@@ -102,8 +104,8 @@ export function StackedTrendChart({ title, data }: StackedTrendChartProps) {
               key={key}
               type="monotone"
               dataKey={key}
-              stroke={LINE_COLORS[i % LINE_COLORS.length]}
-              fill={LINE_COLORS[i % LINE_COLORS.length]}
+              stroke={colors[i % colors.length]}
+              fill={colors[i % colors.length]}
               fillOpacity={0.15}
               strokeWidth={1.5}
               connectNulls
@@ -120,7 +122,7 @@ export function StackedTrendChart({ title, data }: StackedTrendChartProps) {
           >
             <span
               className="inline-block w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: LINE_COLORS[i % LINE_COLORS.length] }}
+              style={{ backgroundColor: colors[i % colors.length] }}
             />
             <span className="truncate">{key}</span>
           </span>

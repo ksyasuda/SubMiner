@@ -38,7 +38,7 @@ export function QuickStats({ rollups }: QuickStatsProps) {
         </div>
         <div className="flex justify-between">
           <span className="text-ctp-subtext0">Cards this week</span>
-          <span className="text-ctp-green font-medium">{weekCards}</span>
+          <span className="text-ctp-cards-mined font-medium">{weekCards}</span>
         </div>
       </div>
     </div>

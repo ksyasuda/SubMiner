@@ -19,7 +19,9 @@ import type { KnownWordsTimelinePoint } from '../../hooks/useSessions';
 import { CHART_THEME } from '../../lib/chart-theme';
 import {
   buildSessionChartEvents,
-  extractSessionEventNoteInfo,
+  collectPendingSessionEventNoteIds,
+  getSessionEventCardRequest,
+  mergeSessionEventNoteInfos,
   resolveActiveSessionMarkerKey,
   type SessionChartMarker,
   type SessionEventNoteInfo,
@@ -119,7 +121,7 @@ export function SessionDetail({ session }: SessionDetailProps) {
   const [pinnedMarkerKey, setPinnedMarkerKey] = useState<string | null>(null);
   const [noteInfos, setNoteInfos] = useState<Map<number, SessionEventNoteInfo>>(new Map());
   const [loadingNoteIds, setLoadingNoteIds] = useState<Set<number>>(new Set());
-  const requestedNoteIdsRef = useRef<Set<number>>(new Set());
+  const pendingNoteIdsRef = useRef<Set<number>>(new Set());
 
   const sorted = [...timeline].reverse();
   const knownWordsMap = buildKnownWordsLookup(knownWordsTimeline);
@@ -139,21 +141,27 @@ export function SessionDetail({ session }: SessionDetailProps) {
     () => markers.find((marker) => marker.key === activeMarkerKey) ?? null,
     [markers, activeMarkerKey],
   );
+  const activeCardRequest = useMemo(
+    () => getSessionEventCardRequest(activeMarker),
+    [activeMarkerKey, markers],
+  );
 
   useEffect(() => {
-    if (!activeMarker || activeMarker.kind !== 'card' || activeMarker.noteIds.length === 0) {
+    if (!activeCardRequest.requestKey || activeCardRequest.noteIds.length === 0) {
       return;
     }
 
-    const missingNoteIds = activeMarker.noteIds.filter(
-      (noteId) => !requestedNoteIdsRef.current.has(noteId) && !noteInfos.has(noteId),
+    const missingNoteIds = collectPendingSessionEventNoteIds(
+      activeCardRequest.noteIds,
+      noteInfos,
+      pendingNoteIdsRef.current,
     );
     if (missingNoteIds.length === 0) {
       return;
     }
 
     for (const noteId of missingNoteIds) {
-      requestedNoteIdsRef.current.add(noteId);
+      pendingNoteIdsRef.current.add(noteId);
     }
 
     let cancelled = false;
@@ -171,10 +179,8 @@ export function SessionDetail({ session }: SessionDetailProps) {
         if (cancelled) return;
         setNoteInfos((prev) => {
           const next = new Map(prev);
-          for (const note of notes) {
-            const info = extractSessionEventNoteInfo(note);
-            if (!info) continue;
-            next.set(info.noteId, info);
+          for (const [noteId, info] of mergeSessionEventNoteInfos(missingNoteIds, notes)) {
+            next.set(noteId, info);
           }
           return next;
         });
@@ -186,6 +192,9 @@ export function SessionDetail({ session }: SessionDetailProps) {
       })
       .finally(() => {
         if (cancelled) return;
+        for (const noteId of missingNoteIds) {
+          pendingNoteIdsRef.current.delete(noteId);
+        }
         setLoadingNoteIds((prev) => {
           const next = new Set(prev);
           for (const noteId of missingNoteIds) {
@@ -197,8 +206,18 @@ export function SessionDetail({ session }: SessionDetailProps) {
 
     return () => {
       cancelled = true;
+      for (const noteId of missingNoteIds) {
+        pendingNoteIdsRef.current.delete(noteId);
+      }
+      setLoadingNoteIds((prev) => {
+        const next = new Set(prev);
+        for (const noteId of missingNoteIds) {
+          next.delete(noteId);
+        }
+        return next;
+      });
     };
-  }, [activeMarker, noteInfos]);
+  }, [activeCardRequest.requestKey, noteInfos]);
 
   const handleOpenNote = (noteId: number) => {
     void getStatsClient().ankiBrowse(noteId);

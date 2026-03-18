@@ -37,12 +37,7 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
               if (cancelled) return;
               const map = new Map<number, NoteInfo>();
               for (const note of notes) {
-                const expr =
-                  note.fields?.Expression?.value ??
-                  note.fields?.expression?.value ??
-                  note.fields?.Word?.value ??
-                  note.fields?.word?.value ??
-                  '';
+                const expr = note.preview?.word ?? '';
                 map.set(note.noteId, { noteId: note.noteId, expression: expr });
               }
               setNoteInfos(map);

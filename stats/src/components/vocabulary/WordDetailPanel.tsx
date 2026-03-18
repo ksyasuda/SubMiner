@@ -362,7 +362,7 @@ export function WordDetailPanel({
                               {formatNumber(occ.occurrenceCount)} in line
                             </div>
                           </div>
-                      <div className="mt-3 flex items-center gap-2 text-xs text-ctp-overlay1">
+                          <div className="mt-3 flex items-center gap-2 text-xs text-ctp-overlay1">
                             <span>
                               {formatSegment(occ.segmentStartMs)}-{formatSegment(occ.segmentEndMs)}{' '}
                               · session {occ.sessionId}
@@ -400,7 +400,9 @@ export function WordDetailPanel({
                                   </button>
                                   <button
                                     type="button"
-                                    title={unavailableReason ?? 'Mine this sentence from video clip'}
+                                    title={
+                                      unavailableReason ?? 'Mine this sentence from video clip'
+                                    }
                                     className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-green hover:text-ctp-green disabled:cursor-not-allowed disabled:opacity-60"
                                     disabled={sentenceStatus?.loading || !!unavailableReason}
                                     onClick={() => void handleMine(occ, 'sentence')}

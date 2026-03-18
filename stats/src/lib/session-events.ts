@@ -40,6 +40,11 @@ interface SessionEventNoteField {
 
 interface SessionEventNoteRecord {
   noteId: unknown;
+  preview?: {
+    word?: unknown;
+    sentence?: unknown;
+    translation?: unknown;
+  } | null;
   fields?: Record<string, SessionEventNoteField> | null;
 }
 
@@ -145,6 +150,21 @@ export function extractSessionEventNoteInfo(
     return null;
   }
 
+  const previewExpression =
+    typeof note.preview?.word === 'string' ? stripHtml(note.preview.word) : '';
+  const previewContext =
+    typeof note.preview?.sentence === 'string' ? stripHtml(note.preview.sentence) : '';
+  const previewMeaning =
+    typeof note.preview?.translation === 'string' ? stripHtml(note.preview.translation) : '';
+  if (previewExpression || previewContext || previewMeaning) {
+    return {
+      noteId: note.noteId,
+      expression: previewExpression,
+      context: previewContext || null,
+      meaning: previewMeaning || null,
+    };
+  }
+
   const fields = note.fields ?? {};
   const expression = pickExpressionField(fields);
   const usedValues = new Set<string>(expression ? [expression] : []);
@@ -172,6 +192,67 @@ export function extractSessionEventNoteInfo(
     expression,
     context,
     meaning,
+  };
+}
+
+export function mergeSessionEventNoteInfos(
+  requestedNoteIds: number[],
+  notes: SessionEventNoteRecord[],
+): Map<number, SessionEventNoteInfo> {
+  const next = new Map<number, SessionEventNoteInfo>();
+
+  notes.forEach((note, index) => {
+    const info = extractSessionEventNoteInfo(note);
+    if (!info) return;
+    next.set(info.noteId, info);
+
+    const requestedNoteId = requestedNoteIds[index];
+    if (requestedNoteId && requestedNoteId > 0) {
+      next.set(requestedNoteId, info);
+    }
+  });
+
+  return next;
+}
+
+export function collectPendingSessionEventNoteIds(
+  noteIds: number[],
+  noteInfos: ReadonlyMap<number, SessionEventNoteInfo>,
+  pendingNoteIds: ReadonlySet<number>,
+): number[] {
+  const next: number[] = [];
+  const seen = new Set<number>();
+
+  for (const noteId of noteIds) {
+    if (!Number.isInteger(noteId) || noteId <= 0 || seen.has(noteId)) {
+      continue;
+    }
+    seen.add(noteId);
+    if (noteInfos.has(noteId) || pendingNoteIds.has(noteId)) {
+      continue;
+    }
+    next.push(noteId);
+  }
+
+  return next;
+}
+
+export function getSessionEventCardRequest(
+  marker: SessionChartMarker | null,
+): { noteIds: number[]; requestKey: string | null } {
+  if (!marker || marker.kind !== 'card' || marker.noteIds.length === 0) {
+    return { noteIds: [], requestKey: null };
+  }
+
+  const noteIds = Array.from(
+    new Set(
+      marker.noteIds.filter((noteId) => Number.isInteger(noteId) && noteId > 0),
+    ),
+  );
+
+  return {
+    noteIds,
+    requestKey: noteIds.length > 0 ? `${marker.key}:${noteIds.join(',')}` : null,
   };
 }
 

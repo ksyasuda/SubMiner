@@ -21,6 +21,7 @@ import type {
   WordDetailData,
   KanjiDetailData,
   EpisodeDetailData,
+  StatsAnkiNoteInfo,
 } from '../types/stats';
 
 type StatsLocationLike = Pick<Location, 'protocol' | 'origin' | 'search'>;
@@ -76,8 +77,13 @@ export const apiClient = {
         ? `/api/stats/sessions/${id}/timeline`
         : `/api/stats/sessions/${id}/timeline?limit=${limit}`,
     ),
-  getSessionEvents: (id: number, limit = 500) =>
-    fetchJson<SessionEvent[]>(`/api/stats/sessions/${id}/events?limit=${limit}`),
+  getSessionEvents: (id: number, limit = 500, eventTypes?: number[]) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (eventTypes && eventTypes.length > 0) {
+      params.set('types', eventTypes.join(','));
+    }
+    return fetchJson<SessionEvent[]>(`/api/stats/sessions/${id}/events?${params.toString()}`);
+  },
   getSessionKnownWordsTimeline: (id: number) =>
     fetchJson<Array<{ linesSeen: number; knownWordsSeen: number }>>(
       `/api/stats/sessions/${id}/known-words-timeline`,
@@ -142,7 +148,9 @@ export const apiClient = {
   },
   getKnownWords: () => fetchJson<string[]>('/api/stats/known-words'),
   getKnownWordsSummary: () =>
-    fetchJson<{ totalUniqueWords: number; knownWordCount: number }>('/api/stats/known-words-summary'),
+    fetchJson<{ totalUniqueWords: number; knownWordCount: number }>(
+      '/api/stats/known-words-summary',
+    ),
   getAnimeKnownWordsSummary: (animeId: number) =>
     fetchJson<{ totalUniqueWords: number; knownWordCount: number }>(
       `/api/stats/anime/${animeId}/known-words-summary`,
@@ -200,9 +208,7 @@ export const apiClient = {
   ankiBrowse: async (noteId: number): Promise<void> => {
     await fetchResponse(`/api/stats/anki/browse?noteId=${noteId}`, { method: 'POST' });
   },
-  ankiNotesInfo: async (
-    noteIds: number[],
-  ): Promise<Array<{ noteId: number; fields: Record<string, { value: string }> }>> => {
+  ankiNotesInfo: async (noteIds: number[]): Promise<StatsAnkiNoteInfo[]> => {
     const res = await fetch(`${BASE_URL}/api/stats/anki/notesInfo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

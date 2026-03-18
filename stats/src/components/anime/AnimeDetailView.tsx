@@ -163,10 +163,7 @@ export function AnimeDetailView({
         anilistEntries={anilistEntries ?? []}
         onChangeAnilist={() => setShowAnilistSelector(true)}
       />
-      <AnimeOverviewStats
-        detail={detail}
-        knownWordsSummary={knownWordsSummary}
-      />
+      <AnimeOverviewStats detail={detail} knownWordsSummary={knownWordsSummary} />
       <EpisodeList
         episodes={episodes}
         onOpenDetail={onOpenEpisodeDetail ? (videoId) => onOpenEpisodeDetail(videoId) : undefined}

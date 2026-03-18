@@ -6,6 +6,12 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { MediaGenerator } from '../../media-generator.js';
 import { AnkiConnectClient } from '../../anki-connect.js';
 import type { AnkiConnectConfig } from '../../types.js';
+import {
+  getConfiguredSentenceFieldName,
+  getConfiguredTranslationFieldName,
+  getConfiguredWordFieldName,
+  getPreferredNoteFieldValue,
+} from '../../anki-field-config.js';
 
 function parseIntQuery(raw: string | undefined, fallback: number, maxLimit?: number): number {
   if (raw === undefined) return fallback;
@@ -23,6 +29,15 @@ function parseTrendRange(raw: string | undefined): '7d' | '30d' | '90d' | 'all' 
 
 function parseTrendGroupBy(raw: string | undefined): 'day' | 'month' {
   return raw === 'month' ? 'month' : 'day';
+}
+
+function parseEventTypesQuery(raw: string | undefined): number[] | undefined {
+  if (!raw) return undefined;
+  const parsed = raw
+    .split(',')
+    .map((entry) => Number.parseInt(entry.trim(), 10))
+    .filter((entry) => Number.isInteger(entry) && entry > 0);
+  return parsed.length > 0 ? parsed : undefined;
 }
 
 /** Load known words cache from disk into a Set. Returns null if unavailable. */
@@ -60,6 +75,7 @@ export interface StatsServerConfig {
   mpvSocketPath?: string;
   ankiConnectConfig?: AnkiConnectConfig;
   addYomitanNote?: (word: string) => Promise<number | null>;
+  resolveAnkiNoteId?: (noteId: number) => number;
 }
 
 const STATS_STATIC_CONTENT_TYPES: Record<string, string> = {
@@ -80,6 +96,17 @@ const STATS_STATIC_CONTENT_TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 const ANKI_CONNECT_FETCH_TIMEOUT_MS = 3_000;
+
+function buildAnkiNotePreview(
+  fields: Record<string, { value: string }>,
+  ankiConfig?: Pick<AnkiConnectConfig, 'fields'>,
+): { word: string; sentence: string; translation: string } {
+  return {
+    word: getPreferredNoteFieldValue(fields, [getConfiguredWordFieldName(ankiConfig)]),
+    sentence: getPreferredNoteFieldValue(fields, [getConfiguredSentenceFieldName(ankiConfig)]),
+    translation: getPreferredNoteFieldValue(fields, [getConfiguredTranslationFieldName(ankiConfig)]),
+  };
+}
 
 function resolveStatsStaticPath(staticDir: string, requestPath: string): string | null {
   const normalizedPath = requestPath.replace(/^\/+/, '') || 'index.html';
@@ -129,6 +156,7 @@ export function createStatsApp(
     mpvSocketPath?: string;
     ankiConnectConfig?: AnkiConnectConfig;
     addYomitanNote?: (word: string) => Promise<number | null>;
+    resolveAnkiNoteId?: (noteId: number) => number;
   },
 ) {
   const app = new Hono();
@@ -199,7 +227,8 @@ export function createStatsApp(
     const id = parseIntQuery(c.req.param('id'), 0);
     if (id <= 0) return c.json([], 400);
     const limit = parseIntQuery(c.req.query('limit'), 500, 1000);
-    const events = await tracker.getSessionEvents(id, limit);
+    const eventTypes = parseEventTypesQuery(c.req.query('types'));
+    const events = await tracker.getSessionEvents(id, limit, eventTypes);
     return c.json(events);
   });
 
@@ -509,23 +538,38 @@ export function createStatsApp(
 
   app.post('/api/stats/anki/notesInfo', async (c) => {
     const body = await c.req.json().catch(() => null);
-    const noteIds = Array.isArray(body?.noteIds)
+    const noteIds: number[] = Array.isArray(body?.noteIds)
       ? body.noteIds.filter(
           (id: unknown): id is number => typeof id === 'number' && Number.isInteger(id) && id > 0,
         )
       : [];
     if (noteIds.length === 0) return c.json([]);
+    const resolvedNoteIds = Array.from(
+      new Set(
+        noteIds.map((noteId) => {
+          const resolvedNoteId = options?.resolveAnkiNoteId?.(noteId);
+          return Number.isInteger(resolvedNoteId) && (resolvedNoteId as number) > 0
+            ? (resolvedNoteId as number)
+            : noteId;
+        }),
+      ),
+    );
     try {
       const response = await fetch('http://127.0.0.1:8765', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(ANKI_CONNECT_FETCH_TIMEOUT_MS),
-        body: JSON.stringify({ action: 'notesInfo', version: 6, params: { notes: noteIds } }),
+        body: JSON.stringify({ action: 'notesInfo', version: 6, params: { notes: resolvedNoteIds } }),
       });
       const result = (await response.json()) as {
         result?: Array<{ noteId: number; fields: Record<string, { value: string }> }>;
       };
-      return c.json(result.result ?? []);
+      return c.json(
+        (result.result ?? []).map((note) => ({
+          ...note,
+          preview: buildAnkiNotePreview(note.fields, options?.ankiConnectConfig),
+        })),
+      );
     } catch {
       return c.json([], 502);
     }
@@ -710,6 +754,7 @@ export function createStatsApp(
     if (imageResult.status === 'rejected')
       errors.push(`image: ${(imageResult.reason as Error).message}`);
 
+    const wordFieldName = getConfiguredWordFieldName(ankiConfig);
     const sentenceFieldName = ankiConfig.fields?.sentence ?? 'Sentence';
     const translationFieldName = ankiConfig.fields?.translation ?? 'SelectionText';
     const audioFieldName = ankiConfig.fields?.audio ?? 'ExpressionAudio';
@@ -726,7 +771,7 @@ export function createStatsApp(
 
     if (ankiConfig.isLapis?.enabled || ankiConfig.isKiku?.enabled) {
       if (word) {
-        fields['Expression'] = word;
+        fields[wordFieldName] = word;
       }
       if (mode === 'sentence') {
         fields['IsSentenceCard'] = 'x';
@@ -831,6 +876,7 @@ export function startStatsServer(config: StatsServerConfig): { close: () => void
     mpvSocketPath: config.mpvSocketPath,
     ankiConnectConfig: config.ankiConnectConfig,
     addYomitanNote: config.addYomitanNote,
+    resolveAnkiNoteId: config.resolveAnkiNoteId,
   });
 
   const server = serve({

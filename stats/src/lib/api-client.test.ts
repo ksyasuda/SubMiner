@@ -109,10 +109,48 @@ test('getTrendsDashboard requests the chart-ready trends endpoint with range and
 
   try {
     await apiClient.getTrendsDashboard('90d', 'month');
+    assert.equal(seenUrl, `${BASE_URL}/api/stats/trends/dashboard?range=90d&groupBy=month`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('getSessionEvents can request only specific event types', async () => {
+  const originalFetch = globalThis.fetch;
+  let seenUrl = '';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    seenUrl = String(input);
+    return new Response(JSON.stringify([]), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    await apiClient.getSessionEvents(42, 120, [4, 5, 6, 7, 8, 9]);
     assert.equal(
       seenUrl,
-      `${BASE_URL}/api/stats/trends/dashboard?range=90d&groupBy=month`,
+      `${BASE_URL}/api/stats/sessions/42/events?limit=120&types=4%2C5%2C6%2C7%2C8%2C9`,
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('getSessionTimeline requests full session history when limit is omitted', async () => {
+  const originalFetch = globalThis.fetch;
+  let seenUrl = '';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    seenUrl = String(input);
+    return new Response(JSON.stringify([]), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    await apiClient.getSessionTimeline(42);
+    assert.equal(seenUrl, `${BASE_URL}/api/stats/sessions/42/timeline`);
   } finally {
     globalThis.fetch = originalFetch;
   }

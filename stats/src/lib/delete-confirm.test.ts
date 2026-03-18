@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { confirmDayGroupDelete, confirmEpisodeDelete, confirmSessionDelete } from './delete-confirm';
+import {
+  confirmDayGroupDelete,
+  confirmEpisodeDelete,
+  confirmSessionDelete,
+} from './delete-confirm';
 
 test('confirmSessionDelete uses the shared session delete warning copy', () => {
   const calls: string[] = [];

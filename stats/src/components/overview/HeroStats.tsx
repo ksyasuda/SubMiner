@@ -22,7 +22,7 @@ export function HeroStats({ summary, sessions }: HeroStatsProps) {
       <StatCard
         label="Cards Mined Today"
         value={formatNumber(summary.todayCards)}
-        color="text-ctp-green"
+        color="text-ctp-cards-mined"
       />
       <StatCard
         label="Sessions Today"

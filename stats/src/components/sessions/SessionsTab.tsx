@@ -52,7 +52,9 @@ export function SessionsTab({ initialSessionId, onClearInitialSession }: Session
           el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else {
           // Session row itself if detail hasn't rendered yet
-          const row = document.querySelector(`[aria-controls="session-details-${initialSessionId}"]`);
+          const row = document.querySelector(
+            `[aria-controls="session-details-${initialSessionId}"]`,
+          );
           row?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       });

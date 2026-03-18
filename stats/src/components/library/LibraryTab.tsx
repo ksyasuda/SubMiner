@@ -22,7 +22,13 @@ export function LibraryTab({ onNavigateToSession }: LibraryTabProps) {
   const totalMs = media.reduce((sum, m) => sum + m.totalActiveMs, 0);
 
   if (selectedVideoId !== null) {
-    return <MediaDetailView videoId={selectedVideoId} onBack={() => setSelectedVideoId(null)} onNavigateToSession={onNavigateToSession} />;
+    return (
+      <MediaDetailView
+        videoId={selectedVideoId}
+        onBack={() => setSelectedVideoId(null)}
+        onNavigateToSession={onNavigateToSession}
+      />
+    );
   }
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;

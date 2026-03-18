@@ -20,6 +20,7 @@ import type {
   WordDetailData,
   KanjiDetailData,
   EpisodeDetailData,
+  StatsAnkiNoteInfo,
 } from '../types/stats';
 
 interface StatsElectronAPI {
@@ -59,9 +60,7 @@ interface StatsElectronAPI {
     getKanjiDetail: (kanjiId: number) => Promise<KanjiDetailData>;
     getEpisodeDetail: (videoId: number) => Promise<EpisodeDetailData>;
     ankiBrowse: (noteId: number) => Promise<void>;
-    ankiNotesInfo: (
-      noteIds: number[],
-    ) => Promise<Array<{ noteId: number; fields: Record<string, { value: string }> }>>;
+    ankiNotesInfo: (noteIds: number[]) => Promise<StatsAnkiNoteInfo[]>;
     hideOverlay: () => void;
   };
 }

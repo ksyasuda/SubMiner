@@ -46,6 +46,18 @@ export interface SessionEvent {
   payload: string | null;
 }
 
+export interface AnkiNotePreview {
+  word: string;
+  sentence: string;
+  translation: string;
+}
+
+export interface StatsAnkiNoteInfo {
+  noteId: number;
+  fields: Record<string, { value: string }>;
+  preview?: AnkiNotePreview;
+}
+
 export interface VocabularyEntry {
   wordId: number;
   headword: string;

@@ -105,6 +105,7 @@ export function SessionEventPopover({
               marker.noteIds.map((noteId) => {
                 const info = noteInfos.get(noteId);
                 const hasPreview = Boolean(info?.expression || info?.context || info?.meaning);
+                const showUnavailableFallback = !loading && !hasPreview;
                 return (
                   <div
                     key={noteId}
@@ -114,7 +115,7 @@ export function SessionEventPopover({
                       <div className="rounded-full bg-ctp-surface1 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ctp-overlay1">
                         Note {noteId}
                       </div>
-                      {!hasPreview ? (
+                      {showUnavailableFallback ? (
                         <div className="text-[10px] text-ctp-overlay1">Preview unavailable</div>
                       ) : null}
                     </div>
@@ -127,7 +128,7 @@ export function SessionEventPopover({
                     {info?.meaning ? (
                       <div className="mb-2 text-xs text-ctp-teal">{info.meaning}</div>
                     ) : null}
-                    {!hasPreview ? (
+                    {showUnavailableFallback ? (
                       <div className="mb-2 text-xs text-ctp-overlay1">
                         Preview unavailable from AnkiConnect.
                       </div>

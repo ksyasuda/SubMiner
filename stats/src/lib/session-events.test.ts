@@ -3,7 +3,10 @@ import test from 'node:test';
 import { EventType } from '../types/stats';
 import {
   buildSessionChartEvents,
+  collectPendingSessionEventNoteIds,
   extractSessionEventNoteInfo,
+  getSessionEventCardRequest,
+  mergeSessionEventNoteInfos,
   projectSessionMarkerLeftPx,
   resolveActiveSessionMarkerKey,
   togglePinnedSessionMarkerKey,
@@ -108,6 +111,28 @@ test('extractSessionEventNoteInfo prefers expression-like fields and strips html
   });
 });
 
+test('extractSessionEventNoteInfo prefers explicit preview payload over field-name guessing', () => {
+  const info = extractSessionEventNoteInfo({
+    noteId: 92,
+    preview: {
+      word: '連れる',
+      sentence: 'このまま 連れてって',
+      translation: 'to take along',
+    },
+    fields: {
+      UnexpectedWordField: { value: 'should not win' },
+      UnexpectedSentenceField: { value: 'should not win either' },
+    },
+  });
+
+  assert.deepEqual(info, {
+    noteId: 92,
+    expression: '連れる',
+    context: 'このまま 連れてって',
+    meaning: 'to take along',
+  });
+});
+
 test('extractSessionEventNoteInfo ignores malformed notes without a numeric note id', () => {
   assert.equal(
     extractSessionEventNoteInfo({
@@ -118,6 +143,75 @@ test('extractSessionEventNoteInfo ignores malformed notes without a numeric note
     }),
     null,
   );
+});
+
+test('mergeSessionEventNoteInfos keys previews by both requested and returned note ids', () => {
+  const noteInfos = mergeSessionEventNoteInfos([111], [
+    {
+      noteId: 222,
+      fields: {
+        Expression: { value: '呪い' },
+        Sentence: { value: 'この剣は呪いだ' },
+      },
+    },
+  ]);
+
+  assert.deepEqual(noteInfos.get(111), {
+    noteId: 222,
+    expression: '呪い',
+    context: 'この剣は呪いだ',
+    meaning: null,
+  });
+  assert.deepEqual(noteInfos.get(222), {
+    noteId: 222,
+    expression: '呪い',
+    context: 'この剣は呪いだ',
+    meaning: null,
+  });
+});
+
+test('collectPendingSessionEventNoteIds supports strict-mode cleanup and refetch', () => {
+  const noteInfos = new Map();
+  const pendingNoteIds = new Set<number>();
+
+  assert.deepEqual(collectPendingSessionEventNoteIds([177], noteInfos, pendingNoteIds), [177]);
+
+  pendingNoteIds.add(177);
+  assert.deepEqual(collectPendingSessionEventNoteIds([177], noteInfos, pendingNoteIds), []);
+
+  pendingNoteIds.delete(177);
+  assert.deepEqual(collectPendingSessionEventNoteIds([177], noteInfos, pendingNoteIds), [177]);
+
+  noteInfos.set(177, {
+    noteId: 177,
+    expression: '対抗',
+    context: 'ダクネス 無理して 対抗 するな',
+    meaning: null,
+  });
+  assert.deepEqual(collectPendingSessionEventNoteIds([177], noteInfos, pendingNoteIds), []);
+});
+
+test('getSessionEventCardRequest stays stable across rebuilt marker objects', () => {
+  const events = [
+    {
+      eventType: EventType.CARD_MINED,
+      tsMs: 6_000,
+      payload: '{"cardsMined":1,"noteIds":[1773808840964]}',
+    },
+  ];
+
+  const firstMarker = buildSessionChartEvents(events).markers[0]!;
+  const secondMarker = buildSessionChartEvents(events).markers[0]!;
+
+  assert.notEqual(firstMarker, secondMarker);
+  assert.deepEqual(getSessionEventCardRequest(firstMarker), {
+    noteIds: [1773808840964],
+    requestKey: 'card-6000:1773808840964',
+  });
+  assert.deepEqual(getSessionEventCardRequest(secondMarker), {
+    noteIds: [1773808840964],
+    requestKey: 'card-6000:1773808840964',
+  });
 });
 
 test('session marker pin helpers prefer pinned markers and toggle on repeat clicks', () => {

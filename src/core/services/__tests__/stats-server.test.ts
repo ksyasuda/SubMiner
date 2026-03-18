@@ -898,6 +898,124 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 400);
   });
 
+  it('POST /api/stats/anki/notesInfo resolves stale note ids through the configured alias resolver', async () => {
+    const originalFetch = globalThis.fetch;
+    const requests: unknown[] = [];
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(init?.body ? JSON.parse(String(init.body)) : null);
+      return new Response(
+        JSON.stringify({
+          result: [
+            {
+              noteId: 222,
+              fields: {
+                Expression: { value: '呪い' },
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }) as typeof fetch;
+
+    try {
+      const app = createStatsApp(createMockTracker(), {
+        resolveAnkiNoteId: (noteId) => (noteId === 111 ? 222 : noteId),
+      });
+      const res = await app.request('/api/stats/anki/notesInfo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteIds: [111] }),
+      });
+
+      assert.equal(res.status, 200);
+      assert.deepEqual(requests, [
+        {
+          action: 'notesInfo',
+          version: 6,
+          params: { notes: [222] },
+        },
+      ]);
+      assert.deepEqual(await res.json(), [
+        {
+          noteId: 222,
+          fields: {
+            Expression: { value: '呪い' },
+          },
+          preview: {
+            word: '呪い',
+            sentence: '',
+            translation: '',
+          },
+        },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('POST /api/stats/anki/notesInfo returns preview fields using configured word and sentence field names', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          result: [
+            {
+              noteId: 333,
+              fields: {
+                TargetWord: { value: '<span>連れる</span>' },
+                Quote: { value: '<div>このまま<b>連れてって</b></div>' },
+                SelectionText: { value: 'to take along' },
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      )) as typeof fetch;
+
+    try {
+      const app = createStatsApp(createMockTracker(), {
+        ankiConnectConfig: {
+          fields: {
+            word: 'TargetWord',
+            sentence: 'Quote',
+            translation: 'SelectionText',
+          },
+        },
+      });
+      const res = await app.request('/api/stats/anki/notesInfo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteIds: [333] }),
+      });
+
+      assert.equal(res.status, 200);
+      assert.deepEqual(await res.json(), [
+        {
+          noteId: 333,
+          fields: {
+            TargetWord: { value: '<span>連れる</span>' },
+            Quote: { value: '<div>このまま<b>連れてって</b></div>' },
+            SelectionText: { value: 'to take along' },
+          },
+          preview: {
+            word: '連れる',
+            sentence: 'このまま 連れてって',
+            translation: 'to take along',
+          },
+        },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('serves stats index and asset files from absolute static dir paths', async () => {
     await withTempDir(async (dir) => {
       const assetDir = path.join(dir, 'assets');

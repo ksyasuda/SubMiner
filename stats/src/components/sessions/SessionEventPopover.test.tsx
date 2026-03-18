@@ -96,3 +96,55 @@ test('SessionEventPopover renders a cleaner fallback when AnkiConnect provides n
   assert.match(markup, /Preview unavailable from AnkiConnect/);
   assert.doesNotMatch(markup, /No readable note fields returned/);
 });
+
+test('SessionEventPopover hides preview-unavailable fallback while note info is still loading', () => {
+  const marker: SessionChartMarker = {
+    key: 'card-177',
+    kind: 'card',
+    anchorTsMs: 9_000,
+    eventTsMs: 9_000,
+    noteIds: [177],
+    cardsDelta: 1,
+  };
+
+  const markup = renderToStaticMarkup(
+    <SessionEventPopover
+      marker={marker}
+      noteInfos={new Map()}
+      loading
+      pinned
+      onTogglePinned={() => {}}
+      onClose={() => {}}
+      onOpenNote={() => {}}
+    />,
+  );
+
+  assert.match(markup, /Loading Anki note info/);
+  assert.doesNotMatch(markup, /Preview unavailable/);
+});
+
+test('SessionEventPopover keeps the loading state clean until note preview data arrives', () => {
+  const marker: SessionChartMarker = {
+    key: 'card-9001',
+    kind: 'card',
+    anchorTsMs: 9_001,
+    eventTsMs: 9_001,
+    noteIds: [1773808840964],
+    cardsDelta: 1,
+  };
+
+  const markup = renderToStaticMarkup(
+    <SessionEventPopover
+      marker={marker}
+      noteInfos={new Map()}
+      loading={true}
+      pinned={true}
+      onTogglePinned={() => {}}
+      onClose={() => {}}
+      onOpenNote={() => {}}
+    />,
+  );
+
+  assert.match(markup, /Loading Anki note info/);
+  assert.doesNotMatch(markup, /Preview unavailable/);
+});
