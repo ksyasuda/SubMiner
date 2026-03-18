@@ -11,6 +11,7 @@ import {
   ReferenceArea,
   ReferenceLine,
   CartesianGrid,
+  Customized,
 } from 'recharts';
 import { useSessionDetail } from '../../hooks/useSessions';
 import { getStatsClient } from '../../hooks/useStatsApi';
@@ -18,8 +19,11 @@ import type { KnownWordsTimelinePoint } from '../../hooks/useSessions';
 import { CHART_THEME } from '../../lib/chart-theme';
 import {
   buildSessionChartEvents,
+  extractSessionEventNoteInfo,
+  resolveActiveSessionMarkerKey,
   type SessionChartMarker,
   type SessionEventNoteInfo,
+  type SessionChartPlotArea,
 } from '../../lib/session-events';
 import { buildLookupRateDisplay } from '../../lib/yomitan-lookup';
 import { getSessionDisplayWordCount } from '../../lib/session-word-count';
@@ -69,19 +73,6 @@ function lookupKnownWords(map: Map<number, number>, linesSeen: number): number {
   return best > 0 ? map.get(best)! : 0;
 }
 
-function extractNoteExpression(note: {
-  noteId: number;
-  fields: Record<string, { value: string }>;
-}): SessionEventNoteInfo {
-  const expression =
-    note.fields?.Expression?.value ??
-    note.fields?.expression?.value ??
-    note.fields?.Word?.value ??
-    note.fields?.word?.value ??
-    '';
-  return { noteId: note.noteId, expression };
-}
-
 interface RatioChartPoint {
   tsMs: number;
   knownPct: number;
@@ -102,11 +93,30 @@ type TimelineEntry = {
   tokensSeen: number;
 };
 
+function SessionChartOffsetProbe({
+  offset,
+  onPlotAreaChange,
+}: {
+  offset?: { left?: number; width?: number };
+  onPlotAreaChange: (plotArea: SessionChartPlotArea) => void;
+}) {
+  useEffect(() => {
+    if (!offset) return;
+    const { left, width } = offset;
+    if (typeof left !== 'number' || !Number.isFinite(left)) return;
+    if (typeof width !== 'number' || !Number.isFinite(width)) return;
+    onPlotAreaChange({ left, width });
+  }, [offset?.left, offset?.width, onPlotAreaChange]);
+
+  return null;
+}
+
 export function SessionDetail({ session }: SessionDetailProps) {
   const { timeline, events, knownWordsTimeline, loading, error } = useSessionDetail(
     session.sessionId,
   );
-  const [activeMarkerKey, setActiveMarkerKey] = useState<string | null>(null);
+  const [hoveredMarkerKey, setHoveredMarkerKey] = useState<string | null>(null);
+  const [pinnedMarkerKey, setPinnedMarkerKey] = useState<string | null>(null);
   const [noteInfos, setNoteInfos] = useState<Map<number, SessionEventNoteInfo>>(new Map());
   const [loadingNoteIds, setLoadingNoteIds] = useState<Set<number>>(new Set());
   const requestedNoteIdsRef = useRef<Set<number>>(new Set());
@@ -124,6 +134,7 @@ export function SessionDetail({ session }: SessionDetailProps) {
   const pauseCount = events.filter((e) => e.eventType === EventType.PAUSE_START).length;
   const seekCount = seekEvents.length;
   const cardEventCount = cardEvents.length;
+  const activeMarkerKey = resolveActiveSessionMarkerKey(hoveredMarkerKey, pinnedMarkerKey);
   const activeMarker = useMemo<SessionChartMarker | null>(
     () => markers.find((marker) => marker.key === activeMarkerKey) ?? null,
     [markers, activeMarkerKey],
@@ -161,7 +172,8 @@ export function SessionDetail({ session }: SessionDetailProps) {
         setNoteInfos((prev) => {
           const next = new Map(prev);
           for (const note of notes) {
-            const info = extractNoteExpression(note);
+            const info = extractSessionEventNoteInfo(note);
+            if (!info) continue;
             next.set(info.noteId, info);
           }
           return next;
@@ -205,8 +217,10 @@ export function SessionDetail({ session }: SessionDetailProps) {
         yomitanLookupEvents={yomitanLookupEvents}
         pauseRegions={pauseRegions}
         markers={markers}
-        activeMarkerKey={activeMarkerKey}
-        onActiveMarkerChange={setActiveMarkerKey}
+        hoveredMarkerKey={hoveredMarkerKey}
+        onHoveredMarkerChange={setHoveredMarkerKey}
+        pinnedMarkerKey={pinnedMarkerKey}
+        onPinnedMarkerChange={setPinnedMarkerKey}
         noteInfos={noteInfos}
         loadingNoteIds={loadingNoteIds}
         onOpenNote={handleOpenNote}
@@ -227,8 +241,10 @@ export function SessionDetail({ session }: SessionDetailProps) {
       yomitanLookupEvents={yomitanLookupEvents}
       pauseRegions={pauseRegions}
       markers={markers}
-      activeMarkerKey={activeMarkerKey}
-      onActiveMarkerChange={setActiveMarkerKey}
+      hoveredMarkerKey={hoveredMarkerKey}
+      onHoveredMarkerChange={setHoveredMarkerKey}
+      pinnedMarkerKey={pinnedMarkerKey}
+      onPinnedMarkerChange={setPinnedMarkerKey}
       noteInfos={noteInfos}
       loadingNoteIds={loadingNoteIds}
       onOpenNote={handleOpenNote}
@@ -251,8 +267,10 @@ function RatioView({
   yomitanLookupEvents,
   pauseRegions,
   markers,
-  activeMarkerKey,
-  onActiveMarkerChange,
+  hoveredMarkerKey,
+  onHoveredMarkerChange,
+  pinnedMarkerKey,
+  onPinnedMarkerChange,
   noteInfos,
   loadingNoteIds,
   onOpenNote,
@@ -269,8 +287,10 @@ function RatioView({
   yomitanLookupEvents: SessionEvent[];
   pauseRegions: Array<{ startMs: number; endMs: number }>;
   markers: SessionChartMarker[];
-  activeMarkerKey: string | null;
-  onActiveMarkerChange: (markerKey: string | null) => void;
+  hoveredMarkerKey: string | null;
+  onHoveredMarkerChange: (markerKey: string | null) => void;
+  pinnedMarkerKey: string | null;
+  onPinnedMarkerChange: (markerKey: string | null) => void;
   noteInfos: Map<number, SessionEventNoteInfo>;
   loadingNoteIds: Set<number>;
   onOpenNote: (noteId: number) => void;
@@ -280,6 +300,7 @@ function RatioView({
   lookupRate: ReturnType<typeof buildLookupRateDisplay>;
   session: SessionSummary;
 }) {
+  const [plotArea, setPlotArea] = useState<SessionChartPlotArea | null>(null);
   const chartData: RatioChartPoint[] = [];
   for (const t of sorted) {
     const totalWords = getSessionDisplayWordCount(t);
@@ -313,84 +334,99 @@ function RatioView({
       <div className="relative">
         <ResponsiveContainer width="100%" height={130}>
           <AreaChart data={chartData}>
-          <defs>
-            <linearGradient id={`knownGrad-${session.sessionId}`} x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0%" stopColor="#a6da95" stopOpacity={0.4} />
-              <stop offset="100%" stopColor="#a6da95" stopOpacity={0.15} />
-            </linearGradient>
-            <linearGradient id={`unknownGrad-${session.sessionId}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#c6a0f6" stopOpacity={0.25} />
-              <stop offset="100%" stopColor="#c6a0f6" stopOpacity={0.08} />
-            </linearGradient>
-          </defs>
-
-          <CartesianGrid
-            horizontal
-            vertical={false}
-            stroke="#494d64"
-            strokeDasharray="4 4"
-            strokeOpacity={0.4}
-          />
-
-          <XAxis
-            dataKey="tsMs"
-            type="number"
-            domain={[tsMin, tsMax]}
-            tick={{ fontSize: 9, fill: CHART_THEME.tick }}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={formatTime}
-            interval="preserveStartEnd"
-          />
-          <YAxis
-            yAxisId="pct"
-            orientation="right"
-            domain={[0, 100]}
-            ticks={[0, 50, 100]}
-            tick={{ fontSize: 9, fill: CHART_THEME.tick }}
-            tickFormatter={(v: number) => `${v}%`}
-            axisLine={false}
-            tickLine={false}
-            width={32}
-          />
-
-          <Tooltip
-            contentStyle={tooltipStyle}
-            labelFormatter={formatTime}
-            formatter={(_value: number, name: string, props: { payload?: RatioChartPoint }) => {
-              const d = props.payload;
-              if (!d) return [_value, name];
-              if (name === 'Known')
-                return [`${d.knownWords.toLocaleString()} (${d.knownPct.toFixed(1)}%)`, 'Known'];
-              if (name === 'Unknown')
-                return [
-                  `${d.unknownWords.toLocaleString()} (${d.unknownPct.toFixed(1)}%)`,
-                  'Unknown',
-                ];
-              return [_value, name];
-            }}
-            itemSorter={() => -1}
-          />
-
-          {/* Pause shaded regions */}
-          {pauseRegions.map((r, i) => (
-            <ReferenceArea
-              key={`pause-${i}`}
-              yAxisId="pct"
-              x1={r.startMs}
-              x2={r.endMs}
-              y1={0}
-              y2={100}
-              fill="#f5a97f"
-              fillOpacity={0.15}
-              stroke="#f5a97f"
-              strokeOpacity={0.4}
-              strokeDasharray="3 3"
-              strokeWidth={1}
+            <Customized
+              component={
+                <SessionChartOffsetProbe
+                  onPlotAreaChange={(nextPlotArea) => {
+                    setPlotArea((prevPlotArea) =>
+                      prevPlotArea &&
+                      prevPlotArea.left === nextPlotArea.left &&
+                      prevPlotArea.width === nextPlotArea.width
+                        ? prevPlotArea
+                        : nextPlotArea,
+                    );
+                  }}
+                />
+              }
             />
-          ))}
+            <defs>
+              <linearGradient id={`knownGrad-${session.sessionId}`} x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0%" stopColor="#a6da95" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="#a6da95" stopOpacity={0.15} />
+              </linearGradient>
+              <linearGradient id={`unknownGrad-${session.sessionId}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#c6a0f6" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="#c6a0f6" stopOpacity={0.08} />
+              </linearGradient>
+            </defs>
 
-          {/* Card mine markers */}
+            <CartesianGrid
+              horizontal
+              vertical={false}
+              stroke="#494d64"
+              strokeDasharray="4 4"
+              strokeOpacity={0.4}
+            />
+
+            <XAxis
+              dataKey="tsMs"
+              type="number"
+              domain={[tsMin, tsMax]}
+              tick={{ fontSize: 9, fill: CHART_THEME.tick }}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={formatTime}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              yAxisId="pct"
+              orientation="right"
+              domain={[0, 100]}
+              ticks={[0, 50, 100]}
+              tick={{ fontSize: 9, fill: CHART_THEME.tick }}
+              tickFormatter={(v: number) => `${v}%`}
+              axisLine={false}
+              tickLine={false}
+              width={32}
+            />
+
+            <Tooltip
+              contentStyle={tooltipStyle}
+              labelFormatter={formatTime}
+              formatter={(_value: number, name: string, props: { payload?: RatioChartPoint }) => {
+                const d = props.payload;
+                if (!d) return [_value, name];
+                if (name === 'Known')
+                  return [`${d.knownWords.toLocaleString()} (${d.knownPct.toFixed(1)}%)`, 'Known'];
+                if (name === 'Unknown')
+                  return [
+                    `${d.unknownWords.toLocaleString()} (${d.unknownPct.toFixed(1)}%)`,
+                    'Unknown',
+                  ];
+                return [_value, name];
+              }}
+              itemSorter={() => -1}
+            />
+
+            {/* Pause shaded regions */}
+            {pauseRegions.map((r, i) => (
+              <ReferenceArea
+                key={`pause-${i}`}
+                yAxisId="pct"
+                x1={r.startMs}
+                x2={r.endMs}
+                y1={0}
+                y2={100}
+                fill="#f5a97f"
+                fillOpacity={0.15}
+                stroke="#f5a97f"
+                strokeOpacity={0.4}
+                strokeDasharray="3 3"
+                strokeWidth={1}
+              />
+            ))}
+
+            {/* Card mine markers */}
             {cardEvents.map((e, i) => (
               <ReferenceLine
                 key={`card-${i}`}
@@ -418,7 +454,7 @@ function RatioView({
               );
             })}
 
-          {/* Yomitan lookup markers */}
+            {/* Yomitan lookup markers */}
             {yomitanLookupEvents.map((e, i) => (
               <ReferenceLine
                 key={`yomitan-${i}`}
@@ -431,38 +467,41 @@ function RatioView({
               />
             ))}
 
-          <Area
-            yAxisId="pct"
-            dataKey="knownPct"
-            stackId="ratio"
-            stroke="#a6da95"
-            strokeWidth={1.5}
-            fill={`url(#knownGrad-${session.sessionId})`}
-            name="Known"
-            type="monotone"
-            dot={false}
-            activeDot={{ r: 3, fill: '#a6da95', stroke: '#1e2030', strokeWidth: 1 }}
-            isAnimationActive={false}
-          />
-          <Area
-            yAxisId="pct"
-            dataKey="unknownPct"
-            stackId="ratio"
-            stroke="#c6a0f6"
-            strokeWidth={0}
-            fill={`url(#unknownGrad-${session.sessionId})`}
-            name="Unknown"
-            type="monotone"
-            isAnimationActive={false}
-          />
+            <Area
+              yAxisId="pct"
+              dataKey="knownPct"
+              stackId="ratio"
+              stroke="#a6da95"
+              strokeWidth={1.5}
+              fill={`url(#knownGrad-${session.sessionId})`}
+              name="Known"
+              type="monotone"
+              dot={false}
+              activeDot={{ r: 3, fill: '#a6da95', stroke: '#1e2030', strokeWidth: 1 }}
+              isAnimationActive={false}
+            />
+            <Area
+              yAxisId="pct"
+              dataKey="unknownPct"
+              stackId="ratio"
+              stroke="#c6a0f6"
+              strokeWidth={0}
+              fill={`url(#unknownGrad-${session.sessionId})`}
+              name="Unknown"
+              type="monotone"
+              isAnimationActive={false}
+            />
           </AreaChart>
         </ResponsiveContainer>
         <SessionEventOverlay
           markers={markers}
           tsMin={tsMin}
           tsMax={tsMax}
-          activeMarkerKey={activeMarkerKey}
-          onActiveMarkerChange={onActiveMarkerChange}
+          plotArea={plotArea}
+          hoveredMarkerKey={hoveredMarkerKey}
+          onHoveredMarkerChange={onHoveredMarkerChange}
+          pinnedMarkerKey={pinnedMarkerKey}
+          onPinnedMarkerChange={onPinnedMarkerChange}
           noteInfos={noteInfos}
           loadingNoteIds={loadingNoteIds}
           onOpenNote={onOpenNote}
@@ -516,8 +555,10 @@ function FallbackView({
   yomitanLookupEvents,
   pauseRegions,
   markers,
-  activeMarkerKey,
-  onActiveMarkerChange,
+  hoveredMarkerKey,
+  onHoveredMarkerChange,
+  pinnedMarkerKey,
+  onPinnedMarkerChange,
   noteInfos,
   loadingNoteIds,
   onOpenNote,
@@ -533,8 +574,10 @@ function FallbackView({
   yomitanLookupEvents: SessionEvent[];
   pauseRegions: Array<{ startMs: number; endMs: number }>;
   markers: SessionChartMarker[];
-  activeMarkerKey: string | null;
-  onActiveMarkerChange: (markerKey: string | null) => void;
+  hoveredMarkerKey: string | null;
+  onHoveredMarkerChange: (markerKey: string | null) => void;
+  pinnedMarkerKey: string | null;
+  onPinnedMarkerChange: (markerKey: string | null) => void;
   noteInfos: Map<number, SessionEventNoteInfo>;
   loadingNoteIds: Set<number>;
   onOpenNote: (noteId: number) => void;
@@ -544,6 +587,7 @@ function FallbackView({
   lookupRate: ReturnType<typeof buildLookupRateDisplay>;
   session: SessionSummary;
 }) {
+  const [plotArea, setPlotArea] = useState<SessionChartPlotArea | null>(null);
   const chartData: FallbackChartPoint[] = [];
   for (const t of sorted) {
     const totalWords = getSessionDisplayWordCount(t);
@@ -563,42 +607,57 @@ function FallbackView({
       <div className="relative">
         <ResponsiveContainer width="100%" height={130}>
           <LineChart data={chartData}>
-          <XAxis
-            dataKey="tsMs"
-            type="number"
-            domain={[tsMin, tsMax]}
-            tick={{ fontSize: 9, fill: CHART_THEME.tick }}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={formatTime}
-            interval="preserveStartEnd"
-          />
-          <YAxis
-            tick={{ fontSize: 9, fill: CHART_THEME.tick }}
-            axisLine={false}
-            tickLine={false}
-            width={30}
-            allowDecimals={false}
-          />
-          <Tooltip
-            contentStyle={tooltipStyle}
-            labelFormatter={formatTime}
-            formatter={(value: number) => [`${value.toLocaleString()}`, 'Total tokens']}
-          />
-
-          {pauseRegions.map((r, i) => (
-            <ReferenceArea
-              key={`pause-${i}`}
-              x1={r.startMs}
-              x2={r.endMs}
-              fill="#f5a97f"
-              fillOpacity={0.15}
-              stroke="#f5a97f"
-              strokeOpacity={0.4}
-              strokeDasharray="3 3"
-              strokeWidth={1}
+            <Customized
+              component={
+                <SessionChartOffsetProbe
+                  onPlotAreaChange={(nextPlotArea) => {
+                    setPlotArea((prevPlotArea) =>
+                      prevPlotArea &&
+                      prevPlotArea.left === nextPlotArea.left &&
+                      prevPlotArea.width === nextPlotArea.width
+                        ? prevPlotArea
+                        : nextPlotArea,
+                    );
+                  }}
+                />
+              }
             />
-          ))}
+            <XAxis
+              dataKey="tsMs"
+              type="number"
+              domain={[tsMin, tsMax]}
+              tick={{ fontSize: 9, fill: CHART_THEME.tick }}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={formatTime}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              tick={{ fontSize: 9, fill: CHART_THEME.tick }}
+              axisLine={false}
+              tickLine={false}
+              width={30}
+              allowDecimals={false}
+            />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              labelFormatter={formatTime}
+              formatter={(value: number) => [`${value.toLocaleString()}`, 'Total tokens']}
+            />
+
+            {pauseRegions.map((r, i) => (
+              <ReferenceArea
+                key={`pause-${i}`}
+                x1={r.startMs}
+                x2={r.endMs}
+                fill="#f5a97f"
+                fillOpacity={0.15}
+                stroke="#f5a97f"
+                strokeOpacity={0.4}
+                strokeDasharray="3 3"
+                strokeWidth={1}
+              />
+            ))}
 
             {cardEvents.map((e, i) => (
               <ReferenceLine
@@ -634,24 +693,27 @@ function FallbackView({
               />
             ))}
 
-          <Line
-            dataKey="totalWords"
-            stroke="#8aadf4"
-            strokeWidth={1.5}
-            dot={false}
-            activeDot={{ r: 3, fill: '#8aadf4', stroke: '#1e2030', strokeWidth: 1 }}
-            name="Total tokens"
-            type="monotone"
-            isAnimationActive={false}
-          />
+            <Line
+              dataKey="totalWords"
+              stroke="#8aadf4"
+              strokeWidth={1.5}
+              dot={false}
+              activeDot={{ r: 3, fill: '#8aadf4', stroke: '#1e2030', strokeWidth: 1 }}
+              name="Total tokens"
+              type="monotone"
+              isAnimationActive={false}
+            />
           </LineChart>
         </ResponsiveContainer>
         <SessionEventOverlay
           markers={markers}
           tsMin={tsMin}
           tsMax={tsMax}
-          activeMarkerKey={activeMarkerKey}
-          onActiveMarkerChange={onActiveMarkerChange}
+          plotArea={plotArea}
+          hoveredMarkerKey={hoveredMarkerKey}
+          onHoveredMarkerChange={onHoveredMarkerChange}
+          pinnedMarkerKey={pinnedMarkerKey}
+          onPinnedMarkerChange={onPinnedMarkerChange}
           noteInfos={noteInfos}
           loadingNoteIds={loadingNoteIds}
           onOpenNote={onOpenNote}
