@@ -65,6 +65,13 @@ export function VocabularyTab({
 
   const summary = buildVocabularySummary(filteredWords, kanji);
 
+  let knownWordCount = 0;
+  if (knownWords.size > 0) {
+    for (const w of filteredWords) {
+      if (knownWords.has(w.headword)) knownWordCount++;
+    }
+  }
+
   const handleSelectWord = (entry: VocabularyEntry): void => {
     onOpenWordDetail?.(entry.wordId);
   };
@@ -80,16 +87,23 @@ export function VocabularyTab({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <StatCard
           label="Unique Words"
           value={formatNumber(summary.uniqueWords)}
           color="text-ctp-blue"
         />
+        {knownWords.size > 0 && (
+          <StatCard
+            label="Known Words"
+            value={`${formatNumber(knownWordCount)} (${summary.uniqueWords > 0 ? Math.round((knownWordCount / summary.uniqueWords) * 100) : 0}%)`}
+            color="text-ctp-green"
+          />
+        )}
         <StatCard
           label="Unique Kanji"
           value={formatNumber(summary.uniqueKanji)}
-          color="text-ctp-green"
+          color="text-ctp-teal"
         />
         <StatCard
           label="New This Week"

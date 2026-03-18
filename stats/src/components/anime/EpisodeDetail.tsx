@@ -3,6 +3,7 @@ import { getStatsClient } from '../../hooks/useStatsApi';
 import { apiClient } from '../../lib/api-client';
 import { confirmSessionDelete } from '../../lib/delete-confirm';
 import { formatDuration, formatNumber, formatRelativeDate } from '../../lib/formatters';
+import { getSessionDisplayWordCount } from '../../lib/session-word-count';
 import type { EpisodeDetailData } from '../../types/stats';
 
 interface EpisodeDetailProps {
@@ -89,7 +90,9 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
                 </span>
                 <span className="text-ctp-blue">{formatDuration(s.activeWatchedMs)}</span>
                 <span className="text-ctp-green">{formatNumber(s.cardsMined)} cards</span>
-                <span className="text-ctp-peach">{formatNumber(s.wordsSeen)} words</span>
+                <span className="text-ctp-peach">
+                  {formatNumber(getSessionDisplayWordCount(s))} words
+                </span>
                 <button
                   type="button"
                   onClick={(e) => {

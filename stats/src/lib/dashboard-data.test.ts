@@ -35,6 +35,7 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
       cardsMined: 2,
       lookupCount: 10,
       lookupHits: 8,
+      yomitanLookupCount: 0,
     },
   ];
   const rollups: DailyRollup[] = [
@@ -56,7 +57,7 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
       sessions,
       rollups,
       hints: {
-        totalSessions: 1,
+        totalSessions: 15,
         activeSessions: 0,
         episodesToday: 2,
         activeAnimeCount: 3,
@@ -65,6 +66,10 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
         totalActiveMin: 50,
         activeDays: 2,
         totalCards: 9,
+        totalLookupCount: 100,
+        totalLookupHits: 80,
+        newWordsToday: 5,
+        newWordsThisWeek: 20,
       },
     };
 
@@ -74,15 +79,17 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
   assert.equal(summary.episodesToday, 2);
   assert.equal(summary.activeAnimeCount, 3);
   assert.equal(summary.averageSessionMinutes, 50);
-  assert.equal(summary.allTimeHours, 1);
+  assert.equal(summary.allTimeMinutes, 50);
   assert.equal(summary.activeDays, 2);
+  assert.equal(summary.totalSessions, 15);
+  assert.equal(summary.lookupRate, 80);
 });
 
 test('buildOverviewSummary prefers lifetime totals from hints when provided', () => {
   const now = Date.UTC(2026, 2, 13, 12);
   const today = Math.floor(now / 86_400_000);
-  const overview: OverviewData = {
-    sessions: [
+    const overview: OverviewData = {
+      sessions: [
       {
         sessionId: 2,
         canonicalTitle: 'B',
@@ -99,6 +106,7 @@ test('buildOverviewSummary prefers lifetime totals from hints when provided', ()
         cardsMined: 10,
         lookupCount: 1,
         lookupHits: 1,
+        yomitanLookupCount: 0,
       },
     ],
     rollups: [
@@ -117,7 +125,7 @@ test('buildOverviewSummary prefers lifetime totals from hints when provided', ()
       },
     ],
     hints: {
-      totalSessions: 999,
+      totalSessions: 50,
       activeSessions: 0,
       episodesToday: 0,
       activeAnimeCount: 0,
@@ -126,13 +134,16 @@ test('buildOverviewSummary prefers lifetime totals from hints when provided', ()
       totalActiveMin: 120,
       activeDays: 40,
       totalCards: 5,
+      totalLookupCount: 0,
+      totalLookupHits: 0,
+      newWordsToday: 0,
+      newWordsThisWeek: 0,
     },
   };
 
   const summary = buildOverviewSummary(overview, now);
   assert.equal(summary.totalTrackedCards, 5);
-  assert.equal(summary.totalSessions, 999);
-  assert.equal(summary.allTimeHours, 2);
+  assert.equal(summary.allTimeMinutes, 120);
   assert.equal(summary.activeDays, 40);
 });
 
@@ -150,6 +161,8 @@ test('buildVocabularySummary treats firstSeen timestamps as seconds', () => {
       pos2: null,
       pos3: null,
       frequency: 4,
+      frequencyRank: null,
+      animeCount: 1,
       firstSeen: nowSec - 2 * 86_400,
       lastSeen: nowSec - 1,
     },

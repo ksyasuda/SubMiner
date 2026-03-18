@@ -17,6 +17,7 @@ import type {
   EpisodesPerDay,
   NewAnimePerDay,
   WatchTimePerAnime,
+  TrendsDashboardData,
   WordDetailData,
   KanjiDetailData,
   EpisodeDetailData,
@@ -73,6 +74,10 @@ export const apiClient = {
     fetchJson<SessionTimelinePoint[]>(`/api/stats/sessions/${id}/timeline?limit=${limit}`),
   getSessionEvents: (id: number, limit = 500) =>
     fetchJson<SessionEvent[]>(`/api/stats/sessions/${id}/events?limit=${limit}`),
+  getSessionKnownWordsTimeline: (id: number) =>
+    fetchJson<Array<{ linesSeen: number; knownWordsSeen: number }>>(
+      `/api/stats/sessions/${id}/known-words-timeline`,
+    ),
   getVocabulary: (limit = 100) =>
     fetchJson<VocabularyEntry[]>(`/api/stats/vocabulary?limit=${limit}`),
   getWordOccurrences: (headword: string, word: string, reading: string, limit = 50, offset = 0) =>
@@ -101,6 +106,10 @@ export const apiClient = {
     fetchJson<NewAnimePerDay[]>(`/api/stats/trends/new-anime-per-day?limit=${limit}`),
   getWatchTimePerAnime: (limit = 90) =>
     fetchJson<WatchTimePerAnime[]>(`/api/stats/trends/watch-time-per-anime?limit=${limit}`),
+  getTrendsDashboard: (range: '7d' | '30d' | '90d' | 'all', groupBy: 'day' | 'month') =>
+    fetchJson<TrendsDashboardData>(
+      `/api/stats/trends/dashboard?range=${encodeURIComponent(range)}&groupBy=${encodeURIComponent(groupBy)}`,
+    ),
   getWordDetail: (wordId: number) =>
     fetchJson<WordDetailData>(`/api/stats/vocabulary/${wordId}/detail`),
   getKanjiDetail: (kanjiId: number) =>
@@ -117,10 +126,27 @@ export const apiClient = {
   deleteSession: async (sessionId: number): Promise<void> => {
     await fetchResponse(`/api/stats/sessions/${sessionId}`, { method: 'DELETE' });
   },
+  deleteSessions: async (sessionIds: number[]): Promise<void> => {
+    await fetchResponse('/api/stats/sessions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionIds }),
+    });
+  },
   deleteVideo: async (videoId: number): Promise<void> => {
     await fetchResponse(`/api/stats/media/${videoId}`, { method: 'DELETE' });
   },
   getKnownWords: () => fetchJson<string[]>('/api/stats/known-words'),
+  getKnownWordsSummary: () =>
+    fetchJson<{ totalUniqueWords: number; knownWordCount: number }>('/api/stats/known-words-summary'),
+  getAnimeKnownWordsSummary: (animeId: number) =>
+    fetchJson<{ totalUniqueWords: number; knownWordCount: number }>(
+      `/api/stats/anime/${animeId}/known-words-summary`,
+    ),
+  getMediaKnownWordsSummary: (videoId: number) =>
+    fetchJson<{ totalUniqueWords: number; knownWordCount: number }>(
+      `/api/stats/media/${videoId}/known-words-summary`,
+    ),
   searchAnilist: (query: string) =>
     fetchJson<
       Array<{

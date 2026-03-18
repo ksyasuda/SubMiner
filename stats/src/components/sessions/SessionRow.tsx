@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BASE_URL } from '../../lib/api-client';
 import { formatDuration, formatRelativeDate, formatNumber } from '../../lib/formatters';
+import { getSessionDisplayWordCount } from '../../lib/session-word-count';
 import type { SessionSummary } from '../../types/stats';
 
 interface SessionRowProps {
@@ -56,15 +57,17 @@ export function SessionRow({
   onDelete,
   deleteDisabled = false,
 }: SessionRowProps) {
+  const displayWordCount = getSessionDisplayWordCount(session);
+
   return (
     <div className="relative group">
       <button
         type="button"
-      onClick={onToggle}
-      aria-expanded={isExpanded}
-      aria-controls={detailsId}
-      className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-3 pr-12 flex items-center gap-3 hover:border-ctp-surface2 transition-colors text-left"
-    >
+        onClick={onToggle}
+        aria-expanded={isExpanded}
+        aria-controls={detailsId}
+        className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-3 pr-12 flex items-center gap-3 hover:border-ctp-surface2 transition-colors text-left"
+      >
         <CoverThumbnail
           animeId={session.animeId}
           videoId={session.videoId}
@@ -88,7 +91,7 @@ export function SessionRow({
           </div>
           <div>
             <div className="text-ctp-mauve font-medium font-mono tabular-nums">
-              {formatNumber(session.wordsSeen)}
+              {formatNumber(displayWordCount)}
             </div>
             <div className="text-ctp-overlay2">words</div>
           </div>

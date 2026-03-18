@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAnimeDetail } from '../../hooks/useAnimeDetail';
 import { getStatsClient } from '../../hooks/useStatsApi';
-import { formatDuration, formatNumber, epochDayToDate } from '../../lib/formatters';
-import { StatCard } from '../layout/StatCard';
+import { epochDayToDate } from '../../lib/formatters';
 import { AnimeHeader } from './AnimeHeader';
 import { EpisodeList } from './EpisodeList';
 import { AnimeWordList } from './AnimeWordList';
 import { AnilistSelector } from './AnilistSelector';
+import { AnimeOverviewStats } from './AnimeOverviewStats';
 import { CHART_THEME } from '../../lib/chart-theme';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import type { DailyRollup } from '../../types/stats';
@@ -15,6 +15,7 @@ interface AnimeDetailViewProps {
   animeId: number;
   onBack: () => void;
   onNavigateToWord?: (wordId: number) => void;
+  onOpenEpisodeDetail?: (videoId: number) => void;
 }
 
 type Range = 14 | 30 | 90;
@@ -111,18 +112,43 @@ function AnimeWatchChart({ animeId }: { animeId: number }) {
   );
 }
 
-export function AnimeDetailView({ animeId, onBack, onNavigateToWord }: AnimeDetailViewProps) {
+function useAnimeKnownWords(animeId: number) {
+  const [summary, setSummary] = useState<{
+    totalUniqueWords: number;
+    knownWordCount: number;
+  } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getStatsClient()
+      .getAnimeKnownWordsSummary(animeId)
+      .then((data) => {
+        if (!cancelled) setSummary(data);
+      })
+      .catch(() => {
+        if (!cancelled) setSummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [animeId]);
+  return summary;
+}
+
+export function AnimeDetailView({
+  animeId,
+  onBack,
+  onNavigateToWord,
+  onOpenEpisodeDetail,
+}: AnimeDetailViewProps) {
   const { data, loading, error, reload } = useAnimeDetail(animeId);
   const [showAnilistSelector, setShowAnilistSelector] = useState(false);
+  const knownWordsSummary = useAnimeKnownWords(animeId);
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
   if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
   if (!data?.detail) return <div className="text-ctp-overlay2 p-4">Anime not found</div>;
 
   const { detail, episodes, anilistEntries } = data;
-  const avgSessionMs =
-    detail.totalSessions > 0 ? Math.round(detail.totalActiveMs / detail.totalSessions) : 0;
-
   return (
     <div className="space-y-4">
       <button
@@ -130,29 +156,21 @@ export function AnimeDetailView({ animeId, onBack, onNavigateToWord }: AnimeDeta
         onClick={onBack}
         className="text-sm text-ctp-blue hover:text-ctp-sapphire transition-colors"
       >
-        &larr; Back to Anime
+        &larr; Back to Library
       </button>
       <AnimeHeader
         detail={detail}
         anilistEntries={anilistEntries ?? []}
         onChangeAnilist={() => setShowAnilistSelector(true)}
       />
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-        <StatCard
-          label="Watch Time"
-          value={formatDuration(detail.totalActiveMs)}
-          color="text-ctp-blue"
-        />
-        <StatCard label="Cards" value={formatNumber(detail.totalCards)} color="text-ctp-green" />
-        <StatCard
-          label="Words"
-          value={formatNumber(detail.totalWordsSeen)}
-          color="text-ctp-mauve"
-        />
-        <StatCard label="Sessions" value={String(detail.totalSessions)} color="text-ctp-peach" />
-        <StatCard label="Avg Session" value={formatDuration(avgSessionMs)} />
-      </div>
-      <EpisodeList episodes={episodes} />
+      <AnimeOverviewStats
+        detail={detail}
+        knownWordsSummary={knownWordsSummary}
+      />
+      <EpisodeList
+        episodes={episodes}
+        onOpenDetail={onOpenEpisodeDetail ? (videoId) => onOpenEpisodeDetail(videoId) : undefined}
+      />
       <AnimeWatchChart animeId={animeId} />
       <AnimeWordList animeId={animeId} onNavigateToWord={onNavigateToWord} />
       {showAnilistSelector && (

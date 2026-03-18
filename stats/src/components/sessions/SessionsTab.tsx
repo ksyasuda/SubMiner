@@ -126,7 +126,7 @@ export function SessionsTab({ initialSessionId, onClearInitialSession }: Session
                   />
                   {expandedId === s.sessionId && (
                     <div id={detailsId}>
-                      <SessionDetail sessionId={s.sessionId} cardsMined={s.cardsMined} />
+                      <SessionDetail session={s} />
                     </div>
                   )}
                 </div>

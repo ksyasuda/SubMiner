@@ -3,23 +3,31 @@ import { TabBar } from './components/layout/TabBar';
 import { OverviewTab } from './components/overview/OverviewTab';
 import { TrendsTab } from './components/trends/TrendsTab';
 import { AnimeTab } from './components/anime/AnimeTab';
-import { LibraryTab } from './components/library/LibraryTab';
+import { MediaDetailView } from './components/library/MediaDetailView';
 import { VocabularyTab } from './components/vocabulary/VocabularyTab';
 import { SessionsTab } from './components/sessions/SessionsTab';
 import { WordDetailPanel } from './components/vocabulary/WordDetailPanel';
 import { useExcludedWords } from './hooks/useExcludedWords';
 import type { TabId } from './components/layout/TabBar';
+import {
+  closeMediaDetail,
+  createInitialStatsView,
+  navigateToAnime as navigateToAnimeState,
+  navigateToSession as navigateToSessionState,
+  openAnimeEpisodeDetail,
+  openOverviewMediaDetail,
+  switchTab,
+} from './lib/stats-navigation';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [viewState, setViewState] = useState(createInitialStatsView);
   const [mountedTabs, setMountedTabs] = useState<Set<TabId>>(() => new Set(['overview']));
-  const [selectedAnimeId, setSelectedAnimeId] = useState<number | null>(null);
-  const [focusedSessionId, setFocusedSessionId] = useState<number | null>(null);
   const [globalWordId, setGlobalWordId] = useState<number | null>(null);
   const { excluded, isExcluded, toggleExclusion, removeExclusion, clearAll } = useExcludedWords();
+  const { activeTab, selectedAnimeId, focusedSessionId, mediaDetail } = viewState;
 
   const activateTab = useCallback((tabId: TabId) => {
-    setActiveTab(tabId);
+    setViewState((prev) => switchTab(prev, tabId));
     setMountedTabs((prev) => {
       if (prev.has(tabId)) return prev;
       const next = new Set(prev);
@@ -29,26 +37,49 @@ export function App() {
   }, []);
 
   const navigateToAnime = useCallback((animeId: number) => {
-    activateTab('anime');
-    setSelectedAnimeId(animeId);
-  }, [activateTab]);
+    setViewState((prev) => navigateToAnimeState(prev, animeId));
+    setMountedTabs((prev) => {
+      if (prev.has('anime')) return prev;
+      const next = new Set(prev);
+      next.add('anime');
+      return next;
+    });
+  }, []);
 
   const navigateToSession = useCallback((sessionId: number) => {
-    activateTab('sessions');
-    setFocusedSessionId(sessionId);
-  }, [activateTab]);
+    setViewState((prev) => navigateToSessionState(prev, sessionId));
+    setMountedTabs((prev) => {
+      if (prev.has('sessions')) return prev;
+      const next = new Set(prev);
+      next.add('sessions');
+      return next;
+    });
+  }, []);
+
+  const navigateToEpisodeDetail = useCallback(
+    (animeId: number, videoId: number, sessionId: number | null = null) => {
+      setViewState((prev) => openAnimeEpisodeDetail(prev, animeId, videoId, sessionId));
+    },
+    [],
+  );
+
+  const navigateToOverviewMediaDetail = useCallback(
+    (videoId: number, sessionId: number | null = null) => {
+      setViewState((prev) => openOverviewMediaDetail(prev, videoId, sessionId));
+    },
+    [],
+  );
 
   const openWordDetail = useCallback((wordId: number) => {
     setGlobalWordId(wordId);
   }, []);
 
-  const handleTabChange = useCallback((tabId: TabId) => {
-    activateTab(tabId);
-    setSelectedAnimeId(null);
-    if (tabId !== 'sessions') {
-      setFocusedSessionId(null);
-    }
-  }, [activateTab]);
+  const handleTabChange = useCallback(
+    (tabId: TabId) => {
+      activateTab(tabId);
+    },
+    [activateTab],
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-ctp-base">
@@ -64,86 +95,109 @@ export function App() {
         <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
       </header>
       <main className="flex-1 overflow-y-auto p-4">
-        {mountedTabs.has('overview') ? (
-          <section
-            id="panel-overview"
-            role="tabpanel"
-            aria-labelledby="tab-overview"
-            hidden={activeTab !== 'overview'}
-            className="animate-fade-in"
-          >
-            <OverviewTab onNavigateToSession={navigateToSession} />
-          </section>
-        ) : null}
-        {mountedTabs.has('anime') ? (
-          <section
-            id="panel-anime"
-            role="tabpanel"
-            aria-labelledby="tab-anime"
-            hidden={activeTab !== 'anime'}
-            className="animate-fade-in"
-          >
-            <AnimeTab
-              initialAnimeId={selectedAnimeId}
-              onClearInitialAnime={() => setSelectedAnimeId(null)}
-              onNavigateToWord={openWordDetail}
-            />
-          </section>
-        ) : null}
-        {mountedTabs.has('trends') ? (
-          <section
-            id="panel-trends"
-            role="tabpanel"
-            aria-labelledby="tab-trends"
-            hidden={activeTab !== 'trends'}
-            className="animate-fade-in"
-          >
-            <TrendsTab />
-          </section>
-        ) : null}
-        {mountedTabs.has('vocabulary') ? (
-          <section
-            id="panel-vocabulary"
-            role="tabpanel"
-            aria-labelledby="tab-vocabulary"
-            hidden={activeTab !== 'vocabulary'}
-            className="animate-fade-in"
-          >
-            <VocabularyTab
-              onNavigateToAnime={navigateToAnime}
-              onOpenWordDetail={openWordDetail}
-              excluded={excluded}
-              isExcluded={isExcluded}
-              onRemoveExclusion={removeExclusion}
-              onClearExclusions={clearAll}
-            />
-          </section>
-        ) : null}
-        {mountedTabs.has('library') ? (
-          <section
-            id="panel-library"
-            role="tabpanel"
-            aria-labelledby="tab-library"
-            hidden={activeTab !== 'library'}
-            className="animate-fade-in"
-          >
-            <LibraryTab />
-          </section>
-        ) : null}
-        {mountedTabs.has('sessions') ? (
-          <section
-            id="panel-sessions"
-            role="tabpanel"
-            aria-labelledby="tab-sessions"
-            hidden={activeTab !== 'sessions'}
-            className="animate-fade-in"
-          >
-            <SessionsTab
-              initialSessionId={focusedSessionId}
-              onClearInitialSession={() => setFocusedSessionId(null)}
-            />
-          </section>
-        ) : null}
+        {mediaDetail ? (
+          <MediaDetailView
+            videoId={mediaDetail.videoId}
+            initialExpandedSessionId={mediaDetail.initialSessionId}
+            onConsumeInitialExpandedSession={() =>
+              setViewState((prev) =>
+                prev.mediaDetail
+                  ? {
+                      ...prev,
+                      mediaDetail: {
+                        ...prev.mediaDetail,
+                        initialSessionId: null,
+                      },
+                    }
+                  : prev,
+              )
+            }
+            onBack={() => setViewState((prev) => closeMediaDetail(prev))}
+            backLabel={
+              mediaDetail.origin.type === 'overview' ? 'Back to Overview' : 'Back to Library'
+            }
+          />
+        ) : (
+          <>
+            {mountedTabs.has('overview') ? (
+              <section
+                id="panel-overview"
+                role="tabpanel"
+                aria-labelledby="tab-overview"
+                hidden={activeTab !== 'overview'}
+                className="animate-fade-in"
+              >
+                <OverviewTab
+                  onNavigateToMediaDetail={navigateToOverviewMediaDetail}
+                  onNavigateToSession={navigateToSession}
+                />
+              </section>
+            ) : null}
+            {mountedTabs.has('anime') ? (
+              <section
+                id="panel-anime"
+                role="tabpanel"
+                aria-labelledby="tab-anime"
+                hidden={activeTab !== 'anime'}
+                className="animate-fade-in"
+              >
+                <AnimeTab
+                  initialAnimeId={selectedAnimeId}
+                  onClearInitialAnime={() =>
+                    setViewState((prev) => ({ ...prev, selectedAnimeId: null }))
+                  }
+                  onNavigateToWord={openWordDetail}
+                  onOpenEpisodeDetail={navigateToEpisodeDetail}
+                />
+              </section>
+            ) : null}
+            {mountedTabs.has('trends') ? (
+              <section
+                id="panel-trends"
+                role="tabpanel"
+                aria-labelledby="tab-trends"
+                hidden={activeTab !== 'trends'}
+                className="animate-fade-in"
+              >
+                <TrendsTab />
+              </section>
+            ) : null}
+            {mountedTabs.has('vocabulary') ? (
+              <section
+                id="panel-vocabulary"
+                role="tabpanel"
+                aria-labelledby="tab-vocabulary"
+                hidden={activeTab !== 'vocabulary'}
+                className="animate-fade-in"
+              >
+                <VocabularyTab
+                  onNavigateToAnime={navigateToAnime}
+                  onOpenWordDetail={openWordDetail}
+                  excluded={excluded}
+                  isExcluded={isExcluded}
+                  onRemoveExclusion={removeExclusion}
+                  onClearExclusions={clearAll}
+                />
+              </section>
+            ) : null}
+            {mountedTabs.has('sessions') ? (
+              <section
+                id="panel-sessions"
+                role="tabpanel"
+                aria-labelledby="tab-sessions"
+                hidden={activeTab !== 'sessions'}
+                className="animate-fade-in"
+              >
+                <SessionsTab
+                  initialSessionId={focusedSessionId}
+                  onClearInitialSession={() =>
+                    setViewState((prev) => ({ ...prev, focusedSessionId: null }))
+                  }
+                />
+              </section>
+            ) : null}
+          </>
+        )}
       </main>
       <WordDetailPanel
         wordId={globalWordId}

@@ -32,5 +32,5 @@ export function useOverview() {
     };
   }, []);
 
-  return { data, sessions, loading, error };
+  return { data, sessions, setSessions, loading, error };
 }

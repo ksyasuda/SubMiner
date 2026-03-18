@@ -16,15 +16,19 @@ export interface OverviewSummary {
   todayActiveMs: number;
   todayCards: number;
   streakDays: number;
-  allTimeHours: number;
+  allTimeMinutes: number;
   totalTrackedCards: number;
   episodesToday: number;
   activeAnimeCount: number;
   totalEpisodesWatched: number;
   totalAnimeCompleted: number;
   averageSessionMinutes: number;
-  totalSessions: number;
   activeDays: number;
+  totalSessions: number;
+  lookupRate: number | null;
+  todayWords: number;
+  newWordsToday: number;
+  newWordsThisWeek: number;
   recentWatchTime: ChartPoint[];
 }
 
@@ -161,7 +165,7 @@ export function buildOverviewSummary(
       sumBy(todaySessions, (session) => session.cardsMined),
     ),
     streakDays,
-    allTimeHours: Math.max(0, Math.round(totalActiveMin / 60)),
+    allTimeMinutes: Math.max(0, Math.round(totalActiveMin)),
     totalTrackedCards: lifetimeCards,
     episodesToday: overview.hints.episodesToday ?? 0,
     activeAnimeCount: overview.hints.activeAnimeCount ?? 0,
@@ -175,8 +179,18 @@ export function buildOverviewSummary(
               60_000,
           )
         : 0,
-    totalSessions: overview.hints.totalSessions,
     activeDays: overview.hints.activeDays ?? daysWithActivity.size,
+    totalSessions: overview.hints.totalSessions ?? overview.sessions.length,
+    lookupRate:
+      overview.hints.totalLookupCount > 0
+        ? Math.round((overview.hints.totalLookupHits / overview.hints.totalLookupCount) * 100)
+        : null,
+    todayWords: Math.max(
+      todayRow?.words ?? 0,
+      sumBy(todaySessions, (session) => session.wordsSeen),
+    ),
+    newWordsToday: overview.hints.newWordsToday ?? 0,
+    newWordsThisWeek: overview.hints.newWordsThisWeek ?? 0,
     recentWatchTime: aggregated
       .slice(-14)
       .map((row) => ({ label: row.label, value: row.activeMin })),

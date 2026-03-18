@@ -4,7 +4,11 @@ import { formatDuration } from '../../lib/formatters';
 import { MediaCard } from './MediaCard';
 import { MediaDetailView } from './MediaDetailView';
 
-export function LibraryTab() {
+interface LibraryTabProps {
+  onNavigateToSession: (sessionId: number) => void;
+}
+
+export function LibraryTab({ onNavigateToSession }: LibraryTabProps) {
   const { media, loading, error } = useMediaLibrary();
   const [search, setSearch] = useState('');
   const [selectedVideoId, setSelectedVideoId] = useState<number | null>(null);
@@ -18,7 +22,7 @@ export function LibraryTab() {
   const totalMs = media.reduce((sum, m) => sum + m.totalActiveMs, 0);
 
   if (selectedVideoId !== null) {
-    return <MediaDetailView videoId={selectedVideoId} onBack={() => setSelectedVideoId(null)} />;
+    return <MediaDetailView videoId={selectedVideoId} onBack={() => setSelectedVideoId(null)} onNavigateToSession={onNavigateToSession} />;
   }
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;

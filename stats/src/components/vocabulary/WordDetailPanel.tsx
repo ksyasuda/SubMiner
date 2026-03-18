@@ -135,6 +135,10 @@ export function WordDetailPanel({
     occ: VocabularyOccurrenceEntry,
     mode: 'word' | 'sentence' | 'audio',
   ) => {
+    if (!occ.sourcePath || occ.segmentStartMs == null || occ.segmentEndMs == null) {
+      return;
+    }
+
     const key = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}-${mode}`;
     setMineStatus((prev) => ({ ...prev, [key]: { loading: true } }));
     try {
@@ -358,60 +362,75 @@ export function WordDetailPanel({
                               {formatNumber(occ.occurrenceCount)} in line
                             </div>
                           </div>
-                          <div className="mt-3 flex items-center gap-2 text-xs text-ctp-overlay1">
+                      <div className="mt-3 flex items-center gap-2 text-xs text-ctp-overlay1">
                             <span>
                               {formatSegment(occ.segmentStartMs)}-{formatSegment(occ.segmentEndMs)}{' '}
                               · session {occ.sessionId}
                             </span>
-                            {occ.sourcePath &&
-                              occ.segmentStartMs != null &&
-                              occ.segmentEndMs != null &&
-                              (() => {
-                                const baseKey = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}`;
-                                const wordStatus = mineStatus[`${baseKey}-word`];
-                                const sentenceStatus = mineStatus[`${baseKey}-sentence`];
-                                const audioStatus = mineStatus[`${baseKey}-audio`];
-                                return (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-mauve hover:text-ctp-mauve disabled:cursor-not-allowed disabled:opacity-60"
-                                      disabled={wordStatus?.loading}
-                                      onClick={() => void handleMine(occ, 'word')}
-                                    >
-                                      {wordStatus?.loading
-                                        ? 'Mining...'
-                                        : wordStatus?.success
-                                          ? 'Mined!'
+                            {(() => {
+                              const canMine =
+                                !!occ.sourcePath &&
+                                occ.segmentStartMs != null &&
+                                occ.segmentEndMs != null;
+                              const unavailableReason = canMine
+                                ? null
+                                : occ.sourcePath
+                                  ? 'This line is missing segment timing.'
+                                  : 'This source has no local file path.';
+                              const baseKey = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}`;
+                              const wordStatus = mineStatus[`${baseKey}-word`];
+                              const sentenceStatus = mineStatus[`${baseKey}-sentence`];
+                              const audioStatus = mineStatus[`${baseKey}-audio`];
+                              return (
+                                <>
+                                  <button
+                                    type="button"
+                                    title={unavailableReason ?? 'Mine this word from video clip'}
+                                    className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-mauve hover:text-ctp-mauve disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={wordStatus?.loading || !!unavailableReason}
+                                    onClick={() => void handleMine(occ, 'word')}
+                                  >
+                                    {wordStatus?.loading
+                                      ? 'Mining...'
+                                      : wordStatus?.success
+                                        ? 'Mined!'
+                                        : unavailableReason
+                                          ? 'Unavailable'
                                           : 'Mine Word'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-green hover:text-ctp-green disabled:cursor-not-allowed disabled:opacity-60"
-                                      disabled={sentenceStatus?.loading}
-                                      onClick={() => void handleMine(occ, 'sentence')}
-                                    >
-                                      {sentenceStatus?.loading
-                                        ? 'Mining...'
-                                        : sentenceStatus?.success
-                                          ? 'Mined!'
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title={unavailableReason ?? 'Mine this sentence from video clip'}
+                                    className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-green hover:text-ctp-green disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={sentenceStatus?.loading || !!unavailableReason}
+                                    onClick={() => void handleMine(occ, 'sentence')}
+                                  >
+                                    {sentenceStatus?.loading
+                                      ? 'Mining...'
+                                      : sentenceStatus?.success
+                                        ? 'Mined!'
+                                        : unavailableReason
+                                          ? 'Unavailable'
                                           : 'Mine Sentence'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:cursor-not-allowed disabled:opacity-60"
-                                      disabled={audioStatus?.loading}
-                                      onClick={() => void handleMine(occ, 'audio')}
-                                    >
-                                      {audioStatus?.loading
-                                        ? 'Mining...'
-                                        : audioStatus?.success
-                                          ? 'Mined!'
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title={unavailableReason ?? 'Mine this line as audio-only card'}
+                                    className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={audioStatus?.loading || !!unavailableReason}
+                                    onClick={() => void handleMine(occ, 'audio')}
+                                  >
+                                    {audioStatus?.loading
+                                      ? 'Mining...'
+                                      : audioStatus?.success
+                                        ? 'Mined!'
+                                        : unavailableReason
+                                          ? 'Unavailable'
                                           : 'Mine Audio'}
-                                    </button>
-                                  </>
-                                );
-                              })()}
+                                  </button>
+                                </>
+                              );
+                            })()}
                           </div>
                           {(() => {
                             const baseKey = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}`;

@@ -34,9 +34,15 @@ export function useSessions(limit = 50) {
   return { sessions, loading, error };
 }
 
+export interface KnownWordsTimelinePoint {
+  linesSeen: number;
+  knownWordsSeen: number;
+}
+
 export function useSessionDetail(sessionId: number | null) {
   const [timeline, setTimeline] = useState<SessionTimelinePoint[]>([]);
   const [events, setEvents] = useState<SessionEvent[]>([]);
+  const [knownWordsTimeline, setKnownWordsTimeline] = useState<KnownWordsTimelinePoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +52,7 @@ export function useSessionDetail(sessionId: number | null) {
     if (sessionId == null) {
       setTimeline([]);
       setEvents([]);
+      setKnownWordsTimeline([]);
       setLoading(false);
       return () => {
         cancelled = true;
@@ -54,12 +61,18 @@ export function useSessionDetail(sessionId: number | null) {
     setLoading(true);
     setTimeline([]);
     setEvents([]);
+    setKnownWordsTimeline([]);
     const client = getStatsClient();
-    Promise.all([client.getSessionTimeline(sessionId), client.getSessionEvents(sessionId)])
-      .then(([nextTimeline, nextEvents]) => {
+    Promise.all([
+      client.getSessionTimeline(sessionId),
+      client.getSessionEvents(sessionId),
+      client.getSessionKnownWordsTimeline(sessionId),
+    ])
+      .then(([nextTimeline, nextEvents, nextKnownWords]) => {
         if (cancelled) return;
         setTimeline(nextTimeline);
         setEvents(nextEvents);
+        setKnownWordsTimeline(nextKnownWords);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -74,5 +87,5 @@ export function useSessionDetail(sessionId: number | null) {
     };
   }, [sessionId]);
 
-  return { timeline, events, loading, error };
+  return { timeline, events, knownWordsTimeline, loading, error };
 }

@@ -14,6 +14,7 @@ export interface SessionSummary {
   cardsMined: number;
   lookupCount: number;
   lookupHits: number;
+  yomitanLookupCount: number;
 }
 
 export interface DailyRollup {
@@ -100,6 +101,10 @@ export interface OverviewData {
     totalActiveMin: number;
     activeDays: number;
     totalCards?: number;
+    totalLookupCount: number;
+    totalLookupHits: number;
+    newWordsToday: number;
+    newWordsThisWeek: number;
   };
 }
 
@@ -125,6 +130,7 @@ export interface MediaDetailData {
     totalLinesSeen: number;
     totalLookupCount: number;
     totalLookupHits: number;
+    totalYomitanLookupCount: number;
   } | null;
   sessions: SessionSummary[];
   rollups: DailyRollup[];
@@ -139,6 +145,7 @@ export const EventType = {
   SEEK_BACKWARD: 6,
   PAUSE_START: 7,
   PAUSE_END: 8,
+  YOMITAN_LOOKUP: 9,
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];
@@ -179,6 +186,7 @@ export interface AnimeDetailData {
     totalLinesSeen: number;
     totalLookupCount: number;
     totalLookupHits: number;
+    totalYomitanLookupCount: number;
     episodeCount: number;
     lastWatchedMs: number;
   };
@@ -196,6 +204,8 @@ export interface AnimeEpisode {
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
+  totalWordsSeen: number;
+  totalYomitanLookupCount: number;
   lastWatchedMs: number;
 }
 
@@ -228,6 +238,56 @@ export interface WatchTimePerAnime {
   animeId: number;
   animeTitle: string;
   totalActiveMin: number;
+}
+
+export interface TrendChartPoint {
+  label: string;
+  value: number;
+}
+
+export interface TrendPerAnimePoint {
+  epochDay: number;
+  animeTitle: string;
+  value: number;
+}
+
+export interface TrendsDashboardData {
+  activity: {
+    watchTime: TrendChartPoint[];
+    cards: TrendChartPoint[];
+    words: TrendChartPoint[];
+    sessions: TrendChartPoint[];
+  };
+  progress: {
+    watchTime: TrendChartPoint[];
+    sessions: TrendChartPoint[];
+    words: TrendChartPoint[];
+    newWords: TrendChartPoint[];
+    cards: TrendChartPoint[];
+    episodes: TrendChartPoint[];
+    lookups: TrendChartPoint[];
+  };
+  ratios: {
+    lookupsPerHundred: TrendChartPoint[];
+  };
+  animePerDay: {
+    episodes: TrendPerAnimePoint[];
+    watchTime: TrendPerAnimePoint[];
+    cards: TrendPerAnimePoint[];
+    words: TrendPerAnimePoint[];
+    lookups: TrendPerAnimePoint[];
+    lookupsPerHundred: TrendPerAnimePoint[];
+  };
+  animeCumulative: {
+    watchTime: TrendPerAnimePoint[];
+    episodes: TrendPerAnimePoint[];
+    cards: TrendPerAnimePoint[];
+    words: TrendPerAnimePoint[];
+  };
+  patterns: {
+    watchTimeByDayOfWeek: TrendChartPoint[];
+    watchTimeByHour: TrendChartPoint[];
+  };
 }
 
 export interface WordDetailData {

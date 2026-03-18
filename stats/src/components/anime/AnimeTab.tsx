@@ -39,9 +39,15 @@ interface AnimeTabProps {
   initialAnimeId?: number | null;
   onClearInitialAnime?: () => void;
   onNavigateToWord?: (wordId: number) => void;
+  onOpenEpisodeDetail?: (animeId: number, videoId: number) => void;
 }
 
-export function AnimeTab({ initialAnimeId, onClearInitialAnime, onNavigateToWord }: AnimeTabProps) {
+export function AnimeTab({
+  initialAnimeId,
+  onClearInitialAnime,
+  onNavigateToWord,
+  onOpenEpisodeDetail,
+}: AnimeTabProps) {
   const { anime, loading, error } = useAnimeLibrary();
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('lastWatched');
@@ -70,6 +76,11 @@ export function AnimeTab({ initialAnimeId, onClearInitialAnime, onNavigateToWord
         animeId={selectedAnimeId}
         onBack={() => setSelectedAnimeId(null)}
         onNavigateToWord={onNavigateToWord}
+        onOpenEpisodeDetail={
+          onOpenEpisodeDetail
+            ? (videoId) => onOpenEpisodeDetail(selectedAnimeId, videoId)
+            : undefined
+        }
       />
     );
   }
