@@ -52,11 +52,31 @@ test('update-aur-package updates PKGBUILD and .SRCINFO without makepkg', () => {
     );
 
     assert.match(pkgbuild, /^pkgver=0\.6\.3$/m);
+    assert.match(
+      pkgbuild,
+      /^\s*"subminer-\$\{pkgver\}::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v\$\{pkgver\}\/subminer"$/m,
+    );
+    assert.match(
+      pkgbuild,
+      /^\s*"subminer-assets-\$\{pkgver\}\.tar\.gz::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v\$\{pkgver\}\/subminer-assets\.tar\.gz"$/m,
+    );
+    assert.match(
+      pkgbuild,
+      /^\s*install -Dm755 "\$\{srcdir\}\/subminer-\$\{pkgver\}" "\$\{pkgdir\}\/usr\/bin\/subminer"$/m,
+    );
     assert.match(srcinfo, /^\tpkgver = 0\.6\.3$/m);
     assert.match(srcinfo, /^\tprovides = subminer=0\.6\.3$/m);
     assert.match(
       srcinfo,
       /^\tsource = SubMiner-0\.6\.3\.AppImage::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v0\.6\.3\/SubMiner-0\.6\.3\.AppImage$/m,
+    );
+    assert.match(
+      srcinfo,
+      /^\tsource = subminer-0\.6\.3::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v0\.6\.3\/subminer$/m,
+    );
+    assert.match(
+      srcinfo,
+      /^\tsource = subminer-assets-0\.6\.3\.tar\.gz::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v0\.6\.3\/subminer-assets\.tar\.gz$/m,
     );
     assert.match(srcinfo, new RegExp(`^\\tsha256sums = ${expectedSums[0]}$`, 'm'));
     assert.match(srcinfo, new RegExp(`^\\tsha256sums = ${expectedSums[1]}$`, 'm'));

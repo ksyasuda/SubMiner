@@ -160,13 +160,13 @@ awk \
     found_source_appimage = 1
     next
   }
-  /^\tsource = subminer::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v.*\/subminer$/ {
-    print "\tsource = subminer::https://github.com/ksyasuda/SubMiner/releases/download/v" version "/subminer"
+  /^\tsource = subminer-.*::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v.*\/subminer$/ {
+    print "\tsource = subminer-" version "::https://github.com/ksyasuda/SubMiner/releases/download/v" version "/subminer"
     found_source_wrapper = 1
     next
   }
-  /^\tsource = subminer-assets\.tar\.gz::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v.*\/subminer-assets\.tar\.gz$/ {
-    print "\tsource = subminer-assets.tar.gz::https://github.com/ksyasuda/SubMiner/releases/download/v" version "/subminer-assets.tar.gz"
+  /^\tsource = subminer-assets-.*\.tar\.gz::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v.*\/subminer-assets\.tar\.gz$/ {
+    print "\tsource = subminer-assets-" version ".tar.gz::https://github.com/ksyasuda/SubMiner/releases/download/v" version "/subminer-assets.tar.gz"
     found_source_assets = 1
     next
   }

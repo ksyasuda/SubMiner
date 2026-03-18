@@ -32,8 +32,8 @@ provides=("subminer=${pkgver}")
 conflicts=('subminer')
 source=(
 	"SubMiner-${pkgver}.AppImage::https://github.com/ksyasuda/SubMiner/releases/download/v${pkgver}/SubMiner-${pkgver}.AppImage"
-	"subminer::https://github.com/ksyasuda/SubMiner/releases/download/v${pkgver}/subminer"
-	"subminer-assets.tar.gz::https://github.com/ksyasuda/SubMiner/releases/download/v${pkgver}/subminer-assets.tar.gz"
+	"subminer-${pkgver}::https://github.com/ksyasuda/SubMiner/releases/download/v${pkgver}/subminer"
+	"subminer-assets-${pkgver}.tar.gz::https://github.com/ksyasuda/SubMiner/releases/download/v${pkgver}/subminer-assets.tar.gz"
 )
 sha256sums=(
 	'c91667adbbc47a0fba34855358233454a9ea442ab57510546b2219abd1f2461e'
@@ -50,7 +50,7 @@ package() {
 	install -dm755 "${pkgdir}/opt/SubMiner"
 	ln -s '/opt/SubMiner/SubMiner.AppImage' "${pkgdir}/usr/bin/SubMiner.AppImage"
 
-	install -Dm755 "${srcdir}/subminer" "${pkgdir}/usr/bin/subminer"
+	install -Dm755 "${srcdir}/subminer-${pkgver}" "${pkgdir}/usr/bin/subminer"
 
 	install -Dm644 "${srcdir}/config.example.jsonc" \
 		"${pkgdir}/usr/share/SubMiner/config.example.jsonc"
