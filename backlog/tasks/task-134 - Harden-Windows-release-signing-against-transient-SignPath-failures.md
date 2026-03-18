@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-09 00:00'
-updated_date: '2026-03-16 05:13'
+updated_date: '2026-03-18 05:28'
 labels:
   - ci
   - release
@@ -18,7 +18,7 @@ references:
   - src/release-workflow.test.ts
   - 'https://github.com/ksyasuda/SubMiner/actions/runs/22836585479'
 priority: high
-ordinal: 51500
+ordinal: 52500
 ---
 
 ## Description

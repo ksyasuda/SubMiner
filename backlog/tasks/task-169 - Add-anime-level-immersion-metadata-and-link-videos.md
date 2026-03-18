@@ -11,6 +11,7 @@ labels:
   - stats
   - database
   - anilist
+milestone: m-1
 dependencies: []
 references:
   - >-

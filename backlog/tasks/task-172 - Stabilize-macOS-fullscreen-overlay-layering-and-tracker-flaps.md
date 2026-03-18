@@ -5,20 +5,24 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-16 10:45'
-updated_date: '2026-03-16 23:04'
+updated_date: '2026-03-18 05:28'
 labels:
   - bug
   - macos
   - overlay
 dependencies: []
 references:
-  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/overlay-window.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/overlay-visibility.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/overlay-runtime-init.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/window-trackers/macos-tracker.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/core/services/overlay-window.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/core/services/overlay-visibility.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/core/services/overlay-runtime-init.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/window-trackers/macos-tracker.ts
   - /Users/sudacode/projects/japanese/SubMiner/src/main.ts
 priority: high
-ordinal: 53000
+ordinal: 54500
 ---
 
 ## Description

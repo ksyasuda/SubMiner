@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-17 15:15'
-updated_date: '2026-03-17 15:19'
+updated_date: '2026-03-18 05:28'
 labels:
   - sqlite
   - immersion-tracking
@@ -15,6 +15,7 @@ documentation:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/docs/plans/2026-03-17-sqlite-tuning.md
 priority: medium
+ordinal: 111500
 ---
 
 ## Description

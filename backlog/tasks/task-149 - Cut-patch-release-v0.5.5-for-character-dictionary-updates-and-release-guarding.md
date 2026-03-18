@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-09 01:10'
-updated_date: '2026-03-16 05:13'
+updated_date: '2026-03-18 05:28'
 labels:
   - release
   - patch
@@ -25,7 +25,7 @@ references:
   - scripts/build-changelog.test.ts
   - docs/RELEASING.md
 priority: high
-ordinal: 38500
+ordinal: 39500
 ---
 
 ## Description

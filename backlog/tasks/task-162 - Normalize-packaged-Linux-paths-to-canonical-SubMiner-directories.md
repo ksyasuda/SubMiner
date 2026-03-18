@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-11 08:28'
-updated_date: '2026-03-16 06:25'
+updated_date: '2026-03-18 05:28'
 labels:
   - linux
   - packaging
@@ -20,6 +20,7 @@ references:
   - docs-site/launcher-script.md
   - README.md
 priority: medium
+ordinal: 116500
 ---
 
 ## Description

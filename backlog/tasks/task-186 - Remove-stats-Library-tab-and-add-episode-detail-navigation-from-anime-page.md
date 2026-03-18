@@ -5,10 +5,11 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-17 23:19'
-updated_date: '2026-03-17 23:29'
+updated_date: '2026-03-18 05:28'
 labels:
   - stats
   - ui
+milestone: m-1
 dependencies: []
 references:
   - /Users/sudacode/projects/japanese/SubMiner/stats/src/App.tsx
@@ -21,6 +22,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/stats/src/components/library/MediaDetailView.tsx
 priority: medium
+ordinal: 103500
 ---
 
 ## Description

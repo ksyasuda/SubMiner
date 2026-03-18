@@ -1,7 +1,7 @@
 ---
 id: TASK-188
 title: Refactor stats chart data pipeline to use backend-aggregated series
-status: In Progress
+status: Done
 assignee:
   - codex
 created_date: '2026-03-18 00:29'
@@ -10,6 +10,7 @@ labels:
   - stats
   - performance
   - refactor
+milestone: m-1
 dependencies: []
 references:
   - src/core/services/immersion-tracker/query.ts
@@ -31,12 +32,12 @@ Reduce long-term dashboard performance debt by moving chart aggregation out of t
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Stats API exposes chart-oriented aggregated trend data needed by the trends dashboard without requiring raw session lists for those charts.
-- [ ] #2 The trends dashboard consumes the new aggregated API responses and no longer rebuilds its main chart datasets from raw sessions in the render path.
-- [ ] #3 Time-range and grouping behavior remain correct for recent and all-time views, with explicit handling that keeps older history performant.
-- [ ] #4 Existing overview and anime detail charts continue to behave correctly, or are migrated to the shared aggregation path where it reduces debt.
-- [ ] #5 Tests cover backend aggregation/query behavior and frontend consumption of the new response shapes.
-- [ ] #6 Internal docs are updated to describe the new stats chart data flow and scaling rationale.
+- [x] #1 Stats API exposes chart-oriented aggregated trend data needed by the trends dashboard without requiring raw session lists for those charts.
+- [x] #2 The trends dashboard consumes the new aggregated API responses and no longer rebuilds its main chart datasets from raw sessions in the render path.
+- [x] #3 Time-range and grouping behavior remain correct for recent and all-time views, with explicit handling that keeps older history performant.
+- [x] #4 Existing overview and anime detail charts continue to behave correctly, or are migrated to the shared aggregation path where it reduces debt.
+- [x] #5 Tests cover backend aggregation/query behavior and frontend consumption of the new response shapes.
+- [x] #6 Internal docs are updated to describe the new stats chart data flow and scaling rationale.
 <!-- AC:END -->
 
 ## Implementation Plan

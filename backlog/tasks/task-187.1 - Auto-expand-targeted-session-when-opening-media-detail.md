@@ -1,14 +1,15 @@
 ---
 id: TASK-187.1
 title: Auto-expand targeted session when opening media detail
-status: In Progress
+status: Done
 assignee:
   - codex
 created_date: '2026-03-18 01:32'
-updated_date: '2026-03-18 01:36'
+updated_date: '2026-03-18 05:28'
 labels:
   - stats
   - ui
+milestone: m-1
 dependencies: []
 references:
   - stats/src/lib/stats-navigation.ts
@@ -19,6 +20,7 @@ references:
   - stats/src/lib/stats-navigation.test.ts
 parent_task_id: TASK-187
 priority: medium
+ordinal: 117500
 ---
 
 ## Description
@@ -29,11 +31,11 @@ When a navigation path opens episode/media detail with a known session ID, the m
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Media detail navigation state can carry an optional target session ID alongside the selected video.
-- [ ] #2 Any navigation path that opens media detail with a known session ID causes that session row to auto-expand when the episode history loads.
-- [ ] #3 Session-tab fallback for orphan sessions without a video still behaves as it does now.
-- [ ] #4 Media detail auto-expansion clears or stabilizes its one-shot navigation state so normal manual expand/collapse behavior still works after landing.
-- [ ] #5 Relevant navigation/component tests cover the targeted media-detail auto-expand behavior.
+- [x] #1 Media detail navigation state can carry an optional target session ID alongside the selected video.
+- [x] #2 Any navigation path that opens media detail with a known session ID causes that session row to auto-expand when the episode history loads.
+- [x] #3 Session-tab fallback for orphan sessions without a video still behaves as it does now.
+- [x] #4 Media detail auto-expansion clears or stabilizes its one-shot navigation state so normal manual expand/collapse behavior still works after landing.
+- [x] #5 Relevant navigation/component tests cover the targeted media-detail auto-expand behavior.
 <!-- AC:END -->
 
 ## Implementation Plan

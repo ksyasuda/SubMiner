@@ -5,11 +5,12 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-17 15:16'
-updated_date: '2026-03-17 15:18'
+updated_date: '2026-03-18 05:28'
 labels:
   - launcher
   - stats
   - tests
+milestone: m-1
 dependencies: []
 references:
   - >-
@@ -18,6 +19,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/launcher/commands/command-modules.test.ts
 priority: medium
+ordinal: 112500
 ---
 
 ## Description

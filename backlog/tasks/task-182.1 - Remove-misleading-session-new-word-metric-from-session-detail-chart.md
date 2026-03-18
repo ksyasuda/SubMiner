@@ -5,11 +5,12 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-18 01:41'
-updated_date: '2026-03-18 01:45'
+updated_date: '2026-03-18 05:28'
 labels:
   - bug
   - stats
   - ui
+milestone: m-1
 dependencies: []
 references:
   - >-
@@ -19,6 +20,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/stats/src/lib/media-session-list.test.tsx
 parent_task_id: TASK-182
+ordinal: 101500
 ---
 
 ## Description

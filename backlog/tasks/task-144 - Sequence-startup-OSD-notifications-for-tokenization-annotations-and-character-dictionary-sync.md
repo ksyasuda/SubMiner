@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-03-09 10:40'
-updated_date: '2026-03-16 05:13'
+updated_date: '2026-03-18 05:28'
 labels:
   - startup
   - overlay
@@ -21,7 +21,7 @@ references:
   - >-
     /home/sudacode/projects/japanese/SubMiner/src/main/runtime/character-dictionary-auto-sync-notifications.ts
 priority: medium
-ordinal: 36500
+ordinal: 37500
 ---
 
 ## Description

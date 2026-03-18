@@ -8,6 +8,7 @@ updated_date: '2026-03-16 05:13'
 labels:
   - stats
   - ui
+milestone: m-1
 dependencies: []
 priority: low
 ordinal: 17500

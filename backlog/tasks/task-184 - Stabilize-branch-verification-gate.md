@@ -5,7 +5,7 @@ status: Done
 assignee:
   - Codex
 created_date: '2026-03-17 19:28'
-updated_date: '2026-03-17 19:31'
+updated_date: '2026-03-18 05:28'
 labels:
   - stabilization
   - ci
@@ -14,6 +14,7 @@ references:
   - package.json
   - docs/workflow/verification.md
 priority: medium
+ordinal: 106500
 ---
 
 ## Description

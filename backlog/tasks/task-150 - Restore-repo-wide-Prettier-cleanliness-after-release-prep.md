@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-09 01:11'
-updated_date: '2026-03-16 05:13'
+updated_date: '2026-03-18 05:28'
 labels:
   - tooling
   - formatting
@@ -20,7 +20,7 @@ references:
   - scripts/build-win-unsigned.mjs
   - src
 priority: medium
-ordinal: 39500
+ordinal: 40500
 ---
 
 ## Description

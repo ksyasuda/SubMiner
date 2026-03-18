@@ -5,10 +5,11 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-17 23:42'
-updated_date: '2026-03-17 23:57'
+updated_date: '2026-03-18 05:28'
 labels:
   - stats
   - ui
+milestone: m-1
 dependencies: []
 references:
   - >-
@@ -31,6 +32,7 @@ documentation:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/docs/plans/2026-03-17-episode-detail-session-accordion.md
 priority: medium
+ordinal: 102500
 ---
 
 ## Description

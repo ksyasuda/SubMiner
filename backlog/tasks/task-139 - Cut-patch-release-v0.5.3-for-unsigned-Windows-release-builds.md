@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-09 00:00'
-updated_date: '2026-03-16 05:13'
+updated_date: '2026-03-18 05:28'
 labels:
   - release
   - patch
@@ -16,7 +16,7 @@ references:
   - CHANGELOG.md
   - release/release-notes.md
 priority: high
-ordinal: 45500
+ordinal: 46500
 ---
 
 ## Description

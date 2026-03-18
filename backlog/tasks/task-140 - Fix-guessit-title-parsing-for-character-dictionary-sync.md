@@ -4,7 +4,7 @@ title: Fix guessit title parsing for character dictionary sync
 status: Done
 assignee: []
 created_date: '2026-03-09 00:00'
-updated_date: '2026-03-16 05:13'
+updated_date: '2026-03-18 05:28'
 labels:
   - dictionary
   - anilist
@@ -17,7 +17,7 @@ references:
   - >-
     /home/sudacode/projects/japanese/SubMiner/src/core/services/anilist/anilist-updater.test.ts
 priority: high
-ordinal: 43500
+ordinal: 44500
 ---
 
 ## Description

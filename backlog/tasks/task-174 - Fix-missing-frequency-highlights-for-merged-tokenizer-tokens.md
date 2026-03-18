@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-15 10:18'
-updated_date: '2026-03-16 06:46'
+updated_date: '2026-03-18 05:28'
 labels:
   - bug
   - tokenizer
@@ -20,6 +20,7 @@ references:
   - /Users/sudacode/projects/japanese/SubMiner/scripts/get_frequency.ts
   - /Users/sudacode/projects/japanese/SubMiner/scripts/test-yomitan-parser.ts
 priority: high
+ordinal: 115500
 ---
 
 ## Description

@@ -5,11 +5,12 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-17 22:58'
-updated_date: '2026-03-17 23:00'
+updated_date: '2026-03-18 05:28'
 labels:
   - bug
   - stats
   - ui
+milestone: m-1
 dependencies: []
 references:
   - >-
@@ -18,6 +19,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/query.ts
 priority: medium
+ordinal: 104500
 ---
 
 ## Description

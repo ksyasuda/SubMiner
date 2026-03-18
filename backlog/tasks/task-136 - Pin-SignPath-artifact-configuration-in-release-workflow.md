@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-08 20:41'
-updated_date: '2026-03-16 05:13'
+updated_date: '2026-03-18 05:28'
 labels:
   - ci
   - release
@@ -18,7 +18,7 @@ references:
   - build/signpath-windows-artifact-config.xml
   - src/release-workflow.test.ts
 priority: high
-ordinal: 48500
+ordinal: 49500
 ---
 
 ## Description

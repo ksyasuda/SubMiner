@@ -4,7 +4,7 @@ title: Show character dictionary auto-sync progress on OSD
 status: Done
 assignee: []
 created_date: '2026-03-09 01:10'
-updated_date: '2026-03-16 05:13'
+updated_date: '2026-03-18 05:28'
 labels:
   - dictionary
   - overlay
@@ -17,7 +17,7 @@ references:
     /home/sudacode/projects/japanese/SubMiner/src/main/runtime/character-dictionary-auto-sync-notifications.ts
   - /home/sudacode/projects/japanese/SubMiner/src/main.ts
 priority: medium
-ordinal: 40500
+ordinal: 41500
 ---
 
 ## Description

@@ -4,7 +4,7 @@ title: Keep character dictionary auto-sync non-blocking during startup
 status: Done
 assignee: []
 created_date: '2026-03-09 01:45'
-updated_date: '2026-03-16 05:13'
+updated_date: '2026-03-18 05:28'
 labels:
   - dictionary
   - startup
@@ -17,7 +17,7 @@ references:
   - >-
     /home/sudacode/projects/japanese/SubMiner/src/main/runtime/current-media-tokenization-gate.ts
 priority: high
-ordinal: 37500
+ordinal: 38500
 ---
 
 ## Description

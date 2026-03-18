@@ -5,11 +5,12 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-17 09:15'
-updated_date: '2026-03-17 09:41'
+updated_date: '2026-03-18 05:28'
 labels:
   - stats
   - immersion-tracking
   - yomitan
+milestone: m-1
 dependencies: []
 references:
   - vendor/subminer-yomitan/ext/js/app/frontend.js
@@ -23,6 +24,7 @@ references:
 documentation:
   - docs/plans/2026-03-17-yomitan-lookup-stats-design.md
 priority: medium
+ordinal: 114500
 ---
 
 ## Description

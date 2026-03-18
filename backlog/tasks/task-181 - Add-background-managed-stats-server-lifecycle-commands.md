@@ -5,13 +5,15 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-17 15:31'
-updated_date: '2026-03-17 15:55'
+updated_date: '2026-03-18 05:28'
 labels:
   - cli
   - launcher
   - stats
+milestone: m-1
 dependencies: []
 priority: medium
+ordinal: 110500
 ---
 
 ## Description

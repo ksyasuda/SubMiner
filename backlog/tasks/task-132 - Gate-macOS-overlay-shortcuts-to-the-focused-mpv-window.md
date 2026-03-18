@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-08 18:24'
-updated_date: '2026-03-16 05:13'
+updated_date: '2026-03-18 05:28'
 labels:
   - bug
   - macos
@@ -19,7 +19,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/scripts/get-mpv-window-macos.swift
 priority: high
-ordinal: 52500
+ordinal: 53500
 ---
 
 ## Description

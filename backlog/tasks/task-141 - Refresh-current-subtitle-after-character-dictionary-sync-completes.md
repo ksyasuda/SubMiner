@@ -4,7 +4,7 @@ title: Refresh current subtitle after character dictionary sync completes
 status: Done
 assignee: []
 created_date: '2026-03-09 00:00'
-updated_date: '2026-03-16 05:13'
+updated_date: '2026-03-18 05:28'
 labels:
   - dictionary
   - overlay
@@ -15,7 +15,7 @@ references:
     /home/sudacode/projects/japanese/SubMiner/src/main/runtime/character-dictionary-auto-sync.ts
   - /home/sudacode/projects/japanese/SubMiner/src/main.ts
 priority: high
-ordinal: 41500
+ordinal: 42500
 ---
 
 ## Description
