@@ -12,9 +12,11 @@ import {
   shouldDetachBackgroundLaunch,
   shouldHandleHelpOnlyAtEntry,
   shouldHandleLaunchMpvAtEntry,
+  shouldHandleStatsDaemonCommandAtEntry,
 } from './main-entry-runtime';
 import { requestSingleInstanceLockEarly } from './main/early-single-instance';
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
+import { runStatsDaemonControlFromProcess } from './stats-daemon-entry';
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
 
@@ -68,6 +70,11 @@ if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
       }),
     );
     app.exit(result.ok ? 0 : 1);
+  });
+} else if (shouldHandleStatsDaemonCommandAtEntry(process.argv, process.env)) {
+  void app.whenReady().then(async () => {
+    const exitCode = await runStatsDaemonControlFromProcess(app.getPath('userData'));
+    app.exit(exitCode);
   });
 } else {
   const gotSingleInstanceLock = requestSingleInstanceLockEarly(app);

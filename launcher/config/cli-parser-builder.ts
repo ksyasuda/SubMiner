@@ -276,6 +276,16 @@ export function parseCliPrograms(
       if (statsBackground && statsStop) {
         throw new Error('Stats background and stop flags cannot be combined.');
       }
+      if (
+        normalizedAction &&
+        normalizedAction !== 'cleanup' &&
+        normalizedAction !== 'rebuild' &&
+        normalizedAction !== 'backfill'
+      ) {
+        throw new Error(
+          'Invalid stats action. Valid values are cleanup, rebuild, or backfill.',
+        );
+      }
       if (normalizedAction && (statsBackground || statsStop)) {
         throw new Error('Stats background and stop flags cannot be combined with stats actions.');
       }

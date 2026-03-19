@@ -130,6 +130,30 @@ test('serializeSubtitleMarkup preserves tooltip attrs and name-match precedence'
   assert.doesNotMatch(markup, /data-frequency-rank="12"|data-jlpt-level="N5"|word-jlpt-n5/);
 });
 
+test('serializeSubtitleMarkup keeps filtered tokens hoverable without annotation attrs', () => {
+  const payload: SubtitleData = {
+    text: 'は',
+    tokens: [
+      {
+        surface: 'は',
+        reading: 'は',
+        headword: 'は',
+        startPos: 0,
+        endPos: 1,
+        partOfSpeech: PartOfSpeech.particle,
+        pos1: '助詞',
+        isMerged: false,
+        isKnown: false,
+        isNPlusOneTarget: false,
+        isNameMatch: false,
+      },
+    ],
+  };
+
+  const markup = serializeSubtitleMarkup(payload, frequencyOptions);
+  assert.equal(markup, '<span class="word" data-reading="は" data-headword="は">は</span>');
+});
+
 test('serializeSubtitleWebsocketMessage emits sentence payload', () => {
   const payload: SubtitleData = {
     text: '字幕',

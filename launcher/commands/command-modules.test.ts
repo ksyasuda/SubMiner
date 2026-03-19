@@ -150,16 +150,17 @@ test('stats command launches attached app command with response path', async () 
   assert.equal(handled, true);
   assert.deepEqual(forwarded, [
     [
-      '--stats',
+      '--stats-daemon-start',
       '--stats-response-path',
       '/tmp/subminer-stats-test/response.json',
+      '--stats-daemon-open-browser',
       '--log-level',
       'debug',
     ],
   ]);
 });
 
-test('stats background command launches detached app command with response path', async () => {
+test('stats background command launches attached daemon control command with response path', async () => {
   const context = createContext();
   context.args.stats = true;
   (context.args as typeof context.args & { statsBackground?: boolean }).statsBackground = true;
@@ -168,11 +169,9 @@ test('stats background command launches detached app command with response path'
   const handled = await runStatsCommand(context, {
     createTempDir: () => '/tmp/subminer-stats-test',
     joinPath: (...parts) => parts.join('/'),
-    runAppCommandAttached: async () => {
-      throw new Error('attached path should not run for stats -b');
-    },
-    launchAppCommandDetached: (_appPath, appArgs) => {
+    runAppCommandAttached: async (_appPath, appArgs) => {
       forwarded.push(appArgs);
+      return 0;
     },
     waitForStatsResponse: async () => ({ ok: true, url: 'http://127.0.0.1:5175' }),
     removeDir: () => {},
@@ -181,10 +180,9 @@ test('stats background command launches detached app command with response path'
   assert.equal(handled, true);
   assert.deepEqual(forwarded, [
     [
-      '--stats',
+      '--stats-daemon-start',
       '--stats-response-path',
       '/tmp/subminer-stats-test/response.json',
-      '--stats-background',
     ],
   ]);
 });
@@ -215,7 +213,12 @@ test('stats command returns after startup response even if app process stays run
   const final = await statsCommand;
   assert.equal(final, true);
   assert.deepEqual(forwarded, [
-    ['--stats', '--stats-response-path', '/tmp/subminer-stats-test/response.json'],
+    [
+      '--stats-daemon-start',
+      '--stats-response-path',
+      '/tmp/subminer-stats-test/response.json',
+      '--stats-daemon-open-browser',
+    ],
   ]);
 });
 
@@ -268,7 +271,11 @@ test('stats stop command forwards stop flag to the app', async () => {
 
   assert.equal(handled, true);
   assert.deepEqual(forwarded, [
-    ['--stats', '--stats-response-path', '/tmp/subminer-stats-test/response.json', '--stats-stop'],
+    [
+      '--stats-daemon-stop',
+      '--stats-response-path',
+      '/tmp/subminer-stats-test/response.json',
+    ],
   ]);
 });
 

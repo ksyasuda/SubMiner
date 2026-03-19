@@ -26,7 +26,7 @@ The same immersion data powers the stats dashboard.
 
 - In-app overlay: focus the visible overlay, then press the key from `stats.toggleKey` (default: `` ` `` / `Backquote`).
 - Launcher command: run `subminer stats` to start the local stats server on demand and open the dashboard in your browser.
-- Background server: run `subminer stats -b` to start or reuse a dedicated background stats server without keeping the launcher attached, and `subminer stats -s` to stop that background server.
+- Background server: run `subminer stats -b` to start or reuse a dedicated background stats daemon without keeping the launcher attached, and `subminer stats -s` to stop that daemon.
 - Maintenance command: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand.
 - Browser page: open `http://127.0.0.1:5175` directly if the local stats server is already running.
 
@@ -80,8 +80,9 @@ Stats server config lives under `stats`:
 - `autoStartServer` starts the local stats HTTP server on launch once immersion tracking is active, or reuses the dedicated background stats server when one is already running.
 - `autoOpenBrowser` controls whether `subminer stats` launches the dashboard URL in your browser after ensuring the server is running.
 - `subminer stats` forces the dashboard server to start even when `autoStartServer` is `false`.
-- `subminer stats -b` starts or reuses the dedicated background stats server and exits after startup acknowledgement.
-- `subminer stats -s` stops the dedicated background stats server without closing any browser tabs.
+- `subminer stats -b` starts or reuses the dedicated background stats daemon and exits after startup acknowledgement.
+- The background stats daemon is separate from the normal SubMiner overlay app, so you can leave it running and still launch SubMiner later to watch or mine from video.
+- `subminer stats -s` stops the dedicated background stats daemon without closing any browser tabs.
 - `subminer stats` fails with an error when `immersionTracking.enabled` is `false`.
 - `subminer stats cleanup` defaults to vocabulary cleanup, repairs stale `headword`, `reading`, and `part_of_speech` values, attempts best-effort MeCab backfill for legacy rows, and removes rows that still fail vocab filtering.
 
@@ -89,7 +90,7 @@ Stats server config lives under `stats`:
 
 The Vocabulary tab's word detail panel shows example lines from your viewing history. Each example line with a valid source file offers three mining buttons:
 
-- **Mine Word** — performs a full Yomitan dictionary lookup for the word (definition, reading, pitch accent, etc.) via the hidden search page, then enriches the card with sentence audio, a screenshot or animated AVIF clip, the highlighted sentence, and metadata extracted from the source video file. Requires Anki and Yomitan dictionaries to be loaded.
+- **Mine Word** — performs a full Yomitan dictionary lookup for the word (definition, reading, pitch accent, etc.) via a short-lived hidden helper, then enriches the card with sentence audio, a screenshot or animated AVIF clip, the highlighted sentence, and metadata extracted from the source video file. Requires Anki and Yomitan dictionaries to be loaded.
 - **Mine Sentence** — creates a sentence card directly with the `IsSentenceCard` flag set (for Lapis/Kiku workflows), along with audio, image, and translation from the secondary subtitle if available.
 - **Mine Audio** — creates an audio-only card with the `IsAudioCard` flag, attaching only the sentence audio clip.
 

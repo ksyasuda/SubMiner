@@ -178,7 +178,7 @@ async function applyAnnotationStage(
   );
 }
 
-async function filterSubtitleAnnotationTokens(tokens: MergedToken[]): Promise<MergedToken[]> {
+async function stripSubtitleAnnotationMetadata(tokens: MergedToken[]): Promise<MergedToken[]> {
   if (tokens.length === 0) {
     return tokens;
   }
@@ -188,9 +188,7 @@ async function filterSubtitleAnnotationTokens(tokens: MergedToken[]): Promise<Me
   }
 
   const annotationStage = await annotationStageModulePromise;
-  return tokens.filter(
-    (token) => !annotationStage.shouldExcludeTokenFromSubtitleAnnotations(token),
-  );
+  return tokens.map((token) => annotationStage.stripSubtitleAnnotationMetadata(token));
 }
 
 export function createTokenizerDepsRuntime(
@@ -721,12 +719,12 @@ export async function tokenizeSubtitle(
 
   const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps, annotationOptions);
   if (yomitanTokens && yomitanTokens.length > 0) {
-    const filteredTokens = await filterSubtitleAnnotationTokens(
+    const annotatedTokens = await stripSubtitleAnnotationMetadata(
       await applyAnnotationStage(yomitanTokens, deps, annotationOptions),
     );
     return {
       text: displayText,
-      tokens: filteredTokens.length > 0 ? filteredTokens : null,
+      tokens: annotatedTokens.length > 0 ? annotatedTokens : null,
     };
   }
 

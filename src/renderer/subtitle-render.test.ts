@@ -682,7 +682,7 @@ test('renderSubtitle preserves unsupported punctuation while keeping it non-inte
   }
 });
 
-test('renderSubtitle keeps excluded interjection text visible while only rendering remaining tokens as interactive', () => {
+test('renderSubtitle keeps excluded interjection tokens hoverable while rendering them without annotation styling', () => {
   const restoreDocument = installFakeDocument();
 
   try {
@@ -718,13 +718,19 @@ test('renderSubtitle keeps excluded interjection text visible while only renderi
 
     renderer.renderSubtitle({
       text: 'ぐはっ 猫',
-      tokens: [createToken({ surface: '猫', headword: '猫', reading: 'ねこ' })],
+      tokens: [
+        createToken({ surface: 'ぐはっ', headword: 'ぐはっ', reading: 'ぐはっ' }),
+        createToken({ surface: '猫', headword: '猫', reading: 'ねこ' }),
+      ],
     });
 
     assert.equal(subtitleRoot.textContent, 'ぐはっ 猫');
     assert.deepEqual(
       collectWordNodes(subtitleRoot).map((node) => [node.textContent, node.dataset.tokenIndex]),
-      [['猫', '0']],
+      [
+        ['ぐはっ', '0'],
+        ['猫', '1'],
+      ],
     );
   } finally {
     restoreDocument();

@@ -40,8 +40,10 @@ import { createLogger } from './logger';
 import {
   createUiFeedbackState,
   beginUpdateProgress,
+  clearUpdateProgress,
   endUpdateProgress,
   showStatusNotification,
+  showUpdateResult,
   withUpdateProgress,
   UiFeedbackState,
 } from './anki-integration/ui-feedback';
@@ -310,6 +312,8 @@ export class AnkiIntegration {
           ),
       },
       showOsdNotification: (text: string) => this.showOsdNotification(text),
+      showUpdateResult: (message: string, success: boolean) =>
+        this.showUpdateResult(message, success),
       showStatusNotification: (message: string) => this.showStatusNotification(message),
       showNotification: (noteId, label, errorSuffix) =>
         this.showNotification(noteId, label, errorSuffix),
@@ -773,6 +777,12 @@ export class AnkiIntegration {
     });
   }
 
+  private clearUpdateProgress(): void {
+    clearUpdateProgress(this.uiFeedbackState, (timer) => {
+      clearInterval(timer);
+    });
+  }
+
   private async withUpdateProgress<T>(
     initialMessage: string,
     action: () => Promise<T>,
@@ -903,7 +913,9 @@ export class AnkiIntegration {
     const type = this.config.behavior?.notificationType || 'osd';
 
     if (type === 'osd' || type === 'both') {
-      this.showOsdNotification(message);
+      this.showUpdateResult(message, true);
+    } else {
+      this.clearUpdateProgress();
     }
 
     if ((type === 'system' || type === 'both') && this.notificationCallback) {
@@ -936,6 +948,21 @@ export class AnkiIntegration {
         this.mediaGenerator.scheduleNotificationIconCleanup(notificationIconPath);
       }
     }
+  }
+
+  private showUpdateResult(message: string, success: boolean): void {
+    showUpdateResult(
+      this.uiFeedbackState,
+      {
+        clearProgressTimer: (timer) => {
+          clearInterval(timer);
+        },
+        showOsdNotification: (text) => {
+          this.showOsdNotification(text);
+        },
+      },
+      { message, success },
+    );
   }
 
   private mergeFieldValue(existing: string, newValue: string, overwrite: boolean): string {

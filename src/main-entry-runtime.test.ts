@@ -11,6 +11,7 @@ import {
   shouldDetachBackgroundLaunch,
   shouldHandleHelpOnlyAtEntry,
   shouldHandleLaunchMpvAtEntry,
+  shouldHandleStatsDaemonCommandAtEntry,
 } from './main-entry-runtime';
 
 test('normalizeStartupArgv defaults no-arg startup to --start --background on non-Windows', () => {
@@ -69,6 +70,25 @@ test('launch-mpv entry helpers detect and normalize targets', () => {
   assert.deepEqual(normalizeLaunchMpvTargets(['SubMiner.exe', '--launch-mpv', 'C:\\a.mkv']), [
     'C:\\a.mkv',
   ]);
+});
+
+test('stats-daemon entry helper detects internal daemon commands', () => {
+  assert.equal(
+    shouldHandleStatsDaemonCommandAtEntry(['SubMiner.AppImage', '--stats-daemon-start'], {}),
+    true,
+  );
+  assert.equal(
+    shouldHandleStatsDaemonCommandAtEntry(['SubMiner.AppImage', '--stats-daemon-stop'], {}),
+    true,
+  );
+  assert.equal(
+    shouldHandleStatsDaemonCommandAtEntry(
+      ['SubMiner.AppImage', '--stats-daemon-start'],
+      { ELECTRON_RUN_AS_NODE: '1' },
+    ),
+    false,
+  );
+  assert.equal(shouldHandleStatsDaemonCommandAtEntry(['SubMiner.AppImage', '--start'], {}), false);
 });
 
 test('sanitizeStartupEnv suppresses warnings and lsfg layer', () => {

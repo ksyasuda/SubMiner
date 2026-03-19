@@ -25,6 +25,45 @@ const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   'ふう',
   'ほう',
 ]);
+const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES = ['ん', 'の', 'なん', 'なの'];
+const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES = [
+  'だ',
+  'です',
+  'でした',
+  'だった',
+  'では',
+  'じゃ',
+  'でしょう',
+  'だろう',
+] as const;
+const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES = [
+  '',
+  'か',
+  'ね',
+  'よ',
+  'な',
+  'よね',
+  'かな',
+  'かね',
+] as const;
+const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS = new Set(
+  SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES.flatMap((prefix) =>
+    SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES.flatMap((core) =>
+      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES.map(
+        (particle) => `${prefix}${core}${particle}`,
+      ),
+    ),
+  ),
+);
+const SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES = new Set([
+  'って',
+  'ってよ',
+  'ってね',
+  'ってな',
+  'ってさ',
+  'ってか',
+  'ってば',
+]);
 
 const jlptLevelLookupCaches = new WeakMap<
   (text: string) => JlptLevel | null,
@@ -60,6 +99,7 @@ function normalizePos1Tag(pos1: string | undefined): string {
 }
 
 const SUBTITLE_ANNOTATION_EXCLUDED_POS1 = new Set(['感動詞']);
+const SUBTITLE_ANNOTATION_GRAMMAR_ONLY_POS1 = new Set(['助詞', '助動詞', '連体詞']);
 
 function splitNormalizedTagParts(normalizedTag: string): string[] {
   if (!normalizedTag) {
@@ -84,7 +124,36 @@ function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<strin
 
 function isExcludedFromSubtitleAnnotationsByPos1(normalizedPos1: string): boolean {
   const parts = splitNormalizedTagParts(normalizedPos1);
-  return parts.some((part) => SUBTITLE_ANNOTATION_EXCLUDED_POS1.has(part));
+  if (parts.some((part) => SUBTITLE_ANNOTATION_EXCLUDED_POS1.has(part))) {
+    return true;
+  }
+
+  return parts.length > 0 && parts.every((part) => SUBTITLE_ANNOTATION_GRAMMAR_ONLY_POS1.has(part));
+}
+
+function isExcludedTrailingParticleMergedToken(token: MergedToken): boolean {
+  const normalizedSurface = normalizeJlptTextForExclusion(token.surface);
+  const normalizedHeadword = normalizeJlptTextForExclusion(token.headword);
+  if (!normalizedSurface || !normalizedHeadword || !normalizedSurface.startsWith(normalizedHeadword)) {
+    return false;
+  }
+
+  const suffix = normalizedSurface.slice(normalizedHeadword.length);
+  if (!SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES.has(suffix)) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
+  if (pos1Parts.length < 2) {
+    return false;
+  }
+
+  const [leadingPos1, ...trailingPos1] = pos1Parts;
+  if (!leadingPos1 || SUBTITLE_ANNOTATION_GRAMMAR_ONLY_POS1.has(leadingPos1)) {
+    return false;
+  }
+
+  return trailingPos1.length > 0 && trailingPos1.every((part) => part === '助詞');
 }
 
 function resolvePos1Exclusions(options: AnnotationStageOptions): ReadonlySet<string> {
@@ -520,12 +589,7 @@ function isJlptEligibleToken(token: MergedToken): boolean {
 }
 
 function isExcludedFromSubtitleAnnotationsByTerm(token: MergedToken): boolean {
-  const candidates = [
-    resolveJlptLookupText(token),
-    token.surface,
-    token.headword,
-    token.reading,
-  ].filter(
+  const candidates = [token.surface, token.reading, resolveJlptLookupText(token)].filter(
     (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
   );
 
@@ -542,7 +606,9 @@ function isExcludedFromSubtitleAnnotationsByTerm(token: MergedToken): boolean {
 
     if (
       SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(trimmedCandidate) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(normalizedCandidate)
+      SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(normalizedCandidate) ||
+      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(trimmedCandidate) ||
+      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(normalizedCandidate)
     ) {
       return true;
     }
@@ -565,7 +631,26 @@ export function shouldExcludeTokenFromSubtitleAnnotations(token: MergedToken): b
     return true;
   }
 
+  if (isExcludedTrailingParticleMergedToken(token)) {
+    return true;
+  }
+
   return isExcludedFromSubtitleAnnotationsByTerm(token);
+}
+
+export function stripSubtitleAnnotationMetadata(token: MergedToken): MergedToken {
+  if (!shouldExcludeTokenFromSubtitleAnnotations(token)) {
+    return token;
+  }
+
+  return {
+    ...token,
+    isKnown: false,
+    isNPlusOneTarget: false,
+    isNameMatch: false,
+    jlptLevel: undefined,
+    frequencyRank: undefined,
+  };
 }
 
 function computeTokenKnownStatus(

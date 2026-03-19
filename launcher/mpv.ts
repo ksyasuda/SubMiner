@@ -45,6 +45,8 @@ export function parseMpvArgString(input: string): string[] {
   let inSingleQuote = false;
   let inDoubleQuote = false;
   let escaping = false;
+  const canEscape = (nextChar: string | undefined): boolean =>
+    nextChar === undefined || nextChar === '"' || nextChar === "'" || nextChar === '\\' || /\s/.test(nextChar);
 
   for (let i = 0; i < chars.length; i += 1) {
     const ch = chars[i] || '';
@@ -65,7 +67,11 @@ export function parseMpvArgString(input: string): string[] {
 
     if (inDoubleQuote) {
       if (ch === '\\') {
-        escaping = true;
+        if (canEscape(chars[i + 1])) {
+          escaping = true;
+        } else {
+          current += ch;
+        }
         continue;
       }
       if (ch === '"') {
@@ -77,7 +83,11 @@ export function parseMpvArgString(input: string): string[] {
     }
 
     if (ch === '\\') {
-      escaping = true;
+      if (canEscape(chars[i + 1])) {
+        escaping = true;
+      } else {
+        current += ch;
+      }
       continue;
     }
     if (ch === "'") {
@@ -857,8 +867,14 @@ export function runAppCommandAttached(
     proc.once('error', (error) => {
       reject(error);
     });
-    proc.once('exit', (code) => {
-      resolve(code ?? 0);
+    proc.once('exit', (code, signal) => {
+      if (code !== null) {
+        resolve(code);
+      } else if (signal) {
+        resolve(128);
+      } else {
+        resolve(0);
+      }
     });
   });
 }

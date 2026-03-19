@@ -75,6 +75,7 @@ interface CardCreationDeps {
   client: CardCreationClient;
   mediaGenerator: CardCreationMediaGenerator;
   showOsdNotification: (text: string) => void;
+  showUpdateResult: (message: string, success: boolean) => void;
   showStatusNotification: (message: string) => void;
   showNotification: (noteId: number, label: string | number, errorSuffix?: string) => Promise<void>;
   beginUpdateProgress: (initialMessage: string) => void;
@@ -261,8 +262,7 @@ export class CardCreationService {
 
         if (this.deps.getConfig().media?.generateImage) {
           try {
-            const animatedLeadInSeconds =
-              await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
+            const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
             const imageBuffer = await this.generateImageBuffer(
               mpvClient.currentVideoPath,
@@ -420,8 +420,7 @@ export class CardCreationService {
 
         if (this.deps.getConfig().media?.generateImage) {
           try {
-            const animatedLeadInSeconds =
-              await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
+            const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
             const imageBuffer = await this.generateImageBuffer(
               mpvClient.currentVideoPath,
@@ -554,7 +553,7 @@ export class CardCreationService {
           this.deps.trackLastAddedNoteId?.(noteId);
         } catch (error) {
           log.error('Failed to create sentence card:', (error as Error).message);
-          this.deps.showOsdNotification(`Sentence card failed: ${(error as Error).message}`);
+          this.deps.showUpdateResult(`Sentence card failed: ${(error as Error).message}`, false);
           return false;
         }
 
@@ -651,7 +650,7 @@ export class CardCreationService {
       });
     } catch (error) {
       log.error('Error creating sentence card:', (error as Error).message);
-      this.deps.showOsdNotification(`Sentence card failed: ${(error as Error).message}`);
+      this.deps.showUpdateResult(`Sentence card failed: ${(error as Error).message}`, false);
       return false;
     }
   }
