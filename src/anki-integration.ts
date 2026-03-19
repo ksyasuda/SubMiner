@@ -913,7 +913,7 @@ export class AnkiIntegration {
     const type = this.config.behavior?.notificationType || 'osd';
 
     if (type === 'osd' || type === 'both') {
-      this.showUpdateResult(message, true);
+      this.showUpdateResult(message, errorSuffix === undefined);
     } else {
       this.clearUpdateProgress();
     }

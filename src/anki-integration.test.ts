@@ -250,6 +250,34 @@ test('AnkiIntegration does not allocate proxy server when proxy transport is dis
   assert.equal(privateState.runtime.proxyServer, null);
 });
 
+test('AnkiIntegration marks partial update notifications as failures in OSD mode', async () => {
+  const osdMessages: string[] = [];
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'osd',
+      },
+    },
+    {} as never,
+    {} as never,
+    (text) => {
+      osdMessages.push(text);
+    },
+  );
+
+  await (
+    integration as unknown as {
+      showNotification: (
+        noteId: number,
+        label: string | number,
+        errorSuffix?: string,
+      ) => Promise<void>;
+    }
+  ).showNotification(42, 'taberu', 'image failed');
+
+  assert.deepEqual(osdMessages, ['x Updated card: taberu (image failed)']);
+});
+
 test('FieldGroupingMergeCollaborator synchronizes ExpressionAudio from merged SentenceAudio', async () => {
   const collaborator = createFieldGroupingMergeCollaborator();
 

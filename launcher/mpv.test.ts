@@ -245,6 +245,44 @@ function makeExecutable(filePath: string): void {
   fs.chmodSync(filePath, 0o755);
 }
 
+function withFindAppBinaryEnvSandbox(run: () => void): void {
+  const originalAppImagePath = process.env.SUBMINER_APPIMAGE_PATH;
+  const originalBinaryPath = process.env.SUBMINER_BINARY_PATH;
+  try {
+    delete process.env.SUBMINER_APPIMAGE_PATH;
+    delete process.env.SUBMINER_BINARY_PATH;
+    run();
+  } finally {
+    if (originalAppImagePath === undefined) {
+      delete process.env.SUBMINER_APPIMAGE_PATH;
+    } else {
+      process.env.SUBMINER_APPIMAGE_PATH = originalAppImagePath;
+    }
+    if (originalBinaryPath === undefined) {
+      delete process.env.SUBMINER_BINARY_PATH;
+    } else {
+      process.env.SUBMINER_BINARY_PATH = originalBinaryPath;
+    }
+  }
+}
+
+function withAccessSyncStub(isExecutablePath: (filePath: string) => boolean, run: () => void): void {
+  const originalAccessSync = fs.accessSync;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).accessSync = (filePath: string): void => {
+      if (isExecutablePath(filePath)) {
+        return;
+      }
+      throw Object.assign(new Error(`EACCES: ${filePath}`), { code: 'EACCES' });
+    };
+    run();
+  } finally {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).accessSync = originalAccessSync;
+  }
+}
+
 test('findAppBinary resolves ~/.local/bin/SubMiner.AppImage when it exists', () => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-home-'));
   const originalHomedir = os.homedir;
@@ -253,8 +291,10 @@ test('findAppBinary resolves ~/.local/bin/SubMiner.AppImage when it exists', () 
     const appImage = path.join(baseDir, '.local/bin/SubMiner.AppImage');
     makeExecutable(appImage);
 
-    const result = findAppBinary('/some/other/path/subminer');
-    assert.equal(result, appImage);
+    withFindAppBinaryEnvSandbox(() => {
+      const result = findAppBinary('/some/other/path/subminer');
+      assert.equal(result, appImage);
+    });
   } finally {
     os.homedir = originalHomedir;
     fs.rmSync(baseDir, { recursive: true, force: true });
@@ -264,22 +304,16 @@ test('findAppBinary resolves ~/.local/bin/SubMiner.AppImage when it exists', () 
 test('findAppBinary resolves /opt/SubMiner/SubMiner.AppImage when ~/.local/bin candidate does not exist', () => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-home-'));
   const originalHomedir = os.homedir;
-  const originalAccessSync = fs.accessSync;
   try {
     os.homedir = () => baseDir;
-    // No ~/.local/bin/SubMiner.AppImage; patch accessSync so only /opt path is executable
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fs as any).accessSync = (filePath: string, mode?: number): void => {
-      if (filePath === '/opt/SubMiner/SubMiner.AppImage') return;
-      throw Object.assign(new Error(`EACCES: ${filePath}`), { code: 'EACCES' });
-    };
-
-    const result = findAppBinary('/some/other/path/subminer');
-    assert.equal(result, '/opt/SubMiner/SubMiner.AppImage');
+    withFindAppBinaryEnvSandbox(() => {
+      withAccessSyncStub((filePath) => filePath === '/opt/SubMiner/SubMiner.AppImage', () => {
+        const result = findAppBinary('/some/other/path/subminer');
+        assert.equal(result, '/opt/SubMiner/SubMiner.AppImage');
+      });
+    });
   } finally {
     os.homedir = originalHomedir;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fs as any).accessSync = originalAccessSync;
     fs.rmSync(baseDir, { recursive: true, force: true });
   }
 });
@@ -296,9 +330,13 @@ test('findAppBinary finds subminer on PATH when AppImage candidates do not exist
     makeExecutable(wrapperPath);
     process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ''}`;
 
-    // selfPath must differ from wrapperPath so the self-check does not exclude it
-    const result = findAppBinary(path.join(baseDir, 'launcher', 'subminer'));
-    assert.equal(result, wrapperPath);
+    withFindAppBinaryEnvSandbox(() => {
+      withAccessSyncStub((filePath) => filePath === wrapperPath, () => {
+        // selfPath must differ from wrapperPath so the self-check does not exclude it
+        const result = findAppBinary(path.join(baseDir, 'launcher', 'subminer'));
+        assert.equal(result, wrapperPath);
+      });
+    });
   } finally {
     os.homedir = originalHomedir;
     process.env.PATH = originalPath;

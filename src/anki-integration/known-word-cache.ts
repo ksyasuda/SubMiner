@@ -8,6 +8,57 @@ import { createLogger } from '../logger';
 
 const log = createLogger('anki').child('integration.known-word-cache');
 
+function trimToNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function getKnownWordCacheRefreshIntervalMinutes(config: AnkiConnectConfig): number {
+  const refreshMinutes = config.knownWords?.refreshMinutes;
+  return typeof refreshMinutes === 'number' && Number.isFinite(refreshMinutes) && refreshMinutes > 0
+    ? refreshMinutes
+    : DEFAULT_ANKI_CONNECT_CONFIG.knownWords.refreshMinutes;
+}
+
+export function getKnownWordCacheScopeForConfig(config: AnkiConnectConfig): string {
+  const configuredDecks = config.knownWords?.decks;
+  if (configuredDecks && typeof configuredDecks === 'object' && !Array.isArray(configuredDecks)) {
+    const normalizedDecks = Object.entries(configuredDecks)
+      .map(([deckName, fields]) => {
+        const name = trimToNonEmptyString(deckName);
+        if (!name) return null;
+        const normalizedFields = Array.isArray(fields)
+          ? [
+              ...new Set(
+                fields
+                  .map(String)
+                  .map(trimToNonEmptyString)
+                  .filter((field): field is string => Boolean(field)),
+              ),
+            ].sort()
+          : [];
+        return [name, normalizedFields];
+      })
+      .filter((entry): entry is [string, string[]] => entry !== null)
+      .sort(([a], [b]) => a.localeCompare(b));
+    if (normalizedDecks.length > 0) {
+      return `decks:${JSON.stringify(normalizedDecks)}`;
+    }
+  }
+
+  const configuredDeck = trimToNonEmptyString(config.deck);
+  return configuredDeck ? `deck:${configuredDeck}` : 'is:note';
+}
+
+export function getKnownWordCacheLifecycleConfig(config: AnkiConnectConfig): string {
+  return JSON.stringify({
+    refreshMinutes: getKnownWordCacheRefreshIntervalMinutes(config),
+    scope: getKnownWordCacheScopeForConfig(config),
+    fieldsWord: trimToNonEmptyString(config.fields?.word) ?? '',
+  });
+}
+
 export interface KnownWordCacheNoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
@@ -39,7 +90,7 @@ interface KnownWordCacheDeps {
 
 export class KnownWordCacheManager {
   private knownWordsLastRefreshedAtMs = 0;
-  private knownWordsScope = '';
+  private knownWordsStateKey = '';
   private knownWords: Set<string> = new Set();
   private knownWordsRefreshTimer: ReturnType<typeof setInterval> | null = null;
   private isRefreshingKnownWords = false;
@@ -73,7 +124,7 @@ export class KnownWordCacheManager {
     }
 
     const refreshMinutes = this.getKnownWordRefreshIntervalMs() / 60_000;
-    const scope = this.getKnownWordCacheScope();
+    const scope = getKnownWordCacheScopeForConfig(this.deps.getConfig());
     log.info(
       'Known-word cache lifecycle enabled',
       `scope=${scope}`,
@@ -101,12 +152,12 @@ export class KnownWordCacheManager {
       return;
     }
 
-    const currentScope = this.getKnownWordCacheScope();
-    if (this.knownWordsScope && this.knownWordsScope !== currentScope) {
+    const currentStateKey = this.getKnownWordCacheStateKey();
+    if (this.knownWordsStateKey && this.knownWordsStateKey !== currentStateKey) {
       this.clearKnownWordCacheState();
     }
-    if (!this.knownWordsScope) {
-      this.knownWordsScope = currentScope;
+    if (!this.knownWordsStateKey) {
+      this.knownWordsStateKey = currentStateKey;
     }
 
     let addedCount = 0;
@@ -127,7 +178,7 @@ export class KnownWordCacheManager {
       log.info(
         'Known-word cache updated in-session',
         `added=${addedCount}`,
-        `scope=${currentScope}`,
+        `scope=${getKnownWordCacheScopeForConfig(this.deps.getConfig())}`,
       );
     }
   }
@@ -135,7 +186,7 @@ export class KnownWordCacheManager {
   clearKnownWordCacheState(): void {
     this.knownWords = new Set();
     this.knownWordsLastRefreshedAtMs = 0;
-    this.knownWordsScope = this.getKnownWordCacheScope();
+    this.knownWordsStateKey = this.getKnownWordCacheStateKey();
     try {
       if (fs.existsSync(this.statePath)) {
         fs.unlinkSync(this.statePath);
@@ -188,7 +239,7 @@ export class KnownWordCacheManager {
 
       this.knownWords = nextKnownWords;
       this.knownWordsLastRefreshedAtMs = Date.now();
-      this.knownWordsScope = this.getKnownWordCacheScope();
+      this.knownWordsStateKey = this.getKnownWordCacheStateKey();
       this.persistKnownWordCacheState();
       log.info(
         'Known-word cache refreshed',
@@ -208,12 +259,7 @@ export class KnownWordCacheManager {
   }
 
   private getKnownWordRefreshIntervalMs(): number {
-    const minutes = this.deps.getConfig().knownWords?.refreshMinutes;
-    const safeMinutes =
-      typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0
-        ? minutes
-        : DEFAULT_ANKI_CONNECT_CONFIG.knownWords.refreshMinutes;
-    return safeMinutes * 60_000;
+    return getKnownWordCacheRefreshIntervalMinutes(this.deps.getConfig()) * 60_000;
   }
 
   private getKnownWordDecks(): string[] {
@@ -259,19 +305,15 @@ export class KnownWordCacheManager {
     return `(${deckQueries.join(' OR ')})`;
   }
 
-  private getKnownWordCacheScope(): string {
-    const decks = this.getKnownWordDecks();
-    if (decks.length === 0) {
-      return 'is:note';
-    }
-    return `decks:${JSON.stringify(decks)}`;
+  private getKnownWordCacheStateKey(): string {
+    return getKnownWordCacheLifecycleConfig(this.deps.getConfig());
   }
 
   private isKnownWordCacheStale(): boolean {
     if (!this.isKnownWordCacheEnabled()) {
       return true;
     }
-    if (this.knownWordsScope !== this.getKnownWordCacheScope()) {
+    if (this.knownWordsStateKey !== this.getKnownWordCacheStateKey()) {
       return true;
     }
     if (this.knownWordsLastRefreshedAtMs <= 0) {
@@ -285,7 +327,7 @@ export class KnownWordCacheManager {
       if (!fs.existsSync(this.statePath)) {
         this.knownWords = new Set();
         this.knownWordsLastRefreshedAtMs = 0;
-        this.knownWordsScope = this.getKnownWordCacheScope();
+        this.knownWordsStateKey = this.getKnownWordCacheStateKey();
         return;
       }
 
@@ -293,7 +335,7 @@ export class KnownWordCacheManager {
       if (!raw.trim()) {
         this.knownWords = new Set();
         this.knownWordsLastRefreshedAtMs = 0;
-        this.knownWordsScope = this.getKnownWordCacheScope();
+        this.knownWordsStateKey = this.getKnownWordCacheStateKey();
         return;
       }
 
@@ -301,14 +343,14 @@ export class KnownWordCacheManager {
       if (!this.isKnownWordCacheStateValid(parsed)) {
         this.knownWords = new Set();
         this.knownWordsLastRefreshedAtMs = 0;
-        this.knownWordsScope = this.getKnownWordCacheScope();
+        this.knownWordsStateKey = this.getKnownWordCacheStateKey();
         return;
       }
 
-      if (parsed.scope !== this.getKnownWordCacheScope()) {
+      if (parsed.scope !== this.getKnownWordCacheStateKey()) {
         this.knownWords = new Set();
         this.knownWordsLastRefreshedAtMs = 0;
-        this.knownWordsScope = this.getKnownWordCacheScope();
+        this.knownWordsStateKey = this.getKnownWordCacheStateKey();
         return;
       }
 
@@ -322,12 +364,12 @@ export class KnownWordCacheManager {
 
       this.knownWords = nextKnownWords;
       this.knownWordsLastRefreshedAtMs = parsed.refreshedAtMs;
-      this.knownWordsScope = parsed.scope;
+      this.knownWordsStateKey = parsed.scope;
     } catch (error) {
       log.warn('Failed to load known-word cache state:', (error as Error).message);
       this.knownWords = new Set();
       this.knownWordsLastRefreshedAtMs = 0;
-      this.knownWordsScope = this.getKnownWordCacheScope();
+      this.knownWordsStateKey = this.getKnownWordCacheStateKey();
     }
   }
 
@@ -336,7 +378,7 @@ export class KnownWordCacheManager {
       const state: KnownWordCacheState = {
         version: 1,
         refreshedAtMs: this.knownWordsLastRefreshedAtMs,
-        scope: this.knownWordsScope,
+        scope: this.knownWordsStateKey,
         words: Array.from(this.knownWords),
       };
       fs.writeFileSync(this.statePath, JSON.stringify(state), 'utf-8');

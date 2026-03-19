@@ -151,3 +151,36 @@ test('AnkiIntegrationRuntime restarts known-word lifecycle when known-word setti
 
   assert.deepEqual(calls, ['known:start']);
 });
+
+test('AnkiIntegrationRuntime does not stop lifecycle when disabled while runtime is stopped', () => {
+  const { runtime, calls } = createRuntime({
+    knownWords: {
+      highlightEnabled: true,
+    },
+  });
+
+  runtime.applyRuntimeConfigPatch({
+    knownWords: {
+      highlightEnabled: false,
+    },
+  });
+
+  assert.deepEqual(calls, ['known:clear']);
+});
+
+test('AnkiIntegrationRuntime does not restart known-word lifecycle for config changes while stopped', () => {
+  const { runtime, calls } = createRuntime({
+    knownWords: {
+      highlightEnabled: true,
+      refreshMinutes: 90,
+    },
+  });
+
+  runtime.applyRuntimeConfigPatch({
+    knownWords: {
+      refreshMinutes: 120,
+    },
+  });
+
+  assert.deepEqual(calls, []);
+});
