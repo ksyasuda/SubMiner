@@ -145,19 +145,25 @@ test('resolveAniSkipMetadataForFile emits missing_mal_id when MAL search misses'
 });
 
 test('buildSubminerScriptOpts includes aniskip payload fields', () => {
-  const opts = buildSubminerScriptOpts('/tmp/SubMiner.AppImage', '/tmp/subminer.sock', {
-    title: "Frieren: Beyond Journey's End",
-    season: 1,
-    episode: 5,
-    source: 'guessit',
-    malId: 1234,
-    introStart: 30.5,
-    introEnd: 62,
-    lookupStatus: 'ready',
-  });
+  const opts = buildSubminerScriptOpts(
+    '/tmp/SubMiner.AppImage',
+    '/tmp/subminer.sock',
+    {
+      title: "Frieren: Beyond Journey's End",
+      season: 1,
+      episode: 5,
+      source: 'guessit',
+      malId: 1234,
+      introStart: 30.5,
+      introEnd: 62,
+      lookupStatus: 'ready',
+    },
+    'debug',
+  );
   const payloadMatch = opts.match(/subminer-aniskip_payload=([^,]+)/);
   assert.match(opts, /subminer-binary_path=\/tmp\/SubMiner\.AppImage/);
   assert.match(opts, /subminer-socket_path=\/tmp\/subminer\.sock/);
+  assert.match(opts, /subminer-log_level=debug/);
   assert.match(opts, /subminer-aniskip_title=Frieren: Beyond Journey's End/);
   assert.match(opts, /subminer-aniskip_season=1/);
   assert.match(opts, /subminer-aniskip_episode=5/);

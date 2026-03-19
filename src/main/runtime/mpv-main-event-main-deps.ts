@@ -35,6 +35,8 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   maybeRunAnilistPostWatchUpdate: () => Promise<void>;
   logSubtitleTimingError: (message: string, error: unknown) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
+  getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
+  emitImmediateSubtitle?: (payload: SubtitleData) => void;
   onSubtitleChange: (text: string) => void;
   onSubtitleTrackChange?: (sid: number | null) => void;
   onSubtitleTrackListChange?: (trackList: unknown[] | null) => void;
@@ -102,7 +104,13 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     setCurrentSubText: (text: string) => {
       deps.appState.currentSubText = text;
     },
-    broadcastSubtitle: (payload: { text: string; tokens: null }) =>
+    getImmediateSubtitlePayload: deps.getImmediateSubtitlePayload
+      ? (text: string) => deps.getImmediateSubtitlePayload!(text)
+      : undefined,
+    emitImmediateSubtitle: deps.emitImmediateSubtitle
+      ? (payload: SubtitleData) => deps.emitImmediateSubtitle!(payload)
+      : undefined,
+    broadcastSubtitle: (payload: SubtitleData) =>
       deps.broadcastToOverlayWindows('subtitle:set', payload),
     onSubtitleChange: (text: string) => deps.onSubtitleChange(text),
     onSubtitleTrackChange: deps.onSubtitleTrackChange

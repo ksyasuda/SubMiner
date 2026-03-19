@@ -1,12 +1,24 @@
+import type { SubtitleData } from '../../types';
+
 export function createHandleMpvSubtitleChangeHandler(deps: {
   setCurrentSubText: (text: string) => void;
-  broadcastSubtitle: (payload: { text: string; tokens: null }) => void;
+  getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
+  emitImmediateSubtitle?: (payload: SubtitleData) => void;
+  broadcastSubtitle: (payload: SubtitleData) => void;
   onSubtitleChange: (text: string) => void;
   refreshDiscordPresence: () => void;
 }) {
   return ({ text }: { text: string }): void => {
     deps.setCurrentSubText(text);
-    deps.broadcastSubtitle({ text, tokens: null });
+    const immediatePayload = deps.getImmediateSubtitlePayload?.(text) ?? null;
+    if (immediatePayload) {
+      (deps.emitImmediateSubtitle ?? deps.broadcastSubtitle)(immediatePayload);
+    } else {
+      deps.broadcastSubtitle({
+        text,
+        tokens: null,
+      });
+    }
     deps.onSubtitleChange(text);
     deps.refreshDiscordPresence();
   };

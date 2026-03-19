@@ -17,18 +17,19 @@ test('computePriorityWindow returns next N cues from current position', () => {
   const window = computePriorityWindow(cues, 12.0, 5);
 
   assert.equal(window.length, 5);
-  // Position 12.0 falls during cue 2, so the window starts at cue 3 (startTime >= 12.0).
-  assert.equal(window[0]!.text, 'line-3');
-  assert.equal(window[4]!.text, 'line-7');
+  // Position 12.0 falls during cue 2, so the active cue should be warmed first.
+  assert.equal(window[0]!.text, 'line-2');
+  assert.equal(window[4]!.text, 'line-6');
 });
 
 test('computePriorityWindow clamps to remaining cues at end of file', () => {
   const cues = makeCues(5);
   const window = computePriorityWindow(cues, 18.0, 10);
 
-  // Position 18.0 is during cue 3 (start=15). Only cue 4 is ahead.
-  assert.equal(window.length, 1);
-  assert.equal(window[0]!.text, 'line-4');
+  // Position 18.0 is during cue 3 (start=15), so cue 3 and cue 4 remain.
+  assert.equal(window.length, 2);
+  assert.equal(window[0]!.text, 'line-3');
+  assert.equal(window[1]!.text, 'line-4');
 });
 
 test('computePriorityWindow returns empty when past all cues', () => {
@@ -43,6 +44,16 @@ test('computePriorityWindow at position 0 returns first N cues', () => {
 
   assert.equal(window.length, 5);
   assert.equal(window[0]!.text, 'line-0');
+});
+
+test('computePriorityWindow includes the active cue when current position is mid-line', () => {
+  const cues = makeCues(20);
+  const window = computePriorityWindow(cues, 18.0, 3);
+
+  assert.equal(window.length, 3);
+  assert.equal(window[0]!.text, 'line-3');
+  assert.equal(window[1]!.text, 'line-4');
+  assert.equal(window[2]!.text, 'line-5');
 });
 
 function flushMicrotasks(): Promise<void> {

@@ -576,7 +576,7 @@ export async function startMpv(
   const aniSkipMetadata = shouldResolveAniSkipMetadata(target, targetKind, preloadedSubtitles)
     ? await resolveAniSkipMetadataForFile(target)
     : null;
-  const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata);
+  const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata, args.logLevel);
   if (aniSkipMetadata) {
     log(
       'debug',
@@ -939,9 +939,7 @@ export function launchMpvIdleDetached(
       mpvArgs.push(...parseMpvArgString(args.mpvArgs));
     }
     mpvArgs.push('--idle=yes');
-    mpvArgs.push(
-      `--script-opts=subminer-binary_path=${appPath},subminer-socket_path=${socketPath}`,
-    );
+    mpvArgs.push(`--script-opts=${buildSubminerScriptOpts(appPath, socketPath, null, args.logLevel)}`);
     mpvArgs.push(`--log-file=${getMpvLogPath()}`);
     mpvArgs.push(`--input-ipc-server=${socketPath}`);
     const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);

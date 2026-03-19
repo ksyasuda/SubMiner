@@ -28,12 +28,12 @@ export function computePriorityWindow(
     return [];
   }
 
-  // Find the first cue whose start time is >= current position.
-  // This includes cues that start exactly at the current time (they haven't
-  // been displayed yet and should be prefetched).
+  // Find the first cue whose end time is after the current position.
+  // This includes the currently active cue when playback starts or seeks
+  // mid-line, while still skipping cues that have already finished.
   let startIndex = -1;
   for (let i = 0; i < cues.length; i += 1) {
-    if (cues[i]!.startTime >= currentTimeSeconds) {
+    if (cues[i]!.endTime > currentTimeSeconds) {
       startIndex = i;
       break;
     }

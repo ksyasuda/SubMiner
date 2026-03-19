@@ -1,3 +1,4 @@
+import type { SubtitleData } from '../../types';
 import {
   createBindMpvClientEventHandlers,
   createHandleMpvConnectionChangeHandler,
@@ -35,7 +36,9 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   logSubtitleTimingError: (message: string, error: unknown) => void;
 
   setCurrentSubText: (text: string) => void;
-  broadcastSubtitle: (payload: { text: string; tokens: null }) => void;
+  getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
+  emitImmediateSubtitle?: (payload: SubtitleData) => void;
+  broadcastSubtitle: (payload: SubtitleData) => void;
   onSubtitleChange: (text: string) => void;
   refreshDiscordPresence: () => void;
 
@@ -89,6 +92,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
     });
     const handleMpvSubtitleChange = createHandleMpvSubtitleChangeHandler({
       setCurrentSubText: (text) => deps.setCurrentSubText(text),
+      getImmediateSubtitlePayload: (text) => deps.getImmediateSubtitlePayload?.(text) ?? null,
+      emitImmediateSubtitle: (payload) => deps.emitImmediateSubtitle?.(payload),
       broadcastSubtitle: (payload) => deps.broadcastSubtitle(payload),
       onSubtitleChange: (text) => deps.onSubtitleChange(text),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),

@@ -16,6 +16,7 @@ test('subtitle change handler updates state, broadcasts, and forwards', () => {
   const calls: string[] = [];
   const handler = createHandleMpvSubtitleChangeHandler({
     setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getImmediateSubtitlePayload: () => null,
     broadcastSubtitle: (payload) => calls.push(`broadcast:${payload.text}`),
     onSubtitleChange: (text) => calls.push(`process:${text}`),
     refreshDiscordPresence: () => calls.push('presence'),
@@ -23,6 +24,35 @@ test('subtitle change handler updates state, broadcasts, and forwards', () => {
 
   handler({ text: 'line' });
   assert.deepEqual(calls, ['set:line', 'broadcast:line', 'process:line', 'presence']);
+});
+
+test('subtitle change handler broadcasts cached annotated payload immediately when available', () => {
+  const payloads: Array<{ text: string; tokens: unknown[] | null }> = [];
+  const calls: string[] = [];
+  const handler = createHandleMpvSubtitleChangeHandler({
+    setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getImmediateSubtitlePayload: (text) => {
+      calls.push(`lookup:${text}`);
+      return { text, tokens: [] };
+    },
+    broadcastSubtitle: (payload) => {
+      payloads.push(payload);
+      calls.push(`broadcast:${payload.tokens === null ? 'plain' : 'annotated'}`);
+    },
+    onSubtitleChange: (text) => calls.push(`process:${text}`),
+    refreshDiscordPresence: () => calls.push('presence'),
+  });
+
+  handler({ text: 'line' });
+
+  assert.deepEqual(payloads, [{ text: 'line', tokens: [] }]);
+  assert.deepEqual(calls, [
+    'set:line',
+    'lookup:line',
+    'broadcast:annotated',
+    'process:line',
+    'presence',
+  ]);
 });
 
 test('subtitle ass change handler updates state and broadcasts', () => {

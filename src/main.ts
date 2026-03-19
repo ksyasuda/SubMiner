@@ -1135,25 +1135,26 @@ function maybeSignalPluginAutoplayReady(
 
 let appTray: Tray | null = null;
 let tokenizeSubtitleDeferred: ((text: string) => Promise<SubtitleData>) | null = null;
+function emitSubtitlePayload(payload: SubtitleData): void {
+  appState.currentSubtitleData = payload;
+  broadcastToOverlayWindows('subtitle:set', payload);
+  subtitleWsService.broadcast(payload, {
+    enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+    topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+    mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+  });
+  annotationSubtitleWsService.broadcast(payload, {
+    enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+    topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+    mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+  });
+  subtitlePrefetchService?.resume();
+}
 const buildSubtitleProcessingControllerMainDepsHandler =
   createBuildSubtitleProcessingControllerMainDepsHandler({
     tokenizeSubtitle: async (text: string) =>
       tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : { text, tokens: null },
-    emitSubtitle: (payload) => {
-      appState.currentSubtitleData = payload;
-      broadcastToOverlayWindows('subtitle:set', payload);
-      subtitleWsService.broadcast(payload, {
-        enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-        topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
-        mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
-      });
-      annotationSubtitleWsService.broadcast(payload, {
-        enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-        topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
-        mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
-      });
-      subtitlePrefetchService?.resume();
-    },
+    emitSubtitle: (payload) => emitSubtitlePayload(payload),
     logDebug: (message) => {
       logger.debug(`[subtitle-processing] ${message}`);
     },
@@ -3134,6 +3135,10 @@ const {
     logSubtitleTimingError: (message, error) => logger.error(message, error),
     broadcastToOverlayWindows: (channel, payload) => {
       broadcastToOverlayWindows(channel, payload);
+    },
+    getImmediateSubtitlePayload: (text) => subtitleProcessingController.consumeCachedSubtitle(text),
+    emitImmediateSubtitle: (payload) => {
+      emitSubtitlePayload(payload);
     },
     onSubtitleChange: (text) => {
       subtitlePrefetchService?.pause();
