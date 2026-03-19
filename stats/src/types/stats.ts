@@ -14,6 +14,8 @@ export interface SessionSummary {
   lookupCount: number;
   lookupHits: number;
   yomitanLookupCount: number;
+  knownWordsSeen: number;
+  knownWordRate: number;
 }
 
 export interface DailyRollup {
@@ -110,8 +112,10 @@ export interface OverviewData {
     totalActiveMin: number;
     activeDays: number;
     totalCards?: number;
+    totalTokensSeen: number;
     totalLookupCount: number;
     totalLookupHits: number;
+    totalYomitanLookupCount: number;
     newWordsToday: number;
     newWordsThisWeek: number;
   };

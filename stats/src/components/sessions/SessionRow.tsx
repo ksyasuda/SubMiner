@@ -58,6 +58,7 @@ export function SessionRow({
   deleteDisabled = false,
 }: SessionRowProps) {
   const displayWordCount = getSessionDisplayWordCount(session);
+  const knownWordsSeen = session.knownWordsSeen;
 
   return (
     <div className="relative group">
@@ -94,6 +95,12 @@ export function SessionRow({
               {formatNumber(displayWordCount)}
             </div>
             <div className="text-ctp-overlay2">tokens</div>
+          </div>
+          <div>
+            <div className="text-ctp-green font-medium font-mono tabular-nums">
+              {formatNumber(knownWordsSeen)}
+            </div>
+            <div className="text-ctp-overlay2">known words</div>
           </div>
         </div>
         <div

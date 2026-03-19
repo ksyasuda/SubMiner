@@ -75,6 +75,29 @@ test('stats cli command starts tracker, server, browser, and writes success resp
   ]);
 });
 
+test('stats cli command respects stats.autoOpenBrowser=false', async () => {
+  const { handler, calls, responses } = makeHandler({
+    getResolvedConfig: () => ({
+      immersionTracking: { enabled: true },
+      stats: { serverPort: 6969, autoOpenBrowser: false },
+    }),
+  });
+
+  await handler({ statsResponsePath: '/tmp/subminer-stats-response.json' }, 'initial');
+
+  assert.deepEqual(calls, [
+    'ensureImmersionTrackerStarted',
+    'ensureStatsServerStarted',
+    'info:Stats dashboard available at http://127.0.0.1:6969',
+  ]);
+  assert.deepEqual(responses, [
+    {
+      responsePath: '/tmp/subminer-stats-response.json',
+      payload: { ok: true, url: 'http://127.0.0.1:6969' },
+    },
+  ]);
+});
+
 test('stats cli command starts background daemon without opening browser', async () => {
   const { handler, calls, responses } = makeHandler({
     ensureBackgroundStatsServerStarted: () => {

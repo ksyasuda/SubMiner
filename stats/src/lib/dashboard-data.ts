@@ -6,6 +6,7 @@ import type {
   VocabularyEntry,
 } from '../types/stats';
 import { epochDayToDate, epochMsFromDbTimestamp, localDayFromMs } from './formatters';
+import { buildLookupRateDisplay, type LookupRateDisplay } from './yomitan-lookup';
 
 export interface ChartPoint {
   label: string;
@@ -25,7 +26,7 @@ export interface OverviewSummary {
   averageSessionMinutes: number;
   activeDays: number;
   totalSessions: number;
-  lookupRate: number | null;
+  lookupRate: LookupRateDisplay | null;
   todayTokens: number;
   newWordsToday: number;
   newWordsThisWeek: number;
@@ -181,10 +182,10 @@ export function buildOverviewSummary(
         : 0,
     activeDays: overview.hints.activeDays ?? daysWithActivity.size,
     totalSessions: overview.hints.totalSessions ?? overview.sessions.length,
-    lookupRate:
-      overview.hints.totalLookupCount > 0
-        ? Math.round((overview.hints.totalLookupHits / overview.hints.totalLookupCount) * 100)
-        : null,
+    lookupRate: buildLookupRateDisplay(
+      overview.hints.totalYomitanLookupCount,
+      overview.hints.totalTokensSeen,
+    ),
     todayTokens: Math.max(
       todayRow?.words ?? 0,
       sumBy(todaySessions, (session) => session.tokensSeen),

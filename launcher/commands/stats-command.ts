@@ -69,14 +69,11 @@ export async function runStatsCommand(
   try {
     const forwarded = args.statsCleanup
       ? ['--stats', '--stats-response-path', responsePath]
-      : [
-          args.statsStop ? '--stats-daemon-stop' : '--stats-daemon-start',
-          '--stats-response-path',
-          responsePath,
-        ];
-    if (!args.statsCleanup && !args.statsBackground && !args.statsStop) {
-      forwarded.push('--stats-daemon-open-browser');
-    }
+      : args.statsStop
+        ? ['--stats-daemon-stop', '--stats-response-path', responsePath]
+        : args.statsBackground
+          ? ['--stats-daemon-start', '--stats-response-path', responsePath]
+          : ['--stats', '--stats-response-path', responsePath];
     if (args.statsCleanup) {
       forwarded.push('--stats-cleanup');
     }

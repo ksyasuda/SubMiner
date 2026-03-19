@@ -35,6 +35,8 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
       lookupCount: 10,
       lookupHits: 8,
       yomitanLookupCount: 0,
+      knownWordsSeen: 10,
+      knownWordRate: 12.5,
     },
   ];
   const rollups: DailyRollup[] = [
@@ -66,6 +68,8 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
       totalCards: 9,
       totalLookupCount: 100,
       totalLookupHits: 80,
+      totalTokensSeen: 1000,
+      totalYomitanLookupCount: 23,
       newWordsToday: 5,
       newWordsThisWeek: 20,
     },
@@ -80,7 +84,10 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
   assert.equal(summary.allTimeMinutes, 50);
   assert.equal(summary.activeDays, 2);
   assert.equal(summary.totalSessions, 15);
-  assert.equal(summary.lookupRate, 80);
+  assert.deepEqual(summary.lookupRate, {
+    shortValue: '2.3 / 100 tokens',
+    longValue: '2.3 lookups per 100 tokens',
+  });
 });
 
 test('buildOverviewSummary prefers lifetime totals from hints when provided', () => {
@@ -104,6 +111,8 @@ test('buildOverviewSummary prefers lifetime totals from hints when provided', ()
         lookupCount: 1,
         lookupHits: 1,
         yomitanLookupCount: 0,
+        knownWordsSeen: 2,
+        knownWordRate: 20,
       },
     ],
     rollups: [
@@ -132,6 +141,8 @@ test('buildOverviewSummary prefers lifetime totals from hints when provided', ()
       totalCards: 5,
       totalLookupCount: 0,
       totalLookupHits: 0,
+      totalTokensSeen: 0,
+      totalYomitanLookupCount: 0,
       newWordsToday: 0,
       newWordsThisWeek: 0,
     },
@@ -141,6 +152,7 @@ test('buildOverviewSummary prefers lifetime totals from hints when provided', ()
   assert.equal(summary.totalTrackedCards, 5);
   assert.equal(summary.allTimeMinutes, 120);
   assert.equal(summary.activeDays, 40);
+  assert.equal(summary.lookupRate, null);
 });
 
 test('buildVocabularySummary treats firstSeen timestamps as seconds', () => {

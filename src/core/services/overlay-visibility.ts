@@ -17,6 +17,9 @@ export function updateVisibleOverlayVisibility(args: {
   isMacOSPlatform?: boolean;
   isWindowsPlatform?: boolean;
   showOverlayLoadingOsd?: (message: string) => void;
+  shouldShowOverlayLoadingOsd?: () => boolean;
+  markOverlayLoadingOsdShown?: () => void;
+  resetOverlayLoadingOsdSuppression?: () => void;
   resolveFallbackBounds?: () => WindowGeometry;
 }): void {
   if (!args.mainWindow || args.mainWindow.isDestroyed()) {
@@ -39,8 +42,20 @@ export function updateVisibleOverlayVisibility(args: {
     }
   };
 
+  const maybeShowOverlayLoadingOsd = (): void => {
+    if (!args.isMacOSPlatform || !args.showOverlayLoadingOsd) {
+      return;
+    }
+    if (args.shouldShowOverlayLoadingOsd && !args.shouldShowOverlayLoadingOsd()) {
+      return;
+    }
+    args.showOverlayLoadingOsd('Overlay loading...');
+    args.markOverlayLoadingOsdShown?.();
+  };
+
   if (!args.visibleOverlayVisible) {
     args.setTrackerNotReadyWarningShown(false);
+    args.resetOverlayLoadingOsdSuppression?.();
     mainWindow.hide();
     args.syncOverlayShortcuts();
     return;
@@ -63,9 +78,7 @@ export function updateVisibleOverlayVisibility(args: {
     if (args.isMacOSPlatform || args.isWindowsPlatform) {
       if (!args.trackerNotReadyWarningShown) {
         args.setTrackerNotReadyWarningShown(true);
-        if (args.isMacOSPlatform) {
-          args.showOverlayLoadingOsd?.('Overlay loading...');
-        }
+        maybeShowOverlayLoadingOsd();
       }
       mainWindow.hide();
       args.syncOverlayShortcuts();
@@ -81,9 +94,7 @@ export function updateVisibleOverlayVisibility(args: {
 
   if (!args.trackerNotReadyWarningShown) {
     args.setTrackerNotReadyWarningShown(true);
-    if (args.isMacOSPlatform) {
-      args.showOverlayLoadingOsd?.('Overlay loading...');
-    }
+    maybeShowOverlayLoadingOsd();
   }
 
   mainWindow.hide();

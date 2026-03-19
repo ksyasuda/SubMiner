@@ -157,6 +157,8 @@ test('SessionRow prefers token-based word count when available', () => {
         lookupCount: 0,
         lookupHits: 0,
         yomitanLookupCount: 0,
+        knownWordsSeen: 0,
+        knownWordRate: 0,
       }}
       isExpanded={false}
       detailsId="session-7"

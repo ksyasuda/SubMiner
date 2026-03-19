@@ -480,8 +480,10 @@ export function getQueryHints(db: DatabaseSync): {
   totalActiveMin: number;
   totalCards: number;
   activeDays: number;
+  totalTokensSeen: number;
   totalLookupCount: number;
   totalLookupHits: number;
+  totalYomitanLookupCount: number;
   newWordsToday: number;
   newWordsThisWeek: number;
 } {
@@ -556,18 +558,30 @@ export function getQueryHints(db: DatabaseSync): {
     .prepare(
       `
     SELECT
+      COALESCE(SUM(COALESCE(t.tokens_seen, s.tokens_seen, 0)), 0) AS totalTokensSeen,
       COALESCE(SUM(COALESCE(t.lookup_count, s.lookup_count, 0)), 0) AS totalLookupCount,
-      COALESCE(SUM(COALESCE(t.lookup_hits, s.lookup_hits, 0)), 0) AS totalLookupHits
+      COALESCE(SUM(COALESCE(t.lookup_hits, s.lookup_hits, 0)), 0) AS totalLookupHits,
+      COALESCE(SUM(COALESCE(t.yomitan_lookup_count, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount
     FROM imm_sessions s
     LEFT JOIN (
-      SELECT session_id, MAX(lookup_count) AS lookup_count, MAX(lookup_hits) AS lookup_hits
+      SELECT
+        session_id,
+        MAX(tokens_seen) AS tokens_seen,
+        MAX(lookup_count) AS lookup_count,
+        MAX(lookup_hits) AS lookup_hits,
+        MAX(yomitan_lookup_count) AS yomitan_lookup_count
       FROM imm_session_telemetry
       GROUP BY session_id
     ) t ON t.session_id = s.session_id
     WHERE s.ended_at_ms IS NOT NULL
   `,
     )
-    .get() as { totalLookupCount: number; totalLookupHits: number } | null;
+    .get() as {
+    totalTokensSeen: number;
+    totalLookupCount: number;
+    totalLookupHits: number;
+    totalYomitanLookupCount: number;
+  } | null;
 
   return {
     totalSessions,
@@ -579,8 +593,10 @@ export function getQueryHints(db: DatabaseSync): {
     totalActiveMin,
     totalCards,
     activeDays,
+    totalTokensSeen: Number(lookupTotals?.totalTokensSeen ?? 0),
     totalLookupCount: Number(lookupTotals?.totalLookupCount ?? 0),
     totalLookupHits: Number(lookupTotals?.totalLookupHits ?? 0),
+    totalYomitanLookupCount: Number(lookupTotals?.totalYomitanLookupCount ?? 0),
     ...getNewWordCounts(db),
   };
 }
@@ -593,11 +609,20 @@ function getNewWordCounts(db: DatabaseSync): { newWordsToday: number; newWordsTh
   const row = db
     .prepare(
       `
+    WITH headword_first_seen AS (
+      SELECT
+        headword,
+        MIN(first_seen) AS first_seen
+      FROM imm_words
+      WHERE first_seen IS NOT NULL
+        AND headword IS NOT NULL
+        AND headword != ''
+      GROUP BY headword
+    )
     SELECT
       COALESCE(SUM(CASE WHEN first_seen >= ? THEN 1 ELSE 0 END), 0) AS today,
       COALESCE(SUM(CASE WHEN first_seen >= ? THEN 1 ELSE 0 END), 0) AS week
-    FROM imm_words
-    WHERE first_seen IS NOT NULL
+    FROM headword_first_seen
   `,
     )
     .get(todayStartSec, weekAgoSec) as { today: number; week: number } | null;

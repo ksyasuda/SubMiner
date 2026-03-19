@@ -358,6 +358,59 @@ test('macOS keeps visible overlay hidden while tracker is not initialized yet', 
   assert.ok(!calls.includes('update-bounds'));
 });
 
+test('macOS suppresses immediate repeat loading OSD after tracker recovery until cooldown expires', () => {
+  const { window } = createMainWindowRecorder();
+  const osdMessages: string[] = [];
+  let trackerWarning = false;
+  let lastLoadingOsdAtMs: number | null = null;
+  let nowMs = 1_000;
+  const hiddenTracker: WindowTrackerStub = {
+    isTracking: () => false,
+    getGeometry: () => null,
+  };
+  const trackedTracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+  };
+
+  const run = (windowTracker: WindowTrackerStub) =>
+    updateVisibleOverlayVisibility({
+      visibleOverlayVisible: true,
+      mainWindow: window as never,
+      windowTracker: windowTracker as never,
+      trackerNotReadyWarningShown: trackerWarning,
+      setTrackerNotReadyWarningShown: (shown: boolean) => {
+        trackerWarning = shown;
+      },
+      updateVisibleOverlayBounds: () => {},
+      ensureOverlayWindowLevel: () => {},
+      syncPrimaryOverlayWindowLayer: () => {},
+      enforceOverlayLayerOrder: () => {},
+      syncOverlayShortcuts: () => {},
+      isMacOSPlatform: true,
+      showOverlayLoadingOsd: (message: string) => {
+        osdMessages.push(message);
+      },
+      shouldShowOverlayLoadingOsd: () =>
+        lastLoadingOsdAtMs === null || nowMs - lastLoadingOsdAtMs >= 5_000,
+      markOverlayLoadingOsdShown: () => {
+        lastLoadingOsdAtMs = nowMs;
+      },
+    } as never);
+
+  run(hiddenTracker);
+  run(trackedTracker);
+
+  nowMs = 2_000;
+  run(hiddenTracker);
+  run(trackedTracker);
+
+  nowMs = 6_500;
+  run(hiddenTracker);
+
+  assert.deepEqual(osdMessages, ['Overlay loading...', 'Overlay loading...']);
+});
+
 test('setVisibleOverlayVisible does not mutate mpv subtitle visibility directly', () => {
   const calls: string[] = [];
   setVisibleOverlayVisible({
@@ -373,10 +426,12 @@ test('setVisibleOverlayVisible does not mutate mpv subtitle visibility directly'
   assert.deepEqual(calls, ['state:true', 'update']);
 });
 
-test('macOS loading OSD can show again after overlay is hidden and retried', () => {
+test('macOS explicit hide resets loading OSD suppression before retry', () => {
   const { window, calls } = createMainWindowRecorder();
   const osdMessages: string[] = [];
   let trackerWarning = false;
+  let lastLoadingOsdAtMs: number | null = null;
+  let nowMs = 1_000;
 
   updateVisibleOverlayVisibility({
     visibleOverlayVisible: true,
@@ -406,8 +461,17 @@ test('macOS loading OSD can show again after overlay is hidden and retried', () 
     showOverlayLoadingOsd: (message: string) => {
       osdMessages.push(message);
     },
+    shouldShowOverlayLoadingOsd: () =>
+      lastLoadingOsdAtMs === null || nowMs - lastLoadingOsdAtMs >= 5_000,
+    markOverlayLoadingOsdShown: () => {
+      lastLoadingOsdAtMs = nowMs;
+    },
+    resetOverlayLoadingOsdSuppression: () => {
+      lastLoadingOsdAtMs = null;
+    },
   } as never);
 
+  nowMs = 1_500;
   updateVisibleOverlayVisibility({
     visibleOverlayVisible: false,
     mainWindow: window as never,
@@ -424,6 +488,9 @@ test('macOS loading OSD can show again after overlay is hidden and retried', () 
     syncOverlayShortcuts: () => {},
     isMacOSPlatform: true,
     showOverlayLoadingOsd: () => {},
+    resetOverlayLoadingOsdSuppression: () => {
+      lastLoadingOsdAtMs = null;
+    },
   } as never);
 
   updateVisibleOverlayVisibility({
@@ -453,6 +520,14 @@ test('macOS loading OSD can show again after overlay is hidden and retried', () 
     isMacOSPlatform: true,
     showOverlayLoadingOsd: (message: string) => {
       osdMessages.push(message);
+    },
+    shouldShowOverlayLoadingOsd: () =>
+      lastLoadingOsdAtMs === null || nowMs - lastLoadingOsdAtMs >= 5_000,
+    markOverlayLoadingOsdShown: () => {
+      lastLoadingOsdAtMs = nowMs;
+    },
+    resetOverlayLoadingOsdSuppression: () => {
+      lastLoadingOsdAtMs = null;
     },
   } as never);
 

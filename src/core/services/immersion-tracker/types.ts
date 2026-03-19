@@ -234,6 +234,8 @@ export interface SessionSummaryQueryRow {
   lookupCount: number;
   lookupHits: number;
   yomitanLookupCount: number;
+  knownWordsSeen?: number;
+  knownWordRate?: number;
 }
 
 export interface LifetimeGlobalRow {

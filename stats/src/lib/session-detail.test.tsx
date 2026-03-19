@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SessionDetail } from '../components/sessions/SessionDetail';
+import {
+  SessionDetail,
+  getKnownPctAxisMax,
+} from '../components/sessions/SessionDetail';
 import { buildSessionChartEvents } from './session-events';
 import { EventType } from '../types/stats';
 
@@ -24,6 +27,8 @@ test('SessionDetail omits the misleading new words metric', () => {
         lookupCount: 0,
         lookupHits: 0,
         yomitanLookupCount: 0,
+        knownWordsSeen: 0,
+        knownWordRate: 0,
       }}
     />,
   );
@@ -57,4 +62,12 @@ test('buildSessionChartEvents keeps only chart-relevant events and pairs pause r
     [6_000],
   );
   assert.deepEqual(chartEvents.pauseRegions, [{ startMs: 2_000, endMs: 4_000 }]);
+});
+
+test('getKnownPctAxisMax adds headroom above the highest known percentage', () => {
+  assert.equal(getKnownPctAxisMax([22.4, 31.2, 29.8]), 40);
+});
+
+test('getKnownPctAxisMax caps the chart top at 100%', () => {
+  assert.equal(getKnownPctAxisMax([97.1, 98.6]), 100);
 });

@@ -4,6 +4,8 @@ import type { BaseWindowTracker } from '../window-trackers';
 import type { WindowGeometry } from '../types';
 import { updateVisibleOverlayVisibility } from '../core/services';
 
+const OVERLAY_LOADING_OSD_COOLDOWN_MS = 30_000;
+
 export interface OverlayVisibilityRuntimeDeps {
   getMainWindow: () => BrowserWindow | null;
   getVisibleOverlayVisible: () => boolean;
@@ -29,6 +31,8 @@ export interface OverlayVisibilityRuntimeService {
 export function createOverlayVisibilityRuntimeService(
   deps: OverlayVisibilityRuntimeDeps,
 ): OverlayVisibilityRuntimeService {
+  let lastOverlayLoadingOsdAtMs: number | null = null;
+
   return {
     updateVisibleOverlayVisibility(): void {
       updateVisibleOverlayVisibility({
@@ -50,6 +54,15 @@ export function createOverlayVisibilityRuntimeService(
         isMacOSPlatform: deps.isMacOSPlatform(),
         isWindowsPlatform: deps.isWindowsPlatform(),
         showOverlayLoadingOsd: (message: string) => deps.showOverlayLoadingOsd(message),
+        shouldShowOverlayLoadingOsd: () =>
+          lastOverlayLoadingOsdAtMs === null ||
+          Date.now() - lastOverlayLoadingOsdAtMs >= OVERLAY_LOADING_OSD_COOLDOWN_MS,
+        markOverlayLoadingOsdShown: () => {
+          lastOverlayLoadingOsdAtMs = Date.now();
+        },
+        resetOverlayLoadingOsdSuppression: () => {
+          lastOverlayLoadingOsdAtMs = null;
+        },
         resolveFallbackBounds: () => deps.resolveFallbackBounds(),
       });
     },

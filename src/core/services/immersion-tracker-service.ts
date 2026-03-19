@@ -365,6 +365,12 @@ export class ImmersionTrackerService {
     totalActiveMin: number;
     totalCards: number;
     activeDays: number;
+    totalTokensSeen: number;
+    totalLookupCount: number;
+    totalLookupHits: number;
+    totalYomitanLookupCount: number;
+    newWordsToday: number;
+    newWordsThisWeek: number;
   }> {
     return getQueryHints(this.db);
   }

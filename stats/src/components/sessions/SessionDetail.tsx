@@ -77,8 +77,6 @@ function lookupKnownWords(map: Map<number, number>, linesSeen: number): number {
 
 interface RatioChartPoint {
   tsMs: number;
-  knownPct: number;
-  unknownPct: number;
   knownWords: number;
   unknownWords: number;
   totalWords: number;
@@ -326,11 +324,8 @@ function RatioView({
     if (totalWords === 0) continue;
     const knownWords = Math.min(lookupKnownWords(knownWordsMap, t.linesSeen), totalWords);
     const unknownWords = totalWords - knownWords;
-    const knownPct = (knownWords / totalWords) * 100;
     chartData.push({
       tsMs: t.sampleMs,
-      knownPct,
-      unknownPct: 100 - knownPct,
       knownWords,
       unknownWords,
       totalWords,
@@ -400,10 +395,10 @@ function RatioView({
             <YAxis
               yAxisId="pct"
               orientation="right"
-              domain={[0, 100]}
-              ticks={[0, 50, 100]}
+              domain={[0, finalTotal]}
+              allowDataOverflow
               tick={{ fontSize: 9, fill: CHART_THEME.tick }}
-              tickFormatter={(v: number) => `${v}%`}
+              tickFormatter={(v: number) => `${v.toLocaleString()}`}
               axisLine={false}
               tickLine={false}
               width={32}
@@ -415,13 +410,11 @@ function RatioView({
               formatter={(_value: number, name: string, props: { payload?: RatioChartPoint }) => {
                 const d = props.payload;
                 if (!d) return [_value, name];
-                if (name === 'Known')
-                  return [`${d.knownWords.toLocaleString()} (${d.knownPct.toFixed(1)}%)`, 'Known'];
-                if (name === 'Unknown')
-                  return [
-                    `${d.unknownWords.toLocaleString()} (${d.unknownPct.toFixed(1)}%)`,
-                    'Unknown',
-                  ];
+                if (name === 'Known words') {
+                  const knownPct = d.totalWords === 0 ? 0 : (d.knownWords / d.totalWords) * 100;
+                  return [`${d.knownWords.toLocaleString()} (${knownPct.toFixed(1)}%)`, name];
+                }
+                if (name === 'Unknown words') return [d.unknownWords.toLocaleString(), name];
                 return [_value, name];
               }}
               itemSorter={() => -1}
@@ -435,7 +428,7 @@ function RatioView({
                 x1={r.startMs}
                 x2={r.endMs}
                 y1={0}
-                y2={100}
+                y2={finalTotal}
                 fill="#f5a97f"
                 fillOpacity={0.15}
                 stroke="#f5a97f"
@@ -488,12 +481,12 @@ function RatioView({
 
             <Area
               yAxisId="pct"
-              dataKey="knownPct"
+              dataKey="knownWords"
               stackId="ratio"
               stroke="#a6da95"
               strokeWidth={1.5}
               fill={`url(#knownGrad-${session.sessionId})`}
-              name="Known"
+              name="Known words"
               type="monotone"
               dot={false}
               activeDot={{ r: 3, fill: '#a6da95', stroke: '#1e2030', strokeWidth: 1 }}
@@ -501,12 +494,12 @@ function RatioView({
             />
             <Area
               yAxisId="pct"
-              dataKey="unknownPct"
+              dataKey="unknownWords"
               stackId="ratio"
               stroke="#c6a0f6"
               strokeWidth={0}
               fill={`url(#unknownGrad-${session.sessionId})`}
-              name="Unknown"
+              name="Unknown words"
               type="monotone"
               isAnimationActive={false}
             />

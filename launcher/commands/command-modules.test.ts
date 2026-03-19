@@ -150,10 +150,9 @@ test('stats command launches attached app command with response path', async () 
   assert.equal(handled, true);
   assert.deepEqual(forwarded, [
     [
-      '--stats-daemon-start',
+      '--stats',
       '--stats-response-path',
       '/tmp/subminer-stats-test/response.json',
-      '--stats-daemon-open-browser',
       '--log-level',
       'debug',
     ],
@@ -214,10 +213,9 @@ test('stats command returns after startup response even if app process stays run
   assert.equal(final, true);
   assert.deepEqual(forwarded, [
     [
-      '--stats-daemon-start',
+      '--stats',
       '--stats-response-path',
       '/tmp/subminer-stats-test/response.json',
-      '--stats-daemon-open-browser',
     ],
   ]);
 });

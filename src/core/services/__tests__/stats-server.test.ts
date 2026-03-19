@@ -260,6 +260,12 @@ function createMockTracker(
       totalActiveMin: 120,
       totalCards: 0,
       activeDays: 7,
+      totalTokensSeen: 80,
+      totalLookupCount: 5,
+      totalLookupHits: 4,
+      totalYomitanLookupCount: 5,
+      newWordsToday: 0,
+      newWordsThisWeek: 0,
     }),
     getSessionTimeline: async () => [],
     getSessionEvents: async () => [],
@@ -337,6 +343,8 @@ describe('stats server API routes', () => {
     assert.equal(body.hints.totalAnimeCompleted, 0);
     assert.equal(body.hints.totalActiveMin, 120);
     assert.equal(body.hints.activeDays, 7);
+    assert.equal(body.hints.totalTokensSeen, 80);
+    assert.equal(body.hints.totalYomitanLookupCount, 5);
   });
 
   it('GET /api/stats/sessions returns session list', async () => {
@@ -345,6 +353,39 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.ok(Array.isArray(body));
+  });
+
+  it('GET /api/stats/sessions enriches each session with known-word metrics when cache exists', async () => {
+    await withTempDir(async (dir) => {
+      const cachePath = path.join(dir, 'known-words.json');
+      fs.writeFileSync(
+        cachePath,
+        JSON.stringify({
+          version: 1,
+          words: ['する'],
+        }),
+      );
+
+      const app = createStatsApp(
+        createMockTracker({
+          getSessionWordsByLine: async (sessionId: number) =>
+            sessionId === 1
+              ? [
+                  { lineIndex: 1, headword: 'する', occurrenceCount: 2 },
+                  { lineIndex: 2, headword: '未知', occurrenceCount: 1 },
+                ]
+              : [],
+        }),
+        { knownWordCachePath: cachePath },
+      );
+
+      const res = await app.request('/api/stats/sessions?limit=5');
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      const first = body[0];
+      assert.equal(first.knownWordsSeen, 2);
+      assert.equal(first.knownWordRate, 2.5);
+    });
   });
 
   it('GET /api/stats/sessions/:id/events forwards event type filters to the tracker', async () => {

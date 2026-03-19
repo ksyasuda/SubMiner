@@ -87,6 +87,62 @@ function countKnownWords(
   return { totalUniqueWords: headwords.length, knownWordCount };
 }
 
+function toKnownWordRate(knownWordsSeen: number, tokensSeen: number): number {
+  if (!Number.isFinite(knownWordsSeen) || !Number.isFinite(tokensSeen) || tokensSeen <= 0) {
+    return 0;
+  }
+  return Number(((knownWordsSeen / tokensSeen) * 100).toFixed(1));
+}
+
+async function enrichSessionsWithKnownWordMetrics(
+  tracker: ImmersionTrackerService,
+  sessions: Array<{
+    sessionId: number;
+    tokensSeen: number;
+  }>,
+  knownWordsCachePath?: string,
+): Promise<
+  Array<{
+    sessionId: number;
+    tokensSeen: number;
+    knownWordsSeen: number;
+    knownWordRate: number;
+  }>
+> {
+  const knownWordsSet = loadKnownWordsSet(knownWordsCachePath);
+  if (!knownWordsSet) {
+    return sessions.map((session) => ({
+      ...session,
+      knownWordsSeen: 0,
+      knownWordRate: 0,
+    }));
+  }
+
+  const enriched = await Promise.all(
+    sessions.map(async (session) => {
+      let knownWordsSeen = 0;
+      try {
+        const wordsByLine = await tracker.getSessionWordsByLine(session.sessionId);
+        for (const row of wordsByLine) {
+          if (knownWordsSet.has(row.headword)) {
+            knownWordsSeen += row.occurrenceCount;
+          }
+        }
+      } catch {
+        knownWordsSeen = 0;
+      }
+
+      return {
+        ...session,
+        knownWordsSeen,
+        knownWordRate: toKnownWordRate(knownWordsSeen, session.tokensSeen),
+      };
+    }),
+  );
+
+  return enriched;
+}
+
 export interface StatsServerConfig {
   port: number;
   staticDir: string; // Path to stats/dist/
@@ -182,11 +238,16 @@ export function createStatsApp(
   const app = new Hono();
 
   app.get('/api/stats/overview', async (c) => {
-    const [sessions, rollups, hints] = await Promise.all([
+    const [rawSessions, rollups, hints] = await Promise.all([
       tracker.getSessionSummaries(5),
       tracker.getDailyRollups(14),
       tracker.getQueryHints(),
     ]);
+    const sessions = await enrichSessionsWithKnownWordMetrics(
+      tracker,
+      rawSessions,
+      options?.knownWordCachePath,
+    );
     return c.json({ sessions, rollups, hints });
   });
 
@@ -230,7 +291,12 @@ export function createStatsApp(
 
   app.get('/api/stats/sessions', async (c) => {
     const limit = parseIntQuery(c.req.query('limit'), 50, 500);
-    const sessions = await tracker.getSessionSummaries(limit);
+    const rawSessions = await tracker.getSessionSummaries(limit);
+    const sessions = await enrichSessionsWithKnownWordMetrics(
+      tracker,
+      rawSessions,
+      options?.knownWordCachePath,
+    );
     return c.json(sessions);
   });
 
@@ -353,11 +419,16 @@ export function createStatsApp(
   app.get('/api/stats/media/:videoId', async (c) => {
     const videoId = parseIntQuery(c.req.param('videoId'), 0);
     if (videoId <= 0) return c.json(null, 400);
-    const [detail, sessions, rollups] = await Promise.all([
+    const [detail, rawSessions, rollups] = await Promise.all([
       tracker.getMediaDetail(videoId),
       tracker.getMediaSessions(videoId, 100),
       tracker.getMediaDailyRollups(videoId, 90),
     ]);
+    const sessions = await enrichSessionsWithKnownWordMetrics(
+      tracker,
+      rawSessions,
+      options?.knownWordCachePath,
+    );
     return c.json({ detail, sessions, rollups });
   });
 
@@ -529,9 +600,14 @@ export function createStatsApp(
   app.get('/api/stats/episode/:videoId/detail', async (c) => {
     const videoId = parseIntQuery(c.req.param('videoId'), 0);
     if (videoId <= 0) return c.body(null, 400);
-    const sessions = await tracker.getEpisodeSessions(videoId);
+    const rawSessions = await tracker.getEpisodeSessions(videoId);
     const words = await tracker.getEpisodeWords(videoId);
     const cardEvents = await tracker.getEpisodeCardEvents(videoId);
+    const sessions = await enrichSessionsWithKnownWordMetrics(
+      tracker,
+      rawSessions,
+      options?.knownWordCachePath,
+    );
     return c.json({ sessions, words, cardEvents });
   });
 

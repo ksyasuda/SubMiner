@@ -23,6 +23,8 @@ test('MediaSessionList renders expandable session rows with delete affordance', 
           lookupCount: 3,
           lookupHits: 2,
           yomitanLookupCount: 1,
+          knownWordsSeen: 6,
+          knownWordRate: 25,
         },
       ]}
       onDeleteSession={() => {}}

@@ -409,6 +409,28 @@ test('getQueryHints reads all-time totals from lifetime summary', () => {
     insert.run(10, 2, 1, 11, 0, 0, 3);
     insert.run(9, 1, 1, 10, 0, 0, 1);
 
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/query-hints.mkv', {
+      canonicalTitle: 'Query Hints Episode',
+      sourcePath: '/tmp/query-hints.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const { sessionId } = startSessionRecord(db, videoId, 1_000_000);
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET
+        ended_at_ms = ?,
+        status = 2,
+        tokens_seen = ?,
+        yomitan_lookup_count = ?,
+        lookup_count = ?,
+        lookup_hits = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE session_id = ?
+      `,
+    ).run(1_060_000, 120, 8, 11, 7, 1_060_000, sessionId);
+
     const hints = getQueryHints(db);
     assert.equal(hints.totalSessions, 4);
     assert.equal(hints.totalCards, 2);
@@ -416,6 +438,52 @@ test('getQueryHints reads all-time totals from lifetime summary', () => {
     assert.equal(hints.activeDays, 9);
     assert.equal(hints.totalEpisodesWatched, 11);
     assert.equal(hints.totalAnimeCompleted, 22);
+    assert.equal(hints.totalTokensSeen, 120);
+    assert.equal(hints.totalYomitanLookupCount, 8);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getQueryHints counts new words by distinct headword first-seen time', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const now = new Date();
+    const todayStartSec =
+      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+    const oneHourAgo = todayStartSec + 3_600;
+    const twoDaysAgo = todayStartSec - 2 * 86_400;
+
+    db.prepare(
+      `
+      INSERT INTO imm_words (
+        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run('知る', '知った', 'しった', 'verb', '動詞', '', '', oneHourAgo, oneHourAgo, 1);
+    db.prepare(
+      `
+      INSERT INTO imm_words (
+        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run('知る', '知っている', 'しっている', 'verb', '動詞', '', '', oneHourAgo, oneHourAgo, 1);
+    db.prepare(
+      `
+      INSERT INTO imm_words (
+        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run('猫', '猫', 'ねこ', 'noun', '名詞', '', '', twoDaysAgo, twoDaysAgo, 1);
+
+    const hints = getQueryHints(db);
+    assert.equal(hints.newWordsToday, 1);
+    assert.equal(hints.newWordsThisWeek, 2);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

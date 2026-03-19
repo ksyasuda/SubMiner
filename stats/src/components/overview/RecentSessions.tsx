@@ -29,6 +29,7 @@ interface AnimeGroup {
   totalCards: number;
   totalWords: number;
   totalActiveMs: number;
+  totalKnownWords: number;
 }
 
 function groupSessionsByDay(sessions: SessionSummary[]): Map<string, SessionSummary[]> {
@@ -65,6 +66,7 @@ function groupSessionsByAnime(sessions: SessionSummary[]): AnimeGroup[] {
       existing.totalCards += session.cardsMined;
       existing.totalWords += displayWordCount;
       existing.totalActiveMs += session.activeWatchedMs;
+      existing.totalKnownWords += session.knownWordsSeen;
     } else {
       map.set(key, {
         key,
@@ -75,6 +77,7 @@ function groupSessionsByAnime(sessions: SessionSummary[]): AnimeGroup[] {
         totalCards: session.cardsMined,
         totalWords: displayWordCount,
         totalActiveMs: session.activeWatchedMs,
+        totalKnownWords: session.knownWordsSeen,
       });
     }
   }
@@ -173,6 +176,12 @@ function SessionItem({
             </div>
             <div className="text-ctp-overlay2">tokens</div>
           </div>
+          <div>
+            <div className="text-ctp-green font-medium font-mono tabular-nums">
+              {formatNumber(session.knownWordsSeen)}
+            </div>
+            <div className="text-ctp-overlay2">known words</div>
+          </div>
         </div>
       </button>
       <button
@@ -258,6 +267,12 @@ function AnimeGroupRow({
               </div>
               <div className="text-ctp-overlay2">tokens</div>
             </div>
+            <div>
+              <div className="text-ctp-green font-medium font-mono tabular-nums">
+                {formatNumber(group.totalKnownWords)}
+              </div>
+              <div className="text-ctp-overlay2">known words</div>
+            </div>
           </div>
           <div
             className={`text-ctp-overlay2 text-xs transition-transform ${expanded ? 'rotate-90' : ''}`}
@@ -326,6 +341,12 @@ function AnimeGroupRow({
                         {formatNumber(getSessionDisplayWordCount(s))}
                       </div>
                       <div className="text-ctp-overlay2">tokens</div>
+                    </div>
+                    <div>
+                      <div className="text-ctp-green font-medium font-mono tabular-nums">
+                        {formatNumber(s.knownWordsSeen)}
+                      </div>
+                      <div className="text-ctp-overlay2">known words</div>
                     </div>
                   </div>
                 </button>

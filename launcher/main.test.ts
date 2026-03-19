@@ -536,7 +536,7 @@ exit 0
       assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
       assert.match(
         fs.readFileSync(capturePath, 'utf8'),
-        /^--stats-daemon-start\n--stats-response-path\n.+\n--stats-daemon-open-browser\n--log-level\ndebug\n$/,
+        /^--stats\n--stats-response-path\n.+\n--log-level\ndebug\n$/,
       );
     });
   },
