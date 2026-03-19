@@ -59,6 +59,10 @@ test('AnkiIntegrationRuntime normalizes url and proxy defaults', () => {
     normalized.media?.fallbackDuration,
     DEFAULT_ANKI_CONNECT_CONFIG.media.fallbackDuration,
   );
+  assert.equal(
+    normalized.media?.syncAnimatedImageToWordAudio,
+    DEFAULT_ANKI_CONNECT_CONFIG.media.syncAnimatedImageToWordAudio,
+  );
 });
 
 test('AnkiIntegrationRuntime starts proxy transport when proxy mode is enabled', () => {

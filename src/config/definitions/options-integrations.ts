@@ -83,6 +83,13 @@ export function buildIntegrationConfigOptionRegistry(
       runtime: runtimeOptionById.get('anki.autoUpdateNewCards'),
     },
     {
+      path: 'ankiConnect.media.syncAnimatedImageToWordAudio',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.media.syncAnimatedImageToWordAudio,
+      description:
+        'For animated AVIF images, prepend a frozen first frame matching the existing word-audio duration so motion starts with sentence audio.',
+    },
+    {
       path: 'ankiConnect.knownWords.matchMode',
       kind: 'enum',
       enumValues: ['headword', 'surface'],

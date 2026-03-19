@@ -31,6 +31,7 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
     'animatedMaxWidth',
     'animatedMaxHeight',
     'animatedCrf',
+    'syncAnimatedImageToWordAudio',
     'audioPadding',
     'fallbackDuration',
     'maxMediaDuration',
@@ -534,6 +535,17 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
       },
       context.resolved.ankiConnect.media.animatedCrf,
       'Expected integer between 0 and 63.',
+    );
+  }
+  if (!hasOwn(media, 'syncAnimatedImageToWordAudio')) {
+    mapLegacy(
+      'syncAnimatedImageToWordAudio',
+      asBoolean,
+      (value) => {
+        context.resolved.ankiConnect.media.syncAnimatedImageToWordAudio = value;
+      },
+      context.resolved.ankiConnect.media.syncAnimatedImageToWordAudio,
+      'Expected boolean.',
     );
   }
   if (!hasOwn(media, 'audioPadding')) {

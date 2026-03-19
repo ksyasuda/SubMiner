@@ -22,6 +22,8 @@ export interface NoteUpdateWorkflowDeps {
     media?: {
       generateAudio?: boolean;
       generateImage?: boolean;
+      imageType?: 'static' | 'avif';
+      syncAnimatedImageToWordAudio?: boolean;
     };
     behavior?: {
       overwriteAudio?: boolean;
@@ -60,11 +62,12 @@ export interface NoteUpdateWorkflowDeps {
     ...preferredNames: (string | undefined)[]
   ) => string | null;
   getResolvedSentenceAudioFieldName: (noteInfo: NoteUpdateWorkflowNoteInfo) => string | null;
+  getAnimatedImageLeadInSeconds: (noteInfo: NoteUpdateWorkflowNoteInfo) => Promise<number>;
   mergeFieldValue: (existing: string, newValue: string, overwrite: boolean) => string;
   generateAudioFilename: () => string;
   generateAudio: () => Promise<Buffer | null>;
   generateImageFilename: () => string;
-  generateImage: () => Promise<Buffer | null>;
+  generateImage: (animatedLeadInSeconds?: number) => Promise<Buffer | null>;
   formatMiscInfoPattern: (fallbackFilename: string, startTimeSeconds?: number) => string;
   addConfiguredTagsToNote: (noteId: number) => Promise<void>;
   showNotification: (noteId: number, label: string | number) => Promise<void>;
@@ -153,8 +156,9 @@ export class NoteUpdateWorkflow {
 
       if (config.media?.generateImage) {
         try {
+          const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
           const imageFilename = this.deps.generateImageFilename();
-          const imageBuffer = await this.deps.generateImage();
+          const imageBuffer = await this.deps.generateImage(animatedLeadInSeconds);
 
           if (imageBuffer) {
             await this.deps.client.storeMediaFile(imageFilename, imageBuffer);

@@ -340,6 +340,7 @@
       "animatedFps": 10, // Animated fps setting.
       "animatedMaxWidth": 640, // Animated max width setting.
       "animatedCrf": 35, // Animated crf setting.
+      "syncAnimatedImageToWordAudio": true, // For animated AVIF images, prepend a frozen first frame matching the existing word-audio duration so motion starts with sentence audio. Values: true | false
       "audioPadding": 0.5, // Audio padding setting.
       "fallbackDuration": 3, // Fallback duration setting.
       "maxMediaDuration": 30 // Max media duration setting.

@@ -30,6 +30,7 @@ interface CardCreationClient {
   updateNoteFields(noteId: number, fields: Record<string, string>): Promise<void>;
   storeMediaFile(filename: string, data: Buffer): Promise<void>;
   findNotes(query: string, options?: { maxRetries?: number }): Promise<number[]>;
+  retrieveMediaFile(filename: string): Promise<string>;
 }
 
 interface CardCreationMediaGenerator {
@@ -60,6 +61,7 @@ interface CardCreationMediaGenerator {
       maxWidth?: number;
       maxHeight?: number;
       crf?: number;
+      leadingStillDuration?: number;
     },
   ): Promise<Buffer | null>;
 }
@@ -83,6 +85,7 @@ interface CardCreationDeps {
     ...preferredNames: (string | undefined)[]
   ) => string | null;
   resolveNoteFieldName: (noteInfo: CardCreationNoteInfo, preferredName?: string) => string | null;
+  getAnimatedImageLeadInSeconds: (noteInfo: CardCreationNoteInfo) => Promise<number>;
   extractFields: (fields: Record<string, { value: string }>) => Record<string, string>;
   processSentence: (mpvSentence: string, noteFields: Record<string, string>) => string;
   setCardTypeFields: (
@@ -258,11 +261,14 @@ export class CardCreationService {
 
         if (this.deps.getConfig().media?.generateImage) {
           try {
+            const animatedLeadInSeconds =
+              await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
             const imageBuffer = await this.generateImageBuffer(
               mpvClient.currentVideoPath,
               rangeStart,
               rangeEnd,
+              animatedLeadInSeconds,
             );
 
             if (imageBuffer) {
@@ -414,11 +420,14 @@ export class CardCreationService {
 
         if (this.deps.getConfig().media?.generateImage) {
           try {
+            const animatedLeadInSeconds =
+              await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
             const imageBuffer = await this.generateImageBuffer(
               mpvClient.currentVideoPath,
               startTime,
               endTime,
+              animatedLeadInSeconds,
             );
 
             const imageField = this.deps.getConfig().fields?.image;
@@ -679,6 +688,7 @@ export class CardCreationService {
     videoPath: string,
     startTime: number,
     endTime: number,
+    animatedLeadInSeconds = 0,
   ): Promise<Buffer | null> {
     const mpvClient = this.deps.getMpvClient();
     if (!mpvClient) {
@@ -707,6 +717,7 @@ export class CardCreationService {
           maxWidth: this.deps.getConfig().media?.animatedMaxWidth,
           maxHeight: this.deps.getConfig().media?.animatedMaxHeight,
           crf: this.deps.getConfig().media?.animatedCrf,
+          leadingStillDuration: animatedLeadInSeconds,
         },
       );
     }

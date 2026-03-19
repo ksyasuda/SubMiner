@@ -12,6 +12,12 @@ import {
   getConfiguredWordFieldName,
   getPreferredNoteFieldValue,
 } from '../../anki-field-config.js';
+import { resolveAnimatedImageLeadInSeconds } from '../../anki-integration/animated-image-sync.js';
+
+type StatsServerNoteInfo = {
+  noteId: number;
+  fields: Record<string, { value: string }>;
+};
 
 function parseIntQuery(raw: string | undefined, fallback: number, maxLimit?: number): number {
   if (raw === undefined) return fallback;
@@ -38,6 +44,20 @@ function parseEventTypesQuery(raw: string | undefined): number[] | undefined {
     .map((entry) => Number.parseInt(entry.trim(), 10))
     .filter((entry) => Number.isInteger(entry) && entry > 0);
   return parsed.length > 0 ? parsed : undefined;
+}
+
+function resolveStatsNoteFieldName(
+  noteInfo: StatsServerNoteInfo,
+  ...preferredNames: (string | undefined)[]
+): string | null {
+  for (const preferredName of preferredNames) {
+    if (!preferredName) continue;
+    const resolved = Object.keys(noteInfo.fields).find(
+      (fieldName) => fieldName.toLowerCase() === preferredName.toLowerCase(),
+    );
+    if (resolved) return resolved;
+  }
+  return null;
 }
 
 /** Load known words cache from disk into a Set. Returns null if unavailable. */
@@ -621,36 +641,41 @@ export function createStatsApp(
     const generateAudio = ankiConfig.media?.generateAudio !== false;
     const generateImage = ankiConfig.media?.generateImage !== false && mode !== 'audio';
     const imageType = ankiConfig.media?.imageType ?? 'static';
+    const syncAnimatedImageToWordAudio =
+      imageType === 'avif' && ankiConfig.media?.syncAnimatedImageToWordAudio !== false;
 
     const audioPromise = generateAudio
       ? mediaGen.generateAudio(sourcePath, startSec, clampedEndSec, audioPadding)
       : Promise.resolve(null);
 
-    let imagePromise: Promise<Buffer | null>;
-    if (!generateImage) {
-      imagePromise = Promise.resolve(null);
-    } else if (imageType === 'avif') {
-      imagePromise = mediaGen.generateAnimatedImage(
-        sourcePath,
-        startSec,
-        clampedEndSec,
-        audioPadding,
-        {
+    const createImagePromise = (animatedLeadInSeconds = 0): Promise<Buffer | null> => {
+      if (!generateImage) {
+        return Promise.resolve(null);
+      }
+
+      if (imageType === 'avif') {
+        return mediaGen.generateAnimatedImage(sourcePath, startSec, clampedEndSec, audioPadding, {
           fps: ankiConfig.media?.animatedFps ?? 10,
           maxWidth: ankiConfig.media?.animatedMaxWidth ?? 640,
           maxHeight: ankiConfig.media?.animatedMaxHeight,
           crf: ankiConfig.media?.animatedCrf ?? 35,
-        },
-      );
-    } else {
+          leadingStillDuration: animatedLeadInSeconds,
+        });
+      }
+
       const midpointSec = (startSec + clampedEndSec) / 2;
-      imagePromise = mediaGen.generateScreenshot(sourcePath, midpointSec, {
+      return mediaGen.generateScreenshot(sourcePath, midpointSec, {
         format: ankiConfig.media?.imageFormat ?? 'jpg',
         quality: ankiConfig.media?.imageQuality ?? 92,
         maxWidth: ankiConfig.media?.imageMaxWidth,
         maxHeight: ankiConfig.media?.imageMaxHeight,
       });
-    }
+    };
+
+    const imagePromise =
+      mode === 'word' && syncAnimatedImageToWordAudio
+        ? Promise.resolve<Buffer | null>(null)
+        : createImagePromise();
 
     const errors: string[] = [];
     let noteId: number;
@@ -677,11 +702,30 @@ export function createStatsApp(
 
       noteId = yomitanResult.value;
       const audioBuffer = audioResult.status === 'fulfilled' ? audioResult.value : null;
-      const imageBuffer = imageResult.status === 'fulfilled' ? imageResult.value : null;
       if (audioResult.status === 'rejected')
         errors.push(`audio: ${(audioResult.reason as Error).message}`);
       if (imageResult.status === 'rejected')
         errors.push(`image: ${(imageResult.reason as Error).message}`);
+
+      let imageBuffer = imageResult.status === 'fulfilled' ? imageResult.value : null;
+      if (syncAnimatedImageToWordAudio && generateImage) {
+        try {
+          const noteInfoResult = (await client.notesInfo([noteId])) as StatsServerNoteInfo[];
+          const noteInfo = noteInfoResult[0] ?? null;
+          const animatedLeadInSeconds = noteInfo
+            ? await resolveAnimatedImageLeadInSeconds({
+                config: ankiConfig,
+                noteInfo,
+                resolveConfiguredFieldName: (candidateNoteInfo, ...preferredNames) =>
+                  resolveStatsNoteFieldName(candidateNoteInfo, ...preferredNames),
+                retrieveMediaFileBase64: (filename) => client.retrieveMediaFile(filename),
+              })
+            : 0;
+          imageBuffer = await createImagePromise(animatedLeadInSeconds);
+        } catch (err) {
+          errors.push(`image: ${(err as Error).message}`);
+        }
+      }
 
       const mediaFields: Record<string, string> = {};
       const timestamp = Date.now();

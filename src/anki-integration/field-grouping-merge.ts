@@ -28,7 +28,7 @@ interface FieldGroupingMergeDeps {
   ) => string | null;
   extractFields: (fields: Record<string, { value: string }>) => Record<string, string>;
   processSentence: (mpvSentence: string, noteFields: Record<string, string>) => string;
-  generateMediaForMerge: () => Promise<FieldGroupingMergeMedia>;
+  generateMediaForMerge: (noteInfo: FieldGroupingMergeNoteInfo) => Promise<FieldGroupingMergeMedia>;
   warnFieldParseOnce: (fieldName: string, reason: string, detail?: string) => void;
 }
 
@@ -132,7 +132,7 @@ export class FieldGroupingMergeCollaborator {
     }
 
     if (includeGeneratedMedia) {
-      const media = await this.deps.generateMediaForMerge();
+      const media = await this.deps.generateMediaForMerge(keepNoteInfo);
       if (media.audioField && media.audioValue && !sourceFields[media.audioField]) {
         sourceFields[media.audioField] = media.audioValue;
       }

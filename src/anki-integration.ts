@@ -54,6 +54,7 @@ import { FieldGroupingService } from './anki-integration/field-grouping';
 import { FieldGroupingMergeCollaborator } from './anki-integration/field-grouping-merge';
 import { NoteUpdateWorkflow } from './anki-integration/note-update-workflow';
 import { FieldGroupingWorkflow } from './anki-integration/field-grouping-workflow';
+import { resolveAnimatedImageLeadInSeconds } from './anki-integration/animated-image-sync';
 import { AnkiIntegrationRuntime, normalizeAnkiIntegrationConfig } from './anki-integration/runtime';
 
 const log = createLogger('anki').child('integration');
@@ -190,7 +191,7 @@ export class AnkiIntegration {
         this.resolveNoteFieldName(noteInfo, preferredName),
       extractFields: (fields) => this.extractFields(fields),
       processSentence: (mpvSentence, noteFields) => this.processSentence(mpvSentence, noteFields),
-      generateMediaForMerge: () => this.generateMediaForMerge(),
+      generateMediaForMerge: (noteInfo) => this.generateMediaForMerge(noteInfo),
       warnFieldParseOnce: (fieldName, reason, detail) =>
         this.warnFieldParseOnce(fieldName, reason, detail),
     });
@@ -286,6 +287,7 @@ export class AnkiIntegration {
         storeMediaFile: (filename, data) => this.client.storeMediaFile(filename, data),
         findNotes: async (query, options) =>
           (await this.client.findNotes(query, options)) as number[],
+        retrieveMediaFile: (filename) => this.client.retrieveMediaFile(filename),
       },
       mediaGenerator: {
         generateAudio: (videoPath, startTime, endTime, audioPadding, audioStreamIndex) =>
@@ -319,6 +321,7 @@ export class AnkiIntegration {
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
       resolveNoteFieldName: (noteInfo, preferredName) =>
         this.resolveNoteFieldName(noteInfo, preferredName),
+      getAnimatedImageLeadInSeconds: (noteInfo) => this.getAnimatedImageLeadInSeconds(noteInfo),
       extractFields: (fields) => this.extractFields(fields),
       processSentence: (mpvSentence, noteFields) => this.processSentence(mpvSentence, noteFields),
       setCardTypeFields: (updatedFields, availableFieldNames, cardKind) =>
@@ -407,12 +410,13 @@ export class AnkiIntegration {
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
       getResolvedSentenceAudioFieldName: (noteInfo) =>
         this.getResolvedSentenceAudioFieldName(noteInfo),
+      getAnimatedImageLeadInSeconds: (noteInfo) => this.getAnimatedImageLeadInSeconds(noteInfo),
       mergeFieldValue: (existing, newValue, overwrite) =>
         this.mergeFieldValue(existing, newValue, overwrite),
       generateAudioFilename: () => this.generateAudioFilename(),
       generateAudio: () => this.generateAudio(),
       generateImageFilename: () => this.generateImageFilename(),
-      generateImage: () => this.generateImage(),
+      generateImage: (animatedLeadInSeconds) => this.generateImage(animatedLeadInSeconds),
       formatMiscInfoPattern: (fallbackFilename, startTimeSeconds) =>
         this.formatMiscInfoPattern(fallbackFilename, startTimeSeconds),
       addConfiguredTagsToNote: (noteId) => this.addConfiguredTagsToNote(noteId),
@@ -637,7 +641,7 @@ export class AnkiIntegration {
     );
   }
 
-  private async generateImage(): Promise<Buffer | null> {
+  private async generateImage(animatedLeadInSeconds = 0): Promise<Buffer | null> {
     if (!this.mpvClient || !this.mpvClient.currentVideoPath) {
       return null;
     }
@@ -665,6 +669,7 @@ export class AnkiIntegration {
           maxWidth: this.config.media?.animatedMaxWidth,
           maxHeight: this.config.media?.animatedMaxHeight,
           crf: this.config.media?.animatedCrf,
+          leadingStillDuration: animatedLeadInSeconds,
         },
       );
     } else {
@@ -1020,7 +1025,18 @@ export class AnkiIntegration {
     return getPreferredWordValueFromExtractedFields(fields, this.config);
   }
 
-  private async generateMediaForMerge(): Promise<{
+  private async getAnimatedImageLeadInSeconds(noteInfo: NoteInfo): Promise<number> {
+    return resolveAnimatedImageLeadInSeconds({
+      config: this.config,
+      noteInfo,
+      resolveConfiguredFieldName: (candidateNoteInfo, ...preferredNames) =>
+        this.resolveConfiguredFieldName(candidateNoteInfo, ...preferredNames),
+      retrieveMediaFileBase64: (filename) => this.client.retrieveMediaFile(filename),
+      logWarn: (message, ...args) => log.warn(message, ...args),
+    });
+  }
+
+  private async generateMediaForMerge(noteInfo?: NoteInfo): Promise<{
     audioField?: string;
     audioValue?: string;
     imageField?: string;
@@ -1057,8 +1073,11 @@ export class AnkiIntegration {
 
     if (this.config.media?.generateImage && this.mpvClient?.currentVideoPath) {
       try {
+        const animatedLeadInSeconds = noteInfo
+          ? await this.getAnimatedImageLeadInSeconds(noteInfo)
+          : 0;
         const imageFilename = this.generateImageFilename();
-        const imageBuffer = await this.generateImage();
+        const imageBuffer = await this.generateImage(animatedLeadInSeconds);
         if (imageBuffer) {
           await this.client.storeMediaFile(imageFilename, imageBuffer);
           result.imageField = this.config.fields?.image || DEFAULT_ANKI_CONNECT_CONFIG.fields.image;

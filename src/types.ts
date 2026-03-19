@@ -241,6 +241,7 @@ export interface AnkiConnectConfig {
     animatedMaxWidth?: number;
     animatedMaxHeight?: number;
     animatedCrf?: number;
+    syncAnimatedImageToWordAudio?: boolean;
     audioPadding?: number;
     fallbackDuration?: number;
     maxMediaDuration?: number;
@@ -745,6 +746,7 @@ export interface ResolvedConfig {
       animatedMaxWidth: number;
       animatedMaxHeight?: number;
       animatedCrf: number;
+      syncAnimatedImageToWordAudio: boolean;
       audioPadding: number;
       fallbackDuration: number;
       maxMediaDuration: number;

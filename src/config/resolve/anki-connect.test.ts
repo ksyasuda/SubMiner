@@ -121,6 +121,22 @@ test('accepts configured ankiConnect.fields.word override', () => {
   );
 });
 
+test('accepts ankiConnect.media.syncAnimatedImageToWordAudio override', () => {
+  const { context, warnings } = makeContext({
+    media: {
+      syncAnimatedImageToWordAudio: false,
+    },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.media.syncAnimatedImageToWordAudio, false);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'ankiConnect.media.syncAnimatedImageToWordAudio'),
+    false,
+  );
+});
+
 test('maps legacy ankiConnect.wordField to modern ankiConnect.fields.word', () => {
   const { context, warnings } = makeContext({
     wordField: 'TargetWordLegacy',
