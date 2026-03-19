@@ -1,4 +1,8 @@
-import { formatEventSeconds, type SessionChartMarker, type SessionEventNoteInfo } from '../../lib/session-events';
+import {
+  formatEventSeconds,
+  type SessionChartMarker,
+  type SessionEventNoteInfo,
+} from '../../lib/session-events';
 
 interface SessionEventPopoverProps {
   marker: SessionChartMarker;
@@ -83,7 +87,8 @@ export function SessionEventPopover({
       {marker.kind === 'seek' && (
         <div className="space-y-1 text-xs text-ctp-subtext0">
           <div>
-            From <span className="text-ctp-teal">{formatEventSeconds(marker.fromMs) ?? '\u2014'}</span>{' '}
+            From{' '}
+            <span className="text-ctp-teal">{formatEventSeconds(marker.fromMs) ?? '\u2014'}</span>{' '}
             to <span className="text-ctp-teal">{formatEventSeconds(marker.toMs) ?? '\u2014'}</span>
           </div>
           <div>
@@ -120,7 +125,9 @@ export function SessionEventPopover({
                       ) : null}
                     </div>
                     {info?.expression ? (
-                      <div className="mb-1 text-sm font-medium text-ctp-text">{info.expression}</div>
+                      <div className="mb-1 text-sm font-medium text-ctp-text">
+                        {info.expression}
+                      </div>
                     ) : null}
                     {info?.context ? (
                       <div className="mb-1 text-xs text-ctp-subtext0">{info.context}</div>

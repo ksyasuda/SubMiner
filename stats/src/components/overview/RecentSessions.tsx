@@ -245,13 +245,13 @@ function AnimeGroupRow({
               {group.sessions.length} sessions · {formatDuration(group.totalActiveMs)} active
             </div>
           </div>
-        <div className="flex gap-4 text-xs text-center shrink-0">
-          <div>
-            <div className="text-ctp-cards-mined font-medium font-mono tabular-nums">
-              {formatNumber(group.totalCards)}
+          <div className="flex gap-4 text-xs text-center shrink-0">
+            <div>
+              <div className="text-ctp-cards-mined font-medium font-mono tabular-nums">
+                {formatNumber(group.totalCards)}
+              </div>
+              <div className="text-ctp-overlay2">cards</div>
             </div>
-            <div className="text-ctp-overlay2">cards</div>
-          </div>
             <div>
               <div className="text-ctp-mauve font-medium font-mono tabular-nums">
                 {formatNumber(group.totalWords)}

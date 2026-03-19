@@ -319,7 +319,7 @@
       "SubMiner"
     ], // Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.
     "fields": {
-      "word": "Expression", // Word setting.
+      "word": "Expression", // Card field for the mined word or expression text.
       "audio": "ExpressionAudio", // Audio setting.
       "image": "Picture", // Image setting.
       "sentence": "Sentence", // Sentence setting.

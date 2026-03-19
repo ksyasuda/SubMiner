@@ -177,7 +177,12 @@ export function TrendsTab() {
           color="#8aadf4"
           type="bar"
         />
-        <TrendChart title="Cards Mined" data={data.activity.cards} color={cardsMinedColor} type="bar" />
+        <TrendChart
+          title="Cards Mined"
+          data={data.activity.cards}
+          color={cardsMinedColor}
+          type="bar"
+        />
         <TrendChart title="Tokens Seen" data={data.activity.words} color="#8bd5ca" type="bar" />
         <TrendChart title="Sessions" data={data.activity.sessions} color="#b7bdf8" type="bar" />
 
@@ -196,7 +201,12 @@ export function TrendsTab() {
           color="#c6a0f6"
           type="line"
         />
-        <TrendChart title="Cards Mined" data={data.progress.cards} color={cardsMinedColor} type="line" />
+        <TrendChart
+          title="Cards Mined"
+          data={data.progress.cards}
+          color={cardsMinedColor}
+          type="line"
+        />
         <TrendChart
           title="Episodes Watched"
           data={data.progress.episodes}

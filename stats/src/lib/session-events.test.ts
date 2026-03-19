@@ -146,15 +146,18 @@ test('extractSessionEventNoteInfo ignores malformed notes without a numeric note
 });
 
 test('mergeSessionEventNoteInfos keys previews by both requested and returned note ids', () => {
-  const noteInfos = mergeSessionEventNoteInfos([111], [
-    {
-      noteId: 222,
-      fields: {
-        Expression: { value: '呪い' },
-        Sentence: { value: 'この剣は呪いだ' },
+  const noteInfos = mergeSessionEventNoteInfos(
+    [111],
+    [
+      {
+        noteId: 222,
+        fields: {
+          Expression: { value: '呪い' },
+          Sentence: { value: 'この剣は呪いだ' },
+        },
       },
-    },
-  ]);
+    ],
+  );
 
   assert.deepEqual(noteInfos.get(111), {
     noteId: 222,

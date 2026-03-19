@@ -237,17 +237,16 @@ export function collectPendingSessionEventNoteIds(
   return next;
 }
 
-export function getSessionEventCardRequest(
-  marker: SessionChartMarker | null,
-): { noteIds: number[]; requestKey: string | null } {
+export function getSessionEventCardRequest(marker: SessionChartMarker | null): {
+  noteIds: number[];
+  requestKey: string | null;
+} {
   if (!marker || marker.kind !== 'card' || marker.noteIds.length === 0) {
     return { noteIds: [], requestKey: null };
   }
 
   const noteIds = Array.from(
-    new Set(
-      marker.noteIds.filter((noteId) => Number.isInteger(noteId) && noteId > 0),
-    ),
+    new Set(marker.noteIds.filter((noteId) => Number.isInteger(noteId) && noteId > 0)),
   );
 
   return {

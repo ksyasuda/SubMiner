@@ -55,7 +55,9 @@ export function MediaHeader({ detail, initialKnownWordsSummary = null }: MediaHe
             <div className="text-xs text-ctp-overlay2">total watch time</div>
           </div>
           <div>
-            <div className="text-ctp-cards-mined font-medium">{formatNumber(detail.totalCards)}</div>
+            <div className="text-ctp-cards-mined font-medium">
+              {formatNumber(detail.totalCards)}
+            </div>
             <div className="text-xs text-ctp-overlay2">cards mined</div>
           </div>
           <div>

@@ -568,7 +568,40 @@ const anilistUpdateQueue = createAnilistUpdateQueue(
   },
 );
 const isDev = process.argv.includes('--dev') || process.argv.includes('--debug');
-const texthookerService = new Texthooker();
+const texthookerService = new Texthooker(() => {
+  const config = getResolvedConfig();
+  const characterDictionaryEnabled =
+    config.anilist.characterDictionary.enabled && yomitanProfilePolicy.isCharacterDictionaryEnabled();
+  const knownAndNPlusOneEnabled = getRuntimeBooleanOption(
+    'subtitle.annotation.nPlusOne',
+    config.ankiConnect.knownWords.highlightEnabled,
+  );
+
+  return {
+    enableKnownWordColoring: knownAndNPlusOneEnabled,
+    enableNPlusOneColoring: knownAndNPlusOneEnabled,
+    enableNameMatchColoring: config.subtitleStyle.nameMatchEnabled && characterDictionaryEnabled,
+    enableFrequencyColoring: getRuntimeBooleanOption(
+      'subtitle.annotation.frequency',
+      config.subtitleStyle.frequencyDictionary.enabled,
+    ),
+    enableJlptColoring: getRuntimeBooleanOption(
+      'subtitle.annotation.jlpt',
+      config.subtitleStyle.enableJlpt,
+    ),
+    characterDictionaryEnabled,
+    knownWordColor: config.ankiConnect.knownWords.color,
+    nPlusOneColor: config.ankiConnect.nPlusOne.nPlusOne,
+    nameMatchColor: config.subtitleStyle.nameMatchColor,
+    hoverTokenColor: config.subtitleStyle.hoverTokenColor,
+    hoverTokenBackgroundColor: config.subtitleStyle.hoverTokenBackgroundColor,
+    jlptColors: config.subtitleStyle.jlptColors,
+    frequencyDictionary: {
+      singleColor: config.subtitleStyle.frequencyDictionary.singleColor,
+      bandedColors: config.subtitleStyle.frequencyDictionary.bandedColors,
+    },
+  };
+});
 const subtitleWsService = new SubtitleWebSocket();
 const annotationSubtitleWsService = new SubtitleWebSocket();
 const logger = createLogger('main');
