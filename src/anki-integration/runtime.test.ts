@@ -110,3 +110,44 @@ test('AnkiIntegrationRuntime switches transports and clears known words when run
     'proxy:start:127.0.0.1:8766:http://127.0.0.1:8765',
   ]);
 });
+
+test('AnkiIntegrationRuntime skips known-word lifecycle restart for unrelated runtime patches', () => {
+  const { runtime, calls } = createRuntime({
+    knownWords: {
+      highlightEnabled: true,
+    },
+    pollingRate: 250,
+  });
+
+  runtime.start();
+  calls.length = 0;
+
+  runtime.applyRuntimeConfigPatch({
+    behavior: {
+      autoUpdateNewCards: false,
+    },
+  });
+
+  assert.deepEqual(calls, []);
+});
+
+test('AnkiIntegrationRuntime restarts known-word lifecycle when known-word settings change', () => {
+  const { runtime, calls } = createRuntime({
+    knownWords: {
+      highlightEnabled: true,
+      refreshMinutes: 90,
+    },
+    pollingRate: 250,
+  });
+
+  runtime.start();
+  calls.length = 0;
+
+  runtime.applyRuntimeConfigPatch({
+    knownWords: {
+      refreshMinutes: 120,
+    },
+  });
+
+  assert.deepEqual(calls, ['known:start']);
+});

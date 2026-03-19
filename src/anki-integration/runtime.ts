@@ -145,6 +145,9 @@ export class AnkiIntegrationRuntime {
 
   applyRuntimeConfigPatch(patch: Partial<AnkiConnectConfig>): void {
     const wasKnownWordCacheEnabled = this.config.knownWords?.highlightEnabled === true;
+    const previousKnownWordCacheConfig = wasKnownWordCacheEnabled
+      ? this.getKnownWordCacheLifecycleConfig(this.config)
+      : null;
     const previousTransportKey = this.getTransportConfigKey(this.config);
 
     const mergedConfig: AnkiConnectConfig = {
@@ -191,11 +194,19 @@ export class AnkiIntegrationRuntime {
     };
     this.config = normalizeAnkiIntegrationConfig(mergedConfig);
     this.deps.onConfigChanged?.(this.config);
+    const nextKnownWordCacheEnabled = this.config.knownWords?.highlightEnabled === true;
 
     if (wasKnownWordCacheEnabled && this.config.knownWords?.highlightEnabled === false) {
       this.deps.knownWordCache.stopLifecycle();
       this.deps.knownWordCache.clearKnownWordCacheState();
-    } else {
+    } else if (!wasKnownWordCacheEnabled && nextKnownWordCacheEnabled) {
+      this.deps.knownWordCache.startLifecycle();
+    } else if (
+      wasKnownWordCacheEnabled &&
+      nextKnownWordCacheEnabled &&
+      previousKnownWordCacheConfig !== null &&
+      previousKnownWordCacheConfig !== this.getKnownWordCacheLifecycleConfig(this.config)
+    ) {
       this.deps.knownWordCache.startLifecycle();
     }
 
@@ -204,6 +215,48 @@ export class AnkiIntegrationRuntime {
       this.stopTransport();
       this.startTransport();
     }
+  }
+
+  private getKnownWordCacheLifecycleConfig(config: AnkiConnectConfig): string {
+    return JSON.stringify({
+      refreshMinutes: this.getKnownWordRefreshIntervalMinutes(config),
+      scope: this.getKnownWordCacheScopeForConfig(config),
+      fieldsWord: trimToNonEmptyString(config.fields?.word) ?? '',
+    });
+  }
+
+  private getKnownWordRefreshIntervalMinutes(config: AnkiConnectConfig): number {
+    const refreshMinutes = config.knownWords?.refreshMinutes;
+    return typeof refreshMinutes === 'number' && Number.isFinite(refreshMinutes) && refreshMinutes > 0
+      ? refreshMinutes
+      : DEFAULT_ANKI_CONNECT_CONFIG.knownWords.refreshMinutes;
+  }
+
+  private getKnownWordCacheScopeForConfig(config: AnkiConnectConfig): string {
+    const configuredDecks = config.knownWords?.decks;
+    if (configuredDecks && typeof configuredDecks === 'object' && !Array.isArray(configuredDecks)) {
+      const normalizedDecks = Object.entries(configuredDecks)
+        .map(([deckName, fields]) => {
+          const name = trimToNonEmptyString(deckName);
+          if (!name) return null;
+          const normalizedFields = Array.isArray(fields)
+            ? [
+                ...new Set(
+                  fields.map(String).map(trimToNonEmptyString).filter((field): field is string => Boolean(field)),
+                ),
+              ].sort()
+            : [];
+          return [name, normalizedFields];
+        })
+        .filter((entry): entry is [string, string[]] => entry !== null)
+        .sort(([a], [b]) => a.localeCompare(b));
+      if (normalizedDecks.length > 0) {
+        return `decks:${JSON.stringify(normalizedDecks)}`;
+      }
+    }
+
+    const configuredDeck = trimToNonEmptyString(config.deck);
+    return configuredDeck ? `deck:${configuredDeck}` : 'is:note';
   }
 
   getOrCreateProxyServer(): AnkiIntegrationRuntimeProxyServer {
