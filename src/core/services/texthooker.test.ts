@@ -64,7 +64,7 @@ test('injectTexthookerBootstrapHtml injects websocket bootstrap before head clos
   assert.match(actual, /--subminer-jlpt-n1-color:\s*#ed8796;/);
   assert.match(actual, /--subminer-frequency-band-4-color:\s*#8bd5ca;/);
   assert.match(actual, /--sm-token-hover-bg:\s*rgba\(54, 58, 79, 0\.84\);/);
-  assert.match(actual, /p \.word\.word-known\s*\{\s*color:\s*var\(--subminer-known-word-color\);/);
+  assert.doesNotMatch(actual, /p \.word\.word-known\s*\{/);
   assert.ok(actual.indexOf('</script></head>') !== -1);
   assert.ok(actual.includes('bannou-texthooker-websocketUrl'));
 });
