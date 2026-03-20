@@ -263,6 +263,41 @@ test('KnownWordCacheManager refresh incrementally reconciles deleted and edited 
   }
 });
 
+test('KnownWordCacheManager skips malformed note info without fields', async () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Word',
+    },
+    knownWords: {
+      highlightEnabled: true,
+    },
+  };
+  const { manager, clientState, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    clientState.findNotesResult = [1, 2];
+    clientState.notesInfoResult = [
+      {
+        noteId: 1,
+        fields: undefined as unknown as Record<string, { value: string }>,
+      },
+      {
+        noteId: 2,
+        fields: {
+          Word: { value: '猫' },
+        },
+      },
+    ];
+
+    await manager.refresh(true);
+
+    assert.equal(manager.isKnownWord('猫'), true);
+    assert.equal(manager.isKnownWord('犬'), false);
+  } finally {
+    cleanup();
+  }
+});
+
 test('KnownWordCacheManager preserves cache state key captured before refresh work', async () => {
   const config: AnkiConnectConfig = {
     fields: {

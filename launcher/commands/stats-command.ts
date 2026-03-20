@@ -34,6 +34,11 @@ type StatsResponseWait = {
   promise: Promise<{ kind: 'response'; response: StatsCommandResponse }>;
 };
 
+type StatsStartupResult =
+  | { kind: 'response'; response: StatsCommandResponse }
+  | { kind: 'exit'; status: number }
+  | { kind: 'spawn-error'; error: unknown };
+
 const defaultDeps: StatsCommandDeps = {
   createTempDir: (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), prefix)),
   joinPath: (...parts) => path.join(...parts),
@@ -72,10 +77,18 @@ async function performStartupHandshake(
   attachedExitPromise: Promise<number>,
 ): Promise<boolean> {
   const responseWait = createResponseWait();
-  const startupResult = await Promise.race([
+  const startupResult = await Promise.race<StatsStartupResult>([
     responseWait.promise,
-    attachedExitPromise.then((status) => ({ kind: 'exit' as const, status })),
+    attachedExitPromise.then(
+      (status) => ({ kind: 'exit' as const, status }),
+      (error) => ({ kind: 'spawn-error' as const, error }),
+    ),
   ]);
+
+  if (startupResult.kind === 'spawn-error') {
+    responseWait.controller.abort();
+    throw startupResult.error;
+  }
 
   if (startupResult.kind === 'exit') {
     if (startupResult.status !== 0) {

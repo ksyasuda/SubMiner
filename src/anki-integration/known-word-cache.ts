@@ -478,7 +478,14 @@ export class KnownWordCacheManager {
       const notesInfoResult = (await this.deps.client.notesInfo(chunk)) as unknown[];
       const chunkInfos = notesInfoResult as KnownWordCacheNoteInfo[];
       for (const noteInfo of chunkInfos) {
-        if (!noteInfo || !Number.isInteger(noteInfo.noteId) || noteInfo.noteId <= 0) {
+        if (
+          !noteInfo ||
+          !Number.isInteger(noteInfo.noteId) ||
+          noteInfo.noteId <= 0 ||
+          typeof noteInfo.fields !== 'object' ||
+          noteInfo.fields === null ||
+          Array.isArray(noteInfo.fields)
+        ) {
           continue;
         }
         noteInfos.push(noteInfo);

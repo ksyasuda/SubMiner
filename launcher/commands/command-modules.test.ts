@@ -438,6 +438,40 @@ test('stats command aborts pending response wait when app exits before startup r
   assert.equal(aborted, true);
 });
 
+test('stats command aborts pending response wait when attached app fails to spawn', async () => {
+  const context = createContext();
+  context.args.stats = true;
+  const spawnError = new Error('spawn failed');
+  let aborted = false;
+
+  await assert.rejects(
+    async () => {
+      await runStatsCommand(context, {
+        createTempDir: () => '/tmp/subminer-stats-test',
+        joinPath: (...parts) => parts.join('/'),
+        runAppCommandAttached: async () => {
+          throw spawnError;
+        },
+        waitForStatsResponse: async (_responsePath, signal) =>
+          await new Promise((resolve) => {
+            signal?.addEventListener(
+              'abort',
+              () => {
+                aborted = true;
+                resolve({ ok: false, error: 'aborted' });
+              },
+              { once: true },
+            );
+          }),
+        removeDir: () => {},
+      });
+    },
+    (error: unknown) => error === spawnError,
+  );
+
+  assert.equal(aborted, true);
+});
+
 test('stats cleanup command aborts pending response wait when app exits before startup response', async () => {
   const context = createContext();
   context.args.stats = true;
