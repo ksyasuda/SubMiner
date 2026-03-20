@@ -113,9 +113,7 @@ export function TrackingSnapshot({
         </Tooltip>
         <Tooltip text="Unique headwords seen for the first time today">
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">
-              New Words Today
-            </div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">New Words Today</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-rosewater">
               {formatNumber(summary.newWordsToday)}
             </div>

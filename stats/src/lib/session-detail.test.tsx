@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import {
-  SessionDetail,
-  getKnownPctAxisMax,
-} from '../components/sessions/SessionDetail';
+import { SessionDetail, getKnownPctAxisMax } from '../components/sessions/SessionDetail';
 import { buildSessionChartEvents } from './session-events';
 import { EventType } from '../types/stats';
 
