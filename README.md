@@ -1,23 +1,20 @@
 <div align="center">
   <img src="assets/SubMiner.png" width="140" alt="SubMiner logo">
 
-  # SubMiner
+# SubMiner
 
-  **Sentence-mine from mpv — look up words, one-key Anki export, immersion tracking.**
+**Sentence-mine from mpv — look up words, one-key Anki export, immersion tracking.**
 
-  [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-  [![Linux](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-informational)]()
-  [![Docs](https://img.shields.io/badge/docs-docs.subminer.moe-blueviolet)](https://docs.subminer.moe)
-  [![AUR](https://img.shields.io/aur/version/subminer-bin)](https://aur.archlinux.org/packages/subminer-bin)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Linux](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-informational)]()
+[![Docs](https://img.shields.io/badge/docs-docs.subminer.moe-blueviolet)](https://docs.subminer.moe)
+[![AUR](https://img.shields.io/aur/version/subminer-bin)](https://aur.archlinux.org/packages/subminer-bin)
 
 </div>
 
 ---
 
 SubMiner is an Electron overlay for [mpv](https://mpv.io) that turns video into a sentence-mining workstation. Look up any word with [Yomitan](https://github.com/yomidevs/yomitan), mine it to Anki with one key, and track your immersion over time.
-
-> [!NOTE]
-> Release prep target: `v0.7.0`. This cut rolls the new stats/dashboard workflow, browser/daemon stats commands, dashboard mining actions, and the latest overlay/runtime stability fixes into the next 0-ver minor line.
 
 <div align="center">
 
@@ -119,14 +116,14 @@ subminer stats cleanup      # repair/prune stored stats vocabulary rows
 
 ## Requirements
 
-| Required | Optional |
-|---|---|
-| [`mpv`](https://mpv.io) with IPC socket | `yt-dlp` |
-| `ffmpeg` | `guessit` (AniSkip detection) |
-| `mecab` + `mecab-ipadic` | `fzf` / `rofi` |
-| [`bun`](https://bun.sh) (source builds, Linux wrapper) | `chafa`, `ffmpegthumbnailer` |
-| Linux: `hyprctl` or `xdotool` + `xwininfo` | |
-| macOS: Accessibility permission | |
+| Required                                               | Optional                      |
+| ------------------------------------------------------ | ----------------------------- |
+| [`mpv`](https://mpv.io) with IPC socket                | `yt-dlp`                      |
+| `ffmpeg`                                               | `guessit` (AniSkip detection) |
+| `mecab` + `mecab-ipadic`                               | `fzf` / `rofi`                |
+| [`bun`](https://bun.sh) (source builds, Linux wrapper) | `chafa`, `ffmpegthumbnailer`  |
+| Linux: `hyprctl` or `xdotool` + `xwininfo`             |                               |
+| macOS: Accessibility permission                        |                               |
 
 Windows uses native window tracking and does not need the Linux compositor tools.
 

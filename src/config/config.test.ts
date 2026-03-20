@@ -1435,7 +1435,8 @@ test('validates ankiConnect knownWords behavior values', () => {
       "ankiConnect": {
         "knownWords": {
           "highlightEnabled": "yes",
-          "refreshMinutes": -5
+          "refreshMinutes": -5,
+          "addMinedWordsImmediately": "no"
         }
       }
     }`,
@@ -1456,6 +1457,13 @@ test('validates ankiConnect knownWords behavior values', () => {
   );
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.highlightEnabled'));
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.refreshMinutes'));
+  assert.equal(
+    config.ankiConnect.knownWords.addMinedWordsImmediately,
+    DEFAULT_CONFIG.ankiConnect.knownWords.addMinedWordsImmediately,
+  );
+  assert.ok(
+    warnings.some((warning) => warning.path === 'ankiConnect.knownWords.addMinedWordsImmediately'),
+  );
 });
 
 test('accepts valid ankiConnect knownWords behavior values', () => {
@@ -1466,7 +1474,8 @@ test('accepts valid ankiConnect knownWords behavior values', () => {
       "ankiConnect": {
         "knownWords": {
           "highlightEnabled": true,
-          "refreshMinutes": 120
+          "refreshMinutes": 120,
+          "addMinedWordsImmediately": false
         }
       }
     }`,
@@ -1478,6 +1487,7 @@ test('accepts valid ankiConnect knownWords behavior values', () => {
 
   assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
   assert.equal(config.ankiConnect.knownWords.refreshMinutes, 120);
+  assert.equal(config.ankiConnect.knownWords.addMinedWordsImmediately, false);
 });
 
 test('validates ankiConnect n+1 minimum sentence word count', () => {

@@ -40,6 +40,26 @@ test('runAppCommandCaptureOutput captures status and stdio', () => {
   assert.equal(result.error, undefined);
 });
 
+test('runAppCommandCaptureOutput strips ELECTRON_RUN_AS_NODE from app child env', () => {
+  const original = process.env.ELECTRON_RUN_AS_NODE;
+  try {
+    process.env.ELECTRON_RUN_AS_NODE = '1';
+    const result = runAppCommandCaptureOutput(process.execPath, [
+      '-e',
+      'process.stdout.write(String(process.env.ELECTRON_RUN_AS_NODE ?? ""));',
+    ]);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, '');
+  } finally {
+    if (original === undefined) {
+      delete process.env.ELECTRON_RUN_AS_NODE;
+    } else {
+      process.env.ELECTRON_RUN_AS_NODE = original;
+    }
+  }
+});
+
 test('waitForUnixSocketReady returns false when socket never appears', async () => {
   const { dir, socketPath } = createTempSocketPath();
   try {
@@ -137,6 +157,7 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     dictionary: false,
     stats: false,
     doctor: false,
+    doctorRefreshKnownWords: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,

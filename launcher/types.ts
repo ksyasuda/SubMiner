@@ -119,6 +119,7 @@ export interface Args {
   statsCleanupLifetime?: boolean;
   dictionaryTarget?: string;
   doctor: boolean;
+  doctorRefreshKnownWords: boolean;
   configPath: boolean;
   configShow: boolean;
   mpvIdle: boolean;

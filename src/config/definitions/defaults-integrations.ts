@@ -55,6 +55,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     knownWords: {
       highlightEnabled: false,
       refreshMinutes: 1440,
+      addMinedWordsImmediately: true,
       matchMode: 'headword',
       decks: {},
       color: '#a6da95',

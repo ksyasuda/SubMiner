@@ -34,10 +34,12 @@ export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeD
     shouldAutoInitializeOverlayRuntimeFromConfig: deps.shouldAutoInitializeOverlayRuntimeFromConfig,
     setVisibleOverlayVisible: deps.setVisibleOverlayVisible,
     initializeOverlayRuntime: deps.initializeOverlayRuntime,
+    runHeadlessInitialCommand: deps.runHeadlessInitialCommand,
     handleInitialArgs: deps.handleInitialArgs,
     onCriticalConfigErrors: deps.onCriticalConfigErrors,
     logDebug: deps.logDebug,
     now: deps.now,
+    shouldRunHeadlessInitialCommand: deps.shouldRunHeadlessInitialCommand,
     shouldUseMinimalStartup: deps.shouldUseMinimalStartup,
     shouldSkipHeavyStartup: deps.shouldSkipHeavyStartup,
   });

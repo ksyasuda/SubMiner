@@ -127,3 +127,10 @@ test('parseArgs maps stats rebuild action to cleanup lifetime mode', () => {
   assert.equal(parsed.statsCleanupVocab, false);
   assert.equal(parsed.statsCleanupLifetime, true);
 });
+
+test('parseArgs maps doctor refresh-known-words flag', () => {
+  const parsed = parseArgs(['doctor', '--refresh-known-words'], 'subminer', {});
+
+  assert.equal(parsed.doctor, true);
+  assert.equal(parsed.doctorRefreshKnownWords, true);
+});

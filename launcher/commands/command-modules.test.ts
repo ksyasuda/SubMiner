@@ -77,9 +77,35 @@ test('doctor command exits non-zero for missing hard dependencies', () => {
         commandExists: () => false,
         configExists: () => true,
         resolveMainConfigPath: () => '/tmp/SubMiner/config.jsonc',
+        runAppCommandWithInherit: () => {
+          throw new Error('unexpected app handoff');
+        },
       }),
     (error: unknown) => error instanceof ExitSignal && error.code === 1,
   );
+});
+
+test('doctor command forwards refresh-known-words to app binary', () => {
+  const context = createContext();
+  context.args.doctor = true;
+  context.args.doctorRefreshKnownWords = true;
+  const forwarded: string[][] = [];
+
+  assert.throws(
+    () =>
+      runDoctorCommand(context, {
+        commandExists: () => false,
+        configExists: () => true,
+        resolveMainConfigPath: () => '/tmp/SubMiner/config.jsonc',
+        runAppCommandWithInherit: (_appPath, appArgs) => {
+          forwarded.push(appArgs);
+          throw new ExitSignal(0);
+        },
+      }),
+    (error: unknown) => error instanceof ExitSignal && error.code === 0,
+  );
+
+  assert.deepEqual(forwarded, [['--refresh-known-words']]);
 });
 
 test('mpv pre-app command exits non-zero when socket is not ready', async () => {

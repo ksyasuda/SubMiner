@@ -10,6 +10,7 @@ test('initial args main deps builder maps runtime callbacks and state readers', 
     getInitialArgs: () => args,
     isBackgroundMode: () => true,
     shouldEnsureTrayOnStartup: () => false,
+    shouldRunHeadlessInitialCommand: () => false,
     ensureTray: () => calls.push('ensure-tray'),
     isTexthookerOnlyMode: () => false,
     hasImmersionTracker: () => true,
@@ -21,6 +22,7 @@ test('initial args main deps builder maps runtime callbacks and state readers', 
   assert.equal(deps.getInitialArgs(), args);
   assert.equal(deps.isBackgroundMode(), true);
   assert.equal(deps.shouldEnsureTrayOnStartup(), false);
+  assert.equal(deps.shouldRunHeadlessInitialCommand(args), false);
   assert.equal(deps.isTexthookerOnlyMode(), false);
   assert.equal(deps.hasImmersionTracker(), true);
   assert.equal(deps.getMpvClient(), mpvClient);

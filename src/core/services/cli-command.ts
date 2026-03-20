@@ -334,12 +334,18 @@ export function handleCliCommand(
       'Update failed',
     );
   } else if (args.refreshKnownWords) {
-    runAsyncWithOsd(
-      () => deps.refreshKnownWords(),
-      deps,
-      'refreshKnownWords',
-      'Refresh known words failed',
-    );
+    const shouldStopAfterRun = source === 'initial' && !deps.hasMainWindow();
+    deps
+      .refreshKnownWords()
+      .catch((err) => {
+        deps.error('refreshKnownWords failed:', err);
+        deps.showMpvOsd(`Refresh known words failed: ${(err as Error).message}`);
+      })
+      .finally(() => {
+        if (shouldStopAfterRun) {
+          deps.stopApp();
+        }
+      });
   } else if (args.toggleSecondarySub) {
     deps.cycleSecondarySubMode();
   } else if (args.triggerFieldGrouping) {

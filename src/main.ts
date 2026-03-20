@@ -31,6 +31,7 @@ import {
   screen,
 } from 'electron';
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
+import { mergeAiConfig } from './ai/config';
 
 function getPasswordStoreArg(argv: string[]): string | null {
   for (let i = 0; i < argv.length; i += 1) {
@@ -102,8 +103,10 @@ import { RuntimeOptionsManager } from './runtime-options';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
 import { createLogger, setLogLevel, type LogLevelSource } from './logger';
 import { resolveDefaultLogFilePath } from './logger';
+import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
 import {
   commandNeedsOverlayRuntime,
+  isHeadlessInitialCommand,
   parseArgs,
   shouldRunSettingsOnlyStartup,
   shouldStartApp,
@@ -2837,6 +2840,50 @@ const runStatsCliCommand = createRunStatsCliCommandHandler({
   logError: (message, error) => logger.error(message, error),
 });
 
+async function runHeadlessInitialCommand(): Promise<void> {
+  if (!appState.initialArgs?.refreshKnownWords) {
+    handleInitialArgs();
+    return;
+  }
+
+  const resolvedConfig = getResolvedConfig();
+  if (resolvedConfig.ankiConnect.enabled !== true) {
+    logger.error('Headless known-word refresh failed: AnkiConnect integration not enabled');
+    process.exitCode = 1;
+    requestAppQuit();
+    return;
+  }
+
+  const effectiveAnkiConfig =
+    appState.runtimeOptionsManager?.getEffectiveAnkiConnectConfig(resolvedConfig.ankiConnect) ??
+    resolvedConfig.ankiConnect;
+  const integration = new AnkiIntegration(
+    effectiveAnkiConfig,
+    new SubtitleTimingTracker(),
+    { send: () => undefined } as never,
+    undefined,
+    undefined,
+    async () => ({
+      keepNoteId: 0,
+      deleteNoteId: 0,
+      deleteDuplicate: false,
+      cancelled: true,
+    }),
+    path.join(USER_DATA_PATH, 'known-words-cache.json'),
+    mergeAiConfig(resolvedConfig.ai, resolvedConfig.ankiConnect?.ai),
+  );
+
+  try {
+    await integration.refreshKnownWordCache();
+  } catch (error) {
+    logger.error('Headless known-word refresh failed:', error);
+    process.exitCode = 1;
+  } finally {
+    integration.stop();
+    requestAppQuit();
+  }
+}
+
 const { appReadyRuntimeRunner } = composeAppReadyRuntime({
   reloadConfigMainDeps: {
     reloadConfigStrict: () => configService.reloadConfigStrict(),
@@ -2984,13 +3031,16 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
         : configDerivedRuntime.shouldAutoInitializeOverlayRuntimeFromConfig(),
     setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
+    runHeadlessInitialCommand: () => runHeadlessInitialCommand(),
     handleInitialArgs: () => handleInitialArgs(),
+    shouldRunHeadlessInitialCommand: () =>
+      Boolean(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     shouldUseMinimalStartup: () =>
       Boolean(
         appState.initialArgs?.stats &&
-        (appState.initialArgs?.statsCleanup ||
-          appState.initialArgs?.statsBackground ||
-          appState.initialArgs?.statsStop),
+          (appState.initialArgs?.statsCleanup ||
+            appState.initialArgs?.statsBackground ||
+            appState.initialArgs?.statsStop),
       ),
     shouldSkipHeavyStartup: () =>
       Boolean(
@@ -3096,6 +3146,7 @@ const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   getInitialArgs: () => appState.initialArgs,
   isBackgroundMode: () => appState.backgroundMode,
   shouldEnsureTrayOnStartup: () => process.platform === 'win32',
+  shouldRunHeadlessInitialCommand: (args) => isHeadlessInitialCommand(args),
   ensureTray: () => ensureTray(),
   isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
   hasImmersionTracker: () => Boolean(appState.immersionTracker),
@@ -4139,8 +4190,24 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       overlayShortcutsRuntime: {
         syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
       },
-      createMainWindow: () => createMainWindow(),
-      registerGlobalShortcuts: () => registerGlobalShortcuts(),
+      createMainWindow: () => {
+        if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+          return;
+        }
+        createMainWindow();
+      },
+      registerGlobalShortcuts: () => {
+        if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+          return;
+        }
+        registerGlobalShortcuts();
+      },
+      createWindowTracker: (override, targetMpvSocketPath) => {
+        if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+          return null;
+        }
+        return createWindowTrackerCore(override, targetMpvSocketPath);
+      },
       updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
         updateVisibleOverlayBounds(geometry),
       getOverlayWindows: () => getOverlayWindows(),
@@ -4148,6 +4215,8 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       showDesktopNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
+      shouldStartAnkiIntegration: () =>
+        !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     },
     initializeOverlayRuntimeBootstrapDeps: {
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
@@ -4155,7 +4224,12 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       setOverlayRuntimeInitialized: (initialized) => {
         appState.overlayRuntimeInitialized = initialized;
       },
-      startBackgroundWarmups: () => startBackgroundWarmups(),
+      startBackgroundWarmups: () => {
+        if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+          return;
+        }
+        startBackgroundWarmups();
+      },
     },
   });
 const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSettingsRuntime({

@@ -35,7 +35,6 @@ ${B}Mining${R}
   --trigger-field-grouping       Run Kiku field grouping
   --trigger-subsync              Run subtitle sync
   --toggle-secondary-sub         Cycle secondary subtitle mode
-  --refresh-known-words          Refresh known words cache
   --open-runtime-options         Open runtime options palette
 
 ${B}AniList${R}

@@ -68,7 +68,9 @@ function loadKnownWordsSet(cachePath: string | undefined): Set<string> | null {
       version?: number;
       words?: string[];
     };
-    if (raw.version === 1 && Array.isArray(raw.words)) return new Set(raw.words);
+    if ((raw.version === 1 || raw.version === 2) && Array.isArray(raw.words)) {
+      return new Set(raw.words);
+    }
   } catch {
     /* ignore */
   }

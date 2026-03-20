@@ -64,12 +64,22 @@ export interface KnownWordCacheNoteInfo {
   fields: Record<string, { value: string }>;
 }
 
-interface KnownWordCacheState {
+interface KnownWordCacheStateV1 {
   readonly version: 1;
   readonly refreshedAtMs: number;
   readonly scope: string;
   readonly words: string[];
 }
+
+interface KnownWordCacheStateV2 {
+  readonly version: 2;
+  readonly refreshedAtMs: number;
+  readonly scope: string;
+  readonly words: string[];
+  readonly notes: Record<string, string[]>;
+}
+
+type KnownWordCacheState = KnownWordCacheStateV1 | KnownWordCacheStateV2;
 
 interface KnownWordCacheClient {
   findNotes: (
@@ -92,7 +102,10 @@ export class KnownWordCacheManager {
   private knownWordsLastRefreshedAtMs = 0;
   private knownWordsStateKey = '';
   private knownWords: Set<string> = new Set();
+  private wordReferenceCounts = new Map<string, number>();
+  private noteWordsById = new Map<number, string[]>();
   private knownWordsRefreshTimer: ReturnType<typeof setInterval> | null = null;
+  private knownWordsRefreshTimeout: ReturnType<typeof setTimeout> | null = null;
   private isRefreshingKnownWords = false;
   private readonly statePath: string;
 
@@ -133,14 +146,14 @@ export class KnownWordCacheManager {
     );
 
     this.loadKnownWordCacheState();
-    void this.refreshKnownWords();
-    const refreshIntervalMs = this.getKnownWordRefreshIntervalMs();
-    this.knownWordsRefreshTimer = setInterval(() => {
-      void this.refreshKnownWords();
-    }, refreshIntervalMs);
+    this.scheduleKnownWordRefreshLifecycle();
   }
 
   stopLifecycle(): void {
+    if (this.knownWordsRefreshTimeout) {
+      clearTimeout(this.knownWordsRefreshTimeout);
+      this.knownWordsRefreshTimeout = null;
+    }
     if (this.knownWordsRefreshTimer) {
       clearInterval(this.knownWordsRefreshTimer);
       this.knownWordsRefreshTimer = null;
@@ -148,7 +161,7 @@ export class KnownWordCacheManager {
   }
 
   appendFromNoteInfo(noteInfo: KnownWordCacheNoteInfo): void {
-    if (!this.isKnownWordCacheEnabled()) {
+    if (!this.isKnownWordCacheEnabled() || !this.shouldAddMinedWordsImmediately()) {
       return;
     }
 
@@ -160,32 +173,26 @@ export class KnownWordCacheManager {
       this.knownWordsStateKey = currentStateKey;
     }
 
-    let addedCount = 0;
-    for (const rawWord of this.extractKnownWordsFromNoteInfo(noteInfo)) {
-      const normalized = this.normalizeKnownWordForLookup(rawWord);
-      if (!normalized || this.knownWords.has(normalized)) {
-        continue;
-      }
-      this.knownWords.add(normalized);
-      addedCount += 1;
+    const nextWords = this.extractNormalizedKnownWordsFromNoteInfo(noteInfo);
+    const changed = this.replaceNoteSnapshot(noteInfo.noteId, nextWords);
+    if (!changed) {
+      return;
     }
 
-    if (addedCount > 0) {
-      if (this.knownWordsLastRefreshedAtMs <= 0) {
-        this.knownWordsLastRefreshedAtMs = Date.now();
-      }
-      this.persistKnownWordCacheState();
-      log.info(
-        'Known-word cache updated in-session',
-        `added=${addedCount}`,
-        `scope=${getKnownWordCacheScopeForConfig(this.deps.getConfig())}`,
-      );
+    if (this.knownWordsLastRefreshedAtMs <= 0) {
+      this.knownWordsLastRefreshedAtMs = Date.now();
     }
+    this.persistKnownWordCacheState();
+    log.info(
+      'Known-word cache updated in-session',
+      `noteId=${noteInfo.noteId}`,
+      `wordCount=${nextWords.length}`,
+      `scope=${getKnownWordCacheScopeForConfig(this.deps.getConfig())}`,
+    );
   }
 
   clearKnownWordCacheState(): void {
-    this.knownWords = new Set();
-    this.knownWordsLastRefreshedAtMs = 0;
+    this.clearInMemoryState();
     this.knownWordsStateKey = this.getKnownWordCacheStateKey();
     try {
       if (fs.existsSync(this.statePath)) {
@@ -218,33 +225,38 @@ export class KnownWordCacheManager {
         maxRetries: 0,
       })) as number[];
 
-      const nextKnownWords = new Set<string>();
-      if (noteIds.length > 0) {
-        const chunkSize = 50;
-        for (let i = 0; i < noteIds.length; i += chunkSize) {
-          const chunk = noteIds.slice(i, i + chunkSize);
-          const notesInfoResult = (await this.deps.client.notesInfo(chunk)) as unknown[];
-          const notesInfo = notesInfoResult as KnownWordCacheNoteInfo[];
+      const currentNoteIds = Array.from(
+        new Set(noteIds.filter((noteId) => Number.isInteger(noteId) && noteId > 0)),
+      ).sort((a, b) => a - b);
 
-          for (const noteInfo of notesInfo) {
-            for (const word of this.extractKnownWordsFromNoteInfo(noteInfo)) {
-              const normalized = this.normalizeKnownWordForLookup(word);
-              if (normalized) {
-                nextKnownWords.add(normalized);
-              }
-            }
+      if (this.noteWordsById.size === 0) {
+        await this.rebuildFromCurrentNotes(currentNoteIds);
+      } else {
+        const currentNoteIdSet = new Set(currentNoteIds);
+        for (const noteId of Array.from(this.noteWordsById.keys())) {
+          if (!currentNoteIdSet.has(noteId)) {
+            this.removeNoteSnapshot(noteId);
+          }
+        }
+
+        if (currentNoteIds.length > 0) {
+          const noteInfos = await this.fetchKnownWordNotesInfo(currentNoteIds);
+          for (const noteInfo of noteInfos) {
+            this.replaceNoteSnapshot(
+              noteInfo.noteId,
+              this.extractNormalizedKnownWordsFromNoteInfo(noteInfo),
+            );
           }
         }
       }
 
-      this.knownWords = nextKnownWords;
       this.knownWordsLastRefreshedAtMs = Date.now();
       this.knownWordsStateKey = this.getKnownWordCacheStateKey();
       this.persistKnownWordCacheState();
       log.info(
         'Known-word cache refreshed',
-        `noteCount=${noteIds.length}`,
-        `wordCount=${nextKnownWords.size}`,
+        `noteCount=${currentNoteIds.length}`,
+        `wordCount=${this.knownWords.size}`,
       );
     } catch (error) {
       log.warn('Failed to refresh known-word cache:', (error as Error).message);
@@ -256,6 +268,10 @@ export class KnownWordCacheManager {
 
   private isKnownWordCacheEnabled(): boolean {
     return this.deps.getConfig().knownWords?.highlightEnabled === true;
+  }
+
+  private shouldAddMinedWordsImmediately(): boolean {
+    return this.deps.getConfig().knownWords?.addMinedWordsImmediately !== false;
   }
 
   private getKnownWordRefreshIntervalMs(): number {
@@ -322,64 +338,193 @@ export class KnownWordCacheManager {
     return Date.now() - this.knownWordsLastRefreshedAtMs >= this.getKnownWordRefreshIntervalMs();
   }
 
+  private scheduleKnownWordRefreshLifecycle(): void {
+    const refreshIntervalMs = this.getKnownWordRefreshIntervalMs();
+    const scheduleInterval = () => {
+      this.knownWordsRefreshTimer = setInterval(() => {
+        void this.refreshKnownWords();
+      }, refreshIntervalMs);
+    };
+
+    const initialDelayMs = this.getMsUntilNextRefresh();
+    this.knownWordsRefreshTimeout = setTimeout(() => {
+      this.knownWordsRefreshTimeout = null;
+      void this.refreshKnownWords();
+      scheduleInterval();
+    }, initialDelayMs);
+  }
+
+  private getMsUntilNextRefresh(): number {
+    if (this.knownWordsStateKey !== this.getKnownWordCacheStateKey()) {
+      return 0;
+    }
+    if (this.knownWordsLastRefreshedAtMs <= 0) {
+      return 0;
+    }
+    const remainingMs =
+      this.getKnownWordRefreshIntervalMs() - (Date.now() - this.knownWordsLastRefreshedAtMs);
+    return Math.max(0, remainingMs);
+  }
+
+  private async rebuildFromCurrentNotes(noteIds: number[]): Promise<void> {
+    this.clearInMemoryState();
+    if (noteIds.length === 0) {
+      return;
+    }
+
+    const noteInfos = await this.fetchKnownWordNotesInfo(noteIds);
+    for (const noteInfo of noteInfos) {
+      this.replaceNoteSnapshot(noteInfo.noteId, this.extractNormalizedKnownWordsFromNoteInfo(noteInfo));
+    }
+  }
+
+  private async fetchKnownWordNotesInfo(noteIds: number[]): Promise<KnownWordCacheNoteInfo[]> {
+    const noteInfos: KnownWordCacheNoteInfo[] = [];
+    const chunkSize = 50;
+    for (let i = 0; i < noteIds.length; i += chunkSize) {
+      const chunk = noteIds.slice(i, i + chunkSize);
+      const notesInfoResult = (await this.deps.client.notesInfo(chunk)) as unknown[];
+      const chunkInfos = notesInfoResult as KnownWordCacheNoteInfo[];
+      for (const noteInfo of chunkInfos) {
+        if (!noteInfo || !Number.isInteger(noteInfo.noteId) || noteInfo.noteId <= 0) {
+          continue;
+        }
+        noteInfos.push(noteInfo);
+      }
+    }
+    return noteInfos;
+  }
+
+  private replaceNoteSnapshot(noteId: number, nextWords: string[]): boolean {
+    const normalizedWords = normalizeKnownWordList(nextWords);
+    const previousWords = this.noteWordsById.get(noteId) ?? [];
+    if (knownWordListsEqual(previousWords, normalizedWords)) {
+      return false;
+    }
+
+    this.removeWordsFromCounts(previousWords);
+    if (normalizedWords.length > 0) {
+      this.noteWordsById.set(noteId, normalizedWords);
+      this.addWordsToCounts(normalizedWords);
+    } else {
+      this.noteWordsById.delete(noteId);
+    }
+    return true;
+  }
+
+  private removeNoteSnapshot(noteId: number): void {
+    const previousWords = this.noteWordsById.get(noteId);
+    if (!previousWords) {
+      return;
+    }
+    this.noteWordsById.delete(noteId);
+    this.removeWordsFromCounts(previousWords);
+  }
+
+  private addWordsToCounts(words: string[]): void {
+    for (const word of words) {
+      const nextCount = (this.wordReferenceCounts.get(word) ?? 0) + 1;
+      this.wordReferenceCounts.set(word, nextCount);
+      this.knownWords.add(word);
+    }
+  }
+
+  private removeWordsFromCounts(words: string[]): void {
+    for (const word of words) {
+      const nextCount = (this.wordReferenceCounts.get(word) ?? 0) - 1;
+      if (nextCount > 0) {
+        this.wordReferenceCounts.set(word, nextCount);
+      } else {
+        this.wordReferenceCounts.delete(word);
+        this.knownWords.delete(word);
+      }
+    }
+  }
+
+  private clearInMemoryState(): void {
+    this.knownWords = new Set();
+    this.wordReferenceCounts = new Map();
+    this.noteWordsById = new Map();
+    this.knownWordsLastRefreshedAtMs = 0;
+  }
+
   private loadKnownWordCacheState(): void {
     try {
       if (!fs.existsSync(this.statePath)) {
-        this.knownWords = new Set();
-        this.knownWordsLastRefreshedAtMs = 0;
+        this.clearInMemoryState();
         this.knownWordsStateKey = this.getKnownWordCacheStateKey();
         return;
       }
 
       const raw = fs.readFileSync(this.statePath, 'utf-8');
       if (!raw.trim()) {
-        this.knownWords = new Set();
-        this.knownWordsLastRefreshedAtMs = 0;
+        this.clearInMemoryState();
         this.knownWordsStateKey = this.getKnownWordCacheStateKey();
         return;
       }
 
       const parsed = JSON.parse(raw) as unknown;
       if (!this.isKnownWordCacheStateValid(parsed)) {
-        this.knownWords = new Set();
-        this.knownWordsLastRefreshedAtMs = 0;
+        this.clearInMemoryState();
         this.knownWordsStateKey = this.getKnownWordCacheStateKey();
         return;
       }
 
       if (parsed.scope !== this.getKnownWordCacheStateKey()) {
-        this.knownWords = new Set();
-        this.knownWordsLastRefreshedAtMs = 0;
+        this.clearInMemoryState();
         this.knownWordsStateKey = this.getKnownWordCacheStateKey();
         return;
       }
 
-      const nextKnownWords = new Set<string>();
-      for (const value of parsed.words) {
-        const normalized = this.normalizeKnownWordForLookup(value);
-        if (normalized) {
-          nextKnownWords.add(normalized);
+      this.clearInMemoryState();
+      if (parsed.version === 2) {
+        for (const [noteIdKey, words] of Object.entries(parsed.notes)) {
+          const noteId = Number.parseInt(noteIdKey, 10);
+          if (!Number.isInteger(noteId) || noteId <= 0) {
+            continue;
+          }
+          const normalizedWords = normalizeKnownWordList(words);
+          if (normalizedWords.length === 0) {
+            continue;
+          }
+          this.noteWordsById.set(noteId, normalizedWords);
+          this.addWordsToCounts(normalizedWords);
+        }
+      } else {
+        for (const value of parsed.words) {
+          const normalized = this.normalizeKnownWordForLookup(value);
+          if (!normalized) {
+            continue;
+          }
+          this.knownWords.add(normalized);
+          this.wordReferenceCounts.set(normalized, 1);
         }
       }
 
-      this.knownWords = nextKnownWords;
       this.knownWordsLastRefreshedAtMs = parsed.refreshedAtMs;
       this.knownWordsStateKey = parsed.scope;
     } catch (error) {
       log.warn('Failed to load known-word cache state:', (error as Error).message);
-      this.knownWords = new Set();
-      this.knownWordsLastRefreshedAtMs = 0;
+      this.clearInMemoryState();
       this.knownWordsStateKey = this.getKnownWordCacheStateKey();
     }
   }
 
   private persistKnownWordCacheState(): void {
     try {
-      const state: KnownWordCacheState = {
-        version: 1,
+      const notes: Record<string, string[]> = {};
+      for (const [noteId, words] of this.noteWordsById.entries()) {
+        if (words.length > 0) {
+          notes[String(noteId)] = words;
+        }
+      }
+
+      const state: KnownWordCacheStateV2 = {
+        version: 2,
         refreshedAtMs: this.knownWordsLastRefreshedAtMs,
         scope: this.knownWordsStateKey,
         words: Array.from(this.knownWords),
+        notes,
       };
       fs.writeFileSync(this.statePath, JSON.stringify(state), 'utf-8');
     } catch (error) {
@@ -389,18 +534,35 @@ export class KnownWordCacheManager {
 
   private isKnownWordCacheStateValid(value: unknown): value is KnownWordCacheState {
     if (typeof value !== 'object' || value === null) return false;
-    const candidate = value as Partial<KnownWordCacheState>;
-    if (candidate.version !== 1) return false;
+    const candidate = value as Record<string, unknown>;
+    if (candidate.version !== 1 && candidate.version !== 2) return false;
     if (typeof candidate.refreshedAtMs !== 'number') return false;
     if (typeof candidate.scope !== 'string') return false;
     if (!Array.isArray(candidate.words)) return false;
-    if (!candidate.words.every((entry) => typeof entry === 'string')) {
+    if (!candidate.words.every((entry: unknown) => typeof entry === 'string')) {
       return false;
+    }
+    if (candidate.version === 2) {
+      if (
+        typeof candidate.notes !== 'object' ||
+        candidate.notes === null ||
+        Array.isArray(candidate.notes)
+      ) {
+        return false;
+      }
+      if (
+        !Object.values(candidate.notes as Record<string, unknown>).every(
+          (entry) =>
+            Array.isArray(entry) && entry.every((word: unknown) => typeof word === 'string'),
+        )
+      ) {
+        return false;
+      }
     }
     return true;
   }
 
-  private extractKnownWordsFromNoteInfo(noteInfo: KnownWordCacheNoteInfo): string[] {
+  private extractNormalizedKnownWordsFromNoteInfo(noteInfo: KnownWordCacheNoteInfo): string[] {
     const words: string[] = [];
     const configuredFields = this.getConfiguredFields();
     for (const preferredField of configuredFields) {
@@ -410,12 +572,12 @@ export class KnownWordCacheManager {
       const raw = noteInfo.fields[fieldName]?.value;
       if (!raw) continue;
 
-      const extracted = this.normalizeRawKnownWordValue(raw);
-      if (extracted) {
-        words.push(extracted);
+      const normalized = this.normalizeKnownWordForLookup(raw);
+      if (normalized) {
+        words.push(normalized);
       }
     }
-    return words;
+    return normalizeKnownWordList(words);
   }
 
   private normalizeRawKnownWordValue(value: string): string {
@@ -428,6 +590,22 @@ export class KnownWordCacheManager {
   private normalizeKnownWordForLookup(value: string): string {
     return this.normalizeRawKnownWordValue(value).toLowerCase();
   }
+}
+
+function normalizeKnownWordList(words: string[]): string[] {
+  return [...new Set(words.map((word) => word.trim()).filter((word) => word.length > 0))].sort();
+}
+
+function knownWordListsEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function resolveFieldName(availableFieldNames: string[], preferredName: string): string | null {

@@ -9,6 +9,7 @@ export function createHandleInitialArgsHandler(deps: {
   getInitialArgs: () => CliArgs | null;
   isBackgroundMode: () => boolean;
   shouldEnsureTrayOnStartup: () => boolean;
+  shouldRunHeadlessInitialCommand: (args: CliArgs) => boolean;
   ensureTray: () => void;
   isTexthookerOnlyMode: () => boolean;
   hasImmersionTracker: () => boolean;
@@ -19,13 +20,15 @@ export function createHandleInitialArgsHandler(deps: {
   return (): void => {
     const initialArgs = deps.getInitialArgs();
     if (!initialArgs) return;
+    const runHeadless = deps.shouldRunHeadlessInitialCommand(initialArgs);
 
-    if (deps.isBackgroundMode() || deps.shouldEnsureTrayOnStartup()) {
+    if (!runHeadless && (deps.isBackgroundMode() || deps.shouldEnsureTrayOnStartup())) {
       deps.ensureTray();
     }
 
     const mpvClient = deps.getMpvClient();
     if (
+      !runHeadless &&
       !deps.isTexthookerOnlyMode() &&
       !initialArgs.stats &&
       deps.hasImmersionTracker() &&

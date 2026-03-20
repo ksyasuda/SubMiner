@@ -51,10 +51,12 @@ export interface AppReadyRuntimeDepsFactoryInput {
   shouldAutoInitializeOverlayRuntimeFromConfig: AppReadyRuntimeDeps['shouldAutoInitializeOverlayRuntimeFromConfig'];
   setVisibleOverlayVisible: AppReadyRuntimeDeps['setVisibleOverlayVisible'];
   initializeOverlayRuntime: AppReadyRuntimeDeps['initializeOverlayRuntime'];
+  runHeadlessInitialCommand?: AppReadyRuntimeDeps['runHeadlessInitialCommand'];
   handleInitialArgs: AppReadyRuntimeDeps['handleInitialArgs'];
   onCriticalConfigErrors?: AppReadyRuntimeDeps['onCriticalConfigErrors'];
   logDebug?: AppReadyRuntimeDeps['logDebug'];
   now?: AppReadyRuntimeDeps['now'];
+  shouldRunHeadlessInitialCommand?: AppReadyRuntimeDeps['shouldRunHeadlessInitialCommand'];
   shouldUseMinimalStartup?: AppReadyRuntimeDeps['shouldUseMinimalStartup'];
   shouldSkipHeavyStartup?: AppReadyRuntimeDeps['shouldSkipHeavyStartup'];
 }
@@ -115,10 +117,12 @@ export function createAppReadyRuntimeDeps(
       params.shouldAutoInitializeOverlayRuntimeFromConfig,
     setVisibleOverlayVisible: params.setVisibleOverlayVisible,
     initializeOverlayRuntime: params.initializeOverlayRuntime,
+    runHeadlessInitialCommand: params.runHeadlessInitialCommand,
     handleInitialArgs: params.handleInitialArgs,
     onCriticalConfigErrors: params.onCriticalConfigErrors,
     logDebug: params.logDebug,
     now: params.now,
+    shouldRunHeadlessInitialCommand: params.shouldRunHeadlessInitialCommand,
     shouldUseMinimalStartup: params.shouldUseMinimalStartup,
     shouldSkipHeavyStartup: params.shouldSkipHeavyStartup,
   };

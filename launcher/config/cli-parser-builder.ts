@@ -49,6 +49,7 @@ export interface CliInvocations {
   statsLogLevel: string | null;
   doctorTriggered: boolean;
   doctorLogLevel: string | null;
+  doctorRefreshKnownWords: boolean;
   texthookerTriggered: boolean;
   texthookerLogLevel: string | null;
 }
@@ -156,6 +157,7 @@ export function parseCliPrograms(
   let statsCleanupLifetime = false;
   let statsLogLevel: string | null = null;
   let doctorLogLevel: string | null = null;
+  let doctorRefreshKnownWords = false;
   let texthookerLogLevel: string | null = null;
   let doctorTriggered = false;
   let texthookerTriggered = false;
@@ -304,10 +306,12 @@ export function parseCliPrograms(
   commandProgram
     .command('doctor')
     .description('Run dependency and environment checks')
+    .option('--refresh-known-words', 'Refresh known words cache')
     .option('--log-level <level>', 'Log level')
     .action((options: Record<string, unknown>) => {
       doctorTriggered = true;
       doctorLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
+      doctorRefreshKnownWords = options.refreshKnownWords === true;
     });
 
   commandProgram
@@ -388,6 +392,7 @@ export function parseCliPrograms(
       statsLogLevel,
       doctorTriggered,
       doctorLogLevel,
+      doctorRefreshKnownWords,
       texthookerTriggered,
       texthookerLogLevel,
     },

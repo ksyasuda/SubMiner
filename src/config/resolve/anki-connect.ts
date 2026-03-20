@@ -771,6 +771,24 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
       DEFAULT_CONFIG.ankiConnect.knownWords.refreshMinutes;
   }
 
+  const knownWordsAddMinedWordsImmediately = asBoolean(knownWordsConfig.addMinedWordsImmediately);
+  if (knownWordsAddMinedWordsImmediately !== undefined) {
+    context.resolved.ankiConnect.knownWords.addMinedWordsImmediately =
+      knownWordsAddMinedWordsImmediately;
+  } else if (knownWordsConfig.addMinedWordsImmediately !== undefined) {
+    context.warn(
+      'ankiConnect.knownWords.addMinedWordsImmediately',
+      knownWordsConfig.addMinedWordsImmediately,
+      context.resolved.ankiConnect.knownWords.addMinedWordsImmediately,
+      'Expected boolean.',
+    );
+    context.resolved.ankiConnect.knownWords.addMinedWordsImmediately =
+      DEFAULT_CONFIG.ankiConnect.knownWords.addMinedWordsImmediately;
+  } else {
+    context.resolved.ankiConnect.knownWords.addMinedWordsImmediately =
+      DEFAULT_CONFIG.ankiConnect.knownWords.addMinedWordsImmediately;
+  }
+
   const nPlusOneMinSentenceWords = asNumber(nPlusOneConfig.minSentenceWords);
   const hasValidNPlusOneMinSentenceWords =
     nPlusOneMinSentenceWords !== undefined &&

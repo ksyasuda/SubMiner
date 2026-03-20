@@ -129,6 +129,7 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     statsCleanupVocab: false,
     statsCleanupLifetime: false,
     doctor: false,
+    doctorRefreshKnownWords: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,
@@ -206,6 +207,7 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
     parsed.dictionaryTarget = parseDictionaryTarget(invocations.dictionaryTarget);
   }
   if (invocations.doctorTriggered) parsed.doctor = true;
+  if (invocations.doctorRefreshKnownWords) parsed.doctorRefreshKnownWords = true;
   if (invocations.texthookerTriggered) parsed.texthookerOnly = true;
 
   if (invocations.jellyfinInvocation) {

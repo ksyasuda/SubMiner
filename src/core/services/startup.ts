@@ -131,10 +131,12 @@ export interface AppReadyRuntimeDeps {
   shouldAutoInitializeOverlayRuntimeFromConfig: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
   initializeOverlayRuntime: () => void;
+  runHeadlessInitialCommand?: () => Promise<void>;
   handleInitialArgs: () => void;
   logDebug?: (message: string) => void;
   onCriticalConfigErrors?: (errors: string[]) => void;
   now?: () => number;
+  shouldRunHeadlessInitialCommand?: () => boolean;
   shouldUseMinimalStartup?: () => boolean;
   shouldSkipHeavyStartup?: () => boolean;
 }
@@ -184,6 +186,20 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   const now = deps.now ?? (() => Date.now());
   const startupStartedAtMs = now();
   deps.ensureDefaultConfigBootstrap();
+  if (deps.shouldRunHeadlessInitialCommand?.()) {
+    deps.reloadConfig();
+    deps.initRuntimeOptionsManager();
+    if (deps.runHeadlessInitialCommand) {
+      await deps.runHeadlessInitialCommand();
+    } else {
+      deps.createMpvClient();
+      deps.createSubtitleTimingTracker();
+      deps.initializeOverlayRuntime();
+      deps.handleInitialArgs();
+    }
+    return;
+  }
+
   if (deps.shouldUseMinimalStartup?.()) {
     deps.reloadConfig();
     deps.handleInitialArgs();

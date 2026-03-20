@@ -348,6 +348,7 @@
     "knownWords": {
       "highlightEnabled": false, // Enable fast local highlighting for words already known in Anki. Values: true | false
       "refreshMinutes": 1440, // Minutes between known-word cache refreshes.
+      "addMinedWordsImmediately": true, // Immediately append newly mined card words into the known-word cache. Values: true | false
       "matchMode": "headword", // Known-word matching strategy for subtitle annotations. Values: headword | surface
       "decks": {}, // Decks and fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word", "Word Reading"] }.
       "color": "#a6da95" // Color used for known-word highlights.

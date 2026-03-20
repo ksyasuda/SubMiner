@@ -539,8 +539,21 @@ test('handleCliCommand runs refresh-known-words command', () => {
   assert.ok(calls.includes('refreshKnownWords'));
 });
 
+test('handleCliCommand stops app after headless initial refresh-known-words completes', async () => {
+  const { deps, calls } = createDeps({
+    hasMainWindow: () => false,
+  });
+
+  handleCliCommand(makeArgs({ refreshKnownWords: true }), 'initial', deps);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(calls.includes('refreshKnownWords'));
+  assert.ok(calls.includes('stopApp'));
+});
+
 test('handleCliCommand reports async refresh-known-words errors to OSD', async () => {
   const { deps, calls, osd } = createDeps({
+    hasMainWindow: () => false,
     refreshKnownWords: async () => {
       throw new Error('refresh boom');
     },
@@ -551,4 +564,5 @@ test('handleCliCommand reports async refresh-known-words errors to OSD', async (
 
   assert.ok(calls.some((value) => value.startsWith('error:refreshKnownWords failed:')));
   assert.ok(osd.some((value) => value.includes('Refresh known words failed: refresh boom')));
+  assert.ok(calls.includes('stopApp'));
 });

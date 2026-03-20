@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   hasExplicitCommand,
+  isHeadlessInitialCommand,
   parseArgs,
   shouldRunSettingsOnlyStartup,
   shouldStartApp,
@@ -101,7 +102,8 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   const refreshKnownWords = parseArgs(['--refresh-known-words']);
   assert.equal(refreshKnownWords.help, false);
   assert.equal(hasExplicitCommand(refreshKnownWords), true);
-  assert.equal(shouldStartApp(refreshKnownWords), false);
+  assert.equal(shouldStartApp(refreshKnownWords), true);
+  assert.equal(isHeadlessInitialCommand(refreshKnownWords), true);
 
   const settings = parseArgs(['--settings']);
   assert.equal(settings.settings, true);

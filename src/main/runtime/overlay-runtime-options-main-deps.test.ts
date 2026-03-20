@@ -39,6 +39,7 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
       cancelled: true,
     }),
     getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+    shouldStartAnkiIntegration: () => false,
   });
 
   const deps = build();
@@ -46,6 +47,7 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
   assert.equal(deps.isVisibleOverlayVisible(), true);
   assert.equal(deps.getMpvSocketPath(), '/tmp/mpv.sock');
   assert.equal(deps.getKnownWordCacheStatePath(), '/tmp/known-words-cache.json');
+  assert.equal(deps.shouldStartAnkiIntegration(), false);
 
   deps.createMainWindow();
   deps.registerGlobalShortcuts();

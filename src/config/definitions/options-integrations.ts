@@ -109,6 +109,12 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Minutes between known-word cache refreshes.',
     },
     {
+      path: 'ankiConnect.knownWords.addMinedWordsImmediately',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.knownWords.addMinedWordsImmediately,
+      description: 'Immediately append newly mined card words into the known-word cache.',
+    },
+    {
       path: 'ankiConnect.nPlusOne.minSentenceWords',
       kind: 'number',
       defaultValue: defaultConfig.ankiConnect.nPlusOne.minSentenceWords,

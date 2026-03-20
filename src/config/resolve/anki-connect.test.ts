@@ -70,6 +70,20 @@ test('accepts knownWords.decks object format with field arrays', () => {
   );
 });
 
+test('accepts knownWords.addMinedWordsImmediately boolean override', () => {
+  const { context, warnings } = makeContext({
+    knownWords: { addMinedWordsImmediately: false },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.knownWords.addMinedWordsImmediately, false);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'ankiConnect.knownWords.addMinedWordsImmediately'),
+    false,
+  );
+});
+
 test('converts legacy knownWords.decks array to object with default fields', () => {
   const { context, warnings } = makeContext({
     knownWords: { decks: ['Core Deck'] },

@@ -661,7 +661,7 @@ export async function startOverlay(appPath: string, args: Args, socketPath: stri
   const target = resolveAppSpawnTarget(appPath, overlayArgs);
   state.overlayProc = spawn(target.command, target.args, {
     stdio: 'inherit',
-    env: { ...process.env, SUBMINER_MPV_LOG: getMpvLogPath() },
+    env: buildAppEnv(),
   });
   state.overlayManagedByLauncher = true;
 
@@ -688,7 +688,10 @@ export function launchTexthookerOnly(appPath: string, args: Args): never {
   if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
 
   log('info', args.logLevel, 'Launching texthooker mode...');
-  const result = spawnSync(appPath, overlayArgs, { stdio: 'inherit' });
+  const result = spawnSync(appPath, overlayArgs, {
+    stdio: 'inherit',
+    env: buildAppEnv(),
+  });
   process.exit(result.status ?? 0);
 }
 
@@ -702,7 +705,10 @@ export function stopOverlay(args: Args): void {
     const stopArgs = ['--stop'];
     if (args.logLevel !== 'info') stopArgs.push('--log-level', args.logLevel);
 
-    spawnSync(state.appPath, stopArgs, { stdio: 'ignore' });
+    spawnSync(state.appPath, stopArgs, {
+      stdio: 'ignore',
+      env: buildAppEnv(),
+    });
 
     if (state.overlayProc && !state.overlayProc.killed) {
       try {
@@ -763,6 +769,7 @@ function buildAppEnv(): NodeJS.ProcessEnv {
     ...process.env,
     SUBMINER_MPV_LOG: getMpvLogPath(),
   };
+  delete env.ELECTRON_RUN_AS_NODE;
   const layers = env.VK_INSTANCE_LAYERS;
   if (typeof layers === 'string' && layers.trim().length > 0) {
     const filtered = layers

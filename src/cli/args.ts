@@ -376,6 +376,10 @@ export function hasExplicitCommand(args: CliArgs): boolean {
   );
 }
 
+export function isHeadlessInitialCommand(args: CliArgs): boolean {
+  return args.refreshKnownWords;
+}
+
 export function shouldStartApp(args: CliArgs): boolean {
   if (args.stop && !args.start) return false;
   if (
@@ -391,6 +395,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.mineSentence ||
     args.mineSentenceMultiple ||
     args.updateLastCardFromClipboard ||
+    args.refreshKnownWords ||
     args.toggleSecondarySub ||
     args.triggerFieldGrouping ||
     args.triggerSubsync ||

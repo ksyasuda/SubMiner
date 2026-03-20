@@ -43,6 +43,7 @@ test('overlay runtime bootstrap handlers compose options builder and bootstrap h
           cancelled: true,
         }) as KikuFieldGroupingChoice,
       getKnownWordCacheStatePath: () => '/tmp/known.json',
+      shouldStartAnkiIntegration: () => true,
     },
     initializeOverlayRuntimeBootstrapDeps: {
       isOverlayRuntimeInitialized: () => initialized,

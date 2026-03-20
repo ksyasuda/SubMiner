@@ -75,6 +75,7 @@ export function initializeOverlayRuntime(options: {
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
+  shouldStartAnkiIntegration?: () => boolean;
   createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
 }): void {
   options.createMainWindow();
@@ -135,7 +136,9 @@ export function initializeOverlayRuntime(options: {
       createFieldGroupingCallback: options.createFieldGroupingCallback,
       knownWordCacheStatePath: options.getKnownWordCacheStatePath(),
     });
-    integration.start();
+    if (options.shouldStartAnkiIntegration?.() !== false) {
+      integration.start();
+    }
     options.setAnkiIntegration(integration);
   }
 

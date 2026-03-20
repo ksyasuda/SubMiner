@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { log } from '../log.js';
+import { runAppCommandWithInherit } from '../mpv.js';
 import { commandExists } from '../util.js';
 import { resolveMainConfigPath } from '../config-path.js';
 import type { LauncherCommandContext } from './context.js';
@@ -8,12 +9,14 @@ interface DoctorCommandDeps {
   commandExists(command: string): boolean;
   configExists(path: string): boolean;
   resolveMainConfigPath(): string;
+  runAppCommandWithInherit(appPath: string, appArgs: string[]): never;
 }
 
 const defaultDeps: DoctorCommandDeps = {
   commandExists,
   configExists: fs.existsSync,
   resolveMainConfigPath,
+  runAppCommandWithInherit,
 };
 
 export function runDoctorCommand(
@@ -72,14 +75,21 @@ export function runDoctorCommand(
     },
   ];
 
-  const hasHardFailure = checks.some((entry) =>
-    entry.label === 'app binary' || entry.label === 'mpv' ? !entry.ok : false,
-  );
-
   for (const check of checks) {
     log(check.ok ? 'info' : 'warn', args.logLevel, `[doctor] ${check.label}: ${check.detail}`);
   }
 
+  if (args.doctorRefreshKnownWords) {
+    if (!appPath) {
+      processAdapter.exit(1);
+      return true;
+    }
+    deps.runAppCommandWithInherit(appPath, ['--refresh-known-words']);
+  }
+
+  const hasHardFailure = checks.some((entry) =>
+    entry.label === 'app binary' || entry.label === 'mpv' ? !entry.ok : false,
+  );
   processAdapter.exit(hasHardFailure ? 1 : 0);
   return true;
 }

@@ -109,6 +109,60 @@ test('initializeOverlayRuntime starts Anki integration when ankiConnect.enabled 
   assert.equal(setIntegrationCalls, 1);
 });
 
+test('initializeOverlayRuntime can skip starting Anki integration transport', () => {
+  let createdIntegrations = 0;
+  let startedIntegrations = 0;
+  let setIntegrationCalls = 0;
+
+  initializeOverlayRuntime({
+    backendOverride: null,
+    createMainWindow: () => {},
+    registerGlobalShortcuts: () => {},
+    updateVisibleOverlayBounds: () => {},
+    isVisibleOverlayVisible: () => false,
+    updateVisibleOverlayVisibility: () => {},
+    getOverlayWindows: () => [],
+    syncOverlayShortcuts: () => {},
+    setWindowTracker: () => {},
+    getMpvSocketPath: () => '/tmp/mpv.sock',
+    createWindowTracker: () => null,
+    getResolvedConfig: () => ({
+      ankiConnect: { enabled: true } as never,
+    }),
+    getSubtitleTimingTracker: () => ({}),
+    getMpvClient: () => ({
+      send: () => {},
+    }),
+    getRuntimeOptionsManager: () => ({
+      getEffectiveAnkiConnectConfig: (config) => config as never,
+    }),
+    createAnkiIntegration: () => {
+      createdIntegrations += 1;
+      return {
+        start: () => {
+          startedIntegrations += 1;
+        },
+      };
+    },
+    setAnkiIntegration: () => {
+      setIntegrationCalls += 1;
+    },
+    showDesktopNotification: () => {},
+    createFieldGroupingCallback: () => async () => ({
+      keepNoteId: 7,
+      deleteNoteId: 8,
+      deleteDuplicate: false,
+      cancelled: false,
+    }),
+    getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+    shouldStartAnkiIntegration: () => false,
+  });
+
+  assert.equal(createdIntegrations, 1);
+  assert.equal(startedIntegrations, 0);
+  assert.equal(setIntegrationCalls, 1);
+});
+
 test('initializeOverlayRuntime merges shared ai config with Anki overrides', () => {
   initializeOverlayRuntime({
     backendOverride: null,

@@ -249,6 +249,7 @@ export interface AnkiConnectConfig {
   knownWords?: {
     highlightEnabled?: boolean;
     refreshMinutes?: number;
+    addMinedWordsImmediately?: boolean;
     matchMode?: NPlusOneMatchMode;
     decks?: Record<string, string[]>;
     color?: string;
@@ -754,6 +755,7 @@ export interface ResolvedConfig {
     knownWords: {
       highlightEnabled: boolean;
       refreshMinutes: number;
+      addMinedWordsImmediately: boolean;
       matchMode: NPlusOneMatchMode;
       decks: Record<string, string[]>;
       color: string;
