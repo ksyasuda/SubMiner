@@ -207,6 +207,78 @@ test('getAnimeEpisodes prefers the latest session media position when the latest
   }
 });
 
+test('getAnimeEpisodes falls back to the latest subtitle segment end when session progress checkpoints are missing', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/subtitle-progress-fallback.mkv', {
+      canonicalTitle: 'Subtitle Progress Fallback',
+      sourcePath: '/tmp/subtitle-progress-fallback.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Subtitle Progress Fallback Anime',
+      canonicalTitle: 'Subtitle Progress Fallback Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'subtitle-progress-fallback.mkv',
+      parsedTitle: 'Subtitle Progress Fallback Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":1}',
+    });
+    db.prepare('UPDATE imm_videos SET duration_ms = ? WHERE video_id = ?').run(24_000, videoId);
+
+    const startedAtMs = 1_100_000;
+    const sessionId = startSessionRecord(db, videoId, startedAtMs).sessionId;
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET
+        ended_at_ms = ?,
+        status = 2,
+        active_watched_ms = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE session_id = ?
+      `,
+    ).run(startedAtMs + 10_000, 10_000, startedAtMs + 10_000, sessionId);
+    stmts.eventInsertStmt.run(
+      sessionId,
+      startedAtMs + 9_000,
+      EVENT_SUBTITLE_LINE,
+      1,
+      18_000,
+      21_000,
+      5,
+      0,
+      '{"line":"progress fallback"}',
+      startedAtMs + 9_000,
+      startedAtMs + 9_000,
+    );
+
+    const [episode] = getAnimeEpisodes(db, animeId);
+    assert.ok(episode);
+    assert.equal(episode?.endedMediaMs, 21_000);
+    assert.equal(episode?.totalSessions, 1);
+    assert.equal(episode?.totalActiveMs, 10_000);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getSessionTimeline returns the full session when no limit is provided', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

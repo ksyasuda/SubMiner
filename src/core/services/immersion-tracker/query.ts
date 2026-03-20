@@ -1745,10 +1745,38 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
       v.parsed_episode AS episode,
       v.duration_ms AS durationMs,
       (
-        SELECT s_recent.ended_media_ms
+        SELECT COALESCE(
+          s_recent.ended_media_ms,
+          (
+            SELECT MAX(line.segment_end_ms)
+            FROM imm_subtitle_lines line
+            WHERE line.session_id = s_recent.session_id
+              AND line.segment_end_ms IS NOT NULL
+          ),
+          (
+            SELECT MAX(event.segment_end_ms)
+            FROM imm_session_events event
+            WHERE event.session_id = s_recent.session_id
+              AND event.segment_end_ms IS NOT NULL
+          )
+        )
         FROM imm_sessions s_recent
         WHERE s_recent.video_id = v.video_id
-          AND s_recent.ended_media_ms IS NOT NULL
+          AND (
+            s_recent.ended_media_ms IS NOT NULL
+            OR EXISTS (
+              SELECT 1
+              FROM imm_subtitle_lines line
+              WHERE line.session_id = s_recent.session_id
+                AND line.segment_end_ms IS NOT NULL
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM imm_session_events event
+              WHERE event.session_id = s_recent.session_id
+                AND event.segment_end_ms IS NOT NULL
+            )
+          )
         ORDER BY
           COALESCE(s_recent.ended_at_ms, s_recent.LAST_UPDATE_DATE, s_recent.started_at_ms) DESC,
           s_recent.session_id DESC

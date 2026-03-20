@@ -48,6 +48,64 @@ function createContext(overrides: Partial<LauncherCommandContext> = {}): Launche
   };
 }
 
+type StatsTestArgOverrides = {
+  stats?: boolean;
+  statsBackground?: boolean;
+  statsCleanup?: boolean;
+  statsCleanupVocab?: boolean;
+  statsCleanupLifetime?: boolean;
+  statsStop?: boolean;
+  logLevel?: LauncherCommandContext['args']['logLevel'];
+};
+
+function createStatsTestHarness(overrides: StatsTestArgOverrides = {}) {
+  const context = createContext();
+  const forwarded: string[][] = [];
+  const removedPaths: string[] = [];
+  const createTempDir = (_prefix: string) => {
+    const created = `/tmp/subminer-stats-test`;
+    return created;
+  };
+  const joinPath = (...parts: string[]) => parts.join('/');
+  const removeDir = (targetPath: string) => {
+    removedPaths.push(targetPath);
+  };
+  const runAppCommandAttachedStub = async (
+    _appPath: string,
+    appArgs: string[],
+    _logLevel: LauncherCommandContext['args']['logLevel'],
+    _label: string,
+  ) => {
+    forwarded.push(appArgs);
+    return 0;
+  };
+  const waitForStatsResponseStub = async () => ({ ok: true, url: 'http://127.0.0.1:5175' });
+
+  context.args = {
+    ...context.args,
+    stats: true,
+    ...overrides,
+  };
+
+  return {
+    context,
+    forwarded,
+    removedPaths,
+    createTempDir,
+    joinPath,
+    removeDir,
+    runAppCommandAttachedStub,
+    waitForStatsResponseStub,
+    commandDeps: {
+      createTempDir,
+      joinPath,
+      runAppCommandAttached: runAppCommandAttachedStub,
+      waitForStatsResponse: waitForStatsResponseStub,
+      removeDir,
+    },
+  };
+}
+
 test('config command writes newline-terminated path via process adapter', () => {
   const writes: string[] = [];
   const context = createContext();
@@ -157,24 +215,11 @@ test('dictionary command throws if app handoff unexpectedly returns', () => {
 });
 
 test('stats command launches attached app command with response path', async () => {
-  const context = createContext();
-  context.args.stats = true;
-  context.args.logLevel = 'debug';
-  const forwarded: string[][] = [];
-
-  const handled = await runStatsCommand(context, {
-    createTempDir: () => '/tmp/subminer-stats-test',
-    joinPath: (...parts) => parts.join('/'),
-    runAppCommandAttached: async (_appPath, appArgs) => {
-      forwarded.push(appArgs);
-      return 0;
-    },
-    waitForStatsResponse: async () => ({ ok: true, url: 'http://127.0.0.1:5175' }),
-    removeDir: () => {},
-  });
+  const harness = createStatsTestHarness({ stats: true, logLevel: 'debug' });
+  const handled = await runStatsCommand(harness.context, harness.commandDeps);
 
   assert.equal(handled, true);
-  assert.deepEqual(forwarded, [
+  assert.deepEqual(harness.forwarded, [
     [
       '--stats',
       '--stats-response-path',
@@ -183,50 +228,34 @@ test('stats command launches attached app command with response path', async () 
       'debug',
     ],
   ]);
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats background command launches attached daemon control command with response path', async () => {
-  const context = createContext();
-  context.args.stats = true;
-  (context.args as typeof context.args & { statsBackground?: boolean }).statsBackground = true;
-  const forwarded: string[][] = [];
-
-  const handled = await runStatsCommand(context, {
-    createTempDir: () => '/tmp/subminer-stats-test',
-    joinPath: (...parts) => parts.join('/'),
-    runAppCommandAttached: async (_appPath, appArgs) => {
-      forwarded.push(appArgs);
-      return 0;
-    },
-    waitForStatsResponse: async () => ({ ok: true, url: 'http://127.0.0.1:5175' }),
-    removeDir: () => {},
-  } as Parameters<typeof runStatsCommand>[1]);
+  const harness = createStatsTestHarness({ stats: true, statsBackground: true });
+  const handled = await runStatsCommand(harness.context, harness.commandDeps);
 
   assert.equal(handled, true);
-  assert.deepEqual(forwarded, [
+  assert.deepEqual(harness.forwarded, [
     [
       '--stats-daemon-start',
       '--stats-response-path',
       '/tmp/subminer-stats-test/response.json',
     ],
   ]);
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats command waits for attached app exit after startup response', async () => {
-  const context = createContext();
-  context.args.stats = true;
-  const forwarded: string[][] = [];
+  const harness = createStatsTestHarness({ stats: true });
   const started = new Promise<number>((resolve) => setTimeout(() => resolve(0), 20));
 
-  const statsCommand = runStatsCommand(context, {
-    createTempDir: () => '/tmp/subminer-stats-test',
-    joinPath: (...parts) => parts.join('/'),
-    runAppCommandAttached: async (_appPath, appArgs) => {
-      forwarded.push(appArgs);
+  const statsCommand = runStatsCommand(harness.context, {
+    ...harness.commandDeps,
+    runAppCommandAttached: async (...args) => {
+      await harness.runAppCommandAttachedStub(...args);
       return started;
     },
-    waitForStatsResponse: async () => ({ ok: true, url: 'http://127.0.0.1:5175' }),
-    removeDir: () => {},
   });
   const result = await Promise.race([
     statsCommand.then(() => 'resolved'),
@@ -237,53 +266,46 @@ test('stats command waits for attached app exit after startup response', async (
 
   const final = await statsCommand;
   assert.equal(final, true);
-  assert.deepEqual(forwarded, [
+  assert.deepEqual(harness.forwarded, [
     [
       '--stats',
       '--stats-response-path',
       '/tmp/subminer-stats-test/response.json',
     ],
   ]);
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats command throws when attached app exits non-zero after startup response', async () => {
-  const context = createContext();
-  context.args.stats = true;
+  const harness = createStatsTestHarness({ stats: true });
 
   await assert.rejects(async () => {
-    await runStatsCommand(context, {
-      createTempDir: () => '/tmp/subminer-stats-test',
-      joinPath: (...parts) => parts.join('/'),
-      runAppCommandAttached: async () => {
+    await runStatsCommand(harness.context, {
+      ...harness.commandDeps,
+      runAppCommandAttached: async (...args) => {
+        await harness.runAppCommandAttachedStub(...args);
         await new Promise((resolve) => setTimeout(resolve, 10));
         return 3;
       },
-      waitForStatsResponse: async () => ({ ok: true, url: 'http://127.0.0.1:5175' }),
-      removeDir: () => {},
     });
   }, /Stats app exited with status 3\./);
+
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats cleanup command forwards cleanup vocab flags to the app', async () => {
-  const context = createContext();
-  context.args.stats = true;
-  context.args.statsCleanup = true;
-  context.args.statsCleanupVocab = true;
-  const forwarded: string[][] = [];
-
-  const handled = await runStatsCommand(context, {
-    createTempDir: () => '/tmp/subminer-stats-test',
-    joinPath: (...parts) => parts.join('/'),
-    runAppCommandAttached: async (_appPath, appArgs) => {
-      forwarded.push(appArgs);
-      return 0;
-    },
+  const harness = createStatsTestHarness({
+    stats: true,
+    statsCleanup: true,
+    statsCleanupVocab: true,
+  });
+  const handled = await runStatsCommand(harness.context, {
+    ...harness.commandDeps,
     waitForStatsResponse: async () => ({ ok: true }),
-    removeDir: () => {},
   });
 
   assert.equal(handled, true);
-  assert.deepEqual(forwarded, [
+  assert.deepEqual(harness.forwarded, [
     [
       '--stats',
       '--stats-response-path',
@@ -292,76 +314,62 @@ test('stats cleanup command forwards cleanup vocab flags to the app', async () =
       '--stats-cleanup-vocab',
     ],
   ]);
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats stop command forwards stop flag to the app', async () => {
-  const context = createContext();
-  context.args.stats = true;
-  (context.args as typeof context.args & { statsStop?: boolean }).statsStop = true;
-  const forwarded: string[][] = [];
+  const harness = createStatsTestHarness({ stats: true, statsStop: true });
 
-  const handled = await runStatsCommand(context, {
-    createTempDir: () => '/tmp/subminer-stats-test',
-    joinPath: (...parts) => parts.join('/'),
-    runAppCommandAttached: async (_appPath, appArgs) => {
-      forwarded.push(appArgs);
-      return 0;
-    },
+  const handled = await runStatsCommand(harness.context, {
+    ...harness.commandDeps,
     waitForStatsResponse: async () => ({ ok: true }),
-    removeDir: () => {},
   });
 
   assert.equal(handled, true);
-  assert.deepEqual(forwarded, [
+  assert.deepEqual(harness.forwarded, [
     [
       '--stats-daemon-stop',
       '--stats-response-path',
       '/tmp/subminer-stats-test/response.json',
     ],
   ]);
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats stop command exits on process exit without waiting for startup response', async () => {
-  const context = createContext();
-  context.args.stats = true;
-  (context.args as typeof context.args & { statsStop?: boolean }).statsStop = true;
+  const harness = createStatsTestHarness({ stats: true, statsStop: true });
   let waitedForResponse = false;
 
-  const handled = await runStatsCommand(context, {
-    createTempDir: () => '/tmp/subminer-stats-test',
-    joinPath: (...parts) => parts.join('/'),
-    runAppCommandAttached: async () => 0,
+  const handled = await runStatsCommand(harness.context, {
+    ...harness.commandDeps,
+    runAppCommandAttached: async (...args) => {
+      await harness.runAppCommandAttachedStub(...args);
+      return 0;
+    },
     waitForStatsResponse: async () => {
       waitedForResponse = true;
       return { ok: true };
     },
-    removeDir: () => {},
   });
 
   assert.equal(handled, true);
   assert.equal(waitedForResponse, false);
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats cleanup command forwards lifetime rebuild flag to the app', async () => {
-  const context = createContext();
-  context.args.stats = true;
-  context.args.statsCleanup = true;
-  context.args.statsCleanupLifetime = true;
-  const forwarded: string[][] = [];
-
-  const handled = await runStatsCommand(context, {
-    createTempDir: () => '/tmp/subminer-stats-test',
-    joinPath: (...parts) => parts.join('/'),
-    runAppCommandAttached: async (_appPath, appArgs) => {
-      forwarded.push(appArgs);
-      return 0;
-    },
+  const harness = createStatsTestHarness({
+    stats: true,
+    statsCleanup: true,
+    statsCleanupLifetime: true,
+  });
+  const handled = await runStatsCommand(harness.context, {
+    ...harness.commandDeps,
     waitForStatsResponse: async () => ({ ok: true }),
-    removeDir: () => {},
   });
 
   assert.equal(handled, true);
-  assert.deepEqual(forwarded, [
+  assert.deepEqual(harness.forwarded, [
     [
       '--stats',
       '--stats-response-path',
@@ -370,56 +378,64 @@ test('stats cleanup command forwards lifetime rebuild flag to the app', async ()
       '--stats-cleanup-lifetime',
     ],
   ]);
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats command throws when stats response reports an error', async () => {
-  const context = createContext();
-  context.args.stats = true;
+  const harness = createStatsTestHarness({ stats: true });
 
   await assert.rejects(async () => {
-    await runStatsCommand(context, {
-      createTempDir: () => '/tmp/subminer-stats-test',
-      joinPath: (...parts) => parts.join('/'),
-      runAppCommandAttached: async () => 0,
+    await runStatsCommand(harness.context, {
+      ...harness.commandDeps,
+      runAppCommandAttached: async (...args) => {
+        await harness.runAppCommandAttachedStub(...args);
+        return 0;
+      },
       waitForStatsResponse: async () => ({
         ok: false,
         error: 'Immersion tracking is disabled in config.',
       }),
-      removeDir: () => {},
     });
   }, /Immersion tracking is disabled in config\./);
+
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats cleanup command fails if attached app exits before startup response', async () => {
-  const context = createContext();
-  context.args.stats = true;
-  context.args.statsCleanup = true;
-  context.args.statsCleanupVocab = true;
+  const harness = createStatsTestHarness({
+    stats: true,
+    statsCleanup: true,
+    statsCleanupVocab: true,
+  });
 
   await assert.rejects(async () => {
-    await runStatsCommand(context, {
-      createTempDir: () => '/tmp/subminer-stats-test',
-      joinPath: (...parts) => parts.join('/'),
-      runAppCommandAttached: async () => 2,
+    await runStatsCommand(harness.context, {
+      ...harness.commandDeps,
+      runAppCommandAttached: async (...args) => {
+        await harness.runAppCommandAttachedStub(...args);
+        return 2;
+      },
       waitForStatsResponse: async () => {
         await new Promise((resolve) => setTimeout(resolve, 25));
         return { ok: true, url: 'http://127.0.0.1:5175' };
       },
-      removeDir: () => {},
     });
   }, /Stats app exited before startup response \(status 2\)\./);
+
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats command aborts pending response wait when app exits before startup response', async () => {
-  const context = createContext();
-  context.args.stats = true;
+  const harness = createStatsTestHarness({ stats: true });
   let aborted = false;
 
   await assert.rejects(async () => {
-    await runStatsCommand(context, {
-      createTempDir: () => '/tmp/subminer-stats-test',
-      joinPath: (...parts) => parts.join('/'),
-      runAppCommandAttached: async () => 2,
+    await runStatsCommand(harness.context, {
+      ...harness.commandDeps,
+      runAppCommandAttached: async (...args) => {
+        await harness.runAppCommandAttachedStub(...args);
+        return 2;
+      },
       waitForStatsResponse: async (_responsePath, signal) =>
         await new Promise((resolve) => {
           signal?.addEventListener(
@@ -431,25 +447,24 @@ test('stats command aborts pending response wait when app exits before startup r
             { once: true },
           );
         }),
-      removeDir: () => {},
     });
   }, /Stats app exited before startup response \(status 2\)\./);
 
   assert.equal(aborted, true);
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats command aborts pending response wait when attached app fails to spawn', async () => {
-  const context = createContext();
-  context.args.stats = true;
+  const harness = createStatsTestHarness({ stats: true });
   const spawnError = new Error('spawn failed');
   let aborted = false;
 
   await assert.rejects(
     async () => {
-      await runStatsCommand(context, {
-        createTempDir: () => '/tmp/subminer-stats-test',
-        joinPath: (...parts) => parts.join('/'),
-        runAppCommandAttached: async () => {
+      await runStatsCommand(harness.context, {
+        ...harness.commandDeps,
+        runAppCommandAttached: async (...args) => {
+          await harness.runAppCommandAttachedStub(...args);
           throw spawnError;
         },
         waitForStatsResponse: async (_responsePath, signal) =>
@@ -463,27 +478,30 @@ test('stats command aborts pending response wait when attached app fails to spaw
               { once: true },
             );
           }),
-        removeDir: () => {},
       });
     },
     (error: unknown) => error === spawnError,
   );
 
   assert.equal(aborted, true);
+  assert.equal(harness.removedPaths.length, 1);
 });
 
 test('stats cleanup command aborts pending response wait when app exits before startup response', async () => {
-  const context = createContext();
-  context.args.stats = true;
-  context.args.statsCleanup = true;
-  context.args.statsCleanupVocab = true;
+  const harness = createStatsTestHarness({
+    stats: true,
+    statsCleanup: true,
+    statsCleanupVocab: true,
+  });
   let aborted = false;
 
   await assert.rejects(async () => {
-    await runStatsCommand(context, {
-      createTempDir: () => '/tmp/subminer-stats-test',
-      joinPath: (...parts) => parts.join('/'),
-      runAppCommandAttached: async () => 2,
+    await runStatsCommand(harness.context, {
+      ...harness.commandDeps,
+      runAppCommandAttached: async (...args) => {
+        await harness.runAppCommandAttachedStub(...args);
+        return 2;
+      },
       waitForStatsResponse: async (_responsePath, signal) =>
         await new Promise((resolve) => {
           signal?.addEventListener(
@@ -495,9 +513,9 @@ test('stats cleanup command aborts pending response wait when app exits before s
             { once: true },
           );
         }),
-      removeDir: () => {},
     });
   }, /Stats app exited before startup response \(status 2\)\./);
 
   assert.equal(aborted, true);
+  assert.equal(harness.removedPaths.length, 1);
 });
