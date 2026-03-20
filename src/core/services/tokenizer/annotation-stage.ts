@@ -9,6 +9,10 @@ import {
 } from '../../../token-pos2-exclusions';
 import { JlptLevel, MergedToken, NPlusOneMatchMode, PartOfSpeech } from '../../../types';
 import { shouldIgnoreJlptByTerm, shouldIgnoreJlptForMecabPos1 } from '../jlpt-token-filter';
+import {
+  shouldExcludeTokenFromSubtitleAnnotations as sharedShouldExcludeTokenFromSubtitleAnnotations,
+  stripSubtitleAnnotationMetadata as sharedStripSubtitleAnnotationMetadata,
+} from './subtitle-annotation-filter';
 
 const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
@@ -633,34 +637,11 @@ function isExcludedFromSubtitleAnnotationsByTerm(token: MergedToken): boolean {
 }
 
 export function shouldExcludeTokenFromSubtitleAnnotations(token: MergedToken): boolean {
-  if (isExcludedFromSubtitleAnnotationsByPos1(normalizePos1Tag(token.pos1))) {
-    return true;
-  }
-
-  if (isAuxiliaryStemGrammarTailToken(token)) {
-    return true;
-  }
-
-  if (isExcludedTrailingParticleMergedToken(token)) {
-    return true;
-  }
-
-  return isExcludedFromSubtitleAnnotationsByTerm(token);
+  return sharedShouldExcludeTokenFromSubtitleAnnotations(token);
 }
 
 export function stripSubtitleAnnotationMetadata(token: MergedToken): MergedToken {
-  if (!shouldExcludeTokenFromSubtitleAnnotations(token)) {
-    return token;
-  }
-
-  return {
-    ...token,
-    isKnown: false,
-    isNPlusOneTarget: false,
-    isNameMatch: false,
-    jlptLevel: undefined,
-    frequencyRank: undefined,
-  };
+  return sharedStripSubtitleAnnotationMetadata(token);
 }
 
 function computeTokenKnownStatus(
@@ -737,6 +718,18 @@ export function annotateTokens(
 
   // Single pass: compute known word status, frequency filtering, and JLPT level together
   const annotated = tokens.map((token) => {
+    if (
+      sharedShouldExcludeTokenFromSubtitleAnnotations(token, {
+        pos1Exclusions,
+        pos2Exclusions,
+      })
+    ) {
+      return sharedStripSubtitleAnnotationMetadata(token, {
+        pos1Exclusions,
+        pos2Exclusions,
+      });
+    }
+
     const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
     const isKnown = nPlusOneEnabled
       ? computeTokenKnownStatus(token, deps.isKnownWord, deps.knownWordMatchMode)

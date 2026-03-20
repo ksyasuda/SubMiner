@@ -19,6 +19,7 @@
 import { PartOfSpeech, Token, MergedToken } from './types';
 import { DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG } from './token-pos1-exclusions';
 import { DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG } from './token-pos2-exclusions';
+import { shouldExcludeTokenFromSubtitleAnnotations } from './core/services/tokenizer/subtitle-annotation-filter';
 
 export function isNoun(tok: Token): boolean {
   return tok.partOfSpeech === PartOfSpeech.noun;
@@ -297,6 +298,10 @@ function isNPlusOneWordCountToken(
   pos1Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS1,
   pos2Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS2,
 ): boolean {
+  if (shouldExcludeTokenFromSubtitleAnnotations(token, { pos1Exclusions, pos2Exclusions })) {
+    return false;
+  }
+
   const normalizedPos1 = normalizePos1Tag(token.pos1);
   const hasPos1 = normalizedPos1.length > 0;
   if (isExcludedByTagSet(normalizedPos1, pos1Exclusions)) {

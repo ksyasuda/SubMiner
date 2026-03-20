@@ -3628,6 +3628,119 @@ test('tokenizeSubtitle excludes merged function/content token from frequency hig
   assert.equal(result.tokens?.[0]?.isNPlusOneTarget, true);
 });
 
+test('tokenizeSubtitle clears all annotations for kana-only demonstrative helper merges', async () => {
+  const result = await tokenizeSubtitle(
+    'これで実力どおりか',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: 'これで', reading: 'これで', headword: 'これ' },
+        { surface: '実力どおり', reading: 'じつりょくどおり', headword: '実力どおり' },
+        { surface: 'か', reading: 'か', headword: 'か' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) =>
+          text === 'これ' ? 9 : text === '実力どおり' ? 2500 : text === 'か' ? 800 : null,
+        getJlptLevel: (text) =>
+          text === 'これ' ? 'N5' : text === '実力どおり' ? 'N1' : text === 'か' ? 'N5' : null,
+        isKnownWord: (text) => text === 'これ',
+        getMinSentenceWordsForNPlusOne: () => 1,
+        tokenizeWithMecab: async () => [
+          {
+            headword: 'これ',
+            surface: 'これ',
+            reading: 'コレ',
+            startPos: 0,
+            endPos: 2,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '代名詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'で',
+            surface: 'で',
+            reading: 'デ',
+            startPos: 2,
+            endPos: 3,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '格助詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: '実力どおり',
+            surface: '実力どおり',
+            reading: 'ジツリョクドオリ',
+            startPos: 3,
+            endPos: 8,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '一般',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'か',
+            surface: 'か',
+            reading: 'カ',
+            startPos: 8,
+            endPos: 9,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '終助詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+      },
+    ),
+  );
+
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      isKnown: token.isKnown,
+      isNPlusOneTarget: token.isNPlusOneTarget,
+      frequencyRank: token.frequencyRank,
+      jlptLevel: token.jlptLevel,
+    })),
+    [
+      {
+        surface: 'これで',
+        headword: 'これ',
+        isKnown: false,
+        isNPlusOneTarget: false,
+        frequencyRank: undefined,
+        jlptLevel: undefined,
+      },
+      {
+        surface: '実力どおり',
+        headword: '実力どおり',
+        isKnown: false,
+        isNPlusOneTarget: true,
+        frequencyRank: 2500,
+        jlptLevel: 'N1',
+      },
+      {
+        surface: 'か',
+        headword: 'か',
+        isKnown: false,
+        isNPlusOneTarget: false,
+        frequencyRank: undefined,
+        jlptLevel: undefined,
+      },
+    ],
+  );
+});
+
 test('tokenizeSubtitle keeps frequency for content-led merged token with trailing colloquial suffixes', async () => {
   const result = await tokenizeSubtitle(
     '張り切ってんじゃ',

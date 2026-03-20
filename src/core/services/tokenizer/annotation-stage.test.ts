@@ -316,6 +316,19 @@ test('shouldExcludeTokenFromSubtitleAnnotations excludes merged lexical tokens w
   assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
 });
 
+test('shouldExcludeTokenFromSubtitleAnnotations excludes kana-only demonstrative helper merges', () => {
+  const token = makeToken({
+    surface: 'これで',
+    headword: 'これ',
+    reading: 'コレデ',
+    partOfSpeech: PartOfSpeech.noun,
+    pos1: '名詞|助詞',
+    pos2: '代名詞|格助詞',
+  });
+
+  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
+});
+
 test('stripSubtitleAnnotationMetadata keeps token hover data while clearing annotation fields', () => {
   const token = makeToken({
     surface: 'は',
@@ -481,8 +494,8 @@ test('annotateTokens N+1 minimum sentence words counts only eligible word tokens
   );
 
   assert.equal(result[0]?.isKnown, false);
-  assert.equal(result[1]?.isKnown, true);
-  assert.equal(result[2]?.isKnown, true);
+  assert.equal(result[1]?.isKnown, false);
+  assert.equal(result[2]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
 });
 
@@ -568,7 +581,7 @@ test('annotateTokens excludes default non-independent pos2 from frequency and N+
   assert.equal(result[0]?.isNPlusOneTarget, false);
 });
 
-test('annotateTokens keeps frequency for kanji noun tokens even when mecab marks them non-independent', () => {
+test('annotateTokens clears all annotations for non-independent kanji noun tokens under unified gate', () => {
   const tokens = [
     makeToken({
       surface: '者',
@@ -588,7 +601,10 @@ test('annotateTokens keeps frequency for kanji noun tokens even when mecab marks
     minSentenceWordsForNPlusOne: 1,
   });
 
-  assert.equal(result[0]?.frequencyRank, 475);
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.jlptLevel, undefined);
 });
 
 test('annotateTokens excludes likely kana SFX tokens from frequency when POS tags are missing', () => {
@@ -741,4 +757,34 @@ test('annotateTokens excludes composite tokens when all component pos tags are e
 
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens applies one shared exclusion gate across known N+1 frequency and JLPT', () => {
+  const tokens = [
+    makeToken({
+      surface: 'これで',
+      headword: 'これ',
+      reading: 'コレデ',
+      partOfSpeech: PartOfSpeech.noun,
+      pos1: '名詞|助詞',
+      pos2: '代名詞|格助詞',
+      startPos: 0,
+      endPos: 3,
+      frequencyRank: 9,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'これ',
+      getJlptLevel: (text) => (text === 'これ' ? 'N5' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.jlptLevel, undefined);
 });
