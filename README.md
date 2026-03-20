@@ -16,6 +16,9 @@
 
 SubMiner is an Electron overlay for [mpv](https://mpv.io) that turns video into a sentence-mining workstation. Look up any word with [Yomitan](https://github.com/yomidevs/yomitan), mine it to Anki with one key, and track your immersion over time.
 
+> [!NOTE]
+> Release prep target: `v0.7.0`. This cut rolls the new stats/dashboard workflow, browser/daemon stats commands, dashboard mining actions, and the latest overlay/runtime stability fixes into the next 0-ver minor line.
+
 <div align="center">
 
 [![SubMiner demo (Animated preview)](./assets/minecard.webp)](./assets/minecard.mp4)
@@ -107,6 +110,9 @@ Run `SubMiner.AppImage` (Linux), `SubMiner.app` (macOS), or `SubMiner.exe` (Wind
 subminer video.mkv          # auto-starts overlay + resumes playback
 subminer --start video.mkv  # explicit overlay start (if plugin auto_start=no)
 subminer stats              # open the immersion dashboard
+subminer stats -b           # keep the stats daemon running in background
+subminer stats -s           # stop the dedicated stats daemon
+subminer stats cleanup      # repair/prune stored stats vocabulary rows
 ```
 
 ---

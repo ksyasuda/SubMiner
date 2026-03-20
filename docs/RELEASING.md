@@ -7,7 +7,7 @@
 3. Run `bun run changelog:lint`.
 4. Bump `package.json` to the release version.
 5. Build release metadata before tagging:
-   `bun run changelog:build --version <version>`
+   `bun run changelog:build --version <version> --date <yyyy-mm-dd>`
 6. Review `CHANGELOG.md` and `release/release-notes.md`.
 7. Run release gate locally:
    `bun run changelog:check --version <version>`
@@ -25,6 +25,8 @@
 
 Notes:
 
+- Versioning policy: SubMiner stays 0-ver. Large or breaking release lines still bump the minor number (`0.x.0`), not `1.0.0`. Example: the next major line after `0.6.5` is `0.7.0`.
+- Pass `--date` explicitly when you want the release stamped with the local cut date; otherwise the generator uses the current ISO date, which can roll over to the next UTC day late at night.
 - `changelog:check` now rejects tag/package version mismatches.
 - `changelog:build` generates `CHANGELOG.md` + `release/release-notes.md` and removes the released `changes/*.md` fragments.
 - Do not tag while `changes/*.md` fragments still exist.
