@@ -334,6 +334,14 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
+      - name: Build changelog artifacts for release
+        run: |
+          if find changes -maxdepth 1 -name '*.md' -not -name README.md -print -quit | grep -q .; then
+            bun run changelog:build --version "${{ steps.version.outputs.VERSION }}"
+          else
+            echo "No pending changelog fragments found."
+          fi
+
       - name: Verify changelog is ready for tagged release
         run: bun run changelog:check --version "${{ steps.version.outputs.VERSION }}"
 

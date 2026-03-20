@@ -24,6 +24,11 @@ test('release workflow verifies a committed changelog section before publish', (
   assert.match(releaseWorkflow, /bun run changelog:check/);
 });
 
+test('release workflow builds changelog artifacts when fragments are pending', () => {
+  assert.match(releaseWorkflow, /Build changelog artifacts for release/);
+  assert.match(releaseWorkflow, /changelog:build --version/);
+});
+
 test('release workflow verifies generated config examples before packaging artifacts', () => {
   assert.match(releaseWorkflow, /bun run verify:config-example/);
 });
