@@ -166,9 +166,7 @@ export function App() {
                     ? 'Back to Sessions'
                     : 'Back to Library'
               }
-              onNavigateToAnime={
-                mediaDetail.origin.type === 'anime' ? undefined : navigateToAnime
-              }
+              onNavigateToAnime={navigateToAnime}
             />
           </Suspense>
         ) : (

@@ -1810,6 +1810,7 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
     SELECT
       v.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
+      v.anime_id AS animeId,
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,

@@ -136,6 +136,7 @@ export interface MediaDetailData {
   detail: {
     videoId: number;
     canonicalTitle: string;
+    animeId: number | null;
     totalSessions: number;
     totalActiveMs: number;
     totalCards: number;

@@ -425,6 +425,7 @@ export interface MediaLibraryRow {
 export interface MediaDetailRow {
   videoId: number;
   canonicalTitle: string;
+  animeId: number | null;
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;

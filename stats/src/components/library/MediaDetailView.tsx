@@ -38,7 +38,7 @@ export function MediaDetailView({
   if (!data?.detail) return <div className="text-ctp-overlay2 p-4">Media not found</div>;
 
   const sessions = localSessions ?? data.sessions;
-  const animeId = sessions.find((s) => s.animeId != null)?.animeId ?? null;
+  const animeId = data.detail.animeId;
   const detail = {
     ...data.detail,
     totalSessions: sessions.length,

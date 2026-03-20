@@ -35,6 +35,7 @@ test('MediaHeader renders Yomitan lookup count and lookup rate copy', () => {
       detail={{
         videoId: 7,
         canonicalTitle: 'Episode 7',
+        animeId: null,
         totalSessions: 4,
         totalActiveMs: 90_000,
         totalCards: 12,
@@ -58,6 +59,7 @@ test('MediaHeader distinguishes token occurrences from known unique words', () =
       detail={{
         videoId: 7,
         canonicalTitle: 'Episode 7',
+        animeId: null,
         totalSessions: 4,
         totalActiveMs: 90_000,
         totalCards: 12,
