@@ -333,7 +333,7 @@ function RatioView({
   }
 
   if (chartData.length === 0) {
-    return <div className="text-ctp-overlay2 text-xs p-2">No token data for this session.</div>;
+    return <div className="text-ctp-overlay2 text-xs p-2">No word data for this session.</div>;
   }
 
   const tsMin = chartData[0]!.tsMs;
@@ -522,7 +522,7 @@ function RatioView({
 
       {/* ── Bottom: Token accumulation sparkline ── */}
       <div className="flex items-center gap-2 border-t border-ctp-surface1 pt-1">
-        <span className="text-[9px] text-ctp-overlay0 whitespace-nowrap">total tokens</span>
+        <span className="text-[9px] text-ctp-overlay0 whitespace-nowrap">total words</span>
         <div className="flex-1 h-[28px]">
           <ResponsiveContainer width="100%" height={28}>
             <LineChart data={sparkData}>
@@ -608,7 +608,7 @@ function FallbackView({
   }
 
   if (chartData.length === 0) {
-    return <div className="text-ctp-overlay2 text-xs p-2">No token data for this session.</div>;
+    return <div className="text-ctp-overlay2 text-xs p-2">No word data for this session.</div>;
   }
 
   const tsMin = chartData[0]!.tsMs;
@@ -654,7 +654,7 @@ function FallbackView({
             <Tooltip
               contentStyle={tooltipStyle}
               labelFormatter={formatTime}
-              formatter={(value: number) => [`${value.toLocaleString()}`, 'Total tokens']}
+              formatter={(value: number) => [`${value.toLocaleString()}`, 'Total words']}
             />
 
             {pauseRegions.map((r, i) => (
@@ -711,7 +711,7 @@ function FallbackView({
               strokeWidth={1.5}
               dot={false}
               activeDot={{ r: 3, fill: '#8aadf4', stroke: '#1e2030', strokeWidth: 1 }}
-              name="Total tokens"
+              name="Total words"
               type="monotone"
               isAnimationActive={false}
             />

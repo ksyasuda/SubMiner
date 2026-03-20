@@ -68,10 +68,10 @@ export function AnimeOverviewStats({ detail, knownWordsSummary }: AnimeOverviewS
           tooltip="Number of completed episodes for this anime"
         />
         <Metric
-          label="Tokens Seen"
+          label="Words Seen"
           value={formatNumber(detail.totalTokensSeen)}
           color="text-ctp-mauve"
-          tooltip="Total token occurrences across all sessions"
+          tooltip="Total word occurrences across all sessions"
         />
       </div>
 
@@ -94,7 +94,7 @@ export function AnimeOverviewStats({ detail, knownWordsSummary }: AnimeOverviewS
             label="Lookup Rate"
             value={lookupRate.shortValue}
             color="text-ctp-sapphire"
-            tooltip="Yomitan lookups per 100 tokens seen"
+            tooltip="Yomitan lookups per 100 words seen"
           />
         ) : (
           <Metric
@@ -116,7 +116,7 @@ export function AnimeOverviewStats({ detail, knownWordsSummary }: AnimeOverviewS
             label="Known Words"
             value="—"
             color="text-ctp-overlay2"
-            tooltip="No token data available yet"
+            tooltip="No word data available yet"
           />
         )}
       </div>

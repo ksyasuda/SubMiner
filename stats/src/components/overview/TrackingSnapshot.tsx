@@ -95,7 +95,7 @@ export function TrackingSnapshot({
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Lifetime Yomitan lookups normalized by total tokens seen">
+        <Tooltip text="Lifetime Yomitan lookups normalized by total words seen">
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Lookup Rate</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-flamingo">
@@ -103,9 +103,9 @@ export function TrackingSnapshot({
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Total token occurrences encountered in today's sessions">
+        <Tooltip text="Total word occurrences encountered in today's sessions">
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Tokens Today</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Words Today</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-sky">
               {formatNumber(summary.todayTokens)}
             </div>

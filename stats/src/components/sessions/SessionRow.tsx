@@ -96,7 +96,7 @@ export function SessionRow({
             <div className="text-ctp-mauve font-medium font-mono tabular-nums">
               {formatNumber(displayWordCount)}
             </div>
-            <div className="text-ctp-overlay2">tokens</div>
+            <div className="text-ctp-overlay2">words</div>
           </div>
           <div>
             <div className="text-ctp-green font-medium font-mono tabular-nums">

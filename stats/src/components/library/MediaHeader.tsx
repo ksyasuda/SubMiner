@@ -62,7 +62,7 @@ export function MediaHeader({ detail, initialKnownWordsSummary = null }: MediaHe
           </div>
           <div>
             <div className="text-ctp-mauve font-medium">{formatNumber(detail.totalTokensSeen)}</div>
-            <div className="text-xs text-ctp-overlay2">token occurrences</div>
+            <div className="text-xs text-ctp-overlay2">word occurrences</div>
           </div>
           <div>
             <div className="text-ctp-lavender font-medium">
@@ -95,7 +95,7 @@ export function MediaHeader({ detail, initialKnownWordsSummary = null }: MediaHe
           ) : (
             <div>
               <div className="text-ctp-peach font-medium">{formatPercent(knownTokenRate)}</div>
-              <div className="text-xs text-ctp-overlay2">known token match rate</div>
+              <div className="text-xs text-ctp-overlay2">known word match rate</div>
             </div>
           )}
           <div>

@@ -15,8 +15,8 @@ export function buildLookupRateDisplay(
   }
   const per100 = ((Math.max(0, yomitanLookupCount) / tokensSeen) * 100).toFixed(1);
   return {
-    shortValue: `${per100} / 100 tokens`,
-    longValue: `${per100} lookups per 100 tokens`,
+    shortValue: `${per100} / 100 words`,
+    longValue: `${per100} lookups per 100 words`,
   };
 }
 

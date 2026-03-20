@@ -174,7 +174,7 @@ function SessionItem({
             <div className="text-ctp-mauve font-medium font-mono tabular-nums">
               {formatNumber(displayWordCount)}
             </div>
-            <div className="text-ctp-overlay2">tokens</div>
+            <div className="text-ctp-overlay2">words</div>
           </div>
           <div>
             <div className="text-ctp-green font-medium font-mono tabular-nums">
@@ -265,7 +265,7 @@ function AnimeGroupRow({
               <div className="text-ctp-mauve font-medium font-mono tabular-nums">
                 {formatNumber(group.totalWords)}
               </div>
-              <div className="text-ctp-overlay2">tokens</div>
+              <div className="text-ctp-overlay2">words</div>
             </div>
             <div>
               <div className="text-ctp-green font-medium font-mono tabular-nums">
@@ -340,7 +340,7 @@ function AnimeGroupRow({
                       <div className="text-ctp-mauve font-medium font-mono tabular-nums">
                         {formatNumber(getSessionDisplayWordCount(s))}
                       </div>
-                      <div className="text-ctp-overlay2">tokens</div>
+                      <div className="text-ctp-overlay2">words</div>
                     </div>
                     <div>
                       <div className="text-ctp-green font-medium font-mono tabular-nums">

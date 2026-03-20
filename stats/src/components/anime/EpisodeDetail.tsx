@@ -86,7 +86,7 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
                 <span className="text-ctp-blue">{formatDuration(s.activeWatchedMs)}</span>
                 <span className="text-ctp-cards-mined">{formatNumber(s.cardsMined)} cards</span>
                 <span className="text-ctp-peach">
-                  {formatNumber(getSessionDisplayWordCount(s))} tokens
+                  {formatNumber(getSessionDisplayWordCount(s))} words
                 </span>
                 <span className="text-ctp-green">{formatNumber(s.knownWordsSeen)} known words</span>
                 <button
