@@ -3,6 +3,10 @@ import { getStatsClient } from './useStatsApi';
 import { SESSION_CHART_EVENT_TYPES } from '../lib/session-events';
 import type { SessionSummary, SessionTimelinePoint, SessionEvent } from '../types/stats';
 
+export function toErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export function useSessions(limit = 50) {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,7 +25,7 @@ export function useSessions(limit = 50) {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err.message);
+        setError(toErrorMessage(err));
       })
       .finally(() => {
         if (cancelled) return;
@@ -77,7 +81,7 @@ export function useSessionDetail(sessionId: number | null) {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err.message);
+        setError(toErrorMessage(err));
       })
       .finally(() => {
         if (cancelled) return;

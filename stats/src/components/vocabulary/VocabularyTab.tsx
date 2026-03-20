@@ -47,6 +47,19 @@ export function VocabularyTab({
     if (excluded.length > 0) result = result.filter((w) => !isExcluded(w));
     return result;
   }, [words, hideNames, excluded, isExcluded]);
+  const summary = useMemo(
+    () => buildVocabularySummary(filteredWords, kanji),
+    [filteredWords, kanji],
+  );
+  const knownWordCount = useMemo(() => {
+    if (knownWords.size === 0) return 0;
+
+    let count = 0;
+    for (const w of filteredWords) {
+      if (knownWords.has(w.headword)) count += 1;
+    }
+    return count;
+  }, [filteredWords, knownWords]);
 
   if (loading) {
     return (
@@ -61,15 +74,6 @@ export function VocabularyTab({
         Error: {error}
       </div>
     );
-  }
-
-  const summary = buildVocabularySummary(filteredWords, kanji);
-
-  let knownWordCount = 0;
-  if (knownWords.size > 0) {
-    for (const w of filteredWords) {
-      if (knownWords.has(w.headword)) knownWordCount++;
-    }
   }
 
   const handleSelectWord = (entry: VocabularyEntry): void => {
