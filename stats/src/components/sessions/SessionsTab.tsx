@@ -26,9 +26,14 @@ function groupSessionsByDay(sessions: SessionSummary[]): Map<string, SessionSumm
 interface SessionsTabProps {
   initialSessionId?: number | null;
   onClearInitialSession?: () => void;
+  onNavigateToMediaDetail?: (videoId: number) => void;
 }
 
-export function SessionsTab({ initialSessionId, onClearInitialSession }: SessionsTabProps = {}) {
+export function SessionsTab({
+  initialSessionId,
+  onClearInitialSession,
+  onNavigateToMediaDetail,
+}: SessionsTabProps = {}) {
   const { sessions, loading, error } = useSessions();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
@@ -125,6 +130,7 @@ export function SessionsTab({ initialSessionId, onClearInitialSession }: Session
                     onToggle={() => setExpandedId(expandedId === s.sessionId ? null : s.sessionId)}
                     onDelete={() => void handleDeleteSession(s)}
                     deleteDisabled={deletingSessionId === s.sessionId}
+                    onNavigateToMediaDetail={onNavigateToMediaDetail}
                   />
                   {expandedId === s.sessionId && (
                     <div id={detailsId}>

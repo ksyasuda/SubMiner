@@ -10,6 +10,7 @@ import {
   navigateToSession as navigateToSessionState,
   openAnimeEpisodeDetail,
   openOverviewMediaDetail,
+  openSessionsMediaDetail,
   switchTab,
 } from './lib/stats-navigation';
 
@@ -110,6 +111,10 @@ export function App() {
     [],
   );
 
+  const navigateToSessionsMediaDetail = useCallback((videoId: number) => {
+    setViewState((prev) => openSessionsMediaDetail(prev, videoId));
+  }, []);
+
   const openWordDetail = useCallback((wordId: number) => {
     setGlobalWordId(wordId);
   }, []);
@@ -155,7 +160,14 @@ export function App() {
               }
               onBack={() => setViewState((prev) => closeMediaDetail(prev))}
               backLabel={
-                mediaDetail.origin.type === 'overview' ? 'Back to Overview' : 'Back to Library'
+                mediaDetail.origin.type === 'overview'
+                  ? 'Back to Overview'
+                  : mediaDetail.origin.type === 'sessions'
+                    ? 'Back to Sessions'
+                    : 'Back to Library'
+              }
+              onNavigateToAnime={
+                mediaDetail.origin.type === 'anime' ? undefined : navigateToAnime
               }
             />
           </Suspense>
@@ -242,6 +254,7 @@ export function App() {
                     onClearInitialSession={() =>
                       setViewState((prev) => ({ ...prev, focusedSessionId: null }))
                     }
+                    onNavigateToMediaDetail={navigateToSessionsMediaDetail}
                   />
                 </Suspense>
               </section>

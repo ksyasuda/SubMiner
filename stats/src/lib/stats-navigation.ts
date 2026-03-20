@@ -1,7 +1,10 @@
 import type { SessionSummary } from '../types/stats';
 import type { TabId } from '../components/layout/TabBar';
 
-export type MediaDetailOrigin = { type: 'anime'; animeId: number } | { type: 'overview' };
+export type MediaDetailOrigin =
+  | { type: 'anime'; animeId: number }
+  | { type: 'overview' }
+  | { type: 'sessions' };
 
 export interface MediaDetailState {
   videoId: number;
@@ -92,6 +95,24 @@ export function openOverviewMediaDetail(
   };
 }
 
+export function openSessionsMediaDetail(
+  state: StatsViewState,
+  videoId: number,
+): StatsViewState {
+  return {
+    activeTab: 'sessions',
+    selectedAnimeId: null,
+    focusedSessionId: null,
+    mediaDetail: {
+      videoId,
+      initialSessionId: null,
+      origin: {
+        type: 'sessions',
+      },
+    },
+  };
+}
+
 export function closeMediaDetail(state: StatsViewState): StatsViewState {
   if (!state.mediaDetail) {
     return state;
@@ -100,6 +121,15 @@ export function closeMediaDetail(state: StatsViewState): StatsViewState {
   if (state.mediaDetail.origin.type === 'overview') {
     return {
       activeTab: 'overview',
+      selectedAnimeId: null,
+      focusedSessionId: null,
+      mediaDetail: null,
+    };
+  }
+
+  if (state.mediaDetail.origin.type === 'sessions') {
+    return {
+      activeTab: 'sessions',
       selectedAnimeId: null,
       focusedSessionId: null,
       mediaDetail: null,

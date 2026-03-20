@@ -52,7 +52,7 @@ Watch time, sessions, words seen, and per-anime progress/pattern charts with con
 
 #### Sessions
 
-Expandable session history with new-word activity, cumulative totals, and pause/seek/card markers.
+Expandable session history with new-word activity, cumulative totals, and pause/seek/card markers. Each session row exposes a hover-revealed ↗ button that navigates to the anime media-detail view for that session; pressing the back button there returns to the Sessions tab.
 
 ![Stats Sessions](/screenshots/stats-sessions.png)
 
