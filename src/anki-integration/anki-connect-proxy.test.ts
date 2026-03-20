@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import http from 'node:http';
+import { once } from 'node:events';
 import test from 'node:test';
 import { AnkiConnectProxyServer } from './anki-connect-proxy';
 
@@ -320,6 +322,83 @@ test('proxy fallback-enqueues latest note for addNote responses without note IDs
   assert.deepEqual(findNotesQueries, ['"deck:My \\"Japanese\\" Deck" added:1']);
   assert.deepEqual(processed, [501]);
   assert.deepEqual(recordedCards, [1]);
+});
+
+test('proxy returns addNote response without waiting for background enrichment', async () => {
+  const processed: number[] = [];
+  let releaseProcessing: (() => void) | undefined;
+  const processingGate = new Promise<void>((resolve) => {
+    releaseProcessing = resolve;
+  });
+
+  const upstream = http.createServer((req, res) => {
+    assert.equal(req.method, 'POST');
+    res.statusCode = 200;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ result: 42, error: null }));
+  });
+  upstream.listen(0, '127.0.0.1');
+  await once(upstream, 'listening');
+  const upstreamAddress = upstream.address();
+  assert.ok(upstreamAddress && typeof upstreamAddress === 'object');
+  const upstreamPort = upstreamAddress.port;
+
+  const proxy = new AnkiConnectProxyServer({
+    shouldAutoUpdateNewCards: () => true,
+    processNewCard: async (noteId) => {
+      processed.push(noteId);
+      await processingGate;
+    },
+    logInfo: () => undefined,
+    logWarn: () => undefined,
+    logError: () => undefined,
+  });
+
+  try {
+    proxy.start({
+      host: '127.0.0.1',
+      port: 0,
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}`,
+    });
+
+    const proxyServer = (
+      proxy as unknown as {
+        server: http.Server | null;
+      }
+    ).server;
+    assert.ok(proxyServer);
+    if (!proxyServer.listening) {
+      await once(proxyServer, 'listening');
+    }
+    const proxyAddress = proxyServer.address();
+    assert.ok(proxyAddress && typeof proxyAddress === 'object');
+    const proxyPort = proxyAddress.port;
+
+    const response = await Promise.race([
+      fetch(`http://127.0.0.1:${proxyPort}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'addNote', version: 6, params: {} }),
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Timed out waiting for proxy response')), 500);
+      }),
+    ]);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { result: 42, error: null });
+    await waitForCondition(() => processed.length === 1);
+    assert.deepEqual(processed, [42]);
+  } finally {
+    if (releaseProcessing) {
+      releaseProcessing();
+    }
+    proxy.stop();
+    upstream.close();
+    await once(upstream, 'close');
+  }
 });
 
 test('proxy detects self-referential loop configuration', () => {
