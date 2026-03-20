@@ -16,6 +16,7 @@ test('subtitle change handler updates state, broadcasts, and forwards', () => {
   const calls: string[] = [];
   const handler = createHandleMpvSubtitleChangeHandler({
     setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getImmediateSubtitlePayload: () => null,
     broadcastSubtitle: (payload) => calls.push(`broadcast:${payload.text}`),
     onSubtitleChange: (text) => calls.push(`process:${text}`),
     refreshDiscordPresence: () => calls.push('presence'),
@@ -23,6 +24,35 @@ test('subtitle change handler updates state, broadcasts, and forwards', () => {
 
   handler({ text: 'line' });
   assert.deepEqual(calls, ['set:line', 'broadcast:line', 'process:line', 'presence']);
+});
+
+test('subtitle change handler broadcasts cached annotated payload immediately when available', () => {
+  const payloads: Array<{ text: string; tokens: unknown[] | null }> = [];
+  const calls: string[] = [];
+  const handler = createHandleMpvSubtitleChangeHandler({
+    setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getImmediateSubtitlePayload: (text) => {
+      calls.push(`lookup:${text}`);
+      return { text, tokens: [] };
+    },
+    broadcastSubtitle: (payload) => {
+      payloads.push(payload);
+      calls.push(`broadcast:${payload.tokens === null ? 'plain' : 'annotated'}`);
+    },
+    onSubtitleChange: (text) => calls.push(`process:${text}`),
+    refreshDiscordPresence: () => calls.push('presence'),
+  });
+
+  handler({ text: 'line' });
+
+  assert.deepEqual(payloads, [{ text: 'line', tokens: [] }]);
+  assert.deepEqual(calls, [
+    'set:line',
+    'lookup:line',
+    'broadcast:annotated',
+    'process:line',
+    'presence',
+  ]);
 });
 
 test('subtitle ass change handler updates state and broadcasts', () => {
@@ -57,6 +87,7 @@ test('media path change handler reports stop for empty path and probes media key
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
     ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
     syncImmersionMediaState: () => calls.push('sync'),
+    flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
     scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
     signalAutoplayReadyIfWarm: (path) => calls.push(`autoplay:${path}`),
     refreshDiscordPresence: () => calls.push('presence'),
@@ -64,6 +95,7 @@ test('media path change handler reports stop for empty path and probes media key
 
   handler({ path: '' });
   assert.deepEqual(calls, [
+    'flush-playback',
     'path:',
     'stopped',
     'restore-mpv-sub',
@@ -86,6 +118,7 @@ test('media path change handler signals autoplay-ready fast path for warm non-em
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
     ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
     syncImmersionMediaState: () => calls.push('sync'),
+    flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
     scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
     signalAutoplayReadyIfWarm: (path) => calls.push(`autoplay:${path}`),
     refreshDiscordPresence: () => calls.push('presence'),
@@ -103,16 +136,48 @@ test('media path change handler signals autoplay-ready fast path for warm non-em
   ]);
 });
 
-test('media title change handler clears guess state and syncs immersion', () => {
+test('media path change handler ignores playback flush for non-empty path', () => {
   const calls: string[] = [];
-  const handler = createHandleMpvMediaTitleChangeHandler({
+  const handler = createHandleMpvMediaPathChangeHandler({
+    updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
+    reportJellyfinRemoteStopped: () => calls.push('stopped'),
+    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${String(mediaKey)}`),
+    maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
+    ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
+    syncImmersionMediaState: () => calls.push('sync'),
+    flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
+    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
+    signalAutoplayReadyIfWarm: (path) => calls.push(`autoplay:${path}`),
+    refreshDiscordPresence: () => calls.push('presence'),
+  });
+
+  handler({ path: '/tmp/video.mkv' });
+  assert.ok(!calls.includes('flush-playback'));
+  assert.deepEqual(calls, [
+    'path:/tmp/video.mkv',
+    'reset:null',
+    'sync',
+    'dict-sync',
+    'autoplay:/tmp/video.mkv',
+    'presence',
+  ]);
+});
+
+test('media title change handler clears guess state without re-scheduling character dictionary sync', () => {
+  const calls: string[] = [];
+  const deps: Parameters<typeof createHandleMpvMediaTitleChangeHandler>[0] & {
+    scheduleCharacterDictionarySync: () => void;
+  } = {
     updateCurrentMediaTitle: (title) => calls.push(`title:${title}`),
     resetAnilistMediaGuessState: () => calls.push('reset-guess'),
     notifyImmersionTitleUpdate: (title) => calls.push(`notify:${title}`),
     syncImmersionMediaState: () => calls.push('sync'),
     scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
     refreshDiscordPresence: () => calls.push('presence'),
-  });
+  };
+  const handler = createHandleMpvMediaTitleChangeHandler(deps);
 
   handler({ title: 'Episode 1' });
   assert.deepEqual(calls, [
@@ -120,7 +185,6 @@ test('media title change handler clears guess state and syncs immersion', () => 
     'reset-guess',
     'notify:Episode 1',
     'sync',
-    'dict-sync',
     'presence',
   ]);
 });

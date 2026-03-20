@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-10 07:56'
-updated_date: '2026-03-10 08:48'
+updated_date: '2026-03-16 05:13'
 labels:
   - character-dictionary
   - yomitan
@@ -22,6 +22,7 @@ documentation:
   - /home/sudacode/projects/japanese/subminer-docs/development.md
   - /home/sudacode/projects/japanese/subminer-docs/architecture.md
 priority: high
+ordinal: 32500
 ---
 
 ## Description

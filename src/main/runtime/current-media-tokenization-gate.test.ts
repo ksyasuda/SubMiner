@@ -40,3 +40,19 @@ test('current media tokenization gate returns immediately for ready media', asyn
 
   await gate.waitUntilReady('/tmp/video-1.mkv');
 });
+
+test('current media tokenization gate stays ready for later media after first warmup', async () => {
+  const gate = createCurrentMediaTokenizationGate();
+  gate.updateCurrentMediaPath('/tmp/video-1.mkv');
+  gate.markReady('/tmp/video-1.mkv');
+  gate.updateCurrentMediaPath('/tmp/video-2.mkv');
+
+  let resolved = false;
+  const waitPromise = gate.waitUntilReady('/tmp/video-2.mkv').then(() => {
+    resolved = true;
+  });
+
+  await Promise.resolve();
+  assert.equal(resolved, true);
+  await waitPromise;
+});

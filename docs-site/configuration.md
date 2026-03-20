@@ -117,6 +117,7 @@ The configuration file includes several main sections:
 - [**Jellyfin**](#jellyfin) - Optional Jellyfin auth, library listing, and playback launch
 - [**Discord Rich Presence**](#discord-rich-presence) - Optional Discord activity card updates
 - [**Immersion Tracking**](#immersion-tracking) - Track subtitle sessions and mining activity in SQLite
+- [**Stats Dashboard**](#stats-dashboard) - Local dashboard and overlay for immersion progress
 - [**YouTube Subtitle Generation**](#youtube-subtitle-generation) - Launcher defaults for yt-dlp + local whisper fallback
 
 ## Core Settings
@@ -664,10 +665,10 @@ Use the runtime options palette to toggle settings live while SubMiner is runnin
 Current runtime options:
 
 - `ankiConnect.behavior.autoUpdateNewCards` (`On` / `Off`)
-- `ankiConnect.nPlusOne.highlightEnabled` (`On` / `Off`)
+- `ankiConnect.knownWords.highlightEnabled` (`On` / `Off`)
 - `subtitleStyle.enableJlpt` (`On` / `Off`)
 - `subtitleStyle.frequencyDictionary.enabled` (`On` / `Off`)
-- `ankiConnect.nPlusOne.matchMode` (`headword` / `surface`)
+- `ankiConnect.knownWords.matchMode` (`headword` / `surface`)
 - `ankiConnect.isKiku.fieldGrouping` (`auto` / `manual` / `disabled`)
 
 Annotation toggles (`nPlusOne`, `enableJlpt`, `frequencyDictionary.enabled`) only apply to new subtitle lines after the toggle. The currently displayed line is not re-tokenized in place.
@@ -732,6 +733,7 @@ Enable automatic Anki card creation and updates with media generation:
     "tags": ["SubMiner"],
     "deck": "Learning::Japanese",
     "fields": {
+      "word": "Expression",
       "audio": "ExpressionAudio",
       "image": "Picture",
       "sentence": "Sentence",
@@ -795,7 +797,8 @@ This example is intentionally compact. The option table below documents availabl
 | `proxy.upstreamUrl`                     | string (URL)                            | Upstream AnkiConnect URL that proxy forwards to (default: `http://127.0.0.1:8765`)                                                            |
 | `tags`                                  | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                 |
 | `deck`                                  | string                                  | Anki deck to monitor for new cards                                                                                                            |
-| `ankiConnect.nPlusOne.decks`            | array of strings                        | Decks used for N+1 known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                            |
+| `ankiConnect.knownWords.decks`          | array of strings                        | Decks used for known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                                 |
+| `fields.word`                           | string                                  | Card field for mined word / expression text (default: `Expression`)                                                                            |
 | `fields.audio`                          | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                       |
 | `fields.image`                          | string                                  | Card field for images (default: `Picture`)                                                                                                    |
 | `fields.sentence`                       | string                                  | Card field for sentences (default: `Sentence`)                                                                                                |
@@ -822,13 +825,13 @@ This example is intentionally compact. The option table below documents availabl
 | `behavior.overwriteImage`               | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `behavior.mediaInsertMode` (default: `true`)          |
 | `behavior.mediaInsertMode`              | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                         |
 | `behavior.highlightWord`                | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                      |
-| `ankiConnect.nPlusOne.highlightEnabled` | `true`, `false`                         | Enable fast local highlighting for words already known in Anki (default: `false`)                                                             |
+| `ankiConnect.knownWords.highlightEnabled` | `true`, `false`                       | Enable fast local highlighting for words already known in Anki (default: `false`)                                                             |
+| `ankiConnect.knownWords.color`          | hex color string                        | Text color for tokens already found in the local known-word cache (default: `"#a6da95"`).                                                     |
+| `ankiConnect.knownWords.matchMode`      | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
+| `ankiConnect.knownWords.refreshMinutes` | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                  |
+| `ankiConnect.knownWords.decks`          | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                               |
 | `ankiConnect.nPlusOne.nPlusOne`         | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`).               |
-| `ankiConnect.nPlusOne.knownWord`        | hex color string                        | Legacy known-word color kept for backward compatibility (default: `"#a6da95"`).                                                               |
-| `ankiConnect.nPlusOne.matchMode`        | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
 | `ankiConnect.nPlusOne.minSentenceWords` | number                                  | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                        |
-| `ankiConnect.nPlusOne.refreshMinutes`   | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                  |
-| `ankiConnect.nPlusOne.decks`            | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                               |
 | `behavior.notificationType`             | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                           |
 | `behavior.autoUpdateNewCards`           | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                      |
 | `metadata.pattern`                      | string                                  | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                                      |
@@ -863,20 +866,20 @@ SubMiner is intentionally built for [Kiku](https://kiku.youyoumu.my.id/) and [La
 
 ### N+1 Word Highlighting
 
-When `ankiConnect.nPlusOne.highlightEnabled` is enabled, SubMiner builds a local cache of known words from Anki to highlight already learned tokens in subtitle rendering.
+When `ankiConnect.knownWords.highlightEnabled` is enabled, SubMiner builds a local cache of known words from Anki to highlight already learned tokens in subtitle rendering.
 
 Known-word cache policy:
 
 - Initial sync runs when the integration starts if the cache is missing or stale.
-- `ankiConnect.nPlusOne.refreshMinutes` controls the minimum time between refreshes; between refreshes, cached words are reused without querying Anki.
+- `ankiConnect.knownWords.refreshMinutes` controls the minimum time between refreshes; between refreshes, cached words are reused without querying Anki.
 - `ankiConnect.nPlusOne.nPlusOne` sets the color for the single target token when exactly one eligible unknown word exists.
 - `ankiConnect.nPlusOne.minSentenceWords` sets the minimum token count required in a sentence for N+1 highlighting (default: `3`).
-- `ankiConnect.nPlusOne.knownWord` sets the legacy known-word highlight color for tokens already in Anki.
-- `ankiConnect.nPlusOne.decks` accepts one or more decks. If empty, it uses the legacy single `ankiConnect.deck` value as scope.
+- `ankiConnect.knownWords.color` sets the known-word highlight color for tokens already in Anki.
+- `ankiConnect.knownWords.decks` accepts one or more decks. If empty, it uses the legacy single `ankiConnect.deck` value as scope.
 - Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
 - The cache is automatically invalidated when the configured scope changes (for example, when deck changes).
-- Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set `ankiConnect.nPlusOne.matchMode` to `"surface"` for raw subtitle text matching.
-- `ankiConnect.behavior.nPlusOne*` legacy keys (`nPlusOneHighlightEnabled`, `nPlusOneRefreshMinutes`, `nPlusOneMatchMode`) are deprecated and only kept for backward compatibility.
+- Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set `ankiConnect.knownWords.matchMode` to `"surface"` for raw subtitle text matching.
+- Legacy moved keys under `ankiConnect.nPlusOne` (`highlightEnabled`, `refreshMinutes`, `matchMode`, `decks`, `knownWord`) and older `ankiConnect.behavior.nPlusOne*` keys are deprecated and only kept for backward compatibility.
 - Legacy top-level `ankiConnect` migration keys (for example `audioField`, `generateAudio`, `imageType`) are compatibility-only, validated before mapping, and ignored with a warning when invalid.
 - If AnkiConnect is unreachable, the cache remains in its previous state and an on-screen/system status message is shown.
 - Known-word sync activity is logged at `INFO`/`DEBUG` level with the `anki` logger scope and includes scope, notes returned, and word counts.
@@ -886,9 +889,12 @@ To refresh roughly once per day, set:
 ```json
 {
   "ankiConnect": {
-    "nPlusOne": {
+    "knownWords": {
       "highlightEnabled": true,
       "refreshMinutes": 1440
+    },
+    "nPlusOne": {
+      "minSentenceWords": 3
     }
   }
 }
@@ -1010,7 +1016,7 @@ Character dictionary sync behavior:
 
 Current post-watch behavior:
 
-- SubMiner attempts an update near episode completion (`>=85%` watched and at least `10` minutes watched).
+- SubMiner attempts an update near episode completion using the shared default minimum watch ratio (`0.85`, or `>=85%`) from `src/shared/watch-threshold.ts`, and requires at least `10` minutes watched. The same ratio is also used by local episode watched state transitions.
 - Episode/title detection is `guessit`-first with fallback to SubMiner's filename parser.
 - If `guessit` is unavailable, updates still work via fallback parsing but title matching can be less accurate.
 - If embedded AniList auth UI fails to render, SubMiner opens the authorize URL in your default browser and shows fallback instructions in-app.
@@ -1164,7 +1170,7 @@ Troubleshooting:
 
 ### Immersion Tracking
 
-Enable or disable local immersion analytics stored in SQLite for mined subtitles and media sessions:
+Enable or disable local immersion analytics stored in SQLite for mined subtitles and media sessions. This data also powers the stats dashboard:
 
 ```json
 {
@@ -1176,12 +1182,20 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
     "queueCap": 1000,
     "payloadCapBytes": 256,
     "maintenanceIntervalMs": 86400000,
+    "retentionMode": "preset",
+    "retentionPreset": "balanced",
     "retention": {
-      "eventsDays": 7,
-      "telemetryDays": 30,
-      "dailyRollupsDays": 365,
-      "monthlyRollupsDays": 1825,
-      "vacuumIntervalDays": 7
+      "eventsDays": 0,
+      "telemetryDays": 0,
+      "sessionsDays": 0,
+      "dailyRollupsDays": 0,
+      "monthlyRollupsDays": 0,
+      "vacuumIntervalDays": 0
+    },
+    "lifetimeSummaries": {
+      "global": true,
+      "anime": true,
+      "media": true
     }
   }
 }
@@ -1196,11 +1210,16 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
 | `queueCap`                     | integer (`100`-`100000`)      | In-memory queue cap. Overflow drops oldest writes. Default `1000`.                                          |
 | `payloadCapBytes`              | integer (`64`-`8192`)         | Event payload byte cap before truncation marker. Default `256`.                                             |
 | `maintenanceIntervalMs`        | integer (`60000`-`604800000`) | Prune + rollup maintenance cadence. Default `86400000` (24h).                                               |
-| `retention.eventsDays`         | integer (`1`-`3650`)          | Raw event retention window. Default `7` days.                                                               |
-| `retention.telemetryDays`      | integer (`1`-`3650`)          | Telemetry retention window. Default `30` days.                                                              |
-| `retention.dailyRollupsDays`   | integer (`1`-`36500`)         | Daily rollup retention window. Default `365` days.                                                          |
-| `retention.monthlyRollupsDays` | integer (`1`-`36500`)         | Monthly rollup retention window. Default `1825` days (~5 years).                                            |
-| `retention.vacuumIntervalDays` | integer (`1`-`3650`)          | Minimum spacing between `VACUUM` passes. Default `7` days.                                                  |
+| `retentionMode`                | `preset`,`advanced`           | Retention mode. `preset` applies `retentionPreset`, `advanced` uses explicit values only. Default `preset`. |
+| `retentionPreset`              | `minimal`,`balanced`,`deep-history` | Retention preset used when `retentionMode = "preset"`. Default `balanced`.                              |
+| `retention.eventsDays`         | integer (`0`-`3650`)          | Raw event retention window in days. Default `0` (keep all).                                                  |
+| `retention.telemetryDays`      | integer (`0`-`3650`)          | Telemetry retention window in days. Default `0` (keep all).                                                  |
+| `retention.sessionsDays`       | integer (`0`-`3650`)          | Session retention window in days. Default `0` (keep all).                                                    |
+| `retention.dailyRollupsDays`   | integer (`0`-`36500`)         | Daily rollup retention window. Default `0` (keep all).                                                      |
+| `retention.monthlyRollupsDays` | integer (`0`-`36500`)         | Monthly rollup retention window. Default `0` (keep all).                                                    |
+| `retention.vacuumIntervalDays` | integer (`0`-`3650`)          | Minimum spacing between `VACUUM` passes. `0` disables vacuum. Default `0` (disabled).                         |
+
+Default behavior keeps raw events, telemetry, sessions, and rollups forever while still maintaining lifetime summary tables and daily/monthly rollups for faster reads. If you later want bounded retention, switch `retentionMode` or set explicit `retention.*` values.
 
 When `dbPath` is blank or omitted, SubMiner writes telemetry and session summaries to the default app-data location:
 
@@ -1210,7 +1229,36 @@ When `dbPath` is blank or omitted, SubMiner writes telemetry and session summari
 
 Set `dbPath` only if you want to relocate the database (for backup, syncing, or inspection workflows). The database is created when tracking starts for the first time.
 
-See [Immersion Tracking Storage](/immersion-tracking) for schema details, query templates, retention/rollup behavior, backend portability notes, and the dedicated SQLite verification command.
+See [Immersion Tracking Storage](/immersion-tracking) for schema details, query templates, dashboard access, retention/rollup behavior, backend portability notes, and the dedicated SQLite verification command.
+
+### Stats Dashboard
+
+Configure the local stats UI served from SubMiner and the in-app stats overlay toggle:
+
+```json
+{
+  "stats": {
+    "toggleKey": "Backquote",
+    "serverPort": 5175,
+    "autoStartServer": true,
+    "autoOpenBrowser": true
+  }
+}
+```
+
+| Option            | Values            | Description                                                                 |
+| ----------------- | ----------------- | --------------------------------------------------------------------------- |
+| `toggleKey`       | Electron key code | Overlay-local key code used to toggle the stats overlay. Default `Backquote`. |
+| `serverPort`      | integer           | Localhost port for the browser stats UI. Default `5175`.                    |
+| `autoStartServer` | `true`, `false`   | Start the local stats HTTP server automatically once immersion tracking is active. Default `true`. |
+| `autoOpenBrowser` | `true`, `false`   | When `subminer stats` starts the server on demand, also open the dashboard in your default browser. Default `true`. |
+
+Usage notes:
+
+- The browser UI is served at `http://127.0.0.1:<serverPort>`.
+- The overlay toggle is local to the focused visible overlay window; it is not registered as a global OS shortcut.
+- The dashboard reads from the same immersion-tracking database, so keep `immersionTracking.enabled` on if you want data to appear.
+- The UI includes Overview, Library, Trends, Vocabulary, and Sessions tabs.
 
 ### YouTube Subtitle Generation
 

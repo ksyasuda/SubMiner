@@ -29,10 +29,13 @@ test('mpv connection handler reports stop and quits when disconnect guard passes
 
 test('mpv connection handler syncs overlay subtitle suppression on connect', () => {
   const calls: string[] = [];
-  const handler = createHandleMpvConnectionChangeHandler({
+  const deps: Parameters<typeof createHandleMpvConnectionChangeHandler>[0] & {
+    scheduleCharacterDictionarySync: () => void;
+  } = {
     reportJellyfinRemoteStopped: () => calls.push('report-stop'),
     refreshDiscordPresence: () => calls.push('presence-refresh'),
     syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
+    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
     hasInitialJellyfinPlayArg: () => true,
     isOverlayRuntimeInitialized: () => false,
     isQuitOnDisconnectArmed: () => true,
@@ -41,7 +44,8 @@ test('mpv connection handler syncs overlay subtitle suppression on connect', () 
     },
     isMpvConnected: () => false,
     quitApp: () => calls.push('quit'),
-  });
+  };
+  const handler = createHandleMpvConnectionChangeHandler(deps);
 
   handler({ connected: true });
 
@@ -71,10 +75,13 @@ test('mpv event bindings register all expected events', () => {
     onSubtitleChange: () => {},
     onSubtitleAssChange: () => {},
     onSecondarySubtitleChange: () => {},
+    onSubtitleTrackChange: () => {},
+    onSubtitleTrackListChange: () => {},
     onSubtitleTiming: () => {},
     onMediaPathChange: () => {},
     onMediaTitleChange: () => {},
     onTimePosChange: () => {},
+    onDurationChange: () => {},
     onPauseChange: () => {},
     onSubtitleMetricsChange: () => {},
     onSecondarySubtitleVisibility: () => {},
@@ -91,10 +98,13 @@ test('mpv event bindings register all expected events', () => {
     'subtitle-change',
     'subtitle-ass-change',
     'secondary-subtitle-change',
+    'subtitle-track-change',
+    'subtitle-track-list-change',
     'subtitle-timing',
     'media-path-change',
     'media-title-change',
     'time-pos-change',
+    'duration-change',
     'pause-change',
     'subtitle-metrics-change',
     'secondary-subtitle-visibility',

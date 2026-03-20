@@ -73,9 +73,9 @@ features:
       src: /assets/tokenization.svg
       alt: Tracking chart icon
     title: Immersion Tracking
-    details: Logs watch time, words encountered, and cards mined to SQLite with daily and monthly rollups for long-term progress tracking.
+    details: Logs watch time, words encountered, and cards mined to SQLite, then surfaces the same data in a local stats dashboard with rollups and session drill-down.
     link: /immersion-tracking
-    linkText: Tracking details
+    linkText: Stats details
   - icon:
       src: /assets/cross-platform.svg
       alt: Cross-platform icon
@@ -102,7 +102,7 @@ const demoAssetVersion = '20260223-2';
       <div class="workflow-step" style="animation-delay: 60ms">
         <div class="step-number">02</div>
         <div class="step-title">Lookup</div>
-        <div class="step-desc">Hover or click a token in the interactive overlay to open Yomitan context.</div>
+        <div class="step-desc">Hover a token in the interactive overlay, then trigger Yomitan lookup to open context.</div>
       </div>
       <div class="workflow-connector" aria-hidden="true"></div>
       <div class="workflow-step" style="animation-delay: 120ms">

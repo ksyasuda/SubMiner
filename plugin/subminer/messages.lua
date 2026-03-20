@@ -44,6 +44,9 @@ function M.create(ctx)
 		mp.register_script_message(hover.HOVER_MESSAGE_NAME_LEGACY, function(payload_json)
 			hover.handle_hover_message(payload_json)
 		end)
+		mp.register_script_message("subminer-stats-toggle", function()
+			mp.osd_message("Stats: press ` (backtick) in overlay", 3)
+		end)
 	end
 
 	return {

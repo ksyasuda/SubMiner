@@ -13,6 +13,7 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
   const deps = createBuildOverlayVisibilityRuntimeMainDepsHandler({
     getMainWindow: () => mainWindow,
     getVisibleOverlayVisible: () => true,
+    getForceMousePassthrough: () => true,
     getWindowTracker: () => tracker,
     getTrackerNotReadyWarningShown: () => trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown) => {
@@ -32,6 +33,7 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
 
   assert.equal(deps.getMainWindow(), mainWindow);
   assert.equal(deps.getVisibleOverlayVisible(), true);
+  assert.equal(deps.getForceMousePassthrough(), true);
   assert.equal(deps.getTrackerNotReadyWarningShown(), false);
   deps.setTrackerNotReadyWarningShown(true);
   deps.updateVisibleOverlayBounds({ x: 0, y: 0, width: 10, height: 10 });

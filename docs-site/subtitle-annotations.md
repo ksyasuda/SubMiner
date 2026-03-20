@@ -2,7 +2,9 @@
 
 SubMiner annotates subtitle tokens in real time as they appear in the overlay. Four annotation layers work together to surface useful context while you watch: **N+1 highlighting**, **character-name highlighting**, **frequency highlighting**, and **JLPT tagging**.
 
-All four are opt-in and configured under `subtitleStyle` and `ankiConnect.nPlusOne` in your config. They apply independently — you can enable any combination.
+All four are opt-in and configured under `subtitleStyle`, `ankiConnect.knownWords`, and `ankiConnect.nPlusOne` in your config. They apply independently — you can enable any combination.
+
+Before any of those layers render, SubMiner strips annotation metadata from tokens that are usually just subtitle glue or annotation noise. Standalone particles, auxiliaries, adnominals, common explanatory endings like `んです` / `のだ`, merged trailing quote-particle forms like `...って`, auxiliary-stem grammar tails like `そうだ` (MeCab POS3 `助動詞語幹`), repeated kana interjections, and similar non-lexical helper tokens remain hoverable in the subtitle text, but they render as plain tokens without known-word, N+1, frequency, JLPT, or name-match annotation styling.
 
 ## N+1 Word Highlighting
 
@@ -20,13 +22,13 @@ N+1 highlighting identifies sentences where you know every word except one, maki
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `ankiConnect.nPlusOne.highlightEnabled` | `false` | Enable N+1 highlighting |
-| `ankiConnect.nPlusOne.refreshMinutes` | `60` | Minutes between Anki cache refreshes |
-| `ankiConnect.nPlusOne.decks` | `[]` | Decks to query (falls back to `ankiConnect.deck`) |
-| `ankiConnect.nPlusOne.matchMode` | `"headword"` | `"headword"` (dictionary form) or `"surface"` (raw text) |
+| `ankiConnect.knownWords.highlightEnabled` | `false` | Enable known-word cache lookups used by N+1 highlighting |
+| `ankiConnect.knownWords.refreshMinutes` | `1440` | Minutes between Anki cache refreshes |
+| `ankiConnect.knownWords.decks` | `[]` | Decks to query (falls back to `ankiConnect.deck`) |
+| `ankiConnect.knownWords.matchMode` | `"headword"` | `"headword"` (dictionary form) or `"surface"` (raw text) |
 | `ankiConnect.nPlusOne.minSentenceWords` | `3` | Minimum tokens in a sentence for N+1 to trigger |
-| `subtitleStyle.nPlusOneColor` | `#c6a0f6` | Color for the single unknown target word |
-| `subtitleStyle.knownWordColor` | `#a6da95` | Color for already-known tokens |
+| `ankiConnect.nPlusOne.nPlusOne` | `#c6a0f6` | Color for the single unknown target word |
+| `ankiConnect.knownWords.color` | `#a6da95` | Color for already-known tokens |
 
 ::: tip
 Set `refreshMinutes` to `1440` (24 hours) for daily sync if your Anki collection is large.
@@ -34,7 +36,7 @@ Set `refreshMinutes` to `1440` (24 hours) for daily sync if your Anki collection
 
 ## Character-Name Highlighting
 
-Character-name matches are built from the active merged SubMiner character dictionary, which auto-syncs character data from AniList for your recently-watched titles. Matching names are highlighted in subtitles and become clickable for full character profiles — portraits, roles, voice actors, and biographical detail.
+Character-name matches are built from the active merged SubMiner character dictionary, which auto-syncs character data from AniList for your recently-watched titles. Matching names are highlighted in subtitles and become available for hover-driven Yomitan character profiles — portraits, roles, voice actors, and biographical detail.
 
 **How it works:**
 
@@ -80,6 +82,10 @@ When `sourcePath` is omitted, SubMiner searches default install/runtime location
 Frequency highlighting skips tokens that look like non-lexical noise (kana reduplication, short kana endings like `っ`), even when dictionary ranks exist.
 :::
 
+::: info
+Frequency, JLPT, and N+1 metadata are only shown for tokens that survive the subtitle-annotation noise filter. Standalone grammar tokens like `は`, `です`, and `この` are intentionally left unannotated even if a dictionary can assign them metadata.
+:::
+
 ## JLPT Tagging
 
 JLPT tagging adds colored underlines to tokens based on their JLPT level (N1–N5), giving you an at-a-glance sense of difficulty distribution in each subtitle line.
@@ -115,7 +121,7 @@ JLPT tagging requires the offline vocabulary bundle. See [JLPT Vocabulary Bundle
 
 All annotation layers can be toggled at runtime via the mpv command menu without restarting:
 
-- `ankiConnect.nPlusOne.highlightEnabled` (`On` / `Off`)
+- `ankiConnect.knownWords.highlightEnabled` (`On` / `Off`)
 - `subtitleStyle.nameMatchEnabled` (`On` / `Off`)
 - `subtitleStyle.enableJlpt` (`On` / `Off`)
 - `subtitleStyle.frequencyDictionary.enabled` (`On` / `Off`)

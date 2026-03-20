@@ -23,6 +23,7 @@ import {
   requestYomitanScanTokens,
   requestYomitanTermFrequencies,
 } from './tokenizer/yomitan-parser-runtime';
+import type { YomitanTermFrequency } from './tokenizer/yomitan-parser-runtime';
 
 const logger = createLogger('main:tokenizer');
 
@@ -177,6 +178,19 @@ async function applyAnnotationStage(
   );
 }
 
+async function stripSubtitleAnnotationMetadata(tokens: MergedToken[]): Promise<MergedToken[]> {
+  if (tokens.length === 0) {
+    return tokens;
+  }
+
+  if (!annotationStageModulePromise) {
+    annotationStageModulePromise = import('./tokenizer/annotation-stage');
+  }
+
+  const annotationStage = await annotationStageModulePromise;
+  return tokens.map((token) => annotationStage.stripSubtitleAnnotationMetadata(token));
+}
+
 export function createTokenizerDepsRuntime(
   options: TokenizerDepsRuntimeOptions,
 ): TokenizerServiceDeps {
@@ -225,7 +239,13 @@ export function createTokenizerDepsRuntime(
         return null;
       }
 
-      return mergeTokens(rawTokens, options.isKnownWord, options.getKnownWordMatchMode(), false);
+      return mergeTokens(
+        rawTokens,
+        options.isKnownWord,
+        options.getKnownWordMatchMode(),
+        false,
+        text,
+      );
     },
     enrichTokensWithMecab: async (tokens, mecabTokens) =>
       enrichTokensWithMecabAsync(tokens, mecabTokens),
@@ -336,56 +356,162 @@ function resolveFrequencyLookupText(
   return token.surface;
 }
 
+function resolveYomitanFrequencyLookupTexts(
+  token: MergedToken,
+  matchMode: FrequencyDictionaryMatchMode,
+): string[] {
+  const primaryLookupText = resolveFrequencyLookupText(token, matchMode).trim();
+  if (!primaryLookupText) {
+    return [];
+  }
+
+  if (matchMode !== 'headword') {
+    return [primaryLookupText];
+  }
+
+  const normalizedHeadword = token.headword.trim();
+  const normalizedSurface = token.surface.trim();
+  if (
+    !normalizedHeadword ||
+    !normalizedSurface ||
+    normalizedSurface === normalizedHeadword ||
+    normalizedSurface === primaryLookupText
+  ) {
+    return [primaryLookupText];
+  }
+
+  return [primaryLookupText, normalizedSurface];
+}
+
 function buildYomitanFrequencyTermReadingList(
   tokens: MergedToken[],
   matchMode: FrequencyDictionaryMatchMode,
 ): Array<{ term: string; reading: string | null }> {
   const termReadingList: Array<{ term: string; reading: string | null }> = [];
   for (const token of tokens) {
-    const term = resolveFrequencyLookupText(token, matchMode).trim();
-    if (!term) {
-      continue;
-    }
-
     const readingRaw =
       token.reading && token.reading.trim().length > 0 ? token.reading.trim() : null;
-    termReadingList.push({ term, reading: readingRaw });
+    for (const term of resolveYomitanFrequencyLookupTexts(token, matchMode)) {
+      termReadingList.push({ term, reading: readingRaw });
+    }
   }
 
   return termReadingList;
 }
 
-function buildYomitanFrequencyRankMap(
-  frequencies: ReadonlyArray<{ term: string; frequency: number; dictionaryPriority?: number }>,
-): Map<string, number> {
-  const rankByTerm = new Map<string, { rank: number; dictionaryPriority: number }>();
+function makeYomitanFrequencyPairKey(term: string, reading: string | null): string {
+  return `${term}\u0000${reading ?? ''}`;
+}
+
+interface NormalizedYomitanTermFrequency extends YomitanTermFrequency {
+  reading: string | null;
+  frequency: number;
+}
+
+interface YomitanFrequencyIndex {
+  byPair: Map<string, NormalizedYomitanTermFrequency[]>;
+  byTerm: Map<string, NormalizedYomitanTermFrequency[]>;
+}
+
+function appendYomitanFrequencyEntry(
+  map: Map<string, NormalizedYomitanTermFrequency[]>,
+  key: string,
+  entry: NormalizedYomitanTermFrequency,
+): void {
+  const existing = map.get(key);
+  if (existing) {
+    existing.push(entry);
+    return;
+  }
+
+  map.set(key, [entry]);
+}
+
+function buildYomitanFrequencyIndex(
+  frequencies: ReadonlyArray<YomitanTermFrequency>,
+): YomitanFrequencyIndex {
+  const byPair = new Map<string, NormalizedYomitanTermFrequency[]>();
+  const byTerm = new Map<string, NormalizedYomitanTermFrequency[]>();
   for (const frequency of frequencies) {
-    const normalizedTerm = frequency.term.trim();
+    const term = frequency.term.trim();
     const rank = normalizePositiveFrequencyRank(frequency.frequency);
-    if (!normalizedTerm || rank === null) {
+    if (!term || rank === null) {
       continue;
     }
-    const dictionaryPriority =
-      typeof frequency.dictionaryPriority === 'number' &&
-      Number.isFinite(frequency.dictionaryPriority)
-        ? Math.max(0, Math.floor(frequency.dictionaryPriority))
-        : Number.MAX_SAFE_INTEGER;
-    const current = rankByTerm.get(normalizedTerm);
+
+    const reading =
+      typeof frequency.reading === 'string' && frequency.reading.trim().length > 0
+        ? frequency.reading.trim()
+        : null;
+    const normalizedEntry: NormalizedYomitanTermFrequency = {
+      ...frequency,
+      term,
+      reading,
+      frequency: rank,
+    };
+    appendYomitanFrequencyEntry(
+      byPair,
+      makeYomitanFrequencyPairKey(term, reading),
+      normalizedEntry,
+    );
+    appendYomitanFrequencyEntry(byTerm, term, normalizedEntry);
+  }
+
+  return { byPair, byTerm };
+}
+
+function selectBestYomitanFrequencyRank(
+  entries: ReadonlyArray<NormalizedYomitanTermFrequency>,
+): number | null {
+  let bestEntry: NormalizedYomitanTermFrequency | null = null;
+  for (const entry of entries) {
     if (
-      current === undefined ||
-      dictionaryPriority < current.dictionaryPriority ||
-      (dictionaryPriority === current.dictionaryPriority && rank < current.rank)
+      bestEntry === null ||
+      entry.dictionaryPriority < bestEntry.dictionaryPriority ||
+      (entry.dictionaryPriority === bestEntry.dictionaryPriority &&
+        entry.frequency < bestEntry.frequency)
     ) {
-      rankByTerm.set(normalizedTerm, { rank, dictionaryPriority });
+      bestEntry = entry;
     }
   }
 
-  const collapsedRankByTerm = new Map<string, number>();
-  for (const [term, entry] of rankByTerm.entries()) {
-    collapsedRankByTerm.set(term, entry.rank);
+  return bestEntry?.frequency ?? null;
+}
+
+function getYomitanFrequencyRank(
+  token: MergedToken,
+  candidateText: string,
+  matchMode: FrequencyDictionaryMatchMode,
+  frequencyIndex: YomitanFrequencyIndex,
+): number | null {
+  const normalizedCandidateText = candidateText.trim();
+  if (!normalizedCandidateText) {
+    return null;
   }
 
-  return collapsedRankByTerm;
+  const reading =
+    typeof token.reading === 'string' && token.reading.trim().length > 0
+      ? token.reading.trim()
+      : null;
+  const pairEntries =
+    frequencyIndex.byPair.get(makeYomitanFrequencyPairKey(normalizedCandidateText, reading)) ?? [];
+  const candidateEntries =
+    pairEntries.length > 0
+      ? pairEntries
+      : (frequencyIndex.byTerm.get(normalizedCandidateText) ?? []);
+  if (candidateEntries.length === 0) {
+    return null;
+  }
+
+  const normalizedHeadword = token.headword.trim();
+  const normalizedSurface = token.surface.trim();
+  const isInflectedHeadwordFallback =
+    matchMode === 'headword' &&
+    normalizedCandidateText === normalizedHeadword &&
+    normalizedSurface.length > 0 &&
+    normalizedSurface !== normalizedHeadword;
+
+  return selectBestYomitanFrequencyRank(candidateEntries);
 }
 
 function getLocalFrequencyRank(
@@ -416,7 +542,7 @@ function getLocalFrequencyRank(
 function applyFrequencyRanks(
   tokens: MergedToken[],
   matchMode: FrequencyDictionaryMatchMode,
-  yomitanRankByTerm: Map<string, number>,
+  yomitanFrequencyIndex: YomitanFrequencyIndex,
   getFrequencyRank: FrequencyDictionaryLookup | undefined,
 ): MergedToken[] {
   if (tokens.length === 0) {
@@ -441,12 +567,19 @@ function applyFrequencyRanks(
       };
     }
 
-    const yomitanRank = yomitanRankByTerm.get(lookupText);
-    if (yomitanRank !== undefined) {
-      return {
-        ...token,
-        frequencyRank: yomitanRank,
-      };
+    for (const candidateText of resolveYomitanFrequencyLookupTexts(token, matchMode)) {
+      const yomitanRank = getYomitanFrequencyRank(
+        token,
+        candidateText,
+        matchMode,
+        yomitanFrequencyIndex,
+      );
+      if (yomitanRank !== null) {
+        return {
+          ...token,
+          frequencyRank: yomitanRank,
+        };
+      }
     }
 
     if (!getFrequencyRank) {
@@ -501,6 +634,7 @@ async function parseWithYomitanInternalParser(
         isKnown: false,
         isNPlusOneTarget: false,
         isNameMatch: token.isNameMatch ?? false,
+        frequencyRank: token.frequencyRank,
       }),
     ),
   );
@@ -510,7 +644,7 @@ async function parseWithYomitanInternalParser(
   }
   deps.onTokenizationReady?.(text);
 
-  const frequencyRankPromise: Promise<Map<string, number>> = options.frequencyEnabled
+  const frequencyRankPromise: Promise<YomitanFrequencyIndex> = options.frequencyEnabled
     ? (async () => {
         const frequencyMatchMode = options.frequencyMatchMode;
         const termReadingList = buildYomitanFrequencyTermReadingList(
@@ -522,9 +656,9 @@ async function parseWithYomitanInternalParser(
           deps,
           logger,
         );
-        return buildYomitanFrequencyRankMap(yomitanFrequencies);
+        return buildYomitanFrequencyIndex(yomitanFrequencies);
       })()
-    : Promise.resolve(new Map<string, number>());
+    : Promise.resolve({ byPair: new Map(), byTerm: new Map() });
 
   const mecabEnrichmentPromise: Promise<MergedToken[]> = needsMecabPosEnrichment(options)
     ? (async () => {
@@ -545,7 +679,7 @@ async function parseWithYomitanInternalParser(
       })()
     : Promise.resolve(normalizedSelectedTokens);
 
-  const [yomitanRankByTerm, enrichedTokens] = await Promise.all([
+  const [yomitanFrequencyIndex, enrichedTokens] = await Promise.all([
     frequencyRankPromise,
     mecabEnrichmentPromise,
   ]);
@@ -554,7 +688,7 @@ async function parseWithYomitanInternalParser(
     return applyFrequencyRanks(
       enrichedTokens,
       options.frequencyMatchMode,
-      yomitanRankByTerm,
+      yomitanFrequencyIndex,
       deps.getFrequencyRank,
     );
   }
@@ -585,9 +719,12 @@ export async function tokenizeSubtitle(
 
   const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps, annotationOptions);
   if (yomitanTokens && yomitanTokens.length > 0) {
+    const annotatedTokens = await stripSubtitleAnnotationMetadata(
+      await applyAnnotationStage(yomitanTokens, deps, annotationOptions),
+    );
     return {
       text: displayText,
-      tokens: await applyAnnotationStage(yomitanTokens, deps, annotationOptions),
+      tokens: annotatedTokens.length > 0 ? annotatedTokens : null,
     };
   }
 

@@ -706,6 +706,240 @@ test('tokenizeSubtitle prefers Yomitan frequency from highest-priority dictionar
   assert.equal(result.tokens?.[0]?.frequencyRank, 100);
 });
 
+test('tokenizeSubtitle ignores occurrence-based Yomitan frequencies for inflected terms', async () => {
+  const result = await tokenizeSubtitle(
+    '潜み',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [
+                  {
+                    term: '潜む',
+                    reading: 'ひそ',
+                    dictionary: 'CC100',
+                    frequency: 118121,
+                    displayValue: null,
+                    displayValueParsed: false,
+                  },
+                ];
+              }
+
+              if (script.includes('optionsGetFull')) {
+                return {
+                  profileCurrent: 0,
+                  profileIndex: 0,
+                  scanLength: 40,
+                  dictionaries: ['CC100'],
+                  dictionaryPriorityByName: { CC100: 0 },
+                  dictionaryFrequencyModeByName: { CC100: 'occurrence-based' },
+                  profiles: [
+                    {
+                      options: {
+                        scanning: { length: 40 },
+                        dictionaries: [{ name: 'CC100', enabled: true, id: 0 }],
+                      },
+                    },
+                  ],
+                };
+              }
+
+              return [
+                {
+                  surface: '潜み',
+                  reading: 'ひそ',
+                  headword: '潜む',
+                  startPos: 0,
+                  endPos: 2,
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+});
+
+test('tokenizeSubtitle falls back to raw term-only Yomitan rank when no scan-derived rank exists', async () => {
+  const result = await tokenizeSubtitle(
+    '潜み',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [
+                  {
+                    term: '潜む',
+                    reading: 'ひそ',
+                    hasReading: false,
+                    dictionary: 'CC100',
+                    frequency: 118121,
+                    displayValue: null,
+                    displayValueParsed: false,
+                  },
+                ];
+              }
+
+              if (script.includes('optionsGetFull')) {
+                return {
+                  profileCurrent: 0,
+                  profileIndex: 0,
+                  scanLength: 40,
+                  dictionaries: ['CC100'],
+                  dictionaryPriorityByName: { CC100: 0 },
+                  dictionaryFrequencyModeByName: { CC100: 'rank-based' },
+                  profiles: [
+                    {
+                      options: {
+                        scanning: { length: 40 },
+                        dictionaries: [{ name: 'CC100', enabled: true, id: 0 }],
+                      },
+                    },
+                  ],
+                };
+              }
+
+              return [
+                {
+                  surface: '潜み',
+                  reading: 'ひそ',
+                  headword: '潜む',
+                  startPos: 0,
+                  endPos: 2,
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 118121);
+});
+
+test('tokenizeSubtitle keeps parsed display rank for term-only inflected headword fallback', async () => {
+  const result = await tokenizeSubtitle(
+    '潜み',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [
+                  {
+                    term: '潜む',
+                    reading: 'ひそ',
+                    hasReading: false,
+                    dictionary: 'CC100',
+                    frequency: 118121,
+                    displayValue: '118,121',
+                    displayValueParsed: false,
+                  },
+                ];
+              }
+
+              if (script.includes('optionsGetFull')) {
+                return {
+                  profileCurrent: 0,
+                  profileIndex: 0,
+                  scanLength: 40,
+                  dictionaries: ['CC100'],
+                  dictionaryPriorityByName: { CC100: 0 },
+                  dictionaryFrequencyModeByName: { CC100: 'rank-based' },
+                  profiles: [
+                    {
+                      options: {
+                        scanning: { length: 40 },
+                        dictionaries: [{ name: 'CC100', enabled: true, id: 0 }],
+                      },
+                    },
+                  ],
+                };
+              }
+
+              return [
+                {
+                  surface: '潜み',
+                  reading: 'ひそ',
+                  headword: '潜む',
+                  startPos: 0,
+                  endPos: 2,
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 118);
+});
+
+test('tokenizeSubtitle preserves scan-derived rank over lower-priority Yomitan fallback', async () => {
+  const result = await tokenizeSubtitle(
+    '潜み',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [
+                  {
+                    term: '潜む',
+                    reading: 'ひそ',
+                    hasReading: false,
+                    dictionary: 'CC100',
+                    dictionaryPriority: 2,
+                    frequency: 118121,
+                    displayValue: null,
+                    displayValueParsed: false,
+                  },
+                ];
+              }
+
+              return [
+                {
+                  surface: '潜み',
+                  reading: 'ひそむ',
+                  headword: '潜む',
+                  startPos: 0,
+                  endPos: 2,
+                  frequencyRank: 4073,
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 4073);
+});
+
 test('tokenizeSubtitle uses only selected Yomitan headword for frequency lookup', async () => {
   const result = await tokenizeSubtitle(
     '猫です',
@@ -834,6 +1068,69 @@ test('tokenizeSubtitle prefers exact headword frequency over surface/reading whe
 
   assert.equal(result.tokens?.length, 1);
   assert.equal(result.tokens?.[0]?.frequencyRank, 8);
+});
+
+test('tokenizeSubtitle falls back to exact surface frequency when merged headword lookup misses', async () => {
+  const frequencyScripts: string[] = [];
+  const result = await tokenizeSubtitle(
+    '陰に',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                frequencyScripts.push(script);
+                return script.includes('"term":"陰に","reading":"いんに"')
+                  ? [
+                      {
+                        term: '陰に',
+                        reading: 'いんに',
+                        dictionary: 'freq-dict',
+                        frequency: 5702,
+                        displayValue: '5702',
+                        displayValueParsed: true,
+                      },
+                    ]
+                  : [];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '陰に',
+                        reading: 'いんに',
+                        headwords: [[{ term: '陰' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.surface, '陰に');
+  assert.equal(result.tokens?.[0]?.headword, '陰');
+  assert.equal(result.tokens?.[0]?.frequencyRank, 5702);
+  assert.equal(
+    frequencyScripts.some((script) => script.includes('"term":"陰","reading":"いんに"')),
+    true,
+  );
+  assert.equal(
+    frequencyScripts.some((script) => script.includes('"term":"陰に","reading":"いんに"')),
+    true,
+  );
 });
 
 test('tokenizeSubtitle keeps no frequency when only reading matches and headword misses', async () => {
@@ -1008,7 +1305,7 @@ test('tokenizeSubtitle ignores frequency lookup failures', async () => {
   assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
 });
 
-test('tokenizeSubtitle skips frequency rank when Yomitan token is enriched as particle by mecab pos1', async () => {
+test('tokenizeSubtitle keeps standalone particle token hoverable while clearing annotation metadata', async () => {
   const result = await tokenizeSubtitle(
     'は',
     makeDeps({
@@ -1053,9 +1350,33 @@ test('tokenizeSubtitle skips frequency rank when Yomitan token is enriched as pa
     }),
   );
 
-  assert.equal(result.tokens?.length, 1);
-  assert.equal(result.tokens?.[0]?.pos1, '助詞');
-  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+  assert.equal(result.text, 'は');
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+      pos1: token.pos1,
+      isKnown: token.isKnown,
+      isNPlusOneTarget: token.isNPlusOneTarget,
+      isNameMatch: token.isNameMatch,
+      jlptLevel: token.jlptLevel,
+      frequencyRank: token.frequencyRank,
+    })),
+    [
+      {
+        surface: 'は',
+        reading: 'は',
+        headword: 'は',
+        pos1: '助詞',
+        isKnown: false,
+        isNPlusOneTarget: false,
+        isNameMatch: false,
+        jlptLevel: undefined,
+        frequencyRank: undefined,
+      },
+    ],
+  );
 });
 
 test('tokenizeSubtitle keeps frequency rank when mecab tags classify token as content-bearing', async () => {
@@ -1163,7 +1484,7 @@ test('tokenizeSubtitle skips JLPT level for excluded demonstratives', async () =
   assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
 });
 
-test('tokenizeSubtitle skips JLPT level for repeated kana SFX', async () => {
+test('tokenizeSubtitle keeps repeated kana interjections tokenized while clearing annotation metadata', async () => {
   const result = await tokenizeSubtitle(
     'ああ',
     makeDeps({
@@ -1194,8 +1515,29 @@ test('tokenizeSubtitle skips JLPT level for repeated kana SFX', async () => {
     }),
   );
 
-  assert.equal(result.tokens?.length, 1);
-  assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
+  assert.equal(result.text, 'ああ');
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      reading: token.reading,
+      jlptLevel: token.jlptLevel,
+      frequencyRank: token.frequencyRank,
+      isKnown: token.isKnown,
+      isNPlusOneTarget: token.isNPlusOneTarget,
+    })),
+    [
+      {
+        surface: 'ああ',
+        headword: 'ああ',
+        reading: 'ああ',
+        jlptLevel: undefined,
+        frequencyRank: undefined,
+        isKnown: false,
+        isNPlusOneTarget: false,
+      },
+    ],
+  );
 });
 
 test('tokenizeSubtitle assigns JLPT level to Yomitan tokens', async () => {
@@ -2282,9 +2624,142 @@ test('tokenizeSubtitle keeps correct MeCab pos1 enrichment when Yomitan offsets 
   const gaToken = result.tokens?.find((token) => token.surface === 'が');
   const desuToken = result.tokens?.find((token) => token.surface === 'です');
   assert.equal(gaToken?.pos1, '助詞');
+  assert.equal(gaToken?.isKnown, false);
+  assert.equal(gaToken?.isNPlusOneTarget, false);
+  assert.equal(gaToken?.jlptLevel, undefined);
+  assert.equal(gaToken?.frequencyRank, undefined);
   assert.equal(desuToken?.pos1, '助動詞');
+  assert.equal(desuToken?.isKnown, false);
+  assert.equal(desuToken?.isNPlusOneTarget, false);
+  assert.equal(desuToken?.jlptLevel, undefined);
+  assert.equal(desuToken?.frequencyRank, undefined);
   assert.equal(targets.length, 1);
   assert.equal(targets[0]?.surface, '仮面');
+});
+
+test('tokenizeSubtitle preserves merged token frequency when MeCab positions cross a newline gap', async () => {
+  const parserWindow = {
+    isDestroyed: () => false,
+    webContents: {
+      executeJavaScript: async (script: string) => {
+        if (script.includes('getTermFrequencies')) {
+          return script.includes('"term":"陰に","reading":"いんに"')
+            ? [
+                {
+                  term: '陰に',
+                  reading: 'いんに',
+                  dictionary: 'JPDBv2㋕',
+                  frequency: 5702,
+                  displayValue: '5702',
+                  displayValueParsed: false,
+                },
+              ]
+            : [];
+        }
+
+        return [
+          {
+            surface: 'X',
+            reading: 'えっくす',
+            headword: 'X',
+            startPos: 0,
+            endPos: 1,
+          },
+          {
+            surface: '陰に',
+            reading: 'いんに',
+            headword: '陰に',
+            startPos: 2,
+            endPos: 4,
+          },
+          {
+            surface: '潜み',
+            reading: 'ひそ',
+            headword: '潜む',
+            startPos: 4,
+            endPos: 6,
+          },
+        ];
+      },
+    },
+  } as unknown as Electron.BrowserWindow;
+
+  const deps = createTokenizerDepsRuntime({
+    getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+    getYomitanParserWindow: () => parserWindow,
+    setYomitanParserWindow: () => {},
+    getYomitanParserReadyPromise: () => null,
+    setYomitanParserReadyPromise: () => {},
+    getYomitanParserInitPromise: () => null,
+    setYomitanParserInitPromise: () => {},
+    isKnownWord: () => false,
+    getKnownWordMatchMode: () => 'headword',
+    getJlptLevel: () => null,
+    getFrequencyDictionaryEnabled: () => true,
+    getMecabTokenizer: () => ({
+      tokenize: async () => [
+        {
+          word: 'X',
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          pos2: '一般',
+          pos3: '',
+          pos4: '',
+          inflectionType: '',
+          inflectionForm: '',
+          headword: 'X',
+          katakanaReading: 'エックス',
+          pronunciation: 'エックス',
+        },
+        {
+          word: '陰',
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          pos2: '一般',
+          pos3: '',
+          pos4: '',
+          inflectionType: '',
+          inflectionForm: '',
+          headword: '陰',
+          katakanaReading: 'カゲ',
+          pronunciation: 'カゲ',
+        },
+        {
+          word: 'に',
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          pos2: '格助詞',
+          pos3: '一般',
+          pos4: '',
+          inflectionType: '',
+          inflectionForm: '',
+          headword: 'に',
+          katakanaReading: 'ニ',
+          pronunciation: 'ニ',
+        },
+        {
+          word: '潜み',
+          partOfSpeech: PartOfSpeech.verb,
+          pos1: '動詞',
+          pos2: '自立',
+          pos3: '',
+          pos4: '',
+          inflectionType: '五段・マ行',
+          inflectionForm: '連用形',
+          headword: '潜む',
+          katakanaReading: 'ヒソミ',
+          pronunciation: 'ヒソミ',
+        },
+      ],
+    }),
+  });
+
+  const result = await tokenizeSubtitle('X\n陰に潜み', deps);
+
+  assert.equal(result.tokens?.[1]?.surface, '陰に');
+  assert.equal(result.tokens?.[1]?.pos1, '名詞|助詞');
+  assert.equal(result.tokens?.[1]?.pos2, '一般|格助詞');
+  assert.equal(result.tokens?.[1]?.frequencyRank, 5702);
 });
 
 test('tokenizeSubtitle does not color 1-2 word sentences by default', async () => {
@@ -2635,6 +3110,452 @@ test('tokenizeSubtitle excludes default non-independent pos2 from N+1 and freque
   assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
 });
 
+test('tokenizeSubtitle keeps mecab-tagged interjections tokenized while clearing annotation metadata', async () => {
+  const result = await tokenizeSubtitle(
+    'ぐはっ',
+    makeDepsFromYomitanTokens([{ surface: 'ぐはっ', reading: 'ぐはっ', headword: 'ぐはっ' }], {
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: () => 17,
+      getJlptLevel: () => 'N5',
+      tokenizeWithMecab: async () => [
+        {
+          headword: 'ぐはっ',
+          surface: 'ぐはっ',
+          reading: 'グハッ',
+          startPos: 0,
+          endPos: 3,
+          partOfSpeech: PartOfSpeech.other,
+          pos1: '感動詞',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(result.text, 'ぐはっ');
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      reading: token.reading,
+      pos1: token.pos1,
+      jlptLevel: token.jlptLevel,
+      frequencyRank: token.frequencyRank,
+      isKnown: token.isKnown,
+      isNPlusOneTarget: token.isNPlusOneTarget,
+    })),
+    [
+      {
+        surface: 'ぐはっ',
+        headword: 'ぐはっ',
+        reading: 'ぐはっ',
+        pos1: '感動詞',
+        jlptLevel: undefined,
+        frequencyRank: undefined,
+        isKnown: false,
+        isNPlusOneTarget: false,
+      },
+    ],
+  );
+});
+
+test('tokenizeSubtitle keeps excluded interjections hoverable while clearing only their annotation metadata', async () => {
+  const result = await tokenizeSubtitle(
+    'ぐはっ 猫',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === '猫' ? 11 : 17),
+      getJlptLevel: (text) => (text === '猫' ? 'N5' : null),
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [{ text: 'ぐはっ', reading: 'ぐはっ', headwords: [[{ term: 'ぐはっ' }]] }],
+                    [{ text: '猫', reading: 'ねこ', headwords: [[{ term: '猫' }]] }],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+      tokenizeWithMecab: async () => [
+        {
+          headword: 'ぐはっ',
+          surface: 'ぐはっ',
+          reading: 'グハッ',
+          startPos: 0,
+          endPos: 3,
+          partOfSpeech: PartOfSpeech.other,
+          pos1: '感動詞',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: '猫',
+          surface: '猫',
+          reading: 'ネコ',
+          startPos: 4,
+          endPos: 5,
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(result.text, 'ぐはっ 猫');
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      frequencyRank: token.frequencyRank,
+      jlptLevel: token.jlptLevel,
+    })),
+    [
+      { surface: 'ぐはっ', headword: 'ぐはっ', frequencyRank: undefined, jlptLevel: undefined },
+      { surface: '猫', headword: '猫', frequencyRank: 11, jlptLevel: 'N5' },
+    ],
+  );
+});
+
+test('tokenizeSubtitle keeps explanatory ending variants hoverable while clearing only their annotation metadata', async () => {
+  const result = await tokenizeSubtitle(
+    '猫んです',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: '猫', reading: 'ねこ', headword: '猫' },
+        { surface: 'んです', reading: 'んです', headword: 'ん' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) => (text === '猫' ? 11 : 500),
+        getJlptLevel: (text) => (text === '猫' ? 'N5' : null),
+        tokenizeWithMecab: async () => [
+          {
+            headword: '猫',
+            surface: '猫',
+            reading: 'ネコ',
+            startPos: 0,
+            endPos: 1,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '一般',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'ん',
+            surface: 'ん',
+            reading: 'ン',
+            startPos: 1,
+            endPos: 2,
+            partOfSpeech: PartOfSpeech.other,
+            pos1: '名詞',
+            pos2: '非自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'です',
+            surface: 'です',
+            reading: 'デス',
+            startPos: 2,
+            endPos: 4,
+            partOfSpeech: PartOfSpeech.bound_auxiliary,
+            pos1: '助動詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+      },
+    ),
+  );
+
+  assert.equal(result.text, '猫んです');
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      jlptLevel: token.jlptLevel,
+      frequencyRank: token.frequencyRank,
+    })),
+    [
+      { surface: '猫', headword: '猫', jlptLevel: 'N5', frequencyRank: 11 },
+      { surface: 'んです', headword: 'ん', jlptLevel: undefined, frequencyRank: undefined },
+    ],
+  );
+});
+
+test('tokenizeSubtitle keeps standalone grammar-only tokens hoverable while clearing only their annotation metadata', async () => {
+  const result = await tokenizeSubtitle(
+    '私はこの猫です',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === '私' ? 50 : text === '猫' ? 11 : 500),
+      getJlptLevel: (text) => (text === '私' ? 'N5' : text === '猫' ? 'N5' : null),
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [{ text: '私', reading: 'わたし', headwords: [[{ term: '私' }]] }],
+                    [{ text: 'は', reading: 'は', headwords: [[{ term: 'は' }]] }],
+                    [{ text: 'この', reading: 'この', headwords: [[{ term: 'この' }]] }],
+                    [{ text: '猫', reading: 'ねこ', headwords: [[{ term: '猫' }]] }],
+                    [{ text: 'です', reading: 'です', headwords: [[{ term: 'です' }]] }],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+      tokenizeWithMecab: async () => [
+        {
+          headword: '私',
+          surface: '私',
+          reading: 'ワタシ',
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          pos2: '代名詞',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: 'は',
+          surface: 'は',
+          reading: 'ハ',
+          startPos: 1,
+          endPos: 2,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          pos2: '係助詞',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: 'この',
+          surface: 'この',
+          reading: 'コノ',
+          startPos: 2,
+          endPos: 4,
+          partOfSpeech: PartOfSpeech.other,
+          pos1: '連体詞',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: '猫',
+          surface: '猫',
+          reading: 'ネコ',
+          startPos: 4,
+          endPos: 5,
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          pos2: '一般',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: 'です',
+          surface: 'です',
+          reading: 'デス',
+          startPos: 5,
+          endPos: 7,
+          partOfSpeech: PartOfSpeech.bound_auxiliary,
+          pos1: '助動詞',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(result.text, '私はこの猫です');
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      frequencyRank: token.frequencyRank,
+      jlptLevel: token.jlptLevel,
+    })),
+    [
+      { surface: '私', headword: '私', frequencyRank: 50, jlptLevel: 'N5' },
+      { surface: 'は', headword: 'は', frequencyRank: undefined, jlptLevel: undefined },
+      { surface: 'この', headword: 'この', frequencyRank: undefined, jlptLevel: undefined },
+      { surface: '猫', headword: '猫', frequencyRank: 11, jlptLevel: 'N5' },
+      { surface: 'です', headword: 'です', frequencyRank: undefined, jlptLevel: undefined },
+    ],
+  );
+});
+
+test('tokenizeSubtitle keeps trailing quote-particle merged tokens hoverable while clearing only their annotation metadata', async () => {
+  const result = await tokenizeSubtitle(
+    'どうしてもって',
+    makeDepsFromYomitanTokens([{ surface: 'どうしてもって', reading: 'どうしてもって', headword: 'どうしても' }], {
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === 'どうしても' ? 123 : null),
+      getJlptLevel: (text) => (text === 'どうしても' ? 'N3' : null),
+      tokenizeWithMecab: async () => [
+        {
+          headword: 'どうしても',
+          surface: 'どうしても',
+          reading: 'ドウシテモ',
+          startPos: 0,
+          endPos: 5,
+          partOfSpeech: PartOfSpeech.other,
+          pos1: '副詞',
+          pos2: '一般',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: 'って',
+          surface: 'って',
+          reading: 'ッテ',
+          startPos: 5,
+          endPos: 7,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          pos2: '格助詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      getMinSentenceWordsForNPlusOne: () => 1,
+    }),
+  );
+
+  assert.equal(result.text, 'どうしてもって');
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      jlptLevel: token.jlptLevel,
+      frequencyRank: token.frequencyRank,
+    })),
+    [
+      {
+        surface: 'どうしてもって',
+        headword: 'どうしても',
+        jlptLevel: undefined,
+        frequencyRank: undefined,
+      },
+    ],
+  );
+});
+
+test('tokenizeSubtitle keeps auxiliary-stem そうだ grammar tails hoverable while clearing annotation metadata', async () => {
+  const result = await tokenizeSubtitle(
+    '与えるそうだ',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: '与える', reading: 'あたえる', headword: '与える' },
+        { surface: 'そうだ', reading: 'そうだ', headword: 'そうだ' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) => (text === '与える' ? 100 : text === 'そうだ' ? 12 : null),
+        getJlptLevel: (text) => (text === '与える' ? 'N3' : text === 'そうだ' ? 'N5' : null),
+        tokenizeWithMecab: async () => [
+          {
+            headword: '与える',
+            surface: '与える',
+            reading: 'アタエル',
+            startPos: 0,
+            endPos: 3,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '動詞',
+            pos2: '自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'そう',
+            surface: 'そう',
+            reading: 'ソウ',
+            startPos: 3,
+            endPos: 5,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '特殊',
+            pos3: '助動詞語幹',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'だ',
+            surface: 'だ',
+            reading: 'ダ',
+            startPos: 5,
+            endPos: 6,
+            partOfSpeech: PartOfSpeech.bound_auxiliary,
+            pos1: '助動詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+        getMinSentenceWordsForNPlusOne: () => 1,
+      },
+    ),
+  );
+
+  assert.equal(result.text, '与えるそうだ');
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      frequencyRank: token.frequencyRank,
+      jlptLevel: token.jlptLevel,
+    })),
+    [
+      { surface: '与える', headword: '与える', frequencyRank: 100, jlptLevel: 'N3' },
+      { surface: 'そうだ', headword: 'そうだ', frequencyRank: undefined, jlptLevel: undefined },
+    ],
+  );
+});
+
 test('tokenizeSubtitle excludes single-kana merged tokens from frequency highlighting', async () => {
   const result = await tokenizeSubtitle(
     'た',
@@ -2705,6 +3626,271 @@ test('tokenizeSubtitle excludes merged function/content token from frequency hig
   assert.equal(result.tokens?.[0]?.pos1, '助詞|動詞');
   assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
   assert.equal(result.tokens?.[0]?.isNPlusOneTarget, true);
+});
+
+test('tokenizeSubtitle clears all annotations for kana-only demonstrative helper merges', async () => {
+  const result = await tokenizeSubtitle(
+    'これで実力どおりか',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: 'これで', reading: 'これで', headword: 'これ' },
+        { surface: '実力どおり', reading: 'じつりょくどおり', headword: '実力どおり' },
+        { surface: 'か', reading: 'か', headword: 'か' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) =>
+          text === 'これ' ? 9 : text === '実力どおり' ? 2500 : text === 'か' ? 800 : null,
+        getJlptLevel: (text) =>
+          text === 'これ' ? 'N5' : text === '実力どおり' ? 'N1' : text === 'か' ? 'N5' : null,
+        isKnownWord: (text) => text === 'これ',
+        getMinSentenceWordsForNPlusOne: () => 1,
+        tokenizeWithMecab: async () => [
+          {
+            headword: 'これ',
+            surface: 'これ',
+            reading: 'コレ',
+            startPos: 0,
+            endPos: 2,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '代名詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'で',
+            surface: 'で',
+            reading: 'デ',
+            startPos: 2,
+            endPos: 3,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '格助詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: '実力どおり',
+            surface: '実力どおり',
+            reading: 'ジツリョクドオリ',
+            startPos: 3,
+            endPos: 8,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '一般',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'か',
+            surface: 'か',
+            reading: 'カ',
+            startPos: 8,
+            endPos: 9,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '終助詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+      },
+    ),
+  );
+
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      isKnown: token.isKnown,
+      isNPlusOneTarget: token.isNPlusOneTarget,
+      frequencyRank: token.frequencyRank,
+      jlptLevel: token.jlptLevel,
+    })),
+    [
+      {
+        surface: 'これで',
+        headword: 'これ',
+        isKnown: false,
+        isNPlusOneTarget: false,
+        frequencyRank: undefined,
+        jlptLevel: undefined,
+      },
+      {
+        surface: '実力どおり',
+        headword: '実力どおり',
+        isKnown: false,
+        isNPlusOneTarget: true,
+        frequencyRank: 2500,
+        jlptLevel: 'N1',
+      },
+      {
+        surface: 'か',
+        headword: 'か',
+        isKnown: false,
+        isNPlusOneTarget: false,
+        frequencyRank: undefined,
+        jlptLevel: undefined,
+      },
+    ],
+  );
+});
+
+test('tokenizeSubtitle clears all annotations for explanatory pondering endings', async () => {
+  const result = await tokenizeSubtitle(
+    '俺どうかしちゃったのかな',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: '俺', reading: 'おれ', headword: '俺' },
+        { surface: 'どうかしちゃった', reading: 'どうかしちゃった', headword: 'どうかしちゃう' },
+        { surface: 'のかな', reading: 'のかな', headword: 'の' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) => (text === '俺' ? 19 : text === 'どうかしちゃう' ? 3200 : 77),
+        getJlptLevel: (text) =>
+          text === '俺' ? 'N5' : text === 'どうかしちゃう' ? 'N3' : text === 'の' ? 'N5' : null,
+        isKnownWord: (text) => text === '俺' || text === 'の',
+        getMinSentenceWordsForNPlusOne: () => 1,
+        tokenizeWithMecab: async () => [
+          {
+            headword: '俺',
+            surface: '俺',
+            reading: 'オレ',
+            startPos: 0,
+            endPos: 1,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '代名詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'どうかしちゃう',
+            surface: 'どうかしちゃった',
+            reading: 'ドウカシチャッタ',
+            startPos: 1,
+            endPos: 8,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '動詞',
+            pos2: '自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'の',
+            surface: 'のかな',
+            reading: 'ノカナ',
+            startPos: 8,
+            endPos: 11,
+            partOfSpeech: PartOfSpeech.other,
+            pos1: '名詞|助動詞',
+            pos2: '非自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+      },
+    ),
+  );
+
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      isKnown: token.isKnown,
+      isNPlusOneTarget: token.isNPlusOneTarget,
+      frequencyRank: token.frequencyRank,
+      jlptLevel: token.jlptLevel,
+    })),
+    [
+      { surface: '俺', headword: '俺', isKnown: true, isNPlusOneTarget: false, frequencyRank: 19, jlptLevel: 'N5' },
+      {
+        surface: 'どうかしちゃった',
+        headword: 'どうかしちゃう',
+        isKnown: false,
+        isNPlusOneTarget: true,
+        frequencyRank: 3200,
+        jlptLevel: 'N3',
+      },
+      {
+        surface: 'のかな',
+        headword: 'の',
+        isKnown: false,
+        isNPlusOneTarget: false,
+        frequencyRank: undefined,
+        jlptLevel: undefined,
+      },
+    ],
+  );
+});
+
+test('tokenizeSubtitle keeps frequency for content-led merged token with trailing colloquial suffixes', async () => {
+  const result = await tokenizeSubtitle(
+    '張り切ってんじゃ',
+    makeDepsFromYomitanTokens(
+      [{ surface: '張り切ってん', reading: 'はき', headword: '張り切る' }],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) => (text === '張り切る' ? 5468 : null),
+        tokenizeWithMecab: async () => [
+          {
+            headword: '張り切る',
+            surface: '張り切っ',
+            reading: 'ハリキッ',
+            startPos: 0,
+            endPos: 4,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '動詞',
+            pos2: '自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'て',
+            surface: 'て',
+            reading: 'テ',
+            startPos: 4,
+            endPos: 5,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '接続助詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'んじゃ',
+            surface: 'んじゃ',
+            reading: 'ンジャ',
+            startPos: 5,
+            endPos: 8,
+            partOfSpeech: PartOfSpeech.other,
+            pos1: '接続詞',
+            pos2: '*',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+        getMinSentenceWordsForNPlusOne: () => 1,
+      },
+    ),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.surface, '張り切ってん');
+  assert.equal(result.tokens?.[0]?.pos1, '動詞|助詞|接続詞');
+  assert.equal(result.tokens?.[0]?.frequencyRank, 5468);
 });
 
 test('tokenizeSubtitle excludes default non-independent pos2 from N+1 when JLPT/frequency are disabled', async () => {

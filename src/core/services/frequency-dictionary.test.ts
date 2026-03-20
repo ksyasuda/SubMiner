@@ -130,6 +130,56 @@ test('createFrequencyDictionaryLookup parses composite displayValue by primary r
   assert.equal(lookup('高み'), 9933);
 });
 
+test('createFrequencyDictionaryLookup uses leading display digits for displayValue strings', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-frequency-dict-'));
+  const bankPath = path.join(tempDir, 'term_meta_bank_1.json');
+  fs.writeFileSync(
+    bankPath,
+    JSON.stringify([
+      ['潜む', 1, { frequency: { value: 121, displayValue: '118,121' } }],
+      ['例', 2, { frequency: { value: 1234, displayValue: '1,234' } }],
+    ]),
+  );
+
+  const lookup = await createFrequencyDictionaryLookup({
+    searchPaths: [tempDir],
+    log: () => undefined,
+  });
+
+  assert.equal(lookup('潜む'), 118);
+  assert.equal(lookup('例'), 1);
+});
+
+test('createFrequencyDictionaryLookup ignores occurrence-based Yomitan dictionaries', async () => {
+  const logs: string[] = [];
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-frequency-dict-'));
+  fs.writeFileSync(
+    path.join(tempDir, 'index.json'),
+    JSON.stringify({
+      title: 'CC100',
+      revision: '1',
+      frequencyMode: 'occurrence-based',
+    }),
+  );
+  fs.writeFileSync(
+    path.join(tempDir, 'term_meta_bank_1.json'),
+    JSON.stringify([['潜む', 1, { frequency: { value: 118121 } }]]),
+  );
+
+  const lookup = await createFrequencyDictionaryLookup({
+    searchPaths: [tempDir],
+    log: (message) => {
+      logs.push(message);
+    },
+  });
+
+  assert.equal(lookup('潜む'), null);
+  assert.equal(
+    logs.some((entry) => entry.includes('occurrence-based') && entry.includes('CC100')),
+    true,
+  );
+});
+
 test('createFrequencyDictionaryLookup does not require synchronous fs APIs', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-frequency-dict-'));
   const bankPath = path.join(tempDir, 'term_meta_bank_1.json');

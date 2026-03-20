@@ -29,13 +29,19 @@ jobs:
           path: |
             ~/.bun/install/cache
             node_modules
+            stats/node_modules
             vendor/subminer-yomitan/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'vendor/subminer-yomitan/package-lock.json') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'stats/bun.lock', 'vendor/subminer-yomitan/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          bun install --frozen-lockfile
+          cd stats && bun install --frozen-lockfile
+
+      - name: Lint stats (formatting)
+        run: bun run lint:stats
 
       - name: Build (TypeScript check)
         run: bun run typecheck
@@ -83,14 +89,17 @@ jobs:
           path: |
             ~/.bun/install/cache
             node_modules
+            stats/node_modules
             vendor/texthooker-ui/node_modules
             vendor/subminer-yomitan/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'vendor/texthooker-ui/package.json', 'vendor/subminer-yomitan/package-lock.json') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'stats/bun.lock', 'vendor/texthooker-ui/package.json', 'vendor/subminer-yomitan/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          bun install --frozen-lockfile
+          cd stats && bun install --frozen-lockfile
 
       - name: Build texthooker-ui
         run: |
@@ -138,9 +147,10 @@ jobs:
           path: |
             ~/.bun/install/cache
             node_modules
+            stats/node_modules
             vendor/texthooker-ui/node_modules
             vendor/subminer-yomitan/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'vendor/texthooker-ui/package.json', 'vendor/subminer-yomitan/package-lock.json') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'stats/bun.lock', 'vendor/texthooker-ui/package.json', 'vendor/subminer-yomitan/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
@@ -165,7 +175,9 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          bun install --frozen-lockfile
+          cd stats && bun install --frozen-lockfile
 
       - name: Build texthooker-ui
         run: |
@@ -210,14 +222,17 @@ jobs:
           path: |
             ~/.bun/install/cache
             node_modules
+            stats/node_modules
             vendor/texthooker-ui/node_modules
             vendor/subminer-yomitan/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'vendor/texthooker-ui/package.json', 'vendor/subminer-yomitan/package-lock.json') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'stats/bun.lock', 'vendor/texthooker-ui/package.json', 'vendor/subminer-yomitan/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          bun install --frozen-lockfile
+          cd stats && bun install --frozen-lockfile
 
       - name: Build texthooker-ui
         shell: powershell

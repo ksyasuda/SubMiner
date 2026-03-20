@@ -3,10 +3,13 @@ type MpvBindingEventName =
   | 'subtitle-change'
   | 'subtitle-ass-change'
   | 'secondary-subtitle-change'
+  | 'subtitle-track-change'
+  | 'subtitle-track-list-change'
   | 'subtitle-timing'
   | 'media-path-change'
   | 'media-title-change'
   | 'time-pos-change'
+  | 'duration-change'
   | 'pause-change'
   | 'subtitle-metrics-change'
   | 'secondary-subtitle-visibility';
@@ -19,7 +22,6 @@ export function createHandleMpvConnectionChangeHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
   refreshDiscordPresence: () => void;
   syncOverlayMpvSubtitleSuppression: () => void;
-  scheduleCharacterDictionarySync?: () => void;
   hasInitialJellyfinPlayArg: () => boolean;
   isOverlayRuntimeInitialized: () => boolean;
   isQuitOnDisconnectArmed: () => boolean;
@@ -31,7 +33,6 @@ export function createHandleMpvConnectionChangeHandler(deps: {
     deps.refreshDiscordPresence();
     if (connected) {
       deps.syncOverlayMpvSubtitleSuppression();
-      deps.scheduleCharacterDictionarySync?.();
       return;
     }
     deps.reportJellyfinRemoteStopped();
@@ -68,10 +69,13 @@ export function createBindMpvClientEventHandlers(deps: {
   onSubtitleChange: (payload: { text: string }) => void;
   onSubtitleAssChange: (payload: { text: string }) => void;
   onSecondarySubtitleChange: (payload: { text: string }) => void;
+  onSubtitleTrackChange: (payload: { sid: number | null }) => void;
+  onSubtitleTrackListChange: (payload: { trackList: unknown[] | null }) => void;
   onSubtitleTiming: (payload: { text: string; start: number; end: number }) => void;
   onMediaPathChange: (payload: { path: string | null }) => void;
   onMediaTitleChange: (payload: { title: string | null }) => void;
   onTimePosChange: (payload: { time: number }) => void;
+  onDurationChange: (payload: { duration: number }) => void;
   onPauseChange: (payload: { paused: boolean }) => void;
   onSubtitleMetricsChange: (payload: { patch: Record<string, unknown> }) => void;
   onSecondarySubtitleVisibility: (payload: { visible: boolean }) => void;
@@ -81,10 +85,13 @@ export function createBindMpvClientEventHandlers(deps: {
     mpvClient.on('subtitle-change', deps.onSubtitleChange);
     mpvClient.on('subtitle-ass-change', deps.onSubtitleAssChange);
     mpvClient.on('secondary-subtitle-change', deps.onSecondarySubtitleChange);
+    mpvClient.on('subtitle-track-change', deps.onSubtitleTrackChange);
+    mpvClient.on('subtitle-track-list-change', deps.onSubtitleTrackListChange);
     mpvClient.on('subtitle-timing', deps.onSubtitleTiming);
     mpvClient.on('media-path-change', deps.onMediaPathChange);
     mpvClient.on('media-title-change', deps.onMediaTitleChange);
     mpvClient.on('time-pos-change', deps.onTimePosChange);
+    mpvClient.on('duration-change', deps.onDurationChange);
     mpvClient.on('pause-change', deps.onPauseChange);
     mpvClient.on('subtitle-metrics-change', deps.onSubtitleMetricsChange);
     mpvClient.on('secondary-subtitle-visibility', deps.onSecondarySubtitleVisibility);

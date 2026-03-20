@@ -114,6 +114,7 @@ SubMiner maps its data to your Anki note fields. Configure these under `ankiConn
 ```jsonc
 "ankiConnect": {
   "fields": {
+    "word": "Expression",           // mined word / expression text
     "audio": "ExpressionAudio",    // audio clip from the video
     "image": "Picture",             // screenshot or animated clip
     "sentence": "Sentence",         // subtitle text

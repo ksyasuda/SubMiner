@@ -21,15 +21,19 @@ export function buildRuntimeOptionRegistry(
     },
     {
       id: 'subtitle.annotation.nPlusOne',
-      path: 'ankiConnect.nPlusOne.highlightEnabled',
+      path: 'ankiConnect.knownWords.highlightEnabled',
       label: 'N+1 Annotation',
       scope: 'subtitle',
       valueType: 'boolean',
       allowedValues: [true, false],
-      defaultValue: defaultConfig.ankiConnect.nPlusOne.highlightEnabled,
+      defaultValue: defaultConfig.ankiConnect.knownWords.highlightEnabled,
       requiresRestart: false,
       formatValueForOsd: (value) => (value === true ? 'On' : 'Off'),
-      toAnkiPatch: () => ({}),
+      toAnkiPatch: (value) => ({
+        knownWords: {
+          highlightEnabled: value === true,
+        },
+      }),
     },
     {
       id: 'subtitle.annotation.jlpt',
@@ -57,16 +61,16 @@ export function buildRuntimeOptionRegistry(
     },
     {
       id: 'anki.nPlusOneMatchMode',
-      path: 'ankiConnect.nPlusOne.matchMode',
-      label: 'N+1 Match Mode',
+      path: 'ankiConnect.knownWords.matchMode',
+      label: 'Known Word Match Mode',
       scope: 'ankiConnect',
       valueType: 'enum',
       allowedValues: ['headword', 'surface'],
-      defaultValue: defaultConfig.ankiConnect.nPlusOne.matchMode,
+      defaultValue: defaultConfig.ankiConnect.knownWords.matchMode,
       requiresRestart: false,
       formatValueForOsd: (value) => String(value),
       toAnkiPatch: (value) => ({
-        nPlusOne: {
+        knownWords: {
           matchMode: value === 'headword' || value === 'surface' ? value : 'headword',
         },
       }),

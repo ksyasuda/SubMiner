@@ -20,7 +20,7 @@ test('rememberAnilistAttemptedUpdateKey evicts oldest beyond max size', () => {
 test('createProcessNextAnilistRetryUpdateHandler handles successful retry', async () => {
   const calls: string[] = [];
   const handler = createProcessNextAnilistRetryUpdateHandler({
-    nextReady: () => ({ key: 'k1', title: 'Show', episode: 1 }),
+    nextReady: () => ({ key: 'k1', title: 'Show', season: null, episode: 1 }),
     refreshRetryQueueState: () => calls.push('refresh'),
     setLastAttemptAt: () => calls.push('attempt'),
     setLastError: (value) => calls.push(`error:${value ?? 'null'}`),
@@ -52,7 +52,7 @@ test('createMaybeRunAnilistPostWatchUpdateHandler queues when token missing', as
     resetTrackedMedia: () => {},
     getWatchedSeconds: () => 1000,
     maybeProbeAnilistDuration: async () => 1000,
-    ensureAnilistMediaGuess: async () => ({ title: 'Show', episode: 1 }),
+    ensureAnilistMediaGuess: async () => ({ title: 'Show', season: null, episode: 1 }),
     hasAttemptedUpdateKey: () => false,
     processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'noop' }),
     refreshAnilistClientSecretState: async () => null,

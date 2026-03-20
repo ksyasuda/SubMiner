@@ -122,12 +122,20 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     jellyfinPlay: false,
     jellyfinDiscovery: false,
     dictionary: false,
+    stats: false,
+    statsBackground: false,
+    statsStop: false,
+    statsCleanup: false,
+    statsCleanupVocab: false,
+    statsCleanupLifetime: false,
     doctor: false,
+    doctorRefreshKnownWords: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,
     mpvSocket: false,
     mpvStatus: false,
+    mpvArgs: '',
     appPassthrough: false,
     appArgs: [],
     jellyfinServer: '',
@@ -183,15 +191,23 @@ export function applyRootOptionsToArgs(
   if (options.rofi === true) parsed.useRofi = true;
   if (options.startOverlay === true) parsed.autoStartOverlay = true;
   if (options.texthooker === false) parsed.useTexthooker = false;
+  if (typeof options.args === 'string') parsed.mpvArgs = options.args;
   if (typeof rootTarget === 'string' && rootTarget) ensureTarget(rootTarget, parsed);
 }
 
 export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations): void {
   if (invocations.dictionaryTriggered) parsed.dictionary = true;
+  if (invocations.statsTriggered) parsed.stats = true;
+  if (invocations.statsBackground) parsed.statsBackground = true;
+  if (invocations.statsStop) parsed.statsStop = true;
+  if (invocations.statsCleanup) parsed.statsCleanup = true;
+  if (invocations.statsCleanupVocab) parsed.statsCleanupVocab = true;
+  if (invocations.statsCleanupLifetime) parsed.statsCleanupLifetime = true;
   if (invocations.dictionaryTarget) {
     parsed.dictionaryTarget = parseDictionaryTarget(invocations.dictionaryTarget);
   }
   if (invocations.doctorTriggered) parsed.doctor = true;
+  if (invocations.doctorRefreshKnownWords) parsed.doctorRefreshKnownWords = true;
   if (invocations.texthookerTriggered) parsed.texthookerOnly = true;
 
   if (invocations.jellyfinInvocation) {
@@ -255,6 +271,9 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
 
   if (invocations.dictionaryLogLevel) {
     parsed.logLevel = parseLogLevel(invocations.dictionaryLogLevel);
+  }
+  if (invocations.statsLogLevel) {
+    parsed.logLevel = parseLogLevel(invocations.statsLogLevel);
   }
 
   if (invocations.doctorLogLevel) parsed.logLevel = parseLogLevel(invocations.doctorLogLevel);

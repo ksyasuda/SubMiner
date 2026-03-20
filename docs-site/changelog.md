@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.7.0 (2026-03-19)
+- Added a full local immersion dashboard release line with Overview, Library, Trends, Vocabulary, and Sessions drill-down views backed by SQLite tracking data.
+- Added browser-first stats workflows: `subminer stats`, background stats daemon controls (`-b` / `-s`), stats cleanup, and dashboard-side mining actions with media enrichment.
+- Improved stats accuracy and scale handling with Yomitan token counts, full session timelines, known-word timeline fixes, cross-media vocabulary fixes, and clearer session charts.
+- Improved overlay/runtime stability with quieter macOS fullscreen recovery, reduced repeated loading OSD popups, and better frequency/noise handling for subtitle annotations.
+- Added launcher mpv-args passthrough plus Linux plugin wrapper-name fallback for packaged installs.
+- Added a hover-revealed ↗ button on Sessions tab rows to navigate directly to the anime media-detail view, with correct "Back to Sessions" back-navigation.
+- Excluded auxiliary-stem `そうだ` grammar tails (MeCab POS3 `助動詞語幹`) from subtitle annotation metadata so frequency, JLPT, and N+1 styling no longer bleed onto grammar-tail tokens.
+
 ## v0.6.5 (2026-03-15)
 - Seeded the AUR checkout with the repo `.SRCINFO` template before rewriting metadata so tagged releases do not depend on prior AUR state.
 

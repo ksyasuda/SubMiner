@@ -62,6 +62,7 @@ function createWorkflowHarness() {
       return names.find((name) => name.toLowerCase() === preferred.toLowerCase()) ?? null;
     },
     getResolvedSentenceAudioFieldName: () => null,
+    getAnimatedImageLeadInSeconds: async () => 0,
     mergeFieldValue: (_existing: string, next: string, _overwrite: boolean) => next,
     generateAudioFilename: () => 'audio_1.mp3',
     generateAudio: async () => null,
@@ -162,4 +163,43 @@ test('NoteUpdateWorkflow updates note before auto field grouping merge', async (
 
   assert.deepEqual(callOrder, ['update', 'auto']);
   assert.equal(harness.updates.length, 1);
+});
+
+test('NoteUpdateWorkflow passes animated image lead-in when syncing avif to word audio', async () => {
+  const harness = createWorkflowHarness();
+  let receivedLeadInSeconds = 0;
+
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'taberu' },
+          ExpressionAudio: { value: '[sound:word.mp3]' },
+          Sentence: { value: '' },
+          Picture: { value: '' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+  harness.deps.getConfig = () => ({
+    fields: {
+      sentence: 'Sentence',
+      image: 'Picture',
+    },
+    media: {
+      generateImage: true,
+      imageType: 'avif',
+      syncAnimatedImageToWordAudio: true,
+    },
+    behavior: {},
+  });
+  harness.deps.getAnimatedImageLeadInSeconds = async () => 1.25;
+  harness.deps.generateImage = async (leadInSeconds?: number) => {
+    receivedLeadInSeconds = leadInSeconds ?? 0;
+    return Buffer.from('image');
+  };
+
+  await harness.workflow.execute(42);
+
+  assert.equal(receivedLeadInSeconds, 1.25);
 });

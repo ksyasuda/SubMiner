@@ -1,5 +1,10 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import type { AnkiConnectConfig } from '../types';
+import {
+  getKnownWordCacheLifecycleConfig,
+  getKnownWordCacheRefreshIntervalMinutes,
+  getKnownWordCacheScopeForConfig,
+} from './known-word-cache';
 
 export interface AnkiIntegrationRuntimeProxyServer {
   start(options: { host: string; port: number; upstreamUrl: string }): void;
@@ -86,6 +91,14 @@ export function normalizeAnkiIntegrationConfig(config: AnkiConnectConfig): AnkiC
       ...DEFAULT_ANKI_CONNECT_CONFIG.media,
       ...(config.media ?? {}),
     },
+    knownWords: {
+      ...DEFAULT_ANKI_CONNECT_CONFIG.knownWords,
+      ...(config.knownWords ?? {}),
+    },
+    nPlusOne: {
+      ...DEFAULT_ANKI_CONNECT_CONFIG.nPlusOne,
+      ...(config.nPlusOne ?? {}),
+    },
     behavior: {
       ...DEFAULT_ANKI_CONNECT_CONFIG.behavior,
       ...(config.behavior ?? {}),
@@ -136,12 +149,22 @@ export class AnkiIntegrationRuntime {
   }
 
   applyRuntimeConfigPatch(patch: Partial<AnkiConnectConfig>): void {
-    const wasKnownWordCacheEnabled = this.config.nPlusOne?.highlightEnabled === true;
+    const wasKnownWordCacheEnabled = this.config.knownWords?.highlightEnabled === true;
+    const previousKnownWordCacheConfig = wasKnownWordCacheEnabled
+      ? this.getKnownWordCacheLifecycleConfig(this.config)
+      : null;
     const previousTransportKey = this.getTransportConfigKey(this.config);
 
     const mergedConfig: AnkiConnectConfig = {
       ...this.config,
       ...patch,
+      knownWords:
+        patch.knownWords !== undefined
+          ? {
+              ...(this.config.knownWords ?? DEFAULT_ANKI_CONNECT_CONFIG.knownWords),
+              ...patch.knownWords,
+            }
+          : this.config.knownWords,
       nPlusOne:
         patch.nPlusOne !== undefined
           ? {
@@ -176,11 +199,22 @@ export class AnkiIntegrationRuntime {
     };
     this.config = normalizeAnkiIntegrationConfig(mergedConfig);
     this.deps.onConfigChanged?.(this.config);
+    const nextKnownWordCacheEnabled = this.config.knownWords?.highlightEnabled === true;
 
-    if (wasKnownWordCacheEnabled && this.config.nPlusOne?.highlightEnabled === false) {
-      this.deps.knownWordCache.stopLifecycle();
+    if (wasKnownWordCacheEnabled && !nextKnownWordCacheEnabled) {
+      if (this.started) {
+        this.deps.knownWordCache.stopLifecycle();
+      }
       this.deps.knownWordCache.clearKnownWordCacheState();
-    } else {
+    } else if (this.started && !wasKnownWordCacheEnabled && nextKnownWordCacheEnabled) {
+      this.deps.knownWordCache.startLifecycle();
+    } else if (
+      this.started &&
+      wasKnownWordCacheEnabled &&
+      nextKnownWordCacheEnabled &&
+      previousKnownWordCacheConfig !== null &&
+      previousKnownWordCacheConfig !== this.getKnownWordCacheLifecycleConfig(this.config)
+    ) {
       this.deps.knownWordCache.startLifecycle();
     }
 
@@ -189,6 +223,18 @@ export class AnkiIntegrationRuntime {
       this.stopTransport();
       this.startTransport();
     }
+  }
+
+  private getKnownWordCacheLifecycleConfig(config: AnkiConnectConfig): string {
+    return getKnownWordCacheLifecycleConfig(config);
+  }
+
+  private getKnownWordRefreshIntervalMinutes(config: AnkiConnectConfig): number {
+    return getKnownWordCacheRefreshIntervalMinutes(config);
+  }
+
+  private getKnownWordCacheScopeForConfig(config: AnkiConnectConfig): string {
+    return getKnownWordCacheScopeForConfig(config);
   }
 
   getOrCreateProxyServer(): AnkiIntegrationRuntimeProxyServer {

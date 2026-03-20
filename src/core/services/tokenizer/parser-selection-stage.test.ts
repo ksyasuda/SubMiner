@@ -212,3 +212,57 @@ test('merges trailing katakana continuation without headword into previous token
     ],
   );
 });
+
+// Regression: merged content+function token candidate must not beat a multi-token split
+// candidate that preserves the content token as a standalone frequency-eligible unit.
+// Background: Yomitan scanning can produce a single-token candidate where a content word
+// is merged with trailing function particles (e.g. かかってこいよ → headword かかってくる).
+// When a competing multi-token candidate splits content and function separately, the
+// multi-token candidate should win so the content token remains frequency-highlightable.
+test('multi-token candidate beats single merged content+function token candidate (frequency regression)', () => {
+  // Candidate A: single merged token — content verb fused with trailing sentence-final particle
+  // This is the "bad" candidate: downstream annotation would exclude frequency for the whole
+  // token because the merged pos1 would contain a function-word component.
+  const mergedCandidate = makeParseItem('scanning-parser', [
+    [{ text: 'かかってこいよ', reading: 'かかってこいよ', headword: 'かかってくる' }],
+  ]);
+
+  // Candidate B: two tokens — content verb surface + particle separately.
+  // The content token is frequency-eligible on its own.
+  const splitCandidate = makeParseItem('scanning-parser', [
+    [{ text: 'かかってこい', reading: 'かかってこい', headword: 'かかってくる' }],
+    [{ text: 'よ', reading: 'よ', headword: 'よ' }],
+  ]);
+
+  // When merged candidate comes first in the array, multi-token split still wins.
+  const tokens = selectYomitanParseTokens(
+    [mergedCandidate, splitCandidate],
+    () => false,
+    'headword',
+  );
+  assert.equal(tokens?.length, 2);
+  assert.equal(tokens?.[0]?.surface, 'かかってこい');
+  assert.equal(tokens?.[0]?.headword, 'かかってくる');
+  assert.equal(tokens?.[1]?.surface, 'よ');
+});
+
+test('multi-token candidate beats single merged content+function token regardless of input order', () => {
+  const mergedCandidate = makeParseItem('scanning-parser', [
+    [{ text: 'かかってこいよ', reading: 'かかってこいよ', headword: 'かかってくる' }],
+  ]);
+
+  const splitCandidate = makeParseItem('scanning-parser', [
+    [{ text: 'かかってこい', reading: 'かかってこい', headword: 'かかってくる' }],
+    [{ text: 'よ', reading: 'よ', headword: 'よ' }],
+  ]);
+
+  // Split candidate comes first — should still win over merged.
+  const tokens = selectYomitanParseTokens(
+    [splitCandidate, mergedCandidate],
+    () => false,
+    'headword',
+  );
+  assert.equal(tokens?.length, 2);
+  assert.equal(tokens?.[0]?.surface, 'かかってこい');
+  assert.equal(tokens?.[1]?.surface, 'よ');
+});

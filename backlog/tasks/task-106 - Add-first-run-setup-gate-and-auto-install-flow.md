@@ -5,23 +5,25 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-07 06:10'
-updated_date: '2026-03-07 06:20'
+updated_date: '2026-03-16 05:13'
 labels: []
 dependencies: []
 references:
   - /home/sudacode/projects/japanese/SubMiner/src/main.ts
   - /home/sudacode/projects/japanese/SubMiner/src/shared/setup-state.ts
-  - /home/sudacode/projects/japanese/SubMiner/src/main/runtime/first-run-setup-service.ts
-  - /home/sudacode/projects/japanese/SubMiner/src/main/runtime/first-run-setup-window.ts
-  - /home/sudacode/projects/japanese/SubMiner/launcher/commands/playback-command.ts
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/src/main/runtime/first-run-setup-service.ts
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/src/main/runtime/first-run-setup-window.ts
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/launcher/commands/playback-command.ts
 priority: high
-ordinal: 10600
+ordinal: 13010
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-
 Replace the current manual install flow with a first-run setup gate:
 
 - bootstrap the default config dir/config file automatically
@@ -32,9 +34,7 @@ Replace the current manual install flow with a first-run setup gate:
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
-
 - [x] #1 First app launch seeds the default config dir/config file without manual copy steps.
 - [x] #2 Existing installs with config plus at least one Yomitan dictionary are auto-detected as already complete.
 - [x] #3 Incomplete installs get a first-run setup popup with mpv plugin install, Yomitan settings, refresh, skip, and finish actions.
@@ -45,7 +45,6 @@ Replace the current manual install flow with a first-run setup gate:
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-
 Added shared setup-state/config/mpv path helpers so Electron and launcher read the same onboarding state file.
 
 Introduced a first-run setup service plus compact BrowserWindow popup using Catppuccin Macchiato styling. The popup supports optional mpv plugin install, opening Yomitan settings, status refresh, skip-plugin, and gated finish once at least one Yomitan dictionary is installed.
@@ -63,7 +62,6 @@ Verification:
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-
 SubMiner now supports a download-and-launch install flow.
 
 - First launch auto-creates config and opens setup only when needed.

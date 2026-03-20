@@ -1,3 +1,4 @@
+import type { SubtitleData } from '../../types';
 import {
   createBindMpvClientEventHandlers,
   createHandleMpvConnectionChangeHandler,
@@ -35,13 +36,17 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   logSubtitleTimingError: (message: string, error: unknown) => void;
 
   setCurrentSubText: (text: string) => void;
-  broadcastSubtitle: (payload: { text: string; tokens: null }) => void;
+  getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
+  emitImmediateSubtitle?: (payload: SubtitleData) => void;
+  broadcastSubtitle: (payload: SubtitleData) => void;
   onSubtitleChange: (text: string) => void;
   refreshDiscordPresence: () => void;
 
   setCurrentSubAssText: (text: string) => void;
   broadcastSubtitleAss: (text: string) => void;
   broadcastSecondarySubtitle: (text: string) => void;
+  onSubtitleTrackChange?: (sid: number | null) => void;
+  onSubtitleTrackListChange?: (trackList: unknown[] | null) => void;
 
   updateCurrentMediaPath: (path: string) => void;
   restoreMpvSubVisibility: () => void;
@@ -51,13 +56,16 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   ensureAnilistMediaGuess: (mediaKey: string) => void;
   syncImmersionMediaState: () => void;
   signalAutoplayReadyIfWarm?: (path: string) => void;
+  flushPlaybackPositionOnMediaPathClear?: (mediaPath: string) => void;
 
   updateCurrentMediaTitle: (title: string) => void;
   resetAnilistMediaGuessState: () => void;
   notifyImmersionTitleUpdate: (title: string) => void;
 
   recordPlaybackPosition: (time: number) => void;
+  recordMediaDuration: (durationSec: number) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
+  onTimePosUpdate?: (time: number) => void;
   recordPauseState: (paused: boolean) => void;
 
   updateSubtitleRenderMetrics: (patch: Record<string, unknown>) => void;
@@ -68,7 +76,6 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
       syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
-      scheduleCharacterDictionarySync: () => deps.scheduleCharacterDictionarySync?.(),
       hasInitialJellyfinPlayArg: () => deps.hasInitialJellyfinPlayArg(),
       isOverlayRuntimeInitialized: () => deps.isOverlayRuntimeInitialized(),
       isQuitOnDisconnectArmed: () => deps.isQuitOnDisconnectArmed(),
@@ -86,6 +93,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
     });
     const handleMpvSubtitleChange = createHandleMpvSubtitleChangeHandler({
       setCurrentSubText: (text) => deps.setCurrentSubText(text),
+      getImmediateSubtitlePayload: (text) => deps.getImmediateSubtitlePayload?.(text) ?? null,
+      emitImmediateSubtitle: (payload) => deps.emitImmediateSubtitle?.(payload),
       broadcastSubtitle: (payload) => deps.broadcastSubtitle(payload),
       onSubtitleChange: (text) => deps.onSubtitleChange(text),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
@@ -106,6 +115,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       maybeProbeAnilistDuration: (mediaKey) => deps.maybeProbeAnilistDuration(mediaKey),
       ensureAnilistMediaGuess: (mediaKey) => deps.ensureAnilistMediaGuess(mediaKey),
       syncImmersionMediaState: () => deps.syncImmersionMediaState(),
+      flushPlaybackPositionOnMediaPathClear: (mediaPath) =>
+        deps.flushPlaybackPositionOnMediaPathClear?.(mediaPath),
       signalAutoplayReadyIfWarm: (path) => deps.signalAutoplayReadyIfWarm?.(path),
       scheduleCharacterDictionarySync: () => deps.scheduleCharacterDictionarySync?.(),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
@@ -115,7 +126,6 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       resetAnilistMediaGuessState: () => deps.resetAnilistMediaGuessState(),
       notifyImmersionTitleUpdate: (title) => deps.notifyImmersionTitleUpdate(title),
       syncImmersionMediaState: () => deps.syncImmersionMediaState(),
-      scheduleCharacterDictionarySync: () => deps.scheduleCharacterDictionarySync?.(),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     });
     const handleMpvTimePosChange = createHandleMpvTimePosChangeHandler({
@@ -123,6 +133,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       reportJellyfinRemoteProgress: (forceImmediate) =>
         deps.reportJellyfinRemoteProgress(forceImmediate),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
+      onTimePosUpdate: (time) => deps.onTimePosUpdate?.(time),
     });
     const handleMpvPauseChange = createHandleMpvPauseChangeHandler({
       recordPauseState: (paused) => deps.recordPauseState(paused),
@@ -143,10 +154,13 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       onSubtitleChange: handleMpvSubtitleChange,
       onSubtitleAssChange: handleMpvSubtitleAssChange,
       onSecondarySubtitleChange: handleMpvSecondarySubtitleChange,
+      onSubtitleTrackChange: ({ sid }) => deps.onSubtitleTrackChange?.(sid),
+      onSubtitleTrackListChange: ({ trackList }) => deps.onSubtitleTrackListChange?.(trackList),
       onSubtitleTiming: handleMpvSubtitleTiming,
       onMediaPathChange: handleMpvMediaPathChange,
       onMediaTitleChange: handleMpvMediaTitleChange,
       onTimePosChange: handleMpvTimePosChange,
+      onDurationChange: ({ duration }) => deps.recordMediaDuration(duration),
       onPauseChange: handleMpvPauseChange,
       onSubtitleMetricsChange: handleMpvSubtitleMetricsChange,
       onSecondarySubtitleVisibility: handleMpvSecondarySubtitleVisibility,

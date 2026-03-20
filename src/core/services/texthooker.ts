@@ -5,23 +5,92 @@ import { createLogger } from '../../logger';
 
 const logger = createLogger('main:texthooker');
 
-export function injectTexthookerBootstrapHtml(html: string, websocketUrl?: string): string {
-  if (!websocketUrl) {
+export type TexthookerBootstrapSettings = {
+  enableKnownWordColoring: boolean;
+  enableNPlusOneColoring: boolean;
+  enableNameMatchColoring: boolean;
+  enableFrequencyColoring: boolean;
+  enableJlptColoring: boolean;
+  characterDictionaryEnabled: boolean;
+  knownWordColor: string;
+  nPlusOneColor: string;
+  nameMatchColor: string;
+  hoverTokenColor: string;
+  hoverTokenBackgroundColor: string;
+  jlptColors: {
+    N1: string;
+    N2: string;
+    N3: string;
+    N4: string;
+    N5: string;
+  };
+  frequencyDictionary: {
+    singleColor: string;
+    bandedColors: readonly [string, string, string, string, string];
+  };
+};
+
+function buildTexthookerBootstrapScript(
+  websocketUrl?: string,
+  settings?: TexthookerBootstrapSettings,
+): string {
+  const statements: string[] = [];
+
+  if (websocketUrl) {
+    statements.push(
+      `window.localStorage.setItem('bannou-texthooker-websocketUrl', ${JSON.stringify(websocketUrl)});`,
+    );
+  }
+
+  if (settings) {
+    const booleanStorageValue = (enabled: boolean): '"1"' | '"0"' => (enabled ? '"1"' : '"0"');
+    statements.push(
+      `window.localStorage.setItem('bannou-texthooker-enableKnownWordColoring', ${booleanStorageValue(settings.enableKnownWordColoring)});`,
+      `window.localStorage.setItem('bannou-texthooker-enableNPlusOneColoring', ${booleanStorageValue(settings.enableNPlusOneColoring)});`,
+      `window.localStorage.setItem('bannou-texthooker-enableNameMatchColoring', ${booleanStorageValue(settings.enableNameMatchColoring)});`,
+      `window.localStorage.setItem('bannou-texthooker-enableFrequencyColoring', ${booleanStorageValue(settings.enableFrequencyColoring)});`,
+      `window.localStorage.setItem('bannou-texthooker-enableJlptColoring', ${booleanStorageValue(settings.enableJlptColoring)});`,
+      `window.localStorage.setItem('bannou-texthooker-characterDictionaryEnabled', ${booleanStorageValue(settings.characterDictionaryEnabled)});`,
+    );
+  }
+
+  return statements.length > 0 ? `<script>${statements.join('')}</script>` : '';
+}
+
+function buildTexthookerBootstrapStyle(settings?: TexthookerBootstrapSettings): string {
+  if (!settings) {
+    return '';
+  }
+
+  const [band1, band2, band3, band4, band5] = settings.frequencyDictionary.bandedColors;
+
+  return `<style id="subminer-texthooker-bootstrap-style">:root{--subminer-known-word-color:${settings.knownWordColor};--subminer-n-plus-one-color:${settings.nPlusOneColor};--subminer-name-match-color:${settings.nameMatchColor};--subminer-jlpt-n1-color:${settings.jlptColors.N1};--subminer-jlpt-n2-color:${settings.jlptColors.N2};--subminer-jlpt-n3-color:${settings.jlptColors.N3};--subminer-jlpt-n4-color:${settings.jlptColors.N4};--subminer-jlpt-n5-color:${settings.jlptColors.N5};--subminer-frequency-single-color:${settings.frequencyDictionary.singleColor};--subminer-frequency-band-1-color:${band1};--subminer-frequency-band-2-color:${band2};--subminer-frequency-band-3-color:${band3};--subminer-frequency-band-4-color:${band4};--subminer-frequency-band-5-color:${band5};--sm-token-hover-bg:${settings.hoverTokenBackgroundColor};--sm-token-hover-text:${settings.hoverTokenColor};}</style>`;
+}
+
+export function injectTexthookerBootstrapHtml(
+  html: string,
+  websocketUrl?: string,
+  settings?: TexthookerBootstrapSettings,
+): string {
+  const bootstrapStyle = buildTexthookerBootstrapStyle(settings);
+  const bootstrapScript = buildTexthookerBootstrapScript(websocketUrl, settings);
+
+  if (!bootstrapStyle && !bootstrapScript) {
     return html;
   }
 
-  const bootstrapScript = `<script>window.localStorage.setItem('bannou-texthooker-websocketUrl', ${JSON.stringify(
-    websocketUrl,
-  )});</script>`;
-
   if (html.includes('</head>')) {
-    return html.replace('</head>', `${bootstrapScript}</head>`);
+    return html.replace('</head>', `${bootstrapStyle}${bootstrapScript}</head>`);
   }
 
-  return `${bootstrapScript}${html}`;
+  return `${bootstrapStyle}${bootstrapScript}${html}`;
 }
 
 export class Texthooker {
+  constructor(
+    private readonly getBootstrapSettings?: () => TexthookerBootstrapSettings | undefined,
+  ) {}
+
   private server: http.Server | null = null;
 
   public isRunning(): boolean {
@@ -62,9 +131,16 @@ export class Texthooker {
           res.end('Not found');
           return;
         }
+        const bootstrapSettings = this.getBootstrapSettings?.();
         const responseData =
           urlPath === '/' || urlPath === '/index.html'
-            ? Buffer.from(injectTexthookerBootstrapHtml(data.toString('utf-8'), websocketUrl))
+            ? Buffer.from(
+                injectTexthookerBootstrapHtml(
+                  data.toString('utf-8'),
+                  websocketUrl,
+                  bootstrapSettings,
+                ),
+              )
             : data;
         res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'text/plain' });
         res.end(responseData);

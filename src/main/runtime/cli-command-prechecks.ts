@@ -4,6 +4,7 @@ export function createHandleTexthookerOnlyModeTransitionHandler(deps: {
   isTexthookerOnlyMode: () => boolean;
   setTexthookerOnlyMode: (enabled: boolean) => void;
   commandNeedsOverlayRuntime: (args: CliArgs) => boolean;
+  ensureOverlayStartupPrereqs: () => void;
   startBackgroundWarmups: () => void;
   logInfo: (message: string) => void;
 }) {
@@ -13,6 +14,7 @@ export function createHandleTexthookerOnlyModeTransitionHandler(deps: {
       !args.texthooker &&
       (args.start || deps.commandNeedsOverlayRuntime(args))
     ) {
+      deps.ensureOverlayStartupPrereqs();
       deps.setTexthookerOnlyMode(false);
       deps.logInfo('Disabling texthooker-only mode after overlay/start command.');
       deps.startBackgroundWarmups();

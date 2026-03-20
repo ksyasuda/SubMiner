@@ -31,6 +31,7 @@ import {
   screen,
 } from 'electron';
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
+import { mergeAiConfig } from './ai/config';
 
 function getPasswordStoreArg(argv: string[]): string | null {
   for (let i = 0; i < argv.length; i += 1) {
@@ -102,8 +103,10 @@ import { RuntimeOptionsManager } from './runtime-options';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
 import { createLogger, setLogLevel, type LogLevelSource } from './logger';
 import { resolveDefaultLogFilePath } from './logger';
+import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
 import {
   commandNeedsOverlayRuntime,
+  isHeadlessInitialCommand,
   parseArgs,
   shouldRunSettingsOnlyStartup,
   shouldStartApp,
@@ -129,6 +132,7 @@ import {
   openAnilistSetupInBrowser,
   rememberAnilistAttemptedUpdateKey,
 } from './main/runtime/domains/anilist';
+import { DEFAULT_MIN_WATCH_RATIO } from './shared/watch-threshold';
 import {
   createApplyJellyfinMpvDefaultsHandler,
   createBuildApplyJellyfinMpvDefaultsMainDepsHandler,
@@ -291,6 +295,7 @@ import {
   resolveJellyfinPlaybackPlanRuntime,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
+  addYomitanNoteViaSearch,
   clearYomitanParserCachesForWindow,
   syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore,
   sendMpvCommandRuntime,
@@ -304,10 +309,13 @@ import {
   upsertYomitanDictionarySettings,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
+import { startStatsServer } from './core/services/stats-server';
+import { registerStatsOverlayToggle, destroyStatsWindow } from './core/services/stats-window.js';
 import {
   createFirstRunSetupService,
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
+import { resolveAutoplayReadyMaxReleaseAttempts } from './main/runtime/startup-autoplay-release-policy';
 import {
   buildFirstRunSetupHtml,
   createMaybeFocusExistingFirstRunSetupWindowHandler,
@@ -326,11 +334,25 @@ import {
 } from './main/runtime/windows-mpv-shortcuts';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
 import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
+import {
+  createRunStatsCliCommandHandler,
+  writeStatsCliCommandResponse,
+} from './main/runtime/stats-cli-command';
+import {
+  isBackgroundStatsServerProcessAlive,
+  readBackgroundStatsServerState,
+  removeBackgroundStatsServerState,
+  resolveBackgroundStatsServerUrl,
+  writeBackgroundStatsServerState,
+} from './main/runtime/stats-daemon';
+import { resolveLegacyVocabularyPosFromTokens } from './core/services/immersion-tracker/legacy-vocabulary-pos';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import {
   guessAnilistMediaInfo,
   updateAnilistPostWatchProgress,
 } from './core/services/anilist/anilist-updater';
+import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
+import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
@@ -355,6 +377,7 @@ import { createAppLifecycleRuntimeRunner } from './main/startup-lifecycle';
 import {
   registerSecondInstanceHandlerEarly,
   requestSingleInstanceLockEarly,
+  shouldBypassSingleInstanceLockForArgv,
 } from './main/early-single-instance';
 import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
@@ -375,6 +398,7 @@ import { createMediaRuntimeService } from './main/media-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
+import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/character-dictionary-auto-sync-completion';
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
@@ -410,6 +434,14 @@ import {
   generateConfigTemplate,
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
+import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
+import { createSubtitlePrefetchService } from './core/services/subtitle-prefetch';
+import type { SubtitlePrefetchService } from './core/services/subtitle-prefetch';
+import {
+  getActiveExternalSubtitleSource,
+  resolveSubtitleSourcePath,
+} from './main/runtime/subtitle-prefetch-source';
+import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -433,7 +465,6 @@ const ANILIST_SETUP_RESPONSE_TYPE = 'token';
 const ANILIST_DEFAULT_CLIENT_ID = '36084';
 const ANILIST_REDIRECT_URI = 'https://anilist.subminer.moe/';
 const ANILIST_DEVELOPER_SETTINGS_URL = 'https://anilist.co/settings/developer';
-const ANILIST_UPDATE_MIN_WATCH_RATIO = 0.85;
 const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
@@ -541,7 +572,40 @@ const anilistUpdateQueue = createAnilistUpdateQueue(
   },
 );
 const isDev = process.argv.includes('--dev') || process.argv.includes('--debug');
-const texthookerService = new Texthooker();
+const texthookerService = new Texthooker(() => {
+  const config = getResolvedConfig();
+  const characterDictionaryEnabled =
+    config.anilist.characterDictionary.enabled && yomitanProfilePolicy.isCharacterDictionaryEnabled();
+  const knownAndNPlusOneEnabled = getRuntimeBooleanOption(
+    'subtitle.annotation.nPlusOne',
+    config.ankiConnect.knownWords.highlightEnabled,
+  );
+
+  return {
+    enableKnownWordColoring: knownAndNPlusOneEnabled,
+    enableNPlusOneColoring: knownAndNPlusOneEnabled,
+    enableNameMatchColoring: config.subtitleStyle.nameMatchEnabled && characterDictionaryEnabled,
+    enableFrequencyColoring: getRuntimeBooleanOption(
+      'subtitle.annotation.frequency',
+      config.subtitleStyle.frequencyDictionary.enabled,
+    ),
+    enableJlptColoring: getRuntimeBooleanOption(
+      'subtitle.annotation.jlpt',
+      config.subtitleStyle.enableJlpt,
+    ),
+    characterDictionaryEnabled,
+    knownWordColor: config.ankiConnect.knownWords.color,
+    nPlusOneColor: config.ankiConnect.nPlusOne.nPlusOne,
+    nameMatchColor: config.subtitleStyle.nameMatchColor,
+    hoverTokenColor: config.subtitleStyle.hoverTokenColor,
+    hoverTokenBackgroundColor: config.subtitleStyle.hoverTokenBackgroundColor,
+    jlptColors: config.subtitleStyle.jlptColors,
+    frequencyDictionary: {
+      singleColor: config.subtitleStyle.frequencyDictionary.singleColor,
+      bandedColors: config.subtitleStyle.frequencyDictionary.bandedColors,
+    },
+  };
+});
 const subtitleWsService = new SubtitleWebSocket();
 const annotationSubtitleWsService = new SubtitleWebSocket();
 const logger = createLogger('main');
@@ -581,7 +645,10 @@ const appLogger = {
 };
 const runtimeRegistry = createMainRuntimeRegistry();
 const appLifecycleApp = {
-  requestSingleInstanceLock: () => requestSingleInstanceLockEarly(app),
+  requestSingleInstanceLock: () =>
+    shouldBypassSingleInstanceLockForArgv(process.argv)
+      ? true
+      : requestSingleInstanceLockEarly(app),
   quit: () => app.quit(),
   on: (event: string, listener: (...args: unknown[]) => void) => {
     if (event === 'second-instance') {
@@ -613,8 +680,49 @@ if (!fs.existsSync(USER_DATA_PATH)) {
 app.setPath('userData', USER_DATA_PATH);
 
 let forceQuitTimer: ReturnType<typeof setTimeout> | null = null;
+let statsServer: ReturnType<typeof startStatsServer> | null = null;
+const statsDaemonStatePath = path.join(USER_DATA_PATH, 'stats-daemon.json');
+
+function readLiveBackgroundStatsDaemonState(): {
+  pid: number;
+  port: number;
+  startedAtMs: number;
+} | null {
+  const state = readBackgroundStatsServerState(statsDaemonStatePath);
+  if (!state) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+    return null;
+  }
+  if (state.pid === process.pid && !statsServer) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+    return null;
+  }
+  if (!isBackgroundStatsServerProcessAlive(state.pid)) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+    return null;
+  }
+  return state;
+}
+
+function clearOwnedBackgroundStatsDaemonState(): void {
+  const state = readBackgroundStatsServerState(statsDaemonStatePath);
+  if (state?.pid === process.pid) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+  }
+}
+
+function stopStatsServer(): void {
+  if (!statsServer) {
+    return;
+  }
+  statsServer.close();
+  statsServer = null;
+  clearOwnedBackgroundStatsDaemonState();
+}
 
 function requestAppQuit(): void {
+  destroyStatsWindow();
+  stopStatsServer();
   if (!forceQuitTimer) {
     forceQuitTimer = setTimeout(() => {
       logger.warn('App quit timed out; forcing process exit.');
@@ -918,6 +1026,10 @@ const buildMainSubsyncRuntimeMainDepsHandler = createBuildMainSubsyncRuntimeMain
 const immersionMediaRuntime = createImmersionMediaRuntime(
   buildImmersionMediaRuntimeMainDepsHandler(),
 );
+const statsCoverArtFetcher = createCoverArtFetcher(
+  createAnilistRateLimiter(),
+  createLogger('main:stats-cover-art'),
+);
 const anilistStateRuntime = createAnilistStateRuntime(buildAnilistStateRuntimeMainDepsHandler());
 const configDerivedRuntime = createConfigDerivedRuntime(buildConfigDerivedRuntimeMainDepsHandler());
 const subsyncRuntime = createMainSubsyncRuntime(buildMainSubsyncRuntimeMainDepsHandler());
@@ -985,8 +1097,11 @@ function maybeSignalPluginAutoplayReady(
 
   // Fallback: repeatedly try to release pause for a short window in case startup
   // gate arming and tokenization-ready signal arrive out of order.
-  const maxReleaseAttempts = options?.forceWhilePaused === true ? 14 : 3;
   const releaseRetryDelayMs = 200;
+  const maxReleaseAttempts = resolveAutoplayReadyMaxReleaseAttempts({
+    forceWhilePaused: options?.forceWhilePaused === true,
+    retryDelayMs: releaseRetryDelayMs,
+  });
   const attemptRelease = (attempt: number): void => {
     void (async () => {
       if (
@@ -1026,25 +1141,27 @@ function maybeSignalPluginAutoplayReady(
 }
 
 let appTray: Tray | null = null;
+let tokenizeSubtitleDeferred: ((text: string) => Promise<SubtitleData>) | null = null;
+function emitSubtitlePayload(payload: SubtitleData): void {
+  appState.currentSubtitleData = payload;
+  broadcastToOverlayWindows('subtitle:set', payload);
+  subtitleWsService.broadcast(payload, {
+    enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+    topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+    mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+  });
+  annotationSubtitleWsService.broadcast(payload, {
+    enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+    topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+    mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+  });
+  subtitlePrefetchService?.resume();
+}
 const buildSubtitleProcessingControllerMainDepsHandler =
   createBuildSubtitleProcessingControllerMainDepsHandler({
-    tokenizeSubtitle: async (text: string) => {
-      return await tokenizeSubtitle(text);
-    },
-    emitSubtitle: (payload) => {
-      appState.currentSubtitleData = payload;
-      broadcastToOverlayWindows('subtitle:set', payload);
-      subtitleWsService.broadcast(payload, {
-        enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-        topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
-        mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
-      });
-      annotationSubtitleWsService.broadcast(payload, {
-        enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-        topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
-        mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
-      });
-    },
+    tokenizeSubtitle: async (text: string) =>
+      tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : { text, tokens: null },
+    emitSubtitle: (payload) => emitSubtitlePayload(payload),
     logDebug: (message) => {
       logger.debug(`[subtitle-processing] ${message}`);
     },
@@ -1054,6 +1171,70 @@ const subtitleProcessingControllerMainDeps = buildSubtitleProcessingControllerMa
 const subtitleProcessingController = createSubtitleProcessingController(
   subtitleProcessingControllerMainDeps,
 );
+
+let subtitlePrefetchService: SubtitlePrefetchService | null = null;
+let subtitlePrefetchRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let lastObservedTimePos = 0;
+const SEEK_THRESHOLD_SECONDS = 3;
+
+function clearScheduledSubtitlePrefetchRefresh(): void {
+  if (subtitlePrefetchRefreshTimer) {
+    clearTimeout(subtitlePrefetchRefreshTimer);
+    subtitlePrefetchRefreshTimer = null;
+  }
+}
+
+const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
+  getCurrentService: () => subtitlePrefetchService,
+  setCurrentService: (service) => {
+    subtitlePrefetchService = service;
+  },
+  loadSubtitleSourceText,
+  parseSubtitleCues: (content, filename) => parseSubtitleCues(content, filename),
+  createSubtitlePrefetchService: (deps) => createSubtitlePrefetchService(deps),
+  tokenizeSubtitle: async (text) =>
+    tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : null,
+  preCacheTokenization: (text, data) => {
+    subtitleProcessingController.preCacheTokenization(text, data);
+  },
+  isCacheFull: () => subtitleProcessingController.isCacheFull(),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message) => logger.warn(message),
+});
+
+async function refreshSubtitlePrefetchFromActiveTrack(): Promise<void> {
+  const client = appState.mpvClient;
+  if (!client?.connected) {
+    return;
+  }
+
+  try {
+    const [trackListRaw, sidRaw] = await Promise.all([
+      client.requestProperty('track-list'),
+      client.requestProperty('sid'),
+    ]);
+    const externalFilename = getActiveExternalSubtitleSource(trackListRaw, sidRaw);
+    if (!externalFilename) {
+      subtitlePrefetchInitController.cancelPendingInit();
+      return;
+    }
+    await subtitlePrefetchInitController.initSubtitlePrefetch(
+      externalFilename,
+      lastObservedTimePos,
+    );
+  } catch {
+    // Track list query failed; skip subtitle prefetch refresh.
+  }
+}
+
+function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
+  clearScheduledSubtitlePrefetchRefresh();
+  subtitlePrefetchRefreshTimer = setTimeout(() => {
+    subtitlePrefetchRefreshTimer = null;
+    void refreshSubtitlePrefetchFromActiveTrack();
+  }, delayMs);
+}
+
 const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
   createBuildOverlayShortcutsRuntimeMainDepsHandler({
     getConfiguredShortcuts: () => getConfiguredShortcuts(),
@@ -1410,13 +1591,30 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     });
   },
   onSyncComplete: ({ mediaId, mediaTitle, changed }) => {
-    if (appState.yomitanParserWindow) {
-      clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
-    }
-    subtitleProcessingController.invalidateTokenizationCache();
-    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-    logger.info(
-      `[dictionary:auto-sync] refreshed current subtitle after sync (AniList ${mediaId}, changed=${changed ? 'yes' : 'no'}, title=${mediaTitle})`,
+    handleCharacterDictionaryAutoSyncComplete(
+      {
+        mediaId,
+        mediaTitle,
+        changed,
+      },
+      {
+        hasParserWindow: () => Boolean(appState.yomitanParserWindow),
+        clearParserCaches: () => {
+          if (appState.yomitanParserWindow) {
+            clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
+          }
+        },
+        invalidateTokenizationCache: () => {
+          subtitleProcessingController.invalidateTokenizationCache();
+        },
+        refreshSubtitlePrefetch: () => {
+          subtitlePrefetchService?.onSeek(lastObservedTimePos);
+        },
+        refreshCurrentSubtitle: () => {
+          subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+        },
+        logInfo: (message) => logger.info(message),
+      },
     );
   },
 });
@@ -1425,6 +1623,7 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   createBuildOverlayVisibilityRuntimeMainDepsHandler({
     getMainWindow: () => overlayManager.getMainWindow(),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    getForceMousePassthrough: () => appState.statsOverlayVisible,
     getWindowTracker: () => appState.windowTracker,
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown: boolean) => {
@@ -1577,7 +1776,7 @@ function shouldInitializeMecabForAnnotations(): boolean {
   const config = getResolvedConfig();
   const nPlusOneEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.nPlusOne',
-    config.ankiConnect.nPlusOne.highlightEnabled,
+    config.ankiConnect.knownWords.highlightEnabled,
   );
   const jlptEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.jlpt',
@@ -2248,7 +2447,7 @@ const {
     logInfo: (message) => logger.info(message),
     logWarn: (message) => logger.warn(message),
     minWatchSeconds: ANILIST_UPDATE_MIN_WATCH_SECONDS,
-    minWatchRatio: ANILIST_UPDATE_MIN_WATCH_RATIO,
+    minWatchRatio: DEFAULT_MIN_WATCH_RATIO,
   },
 });
 
@@ -2358,6 +2557,8 @@ const {
     getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
     getImmersionTracker: () => appState.immersionTracker,
     clearImmersionTracker: () => {
+      stopStatsServer();
+      appState.statsServer = null;
       appState.immersionTracker = null;
     },
     getAnkiIntegration: () => appState.ankiIntegration,
@@ -2401,16 +2602,195 @@ const {
 });
 registerProtocolUrlHandlersHandler();
 
+const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
+const statsPreloadPath = path.join(__dirname, 'preload-stats.js');
+
+const ensureStatsServerStarted = (): string => {
+  const liveDaemon = readLiveBackgroundStatsDaemonState();
+  if (liveDaemon && liveDaemon.pid !== process.pid) {
+    return resolveBackgroundStatsServerUrl(liveDaemon);
+  }
+  const tracker = appState.immersionTracker;
+  if (!tracker) {
+    throw new Error('Immersion tracker failed to initialize.');
+  }
+  if (!statsServer) {
+    const yomitanDeps = {
+      getYomitanExt: () => appState.yomitanExt,
+      getYomitanSession: () => appState.yomitanSession,
+      getYomitanParserWindow: () => appState.yomitanParserWindow,
+      setYomitanParserWindow: (w: BrowserWindow | null) => {
+        appState.yomitanParserWindow = w;
+      },
+      getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
+      setYomitanParserReadyPromise: (p: Promise<void> | null) => {
+        appState.yomitanParserReadyPromise = p;
+      },
+      getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
+      setYomitanParserInitPromise: (p: Promise<boolean> | null) => {
+        appState.yomitanParserInitPromise = p;
+      },
+    };
+    const yomitanLogger = createLogger('main:yomitan-stats');
+    statsServer = startStatsServer({
+      port: getResolvedConfig().stats.serverPort,
+      staticDir: statsDistPath,
+      tracker,
+      knownWordCachePath: path.join(USER_DATA_PATH, 'known-words-cache.json'),
+      mpvSocketPath: appState.mpvSocketPath,
+      ankiConnectConfig: getResolvedConfig().ankiConnect,
+      resolveAnkiNoteId: (noteId: number) => appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
+      addYomitanNote: async (word: string) => {
+        const ankiUrl = getResolvedConfig().ankiConnect.url || 'http://127.0.0.1:8765';
+        await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
+          forceOverride: true,
+        });
+        return addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
+      },
+    });
+    appState.statsServer = statsServer;
+  }
+  appState.statsServer = statsServer;
+  return `http://127.0.0.1:${getResolvedConfig().stats.serverPort}`;
+};
+
+const ensureBackgroundStatsServerStarted = (): {
+  url: string;
+  runningInCurrentProcess: boolean;
+} => {
+  const liveDaemon = readLiveBackgroundStatsDaemonState();
+  if (liveDaemon && liveDaemon.pid !== process.pid) {
+    return {
+      url: resolveBackgroundStatsServerUrl(liveDaemon),
+      runningInCurrentProcess: false,
+    };
+  }
+
+  appState.statsStartupInProgress = true;
+  try {
+    ensureImmersionTrackerStarted();
+  } finally {
+    appState.statsStartupInProgress = false;
+  }
+
+  const port = getResolvedConfig().stats.serverPort;
+  const url = ensureStatsServerStarted();
+  writeBackgroundStatsServerState(statsDaemonStatePath, {
+    pid: process.pid,
+    port,
+    startedAtMs: Date.now(),
+  });
+  return { url, runningInCurrentProcess: true };
+};
+
+const stopBackgroundStatsServer = async (): Promise<{ ok: boolean; stale: boolean }> => {
+  const state = readBackgroundStatsServerState(statsDaemonStatePath);
+  if (!state) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+    return { ok: true, stale: true };
+  }
+  if (!isBackgroundStatsServerProcessAlive(state.pid)) {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+    return { ok: true, stale: true };
+  }
+
+  try {
+    process.kill(state.pid, 'SIGTERM');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ESRCH') {
+      removeBackgroundStatsServerState(statsDaemonStatePath);
+      return { ok: true, stale: true };
+    }
+    if ((error as NodeJS.ErrnoException)?.code === 'EPERM') {
+      throw new Error(
+        `Insufficient permissions to stop background stats server (pid ${state.pid}).`,
+      );
+    }
+    throw error;
+  }
+
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    if (!isBackgroundStatsServerProcessAlive(state.pid)) {
+      removeBackgroundStatsServerState(statsDaemonStatePath);
+      return { ok: true, stale: false };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  throw new Error('Timed out stopping background stats server.');
+};
+
+const resolveLegacyVocabularyPos = async (row: {
+  headword: string;
+  word: string;
+  reading: string | null;
+}) => {
+  const tokenizer = appState.mecabTokenizer;
+  if (!tokenizer) {
+    return null;
+  }
+
+  const lookupTexts = [...new Set([row.headword, row.word, row.reading ?? ''])]
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+  for (const lookupText of lookupTexts) {
+    const tokens = await tokenizer.tokenize(lookupText);
+    const resolved = resolveLegacyVocabularyPosFromTokens(lookupText, tokens);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  return null;
+};
+
 const immersionTrackerStartupMainDeps: Parameters<
   typeof createBuildImmersionTrackerStartupMainDepsHandler
 >[0] = {
   getResolvedConfig: () => getResolvedConfig(),
   getConfiguredDbPath: () => immersionMediaRuntime.getConfiguredDbPath(),
-  createTrackerService: (params) => new ImmersionTrackerService(params),
+  createTrackerService: (params) =>
+    new ImmersionTrackerService({
+      ...params,
+      resolveLegacyVocabularyPos,
+    }),
   setTracker: (tracker) => {
+    const trackerHasChanged =
+      appState.immersionTracker !== null && appState.immersionTracker !== tracker;
+    if (trackerHasChanged && appState.statsServer) {
+      stopStatsServer();
+      appState.statsServer = null;
+    }
+
     appState.immersionTracker = tracker as ImmersionTrackerService | null;
+    appState.immersionTracker?.setCoverArtFetcher(statsCoverArtFetcher);
+    if (tracker) {
+      // Start HTTP stats server
+      if (!appState.statsServer) {
+        const config = getResolvedConfig();
+        if (config.stats.autoStartServer) {
+          ensureStatsServerStarted();
+        }
+      }
+
+      // Register stats overlay toggle IPC handler (idempotent)
+      registerStatsOverlayToggle({
+        staticDir: statsDistPath,
+        preloadPath: statsPreloadPath,
+        getApiBaseUrl: () => ensureStatsServerStarted(),
+        getToggleKey: () => getResolvedConfig().stats.toggleKey,
+        resolveBounds: () => getCurrentOverlayGeometry(),
+        onVisibilityChanged: (visible) => {
+          appState.statsOverlayVisible = visible;
+          overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+        },
+      });
+    }
   },
   getMpvClient: () => appState.mpvClient,
+  shouldAutoConnectMpv: () => !appState.statsStartupInProgress,
   seedTrackerFromCurrentMedia: () => {
     void immersionMediaRuntime.seedFromCurrentMedia();
   },
@@ -2421,6 +2801,10 @@ const immersionTrackerStartupMainDeps: Parameters<
 const createImmersionTrackerStartup = createImmersionTrackerStartupHandler(
   createBuildImmersionTrackerStartupMainDepsHandler(immersionTrackerStartupMainDeps)(),
 );
+const recordTrackedCardsMined = (count: number, noteIds?: number[]): void => {
+  ensureImmersionTrackerStarted();
+  appState.immersionTracker?.recordCardsMined(count, noteIds);
+};
 let hasAttemptedImmersionTrackerStartup = false;
 const ensureImmersionTrackerStarted = (): void => {
   if (hasAttemptedImmersionTrackerStartup || appState.immersionTracker) {
@@ -2429,6 +2813,80 @@ const ensureImmersionTrackerStarted = (): void => {
   hasAttemptedImmersionTrackerStartup = true;
   createImmersionTrackerStartup();
 };
+
+const runStatsCliCommand = createRunStatsCliCommandHandler({
+  getResolvedConfig: () => getResolvedConfig(),
+  ensureImmersionTrackerStarted: () => {
+    appState.statsStartupInProgress = true;
+    try {
+      ensureImmersionTrackerStarted();
+    } finally {
+      appState.statsStartupInProgress = false;
+    }
+  },
+  ensureVocabularyCleanupTokenizerReady: async () => {
+    await createMecabTokenizerAndCheck();
+  },
+  getImmersionTracker: () => appState.immersionTracker,
+  ensureStatsServerStarted: () => ensureStatsServerStarted(),
+  ensureBackgroundStatsServerStarted: () => ensureBackgroundStatsServerStarted(),
+  stopBackgroundStatsServer: () => stopBackgroundStatsServer(),
+  openExternal: (url: string) => shell.openExternal(url),
+  writeResponse: (responsePath, payload) => {
+    writeStatsCliCommandResponse(responsePath, payload);
+  },
+  exitAppWithCode: (code) => {
+    process.exitCode = code;
+    requestAppQuit();
+  },
+  logInfo: (message) => logger.info(message),
+  logWarn: (message, error) => logger.warn(message, error),
+  logError: (message, error) => logger.error(message, error),
+});
+
+async function runHeadlessInitialCommand(): Promise<void> {
+  if (!appState.initialArgs?.refreshKnownWords) {
+    handleInitialArgs();
+    return;
+  }
+
+  const resolvedConfig = getResolvedConfig();
+  if (resolvedConfig.ankiConnect.enabled !== true) {
+    logger.error('Headless known-word refresh failed: AnkiConnect integration not enabled');
+    process.exitCode = 1;
+    requestAppQuit();
+    return;
+  }
+
+  const effectiveAnkiConfig =
+    appState.runtimeOptionsManager?.getEffectiveAnkiConnectConfig(resolvedConfig.ankiConnect) ??
+    resolvedConfig.ankiConnect;
+  const integration = new AnkiIntegration(
+    effectiveAnkiConfig,
+    new SubtitleTimingTracker(),
+    { send: () => undefined } as never,
+    undefined,
+    undefined,
+    async () => ({
+      keepNoteId: 0,
+      deleteNoteId: 0,
+      deleteDuplicate: false,
+      cancelled: true,
+    }),
+    path.join(USER_DATA_PATH, 'known-words-cache.json'),
+    mergeAiConfig(resolvedConfig.ai, resolvedConfig.ankiConnect?.ai),
+  );
+
+  try {
+    await integration.refreshKnownWordCache();
+  } catch (error) {
+    logger.error('Headless known-word refresh failed:', error);
+    process.exitCode = 1;
+  } finally {
+    integration.stop();
+    requestAppQuit();
+  }
+}
 
 const { appReadyRuntimeRunner } = composeAppReadyRuntime({
   reloadConfigMainDeps: {
@@ -2483,6 +2941,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
           getSubtitleStyleConfig: () => configService.getConfig().subtitleStyle,
           onOptionsChanged: () => {
             subtitleProcessingController.invalidateTokenizationCache();
+            subtitlePrefetchService?.onSeek(lastObservedTimePos);
             broadcastRuntimeOptionsChanged();
             refreshOverlayShortcuts();
           },
@@ -2576,11 +3035,23 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
         : configDerivedRuntime.shouldAutoInitializeOverlayRuntimeFromConfig(),
     setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
+    runHeadlessInitialCommand: () => runHeadlessInitialCommand(),
     handleInitialArgs: () => handleInitialArgs(),
+    shouldRunHeadlessInitialCommand: () =>
+      Boolean(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
+    shouldUseMinimalStartup: () =>
+      Boolean(
+        appState.initialArgs?.texthooker ||
+          (appState.initialArgs?.stats &&
+            (appState.initialArgs?.statsCleanup ||
+              appState.initialArgs?.statsBackground ||
+              appState.initialArgs?.statsStop)),
+      ),
     shouldSkipHeavyStartup: () =>
       Boolean(
         appState.initialArgs &&
         (shouldRunSettingsOnlyStartup(appState.initialArgs) ||
+          appState.initialArgs.stats ||
           appState.initialArgs.dictionary ||
           appState.initialArgs.setup),
       ),
@@ -2664,6 +3135,39 @@ void initializeDiscordPresenceService();
 const handleCliCommand = createCliCommandRuntimeHandler({
   handleTexthookerOnlyModeTransitionMainDeps: {
     isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
+    ensureOverlayStartupPrereqs: () => {
+      if (appState.subtitlePosition === null) {
+        loadSubtitlePosition();
+      }
+      if (appState.keybindings.length === 0) {
+        appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+      }
+      if (!appState.mpvClient) {
+        appState.mpvClient = createMpvClientRuntimeService();
+      }
+      if (!appState.runtimeOptionsManager) {
+        appState.runtimeOptionsManager = new RuntimeOptionsManager(
+          () => configService.getConfig().ankiConnect,
+          {
+            applyAnkiPatch: (patch) => {
+              if (appState.ankiIntegration) {
+                appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+              }
+            },
+            getSubtitleStyleConfig: () => configService.getConfig().subtitleStyle,
+            onOptionsChanged: () => {
+              subtitleProcessingController.invalidateTokenizationCache();
+              subtitlePrefetchService?.onSeek(lastObservedTimePos);
+              broadcastRuntimeOptionsChanged();
+              refreshOverlayShortcuts();
+            },
+          },
+        );
+      }
+      if (!appState.subtitleTimingTracker) {
+        appState.subtitleTimingTracker = new SubtitleTimingTracker();
+      }
+    },
     setTexthookerOnlyMode: (enabled) => {
       appState.texthookerOnlyMode = enabled;
     },
@@ -2680,6 +3184,7 @@ const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   getInitialArgs: () => appState.initialArgs,
   isBackgroundMode: () => appState.backgroundMode,
   shouldEnsureTrayOnStartup: () => process.platform === 'win32',
+  shouldRunHeadlessInitialCommand: (args) => isHeadlessInitialCommand(args),
   ensureTray: () => ensureTray(),
   isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
   hasImmersionTracker: () => Boolean(appState.immersionTracker),
@@ -2720,7 +3225,12 @@ const {
     broadcastToOverlayWindows: (channel, payload) => {
       broadcastToOverlayWindows(channel, payload);
     },
+    getImmediateSubtitlePayload: (text) => subtitleProcessingController.consumeCachedSubtitle(text),
+    emitImmediateSubtitle: (payload) => {
+      emitSubtitlePayload(payload);
+    },
     onSubtitleChange: (text) => {
+      subtitlePrefetchService?.pause();
       subtitleProcessingController.onSubtitleChange(text);
     },
     refreshDiscordPresence: () => {
@@ -2729,12 +3239,18 @@ const {
     ensureImmersionTrackerInitialized: () => {
       ensureImmersionTrackerStarted();
     },
+    tokenizeSubtitleForImmersion: async (text): Promise<SubtitleData | null> =>
+      tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : null,
     updateCurrentMediaPath: (path) => {
       autoPlayReadySignalMediaPath = null;
       currentMediaTokenizationGate.updateCurrentMediaPath(path);
       startupOsdSequencer.reset();
+      clearScheduledSubtitlePrefetchRefresh();
+      subtitlePrefetchInitController.cancelPendingInit();
       if (path) {
         ensureImmersionTrackerStarted();
+        // Delay slightly to allow MPV's track-list to be populated.
+        scheduleSubtitlePrefetchRefresh(500);
       }
       mediaRuntime.updateCurrentMediaPath(path);
     },
@@ -2777,6 +3293,19 @@ const {
     },
     reportJellyfinRemoteProgress: (forceImmediate) => {
       void reportJellyfinRemoteProgress(forceImmediate);
+    },
+    onTimePosUpdate: (time) => {
+      const delta = time - lastObservedTimePos;
+      if (subtitlePrefetchService && (delta > SEEK_THRESHOLD_SECONDS || delta < 0)) {
+        subtitlePrefetchService.onSeek(time);
+      }
+      lastObservedTimePos = time;
+    },
+    onSubtitleTrackChange: () => {
+      scheduleSubtitlePrefetchRefresh();
+    },
+    onSubtitleTrackListChange: () => {
+      scheduleSubtitlePrefetchRefresh();
     },
     updateSubtitleRenderMetrics: (patch) => {
       updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
@@ -2830,11 +3359,11 @@ const {
       },
       getKnownWordMatchMode: () =>
         appState.ankiIntegration?.getKnownWordMatchMode() ??
-        getResolvedConfig().ankiConnect.nPlusOne.matchMode,
+        getResolvedConfig().ankiConnect.knownWords.matchMode,
       getNPlusOneEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.nPlusOne',
-          getResolvedConfig().ankiConnect.nPlusOne.highlightEnabled,
+          getResolvedConfig().ankiConnect.knownWords.highlightEnabled,
         ),
       getMinSentenceWordsForNPlusOne: () =>
         getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,
@@ -2940,6 +3469,7 @@ const {
     },
   },
 });
+tokenizeSubtitleDeferred = tokenizeSubtitle;
 
 function createMpvClientRuntimeService(): MpvIpcClient {
   return createMpvClientRuntimeServiceHandler() as MpvIpcClient;
@@ -3114,6 +3644,7 @@ function destroyTray(): void {
 
 function initializeOverlayRuntime(): void {
   initializeOverlayRuntimeHandler();
+  appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
   syncOverlayMpvSubtitleSuppression();
 }
 
@@ -3284,9 +3815,9 @@ const buildMineSentenceCardMainDepsHandler = createBuildMineSentenceCardMainDeps
   getMpvClient: () => appState.mpvClient,
   showMpvOsd: (text) => showMpvOsd(text),
   mineSentenceCardCore,
-  recordCardsMined: (count) => {
+  recordCardsMined: (count, noteIds) => {
     ensureImmersionTrackerStarted();
-    appState.immersionTracker?.recordCardsMined(count);
+    appState.immersionTracker?.recordCardsMined(count, noteIds);
   },
 });
 const mineSentenceCardHandler = createMineSentenceCardHandler(
@@ -3369,26 +3900,28 @@ const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHand
   appendClipboardVideoToQueueMainDeps,
 );
 
+async function loadSubtitleSourceText(source: string): Promise<string> {
+  if (/^https?:\/\//i.test(source)) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    try {
+      const response = await fetch(source, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`Failed to download subtitle source (${response.status})`);
+      }
+      return await response.text();
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  const filePath = resolveSubtitleSourcePath(source);
+  return fs.promises.readFile(filePath, 'utf8');
+}
+
 const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacentCueHandler({
   getMpvClient: () => appState.mpvClient,
-  loadSubtitleSourceText: async (source) => {
-    if (/^https?:\/\//i.test(source)) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      try {
-        const response = await fetch(source, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`Failed to download subtitle source (${response.status})`);
-        }
-        return await response.text();
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    }
-
-    const filePath = source.startsWith('file://') ? decodeURI(new URL(source).pathname) : source;
-    return fs.promises.readFile(filePath, 'utf8');
-  },
+  loadSubtitleSourceText,
   sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
   showMpvOsd: (text) => showMpvOsd(text),
 });
@@ -3456,6 +3989,8 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getMecabTokenizer: () => appState.mecabTokenizer,
       getKeybindings: () => appState.keybindings,
       getConfiguredShortcuts: () => getConfiguredShortcuts(),
+      getStatsToggleKey: () => getResolvedConfig().stats.toggleKey,
+      getMarkWatchedKey: () => getResolvedConfig().stats.markWatchedKey,
       getControllerConfig: () => getResolvedConfig().controller,
       saveControllerConfig: (update) => {
         const currentRawConfig = configService.getRawConfig();
@@ -3484,6 +4019,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
       retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
       appendClipboardVideoToQueue: () => appendClipboardVideoToQueue(),
+      getImmersionTracker: () => appState.immersionTracker,
     },
     ankiJimakuDeps: createAnkiJimakuIpcRuntimeServiceDeps({
       patchAnkiConnectEnabled: (enabled: boolean) => {
@@ -3496,6 +4032,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getAnkiIntegration: () => appState.ankiIntegration,
       setAnkiIntegration: (integration: AnkiIntegration | null) => {
         appState.ankiIntegration = integration;
+        appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
       },
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       showDesktopNotification,
@@ -3558,6 +4095,8 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
     return await characterDictionaryRuntime.generateForCurrentMedia(targetPath);
   },
   runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
+  runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
+    runStatsCliCommand(argsFromCommand, source),
   openYomitanSettings: () => openYomitanSettings(),
   cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
   openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
@@ -3689,8 +4228,24 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       overlayShortcutsRuntime: {
         syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
       },
-      createMainWindow: () => createMainWindow(),
-      registerGlobalShortcuts: () => registerGlobalShortcuts(),
+      createMainWindow: () => {
+        if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+          return;
+        }
+        createMainWindow();
+      },
+      registerGlobalShortcuts: () => {
+        if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+          return;
+        }
+        registerGlobalShortcuts();
+      },
+      createWindowTracker: (override, targetMpvSocketPath) => {
+        if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+          return null;
+        }
+        return createWindowTrackerCore(override, targetMpvSocketPath);
+      },
       updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
         updateVisibleOverlayBounds(geometry),
       getOverlayWindows: () => getOverlayWindows(),
@@ -3698,6 +4253,8 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       showDesktopNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
+      shouldStartAnkiIntegration: () =>
+        !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     },
     initializeOverlayRuntimeBootstrapDeps: {
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
@@ -3705,7 +4262,12 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       setOverlayRuntimeInitialized: (initialized) => {
         appState.overlayRuntimeInitialized = initialized;
       },
-      startBackgroundWarmups: () => startBackgroundWarmups(),
+      startBackgroundWarmups: () => {
+        if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+          return;
+        }
+        startBackgroundWarmups();
+      },
     },
   });
 const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSettingsRuntime({

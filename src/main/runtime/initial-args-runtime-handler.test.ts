@@ -8,6 +8,7 @@ test('initial args runtime handler composes main deps and runs initial command f
     getInitialArgs: () => ({ start: true }) as never,
     isBackgroundMode: () => true,
     shouldEnsureTrayOnStartup: () => false,
+    shouldRunHeadlessInitialCommand: () => false,
     ensureTray: () => calls.push('tray'),
     isTexthookerOnlyMode: () => false,
     hasImmersionTracker: () => true,
@@ -27,4 +28,50 @@ test('initial args runtime handler composes main deps and runs initial command f
     'connect',
     'cli:initial',
   ]);
+});
+
+test('initial args runtime handler skips mpv auto-connect for stats mode', () => {
+  const calls: string[] = [];
+  const handleInitialArgs = createInitialArgsRuntimeHandler({
+    getInitialArgs: () => ({ stats: true }) as never,
+    isBackgroundMode: () => false,
+    shouldEnsureTrayOnStartup: () => false,
+    shouldRunHeadlessInitialCommand: () => false,
+    ensureTray: () => calls.push('tray'),
+    isTexthookerOnlyMode: () => false,
+    hasImmersionTracker: () => true,
+    getMpvClient: () => ({
+      connected: false,
+      connect: () => calls.push('connect'),
+    }),
+    logInfo: (message) => calls.push(`log:${message}`),
+    handleCliCommand: (_args, source) => calls.push(`cli:${source}`),
+  });
+
+  handleInitialArgs();
+
+  assert.deepEqual(calls, ['cli:initial']);
+});
+
+test('initial args runtime handler skips tray and mpv auto-connect for headless refresh', () => {
+  const calls: string[] = [];
+  const handleInitialArgs = createInitialArgsRuntimeHandler({
+    getInitialArgs: () => ({ refreshKnownWords: true }) as never,
+    isBackgroundMode: () => true,
+    shouldEnsureTrayOnStartup: () => true,
+    shouldRunHeadlessInitialCommand: () => true,
+    ensureTray: () => calls.push('tray'),
+    isTexthookerOnlyMode: () => false,
+    hasImmersionTracker: () => true,
+    getMpvClient: () => ({
+      connected: false,
+      connect: () => calls.push('connect'),
+    }),
+    logInfo: (message) => calls.push(`log:${message}`),
+    handleCliCommand: (_args, source) => calls.push(`cli:${source}`),
+  });
+
+  handleInitialArgs();
+
+  assert.deepEqual(calls, ['cli:initial']);
 });

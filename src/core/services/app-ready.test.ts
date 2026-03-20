@@ -176,6 +176,22 @@ test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns
   assert.ok(calls.indexOf('handleFirstRunSetup') < calls.indexOf('handleInitialArgs'));
 });
 
+test('runAppReadyRuntime uses minimal startup for texthooker-only mode', async () => {
+  const { deps, calls } = makeDeps({
+    texthookerOnlyMode: true,
+    reloadConfig: () => calls.push('reloadConfig'),
+    handleInitialArgs: () => calls.push('handleInitialArgs'),
+  });
+
+  await runAppReadyRuntime(deps);
+
+  assert.deepEqual(calls, [
+    'ensureDefaultConfigBootstrap',
+    'reloadConfig',
+    'handleInitialArgs',
+  ]);
+});
+
 test('runAppReadyRuntime skips Jellyfin remote startup when dependency is not wired', async () => {
   const { deps, calls } = makeDeps({
     startJellyfinRemoteSession: undefined,

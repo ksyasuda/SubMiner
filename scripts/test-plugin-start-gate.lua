@@ -344,6 +344,27 @@ local function count_start_calls(async_calls)
 	return count
 end
 
+local function find_texthooker_call(async_calls)
+	for _, call in ipairs(async_calls) do
+		local args = call.args or {}
+		for i = 1, #args do
+			if args[i] == "--texthooker" then
+				return call
+			end
+		end
+	end
+	return nil
+end
+
+local function find_call_index(async_calls, target_call)
+	for index, call in ipairs(async_calls) do
+		if call == target_call then
+			return index
+		end
+	end
+	return nil
+end
+
 local function find_control_call(async_calls, flag)
 	for _, call in ipairs(async_calls) do
 		local args = call.args or {}
@@ -643,6 +664,8 @@ do
 	fire_event(recorded, "file-loaded")
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
+	local texthooker_call = find_texthooker_call(recorded.async_calls)
+	assert_true(texthooker_call ~= nil, "auto-start should issue texthooker helper command when enabled")
 	assert_true(
 		call_has_arg(start_call, "--show-visible-overlay"),
 		"auto-start with visible overlay enabled should include --show-visible-overlay on --start"
@@ -654,6 +677,10 @@ do
 	assert_true(
 		find_control_call(recorded.async_calls, "--show-visible-overlay") ~= nil,
 		"auto-start with visible overlay enabled should issue a separate --show-visible-overlay command"
+	)
+	assert_true(
+		find_call_index(recorded.async_calls, start_call) < find_call_index(recorded.async_calls, texthooker_call),
+		"auto-start should launch --start before separate --texthooker helper startup"
 	)
 	assert_true(
 		not has_property_set(recorded.property_sets, "pause", true),

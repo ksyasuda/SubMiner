@@ -153,6 +153,7 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -361,6 +362,7 @@ test('generateForCurrentMedia applies configured open states to character dictio
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -518,6 +520,7 @@ test('generateForCurrentMedia reapplies collapsible open states when using cache
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -533,6 +536,7 @@ test('generateForCurrentMedia reapplies collapsible open states when using cache
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -661,6 +665,7 @@ test('generateForCurrentMedia adds kana aliases for romanized names when native 
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'Konosuba',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -783,6 +788,7 @@ test('generateForCurrentMedia indexes kanji family and given names using AniList
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'Rascal Does Not Dream of Bunny Girl Senpai',
+        season: null,
         episode: 1,
         source: 'fallback',
       }),
@@ -904,6 +910,7 @@ test('generateForCurrentMedia indexes AniList alternative character names for al
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -1028,6 +1035,7 @@ test('generateForCurrentMedia skips AniList characters without a native name whe
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -1148,6 +1156,7 @@ test('generateForCurrentMedia uses AniList first and last name hints to build ka
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'Konosuba',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -1265,6 +1274,7 @@ test('generateForCurrentMedia includes AniList gender age birthday and blood typ
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -1408,6 +1418,7 @@ test('generateForCurrentMedia preserves duplicate surface forms across different
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -1548,6 +1559,7 @@ test('getOrCreateCurrentSnapshot persists and reuses normalized snapshot data', 
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -1703,6 +1715,7 @@ test('getOrCreateCurrentSnapshot rebuilds snapshots written with an older format
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -1842,6 +1855,7 @@ test('generateForCurrentMedia logs progress while resolving and rebuilding snaps
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -2014,6 +2028,7 @@ test('generateForCurrentMedia downloads shared voice actor images once per AniLi
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),
@@ -2194,6 +2209,7 @@ test('buildMergedDictionary combines stored snapshots into one stable dictionary
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: current.title,
+        season: null,
         episode: current.episode,
         source: 'fallback',
       }),
@@ -2481,6 +2497,7 @@ test('buildMergedDictionary reapplies collapsible open states from current confi
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: current.title,
+        season: null,
         episode: current.episode,
         source: 'fallback',
       }),
@@ -2500,6 +2517,7 @@ test('buildMergedDictionary reapplies collapsible open states from current confi
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: current.title,
+        season: null,
         episode: current.episode,
         source: 'fallback',
       }),
@@ -2663,6 +2681,7 @@ test('generateForCurrentMedia paces AniList requests and character image downloa
       resolveMediaPathForJimaku: (mediaPath) => mediaPath,
       guessAnilistMediaInfo: async () => ({
         title: 'The Eminence in Shadow',
+        season: null,
         episode: 5,
         source: 'fallback',
       }),

@@ -7,6 +7,7 @@ const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
 
 export interface AnilistMediaGuess {
   title: string;
+  season: number | null;
   episode: number | null;
   source: 'guessit' | 'fallback';
 }
@@ -56,7 +57,7 @@ interface AnilistSaveEntryData {
   };
 }
 
-function runGuessit(target: string): Promise<string> {
+export function runGuessit(target: string): Promise<string> {
   return new Promise((resolve, reject) => {
     childProcess.execFile(
       'guessit',
@@ -73,9 +74,9 @@ function runGuessit(target: string): Promise<string> {
   });
 }
 
-type GuessAnilistMediaInfoDeps = {
+export interface GuessAnilistMediaInfoDeps {
   runGuessit: (target: string) => Promise<string>;
-};
+}
 
 function firstString(value: unknown): string | null {
   if (typeof value === 'string') {
@@ -215,8 +216,9 @@ export async function guessAnilistMediaInfo(
       const parsed = JSON.parse(stdout) as Record<string, unknown>;
       const title = readGuessitTitle(parsed.title);
       const episode = firstPositiveInteger(parsed.episode);
+      const season = firstPositiveInteger(parsed.season);
       if (title) {
-        return { title, episode, source: 'guessit' };
+        return { title, season, episode, source: 'guessit' };
       }
     } catch {
       // Ignore guessit failures and fall back to internal parser.
@@ -230,6 +232,7 @@ export async function guessAnilistMediaInfo(
   }
   return {
     title: parsed.title.trim(),
+    season: parsed.season,
     episode: parsed.episode,
     source: 'fallback',
   };

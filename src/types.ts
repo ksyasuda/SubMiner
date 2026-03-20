@@ -221,6 +221,7 @@ export interface AnkiConnectConfig {
   };
   tags?: string[];
   fields?: {
+    word?: string;
     audio?: string;
     image?: string;
     sentence?: string;
@@ -240,17 +241,21 @@ export interface AnkiConnectConfig {
     animatedMaxWidth?: number;
     animatedMaxHeight?: number;
     animatedCrf?: number;
+    syncAnimatedImageToWordAudio?: boolean;
     audioPadding?: number;
     fallbackDuration?: number;
     maxMediaDuration?: number;
   };
-  nPlusOne?: {
+  knownWords?: {
     highlightEnabled?: boolean;
     refreshMinutes?: number;
+    addMinedWordsImmediately?: boolean;
     matchMode?: NPlusOneMatchMode;
-    decks?: string[];
+    decks?: Record<string, string[]>;
+    color?: string;
+  };
+  nPlusOne?: {
     nPlusOne?: string;
-    knownWord?: string;
     minSentenceWords?: number;
   };
   behavior?: {
@@ -621,6 +626,17 @@ export interface YoutubeSubgenConfig {
   primarySubLanguages?: string[];
 }
 
+export interface StatsConfig {
+  toggleKey?: string;
+  markWatchedKey?: string;
+  serverPort?: number;
+  autoStartServer?: boolean;
+  autoOpenBrowser?: boolean;
+}
+
+export type ImmersionTrackingRetentionMode = 'preset' | 'advanced';
+export type ImmersionTrackingRetentionPreset = 'minimal' | 'balanced' | 'deep-history';
+
 export interface ImmersionTrackingConfig {
   enabled?: boolean;
   dbPath?: string;
@@ -629,12 +645,20 @@ export interface ImmersionTrackingConfig {
   queueCap?: number;
   payloadCapBytes?: number;
   maintenanceIntervalMs?: number;
+  retentionMode?: ImmersionTrackingRetentionMode;
+  retentionPreset?: ImmersionTrackingRetentionPreset;
   retention?: {
     eventsDays?: number;
     telemetryDays?: number;
+    sessionsDays?: number;
     dailyRollupsDays?: number;
     monthlyRollupsDays?: number;
     vacuumIntervalDays?: number;
+  };
+  lifetimeSummaries?: {
+    global?: boolean;
+    anime?: boolean;
+    media?: boolean;
   };
 }
 
@@ -660,6 +684,7 @@ export interface Config {
   ai?: AiConfig;
   youtubeSubgen?: YoutubeSubgenConfig;
   immersionTracking?: ImmersionTrackingConfig;
+  stats?: StatsConfig;
   logging?: {
     level?: 'debug' | 'info' | 'warn' | 'error';
   };
@@ -700,6 +725,7 @@ export interface ResolvedConfig {
     };
     tags: string[];
     fields: {
+      word: string;
       audio: string;
       image: string;
       sentence: string;
@@ -721,17 +747,21 @@ export interface ResolvedConfig {
       animatedMaxWidth: number;
       animatedMaxHeight?: number;
       animatedCrf: number;
+      syncAnimatedImageToWordAudio: boolean;
       audioPadding: number;
       fallbackDuration: number;
       maxMediaDuration: number;
     };
-    nPlusOne: {
+    knownWords: {
       highlightEnabled: boolean;
       refreshMinutes: number;
+      addMinedWordsImmediately: boolean;
       matchMode: NPlusOneMatchMode;
-      decks: string[];
+      decks: Record<string, string[]>;
+      color: string;
+    };
+    nPlusOne: {
       nPlusOne: string;
-      knownWord: string;
       minSentenceWords: number;
     };
     behavior: {
@@ -847,13 +877,28 @@ export interface ResolvedConfig {
     queueCap: number;
     payloadCapBytes: number;
     maintenanceIntervalMs: number;
+    retentionMode: ImmersionTrackingRetentionMode;
+    retentionPreset: ImmersionTrackingRetentionPreset;
     retention: {
       eventsDays: number;
       telemetryDays: number;
+      sessionsDays: number;
       dailyRollupsDays: number;
       monthlyRollupsDays: number;
       vacuumIntervalDays: number;
     };
+    lifetimeSummaries: {
+      global: boolean;
+      anime: boolean;
+      media: boolean;
+    };
+  };
+  stats: {
+    toggleKey: string;
+    markWatchedKey: string;
+    serverPort: number;
+    autoStartServer: boolean;
+    autoOpenBrowser: boolean;
   };
   logging: {
     level: 'debug' | 'info' | 'warn' | 'error';
@@ -1034,6 +1079,7 @@ export interface ElectronAPI {
   onSubtitleAss: (callback: (assText: string) => void) => void;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   openYomitanSettings: () => void;
+  recordYomitanLookup: () => void;
   getSubtitlePosition: () => Promise<SubtitlePosition | null>;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
   getMecabStatus: () => Promise<MecabStatus>;
@@ -1041,6 +1087,9 @@ export interface ElectronAPI {
   sendMpvCommand: (command: (string | number)[]) => void;
   getKeybindings: () => Promise<Keybinding[]>;
   getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
+  getStatsToggleKey: () => Promise<string>;
+  getMarkWatchedKey: () => Promise<string>;
+  markActiveVideoWatched: () => Promise<boolean>;
   getControllerConfig: () => Promise<ResolvedControllerConfig>;
   saveControllerConfig: (update: ControllerConfigUpdate) => Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => Promise<void>;
@@ -1051,6 +1100,7 @@ export interface ElectronAPI {
   quitApp: () => void;
   toggleDevTools: () => void;
   toggleOverlay: () => void;
+  toggleStatsOverlay: () => void;
   getAnkiConnectStatus: () => Promise<boolean>;
   setAnkiConnectEnabled: (enabled: boolean) => void;
   clearAnkiConnectHistory: () => void;

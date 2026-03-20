@@ -4,10 +4,10 @@ This guide walks through the sentence mining loop — from watching a video to c
 
 ## Overview
 
-SubMiner runs as a transparent overlay on top of mpv. As subtitles play, the overlay displays them as interactive text. You click a word to look it up with Yomitan, then create an Anki card with a single action. SubMiner automatically attaches the sentence, audio clip, and screenshot.
+SubMiner runs as a transparent overlay on top of mpv. As subtitles play, the overlay displays them as interactive text. You hover a word, trigger Yomitan lookup with your configured lookup key/modifier, then create an Anki card with a single action. SubMiner automatically attaches the sentence, audio clip, and screenshot.
 
 ```text
-Watch video → See subtitle → Click word → Yomitan lookup → Add to Anki
+Watch video → See subtitle → Hover word + trigger lookup → Yomitan popup → Add to Anki
                                                               ↓
                                               SubMiner auto-fills:
                                               sentence, audio, image, translation
@@ -30,9 +30,9 @@ SubMiner uses one overlay window with modal surfaces.
 
 ### Primary Subtitle Layer
 
-The visible overlay renders subtitles as tokenized, clickable word spans. Each word is a separate element with reading and headword data attached. This plane is styled independently from mpv subtitles and supports:
+The visible overlay renders subtitles as tokenized hoverable word spans. Each word is a separate element with reading and headword data attached. This plane is styled independently from mpv subtitles and supports:
 
-- Word-level click targets for Yomitan lookup
+- Word-level hover targets for Yomitan lookup
 - Auto pause/resume on subtitle hover (enabled by default via `subtitleStyle.autoPauseVideoOnHover`)
 - Optional pause while the Yomitan popup is open (`subtitleStyle.autoPauseVideoOnYomitanPopup`)
 - Right-click to pause/resume
@@ -55,9 +55,10 @@ Jimaku search, field-grouping, runtime options, and manual subsync open as modal
 ## Looking Up Words
 
 1. Hover over the subtitle area — the overlay activates pointer events.
-2. Click any word. SubMiner uses Unicode-aware boundary detection (`Intl.Segmenter`) to select it. On macOS, hovering is enough.
-3. Yomitan detects the selection and opens its lookup popup.
-4. From the popup, add the word to Anki.
+2. Hover the word you want. SubMiner keeps per-token boundaries so Yomitan can target that token cleanly.
+3. Trigger Yomitan lookup with your configured lookup key/modifier (for example `Shift` if that is how your Yomitan profile is set up).
+4. Yomitan opens its lookup popup for the hovered token.
+5. From the popup, add the word to Anki.
 
 ### Controller Workflow
 
@@ -83,7 +84,7 @@ There are three ways to create cards, depending on your workflow.
 
 This is the most common flow. Yomitan creates a card in Anki, and SubMiner enriches it automatically.
 
-1. Click a word → Yomitan popup appears.
+1. Hover a word, then trigger Yomitan lookup → Yomitan popup appears.
 2. Click the Anki icon in Yomitan to add the word.
 3. SubMiner receives or detects the new card:
    - **Proxy mode** (`ankiConnect.proxy.enabled: true`): immediate enrich after successful `addNote` / `addNotes`.
@@ -194,7 +195,7 @@ See [Subtitle Annotations — N+1](/subtitle-annotations#n1-word-highlighting) f
 
 ## Immersion Tracking
 
-SubMiner can log your watching and mining activity to a local SQLite database — session times, words seen, cards mined, and daily/monthly rollups.
+SubMiner can log your watching and mining activity to a local SQLite database and expose it in the built-in stats dashboard — session times, words seen, cards mined, and daily/monthly rollups.
 
 Enable it in your config:
 
@@ -205,6 +206,8 @@ Enable it in your config:
 }
 ```
 
-See [Immersion Tracking](/immersion-tracking) for the full schema and retention settings.
+Open the dashboard in the overlay with `stats.toggleKey` (default: `` ` ``), launch it in a browser with `subminer stats`, keep a dedicated background server alive with `subminer stats -b`, stop that background server with `subminer stats -s`, or visit `http://127.0.0.1:5175` directly if the local stats server is already running. The dashboard covers overview totals, anime progress, session detail, and vocabulary drill-down from the same local immersion database.
+
+See [Immersion Tracking](/immersion-tracking) for dashboard details, schema, and retention settings.
 
 Next: [Anki Integration](/anki-integration) — field mapping, media generation, and card enrichment configuration.

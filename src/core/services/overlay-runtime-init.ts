@@ -75,6 +75,7 @@ export function initializeOverlayRuntime(options: {
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
+  shouldStartAnkiIntegration?: () => boolean;
   createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
 }): void {
   options.createMainWindow();
@@ -90,9 +91,6 @@ export function initializeOverlayRuntime(options: {
     windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
       options.updateVisibleOverlayBounds(geometry);
     };
-    windowTracker.onTargetWindowFocusChange = () => {
-      options.syncOverlayShortcuts();
-    };
     windowTracker.onWindowFound = (geometry: WindowGeometry) => {
       options.updateVisibleOverlayBounds(geometry);
       if (options.isVisibleOverlayVisible()) {
@@ -106,6 +104,9 @@ export function initializeOverlayRuntime(options: {
       options.syncOverlayShortcuts();
     };
     windowTracker.onWindowFocusChange = () => {
+      if (options.isVisibleOverlayVisible()) {
+        options.updateVisibleOverlayVisibility();
+      }
       options.syncOverlayShortcuts();
     };
     windowTracker.start();
@@ -135,7 +136,9 @@ export function initializeOverlayRuntime(options: {
       createFieldGroupingCallback: options.createFieldGroupingCallback,
       knownWordCacheStatePath: options.getKnownWordCacheStatePath(),
     });
-    integration.start();
+    if (options.shouldStartAnkiIntegration?.() !== false) {
+      integration.start();
+    }
     options.setAnkiIntegration(integration);
   }
 

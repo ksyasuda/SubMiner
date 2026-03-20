@@ -62,7 +62,10 @@ test('startup OSD buffers checking behind annotations and replaces it with later
     makeDictionaryEvent('generating', 'Generating character dictionary for Frieren...'),
   );
 
-  assert.deepEqual(osdMessages, ['Loading subtitle annotations |']);
+  assert.deepEqual(osdMessages, [
+    'Loading subtitle annotations |',
+    'Generating character dictionary for Frieren...',
+  ]);
 
   sequencer.markAnnotationLoadingComplete('Subtitle annotations loaded');
 
@@ -138,7 +141,7 @@ test('startup OSD shows dictionary failure after annotation loading completes', 
   ]);
 });
 
-test('startup OSD reset requires the next media to wait for tokenization again', () => {
+test('startup OSD reset keeps tokenization ready after first warmup', () => {
   const osdMessages: string[] = [];
   const sequencer = createStartupOsdSequencer({
     showOsd: (message) => {
@@ -152,8 +155,32 @@ test('startup OSD reset requires the next media to wait for tokenization again',
     makeDictionaryEvent('syncing', 'Updating character dictionary for Frieren...'),
   );
 
-  assert.deepEqual(osdMessages, []);
-
-  sequencer.markTokenizationReady();
   assert.deepEqual(osdMessages, ['Updating character dictionary for Frieren...']);
+});
+
+test('startup OSD shows later dictionary progress immediately once tokenization is ready', () => {
+  const osdMessages: string[] = [];
+  const sequencer = createStartupOsdSequencer({
+    showOsd: (message) => {
+      osdMessages.push(message);
+    },
+  });
+
+  sequencer.showAnnotationLoading('Loading subtitle annotations |');
+  sequencer.markTokenizationReady();
+  sequencer.notifyCharacterDictionaryStatus(
+    makeDictionaryEvent('generating', 'Generating character dictionary for Frieren...'),
+  );
+
+  assert.deepEqual(osdMessages, [
+    'Loading subtitle annotations |',
+    'Generating character dictionary for Frieren...',
+  ]);
+
+  sequencer.markAnnotationLoadingComplete('Subtitle annotations loaded');
+
+  assert.deepEqual(osdMessages, [
+    'Loading subtitle annotations |',
+    'Generating character dictionary for Frieren...',
+  ]);
 });

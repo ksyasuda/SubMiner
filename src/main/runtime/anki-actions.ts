@@ -75,7 +75,7 @@ export function createMineSentenceCardHandler<TAnki, TMpv>(deps: {
     mpvClient: TMpv;
     showMpvOsd: (text: string) => void;
   }) => Promise<boolean>;
-  recordCardsMined: (count: number) => void;
+  recordCardsMined: (count: number, noteIds?: number[]) => void;
 }) {
   return async (): Promise<void> => {
     const created = await deps.mineSentenceCardCore({

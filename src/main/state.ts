@@ -183,6 +183,7 @@ export interface AppState {
   runtimeOptionsManager: RuntimeOptionsManager | null;
   trackerNotReadyWarningShown: boolean;
   overlayDebugVisualizationEnabled: boolean;
+  statsOverlayVisible: boolean;
   subsyncInProgress: boolean;
   initialArgs: CliArgs | null;
   mpvSocketPath: string;
@@ -196,6 +197,8 @@ export interface AppState {
   anilistSetupPageOpened: boolean;
   anilistRetryQueueState: AnilistRetryQueueState;
   firstRunSetupCompleted: boolean;
+  statsServer: { close: () => void } | null;
+  statsStartupInProgress: boolean;
 }
 
 export interface AppStateInitialValues {
@@ -258,6 +261,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     runtimeOptionsManager: null,
     trackerNotReadyWarningShown: false,
     overlayDebugVisualizationEnabled: false,
+    statsOverlayVisible: false,
     shortcutsRegistered: false,
     overlayRuntimeInitialized: false,
     fieldGroupingResolver: null,
@@ -275,6 +279,8 @@ export function createAppState(values: AppStateInitialValues): AppState {
     anilistSetupPageOpened: false,
     anilistRetryQueueState: createInitialAnilistRetryQueueState(),
     firstRunSetupCompleted: false,
+    statsServer: null,
+    statsStartupInProgress: false,
   };
 }
 

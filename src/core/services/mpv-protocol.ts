@@ -52,6 +52,8 @@ export interface MpvProtocolHandleMessageDeps {
   emitSubtitleAssChange: (payload: { text: string }) => void;
   emitSubtitleTiming: (payload: { text: string; start: number; end: number }) => void;
   emitSecondarySubtitleChange: (payload: { text: string }) => void;
+  emitSubtitleTrackChange: (payload: { sid: number | null }) => void;
+  emitSubtitleTrackListChange: (payload: { trackList: unknown[] | null }) => void;
   getCurrentSubText: () => string;
   setCurrentSubText: (text: string) => void;
   setCurrentSubStart: (value: number) => void;
@@ -61,6 +63,7 @@ export interface MpvProtocolHandleMessageDeps {
   emitMediaPathChange: (payload: { path: string }) => void;
   emitMediaTitleChange: (payload: { title: string | null }) => void;
   emitTimePosChange: (payload: { time: number }) => void;
+  emitDurationChange: (payload: { duration: number }) => void;
   emitPauseChange: (payload: { paused: boolean }) => void;
   emitSubtitleMetricsChange: (payload: Partial<MpvSubtitleRenderMetrics>) => void;
   setCurrentSecondarySubText: (text: string) => void;
@@ -159,6 +162,18 @@ export async function dispatchMpvProtocolMessage(
       const nextSubText = (msg.data as string) || '';
       deps.setCurrentSecondarySubText(nextSubText);
       deps.emitSecondarySubtitleChange({ text: nextSubText });
+    } else if (msg.name === 'sid') {
+      const sid =
+        typeof msg.data === 'number'
+          ? msg.data
+          : typeof msg.data === 'string'
+            ? Number(msg.data)
+            : null;
+      deps.emitSubtitleTrackChange({ sid: sid !== null && Number.isFinite(sid) ? sid : null });
+    } else if (msg.name === 'track-list') {
+      deps.emitSubtitleTrackListChange({
+        trackList: Array.isArray(msg.data) ? (msg.data as unknown[]) : null,
+      });
     } else if (msg.name === 'aid') {
       deps.setCurrentAudioTrackId(typeof msg.data === 'number' ? (msg.data as number) : null);
       deps.syncCurrentAudioStreamIndex();
@@ -171,6 +186,11 @@ export async function dispatchMpvProtocolMessage(
       ) {
         deps.setPauseAtTime(null);
         deps.sendCommand({ command: ['set_property', 'pause', true] });
+      }
+    } else if (msg.name === 'duration') {
+      const duration = typeof msg.data === 'number' ? msg.data : 0;
+      if (duration > 0) {
+        deps.emitDurationChange({ duration });
       }
     } else if (msg.name === 'pause') {
       deps.emitPauseChange({ paused: asBoolean(msg.data, false) });

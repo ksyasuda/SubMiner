@@ -51,6 +51,11 @@ function installKeyboardTestGlobals() {
   const commandEvents: CommandEventDetail[] = [];
   const mpvCommands: Array<Array<string | number>> = [];
   let playbackPausedResponse: boolean | null = false;
+  let statsToggleKey = 'Backquote';
+  let markWatchedKey = 'KeyW';
+  let markActiveVideoWatchedResult = true;
+  let markActiveVideoWatchedCalls = 0;
+  let statsToggleOverlayCalls = 0;
   let selectionClearCount = 0;
   let selectionAddCount = 0;
 
@@ -137,7 +142,16 @@ function installKeyboardTestGlobals() {
           mpvCommands.push(command);
         },
         getPlaybackPaused: async () => playbackPausedResponse,
+        getStatsToggleKey: async () => statsToggleKey,
+        getMarkWatchedKey: async () => markWatchedKey,
+        markActiveVideoWatched: async () => {
+          markActiveVideoWatchedCalls += 1;
+          return markActiveVideoWatchedResult;
+        },
         toggleDevTools: () => {},
+        toggleStatsOverlay: () => {
+          statsToggleOverlayCalls += 1;
+        },
         focusMainWindow: () => {
           focusMainWindowCalls += 1;
           return Promise.resolve();
@@ -253,6 +267,17 @@ function installKeyboardTestGlobals() {
     setPopupVisible: (value: boolean) => {
       popupVisible = value;
     },
+    setStatsToggleKey: (value: string) => {
+      statsToggleKey = value;
+    },
+    setMarkWatchedKey: (value: string) => {
+      markWatchedKey = value;
+    },
+    setMarkActiveVideoWatchedResult: (value: boolean) => {
+      markActiveVideoWatchedResult = value;
+    },
+    markActiveVideoWatchedCalls: () => markActiveVideoWatchedCalls,
+    statsToggleOverlayCalls: () => statsToggleOverlayCalls,
     getPlaybackPaused: async () => playbackPausedResponse,
     setPlaybackPausedResponse: (value: boolean | null) => {
       playbackPausedResponse = value;
@@ -291,6 +316,7 @@ function createKeyboardHandlerHarness() {
     platform: {
       shouldToggleMouseIgnore: false,
       isMacOSPlatform: false,
+      isModalLayer: false,
       overlayLayer: 'always-on-top',
     },
     state: createRendererState(),
@@ -548,6 +574,22 @@ test('keyboard mode: controller select modal handles arrow keys before yomitan p
   }
 });
 
+test('keyboard mode: configured stats toggle works even while popup is open', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    testGlobals.setPopupVisible(true);
+    testGlobals.setStatsToggleKey('KeyG');
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchKeydown({ key: 'g', code: 'KeyG' });
+
+    assert.equal(testGlobals.statsToggleOverlayCalls(), 1);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: h moves left when popup is closed', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
@@ -614,6 +656,42 @@ test('keyboard mode: opening lookup restores overlay keyboard focus', async () =
     assert.equal(testGlobals.focusMainWindowCalls() > 0, true);
     assert.equal(testGlobals.windowFocusCalls() > 0, true);
     assert.equal(testGlobals.overlayFocusCalls.length > 0, true);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: visible-layer Ctrl+Shift+Y should not be toggled by renderer keydown', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    ctx.platform.isModalLayer = false;
+
+    testGlobals.dispatchKeydown({ key: 'Y', code: 'KeyY', ctrlKey: true, shiftKey: true });
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, false);
+
+    handlers.handleKeyboardModeToggleRequested();
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, true);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: modal-layer Ctrl+Shift+Y still toggles via renderer keydown', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    ctx.platform.isModalLayer = true;
+
+    testGlobals.dispatchKeydown({ key: 'Y', code: 'KeyY', ctrlKey: true, shiftKey: true });
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, true);
+
+    testGlobals.dispatchKeydown({ key: 'Y', code: 'KeyY', ctrlKey: true, shiftKey: true });
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, false);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
     testGlobals.restore();
@@ -982,6 +1060,47 @@ test('keyboard mode: popup iframe focusin reclaims overlay keyboard focus', asyn
     assert.equal(testGlobals.overlayFocusCalls.length > 0, true);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('mark-watched keybinding calls markActiveVideoWatched and sends mpv commands', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    const beforeCalls = testGlobals.markActiveVideoWatchedCalls();
+    const beforeMpvCount = testGlobals.mpvCommands.length;
+
+    testGlobals.dispatchKeydown({ key: 'w', code: 'KeyW' });
+    await wait(10);
+
+    assert.equal(testGlobals.markActiveVideoWatchedCalls(), beforeCalls + 1);
+    const newMpvCommands = testGlobals.mpvCommands.slice(beforeMpvCount);
+    assert.deepEqual(newMpvCommands, [
+      ['show-text', 'Marked as watched', '1500'],
+      ['playlist-next', 'force'],
+    ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('mark-watched keybinding does not send mpv commands when no active session', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    testGlobals.setMarkActiveVideoWatchedResult(false);
+    const beforeMpvCount = testGlobals.mpvCommands.length;
+
+    testGlobals.dispatchKeydown({ key: 'w', code: 'KeyW' });
+    await wait(10);
+
+    assert.equal(testGlobals.markActiveVideoWatchedCalls() > 0, true);
+    const newMpvCommands = testGlobals.mpvCommands.slice(beforeMpvCount);
+    assert.deepEqual(newMpvCommands, []);
+  } finally {
     testGlobals.restore();
   }
 });

@@ -17,6 +17,10 @@ type OverlayRuntimeOptions = {
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
+  createWindowTracker?: (
+    override?: string | null,
+    targetMpvSocketPath?: string | null,
+  ) => BaseWindowTracker | null;
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   getSubtitleTimingTracker: () => unknown | null;
   getMpvClient: () => { send?: (payload: { command: string[] }) => void } | null;
@@ -30,6 +34,7 @@ type OverlayRuntimeOptions = {
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
+  shouldStartAnkiIntegration: () => boolean;
 };
 
 export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
@@ -42,6 +47,10 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
+  createWindowTracker?: (
+    override?: string | null,
+    targetMpvSocketPath?: string | null,
+  ) => BaseWindowTracker | null;
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   getSubtitleTimingTracker: () => unknown | null;
   getMpvClient: () => { send?: (payload: { command: string[] }) => void } | null;
@@ -55,6 +64,7 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
+  shouldStartAnkiIntegration: () => boolean;
 }) {
   return (): OverlayRuntimeOptions => ({
     backendOverride: deps.getBackendOverride(),
@@ -66,6 +76,7 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
     getOverlayWindows: deps.getOverlayWindows,
     syncOverlayShortcuts: deps.syncOverlayShortcuts,
     setWindowTracker: deps.setWindowTracker,
+    createWindowTracker: deps.createWindowTracker,
     getResolvedConfig: deps.getResolvedConfig,
     getSubtitleTimingTracker: deps.getSubtitleTimingTracker,
     getMpvClient: deps.getMpvClient,
@@ -75,5 +86,6 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
     showDesktopNotification: deps.showDesktopNotification,
     createFieldGroupingCallback: deps.createFieldGroupingCallback,
     getKnownWordCacheStatePath: deps.getKnownWordCacheStatePath,
+    shouldStartAnkiIntegration: deps.shouldStartAnkiIntegration,
   });
 }

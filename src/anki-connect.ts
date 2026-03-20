@@ -43,7 +43,7 @@ export class AnkiConnectClient {
 
   constructor(url: string) {
     const httpAgent = new http.Agent({
-      keepAlive: true,
+      keepAlive: false,
       keepAliveMsecs: 1000,
       maxSockets: 5,
       maxFreeSockets: 2,
@@ -51,7 +51,7 @@ export class AnkiConnectClient {
     });
 
     const httpsAgent = new https.Agent({
-      keepAlive: true,
+      keepAlive: false,
       keepAliveMsecs: 1000,
       maxSockets: 5,
       maxFreeSockets: 2,
@@ -106,7 +106,7 @@ export class AnkiConnectClient {
       try {
         if (attempt > 0) {
           const delay = Math.min(this.backoffMs * Math.pow(2, attempt - 1), this.maxBackoffMs);
-          log.info(`AnkiConnect retry ${attempt}/${maxRetries} after ${delay}ms delay`);
+          log.info(`AnkiConnect ${action} retry ${attempt}/${maxRetries} after ${delay}ms delay`);
           await this.sleep(delay);
         }
 

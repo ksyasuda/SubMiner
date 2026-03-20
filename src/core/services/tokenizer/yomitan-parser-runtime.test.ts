@@ -188,6 +188,7 @@ test('requestYomitanTermFrequencies returns normalized frequency entries', async
       {
         term: '猫',
         reading: 'ねこ',
+        hasReading: true,
         dictionary: 'freq-dict',
         dictionaryPriority: 0,
         frequency: 77,
@@ -197,6 +198,7 @@ test('requestYomitanTermFrequencies returns normalized frequency entries', async
       {
         term: '鍛える',
         reading: 'きたえる',
+        hasReading: false,
         dictionary: 'freq-dict',
         dictionaryPriority: 1,
         frequency: 46961,
@@ -217,9 +219,11 @@ test('requestYomitanTermFrequencies returns normalized frequency entries', async
 
   assert.equal(result.length, 2);
   assert.equal(result[0]?.term, '猫');
+  assert.equal(result[0]?.hasReading, true);
   assert.equal(result[0]?.frequency, 77);
   assert.equal(result[0]?.dictionaryPriority, 0);
   assert.equal(result[1]?.term, '鍛える');
+  assert.equal(result[1]?.hasReading, false);
   assert.equal(result[1]?.frequency, 2847);
   assert.match(scriptValue, /getTermFrequencies/);
   assert.match(scriptValue, /optionsGetFull/);
@@ -245,6 +249,96 @@ test('requestYomitanTermFrequencies prefers primary rank from displayValue array
   assert.equal(result.length, 1);
   assert.equal(result[0]?.term, '無人');
   assert.equal(result[0]?.frequency, 7141);
+});
+
+test('requestYomitanTermFrequencies prefers primary rank from displayValue string pair when raw frequency matches trailing count', async () => {
+  const deps = createDeps(async () => [
+    {
+      term: '潜む',
+      reading: 'ひそむ',
+      dictionary: 'freq-dict',
+      dictionaryPriority: 0,
+      frequency: 121,
+      displayValue: '118,121',
+      displayValueParsed: false,
+    },
+  ]);
+
+  const result = await requestYomitanTermFrequencies([{ term: '潜む', reading: 'ひそむ' }], deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0]?.term, '潜む');
+  assert.equal(result[0]?.frequency, 118);
+});
+
+test('requestYomitanTermFrequencies uses leading display digits for displayValue strings', async () => {
+  const deps = createDeps(async () => [
+    {
+      term: '例',
+      reading: 'れい',
+      dictionary: 'freq-dict',
+      dictionaryPriority: 0,
+      frequency: 1234,
+      displayValue: '1,234',
+      displayValueParsed: false,
+    },
+  ]);
+
+  const result = await requestYomitanTermFrequencies([{ term: '例', reading: 'れい' }], deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0]?.term, '例');
+  assert.equal(result[0]?.frequency, 1);
+});
+
+test('requestYomitanTermFrequencies ignores occurrence-based dictionaries for rank tagging', async () => {
+  let metadataScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('getTermFrequencies')) {
+      return [
+        {
+          term: '潜む',
+          reading: 'ひそむ',
+          dictionary: 'CC100',
+          frequency: 118121,
+          displayValue: null,
+          displayValueParsed: false,
+        },
+      ];
+    }
+
+    if (script.includes('optionsGetFull')) {
+      metadataScript = script;
+      return {
+        profileCurrent: 0,
+        profileIndex: 0,
+        scanLength: 40,
+        dictionaries: ['CC100'],
+        dictionaryPriorityByName: { CC100: 0 },
+        dictionaryFrequencyModeByName: { CC100: 'occurrence-based' },
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [{ name: 'CC100', enabled: true, id: 0 }],
+            },
+          },
+        ],
+      };
+    }
+    return [];
+  });
+
+  const result = await requestYomitanTermFrequencies([{ term: '潜む', reading: 'ひそむ' }], deps, {
+    error: () => undefined,
+  });
+
+  assert.deepEqual(result, []);
+  assert.match(metadataScript, /getDictionaryInfo/);
 });
 
 test('requestYomitanTermFrequencies requests term-only fallback only after reading miss', async () => {
@@ -483,6 +577,317 @@ test('requestYomitanScanTokens uses left-to-right termsFind scanning instead of 
   assert.doesNotMatch(scannerScript ?? '', /parseText/);
   assert.match(scannerScript ?? '', /matchType:\s*"exact"/);
   assert.match(scannerScript ?? '', /deinflect:\s*true/);
+});
+
+test('requestYomitanScanTokens extracts best frequency rank from selected termsFind entry', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profileIndex: 0,
+        scanLength: 40,
+        dictionaries: ['JPDBv2㋕', 'Jiten', 'CC100'],
+        dictionaryPriorityByName: {
+          'JPDBv2㋕': 0,
+          Jiten: 1,
+          CC100: 2,
+        },
+        dictionaryFrequencyModeByName: {
+          'JPDBv2㋕': 'rank-based',
+          Jiten: 'rank-based',
+          CC100: 'rank-based',
+        },
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [
+                { name: 'JPDBv2㋕', enabled: true, id: 0 },
+                { name: 'Jiten', enabled: true, id: 1 },
+                { name: 'CC100', enabled: true, id: 2 },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens('潜み', deps, {
+    error: () => undefined,
+  });
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (!text.startsWith('潜み')) {
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    }
+
+    return {
+      originalTextLength: 2,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: '潜む',
+              reading: 'ひそむ',
+              sources: [{ originalText: '潜み', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+          frequencies: [
+            {
+              headwordIndex: 0,
+              dictionary: 'JPDBv2㋕',
+              frequency: 20181,
+              displayValue: '4073,20181句',
+            },
+            {
+              headwordIndex: 0,
+              dictionary: 'Jiten',
+              frequency: 28594,
+              displayValue: '4592,28594句',
+            },
+            {
+              headwordIndex: 0,
+              dictionary: 'CC100',
+              frequency: 118121,
+              displayValue: null,
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  assert.deepEqual(result, [
+    {
+      surface: '潜み',
+      reading: 'ひそ',
+      headword: '潜む',
+      startPos: 0,
+      endPos: 2,
+      isNameMatch: false,
+      frequencyRank: 4073,
+    },
+  ]);
+});
+
+test('requestYomitanScanTokens uses frequency from later exact-match entry when first exact entry has none', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profileIndex: 0,
+        scanLength: 40,
+        dictionaries: ['JPDBv2㋕', 'Jiten', 'CC100'],
+        dictionaryPriorityByName: {
+          'JPDBv2㋕': 0,
+          Jiten: 1,
+          CC100: 2,
+        },
+        dictionaryFrequencyModeByName: {
+          'JPDBv2㋕': 'rank-based',
+          Jiten: 'rank-based',
+          CC100: 'rank-based',
+        },
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [
+                { name: 'JPDBv2㋕', enabled: true, id: 0 },
+                { name: 'Jiten', enabled: true, id: 1 },
+                { name: 'CC100', enabled: true, id: 2 },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens('者', deps, {
+    error: () => undefined,
+  });
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (!text.startsWith('者')) {
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    }
+
+    return {
+      originalTextLength: 1,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: '者',
+              reading: 'もの',
+              sources: [{ originalText: '者', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+          frequencies: [],
+        },
+        {
+          headwords: [
+            {
+              term: '者',
+              reading: 'もの',
+              sources: [{ originalText: '者', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+          frequencies: [
+            {
+              headwordIndex: 0,
+              dictionary: 'JPDBv2㋕',
+              frequency: 79601,
+              displayValue: '475,79601句',
+            },
+            {
+              headwordIndex: 0,
+              dictionary: 'Jiten',
+              frequency: 338,
+              displayValue: '338',
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  assert.deepEqual(result, [
+    {
+      surface: '者',
+      reading: 'もの',
+      headword: '者',
+      startPos: 0,
+      endPos: 1,
+      isNameMatch: false,
+      frequencyRank: 475,
+    },
+  ]);
+});
+
+test('requestYomitanScanTokens can use frequency from later exact secondary-match entry', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profileIndex: 0,
+        scanLength: 40,
+        dictionaries: ['JPDBv2㋕', 'Jiten', 'CC100'],
+        dictionaryPriorityByName: {
+          'JPDBv2㋕': 0,
+          Jiten: 1,
+          CC100: 2,
+        },
+        dictionaryFrequencyModeByName: {
+          'JPDBv2㋕': 'rank-based',
+          Jiten: 'rank-based',
+          CC100: 'rank-based',
+        },
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [
+                { name: 'JPDBv2㋕', enabled: true, id: 0 },
+                { name: 'Jiten', enabled: true, id: 1 },
+                { name: 'CC100', enabled: true, id: 2 },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens('者', deps, {
+    error: () => undefined,
+  });
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (!text.startsWith('者')) {
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    }
+
+    return {
+      originalTextLength: 1,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: '者',
+              reading: 'もの',
+              sources: [{ originalText: '者', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+          frequencies: [],
+        },
+        {
+          headwords: [
+            {
+              term: '者',
+              reading: 'もの',
+              sources: [{ originalText: '者', isPrimary: false, matchType: 'exact' }],
+            },
+          ],
+          frequencies: [
+            {
+              headwordIndex: 0,
+              dictionary: 'JPDBv2㋕',
+              frequency: 79601,
+              displayValue: '475,79601句',
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  assert.deepEqual(result, [
+    {
+      surface: '者',
+      reading: 'もの',
+      headword: '者',
+      startPos: 0,
+      endPos: 1,
+      isNameMatch: false,
+      frequencyRank: 475,
+    },
+  ]);
 });
 
 test('requestYomitanScanTokens marks tokens backed by SubMiner character dictionary entries', async () => {

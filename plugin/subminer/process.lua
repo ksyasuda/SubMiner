@@ -372,12 +372,9 @@ function M.create(ctx)
 			end)
 		end
 
+		launch_overlay_with_retry(1)
 		if texthooker_enabled then
-			ensure_texthooker_running(function()
-				launch_overlay_with_retry(1)
-			end)
-		else
-			launch_overlay_with_retry(1)
+			ensure_texthooker_running(function() end)
 		end
 	end
 
@@ -481,31 +478,33 @@ function M.create(ctx)
 			state.texthooker_running = false
 			disarm_auto_play_ready_gate()
 
-			ensure_texthooker_running(function()
-				local start_args = build_command_args("start")
-				subminer_log("info", "process", "Starting overlay: " .. table.concat(start_args, " "))
+			local start_args = build_command_args("start")
+			subminer_log("info", "process", "Starting overlay: " .. table.concat(start_args, " "))
 
-				state.overlay_running = true
-				mp.command_native_async({
-					name = "subprocess",
-					args = start_args,
-					playback_only = false,
-					capture_stdout = true,
-					capture_stderr = true,
-				}, function(success, result, error)
-					if not success or (result and result.status ~= 0) then
-						state.overlay_running = false
-						subminer_log(
-							"error",
-							"process",
-							"Overlay start failed: " .. (error or (result and result.stderr) or "unknown error")
-						)
-						show_osd("Restart failed")
-					else
-						show_osd("Restarted successfully")
-					end
-				end)
+			state.overlay_running = true
+			mp.command_native_async({
+				name = "subprocess",
+				args = start_args,
+				playback_only = false,
+				capture_stdout = true,
+				capture_stderr = true,
+			}, function(success, result, error)
+				if not success or (result and result.status ~= 0) then
+					state.overlay_running = false
+					subminer_log(
+						"error",
+						"process",
+						"Overlay start failed: " .. (error or (result and result.stderr) or "unknown error")
+					)
+					show_osd("Restart failed")
+				else
+					show_osd("Restarted successfully")
+				end
 			end)
+
+			if opts.texthooker_enabled then
+				ensure_texthooker_running(function() end)
+			end
 		end)
 	end
 

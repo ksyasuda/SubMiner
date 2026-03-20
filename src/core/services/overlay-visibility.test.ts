@@ -200,6 +200,81 @@ test('Windows visible overlay stays click-through and does not steal focus while
   assert.ok(!calls.includes('focus'));
 });
 
+test('macOS tracked visible overlay stays visible without passively stealing focus', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+  };
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: true,
+    isWindowsPlatform: false,
+  } as never);
+
+  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('show'));
+  assert.ok(!calls.includes('focus'));
+});
+
+test('forced mouse passthrough keeps macOS tracked overlay passive while visible', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+  };
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: true,
+    isWindowsPlatform: false,
+    forceMousePassthrough: true,
+  } as never);
+
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('show'));
+  assert.ok(!calls.includes('focus'));
+});
+
 test('Windows keeps visible overlay hidden while tracker is not ready', () => {
   const { window, calls } = createMainWindowRecorder();
   let trackerWarning = false;
@@ -283,6 +358,59 @@ test('macOS keeps visible overlay hidden while tracker is not initialized yet', 
   assert.ok(!calls.includes('update-bounds'));
 });
 
+test('macOS suppresses immediate repeat loading OSD after tracker recovery until cooldown expires', () => {
+  const { window } = createMainWindowRecorder();
+  const osdMessages: string[] = [];
+  let trackerWarning = false;
+  let lastLoadingOsdAtMs: number | null = null;
+  let nowMs = 1_000;
+  const hiddenTracker: WindowTrackerStub = {
+    isTracking: () => false,
+    getGeometry: () => null,
+  };
+  const trackedTracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+  };
+
+  const run = (windowTracker: WindowTrackerStub) =>
+    updateVisibleOverlayVisibility({
+      visibleOverlayVisible: true,
+      mainWindow: window as never,
+      windowTracker: windowTracker as never,
+      trackerNotReadyWarningShown: trackerWarning,
+      setTrackerNotReadyWarningShown: (shown: boolean) => {
+        trackerWarning = shown;
+      },
+      updateVisibleOverlayBounds: () => {},
+      ensureOverlayWindowLevel: () => {},
+      syncPrimaryOverlayWindowLayer: () => {},
+      enforceOverlayLayerOrder: () => {},
+      syncOverlayShortcuts: () => {},
+      isMacOSPlatform: true,
+      showOverlayLoadingOsd: (message: string) => {
+        osdMessages.push(message);
+      },
+      shouldShowOverlayLoadingOsd: () =>
+        lastLoadingOsdAtMs === null || nowMs - lastLoadingOsdAtMs >= 5_000,
+      markOverlayLoadingOsdShown: () => {
+        lastLoadingOsdAtMs = nowMs;
+      },
+    } as never);
+
+  run(hiddenTracker);
+  run(trackedTracker);
+
+  nowMs = 2_000;
+  run(hiddenTracker);
+  run(trackedTracker);
+
+  nowMs = 6_500;
+  run(hiddenTracker);
+
+  assert.deepEqual(osdMessages, ['Overlay loading...', 'Overlay loading...']);
+});
+
 test('setVisibleOverlayVisible does not mutate mpv subtitle visibility directly', () => {
   const calls: string[] = [];
   setVisibleOverlayVisible({
@@ -298,10 +426,12 @@ test('setVisibleOverlayVisible does not mutate mpv subtitle visibility directly'
   assert.deepEqual(calls, ['state:true', 'update']);
 });
 
-test('macOS loading OSD can show again after overlay is hidden and retried', () => {
+test('macOS explicit hide resets loading OSD suppression before retry', () => {
   const { window, calls } = createMainWindowRecorder();
   const osdMessages: string[] = [];
   let trackerWarning = false;
+  let lastLoadingOsdAtMs: number | null = null;
+  let nowMs = 1_000;
 
   updateVisibleOverlayVisibility({
     visibleOverlayVisible: true,
@@ -331,8 +461,17 @@ test('macOS loading OSD can show again after overlay is hidden and retried', () 
     showOverlayLoadingOsd: (message: string) => {
       osdMessages.push(message);
     },
+    shouldShowOverlayLoadingOsd: () =>
+      lastLoadingOsdAtMs === null || nowMs - lastLoadingOsdAtMs >= 5_000,
+    markOverlayLoadingOsdShown: () => {
+      lastLoadingOsdAtMs = nowMs;
+    },
+    resetOverlayLoadingOsdSuppression: () => {
+      lastLoadingOsdAtMs = null;
+    },
   } as never);
 
+  nowMs = 1_500;
   updateVisibleOverlayVisibility({
     visibleOverlayVisible: false,
     mainWindow: window as never,
@@ -349,6 +488,9 @@ test('macOS loading OSD can show again after overlay is hidden and retried', () 
     syncOverlayShortcuts: () => {},
     isMacOSPlatform: true,
     showOverlayLoadingOsd: () => {},
+    resetOverlayLoadingOsdSuppression: () => {
+      lastLoadingOsdAtMs = null;
+    },
   } as never);
 
   updateVisibleOverlayVisibility({
@@ -378,6 +520,14 @@ test('macOS loading OSD can show again after overlay is hidden and retried', () 
     isMacOSPlatform: true,
     showOverlayLoadingOsd: (message: string) => {
       osdMessages.push(message);
+    },
+    shouldShowOverlayLoadingOsd: () =>
+      lastLoadingOsdAtMs === null || nowMs - lastLoadingOsdAtMs >= 5_000,
+    markOverlayLoadingOsdShown: () => {
+      lastLoadingOsdAtMs = nowMs;
+    },
+    resetOverlayLoadingOsdSuppression: () => {
+      lastLoadingOsdAtMs = null;
     },
   } as never);
 

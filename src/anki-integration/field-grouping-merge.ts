@@ -1,4 +1,5 @@
 import { AnkiConnectConfig } from '../types';
+import { getConfiguredWordFieldName } from '../anki-field-config';
 
 interface FieldGroupingMergeMedia {
   audioField?: string;
@@ -27,7 +28,7 @@ interface FieldGroupingMergeDeps {
   ) => string | null;
   extractFields: (fields: Record<string, { value: string }>) => Record<string, string>;
   processSentence: (mpvSentence: string, noteFields: Record<string, string>) => string;
-  generateMediaForMerge: () => Promise<FieldGroupingMergeMedia>;
+  generateMediaForMerge: (noteInfo: FieldGroupingMergeNoteInfo) => Promise<FieldGroupingMergeMedia>;
   warnFieldParseOnce: (fieldName: string, reason: string, detail?: string) => void;
 }
 
@@ -77,6 +78,7 @@ export class FieldGroupingMergeCollaborator {
     includeGeneratedMedia: boolean,
   ): Promise<Record<string, string>> {
     const config = this.deps.getConfig();
+    const configuredWordField = getConfiguredWordFieldName(config);
     const groupableFields = this.getGroupableFieldNames();
     const keepFieldNames = Object.keys(keepNoteInfo.fields);
     const sourceFields: Record<string, string> = {};
@@ -98,11 +100,17 @@ export class FieldGroupingMergeCollaborator {
     if (!sourceFields['Sentence'] && sourceFields['SentenceFurigana']) {
       sourceFields['Sentence'] = sourceFields['SentenceFurigana'];
     }
-    if (!sourceFields['Expression'] && sourceFields['Word']) {
-      sourceFields['Expression'] = sourceFields['Word'];
+    if (!sourceFields[configuredWordField] && sourceFields['Expression']) {
+      sourceFields[configuredWordField] = sourceFields['Expression'];
     }
-    if (!sourceFields['Word'] && sourceFields['Expression']) {
-      sourceFields['Word'] = sourceFields['Expression'];
+    if (!sourceFields[configuredWordField] && sourceFields['Word']) {
+      sourceFields[configuredWordField] = sourceFields['Word'];
+    }
+    if (!sourceFields['Expression'] && sourceFields[configuredWordField]) {
+      sourceFields['Expression'] = sourceFields[configuredWordField];
+    }
+    if (!sourceFields['Word'] && sourceFields[configuredWordField]) {
+      sourceFields['Word'] = sourceFields[configuredWordField];
     }
     if (!sourceFields['SentenceAudio'] && sourceFields['ExpressionAudio']) {
       sourceFields['SentenceAudio'] = sourceFields['ExpressionAudio'];
@@ -124,7 +132,7 @@ export class FieldGroupingMergeCollaborator {
     }
 
     if (includeGeneratedMedia) {
-      const media = await this.deps.generateMediaForMerge();
+      const media = await this.deps.generateMediaForMerge(keepNoteInfo);
       if (media.audioField && media.audioValue && !sourceFields[media.audioField]) {
         sourceFields[media.audioField] = media.audioValue;
       }
@@ -148,6 +156,7 @@ export class FieldGroupingMergeCollaborator {
       const keepFieldNormalized = keepFieldName.toLowerCase();
       if (
         keepFieldNormalized === 'expression' ||
+        keepFieldNormalized === configuredWordField.toLowerCase() ||
         keepFieldNormalized === 'expressionfurigana' ||
         keepFieldNormalized === 'expressionreading' ||
         keepFieldNormalized === 'expressionaudio'

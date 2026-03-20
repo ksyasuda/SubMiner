@@ -33,10 +33,12 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
     height: number;
   }) => void;
   getOverlayWindows: OverlayRuntimeOptionsMainDeps['getOverlayWindows'];
+  createWindowTracker?: OverlayRuntimeOptionsMainDeps['createWindowTracker'];
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   createFieldGroupingCallback: OverlayRuntimeOptionsMainDeps['createFieldGroupingCallback'];
   getKnownWordCacheStatePath: () => string;
+  shouldStartAnkiIntegration: () => boolean;
 }) {
   return (): OverlayRuntimeOptionsMainDeps => ({
     getBackendOverride: () => deps.appState.backendOverride,
@@ -56,6 +58,7 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
     setWindowTracker: (tracker) => {
       deps.appState.windowTracker = tracker;
     },
+    createWindowTracker: deps.createWindowTracker,
     getResolvedConfig: () => deps.getResolvedConfig(),
     getSubtitleTimingTracker: () => deps.appState.subtitleTimingTracker,
     getMpvClient: () => deps.appState.mpvClient,
@@ -67,5 +70,6 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
     showDesktopNotification: deps.showDesktopNotification,
     createFieldGroupingCallback: () => deps.createFieldGroupingCallback(),
     getKnownWordCacheStatePath: () => deps.getKnownWordCacheStatePath(),
+    shouldStartAnkiIntegration: () => deps.shouldStartAnkiIntegration(),
   });
 }

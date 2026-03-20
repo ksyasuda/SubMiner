@@ -90,6 +90,15 @@ class FakeElement {
       this.ownTextContent = '';
     }
   }
+
+  replaceChildren(): void {
+    this.childNodes = [];
+    this.ownTextContent = '';
+  }
+
+  cloneNode(_deep: boolean): FakeElement {
+    return new FakeElement(this.tagName);
+  }
 }
 
 function installFakeDocument() {
@@ -227,9 +236,11 @@ test('computeWordClass preserves known and n+1 classes while adding JLPT classes
   assert.equal(computeWordClass(nPlusOneJlpt), 'word word-n-plus-one word-jlpt-n2');
 });
 
-test('computeWordClass applies name-match class ahead of known and frequency classes', () => {
+test('computeWordClass applies name-match class ahead of known, n+1, frequency, and JLPT classes', () => {
   const token = createToken({
     isKnown: true,
+    isNPlusOneTarget: true,
+    jlptLevel: 'N2',
     frequencyRank: 10,
     surface: 'アクア',
   }) as MergedToken & { isNameMatch?: boolean };
@@ -502,19 +513,32 @@ test('getFrequencyRankLabelForToken returns rank only for frequency-colored toke
   const knownToken = createToken({ surface: '既知', isKnown: true, frequencyRank: 20 });
   const nPlusOneToken = createToken({ surface: '目標', isNPlusOneTarget: true, frequencyRank: 20 });
   const outOfRangeToken = createToken({ surface: '圏外', frequencyRank: 1000 });
+  const nameToken = createToken({ surface: 'アクア', frequencyRank: 20 }) as MergedToken & {
+    isNameMatch?: boolean;
+  };
+  nameToken.isNameMatch = true;
 
   assert.equal(getFrequencyRankLabelForToken(frequencyToken, settings), '20');
   assert.equal(getFrequencyRankLabelForToken(knownToken, settings), '20');
   assert.equal(getFrequencyRankLabelForToken(nPlusOneToken, settings), '20');
   assert.equal(getFrequencyRankLabelForToken(outOfRangeToken, settings), null);
+  assert.equal(
+    getFrequencyRankLabelForToken(nameToken, { ...settings, nameMatchEnabled: true }),
+    null,
+  );
 });
 
 test('getJlptLevelLabelForToken returns level when token has jlpt metadata', () => {
   const jlptToken = createToken({ surface: '語彙', jlptLevel: 'N2' });
   const noJlptToken = createToken({ surface: '語彙' });
+  const nameToken = createToken({ surface: 'アクア', jlptLevel: 'N5' }) as MergedToken & {
+    isNameMatch?: boolean;
+  };
+  nameToken.isNameMatch = true;
 
   assert.equal(getJlptLevelLabelForToken(jlptToken), 'N2');
   assert.equal(getJlptLevelLabelForToken(noJlptToken), null);
+  assert.equal(getJlptLevelLabelForToken(nameToken, { nameMatchEnabled: true }), null);
 });
 
 test('sanitizeSubtitleHoverTokenColor falls back for pure black values', () => {
@@ -651,6 +675,61 @@ test('renderSubtitle preserves unsupported punctuation while keeping it non-inte
       [
         ['えっ', '0'],
         ['マジ', '1'],
+      ],
+    );
+  } finally {
+    restoreDocument();
+  }
+});
+
+test('renderSubtitle keeps excluded interjection tokens hoverable while rendering them without annotation styling', () => {
+  const restoreDocument = installFakeDocument();
+
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const secondaryRoot = new FakeElement('div');
+    const renderer = createSubtitleRenderer({
+      dom: {
+        subtitleRoot,
+        secondarySubtitleRoot: secondaryRoot,
+      },
+      config: {
+        subtitleStyle: {},
+        frequencyDictionary: {
+          colorTopX: 1000,
+          colorMode: 'single',
+          colorSingle: '#f5a97f',
+          colorBanded: ['#ed8796', '#f5a97f', '#f9e2af', '#8bd5ca', '#8aadf4'],
+        },
+        secondarySubtitles: { mode: 'hidden' },
+      },
+      logger: {
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+      runtime: {
+        secondaryMode: 'hidden' as const,
+        shouldToggleMouseIgnore: false,
+      },
+      state: createRendererState(),
+    } as never);
+
+    renderer.renderSubtitle({
+      text: 'ぐはっ 猫',
+      tokens: [
+        createToken({ surface: 'ぐはっ', headword: 'ぐはっ', reading: 'ぐはっ' }),
+        createToken({ surface: '猫', headword: '猫', reading: 'ねこ' }),
+      ],
+    });
+
+    assert.equal(subtitleRoot.textContent, 'ぐはっ 猫');
+    assert.deepEqual(
+      collectWordNodes(subtitleRoot).map((node) => [node.textContent, node.dataset.tokenIndex]),
+      [
+        ['ぐはっ', '0'],
+        ['猫', '1'],
       ],
     );
   } finally {

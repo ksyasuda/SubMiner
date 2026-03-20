@@ -1,8 +1,67 @@
 import { ResolveContext } from './context';
+import { ImmersionTrackingRetentionMode, ImmersionTrackingRetentionPreset } from '../../types';
 import { asBoolean, asNumber, asString, isObject } from './shared';
+
+const DEFAULT_RETENTION_MODE: ImmersionTrackingRetentionMode = 'preset';
+const DEFAULT_RETENTION_PRESET: ImmersionTrackingRetentionPreset = 'balanced';
+
+const BASE_RETENTION = {
+  eventsDays: 0,
+  telemetryDays: 0,
+  sessionsDays: 0,
+  dailyRollupsDays: 0,
+  monthlyRollupsDays: 0,
+  vacuumIntervalDays: 0,
+};
+
+const RETENTION_PRESETS: Record<ImmersionTrackingRetentionPreset, typeof BASE_RETENTION> = {
+  minimal: {
+    eventsDays: 3,
+    telemetryDays: 14,
+    sessionsDays: 14,
+    dailyRollupsDays: 30,
+    monthlyRollupsDays: 365,
+    vacuumIntervalDays: 7,
+  },
+  balanced: BASE_RETENTION,
+  'deep-history': {
+    eventsDays: 14,
+    telemetryDays: 60,
+    sessionsDays: 60,
+    dailyRollupsDays: 730,
+    monthlyRollupsDays: 5 * 365,
+    vacuumIntervalDays: 7,
+  },
+};
+
+const DEFAULT_LIFETIME_SUMMARIES = {
+  global: true,
+  anime: true,
+  media: true,
+};
+
+function asRetentionMode(value: unknown): value is ImmersionTrackingRetentionMode {
+  return value === 'preset' || value === 'advanced';
+}
+
+function asRetentionPreset(value: unknown): value is ImmersionTrackingRetentionPreset {
+  return value === 'minimal' || value === 'balanced' || value === 'deep-history';
+}
 
 export function applyImmersionTrackingConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
+
+  if (!isObject(src.immersionTracking)) {
+    resolved.immersionTracking.retentionMode = DEFAULT_RETENTION_MODE;
+    resolved.immersionTracking.retentionPreset = DEFAULT_RETENTION_PRESET;
+    resolved.immersionTracking.retention = {
+      ...BASE_RETENTION,
+    };
+    resolved.immersionTracking.lifetimeSummaries = {
+      ...DEFAULT_LIFETIME_SUMMARIES,
+    };
+    return;
+  }
 
   if (isObject(src.immersionTracking)) {
     const enabled = asBoolean(src.immersionTracking.enabled);
@@ -93,81 +152,186 @@ export function applyImmersionTrackingConfig(context: ResolveContext): void {
       );
     }
 
+    const retentionMode = asString(src.immersionTracking.retentionMode);
+    if (asRetentionMode(retentionMode)) {
+      resolved.immersionTracking.retentionMode = retentionMode;
+    } else if (src.immersionTracking.retentionMode !== undefined) {
+      warn(
+        'immersionTracking.retentionMode',
+        src.immersionTracking.retentionMode,
+        DEFAULT_RETENTION_MODE,
+        'Expected "preset" or "advanced".',
+      );
+      resolved.immersionTracking.retentionMode = DEFAULT_RETENTION_MODE;
+    } else {
+      resolved.immersionTracking.retentionMode = DEFAULT_RETENTION_MODE;
+    }
+
+    const retentionPreset = asString(src.immersionTracking.retentionPreset);
+    if (asRetentionPreset(retentionPreset)) {
+      resolved.immersionTracking.retentionPreset = retentionPreset;
+    } else if (src.immersionTracking.retentionPreset !== undefined) {
+      warn(
+        'immersionTracking.retentionPreset',
+        src.immersionTracking.retentionPreset,
+        DEFAULT_RETENTION_PRESET,
+        'Expected "minimal", "balanced", or "deep-history".',
+      );
+      resolved.immersionTracking.retentionPreset = DEFAULT_RETENTION_PRESET;
+    } else {
+      resolved.immersionTracking.retentionPreset =
+        resolved.immersionTracking.retentionPreset ?? DEFAULT_RETENTION_PRESET;
+    }
+
+    const resolvedPreset =
+      resolved.immersionTracking.retentionPreset === 'minimal' ||
+      resolved.immersionTracking.retentionPreset === 'balanced' ||
+      resolved.immersionTracking.retentionPreset === 'deep-history'
+        ? resolved.immersionTracking.retentionPreset
+        : DEFAULT_RETENTION_PRESET;
+
+    const baseRetention =
+      resolved.immersionTracking.retentionMode === 'preset'
+        ? RETENTION_PRESETS[resolvedPreset]
+        : BASE_RETENTION;
+
+    const retention = {
+      eventsDays: baseRetention.eventsDays,
+      telemetryDays: baseRetention.telemetryDays,
+      sessionsDays: baseRetention.sessionsDays,
+      dailyRollupsDays: baseRetention.dailyRollupsDays,
+      monthlyRollupsDays: baseRetention.monthlyRollupsDays,
+      vacuumIntervalDays: baseRetention.vacuumIntervalDays,
+    };
+
     if (isObject(src.immersionTracking.retention)) {
       const eventsDays = asNumber(src.immersionTracking.retention.eventsDays);
-      if (eventsDays !== undefined && eventsDays >= 1 && eventsDays <= 3650) {
-        resolved.immersionTracking.retention.eventsDays = Math.floor(eventsDays);
+      if (eventsDays !== undefined && eventsDays >= 0 && eventsDays <= 3650) {
+        retention.eventsDays = Math.floor(eventsDays);
       } else if (src.immersionTracking.retention.eventsDays !== undefined) {
         warn(
           'immersionTracking.retention.eventsDays',
           src.immersionTracking.retention.eventsDays,
-          resolved.immersionTracking.retention.eventsDays,
-          'Expected integer between 1 and 3650.',
+          retention.eventsDays,
+          'Expected integer between 0 and 3650.',
         );
       }
 
       const telemetryDays = asNumber(src.immersionTracking.retention.telemetryDays);
-      if (telemetryDays !== undefined && telemetryDays >= 1 && telemetryDays <= 3650) {
-        resolved.immersionTracking.retention.telemetryDays = Math.floor(telemetryDays);
+      if (telemetryDays !== undefined && telemetryDays >= 0 && telemetryDays <= 3650) {
+        retention.telemetryDays = Math.floor(telemetryDays);
       } else if (src.immersionTracking.retention.telemetryDays !== undefined) {
         warn(
           'immersionTracking.retention.telemetryDays',
           src.immersionTracking.retention.telemetryDays,
-          resolved.immersionTracking.retention.telemetryDays,
-          'Expected integer between 1 and 3650.',
+          retention.telemetryDays,
+          'Expected integer between 0 and 3650.',
+        );
+      }
+
+      const sessionsDays = asNumber(src.immersionTracking.retention.sessionsDays);
+      if (sessionsDays !== undefined && sessionsDays >= 0 && sessionsDays <= 3650) {
+        retention.sessionsDays = Math.floor(sessionsDays);
+      } else if (src.immersionTracking.retention.sessionsDays !== undefined) {
+        warn(
+          'immersionTracking.retention.sessionsDays',
+          src.immersionTracking.retention.sessionsDays,
+          retention.sessionsDays,
+          'Expected integer between 0 and 3650.',
         );
       }
 
       const dailyRollupsDays = asNumber(src.immersionTracking.retention.dailyRollupsDays);
-      if (dailyRollupsDays !== undefined && dailyRollupsDays >= 1 && dailyRollupsDays <= 36500) {
-        resolved.immersionTracking.retention.dailyRollupsDays = Math.floor(dailyRollupsDays);
+      if (dailyRollupsDays !== undefined && dailyRollupsDays >= 0 && dailyRollupsDays <= 36500) {
+        retention.dailyRollupsDays = Math.floor(dailyRollupsDays);
       } else if (src.immersionTracking.retention.dailyRollupsDays !== undefined) {
         warn(
           'immersionTracking.retention.dailyRollupsDays',
           src.immersionTracking.retention.dailyRollupsDays,
-          resolved.immersionTracking.retention.dailyRollupsDays,
-          'Expected integer between 1 and 36500.',
+          retention.dailyRollupsDays,
+          'Expected integer between 0 and 36500.',
         );
       }
 
       const monthlyRollupsDays = asNumber(src.immersionTracking.retention.monthlyRollupsDays);
       if (
         monthlyRollupsDays !== undefined &&
-        monthlyRollupsDays >= 1 &&
+        monthlyRollupsDays >= 0 &&
         monthlyRollupsDays <= 36500
       ) {
-        resolved.immersionTracking.retention.monthlyRollupsDays = Math.floor(monthlyRollupsDays);
+        retention.monthlyRollupsDays = Math.floor(monthlyRollupsDays);
       } else if (src.immersionTracking.retention.monthlyRollupsDays !== undefined) {
         warn(
           'immersionTracking.retention.monthlyRollupsDays',
           src.immersionTracking.retention.monthlyRollupsDays,
-          resolved.immersionTracking.retention.monthlyRollupsDays,
-          'Expected integer between 1 and 36500.',
+          retention.monthlyRollupsDays,
+          'Expected integer between 0 and 36500.',
         );
       }
 
       const vacuumIntervalDays = asNumber(src.immersionTracking.retention.vacuumIntervalDays);
       if (
         vacuumIntervalDays !== undefined &&
-        vacuumIntervalDays >= 1 &&
+        vacuumIntervalDays >= 0 &&
         vacuumIntervalDays <= 3650
       ) {
-        resolved.immersionTracking.retention.vacuumIntervalDays = Math.floor(vacuumIntervalDays);
+        retention.vacuumIntervalDays = Math.floor(vacuumIntervalDays);
       } else if (src.immersionTracking.retention.vacuumIntervalDays !== undefined) {
         warn(
           'immersionTracking.retention.vacuumIntervalDays',
           src.immersionTracking.retention.vacuumIntervalDays,
-          resolved.immersionTracking.retention.vacuumIntervalDays,
-          'Expected integer between 1 and 3650.',
+          retention.vacuumIntervalDays,
+          'Expected integer between 0 and 3650.',
         );
       }
     } else if (src.immersionTracking.retention !== undefined) {
       warn(
         'immersionTracking.retention',
         src.immersionTracking.retention,
-        resolved.immersionTracking.retention,
+        baseRetention,
         'Expected object.',
       );
     }
+
+    resolved.immersionTracking.retention = {
+      eventsDays: retention.eventsDays,
+      telemetryDays: retention.telemetryDays,
+      sessionsDays: retention.sessionsDays,
+      dailyRollupsDays: retention.dailyRollupsDays,
+      monthlyRollupsDays: retention.monthlyRollupsDays,
+      vacuumIntervalDays: retention.vacuumIntervalDays,
+    };
+
+    const lifetimeSummaries = {
+      global: DEFAULT_LIFETIME_SUMMARIES.global,
+      anime: DEFAULT_LIFETIME_SUMMARIES.anime,
+      media: DEFAULT_LIFETIME_SUMMARIES.media,
+    };
+
+    if (isObject(src.immersionTracking.lifetimeSummaries)) {
+      const global = asBoolean(src.immersionTracking.lifetimeSummaries.global);
+      if (global !== undefined) {
+        lifetimeSummaries.global = global;
+      }
+
+      const anime = asBoolean(src.immersionTracking.lifetimeSummaries.anime);
+      if (anime !== undefined) {
+        lifetimeSummaries.anime = anime;
+      }
+
+      const media = asBoolean(src.immersionTracking.lifetimeSummaries.media);
+      if (media !== undefined) {
+        lifetimeSummaries.media = media;
+      }
+    } else if (src.immersionTracking.lifetimeSummaries !== undefined) {
+      warn(
+        'immersionTracking.lifetimeSummaries',
+        src.immersionTracking.lifetimeSummaries,
+        DEFAULT_LIFETIME_SUMMARIES,
+        'Expected object.',
+      );
+    }
+
+    resolved.immersionTracking.lifetimeSummaries = lifetimeSummaries;
   }
 }

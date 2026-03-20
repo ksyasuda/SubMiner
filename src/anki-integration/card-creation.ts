@@ -1,4 +1,8 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
+import {
+  getConfiguredWordFieldName,
+  getPreferredWordValueFromExtractedFields,
+} from '../anki-field-config';
 import { AiConfig, AnkiConnectConfig } from '../types';
 import { createLogger } from '../logger';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
@@ -26,6 +30,7 @@ interface CardCreationClient {
   updateNoteFields(noteId: number, fields: Record<string, string>): Promise<void>;
   storeMediaFile(filename: string, data: Buffer): Promise<void>;
   findNotes(query: string, options?: { maxRetries?: number }): Promise<number[]>;
+  retrieveMediaFile(filename: string): Promise<string>;
 }
 
 interface CardCreationMediaGenerator {
@@ -56,6 +61,7 @@ interface CardCreationMediaGenerator {
       maxWidth?: number;
       maxHeight?: number;
       crf?: number;
+      leadingStillDuration?: number;
     },
   ): Promise<Buffer | null>;
 }
@@ -69,6 +75,7 @@ interface CardCreationDeps {
   client: CardCreationClient;
   mediaGenerator: CardCreationMediaGenerator;
   showOsdNotification: (text: string) => void;
+  showUpdateResult: (message: string, success: boolean) => void;
   showStatusNotification: (message: string) => void;
   showNotification: (noteId: number, label: string | number, errorSuffix?: string) => Promise<void>;
   beginUpdateProgress: (initialMessage: string) => void;
@@ -79,6 +86,7 @@ interface CardCreationDeps {
     ...preferredNames: (string | undefined)[]
   ) => string | null;
   resolveNoteFieldName: (noteInfo: CardCreationNoteInfo, preferredName?: string) => string | null;
+  getAnimatedImageLeadInSeconds: (noteInfo: CardCreationNoteInfo) => Promise<number>;
   extractFields: (fields: Record<string, { value: string }>) => Record<string, string>;
   processSentence: (mpvSentence: string, noteFields: Record<string, string>) => string;
   setCardTypeFields: (
@@ -102,6 +110,7 @@ interface CardCreationDeps {
   isUpdateInProgress: () => boolean;
   setUpdateInProgress: (value: boolean) => void;
   trackLastAddedNoteId?: (noteId: number) => void;
+  recordCardsMinedCallback?: (count: number, noteIds?: number[]) => void;
 }
 
 export class CardCreationService {
@@ -201,7 +210,10 @@ export class CardCreationService {
 
         const noteInfo = notesInfoResult[0]!;
         const fields = this.deps.extractFields(noteInfo.fields);
-        const expressionText = fields.expression || fields.word || '';
+        const expressionText = getPreferredWordValueFromExtractedFields(
+          fields,
+          this.deps.getConfig(),
+        );
         const sentenceAudioField = this.getResolvedSentenceAudioFieldName(noteInfo);
         const sentenceField = this.deps.getEffectiveSentenceCardConfig().sentenceField;
 
@@ -251,11 +263,13 @@ export class CardCreationService {
 
         if (this.deps.getConfig().media?.generateImage) {
           try {
+            const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
             const imageBuffer = await this.generateImageBuffer(
               mpvClient.currentVideoPath,
               rangeStart,
               rangeEnd,
+              animatedLeadInSeconds,
             );
 
             if (imageBuffer) {
@@ -368,7 +382,10 @@ export class CardCreationService {
 
         const noteInfo = notesInfoResult[0]!;
         const fields = this.deps.extractFields(noteInfo.fields);
-        const expressionText = fields.expression || fields.word || '';
+        const expressionText = getPreferredWordValueFromExtractedFields(
+          fields,
+          this.deps.getConfig(),
+        );
 
         const updatedFields: Record<string, string> = {};
         const errors: string[] = [];
@@ -404,11 +421,13 @@ export class CardCreationService {
 
         if (this.deps.getConfig().media?.generateImage) {
           try {
+            const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
             const imageBuffer = await this.generateImageBuffer(
               mpvClient.currentVideoPath,
               startTime,
               endTime,
+              animatedLeadInSeconds,
             );
 
             const imageField = this.deps.getConfig().fields?.image;
@@ -519,7 +538,7 @@ export class CardCreationService {
 
         if (sentenceCardConfig.lapisEnabled || sentenceCardConfig.kikuEnabled) {
           fields.IsSentenceCard = 'x';
-          fields.Expression = sentence;
+          fields[getConfiguredWordFieldName(this.deps.getConfig())] = sentence;
         }
 
         const deck = this.deps.getConfig().deck || 'Default';
@@ -532,11 +551,22 @@ export class CardCreationService {
             this.getConfiguredAnkiTags(),
           );
           log.info('Created sentence card:', noteId);
-          this.deps.trackLastAddedNoteId?.(noteId);
         } catch (error) {
           log.error('Failed to create sentence card:', (error as Error).message);
-          this.deps.showOsdNotification(`Sentence card failed: ${(error as Error).message}`);
+          this.deps.showUpdateResult(`Sentence card failed: ${(error as Error).message}`, false);
           return false;
+        }
+
+        try {
+          this.deps.trackLastAddedNoteId?.(noteId);
+        } catch (error) {
+          log.warn('Failed to track last added note:', (error as Error).message);
+        }
+
+        try {
+          this.deps.recordCardsMinedCallback?.(1, [noteId]);
+        } catch (error) {
+          log.warn('Failed to record mined card:', (error as Error).message);
         }
 
         try {
@@ -632,7 +662,7 @@ export class CardCreationService {
       });
     } catch (error) {
       log.error('Error creating sentence card:', (error as Error).message);
-      this.deps.showOsdNotification(`Sentence card failed: ${(error as Error).message}`);
+      this.deps.showUpdateResult(`Sentence card failed: ${(error as Error).message}`, false);
       return false;
     }
   }
@@ -669,6 +699,7 @@ export class CardCreationService {
     videoPath: string,
     startTime: number,
     endTime: number,
+    animatedLeadInSeconds = 0,
   ): Promise<Buffer | null> {
     const mpvClient = this.deps.getMpvClient();
     if (!mpvClient) {
@@ -697,6 +728,7 @@ export class CardCreationService {
           maxWidth: this.deps.getConfig().media?.animatedMaxWidth,
           maxHeight: this.deps.getConfig().media?.animatedMaxHeight,
           crf: this.deps.getConfig().media?.animatedCrf,
+          leadingStillDuration: animatedLeadInSeconds,
         },
       );
     }

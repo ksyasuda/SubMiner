@@ -52,6 +52,12 @@ export function buildIntegrationConfigOptionRegistry(
         'Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.',
     },
     {
+      path: 'ankiConnect.fields.word',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.fields.word,
+      description: 'Card field for the mined word or expression text.',
+    },
+    {
       path: 'ankiConnect.ai.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.ai.enabled,
@@ -77,23 +83,36 @@ export function buildIntegrationConfigOptionRegistry(
       runtime: runtimeOptionById.get('anki.autoUpdateNewCards'),
     },
     {
-      path: 'ankiConnect.nPlusOne.matchMode',
-      kind: 'enum',
-      enumValues: ['headword', 'surface'],
-      defaultValue: defaultConfig.ankiConnect.nPlusOne.matchMode,
-      description: 'Known-word matching strategy for N+1 highlighting.',
+      path: 'ankiConnect.media.syncAnimatedImageToWordAudio',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.media.syncAnimatedImageToWordAudio,
+      description:
+        'For animated AVIF images, prepend a frozen first frame matching the existing word-audio duration so motion starts with sentence audio.',
     },
     {
-      path: 'ankiConnect.nPlusOne.highlightEnabled',
+      path: 'ankiConnect.knownWords.matchMode',
+      kind: 'enum',
+      enumValues: ['headword', 'surface'],
+      defaultValue: defaultConfig.ankiConnect.knownWords.matchMode,
+      description: 'Known-word matching strategy for subtitle annotations.',
+    },
+    {
+      path: 'ankiConnect.knownWords.highlightEnabled',
       kind: 'boolean',
-      defaultValue: defaultConfig.ankiConnect.nPlusOne.highlightEnabled,
+      defaultValue: defaultConfig.ankiConnect.knownWords.highlightEnabled,
       description: 'Enable fast local highlighting for words already known in Anki.',
     },
     {
-      path: 'ankiConnect.nPlusOne.refreshMinutes',
+      path: 'ankiConnect.knownWords.refreshMinutes',
       kind: 'number',
-      defaultValue: defaultConfig.ankiConnect.nPlusOne.refreshMinutes,
+      defaultValue: defaultConfig.ankiConnect.knownWords.refreshMinutes,
       description: 'Minutes between known-word cache refreshes.',
+    },
+    {
+      path: 'ankiConnect.knownWords.addMinedWordsImmediately',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.knownWords.addMinedWordsImmediately,
+      description: 'Immediately append newly mined card words into the known-word cache.',
     },
     {
       path: 'ankiConnect.nPlusOne.minSentenceWords',
@@ -102,10 +121,11 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Minimum sentence word count required for N+1 targeting (default: 3).',
     },
     {
-      path: 'ankiConnect.nPlusOne.decks',
-      kind: 'array',
-      defaultValue: defaultConfig.ankiConnect.nPlusOne.decks,
-      description: 'Decks used for N+1 known-word cache scope. Supports one or more deck names.',
+      path: 'ankiConnect.knownWords.decks',
+      kind: 'object',
+      defaultValue: defaultConfig.ankiConnect.knownWords.decks,
+      description:
+        'Decks and fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word", "Word Reading"] }.',
     },
     {
       path: 'ankiConnect.nPlusOne.nPlusOne',
@@ -114,10 +134,10 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Color used for the single N+1 target token highlight.',
     },
     {
-      path: 'ankiConnect.nPlusOne.knownWord',
+      path: 'ankiConnect.knownWords.color',
       kind: 'string',
-      defaultValue: defaultConfig.ankiConnect.nPlusOne.knownWord,
-      description: 'Color used for legacy known-word highlights.',
+      defaultValue: defaultConfig.ankiConnect.knownWords.color,
+      description: 'Color used for known-word highlights.',
     },
     {
       path: 'ankiConnect.isKiku.fieldGrouping',

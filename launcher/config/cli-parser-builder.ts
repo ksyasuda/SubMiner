@@ -40,8 +40,16 @@ export interface CliInvocations {
   dictionaryTriggered: boolean;
   dictionaryTarget: string | null;
   dictionaryLogLevel: string | null;
+  statsTriggered: boolean;
+  statsBackground: boolean;
+  statsStop: boolean;
+  statsCleanup: boolean;
+  statsCleanupVocab: boolean;
+  statsCleanupLifetime: boolean;
+  statsLogLevel: string | null;
   doctorTriggered: boolean;
   doctorLogLevel: string | null;
+  doctorRefreshKnownWords: boolean;
   texthookerTriggered: boolean;
   texthookerLogLevel: string | null;
 }
@@ -50,6 +58,7 @@ function applyRootOptions(program: Command): void {
   program
     .option('-b, --backend <backend>', 'Display backend')
     .option('-d, --directory <dir>', 'Directory to browse')
+    .option('-a, --args <args>', 'Pass arguments to MPV')
     .option('-r, --recursive', 'Search directories recursively')
     .option('-p, --profile <profile>', 'MPV profile')
     .option('--start', 'Explicitly start overlay')
@@ -87,6 +96,7 @@ function getTopLevelCommand(argv: string[]): { name: string; index: number } | n
     'mpv',
     'dictionary',
     'dict',
+    'stats',
     'texthooker',
     'app',
     'bin',
@@ -95,6 +105,8 @@ function getTopLevelCommand(argv: string[]): { name: string; index: number } | n
   const optionsWithValue = new Set([
     '-b',
     '--backend',
+    '-a',
+    '--args',
     '-d',
     '--directory',
     '-p',
@@ -137,7 +149,15 @@ export function parseCliPrograms(
   let dictionaryTriggered = false;
   let dictionaryTarget: string | null = null;
   let dictionaryLogLevel: string | null = null;
+  let statsTriggered = false;
+  let statsBackground = false;
+  let statsStop = false;
+  let statsCleanup = false;
+  let statsCleanupVocab = false;
+  let statsCleanupLifetime = false;
+  let statsLogLevel: string | null = null;
   let doctorLogLevel: string | null = null;
+  let doctorRefreshKnownWords = false;
   let texthookerLogLevel: string | null = null;
   let doctorTriggered = false;
   let texthookerTriggered = false;
@@ -242,12 +262,62 @@ export function parseCliPrograms(
     });
 
   commandProgram
+    .command('stats')
+    .description('Launch the local immersion stats dashboard')
+    .argument('[action]', 'cleanup|rebuild|backfill')
+    .option('-b, --background', 'Start the stats server in the background')
+    .option('-s, --stop', 'Stop the background stats server')
+    .option('-v, --vocab', 'Clean vocabulary rows in the stats database')
+    .option('-l, --lifetime', 'Rebuild lifetime summary rows from retained data')
+    .option('--log-level <level>', 'Log level')
+    .action((action: string | undefined, options: Record<string, unknown>) => {
+      statsTriggered = true;
+      const normalizedAction = (action || '').toLowerCase();
+      statsBackground = options.background === true;
+      statsStop = options.stop === true;
+      if (statsBackground && statsStop) {
+        throw new Error('Stats background and stop flags cannot be combined.');
+      }
+      if (
+        normalizedAction &&
+        normalizedAction !== 'cleanup' &&
+        normalizedAction !== 'rebuild' &&
+        normalizedAction !== 'backfill'
+      ) {
+        throw new Error(
+          'Invalid stats action. Valid values are cleanup, rebuild, or backfill.',
+        );
+      }
+      if (normalizedAction && (statsBackground || statsStop)) {
+        throw new Error('Stats background and stop flags cannot be combined with stats actions.');
+      }
+      if (
+        normalizedAction !== 'cleanup' &&
+        (options.vocab === true || options.lifetime === true)
+      ) {
+        throw new Error('Stats --vocab and --lifetime flags require the cleanup action.');
+      }
+      if (normalizedAction === 'cleanup') {
+        statsCleanup = true;
+        statsCleanupLifetime = options.lifetime === true;
+        statsCleanupVocab = statsCleanupLifetime ? false : options.vocab !== false;
+      } else if (normalizedAction === 'rebuild' || normalizedAction === 'backfill') {
+        statsCleanup = true;
+        statsCleanupLifetime = true;
+        statsCleanupVocab = false;
+      }
+      statsLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
+    });
+
+  commandProgram
     .command('doctor')
     .description('Run dependency and environment checks')
+    .option('--refresh-known-words', 'Refresh known words cache')
     .option('--log-level <level>', 'Log level')
     .action((options: Record<string, unknown>) => {
       doctorTriggered = true;
       doctorLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
+      doctorRefreshKnownWords = options.refreshKnownWords === true;
     });
 
   commandProgram
@@ -319,8 +389,16 @@ export function parseCliPrograms(
       dictionaryTriggered,
       dictionaryTarget,
       dictionaryLogLevel,
+      statsTriggered,
+      statsBackground,
+      statsStop,
+      statsCleanup,
+      statsCleanupVocab,
+      statsCleanupLifetime,
+      statsLogLevel,
       doctorTriggered,
       doctorLogLevel,
+      doctorRefreshKnownWords,
       texthookerTriggered,
       texthookerLogLevel,
     },

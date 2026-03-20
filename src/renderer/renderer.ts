@@ -40,7 +40,7 @@ import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { createRendererState } from './state.js';
 import { createSubtitleRenderer } from './subtitle-render.js';
-import { isYomitanPopupVisible } from './yomitan-popup.js';
+import { isYomitanPopupVisible, registerYomitanLookupListener } from './yomitan-popup.js';
 import {
   createRendererRecoveryController,
   registerRendererGlobalErrorHandlers,
@@ -451,6 +451,11 @@ function runGuardedAsync(action: string, fn: () => Promise<void> | void): void {
 
 registerModalOpenHandlers();
 registerKeyboardCommandHandlers();
+registerYomitanLookupListener(window, () => {
+  runGuarded('yomitan:lookup', () => {
+    window.electronAPI.recordYomitanLookup();
+  });
+});
 
 async function init(): Promise<void> {
   document.body.classList.add(`layer-${ctx.platform.overlayLayer}`);

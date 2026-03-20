@@ -2,7 +2,24 @@
 
 SubMiner can build a Yomitan-compatible character dictionary from AniList metadata so that character names in subtitles are recognized, highlighted, and enrichable with context — portraits, roles, voice actors, and biographical detail — without leaving the overlay.
 
-The dictionary is generated per-media, merged across your recently-watched titles, and auto-imported into Yomitan. When a character name appears in a subtitle line, it gets highlighted and becomes clickable for a full profile lookup.
+The dictionary is generated per-media, merged across your recently-watched titles, and auto-imported into Yomitan. When a character name appears in a subtitle line, it gets highlighted and becomes available for hover-driven Yomitan profile lookup.
+
+## Stats Dashboard
+
+The character dictionary and stats dashboard both read from the same local immersion data.
+
+- Open the dashboard from overlay: press your configured `stats.toggleKey` (default: `` ` `` / `Backquote`).
+- Open from launcher/CLI: run `subminer stats`.
+- Open directly: visit `http://127.0.0.1:<stats.serverPort>` when the local server is running.
+
+Useful config keys:
+
+- `stats.autoStartServer` — start the local stats server automatically once immersion tracking starts.
+- `stats.serverPort` — local HTTP port for dashboard and API.
+- `stats.toggleKey` — key binding for overlay dashboard toggle.
+- `stats.autoOpenBrowser` — auto-open dashboard browser for `subminer stats`.
+
+The dashboard gives quick visibility into episode summaries, watch-time rollups, session timelines, and vocabulary/kanji drill-down from the same DB used by character matching.
 
 ## How It Works
 

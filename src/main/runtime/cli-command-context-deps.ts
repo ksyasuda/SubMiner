@@ -34,6 +34,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   getAnilistQueueStatus: CliCommandContextFactoryDeps['getAnilistQueueStatus'];
   retryAnilistQueueNow: CliCommandContextFactoryDeps['retryAnilistQueueNow'];
   generateCharacterDictionary: CliCommandContextFactoryDeps['generateCharacterDictionary'];
+  runStatsCommand: CliCommandContextFactoryDeps['runStatsCommand'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
@@ -80,6 +81,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     getAnilistQueueStatus: deps.getAnilistQueueStatus,
     retryAnilistQueueNow: deps.retryAnilistQueueNow,
     generateCharacterDictionary: deps.generateCharacterDictionary,
+    runStatsCommand: deps.runStatsCommand,
     runJellyfinCommand: deps.runJellyfinCommand,
     openYomitanSettings: deps.openYomitanSettings,
     cycleSecondarySubMode: deps.cycleSecondarySubMode,

@@ -61,6 +61,7 @@ export interface CliCommandServiceDeps {
     mediaTitle: string;
     entryCount: number;
   }>;
+  runStatsCommand: (args: CliArgs, source: CliCommandSource) => Promise<void>;
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
   printHelp: () => void;
   hasMainWindow: () => boolean;
@@ -154,6 +155,7 @@ export interface CliCommandDepsRuntimeOptions {
   };
   jellyfin: {
     openSetup: () => void;
+    runStatsCommand: (args: CliArgs, source: CliCommandSource) => Promise<void>;
     runCommand: (args: CliArgs) => Promise<void>;
   };
   ui: UiCliRuntime;
@@ -222,6 +224,7 @@ export function createCliCommandDepsRuntime(
     getAnilistQueueStatus: options.anilist.getQueueStatus,
     retryAnilistQueue: options.anilist.retryQueueNow,
     generateCharacterDictionary: options.dictionary.generate,
+    runStatsCommand: options.jellyfin.runStatsCommand,
     runJellyfinCommand: options.jellyfin.runCommand,
     printHelp: options.ui.printHelp,
     hasMainWindow: options.app.hasMainWindow,
@@ -331,12 +334,18 @@ export function handleCliCommand(
       'Update failed',
     );
   } else if (args.refreshKnownWords) {
-    runAsyncWithOsd(
-      () => deps.refreshKnownWords(),
-      deps,
-      'refreshKnownWords',
-      'Refresh known words failed',
-    );
+    const shouldStopAfterRun = source === 'initial' && !deps.hasMainWindow();
+    deps
+      .refreshKnownWords()
+      .catch((err) => {
+        deps.error('refreshKnownWords failed:', err);
+        deps.showMpvOsd(`Refresh known words failed: ${(err as Error).message}`);
+      })
+      .finally(() => {
+        if (shouldStopAfterRun) {
+          deps.stopApp();
+        }
+      });
   } else if (args.toggleSecondarySub) {
     deps.cycleSecondarySubMode();
   } else if (args.triggerFieldGrouping) {
@@ -410,6 +419,8 @@ export function handleCliCommand(
           deps.stopApp();
         }
       });
+  } else if (args.stats) {
+    void deps.runStatsCommand(args, source);
   } else if (args.anilistRetryQueue) {
     const queueStatus = deps.getAnilistQueueStatus();
     deps.log(

@@ -1,11 +1,11 @@
 ---
 id: TASK-133
 title: Improve AniList character dictionary parity with upstream guide
-status: In Progress
+status: To Do
 assignee:
   - OpenCode
 created_date: '2026-03-08 21:06'
-updated_date: '2026-03-10 06:18'
+updated_date: '2026-03-18 05:27'
 labels:
   - dictionary
   - anilist
@@ -24,6 +24,7 @@ documentation:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/docs/plans/2026-03-08-anilist-character-dictionary-parity.md
 priority: high
+ordinal: 3000
 ---
 
 ## Description

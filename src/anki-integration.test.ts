@@ -56,7 +56,7 @@ function createIntegrationTestContext(
 
   const integration = new AnkiIntegration(
     {
-      nPlusOne: {
+      knownWords: {
         highlightEnabled: options.highlightEnabled ?? true,
       },
     },
@@ -209,6 +209,27 @@ test('AnkiIntegration.refreshKnownWordCache deduplicates concurrent refreshes', 
   }
 });
 
+test('AnkiIntegration resolves merged-away note ids to the kept note id', () => {
+  const ctx = createIntegrationTestContext({
+    stateDirPrefix: 'subminer-anki-integration-note-redirect-',
+  });
+
+  try {
+    const integrationWithInternals = ctx.integration as unknown as {
+      rememberMergedNoteIds: (deletedNoteId: number, keptNoteId: number) => void;
+    };
+    integrationWithInternals.rememberMergedNoteIds(111, 222);
+    integrationWithInternals.rememberMergedNoteIds(222, 333);
+
+    assert.equal(ctx.integration.resolveCurrentNoteId(111), 333);
+    assert.equal(ctx.integration.resolveCurrentNoteId(222), 333);
+    assert.equal(ctx.integration.resolveCurrentNoteId(333), 333);
+    assert.equal(ctx.integration.resolveCurrentNoteId(444), 444);
+  } finally {
+    cleanupIntegrationTestContext(ctx);
+  }
+});
+
 test('AnkiIntegration does not allocate proxy server when proxy transport is disabled', () => {
   const integration = new AnkiIntegration(
     {
@@ -227,6 +248,34 @@ test('AnkiIntegration does not allocate proxy server when proxy transport is dis
     };
   };
   assert.equal(privateState.runtime.proxyServer, null);
+});
+
+test('AnkiIntegration marks partial update notifications as failures in OSD mode', async () => {
+  const osdMessages: string[] = [];
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'osd',
+      },
+    },
+    {} as never,
+    {} as never,
+    (text) => {
+      osdMessages.push(text);
+    },
+  );
+
+  await (
+    integration as unknown as {
+      showNotification: (
+        noteId: number,
+        label: string | number,
+        errorSuffix?: string,
+      ) => Promise<void>;
+    }
+  ).showNotification(42, 'taberu', 'image failed');
+
+  assert.deepEqual(osdMessages, ['x Updated card: taberu (image failed)']);
 });
 
 test('FieldGroupingMergeCollaborator synchronizes ExpressionAudio from merged SentenceAudio', async () => {

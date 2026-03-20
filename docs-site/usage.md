@@ -11,7 +11,7 @@
 3. The overlay connects and subscribes to subtitle changes
 4. Subtitles are tokenized with Yomitan's internal parser
 5. Words are displayed as interactive spans in the overlay
-6. Hovering or clicking a word triggers Yomitan popup for dictionary lookup
+6. Hover a word, then trigger Yomitan lookup with your configured lookup key/modifier to open the Yomitan popup
 7. Optional [subtitle annotations](/subtitle-annotations) (N+1, character-name, frequency, JLPT) highlight useful cues in real time
 
 There are two ways to use SubMiner:
@@ -56,6 +56,7 @@ subminer ytsearch:"jp news"       # Play first YouTube search result
 subminer --setup                  # Open first-run setup popup
 subminer --log-level debug video.mkv # Enable verbose logs for launch/debugging
 subminer --log-level warn video.mkv  # Set logging level explicitly
+subminer --args '--fs=opengl-hq --ytdl-format=bestvideo*+bestaudio/best' video.mkv  # Pass extra mpv args
 
 # Options
 subminer -T video.mkv             # Disable texthooker server
@@ -188,6 +189,8 @@ Top-level launcher flags like `--jellyfin-*` and `--yt-subgen-*` are intentional
 - `--sid=auto`
 - `--secondary-sid=auto`
 - `--secondary-sub-visibility=no`
+
+You can append additional MPV arguments with launcher `-a/--args`, for example `--args "--ao=alsa --volume=80"`.
 
 You can define a matching profile in `~/.config/mpv/mpv.conf` for consistency when launching `mpv` manually or from other tools. `subminer` launches with `--profile=subminer` by default (or override with `subminer -p <profile> ...`):
 

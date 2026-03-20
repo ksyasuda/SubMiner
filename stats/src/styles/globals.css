@@ -1,0 +1,83 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ctp-base: #24273a;
+  --color-ctp-mantle: #1e2030;
+  --color-ctp-crust: #181926;
+  --color-ctp-surface0: #363a4f;
+  --color-ctp-surface1: #494d64;
+  --color-ctp-surface2: #5b6078;
+  --color-ctp-text: #cad3f5;
+  --color-ctp-subtext1: #b8c0e0;
+  --color-ctp-subtext0: #a5adcb;
+  --color-ctp-overlay2: #939ab7;
+  --color-ctp-overlay1: #8087a2;
+  --color-ctp-overlay0: #6e738d;
+  --color-ctp-blue: #8aadf4;
+  --color-ctp-green: #a6da95;
+  --color-ctp-cards-mined: #f5bde6;
+  --color-ctp-mauve: #c6a0f6;
+  --color-ctp-peach: #f5a97f;
+  --color-ctp-red: #ed8796;
+  --color-ctp-yellow: #eed49f;
+  --color-ctp-teal: #8bd5ca;
+  --color-ctp-lavender: #b7bdf8;
+  --color-ctp-flamingo: #f0c6c6;
+  --color-ctp-rosewater: #f4dbd6;
+  --color-ctp-sky: #91d7e3;
+  --color-ctp-sapphire: #7dc4e4;
+  --color-ctp-maroon: #ee99a0;
+  --color-ctp-pink: #f5bde6;
+
+  --font-sans:
+    'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-ctp-base);
+  color: var(--color-ctp-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body.overlay-mode {
+  background-color: rgba(36, 39, 58, 0.85);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-ctp-surface1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-ctp-surface2);
+}
+
+/* Tab content entrance animation */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeSlideIn 0.25s ease-out;
+}

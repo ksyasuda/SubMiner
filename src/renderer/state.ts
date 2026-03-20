@@ -91,6 +91,8 @@ export type RendererState = {
   frequencyDictionaryBand5Color: string;
 
   keybindingsMap: Map<string, (string | number)[]>;
+  statsToggleKey: string;
+  markWatchedKey: string;
   chordPending: boolean;
   chordTimeout: ReturnType<typeof setTimeout> | null;
   keyboardDrivenModeEnabled: boolean;
@@ -170,6 +172,8 @@ export function createRendererState(): RendererState {
     frequencyDictionaryBand5Color: '#8aadf4',
 
     keybindingsMap: new Map(),
+    statsToggleKey: 'Backquote',
+    markWatchedKey: 'KeyW',
     chordPending: false,
     chordTimeout: null,
     keyboardDrivenModeEnabled: false,

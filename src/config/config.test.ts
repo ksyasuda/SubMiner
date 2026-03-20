@@ -85,11 +85,17 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.immersionTracking.queueCap, 1000);
   assert.equal(config.immersionTracking.payloadCapBytes, 256);
   assert.equal(config.immersionTracking.maintenanceIntervalMs, 86_400_000);
-  assert.equal(config.immersionTracking.retention.eventsDays, 7);
-  assert.equal(config.immersionTracking.retention.telemetryDays, 30);
-  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 365);
-  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 1825);
-  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 7);
+  assert.equal(config.immersionTracking.retention.eventsDays, 0);
+  assert.equal(config.immersionTracking.retention.telemetryDays, 0);
+  assert.equal(config.immersionTracking.retention.sessionsDays, 0);
+  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 0);
+  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 0);
+  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 0);
+  assert.equal(config.immersionTracking.retentionMode, 'preset');
+  assert.equal(config.immersionTracking.retentionPreset, 'balanced');
+  assert.equal(config.immersionTracking.lifetimeSummaries?.global, true);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.anime, true);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.media, true);
 });
 
 test('throws actionable startup parse error for malformed config at construction time', () => {
@@ -742,12 +748,20 @@ test('accepts immersion tracking config values', () => {
         "queueCap": 2000,
         "payloadCapBytes": 512,
         "maintenanceIntervalMs": 3600000,
+        "retentionMode": "preset",
+        "retentionPreset": "minimal",
         "retention": {
           "eventsDays": 14,
           "telemetryDays": 45,
+          "sessionsDays": 60,
           "dailyRollupsDays": 730,
           "monthlyRollupsDays": 3650,
           "vacuumIntervalDays": 14
+        },
+        "lifetimeSummaries": {
+          "global": false,
+          "anime": true,
+          "media": false
         }
       }
     }`,
@@ -766,9 +780,15 @@ test('accepts immersion tracking config values', () => {
   assert.equal(config.immersionTracking.maintenanceIntervalMs, 3_600_000);
   assert.equal(config.immersionTracking.retention.eventsDays, 14);
   assert.equal(config.immersionTracking.retention.telemetryDays, 45);
+  assert.equal(config.immersionTracking.retention.sessionsDays, 60);
   assert.equal(config.immersionTracking.retention.dailyRollupsDays, 730);
   assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 3650);
   assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 14);
+  assert.equal(config.immersionTracking.retentionMode, 'preset');
+  assert.equal(config.immersionTracking.retentionPreset, 'minimal');
+  assert.equal(config.immersionTracking.lifetimeSummaries?.global, false);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.anime, true);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.media, false);
 });
 
 test('falls back for invalid immersion tracking tuning values', () => {
@@ -777,18 +797,22 @@ test('falls back for invalid immersion tracking tuning values', () => {
     path.join(dir, 'config.jsonc'),
     `{
       "immersionTracking": {
+        "retentionMode": "bad",
+        "retentionPreset": "bad",
         "batchSize": 0,
         "flushIntervalMs": 1,
         "queueCap": 5,
         "payloadCapBytes": 16,
         "maintenanceIntervalMs": 1000,
         "retention": {
-          "eventsDays": 0,
+          "eventsDays": -1,
           "telemetryDays": 99999,
-          "dailyRollupsDays": 0,
+          "sessionsDays": -1,
+          "dailyRollupsDays": -1,
           "monthlyRollupsDays": 999999,
-          "vacuumIntervalDays": 0
-        }
+          "vacuumIntervalDays": -1
+        },
+        "lifetimeSummaries": "bad"
       }
     }`,
     'utf-8',
@@ -803,11 +827,17 @@ test('falls back for invalid immersion tracking tuning values', () => {
   assert.equal(config.immersionTracking.queueCap, 1000);
   assert.equal(config.immersionTracking.payloadCapBytes, 256);
   assert.equal(config.immersionTracking.maintenanceIntervalMs, 86_400_000);
-  assert.equal(config.immersionTracking.retention.eventsDays, 7);
-  assert.equal(config.immersionTracking.retention.telemetryDays, 30);
-  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 365);
-  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 1825);
-  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 7);
+  assert.equal(config.immersionTracking.retention.eventsDays, 0);
+  assert.equal(config.immersionTracking.retention.telemetryDays, 0);
+  assert.equal(config.immersionTracking.retention.sessionsDays, 0);
+  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 0);
+  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 0);
+  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 0);
+  assert.equal(config.immersionTracking.retentionMode, 'preset');
+  assert.equal(config.immersionTracking.retentionPreset, 'balanced');
+  assert.equal(config.immersionTracking.lifetimeSummaries?.global, true);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.anime, true);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.media, true);
 
   assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.batchSize'));
   assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.flushIntervalMs'));
@@ -819,6 +849,9 @@ test('falls back for invalid immersion tracking tuning values', () => {
     warnings.some((warning) => warning.path === 'immersionTracking.retention.telemetryDays'),
   );
   assert.ok(
+    warnings.some((warning) => warning.path === 'immersionTracking.retention.sessionsDays'),
+  );
+  assert.ok(
     warnings.some((warning) => warning.path === 'immersionTracking.retention.dailyRollupsDays'),
   );
   assert.ok(
@@ -827,6 +860,37 @@ test('falls back for invalid immersion tracking tuning values', () => {
   assert.ok(
     warnings.some((warning) => warning.path === 'immersionTracking.retention.vacuumIntervalDays'),
   );
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.retentionMode'));
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.retentionPreset'));
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.lifetimeSummaries'));
+});
+
+test('applies retention presets and explicit overrides', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "immersionTracking": {
+        "retentionMode": "preset",
+        "retentionPreset": "minimal",
+        "retention": {
+          "eventsDays": 11,
+          "sessionsDays": 8
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.immersionTracking.retentionMode, 'preset');
+  assert.equal(config.immersionTracking.retentionPreset, 'minimal');
+  assert.equal(config.immersionTracking.retention.eventsDays, 11);
+  assert.equal(config.immersionTracking.retention.sessionsDays, 8);
+  assert.equal(config.immersionTracking.retention.telemetryDays, 14);
+  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 30);
 });
 
 test('parses jsonc and warns/falls back on invalid value', () => {
@@ -1363,15 +1427,16 @@ test('runtime options registry is centralized', () => {
   ]);
 });
 
-test('validates ankiConnect n+1 behavior values', () => {
+test('validates ankiConnect knownWords behavior values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
-        "nPlusOne": {
+        "knownWords": {
           "highlightEnabled": "yes",
-          "refreshMinutes": -5
+          "refreshMinutes": -5,
+          "addMinedWordsImmediately": "no"
         }
       }
     }`,
@@ -1383,26 +1448,34 @@ test('validates ankiConnect n+1 behavior values', () => {
   const warnings = service.getWarnings();
 
   assert.equal(
-    config.ankiConnect.nPlusOne.highlightEnabled,
-    DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled,
+    config.ankiConnect.knownWords.highlightEnabled,
+    DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled,
   );
   assert.equal(
-    config.ankiConnect.nPlusOne.refreshMinutes,
-    DEFAULT_CONFIG.ankiConnect.nPlusOne.refreshMinutes,
+    config.ankiConnect.knownWords.refreshMinutes,
+    DEFAULT_CONFIG.ankiConnect.knownWords.refreshMinutes,
   );
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.highlightEnabled'));
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.refreshMinutes'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.highlightEnabled'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.refreshMinutes'));
+  assert.equal(
+    config.ankiConnect.knownWords.addMinedWordsImmediately,
+    DEFAULT_CONFIG.ankiConnect.knownWords.addMinedWordsImmediately,
+  );
+  assert.ok(
+    warnings.some((warning) => warning.path === 'ankiConnect.knownWords.addMinedWordsImmediately'),
+  );
 });
 
-test('accepts valid ankiConnect n+1 behavior values', () => {
+test('accepts valid ankiConnect knownWords behavior values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
-        "nPlusOne": {
+        "knownWords": {
           "highlightEnabled": true,
-          "refreshMinutes": 120
+          "refreshMinutes": 120,
+          "addMinedWordsImmediately": false
         }
       }
     }`,
@@ -1412,8 +1485,9 @@ test('accepts valid ankiConnect n+1 behavior values', () => {
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
-  assert.equal(config.ankiConnect.nPlusOne.highlightEnabled, true);
-  assert.equal(config.ankiConnect.nPlusOne.refreshMinutes, 120);
+  assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
+  assert.equal(config.ankiConnect.knownWords.refreshMinutes, 120);
+  assert.equal(config.ankiConnect.knownWords.addMinedWordsImmediately, false);
 });
 
 test('validates ankiConnect n+1 minimum sentence word count', () => {
@@ -1461,13 +1535,13 @@ test('accepts valid ankiConnect n+1 minimum sentence word count', () => {
   assert.equal(config.ankiConnect.nPlusOne.minSentenceWords, 4);
 });
 
-test('validates ankiConnect n+1 match mode values', () => {
+test('validates ankiConnect knownWords match mode values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
-        "nPlusOne": {
+        "knownWords": {
           "matchMode": "bad-mode"
         }
       }
@@ -1480,19 +1554,19 @@ test('validates ankiConnect n+1 match mode values', () => {
   const warnings = service.getWarnings();
 
   assert.equal(
-    config.ankiConnect.nPlusOne.matchMode,
-    DEFAULT_CONFIG.ankiConnect.nPlusOne.matchMode,
+    config.ankiConnect.knownWords.matchMode,
+    DEFAULT_CONFIG.ankiConnect.knownWords.matchMode,
   );
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.matchMode'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.matchMode'));
 });
 
-test('accepts valid ankiConnect n+1 match mode values', () => {
+test('accepts valid ankiConnect knownWords match mode values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
-        "nPlusOne": {
+        "knownWords": {
           "matchMode": "surface"
         }
       }
@@ -1503,18 +1577,20 @@ test('accepts valid ankiConnect n+1 match mode values', () => {
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
-  assert.equal(config.ankiConnect.nPlusOne.matchMode, 'surface');
+  assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
 });
 
-test('validates ankiConnect n+1 color values', () => {
+test('validates ankiConnect knownWords and n+1 color values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
-          "nPlusOne": "not-a-color",
-          "knownWord": 123
+          "nPlusOne": "not-a-color"
+        },
+        "knownWords": {
+          "color": 123
         }
       }
     }`,
@@ -1526,23 +1602,22 @@ test('validates ankiConnect n+1 color values', () => {
   const warnings = service.getWarnings();
 
   assert.equal(config.ankiConnect.nPlusOne.nPlusOne, DEFAULT_CONFIG.ankiConnect.nPlusOne.nPlusOne);
-  assert.equal(
-    config.ankiConnect.nPlusOne.knownWord,
-    DEFAULT_CONFIG.ankiConnect.nPlusOne.knownWord,
-  );
+  assert.equal(config.ankiConnect.knownWords.color, DEFAULT_CONFIG.ankiConnect.knownWords.color);
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.nPlusOne'));
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.knownWord'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.color'));
 });
 
-test('accepts valid ankiConnect n+1 color values', () => {
+test('accepts valid ankiConnect knownWords and n+1 color values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
-          "nPlusOne": "#c6a0f6",
-          "knownWord": "#a6da95"
+          "nPlusOne": "#c6a0f6"
+        },
+        "knownWords": {
+          "color": "#a6da95"
         }
       }
     }`,
@@ -1553,7 +1628,49 @@ test('accepts valid ankiConnect n+1 color values', () => {
   const config = service.getConfig();
 
   assert.equal(config.ankiConnect.nPlusOne.nPlusOne, '#c6a0f6');
-  assert.equal(config.ankiConnect.nPlusOne.knownWord, '#a6da95');
+  assert.equal(config.ankiConnect.knownWords.color, '#a6da95');
+});
+
+test('supports legacy ankiConnect nPlusOne known-word settings as fallback', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "highlightEnabled": true,
+          "refreshMinutes": 90,
+          "matchMode": "surface",
+          "decks": ["Mining", "Kaishi 1.5k"],
+          "knownWord": "#a6da95"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
+  assert.equal(config.ankiConnect.knownWords.refreshMinutes, 90);
+  assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
+  assert.deepEqual(config.ankiConnect.knownWords.decks, {
+    Mining: ['Expression', 'Word', 'Reading', 'Word Reading'],
+    'Kaishi 1.5k': ['Expression', 'Word', 'Reading', 'Word Reading'],
+  });
+  assert.equal(config.ankiConnect.knownWords.color, '#a6da95');
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === 'ankiConnect.nPlusOne.highlightEnabled' ||
+        warning.path === 'ankiConnect.nPlusOne.refreshMinutes' ||
+        warning.path === 'ankiConnect.nPlusOne.matchMode' ||
+        warning.path === 'ankiConnect.nPlusOne.decks' ||
+        warning.path === 'ankiConnect.nPlusOne.knownWord',
+    ),
+  );
 });
 
 test('supports legacy ankiConnect.behavior N+1 settings as fallback', () => {
@@ -1576,9 +1693,9 @@ test('supports legacy ankiConnect.behavior N+1 settings as fallback', () => {
   const config = service.getConfig();
   const warnings = service.getWarnings();
 
-  assert.equal(config.ankiConnect.nPlusOne.highlightEnabled, true);
-  assert.equal(config.ankiConnect.nPlusOne.refreshMinutes, 90);
-  assert.equal(config.ankiConnect.nPlusOne.matchMode, 'surface');
+  assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
+  assert.equal(config.ankiConnect.knownWords.refreshMinutes, 90);
+  assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
   assert.ok(
     warnings.some(
       (warning) =>
@@ -1799,14 +1916,14 @@ test('ignores deprecated isLapis sentence-card field overrides', () => {
   );
 });
 
-test('accepts valid ankiConnect n+1 deck list', () => {
+test('accepts valid ankiConnect knownWords deck object', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
-        "nPlusOne": {
-          "decks": ["Deck One", "Deck Two"]
+        "knownWords": {
+          "decks": { "Deck One": ["Word", "Reading"], "Deck Two": ["Expression"] }
         }
       }
     }`,
@@ -1816,7 +1933,10 @@ test('accepts valid ankiConnect n+1 deck list', () => {
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
-  assert.deepEqual(config.ankiConnect.nPlusOne.decks, ['Deck One', 'Deck Two']);
+  assert.deepEqual(config.ankiConnect.knownWords.decks, {
+    'Deck One': ['Word', 'Reading'],
+    'Deck Two': ['Expression'],
+  });
 });
 
 test('accepts valid ankiConnect tags list', () => {
@@ -1857,13 +1977,13 @@ test('falls back to default when ankiConnect tags list is invalid', () => {
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.tags'));
 });
 
-test('falls back to default when ankiConnect n+1 deck list is invalid', () => {
+test('falls back to default when ankiConnect knownWords deck list is invalid', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
-        "nPlusOne": {
+        "knownWords": {
           "decks": "not-an-array"
         }
       }
@@ -1875,8 +1995,8 @@ test('falls back to default when ankiConnect n+1 deck list is invalid', () => {
   const config = service.getConfig();
   const warnings = service.getWarnings();
 
-  assert.deepEqual(config.ankiConnect.nPlusOne.decks, []);
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.decks'));
+  assert.deepEqual(config.ankiConnect.knownWords.decks, {});
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.decks'));
 });
 
 test('template generator includes known keys', () => {
@@ -1891,9 +2011,10 @@ test('template generator includes known keys', () => {
   assert.match(output, /"youtubeSubgen":/);
   assert.match(output, /"characterDictionary":\s*\{/);
   assert.match(output, /"preserveLineBreaks": false/);
+  assert.match(output, /"knownWords"\s*:\s*\{/);
+  assert.match(output, /"color": "#a6da95"/);
   assert.match(output, /"nPlusOne"\s*:\s*\{/);
   assert.match(output, /"nPlusOne": "#c6a0f6"/);
-  assert.match(output, /"knownWord": "#a6da95"/);
   assert.match(output, /"minSentenceWords": 3/);
   assert.match(output, /auto-generated from src\/config\/definitions.ts/);
   assert.match(

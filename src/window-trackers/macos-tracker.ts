@@ -26,9 +26,60 @@ import type { WindowGeometry } from '../types';
 
 const log = createLogger('tracker').child('macos');
 
+type MacOSTrackerRunnerResult = {
+  stdout: string;
+  stderr: string;
+};
+
+type MacOSTrackerDeps = {
+  resolveHelper?: () => { helperPath: string; helperType: 'binary' | 'swift' } | null;
+  runHelper?: (
+    helperPath: string,
+    helperType: 'binary' | 'swift',
+    targetMpvSocketPath: string | null,
+  ) => Promise<MacOSTrackerRunnerResult>;
+  maxConsecutiveMisses?: number;
+  trackingLossGraceMs?: number;
+  now?: () => number;
+};
+
 export interface MacOSHelperWindowState {
   geometry: WindowGeometry;
   focused: boolean;
+}
+
+function runHelperWithExecFile(
+  helperPath: string,
+  helperType: 'binary' | 'swift',
+  targetMpvSocketPath: string | null,
+): Promise<MacOSTrackerRunnerResult> {
+  return new Promise((resolve, reject) => {
+    const command = helperType === 'binary' ? helperPath : 'swift';
+    const args = helperType === 'binary' ? [] : [helperPath];
+    if (targetMpvSocketPath) {
+      args.push(targetMpvSocketPath);
+    }
+
+    execFile(
+      command,
+      args,
+      {
+        encoding: 'utf-8',
+        timeout: 1000,
+        maxBuffer: 1024 * 1024,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(Object.assign(error, { stderr }));
+          return;
+        }
+        resolve({
+          stdout: stdout || '',
+          stderr: stderr || '',
+        });
+      },
+    );
+  });
 }
 
 export function parseMacOSHelperOutput(result: string): MacOSHelperWindowState | null {
@@ -79,11 +130,31 @@ export class MacOSWindowTracker extends BaseWindowTracker {
   private lastExecErrorFingerprint: string | null = null;
   private lastExecErrorLoggedAtMs = 0;
   private readonly targetMpvSocketPath: string | null;
+  private readonly runHelper: (
+    helperPath: string,
+    helperType: 'binary' | 'swift',
+    targetMpvSocketPath: string | null,
+  ) => Promise<MacOSTrackerRunnerResult>;
+  private readonly maxConsecutiveMisses: number;
+  private readonly trackingLossGraceMs: number;
+  private readonly now: () => number;
+  private consecutiveMisses = 0;
+  private trackingLossStartedAtMs: number | null = null;
 
-  constructor(targetMpvSocketPath?: string) {
+  constructor(targetMpvSocketPath?: string, deps: MacOSTrackerDeps = {}) {
     super();
     this.targetMpvSocketPath = targetMpvSocketPath?.trim() || null;
-    this.detectHelper();
+    this.runHelper = deps.runHelper ?? runHelperWithExecFile;
+    this.maxConsecutiveMisses = Math.max(1, Math.floor(deps.maxConsecutiveMisses ?? 2));
+    this.trackingLossGraceMs = Math.max(0, Math.floor(deps.trackingLossGraceMs ?? 1_500));
+    this.now = deps.now ?? (() => Date.now());
+    const resolvedHelper = deps.resolveHelper?.() ?? null;
+    if (resolvedHelper) {
+      this.helperPath = resolvedHelper.helperPath;
+      this.helperType = resolvedHelper.helperType;
+    } else {
+      this.detectHelper();
+    }
   }
 
   private materializeAsarHelper(sourcePath: string, helperType: 'binary' | 'swift'): string | null {
@@ -188,48 +259,65 @@ export class MacOSWindowTracker extends BaseWindowTracker {
     }
   }
 
+  private resetTrackingLossState(): void {
+    this.consecutiveMisses = 0;
+    this.trackingLossStartedAtMs = null;
+  }
+
+  private shouldDropTracking(): boolean {
+    if (!this.isTracking()) {
+      return true;
+    }
+    if (this.trackingLossGraceMs === 0) {
+      return this.consecutiveMisses >= this.maxConsecutiveMisses;
+    }
+    if (this.trackingLossStartedAtMs === null) {
+      this.trackingLossStartedAtMs = this.now();
+      return false;
+    }
+    return this.now() - this.trackingLossStartedAtMs > this.trackingLossGraceMs;
+  }
+
+  private registerTrackingMiss(): void {
+    this.consecutiveMisses += 1;
+    if (this.shouldDropTracking()) {
+      this.updateGeometry(null);
+      this.resetTrackingLossState();
+    }
+  }
+
   private pollGeometry(): void {
     if (this.pollInFlight || !this.helperPath || !this.helperType) {
       return;
     }
 
     this.pollInFlight = true;
-
-    // Use Core Graphics API via Swift helper for reliable window detection
-    // This works with both bundled and unbundled mpv installations
-    const command = this.helperType === 'binary' ? this.helperPath : 'swift';
-    const args = this.helperType === 'binary' ? [] : [this.helperPath];
-    if (this.targetMpvSocketPath) {
-      args.push(this.targetMpvSocketPath);
-    }
-
-    execFile(
-      command,
-      args,
-      {
-        encoding: 'utf-8',
-        timeout: 1000,
-        maxBuffer: 1024 * 1024,
-      },
-      (err, stdout, stderr) => {
-        if (err) {
-          this.maybeLogExecError(err, stderr || '');
-          this.updateGeometry(null);
-          this.pollInFlight = false;
-          return;
-        }
-
+    void this.runHelper(this.helperPath, this.helperType, this.targetMpvSocketPath)
+      .then(({ stdout }) => {
         const parsed = parseMacOSHelperOutput(stdout || '');
         if (parsed) {
+          this.resetTrackingLossState();
           this.updateFocus(parsed.focused);
           this.updateGeometry(parsed.geometry);
-          this.pollInFlight = false;
           return;
         }
 
-        this.updateGeometry(null);
+        this.registerTrackingMiss();
+      })
+      .catch((error: unknown) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        const stderr =
+          typeof error === 'object' &&
+          error !== null &&
+          'stderr' in error &&
+          typeof (error as { stderr?: unknown }).stderr === 'string'
+            ? (error as { stderr: string }).stderr
+            : '';
+        this.maybeLogExecError(err, stderr);
+        this.registerTrackingMiss();
+      })
+      .finally(() => {
         this.pollInFlight = false;
-      },
-    );
+      });
   }
 }

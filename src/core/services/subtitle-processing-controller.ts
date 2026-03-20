@@ -11,6 +11,13 @@ export interface SubtitleProcessingController {
   onSubtitleChange: (text: string) => void;
   refreshCurrentSubtitle: (textOverride?: string) => void;
   invalidateTokenizationCache: () => void;
+  preCacheTokenization: (text: string, data: SubtitleData) => void;
+  consumeCachedSubtitle: (text: string) => SubtitleData | null;
+  isCacheFull: () => boolean;
+}
+
+function normalizeSubtitleCacheKey(text: string): string {
+  return text.replace(/\r\n/g, '\n').replace(/\\N/g, '\n').replace(/\\n/g, '\n').trim();
 }
 
 export function createSubtitleProcessingController(
@@ -26,18 +33,19 @@ export function createSubtitleProcessingController(
   const now = deps.now ?? (() => Date.now());
 
   const getCachedTokenization = (text: string): SubtitleData | null => {
-    const cached = tokenizationCache.get(text);
+    const cacheKey = normalizeSubtitleCacheKey(text);
+    const cached = tokenizationCache.get(cacheKey);
     if (!cached) {
       return null;
     }
 
-    tokenizationCache.delete(text);
-    tokenizationCache.set(text, cached);
+    tokenizationCache.delete(cacheKey);
+    tokenizationCache.set(cacheKey, cached);
     return cached;
   };
 
   const setCachedTokenization = (text: string, payload: SubtitleData): void => {
-    tokenizationCache.set(text, payload);
+    tokenizationCache.set(normalizeSubtitleCacheKey(text), payload);
     while (tokenizationCache.size > SUBTITLE_TOKENIZATION_CACHE_LIMIT) {
       const firstKey = tokenizationCache.keys().next().value;
       if (firstKey !== undefined) {
@@ -129,6 +137,23 @@ export function createSubtitleProcessingController(
     },
     invalidateTokenizationCache: () => {
       tokenizationCache.clear();
+    },
+    preCacheTokenization: (text: string, data: SubtitleData) => {
+      setCachedTokenization(text, data);
+    },
+    consumeCachedSubtitle: (text: string) => {
+      const cached = getCachedTokenization(text);
+      if (!cached) {
+        return null;
+      }
+
+      latestText = text;
+      lastEmittedText = text;
+      refreshRequested = false;
+      return cached;
+    },
+    isCacheFull: () => {
+      return tokenizationCache.size >= SUBTITLE_TOKENIZATION_CACHE_LIMIT;
     },
   };
 }

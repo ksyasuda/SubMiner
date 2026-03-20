@@ -29,6 +29,13 @@ export interface CliArgs {
   anilistRetryQueue: boolean;
   dictionary: boolean;
   dictionaryTarget?: string;
+  stats: boolean;
+  statsBackground?: boolean;
+  statsStop?: boolean;
+  statsCleanup?: boolean;
+  statsCleanupVocab?: boolean;
+  statsCleanupLifetime?: boolean;
+  statsResponsePath?: string;
   jellyfin: boolean;
   jellyfinLogin: boolean;
   jellyfinLogout: boolean;
@@ -97,6 +104,12 @@ export function parseArgs(argv: string[]): CliArgs {
     anilistSetup: false,
     anilistRetryQueue: false,
     dictionary: false,
+    stats: false,
+    statsBackground: false,
+    statsStop: false,
+    statsCleanup: false,
+    statsCleanupVocab: false,
+    statsCleanupLifetime: false,
     jellyfin: false,
     jellyfinLogin: false,
     jellyfinLogout: false,
@@ -162,6 +175,22 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--dictionary-target') {
       const value = readValue(argv[i + 1]);
       if (value) args.dictionaryTarget = value;
+    } else if (arg === '--stats') args.stats = true;
+    else if (arg === '--stats-background') {
+      args.stats = true;
+      args.statsBackground = true;
+    } else if (arg === '--stats-stop') {
+      args.stats = true;
+      args.statsStop = true;
+    } else if (arg === '--stats-cleanup') args.statsCleanup = true;
+    else if (arg === '--stats-cleanup-vocab') args.statsCleanupVocab = true;
+    else if (arg === '--stats-cleanup-lifetime') args.statsCleanupLifetime = true;
+    else if (arg.startsWith('--stats-response-path=')) {
+      const value = arg.split('=', 2)[1];
+      if (value) args.statsResponsePath = value;
+    } else if (arg === '--stats-response-path') {
+      const value = readValue(argv[i + 1]);
+      if (value) args.statsResponsePath = value;
     } else if (arg === '--jellyfin') args.jellyfin = true;
     else if (arg === '--jellyfin-login') args.jellyfinLogin = true;
     else if (arg === '--jellyfin-logout') args.jellyfinLogout = true;
@@ -331,6 +360,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.anilistSetup ||
     args.anilistRetryQueue ||
     args.dictionary ||
+    args.stats ||
     args.jellyfin ||
     args.jellyfinLogin ||
     args.jellyfinLogout ||
@@ -344,6 +374,10 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.generateConfig ||
     args.help
   );
+}
+
+export function isHeadlessInitialCommand(args: CliArgs): boolean {
+  return args.refreshKnownWords;
 }
 
 export function shouldStartApp(args: CliArgs): boolean {
@@ -361,12 +395,14 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.mineSentence ||
     args.mineSentenceMultiple ||
     args.updateLastCardFromClipboard ||
+    args.refreshKnownWords ||
     args.toggleSecondarySub ||
     args.triggerFieldGrouping ||
     args.triggerSubsync ||
     args.markAudioCard ||
     args.openRuntimeOptions ||
     args.dictionary ||
+    args.stats ||
     args.jellyfin ||
     args.jellyfinPlay ||
     args.texthooker
@@ -408,6 +444,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.anilistSetup &&
     !args.anilistRetryQueue &&
     !args.dictionary &&
+    !args.stats &&
     !args.jellyfin &&
     !args.jellyfinLogin &&
     !args.jellyfinLogout &&

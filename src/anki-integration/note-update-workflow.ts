@@ -1,4 +1,5 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
+import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 
 export interface NoteUpdateWorkflowNoteInfo {
   noteId: number;
@@ -13,6 +14,7 @@ export interface NoteUpdateWorkflowDeps {
   };
   getConfig: () => {
     fields?: {
+      word?: string;
       sentence?: string;
       image?: string;
       miscInfo?: string;
@@ -20,6 +22,8 @@ export interface NoteUpdateWorkflowDeps {
     media?: {
       generateAudio?: boolean;
       generateImage?: boolean;
+      imageType?: 'static' | 'avif';
+      syncAnimatedImageToWordAudio?: boolean;
     };
     behavior?: {
       overwriteAudio?: boolean;
@@ -58,11 +62,12 @@ export interface NoteUpdateWorkflowDeps {
     ...preferredNames: (string | undefined)[]
   ) => string | null;
   getResolvedSentenceAudioFieldName: (noteInfo: NoteUpdateWorkflowNoteInfo) => string | null;
+  getAnimatedImageLeadInSeconds: (noteInfo: NoteUpdateWorkflowNoteInfo) => Promise<number>;
   mergeFieldValue: (existing: string, newValue: string, overwrite: boolean) => string;
   generateAudioFilename: () => string;
   generateAudio: () => Promise<Buffer | null>;
   generateImageFilename: () => string;
-  generateImage: () => Promise<Buffer | null>;
+  generateImage: (animatedLeadInSeconds?: number) => Promise<Buffer | null>;
   formatMiscInfoPattern: (fallbackFilename: string, startTimeSeconds?: number) => string;
   addConfiguredTagsToNote: (noteId: number) => Promise<void>;
   showNotification: (noteId: number, label: string | number) => Promise<void>;
@@ -90,8 +95,9 @@ export class NoteUpdateWorkflow {
       const noteInfo = notesInfo[0]!;
       this.deps.appendKnownWordsFromNoteInfo(noteInfo);
       const fields = this.deps.extractFields(noteInfo.fields);
+      const config = this.deps.getConfig();
 
-      const expressionText = (fields.expression || fields.word || '').trim();
+      const expressionText = getPreferredWordValueFromExtractedFields(fields, config).trim();
       const hasExpressionText = expressionText.length > 0;
       if (!hasExpressionText) {
         // Some note types omit Expression/Word; still run enrichment updates and skip duplicate checks.
@@ -123,8 +129,6 @@ export class NoteUpdateWorkflow {
         updatePerformed = true;
       }
 
-      const config = this.deps.getConfig();
-
       if (config.media?.generateAudio) {
         try {
           const audioFilename = this.deps.generateAudioFilename();
@@ -152,8 +156,9 @@ export class NoteUpdateWorkflow {
 
       if (config.media?.generateImage) {
         try {
+          const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
           const imageFilename = this.deps.generateImageFilename();
-          const imageBuffer = await this.deps.generateImage();
+          const imageBuffer = await this.deps.generateImage(animatedLeadInSeconds);
 
           if (imageBuffer) {
             await this.deps.client.storeMediaFile(imageFilename, imageBuffer);

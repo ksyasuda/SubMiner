@@ -23,6 +23,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     },
     tags: ['SubMiner'],
     fields: {
+      word: 'Expression',
       audio: 'ExpressionAudio',
       image: 'Picture',
       sentence: 'Sentence',
@@ -46,9 +47,18 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       animatedMaxWidth: 640,
       animatedMaxHeight: undefined,
       animatedCrf: 35,
+      syncAnimatedImageToWordAudio: true,
       audioPadding: 0.5,
       fallbackDuration: 3.0,
       maxMediaDuration: 30,
+    },
+    knownWords: {
+      highlightEnabled: false,
+      refreshMinutes: 1440,
+      addMinedWordsImmediately: true,
+      matchMode: 'headword',
+      decks: {},
+      color: '#a6da95',
     },
     behavior: {
       overwriteAudio: true,
@@ -59,13 +69,8 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       autoUpdateNewCards: true,
     },
     nPlusOne: {
-      highlightEnabled: false,
-      refreshMinutes: 1440,
-      matchMode: 'headword',
-      decks: [],
       minSentenceWords: 3,
       nPlusOne: '#c6a0f6',
-      knownWord: '#a6da95',
     },
     metadata: {
       pattern: '[SubMiner] %f (%t)',

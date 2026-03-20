@@ -28,6 +28,7 @@ test('build initialize overlay runtime options maps dependencies', () => {
       cancelled: false,
     }),
     getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+    shouldStartAnkiIntegration: () => true,
   });
 
   const options = buildOptions();
@@ -35,6 +36,7 @@ test('build initialize overlay runtime options maps dependencies', () => {
   assert.equal(options.isVisibleOverlayVisible(), true);
   assert.equal(options.getMpvSocketPath(), '/tmp/mpv.sock');
   assert.equal(options.getKnownWordCacheStatePath(), '/tmp/known-words-cache.json');
+  assert.equal(options.shouldStartAnkiIntegration(), true);
   options.createMainWindow();
   options.registerGlobalShortcuts();
   options.updateVisibleOverlayBounds({ x: 0, y: 0, width: 10, height: 10 });

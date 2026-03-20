@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Superpowers brainstorming
+.superpowers/
+
 # Electron build output
 out/
 dist/
@@ -22,9 +25,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-**/CLAUDE.md
 environment.toml
-**/CLAUDE.md
 .env
 .vscode/*
 
@@ -52,3 +53,4 @@ tests/*
 !.agents/skills/subminer-scrum-master/SKILL.md
 favicon.png
 .claude/*
+!stats/public/favicon.png

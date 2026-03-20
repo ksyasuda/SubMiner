@@ -1,5 +1,6 @@
 import { KikuMergePreviewResponse } from '../types';
 import { createLogger } from '../logger';
+import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 
 const log = createLogger('anki').child('integration.field-grouping');
 
@@ -9,6 +10,11 @@ interface FieldGroupingNoteInfo {
 }
 
 interface FieldGroupingDeps {
+  getConfig: () => {
+    fields?: {
+      word?: string;
+    };
+  };
   getEffectiveSentenceCardConfig: () => {
     model?: string;
     sentenceField: string;
@@ -102,7 +108,10 @@ export class FieldGroupingService {
         }
         const noteInfoBeforeUpdate = notesInfo[0]!;
         const fields = this.deps.extractFields(noteInfoBeforeUpdate.fields);
-        const expressionText = fields.expression || fields.word || '';
+        const expressionText = getPreferredWordValueFromExtractedFields(
+          fields,
+          this.deps.getConfig(),
+        );
         if (!expressionText) {
           this.deps.showOsdNotification('No expression/word field found');
           return;

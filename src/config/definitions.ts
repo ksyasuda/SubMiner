@@ -2,10 +2,12 @@ import { RawConfig, ResolvedConfig } from '../types';
 import { CORE_DEFAULT_CONFIG } from './definitions/defaults-core';
 import { IMMERSION_DEFAULT_CONFIG } from './definitions/defaults-immersion';
 import { INTEGRATIONS_DEFAULT_CONFIG } from './definitions/defaults-integrations';
+import { STATS_DEFAULT_CONFIG } from './definitions/defaults-stats';
 import { SUBTITLE_DEFAULT_CONFIG } from './definitions/defaults-subtitle';
 import { buildCoreConfigOptionRegistry } from './definitions/options-core';
 import { buildImmersionConfigOptionRegistry } from './definitions/options-immersion';
 import { buildIntegrationConfigOptionRegistry } from './definitions/options-integrations';
+import { buildStatsConfigOptionRegistry } from './definitions/options-stats';
 import { buildSubtitleConfigOptionRegistry } from './definitions/options-subtitle';
 import { buildRuntimeOptionRegistry } from './definitions/runtime-options';
 import { CONFIG_TEMPLATE_SECTIONS } from './definitions/template-sections';
@@ -36,6 +38,7 @@ const { ankiConnect, jimaku, anilist, yomitan, jellyfin, discordPresence, ai, yo
   INTEGRATIONS_DEFAULT_CONFIG;
 const { subtitleStyle } = SUBTITLE_DEFAULT_CONFIG;
 const { immersionTracking } = IMMERSION_DEFAULT_CONFIG;
+const { stats } = STATS_DEFAULT_CONFIG;
 
 export const DEFAULT_CONFIG: ResolvedConfig = {
   subtitlePosition,
@@ -60,6 +63,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   ai,
   youtubeSubgen,
   immersionTracking,
+  stats,
 };
 
 export const DEFAULT_ANKI_CONNECT_CONFIG = DEFAULT_CONFIG.ankiConnect;
@@ -71,6 +75,7 @@ export const CONFIG_OPTION_REGISTRY = [
   ...buildSubtitleConfigOptionRegistry(DEFAULT_CONFIG),
   ...buildIntegrationConfigOptionRegistry(DEFAULT_CONFIG, RUNTIME_OPTION_REGISTRY),
   ...buildImmersionConfigOptionRegistry(DEFAULT_CONFIG),
+  ...buildStatsConfigOptionRegistry(DEFAULT_CONFIG),
 ];
 
 export { CONFIG_TEMPLATE_SECTIONS };

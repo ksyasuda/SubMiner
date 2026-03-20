@@ -19,6 +19,14 @@ export type SubtitleTokenHoverRange = {
   tokenIndex: number;
 };
 
+let _spanTemplate: HTMLSpanElement | null = null;
+function getSpanTemplate(): HTMLSpanElement {
+  if (!_spanTemplate) {
+    _spanTemplate = document.createElement('span');
+  }
+  return _spanTemplate;
+}
+
 export function shouldRenderTokenizedSubtitle(tokenCount: number): boolean {
   return tokenCount > 0;
 }
@@ -82,6 +90,16 @@ const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {
   bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#8bd5ca', '#8aadf4'],
 };
 const DEFAULT_NAME_MATCH_ENABLED = true;
+
+function hasPrioritizedNameMatch(
+  token: MergedToken,
+  tokenRenderSettings?: Partial<Pick<TokenRenderSettings, 'nameMatchEnabled'>>,
+): boolean {
+  return (
+    (tokenRenderSettings?.nameMatchEnabled ?? DEFAULT_NAME_MATCH_ENABLED) &&
+    token.isNameMatch === true
+  );
+}
 
 function sanitizeFrequencyTopX(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
@@ -219,8 +237,12 @@ function getNormalizedFrequencyRank(token: MergedToken): number | null {
 
 export function getFrequencyRankLabelForToken(
   token: MergedToken,
-  frequencySettings?: Partial<FrequencyRenderSettings>,
+  frequencySettings?: Partial<TokenRenderSettings>,
 ): string | null {
+  if (hasPrioritizedNameMatch(token, frequencySettings)) {
+    return null;
+  }
+
   const resolvedFrequencySettings = {
     ...DEFAULT_FREQUENCY_RENDER_SETTINGS,
     ...frequencySettings,
@@ -243,7 +265,14 @@ export function getFrequencyRankLabelForToken(
   return rank === null ? null : String(rank);
 }
 
-export function getJlptLevelLabelForToken(token: MergedToken): string | null {
+export function getJlptLevelLabelForToken(
+  token: MergedToken,
+  tokenRenderSettings?: Partial<Pick<TokenRenderSettings, 'nameMatchEnabled'>>,
+): string | null {
+  if (hasPrioritizedNameMatch(token, tokenRenderSettings)) {
+    return null;
+  }
+
   return token.jlptLevel ?? null;
 }
 
@@ -286,7 +315,7 @@ function renderWithTokens(
       }
 
       const token = segment.token;
-      const span = document.createElement('span');
+      const span = getSpanTemplate().cloneNode(false) as HTMLSpanElement;
       span.className = computeWordClass(token, resolvedTokenRenderSettings);
       span.textContent = token.surface;
       span.dataset.tokenIndex = String(segment.tokenIndex);
@@ -296,7 +325,7 @@ function renderWithTokens(
       if (frequencyRankLabel) {
         span.dataset.frequencyRank = frequencyRankLabel;
       }
-      const jlptLevelLabel = getJlptLevelLabelForToken(token);
+      const jlptLevelLabel = getJlptLevelLabelForToken(token, resolvedTokenRenderSettings);
       if (jlptLevelLabel) {
         span.dataset.jlptLevel = jlptLevelLabel;
       }
@@ -322,7 +351,7 @@ function renderWithTokens(
       continue;
     }
 
-    const span = document.createElement('span');
+    const span = getSpanTemplate().cloneNode(false) as HTMLSpanElement;
     span.className = computeWordClass(token, resolvedTokenRenderSettings);
     span.textContent = surface;
     span.dataset.tokenIndex = String(index);
@@ -332,7 +361,7 @@ function renderWithTokens(
     if (frequencyRankLabel) {
       span.dataset.frequencyRank = frequencyRankLabel;
     }
-    const jlptLevelLabel = getJlptLevelLabelForToken(token);
+    const jlptLevelLabel = getJlptLevelLabelForToken(token, resolvedTokenRenderSettings);
     if (jlptLevelLabel) {
       span.dataset.jlptLevel = jlptLevelLabel;
     }
@@ -444,22 +473,22 @@ export function computeWordClass(
 
   const classes = ['word'];
 
-  if (token.isNPlusOneTarget) {
-    classes.push('word-n-plus-one');
-  } else if (resolvedTokenRenderSettings.nameMatchEnabled && token.isNameMatch) {
+  if (hasPrioritizedNameMatch(token, resolvedTokenRenderSettings)) {
     classes.push('word-name-match');
+  } else if (token.isNPlusOneTarget) {
+    classes.push('word-n-plus-one');
   } else if (token.isKnown) {
     classes.push('word-known');
   }
 
-  if (token.jlptLevel) {
+  if (!hasPrioritizedNameMatch(token, resolvedTokenRenderSettings) && token.jlptLevel) {
     classes.push(`word-jlpt-${token.jlptLevel.toLowerCase()}`);
   }
 
   if (
     !token.isKnown &&
     !token.isNPlusOneTarget &&
-    !(resolvedTokenRenderSettings.nameMatchEnabled && token.isNameMatch)
+    !hasPrioritizedNameMatch(token, resolvedTokenRenderSettings)
   ) {
     const frequencyClass = getFrequencyDictionaryClass(token, resolvedTokenRenderSettings);
     if (frequencyClass) {
@@ -478,7 +507,7 @@ function renderCharacterLevel(root: HTMLElement, text: string): void {
       fragment.appendChild(document.createElement('br'));
       continue;
     }
-    const span = document.createElement('span');
+    const span = getSpanTemplate().cloneNode(false) as HTMLSpanElement;
     span.className = 'c';
     span.textContent = char;
     fragment.appendChild(span);
@@ -503,7 +532,7 @@ function renderPlainTextPreserveLineBreaks(root: ParentNode, text: string): void
 
 export function createSubtitleRenderer(ctx: RendererContext) {
   function renderSubtitle(data: SubtitleData | string): void {
-    ctx.dom.subtitleRoot.innerHTML = '';
+    ctx.dom.subtitleRoot.replaceChildren();
 
     let text: string;
     let tokens: MergedToken[] | null;
@@ -552,7 +581,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
   }
 
   function renderSecondarySub(text: string): void {
-    ctx.dom.secondarySubRoot.innerHTML = '';
+    ctx.dom.secondarySubRoot.replaceChildren();
     if (!text) return;
 
     const normalized = text

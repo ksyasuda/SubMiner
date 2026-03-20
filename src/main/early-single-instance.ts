@@ -3,6 +3,10 @@ interface ElectronSecondInstanceAppLike {
   on: (event: 'second-instance', listener: (_event: unknown, argv: string[]) => void) => unknown;
 }
 
+export function shouldBypassSingleInstanceLockForArgv(argv: readonly string[]): boolean {
+  return argv.includes('--stats-background') || argv.includes('--stats-stop');
+}
+
 let cachedSingleInstanceLock: boolean | null = null;
 let secondInstanceListenerAttached = false;
 const secondInstanceArgvHistory: string[][] = [];

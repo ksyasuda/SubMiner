@@ -5,7 +5,7 @@ status: Done
 assignee:
   - Codex
 created_date: '2026-03-17 18:10'
-updated_date: '2026-03-17 18:14'
+updated_date: '2026-03-18 05:28'
 labels:
   - release
   - packaging
@@ -16,9 +16,12 @@ references:
   - /home/sudacode/projects/japanese/SubMiner/.github/workflows/release.yml
   - /home/sudacode/projects/japanese/SubMiner/scripts/update-aur-package.sh
   - /home/sudacode/projects/japanese/SubMiner/scripts/update-aur-package.test.ts
-  - /home/sudacode/projects/japanese/SubMiner/packaging/aur/subminer-bin/PKGBUILD
-  - /home/sudacode/projects/japanese/SubMiner/packaging/aur/subminer-bin/.SRCINFO
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/packaging/aur/subminer-bin/PKGBUILD
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/packaging/aur/subminer-bin/.SRCINFO
 priority: medium
+ordinal: 107500
 ---
 
 ## Description

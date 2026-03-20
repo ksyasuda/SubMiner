@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   hasExplicitCommand,
+  isHeadlessInitialCommand,
   parseArgs,
   shouldRunSettingsOnlyStartup,
   shouldStartApp,
@@ -101,7 +102,8 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   const refreshKnownWords = parseArgs(['--refresh-known-words']);
   assert.equal(refreshKnownWords.help, false);
   assert.equal(hasExplicitCommand(refreshKnownWords), true);
-  assert.equal(shouldStartApp(refreshKnownWords), false);
+  assert.equal(shouldStartApp(refreshKnownWords), true);
+  assert.equal(isHeadlessInitialCommand(refreshKnownWords), true);
 
   const settings = parseArgs(['--settings']);
   assert.equal(settings.settings, true);
@@ -142,6 +144,50 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   const dictionaryTarget = parseArgs(['--dictionary', '--dictionary-target', '/tmp/example.mkv']);
   assert.equal(dictionaryTarget.dictionary, true);
   assert.equal(dictionaryTarget.dictionaryTarget, '/tmp/example.mkv');
+
+  const stats = parseArgs([
+    '--stats',
+    '--stats-response-path',
+    '/tmp/subminer-stats-response.json',
+    '--stats-cleanup-lifetime',
+  ]);
+  assert.equal(stats.stats, true);
+  assert.equal(stats.statsResponsePath, '/tmp/subminer-stats-response.json');
+  assert.equal(stats.statsCleanup, false);
+  assert.equal(stats.statsCleanupVocab, false);
+  assert.equal(stats.statsCleanupLifetime, true);
+  assert.equal(hasExplicitCommand(stats), true);
+  assert.equal(shouldStartApp(stats), true);
+
+  const statsBackground = parseArgs(['--stats', '--stats-background']) as typeof stats & {
+    statsBackground?: boolean;
+    statsStop?: boolean;
+  };
+  assert.equal(statsBackground.stats, true);
+  assert.equal(statsBackground.statsBackground, true);
+  assert.equal(statsBackground.statsStop, false);
+  assert.equal(hasExplicitCommand(statsBackground), true);
+  assert.equal(shouldStartApp(statsBackground), true);
+
+  const statsStop = parseArgs(['--stats', '--stats-stop']) as typeof stats & {
+    statsBackground?: boolean;
+    statsStop?: boolean;
+  };
+  assert.equal(statsStop.stats, true);
+  assert.equal(statsStop.statsStop, true);
+  assert.equal(statsStop.statsBackground, false);
+  assert.equal(hasExplicitCommand(statsStop), true);
+  assert.equal(shouldStartApp(statsStop), true);
+
+  const statsLifetimeRebuild = parseArgs([
+    '--stats',
+    '--stats-cleanup',
+    '--stats-cleanup-lifetime',
+  ]);
+  assert.equal(statsLifetimeRebuild.stats, true);
+  assert.equal(statsLifetimeRebuild.statsCleanup, true);
+  assert.equal(statsLifetimeRebuild.statsCleanupLifetime, true);
+  assert.equal(statsLifetimeRebuild.statsCleanupVocab, false);
 
   const jellyfinLibraries = parseArgs(['--jellyfin-libraries']);
   assert.equal(jellyfinLibraries.jellyfinLibraries, true);

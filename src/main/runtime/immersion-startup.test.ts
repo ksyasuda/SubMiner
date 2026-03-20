@@ -14,6 +14,7 @@ function makeConfig() {
       retention: {
         eventsDays: 14,
         telemetryDays: 30,
+        sessionsDays: 45,
         dailyRollupsDays: 180,
         monthlyRollupsDays: 730,
         vacuumIntervalDays: 7,
@@ -97,6 +98,7 @@ test('createImmersionTrackerStartupHandler creates tracker and auto-connects mpv
     retention: {
       eventsDays: 14,
       telemetryDays: 30,
+      sessionsDays: 45,
       dailyRollupsDays: 180,
       monthlyRollupsDays: 730,
       vacuumIntervalDays: 7,
@@ -134,4 +136,29 @@ test('createImmersionTrackerStartupHandler disables tracker on failure', () => {
   assert.ok(
     calls.includes('warn:Immersion tracker startup failed; disabling tracking.:db unavailable'),
   );
+});
+
+test('createImmersionTrackerStartupHandler skips mpv auto-connect when disabled by caller', () => {
+  let connectCalls = 0;
+  const handler = createImmersionTrackerStartupHandler({
+    getResolvedConfig: () => makeConfig(),
+    getConfiguredDbPath: () => '/tmp/subminer.db',
+    createTrackerService: () => ({}),
+    setTracker: () => {},
+    getMpvClient: () => ({
+      connected: false,
+      connect: () => {
+        connectCalls += 1;
+      },
+    }),
+    shouldAutoConnectMpv: () => false,
+    seedTrackerFromCurrentMedia: () => {},
+    logInfo: () => {},
+    logDebug: () => {},
+    logWarn: () => {},
+  });
+
+  handler();
+
+  assert.equal(connectCalls, 0);
 });

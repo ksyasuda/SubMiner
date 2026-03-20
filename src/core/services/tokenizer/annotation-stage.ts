@@ -9,11 +9,65 @@ import {
 } from '../../../token-pos2-exclusions';
 import { JlptLevel, MergedToken, NPlusOneMatchMode, PartOfSpeech } from '../../../types';
 import { shouldIgnoreJlptByTerm, shouldIgnoreJlptForMecabPos1 } from '../jlpt-token-filter';
+import {
+  shouldExcludeTokenFromSubtitleAnnotations as sharedShouldExcludeTokenFromSubtitleAnnotations,
+  stripSubtitleAnnotationMetadata as sharedStripSubtitleAnnotationMetadata,
+} from './subtitle-annotation-filter';
 
 const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
 const JLPT_LEVEL_LOOKUP_CACHE_LIMIT = 2048;
+const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
+  'ああ',
+  'ええ',
+  'うう',
+  'おお',
+  'はあ',
+  'はは',
+  'へえ',
+  'ふう',
+  'ほう',
+]);
+const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES = ['ん', 'の', 'なん', 'なの'];
+const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES = [
+  'だ',
+  'です',
+  'でした',
+  'だった',
+  'では',
+  'じゃ',
+  'でしょう',
+  'だろう',
+] as const;
+const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES = [
+  '',
+  'か',
+  'ね',
+  'よ',
+  'な',
+  'よね',
+  'かな',
+  'かね',
+] as const;
+const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS = new Set(
+  SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES.flatMap((prefix) =>
+    SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES.flatMap((core) =>
+      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES.map(
+        (particle) => `${prefix}${core}${particle}`,
+      ),
+    ),
+  ),
+);
+const SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES = new Set([
+  'って',
+  'ってよ',
+  'ってね',
+  'ってな',
+  'ってさ',
+  'ってか',
+  'ってば',
+]);
 
 const jlptLevelLookupCaches = new WeakMap<
   (text: string) => JlptLevel | null,
@@ -28,6 +82,7 @@ export interface AnnotationStageDeps {
 
 export interface AnnotationStageOptions {
   nPlusOneEnabled?: boolean;
+  nameMatchEnabled?: boolean;
   jlptEnabled?: boolean;
   frequencyEnabled?: boolean;
   minSentenceWordsForNPlusOne?: number;
@@ -43,39 +98,77 @@ function resolveKnownWordText(
   return matchMode === 'surface' ? surface : headword;
 }
 
-function applyKnownWordMarking(
-  tokens: MergedToken[],
-  isKnownWord: (text: string) => boolean,
-  knownWordMatchMode: NPlusOneMatchMode,
-): MergedToken[] {
-  return tokens.map((token) => {
-    const matchText = resolveKnownWordText(token.surface, token.headword, knownWordMatchMode);
-
-    return {
-      ...token,
-      isKnown: token.isKnown || (matchText ? isKnownWord(matchText) : false),
-    };
-  });
-}
-
 function normalizePos1Tag(pos1: string | undefined): string {
   return typeof pos1 === 'string' ? pos1.trim() : '';
 }
 
-function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<string>): boolean {
+const SUBTITLE_ANNOTATION_EXCLUDED_POS1 = new Set(['感動詞']);
+const SUBTITLE_ANNOTATION_GRAMMAR_ONLY_POS1 = new Set(['助詞', '助動詞', '連体詞']);
+const AUXILIARY_STEM_GRAMMAR_TAIL_POS1 = new Set(['名詞', '助動詞', '助詞']);
+
+function splitNormalizedTagParts(normalizedTag: string): string[] {
   if (!normalizedTag) {
-    return false;
+    return [];
   }
-  const parts = normalizedTag
+
+  return normalizedTag
     .split('|')
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
+}
+
+function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<string>): boolean {
+  const parts = splitNormalizedTagParts(normalizedTag);
   if (parts.length === 0) {
     return false;
   }
   // Frequency highlighting should be conservative: if any merged component is excluded,
   // skip highlighting the whole token to avoid noisy merged fragments.
   return parts.some((part) => exclusions.has(part));
+}
+
+function isExcludedFromSubtitleAnnotationsByPos1(normalizedPos1: string): boolean {
+  const parts = splitNormalizedTagParts(normalizedPos1);
+  if (parts.some((part) => SUBTITLE_ANNOTATION_EXCLUDED_POS1.has(part))) {
+    return true;
+  }
+
+  return parts.length > 0 && parts.every((part) => SUBTITLE_ANNOTATION_GRAMMAR_ONLY_POS1.has(part));
+}
+
+function isExcludedTrailingParticleMergedToken(token: MergedToken): boolean {
+  const normalizedSurface = normalizeJlptTextForExclusion(token.surface);
+  const normalizedHeadword = normalizeJlptTextForExclusion(token.headword);
+  if (!normalizedSurface || !normalizedHeadword || !normalizedSurface.startsWith(normalizedHeadword)) {
+    return false;
+  }
+
+  const suffix = normalizedSurface.slice(normalizedHeadword.length);
+  if (!SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES.has(suffix)) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
+  if (pos1Parts.length < 2) {
+    return false;
+  }
+
+  const [leadingPos1, ...trailingPos1] = pos1Parts;
+  if (!leadingPos1 || SUBTITLE_ANNOTATION_GRAMMAR_ONLY_POS1.has(leadingPos1)) {
+    return false;
+  }
+
+  return trailingPos1.length > 0 && trailingPos1.every((part) => part === '助詞');
+}
+
+function isAuxiliaryStemGrammarTailToken(token: MergedToken): boolean {
+  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
+  if (pos1Parts.length === 0 || !pos1Parts.every((part) => AUXILIARY_STEM_GRAMMAR_TAIL_POS1.has(part))) {
+    return false;
+  }
+
+  const pos3Parts = splitNormalizedTagParts(normalizePos2Tag(token.pos3));
+  return pos3Parts.includes('助動詞語幹');
 }
 
 function resolvePos1Exclusions(options: AnnotationStageOptions): ReadonlySet<string> {
@@ -98,6 +191,61 @@ function normalizePos2Tag(pos2: string | undefined): string {
   return typeof pos2 === 'string' ? pos2.trim() : '';
 }
 
+function hasKanjiChar(text: string): boolean {
+  for (const char of text) {
+    const code = char.codePointAt(0);
+    if (code === undefined) {
+      continue;
+    }
+    if (
+      (code >= 0x3400 && code <= 0x4dbf) ||
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0xf900 && code <= 0xfaff)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isExcludedComponent(
+  pos1: string | undefined,
+  pos2: string | undefined,
+  pos1Exclusions: ReadonlySet<string>,
+  pos2Exclusions: ReadonlySet<string>,
+): boolean {
+  return (
+    (typeof pos1 === 'string' && pos1Exclusions.has(pos1)) ||
+    (typeof pos2 === 'string' && pos2Exclusions.has(pos2))
+  );
+}
+
+function shouldAllowContentLedMergedTokenFrequency(
+  normalizedPos1: string,
+  normalizedPos2: string,
+  pos1Exclusions: ReadonlySet<string>,
+  pos2Exclusions: ReadonlySet<string>,
+): boolean {
+  const pos1Parts = splitNormalizedTagParts(normalizedPos1);
+  if (pos1Parts.length < 2) {
+    return false;
+  }
+
+  const pos2Parts = splitNormalizedTagParts(normalizedPos2);
+  if (isExcludedComponent(pos1Parts[0], pos2Parts[0], pos1Exclusions, pos2Exclusions)) {
+    return false;
+  }
+
+  const componentCount = Math.max(pos1Parts.length, pos2Parts.length);
+  for (let index = 1; index < componentCount; index += 1) {
+    if (!isExcludedComponent(pos1Parts[index], pos2Parts[index], pos1Exclusions, pos2Exclusions)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function isFrequencyExcludedByPos(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string>,
@@ -109,13 +257,20 @@ function isFrequencyExcludedByPos(
 
   const normalizedPos1 = normalizePos1Tag(token.pos1);
   const hasPos1 = normalizedPos1.length > 0;
-  if (isExcludedByTagSet(normalizedPos1, pos1Exclusions)) {
+  const normalizedPos2 = normalizePos2Tag(token.pos2);
+  const hasPos2 = normalizedPos2.length > 0;
+  const allowContentLedMergedToken = shouldAllowContentLedMergedTokenFrequency(
+    normalizedPos1,
+    normalizedPos2,
+    pos1Exclusions,
+    pos2Exclusions,
+  );
+
+  if (isExcludedByTagSet(normalizedPos1, pos1Exclusions) && !allowContentLedMergedToken) {
     return true;
   }
 
-  const normalizedPos2 = normalizePos2Tag(token.pos2);
-  const hasPos2 = normalizedPos2.length > 0;
-  if (isExcludedByTagSet(normalizedPos2, pos2Exclusions)) {
+  if (isExcludedByTagSet(normalizedPos2, pos2Exclusions) && !allowContentLedMergedToken) {
     return true;
   }
 
@@ -133,26 +288,43 @@ function isFrequencyExcludedByPos(
   );
 }
 
-function applyFrequencyMarking(
-  tokens: MergedToken[],
+function shouldKeepFrequencyForNonIndependentKanjiNoun(
+  token: MergedToken,
   pos1Exclusions: ReadonlySet<string>,
-  pos2Exclusions: ReadonlySet<string>,
-): MergedToken[] {
-  return tokens.map((token) => {
-    if (isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions)) {
-      return { ...token, frequencyRank: undefined };
-    }
+): boolean {
+  if (pos1Exclusions.has('名詞')) {
+    return false;
+  }
 
-    if (typeof token.frequencyRank === 'number' && Number.isFinite(token.frequencyRank)) {
-      const rank = Math.max(1, Math.floor(token.frequencyRank));
-      return { ...token, frequencyRank: rank };
-    }
+  const rank =
+    typeof token.frequencyRank === 'number' && Number.isFinite(token.frequencyRank)
+      ? Math.max(1, Math.floor(token.frequencyRank))
+      : null;
+  if (rank === null) {
+    return false;
+  }
 
-    return {
-      ...token,
-      frequencyRank: undefined,
-    };
-  });
+  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
+  const pos2Parts = splitNormalizedTagParts(normalizePos2Tag(token.pos2));
+  if (pos1Parts.length !== 1 || pos2Parts.length !== 1) {
+    return false;
+  }
+  if (pos1Parts[0] !== '名詞' || pos2Parts[0] !== '非自立') {
+    return false;
+  }
+
+  return hasKanjiChar(token.surface) || hasKanjiChar(token.headword);
+}
+
+export function shouldExcludeTokenFromVocabularyPersistence(
+  token: MergedToken,
+  options: Pick<AnnotationStageOptions, 'pos1Exclusions' | 'pos2Exclusions'> = {},
+): boolean {
+  return isFrequencyExcludedByPos(
+    token,
+    resolvePos1Exclusions(options),
+    resolvePos2Exclusions(options),
+  );
 }
 
 function getCachedJlptLevel(
@@ -312,6 +484,23 @@ function isReduplicatedKanaSfx(text: string): boolean {
   return chars.slice(0, half).join('') === chars.slice(half).join('');
 }
 
+function isReduplicatedKanaSfxWithOptionalTrailingTo(text: string): boolean {
+  const normalized = normalizeJlptTextForExclusion(text);
+  if (!normalized) {
+    return false;
+  }
+
+  if (isReduplicatedKanaSfx(normalized)) {
+    return true;
+  }
+
+  if (normalized.length <= 1 || !normalized.endsWith('と')) {
+    return false;
+  }
+
+  return isReduplicatedKanaSfx(normalized.slice(0, -1));
+}
+
 function hasAdjacentKanaRepeat(text: string): boolean {
   const normalized = normalizeJlptTextForExclusion(text);
   if (!normalized) {
@@ -386,12 +575,7 @@ function isJlptEligibleToken(token: MergedToken): boolean {
     return false;
   }
 
-  const candidates = [
-    resolveJlptLookupText(token),
-    token.surface,
-    token.reading,
-    token.headword,
-  ].filter(
+  const candidates = [resolveJlptLookupText(token), token.surface, token.headword].filter(
     (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
   );
 
@@ -414,24 +598,110 @@ function isJlptEligibleToken(token: MergedToken): boolean {
   return true;
 }
 
-function applyJlptMarking(
-  tokens: MergedToken[],
-  getJlptLevel: (text: string) => JlptLevel | null,
-): MergedToken[] {
-  return tokens.map((token) => {
-    if (!isJlptEligibleToken(token)) {
-      return { ...token, jlptLevel: undefined };
+function isExcludedFromSubtitleAnnotationsByTerm(token: MergedToken): boolean {
+  const candidates = [token.surface, token.reading, resolveJlptLookupText(token)].filter(
+    (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
+  );
+
+  for (const candidate of candidates) {
+    const trimmedCandidate = candidate.trim();
+    if (!trimmedCandidate) {
+      continue;
     }
 
-    const primaryLevel = getCachedJlptLevel(resolveJlptLookupText(token), getJlptLevel);
-    const fallbackLevel =
-      primaryLevel === null ? getCachedJlptLevel(token.surface, getJlptLevel) : null;
+    const normalizedCandidate = normalizeJlptTextForExclusion(trimmedCandidate);
+    if (!normalizedCandidate) {
+      continue;
+    }
 
-    return {
-      ...token,
-      jlptLevel: primaryLevel ?? fallbackLevel ?? token.jlptLevel,
-    };
-  });
+    if (
+      SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(trimmedCandidate) ||
+      SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(normalizedCandidate) ||
+      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(trimmedCandidate) ||
+      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(normalizedCandidate)
+    ) {
+      return true;
+    }
+
+    if (
+      isTrailingSmallTsuKanaSfx(trimmedCandidate) ||
+      isTrailingSmallTsuKanaSfx(normalizedCandidate) ||
+      isReduplicatedKanaSfxWithOptionalTrailingTo(trimmedCandidate) ||
+      isReduplicatedKanaSfxWithOptionalTrailingTo(normalizedCandidate)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function shouldExcludeTokenFromSubtitleAnnotations(token: MergedToken): boolean {
+  return sharedShouldExcludeTokenFromSubtitleAnnotations(token);
+}
+
+export function stripSubtitleAnnotationMetadata(token: MergedToken): MergedToken {
+  return sharedStripSubtitleAnnotationMetadata(token);
+}
+
+function computeTokenKnownStatus(
+  token: MergedToken,
+  isKnownWord: (text: string) => boolean,
+  knownWordMatchMode: NPlusOneMatchMode,
+): boolean {
+  const matchText = resolveKnownWordText(token.surface, token.headword, knownWordMatchMode);
+  if (token.isKnown || (matchText ? isKnownWord(matchText) : false)) {
+    return true;
+  }
+
+  const normalizedReading = token.reading.trim();
+  if (!normalizedReading) {
+    return false;
+  }
+
+  return normalizedReading !== matchText.trim() && isKnownWord(normalizedReading);
+}
+
+function filterTokenFrequencyRank(
+  token: MergedToken,
+  pos1Exclusions: ReadonlySet<string>,
+  pos2Exclusions: ReadonlySet<string>,
+): number | undefined {
+  if (
+    isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions) &&
+    !shouldKeepFrequencyForNonIndependentKanjiNoun(token, pos1Exclusions)
+  ) {
+    return undefined;
+  }
+
+  if (typeof token.frequencyRank === 'number' && Number.isFinite(token.frequencyRank)) {
+    return Math.max(1, Math.floor(token.frequencyRank));
+  }
+
+  return undefined;
+}
+
+function computeTokenJlptLevel(
+  token: MergedToken,
+  getJlptLevel: (text: string) => JlptLevel | null,
+): JlptLevel | undefined {
+  if (!isJlptEligibleToken(token)) {
+    return undefined;
+  }
+
+  const primaryLevel = getCachedJlptLevel(resolveJlptLookupText(token), getJlptLevel);
+  const fallbackLevel =
+    primaryLevel === null ? getCachedJlptLevel(token.surface, getJlptLevel) : null;
+
+  const level = primaryLevel ?? fallbackLevel ?? token.jlptLevel;
+  return level ?? undefined;
+}
+
+function hasPrioritizedNameMatch(
+  token: MergedToken,
+  options: Pick<AnnotationStageOptions, 'nameMatchEnabled'>,
+): boolean {
+  return options.nameMatchEnabled !== false && token.isNameMatch === true;
 }
 
 export function annotateTokens(
@@ -442,36 +712,50 @@ export function annotateTokens(
   const pos1Exclusions = resolvePos1Exclusions(options);
   const pos2Exclusions = resolvePos2Exclusions(options);
   const nPlusOneEnabled = options.nPlusOneEnabled !== false;
-  const knownMarkedTokens = nPlusOneEnabled
-    ? applyKnownWordMarking(tokens, deps.isKnownWord, deps.knownWordMatchMode)
-    : tokens.map((token) => ({
-        ...token,
-        isKnown: false,
-        isNPlusOneTarget: false,
-      }));
-
+  const nameMatchEnabled = options.nameMatchEnabled !== false;
   const frequencyEnabled = options.frequencyEnabled !== false;
-  const frequencyMarkedTokens = frequencyEnabled
-    ? applyFrequencyMarking(knownMarkedTokens, pos1Exclusions, pos2Exclusions)
-    : knownMarkedTokens.map((token) => ({
-        ...token,
-        frequencyRank: undefined,
-      }));
-
   const jlptEnabled = options.jlptEnabled !== false;
-  const jlptMarkedTokens = jlptEnabled
-    ? applyJlptMarking(frequencyMarkedTokens, deps.getJlptLevel)
-    : frequencyMarkedTokens.map((token) => ({
-        ...token,
-        jlptLevel: undefined,
-      }));
+
+  // Single pass: compute known word status, frequency filtering, and JLPT level together
+  const annotated = tokens.map((token) => {
+    if (
+      sharedShouldExcludeTokenFromSubtitleAnnotations(token, {
+        pos1Exclusions,
+        pos2Exclusions,
+      })
+    ) {
+      return sharedStripSubtitleAnnotationMetadata(token, {
+        pos1Exclusions,
+        pos2Exclusions,
+      });
+    }
+
+    const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
+    const isKnown = nPlusOneEnabled
+      ? computeTokenKnownStatus(token, deps.isKnownWord, deps.knownWordMatchMode)
+      : false;
+
+    const frequencyRank =
+      frequencyEnabled && !prioritizedNameMatch
+        ? filterTokenFrequencyRank(token, pos1Exclusions, pos2Exclusions)
+        : undefined;
+
+    const jlptLevel =
+      jlptEnabled && !prioritizedNameMatch
+        ? computeTokenJlptLevel(token, deps.getJlptLevel)
+        : undefined;
+
+    return {
+      ...token,
+      isKnown,
+      isNPlusOneTarget: nPlusOneEnabled && !prioritizedNameMatch ? token.isNPlusOneTarget : false,
+      frequencyRank,
+      jlptLevel,
+    };
+  });
 
   if (!nPlusOneEnabled) {
-    return jlptMarkedTokens.map((token) => ({
-      ...token,
-      isKnown: false,
-      isNPlusOneTarget: false,
-    }));
+    return annotated;
   }
 
   const minSentenceWordsForNPlusOne = options.minSentenceWordsForNPlusOne;
@@ -482,10 +766,25 @@ export function annotateTokens(
       ? minSentenceWordsForNPlusOne
       : 3;
 
-  return markNPlusOneTargets(
-    jlptMarkedTokens,
+  const nPlusOneMarked = markNPlusOneTargets(
+    annotated,
     sanitizedMinSentenceWordsForNPlusOne,
     pos1Exclusions,
     pos2Exclusions,
+  );
+
+  if (!nameMatchEnabled) {
+    return nPlusOneMarked;
+  }
+
+  return nPlusOneMarked.map((token) =>
+    hasPrioritizedNameMatch(token, options)
+      ? {
+          ...token,
+          isNPlusOneTarget: false,
+          frequencyRank: undefined,
+          jlptLevel: undefined,
+        }
+      : token,
   );
 }

@@ -18,11 +18,9 @@ interface RollupTelemetryResult {
   maxSampleMs: number | null;
 }
 
-interface RetentionResult {
+interface RawRetentionResult {
   deletedSessionEvents: number;
   deletedTelemetryRows: number;
-  deletedDailyRows: number;
-  deletedMonthlyRows: number;
   deletedEndedSessions: number;
 }
 
@@ -31,20 +29,18 @@ export function toMonthKey(timestampMs: number): number {
   return monthDate.getUTCFullYear() * 100 + monthDate.getUTCMonth() + 1;
 }
 
-export function pruneRetention(
+export function pruneRawRetention(
   db: DatabaseSync,
   nowMs: number,
   policy: {
     eventsRetentionMs: number;
     telemetryRetentionMs: number;
-    dailyRollupRetentionMs: number;
-    monthlyRollupRetentionMs: number;
+    sessionsRetentionMs: number;
   },
-): RetentionResult {
+): RawRetentionResult {
   const eventCutoff = nowMs - policy.eventsRetentionMs;
   const telemetryCutoff = nowMs - policy.telemetryRetentionMs;
-  const dayCutoff = nowMs - policy.dailyRollupRetentionMs;
-  const monthCutoff = nowMs - policy.monthlyRollupRetentionMs;
+  const sessionsCutoff = nowMs - policy.sessionsRetentionMs;
 
   const deletedSessionEvents = (
     db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(eventCutoff) as {
@@ -56,28 +52,49 @@ export function pruneRetention(
       changes: number;
     }
   ).changes;
-  const deletedDailyRows = (
-    db
-      .prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day < ?`)
-      .run(Math.floor(dayCutoff / DAILY_MS)) as { changes: number }
-  ).changes;
-  const deletedMonthlyRows = (
-    db
-      .prepare(`DELETE FROM imm_monthly_rollups WHERE rollup_month < ?`)
-      .run(toMonthKey(monthCutoff)) as { changes: number }
-  ).changes;
   const deletedEndedSessions = (
     db
       .prepare(`DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`)
-      .run(telemetryCutoff) as { changes: number }
+      .run(sessionsCutoff) as { changes: number }
   ).changes;
 
   return {
     deletedSessionEvents,
     deletedTelemetryRows,
+    deletedEndedSessions,
+  };
+}
+
+export function pruneRollupRetention(
+  db: DatabaseSync,
+  nowMs: number,
+  policy: {
+    dailyRollupRetentionMs: number;
+    monthlyRollupRetentionMs: number;
+  },
+): { deletedDailyRows: number; deletedMonthlyRows: number } {
+  const deletedDailyRows = Number.isFinite(policy.dailyRollupRetentionMs)
+    ? (
+        db
+          .prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day < ?`)
+          .run(Math.floor((nowMs - policy.dailyRollupRetentionMs) / DAILY_MS)) as {
+          changes: number;
+        }
+      ).changes
+    : 0;
+  const deletedMonthlyRows = Number.isFinite(policy.monthlyRollupRetentionMs)
+    ? (
+        db
+          .prepare(`DELETE FROM imm_monthly_rollups WHERE rollup_month < ?`)
+          .run(toMonthKey(nowMs - policy.monthlyRollupRetentionMs)) as {
+          changes: number;
+        }
+      ).changes
+    : 0;
+
+  return {
     deletedDailyRows,
     deletedMonthlyRows,
-    deletedEndedSessions,
   };
 }
 
@@ -108,49 +125,57 @@ function upsertDailyRollupsForGroups(
   const upsertStmt = db.prepare(`
     INSERT INTO imm_daily_rollups (
       rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
-      total_words_seen, total_tokens_seen, total_cards, cards_per_hour,
-      words_per_min, lookup_hit_rate, CREATED_DATE, LAST_UPDATE_DATE
+      total_tokens_seen, total_cards, cards_per_hour,
+      tokens_per_min, lookup_hit_rate, CREATED_DATE, LAST_UPDATE_DATE
     )
     SELECT
-      CAST(s.started_at_ms / 86400000 AS INTEGER) AS rollup_day,
+      CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS rollup_day,
       s.video_id AS video_id,
       COUNT(DISTINCT s.session_id) AS total_sessions,
-      COALESCE(SUM(t.active_watched_ms), 0) / 60000.0 AS total_active_min,
-      COALESCE(SUM(t.lines_seen), 0) AS total_lines_seen,
-      COALESCE(SUM(t.words_seen), 0) AS total_words_seen,
-      COALESCE(SUM(t.tokens_seen), 0) AS total_tokens_seen,
-      COALESCE(SUM(t.cards_mined), 0) AS total_cards,
+      COALESCE(SUM(sm.max_active_ms), 0) / 60000.0 AS total_active_min,
+      COALESCE(SUM(sm.max_lines), 0) AS total_lines_seen,
+      COALESCE(SUM(sm.max_tokens), 0) AS total_tokens_seen,
+      COALESCE(SUM(sm.max_cards), 0) AS total_cards,
       CASE
-        WHEN COALESCE(SUM(t.active_watched_ms), 0) > 0
-          THEN (COALESCE(SUM(t.cards_mined), 0) * 60.0) / (COALESCE(SUM(t.active_watched_ms), 0) / 60000.0)
+        WHEN COALESCE(SUM(sm.max_active_ms), 0) > 0
+          THEN (COALESCE(SUM(sm.max_cards), 0) * 60.0) / (COALESCE(SUM(sm.max_active_ms), 0) / 60000.0)
         ELSE NULL
       END AS cards_per_hour,
       CASE
-        WHEN COALESCE(SUM(t.active_watched_ms), 0) > 0
-          THEN COALESCE(SUM(t.words_seen), 0) / (COALESCE(SUM(t.active_watched_ms), 0) / 60000.0)
+        WHEN COALESCE(SUM(sm.max_active_ms), 0) > 0
+          THEN COALESCE(SUM(sm.max_tokens), 0) / (COALESCE(SUM(sm.max_active_ms), 0) / 60000.0)
         ELSE NULL
-      END AS words_per_min,
+      END AS tokens_per_min,
       CASE
-        WHEN COALESCE(SUM(t.lookup_count), 0) > 0
-          THEN CAST(COALESCE(SUM(t.lookup_hits), 0) AS REAL) / CAST(SUM(t.lookup_count) AS REAL)
+        WHEN COALESCE(SUM(sm.max_lookups), 0) > 0
+          THEN CAST(COALESCE(SUM(sm.max_hits), 0) AS REAL) / CAST(SUM(sm.max_lookups) AS REAL)
         ELSE NULL
       END AS lookup_hit_rate,
       ? AS CREATED_DATE,
       ? AS LAST_UPDATE_DATE
     FROM imm_sessions s
-    JOIN imm_session_telemetry t
-      ON t.session_id = s.session_id
-    WHERE CAST(s.started_at_ms / 86400000 AS INTEGER) = ? AND s.video_id = ?
+    JOIN (
+      SELECT
+        t.session_id,
+        MAX(t.active_watched_ms) AS max_active_ms,
+        MAX(t.lines_seen) AS max_lines,
+        MAX(t.tokens_seen) AS max_tokens,
+        MAX(t.cards_mined) AS max_cards,
+        MAX(t.lookup_count) AS max_lookups,
+        MAX(t.lookup_hits) AS max_hits
+      FROM imm_session_telemetry t
+      GROUP BY t.session_id
+    ) sm ON s.session_id = sm.session_id
+    WHERE CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) = ? AND s.video_id = ?
     GROUP BY rollup_day, s.video_id
     ON CONFLICT (rollup_day, video_id) DO UPDATE SET
       total_sessions = excluded.total_sessions,
       total_active_min = excluded.total_active_min,
       total_lines_seen = excluded.total_lines_seen,
-      total_words_seen = excluded.total_words_seen,
       total_tokens_seen = excluded.total_tokens_seen,
       total_cards = excluded.total_cards,
       cards_per_hour = excluded.cards_per_hour,
-      words_per_min = excluded.words_per_min,
+      tokens_per_min = excluded.tokens_per_min,
       lookup_hit_rate = excluded.lookup_hit_rate,
       CREATED_DATE = COALESCE(imm_daily_rollups.CREATED_DATE, excluded.CREATED_DATE),
       LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
@@ -173,29 +198,35 @@ function upsertMonthlyRollupsForGroups(
   const upsertStmt = db.prepare(`
     INSERT INTO imm_monthly_rollups (
       rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
-      total_words_seen, total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+      total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
     )
     SELECT
-      CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch') AS INTEGER) AS rollup_month,
+      CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) AS rollup_month,
       s.video_id AS video_id,
       COUNT(DISTINCT s.session_id) AS total_sessions,
-      COALESCE(SUM(t.active_watched_ms), 0) / 60000.0 AS total_active_min,
-      COALESCE(SUM(t.lines_seen), 0) AS total_lines_seen,
-      COALESCE(SUM(t.words_seen), 0) AS total_words_seen,
-      COALESCE(SUM(t.tokens_seen), 0) AS total_tokens_seen,
-      COALESCE(SUM(t.cards_mined), 0) AS total_cards,
+      COALESCE(SUM(sm.max_active_ms), 0) / 60000.0 AS total_active_min,
+      COALESCE(SUM(sm.max_lines), 0) AS total_lines_seen,
+      COALESCE(SUM(sm.max_tokens), 0) AS total_tokens_seen,
+      COALESCE(SUM(sm.max_cards), 0) AS total_cards,
       ? AS CREATED_DATE,
       ? AS LAST_UPDATE_DATE
     FROM imm_sessions s
-    JOIN imm_session_telemetry t
-      ON t.session_id = s.session_id
-    WHERE CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch') AS INTEGER) = ? AND s.video_id = ?
+    JOIN (
+      SELECT
+        t.session_id,
+        MAX(t.active_watched_ms) AS max_active_ms,
+        MAX(t.lines_seen) AS max_lines,
+        MAX(t.tokens_seen) AS max_tokens,
+        MAX(t.cards_mined) AS max_cards
+      FROM imm_session_telemetry t
+      GROUP BY t.session_id
+    ) sm ON s.session_id = sm.session_id
+    WHERE CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) = ? AND s.video_id = ?
     GROUP BY rollup_month, s.video_id
     ON CONFLICT (rollup_month, video_id) DO UPDATE SET
       total_sessions = excluded.total_sessions,
       total_active_min = excluded.total_active_min,
       total_lines_seen = excluded.total_lines_seen,
-      total_words_seen = excluded.total_words_seen,
       total_tokens_seen = excluded.total_tokens_seen,
       total_cards = excluded.total_cards,
       CREATED_DATE = COALESCE(imm_monthly_rollups.CREATED_DATE, excluded.CREATED_DATE),
@@ -216,8 +247,8 @@ function getAffectedRollupGroups(
       .prepare(
         `
           SELECT DISTINCT
-            CAST(s.started_at_ms / 86400000 AS INTEGER) AS rollup_day,
-            CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch') AS INTEGER) AS rollup_month,
+            CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS rollup_day,
+            CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) AS rollup_month,
             s.video_id AS video_id
           FROM imm_session_telemetry t
           JOIN imm_sessions s
@@ -291,4 +322,8 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
     db.exec('ROLLBACK');
     throw error;
   }
+}
+
+export function runOptimizeMaintenance(db: DatabaseSync): void {
+  db.exec('PRAGMA optimize');
 }

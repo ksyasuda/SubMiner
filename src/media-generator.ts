@@ -24,6 +24,33 @@ import { createLogger } from './logger';
 
 const log = createLogger('media');
 
+export function buildAnimatedImageVideoFilter(options: {
+  fps?: number;
+  maxWidth?: number;
+  maxHeight?: number;
+  leadingStillDuration?: number;
+}): string {
+  const { fps = 10, maxWidth = 640, maxHeight, leadingStillDuration = 0 } = options;
+  const clampedFps = Math.max(1, Math.min(60, fps));
+  const vfParts: string[] = [];
+
+  if (leadingStillDuration > 0) {
+    vfParts.push(`tpad=start_duration=${leadingStillDuration}:start_mode=clone`);
+  }
+
+  vfParts.push(`fps=${clampedFps}`);
+
+  if (maxWidth && maxWidth > 0 && maxHeight && maxHeight > 0) {
+    vfParts.push(`scale=w=${maxWidth}:h=${maxHeight}:force_original_aspect_ratio=decrease`);
+  } else if (maxWidth && maxWidth > 0) {
+    vfParts.push(`scale=w=${maxWidth}:h=-2`);
+  } else if (maxHeight && maxHeight > 0) {
+    vfParts.push(`scale=w=-2:h=${maxHeight}`);
+  }
+
+  return vfParts.join(',');
+}
+
 export class MediaGenerator {
   private tempDir: string;
   private notifyIconDir: string;
@@ -289,24 +316,14 @@ export class MediaGenerator {
       maxWidth?: number;
       maxHeight?: number;
       crf?: number;
+      leadingStillDuration?: number;
     } = {},
   ): Promise<Buffer> {
     const start = Math.max(0, startTime - padding);
     const duration = endTime - startTime + 2 * padding;
-    const { fps = 10, maxWidth = 640, maxHeight, crf = 35 } = options;
+    const { fps = 10, maxWidth = 640, maxHeight, crf = 35, leadingStillDuration = 0 } = options;
 
-    const clampedFps = Math.max(1, Math.min(60, fps));
     const clampedCrf = Math.max(0, Math.min(63, crf));
-
-    const vfParts: string[] = [];
-    vfParts.push(`fps=${clampedFps}`);
-    if (maxWidth && maxWidth > 0 && maxHeight && maxHeight > 0) {
-      vfParts.push(`scale=w=${maxWidth}:h=${maxHeight}:force_original_aspect_ratio=decrease`);
-    } else if (maxWidth && maxWidth > 0) {
-      vfParts.push(`scale=w=${maxWidth}:h=-2`);
-    } else if (maxHeight && maxHeight > 0) {
-      vfParts.push(`scale=w=-2:h=${maxHeight}`);
-    }
 
     const av1Encoder = await this.detectAv1Encoder();
     if (!av1Encoder) {
@@ -338,7 +355,12 @@ export class MediaGenerator {
           '-i',
           videoPath,
           '-vf',
-          vfParts.join(','),
+          buildAnimatedImageVideoFilter({
+            fps,
+            maxWidth,
+            maxHeight,
+            leadingStillDuration,
+          }),
           ...encoderArgs,
           '-y',
           outputPath,

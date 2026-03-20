@@ -4,6 +4,7 @@ export function createBuildHandleInitialArgsMainDepsHandler(deps: {
   getInitialArgs: () => CliArgs | null;
   isBackgroundMode: () => boolean;
   shouldEnsureTrayOnStartup: () => boolean;
+  shouldRunHeadlessInitialCommand: (args: CliArgs) => boolean;
   ensureTray: () => void;
   isTexthookerOnlyMode: () => boolean;
   hasImmersionTracker: () => boolean;
@@ -15,6 +16,7 @@ export function createBuildHandleInitialArgsMainDepsHandler(deps: {
     getInitialArgs: () => deps.getInitialArgs(),
     isBackgroundMode: () => deps.isBackgroundMode(),
     shouldEnsureTrayOnStartup: () => deps.shouldEnsureTrayOnStartup(),
+    shouldRunHeadlessInitialCommand: (args: CliArgs) => deps.shouldRunHeadlessInitialCommand(args),
     ensureTray: () => deps.ensureTray(),
     isTexthookerOnlyMode: () => deps.isTexthookerOnlyMode(),
     hasImmersionTracker: () => deps.hasImmersionTracker(),

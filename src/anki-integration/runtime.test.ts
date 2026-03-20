@@ -59,6 +59,10 @@ test('AnkiIntegrationRuntime normalizes url and proxy defaults', () => {
     normalized.media?.fallbackDuration,
     DEFAULT_ANKI_CONNECT_CONFIG.media.fallbackDuration,
   );
+  assert.equal(
+    normalized.media?.syncAnimatedImageToWordAudio,
+    DEFAULT_ANKI_CONNECT_CONFIG.media.syncAnimatedImageToWordAudio,
+  );
 });
 
 test('AnkiIntegrationRuntime starts proxy transport when proxy mode is enabled', () => {
@@ -78,7 +82,7 @@ test('AnkiIntegrationRuntime starts proxy transport when proxy mode is enabled',
 
 test('AnkiIntegrationRuntime switches transports and clears known words when runtime patch disables highlighting', () => {
   const { runtime, calls } = createRuntime({
-    nPlusOne: {
+    knownWords: {
       highlightEnabled: true,
     },
     pollingRate: 250,
@@ -88,7 +92,7 @@ test('AnkiIntegrationRuntime switches transports and clears known words when run
   calls.length = 0;
 
   runtime.applyRuntimeConfigPatch({
-    nPlusOne: {
+    knownWords: {
       highlightEnabled: false,
     },
     proxy: {
@@ -105,4 +109,78 @@ test('AnkiIntegrationRuntime switches transports and clears known words when run
     'polling:stop',
     'proxy:start:127.0.0.1:8766:http://127.0.0.1:8765',
   ]);
+});
+
+test('AnkiIntegrationRuntime skips known-word lifecycle restart for unrelated runtime patches', () => {
+  const { runtime, calls } = createRuntime({
+    knownWords: {
+      highlightEnabled: true,
+    },
+    pollingRate: 250,
+  });
+
+  runtime.start();
+  calls.length = 0;
+
+  runtime.applyRuntimeConfigPatch({
+    behavior: {
+      autoUpdateNewCards: false,
+    },
+  });
+
+  assert.deepEqual(calls, []);
+});
+
+test('AnkiIntegrationRuntime restarts known-word lifecycle when known-word settings change', () => {
+  const { runtime, calls } = createRuntime({
+    knownWords: {
+      highlightEnabled: true,
+      refreshMinutes: 90,
+    },
+    pollingRate: 250,
+  });
+
+  runtime.start();
+  calls.length = 0;
+
+  runtime.applyRuntimeConfigPatch({
+    knownWords: {
+      refreshMinutes: 120,
+    },
+  });
+
+  assert.deepEqual(calls, ['known:start']);
+});
+
+test('AnkiIntegrationRuntime does not stop lifecycle when disabled while runtime is stopped', () => {
+  const { runtime, calls } = createRuntime({
+    knownWords: {
+      highlightEnabled: true,
+    },
+  });
+
+  runtime.applyRuntimeConfigPatch({
+    knownWords: {
+      highlightEnabled: false,
+    },
+  });
+
+  assert.deepEqual(calls, ['known:clear']);
+});
+
+test('AnkiIntegrationRuntime does not restart known-word lifecycle for config changes while stopped', () => {
+  const { runtime, calls } = createRuntime({
+    knownWords: {
+      highlightEnabled: true,
+      refreshMinutes: 90,
+    },
+  });
+
+  runtime.applyRuntimeConfigPatch({
+    knownWords: {
+      refreshMinutes: 120,
+    },
+  });
+
+  assert.deepEqual(calls, []);
 });

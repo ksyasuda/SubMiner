@@ -8,6 +8,7 @@ export function createBuildOverlayVisibilityRuntimeMainDepsHandler(
   return (): OverlayVisibilityRuntimeDeps => ({
     getMainWindow: () => deps.getMainWindow(),
     getVisibleOverlayVisible: () => deps.getVisibleOverlayVisible(),
+    getForceMousePassthrough: () => deps.getForceMousePassthrough(),
     getWindowTracker: () => deps.getWindowTracker(),
     getTrackerNotReadyWarningShown: () => deps.getTrackerNotReadyWarningShown(),
     setTrackerNotReadyWarningShown: (shown: boolean) => deps.setTrackerNotReadyWarningShown(shown),

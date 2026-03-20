@@ -91,6 +91,7 @@ Use `subminer <subcommand> -h` for command-specific help.
 | `-S, --start-overlay` | Explicitly start overlay after mpv launches         |
 | `-T, --no-texthooker` | Disable texthooker server                           |
 | `-p, --profile`       | mpv profile name (default: `subminer`)              |
+| `-a, --args`          | Pass additional mpv arguments as a quoted string      |
 | `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`)    |
 | `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`) |
 | `--dev`, `--debug`    | Enable app dev-mode (not tied to log level)         |

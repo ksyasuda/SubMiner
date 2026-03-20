@@ -20,21 +20,21 @@ function makeContext(ankiConnect: unknown): {
   return { context, warnings };
 }
 
-test('modern invalid nPlusOne.highlightEnabled warns modern key and does not fallback to legacy', () => {
+test('modern invalid knownWords.highlightEnabled warns modern key and does not fallback to legacy', () => {
   const { context, warnings } = makeContext({
-    behavior: { nPlusOneHighlightEnabled: true },
-    nPlusOne: { highlightEnabled: 'yes' },
+    nPlusOne: { highlightEnabled: true },
+    knownWords: { highlightEnabled: 'yes' },
   });
 
   applyAnkiConnectResolution(context);
 
   assert.equal(
-    context.resolved.ankiConnect.nPlusOne.highlightEnabled,
-    DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled,
+    context.resolved.ankiConnect.knownWords.highlightEnabled,
+    DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled,
   );
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.highlightEnabled'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.highlightEnabled'));
   assert.equal(
-    warnings.some((warning) => warning.path === 'ankiConnect.behavior.nPlusOneHighlightEnabled'),
+    warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.highlightEnabled'),
     false,
   );
 });
@@ -53,18 +53,48 @@ test('normalizes ankiConnect tags by trimming and deduping', () => {
   );
 });
 
-test('warns and falls back for invalid nPlusOne.decks entries', () => {
+test('accepts knownWords.decks object format with field arrays', () => {
   const { context, warnings } = makeContext({
-    nPlusOne: { decks: ['Core Deck', 123] },
+    knownWords: { decks: { 'Core Deck': ['Word', 'Reading'], Mining: ['Expression'] } },
   });
 
   applyAnkiConnectResolution(context);
 
-  assert.deepEqual(
-    context.resolved.ankiConnect.nPlusOne.decks,
-    DEFAULT_CONFIG.ankiConnect.nPlusOne.decks,
+  assert.deepEqual(context.resolved.ankiConnect.knownWords.decks, {
+    'Core Deck': ['Word', 'Reading'],
+    Mining: ['Expression'],
+  });
+  assert.equal(
+    warnings.some((warning) => warning.path === 'ankiConnect.knownWords.decks'),
+    false,
   );
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.decks'));
+});
+
+test('accepts knownWords.addMinedWordsImmediately boolean override', () => {
+  const { context, warnings } = makeContext({
+    knownWords: { addMinedWordsImmediately: false },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.knownWords.addMinedWordsImmediately, false);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'ankiConnect.knownWords.addMinedWordsImmediately'),
+    false,
+  );
+});
+
+test('converts legacy knownWords.decks array to object with default fields', () => {
+  const { context, warnings } = makeContext({
+    knownWords: { decks: ['Core Deck'] },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.deepEqual(context.resolved.ankiConnect.knownWords.decks, {
+    'Core Deck': ['Expression', 'Word', 'Reading', 'Word Reading'],
+  });
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.decks'));
 });
 
 test('accepts valid proxy settings', () => {
@@ -85,6 +115,52 @@ test('accepts valid proxy settings', () => {
   assert.equal(context.resolved.ankiConnect.proxy.upstreamUrl, 'http://127.0.0.1:8765');
   assert.equal(
     warnings.some((warning) => warning.path.startsWith('ankiConnect.proxy')),
+    false,
+  );
+});
+
+test('accepts configured ankiConnect.fields.word override', () => {
+  const { context, warnings } = makeContext({
+    fields: {
+      word: 'TargetWord',
+    },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.fields.word, 'TargetWord');
+  assert.equal(
+    warnings.some((warning) => warning.path === 'ankiConnect.fields.word'),
+    false,
+  );
+});
+
+test('accepts ankiConnect.media.syncAnimatedImageToWordAudio override', () => {
+  const { context, warnings } = makeContext({
+    media: {
+      syncAnimatedImageToWordAudio: false,
+    },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.media.syncAnimatedImageToWordAudio, false);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'ankiConnect.media.syncAnimatedImageToWordAudio'),
+    false,
+  );
+});
+
+test('maps legacy ankiConnect.wordField to modern ankiConnect.fields.word', () => {
+  const { context, warnings } = makeContext({
+    wordField: 'TargetWordLegacy',
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.fields.word, 'TargetWordLegacy');
+  assert.equal(
+    warnings.some((warning) => warning.path === 'ankiConnect.wordField'),
     false,
   );
 });

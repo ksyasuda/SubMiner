@@ -170,3 +170,87 @@ test('subtitle processing cache invalidation only affects future subtitle events
 
   assert.equal(callsByText.get('same'), 2);
 });
+
+test('preCacheTokenization stores entry that is returned on next subtitle change', async () => {
+  const emitted: SubtitleData[] = [];
+  let tokenizeCalls = 0;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.preCacheTokenization('予め', { text: '予め', tokens: [] });
+  controller.onSubtitleChange('予め');
+  await flushMicrotasks();
+
+  assert.equal(tokenizeCalls, 0, 'should not call tokenize when pre-cached');
+  assert.deepEqual(emitted, [{ text: '予め', tokens: [] }]);
+});
+
+test('preCacheTokenization reuses normalized subtitle text across ASS linebreak variants', async () => {
+  const emitted: SubtitleData[] = [];
+  let tokenizeCalls = 0;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.preCacheTokenization('一行目\\N二行目', { text: '一行目\n二行目', tokens: [] });
+  controller.onSubtitleChange('一行目\n二行目');
+  await flushMicrotasks();
+
+  assert.equal(tokenizeCalls, 0, 'should not call tokenize when normalized text matches');
+  assert.deepEqual(emitted, [{ text: '一行目\n二行目', tokens: [] }]);
+});
+
+test('consumeCachedSubtitle returns prefetched payload and prevents reprocessing same line', async () => {
+  const emitted: SubtitleData[] = [];
+  let tokenizeCalls = 0;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.preCacheTokenization('猫\\Nです', { text: '猫\nです', tokens: [] });
+
+  const immediate = controller.consumeCachedSubtitle('猫\nです');
+  assert.deepEqual(immediate, { text: '猫\nです', tokens: [] });
+
+  controller.onSubtitleChange('猫\nです');
+  await flushMicrotasks();
+
+  assert.equal(tokenizeCalls, 0, 'same cached subtitle should not reprocess after immediate consume');
+  assert.deepEqual(emitted, []);
+});
+
+test('isCacheFull returns false when cache is below limit', () => {
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: null }),
+    emitSubtitle: () => {},
+  });
+
+  assert.equal(controller.isCacheFull(), false);
+});
+
+test('isCacheFull returns true when cache reaches limit', async () => {
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: () => {},
+  });
+
+  // Fill cache to the 256 limit
+  for (let i = 0; i < 256; i += 1) {
+    controller.preCacheTokenization(`line-${i}`, { text: `line-${i}`, tokens: [] });
+  }
+
+  assert.equal(controller.isCacheFull(), true);
+});

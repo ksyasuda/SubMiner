@@ -1,15 +1,16 @@
 ---
 id: TASK-156
 title: Fix docs-site Plausible geo attribution through analytics worker
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-11 02:19'
-updated_date: '2026-03-11 02:44'
+updated_date: '2026-03-16 05:13'
 labels:
   - docs-site
   - analytics
 dependencies: []
 priority: medium
+ordinal: 99500
 ---
 
 ## Description

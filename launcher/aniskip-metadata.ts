@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import type { LogLevel } from './types.js';
 import { commandExists } from './util.js';
 
 export type AniSkipLookupStatus =
@@ -551,11 +552,15 @@ export function buildSubminerScriptOpts(
   appPath: string,
   socketPath: string,
   aniSkipMetadata: AniSkipMetadata | null,
+  logLevel: LogLevel = 'info',
 ): string {
   const parts = [
     `subminer-binary_path=${sanitizeScriptOptValue(appPath)}`,
     `subminer-socket_path=${sanitizeScriptOptValue(socketPath)}`,
   ];
+  if (logLevel !== 'info') {
+    parts.push(`subminer-log_level=${sanitizeScriptOptValue(logLevel)}`);
+  }
   if (aniSkipMetadata && aniSkipMetadata.title) {
     parts.push(`subminer-aniskip_title=${sanitizeScriptOptValue(aniSkipMetadata.title)}`);
   }

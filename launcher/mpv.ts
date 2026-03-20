@@ -38,6 +38,100 @@ const DETACHED_IDLE_MPV_PID_FILE = path.join(os.tmpdir(), 'subminer-idle-mpv.pid
 const OVERLAY_START_SOCKET_READY_TIMEOUT_MS = 900;
 const OVERLAY_START_COMMAND_SETTLE_TIMEOUT_MS = 700;
 
+export function parseMpvArgString(input: string): string[] {
+  const chars = input;
+  const args: string[] = [];
+  let current = '';
+  let tokenStarted = false;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let escaping = false;
+  const canEscape = (nextChar: string | undefined): boolean =>
+    nextChar === undefined || nextChar === '"' || nextChar === "'" || nextChar === '\\' || /\s/.test(nextChar);
+
+  for (let i = 0; i < chars.length; i += 1) {
+    const ch = chars[i] || '';
+    if (escaping) {
+      current += ch;
+      tokenStarted = true;
+      escaping = false;
+      continue;
+    }
+
+    if (inSingleQuote) {
+      if (ch === "'") {
+        inSingleQuote = false;
+      } else {
+        current += ch;
+        tokenStarted = true;
+      }
+      continue;
+    }
+
+    if (inDoubleQuote) {
+      if (ch === '\\') {
+        if (canEscape(chars[i + 1])) {
+          escaping = true;
+        } else {
+          current += ch;
+          tokenStarted = true;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inDoubleQuote = false;
+        continue;
+      }
+      current += ch;
+      tokenStarted = true;
+      continue;
+    }
+
+    if (ch === '\\') {
+      if (canEscape(chars[i + 1])) {
+        escaping = true;
+        tokenStarted = true;
+      } else {
+        current += ch;
+        tokenStarted = true;
+      }
+      continue;
+    }
+    if (ch === "'") {
+      tokenStarted = true;
+      inSingleQuote = true;
+      continue;
+    }
+    if (ch === '"') {
+      tokenStarted = true;
+      inDoubleQuote = true;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (tokenStarted) {
+        args.push(current);
+        current = '';
+        tokenStarted = false;
+      }
+      continue;
+    }
+    current += ch;
+    tokenStarted = true;
+  }
+
+  if (escaping) {
+    fail('Could not parse mpv args: trailing backslash');
+  }
+  if (inSingleQuote || inDoubleQuote) {
+    fail('Could not parse mpv args: unmatched quote');
+  }
+  if (tokenStarted) {
+    args.push(current);
+  }
+
+  return args;
+}
+
 function readTrackedDetachedMpvPid(): number | null {
   try {
     const raw = fs.readFileSync(DETACHED_IDLE_MPV_PID_FILE, 'utf8').trim();
@@ -463,6 +557,9 @@ export async function startMpv(
   const mpvArgs: string[] = [];
   if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
   mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
+  if (args.mpvArgs) {
+    mpvArgs.push(...parseMpvArgString(args.mpvArgs));
+  }
 
   if (targetKind === 'url' && isYoutubeTarget(target)) {
     log('info', args.logLevel, 'Applying URL playback options');
@@ -500,7 +597,7 @@ export async function startMpv(
   const aniSkipMetadata = shouldResolveAniSkipMetadata(target, targetKind, preloadedSubtitles)
     ? await resolveAniSkipMetadataForFile(target)
     : null;
-  const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata);
+  const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata, args.logLevel);
   if (aniSkipMetadata) {
     log(
       'debug',
@@ -575,7 +672,7 @@ export async function startOverlay(appPath: string, args: Args, socketPath: stri
   const target = resolveAppSpawnTarget(appPath, overlayArgs);
   state.overlayProc = spawn(target.command, target.args, {
     stdio: 'inherit',
-    env: { ...process.env, SUBMINER_MPV_LOG: getMpvLogPath() },
+    env: buildAppEnv(),
   });
   state.overlayManagedByLauncher = true;
 
@@ -602,7 +699,13 @@ export function launchTexthookerOnly(appPath: string, args: Args): never {
   if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
 
   log('info', args.logLevel, 'Launching texthooker mode...');
-  const result = spawnSync(appPath, overlayArgs, { stdio: 'inherit' });
+  const result = spawnSync(appPath, overlayArgs, {
+    stdio: 'inherit',
+    env: buildAppEnv(),
+  });
+  if (result.error) {
+    fail(`Failed to launch texthooker mode: ${result.error.message}`);
+  }
   process.exit(result.status ?? 0);
 }
 
@@ -616,7 +719,15 @@ export function stopOverlay(args: Args): void {
     const stopArgs = ['--stop'];
     if (args.logLevel !== 'info') stopArgs.push('--log-level', args.logLevel);
 
-    spawnSync(state.appPath, stopArgs, { stdio: 'ignore' });
+    const result = spawnSync(state.appPath, stopArgs, {
+      stdio: 'ignore',
+      env: buildAppEnv(),
+    });
+    if (result.error) {
+      log('warn', args.logLevel, `Failed to stop SubMiner overlay: ${result.error.message}`);
+    } else if (typeof result.status === 'number' && result.status !== 0) {
+      log('warn', args.logLevel, `SubMiner overlay stop command exited with status ${result.status}`);
+    }
 
     if (state.overlayProc && !state.overlayProc.killed) {
       try {
@@ -677,6 +788,7 @@ function buildAppEnv(): NodeJS.ProcessEnv {
     ...process.env,
     SUBMINER_MPV_LOG: getMpvLogPath(),
   };
+  delete env.ELECTRON_RUN_AS_NODE;
   const layers = env.VK_INSTANCE_LAYERS;
   if (typeof layers === 'string' && layers.trim().length > 0) {
     const filtered = layers
@@ -756,6 +868,43 @@ export function runAppCommandCaptureOutput(
   };
 }
 
+export function runAppCommandAttached(
+  appPath: string,
+  appArgs: string[],
+  logLevel: LogLevel,
+  label: string,
+): Promise<number> {
+  if (maybeCaptureAppArgs(appArgs)) {
+    return Promise.resolve(0);
+  }
+
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  log(
+    'debug',
+    logLevel,
+    `${label}: launching attached app with args: ${[target.command, ...target.args].join(' ')}`,
+  );
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn(target.command, target.args, {
+      stdio: 'inherit',
+      env: buildAppEnv(),
+    });
+    proc.once('error', (error) => {
+      reject(error);
+    });
+    proc.once('exit', (code, signal) => {
+      if (code !== null) {
+        resolve(code);
+      } else if (signal) {
+        resolve(128);
+      } else {
+        resolve(0);
+      }
+    });
+  });
+}
+
 export function runAppCommandWithInheritLogged(
   appPath: string,
   appArgs: string[],
@@ -786,14 +935,31 @@ export function runAppCommandWithInheritLogged(
 export function launchAppStartDetached(appPath: string, logLevel: LogLevel): void {
   const startArgs = ['--start'];
   if (logLevel !== 'info') startArgs.push('--log-level', logLevel);
-  if (maybeCaptureAppArgs(startArgs)) {
+  launchAppCommandDetached(appPath, startArgs, logLevel, 'start');
+}
+
+export function launchAppCommandDetached(
+  appPath: string,
+  appArgs: string[],
+  logLevel: LogLevel,
+  label: string,
+): void {
+  if (maybeCaptureAppArgs(appArgs)) {
     return;
   }
-  const target = resolveAppSpawnTarget(appPath, startArgs);
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  log(
+    'debug',
+    logLevel,
+    `${label}: launching detached app with args: ${[target.command, ...target.args].join(' ')}`,
+  );
   const proc = spawn(target.command, target.args, {
     stdio: 'ignore',
     detached: true,
     env: buildAppEnv(),
+  });
+  proc.once('error', (error) => {
+    log('warn', logLevel, `${label}: failed to launch detached app: ${error.message}`);
   });
   proc.unref();
 }
@@ -814,10 +980,11 @@ export function launchMpvIdleDetached(
     const mpvArgs: string[] = [];
     if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
     mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
+    if (args.mpvArgs) {
+      mpvArgs.push(...parseMpvArgString(args.mpvArgs));
+    }
     mpvArgs.push('--idle=yes');
-    mpvArgs.push(
-      `--script-opts=subminer-binary_path=${appPath},subminer-socket_path=${socketPath}`,
-    );
+    mpvArgs.push(`--script-opts=${buildSubminerScriptOpts(appPath, socketPath, null, args.logLevel)}`);
     mpvArgs.push(`--log-file=${getMpvLogPath()}`);
     mpvArgs.push(`--input-ipc-server=${socketPath}`);
     const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);

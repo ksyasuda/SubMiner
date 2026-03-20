@@ -112,6 +112,14 @@ export function shouldHandleLaunchMpvAtEntry(argv: string[], env: NodeJS.Process
   return parseCliArgs(argv).launchMpv;
 }
 
+export function shouldHandleStatsDaemonCommandAtEntry(
+  argv: string[],
+  env: NodeJS.ProcessEnv,
+): boolean {
+  if (env.ELECTRON_RUN_AS_NODE === '1') return false;
+  return argv.includes('--stats-daemon-start') || argv.includes('--stats-daemon-stop');
+}
+
 export function normalizeLaunchMpvTargets(argv: string[]): string[] {
   return parseCliArgs(argv).launchMpvTargets;
 }

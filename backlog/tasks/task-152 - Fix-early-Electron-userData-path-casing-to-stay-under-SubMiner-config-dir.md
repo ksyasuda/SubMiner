@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-10 06:46'
-updated_date: '2026-03-10 06:51'
+updated_date: '2026-03-16 05:13'
 labels:
   - bug
   - config
@@ -19,6 +19,7 @@ documentation:
   - /home/sudacode/projects/japanese/subminer-docs/development.md
   - /home/sudacode/projects/japanese/subminer-docs/architecture.md
 priority: high
+ordinal: 34500
 ---
 
 ## Description

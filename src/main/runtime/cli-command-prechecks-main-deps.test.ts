@@ -8,6 +8,7 @@ test('cli prechecks main deps builder maps transition handlers', () => {
     isTexthookerOnlyMode: () => true,
     setTexthookerOnlyMode: (enabled) => calls.push(`set:${enabled}`),
     commandNeedsOverlayRuntime: () => true,
+    ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
     startBackgroundWarmups: () => calls.push('warmups'),
     logInfo: (message) => calls.push(`info:${message}`),
   })();
@@ -15,7 +16,8 @@ test('cli prechecks main deps builder maps transition handlers', () => {
   assert.equal(deps.isTexthookerOnlyMode(), true);
   assert.equal(deps.commandNeedsOverlayRuntime({} as never), true);
   deps.setTexthookerOnlyMode(false);
+  deps.ensureOverlayStartupPrereqs();
   deps.startBackgroundWarmups();
   deps.logInfo('x');
-  assert.deepEqual(calls, ['set:false', 'warmups', 'info:x']);
+  assert.deepEqual(calls, ['set:false', 'prereqs', 'warmups', 'info:x']);
 });

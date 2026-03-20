@@ -59,9 +59,12 @@ const MPV_SUBTITLE_PROPERTY_OBSERVATIONS: string[] = [
   'sub-ass-override',
   'sub-use-margins',
   'pause',
+  'duration',
   'media-title',
   'secondary-sub-visibility',
   'sub-visibility',
+  'sid',
+  'track-list',
 ];
 
 const MPV_INITIAL_PROPERTY_REQUESTS: Array<MpvProtocolCommand> = [

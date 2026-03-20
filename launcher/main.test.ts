@@ -26,7 +26,9 @@ type RunResult = {
 };
 
 function withTempDir<T>(fn: (dir: string) => T): T {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-launcher-test-'));
+  // Keep paths short on macOS/Linux: Unix domain sockets have small path-length limits.
+  const tmpBase = process.platform === 'win32' ? os.tmpdir() : '/tmp';
+  const dir = fs.mkdtempSync(path.join(tmpBase, 'subminer-launcher-test-'));
   try {
     return fn(dir);
   } finally {
@@ -176,6 +178,33 @@ test('doctor reports checks and exits non-zero without hard dependencies', () =>
   });
 });
 
+test('doctor refresh-known-words forwards app refresh command without requiring mpv', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const capturePath = path.join(root, 'captured-args.txt');
+    fs.writeFileSync(
+      appPath,
+      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+    );
+    fs.chmodSync(appPath, 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      PATH: '',
+      Path: '',
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_CAPTURE: capturePath,
+    };
+    const result = runLauncher(['doctor', '--refresh-known-words'], env);
+
+    assert.equal(result.status, 0);
+    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--refresh-known-words\n');
+    assert.match(result.stdout, /\[doctor\] mpv: missing/);
+  });
+});
+
 test('youtube command rejects removed --mode option', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
@@ -279,8 +308,8 @@ for arg in "$@"; do
       ;;
   esac
 done
-${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); const socket=process.argv[1]; try { fs.rmSync(socket,{force:true}); } catch {} const server=net.createServer((conn)=>conn.end()); server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250));" "$socket_path"
-`,
+		${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); const path=require('node:path'); const socket=process.argv[1]||''; try{ if(socket) fs.mkdirSync(path.dirname(socket),{recursive:true}); }catch{} try{ if(socket) fs.rmSync(socket,{force:true}); }catch{} const server=net.createServer((c)=>c.end()); server.on('error',()=>process.exit(0)); if(!socket) process.exit(0); try{ server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250)); } catch { process.exit(0); }" "$socket_path"
+		`,
       'utf8',
     );
     fs.chmodSync(path.join(binDir, 'mpv'), 0o755);
@@ -303,6 +332,155 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
       /https:\/\/www\.youtube\.com\/watch\?v=test123/,
     );
     assert.match(fs.readFileSync(ytdlpLogPath, 'utf8'), /--dump-single-json/);
+  });
+});
+
+test('launcher forwards --args to mpv as parsed tokens', { timeout: 15000 }, () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const binDir = path.join(root, 'bin');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const videoPath = path.join(root, 'movie.mkv');
+    const mpvArgsPath = path.join(root, 'mpv-args.txt');
+    const socketPath = path.join(root, 'mpv.sock');
+    const bunBinary = JSON.stringify(process.execPath.replace(/\\/g, '/'));
+
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
+    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
+    fs.writeFileSync(videoPath, 'fake video content');
+    fs.writeFileSync(
+      path.join(xdgConfigHome, 'SubMiner', 'setup-state.json'),
+      JSON.stringify({
+        version: 1,
+        status: 'completed',
+        completedAt: '2026-03-08T00:00:00.000Z',
+        completionSource: 'user',
+        lastSeenYomitanDictionaryCount: 0,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+      }),
+    );
+    fs.writeFileSync(
+      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
+      `socket_path=${socketPath}\nauto_start=no\nauto_start_visible_overlay=no\nauto_start_pause_until_ready=no\n`,
+    );
+    fs.writeFileSync(appPath, '#!/bin/sh\nexit 0\n');
+    fs.chmodSync(appPath, 0o755);
+
+    fs.writeFileSync(
+      path.join(binDir, 'mpv'),
+      `#!/bin/sh
+set -eu
+printf '%s\\n' "$@" > "$SUBMINER_TEST_MPV_ARGS"
+socket_path=""
+for arg in "$@"; do
+  case "$arg" in
+    --input-ipc-server=*)
+      socket_path="\${arg#--input-ipc-server=}"
+      ;;
+  esac
+done
+${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); const path=require('node:path'); const socket=process.argv[1]||''; try{ if (socket) fs.mkdirSync(path.dirname(socket),{recursive:true}); }catch{} try{ if (socket) fs.rmSync(socket,{force:true}); }catch{} if(!socket) process.exit(0); const server=net.createServer((c)=>c.end()); server.on('error',()=>process.exit(0)); try{ server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250)); } catch { process.exit(0); }" "$socket_path"
+`,
+      'utf8',
+    );
+    fs.chmodSync(path.join(binDir, 'mpv'), 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      PATH: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_MPV_ARGS: mpvArgsPath,
+    };
+    const result = runLauncher(
+      ['--args', '--pause=yes --title="movie night"', videoPath],
+      env,
+    );
+
+    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    const argsFile = fs.readFileSync(mpvArgsPath, 'utf8');
+    const forwardedArgs = argsFile
+      .trim()
+      .split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    assert.equal(forwardedArgs.includes('--pause=yes'), true);
+    assert.equal(forwardedArgs.includes('--title=movie night'), true);
+    assert.equal(forwardedArgs.includes(videoPath), true);
+  });
+});
+
+test('launcher forwards non-info log level into mpv plugin script opts', { timeout: 15000 }, () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const binDir = path.join(root, 'bin');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const videoPath = path.join(root, 'movie.mkv');
+    const mpvArgsPath = path.join(root, 'mpv-args.txt');
+    const socketPath = path.join(root, 'mpv.sock');
+    const bunBinary = JSON.stringify(process.execPath.replace(/\\/g, '/'));
+
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
+    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
+    fs.writeFileSync(videoPath, 'fake video content');
+    fs.writeFileSync(
+      path.join(xdgConfigHome, 'SubMiner', 'setup-state.json'),
+      JSON.stringify({
+        version: 1,
+        status: 'completed',
+        completedAt: '2026-03-08T00:00:00.000Z',
+        completionSource: 'user',
+        lastSeenYomitanDictionaryCount: 0,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+      }),
+    );
+    fs.writeFileSync(
+      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
+      `socket_path=${socketPath}\nauto_start=yes\nauto_start_visible_overlay=yes\nauto_start_pause_until_ready=yes\n`,
+    );
+    fs.writeFileSync(appPath, '#!/bin/sh\nexit 0\n');
+    fs.chmodSync(appPath, 0o755);
+
+    fs.writeFileSync(
+      path.join(binDir, 'mpv'),
+      `#!/bin/sh
+set -eu
+printf '%s\\n' "$@" > "$SUBMINER_TEST_MPV_ARGS"
+socket_path=""
+for arg in "$@"; do
+  case "$arg" in
+    --input-ipc-server=*)
+      socket_path="\${arg#--input-ipc-server=}"
+      ;;
+  esac
+done
+${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); const path=require('node:path'); const socket=process.argv[1]||''; try{ if (socket) fs.mkdirSync(path.dirname(socket),{recursive:true}); }catch{} try{ if (socket) fs.rmSync(socket,{force:true}); }catch{} if(!socket) process.exit(0); const server=net.createServer((c)=>c.end()); server.on('error',()=>process.exit(0)); try{ server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250)); } catch { process.exit(0); }" "$socket_path"
+`,
+      'utf8',
+    );
+    fs.chmodSync(path.join(binDir, 'mpv'), 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      PATH: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_MPV_ARGS: mpvArgsPath,
+    };
+    const result = runLauncher(['--log-level', 'debug', videoPath], env);
+
+    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.match(
+      fs.readFileSync(mpvArgsPath, 'utf8'),
+      /--script-opts=.*subminer-log_level=debug/,
+    );
   });
 });
 
@@ -334,6 +512,110 @@ test('dictionary command forwards --dictionary and --dictionary-target to app co
     );
   });
 });
+
+test(
+  'stats command launches attached app flow and waits for response file',
+  { timeout: 15000 },
+  () => {
+    withTempDir((root) => {
+      const homeDir = path.join(root, 'home');
+      const xdgConfigHome = path.join(root, 'xdg');
+      const appPath = path.join(root, 'fake-subminer.sh');
+      const capturePath = path.join(root, 'captured-args.txt');
+      fs.writeFileSync(
+        appPath,
+        `#!/bin/sh
+set -eu
+response_path=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--stats-response-path" ]; then
+    response_path="$arg"
+    prev=""
+    continue
+  fi
+  case "$arg" in
+    --stats-response-path=*)
+      response_path="\${arg#--stats-response-path=}"
+      ;;
+    --stats-response-path)
+      prev="--stats-response-path"
+      ;;
+  esac
+done
+if [ -n "$SUBMINER_TEST_STATS_CAPTURE" ]; then
+  printf '%s\\n' "$@" > "$SUBMINER_TEST_STATS_CAPTURE"
+fi
+mkdir -p "$(dirname "$response_path")"
+printf '%s' '{"ok":true,"url":"http://127.0.0.1:5175"}' > "$response_path"
+exit 0
+`,
+      );
+      fs.chmodSync(appPath, 0o755);
+
+      const env = {
+        ...makeTestEnv(homeDir, xdgConfigHome),
+        SUBMINER_APPIMAGE_PATH: appPath,
+        SUBMINER_TEST_STATS_CAPTURE: capturePath,
+      };
+      const result = runLauncher(['stats', '--log-level', 'debug'], env);
+
+      assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+      assert.match(
+        fs.readFileSync(capturePath, 'utf8'),
+        /^--stats\n--stats-response-path\n.+\n--log-level\ndebug\n$/,
+      );
+    });
+  },
+);
+
+test(
+  'stats command tolerates slower dashboard startup before timing out',
+  { timeout: 20000 },
+  () => {
+    withTempDir((root) => {
+      const homeDir = path.join(root, 'home');
+      const xdgConfigHome = path.join(root, 'xdg');
+      const appPath = path.join(root, 'fake-subminer-slow.sh');
+      fs.writeFileSync(
+        appPath,
+        `#!/bin/sh
+set -eu
+response_path=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--stats-response-path" ]; then
+    response_path="$arg"
+    prev=""
+    continue
+  fi
+  case "$arg" in
+    --stats-response-path=*)
+      response_path="\${arg#--stats-response-path=}"
+      ;;
+    --stats-response-path)
+      prev="--stats-response-path"
+      ;;
+  esac
+done
+sleep 9
+mkdir -p "$(dirname "$response_path")"
+printf '%s' '{"ok":true,"url":"http://127.0.0.1:5175"}' > "$response_path"
+exit 0
+`,
+      );
+      fs.chmodSync(appPath, 0o755);
+
+      const env = {
+        ...makeTestEnv(homeDir, xdgConfigHome),
+        SUBMINER_APPIMAGE_PATH: appPath,
+      };
+      const result = runLauncher(['stats'], env);
+
+      assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    });
+  },
+);
 
 test('jellyfin discovery routes to app --background and remote announce with log-level forwarding', () => {
   withTempDir((root) => {

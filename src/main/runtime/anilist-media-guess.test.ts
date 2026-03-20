@@ -49,7 +49,7 @@ test('ensureAnilistMediaGuess memoizes in-flight guess promise', async () => {
     getCurrentMediaTitle: () => 'Episode 1',
     guessAnilistMediaInfo: async () => {
       calls += 1;
-      return { title: 'Show', episode: 1, source: 'guessit' };
+      return { title: 'Show', season: null, episode: 1, source: 'guessit' };
     },
   });
 
@@ -57,9 +57,14 @@ test('ensureAnilistMediaGuess memoizes in-flight guess promise', async () => {
     ensureGuess('/tmp/video.mkv'),
     ensureGuess('/tmp/video.mkv'),
   ]);
-  assert.deepEqual(first, { title: 'Show', episode: 1, source: 'guessit' });
-  assert.deepEqual(second, { title: 'Show', episode: 1, source: 'guessit' });
+  assert.deepEqual(first, { title: 'Show', season: null, episode: 1, source: 'guessit' });
+  assert.deepEqual(second, { title: 'Show', season: null, episode: 1, source: 'guessit' });
   assert.equal(calls, 1);
-  assert.deepEqual(state.mediaGuess, { title: 'Show', episode: 1, source: 'guessit' });
+  assert.deepEqual(state.mediaGuess, {
+    title: 'Show',
+    season: null,
+    episode: 1,
+    source: 'guessit',
+  });
   assert.equal(state.mediaGuessPromise, null);
 });

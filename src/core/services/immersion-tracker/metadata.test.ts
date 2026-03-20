@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import type { spawn as spawnFn } from 'node:child_process';
 import { SOURCE_TYPE_LOCAL } from './types';
-import { getLocalVideoMetadata, runFfprobe } from './metadata';
+import { getLocalVideoMetadata, guessAnimeVideoMetadata, runFfprobe } from './metadata';
 
 type Spawn = typeof spawnFn;
 
@@ -145,4 +145,84 @@ test('getLocalVideoMetadata derives title and falls back to null hash on read er
 
   assert.equal(hashFallbackMetadata.canonicalTitle, 'Episode 02');
   assert.equal(hashFallbackMetadata.hashSha256, null);
+});
+
+test('guessAnimeVideoMetadata uses guessit basename output first when available', async () => {
+  const seenTargets: string[] = [];
+  const parsed = await guessAnimeVideoMetadata(
+    '/tmp/Little Witch Academia S02E05.mkv',
+    'Episode 5',
+    {
+      runGuessit: async (target) => {
+        seenTargets.push(target);
+        return JSON.stringify({
+          title: 'Little Witch Academia',
+          season: 2,
+          episode: 5,
+        });
+      },
+    },
+  );
+
+  assert.deepEqual(seenTargets, ['Little Witch Academia S02E05.mkv']);
+  assert.deepEqual(parsed, {
+    parsedBasename: 'Little Witch Academia S02E05.mkv',
+    parsedTitle: 'Little Witch Academia',
+    parsedSeason: 2,
+    parsedEpisode: 5,
+    parserSource: 'guessit',
+    parserConfidence: 1,
+    parseMetadataJson: JSON.stringify({
+      filename: 'Little Witch Academia S02E05.mkv',
+      source: 'guessit',
+    }),
+  });
+});
+
+test('guessAnimeVideoMetadata falls back to parser when guessit throws', async () => {
+  const parsed = await guessAnimeVideoMetadata(
+    '/tmp/Little Witch Academia S02E05.mkv',
+    'Episode 5',
+    {
+      runGuessit: async () => {
+        throw new Error('guessit unavailable');
+      },
+    },
+  );
+
+  assert.deepEqual(parsed, {
+    parsedBasename: 'Little Witch Academia S02E05.mkv',
+    parsedTitle: 'Little Witch Academia',
+    parsedSeason: 2,
+    parsedEpisode: 5,
+    parserSource: 'fallback',
+    parserConfidence: 1,
+    parseMetadataJson: JSON.stringify({
+      confidence: 'high',
+      filename: 'Little Witch Academia S02E05.mkv',
+      rawTitle: 'Little Witch Academia S02E05',
+      source: 'fallback',
+    }),
+  });
+});
+
+test('guessAnimeVideoMetadata falls back when guessit output is incomplete', async () => {
+  const parsed = await guessAnimeVideoMetadata('/tmp/[SubsPlease] Frieren - 03 (1080p).mkv', null, {
+    runGuessit: async () => JSON.stringify({ episode: 3 }),
+  });
+
+  assert.deepEqual(parsed, {
+    parsedBasename: '[SubsPlease] Frieren - 03 (1080p).mkv',
+    parsedTitle: 'Frieren - 03 (1080p)',
+    parsedSeason: null,
+    parsedEpisode: null,
+    parserSource: 'fallback',
+    parserConfidence: 0.2,
+    parseMetadataJson: JSON.stringify({
+      confidence: 'low',
+      filename: '[SubsPlease] Frieren - 03 (1080p).mkv',
+      rawTitle: 'Frieren - 03 (1080p)',
+      source: 'fallback',
+    }),
+  });
 });

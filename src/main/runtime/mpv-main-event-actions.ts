@@ -1,12 +1,24 @@
+import type { SubtitleData } from '../../types';
+
 export function createHandleMpvSubtitleChangeHandler(deps: {
   setCurrentSubText: (text: string) => void;
-  broadcastSubtitle: (payload: { text: string; tokens: null }) => void;
+  getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
+  emitImmediateSubtitle?: (payload: SubtitleData) => void;
+  broadcastSubtitle: (payload: SubtitleData) => void;
   onSubtitleChange: (text: string) => void;
   refreshDiscordPresence: () => void;
 }) {
   return ({ text }: { text: string }): void => {
     deps.setCurrentSubText(text);
-    deps.broadcastSubtitle({ text, tokens: null });
+    const immediatePayload = deps.getImmediateSubtitlePayload?.(text) ?? null;
+    if (immediatePayload) {
+      (deps.emitImmediateSubtitle ?? deps.broadcastSubtitle)(immediatePayload);
+    } else {
+      deps.broadcastSubtitle({
+        text,
+        tokens: null,
+      });
+    }
     deps.onSubtitleChange(text);
     deps.refreshDiscordPresence();
   };
@@ -41,10 +53,14 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
   syncImmersionMediaState: () => void;
   scheduleCharacterDictionarySync?: () => void;
   signalAutoplayReadyIfWarm?: (path: string) => void;
+  flushPlaybackPositionOnMediaPathClear?: (mediaPath: string) => void;
   refreshDiscordPresence: () => void;
 }) {
   return ({ path }: { path: string | null }): void => {
     const normalizedPath = typeof path === 'string' ? path : '';
+    if (!normalizedPath) {
+      deps.flushPlaybackPositionOnMediaPathClear?.(normalizedPath);
+    }
     deps.updateCurrentMediaPath(normalizedPath);
     if (!normalizedPath) {
       deps.reportJellyfinRemoteStopped();
@@ -70,7 +86,6 @@ export function createHandleMpvMediaTitleChangeHandler(deps: {
   resetAnilistMediaGuessState: () => void;
   notifyImmersionTitleUpdate: (title: string) => void;
   syncImmersionMediaState: () => void;
-  scheduleCharacterDictionarySync?: () => void;
   refreshDiscordPresence: () => void;
 }) {
   return ({ title }: { title: string | null }): void => {
@@ -79,9 +94,6 @@ export function createHandleMpvMediaTitleChangeHandler(deps: {
     deps.resetAnilistMediaGuessState();
     deps.notifyImmersionTitleUpdate(normalizedTitle);
     deps.syncImmersionMediaState();
-    if (normalizedTitle.trim().length > 0) {
-      deps.scheduleCharacterDictionarySync?.();
-    }
     deps.refreshDiscordPresence();
   };
 }
@@ -90,11 +102,13 @@ export function createHandleMpvTimePosChangeHandler(deps: {
   recordPlaybackPosition: (time: number) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   refreshDiscordPresence: () => void;
+  onTimePosUpdate?: (time: number) => void;
 }) {
   return ({ time }: { time: number }): void => {
     deps.recordPlaybackPosition(time);
     deps.reportJellyfinRemoteProgress(false);
     deps.refreshDiscordPresence();
+    deps.onTimePosUpdate?.(time);
   };
 }
 

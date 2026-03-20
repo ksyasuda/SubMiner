@@ -2,18 +2,52 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
 import {
   cleanupPlaybackSession,
+  findAppBinary,
+  launchAppCommandDetached,
+  launchTexthookerOnly,
+  parseMpvArgString,
   runAppCommandCaptureOutput,
   shouldResolveAniSkipMetadata,
+  stopOverlay,
   startOverlay,
   state,
   waitForUnixSocketReady,
 } from './mpv';
 import * as mpvModule from './mpv';
+
+class ExitSignal extends Error {
+  code: number;
+
+  constructor(code: number) {
+    super(`exit:${code}`);
+    this.code = code;
+  }
+}
+
+function withProcessExitIntercept(callback: () => void): ExitSignal {
+  const originalExit = process.exit;
+  try {
+    process.exit = ((code?: number) => {
+      throw new ExitSignal(code ?? 0);
+    }) as typeof process.exit;
+    callback();
+  } catch (error) {
+    if (error instanceof ExitSignal) {
+      return error;
+    }
+    throw error;
+  } finally {
+    process.exit = originalExit;
+  }
+
+  throw new Error('expected process.exit');
+}
 
 function createTempSocketPath(): { dir: string; socketPath: string } {
   const baseDir = path.join(process.cwd(), '.tmp', 'launcher-mpv-tests');
@@ -36,6 +70,94 @@ test('runAppCommandCaptureOutput captures status and stdio', () => {
   assert.equal(result.stdout, 'stdout-line');
   assert.equal(result.stderr, 'stderr-line');
   assert.equal(result.error, undefined);
+});
+
+test('runAppCommandCaptureOutput strips ELECTRON_RUN_AS_NODE from app child env', () => {
+  const original = process.env.ELECTRON_RUN_AS_NODE;
+  try {
+    process.env.ELECTRON_RUN_AS_NODE = '1';
+    const result = runAppCommandCaptureOutput(process.execPath, [
+      '-e',
+      'process.stdout.write(String(process.env.ELECTRON_RUN_AS_NODE ?? ""));',
+    ]);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, '');
+  } finally {
+    if (original === undefined) {
+      delete process.env.ELECTRON_RUN_AS_NODE;
+    } else {
+      process.env.ELECTRON_RUN_AS_NODE = original;
+    }
+  }
+});
+
+test('parseMpvArgString preserves empty quoted tokens', () => {
+  assert.deepEqual(parseMpvArgString('--title "" --force-media-title \'\' --pause'), [
+    '--title',
+    '',
+    '--force-media-title',
+    '',
+    '--pause',
+  ]);
+});
+
+test('launchTexthookerOnly exits non-zero when app binary cannot be spawned', () => {
+  const error = withProcessExitIntercept(() => {
+    launchTexthookerOnly('/definitely-missing-subminer-binary', makeArgs());
+  });
+
+  assert.equal(error.code, 1);
+});
+
+test('launchAppCommandDetached handles child process spawn errors', async () => {
+  let uncaughtError: Error | null = null;
+  const onUncaughtException = (error: Error) => {
+    uncaughtError = error;
+  };
+  process.once('uncaughtException', onUncaughtException);
+  try {
+    launchAppCommandDetached(
+      '/definitely-missing-subminer-binary',
+      [],
+      makeArgs({ logLevel: 'warn' }).logLevel,
+      'test',
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(uncaughtError, null);
+  } finally {
+    process.removeListener('uncaughtException', onUncaughtException);
+  }
+});
+
+test('stopOverlay logs a warning when stop command cannot be spawned', () => {
+  const originalWrite = process.stdout.write;
+  const writes: string[] = [];
+  const overlayProc = {
+    killed: false,
+    kill: () => true,
+  } as unknown as NonNullable<typeof state.overlayProc>;
+
+  try {
+    process.stdout.write = ((chunk: string | Uint8Array) => {
+      writes.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+      return true;
+    }) as typeof process.stdout.write;
+    state.stopRequested = false;
+    state.overlayManagedByLauncher = true;
+    state.appPath = '/definitely-missing-subminer-binary';
+    state.overlayProc = overlayProc;
+
+    stopOverlay(makeArgs({ logLevel: 'warn' }));
+
+    assert.ok(writes.some((text) => text.includes('Failed to stop SubMiner overlay')));
+  } finally {
+    process.stdout.write = originalWrite;
+    state.stopRequested = false;
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
+    state.overlayProc = null;
+  }
 });
 
 test('waitForUnixSocketReady returns false when socket never appears', async () => {
@@ -133,12 +255,15 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     jellyfinPlay: false,
     jellyfinDiscovery: false,
     dictionary: false,
+    stats: false,
     doctor: false,
+    doctorRefreshKnownWords: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,
     mpvSocket: false,
     mpvStatus: false,
+    mpvArgs: '',
     appPassthrough: false,
     appArgs: [],
     jellyfinServer: '',
@@ -230,5 +355,112 @@ test('cleanupPlaybackSession preserves background app while stopping mpv-owned c
     state.appPath = '';
     state.stopRequested = false;
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── findAppBinary: Linux packaged path discovery ──────────────────────────────
+
+function makeExecutable(filePath: string): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, '#!/bin/sh\nexit 0\n');
+  fs.chmodSync(filePath, 0o755);
+}
+
+function withFindAppBinaryEnvSandbox(run: () => void): void {
+  const originalAppImagePath = process.env.SUBMINER_APPIMAGE_PATH;
+  const originalBinaryPath = process.env.SUBMINER_BINARY_PATH;
+  try {
+    delete process.env.SUBMINER_APPIMAGE_PATH;
+    delete process.env.SUBMINER_BINARY_PATH;
+    run();
+  } finally {
+    if (originalAppImagePath === undefined) {
+      delete process.env.SUBMINER_APPIMAGE_PATH;
+    } else {
+      process.env.SUBMINER_APPIMAGE_PATH = originalAppImagePath;
+    }
+    if (originalBinaryPath === undefined) {
+      delete process.env.SUBMINER_BINARY_PATH;
+    } else {
+      process.env.SUBMINER_BINARY_PATH = originalBinaryPath;
+    }
+  }
+}
+
+function withAccessSyncStub(isExecutablePath: (filePath: string) => boolean, run: () => void): void {
+  const originalAccessSync = fs.accessSync;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).accessSync = (filePath: string): void => {
+      if (isExecutablePath(filePath)) {
+        return;
+      }
+      throw Object.assign(new Error(`EACCES: ${filePath}`), { code: 'EACCES' });
+    };
+    run();
+  } finally {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).accessSync = originalAccessSync;
+  }
+}
+
+test('findAppBinary resolves ~/.local/bin/SubMiner.AppImage when it exists', () => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-home-'));
+  const originalHomedir = os.homedir;
+  try {
+    os.homedir = () => baseDir;
+    const appImage = path.join(baseDir, '.local/bin/SubMiner.AppImage');
+    makeExecutable(appImage);
+
+    withFindAppBinaryEnvSandbox(() => {
+      const result = findAppBinary('/some/other/path/subminer');
+      assert.equal(result, appImage);
+    });
+  } finally {
+    os.homedir = originalHomedir;
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test('findAppBinary resolves /opt/SubMiner/SubMiner.AppImage when ~/.local/bin candidate does not exist', () => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-home-'));
+  const originalHomedir = os.homedir;
+  try {
+    os.homedir = () => baseDir;
+    withFindAppBinaryEnvSandbox(() => {
+      withAccessSyncStub((filePath) => filePath === '/opt/SubMiner/SubMiner.AppImage', () => {
+        const result = findAppBinary('/some/other/path/subminer');
+        assert.equal(result, '/opt/SubMiner/SubMiner.AppImage');
+      });
+    });
+  } finally {
+    os.homedir = originalHomedir;
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test('findAppBinary finds subminer on PATH when AppImage candidates do not exist', () => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-path-'));
+  const originalHomedir = os.homedir;
+  const originalPath = process.env.PATH;
+  try {
+    os.homedir = () => baseDir;
+    // No AppImage candidates in empty home dir; place subminer wrapper on PATH
+    const binDir = path.join(baseDir, 'bin');
+    const wrapperPath = path.join(binDir, 'subminer');
+    makeExecutable(wrapperPath);
+    process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ''}`;
+
+    withFindAppBinaryEnvSandbox(() => {
+      withAccessSyncStub((filePath) => filePath === wrapperPath, () => {
+        // selfPath must differ from wrapperPath so the self-check does not exclude it
+        const result = findAppBinary(path.join(baseDir, 'launcher', 'subminer'));
+        assert.equal(result, wrapperPath);
+      });
+    });
+  } finally {
+    os.homedir = originalHomedir;
+    process.env.PATH = originalPath;
+    fs.rmSync(baseDir, { recursive: true, force: true });
   }
 });

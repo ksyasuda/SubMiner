@@ -16,6 +16,7 @@ test('guessAnilistMediaInfo uses guessit output when available', async () => {
   });
   assert.deepEqual(result, {
     title: 'Guessit Title',
+    season: null,
     episode: 7,
     source: 'guessit',
   });
@@ -29,6 +30,7 @@ test('guessAnilistMediaInfo falls back to parser when guessit fails', async () =
   });
   assert.deepEqual(result, {
     title: 'My Anime',
+    season: 1,
     episode: 3,
     source: 'fallback',
   });
@@ -52,6 +54,7 @@ test('guessAnilistMediaInfo uses basename for guessit input', async () => {
   ]);
   assert.deepEqual(result, {
     title: 'Rascal Does Not Dream of Bunny Girl Senpai',
+    season: null,
     episode: 1,
     source: 'guessit',
   });
@@ -67,6 +70,7 @@ test('guessAnilistMediaInfo joins multi-part guessit titles', async () => {
   });
   assert.deepEqual(result, {
     title: 'Rascal Does not Dream of Bunny Girl Senpai',
+    season: null,
     episode: 1,
     source: 'guessit',
   });
