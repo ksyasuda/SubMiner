@@ -29,6 +29,11 @@ type StatsCommandDeps = {
 
 const STATS_STARTUP_RESPONSE_TIMEOUT_MS = 12_000;
 
+type StatsResponseWait = {
+  controller: AbortController;
+  promise: Promise<{ kind: 'response'; response: StatsCommandResponse }>;
+};
+
 const defaultDeps: StatsCommandDeps = {
   createTempDir: (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), prefix)),
   joinPath: (...parts) => path.join(...parts),
@@ -61,6 +66,41 @@ const defaultDeps: StatsCommandDeps = {
     fs.rmSync(targetPath, { recursive: true, force: true });
   },
 };
+
+async function performStartupHandshake(
+  createResponseWait: () => StatsResponseWait,
+  attachedExitPromise: Promise<number>,
+): Promise<boolean> {
+  const responseWait = createResponseWait();
+  const startupResult = await Promise.race([
+    responseWait.promise,
+    attachedExitPromise.then((status) => ({ kind: 'exit' as const, status })),
+  ]);
+
+  if (startupResult.kind === 'exit') {
+    if (startupResult.status !== 0) {
+      responseWait.controller.abort();
+      throw new Error(`Stats app exited before startup response (status ${startupResult.status}).`);
+    }
+
+    const response = await responseWait.promise.then((result) => result.response);
+    if (!response.ok) {
+      throw new Error(response.error || 'Stats dashboard failed to start.');
+    }
+    return true;
+  }
+
+  if (!startupResult.response.ok) {
+    throw new Error(startupResult.response.error || 'Stats dashboard failed to start.');
+  }
+
+  const exitStatus = await attachedExitPromise;
+  if (exitStatus !== 0) {
+    throw new Error(`Stats app exited with status ${exitStatus}.`);
+  }
+
+  return true;
+}
 
 export async function runStatsCommand(
   context: LauncherCommandContext,
@@ -120,62 +160,7 @@ export async function runStatsCommand(
       return true;
     }
 
-    if (!args.statsCleanup && !args.statsStop) {
-      const responseWait = createResponseWait();
-      const startupResult = await Promise.race([
-        responseWait.promise,
-        attachedExitPromise.then((status) => ({ kind: 'exit' as const, status })),
-      ]);
-      if (startupResult.kind === 'exit') {
-        if (startupResult.status !== 0) {
-          responseWait.controller.abort();
-          throw new Error(
-            `Stats app exited before startup response (status ${startupResult.status}).`,
-          );
-        }
-        const response = await responseWait.promise.then((result) => result.response);
-        if (!response.ok) {
-          throw new Error(response.error || 'Stats dashboard failed to start.');
-        }
-        return true;
-      }
-      if (!startupResult.response.ok) {
-        throw new Error(startupResult.response.error || 'Stats dashboard failed to start.');
-      }
-      const exitStatus = await attachedExitPromise;
-      if (exitStatus !== 0) {
-        throw new Error(`Stats app exited with status ${exitStatus}.`);
-      }
-      return true;
-    }
-    const attachedExitPromiseCleanup = attachedExitPromise;
-    const responseWait = createResponseWait();
-
-    const startupResult = await Promise.race([
-      responseWait.promise,
-      attachedExitPromiseCleanup.then((status) => ({ kind: 'exit' as const, status })),
-    ]);
-    if (startupResult.kind === 'exit') {
-      if (startupResult.status !== 0) {
-        responseWait.controller.abort();
-        throw new Error(
-          `Stats app exited before startup response (status ${startupResult.status}).`,
-        );
-      }
-      const response = await responseWait.promise.then((result) => result.response);
-      if (!response.ok) {
-        throw new Error(response.error || 'Stats dashboard failed to start.');
-      }
-      return true;
-    }
-    if (!startupResult.response.ok) {
-      throw new Error(startupResult.response.error || 'Stats dashboard failed to start.');
-    }
-    const exitStatus = await attachedExitPromiseCleanup;
-    if (exitStatus !== 0) {
-      throw new Error(`Stats app exited with status ${exitStatus}.`);
-    }
-    return true;
+    return await performStartupHandshake(createResponseWait, attachedExitPromise);
   } finally {
     resolvedDeps.removeDir(tempDir);
   }

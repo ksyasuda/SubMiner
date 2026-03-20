@@ -263,6 +263,101 @@ test('KnownWordCacheManager refresh incrementally reconciles deleted and edited 
   }
 });
 
+test('KnownWordCacheManager preserves cache state key captured before refresh work', async () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Word',
+    },
+    knownWords: {
+      highlightEnabled: true,
+      refreshMinutes: 1,
+    },
+  };
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-known-word-cache-key-'));
+  const statePath = path.join(stateDir, 'known-words-cache.json');
+  let notesInfoStarted = false;
+  let releaseNotesInfo!: () => void;
+  const notesInfoGate = new Promise<void>((resolve) => {
+    releaseNotesInfo = resolve;
+  });
+  const manager = new KnownWordCacheManager({
+    client: {
+      findNotes: async () => [1],
+      notesInfo: async () => {
+        notesInfoStarted = true;
+        await notesInfoGate;
+        return [
+          {
+            noteId: 1,
+            fields: {
+              Word: { value: '猫' },
+            },
+          },
+        ];
+      },
+    },
+    getConfig: () => config,
+    knownWordCacheStatePath: statePath,
+    showStatusNotification: () => undefined,
+  });
+
+  try {
+    const refreshPromise = manager.refresh(true);
+    await waitForCondition(() => notesInfoStarted);
+
+    config.fields = {
+      ...config.fields,
+      word: 'Expression',
+    };
+    releaseNotesInfo();
+    await refreshPromise;
+
+    const persisted = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as {
+      scope: string;
+      words: string[];
+    };
+    assert.equal(
+      persisted.scope,
+      '{"refreshMinutes":1,"scope":"is:note","fieldsWord":"Word"}',
+    );
+    assert.deepEqual(persisted.words, ['猫']);
+  } finally {
+    fs.rmSync(stateDir, { recursive: true, force: true });
+  }
+});
+
+test('KnownWordCacheManager does not borrow fields from other decks during refresh', async () => {
+  const config: AnkiConnectConfig = {
+    knownWords: {
+      highlightEnabled: true,
+      decks: {
+        Mining: [],
+        Reading: ['AltWord'],
+      },
+    },
+  };
+  const { manager, clientState, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    clientState.findNotesByQuery.set('deck:"Mining"', [1]);
+    clientState.findNotesByQuery.set('deck:"Reading"', []);
+    clientState.notesInfoResult = [
+      {
+        noteId: 1,
+        fields: {
+          AltWord: { value: '猫' },
+        },
+      },
+    ];
+
+    await manager.refresh(true);
+
+    assert.equal(manager.isKnownWord('猫'), false);
+  } finally {
+    cleanup();
+  }
+});
+
 test('KnownWordCacheManager invalidates persisted cache when per-deck fields change', () => {
   const config: AnkiConnectConfig = {
     fields: {

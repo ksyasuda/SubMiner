@@ -227,6 +227,7 @@ export class KnownWordCacheManager {
       return;
     }
 
+    const frozenStateKey = this.getKnownWordCacheStateKey();
     this.isRefreshingKnownWords = true;
     try {
       const noteFieldsById = await this.fetchKnownWordNoteFieldsById();
@@ -257,7 +258,7 @@ export class KnownWordCacheManager {
       }
 
       this.knownWordsLastRefreshedAtMs = Date.now();
-      this.knownWordsStateKey = this.getKnownWordCacheStateKey();
+      this.knownWordsStateKey = frozenStateKey;
       this.persistKnownWordCacheState();
       log.info(
         'Known-word cache refreshed',
@@ -284,6 +285,11 @@ export class KnownWordCacheManager {
     return getKnownWordCacheRefreshIntervalMinutes(this.deps.getConfig()) * 60_000;
   }
 
+  private getDefaultKnownWordFields(): string[] {
+    const configuredWordField = getConfiguredWordFieldName(this.deps.getConfig());
+    return [...new Set([configuredWordField, 'Word', 'Reading', 'Word Reading'])];
+  }
+
   private getKnownWordDecks(): string[] {
     const configuredDecks = this.deps.getConfig().knownWords?.decks;
     if (configuredDecks && typeof configuredDecks === 'object' && !Array.isArray(configuredDecks)) {
@@ -297,20 +303,7 @@ export class KnownWordCacheManager {
   }
 
   private getConfiguredFields(): string[] {
-    const configuredDecks = this.deps.getConfig().knownWords?.decks;
-    if (configuredDecks && typeof configuredDecks === 'object' && !Array.isArray(configuredDecks)) {
-      const allFields = new Set<string>();
-      for (const fields of Object.values(configuredDecks)) {
-        if (Array.isArray(fields)) {
-          for (const f of fields) {
-            if (typeof f === 'string' && f.trim()) allFields.add(f.trim());
-          }
-        }
-      }
-      if (allFields.size > 0) return [...allFields];
-    }
-    const configuredWordField = getConfiguredWordFieldName(this.deps.getConfig());
-    return [...new Set([configuredWordField, 'Word', 'Reading', 'Word Reading'])];
+    return this.getDefaultKnownWordFields();
   }
 
   private getImmediateAppendFields(): string[] | null {
@@ -344,8 +337,7 @@ export class KnownWordCacheManager {
         }
       }
 
-      const configuredWordField = getConfiguredWordFieldName(this.deps.getConfig());
-      return [...new Set([configuredWordField, 'Word', 'Reading', 'Word Reading'])];
+      return this.getDefaultKnownWordFields();
     }
 
     return this.getConfiguredFields();
@@ -365,7 +357,7 @@ export class KnownWordCacheManager {
           : [];
         scopes.push({
           query: `deck:"${escapeAnkiSearchValue(trimmedDeckName)}"`,
-          fields: normalizedFields.length > 0 ? normalizedFields : this.getConfiguredFields(),
+          fields: normalizedFields.length > 0 ? normalizedFields : this.getDefaultKnownWordFields(),
         });
       }
       if (scopes.length > 0) {
@@ -373,7 +365,7 @@ export class KnownWordCacheManager {
       }
     }
 
-    return [{ query: this.buildKnownWordsQuery(), fields: this.getConfiguredFields() }];
+    return [{ query: this.buildKnownWordsQuery(), fields: this.getDefaultKnownWordFields() }];
   }
 
   private buildKnownWordsQuery(): string {

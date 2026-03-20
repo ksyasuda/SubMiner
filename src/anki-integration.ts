@@ -199,6 +199,25 @@ export class AnkiIntegration {
     });
   }
 
+  private recordCardsMinedSafely(
+    count: number,
+    noteIds: number[] | undefined,
+    source: string,
+  ): void {
+    if (!this.recordCardsMinedCallback) {
+      return;
+    }
+
+    try {
+      this.recordCardsMinedCallback(count, noteIds);
+    } catch (error) {
+      log.warn(
+        `recordCardsMined callback failed during ${source}:`,
+        (error as Error).message,
+      );
+    }
+  }
+
   private createKnownWordCache(knownWordCacheStatePath?: string): KnownWordCacheManager {
     return new KnownWordCacheManager({
       client: {
@@ -221,7 +240,7 @@ export class AnkiIntegration {
       shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
       processNewCard: (noteId) => this.processNewCard(noteId),
       recordCardsAdded: (count, noteIds) => {
-        this.recordCardsMinedCallback?.(count, noteIds);
+        this.recordCardsMinedSafely(count, noteIds, 'polling');
       },
       isUpdateInProgress: () => this.updateInProgress,
       setUpdateInProgress: (value) => {
@@ -245,7 +264,7 @@ export class AnkiIntegration {
       shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
       processNewCard: (noteId: number) => this.processNewCard(noteId),
       recordCardsAdded: (count, noteIds) => {
-        this.recordCardsMinedCallback?.(count, noteIds);
+        this.recordCardsMinedSafely(count, noteIds, 'proxy');
       },
       getDeck: () => this.config.deck,
       findNotes: async (query, options) =>
@@ -345,7 +364,7 @@ export class AnkiIntegration {
         this.previousNoteIds.add(noteId);
       },
       recordCardsMinedCallback: (count, noteIds) => {
-        this.recordCardsMinedCallback?.(count, noteIds);
+        this.recordCardsMinedSafely(count, noteIds, 'card creation');
       },
     });
   }

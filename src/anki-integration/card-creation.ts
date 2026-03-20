@@ -551,12 +551,22 @@ export class CardCreationService {
             this.getConfiguredAnkiTags(),
           );
           log.info('Created sentence card:', noteId);
-          this.deps.trackLastAddedNoteId?.(noteId);
-          this.deps.recordCardsMinedCallback?.(1, [noteId]);
         } catch (error) {
           log.error('Failed to create sentence card:', (error as Error).message);
           this.deps.showUpdateResult(`Sentence card failed: ${(error as Error).message}`, false);
           return false;
+        }
+
+        try {
+          this.deps.trackLastAddedNoteId?.(noteId);
+        } catch (error) {
+          log.warn('Failed to track last added note:', (error as Error).message);
+        }
+
+        try {
+          this.deps.recordCardsMinedCallback?.(1, [noteId]);
+        } catch (error) {
+          log.warn('Failed to record mined card:', (error as Error).message);
         }
 
         try {
