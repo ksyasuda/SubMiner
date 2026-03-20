@@ -178,7 +178,12 @@ export class KnownWordCacheManager {
       this.knownWordsStateKey = currentStateKey;
     }
 
-    const nextWords = this.extractNormalizedKnownWordsFromNoteInfo(noteInfo);
+    const preferredFields = this.getImmediateAppendFields();
+    if (!preferredFields) {
+      return;
+    }
+
+    const nextWords = this.extractNormalizedKnownWordsFromNoteInfo(noteInfo, preferredFields);
     const changed = this.replaceNoteSnapshot(noteInfo.noteId, nextWords);
     if (!changed) {
       return;
@@ -306,6 +311,44 @@ export class KnownWordCacheManager {
     }
     const configuredWordField = getConfiguredWordFieldName(this.deps.getConfig());
     return [...new Set([configuredWordField, 'Word', 'Reading', 'Word Reading'])];
+  }
+
+  private getImmediateAppendFields(): string[] | null {
+    const configuredDecks = this.deps.getConfig().knownWords?.decks;
+    if (configuredDecks && typeof configuredDecks === 'object' && !Array.isArray(configuredDecks)) {
+      const trimmedDeckEntries = Object.entries(configuredDecks)
+        .map(([deckName, fields]) => [deckName.trim(), fields] as const)
+        .filter(([deckName]) => deckName.length > 0);
+
+      const currentDeck = this.deps.getConfig().deck?.trim();
+      const selectedDeckEntry =
+        currentDeck !== undefined && currentDeck.length > 0
+          ? trimmedDeckEntries.find(([deckName]) => deckName === currentDeck) ?? null
+          : trimmedDeckEntries.length === 1
+            ? trimmedDeckEntries[0] ?? null
+            : null;
+
+      if (!selectedDeckEntry) {
+        return null;
+      }
+
+      const deckFields = selectedDeckEntry[1];
+      if (Array.isArray(deckFields)) {
+        const normalizedFields = [
+          ...new Set(
+            deckFields.map(String).map((field) => field.trim()).filter((field) => field.length > 0),
+          ),
+        ];
+        if (normalizedFields.length > 0) {
+          return normalizedFields;
+        }
+      }
+
+      const configuredWordField = getConfiguredWordFieldName(this.deps.getConfig());
+      return [...new Set([configuredWordField, 'Word', 'Reading', 'Word Reading'])];
+    }
+
+    return this.getConfiguredFields();
   }
 
   private getKnownWordQueryScopes(): KnownWordQueryScope[] {

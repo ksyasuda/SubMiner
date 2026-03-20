@@ -344,6 +344,9 @@ export class AnkiIntegration {
       trackLastAddedNoteId: (noteId) => {
         this.previousNoteIds.add(noteId);
       },
+      recordCardsMinedCallback: (count, noteIds) => {
+        this.recordCardsMinedCallback?.(count, noteIds);
+      },
     });
   }
 

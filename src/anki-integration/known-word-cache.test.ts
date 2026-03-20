@@ -348,6 +348,38 @@ test('KnownWordCacheManager preserves deck-specific field mappings during refres
   }
 });
 
+test('KnownWordCacheManager uses the current deck fields for immediate append', () => {
+  const config: AnkiConnectConfig = {
+    deck: 'Mining',
+    fields: {
+      word: 'Word',
+    },
+    knownWords: {
+      highlightEnabled: true,
+      decks: {
+        Mining: ['Expression'],
+        Reading: ['Word'],
+      },
+    },
+  };
+  const { manager, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    manager.appendFromNoteInfo({
+      noteId: 1,
+      fields: {
+        Expression: { value: '猫' },
+        Word: { value: 'should-not-count' },
+      },
+    });
+
+    assert.equal(manager.isKnownWord('猫'), true);
+    assert.equal(manager.isKnownWord('should-not-count'), false);
+  } finally {
+    cleanup();
+  }
+});
+
 test('KnownWordCacheManager skips immediate append when addMinedWordsImmediately is disabled', () => {
   const config: AnkiConnectConfig = {
     knownWords: {

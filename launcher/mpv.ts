@@ -958,6 +958,9 @@ export function launchAppCommandDetached(
     detached: true,
     env: buildAppEnv(),
   });
+  proc.once('error', (error) => {
+    log('warn', logLevel, `${label}: failed to launch detached app: ${error.message}`);
+  });
   proc.unref();
 }
 

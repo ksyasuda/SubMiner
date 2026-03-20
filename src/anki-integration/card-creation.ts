@@ -110,6 +110,7 @@ interface CardCreationDeps {
   isUpdateInProgress: () => boolean;
   setUpdateInProgress: (value: boolean) => void;
   trackLastAddedNoteId?: (noteId: number) => void;
+  recordCardsMinedCallback?: (count: number, noteIds?: number[]) => void;
 }
 
 export class CardCreationService {
@@ -551,6 +552,7 @@ export class CardCreationService {
           );
           log.info('Created sentence card:', noteId);
           this.deps.trackLastAddedNoteId?.(noteId);
+          this.deps.recordCardsMinedCallback?.(1, [noteId]);
         } catch (error) {
           log.error('Failed to create sentence card:', (error as Error).message);
           this.deps.showUpdateResult(`Sentence card failed: ${(error as Error).message}`, false);

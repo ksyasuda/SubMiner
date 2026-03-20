@@ -9,6 +9,7 @@ import type { Args } from './types';
 import {
   cleanupPlaybackSession,
   findAppBinary,
+  launchAppCommandDetached,
   launchTexthookerOnly,
   parseMpvArgString,
   runAppCommandCaptureOutput,
@@ -107,6 +108,26 @@ test('launchTexthookerOnly exits non-zero when app binary cannot be spawned', ()
   });
 
   assert.equal(error.code, 1);
+});
+
+test('launchAppCommandDetached handles child process spawn errors', async () => {
+  let uncaughtError: Error | null = null;
+  const onUncaughtException = (error: Error) => {
+    uncaughtError = error;
+  };
+  process.once('uncaughtException', onUncaughtException);
+  try {
+    launchAppCommandDetached(
+      '/definitely-missing-subminer-binary',
+      [],
+      makeArgs({ logLevel: 'warn' }).logLevel,
+      'test',
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(uncaughtError, null);
+  } finally {
+    process.removeListener('uncaughtException', onUncaughtException);
+  }
 });
 
 test('stopOverlay logs a warning when stop command cannot be spawned', () => {
