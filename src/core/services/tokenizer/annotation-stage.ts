@@ -100,6 +100,7 @@ function normalizePos1Tag(pos1: string | undefined): string {
 
 const SUBTITLE_ANNOTATION_EXCLUDED_POS1 = new Set(['感動詞']);
 const SUBTITLE_ANNOTATION_GRAMMAR_ONLY_POS1 = new Set(['助詞', '助動詞', '連体詞']);
+const AUXILIARY_STEM_GRAMMAR_TAIL_POS1 = new Set(['名詞', '助動詞', '助詞']);
 
 function splitNormalizedTagParts(normalizedTag: string): string[] {
   if (!normalizedTag) {
@@ -154,6 +155,16 @@ function isExcludedTrailingParticleMergedToken(token: MergedToken): boolean {
   }
 
   return trailingPos1.length > 0 && trailingPos1.every((part) => part === '助詞');
+}
+
+function isAuxiliaryStemGrammarTailToken(token: MergedToken): boolean {
+  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
+  if (pos1Parts.length === 0 || !pos1Parts.every((part) => AUXILIARY_STEM_GRAMMAR_TAIL_POS1.has(part))) {
+    return false;
+  }
+
+  const pos3Parts = splitNormalizedTagParts(normalizePos2Tag(token.pos3));
+  return pos3Parts.includes('助動詞語幹');
 }
 
 function resolvePos1Exclusions(options: AnnotationStageOptions): ReadonlySet<string> {
@@ -623,6 +634,10 @@ function isExcludedFromSubtitleAnnotationsByTerm(token: MergedToken): boolean {
 
 export function shouldExcludeTokenFromSubtitleAnnotations(token: MergedToken): boolean {
   if (isExcludedFromSubtitleAnnotationsByPos1(normalizePos1Tag(token.pos1))) {
+    return true;
+  }
+
+  if (isAuxiliaryStemGrammarTailToken(token)) {
     return true;
   }
 

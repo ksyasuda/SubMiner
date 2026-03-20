@@ -3483,6 +3483,79 @@ test('tokenizeSubtitle keeps trailing quote-particle merged tokens hoverable whi
   );
 });
 
+test('tokenizeSubtitle keeps auxiliary-stem そうだ grammar tails hoverable while clearing annotation metadata', async () => {
+  const result = await tokenizeSubtitle(
+    '与えるそうだ',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: '与える', reading: 'あたえる', headword: '与える' },
+        { surface: 'そうだ', reading: 'そうだ', headword: 'そうだ' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) => (text === '与える' ? 100 : text === 'そうだ' ? 12 : null),
+        getJlptLevel: (text) => (text === '与える' ? 'N3' : text === 'そうだ' ? 'N5' : null),
+        tokenizeWithMecab: async () => [
+          {
+            headword: '与える',
+            surface: '与える',
+            reading: 'アタエル',
+            startPos: 0,
+            endPos: 3,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '動詞',
+            pos2: '自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'そう',
+            surface: 'そう',
+            reading: 'ソウ',
+            startPos: 3,
+            endPos: 5,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '特殊',
+            pos3: '助動詞語幹',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'だ',
+            surface: 'だ',
+            reading: 'ダ',
+            startPos: 5,
+            endPos: 6,
+            partOfSpeech: PartOfSpeech.bound_auxiliary,
+            pos1: '助動詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+        getMinSentenceWordsForNPlusOne: () => 1,
+      },
+    ),
+  );
+
+  assert.equal(result.text, '与えるそうだ');
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      frequencyRank: token.frequencyRank,
+      jlptLevel: token.jlptLevel,
+    })),
+    [
+      { surface: '与える', headword: '与える', frequencyRank: 100, jlptLevel: 'N3' },
+      { surface: 'そうだ', headword: 'そうだ', frequencyRank: undefined, jlptLevel: undefined },
+    ],
+  );
+});
+
 test('tokenizeSubtitle excludes single-kana merged tokens from frequency highlighting', async () => {
   const result = await tokenizeSubtitle(
     'た',

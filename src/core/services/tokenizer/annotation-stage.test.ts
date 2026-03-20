@@ -234,6 +234,19 @@ test('shouldExcludeTokenFromSubtitleAnnotations excludes explanatory ending vari
   }
 });
 
+test('shouldExcludeTokenFromSubtitleAnnotations excludes auxiliary-stem そうだ grammar tails', () => {
+  const token = makeToken({
+    surface: 'そうだ',
+    headword: 'そうだ',
+    reading: 'ソウダ',
+    pos1: '名詞|助動詞',
+    pos2: '特殊',
+    pos3: '助動詞語幹',
+  });
+
+  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
+});
+
 test('shouldExcludeTokenFromSubtitleAnnotations keeps lexical tokens outside explanatory ending family', () => {
   const token = makeToken({
     surface: '問題',
