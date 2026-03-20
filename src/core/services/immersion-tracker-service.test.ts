@@ -2128,6 +2128,129 @@ test('reassignAnimeAnilist deduplicates cover blobs and getCoverArt remains comp
   }
 });
 
+test('reassignAnimeAnilist replaces stale cover blobs when the AniList cover changes', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const originalFetch = globalThis.fetch;
+  const initialCoverBlob = Buffer.from([1, 2, 3, 4]);
+  const replacementCoverBlob = Buffer.from([9, 8, 7, 6]);
+  let fetchCallCount = 0;
+
+  try {
+    globalThis.fetch = async () => {
+      fetchCallCount += 1;
+      const blob = fetchCallCount === 1 ? initialCoverBlob : replacementCoverBlob;
+      return new Response(new Uint8Array(blob), {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg' },
+      });
+    };
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+
+    privateApi.db.exec(`
+      INSERT INTO imm_anime (
+        anime_id,
+        normalized_title_key,
+        canonical_title,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'little witch academia',
+        'Little Witch Academia',
+        1000,
+        1000
+      );
+      INSERT INTO imm_videos (
+        video_id,
+        video_key,
+        canonical_title,
+        source_type,
+        duration_ms,
+        anime_id,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+      (
+        1,
+        'local:/tmp/lwa-1.mkv',
+        'Little Witch Academia S01E01',
+        1,
+        0,
+        1,
+        1000,
+        1000
+      ),
+      (
+        2,
+        'local:/tmp/lwa-2.mkv',
+        'Little Witch Academia S01E02',
+        1,
+        0,
+        1,
+        1000,
+        1000
+      );
+    `);
+
+    await tracker.reassignAnimeAnilist(1, {
+      anilistId: 33489,
+      titleRomaji: 'Little Witch Academia',
+      coverUrl: 'https://example.com/lwa-old.jpg',
+    });
+
+    await tracker.reassignAnimeAnilist(1, {
+      anilistId: 100526,
+      titleRomaji: 'Otome Game Sekai wa Mob ni Kibishii Sekai desu',
+      coverUrl: 'https://example.com/mobseka-new.jpg',
+    });
+
+    const mediaRows = privateApi.db
+      .prepare(
+        `
+          SELECT
+            video_id AS videoId,
+            anilist_id AS anilistId,
+            cover_url AS coverUrl,
+            cover_blob_hash AS coverBlobHash
+          FROM imm_media_art
+          ORDER BY video_id ASC
+        `,
+      )
+      .all() as Array<{
+      videoId: number;
+      anilistId: number | null;
+      coverUrl: string | null;
+      coverBlobHash: string | null;
+    }>;
+    const blobRows = privateApi.db
+      .prepare('SELECT blob_hash AS blobHash, cover_blob AS coverBlob FROM imm_cover_art_blobs')
+      .all() as Array<{ blobHash: string; coverBlob: Buffer }>;
+    const resolvedCover = await tracker.getAnimeCoverArt(1);
+
+    assert.equal(fetchCallCount, 2);
+    assert.equal(mediaRows.length, 2);
+    assert.equal(mediaRows[0]?.anilistId, 100526);
+    assert.equal(mediaRows[0]?.coverUrl, 'https://example.com/mobseka-new.jpg');
+    assert.equal(mediaRows[0]?.coverBlobHash, mediaRows[1]?.coverBlobHash);
+    assert.equal(blobRows.length, 1);
+    assert.deepEqual(
+      new Uint8Array(blobRows[0]?.coverBlob ?? Buffer.alloc(0)),
+      new Uint8Array(replacementCoverBlob),
+    );
+    assert.deepEqual(
+      new Uint8Array(resolvedCover?.coverBlob ?? Buffer.alloc(0)),
+      new Uint8Array(replacementCoverBlob),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('reassignAnimeAnilist preserves existing description when description is omitted', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

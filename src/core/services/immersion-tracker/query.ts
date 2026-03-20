@@ -2289,9 +2289,12 @@ export function upsertCoverArt(
   const sharedCoverBlobHash = findSharedCoverBlobHash(db, videoId, art.anilistId, art.coverUrl);
   const nowMs = Date.now();
   const coverBlob = normalizeCoverBlobBytes(art.coverBlob);
-  let coverBlobHash = sharedCoverBlobHash ?? existing?.coverBlobHash ?? null;
+  let coverBlobHash = sharedCoverBlobHash ?? null;
   if (!coverBlobHash && coverBlob && coverBlob.length > 0) {
     coverBlobHash = createHash('sha256').update(coverBlob).digest('hex');
+  }
+  if (!coverBlobHash && (!coverBlob || coverBlob.length === 0)) {
+    coverBlobHash = existing?.coverBlobHash ?? null;
   }
 
   if (coverBlobHash && coverBlob && coverBlob.length > 0 && !sharedCoverBlobHash) {
