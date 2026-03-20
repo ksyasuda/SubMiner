@@ -360,10 +360,7 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
     assert.equal(dashboard.activity.watchTime[0]?.value, 30);
     assert.equal(dashboard.progress.watchTime[1]?.value, 75);
     assert.equal(dashboard.progress.lookups[1]?.value, 18);
-    assert.equal(
-      dashboard.ratios.lookupsPerHundred[0]?.value,
-      +((8 / 120) * 100).toFixed(1),
-    );
+    assert.equal(dashboard.ratios.lookupsPerHundred[0]?.value, +((8 / 120) * 100).toFixed(1));
     assert.equal(dashboard.animePerDay.watchTime[0]?.animeTitle, 'Trend Dashboard Anime');
     assert.equal(dashboard.animeCumulative.watchTime[1]?.value, 75);
     assert.equal(
@@ -2025,6 +2022,7 @@ test('anime/media detail and episode queries use ended-session metrics when tele
       SET
         ended_at_ms = ?,
         status = 2,
+        ended_media_ms = ?,
         active_watched_ms = ?,
         cards_mined = ?,
         tokens_seen = ?,
@@ -2034,9 +2032,9 @@ test('anime/media detail and episode queries use ended-session metrics when tele
       WHERE session_id = ?
       `,
     );
-    updateSession.run(1_001_000, 3_000, 1, 10, 4, 3, now, s1);
-    updateSession.run(1_011_000, 4_000, 2, 20, 5, 4, now, s2);
-    updateSession.run(1_021_000, 5_000, 3, 30, 6, 5, now, s3);
+    updateSession.run(1_001_000, 2_500, 3_000, 1, 10, 4, 3, now, s1);
+    updateSession.run(1_011_000, 6_000, 4_000, 2, 20, 5, 4, now, s2);
+    updateSession.run(1_021_000, 8_000, 5_000, 3, 30, 6, 5, now, s3);
 
     const animeDetail = getAnimeDetail(db, animeId);
     assert.ok(animeDetail);
@@ -2047,6 +2045,7 @@ test('anime/media detail and episode queries use ended-session metrics when tele
     assert.deepEqual(
       episodes.map((row) => ({
         videoId: row.videoId,
+        endedMediaMs: row.endedMediaMs,
         totalSessions: row.totalSessions,
         totalActiveMs: row.totalActiveMs,
         totalCards: row.totalCards,
@@ -2055,6 +2054,7 @@ test('anime/media detail and episode queries use ended-session metrics when tele
       [
         {
           videoId: episodeOne,
+          endedMediaMs: 6_000,
           totalSessions: 2,
           totalActiveMs: 7_000,
           totalCards: 3,
@@ -2062,6 +2062,7 @@ test('anime/media detail and episode queries use ended-session metrics when tele
         },
         {
           videoId: episodeTwo,
+          endedMediaMs: 8_000,
           totalSessions: 1,
           totalActiveMs: 5_000,
           totalCards: 3,

@@ -818,7 +818,10 @@ function accumulatePoints(points: TrendChartPoint[]): TrendChartPoint[] {
 }
 
 function buildAggregatedTrendRows(rollups: ImmersionSessionRollupRow[]) {
-  const byKey = new Map<number, { activeMin: number; cards: number; words: number; sessions: number }>();
+  const byKey = new Map<
+    number,
+    { activeMin: number; cards: number; words: number; sessions: number }
+  >();
 
   for (const rollup of rollups) {
     const existing = byKey.get(rollup.rollupDayOrMonth) ?? {
@@ -894,14 +897,8 @@ function buildLookupsPerHundredWords(sessions: TrendSessionMetricRow[]): TrendCh
 
   for (const session of sessions) {
     const epochDay = Math.floor(session.startedAtMs / 86_400_000);
-    lookupsByDay.set(
-      epochDay,
-      (lookupsByDay.get(epochDay) ?? 0) + session.yomitanLookupCount,
-    );
-    wordsByDay.set(
-      epochDay,
-      (wordsByDay.get(epochDay) ?? 0) + getTrendSessionWordCount(session),
-    );
+    lookupsByDay.set(epochDay, (lookupsByDay.get(epochDay) ?? 0) + session.yomitanLookupCount);
+    wordsByDay.set(epochDay, (wordsByDay.get(epochDay) ?? 0) + getTrendSessionWordCount(session));
   }
 
   return Array.from(lookupsByDay.entries())
@@ -1005,8 +1002,13 @@ function buildCumulativePerAnime(points: TrendPerAnimePoint[]): TrendPerAnimePoi
   return result;
 }
 
-function getVideoAnimeTitleMap(db: DatabaseSync, videoIds: Array<number | null>): Map<number, string> {
-  const uniqueIds = [...new Set(videoIds.filter((value): value is number => typeof value === 'number'))];
+function getVideoAnimeTitleMap(
+  db: DatabaseSync,
+  videoIds: Array<number | null>,
+): Map<number, string> {
+  const uniqueIds = [
+    ...new Set(videoIds.filter((value): value is number => typeof value === 'number')),
+  ];
   if (uniqueIds.length === 0) {
     return new Map();
   }
@@ -1027,7 +1029,10 @@ function getVideoAnimeTitleMap(db: DatabaseSync, videoIds: Array<number | null>)
   return new Map(rows.map((row) => [row.videoId, row.animeTitle]));
 }
 
-function resolveVideoAnimeTitle(videoId: number | null, titlesByVideoId: Map<number, string>): string {
+function resolveVideoAnimeTitle(
+  videoId: number | null,
+  titlesByVideoId: Map<number, string>,
+): string {
   if (videoId === null) {
     return 'Unknown';
   }
@@ -1087,7 +1092,9 @@ function buildEpisodesPerAnimeFromDailyRollups(
   return result;
 }
 
-function buildEpisodesPerDayFromDailyRollups(rollups: ImmersionSessionRollupRow[]): TrendChartPoint[] {
+function buildEpisodesPerDayFromDailyRollups(
+  rollups: ImmersionSessionRollupRow[],
+): TrendChartPoint[] {
   const byDay = new Map<number, Set<number>>();
 
   for (const rollup of rollups) {
@@ -1147,7 +1154,9 @@ function buildNewWordsPerDay(db: DatabaseSync, cutoffMs: number | null): TrendCh
     ORDER BY epochDay ASC
   `);
 
-  const rows = (cutoffMs === null ? prepared.all() : prepared.all(Math.floor(cutoffMs / 1000))) as Array<{
+  const rows = (
+    cutoffMs === null ? prepared.all() : prepared.all(Math.floor(cutoffMs / 1000))
+  ) as Array<{
     epochDay: number;
     wordCount: number;
   }>;
@@ -1186,10 +1195,8 @@ export function getTrendsDashboard(
 
   const animePerDay = {
     episodes: buildEpisodesPerAnimeFromDailyRollups(dailyRollups, titlesByVideoId),
-    watchTime: buildPerAnimeFromDailyRollups(
-      dailyRollups,
-      titlesByVideoId,
-      (rollup) => Math.round(rollup.totalActiveMin),
+    watchTime: buildPerAnimeFromDailyRollups(dailyRollups, titlesByVideoId, (rollup) =>
+      Math.round(rollup.totalActiveMin),
     ),
     cards: buildPerAnimeFromDailyRollups(
       dailyRollups,
@@ -1201,10 +1208,7 @@ export function getTrendsDashboard(
       titlesByVideoId,
       (rollup) => rollup.totalTokensSeen,
     ),
-    lookups: buildPerAnimeFromSessions(
-      sessions,
-      (session) => session.yomitanLookupCount,
-    ),
+    lookups: buildPerAnimeFromSessions(sessions, (session) => session.yomitanLookupCount),
     lookupsPerHundred: buildLookupsPerHundredPerAnime(sessions),
   };
 
@@ -1740,6 +1744,14 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
       v.parsed_season AS season,
       v.parsed_episode AS episode,
       v.duration_ms AS durationMs,
+      (
+        SELECT s_recent.ended_media_ms
+        FROM imm_sessions s_recent
+        WHERE s_recent.video_id = v.video_id
+          AND s_recent.ended_at_ms IS NOT NULL
+        ORDER BY s_recent.ended_at_ms DESC, s_recent.session_id DESC
+        LIMIT 1
+      ) AS endedMediaMs,
       v.watched AS watched,
       COUNT(DISTINCT s.session_id) AS totalSessions,
       COALESCE(SUM(COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0)), 0) AS totalActiveMs,

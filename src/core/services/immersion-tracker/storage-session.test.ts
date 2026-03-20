@@ -740,6 +740,39 @@ test('start/finalize session updates ended_at and status', () => {
   }
 });
 
+test('finalize session persists ended media position', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/slice-a-ended-media.mkv', {
+      canonicalTitle: 'Slice A Ended Media',
+      sourcePath: '/tmp/slice-a-ended-media.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const startedAtMs = 1_234_567_000;
+    const endedAtMs = startedAtMs + 8_500;
+    const { sessionId, state } = startSessionRecord(db, videoId, startedAtMs);
+    state.lastMediaMs = 91_000;
+
+    finalizeSessionRecord(db, state, endedAtMs);
+
+    const row = db
+      .prepare('SELECT ended_media_ms FROM imm_sessions WHERE session_id = ?')
+      .get(sessionId) as {
+      ended_media_ms: number | null;
+    } | null;
+
+    assert.ok(row);
+    assert.equal(row?.ended_media_ms, 91_000);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('executeQueuedWrite inserts event and telemetry rows', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

@@ -87,11 +87,12 @@ test('EpisodeList renders per-episode Yomitan lookup rate', () => {
           videoId: 9,
           episode: 9,
           season: 1,
-          durationMs: 1,
+          durationMs: 100,
+          endedMediaMs: 6,
           watched: 0,
           canonicalTitle: 'Episode 9',
           totalSessions: 1,
-          totalActiveMs: 1,
+          totalActiveMs: 90,
           totalCards: 1,
           totalTokensSeen: 350,
           totalYomitanLookupCount: 7,
@@ -103,6 +104,8 @@ test('EpisodeList renders per-episode Yomitan lookup rate', () => {
 
   assert.match(markup, /Lookup Rate/);
   assert.match(markup, /2\.0 \/ 100 tokens/);
+  assert.match(markup, /6%/);
+  assert.doesNotMatch(markup, /90%/);
 });
 
 test('AnimeOverviewStats renders aggregate Yomitan lookup metrics', () => {

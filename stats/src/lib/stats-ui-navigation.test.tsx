@@ -21,6 +21,7 @@ test('EpisodeList renders explicit episode detail button alongside quick peek ro
           episode: 9,
           season: 1,
           durationMs: 1,
+          endedMediaMs: null,
           watched: 0,
           canonicalTitle: 'Episode 9',
           totalSessions: 1,

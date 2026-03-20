@@ -212,6 +212,7 @@ export interface AnimeEpisode {
   episode: number | null;
   season: number | null;
   durationMs: number;
+  endedMediaMs: number | null;
   watched: number;
   canonicalTitle: string;
   totalSessions: number;

@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -482,6 +482,7 @@ export interface AnimeEpisodeRow {
   season: number | null;
   episode: number | null;
   durationMs: number;
+  endedMediaMs: number | null;
   watched: number;
   totalSessions: number;
   totalActiveMs: number;

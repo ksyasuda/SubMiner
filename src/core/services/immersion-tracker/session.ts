@@ -39,6 +39,7 @@ export function finalizeSessionRecord(
       SET
         ended_at_ms = ?,
         status = ?,
+        ended_media_ms = ?,
         total_watched_ms = ?,
         active_watched_ms = ?,
         lines_seen = ?,
@@ -58,6 +59,7 @@ export function finalizeSessionRecord(
   ).run(
     endedAtMs,
     SESSION_STATUS_ENDED,
+    sessionState.lastMediaMs,
     sessionState.totalWatchedMs,
     sessionState.activeWatchedMs,
     sessionState.linesSeen,

@@ -569,6 +569,7 @@ export function ensureSchema(db: DatabaseSync): void {
       status INTEGER NOT NULL,
       locale_id INTEGER, target_lang_id INTEGER,
       difficulty_tier INTEGER, subtitle_mode INTEGER,
+      ended_media_ms INTEGER,
       total_watched_ms INTEGER NOT NULL DEFAULT 0,
       active_watched_ms INTEGER NOT NULL DEFAULT 0,
       lines_seen INTEGER NOT NULL DEFAULT 0,
@@ -1024,6 +1025,10 @@ export function ensureSchema(db: DatabaseSync): void {
         ), yomitan_lookup_count)
       WHERE ended_at_ms IS NOT NULL
     `);
+  }
+
+  if (currentVersion?.schema_version && currentVersion.schema_version < 15) {
+    addColumnIfMissing(db, 'imm_sessions', 'ended_media_ms', 'INTEGER');
   }
 
   ensureLifetimeSummaryTables(db);

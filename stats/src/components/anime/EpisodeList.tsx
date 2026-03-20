@@ -82,6 +82,10 @@ export function EpisodeList({
                 ep.totalYomitanLookupCount,
                 ep.totalTokensSeen,
               );
+              const progressPct =
+                ep.durationMs > 0 && ep.endedMediaMs != null
+                  ? Math.min(100, Math.round((ep.endedMediaMs / ep.durationMs) * 100))
+                  : null;
 
               return (
                 <Fragment key={ep.videoId}>
@@ -99,17 +103,17 @@ export function EpisodeList({
                       {ep.canonicalTitle}
                     </td>
                     <td className="py-2 pr-3 text-right">
-                      {ep.durationMs > 0 ? (
+                      {progressPct != null ? (
                         <span
                           className={
-                            ep.totalActiveMs >= ep.durationMs * 0.85
+                            progressPct >= 85
                               ? 'text-ctp-green'
-                              : ep.totalActiveMs >= ep.durationMs * 0.5
+                              : progressPct >= 50
                                 ? 'text-ctp-peach'
                                 : 'text-ctp-overlay2'
                           }
                         >
-                          {Math.min(100, Math.round((ep.totalActiveMs / ep.durationMs) * 100))}%
+                          {progressPct}%
                         </span>
                       ) : (
                         <span className="text-ctp-overlay2">{'\u2014'}</span>

@@ -55,6 +55,29 @@ test('annotateTokens known-word match mode uses headword vs surface', () => {
   assert.equal(surfaceResult[0]?.isKnown, false);
 });
 
+test('annotateTokens falls back to reading for known-word matches when headword lookup misses', () => {
+  const tokens = [
+    makeToken({
+      surface: '大体',
+      headword: '大体',
+      reading: 'だいたい',
+      frequencyRank: 1895,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'だいたい',
+      getJlptLevel: (text) => (text === '大体' ? 'N4' : null),
+    }),
+  );
+
+  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.jlptLevel, 'N4');
+  assert.equal(result[0]?.frequencyRank, 1895);
+});
+
 test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 exclusions', () => {
   const tokens = [
     makeToken({

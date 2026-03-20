@@ -560,12 +560,7 @@ function isJlptEligibleToken(token: MergedToken): boolean {
     return false;
   }
 
-  const candidates = [
-    resolveJlptLookupText(token),
-    token.surface,
-    token.reading,
-    token.headword,
-  ].filter(
+  const candidates = [resolveJlptLookupText(token), token.surface, token.headword].filter(
     (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
   );
 
@@ -659,7 +654,16 @@ function computeTokenKnownStatus(
   knownWordMatchMode: NPlusOneMatchMode,
 ): boolean {
   const matchText = resolveKnownWordText(token.surface, token.headword, knownWordMatchMode);
-  return token.isKnown || (matchText ? isKnownWord(matchText) : false);
+  if (token.isKnown || (matchText ? isKnownWord(matchText) : false)) {
+    return true;
+  }
+
+  const normalizedReading = token.reading.trim();
+  if (!normalizedReading) {
+    return false;
+  }
+
+  return normalizedReading !== matchText.trim() && isKnownWord(normalizedReading);
 }
 
 function filterTokenFrequencyRank(
