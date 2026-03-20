@@ -13,6 +13,7 @@ interface MediaDetailViewProps {
   onConsumeInitialExpandedSession?: () => void;
   onBack: () => void;
   backLabel?: string;
+  onNavigateToAnime?: (animeId: number) => void;
 }
 
 export function MediaDetailView({
@@ -21,6 +22,7 @@ export function MediaDetailView({
   onConsumeInitialExpandedSession,
   onBack,
   backLabel = 'Back to Library',
+  onNavigateToAnime,
 }: MediaDetailViewProps) {
   const { data, loading, error } = useMediaDetail(videoId);
   const [localSessions, setLocalSessions] = useState<SessionSummary[] | null>(null);
@@ -36,6 +38,7 @@ export function MediaDetailView({
   if (!data?.detail) return <div className="text-ctp-overlay2 p-4">Media not found</div>;
 
   const sessions = localSessions ?? data.sessions;
+  const animeId = sessions.find((s) => s.animeId != null)?.animeId ?? null;
   const detail = {
     ...data.detail,
     totalSessions: sessions.length,
@@ -70,13 +73,24 @@ export function MediaDetailView({
 
   return (
     <div className="space-y-4">
-      <button
-        type="button"
-        onClick={onBack}
-        className="text-sm text-ctp-blue hover:text-ctp-sapphire transition-colors"
-      >
-        &larr; {backLabel}
-      </button>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-sm text-ctp-blue hover:text-ctp-sapphire transition-colors"
+        >
+          &larr; {backLabel}
+        </button>
+        {onNavigateToAnime != null && animeId != null ? (
+          <button
+            type="button"
+            onClick={() => onNavigateToAnime(animeId)}
+            className="text-sm text-ctp-blue hover:text-ctp-sapphire transition-colors"
+          >
+            View Anime &rarr;
+          </button>
+        ) : null}
+      </div>
       <MediaHeader detail={detail} />
       {deleteError ? <div className="text-sm text-ctp-red">{deleteError}</div> : null}
       <MediaSessionList
