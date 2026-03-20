@@ -42,6 +42,7 @@ export function parseMpvArgString(input: string): string[] {
   const chars = input;
   const args: string[] = [];
   let current = '';
+  let tokenStarted = false;
   let inSingleQuote = false;
   let inDoubleQuote = false;
   let escaping = false;
@@ -52,6 +53,7 @@ export function parseMpvArgString(input: string): string[] {
     const ch = chars[i] || '';
     if (escaping) {
       current += ch;
+      tokenStarted = true;
       escaping = false;
       continue;
     }
@@ -61,6 +63,7 @@ export function parseMpvArgString(input: string): string[] {
         inSingleQuote = false;
       } else {
         current += ch;
+        tokenStarted = true;
       }
       continue;
     }
@@ -71,6 +74,7 @@ export function parseMpvArgString(input: string): string[] {
           escaping = true;
         } else {
           current += ch;
+          tokenStarted = true;
         }
         continue;
       }
@@ -79,33 +83,40 @@ export function parseMpvArgString(input: string): string[] {
         continue;
       }
       current += ch;
+      tokenStarted = true;
       continue;
     }
 
     if (ch === '\\') {
       if (canEscape(chars[i + 1])) {
         escaping = true;
+        tokenStarted = true;
       } else {
         current += ch;
+        tokenStarted = true;
       }
       continue;
     }
     if (ch === "'") {
+      tokenStarted = true;
       inSingleQuote = true;
       continue;
     }
     if (ch === '"') {
+      tokenStarted = true;
       inDoubleQuote = true;
       continue;
     }
     if (/\s/.test(ch)) {
-      if (current) {
+      if (tokenStarted) {
         args.push(current);
         current = '';
+        tokenStarted = false;
       }
       continue;
     }
     current += ch;
+    tokenStarted = true;
   }
 
   if (escaping) {
@@ -114,7 +125,7 @@ export function parseMpvArgString(input: string): string[] {
   if (inSingleQuote || inDoubleQuote) {
     fail('Could not parse mpv args: unmatched quote');
   }
-  if (current) {
+  if (tokenStarted) {
     args.push(current);
   }
 

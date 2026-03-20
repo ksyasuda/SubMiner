@@ -14,6 +14,20 @@ function makeFile(filePath: string): void {
   fs.writeFileSync(filePath, '/* theme */');
 }
 
+function withPlatform<T>(platform: NodeJS.Platform, callback: () => T): T {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', {
+    value: platform,
+  });
+  try {
+    return callback();
+  } finally {
+    if (originalDescriptor) {
+      Object.defineProperty(process, 'platform', originalDescriptor);
+    }
+  }
+}
+
 test('findRofiTheme resolves /usr/local/share/SubMiner/themes/subminer.rasi when it exists', () => {
   const originalExistsSync = fs.existsSync;
   const targetPath = `/usr/local/share/SubMiner/themes/${ROFI_THEME_FILE}`;
@@ -24,7 +38,7 @@ test('findRofiTheme resolves /usr/local/share/SubMiner/themes/subminer.rasi when
       return false;
     };
 
-    const result = findRofiTheme('/usr/local/bin/subminer');
+    const result = withPlatform('linux', () => findRofiTheme('/usr/local/bin/subminer'));
     assert.equal(result, targetPath);
   } finally {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,7 +58,7 @@ test('findRofiTheme resolves /usr/share/SubMiner/themes/subminer.rasi when /usr/
       return false;
     };
 
-    const result = findRofiTheme('/usr/bin/subminer');
+    const result = withPlatform('linux', () => findRofiTheme('/usr/bin/subminer'));
     assert.equal(result, sharePath);
   } finally {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -60,10 +74,14 @@ test('findRofiTheme resolves XDG_DATA_HOME/SubMiner/themes/subminer.rasi when se
     const themePath = path.join(baseDir, `SubMiner/themes/${ROFI_THEME_FILE}`);
     makeFile(themePath);
 
-    const result = findRofiTheme('/usr/bin/subminer');
+    const result = withPlatform('linux', () => findRofiTheme('/usr/bin/subminer'));
     assert.equal(result, themePath);
   } finally {
-    process.env.XDG_DATA_HOME = originalXdgDataHome;
+    if (originalXdgDataHome !== undefined) {
+      process.env.XDG_DATA_HOME = originalXdgDataHome;
+    } else {
+      delete process.env.XDG_DATA_HOME;
+    }
     fs.rmSync(baseDir, { recursive: true, force: true });
   }
 });
@@ -78,7 +96,7 @@ test('findRofiTheme resolves ~/.local/share/SubMiner/themes/subminer.rasi when X
     const themePath = path.join(baseDir, `.local/share/SubMiner/themes/${ROFI_THEME_FILE}`);
     makeFile(themePath);
 
-    const result = findRofiTheme('/usr/bin/subminer');
+    const result = withPlatform('linux', () => findRofiTheme('/usr/bin/subminer'));
     assert.equal(result, themePath);
   } finally {
     os.homedir = originalHomedir;

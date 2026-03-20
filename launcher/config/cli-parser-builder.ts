@@ -291,6 +291,12 @@ export function parseCliPrograms(
       if (normalizedAction && (statsBackground || statsStop)) {
         throw new Error('Stats background and stop flags cannot be combined with stats actions.');
       }
+      if (
+        normalizedAction !== 'cleanup' &&
+        (options.vocab === true || options.lifetime === true)
+      ) {
+        throw new Error('Stats --vocab and --lifetime flags require the cleanup action.');
+      }
       if (normalizedAction === 'cleanup') {
         statsCleanup = true;
         statsCleanupLifetime = options.lifetime === true;

@@ -9,6 +9,7 @@ import type { Args } from './types';
 import {
   cleanupPlaybackSession,
   findAppBinary,
+  parseMpvArgString,
   runAppCommandCaptureOutput,
   shouldResolveAniSkipMetadata,
   startOverlay,
@@ -58,6 +59,16 @@ test('runAppCommandCaptureOutput strips ELECTRON_RUN_AS_NODE from app child env'
       process.env.ELECTRON_RUN_AS_NODE = original;
     }
   }
+});
+
+test('parseMpvArgString preserves empty quoted tokens', () => {
+  assert.deepEqual(parseMpvArgString('--title "" --force-media-title \'\' --pause'), [
+    '--title',
+    '',
+    '--force-media-title',
+    '',
+    '--pause',
+  ]);
 });
 
 test('waitForUnixSocketReady returns false when socket never appears', async () => {

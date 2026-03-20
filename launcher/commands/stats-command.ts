@@ -123,7 +123,10 @@ export async function runStatsCommand(
       if (!startupResult.response.ok) {
         throw new Error(startupResult.response.error || 'Stats dashboard failed to start.');
       }
-      await attachedExitPromise;
+      const exitStatus = await attachedExitPromise;
+      if (exitStatus !== 0) {
+        throw new Error(`Stats app exited with status ${exitStatus}.`);
+      }
       return true;
     }
     const attachedExitPromiseCleanup = attachedExitPromise;

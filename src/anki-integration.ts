@@ -1048,10 +1048,6 @@ export class AnkiIntegration {
     return getConfiguredWordFieldCandidates(this.config);
   }
 
-  private getPreferredWordValue(fields: Record<string, string>): string {
-    return getPreferredWordValueFromExtractedFields(fields, this.config);
-  }
-
   private async getAnimatedImageLeadInSeconds(noteInfo: NoteInfo): Promise<number> {
     return resolveAnimatedImageLeadInSeconds({
       config: this.config,

@@ -6,7 +6,7 @@
 **Sentence-mine from mpv — look up words, one-key Anki export, immersion tracking.**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Linux](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-informational)]()
+[![Linux](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-informational)](https://github.com/ksyasuda/SubMiner)
 [![Docs](https://img.shields.io/badge/docs-docs.subminer.moe-blueviolet)](https://docs.subminer.moe)
 [![AUR](https://img.shields.io/aur/version/subminer-bin)](https://aur.archlinux.org/packages/subminer-bin)
 
@@ -75,6 +75,7 @@ git clone https://aur.archlinux.org/subminer-bin.git && cd subminer-bin && makep
 <summary><b>Linux (AppImage)</b></summary>
 
 ```bash
+mkdir -p ~/.local/bin
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner.AppImage -O ~/.local/bin/SubMiner.AppImage \
 	&& chmod +x ~/.local/bin/SubMiner.AppImage
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer \

@@ -98,6 +98,11 @@ interface KnownWordCacheDeps {
   showStatusNotification: (message: string) => void;
 }
 
+type KnownWordQueryScope = {
+  query: string;
+  fields: string[];
+};
+
 export class KnownWordCacheManager {
   private knownWordsLastRefreshedAtMs = 0;
   private knownWordsStateKey = '';
@@ -219,18 +224,11 @@ export class KnownWordCacheManager {
 
     this.isRefreshingKnownWords = true;
     try {
-      const query = this.buildKnownWordsQuery();
-      log.debug('Refreshing known-word cache', `query=${query}`);
-      const noteIds = (await this.deps.client.findNotes(query, {
-        maxRetries: 0,
-      })) as number[];
-
-      const currentNoteIds = Array.from(
-        new Set(noteIds.filter((noteId) => Number.isInteger(noteId) && noteId > 0)),
-      ).sort((a, b) => a - b);
+      const noteFieldsById = await this.fetchKnownWordNoteFieldsById();
+      const currentNoteIds = Array.from(noteFieldsById.keys()).sort((a, b) => a - b);
 
       if (this.noteWordsById.size === 0) {
-        await this.rebuildFromCurrentNotes(currentNoteIds);
+        await this.rebuildFromCurrentNotes(currentNoteIds, noteFieldsById);
       } else {
         const currentNoteIdSet = new Set(currentNoteIds);
         for (const noteId of Array.from(this.noteWordsById.keys())) {
@@ -244,7 +242,10 @@ export class KnownWordCacheManager {
           for (const noteInfo of noteInfos) {
             this.replaceNoteSnapshot(
               noteInfo.noteId,
-              this.extractNormalizedKnownWordsFromNoteInfo(noteInfo),
+              this.extractNormalizedKnownWordsFromNoteInfo(
+                noteInfo,
+                noteFieldsById.get(noteInfo.noteId),
+              ),
             );
           }
         }
@@ -307,6 +308,31 @@ export class KnownWordCacheManager {
     return [...new Set([configuredWordField, 'Word', 'Reading', 'Word Reading'])];
   }
 
+  private getKnownWordQueryScopes(): KnownWordQueryScope[] {
+    const configuredDecks = this.deps.getConfig().knownWords?.decks;
+    if (configuredDecks && typeof configuredDecks === 'object' && !Array.isArray(configuredDecks)) {
+      const scopes: KnownWordQueryScope[] = [];
+      for (const [deckName, fields] of Object.entries(configuredDecks)) {
+        const trimmedDeckName = deckName.trim();
+        if (!trimmedDeckName) {
+          continue;
+        }
+        const normalizedFields = Array.isArray(fields)
+          ? [...new Set(fields.map(String).map((field) => field.trim()).filter(Boolean))]
+          : [];
+        scopes.push({
+          query: `deck:"${escapeAnkiSearchValue(trimmedDeckName)}"`,
+          fields: normalizedFields.length > 0 ? normalizedFields : this.getConfiguredFields(),
+        });
+      }
+      if (scopes.length > 0) {
+        return scopes;
+      }
+    }
+
+    return [{ query: this.buildKnownWordsQuery(), fields: this.getConfiguredFields() }];
+  }
+
   private buildKnownWordsQuery(): string {
     const decks = this.getKnownWordDecks();
     if (decks.length === 0) {
@@ -338,6 +364,31 @@ export class KnownWordCacheManager {
     return Date.now() - this.knownWordsLastRefreshedAtMs >= this.getKnownWordRefreshIntervalMs();
   }
 
+  private async fetchKnownWordNoteFieldsById(): Promise<Map<number, string[]>> {
+    const scopes = this.getKnownWordQueryScopes();
+    const noteFieldsById = new Map<number, string[]>();
+    log.debug('Refreshing known-word cache', `queries=${scopes.map((scope) => scope.query).join(' | ')}`);
+
+    for (const scope of scopes) {
+      const noteIds = (await this.deps.client.findNotes(scope.query, {
+        maxRetries: 0,
+      })) as number[];
+
+      for (const noteId of noteIds) {
+        if (!Number.isInteger(noteId) || noteId <= 0) {
+          continue;
+        }
+        const existingFields = noteFieldsById.get(noteId) ?? [];
+        noteFieldsById.set(
+          noteId,
+          [...new Set([...existingFields, ...scope.fields])],
+        );
+      }
+    }
+
+    return noteFieldsById;
+  }
+
   private scheduleKnownWordRefreshLifecycle(): void {
     const refreshIntervalMs = this.getKnownWordRefreshIntervalMs();
     const scheduleInterval = () => {
@@ -366,7 +417,10 @@ export class KnownWordCacheManager {
     return Math.max(0, remainingMs);
   }
 
-  private async rebuildFromCurrentNotes(noteIds: number[]): Promise<void> {
+  private async rebuildFromCurrentNotes(
+    noteIds: number[],
+    noteFieldsById: Map<number, string[]>,
+  ): Promise<void> {
     this.clearInMemoryState();
     if (noteIds.length === 0) {
       return;
@@ -374,7 +428,10 @@ export class KnownWordCacheManager {
 
     const noteInfos = await this.fetchKnownWordNotesInfo(noteIds);
     for (const noteInfo of noteInfos) {
-      this.replaceNoteSnapshot(noteInfo.noteId, this.extractNormalizedKnownWordsFromNoteInfo(noteInfo));
+      this.replaceNoteSnapshot(
+        noteInfo.noteId,
+        this.extractNormalizedKnownWordsFromNoteInfo(noteInfo, noteFieldsById.get(noteInfo.noteId)),
+      );
     }
   }
 
@@ -562,10 +619,12 @@ export class KnownWordCacheManager {
     return true;
   }
 
-  private extractNormalizedKnownWordsFromNoteInfo(noteInfo: KnownWordCacheNoteInfo): string[] {
+  private extractNormalizedKnownWordsFromNoteInfo(
+    noteInfo: KnownWordCacheNoteInfo,
+    preferredFields = this.getConfiguredFields(),
+  ): string[] {
     const words: string[] = [];
-    const configuredFields = this.getConfiguredFields();
-    for (const preferredField of configuredFields) {
+    for (const preferredField of preferredFields) {
       const fieldName = resolveFieldName(Object.keys(noteInfo.fields), preferredField);
       if (!fieldName) continue;
 

@@ -212,7 +212,7 @@ test('stats background command launches attached daemon control command with res
   ]);
 });
 
-test('stats command returns after startup response even if app process stays running', async () => {
+test('stats command waits for attached app exit after startup response', async () => {
   const context = createContext();
   context.args.stats = true;
   const forwarded: string[][] = [];
@@ -244,6 +244,24 @@ test('stats command returns after startup response even if app process stays run
       '/tmp/subminer-stats-test/response.json',
     ],
   ]);
+});
+
+test('stats command throws when attached app exits non-zero after startup response', async () => {
+  const context = createContext();
+  context.args.stats = true;
+
+  await assert.rejects(async () => {
+    await runStatsCommand(context, {
+      createTempDir: () => '/tmp/subminer-stats-test',
+      joinPath: (...parts) => parts.join('/'),
+      runAppCommandAttached: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return 3;
+      },
+      waitForStatsResponse: async () => ({ ok: true, url: 'http://127.0.0.1:5175' }),
+      removeDir: () => {},
+    });
+  }, /Stats app exited with status 3\./);
 });
 
 test('stats cleanup command forwards cleanup vocab flags to the app', async () => {
