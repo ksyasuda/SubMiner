@@ -1748,8 +1748,10 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
         SELECT s_recent.ended_media_ms
         FROM imm_sessions s_recent
         WHERE s_recent.video_id = v.video_id
-          AND s_recent.ended_at_ms IS NOT NULL
-        ORDER BY s_recent.ended_at_ms DESC, s_recent.session_id DESC
+          AND s_recent.ended_media_ms IS NOT NULL
+        ORDER BY
+          COALESCE(s_recent.ended_at_ms, s_recent.LAST_UPDATE_DATE, s_recent.started_at_ms) DESC,
+          s_recent.session_id DESC
         LIMIT 1
       ) AS endedMediaMs,
       v.watched AS watched,

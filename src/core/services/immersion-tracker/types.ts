@@ -85,6 +85,7 @@ interface QueuedTelemetryWrite {
   kind: 'telemetry';
   sessionId: number;
   sampleMs?: number;
+  lastMediaMs?: number | null;
   totalWatchedMs?: number;
   activeWatchedMs?: number;
   linesSeen?: number;

@@ -42,6 +42,7 @@ interface RetainedSessionRow {
   videoId: number;
   startedAtMs: number;
   endedAtMs: number;
+  lastMediaMs: number | null;
   totalWatchedMs: number;
   activeWatchedMs: number;
   linesSeen: number;
@@ -140,7 +141,7 @@ function toRebuildSessionState(row: RetainedSessionRow): SessionState {
     startedAtMs: row.startedAtMs,
     currentLineIndex: 0,
     lastWallClockMs: row.endedAtMs,
-    lastMediaMs: null,
+    lastMediaMs: row.lastMediaMs,
     lastPauseStartMs: null,
     isPaused: false,
     pendingTelemetry: false,
@@ -170,6 +171,7 @@ function getRetainedStaleActiveSessions(db: DatabaseSync): RetainedSessionRow[] 
         s.video_id AS videoId,
         s.started_at_ms AS startedAtMs,
         COALESCE(t.sample_ms, s.LAST_UPDATE_DATE, s.started_at_ms) AS endedAtMs,
+        s.ended_media_ms AS lastMediaMs,
         COALESCE(t.total_watched_ms, s.total_watched_ms, 0) AS totalWatchedMs,
         COALESCE(t.active_watched_ms, s.active_watched_ms, 0) AS activeWatchedMs,
         COALESCE(t.lines_seen, s.lines_seen, 0) AS linesSeen,

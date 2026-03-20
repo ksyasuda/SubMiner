@@ -657,6 +657,7 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
         video_id,
         started_at_ms,
         status,
+        ended_media_ms,
         CREATED_DATE,
         LAST_UPDATE_DATE
       ) VALUES (
@@ -665,6 +666,7 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
         1,
         ${startedAtMs},
         1,
+        321000,
         ${startedAtMs},
         ${sampleMs}
       );
@@ -709,7 +711,7 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
     const sessionRow = restartedApi.db
       .prepare(
         `
-          SELECT ended_at_ms, status, active_watched_ms, tokens_seen, cards_mined
+          SELECT ended_at_ms, status, ended_media_ms, active_watched_ms, tokens_seen, cards_mined
           FROM imm_sessions
           WHERE session_id = 1
         `,
@@ -717,6 +719,7 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
       .get() as {
       ended_at_ms: number | null;
       status: number;
+      ended_media_ms: number | null;
       active_watched_ms: number;
       tokens_seen: number;
       cards_mined: number;
@@ -751,6 +754,7 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
     assert.ok(sessionRow);
     assert.ok(Number(sessionRow?.ended_at_ms ?? 0) >= sampleMs);
     assert.equal(sessionRow?.status, 2);
+    assert.equal(sessionRow?.ended_media_ms, 321_000);
     assert.equal(sessionRow?.active_watched_ms, 4000);
     assert.equal(sessionRow?.tokens_seen, 120);
     assert.equal(sessionRow?.cards_mined, 2);
@@ -1224,6 +1228,41 @@ test('recordPlaybackPosition marks watched at 85% completion', async () => {
       .prepare('SELECT watched FROM imm_videos WHERE video_id = ?')
       .get(videoId) as { watched: number } | null;
     assert.equal(row?.watched, 1);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('flushTelemetry checkpoints latest playback position on the active session row', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/episode-progress-checkpoint.mkv', 'Episode Progress Checkpoint');
+    tracker.recordPlaybackPosition(91);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      sessionState: { sessionId: number } | null;
+      flushTelemetry: (force?: boolean) => void;
+      flushNow: () => void;
+    };
+    const sessionId = privateApi.sessionState?.sessionId;
+    assert.ok(sessionId);
+
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    const row = privateApi.db
+      .prepare('SELECT ended_media_ms FROM imm_sessions WHERE session_id = ?')
+      .get(sessionId) as { ended_media_ms: number | null } | null;
+
+    assert.ok(row);
+    assert.equal(row?.ended_media_ms, 91_000);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

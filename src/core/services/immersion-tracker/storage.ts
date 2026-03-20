@@ -6,6 +6,7 @@ import type { QueuedWrite, VideoMetadata } from './types';
 
 export interface TrackerPreparedStatements {
   telemetryInsertStmt: ReturnType<DatabaseSync['prepare']>;
+  sessionCheckpointStmt: ReturnType<DatabaseSync['prepare']>;
   eventInsertStmt: ReturnType<DatabaseSync['prepare']>;
   wordUpsertStmt: ReturnType<DatabaseSync['prepare']>;
   kanjiUpsertStmt: ReturnType<DatabaseSync['prepare']>;
@@ -1161,6 +1162,14 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `),
+    sessionCheckpointStmt: db.prepare(`
+      UPDATE imm_sessions
+      SET
+        ended_media_ms = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE session_id = ?
+        AND ended_at_ms IS NULL
+    `),
     eventInsertStmt: db.prepare(`
       INSERT INTO imm_session_events (
         session_id, ts_ms, event_type, line_index, segment_start_ms, segment_end_ms,
@@ -1295,6 +1304,7 @@ function incrementKanjiAggregate(
 
 export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedStatements): void {
   if (write.kind === 'telemetry') {
+    const nowMs = Date.now();
     stmts.telemetryInsertStmt.run(
       write.sessionId,
       write.sampleMs!,
@@ -1311,9 +1321,10 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
       write.seekForwardCount!,
       write.seekBackwardCount!,
       write.mediaBufferEvents!,
-      Date.now(),
-      Date.now(),
+      nowMs,
+      nowMs,
     );
+    stmts.sessionCheckpointStmt.run(write.lastMediaMs ?? null, nowMs, write.sessionId);
     return;
   }
   if (write.kind === 'word') {

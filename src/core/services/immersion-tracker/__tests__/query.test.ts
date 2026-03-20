@@ -139,6 +139,74 @@ test('getSessionSummaries returns sessionId and canonicalTitle', () => {
   }
 });
 
+test('getAnimeEpisodes prefers the latest session media position when the latest session is still active', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/active-progress-episode.mkv', {
+      canonicalTitle: 'Active Progress Episode',
+      sourcePath: '/tmp/active-progress-episode.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Active Progress Anime',
+      canonicalTitle: 'Active Progress Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'active-progress-episode.mkv',
+      parsedTitle: 'Active Progress Anime',
+      parsedSeason: 1,
+      parsedEpisode: 2,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":2}',
+    });
+
+    const endedSessionId = startSessionRecord(db, videoId, 1_000_000).sessionId;
+    const activeSessionId = startSessionRecord(db, videoId, 1_010_000).sessionId;
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET
+        ended_at_ms = ?,
+        status = 2,
+        ended_media_ms = ?,
+        active_watched_ms = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE session_id = ?
+      `,
+    ).run(1_005_000, 6_000, 3_000, 1_005_000, endedSessionId);
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET
+        ended_media_ms = ?,
+        active_watched_ms = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE session_id = ?
+      `,
+    ).run(9_000, 4_000, 1_012_000, activeSessionId);
+
+    const [episode] = getAnimeEpisodes(db, animeId);
+    assert.ok(episode);
+    assert.equal(episode?.endedMediaMs, 9_000);
+    assert.equal(episode?.totalSessions, 2);
+    assert.equal(episode?.totalActiveMs, 7_000);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getSessionTimeline returns the full session when no limit is provided', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

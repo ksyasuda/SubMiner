@@ -1069,6 +1069,7 @@ export class ImmersionTrackerService {
       kind: 'telemetry',
       sessionId: this.sessionState.sessionId,
       sampleMs: Date.now(),
+      lastMediaMs: this.sessionState.lastMediaMs,
       totalWatchedMs: this.sessionState.totalWatchedMs,
       activeWatchedMs: this.sessionState.activeWatchedMs,
       linesSeen: this.sessionState.linesSeen,
