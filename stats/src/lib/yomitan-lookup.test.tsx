@@ -8,10 +8,10 @@ import { SessionRow } from '../components/sessions/SessionRow';
 import { EventType, type SessionEvent } from '../types/stats';
 import { buildLookupRateDisplay, getYomitanLookupEvents } from './yomitan-lookup';
 
-test('buildLookupRateDisplay formats lookups per 100 tokens in short and long forms', () => {
+test('buildLookupRateDisplay formats lookups per 100 words in short and long forms', () => {
   assert.deepEqual(buildLookupRateDisplay(23, 1000), {
-    shortValue: '2.3 / 100 tokens',
-    longValue: '2.3 lookups per 100 tokens',
+    shortValue: '2.3 / 100 words',
+    longValue: '2.3 lookups per 100 words',
   });
   assert.equal(buildLookupRateDisplay(0, 0), null);
 });
@@ -49,11 +49,11 @@ test('MediaHeader renders Yomitan lookup count and lookup rate copy', () => {
   );
 
   assert.match(markup, /23/);
-  assert.match(markup, /2\.3 \/ 100 tokens/);
-  assert.match(markup, /2\.3 lookups per 100 tokens/);
+  assert.match(markup, /2\.3 \/ 100 words/);
+  assert.match(markup, /2\.3 lookups per 100 words/);
 });
 
-test('MediaHeader distinguishes token occurrences from known unique words', () => {
+test('MediaHeader distinguishes word occurrences from known unique words', () => {
   const markup = renderToStaticMarkup(
     <MediaHeader
       detail={{
@@ -76,7 +76,7 @@ test('MediaHeader distinguishes token occurrences from known unique words', () =
     />,
   );
 
-  assert.match(markup, /token occurrences/);
+  assert.match(markup, /word occurrences/);
   assert.match(markup, /known unique words \(50%\)/);
   assert.match(markup, /17 \/ 34/);
 });
@@ -105,7 +105,7 @@ test('EpisodeList renders per-episode Yomitan lookup rate', () => {
   );
 
   assert.match(markup, /Lookup Rate/);
-  assert.match(markup, /2\.0 \/ 100 tokens/);
+  assert.match(markup, /2\.0 \/ 100 words/);
   assert.match(markup, /6%/);
   assert.doesNotMatch(markup, /90%/);
 });
@@ -139,11 +139,11 @@ test('AnimeOverviewStats renders aggregate Yomitan lookup metrics', () => {
 
   assert.match(markup, /Lookups/);
   assert.match(markup, /16/);
-  assert.match(markup, /2\.0 \/ 100 tokens/);
-  assert.match(markup, /Yomitan lookups per 100 tokens seen/);
+  assert.match(markup, /2\.0 \/ 100 words/);
+  assert.match(markup, /Yomitan lookups per 100 words seen/);
 });
 
-test('SessionRow prefers token-based word count when available', () => {
+test('SessionRow prefers word-based count when available', () => {
   const markup = renderToStaticMarkup(
     <SessionRow
       session={{

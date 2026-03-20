@@ -85,8 +85,8 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
   assert.equal(summary.activeDays, 2);
   assert.equal(summary.totalSessions, 15);
   assert.deepEqual(summary.lookupRate, {
-    shortValue: '2.3 / 100 tokens',
-    longValue: '2.3 lookups per 100 tokens',
+    shortValue: '2.3 / 100 words',
+    longValue: '2.3 lookups per 100 words',
   });
 });
 

@@ -30,7 +30,7 @@ test('SessionDetail omits the misleading new words metric', () => {
     />,
   );
 
-  assert.match(markup, /No token data/);
+  assert.match(markup, /No word data/);
   assert.doesNotMatch(markup, /New words/);
 });
 

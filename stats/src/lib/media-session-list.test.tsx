@@ -35,6 +35,6 @@ test('MediaSessionList renders expandable session rows with delete affordance', 
   assert.match(markup, /Session History/);
   assert.match(markup, /aria-expanded="true"/);
   assert.match(markup, /Delete session Episode 7/);
-  assert.match(markup, /tokens/);
-  assert.match(markup, /No token data for this session/);
+  assert.match(markup, /words/);
+  assert.match(markup, /No word data for this session/);
 });

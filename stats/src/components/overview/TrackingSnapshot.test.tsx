@@ -18,8 +18,8 @@ const summary: OverviewSummary = {
   activeDays: 12,
   totalSessions: 15,
   lookupRate: {
-    shortValue: '2.3 / 100 tokens',
-    longValue: '2.3 lookups per 100 tokens',
+    shortValue: '2.3 / 100 words',
+    longValue: '2.3 lookups per 100 words',
   },
   todayTokens: 0,
   newWordsToday: 0,
@@ -33,8 +33,8 @@ test('TrackingSnapshot renders Yomitan lookup rate copy on the homepage card', (
   );
 
   assert.match(markup, /Lookup Rate/);
-  assert.match(markup, /2\.3 \/ 100 tokens/);
-  assert.match(markup, /Lifetime Yomitan lookups normalized by total tokens seen/);
+  assert.match(markup, /2\.3 \/ 100 words/);
+  assert.match(markup, /Lifetime Yomitan lookups normalized by total words seen/);
 });
 
 test('TrackingSnapshot labels new words as unique headwords', () => {

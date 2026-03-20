@@ -183,7 +183,7 @@ export function TrendsTab() {
           color={cardsMinedColor}
           type="bar"
         />
-        <TrendChart title="Tokens Seen" data={data.activity.words} color="#8bd5ca" type="bar" />
+        <TrendChart title="Words Seen" data={data.activity.words} color="#8bd5ca" type="bar" />
         <TrendChart title="Sessions" data={data.activity.sessions} color="#b7bdf8" type="bar" />
 
         <SectionHeader>Period Trends</SectionHeader>
@@ -194,7 +194,7 @@ export function TrendsTab() {
           type="line"
         />
         <TrendChart title="Sessions" data={data.progress.sessions} color="#b7bdf8" type="line" />
-        <TrendChart title="Tokens Seen" data={data.progress.words} color="#8bd5ca" type="line" />
+        <TrendChart title="Words Seen" data={data.progress.words} color="#8bd5ca" type="line" />
         <TrendChart
           title="New Words Seen"
           data={data.progress.newWords}
@@ -215,7 +215,7 @@ export function TrendsTab() {
         />
         <TrendChart title="Lookups" data={data.progress.lookups} color="#f5bde6" type="line" />
         <TrendChart
-          title="Lookups / 100 Tokens"
+          title="Lookups / 100 Words"
           data={data.ratios.lookupsPerHundred}
           color="#f5a97f"
           type="line"
@@ -246,7 +246,7 @@ export function TrendsTab() {
           data={filteredCardsPerAnime}
           colorPalette={cardsMinedStackedColors}
         />
-        <StackedTrendChart title="Tokens Seen per Anime" data={filteredWordsPerAnime} />
+        <StackedTrendChart title="Words Seen per Anime" data={filteredWordsPerAnime} />
         <StackedTrendChart title="Lookups per Anime" data={filteredLookupsPerAnime} />
         <StackedTrendChart
           title="Lookups/100w per Anime"
@@ -261,7 +261,7 @@ export function TrendsTab() {
           data={filteredCardsProgress}
           colorPalette={cardsMinedStackedColors}
         />
-        <StackedTrendChart title="Tokens Seen Progress" data={filteredWordsProgress} />
+        <StackedTrendChart title="Words Seen Progress" data={filteredWordsProgress} />
 
         <SectionHeader>Patterns</SectionHeader>
         <TrendChart
