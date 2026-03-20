@@ -44,6 +44,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
     ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
     syncImmersionMediaState: () => calls.push('sync-immersion'),
+    flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
 
     updateCurrentMediaTitle: (title) => calls.push(`media-title:${title}`),
     resetAnilistMediaGuessState: () => calls.push('reset-guess-state'),
@@ -86,4 +87,6 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   assert.ok(calls.includes('progress:normal'));
   assert.ok(calls.includes('progress:force'));
   assert.ok(calls.includes('presence-refresh'));
+  assert.ok(calls.includes('sync-immersion'));
+  assert.ok(calls.includes('flush-playback'));
 });

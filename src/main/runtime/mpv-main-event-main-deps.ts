@@ -4,7 +4,14 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   appState: {
     initialArgs?: { jellyfinPlay?: unknown } | null;
     overlayRuntimeInitialized: boolean;
-    mpvClient: { connected?: boolean; currentSecondarySubText?: string } | null;
+    mpvClient:
+      | {
+          connected?: boolean;
+          currentSecondarySubText?: string;
+          currentTimePos?: number;
+          requestProperty?: (name: string) => Promise<unknown>;
+        }
+      | null;
     immersionTracker: {
       recordSubtitleLine?: (
         text: string,
@@ -21,6 +28,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     subtitleTimingTracker: {
       recordSubtitle?: (text: string, start: number, end: number) => void;
     } | null;
+    currentMediaPath?: string | null;
     currentSubText: string;
     currentSubAssText: string;
     currentSubtitleData?: SubtitleData | null;
@@ -58,6 +66,15 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   ensureImmersionTrackerInitialized: () => void;
   tokenizeSubtitleForImmersion?: (text: string) => Promise<SubtitleData | null>;
 }) {
+  const writePlaybackPositionFromMpv = (timeSec: unknown): void => {
+    const normalizedTimeSec = Number(timeSec);
+    if (!Number.isFinite(normalizedTimeSec)) {
+      return;
+    }
+    deps.ensureImmersionTrackerInitialized();
+    deps.appState.immersionTracker?.recordPlaybackPosition?.(normalizedTimeSec);
+  };
+
   return () => ({
     reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
     syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
@@ -160,6 +177,25 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       deps.appState.playbackPaused = paused;
       deps.ensureImmersionTrackerInitialized();
       deps.appState.immersionTracker?.recordPauseState?.(paused);
+    },
+    flushPlaybackPositionOnMediaPathClear: (mediaPath: string) => {
+      const mpvClient = deps.appState.mpvClient;
+      const currentKnownTime = Number(mpvClient?.currentTimePos);
+      writePlaybackPositionFromMpv(currentKnownTime);
+      if (!mpvClient?.requestProperty) {
+        return;
+      }
+      void mpvClient.requestProperty('time-pos').then((timePos) => {
+        const currentPath = (deps.appState.currentMediaPath ?? '').trim();
+        if (currentPath.length > 0 && currentPath !== mediaPath) {
+          return;
+        }
+        const resolvedTime = Number(timePos);
+        if (Number.isFinite(currentKnownTime) && Number.isFinite(resolvedTime) && currentKnownTime === resolvedTime) {
+          return;
+        }
+        writePlaybackPositionFromMpv(resolvedTime);
+      });
     },
     updateSubtitleRenderMetrics: (patch: Record<string, unknown>) =>
       deps.updateSubtitleRenderMetrics(patch),

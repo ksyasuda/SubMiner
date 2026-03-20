@@ -53,10 +53,14 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
   syncImmersionMediaState: () => void;
   scheduleCharacterDictionarySync?: () => void;
   signalAutoplayReadyIfWarm?: (path: string) => void;
+  flushPlaybackPositionOnMediaPathClear?: (mediaPath: string) => void;
   refreshDiscordPresence: () => void;
 }) {
   return ({ path }: { path: string | null }): void => {
     const normalizedPath = typeof path === 'string' ? path : '';
+    if (!normalizedPath) {
+      deps.flushPlaybackPositionOnMediaPathClear?.(normalizedPath);
+    }
     deps.updateCurrentMediaPath(normalizedPath);
     if (!normalizedPath) {
       deps.reportJellyfinRemoteStopped();

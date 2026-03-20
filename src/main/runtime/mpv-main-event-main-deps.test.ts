@@ -7,7 +7,11 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   const appState = {
     initialArgs: { jellyfinPlay: true },
     overlayRuntimeInitialized: true,
-    mpvClient: { connected: true },
+    mpvClient: {
+      connected: true,
+      currentTimePos: 12.25,
+      requestProperty: async () => 18.75,
+    },
     immersionTracker: {
       recordSubtitleLine: (text: string) => calls.push(`immersion-sub:${text}`),
       handleMediaTitleUpdate: (title: string) => calls.push(`immersion-title:${title}`),
@@ -92,6 +96,8 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.recordPauseState(true);
   deps.updateSubtitleRenderMetrics({});
   deps.setPreviousSecondarySubVisibility(true);
+  deps.flushPlaybackPositionOnMediaPathClear?.('');
+  await Promise.resolve();
 
   assert.equal(appState.currentSubText, 'sub');
   assert.equal(appState.currentSubAssText, 'ass');
@@ -106,4 +112,6 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.ok(calls.includes('metrics'));
   assert.ok(calls.includes('presence-refresh'));
   assert.ok(calls.includes('restore-mpv-sub'));
+  assert.ok(calls.includes('immersion-time:12.25'));
+  assert.ok(calls.includes('immersion-time:18.75'));
 });

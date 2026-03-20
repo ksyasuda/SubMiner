@@ -56,6 +56,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   ensureAnilistMediaGuess: (mediaKey: string) => void;
   syncImmersionMediaState: () => void;
   signalAutoplayReadyIfWarm?: (path: string) => void;
+  flushPlaybackPositionOnMediaPathClear?: (mediaPath: string) => void;
 
   updateCurrentMediaTitle: (title: string) => void;
   resetAnilistMediaGuessState: () => void;
@@ -114,6 +115,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       maybeProbeAnilistDuration: (mediaKey) => deps.maybeProbeAnilistDuration(mediaKey),
       ensureAnilistMediaGuess: (mediaKey) => deps.ensureAnilistMediaGuess(mediaKey),
       syncImmersionMediaState: () => deps.syncImmersionMediaState(),
+      flushPlaybackPositionOnMediaPathClear: (mediaPath) =>
+        deps.flushPlaybackPositionOnMediaPathClear?.(mediaPath),
       signalAutoplayReadyIfWarm: (path) => deps.signalAutoplayReadyIfWarm?.(path),
       scheduleCharacterDictionarySync: () => deps.scheduleCharacterDictionarySync?.(),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
