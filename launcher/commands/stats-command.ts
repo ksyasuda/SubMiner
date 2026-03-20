@@ -20,7 +20,10 @@ type StatsCommandDeps = {
     logLevel: LauncherCommandContext['args']['logLevel'],
     label: string,
   ) => Promise<number>;
-  waitForStatsResponse: (responsePath: string) => Promise<StatsCommandResponse>;
+  waitForStatsResponse: (
+    responsePath: string,
+    signal?: AbortSignal,
+  ) => Promise<StatsCommandResponse>;
   removeDir: (targetPath: string) => void;
 };
 
@@ -31,9 +34,15 @@ const defaultDeps: StatsCommandDeps = {
   joinPath: (...parts) => path.join(...parts),
   runAppCommandAttached: (appPath, appArgs, logLevel, label) =>
     runAppCommandAttached(appPath, appArgs, logLevel, label),
-  waitForStatsResponse: async (responsePath) => {
+  waitForStatsResponse: async (responsePath, signal) => {
     const deadline = Date.now() + STATS_STARTUP_RESPONSE_TIMEOUT_MS;
     while (Date.now() < deadline) {
+      if (signal?.aborted) {
+        return {
+          ok: false,
+          error: 'Cancelled waiting for stats dashboard startup response.',
+        };
+      }
       try {
         if (fs.existsSync(responsePath)) {
           return JSON.parse(fs.readFileSync(responsePath, 'utf8')) as StatsCommandResponse;
@@ -65,6 +74,16 @@ export async function runStatsCommand(
 
   const tempDir = resolvedDeps.createTempDir('subminer-stats-');
   const responsePath = resolvedDeps.joinPath(tempDir, 'response.json');
+
+  const createResponseWait = () => {
+    const controller = new AbortController();
+    return {
+      controller,
+      promise: resolvedDeps
+        .waitForStatsResponse(responsePath, controller.signal)
+        .then((response) => ({ kind: 'response' as const, response })),
+    };
+  };
 
   try {
     const forwarded = args.statsCleanup
@@ -102,19 +121,19 @@ export async function runStatsCommand(
     }
 
     if (!args.statsCleanup && !args.statsStop) {
+      const responseWait = createResponseWait();
       const startupResult = await Promise.race([
-        resolvedDeps
-          .waitForStatsResponse(responsePath)
-          .then((response) => ({ kind: 'response' as const, response })),
+        responseWait.promise,
         attachedExitPromise.then((status) => ({ kind: 'exit' as const, status })),
       ]);
       if (startupResult.kind === 'exit') {
         if (startupResult.status !== 0) {
+          responseWait.controller.abort();
           throw new Error(
             `Stats app exited before startup response (status ${startupResult.status}).`,
           );
         }
-        const response = await resolvedDeps.waitForStatsResponse(responsePath);
+        const response = await responseWait.promise.then((result) => result.response);
         if (!response.ok) {
           throw new Error(response.error || 'Stats dashboard failed to start.');
         }
@@ -130,20 +149,20 @@ export async function runStatsCommand(
       return true;
     }
     const attachedExitPromiseCleanup = attachedExitPromise;
+    const responseWait = createResponseWait();
 
     const startupResult = await Promise.race([
-      resolvedDeps
-        .waitForStatsResponse(responsePath)
-        .then((response) => ({ kind: 'response' as const, response })),
+      responseWait.promise,
       attachedExitPromiseCleanup.then((status) => ({ kind: 'exit' as const, status })),
     ]);
     if (startupResult.kind === 'exit') {
       if (startupResult.status !== 0) {
+        responseWait.controller.abort();
         throw new Error(
           `Stats app exited before startup response (status ${startupResult.status}).`,
         );
       }
-      const response = await resolvedDeps.waitForStatsResponse(responsePath);
+      const response = await responseWait.promise.then((result) => result.response);
       if (!response.ok) {
         throw new Error(response.error || 'Stats dashboard failed to start.');
       }

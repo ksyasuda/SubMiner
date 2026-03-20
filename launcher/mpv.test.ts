@@ -9,14 +9,44 @@ import type { Args } from './types';
 import {
   cleanupPlaybackSession,
   findAppBinary,
+  launchTexthookerOnly,
   parseMpvArgString,
   runAppCommandCaptureOutput,
   shouldResolveAniSkipMetadata,
+  stopOverlay,
   startOverlay,
   state,
   waitForUnixSocketReady,
 } from './mpv';
 import * as mpvModule from './mpv';
+
+class ExitSignal extends Error {
+  code: number;
+
+  constructor(code: number) {
+    super(`exit:${code}`);
+    this.code = code;
+  }
+}
+
+function withProcessExitIntercept(callback: () => void): ExitSignal {
+  const originalExit = process.exit;
+  try {
+    process.exit = ((code?: number) => {
+      throw new ExitSignal(code ?? 0);
+    }) as typeof process.exit;
+    callback();
+  } catch (error) {
+    if (error instanceof ExitSignal) {
+      return error;
+    }
+    throw error;
+  } finally {
+    process.exit = originalExit;
+  }
+
+  throw new Error('expected process.exit');
+}
 
 function createTempSocketPath(): { dir: string; socketPath: string } {
   const baseDir = path.join(process.cwd(), '.tmp', 'launcher-mpv-tests');
@@ -69,6 +99,44 @@ test('parseMpvArgString preserves empty quoted tokens', () => {
     '',
     '--pause',
   ]);
+});
+
+test('launchTexthookerOnly exits non-zero when app binary cannot be spawned', () => {
+  const error = withProcessExitIntercept(() => {
+    launchTexthookerOnly('/definitely-missing-subminer-binary', makeArgs());
+  });
+
+  assert.equal(error.code, 1);
+});
+
+test('stopOverlay logs a warning when stop command cannot be spawned', () => {
+  const originalWrite = process.stdout.write;
+  const writes: string[] = [];
+  const overlayProc = {
+    killed: false,
+    kill: () => true,
+  } as unknown as NonNullable<typeof state.overlayProc>;
+
+  try {
+    process.stdout.write = ((chunk: string | Uint8Array) => {
+      writes.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+      return true;
+    }) as typeof process.stdout.write;
+    state.stopRequested = false;
+    state.overlayManagedByLauncher = true;
+    state.appPath = '/definitely-missing-subminer-binary';
+    state.overlayProc = overlayProc;
+
+    stopOverlay(makeArgs({ logLevel: 'warn' }));
+
+    assert.ok(writes.some((text) => text.includes('Failed to stop SubMiner overlay')));
+  } finally {
+    process.stdout.write = originalWrite;
+    state.stopRequested = false;
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
+    state.overlayProc = null;
+  }
 });
 
 test('waitForUnixSocketReady returns false when socket never appears', async () => {

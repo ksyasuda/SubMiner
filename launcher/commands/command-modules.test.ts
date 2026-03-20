@@ -409,3 +409,61 @@ test('stats cleanup command fails if attached app exits before startup response'
     });
   }, /Stats app exited before startup response \(status 2\)\./);
 });
+
+test('stats command aborts pending response wait when app exits before startup response', async () => {
+  const context = createContext();
+  context.args.stats = true;
+  let aborted = false;
+
+  await assert.rejects(async () => {
+    await runStatsCommand(context, {
+      createTempDir: () => '/tmp/subminer-stats-test',
+      joinPath: (...parts) => parts.join('/'),
+      runAppCommandAttached: async () => 2,
+      waitForStatsResponse: async (_responsePath, signal) =>
+        await new Promise((resolve) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              aborted = true;
+              resolve({ ok: false, error: 'aborted' });
+            },
+            { once: true },
+          );
+        }),
+      removeDir: () => {},
+    });
+  }, /Stats app exited before startup response \(status 2\)\./);
+
+  assert.equal(aborted, true);
+});
+
+test('stats cleanup command aborts pending response wait when app exits before startup response', async () => {
+  const context = createContext();
+  context.args.stats = true;
+  context.args.statsCleanup = true;
+  context.args.statsCleanupVocab = true;
+  let aborted = false;
+
+  await assert.rejects(async () => {
+    await runStatsCommand(context, {
+      createTempDir: () => '/tmp/subminer-stats-test',
+      joinPath: (...parts) => parts.join('/'),
+      runAppCommandAttached: async () => 2,
+      waitForStatsResponse: async (_responsePath, signal) =>
+        await new Promise((resolve) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              aborted = true;
+              resolve({ ok: false, error: 'aborted' });
+            },
+            { once: true },
+          );
+        }),
+      removeDir: () => {},
+    });
+  }, /Stats app exited before startup response \(status 2\)\./);
+
+  assert.equal(aborted, true);
+});

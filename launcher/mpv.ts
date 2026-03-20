@@ -703,6 +703,9 @@ export function launchTexthookerOnly(appPath: string, args: Args): never {
     stdio: 'inherit',
     env: buildAppEnv(),
   });
+  if (result.error) {
+    fail(`Failed to launch texthooker mode: ${result.error.message}`);
+  }
   process.exit(result.status ?? 0);
 }
 
@@ -716,10 +719,15 @@ export function stopOverlay(args: Args): void {
     const stopArgs = ['--stop'];
     if (args.logLevel !== 'info') stopArgs.push('--log-level', args.logLevel);
 
-    spawnSync(state.appPath, stopArgs, {
+    const result = spawnSync(state.appPath, stopArgs, {
       stdio: 'ignore',
       env: buildAppEnv(),
     });
+    if (result.error) {
+      log('warn', args.logLevel, `Failed to stop SubMiner overlay: ${result.error.message}`);
+    } else if (typeof result.status === 'number' && result.status !== 0) {
+      log('warn', args.logLevel, `SubMiner overlay stop command exited with status ${result.status}`);
+    }
 
     if (state.overlayProc && !state.overlayProc.killed) {
       try {
