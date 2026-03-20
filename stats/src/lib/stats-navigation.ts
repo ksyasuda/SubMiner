@@ -95,10 +95,7 @@ export function openOverviewMediaDetail(
   };
 }
 
-export function openSessionsMediaDetail(
-  state: StatsViewState,
-  videoId: number,
-): StatsViewState {
+export function openSessionsMediaDetail(state: StatsViewState, videoId: number): StatsViewState {
   return {
     activeTab: 'sessions',
     selectedAnimeId: null,
