@@ -6,7 +6,6 @@
 - Improved stats accuracy and scale handling with Yomitan token counts, full session timelines, known-word timeline fixes, cross-media vocabulary fixes, and clearer session charts.
 - Improved overlay/runtime stability with quieter macOS fullscreen recovery, reduced repeated loading OSD popups, and better frequency/noise handling for subtitle annotations.
 - Added launcher mpv-args passthrough plus Linux plugin wrapper-name fallback for packaged installs.
-- Folded the accumulated release into the next 0-ver minor line rather than a `1.0.0` cut.
 
 ## v0.6.5 (2026-03-15)
 - Seeded the AUR checkout with the repo `.SRCINFO` template before rewriting metadata so tagged releases do not depend on prior AUR state.
