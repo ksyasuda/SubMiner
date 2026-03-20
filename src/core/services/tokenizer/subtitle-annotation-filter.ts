@@ -45,6 +45,7 @@ const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES = [
   'かな',
   'かね',
 ] as const;
+const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_THOUGHT_SUFFIXES = ['か', 'かな', 'かね'] as const;
 const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS = new Set(
   SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES.flatMap((prefix) =>
     SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES.flatMap((core) =>
@@ -256,6 +257,16 @@ function isExcludedByTerm(token: MergedToken): boolean {
     const normalized = normalizeKana(trimmed);
     if (!normalized) {
       continue;
+    }
+
+    if (
+      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES.some((prefix) =>
+        SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_THOUGHT_SUFFIXES.some(
+          (suffix) => normalized === `${prefix}${suffix}`,
+        ),
+      )
+    ) {
+      return true;
     }
 
     if (

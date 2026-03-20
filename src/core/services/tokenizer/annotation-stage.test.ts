@@ -234,6 +234,18 @@ test('shouldExcludeTokenFromSubtitleAnnotations excludes explanatory ending vari
   }
 });
 
+test('shouldExcludeTokenFromSubtitleAnnotations excludes explanatory pondering endings', () => {
+  const token = makeToken({
+    surface: 'のかな',
+    headword: 'の',
+    reading: 'ノカナ',
+    pos1: '名詞|助動詞',
+    pos2: '非自立',
+  });
+
+  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
+});
+
 test('shouldExcludeTokenFromSubtitleAnnotations excludes auxiliary-stem そうだ grammar tails', () => {
   const token = makeToken({
     surface: 'そうだ',
