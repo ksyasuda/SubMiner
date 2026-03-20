@@ -9,6 +9,7 @@ test('cli command runtime handler applies precheck and forwards command with con
       isTexthookerOnlyMode: () => true,
       setTexthookerOnlyMode: () => calls.push('set-mode'),
       commandNeedsOverlayRuntime: () => true,
+      ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
       startBackgroundWarmups: () => calls.push('warmups'),
       logInfo: (message) => calls.push(`log:${message}`),
     },
@@ -24,6 +25,7 @@ test('cli command runtime handler applies precheck and forwards command with con
   handler({ start: true } as never);
 
   assert.deepEqual(calls, [
+    'prereqs',
     'set-mode',
     'log:Disabling texthooker-only mode after overlay/start command.',
     'warmups',

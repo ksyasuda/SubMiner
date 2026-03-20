@@ -3037,10 +3037,11 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
       Boolean(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     shouldUseMinimalStartup: () =>
       Boolean(
-        appState.initialArgs?.stats &&
-          (appState.initialArgs?.statsCleanup ||
-            appState.initialArgs?.statsBackground ||
-            appState.initialArgs?.statsStop),
+        appState.initialArgs?.texthooker ||
+          (appState.initialArgs?.stats &&
+            (appState.initialArgs?.statsCleanup ||
+              appState.initialArgs?.statsBackground ||
+              appState.initialArgs?.statsStop)),
       ),
     shouldSkipHeavyStartup: () =>
       Boolean(
@@ -3130,6 +3131,39 @@ void initializeDiscordPresenceService();
 const handleCliCommand = createCliCommandRuntimeHandler({
   handleTexthookerOnlyModeTransitionMainDeps: {
     isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
+    ensureOverlayStartupPrereqs: () => {
+      if (appState.subtitlePosition === null) {
+        loadSubtitlePosition();
+      }
+      if (appState.keybindings.length === 0) {
+        appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+      }
+      if (!appState.mpvClient) {
+        appState.mpvClient = createMpvClientRuntimeService();
+      }
+      if (!appState.runtimeOptionsManager) {
+        appState.runtimeOptionsManager = new RuntimeOptionsManager(
+          () => configService.getConfig().ankiConnect,
+          {
+            applyAnkiPatch: (patch) => {
+              if (appState.ankiIntegration) {
+                appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+              }
+            },
+            getSubtitleStyleConfig: () => configService.getConfig().subtitleStyle,
+            onOptionsChanged: () => {
+              subtitleProcessingController.invalidateTokenizationCache();
+              subtitlePrefetchService?.onSeek(lastObservedTimePos);
+              broadcastRuntimeOptionsChanged();
+              refreshOverlayShortcuts();
+            },
+          },
+        );
+      }
+      if (!appState.subtitleTimingTracker) {
+        appState.subtitleTimingTracker = new SubtitleTimingTracker();
+      }
+    },
     setTexthookerOnlyMode: (enabled) => {
       appState.texthookerOnlyMode = enabled;
     },

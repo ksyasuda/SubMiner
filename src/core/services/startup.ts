@@ -200,6 +200,12 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
     return;
   }
 
+  if (deps.texthookerOnlyMode) {
+    deps.reloadConfig();
+    deps.handleInitialArgs();
+    return;
+  }
+
   if (deps.shouldUseMinimalStartup?.()) {
     deps.reloadConfig();
     deps.handleInitialArgs();
