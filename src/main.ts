@@ -315,6 +315,7 @@ import {
   createFirstRunSetupService,
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
+import { resolveAutoplayReadyMaxReleaseAttempts } from './main/runtime/startup-autoplay-release-policy';
 import {
   buildFirstRunSetupHtml,
   createMaybeFocusExistingFirstRunSetupWindowHandler,
@@ -1096,8 +1097,11 @@ function maybeSignalPluginAutoplayReady(
 
   // Fallback: repeatedly try to release pause for a short window in case startup
   // gate arming and tokenization-ready signal arrive out of order.
-  const maxReleaseAttempts = options?.forceWhilePaused === true ? 14 : 3;
   const releaseRetryDelayMs = 200;
+  const maxReleaseAttempts = resolveAutoplayReadyMaxReleaseAttempts({
+    forceWhilePaused: options?.forceWhilePaused === true,
+    retryDelayMs: releaseRetryDelayMs,
+  });
   const attemptRelease = (attempt: number): void => {
     void (async () => {
       if (

@@ -275,12 +275,6 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
       });
       currentMediaId = snapshot.mediaId;
       currentMediaTitle = snapshot.mediaTitle;
-      deps.onSyncStatus?.({
-        phase: 'syncing',
-        mediaId: snapshot.mediaId,
-        mediaTitle: snapshot.mediaTitle,
-        message: buildSyncingMessage(snapshot.mediaTitle),
-      });
       const state = readAutoSyncState(statePath);
       const nextActiveMediaIds = [
         {
@@ -360,7 +354,17 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
           );
         }
         if (merged === null) {
-          merged = await deps.buildMergedDictionary(nextActiveMediaIdValues);
+          const existingMergedZipPath = path.join(dictionariesDir, 'merged.zip');
+          if (fs.existsSync(existingMergedZipPath)) {
+            merged = {
+              zipPath: existingMergedZipPath,
+              revision,
+              dictionaryTitle,
+              entryCount: snapshot.entryCount,
+            };
+          } else {
+            merged = await deps.buildMergedDictionary(nextActiveMediaIdValues);
+          }
         }
         deps.logInfo?.(`[dictionary:auto-sync] importing merged dictionary: ${merged.zipPath}`);
         const imported = await withOperationTimeout(

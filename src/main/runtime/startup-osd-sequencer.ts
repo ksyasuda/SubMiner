@@ -25,6 +25,9 @@ export function createStartupOsdSequencer(deps: { showOsd: (message: string) => 
       return false;
     }
     if (pendingDictionaryProgress) {
+      if (dictionaryProgressShown) {
+        return true;
+      }
       deps.showOsd(pendingDictionaryProgress.message);
       dictionaryProgressShown = true;
       return true;
@@ -82,6 +85,9 @@ export function createStartupOsdSequencer(deps: { showOsd: (message: string) => 
         pendingDictionaryProgress = event;
         pendingDictionaryFailure = null;
         if (canShowDictionaryStatus()) {
+          deps.showOsd(event.message);
+          dictionaryProgressShown = true;
+        } else if (tokenizationReady) {
           deps.showOsd(event.message);
           dictionaryProgressShown = true;
         }
