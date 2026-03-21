@@ -4,6 +4,7 @@ import type {
   SubtitleSidebarSnapshot,
 } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 
 const MANUAL_SCROLL_HOLD_MS = 1500;
 const ACTIVE_CUE_LOOKAHEAD_SEC = 0.18;
@@ -11,7 +12,6 @@ const CLICK_SEEK_OFFSET_SEC = 0.08;
 const SNAPSHOT_POLL_INTERVAL_MS = 80;
 const EMBEDDED_SIDEBAR_MIN_WIDTH_PX = 240;
 const EMBEDDED_SIDEBAR_MAX_RATIO = 0.45;
-
 function subtitleCueListsEqual(a: SubtitleCue[], b: SubtitleCue[]): boolean {
   if (a.length !== b.length) {
     return false;
@@ -107,7 +107,10 @@ export function findActiveSubtitleCueIndex(
       if (forwardMatches.length > 0) {
         return forwardMatches[0]!;
       }
-      return preferredCueIndex;
+      if (matchingIndices.includes(preferredCueIndex)) {
+        return preferredCueIndex;
+      }
+      return matchingIndices[matchingIndices.length - 1] ?? -1;
     }
 
     let nearestIndex = matchingIndices[0]!;
@@ -131,8 +134,13 @@ export function createSubtitleSidebarModal(
     modalStateReader: Pick<ModalStateReader, 'isAnyModalOpen'>;
   },
 ) {
-  let snapshotPollInterval: ReturnType<typeof setInterval> | null = null;
+  let snapshotPollInterval: ReturnType<typeof setTimeout> | null = null;
   let lastAppliedVideoMarginRatio: number | null = null;
+  let subtitleSidebarHoverRequestId = 0;
+
+  function restoreEmbeddedSidebarPassthrough(): void {
+    syncOverlayMouseIgnoreState(ctx);
+  }
 
   function setStatus(message: string): void {
     ctx.dom.subtitleSidebarStatus.textContent = message;
@@ -190,6 +198,26 @@ export function createSubtitleSidebarModal(
       'video-margin-ratio-right',
       Number(ratio.toFixed(4)),
     ]);
+    window.electronAPI.sendMpvCommand([
+      'set_property',
+      'osd-align-x',
+      'left',
+    ]);
+    window.electronAPI.sendMpvCommand([
+      'set_property',
+      'osd-align-y',
+      'top',
+    ]);
+    window.electronAPI.sendMpvCommand([
+      'set_property',
+      'user-data/osc/margins',
+      JSON.stringify({
+        l: 0,
+        r: Number(ratio.toFixed(4)),
+        t: 0,
+        b: 0,
+      }),
+    ]);
     if (ratio === 0) {
       window.electronAPI.sendMpvCommand(['set_property', 'video-pan-x', 0]);
     }
@@ -228,6 +256,22 @@ export function createSubtitleSidebarModal(
     ]);
   }
 
+  function getCueRowLabel(cue: SubtitleCue): string {
+    return `Jump to subtitle at ${formatCueTimestamp(cue.startTime)}`;
+  }
+
+  function resumeSubtitleSidebarHoverPause(): void {
+    subtitleSidebarHoverRequestId += 1;
+    if (!ctx.state.subtitleSidebarPausedByHover) {
+      restoreEmbeddedSidebarPassthrough();
+      return;
+    }
+
+    ctx.state.subtitleSidebarPausedByHover = false;
+    window.electronAPI.sendMpvCommand(['set_property', 'pause', 'no']);
+    restoreEmbeddedSidebarPassthrough();
+  }
+
   function maybeAutoScrollActiveCue(
     previousActiveCueIndex: number,
     behavior: ScrollBehavior = 'smooth',
@@ -250,8 +294,14 @@ export function createSubtitleSidebarModal(
 
     const targetScrollTop =
       active.offsetTop - (list.clientHeight - active.clientHeight) / 2;
+    const nextScrollTop = Math.max(0, targetScrollTop);
+    if (previousActiveCueIndex < 0) {
+      list.scrollTop = nextScrollTop;
+      return;
+    }
+
     list.scrollTo({
-      top: Math.max(0, targetScrollTop),
+      top: nextScrollTop,
       behavior,
     });
   }
@@ -263,6 +313,16 @@ export function createSubtitleSidebarModal(
       row.className = 'subtitle-sidebar-item';
       row.classList.toggle('active', index === ctx.state.subtitleSidebarActiveCueIndex);
       row.dataset.index = String(index);
+      row.tabIndex = 0;
+      row.setAttribute('role', 'button');
+      row.setAttribute('aria-label', getCueRowLabel(cue));
+      row.addEventListener('keydown', (event: KeyboardEvent) => {
+        if (event.key !== 'Enter' && event.key !== ' ') {
+          return;
+        }
+        event.preventDefault();
+        seekToCue(cue);
+      });
 
       const timestamp = document.createElement('div');
       timestamp.className = 'subtitle-sidebar-timestamp';
@@ -315,6 +375,23 @@ export function createSubtitleSidebarModal(
   async function refreshSnapshot(): Promise<SubtitleSidebarSnapshot> {
     const snapshot = await window.electronAPI.getSubtitleSidebarSnapshot();
     applyConfig(snapshot);
+    if (!snapshot.config.enabled) {
+      resumeSubtitleSidebarHoverPause();
+      ctx.state.subtitleSidebarCues = [];
+      ctx.state.subtitleSidebarModalOpen = false;
+      ctx.dom.subtitleSidebarModal.classList.add('hidden');
+      ctx.dom.subtitleSidebarModal.setAttribute('aria-hidden', 'true');
+      stopSnapshotPolling();
+      updateActiveCue(null, snapshot.currentTimeSec ?? null);
+      setStatus('Subtitle sidebar disabled in config.');
+      syncEmbeddedSidebarLayout();
+      if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
+        ctx.dom.overlay.classList.remove('interactive');
+      }
+      restoreEmbeddedSidebarPassthrough();
+      return snapshot;
+    }
+
     const cuesChanged = !subtitleCueListsEqual(ctx.state.subtitleSidebarCues, snapshot.cues);
     if (cuesChanged) {
       ctx.state.subtitleSidebarCues = snapshot.cues;
@@ -328,34 +405,50 @@ export function createSubtitleSidebarModal(
   }
 
   function startSnapshotPolling(): void {
-    if (snapshotPollInterval) {
-      clearInterval(snapshotPollInterval);
-    }
-    snapshotPollInterval = setInterval(() => {
-      void refreshSnapshot();
-    }, SNAPSHOT_POLL_INTERVAL_MS);
+    stopSnapshotPolling();
+
+    const pollOnce = async (): Promise<void> => {
+      try {
+        await refreshSnapshot();
+      } catch {
+        // Keep polling; a transient IPC failure should not stop updates.
+      }
+
+      if (!ctx.state.subtitleSidebarModalOpen) {
+        snapshotPollInterval = null;
+        return;
+      }
+
+      snapshotPollInterval = setTimeout(pollOnce, SNAPSHOT_POLL_INTERVAL_MS);
+    };
+
+    snapshotPollInterval = setTimeout(pollOnce, SNAPSHOT_POLL_INTERVAL_MS);
   }
 
   function stopSnapshotPolling(): void {
     if (!snapshotPollInterval) {
       return;
     }
-    clearInterval(snapshotPollInterval);
+    clearTimeout(snapshotPollInterval);
     snapshotPollInterval = null;
   }
 
   async function openSubtitleSidebarModal(): Promise<void> {
     const snapshot = await refreshSnapshot();
-    ctx.dom.subtitleSidebarList.innerHTML = '';
     if (!snapshot.config.enabled) {
       setStatus('Subtitle sidebar disabled in config.');
-    } else if (snapshot.cues.length === 0) {
+      return;
+    }
+
+    ctx.dom.subtitleSidebarList.innerHTML = '';
+    if (snapshot.cues.length === 0) {
       setStatus('No parsed subtitle cues available.');
     } else {
       setStatus(`${snapshot.cues.length} parsed subtitle lines`);
     }
 
     ctx.state.subtitleSidebarModalOpen = true;
+    ctx.state.isOverSubtitleSidebar = false;
     ctx.dom.subtitleSidebarModal.classList.remove('hidden');
     ctx.dom.subtitleSidebarModal.setAttribute('aria-hidden', 'false');
     renderCueList();
@@ -363,12 +456,23 @@ export function createSubtitleSidebarModal(
     maybeAutoScrollActiveCue(-1, 'auto', true);
     startSnapshotPolling();
     syncEmbeddedSidebarLayout();
+    restoreEmbeddedSidebarPassthrough();
+  }
+
+  async function autoOpenSubtitleSidebarOnStartup(): Promise<void> {
+    const snapshot = await refreshSnapshot();
+    if (!snapshot.config.enabled || !snapshot.config.autoOpen || ctx.state.subtitleSidebarModalOpen) {
+      return;
+    }
+    await openSubtitleSidebarModal();
   }
 
   function closeSubtitleSidebarModal(): void {
     if (!ctx.state.subtitleSidebarModalOpen) {
       return;
     }
+    resumeSubtitleSidebarHoverPause();
+    ctx.state.isOverSubtitleSidebar = false;
     ctx.state.subtitleSidebarModalOpen = false;
     ctx.dom.subtitleSidebarModal.classList.add('hidden');
     ctx.dom.subtitleSidebarModal.setAttribute('aria-hidden', 'true');
@@ -377,6 +481,7 @@ export function createSubtitleSidebarModal(
     if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
       ctx.dom.overlay.classList.remove('interactive');
     }
+    restoreEmbeddedSidebarPassthrough();
   }
 
   async function toggleSubtitleSidebarModal(): Promise<void> {
@@ -425,21 +530,29 @@ export function createSubtitleSidebarModal(
       ctx.state.subtitleSidebarManualScrollUntilMs = Date.now() + MANUAL_SCROLL_HOLD_MS;
     });
     ctx.dom.subtitleSidebarModal.addEventListener('mouseenter', async () => {
+      ctx.state.isOverSubtitleSidebar = true;
+      restoreEmbeddedSidebarPassthrough();
       if (!ctx.state.subtitleSidebarPauseVideoOnHover || ctx.state.subtitleSidebarPausedByHover) {
         return;
       }
-      const paused = await window.electronAPI.getPlaybackPaused();
+      const requestId = ++subtitleSidebarHoverRequestId;
+      let paused: boolean | null | undefined;
+      try {
+        paused = await window.electronAPI.getPlaybackPaused();
+      } catch {
+        paused = undefined;
+      }
+      if (requestId !== subtitleSidebarHoverRequestId) {
+        return;
+      }
       if (paused === false) {
         window.electronAPI.sendMpvCommand(['set_property', 'pause', 'yes']);
         ctx.state.subtitleSidebarPausedByHover = true;
       }
     });
     ctx.dom.subtitleSidebarModal.addEventListener('mouseleave', () => {
-      if (!ctx.state.subtitleSidebarPausedByHover) {
-        return;
-      }
-      ctx.state.subtitleSidebarPausedByHover = false;
-      window.electronAPI.sendMpvCommand(['set_property', 'pause', 'no']);
+      ctx.state.isOverSubtitleSidebar = false;
+      resumeSubtitleSidebarHoverPause();
     });
     window.addEventListener('resize', () => {
       if (!ctx.state.subtitleSidebarModalOpen) {
@@ -450,6 +563,7 @@ export function createSubtitleSidebarModal(
   }
 
   return {
+    autoOpenSubtitleSidebarOnStartup,
     openSubtitleSidebarModal,
     closeSubtitleSidebarModal,
     toggleSubtitleSidebarModal,

@@ -3,6 +3,7 @@ import { ResolveContext } from './context';
 import {
   asBoolean,
   asColor,
+  asCssColor,
   asFrequencyBandedColors,
   asNumber,
   asString,
@@ -439,6 +440,19 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       );
     }
 
+    const autoOpen = asBoolean((src.subtitleSidebar as { autoOpen?: unknown }).autoOpen);
+    if (autoOpen !== undefined) {
+      resolved.subtitleSidebar.autoOpen = autoOpen;
+    } else if ((src.subtitleSidebar as { autoOpen?: unknown }).autoOpen !== undefined) {
+      resolved.subtitleSidebar.autoOpen = fallback.autoOpen;
+      warn(
+        'subtitleSidebar.autoOpen',
+        (src.subtitleSidebar as { autoOpen?: unknown }).autoOpen,
+        resolved.subtitleSidebar.autoOpen,
+        'Expected boolean.',
+      );
+    }
+
     const layout = asString((src.subtitleSidebar as { layout?: unknown }).layout);
     if (layout === 'overlay' || layout === 'embedded') {
       resolved.subtitleSidebar.layout = layout;
@@ -507,7 +521,7 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     }
 
     const opacity = asNumber((src.subtitleSidebar as { opacity?: unknown }).opacity);
-    if (opacity !== undefined && opacity > 0 && opacity <= 1) {
+    if (opacity !== undefined && opacity >= 0 && opacity <= 1) {
       resolved.subtitleSidebar.opacity = opacity;
     } else if ((src.subtitleSidebar as { opacity?: unknown }).opacity !== undefined) {
       resolved.subtitleSidebar.opacity = fallback.opacity;
@@ -541,16 +555,16 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       'hoverLineBackgroundColor',
     ] as const;
     for (const field of cssColorFields) {
-      const value = asString((src.subtitleSidebar as Record<string, unknown>)[field]);
-      if (value !== undefined && value.trim().length > 0) {
-        resolved.subtitleSidebar[field] = value.trim();
+      const value = asCssColor((src.subtitleSidebar as Record<string, unknown>)[field]);
+      if (value !== undefined) {
+        resolved.subtitleSidebar[field] = value;
       } else if ((src.subtitleSidebar as Record<string, unknown>)[field] !== undefined) {
         resolved.subtitleSidebar[field] = fallback[field];
         warn(
           `subtitleSidebar.${field}`,
           (src.subtitleSidebar as Record<string, unknown>)[field],
           resolved.subtitleSidebar[field],
-          'Expected string.',
+          'Expected valid CSS color.',
         );
       }
     }
