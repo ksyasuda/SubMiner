@@ -19,9 +19,8 @@ export function getActiveExternalSubtitleSource(
     return null;
   }
 
-  const sid =
-    typeof sidRaw === 'number' ? sidRaw : typeof sidRaw === 'string' ? Number(sidRaw) : null;
-  if (sid == null || !Number.isFinite(sid)) {
+  const sid = parseTrackId(sidRaw);
+  if (sid === null) {
     return null;
   }
 
@@ -30,7 +29,7 @@ export function getActiveExternalSubtitleSource(
       return false;
     }
     const track = entry as Record<string, unknown>;
-    return track.type === 'sub' && track.id === sid;
+    return track.type === 'sub' && parseTrackId(track.id) === sid && track.external === true;
   }) as Record<string, unknown> | undefined;
 
   const externalFilename =

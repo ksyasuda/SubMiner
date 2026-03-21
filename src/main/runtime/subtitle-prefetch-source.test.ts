@@ -18,6 +18,15 @@ test('getActiveExternalSubtitleSource returns the active external subtitle path'
   assert.equal(source, 'https://host/subs.ass');
 });
 
+test('getActiveExternalSubtitleSource normalizes integer-like string track ids', () => {
+  const source = getActiveExternalSubtitleSource(
+    [{ type: 'sub', id: '2', external: true, 'external-filename': ' /tmp/subs.ass ' }],
+    '2',
+  );
+
+  assert.equal(source, '/tmp/subs.ass');
+});
+
 test('getActiveExternalSubtitleSource returns null when the selected track is not external', () => {
   const source = getActiveExternalSubtitleSource(
     [{ type: 'sub', id: 2, external: false, 'external-filename': '/tmp/subs.ass' }],
@@ -68,6 +77,15 @@ test('buildSubtitleSidebarSourceKey uses a stable identifier for internal subtit
 
   assert.equal(firstKey, secondKey);
   assert.equal(firstKey, 'internal:/media/episode01.mkv:track:3:ff:7');
+});
+
+test('buildSubtitleSidebarSourceKey normalizes integer-like string track metadata', () => {
+  const key = buildSubtitleSidebarSourceKey('/media/episode01.mkv', {
+    id: '3',
+    'ff-index': '7',
+  });
+
+  assert.equal(key, 'internal:/media/episode01.mkv:track:3:ff:7');
 });
 
 test('buildSubtitleSidebarSourceKey falls back to source path when no track metadata is available', () => {

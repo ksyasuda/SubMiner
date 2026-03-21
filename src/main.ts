@@ -4056,7 +4056,7 @@ async function extractInternalSubtitleTrackToTempFile(
   videoPath: string,
   track: MpvSubtitleTrackLike,
 ): Promise<{ path: string; cleanup: () => Promise<void> } | null> {
-  const ffIndex = typeof track['ff-index'] === 'number' ? track['ff-index'] : null;
+  const ffIndex = parseTrackId(track['ff-index']);
   const codec = typeof track.codec === 'string' ? track.codec : null;
   const extension = codecToExtension(codec ?? undefined);
   if (ffIndex === null || extension === null) {
@@ -4066,23 +4066,31 @@ async function extractInternalSubtitleTrackToTempFile(
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'subminer-sidebar-'));
   const outputPath = path.join(tempDir, `track_${ffIndex}.${extension}`);
 
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(ffmpegPath, buildFfmpegSubtitleExtractionArgs(videoPath, ffIndex, outputPath));
-    let stderr = '';
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(
+        ffmpegPath,
+        buildFfmpegSubtitleExtractionArgs(videoPath, ffIndex, outputPath),
+      );
+      let stderr = '';
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+      child.on('error', (error) => {
+        reject(error);
+      });
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(new Error(stderr.trim() || `ffmpeg exited with code ${code ?? 'unknown'}`));
+      });
     });
-    child.on('error', (error) => {
-      reject(error);
-    });
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      reject(new Error(stderr.trim() || `ffmpeg exited with code ${code ?? 'unknown'}`));
-    });
-  });
+  } catch (error) {
+    await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
 
   return {
     path: outputPath,
@@ -4245,10 +4253,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             };
           }
 
-          if (
-            appState.activeParsedSubtitleCues.length > 0 &&
-            appState.activeParsedSubtitleSource === resolvedSource.sourceKey
-          ) {
+          if (appState.activeParsedSubtitleSource === resolvedSource.sourceKey) {
             return {
               cues: appState.activeParsedSubtitleCues,
               currentTimeSec,

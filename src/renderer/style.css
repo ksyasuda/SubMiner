@@ -726,7 +726,6 @@ body.subtitle-sidebar-embedded-open #secondarySubContainer {
   position: absolute;
   top: 40px;
   left: 50%;
-  transform: translateX(-50%);
   max-width: min(80%, calc(100vw - var(--subtitle-sidebar-reserved-width) - 24px));
   padding: 10px 18px;
   background: var(--secondary-sub-background-color, transparent);
