@@ -46,6 +46,7 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
   updateCurrentMediaPath: (path: string) => void;
   reportJellyfinRemoteStopped: () => void;
   restoreMpvSubVisibility: () => void;
+  resetSubtitleSidebarEmbeddedLayout: () => void;
   getCurrentAnilistMediaKey: () => string | null;
   resetAnilistMediaTracking: (mediaKey: string | null) => void;
   maybeProbeAnilistDuration: (mediaKey: string) => void;
@@ -62,6 +63,7 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
       deps.flushPlaybackPositionOnMediaPathClear?.(normalizedPath);
     }
     deps.updateCurrentMediaPath(normalizedPath);
+    deps.resetSubtitleSidebarEmbeddedLayout();
     if (!normalizedPath) {
       deps.reportJellyfinRemoteStopped();
       deps.restoreMpvSubVisibility();

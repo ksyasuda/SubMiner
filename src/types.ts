@@ -364,6 +364,32 @@ export interface ResolvedTokenPos2ExclusionConfig {
 
 export type FrequencyDictionaryMode = 'single' | 'banded';
 
+export interface SubtitleCue {
+  startTime: number;
+  endTime: number;
+  text: string;
+}
+
+export type SubtitleSidebarLayout = 'overlay' | 'embedded';
+
+export interface SubtitleSidebarConfig {
+  enabled?: boolean;
+  layout?: SubtitleSidebarLayout;
+  toggleKey?: string;
+  pauseVideoOnHover?: boolean;
+  autoScroll?: boolean;
+  maxWidth?: number;
+  opacity?: number;
+  backgroundColor?: string;
+  textColor?: string;
+  fontFamily?: string;
+  fontSize?: number;
+  timestampColor?: string;
+  activeLineColor?: string;
+  activeLineBackgroundColor?: string;
+  hoverLineBackgroundColor?: string;
+}
+
 export interface ShortcutsConfig {
   toggleVisibleOverlayGlobal?: string | null;
   copySubtitle?: string | null;
@@ -675,6 +701,7 @@ export interface Config {
   subsync?: SubsyncConfig;
   startupWarmups?: StartupWarmupsConfig;
   subtitleStyle?: SubtitleStyleConfig;
+  subtitleSidebar?: SubtitleSidebarConfig;
   auto_start_overlay?: boolean;
   jimaku?: JimakuConfig;
   anilist?: AnilistConfig;
@@ -807,6 +834,7 @@ export interface ResolvedConfig {
       bandedColors: [string, string, string, string, string];
     };
   };
+  subtitleSidebar: Required<SubtitleSidebarConfig>;
   auto_start_overlay: boolean;
   jimaku: JimakuConfig & {
     apiBaseUrl: string;
@@ -939,6 +967,19 @@ export interface ClipboardAppendResult {
 export interface SubtitleData {
   text: string;
   tokens: MergedToken[] | null;
+  startTime?: number | null;
+  endTime?: number | null;
+}
+
+export interface SubtitleSidebarSnapshot {
+  cues: SubtitleCue[];
+  currentTimeSec?: number | null;
+  currentSubtitle: {
+    text: string;
+    startTime: number | null;
+    endTime: number | null;
+  };
+  config: Required<SubtitleSidebarConfig>;
 }
 
 export interface MpvSubtitleRenderMetrics {
@@ -1057,6 +1098,7 @@ export type JimakuDownloadResult =
 export interface ConfigHotReloadPayload {
   keybindings: Keybinding[];
   subtitleStyle: SubtitleStyleConfig | null;
+  subtitleSidebar: Required<SubtitleSidebarConfig>;
   secondarySubMode: SecondarySubMode;
 }
 
@@ -1075,6 +1117,7 @@ export interface ElectronAPI {
   getCurrentSubtitle: () => Promise<SubtitleData>;
   getCurrentSubtitleRaw: () => Promise<string>;
   getCurrentSubtitleAss: () => Promise<string>;
+  getSubtitleSidebarSnapshot: () => Promise<SubtitleSidebarSnapshot>;
   getPlaybackPaused: () => Promise<boolean | null>;
   onSubtitleAss: (callback: (assText: string) => void) => void;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
@@ -1134,7 +1177,8 @@ export interface ElectronAPI {
       | 'jimaku'
       | 'kiku'
       | 'controller-select'
-      | 'controller-debug',
+      | 'controller-debug'
+      | 'subtitle-sidebar',
   ) => void;
   notifyOverlayModalOpened: (
     modal:
@@ -1143,7 +1187,8 @@ export interface ElectronAPI {
       | 'jimaku'
       | 'kiku'
       | 'controller-select'
-      | 'controller-debug',
+      | 'controller-debug'
+      | 'subtitle-sidebar',
   ) => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;

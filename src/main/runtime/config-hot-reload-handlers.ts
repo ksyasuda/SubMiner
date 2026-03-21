@@ -36,6 +36,7 @@ export function buildConfigHotReloadPayload(config: ResolvedConfig): ConfigHotRe
   return {
     keybindings: resolveKeybindings(config, DEFAULT_KEYBINDINGS),
     subtitleStyle: resolveSubtitleStyleForRenderer(config),
+    subtitleSidebar: config.subtitleSidebar,
     secondarySubMode: config.secondarySub.defaultMode,
   };
 }

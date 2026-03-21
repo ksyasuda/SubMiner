@@ -21,6 +21,7 @@ type MpvEventClient = Parameters<ReturnType<typeof createBindMpvClientEventHandl
 export function createBindMpvMainEventHandlersHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
   syncOverlayMpvSubtitleSuppression: () => void;
+  resetSubtitleSidebarEmbeddedLayout: () => void;
   scheduleCharacterDictionarySync?: () => void;
   hasInitialJellyfinPlayArg: () => boolean;
   isOverlayRuntimeInitialized: () => boolean;
@@ -83,6 +84,12 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       isMpvConnected: () => deps.isMpvConnected(),
       quitApp: () => deps.quitApp(),
     });
+    const handleMpvConnectionChangeWithSidebarReset = ({ connected }: { connected: boolean }): void => {
+      if (connected) {
+        deps.resetSubtitleSidebarEmbeddedLayout();
+      }
+      handleMpvConnectionChange({ connected });
+    };
     const handleMpvSubtitleTiming = createHandleMpvSubtitleTimingHandler({
       recordImmersionSubtitleLine: (text, start, end) =>
         deps.recordImmersionSubtitleLine(text, start, end),
@@ -110,6 +117,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       updateCurrentMediaPath: (path) => deps.updateCurrentMediaPath(path),
       reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
       restoreMpvSubVisibility: () => deps.restoreMpvSubVisibility(),
+      resetSubtitleSidebarEmbeddedLayout: () => deps.resetSubtitleSidebarEmbeddedLayout(),
       getCurrentAnilistMediaKey: () => deps.getCurrentAnilistMediaKey(),
       resetAnilistMediaTracking: (mediaKey) => deps.resetAnilistMediaTracking(mediaKey),
       maybeProbeAnilistDuration: (mediaKey) => deps.maybeProbeAnilistDuration(mediaKey),
@@ -150,7 +158,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
     });
 
     createBindMpvClientEventHandlers({
-      onConnectionChange: handleMpvConnectionChange,
+      onConnectionChange: handleMpvConnectionChangeWithSidebarReset,
       onSubtitleChange: handleMpvSubtitleChange,
       onSubtitleAssChange: handleMpvSubtitleAssChange,
       onSecondarySubtitleChange: handleMpvSecondarySubtitleChange,

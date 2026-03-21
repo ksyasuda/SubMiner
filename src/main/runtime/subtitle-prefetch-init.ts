@@ -16,11 +16,16 @@ export interface SubtitlePrefetchInitControllerDeps {
   isCacheFull: () => boolean;
   logInfo: (message: string) => void;
   logWarn: (message: string) => void;
+  onParsedSubtitleCuesChanged?: (cues: SubtitleCue[] | null, sourceKey: string | null) => void;
 }
 
 export interface SubtitlePrefetchInitController {
   cancelPendingInit: () => void;
-  initSubtitlePrefetch: (externalFilename: string, currentTimePos: number) => Promise<void>;
+  initSubtitlePrefetch: (
+    sourcePath: string,
+    currentTimePos: number,
+    sourceKey?: string,
+  ) => Promise<void>;
 }
 
 export function createSubtitlePrefetchInitController(
@@ -32,24 +37,29 @@ export function createSubtitlePrefetchInitController(
     initRevision += 1;
     deps.getCurrentService()?.stop();
     deps.setCurrentService(null);
+    deps.onParsedSubtitleCuesChanged?.(null, null);
   };
 
   const initSubtitlePrefetch = async (
-    externalFilename: string,
+    sourcePath: string,
     currentTimePos: number,
+    sourceKey = sourcePath,
   ): Promise<void> => {
     const revision = ++initRevision;
     deps.getCurrentService()?.stop();
     deps.setCurrentService(null);
 
     try {
-      const content = await deps.loadSubtitleSourceText(externalFilename);
+      const content = await deps.loadSubtitleSourceText(sourcePath);
       if (revision !== initRevision) {
         return;
       }
 
-      const cues = deps.parseSubtitleCues(content, externalFilename);
+      const cues = deps.parseSubtitleCues(content, sourcePath);
       if (revision !== initRevision || cues.length === 0) {
+        if (revision === initRevision) {
+          deps.onParsedSubtitleCuesChanged?.(null, null);
+        }
         return;
       }
 
@@ -65,9 +75,10 @@ export function createSubtitlePrefetchInitController(
       }
 
       deps.setCurrentService(nextService);
+      deps.onParsedSubtitleCuesChanged?.(cues, sourceKey);
       nextService.start(currentTimePos);
       deps.logInfo(
-        `[subtitle-prefetch] started prefetching ${cues.length} cues from ${externalFilename}`,
+        `[subtitle-prefetch] started prefetching ${cues.length} cues from ${sourcePath}`,
       );
     } catch (error) {
       if (revision === initRevision) {

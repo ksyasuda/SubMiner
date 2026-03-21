@@ -34,6 +34,7 @@ import { createControllerSelectModal } from './modals/controller-select.js';
 import { createJimakuModal } from './modals/jimaku.js';
 import { createKikuModal } from './modals/kiku.js';
 import { createSessionHelpModal } from './modals/session-help.js';
+import { createSubtitleSidebarModal } from './modals/subtitle-sidebar.js';
 import { createRuntimeOptionsModal } from './modals/runtime-options.js';
 import { createSubsyncModal } from './modals/subsync.js';
 import { createPositioningController } from './positioning.js';
@@ -78,7 +79,8 @@ function isAnyModalOpen(): boolean {
     ctx.state.kikuModalOpen ||
     ctx.state.runtimeOptionsModalOpen ||
     ctx.state.subsyncModalOpen ||
-    ctx.state.sessionHelpModalOpen
+    ctx.state.sessionHelpModalOpen ||
+    ctx.state.subtitleSidebarModalOpen
   );
 }
 
@@ -114,6 +116,9 @@ const sessionHelpModal = createSessionHelpModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const subtitleSidebarModal = createSubtitleSidebarModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+});
 const kikuModal = createKikuModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
@@ -142,6 +147,9 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   openControllerDebugModal: () => {
     controllerDebugModal.openControllerDebugModal();
     window.electronAPI.notifyOverlayModalOpened('controller-debug');
+  },
+  toggleSubtitleSidebarModal: () => {
+    void subtitleSidebarModal.toggleSubtitleSidebarModal();
   },
 });
 const mouseHandlers = createMouseHandlers(ctx, {
@@ -183,6 +191,7 @@ function getSubtitleTextForPreview(data: SubtitleData | string): string {
 function getActiveModal(): string | null {
   if (ctx.state.controllerSelectModalOpen) return 'controller-select';
   if (ctx.state.controllerDebugModalOpen) return 'controller-debug';
+  if (ctx.state.subtitleSidebarModalOpen) return 'subtitle-sidebar';
   if (ctx.state.jimakuModalOpen) return 'jimaku';
   if (ctx.state.kikuModalOpen) return 'kiku';
   if (ctx.state.runtimeOptionsModalOpen) return 'runtime-options';
@@ -197,6 +206,9 @@ function dismissActiveUiAfterError(): void {
   }
   if (ctx.state.controllerDebugModalOpen) {
     controllerDebugModal.closeControllerDebugModal();
+  }
+  if (ctx.state.subtitleSidebarModalOpen) {
+    subtitleSidebarModal.closeSubtitleSidebarModal();
   }
   if (ctx.state.jimakuModalOpen) {
     jimakuModal.closeJimakuModal();
@@ -468,6 +480,7 @@ async function init(): Promise<void> {
       lastSubtitlePreview = truncateForErrorLog(getSubtitleTextForPreview(data));
       keyboardHandlers.handleSubtitleContentUpdated();
       subtitleRenderer.renderSubtitle(data);
+      subtitleSidebarModal.handleSubtitleUpdated(data);
       measurementReporter.schedule();
     });
   });
@@ -528,6 +541,7 @@ async function init(): Promise<void> {
   controllerSelectModal.wireDomEvents();
   controllerDebugModal.wireDomEvents();
   sessionHelpModal.wireDomEvents();
+  subtitleSidebarModal.wireDomEvents();
 
   window.electronAPI.onRuntimeOptionsChanged((options: RuntimeOptionState[]) => {
     runGuarded('runtime-options:changed', () => {
@@ -539,6 +553,11 @@ async function init(): Promise<void> {
       keyboardHandlers.updateKeybindings(payload.keybindings);
       subtitleRenderer.applySubtitleStyle(payload.subtitleStyle);
       subtitleRenderer.updateSecondarySubMode(payload.secondarySubMode);
+      ctx.state.subtitleSidebarConfig = payload.subtitleSidebar;
+      ctx.state.subtitleSidebarToggleKey = payload.subtitleSidebar.toggleKey;
+      ctx.state.subtitleSidebarPauseVideoOnHover = payload.subtitleSidebar.pauseVideoOnHover;
+      ctx.state.subtitleSidebarAutoScroll = payload.subtitleSidebar.autoScroll;
+      void subtitleSidebarModal.refreshSubtitleSidebarSnapshot();
       measurementReporter.schedule();
     });
   });
@@ -555,6 +574,7 @@ async function init(): Promise<void> {
 
   const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();
   subtitleRenderer.applySubtitleStyle(initialSubtitleStyle);
+  await subtitleSidebarModal.refreshSubtitleSidebarSnapshot();
 
   positioning.applyStoredSubtitlePosition(
     await window.electronAPI.getSubtitlePosition(),

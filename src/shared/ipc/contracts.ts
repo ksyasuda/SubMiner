@@ -7,6 +7,7 @@ export const OVERLAY_HOSTED_MODALS = [
   'kiku',
   'controller-select',
   'controller-debug',
+  'subtitle-sidebar',
 ] as const;
 export type OverlayHostedModal = (typeof OVERLAY_HOSTED_MODALS)[number];
 
@@ -38,6 +39,7 @@ export const IPC_CHANNELS = {
     getCurrentSubtitle: 'get-current-subtitle',
     getCurrentSubtitleRaw: 'get-current-subtitle-raw',
     getCurrentSubtitleAss: 'get-current-subtitle-ass',
+    getSubtitleSidebarSnapshot: 'get-subtitle-sidebar-snapshot',
     getPlaybackPaused: 'get-playback-paused',
     getSubtitlePosition: 'get-subtitle-position',
     getSubtitleStyle: 'get-subtitle-style',

@@ -50,6 +50,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   onSubtitleTrackListChange?: (trackList: unknown[] | null) => void;
   updateCurrentMediaPath: (path: string) => void;
   restoreMpvSubVisibility: () => void;
+  resetSubtitleSidebarEmbeddedLayout?: () => void;
   getCurrentAnilistMediaKey: () => string | null;
   resetAnilistMediaTracking: (mediaKey: string | null) => void;
   maybeProbeAnilistDuration: (mediaKey: string) => void;
@@ -146,6 +147,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       deps.broadcastToOverlayWindows('secondary-subtitle:set', text),
     updateCurrentMediaPath: (path: string) => deps.updateCurrentMediaPath(path),
     restoreMpvSubVisibility: () => deps.restoreMpvSubVisibility(),
+    resetSubtitleSidebarEmbeddedLayout: () => deps.resetSubtitleSidebarEmbeddedLayout?.(),
     getCurrentAnilistMediaKey: () => deps.getCurrentAnilistMediaKey(),
     resetAnilistMediaTracking: (mediaKey: string | null) =>
       deps.resetAnilistMediaTracking(mediaKey),

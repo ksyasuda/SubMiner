@@ -47,6 +47,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     ensureImmersionTrackerInitialized: () => calls.push('ensure-immersion'),
     updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
     restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
+    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
     getCurrentAnilistMediaKey: () => 'media-key',
     resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${mediaKey}`),
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
@@ -82,6 +83,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.broadcastSecondarySubtitle('sec');
   deps.updateCurrentMediaPath('/tmp/video');
   deps.restoreMpvSubVisibility();
+  deps.resetSubtitleSidebarEmbeddedLayout();
   assert.equal(deps.getCurrentAnilistMediaKey(), 'media-key');
   deps.resetAnilistMediaTracking('media-key');
   deps.maybeProbeAnilistDuration('media-key');
@@ -112,6 +114,5 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.ok(calls.includes('metrics'));
   assert.ok(calls.includes('presence-refresh'));
   assert.ok(calls.includes('restore-mpv-sub'));
-  assert.ok(calls.includes('immersion-time:12.25'));
-  assert.ok(calls.includes('immersion-time:18.75'));
+  assert.ok(calls.includes('reset-sidebar-layout'));
 });

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  buildSubtitleSidebarSourceKey,
   getActiveExternalSubtitleSource,
   resolveSubtitleSourcePath,
 } from './subtitle-prefetch-source';
@@ -47,4 +48,30 @@ test('resolveSubtitleSourcePath returns the original source for malformed file U
   const source = 'file://invalid[path';
 
   assert.equal(resolveSubtitleSourcePath(source), source);
+});
+
+test('buildSubtitleSidebarSourceKey uses a stable identifier for internal subtitle tracks', () => {
+  const firstKey = buildSubtitleSidebarSourceKey('/media/episode01.mkv', {
+    id: 3,
+    'ff-index': 7,
+    title: 'English',
+    lang: 'eng',
+    codec: 'ass',
+  });
+  const secondKey = buildSubtitleSidebarSourceKey('/media/episode01.mkv', {
+    id: 3,
+    'ff-index': 7,
+    title: 'English',
+    lang: 'eng',
+    codec: 'ass',
+  });
+
+  assert.equal(firstKey, secondKey);
+  assert.equal(firstKey, 'internal:/media/episode01.mkv:track:3:ff:7');
+});
+
+test('buildSubtitleSidebarSourceKey falls back to source path when no track metadata is available', () => {
+  const key = buildSubtitleSidebarSourceKey('/media/episode01.mkv', null, '/tmp/subtitle.ass');
+
+  assert.equal(key, '/tmp/subtitle.ass');
 });

@@ -438,10 +438,11 @@ import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
 import { createSubtitlePrefetchService } from './core/services/subtitle-prefetch';
 import type { SubtitlePrefetchService } from './core/services/subtitle-prefetch';
 import {
-  getActiveExternalSubtitleSource,
+  buildSubtitleSidebarSourceKey,
   resolveSubtitleSourcePath,
 } from './main/runtime/subtitle-prefetch-source';
 import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
+import { codecToExtension } from './subsync/utils';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -1142,15 +1143,23 @@ function maybeSignalPluginAutoplayReady(
 
 let appTray: Tray | null = null;
 let tokenizeSubtitleDeferred: ((text: string) => Promise<SubtitleData>) | null = null;
+function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
+  return {
+    ...payload,
+    startTime: appState.mpvClient?.currentSubStart ?? null,
+    endTime: appState.mpvClient?.currentSubEnd ?? null,
+  };
+}
 function emitSubtitlePayload(payload: SubtitleData): void {
-  appState.currentSubtitleData = payload;
-  broadcastToOverlayWindows('subtitle:set', payload);
-  subtitleWsService.broadcast(payload, {
+  const timedPayload = withCurrentSubtitleTiming(payload);
+  appState.currentSubtitleData = timedPayload;
+  broadcastToOverlayWindows('subtitle:set', timedPayload);
+  subtitleWsService.broadcast(timedPayload, {
     enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
     topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
     mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
   });
-  annotationSubtitleWsService.broadcast(payload, {
+  annotationSubtitleWsService.broadcast(timedPayload, {
     enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
     topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
     mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
@@ -1200,6 +1209,10 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
   isCacheFull: () => subtitleProcessingController.isCacheFull(),
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
+  onParsedSubtitleCuesChanged: (cues, sourceKey) => {
+    appState.activeParsedSubtitleCues = cues ?? [];
+    appState.activeParsedSubtitleSource = sourceKey;
+  },
 });
 
 async function refreshSubtitlePrefetchFromActiveTrack(): Promise<void> {
@@ -1209,19 +1222,40 @@ async function refreshSubtitlePrefetchFromActiveTrack(): Promise<void> {
   }
 
   try {
-    const [trackListRaw, sidRaw] = await Promise.all([
+    const [currentExternalFilenameRaw, currentTrackRaw, trackListRaw, sidRaw, videoPathRaw] =
+      await Promise.all([
+        client.requestProperty('current-tracks/sub/external-filename').catch(() => null),
+      client.requestProperty('current-tracks/sub').catch(() => null),
       client.requestProperty('track-list'),
       client.requestProperty('sid'),
-    ]);
-    const externalFilename = getActiveExternalSubtitleSource(trackListRaw, sidRaw);
-    if (!externalFilename) {
+      client.requestProperty('path'),
+      ]);
+    const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
+    if (!videoPath) {
       subtitlePrefetchInitController.cancelPendingInit();
       return;
     }
-    await subtitlePrefetchInitController.initSubtitlePrefetch(
-      externalFilename,
-      lastObservedTimePos,
+
+    const resolvedSource = await resolveActiveSubtitleSidebarSource(
+      currentExternalFilenameRaw,
+      currentTrackRaw,
+      trackListRaw,
+      sidRaw,
+      videoPath,
     );
+    if (!resolvedSource) {
+      subtitlePrefetchInitController.cancelPendingInit();
+      return;
+    }
+    try {
+      await subtitlePrefetchInitController.initSubtitlePrefetch(
+        resolvedSource.path,
+        lastObservedTimePos,
+        resolvedSource.sourceKey,
+      );
+    } finally {
+      await resolvedSource.cleanup?.();
+    }
   } catch {
     // Track list query failed; skip subtitle prefetch refresh.
   }
@@ -2965,6 +2999,8 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
             ? {
                 text: appState.currentSubText,
                 tokens: null,
+                startTime: appState.mpvClient?.currentSubStart ?? null,
+                endTime: appState.mpvClient?.currentSubEnd ?? null,
               }
             : null),
         () => ({
@@ -2983,6 +3019,8 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
             ? {
                 text: appState.currentSubText,
                 tokens: null,
+                startTime: appState.mpvClient?.currentSubStart ?? null,
+                endTime: appState.mpvClient?.currentSubEnd ?? null,
               }
             : null),
         () => ({
@@ -3257,6 +3295,9 @@ const {
     restoreMpvSubVisibility: () => {
       restoreOverlayMpvSubtitles();
     },
+    resetSubtitleSidebarEmbeddedLayout: () => {
+      resetSubtitleSidebarEmbeddedLayoutRuntime();
+    },
     getCurrentAnilistMediaKey: () => getCurrentAnilistMediaKey(),
     resetAnilistMediaTracking: (mediaKey) => {
       resetAnilistMediaTracking(mediaKey);
@@ -3473,6 +3514,11 @@ tokenizeSubtitleDeferred = tokenizeSubtitle;
 
 function createMpvClientRuntimeService(): MpvIpcClient {
   return createMpvClientRuntimeServiceHandler() as MpvIpcClient;
+}
+
+function resetSubtitleSidebarEmbeddedLayoutRuntime(): void {
+  sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'video-margin-ratio-right', 0]);
+  sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'video-pan-x', 0]);
 }
 
 function updateMpvSubtitleRenderMetrics(patch: Partial<MpvSubtitleRenderMetrics>): void {
@@ -3919,6 +3965,168 @@ async function loadSubtitleSourceText(source: string): Promise<string> {
   return fs.promises.readFile(filePath, 'utf8');
 }
 
+type MpvSubtitleTrackLike = {
+  type?: unknown;
+  id?: unknown;
+  selected?: unknown;
+  external?: unknown;
+  codec?: unknown;
+  'ff-index'?: unknown;
+  'external-filename'?: unknown;
+};
+
+function parseTrackId(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim());
+    return Number.isInteger(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function getActiveSubtitleTrack(
+  currentTrackRaw: unknown,
+  trackListRaw: unknown,
+  sidRaw: unknown,
+): MpvSubtitleTrackLike | null {
+  if (currentTrackRaw && typeof currentTrackRaw === 'object') {
+    const track = currentTrackRaw as MpvSubtitleTrackLike;
+    if (track.type === undefined || track.type === 'sub') {
+      return track;
+    }
+  }
+
+  const sid = parseTrackId(sidRaw);
+  if (!Array.isArray(trackListRaw)) {
+    return null;
+  }
+
+  const bySid =
+    sid === null
+      ? null
+      : ((trackListRaw.find((entry: unknown) => {
+          if (!entry || typeof entry !== 'object') {
+            return false;
+          }
+          const track = entry as MpvSubtitleTrackLike;
+          return track.type === 'sub' && parseTrackId(track.id) === sid;
+        }) as MpvSubtitleTrackLike | undefined) ?? null);
+  if (bySid) {
+    return bySid;
+  }
+
+  return (
+    (trackListRaw.find((entry: unknown) => {
+      if (!entry || typeof entry !== 'object') {
+        return false;
+      }
+      const track = entry as MpvSubtitleTrackLike;
+      return track.type === 'sub' && track.selected === true;
+    }) as MpvSubtitleTrackLike | undefined) ?? null
+  );
+}
+
+function buildFfmpegSubtitleExtractionArgs(
+  videoPath: string,
+  ffIndex: number,
+  outputPath: string,
+): string[] {
+  return [
+    '-hide_banner',
+    '-nostdin',
+    '-y',
+    '-loglevel',
+    'error',
+    '-an',
+    '-vn',
+    '-i',
+    videoPath,
+    '-map',
+    `0:${ffIndex}`,
+    '-f',
+    path.extname(outputPath).slice(1),
+    outputPath,
+  ];
+}
+
+async function extractInternalSubtitleTrackToTempFile(
+  ffmpegPath: string,
+  videoPath: string,
+  track: MpvSubtitleTrackLike,
+): Promise<{ path: string; cleanup: () => Promise<void> } | null> {
+  const ffIndex = typeof track['ff-index'] === 'number' ? track['ff-index'] : null;
+  const codec = typeof track.codec === 'string' ? track.codec : null;
+  const extension = codecToExtension(codec ?? undefined);
+  if (ffIndex === null || extension === null) {
+    return null;
+  }
+
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'subminer-sidebar-'));
+  const outputPath = path.join(tempDir, `track_${ffIndex}.${extension}`);
+
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(ffmpegPath, buildFfmpegSubtitleExtractionArgs(videoPath, ffIndex, outputPath));
+    let stderr = '';
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', (error) => {
+      reject(error);
+    });
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(stderr.trim() || `ffmpeg exited with code ${code ?? 'unknown'}`));
+    });
+  });
+
+  return {
+    path: outputPath,
+    cleanup: async () => {
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
+    },
+  };
+}
+
+async function resolveActiveSubtitleSidebarSource(
+  currentExternalFilenameRaw: unknown,
+  currentTrackRaw: unknown,
+  trackListRaw: unknown,
+  sidRaw: unknown,
+  videoPath: string,
+): Promise<{ path: string; sourceKey: string; cleanup?: () => Promise<void> } | null> {
+  const currentExternalFilename =
+    typeof currentExternalFilenameRaw === 'string' ? currentExternalFilenameRaw.trim() : '';
+  if (currentExternalFilename) {
+    return { path: currentExternalFilename, sourceKey: currentExternalFilename };
+  }
+
+  const track = getActiveSubtitleTrack(currentTrackRaw, trackListRaw, sidRaw);
+  if (!track) {
+    return null;
+  }
+
+  const externalFilename =
+    typeof track['external-filename'] === 'string' ? track['external-filename'].trim() : '';
+  if (externalFilename) {
+    return { path: externalFilename, sourceKey: externalFilename };
+  }
+
+  const ffmpegPath = getResolvedConfig().subsync.ffmpeg_path.trim() || 'ffmpeg';
+  const extracted = await extractInternalSubtitleTrackToTempFile(ffmpegPath, videoPath, track);
+  if (!extracted) {
+    return null;
+  }
+  return {
+    ...extracted,
+    sourceKey: buildSubtitleSidebarSourceKey(videoPath, track, extracted.path),
+  };
+}
+
 const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacentCueHandler({
   getMpvClient: () => appState.mpvClient,
   loadSubtitleSourceText,
@@ -3976,9 +4184,102 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       openYomitanSettings: () => openYomitanSettings(),
       quitApp: () => requestAppQuit(),
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
-      tokenizeCurrentSubtitle: () => tokenizeSubtitle(appState.currentSubText),
+      tokenizeCurrentSubtitle: async () => withCurrentSubtitleTiming(await tokenizeSubtitle(appState.currentSubText)),
       getCurrentSubtitleRaw: () => appState.currentSubText,
       getCurrentSubtitleAss: () => appState.currentSubAssText,
+      getSubtitleSidebarSnapshot: async () => {
+        const currentSubtitle = {
+          text: appState.currentSubText,
+          startTime: appState.mpvClient?.currentSubStart ?? null,
+          endTime: appState.mpvClient?.currentSubEnd ?? null,
+        };
+        const currentTimeSec = appState.mpvClient?.currentTimePos ?? null;
+        const config = getResolvedConfig().subtitleSidebar;
+        const client = appState.mpvClient;
+        if (!client?.connected) {
+          return {
+            cues: appState.activeParsedSubtitleCues,
+            currentTimeSec,
+            currentSubtitle,
+            config,
+          };
+        }
+
+        try {
+          const [
+            currentExternalFilenameRaw,
+            currentTrackRaw,
+            trackListRaw,
+            sidRaw,
+            videoPathRaw,
+          ] = await Promise.all([
+            client.requestProperty('current-tracks/sub/external-filename').catch(() => null),
+            client.requestProperty('current-tracks/sub').catch(() => null),
+            client.requestProperty('track-list'),
+            client.requestProperty('sid'),
+            client.requestProperty('path'),
+          ]);
+          const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
+          if (!videoPath) {
+            return {
+              cues: appState.activeParsedSubtitleCues,
+              currentTimeSec,
+              currentSubtitle,
+              config,
+            };
+          }
+
+          const resolvedSource = await resolveActiveSubtitleSidebarSource(
+            currentExternalFilenameRaw,
+            currentTrackRaw,
+            trackListRaw,
+            sidRaw,
+            videoPath,
+          );
+          if (!resolvedSource) {
+            return {
+              cues: appState.activeParsedSubtitleCues,
+              currentTimeSec,
+              currentSubtitle,
+              config,
+            };
+          }
+
+          if (
+            appState.activeParsedSubtitleCues.length > 0 &&
+            appState.activeParsedSubtitleSource === resolvedSource.sourceKey
+          ) {
+            return {
+              cues: appState.activeParsedSubtitleCues,
+              currentTimeSec,
+              currentSubtitle,
+              config,
+            };
+          }
+
+          try {
+            const content = await loadSubtitleSourceText(resolvedSource.path);
+            const cues = parseSubtitleCues(content, resolvedSource.path);
+            appState.activeParsedSubtitleCues = cues;
+            appState.activeParsedSubtitleSource = resolvedSource.sourceKey;
+            return {
+              cues,
+              currentTimeSec,
+              currentSubtitle,
+              config,
+            };
+          } finally {
+            await resolvedSource.cleanup?.();
+          }
+        } catch {
+          return {
+            cues: appState.activeParsedSubtitleCues,
+            currentTimeSec,
+            currentSubtitle,
+            config,
+          };
+        }
+      },
       getPlaybackPaused: () => appState.playbackPaused,
       getSubtitlePosition: () => loadSubtitlePosition(),
       getSubtitleStyle: () => {
