@@ -98,6 +98,12 @@ const SUBTITLE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     notes: ['Hot-reload: subtitle style changes apply live without restarting SubMiner.'],
     key: 'subtitleStyle',
   },
+  {
+    title: 'Subtitle Sidebar',
+    description: ['Parsed-subtitle sidebar cue list styling, behavior, and toggle key.'],
+    notes: ['Hot-reload: subtitle sidebar changes apply live without restarting SubMiner.'],
+    key: 'subtitleSidebar',
+  },
 ];
 
 const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [

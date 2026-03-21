@@ -1,6 +1,6 @@
 import { ResolvedConfig } from '../../types';
 
-export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle'> = {
+export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'subtitleSidebar'> = {
   subtitleStyle: {
     enableJlpt: false,
     preserveLineBreaks: false,
@@ -56,5 +56,22 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle'> = {
       fontWeight: '600',
       fontStyle: 'normal',
     },
+  },
+  subtitleSidebar: {
+    enabled: false,
+    layout: 'overlay',
+    toggleKey: 'Backslash',
+    pauseVideoOnHover: false,
+    autoScroll: true,
+    maxWidth: 420,
+    opacity: 0.95,
+    backgroundColor: 'rgba(73, 77, 100, 0.9)',
+    textColor: '#cad3f5',
+    fontFamily: '"M PLUS 1", "Noto Sans CJK JP", sans-serif',
+    fontSize: 16,
+    timestampColor: '#a5adcb',
+    activeLineColor: '#f5bde6',
+    activeLineBackgroundColor: 'rgba(138, 173, 244, 0.22)',
+    hoverLineBackgroundColor: 'rgba(54, 58, 79, 0.84)',
   },
 };

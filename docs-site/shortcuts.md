@@ -68,9 +68,12 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions` |
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`         |
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`     |
+| `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey`    |
 | `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`              |
 
 The stats toggle is handled inside the focused visible overlay window. It is configurable through the top-level `stats.toggleKey` setting and defaults to `Backquote`.
+
+The subtitle sidebar toggle is overlay-local and only opens when SubMiner has a parsed cue list for the active subtitle source.
 
 ## Controller Shortcuts
 
@@ -133,4 +136,4 @@ The `keybindings` array overrides or extends the overlay's built-in key handling
 }
 ```
 
-Both `shortcuts` and `keybindings` are [hot-reloadable](/configuration#hot-reload-behavior) — changes take effect without restarting SubMiner.
+Both `shortcuts`, `keybindings`, and `subtitleSidebar` are [hot-reloadable](/configuration#hot-reload-behavior) — changes take effect without restarting SubMiner.
