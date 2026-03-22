@@ -521,10 +521,10 @@ async function init(): Promise<void> {
   subtitleRenderer.renderSecondarySub(await window.electronAPI.getCurrentSecondarySub());
   measurementReporter.schedule();
 
-  ctx.dom.subtitleContainer.addEventListener('mouseenter', mouseHandlers.handleMouseEnter);
-  ctx.dom.subtitleContainer.addEventListener('mouseleave', mouseHandlers.handleMouseLeave);
-  ctx.dom.secondarySubContainer.addEventListener('mouseenter', mouseHandlers.handleMouseEnter);
-  ctx.dom.secondarySubContainer.addEventListener('mouseleave', mouseHandlers.handleMouseLeave);
+  ctx.dom.subtitleContainer.addEventListener('mouseenter', mouseHandlers.handlePrimaryMouseEnter);
+  ctx.dom.subtitleContainer.addEventListener('mouseleave', mouseHandlers.handlePrimaryMouseLeave);
+  ctx.dom.secondarySubContainer.addEventListener('mouseenter', mouseHandlers.handleSecondaryMouseEnter);
+  ctx.dom.secondarySubContainer.addEventListener('mouseleave', mouseHandlers.handleSecondaryMouseLeave);
 
   mouseHandlers.setupResizeHandler();
   mouseHandlers.setupSelectionObserver();
@@ -575,6 +575,7 @@ async function init(): Promise<void> {
   const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();
   subtitleRenderer.applySubtitleStyle(initialSubtitleStyle);
   await subtitleSidebarModal.refreshSubtitleSidebarSnapshot();
+  await subtitleSidebarModal.autoOpenSubtitleSidebarOnStartup();
 
   positioning.applyStoredSubtitlePosition(
     await window.electronAPI.getSubtitlePosition(),

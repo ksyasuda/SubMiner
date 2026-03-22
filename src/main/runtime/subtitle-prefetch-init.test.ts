@@ -199,3 +199,38 @@ test('subtitle prefetch init publishes the provided stable source key instead of
 
   assert.deepEqual(sourceUpdates, ['internal:/media/episode01.mkv:track:3:ff:7']);
 });
+
+test('subtitle prefetch init clears parsed cues when initialization fails', async () => {
+  const cueUpdates: Array<SubtitleCue[] | null> = [];
+  let currentService: SubtitlePrefetchService | null = null;
+
+  const controller = createSubtitlePrefetchInitController({
+    getCurrentService: () => currentService,
+    setCurrentService: (service) => {
+      currentService = service;
+    },
+    loadSubtitleSourceText: async () => {
+      throw new Error('boom');
+    },
+    parseSubtitleCues: () => [{ startTime: 1, endTime: 2, text: 'first' }],
+    createSubtitlePrefetchService: () => ({
+      start: () => {},
+      stop: () => {},
+      onSeek: () => {},
+      pause: () => {},
+      resume: () => {},
+    }),
+    tokenizeSubtitle: async () => null,
+    preCacheTokenization: () => {},
+    isCacheFull: () => false,
+    logInfo: () => {},
+    logWarn: () => {},
+    onParsedSubtitleCuesChanged: (cues) => {
+      cueUpdates.push(cues);
+    },
+  });
+
+  await controller.initSubtitlePrefetch('episode.ass', 12);
+
+  assert.deepEqual(cueUpdates, [null]);
+});
