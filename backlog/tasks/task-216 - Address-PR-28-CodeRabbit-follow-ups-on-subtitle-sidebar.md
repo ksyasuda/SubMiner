@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-03-21 00:00'
-updated_date: '2026-03-22 03:26'
+updated_date: '2026-03-22 04:05'
 labels:
   - pr-review
   - subtitle-sidebar
@@ -62,6 +62,8 @@ Verification:
 2026-03-21: Reopened for the latest CodeRabbit round on commit d70c6448; current actionable item is the invalid ctx.state.isOverSubtitleSidebar assignment in subtitle-sidebar.ts.
 
 2026-03-22: Addressed the live hover-state and startup mouse-ignore follow-ups from the latest CodeRabbit pass. `handleMouseLeave()` now clears `isOverSubtitle` and drops `secondary-sub-hover-active` when leaving the secondary subtitle container toward the primary container, and renderer startup now calls `syncOverlayMouseIgnoreState(ctx)` instead of forcing `setIgnoreMouseEvents(true, { forward: true })`. The sidebar IPC hover catch and CSS spacing comments were already satisfied in the current tree.
+
+2026-03-22: Regenerated `bun.lock` from a clean install so the `electron-builder-squirrel-windows` override now resolves at `26.8.2` in the lockfile alongside `app-builder-lib@26.8.2`.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
