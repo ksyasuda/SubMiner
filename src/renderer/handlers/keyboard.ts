@@ -27,6 +27,7 @@ export function createKeyboardHandlers(
     getPlaybackPaused: () => Promise<boolean | null>;
     openControllerSelectModal: () => void;
     openControllerDebugModal: () => void;
+    toggleSubtitleSidebarModal?: () => void;
   },
 ) {
   // Timeout for the modal chord capture window (e.g. Y followed by H/K).
@@ -179,6 +180,26 @@ export function createKeyboardHandlers(
 
   function isControllerModalShortcut(e: KeyboardEvent): boolean {
     return !e.ctrlKey && !e.metaKey && e.altKey && !e.repeat && e.code === 'KeyC';
+  }
+
+  function isSubtitleSidebarToggle(e: KeyboardEvent): boolean {
+    const toggleKey = ctx.state.subtitleSidebarToggleKey;
+    if (!toggleKey) return false;
+    const isBackslashConfigured = toggleKey === 'Backslash' || toggleKey === '\\';
+    const isBackslashLikeCode = ['Backslash', 'IntlBackslash', 'IntlYen'].includes(e.code);
+    const keyMatches =
+      toggleKey === e.code ||
+      (isBackslashConfigured && isBackslashLikeCode) ||
+      (isBackslashConfigured && e.key === '\\') ||
+      (toggleKey.length === 1 && e.key === toggleKey);
+
+    return (
+      keyMatches &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.metaKey &&
+      !e.repeat
+    );
   }
 
   function isStatsOverlayToggle(e: KeyboardEvent): boolean {
@@ -835,6 +856,12 @@ export function createKeyboardHandlers(
       if (isMarkWatchedKey(e)) {
         e.preventDefault();
         void handleMarkWatched();
+        return;
+      }
+
+      if (isSubtitleSidebarToggle(e)) {
+        e.preventDefault();
+        options.toggleSubtitleSidebarModal?.();
         return;
       }
 

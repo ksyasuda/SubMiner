@@ -9,6 +9,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   const bind = createBindMpvMainEventHandlersHandler({
     reportJellyfinRemoteStopped: () => calls.push('remote-stopped'),
     syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
+    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
     hasInitialJellyfinPlayArg: () => false,
     isOverlayRuntimeInitialized: () => false,
     isQuitOnDisconnectArmed: () => false,
@@ -67,6 +68,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     },
   });
 
+  handlers.get('connection-change')?.({ connected: true });
   handlers.get('subtitle-change')?.({ text: 'line' });
   handlers.get('subtitle-track-change')?.({ sid: 3 });
   handlers.get('subtitle-track-list-change')?.({ trackList: [] });
@@ -76,6 +78,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   handlers.get('pause-change')?.({ paused: true });
 
   assert.ok(calls.includes('set-sub:line'));
+  assert.ok(calls.includes('reset-sidebar-layout'));
   assert.ok(calls.includes('broadcast-sub:line'));
   assert.ok(calls.includes('subtitle-change:line'));
   assert.ok(calls.includes('subtitle-track-change'));

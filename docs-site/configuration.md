@@ -59,6 +59,7 @@ SubMiner watches the active config file (`config.jsonc` or `config.json`) while 
 Hot-reloadable fields:
 
 - `subtitleStyle`
+- `subtitleSidebar`
 - `keybindings`
 - `shortcuts`
 - `secondarySub.defaultMode`
@@ -88,6 +89,7 @@ The configuration file includes several main sections:
 **Subtitle Display**
 
 - [**Subtitle Style**](#subtitle-style) - Appearance customization
+- [**Subtitle Sidebar**](#subtitle-sidebar) - Parsed cue list sidebar modal
 - [**Subtitle Position**](#subtitle-position) - Overlay vertical positioning
 - [**Secondary Subtitles**](#secondary-subtitles) - Dual subtitle track support
 
@@ -336,6 +338,46 @@ Character-name highlighting is separate from N+1 and frequency highlighting:
 Secondary subtitle defaults: `fontFamily: "Inter, Noto Sans, Helvetica Neue, sans-serif"`, `fontSize: 24`, `fontColor: "#cad3f5"`, `textShadow: "0 2px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8), 0 0 16px rgba(0,0,0,0.55)"`, `backgroundColor: "rgba(20, 22, 34, 0.78)"`, `fontWeight: "600"`. Any property not set in `secondary` falls back to the CSS defaults.
 
 **See `config.example.jsonc`** for the complete list of subtitle style configuration options.
+
+### Subtitle Sidebar
+
+Configure the parsed-subtitle sidebar modal.
+
+```json
+{
+  "subtitleSidebar": {
+    "enabled": true,
+    "layout": "overlay",
+    "toggleKey": "Backslash",
+    "pauseVideoOnHover": false,
+    "autoScroll": true,
+    "fontFamily": "\"M PLUS 1\", \"Noto Sans CJK JP\", sans-serif",
+    "fontSize": 16
+  }
+}
+```
+
+| Option                      | Values           | Description                                                                      |
+| --------------------------- | ---------------- | -------------------------------------------------------------------------------- |
+| `enabled`                   | boolean          | Enable subtitle sidebar support (`false` by default)                             |
+| `layout`                    | string           | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space to mimic browser-like layout |
+| `toggleKey`                 | string           | `KeyboardEvent.code` used to open/close the sidebar (default: `"Backslash"`)     |
+| `pauseVideoOnHover`         | boolean          | Pause playback while hovering the sidebar cue list                               |
+| `autoScroll`                | boolean          | Keep the active cue in view while playback advances                              |
+| `maxWidth`                  | number           | Maximum sidebar width in CSS pixels (default: `420`)                             |
+| `opacity`                   | number           | Sidebar opacity between `0` and `1` (default: `0.78`)                            |
+| `backgroundColor`           | string           | Sidebar shell background color                                                   |
+| `textColor`                 | hex color        | Default cue text color                                                           |
+| `fontFamily`                | string           | CSS `font-family` value applied to sidebar cue text                             |
+| `fontSize`                  | number           | Base sidebar cue font size in CSS pixels (default: `16`)                        |
+| `timestampColor`            | hex color        | Cue timestamp color                                                              |
+| `activeLineColor`           | hex color        | Active cue text color                                                            |
+| `activeLineBackgroundColor` | string           | Active cue background color                                                      |
+| `hoverLineBackgroundColor`  | string           | Hovered cue background color                                                     |
+
+The sidebar is only available when the active subtitle source has been parsed into a cue list. Default colors use Catppuccin Macchiato with a semi-transparent shell so the panel stays readable without feeling like an opaque settings dialog.
+
+`embedded` layout is intended to act like a split-pane view: it reserves player space with a right-side video margin and keeps interaction in both the player area and sidebar. If you see unexpected offset behavior in your environment, switch back to `overlay` to isolate sidebar placement.
 
 `jlptColors` keys are:
 

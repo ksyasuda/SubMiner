@@ -183,7 +183,13 @@ export function parseSubtitleCues(content: string, filename: string): SubtitleCu
       cues = parseAssCues(content);
       break;
     default:
-      return [];
+      cues = [];
+  }
+
+  if (cues.length === 0) {
+    const assCues = parseAssCues(content);
+    const srtCues = parseSrtCues(content);
+    cues = assCues.length >= srtCues.length ? assCues : srtCues;
   }
 
   cues.sort((a, b) => a.startTime - b.startTime);

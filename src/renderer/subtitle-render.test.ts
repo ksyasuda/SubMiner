@@ -977,6 +977,30 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   );
   assert.match(secondaryHoverBaseBlock, /background:\s*transparent;/);
 
+  const secondaryEmbeddedHoverBlock = extractClassBlock(
+    cssText,
+    'body.subtitle-sidebar-embedded-open #secondarySubContainer.secondary-sub-hover',
+  );
+  assert.match(
+    secondaryEmbeddedHoverBlock,
+    /right:\s*var\(--subtitle-sidebar-reserved-width\);/,
+  );
+  assert.match(
+    secondaryEmbeddedHoverBlock,
+    /max-width:\s*none;/,
+  );
+  assert.match(
+    secondaryEmbeddedHoverBlock,
+    /transform:\s*none;/,
+  );
+  assert.doesNotMatch(
+    secondaryEmbeddedHoverBlock,
+    /transform:\s*translateX\(calc\(var\(--subtitle-sidebar-reserved-width\)\s*\*\s*-0\.5\)\);/,
+  );
+
+  const subtitleSidebarListBlock = extractClassBlock(cssText, '.subtitle-sidebar-list');
+  assert.doesNotMatch(subtitleSidebarListBlock, /scroll-behavior:\s*smooth;/);
+
   const secondaryHoverVisibleBlock = extractClassBlock(
     cssText,
     '#secondarySubContainer.secondary-sub-hover:hover #secondarySubRoot',
@@ -987,6 +1011,25 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   );
   assert.match(
     secondaryHoverVisibleBlock,
+    /backdrop-filter:\s*var\(--secondary-sub-backdrop-filter,\s*none\);/,
+  );
+
+  const secondaryHoverActiveBlock = extractClassBlock(
+    cssText,
+    '#secondarySubContainer.secondary-sub-hover.secondary-sub-hover-active',
+  );
+  assert.match(secondaryHoverActiveBlock, /opacity:\s*1;/);
+
+  const secondaryHoverActiveRootBlock = extractClassBlock(
+    cssText,
+    '#secondarySubContainer.secondary-sub-hover.secondary-sub-hover-active #secondarySubRoot',
+  );
+  assert.match(
+    secondaryHoverActiveRootBlock,
+    /background:\s*var\(--secondary-sub-background-color,\s*transparent\);/,
+  );
+  assert.match(
+    secondaryHoverActiveRootBlock,
     /backdrop-filter:\s*var\(--secondary-sub-backdrop-filter,\s*none\);/,
   );
 

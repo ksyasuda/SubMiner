@@ -3,6 +3,7 @@ import { ResolveContext } from './context';
 import {
   asBoolean,
   asColor,
+  asCssColor,
   asFrequencyBandedColors,
   asNumber,
   asString,
@@ -415,6 +416,182 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         (frequencyDictionary as { bandedColors?: unknown }).bandedColors,
         resolved.subtitleStyle.frequencyDictionary.bandedColors,
         'Expected an array of five hex colors.',
+      );
+    }
+  }
+
+  if (isObject(src.subtitleSidebar)) {
+    const fallback = { ...resolved.subtitleSidebar };
+    resolved.subtitleSidebar = {
+      ...resolved.subtitleSidebar,
+      ...(src.subtitleSidebar as ResolvedConfig['subtitleSidebar']),
+    };
+
+    const enabled = asBoolean((src.subtitleSidebar as { enabled?: unknown }).enabled);
+    if (enabled !== undefined) {
+      resolved.subtitleSidebar.enabled = enabled;
+    } else if ((src.subtitleSidebar as { enabled?: unknown }).enabled !== undefined) {
+      resolved.subtitleSidebar.enabled = fallback.enabled;
+      warn(
+        'subtitleSidebar.enabled',
+        (src.subtitleSidebar as { enabled?: unknown }).enabled,
+        resolved.subtitleSidebar.enabled,
+        'Expected boolean.',
+      );
+    }
+
+    const autoOpen = asBoolean((src.subtitleSidebar as { autoOpen?: unknown }).autoOpen);
+    if (autoOpen !== undefined) {
+      resolved.subtitleSidebar.autoOpen = autoOpen;
+    } else if ((src.subtitleSidebar as { autoOpen?: unknown }).autoOpen !== undefined) {
+      resolved.subtitleSidebar.autoOpen = fallback.autoOpen;
+      warn(
+        'subtitleSidebar.autoOpen',
+        (src.subtitleSidebar as { autoOpen?: unknown }).autoOpen,
+        resolved.subtitleSidebar.autoOpen,
+        'Expected boolean.',
+      );
+    }
+
+    const layout = asString((src.subtitleSidebar as { layout?: unknown }).layout);
+    if (layout === 'overlay' || layout === 'embedded') {
+      resolved.subtitleSidebar.layout = layout;
+    } else if ((src.subtitleSidebar as { layout?: unknown }).layout !== undefined) {
+      resolved.subtitleSidebar.layout = fallback.layout;
+      warn(
+        'subtitleSidebar.layout',
+        (src.subtitleSidebar as { layout?: unknown }).layout,
+        resolved.subtitleSidebar.layout,
+        'Expected "overlay" or "embedded".',
+      );
+    }
+
+    const pauseVideoOnHover = asBoolean(
+      (src.subtitleSidebar as { pauseVideoOnHover?: unknown }).pauseVideoOnHover,
+    );
+    if (pauseVideoOnHover !== undefined) {
+      resolved.subtitleSidebar.pauseVideoOnHover = pauseVideoOnHover;
+    } else if ((src.subtitleSidebar as { pauseVideoOnHover?: unknown }).pauseVideoOnHover !== undefined) {
+      resolved.subtitleSidebar.pauseVideoOnHover = fallback.pauseVideoOnHover;
+      warn(
+        'subtitleSidebar.pauseVideoOnHover',
+        (src.subtitleSidebar as { pauseVideoOnHover?: unknown }).pauseVideoOnHover,
+        resolved.subtitleSidebar.pauseVideoOnHover,
+        'Expected boolean.',
+      );
+    }
+
+    const autoScroll = asBoolean((src.subtitleSidebar as { autoScroll?: unknown }).autoScroll);
+    if (autoScroll !== undefined) {
+      resolved.subtitleSidebar.autoScroll = autoScroll;
+    } else if ((src.subtitleSidebar as { autoScroll?: unknown }).autoScroll !== undefined) {
+      resolved.subtitleSidebar.autoScroll = fallback.autoScroll;
+      warn(
+        'subtitleSidebar.autoScroll',
+        (src.subtitleSidebar as { autoScroll?: unknown }).autoScroll,
+        resolved.subtitleSidebar.autoScroll,
+        'Expected boolean.',
+      );
+    }
+
+    const toggleKey = asString((src.subtitleSidebar as { toggleKey?: unknown }).toggleKey);
+    if (toggleKey !== undefined) {
+      resolved.subtitleSidebar.toggleKey = toggleKey;
+    } else if ((src.subtitleSidebar as { toggleKey?: unknown }).toggleKey !== undefined) {
+      resolved.subtitleSidebar.toggleKey = fallback.toggleKey;
+      warn(
+        'subtitleSidebar.toggleKey',
+        (src.subtitleSidebar as { toggleKey?: unknown }).toggleKey,
+        resolved.subtitleSidebar.toggleKey,
+        'Expected string.',
+      );
+    }
+
+    const maxWidth = asNumber((src.subtitleSidebar as { maxWidth?: unknown }).maxWidth);
+    if (maxWidth !== undefined && maxWidth > 0) {
+      resolved.subtitleSidebar.maxWidth = Math.floor(maxWidth);
+    } else if ((src.subtitleSidebar as { maxWidth?: unknown }).maxWidth !== undefined) {
+      resolved.subtitleSidebar.maxWidth = fallback.maxWidth;
+      warn(
+        'subtitleSidebar.maxWidth',
+        (src.subtitleSidebar as { maxWidth?: unknown }).maxWidth,
+        resolved.subtitleSidebar.maxWidth,
+        'Expected positive number.',
+      );
+    }
+
+    const opacity = asNumber((src.subtitleSidebar as { opacity?: unknown }).opacity);
+    if (opacity !== undefined && opacity >= 0 && opacity <= 1) {
+      resolved.subtitleSidebar.opacity = opacity;
+    } else if ((src.subtitleSidebar as { opacity?: unknown }).opacity !== undefined) {
+      resolved.subtitleSidebar.opacity = fallback.opacity;
+      warn(
+        'subtitleSidebar.opacity',
+        (src.subtitleSidebar as { opacity?: unknown }).opacity,
+        resolved.subtitleSidebar.opacity,
+        'Expected number between 0 and 1.',
+      );
+    }
+
+    const hexColorFields = ['textColor', 'timestampColor', 'activeLineColor'] as const;
+    for (const field of hexColorFields) {
+      const value = asColor((src.subtitleSidebar as Record<string, unknown>)[field]);
+      if (value !== undefined) {
+        resolved.subtitleSidebar[field] = value;
+      } else if ((src.subtitleSidebar as Record<string, unknown>)[field] !== undefined) {
+        resolved.subtitleSidebar[field] = fallback[field];
+        warn(
+          `subtitleSidebar.${field}`,
+          (src.subtitleSidebar as Record<string, unknown>)[field],
+          resolved.subtitleSidebar[field],
+          'Expected hex color.',
+        );
+      }
+    }
+
+    const cssColorFields = [
+      'backgroundColor',
+      'activeLineBackgroundColor',
+      'hoverLineBackgroundColor',
+    ] as const;
+    for (const field of cssColorFields) {
+      const value = asCssColor((src.subtitleSidebar as Record<string, unknown>)[field]);
+      if (value !== undefined) {
+        resolved.subtitleSidebar[field] = value;
+      } else if ((src.subtitleSidebar as Record<string, unknown>)[field] !== undefined) {
+        resolved.subtitleSidebar[field] = fallback[field];
+        warn(
+          `subtitleSidebar.${field}`,
+          (src.subtitleSidebar as Record<string, unknown>)[field],
+          resolved.subtitleSidebar[field],
+          'Expected valid CSS color.',
+        );
+      }
+    }
+
+    const fontFamily = asString((src.subtitleSidebar as { fontFamily?: unknown }).fontFamily);
+    if (fontFamily !== undefined && fontFamily.trim().length > 0) {
+      resolved.subtitleSidebar.fontFamily = fontFamily.trim();
+    } else if ((src.subtitleSidebar as { fontFamily?: unknown }).fontFamily !== undefined) {
+      resolved.subtitleSidebar.fontFamily = fallback.fontFamily;
+      warn(
+        'subtitleSidebar.fontFamily',
+        (src.subtitleSidebar as { fontFamily?: unknown }).fontFamily,
+        resolved.subtitleSidebar.fontFamily,
+        'Expected non-empty string.',
+      );
+    }
+
+    const fontSize = asNumber((src.subtitleSidebar as { fontSize?: unknown }).fontSize);
+    if (fontSize !== undefined && fontSize > 0) {
+      resolved.subtitleSidebar.fontSize = fontSize;
+    } else if ((src.subtitleSidebar as { fontSize?: unknown }).fontSize !== undefined) {
+      resolved.subtitleSidebar.fontSize = fallback.fontSize;
+      warn(
+        'subtitleSidebar.fontSize',
+        (src.subtitleSidebar as { fontSize?: unknown }).fontSize,
+        resolved.subtitleSidebar.fontSize,
+        'Expected positive number.',
       );
     }
   }

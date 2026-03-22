@@ -10,6 +10,8 @@ import type {
   RuntimeOptionState,
   RuntimeOptionValue,
   SubtitlePosition,
+  SubtitleSidebarConfig,
+  SubtitleCue,
   SubsyncSourceTrack,
 } from '../types';
 
@@ -23,6 +25,7 @@ export type ChordAction =
 
 export type RendererState = {
   isOverSubtitle: boolean;
+  isOverSubtitleSidebar: boolean;
   isDragging: boolean;
   dragStartY: number;
   startYPercent: number;
@@ -58,6 +61,7 @@ export type RendererState = {
 
   controllerSelectModalOpen: boolean;
   controllerDebugModalOpen: boolean;
+  subtitleSidebarModalOpen: boolean;
   controllerDeviceSelectedIndex: number;
   controllerConfig: ResolvedControllerConfig | null;
   connectedGamepads: ControllerDeviceInfo[];
@@ -67,6 +71,14 @@ export type RendererState = {
 
   sessionHelpModalOpen: boolean;
   sessionHelpSelectedIndex: number;
+  subtitleSidebarCues: SubtitleCue[];
+  subtitleSidebarActiveCueIndex: number;
+  subtitleSidebarToggleKey: string;
+  subtitleSidebarPauseVideoOnHover: boolean;
+  subtitleSidebarAutoScroll: boolean;
+  subtitleSidebarConfig: Required<SubtitleSidebarConfig> | null;
+  subtitleSidebarManualScrollUntilMs: number;
+  subtitleSidebarPausedByHover: boolean;
 
   knownWordColor: string;
   nPlusOneColor: string;
@@ -104,6 +116,7 @@ export type RendererState = {
 export function createRendererState(): RendererState {
   return {
     isOverSubtitle: false,
+    isOverSubtitleSidebar: false,
     isDragging: false,
     dragStartY: 0,
     startYPercent: 0,
@@ -139,6 +152,7 @@ export function createRendererState(): RendererState {
 
     controllerSelectModalOpen: false,
     controllerDebugModalOpen: false,
+    subtitleSidebarModalOpen: false,
     controllerDeviceSelectedIndex: 0,
     controllerConfig: null,
     connectedGamepads: [],
@@ -148,6 +162,14 @@ export function createRendererState(): RendererState {
 
     sessionHelpModalOpen: false,
     sessionHelpSelectedIndex: 0,
+    subtitleSidebarCues: [],
+    subtitleSidebarActiveCueIndex: -1,
+    subtitleSidebarToggleKey: 'Backslash',
+    subtitleSidebarPauseVideoOnHover: false,
+    subtitleSidebarAutoScroll: true,
+    subtitleSidebarConfig: null,
+    subtitleSidebarManualScrollUntilMs: 0,
+    subtitleSidebarPausedByHover: false,
 
     knownWordColor: '#a6da95',
     nPlusOneColor: '#c6a0f6',

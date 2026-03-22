@@ -82,6 +82,7 @@ test('media path change handler reports stop for empty path and probes media key
     updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
     reportJellyfinRemoteStopped: () => calls.push('stopped'),
     restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
+    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
     getCurrentAnilistMediaKey: () => 'show:1',
     resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${String(mediaKey)}`),
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
@@ -97,6 +98,7 @@ test('media path change handler reports stop for empty path and probes media key
   assert.deepEqual(calls, [
     'flush-playback',
     'path:',
+    'reset-sidebar-layout',
     'stopped',
     'restore-mpv-sub',
     'reset:show:1',
@@ -113,6 +115,7 @@ test('media path change handler signals autoplay-ready fast path for warm non-em
     updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
     reportJellyfinRemoteStopped: () => calls.push('stopped'),
     restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
+    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
     getCurrentAnilistMediaKey: () => null,
     resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${String(mediaKey)}`),
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
@@ -128,35 +131,7 @@ test('media path change handler signals autoplay-ready fast path for warm non-em
 
   assert.deepEqual(calls, [
     'path:/tmp/video.mkv',
-    'reset:null',
-    'sync',
-    'dict-sync',
-    'autoplay:/tmp/video.mkv',
-    'presence',
-  ]);
-});
-
-test('media path change handler ignores playback flush for non-empty path', () => {
-  const calls: string[] = [];
-  const handler = createHandleMpvMediaPathChangeHandler({
-    updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
-    reportJellyfinRemoteStopped: () => calls.push('stopped'),
-    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
-    getCurrentAnilistMediaKey: () => null,
-    resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${String(mediaKey)}`),
-    maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
-    ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
-    syncImmersionMediaState: () => calls.push('sync'),
-    flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
-    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
-    signalAutoplayReadyIfWarm: (path) => calls.push(`autoplay:${path}`),
-    refreshDiscordPresence: () => calls.push('presence'),
-  });
-
-  handler({ path: '/tmp/video.mkv' });
-  assert.ok(!calls.includes('flush-playback'));
-  assert.deepEqual(calls, [
-    'path:/tmp/video.mkv',
+    'reset-sidebar-layout',
     'reset:null',
     'sync',
     'dict-sync',

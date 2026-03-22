@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { SubtitleCue } from '../../core/services/subtitle-cue-parser';
 import type { SubtitlePrefetchService } from '../../core/services/subtitle-prefetch';
+import type { SubtitleCue } from '../../types';
 import { createSubtitlePrefetchInitController } from './subtitle-prefetch-init';
 
 function createDeferred<T>(): {
@@ -111,4 +111,126 @@ test('cancelPendingInit prevents an in-flight load from attaching a stale servic
 
   assert.equal(currentService, null);
   assert.deepEqual(started, []);
+});
+
+test('subtitle prefetch init publishes parsed cues and clears them on cancel', async () => {
+  const deferred = createDeferred<string>();
+  let currentService: SubtitlePrefetchService | null = null;
+  const cueUpdates: Array<SubtitleCue[] | null> = [];
+
+  const controller = createSubtitlePrefetchInitController({
+    getCurrentService: () => currentService,
+    setCurrentService: (service) => {
+      currentService = service;
+    },
+    loadSubtitleSourceText: async () => await deferred.promise,
+    parseSubtitleCues: () => [
+      { startTime: 1, endTime: 2, text: 'first' },
+      { startTime: 3, endTime: 4, text: 'second' },
+    ],
+    createSubtitlePrefetchService: () => ({
+      start: () => {},
+      stop: () => {},
+      onSeek: () => {},
+      pause: () => {},
+      resume: () => {},
+    }),
+    tokenizeSubtitle: async () => null,
+    preCacheTokenization: () => {},
+    isCacheFull: () => false,
+    logInfo: () => {},
+    logWarn: () => {},
+    onParsedSubtitleCuesChanged: (cues) => {
+      cueUpdates.push(cues);
+    },
+  });
+
+  const initPromise = controller.initSubtitlePrefetch('episode.ass', 12);
+  deferred.resolve('content');
+  await initPromise;
+
+  controller.cancelPendingInit();
+
+  assert.deepEqual(cueUpdates, [
+    [
+      { startTime: 1, endTime: 2, text: 'first' },
+      { startTime: 3, endTime: 4, text: 'second' },
+    ],
+    null,
+  ]);
+});
+
+test('subtitle prefetch init publishes the provided stable source key instead of the load path', async () => {
+  const deferred = createDeferred<string>();
+  let currentService: SubtitlePrefetchService | null = null;
+  const sourceUpdates: Array<string | null> = [];
+
+  const controller = createSubtitlePrefetchInitController({
+    getCurrentService: () => currentService,
+    setCurrentService: (service) => {
+      currentService = service;
+    },
+    loadSubtitleSourceText: async () => await deferred.promise,
+    parseSubtitleCues: () => [{ startTime: 1, endTime: 2, text: 'first' }],
+    createSubtitlePrefetchService: () => ({
+      start: () => {},
+      stop: () => {},
+      onSeek: () => {},
+      pause: () => {},
+      resume: () => {},
+    }),
+    tokenizeSubtitle: async () => null,
+    preCacheTokenization: () => {},
+    isCacheFull: () => false,
+    logInfo: () => {},
+    logWarn: () => {},
+    onParsedSubtitleCuesChanged: (_cues, source) => {
+      sourceUpdates.push(source);
+    },
+  });
+
+  const initPromise = controller.initSubtitlePrefetch(
+    '/tmp/subminer-sidebar-123/track_7.ass',
+    12,
+    'internal:/media/episode01.mkv:track:3:ff:7',
+  );
+  deferred.resolve('content');
+  await initPromise;
+
+  assert.deepEqual(sourceUpdates, ['internal:/media/episode01.mkv:track:3:ff:7']);
+});
+
+test('subtitle prefetch init clears parsed cues when initialization fails', async () => {
+  const cueUpdates: Array<SubtitleCue[] | null> = [];
+  let currentService: SubtitlePrefetchService | null = null;
+
+  const controller = createSubtitlePrefetchInitController({
+    getCurrentService: () => currentService,
+    setCurrentService: (service) => {
+      currentService = service;
+    },
+    loadSubtitleSourceText: async () => {
+      throw new Error('boom');
+    },
+    parseSubtitleCues: () => [{ startTime: 1, endTime: 2, text: 'first' }],
+    createSubtitlePrefetchService: () => ({
+      start: () => {},
+      stop: () => {},
+      onSeek: () => {},
+      pause: () => {},
+      resume: () => {},
+    }),
+    tokenizeSubtitle: async () => null,
+    preCacheTokenization: () => {},
+    isCacheFull: () => false,
+    logInfo: () => {},
+    logWarn: () => {},
+    onParsedSubtitleCuesChanged: (cues) => {
+      cueUpdates.push(cues);
+    },
+  });
+
+  await controller.initSubtitlePrefetch('episode.ass', 12);
+
+  assert.deepEqual(cueUpdates, [null]);
 });

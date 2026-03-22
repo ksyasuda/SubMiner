@@ -285,6 +285,30 @@
   }, // Primary and secondary subtitle styling.
 
   // ==========================================
+  // Subtitle Sidebar
+  // Parsed-subtitle sidebar cue list styling, behavior, and toggle key.
+  // Hot-reload: subtitle sidebar changes apply live without restarting SubMiner.
+  // ==========================================
+  "subtitleSidebar": {
+    "enabled": false, // Enable the subtitle sidebar feature for parsed subtitle sources. Values: true | false
+    "autoOpen": false, // Automatically open the subtitle sidebar once during overlay startup. Values: true | false
+    "layout": "overlay", // Render the subtitle sidebar as a floating overlay or reserve space inside mpv. Values: overlay | embedded
+    "toggleKey": "Backslash", // KeyboardEvent.code used to toggle the subtitle sidebar open and closed.
+    "pauseVideoOnHover": false, // Pause mpv while hovering the subtitle sidebar, then resume on leave. Values: true | false
+    "autoScroll": true, // Auto-scroll the active subtitle cue into view while playback advances. Values: true | false
+    "maxWidth": 420, // Maximum sidebar width in CSS pixels.
+    "opacity": 0.95, // Base opacity applied to the sidebar shell.
+    "backgroundColor": "rgba(73, 77, 100, 0.9)", // Background color for the subtitle sidebar shell.
+    "textColor": "#cad3f5", // Default cue text color in the subtitle sidebar.
+    "fontFamily": "\"M PLUS 1\", \"Noto Sans CJK JP\", sans-serif", // Font family used for subtitle sidebar cue text.
+    "fontSize": 16, // Base font size for subtitle sidebar cue text in CSS pixels.
+    "timestampColor": "#a5adcb", // Timestamp color in the subtitle sidebar.
+    "activeLineColor": "#f5bde6", // Text color for the active subtitle cue.
+    "activeLineBackgroundColor": "rgba(138, 173, 244, 0.22)", // Background color for the active subtitle cue.
+    "hoverLineBackgroundColor": "rgba(54, 58, 79, 0.84)" // Background color for hovered subtitle cues.
+  }, // Parsed-subtitle sidebar cue list styling, behavior, and toggle key.
+
+  // ==========================================
   // Shared AI Provider
   // Canonical OpenAI-compatible provider transport settings shared by Anki and YouTube subtitle fixing.
   // ==========================================

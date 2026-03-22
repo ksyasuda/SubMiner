@@ -6,6 +6,7 @@ import type {
   ResolvedControllerConfig,
   RuntimeOptionId,
   RuntimeOptionValue,
+  SubtitleSidebarSnapshot,
   SubtitlePosition,
   SubsyncManualRunRequest,
   SubsyncResult,
@@ -37,6 +38,7 @@ export interface IpcServiceDeps {
   tokenizeCurrentSubtitle: () => Promise<unknown>;
   getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
+  getSubtitleSidebarSnapshot?: () => Promise<SubtitleSidebarSnapshot>;
   getPlaybackPaused: () => boolean | null;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
@@ -143,6 +145,7 @@ export interface IpcDepsRuntimeOptions {
   tokenizeCurrentSubtitle: () => Promise<unknown>;
   getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
+  getSubtitleSidebarSnapshot?: () => Promise<SubtitleSidebarSnapshot>;
   getPlaybackPaused: () => boolean | null;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
@@ -190,6 +193,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     tokenizeCurrentSubtitle: options.tokenizeCurrentSubtitle,
     getCurrentSubtitleRaw: options.getCurrentSubtitleRaw,
     getCurrentSubtitleAss: options.getCurrentSubtitleAss,
+    getSubtitleSidebarSnapshot: options.getSubtitleSidebarSnapshot,
     getPlaybackPaused: options.getPlaybackPaused,
     getSubtitlePosition: options.getSubtitlePosition,
     getSubtitleStyle: options.getSubtitleStyle,
@@ -319,6 +323,13 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.getCurrentSubtitleAss, () => {
     return deps.getCurrentSubtitleAss();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.getSubtitleSidebarSnapshot, async () => {
+    if (!deps.getSubtitleSidebarSnapshot) {
+      throw new Error('Subtitle sidebar snapshot is unavailable.');
+    }
+    return await deps.getSubtitleSidebarSnapshot();
   });
 
   ipc.handle(IPC_CHANNELS.request.getPlaybackPaused, () => {

@@ -74,6 +74,11 @@ export type RendererDom = {
   controllerDebugAxes: HTMLPreElement;
   controllerDebugButtons: HTMLPreElement;
   controllerDebugButtonIndices: HTMLPreElement;
+  subtitleSidebarModal: HTMLDivElement;
+  subtitleSidebarContent: HTMLDivElement;
+  subtitleSidebarClose: HTMLButtonElement;
+  subtitleSidebarStatus: HTMLDivElement;
+  subtitleSidebarList: HTMLUListElement;
 
   sessionHelpModal: HTMLDivElement;
   sessionHelpClose: HTMLButtonElement;
@@ -171,6 +176,11 @@ export function resolveRendererDom(): RendererDom {
     controllerDebugButtonIndices: getRequiredElement<HTMLPreElement>(
       'controllerDebugButtonIndices',
     ),
+    subtitleSidebarModal: getRequiredElement<HTMLDivElement>('subtitleSidebarModal'),
+    subtitleSidebarContent: getRequiredElement<HTMLDivElement>('subtitleSidebarContent'),
+    subtitleSidebarClose: getRequiredElement<HTMLButtonElement>('subtitleSidebarClose'),
+    subtitleSidebarStatus: getRequiredElement<HTMLDivElement>('subtitleSidebarStatus'),
+    subtitleSidebarList: getRequiredElement<HTMLUListElement>('subtitleSidebarList'),
 
     sessionHelpModal: getRequiredElement<HTMLDivElement>('sessionHelpModal'),
     sessionHelpClose: getRequiredElement<HTMLButtonElement>('sessionHelpClose'),

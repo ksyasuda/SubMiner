@@ -9,6 +9,7 @@ import type {
   KikuFieldGroupingChoice,
   JlptLevel,
   FrequencyDictionaryLookup,
+  SubtitleCue,
 } from '../types';
 import type { CliArgs } from '../cli/args';
 import type { SubtitleTimingTracker } from '../subtitle-timing-tracker';
@@ -158,6 +159,8 @@ export interface AppState {
   currentSubText: string;
   currentSubAssText: string;
   currentSubtitleData: SubtitleData | null;
+  activeParsedSubtitleCues: SubtitleCue[];
+  activeParsedSubtitleSource: string | null;
   windowTracker: BaseWindowTracker | null;
   subtitlePosition: SubtitlePosition | null;
   currentMediaPath: string | null;
@@ -238,6 +241,8 @@ export function createAppState(values: AppStateInitialValues): AppState {
     currentSubText: '',
     currentSubAssText: '',
     currentSubtitleData: null,
+    activeParsedSubtitleCues: [],
+    activeParsedSubtitleSource: null,
     windowTracker: null,
     subtitlePosition: null,
     currentMediaPath: null,

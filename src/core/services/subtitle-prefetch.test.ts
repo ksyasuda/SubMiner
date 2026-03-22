@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { computePriorityWindow, createSubtitlePrefetchService } from './subtitle-prefetch';
-import type { SubtitleCue } from './subtitle-cue-parser';
 import type { SubtitleData } from '../../types';
+import type { SubtitleCue } from '../../types';
 
 function makeCues(count: number, startOffset = 0): SubtitleCue[] {
   return Array.from({ length: count }, (_, i) => ({

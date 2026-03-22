@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createIpcDepsRuntime, registerIpcHandlers, type IpcServiceDeps } from './ipc';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
+import type { SubtitleSidebarSnapshot } from '../../types';
 
 interface FakeIpcRegistrar {
   on: Map<string, (event: unknown, ...args: unknown[]) => void>;
@@ -77,6 +78,31 @@ function createControllerConfigFixture() {
   };
 }
 
+function createSubtitleSidebarSnapshotFixture(): SubtitleSidebarSnapshot {
+  return {
+    cues: [],
+    currentSubtitle: { text: '', startTime: null, endTime: null },
+    config: {
+      enabled: false,
+      autoOpen: false,
+      layout: 'overlay',
+      toggleKey: 'Backslash',
+      pauseVideoOnHover: false,
+      autoScroll: true,
+      maxWidth: 420,
+      opacity: 0.92,
+      backgroundColor: 'rgba(54, 58, 79, 0.88)',
+      textColor: '#cad3f5',
+      fontFamily: '"M PLUS 1", "Noto Sans CJK JP", sans-serif',
+      fontSize: 16,
+      timestampColor: '#a5adcb',
+      activeLineColor: '#f5bde6',
+      activeLineBackgroundColor: 'rgba(138, 173, 244, 0.22)',
+      hoverLineBackgroundColor: 'rgba(54, 58, 79, 0.84)',
+    },
+  };
+}
+
 function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServiceDeps {
   return {
     onOverlayModalClosed: () => {},
@@ -88,6 +114,7 @@ function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServ
     tokenizeCurrentSubtitle: async () => null,
     getCurrentSubtitleRaw: () => '',
     getCurrentSubtitleAss: () => '',
+    getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
     getPlaybackPaused: () => false,
     getSubtitlePosition: () => null,
     getSubtitleStyle: () => null,
@@ -173,6 +200,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     tokenizeCurrentSubtitle: async () => null,
     getCurrentSubtitleRaw: () => '',
     getCurrentSubtitleAss: () => '',
+    getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
     getPlaybackPaused: () => true,
     getSubtitlePosition: () => null,
     getSubtitleStyle: () => null,
@@ -269,6 +297,7 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
         cycles.push({ id, direction });
         return { ok: true };
       },
+      getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
       reportOverlayContentBounds: () => {},
       getAnilistStatus: () => ({}),
       clearAnilistToken: () => {},
@@ -318,6 +347,24 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
     (getControllerConfigHandler!({}) as { scrollPixelsPerSecond: number }).scrollPixelsPerSecond,
     960,
   );
+});
+
+test('registerIpcHandlers exposes subtitle sidebar snapshot request', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const snapshot = createSubtitleSidebarSnapshotFixture();
+  snapshot.cues = [{ startTime: 1, endTime: 2, text: 'line-1' }];
+  snapshot.config.enabled = true;
+
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      getSubtitleSidebarSnapshot: async () => snapshot,
+    }),
+    registrar,
+  );
+
+  const handler = handlers.handle.get(IPC_CHANNELS.request.getSubtitleSidebarSnapshot);
+  assert.ok(handler);
+  assert.deepEqual(await handler!({}), snapshot);
 });
 
 test('registerIpcHandlers forwards yomitan lookup tracking commands to immersion tracker', () => {
@@ -530,6 +577,7 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       tokenizeCurrentSubtitle: async () => null,
       getCurrentSubtitleRaw: () => '',
       getCurrentSubtitleAss: () => '',
+      getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
       getPlaybackPaused: () => false,
       getSubtitlePosition: () => null,
       getSubtitleStyle: () => null,
@@ -596,6 +644,7 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
       tokenizeCurrentSubtitle: async () => null,
       getCurrentSubtitleRaw: () => '',
       getCurrentSubtitleAss: () => '',
+      getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
       getPlaybackPaused: () => false,
       getSubtitlePosition: () => null,
       getSubtitleStyle: () => null,
@@ -667,6 +716,7 @@ test('registerIpcHandlers rejects malformed controller preference payloads', asy
       tokenizeCurrentSubtitle: async () => null,
       getCurrentSubtitleRaw: () => '',
       getCurrentSubtitleAss: () => '',
+      getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
       getPlaybackPaused: () => false,
       getSubtitlePosition: () => null,
       getSubtitleStyle: () => null,

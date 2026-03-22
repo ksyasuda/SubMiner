@@ -110,5 +110,102 @@ export function buildSubtitleConfigOptionRegistry(
       description:
         'Five colors used for rank bands when mode is `banded` (from most common to least within topX).',
     },
+    {
+      path: 'subtitleSidebar.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleSidebar.enabled,
+      description: 'Enable the subtitle sidebar feature for parsed subtitle sources.',
+    },
+    {
+      path: 'subtitleSidebar.autoOpen',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleSidebar.autoOpen,
+      description: 'Automatically open the subtitle sidebar once during overlay startup.',
+    },
+    {
+      path: 'subtitleSidebar.layout',
+      kind: 'enum',
+      enumValues: ['overlay', 'embedded'],
+      defaultValue: defaultConfig.subtitleSidebar.layout,
+      description: 'Render the subtitle sidebar as a floating overlay or reserve space inside mpv.',
+    },
+    {
+      path: 'subtitleSidebar.toggleKey',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleSidebar.toggleKey,
+      description: 'KeyboardEvent.code used to toggle the subtitle sidebar open and closed.',
+    },
+    {
+      path: 'subtitleSidebar.pauseVideoOnHover',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleSidebar.pauseVideoOnHover,
+      description: 'Pause mpv while hovering the subtitle sidebar, then resume on leave.',
+    },
+    {
+      path: 'subtitleSidebar.autoScroll',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleSidebar.autoScroll,
+      description: 'Auto-scroll the active subtitle cue into view while playback advances.',
+    },
+    {
+      path: 'subtitleSidebar.maxWidth',
+      kind: 'number',
+      defaultValue: defaultConfig.subtitleSidebar.maxWidth,
+      description: 'Maximum sidebar width in CSS pixels.',
+    },
+    {
+      path: 'subtitleSidebar.opacity',
+      kind: 'number',
+      defaultValue: defaultConfig.subtitleSidebar.opacity,
+      description: 'Base opacity applied to the sidebar shell.',
+    },
+    {
+      path: 'subtitleSidebar.backgroundColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleSidebar.backgroundColor,
+      description: 'Background color for the subtitle sidebar shell.',
+    },
+    {
+      path: 'subtitleSidebar.textColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleSidebar.textColor,
+      description: 'Default cue text color in the subtitle sidebar.',
+    },
+    {
+      path: 'subtitleSidebar.fontFamily',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleSidebar.fontFamily,
+      description: 'Font family used for subtitle sidebar cue text.',
+    },
+    {
+      path: 'subtitleSidebar.fontSize',
+      kind: 'number',
+      defaultValue: defaultConfig.subtitleSidebar.fontSize,
+      description: 'Base font size for subtitle sidebar cue text in CSS pixels.',
+    },
+    {
+      path: 'subtitleSidebar.timestampColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleSidebar.timestampColor,
+      description: 'Timestamp color in the subtitle sidebar.',
+    },
+    {
+      path: 'subtitleSidebar.activeLineColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleSidebar.activeLineColor,
+      description: 'Text color for the active subtitle cue.',
+    },
+    {
+      path: 'subtitleSidebar.activeLineBackgroundColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleSidebar.activeLineBackgroundColor,
+      description: 'Background color for the active subtitle cue.',
+    },
+    {
+      path: 'subtitleSidebar.hoverLineBackgroundColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleSidebar.hoverLineBackgroundColor,
+      description: 'Background color for hovered subtitle cues.',
+    },
   ];
 }

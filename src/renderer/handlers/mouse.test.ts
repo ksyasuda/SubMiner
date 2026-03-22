@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import type { SubtitleSidebarConfig } from '../../types';
 import { createMouseHandlers } from './mouse.js';
 import { YOMITAN_POPUP_HIDDEN_EVENT, YOMITAN_POPUP_SHOWN_EVENT } from '../yomitan-popup.js';
 
@@ -39,6 +40,7 @@ function createMouseTestContext() {
   const overlayClassList = createClassList();
   const subtitleRootClassList = createClassList();
   const subtitleContainerClassList = createClassList();
+  const secondarySubContainerClassList = createClassList();
 
   const ctx = {
     dom: {
@@ -54,6 +56,7 @@ function createMouseTestContext() {
         addEventListener: () => {},
       },
       secondarySubContainer: {
+        classList: secondarySubContainerClassList,
         addEventListener: () => {},
       },
     },
@@ -63,6 +66,9 @@ function createMouseTestContext() {
     },
     state: {
       isOverSubtitle: false,
+      isOverSubtitleSidebar: false,
+      subtitleSidebarModalOpen: false,
+      subtitleSidebarConfig: null as SubtitleSidebarConfig | null,
       isDragging: false,
       dragStartY: 0,
       startYPercent: 0,
@@ -72,7 +78,7 @@ function createMouseTestContext() {
   return ctx;
 }
 
-test('auto-pause on subtitle hover pauses on enter and resumes on leave when enabled', async () => {
+test('secondary hover pauses on enter, reveals secondary subtitle, and resumes on leave when enabled', async () => {
   const ctx = createMouseTestContext();
   const mpvCommands: Array<(string | number)[]> = [];
 
@@ -92,13 +98,77 @@ test('auto-pause on subtitle hover pauses on enter and resumes on leave when ena
     },
   });
 
-  await handlers.handleMouseEnter();
-  await handlers.handleMouseLeave();
+  await handlers.handleSecondaryMouseEnter();
+  assert.equal(ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'), true);
+  await handlers.handleSecondaryMouseLeave();
+  assert.equal(ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'), false);
 
   assert.deepEqual(mpvCommands, [
     ['set_property', 'pause', 'yes'],
     ['set_property', 'pause', 'no'],
   ]);
+});
+
+test('moving between primary and secondary subtitle containers keeps the hover pause active', async () => {
+  const ctx = createMouseTestContext();
+  const mpvCommands: Array<(string | number)[]> = [];
+
+  const handlers = createMouseHandlers(ctx as never, {
+    modalStateReader: {
+      isAnySettingsModalOpen: () => false,
+      isAnyModalOpen: () => false,
+    },
+    applyYPercent: () => {},
+    getCurrentYPercent: () => 10,
+    persistSubtitlePositionPatch: () => {},
+    getSubtitleHoverAutoPauseEnabled: () => true,
+    getYomitanPopupAutoPauseEnabled: () => false,
+    getPlaybackPaused: async () => false,
+    sendMpvCommand: (command) => {
+      mpvCommands.push(command);
+    },
+  });
+
+  await handlers.handleSecondaryMouseEnter();
+  await handlers.handleSecondaryMouseLeave({
+    relatedTarget: ctx.dom.subtitleContainer,
+  } as unknown as MouseEvent);
+  await handlers.handlePrimaryMouseEnter({
+    relatedTarget: ctx.dom.secondarySubContainer,
+  } as unknown as MouseEvent);
+
+  assert.equal(ctx.state.isOverSubtitle, true);
+  assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
+});
+
+test('secondary leave toward primary subtitle container clears the secondary hover class', async () => {
+  const ctx = createMouseTestContext();
+  const mpvCommands: Array<(string | number)[]> = [];
+
+  const handlers = createMouseHandlers(ctx as never, {
+    modalStateReader: {
+      isAnySettingsModalOpen: () => false,
+      isAnyModalOpen: () => false,
+    },
+    applyYPercent: () => {},
+    getCurrentYPercent: () => 10,
+    persistSubtitlePositionPatch: () => {},
+    getSubtitleHoverAutoPauseEnabled: () => true,
+    getYomitanPopupAutoPauseEnabled: () => false,
+    getPlaybackPaused: async () => false,
+    sendMpvCommand: (command) => {
+      mpvCommands.push(command);
+    },
+  });
+
+  await handlers.handleSecondaryMouseEnter();
+  await handlers.handleSecondaryMouseLeave({
+    relatedTarget: ctx.dom.subtitleContainer,
+  } as unknown as MouseEvent);
+
+  assert.equal(ctx.state.isOverSubtitle, false);
+  assert.equal(ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'), false);
+  assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
 });
 
 test('auto-pause on subtitle hover skips when playback is already paused', async () => {
@@ -127,6 +197,36 @@ test('auto-pause on subtitle hover skips when playback is already paused', async
   assert.deepEqual(mpvCommands, []);
 });
 
+test('primary hover pauses on enter without revealing secondary subtitle', async () => {
+  const ctx = createMouseTestContext();
+  const mpvCommands: Array<(string | number)[]> = [];
+
+  const handlers = createMouseHandlers(ctx as never, {
+    modalStateReader: {
+      isAnySettingsModalOpen: () => false,
+      isAnyModalOpen: () => false,
+    },
+    applyYPercent: () => {},
+    getCurrentYPercent: () => 10,
+    persistSubtitlePositionPatch: () => {},
+    getSubtitleHoverAutoPauseEnabled: () => true,
+    getYomitanPopupAutoPauseEnabled: () => false,
+    getPlaybackPaused: async () => false,
+    sendMpvCommand: (command) => {
+      mpvCommands.push(command);
+    },
+  });
+
+  await handlers.handlePrimaryMouseEnter();
+  assert.equal(ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'), false);
+  await handlers.handlePrimaryMouseLeave();
+
+  assert.deepEqual(mpvCommands, [
+    ['set_property', 'pause', 'yes'],
+    ['set_property', 'pause', 'no'],
+  ]);
+});
+
 test('auto-pause on subtitle hover is skipped when disabled in config', async () => {
   const ctx = createMouseTestContext();
   const mpvCommands: Array<(string | number)[]> = [];
@@ -151,6 +251,67 @@ test('auto-pause on subtitle hover is skipped when disabled in config', async ()
   await handlers.handleMouseLeave();
 
   assert.deepEqual(mpvCommands, []);
+});
+
+test('subtitle leave restores passthrough while embedded sidebar is open but not hovered', async () => {
+  const ctx = createMouseTestContext();
+  const ignoreMouseCalls: Array<[boolean, { forward?: boolean } | undefined]> = [];
+  const previousWindow = (globalThis as { window?: unknown }).window;
+
+  ctx.platform.shouldToggleMouseIgnore = true;
+  ctx.state.isOverSubtitle = true;
+  ctx.state.subtitleSidebarModalOpen = true;
+  ctx.state.subtitleSidebarConfig = {
+    enabled: true,
+    autoOpen: false,
+    layout: 'embedded',
+    toggleKey: 'Backslash',
+    pauseVideoOnHover: false,
+    autoScroll: true,
+    maxWidth: 360,
+    opacity: 0.92,
+    backgroundColor: 'rgba(54, 58, 79, 0.88)',
+    textColor: '#cad3f5',
+    fontFamily: '"Iosevka Aile", sans-serif',
+    fontSize: 17,
+    timestampColor: '#a5adcb',
+    activeLineColor: '#f5bde6',
+    activeLineBackgroundColor: 'rgba(138, 173, 244, 0.22)',
+    hoverLineBackgroundColor: 'rgba(54, 58, 79, 0.84)',
+  };
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+          ignoreMouseCalls.push([ignore, options]);
+        },
+      },
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => true,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => false,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: () => {},
+    });
+
+    await handlers.handlePrimaryMouseLeave();
+
+    assert.deepEqual(ignoreMouseCalls.at(-1), [true, { forward: true }]);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+  }
 });
 
 test('pending hover pause check is ignored when mouse leaves before pause state resolves', async () => {

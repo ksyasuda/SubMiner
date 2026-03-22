@@ -42,6 +42,9 @@ function classifyDiff(prev: ResolvedConfig, next: ResolvedConfig): ConfigHotRelo
   if (!isEqual(prev.shortcuts, next.shortcuts)) {
     hotReloadFields.push('shortcuts');
   }
+  if (!isEqual(prev.subtitleSidebar, next.subtitleSidebar)) {
+    hotReloadFields.push('subtitleSidebar');
+  }
   if (prev.secondarySub.defaultMode !== next.secondarySub.defaultMode) {
     hotReloadFields.push('secondarySub.defaultMode');
   }
@@ -55,7 +58,7 @@ function classifyDiff(prev: ResolvedConfig, next: ResolvedConfig): ConfigHotRelo
   ]);
 
   for (const key of keys) {
-    if (key === 'subtitleStyle' || key === 'keybindings' || key === 'shortcuts') {
+    if (key === 'subtitleStyle' || key === 'keybindings' || key === 'shortcuts' || key === 'subtitleSidebar') {
       continue;
     }
 

@@ -10,6 +10,9 @@ const makefile = readFileSync(makefilePath, 'utf8');
 const packageJsonPath = resolve(__dirname, '../package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
   scripts: Record<string, string>;
+  build?: {
+    files?: string[];
+  };
 };
 
 test('publish release leaves prerelease unset so gh creates a normal release', () => {
@@ -63,6 +66,18 @@ test('release package scripts disable implicit electron-builder publishing', () 
   assert.match(packageJson.scripts['build:mac'] ?? '', /--publish never/);
   assert.match(packageJson.scripts['build:win'] ?? '', /--publish never/);
   assert.match(packageJson.scripts['build:win:unsigned'] ?? '', /build-win-unsigned\.mjs/);
+});
+
+test('release packaging keeps default file inclusion and excludes large source-only trees explicitly', () => {
+  const files = packageJson.build?.files ?? [];
+  assert.ok(files.includes('**/*'));
+  assert.ok(files.includes('!src{,/**/*}'));
+  assert.ok(files.includes('!launcher{,/**/*}'));
+  assert.ok(files.includes('!stats/src{,/**/*}'));
+  assert.ok(files.includes('!.tmp{,/**/*}'));
+  assert.ok(files.includes('!release-*{,/**/*}'));
+  assert.ok(files.includes('!vendor/subminer-yomitan{,/**/*}'));
+  assert.ok(files.includes('!vendor/texthooker-ui/src{,/**/*}'));
 });
 
 test('config example generation runs directly from source without unrelated bundle prerequisites', () => {
