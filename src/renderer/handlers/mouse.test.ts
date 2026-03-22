@@ -141,6 +141,36 @@ test('moving between primary and secondary subtitle containers keeps the hover p
   assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
 });
 
+test('secondary leave toward primary subtitle container clears the secondary hover class', async () => {
+  const ctx = createMouseTestContext();
+  const mpvCommands: Array<(string | number)[]> = [];
+
+  const handlers = createMouseHandlers(ctx as never, {
+    modalStateReader: {
+      isAnySettingsModalOpen: () => false,
+      isAnyModalOpen: () => false,
+    },
+    applyYPercent: () => {},
+    getCurrentYPercent: () => 10,
+    persistSubtitlePositionPatch: () => {},
+    getSubtitleHoverAutoPauseEnabled: () => true,
+    getYomitanPopupAutoPauseEnabled: () => false,
+    getPlaybackPaused: async () => false,
+    sendMpvCommand: (command) => {
+      mpvCommands.push(command);
+    },
+  });
+
+  await handlers.handleSecondaryMouseEnter();
+  await handlers.handleSecondaryMouseLeave({
+    relatedTarget: ctx.dom.subtitleContainer,
+  } as unknown as MouseEvent);
+
+  assert.equal(ctx.state.isOverSubtitle, false);
+  assert.equal(ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'), false);
+  assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
+});
+
 test('auto-pause on subtitle hover skips when playback is already paused', async () => {
   const ctx = createMouseTestContext();
   const mpvCommands: Array<(string | number)[]> = [];

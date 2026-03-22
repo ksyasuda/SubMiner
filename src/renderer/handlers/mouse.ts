@@ -163,6 +163,10 @@ export function createMouseHandlers(
       ? ctx.dom.subtitleContainer
       : ctx.dom.secondarySubContainer;
     if (relatedTarget && isWithinOtherSubtitleContainer(relatedTarget, otherContainer)) {
+      ctx.state.isOverSubtitle = false;
+      if (hideSecondaryHover) {
+        ctx.dom.secondarySubContainer.classList.remove('secondary-sub-hover-active');
+      }
       return;
     }
 

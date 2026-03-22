@@ -39,6 +39,7 @@ import { createRuntimeOptionsModal } from './modals/runtime-options.js';
 import { createSubsyncModal } from './modals/subsync.js';
 import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
+import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
 import { createRendererState } from './state.js';
 import { createSubtitleRenderer } from './subtitle-render.js';
 import { isYomitanPopupVisible, registerYomitanLookupListener } from './yomitan-popup.js';
@@ -584,7 +585,7 @@ async function init(): Promise<void> {
   measurementReporter.schedule();
 
   if (ctx.platform.shouldToggleMouseIgnore) {
-    window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
+    syncOverlayMouseIgnoreState(ctx);
   }
 
   measurementReporter.emitNow();
