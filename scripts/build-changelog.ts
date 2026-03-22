@@ -341,12 +341,34 @@ export function writeChangelogArtifacts(options?: ChangelogOptions): {
   const version = resolveVersion(options ?? {});
   const date = resolveDate(options?.date);
   const fragments = readChangeFragments(cwd, options?.deps);
-  const releaseSection = buildReleaseSection(version, date, fragments);
   const existingChangelogPath = path.join(cwd, 'CHANGELOG.md');
   const existingChangelog = existsSync(existingChangelogPath)
     ? readFileSync(existingChangelogPath, 'utf8')
     : '';
   const outputPaths = resolveChangelogOutputPaths({ cwd });
+  const existingReleaseSection = extractReleaseSectionBody(existingChangelog, version);
+  if (existingReleaseSection !== null) {
+    log(`Existing section found for v${version}; skipping changelog prepend.`);
+    for (const fragment of fragments) {
+      rmSync(fragment.path);
+      log(`Removed ${fragment.path}`);
+    }
+
+    const releaseNotesPath = writeReleaseNotesFile(
+      cwd,
+      existingReleaseSection,
+      options?.deps,
+    );
+    log(`Generated ${releaseNotesPath}`);
+
+    return {
+      deletedFragmentPaths: fragments.map((fragment) => fragment.path),
+      outputPaths,
+      releaseNotesPath,
+    };
+  }
+
+  const releaseSection = buildReleaseSection(version, date, fragments);
   const nextChangelog = prependReleaseSection(existingChangelog, releaseSection, version);
 
   for (const outputPath of outputPaths) {

@@ -95,6 +95,43 @@ test('writeChangelogArtifacts ignores README, groups fragments by type, writes r
   }
 });
 
+test('writeChangelogArtifacts skips changelog prepend when release section already exists', async () => {
+  const { writeChangelogArtifacts } = await loadModule();
+  const workspace = createWorkspace('write-artifacts-existing-version');
+  const projectRoot = path.join(workspace, 'SubMiner');
+  const existingChangelog = [
+    '# Changelog',
+    '',
+    '## v0.4.1 (2026-03-07)',
+    '### Added',
+    '- Existing release bullet.',
+    '',
+  ].join('\n');
+
+  fs.mkdirSync(projectRoot, { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'CHANGELOG.md'), existingChangelog, 'utf8');
+  fs.writeFileSync(path.join(projectRoot, 'changes', '001.md'), ['type: added', 'area: overlay', '', '- Stale release fragment.'].join('\n'), 'utf8');
+
+  try {
+    const result = writeChangelogArtifacts({
+      cwd: projectRoot,
+      version: '0.4.1',
+      date: '2026-03-08',
+    });
+
+    assert.deepEqual(result.deletedFragmentPaths, [path.join(projectRoot, 'changes', '001.md')]);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'changes', '001.md')), false);
+
+    const changelog = fs.readFileSync(path.join(projectRoot, 'CHANGELOG.md'), 'utf8');
+    assert.equal(changelog, existingChangelog);
+    const releaseNotes = fs.readFileSync(path.join(projectRoot, 'release', 'release-notes.md'), 'utf8');
+    assert.match(releaseNotes, /## Highlights\n### Added\n- Existing release bullet\./);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test('verifyChangelogReadyForRelease ignores README but rejects pending fragments and missing version sections', async () => {
   const { verifyChangelogReadyForRelease } = await loadModule();
   const workspace = createWorkspace('verify-release');
