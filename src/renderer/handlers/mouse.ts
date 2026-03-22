@@ -1,4 +1,5 @@
 import type { ModalStateReader, RendererContext } from '../context';
+import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 import {
   YOMITAN_POPUP_HIDDEN_EVENT,
   YOMITAN_POPUP_SHOWN_EVENT,
@@ -24,6 +25,19 @@ export function createMouseHandlers(
   let popupPauseRequestId = 0;
   let pausedBySubtitleHover = false;
   let pausedByYomitanPopup = false;
+
+  function isWithinOtherSubtitleContainer(
+    relatedTarget: EventTarget | null,
+    otherContainer: HTMLElement,
+  ): boolean {
+    if (relatedTarget === otherContainer) {
+      return true;
+    }
+    if (typeof Node !== 'undefined' && relatedTarget instanceof Node) {
+      return otherContainer.contains(relatedTarget);
+    }
+    return false;
+  }
 
   function maybeResumeHoverPause(): void {
     if (!pausedBySubtitleHover) return;
@@ -80,10 +94,7 @@ export function createMouseHandlers(
   function enablePopupInteraction(): void {
     yomitanPopupVisible = true;
     ctx.state.yomitanPopupVisible = true;
-    ctx.dom.overlay.classList.add('interactive');
-    if (ctx.platform.shouldToggleMouseIgnore) {
-      window.electronAPI.setIgnoreMouseEvents(false);
-    }
+    syncOverlayMouseIgnoreState(ctx);
     if (ctx.platform.isMacOSPlatform) {
       window.focus();
     }
@@ -101,26 +112,28 @@ export function createMouseHandlers(
     popupPauseRequestId += 1;
     maybeResumeYomitanPopupPause();
     maybeResumeHoverPause();
-    if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
-      ctx.dom.overlay.classList.remove('interactive');
-      if (ctx.platform.shouldToggleMouseIgnore) {
-        window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
-      }
-    }
+    syncOverlayMouseIgnoreState(ctx);
   }
 
-  async function handleMouseEnter(): Promise<void> {
+  async function handleMouseEnter(
+    _event?: MouseEvent,
+    showSecondaryHover = false,
+  ): Promise<void> {
     ctx.state.isOverSubtitle = true;
-    ctx.dom.overlay.classList.add('interactive');
-    if (ctx.platform.shouldToggleMouseIgnore) {
-      window.electronAPI.setIgnoreMouseEvents(false);
+    if (showSecondaryHover) {
+      ctx.dom.secondarySubContainer.classList.add('secondary-sub-hover-active');
     }
+    syncOverlayMouseIgnoreState(ctx);
 
     if (yomitanPopupVisible && options.getYomitanPopupAutoPauseEnabled()) {
       return;
     }
 
     if (!options.getSubtitleHoverAutoPauseEnabled()) {
+      return;
+    }
+
+    if (pausedBySubtitleHover) {
       return;
     }
 
@@ -141,8 +154,22 @@ export function createMouseHandlers(
     pausedBySubtitleHover = true;
   }
 
-  async function handleMouseLeave(): Promise<void> {
+  async function handleMouseLeave(
+    _event?: MouseEvent,
+    hideSecondaryHover = false,
+  ): Promise<void> {
+    const relatedTarget = _event?.relatedTarget ?? null;
+    const otherContainer = hideSecondaryHover
+      ? ctx.dom.subtitleContainer
+      : ctx.dom.secondarySubContainer;
+    if (relatedTarget && isWithinOtherSubtitleContainer(relatedTarget, otherContainer)) {
+      return;
+    }
+
     ctx.state.isOverSubtitle = false;
+    if (hideSecondaryHover) {
+      ctx.dom.secondarySubContainer.classList.remove('secondary-sub-hover-active');
+    }
     hoverPauseRequestId += 1;
     maybeResumeHoverPause();
     if (yomitanPopupVisible) return;
@@ -246,6 +273,10 @@ export function createMouseHandlers(
   }
 
   return {
+    handlePrimaryMouseEnter: (event?: MouseEvent) => handleMouseEnter(event, false),
+    handlePrimaryMouseLeave: (event?: MouseEvent) => handleMouseLeave(event, false),
+    handleSecondaryMouseEnter: (event?: MouseEvent) => handleMouseEnter(event, true),
+    handleSecondaryMouseLeave: (event?: MouseEvent) => handleMouseLeave(event, true),
     handleMouseEnter,
     handleMouseLeave,
     setupDragging,
