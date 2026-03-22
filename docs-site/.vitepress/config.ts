@@ -95,6 +95,7 @@ export default {
           { text: 'Building & Testing', link: '/development' },
           { text: 'Architecture', link: '/architecture' },
           { text: 'IPC + Runtime Contracts', link: '/ipc-contracts' },
+          { text: 'WebSocket + Texthooker API', link: '/websocket-texthooker-api' },
           { text: 'Changelog', link: '/changelog' },
         ],
       },
