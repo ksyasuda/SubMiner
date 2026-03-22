@@ -82,6 +82,7 @@ export function createSubtitlePrefetchInitController(
       );
     } catch (error) {
       if (revision === initRevision) {
+        deps.onParsedSubtitleCuesChanged?.(null, null);
         deps.logWarn(`[subtitle-prefetch] failed to initialize: ${(error as Error).message}`);
       }
     }
