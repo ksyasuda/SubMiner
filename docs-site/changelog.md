@@ -1,13 +1,11 @@
 # Changelog
 
 ## v0.8.0 (2026-03-22)
-- Refreshed the vendored Texthooker docs/index.html bundle to match the latest local build artifacts.
-- Added incremental known-word cache refresh behavior so mined cards can append cache entries immediately and `subminer doctor --refresh-known-words` is now the explicit full refresh path.
-- Fixed known-word/JLPT subtitle styling so tokens like `大体` keep expected coloring even when only the kana reading is in cache.
-- Fixed anime progress to use last ended playback position and keep latest known checkpoint across sessions, preventing stale or zero percent regressions.
-- Kept subtitle sidebar cue tracking stable across transitions and improved sidebar configuration documentation for `layout`, `fontFamily`, and `fontSize`.
-- Added `subtitleSidebar.autoOpen` to open the subtitle sidebar at startup when enabled.
-- Improved sidebar resume/start behavior to jump directly to the active cue on resume while preserving auto-follow smooth motion.
+- Added a configurable subtitle sidebar feature (`subtitleSidebar`) with overlay/embedded rendering, click-to-seek cue list, and hot-reloadable visibility and behavior controls.
+- Added release docs updates for sidebar configuration, including options, sample config, and toggle shortcut behavior.
+- Synced sidebar and overlay subtitle states during playback transitions via IPC-backed snapshot plumbing.
+- Fixed sidebar cue tracking to remain stable across timing edge cases and stale subtitle refreshes.
+- Improved sidebar resume/start behavior by jumping directly to the first resolved active cue.
 
 ## v0.7.0 (2026-03-19)
 - Added a full local immersion dashboard release line with Overview, Library, Trends, Vocabulary, and Sessions drill-down views backed by SQLite tracking data.
