@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.8.0 (2026-03-22)
+
+### Changed
+- Docs: Refreshed the vendored Texthooker docs/index.html bundle to match the latest local build artifacts.
+
+### Fixed
+- Anki: Known-word cache refreshes now reconcile Anki changes incrementally instead of wiping and rebuilding on startup, mined cards can append their word into the cache immediately through a new default-enabled config flag, and explicit refreshes now run through `subminer doctor --refresh-known-words`.
+- Subtitle: Restored known-word coloring and JLPT underlines for subtitle tokens like `大体` when the subtitle token is kanji but the known-word cache only matches the kana reading.
+- Stats: Episode progress in the anime page now uses the last ended playback position instead of cumulative active watch time, avoiding distorted percentages after rewatches or repeated sessions.
+- Stats: Anime episode progress now keeps the latest known playback position through active-session checkpoints and stale-session recovery, so recently watched episodes no longer lose their progress percentage.
+- Stats: Anime episode progress now falls back to the latest retained subtitle/event timing when a session is missing a persisted playback-position checkpoint, so older watch sessions no longer get stuck at `0%` progress.
+- Overlay: Kept subtitle sidebar cue tracking stable across transitions by avoiding cue-line regression on subtitle timing edge cases and stale text updates.
+- Overlay: Improved sidebar config by documenting and exposing layout mode and typography options (`layout`, `fontFamily`, `fontSize`) in the generated documentation flow.
+- Overlay: Added `subtitleSidebar.autoOpen` (default `false`) to open the subtitle sidebar once during overlay startup when the sidebar feature is enabled.
+- Overlay: Made subtitle sidebar resume/start positioning jump directly to the first resolved active cue instead of smooth-scrolling through the full list, while keeping smooth auto-follow for later cue changes.
+
 ## v0.7.0 (2026-03-19)
 
 ### Added
