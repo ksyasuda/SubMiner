@@ -10,8 +10,8 @@ import type {
   RuntimeOptionState,
   RuntimeOptionValue,
   SubtitlePosition,
-  SubtitleCue,
   SubtitleSidebarConfig,
+  SubtitleCue,
   SubsyncSourceTrack,
 } from '../types';
 

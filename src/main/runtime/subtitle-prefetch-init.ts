@@ -1,9 +1,9 @@
-import type { SubtitleCue } from '../../core/services/subtitle-cue-parser';
 import type {
   SubtitlePrefetchService,
   SubtitlePrefetchServiceDeps,
 } from '../../core/services/subtitle-prefetch';
 import type { SubtitleData } from '../../types';
+import type { SubtitleCue } from '../../types';
 
 export interface SubtitlePrefetchInitControllerDeps {
   getCurrentService: () => SubtitlePrefetchService | null;

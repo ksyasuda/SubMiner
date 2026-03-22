@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { SubtitleCue } from '../../core/services/subtitle-cue-parser';
 import type { SubtitlePrefetchService } from '../../core/services/subtitle-prefetch';
+import type { SubtitleCue } from '../../types';
 import { createSubtitlePrefetchInitController } from './subtitle-prefetch-init';
 
 function createDeferred<T>(): {

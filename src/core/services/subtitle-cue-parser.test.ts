@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseSrtCues, parseAssCues, parseSubtitleCues } from './subtitle-cue-parser';
-import type { SubtitleCue } from './subtitle-cue-parser';
+import type { SubtitleCue } from '../../types';
 
 test('parseSrtCues parses basic SRT content', () => {
   const content = [

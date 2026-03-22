@@ -1,11 +1,11 @@
 ---
 id: TASK-216
 title: 'Address PR #28 CodeRabbit follow-ups on subtitle sidebar'
-status: In Progress
+status: Completed
 assignee:
   - '@codex'
 created_date: '2026-03-21 00:00'
-updated_date: '2026-03-22 04:05'
+updated_date: '2026-03-21 00:00'
 labels:
   - pr-review
   - subtitle-sidebar
@@ -64,6 +64,8 @@ Verification:
 2026-03-22: Addressed the live hover-state and startup mouse-ignore follow-ups from the latest CodeRabbit pass. `handleMouseLeave()` now clears `isOverSubtitle` and drops `secondary-sub-hover-active` when leaving the secondary subtitle container toward the primary container, and renderer startup now calls `syncOverlayMouseIgnoreState(ctx)` instead of forcing `setIgnoreMouseEvents(true, { forward: true })`. The sidebar IPC hover catch and CSS spacing comments were already satisfied in the current tree.
 
 2026-03-22: Regenerated `bun.lock` from a clean install so the `electron-builder-squirrel-windows` override now resolves at `26.8.2` in the lockfile alongside `app-builder-lib@26.8.2`.
+
+2026-03-21: Finished the remaining cleanup pass from the latest review. `subtitleSidebar.layout` now uses enum validation, `SubtitleCue` is re-exported from `src/types.ts` as the single public type path, and the subtitle sidebar resize listener now has unload cleanup wired through the renderer.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

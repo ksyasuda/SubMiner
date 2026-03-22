@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import type { SubtitleCue } from './core/services/subtitle-cue-parser';
+
 export enum PartOfSpeech {
   noun = 'noun',
   verb = 'verb',
@@ -364,11 +366,7 @@ export interface ResolvedTokenPos2ExclusionConfig {
 
 export type FrequencyDictionaryMode = 'single' | 'banded';
 
-export interface SubtitleCue {
-  startTime: number;
-  endTime: number;
-  text: string;
-}
+export type { SubtitleCue } from './core/services/subtitle-cue-parser';
 
 export type SubtitleSidebarLayout = 'overlay' | 'embedded';
 

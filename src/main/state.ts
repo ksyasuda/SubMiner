@@ -5,11 +5,11 @@ import type {
   MpvSubtitleRenderMetrics,
   SecondarySubMode,
   SubtitleData,
-  SubtitleCue,
   SubtitlePosition,
   KikuFieldGroupingChoice,
   JlptLevel,
   FrequencyDictionaryLookup,
+  SubtitleCue,
 } from '../types';
 import type { CliArgs } from '../cli/args';
 import type { SubtitleTimingTracker } from '../subtitle-timing-tracker';

@@ -1,5 +1,5 @@
-import type { SubtitleCue } from './subtitle-cue-parser';
 import type { SubtitleData } from '../../types';
+import type { SubtitleCue } from '../../types';
 
 export interface SubtitlePrefetchServiceDeps {
   cues: SubtitleCue[];

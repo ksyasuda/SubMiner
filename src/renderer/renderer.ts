@@ -543,6 +543,9 @@ async function init(): Promise<void> {
   controllerDebugModal.wireDomEvents();
   sessionHelpModal.wireDomEvents();
   subtitleSidebarModal.wireDomEvents();
+  window.addEventListener('beforeunload', () => {
+    subtitleSidebarModal.disposeDomEvents();
+  });
 
   window.electronAPI.onRuntimeOptionsChanged((options: RuntimeOptionState[]) => {
     runGuarded('runtime-options:changed', () => {

@@ -124,7 +124,8 @@ export function buildSubtitleConfigOptionRegistry(
     },
     {
       path: 'subtitleSidebar.layout',
-      kind: 'string',
+      kind: 'enum',
+      enumValues: ['overlay', 'embedded'],
       defaultValue: defaultConfig.subtitleSidebar.layout,
       description: 'Render the subtitle sidebar as a floating overlay or reserve space inside mpv.',
     },

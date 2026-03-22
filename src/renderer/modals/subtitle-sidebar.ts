@@ -145,6 +145,7 @@ export function createSubtitleSidebarModal(
   let snapshotPollInterval: ReturnType<typeof setTimeout> | null = null;
   let lastAppliedVideoMarginRatio: number | null = null;
   let subtitleSidebarHoverRequestId = 0;
+  let disposeDomEvents: (() => void) | null = null;
 
   function restoreEmbeddedSidebarPassthrough(): void {
     syncOverlayMouseIgnoreState(ctx);
@@ -515,6 +516,10 @@ export function createSubtitleSidebarModal(
   }
 
   function wireDomEvents(): void {
+    if (disposeDomEvents) {
+      return;
+    }
+
     ctx.dom.subtitleSidebarClose.addEventListener('click', () => {
       closeSubtitleSidebarModal();
     });
@@ -565,12 +570,17 @@ export function createSubtitleSidebarModal(
       ctx.state.isOverSubtitleSidebar = false;
       resumeSubtitleSidebarHoverPause();
     });
-    window.addEventListener('resize', () => {
+    const resizeHandler = () => {
       if (!ctx.state.subtitleSidebarModalOpen) {
         return;
       }
       syncEmbeddedSidebarLayout();
-    });
+    };
+    window.addEventListener('resize', resizeHandler);
+    disposeDomEvents = () => {
+      window.removeEventListener('resize', resizeHandler);
+      disposeDomEvents = null;
+    };
   }
 
   return {
@@ -580,6 +590,9 @@ export function createSubtitleSidebarModal(
     toggleSubtitleSidebarModal,
     refreshSubtitleSidebarSnapshot: refreshSnapshot,
     wireDomEvents,
+    disposeDomEvents: () => {
+      disposeDomEvents?.();
+    },
     handleSubtitleUpdated,
     seekToCue,
   };
