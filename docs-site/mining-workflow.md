@@ -176,6 +176,8 @@ SubMiner runs a local HTTP server at `http://127.0.0.1:5174` (configurable port)
 
 The texthooker page displays the current subtitle and updates as new lines arrive. This is useful if you prefer to do lookups in a browser rather than through the overlay's built-in Yomitan.
 
+If you want to build your own browser client, websocket consumer, or automation relay, see [WebSocket / Texthooker API & Integration](/websocket-texthooker-api).
+
 ## Subtitle Sync (Subsync)
 
 If your subtitle file is out of sync with the audio, SubMiner can resynchronize it using [alass](https://github.com/kaegi/alass) or [ffsubsync](https://github.com/smacke/ffsubsync).

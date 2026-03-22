@@ -195,6 +195,8 @@ Defaults warm everything (`true` for all toggles, `lowPowerMode: false`). Settin
 
 The overlay includes a built-in WebSocket server that broadcasts subtitle text to connected clients (such as texthooker-ui) for external processing.
 
+For endpoint details, payload examples, and client patterns, see [WebSocket / Texthooker API & Integration](/websocket-texthooker-api).
+
 By default, the server uses "auto" mode: it starts automatically unless [mpv_websocket](https://github.com/kuroahna/mpv_websocket) is detected at `~/.config/mpv/mpv_websocket`. If you have mpv_websocket installed, the built-in server is skipped to avoid conflicts.
 
 See `config.example.jsonc` for detailed configuration options.
