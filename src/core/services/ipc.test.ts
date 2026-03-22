@@ -84,6 +84,7 @@ function createSubtitleSidebarSnapshotFixture(): SubtitleSidebarSnapshot {
     currentSubtitle: { text: '', startTime: null, endTime: null },
     config: {
       enabled: false,
+      autoOpen: false,
       layout: 'overlay',
       toggleKey: 'Backslash',
       pauseVideoOnHover: false,
