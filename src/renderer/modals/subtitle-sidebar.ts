@@ -38,8 +38,16 @@ function normalizeCueText(text: string): string {
 
 function formatCueTimestamp(seconds: number): string {
   const totalSeconds = Math.max(0, Math.floor(seconds));
-  const mins = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
   const secs = totalSeconds % 60;
+  if (hours > 0) {
+    return [
+      String(hours).padStart(2, '0'),
+      String(mins).padStart(2, '0'),
+      String(secs).padStart(2, '0'),
+    ].join(':');
+  }
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
@@ -162,10 +170,11 @@ export function createSubtitleSidebarModal(
 
   function syncEmbeddedSidebarLayout(): void {
     const config = ctx.state.subtitleSidebarConfig;
-    const reservedWidthPx = getReservedSidebarWidthPx();
-    const embedded = Boolean(config && config.layout === 'embedded' && reservedWidthPx > 0);
+    const wantsEmbedded = Boolean(
+      config && config.layout === 'embedded' && ctx.state.subtitleSidebarModalOpen,
+    );
 
-    if (embedded) {
+    if (wantsEmbedded) {
       ctx.dom.subtitleSidebarContent.classList.add('subtitle-sidebar-content-embedded');
       ctx.dom.subtitleSidebarModal.classList.add('subtitle-sidebar-modal-embedded');
       document.body.classList.add('subtitle-sidebar-embedded-open');
@@ -174,6 +183,8 @@ export function createSubtitleSidebarModal(
       ctx.dom.subtitleSidebarModal.classList.remove('subtitle-sidebar-modal-embedded');
       document.body.classList.remove('subtitle-sidebar-embedded-open');
     }
+    const reservedWidthPx = wantsEmbedded ? getReservedSidebarWidthPx() : 0;
+    const embedded = wantsEmbedded && reservedWidthPx > 0;
     document.documentElement.style.setProperty(
       '--subtitle-sidebar-reserved-width',
       `${Math.max(0, Math.round(reservedWidthPx))}px`,

@@ -299,6 +299,100 @@ test('subtitle sidebar rows support keyboard activation', async () => {
   }
 });
 
+test('subtitle sidebar renders hour-long cue timestamps as HH:MM:SS', async () => {
+  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+  const previousWindow = globals.window;
+  const previousDocument = globals.document;
+
+  const snapshot: SubtitleSidebarSnapshot = {
+    cues: [{ startTime: 3665, endTime: 3670, text: 'long cue' }],
+    currentSubtitle: {
+      text: 'long cue',
+      startTime: 3665,
+      endTime: 3670,
+    },
+    config: {
+      enabled: true,
+      autoOpen: false,
+      layout: 'overlay',
+      toggleKey: 'Backslash',
+      pauseVideoOnHover: false,
+      autoScroll: true,
+      maxWidth: 420,
+      opacity: 0.92,
+      backgroundColor: 'rgba(54, 58, 79, 0.88)',
+      textColor: '#cad3f5',
+      fontFamily: '"Iosevka Aile", sans-serif',
+      fontSize: 17,
+      timestampColor: '#a5adcb',
+      activeLineColor: '#f5bde6',
+      activeLineBackgroundColor: 'rgba(138, 173, 244, 0.22)',
+      hoverLineBackgroundColor: 'rgba(54, 58, 79, 0.84)',
+    },
+  };
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getSubtitleSidebarSnapshot: async () => snapshot,
+        sendMpvCommand: () => {},
+      } as unknown as ElectronAPI,
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createCueRow(),
+      body: {
+        classList: createClassList(),
+      },
+      documentElement: {
+        style: {
+          setProperty: () => {},
+        },
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const cueList = createListStub();
+    const ctx = {
+      dom: {
+        overlay: { classList: createClassList() },
+        subtitleSidebarModal: {
+          classList: createClassList(['hidden']),
+          setAttribute: () => {},
+          style: { setProperty: () => {} },
+          addEventListener: () => {},
+        },
+        subtitleSidebarContent: {
+          classList: createClassList(),
+          getBoundingClientRect: () => ({ width: 420 }),
+        },
+        subtitleSidebarClose: { addEventListener: () => {} },
+        subtitleSidebarStatus: { textContent: '' },
+        subtitleSidebarList: cueList,
+      },
+      state,
+    };
+
+    const modal = createSubtitleSidebarModal(ctx as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+    });
+
+    await modal.openSubtitleSidebarModal();
+
+    const firstRow = cueList.children[0]!;
+    assert.equal(firstRow.attributes['aria-label'], 'Jump to subtitle at 01:01:05');
+    assert.equal((firstRow.children[0] as { textContent: string }).textContent, '01:01:05');
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+});
+
 test('subtitle sidebar does not open when the feature is disabled', async () => {
   const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
   const previousWindow = globals.window;
@@ -1495,6 +1589,127 @@ test('subtitle sidebar embedded layout reserves and releases mpv right margin', 
     assert.deepEqual(mpvCommands.at(-1), ['set_property', 'video-pan-x', 0]);
     assert.equal(bodyClassList.contains('subtitle-sidebar-embedded-open'), false);
     assert.deepEqual(rootStyleCalls.at(-1), ['--subtitle-sidebar-reserved-width', '0px']);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+});
+
+test('subtitle sidebar embedded layout measures reserved width after embedded classes apply', async () => {
+  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+  const previousWindow = globals.window;
+  const previousDocument = globals.document;
+  const mpvCommands: Array<Array<string | number>> = [];
+  const rootStyleCalls: Array<[string, string]> = [];
+  const bodyClassList = createClassList();
+  const contentClassList = createClassList();
+
+  const snapshot: SubtitleSidebarSnapshot = {
+    cues: [{ startTime: 1, endTime: 2, text: 'first' }],
+    currentSubtitle: {
+      text: 'first',
+      startTime: 1,
+      endTime: 2,
+    },
+    currentTimeSec: 1.1,
+    config: {
+      enabled: true,
+      autoOpen: false,
+      layout: 'embedded',
+      toggleKey: 'Backslash',
+      pauseVideoOnHover: false,
+      autoScroll: true,
+      maxWidth: 420,
+      opacity: 0.92,
+      backgroundColor: 'rgba(54, 58, 79, 0.88)',
+      textColor: '#cad3f5',
+      fontFamily: '"Iosevka Aile", sans-serif',
+      fontSize: 17,
+      timestampColor: '#a5adcb',
+      activeLineColor: '#f5bde6',
+      activeLineBackgroundColor: 'rgba(138, 173, 244, 0.22)',
+      hoverLineBackgroundColor: 'rgba(54, 58, 79, 0.84)',
+    },
+  };
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      innerWidth: 1200,
+      electronAPI: {
+        getSubtitleSidebarSnapshot: async () => snapshot,
+        sendMpvCommand: (command: Array<string | number>) => {
+          mpvCommands.push(command);
+        },
+      } as unknown as ElectronAPI,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createCueRow(),
+      body: {
+        classList: bodyClassList,
+      },
+      documentElement: {
+        style: {
+          setProperty: (name: string, value: string) => {
+            rootStyleCalls.push([name, value]);
+          },
+        },
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const ctx = {
+      dom: {
+        overlay: { classList: createClassList() },
+        subtitleSidebarModal: {
+          classList: createClassList(['hidden']),
+          setAttribute: () => {},
+          style: { setProperty: () => {} },
+          addEventListener: () => {},
+        },
+        subtitleSidebarContent: {
+          classList: contentClassList,
+          getBoundingClientRect: () => ({
+            width: contentClassList.contains('subtitle-sidebar-content-embedded') ? 300 : 0,
+          }),
+        },
+        subtitleSidebarClose: { addEventListener: () => {} },
+        subtitleSidebarStatus: { textContent: '' },
+        subtitleSidebarList: createListStub(),
+      },
+      platform: {
+        shouldToggleMouseIgnore: false,
+      },
+      state,
+    };
+
+    const modal = createSubtitleSidebarModal(ctx as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+    });
+
+    await modal.openSubtitleSidebarModal();
+
+    assert.ok(bodyClassList.contains('subtitle-sidebar-embedded-open'));
+    assert.ok(
+      rootStyleCalls.some(
+        ([name, value]) => name === '--subtitle-sidebar-reserved-width' && value === '300px',
+      ),
+    );
+    assert.ok(
+      mpvCommands.some(
+        (command) =>
+          command[0] === 'set_property' &&
+          command[1] === 'video-margin-ratio-right' &&
+          command[2] === 0.25,
+      ),
+    );
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
