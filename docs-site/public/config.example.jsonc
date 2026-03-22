@@ -292,7 +292,7 @@
   "subtitleSidebar": {
     "enabled": false, // Enable the subtitle sidebar feature for parsed subtitle sources. Values: true | false
     "autoOpen": false, // Automatically open the subtitle sidebar once during overlay startup. Values: true | false
-    "layout": "overlay", // Render the subtitle sidebar as a floating overlay or reserve space inside mpv.
+    "layout": "overlay", // Render the subtitle sidebar as a floating overlay or reserve space inside mpv. Values: overlay | embedded
     "toggleKey": "Backslash", // KeyboardEvent.code used to toggle the subtitle sidebar open and closed.
     "pauseVideoOnHover": false, // Pause mpv while hovering the subtitle sidebar, then resume on leave. Values: true | false
     "autoScroll": true, // Auto-scroll the active subtitle cue into view while playback advances. Values: true | false
