@@ -59,6 +59,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
   },
   subtitleSidebar: {
     enabled: false,
+    autoOpen: false,
     layout: 'overlay',
     toggleKey: 'Backslash',
     pauseVideoOnHover: false,

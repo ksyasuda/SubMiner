@@ -374,6 +374,7 @@ export type SubtitleSidebarLayout = 'overlay' | 'embedded';
 
 export interface SubtitleSidebarConfig {
   enabled?: boolean;
+  autoOpen?: boolean;
   layout?: SubtitleSidebarLayout;
   toggleKey?: string;
   pauseVideoOnHover?: boolean;

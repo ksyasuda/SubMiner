@@ -117,6 +117,12 @@ export function buildSubtitleConfigOptionRegistry(
       description: 'Enable the subtitle sidebar feature for parsed subtitle sources.',
     },
     {
+      path: 'subtitleSidebar.autoOpen',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleSidebar.autoOpen,
+      description: 'Automatically open the subtitle sidebar once during overlay startup.',
+    },
+    {
       path: 'subtitleSidebar.layout',
       kind: 'string',
       defaultValue: defaultConfig.subtitleSidebar.layout,
