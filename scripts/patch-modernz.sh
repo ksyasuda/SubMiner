@@ -4,19 +4,28 @@ set -euo pipefail
 
 TARGET="${HOME}/.config/mpv/scripts/modernz.lua"
 
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --target)
-            TARGET="$2"
-            shift 2
-            ;;
-        --help|-h)
-            cat <<'EOF'
+usage() {
+    cat <<'EOF'
 Usage: patch-modernz.sh [--target /path/to/modernz.lua]
 
 Applies the local ModernZ OSC sidebar-resize patch to an existing modernz.lua.
 If the target file does not exist, the script exits without changing anything.
 EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --target)
+            if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
+                echo "patch-modernz: --target requires a non-empty file path" >&2
+                usage >&2
+                exit 1
+            fi
+            TARGET="$2"
+            shift 2
+            ;;
+        --help|-h)
+            usage
             exit 0
             ;;
         *)
@@ -37,7 +46,7 @@ if grep -q 'get_external_video_margin_ratio' "$TARGET" \
     exit 0
 fi
 
-patch --forward --quiet "$TARGET" <<'PATCH'
+if ! patch --forward --quiet "$TARGET" <<'PATCH'
 --- a/modernz.lua
 +++ b/modernz.lua
 @@ -931,6 +931,26 @@ local function reset_margins()
@@ -140,5 +149,9 @@ patch --forward --quiet "$TARGET" <<'PATCH'
      if val and user_opts.visibility == "auto" and not user_opts.showonselect then
          osc_visible(false)
 PATCH
+then
+    echo "patch-modernz: failed to apply patch to $TARGET" >&2
+    exit 1
+fi
 
 echo "patch-modernz: patched $TARGET"
