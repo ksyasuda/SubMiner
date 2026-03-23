@@ -7,6 +7,7 @@ export function createBuildOverlayVisibilityRuntimeMainDepsHandler(
 ) {
   return (): OverlayVisibilityRuntimeDeps => ({
     getMainWindow: () => deps.getMainWindow(),
+    getModalActive: () => deps.getModalActive(),
     getVisibleOverlayVisible: () => deps.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => deps.getForceMousePassthrough(),
     getWindowTracker: () => deps.getWindowTracker(),

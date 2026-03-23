@@ -53,6 +53,7 @@ function createFakeElement() {
 test('youtube track picker close restores focus and mouse-ignore state', () => {
   const overlayFocusCalls: number[] = [];
   const windowFocusCalls: number[] = [];
+  const focusMainWindowCalls: number[] = [];
   const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
   const notifications: string[] = [];
   const frontendCommands: unknown[] = [];
@@ -91,6 +92,9 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
         notifyOverlayModalOpened: () => {},
         notifyOverlayModalClosed: (modal: string) => {
           notifications.push(modal);
+        },
+        focusMainWindow: async () => {
+          focusMainWindowCalls.push(1);
         },
         youtubePickerResolve: async () => ({ ok: true, message: '' }),
         setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
@@ -160,6 +164,7 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
     assert.deepEqual(notifications, ['youtube-track-picker']);
     assert.deepEqual(frontendCommands, [{ type: 'refreshOptions' }]);
     assert.equal(overlay.classList.contains('interactive'), false);
+    assert.equal(focusMainWindowCalls.length > 0, true);
     assert.equal(overlayFocusCalls.length > 0, true);
     assert.equal(windowFocusCalls.length > 0, true);
     assert.deepEqual(ignoreCalls, [{ ignore: true, forward: true }]);
@@ -552,6 +557,134 @@ test('youtube track picker only consumes handled keys', async () => {
     );
     await Promise.resolve();
   } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});
+
+test('youtube track picker ignores immediate Enter after open before allowing keyboard submit', async () => {
+  const resolveCalls: Array<{
+    sessionId: string;
+    action: string;
+    primaryTrackId: string | null;
+    secondaryTrackId: string | null;
+  }> = [];
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const originalDateNow = Date.now;
+  let now = 10_000;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createFakeElement(),
+    },
+  });
+
+  Date.now = () => now;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      dispatchEvent: () => true,
+      focus: () => {},
+      electronAPI: {
+        notifyOverlayModalOpened: () => {},
+        notifyOverlayModalClosed: () => {},
+        youtubePickerResolve: async (payload: {
+          sessionId: string;
+          action: string;
+          primaryTrackId: string | null;
+          secondaryTrackId: string | null;
+        }) => {
+          resolveCalls.push(payload);
+          return { ok: true, message: '' };
+        },
+        setIgnoreMouseEvents: () => {},
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const dom = {
+      overlay: {
+        classList: createClassList(),
+        focus: () => {},
+      },
+      youtubePickerModal: createFakeElement(),
+      youtubePickerTitle: createFakeElement(),
+      youtubePickerPrimarySelect: createFakeElement(),
+      youtubePickerSecondarySelect: createFakeElement(),
+      youtubePickerTracks: createFakeElement(),
+      youtubePickerStatus: createFakeElement(),
+      youtubePickerContinueButton: createFakeElement(),
+      youtubePickerCloseButton: createFakeElement(),
+    };
+
+    const modal = createYoutubeTrackPickerModal(
+      {
+        state,
+        dom,
+        platform: {
+          shouldToggleMouseIgnore: false,
+        },
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => true },
+        restorePointerInteractionState: () => {},
+        syncSettingsModalSubtitleSuppression: () => {},
+      },
+    );
+
+    modal.openYoutubePickerModal({
+      sessionId: 'yt-1',
+      url: 'https://example.com',
+      mode: 'download',
+      tracks: [
+        {
+          id: 'auto:ja-orig',
+          language: 'ja',
+          sourceLanguage: 'ja-orig',
+          kind: 'auto',
+          label: 'Japanese (auto)',
+        },
+      ],
+      defaultPrimaryTrackId: 'auto:ja-orig',
+      defaultSecondaryTrackId: null,
+      hasTracks: true,
+    });
+
+    assert.equal(
+      modal.handleYoutubePickerKeydown({
+        key: 'Enter',
+        preventDefault: () => {},
+      } as KeyboardEvent),
+      true,
+    );
+    await Promise.resolve();
+    assert.deepEqual(resolveCalls, []);
+    assert.equal(state.youtubePickerModalOpen, true);
+
+    now += 250;
+    assert.equal(
+      modal.handleYoutubePickerKeydown({
+        key: 'Enter',
+        preventDefault: () => {},
+      } as KeyboardEvent),
+      true,
+    );
+    await Promise.resolve();
+    assert.deepEqual(resolveCalls, [
+      {
+        sessionId: 'yt-1',
+        action: 'use-selected',
+        primaryTrackId: 'auto:ja-orig',
+        secondaryTrackId: null,
+      },
+    ]);
+  } finally {
+    Date.now = originalDateNow;
     Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
   }

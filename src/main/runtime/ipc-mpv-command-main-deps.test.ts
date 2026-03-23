@@ -7,6 +7,9 @@ test('ipc mpv command main deps builder maps callbacks', () => {
   const deps = createBuildMpvCommandFromIpcRuntimeMainDepsHandler({
     triggerSubsyncFromConfig: () => calls.push('subsync'),
     openRuntimeOptionsPalette: () => calls.push('palette'),
+    openYoutubeTrackPicker: () => {
+      calls.push('youtube-picker');
+    },
     cycleRuntimeOption: () => ({ ok: false as const, error: 'x' }),
     showMpvOsd: (text) => calls.push(`osd:${text}`),
     replayCurrentSubtitle: () => calls.push('replay'),
@@ -22,6 +25,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
 
   deps.triggerSubsyncFromConfig();
   deps.openRuntimeOptionsPalette();
+  void deps.openYoutubeTrackPicker();
   assert.deepEqual(deps.cycleRuntimeOption('anki.nPlusOneMatchMode', 1), { ok: false, error: 'x' });
   deps.showMpvOsd('hello');
   deps.replayCurrentSubtitle();
@@ -34,6 +38,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
   assert.deepEqual(calls, [
     'subsync',
     'palette',
+    'youtube-picker',
     'osd:hello',
     'replay',
     'next',

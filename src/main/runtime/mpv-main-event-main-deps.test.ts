@@ -75,6 +75,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.recordSubtitleTiming('y', 0, 1);
   await deps.maybeRunAnilistPostWatchUpdate();
   deps.logSubtitleTimingError('err', new Error('boom'));
+  assert.equal(deps.shouldSuppressSubtitleEvents?.(), false);
   deps.setCurrentSubText('sub');
   deps.broadcastSubtitle({ text: 'sub', tokens: null });
   deps.onSubtitleChange('sub');
@@ -116,4 +117,46 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.ok(calls.includes('presence-refresh'));
   assert.ok(calls.includes('restore-mpv-sub'));
   assert.ok(calls.includes('reset-sidebar-layout'));
+});
+
+test('mpv main event main deps suppress subtitle events while youtube flow is pending', () => {
+  const deps = createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState: {
+      initialArgs: null,
+      overlayRuntimeInitialized: true,
+      mpvClient: null,
+      immersionTracker: null,
+      subtitleTimingTracker: null,
+      currentSubText: '',
+      currentSubAssText: '',
+      playbackPaused: null,
+      previousSecondarySubVisibility: false,
+      youtubePlaybackFlowPending: true,
+    },
+    getQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    quitApp: () => {},
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    broadcastToOverlayWindows: () => {},
+    onSubtitleChange: () => {},
+    ensureImmersionTrackerInitialized: () => {},
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    resetSubtitleSidebarEmbeddedLayout: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    refreshDiscordPresence: () => {},
+  })();
+
+  assert.equal(deps.shouldSuppressSubtitleEvents?.(), true);
 });

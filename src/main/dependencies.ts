@@ -191,6 +191,7 @@ export interface MpvCommandRuntimeServiceDepsParams {
   runtimeOptionsCycle: HandleMpvCommandFromIpcOptions['runtimeOptionsCycle'];
   triggerSubsyncFromConfig: HandleMpvCommandFromIpcOptions['triggerSubsyncFromConfig'];
   openRuntimeOptionsPalette: HandleMpvCommandFromIpcOptions['openRuntimeOptionsPalette'];
+  openYoutubeTrackPicker: HandleMpvCommandFromIpcOptions['openYoutubeTrackPicker'];
   showMpvOsd: HandleMpvCommandFromIpcOptions['showMpvOsd'];
   mpvReplaySubtitle: HandleMpvCommandFromIpcOptions['mpvReplaySubtitle'];
   mpvPlayNextSubtitle: HandleMpvCommandFromIpcOptions['mpvPlayNextSubtitle'];
@@ -354,6 +355,7 @@ export function createMpvCommandRuntimeServiceDeps(
     specialCommands: params.specialCommands,
     triggerSubsyncFromConfig: params.triggerSubsyncFromConfig,
     openRuntimeOptionsPalette: params.openRuntimeOptionsPalette,
+    openYoutubeTrackPicker: params.openYoutubeTrackPicker,
     runtimeOptionsCycle: params.runtimeOptionsCycle,
     showMpvOsd: params.showMpvOsd,
     mpvReplaySubtitle: params.mpvReplaySubtitle,

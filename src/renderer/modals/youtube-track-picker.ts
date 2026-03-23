@@ -17,7 +17,9 @@ export function createYoutubeTrackPickerModal(
     syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
+  const OPEN_KEY_GUARD_MS = 200;
   let resolveSelectionInFlight = false;
+  let keyboardSubmitEnabledAtMs = 0;
 
   function setStatus(message: string, isError = false): void {
     ctx.state.youtubePickerStatus = message;
@@ -162,6 +164,7 @@ export function createYoutubeTrackPickerModal(
   }
 
   function openYoutubePickerModal(payload: YoutubePickerOpenPayload): void {
+    keyboardSubmitEnabledAtMs = Date.now() + OPEN_KEY_GUARD_MS;
     if (ctx.state.youtubePickerModalOpen) {
       options.syncSettingsModalSubtitleSuppression();
       applyPayload(payload);
@@ -199,6 +202,7 @@ export function createYoutubeTrackPickerModal(
       ctx.dom.overlay.classList.remove('interactive');
     }
     options.restorePointerInteractionState();
+    void window.electronAPI.focusMainWindow();
     if (typeof ctx.dom.overlay.focus === 'function') {
       ctx.dom.overlay.focus({ preventScroll: true });
     }
@@ -223,6 +227,9 @@ export function createYoutubeTrackPickerModal(
 
     if (e.key === 'Enter') {
       e.preventDefault();
+      if (Date.now() < keyboardSubmitEnabledAtMs) {
+        return true;
+      }
       void resolveSelection(
         ctx.state.youtubePickerPayload?.hasTracks ? 'use-selected' : 'continue-without-subtitles',
       );

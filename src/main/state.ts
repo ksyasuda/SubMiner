@@ -293,7 +293,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
 
 export function applyStartupState(appState: AppState, startupState: StartupState): void {
   appState.initialArgs = startupState.initialArgs;
-  appState.youtubePlaybackFlowPending = Boolean(startupState.initialArgs.youtubePlay);
+  appState.youtubePlaybackFlowPending = false;
   appState.mpvSocketPath = startupState.mpvSocketPath;
   appState.texthookerPort = startupState.texthookerPort;
   appState.backendOverride = startupState.backendOverride;

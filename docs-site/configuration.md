@@ -469,6 +469,7 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 | `Space`              | `["cycle", "pause"]`         | Toggle pause                          |
 | `KeyJ`               | `["cycle", "sid"]`           | Cycle primary subtitle track          |
 | `Shift+KeyJ`         | `["cycle", "secondary-sid"]` | Cycle secondary subtitle track        |
+| `Ctrl+Shift+KeyJ`    | `["__youtube-picker-open"]` | Open the manual YouTube subtitle picker |
 | `ArrowRight`         | `["seek", 5]`                | Seek forward 5 seconds                |
 | `ArrowLeft`          | `["seek", -5]`               | Seek backward 5 seconds               |
 | `ArrowUp`            | `["seek", 60]`               | Seek forward 60 seconds               |
@@ -1359,9 +1360,10 @@ Set defaults used by the `subminer` launcher for YouTube subtitle generation:
 
 Launcher behavior:
 
-- For YouTube URLs, subtitle generation now runs before mpv launch.
+- For YouTube URLs, SubMiner auto-loads the default primary subtitle plus a best-effort secondary subtitle during startup.
 - SubMiner probes manual/native YouTube subtitle tracks first.
 - Missing tracks fall back to local `whisper.cpp`.
+- Playback waits only for the primary subtitle to load and tokenize; startup secondary failures never block playback.
 - English secondary subtitles can use whisper translate fallback when no manual track exists.
 - If `fixWithAi` is enabled, only whisper-generated `.srt` output is post-processed with the shared top-level `ai` provider.
 

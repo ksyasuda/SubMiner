@@ -394,6 +394,7 @@ import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
+import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import type { OverlayHostedModal } from './shared/ipc/contracts';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
@@ -754,6 +755,7 @@ process.on('SIGTERM', () => {
 const overlayManager = createOverlayManager();
 let overlayModalInputExclusive = false;
 let syncOverlayShortcutsForModal: (isActive: boolean) => void = () => {};
+let syncOverlayVisibilityForModal: () => void = () => {};
 
 const handleModalInputStateChange = (isActive: boolean): void => {
   if (overlayModalInputExclusive === isActive) return;
@@ -770,6 +772,7 @@ const handleModalInputStateChange = (isActive: boolean): void => {
     }
   }
   syncOverlayShortcutsForModal(isActive);
+  syncOverlayVisibilityForModal();
 };
 
 const buildOverlayContentMeasurementStoreMainDepsHandler =
@@ -820,27 +823,15 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
     return result.path;
   },
   openPicker: async (payload) => {
-    const preferDedicatedModalWindow = false;
-    const sendPickerOpen = (preferModalWindow: boolean): boolean =>
-      overlayModalRuntime.sendToActiveOverlayWindow('youtube:picker-open', payload, {
-        restoreOnModalClose: 'youtube-track-picker',
-        preferModalWindow,
-      });
-
-    if (!sendPickerOpen(preferDedicatedModalWindow)) {
-      return false;
-    }
-    if (await overlayModalRuntime.waitForModalOpen('youtube-track-picker', 1500)) {
-      return true;
-    }
-
-    logger.warn(
-      'YouTube subtitle picker did not acknowledge modal open on first attempt; retrying on visible overlay.',
+    return await openYoutubeTrackPicker(
+      {
+        sendToActiveOverlayWindow: (channel, nextPayload, runtimeOptions) =>
+          overlayModalRuntime.sendToActiveOverlayWindow(channel, nextPayload, runtimeOptions),
+        waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
+        logWarn: (message) => logger.warn(message),
+      },
+      payload,
     );
-    if (!sendPickerOpen(!preferDedicatedModalWindow)) {
-      return false;
-    }
-    return await overlayModalRuntime.waitForModalOpen('youtube-track-picker', 1500);
   },
   pauseMpv: () => {
     sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'yes']);
@@ -858,6 +849,9 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
   },
   refreshCurrentSubtitle: (text: string) => {
     subtitleProcessingController.refreshCurrentSubtitle(text);
+  },
+  refreshSubtitleSidebarSource: async (sourcePath: string) => {
+    await refreshSubtitleSidebarFromSource(sourcePath);
   },
   startTokenizationWarmups: async () => {
     await startTokenizationWarmups();
@@ -889,14 +883,30 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
   wait: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
   waitForPlaybackWindowReady: async () => {
     const deadline = Date.now() + 4000;
+    let stableGeometry: WindowGeometry | null = null;
+    let stableSinceMs = 0;
     while (Date.now() < deadline) {
       const tracker = appState.windowTracker;
-      if (tracker && tracker.isTracking() && tracker.getGeometry()) {
-        return;
+      const trackerGeometry = tracker?.getGeometry() ?? null;
+      const mediaPath =
+        appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
+      const trackerFocused = tracker?.isTargetWindowFocused() ?? false;
+      if (tracker && tracker.isTracking() && trackerGeometry && trackerFocused && mediaPath) {
+        if (!geometryMatches(stableGeometry, trackerGeometry)) {
+          stableGeometry = trackerGeometry;
+          stableSinceMs = Date.now();
+        } else if (Date.now() - stableSinceMs >= 200) {
+          return;
+        }
+      } else {
+        stableGeometry = null;
+        stableSinceMs = 0;
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    logger.warn('Timed out waiting for tracked playback window before opening YouTube subtitle picker.');
+    logger.warn(
+      'Timed out waiting for tracked playback window focus/media readiness before opening YouTube subtitle picker.',
+    );
   },
   waitForOverlayGeometryReady: async () => {
     const deadline = Date.now() + 4000;
@@ -924,6 +934,7 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
     }
   },
   showMpvOsd: (text: string) => showMpvOsd(text),
+  reportSubtitleFailure: (message: string) => reportYoutubeSubtitleFailure(message),
   warn: (message: string) => logger.warn(message),
   log: (message: string) => logger.info(message),
   getYoutubeOutputDir: () => path.join(os.homedir(), '.cache', 'subminer', 'youtube-subs'),
@@ -958,7 +969,6 @@ async function runYoutubePlaybackFlowMain(request: {
   if (!appState.mpvClient?.connected) {
     appState.mpvClient?.connect();
   }
-  await ensureOverlayRuntimeReady();
   try {
     await youtubeFlowRuntime.runYoutubePlaybackFlow({
       url: request.url,
@@ -971,11 +981,6 @@ async function runYoutubePlaybackFlowMain(request: {
       startBackgroundWarmupsIfAllowed();
     }
   }
-}
-
-async function ensureOverlayRuntimeReady(): Promise<void> {
-  await ensureYomitanExtensionLoaded();
-  initializeOverlayRuntime();
 }
 
 let firstRunSetupMessage: string | null = null;
@@ -1239,6 +1244,33 @@ function isYoutubePlaybackActiveNow(): boolean {
   );
 }
 
+function reportYoutubeSubtitleFailure(message: string): void {
+  const type = getResolvedConfig().ankiConnect.behavior.notificationType;
+  if (type === 'osd' || type === 'both') {
+    showMpvOsd(message);
+  }
+  if (type === 'system' || type === 'both') {
+    try {
+      showDesktopNotification('SubMiner', { body: message });
+    } catch {
+      logger.warn(`Unable to show desktop notification: ${message}`);
+    }
+  }
+}
+
+async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
+  const currentMediaPath =
+    appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
+  if (!isYoutubePlaybackActiveNow() || !currentMediaPath) {
+    showMpvOsd('YouTube subtitle picker is only available during YouTube playback.');
+    return;
+  }
+  await youtubeFlowRuntime.openManualPicker({
+    url: currentMediaPath,
+    mode: 'download',
+  });
+}
+
 function maybeSignalPluginAutoplayReady(
   payload: SubtitleData,
   options?: { forceWhilePaused?: boolean },
@@ -1415,6 +1447,18 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
     appState.activeParsedSubtitleSource = sourceKey;
   },
 });
+
+async function refreshSubtitleSidebarFromSource(sourcePath: string): Promise<void> {
+  const normalizedSourcePath = resolveSubtitleSourcePath(sourcePath.trim());
+  if (!normalizedSourcePath) {
+    return;
+  }
+  await subtitlePrefetchInitController.initSubtitlePrefetch(
+    normalizedSourcePath,
+    lastObservedTimePos,
+    normalizedSourcePath,
+  );
+}
 
 async function refreshSubtitlePrefetchFromActiveTrack(): Promise<void> {
   const client = appState.mpvClient;
@@ -1860,6 +1904,7 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
 const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   createBuildOverlayVisibilityRuntimeMainDepsHandler({
     getMainWindow: () => overlayManager.getMainWindow(),
+    getModalActive: () => overlayModalInputExclusive,
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => appState.statsOverlayVisible,
     getWindowTracker: () => appState.windowTracker,
@@ -1921,6 +1966,9 @@ const buildRestorePreviousSecondarySubVisibilityMainDepsHandler =
   createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler({
     getMpvClient: () => appState.mpvClient,
   });
+syncOverlayVisibilityForModal = () => {
+  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+};
 const restorePreviousSecondarySubVisibilityMainDeps =
   buildRestorePreviousSecondarySubVisibilityMainDepsHandler();
 const restorePreviousSecondarySubVisibilityHandler =
@@ -3377,39 +3425,7 @@ void initializeDiscordPresenceService();
 const handleCliCommand = createCliCommandRuntimeHandler({
   handleTexthookerOnlyModeTransitionMainDeps: {
     isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
-    ensureOverlayStartupPrereqs: () => {
-      if (appState.subtitlePosition === null) {
-        loadSubtitlePosition();
-      }
-      if (appState.keybindings.length === 0) {
-        appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
-      }
-      if (!appState.mpvClient) {
-        appState.mpvClient = createMpvClientRuntimeService();
-      }
-      if (!appState.runtimeOptionsManager) {
-        appState.runtimeOptionsManager = new RuntimeOptionsManager(
-          () => configService.getConfig().ankiConnect,
-          {
-            applyAnkiPatch: (patch) => {
-              if (appState.ankiIntegration) {
-                appState.ankiIntegration.applyRuntimeConfigPatch(patch);
-              }
-            },
-            getSubtitleStyleConfig: () => configService.getConfig().subtitleStyle,
-            onOptionsChanged: () => {
-              subtitleProcessingController.invalidateTokenizationCache();
-              subtitlePrefetchService?.onSeek(lastObservedTimePos);
-              broadcastRuntimeOptionsChanged();
-              refreshOverlayShortcuts();
-            },
-          },
-        );
-      }
-      if (!appState.subtitleTimingTracker) {
-        appState.subtitleTimingTracker = new SubtitleTimingTracker();
-      }
-    },
+    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
     setTexthookerOnlyMode: (enabled) => {
       appState.texthookerOnlyMode = enabled;
     },
@@ -3422,6 +3438,40 @@ const handleCliCommand = createCliCommandRuntimeHandler({
     handleCliCommandRuntimeServiceWithContext(args, source, cliContext),
 });
 
+function ensureOverlayStartupPrereqs(): void {
+  if (appState.subtitlePosition === null) {
+    loadSubtitlePosition();
+  }
+  if (appState.keybindings.length === 0) {
+    appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+  }
+  if (!appState.mpvClient) {
+    appState.mpvClient = createMpvClientRuntimeService();
+  }
+  if (!appState.runtimeOptionsManager) {
+    appState.runtimeOptionsManager = new RuntimeOptionsManager(
+      () => configService.getConfig().ankiConnect,
+      {
+        applyAnkiPatch: (patch) => {
+          if (appState.ankiIntegration) {
+            appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+          }
+        },
+        getSubtitleStyleConfig: () => configService.getConfig().subtitleStyle,
+        onOptionsChanged: () => {
+          subtitleProcessingController.invalidateTokenizationCache();
+          subtitlePrefetchService?.onSeek(lastObservedTimePos);
+          broadcastRuntimeOptionsChanged();
+          refreshOverlayShortcuts();
+        },
+      },
+    );
+  }
+  if (!appState.subtitleTimingTracker) {
+    appState.subtitleTimingTracker = new SubtitleTimingTracker();
+  }
+}
+
 const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   getInitialArgs: () => appState.initialArgs,
   isBackgroundMode: () => appState.backgroundMode,
@@ -3431,6 +3481,10 @@ const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
   hasImmersionTracker: () => Boolean(appState.immersionTracker),
   getMpvClient: () => appState.mpvClient,
+  commandNeedsOverlayRuntime: (args) => commandNeedsOverlayRuntime(args),
+  ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+  isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+  initializeOverlayRuntime: () => initializeOverlayRuntime(),
   logInfo: (message) => logger.info(message),
   handleCliCommand: (args, source) => handleCliCommand(args, source),
 });
@@ -4387,6 +4441,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     cycleRuntimeOption: (id, direction) => {
       if (!appState.runtimeOptionsManager) {
         return { ok: false, error: 'Runtime options manager unavailable' };

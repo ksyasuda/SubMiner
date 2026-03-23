@@ -16,6 +16,10 @@ test('initial args runtime handler composes main deps and runs initial command f
       connected: false,
       connect: () => calls.push('connect'),
     }),
+    commandNeedsOverlayRuntime: () => false,
+    ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
+    isOverlayRuntimeInitialized: () => false,
+    initializeOverlayRuntime: () => calls.push('init-overlay'),
     logInfo: (message) => calls.push(`log:${message}`),
     handleCliCommand: (_args, source) => calls.push(`cli:${source}`),
   });
@@ -44,6 +48,10 @@ test('initial args runtime handler skips mpv auto-connect for stats mode', () =>
       connected: false,
       connect: () => calls.push('connect'),
     }),
+    commandNeedsOverlayRuntime: () => false,
+    ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
+    isOverlayRuntimeInitialized: () => false,
+    initializeOverlayRuntime: () => calls.push('init-overlay'),
     logInfo: (message) => calls.push(`log:${message}`),
     handleCliCommand: (_args, source) => calls.push(`cli:${source}`),
   });
@@ -67,6 +75,10 @@ test('initial args runtime handler skips tray and mpv auto-connect for headless 
       connected: false,
       connect: () => calls.push('connect'),
     }),
+    commandNeedsOverlayRuntime: () => true,
+    ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
+    isOverlayRuntimeInitialized: () => false,
+    initializeOverlayRuntime: () => calls.push('init-overlay'),
     logInfo: (message) => calls.push(`log:${message}`),
     handleCliCommand: (_args, source) => calls.push(`cli:${source}`),
   });

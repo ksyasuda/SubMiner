@@ -1,6 +1,7 @@
 import type { SubtitleData } from '../../types';
 
 export function createHandleMpvSubtitleChangeHandler(deps: {
+  shouldSuppressSubtitleEvents?: () => boolean;
   setCurrentSubText: (text: string) => void;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
   emitImmediateSubtitle?: (payload: SubtitleData) => void;
@@ -10,6 +11,10 @@ export function createHandleMpvSubtitleChangeHandler(deps: {
 }) {
   return ({ text }: { text: string }): void => {
     deps.setCurrentSubText(text);
+    if (deps.shouldSuppressSubtitleEvents?.()) {
+      deps.refreshDiscordPresence();
+      return;
+    }
     const immediatePayload = deps.getImmediateSubtitlePayload?.(text) ?? null;
     if (immediatePayload) {
       (deps.emitImmediateSubtitle ?? deps.broadcastSubtitle)(immediatePayload);
@@ -25,19 +30,27 @@ export function createHandleMpvSubtitleChangeHandler(deps: {
 }
 
 export function createHandleMpvSubtitleAssChangeHandler(deps: {
+  shouldSuppressSubtitleEvents?: () => boolean;
   setCurrentSubAssText: (text: string) => void;
   broadcastSubtitleAss: (text: string) => void;
 }) {
   return ({ text }: { text: string }): void => {
     deps.setCurrentSubAssText(text);
+    if (deps.shouldSuppressSubtitleEvents?.()) {
+      return;
+    }
     deps.broadcastSubtitleAss(text);
   };
 }
 
 export function createHandleMpvSecondarySubtitleChangeHandler(deps: {
+  shouldSuppressSubtitleEvents?: () => boolean;
   broadcastSecondarySubtitle: (text: string) => void;
 }) {
   return ({ text }: { text: string }): void => {
+    if (deps.shouldSuppressSubtitleEvents?.()) {
+      return;
+    }
     deps.broadcastSecondarySubtitle(text);
   };
 }

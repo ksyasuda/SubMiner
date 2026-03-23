@@ -120,6 +120,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     maybeRunAnilistPostWatchUpdate: () => deps.maybeRunAnilistPostWatchUpdate(),
     logSubtitleTimingError: (message: string, error: unknown) =>
       deps.logSubtitleTimingError(message, error),
+    shouldSuppressSubtitleEvents: () => deps.appState.youtubePlaybackFlowPending,
     setCurrentSubText: (text: string) => {
       deps.appState.currentSubText = text;
     },

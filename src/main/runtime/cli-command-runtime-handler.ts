@@ -23,6 +23,12 @@ export function createCliCommandRuntimeHandler<TCliContext>(deps: {
 
   return (args: CliArgs, source: CliCommandSource = 'initial'): void => {
     handleTexthookerOnlyModeTransitionHandler(args);
+    if (
+      !deps.handleTexthookerOnlyModeTransitionMainDeps.isTexthookerOnlyMode() &&
+      deps.handleTexthookerOnlyModeTransitionMainDeps.commandNeedsOverlayRuntime(args)
+    ) {
+      deps.handleTexthookerOnlyModeTransitionMainDeps.ensureOverlayStartupPrereqs();
+    }
     const cliContext = deps.createCliCommandContext();
     deps.handleCliCommandRuntimeServiceWithContext(args, source, cliContext);
   };

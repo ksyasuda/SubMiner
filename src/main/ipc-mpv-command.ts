@@ -12,6 +12,7 @@ type MpvPropertyClientLike = {
 export interface MpvCommandFromIpcRuntimeDeps {
   triggerSubsyncFromConfig: () => void;
   openRuntimeOptionsPalette: () => void;
+  openYoutubeTrackPicker: () => void | Promise<void>;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   showMpvOsd: (text: string) => void;
   replayCurrentSubtitle: () => void;
@@ -33,6 +34,7 @@ export function handleMpvCommandFromIpcRuntime(
       specialCommands: SPECIAL_COMMANDS,
       triggerSubsyncFromConfig: deps.triggerSubsyncFromConfig,
       openRuntimeOptionsPalette: deps.openRuntimeOptionsPalette,
+      openYoutubeTrackPicker: deps.openYoutubeTrackPicker,
       runtimeOptionsCycle: deps.cycleRuntimeOption,
       showMpvOsd: deps.showMpvOsd,
       mpvReplaySubtitle: deps.replayCurrentSubtitle,

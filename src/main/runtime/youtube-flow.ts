@@ -39,6 +39,7 @@ type YoutubeFlowDeps = {
   sendMpvCommand: (command: Array<string | number>) => void;
   requestMpvProperty: (name: string) => Promise<unknown>;
   refreshCurrentSubtitle: (text: string) => void;
+  refreshSubtitleSidebarSource?: (sourcePath: string) => Promise<void>;
   startTokenizationWarmups: () => Promise<void>;
   waitForTokenizationReady: () => Promise<void>;
   waitForAnkiReady: () => Promise<void>;
@@ -47,6 +48,7 @@ type YoutubeFlowDeps = {
   waitForOverlayGeometryReady: () => Promise<void>;
   focusOverlayWindow: () => void;
   showMpvOsd: (text: string) => void;
+  reportSubtitleFailure: (message: string) => void;
   warn: (message: string) => void;
   log: (message: string) => void;
   getYoutubeOutputDir: () => string;
@@ -107,6 +109,14 @@ function createYoutubeFlowOsdProgress(showMpvOsd: (text: string) => void) {
 function releasePlaybackGate(deps: YoutubeFlowDeps): void {
   deps.sendMpvCommand(['script-message', 'subminer-autoplay-ready']);
   deps.resumeMpv();
+}
+
+function suppressYoutubeSubtitleState(deps: YoutubeFlowDeps): void {
+  deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
+  deps.sendMpvCommand(['set_property', 'sid', 'no']);
+  deps.sendMpvCommand(['set_property', 'secondary-sid', 'no']);
+  deps.sendMpvCommand(['set_property', 'sub-visibility', 'no']);
+  deps.sendMpvCommand(['set_property', 'secondary-sub-visibility', 'no']);
 }
 
 function restoreOverlayInputFocus(deps: YoutubeFlowDeps): void {
@@ -259,7 +269,6 @@ async function injectDownloadedSubtitles(
   }
 
   if (primaryTrackId === null) {
-    deps.showMpvOsd('Primary subtitles failed to load.');
     return false;
   }
 
@@ -385,6 +394,182 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       activeSession = null;
     });
 
+  const reportPrimarySubtitleFailure = (): void => {
+    deps.reportSubtitleFailure(
+      'Primary subtitles failed to load. Use the YouTube subtitle picker to try manually.',
+    );
+  };
+
+  const buildOpenPayload = (
+    input: {
+      url: string;
+      mode: YoutubeFlowMode;
+    },
+    probe: YoutubeTrackProbeResult,
+  ): YoutubePickerOpenPayload => {
+    const defaults = chooseDefaultYoutubeTrackIds(probe.tracks);
+    return {
+      sessionId: createSessionId(),
+      url: input.url,
+      mode: input.mode,
+      tracks: probe.tracks,
+      defaultPrimaryTrackId: defaults.primaryTrackId,
+      defaultSecondaryTrackId: defaults.secondaryTrackId,
+      hasTracks: probe.tracks.length > 0,
+    };
+  };
+
+  const loadTracksIntoMpv = async (input: {
+    url: string;
+    mode: YoutubeFlowMode;
+    outputDir: string;
+    primaryTrack: YoutubeTrackOption;
+    secondaryTrack: YoutubeTrackOption | null;
+    secondaryFailureLabel: string;
+    tokenizationWarmupPromise?: Promise<void>;
+    showDownloadProgress: boolean;
+  }): Promise<boolean> => {
+    const osdProgress = input.showDownloadProgress
+      ? createYoutubeFlowOsdProgress(deps.showMpvOsd)
+      : null;
+    if (osdProgress) {
+      osdProgress.setMessage('Downloading subtitles...');
+    }
+    try {
+      const acquired = await acquireSelectedTracks({
+        targetUrl: input.url,
+        outputDir: input.outputDir,
+        primaryTrack: input.primaryTrack,
+        secondaryTrack: input.secondaryTrack,
+        mode: input.mode,
+        secondaryFailureLabel: input.secondaryFailureLabel,
+      });
+      const resolvedPrimaryPath = await deps.retimeYoutubePrimaryTrack({
+        targetUrl: input.url,
+        primaryTrack: input.primaryTrack,
+        primaryPath: acquired.primaryPath,
+        secondaryTrack: input.secondaryTrack,
+        secondaryPath: acquired.secondaryPath,
+      });
+      deps.showMpvOsd('Loading subtitles...');
+      const refreshedActiveSubtitle = await injectDownloadedSubtitles(
+        deps,
+        input.primaryTrack,
+        resolvedPrimaryPath,
+        input.secondaryTrack,
+        acquired.secondaryPath,
+      );
+      if (!refreshedActiveSubtitle) {
+        return false;
+      }
+      try {
+        await deps.refreshSubtitleSidebarSource?.(resolvedPrimaryPath);
+      } catch (error) {
+        deps.warn(
+          `Failed to refresh parsed subtitle cues for sidebar: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      if (input.tokenizationWarmupPromise) {
+        await input.tokenizationWarmupPromise;
+      }
+      await deps.waitForTokenizationReady();
+      await deps.waitForAnkiReady();
+      return true;
+    } finally {
+      osdProgress?.stop();
+    }
+  };
+
+  const openManualPicker = async (input: {
+    url: string;
+    mode: YoutubeFlowMode;
+  }): Promise<void> => {
+    let probe: YoutubeTrackProbeResult;
+    try {
+      probe = await deps.probeYoutubeTracks(input.url);
+    } catch (error) {
+      deps.warn(
+        `Failed to probe YouTube subtitle tracks: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      reportPrimarySubtitleFailure();
+      restoreOverlayInputFocus(deps);
+      return;
+    }
+
+    const openPayload = buildOpenPayload(input, probe);
+    await deps.waitForPlaybackWindowReady();
+    await deps.waitForOverlayGeometryReady();
+    await deps.wait(YOUTUBE_PICKER_SETTLE_DELAY_MS);
+    const pickerSelection = createPickerSelectionPromise(openPayload.sessionId);
+    void pickerSelection.catch(() => undefined);
+
+    let opened = false;
+    try {
+      opened = await deps.openPicker(openPayload);
+    } catch (error) {
+      activeSession?.reject(error instanceof Error ? error : new Error(String(error)));
+      deps.warn(
+        `Unable to open YouTube subtitle picker: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      restoreOverlayInputFocus(deps);
+      return;
+    }
+    if (!opened) {
+      activeSession?.reject(new Error('Unable to open YouTube subtitle picker.'));
+      activeSession = null;
+      deps.warn('Unable to open YouTube subtitle picker.');
+      restoreOverlayInputFocus(deps);
+      return;
+    }
+
+    const request = await pickerSelection;
+    if (request.action === 'continue-without-subtitles') {
+      restoreOverlayInputFocus(deps);
+      return;
+    }
+
+    const primaryTrack = getTrackById(probe.tracks, request.primaryTrackId);
+    if (!primaryTrack) {
+      deps.warn('No primary YouTube subtitle track selected.');
+      restoreOverlayInputFocus(deps);
+      return;
+    }
+
+    const selected = normalizeYoutubeTrackSelection({
+      primaryTrackId: primaryTrack.id,
+      secondaryTrackId: request.secondaryTrackId,
+    });
+    const secondaryTrack = getTrackById(probe.tracks, selected.secondaryTrackId);
+
+    try {
+      deps.showMpvOsd('Getting subtitles...');
+      await loadTracksIntoMpv({
+        url: input.url,
+        mode: input.mode,
+        outputDir: normalizeOutputPath(deps.getYoutubeOutputDir()),
+        primaryTrack,
+        secondaryTrack,
+        secondaryFailureLabel: 'Failed to download secondary YouTube subtitle track',
+        showDownloadProgress: true,
+      });
+    } catch (error) {
+      deps.warn(
+        `Failed to download primary YouTube subtitle track: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      reportPrimarySubtitleFailure();
+    } finally {
+      restoreOverlayInputFocus(deps);
+    }
+  };
+
   async function runYoutubePlaybackFlow(input: {
     url: string;
     mode: YoutubeFlowMode;
@@ -399,6 +584,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     });
 
     deps.pauseMpv();
+    suppressYoutubeSubtitleState(deps);
     const outputDir = normalizeOutputPath(deps.getYoutubeOutputDir());
 
     let probe: YoutubeTrackProbeResult;
@@ -410,123 +596,17 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
           error instanceof Error ? error.message : String(error)
         }`,
       );
+      reportPrimarySubtitleFailure();
       releasePlaybackGate(deps);
       restoreOverlayInputFocus(deps);
       return;
     }
 
     const defaults = chooseDefaultYoutubeTrackIds(probe.tracks);
-    const sessionId = createSessionId();
-
-    const openPayload: YoutubePickerOpenPayload = {
-      sessionId,
-      url: input.url,
-      mode: input.mode,
-      tracks: probe.tracks,
-      defaultPrimaryTrackId: defaults.primaryTrackId,
-      defaultSecondaryTrackId: defaults.secondaryTrackId,
-      hasTracks: probe.tracks.length > 0,
-    };
-
-    if (input.mode === 'download') {
-      await deps.waitForPlaybackWindowReady();
-      await deps.waitForOverlayGeometryReady();
-      await deps.wait(YOUTUBE_PICKER_SETTLE_DELAY_MS);
-      deps.showMpvOsd('Getting subtitles...');
-      const pickerSelection = createPickerSelectionPromise(sessionId);
-      void pickerSelection.catch(() => undefined);
-      let opened = false;
-      try {
-        opened = await deps.openPicker(openPayload);
-      } catch (error) {
-        activeSession?.reject(
-          error instanceof Error ? error : new Error(String(error)),
-        );
-        deps.warn(
-          `Unable to open YouTube subtitle picker: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-        releasePlaybackGate(deps);
-        restoreOverlayInputFocus(deps);
-        return;
-      }
-      if (!opened) {
-        activeSession?.reject(new Error('Unable to open YouTube subtitle picker.'));
-        activeSession = null;
-        deps.warn('Unable to open YouTube subtitle picker; continuing without subtitles.');
-        releasePlaybackGate(deps);
-        restoreOverlayInputFocus(deps);
-        return;
-      }
-
-      const request = await pickerSelection;
-      if (request.action === 'continue-without-subtitles') {
-        releasePlaybackGate(deps);
-        restoreOverlayInputFocus(deps);
-        return;
-      }
-      const osdProgress = createYoutubeFlowOsdProgress(deps.showMpvOsd);
-      osdProgress.setMessage('Downloading subtitles...');
-      try {
-        const primaryTrack = getTrackById(probe.tracks, request.primaryTrackId);
-        if (!primaryTrack) {
-          deps.warn('No primary YouTube subtitle track selected; continuing without subtitles.');
-          return;
-        }
-
-        const selected = normalizeYoutubeTrackSelection({
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: request.secondaryTrackId,
-        });
-        const secondaryTrack = getTrackById(probe.tracks, selected.secondaryTrackId);
-
-        const acquired = await acquireSelectedTracks({
-          targetUrl: input.url,
-          outputDir,
-          primaryTrack,
-          secondaryTrack,
-          mode: input.mode,
-          secondaryFailureLabel: 'Failed to download secondary YouTube subtitle track',
-        });
-        const resolvedPrimaryPath = await deps.retimeYoutubePrimaryTrack({
-          targetUrl: input.url,
-          primaryTrack,
-          primaryPath: acquired.primaryPath,
-          secondaryTrack,
-          secondaryPath: acquired.secondaryPath,
-        });
-        osdProgress.setMessage('Loading subtitles...');
-        const refreshedActiveSubtitle = await injectDownloadedSubtitles(
-          deps,
-          primaryTrack,
-          resolvedPrimaryPath,
-          secondaryTrack,
-          acquired.secondaryPath,
-        );
-        await tokenizationWarmupPromise;
-        if (refreshedActiveSubtitle) {
-          await deps.waitForTokenizationReady();
-        }
-        await deps.waitForAnkiReady();
-      } catch (error) {
-        deps.warn(
-          `Failed to download primary YouTube subtitle track: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      } finally {
-        osdProgress.stop();
-        releasePlaybackGate(deps);
-        restoreOverlayInputFocus(deps);
-      }
-      return;
-    }
-
     const primaryTrack = getTrackById(probe.tracks, defaults.primaryTrackId);
     const secondaryTrack = getTrackById(probe.tracks, defaults.secondaryTrackId);
     if (!primaryTrack) {
-      deps.showMpvOsd('No usable YouTube subtitles found.');
+      reportPrimarySubtitleFailure();
       releasePlaybackGate(deps);
       restoreOverlayInputFocus(deps);
       return;
@@ -534,40 +614,31 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
 
     try {
       deps.showMpvOsd('Getting subtitles...');
-      const acquired = await acquireSelectedTracks({
-        targetUrl: input.url,
+      const loaded = await loadTracksIntoMpv({
+        url: input.url,
+        mode: input.mode,
         outputDir,
         primaryTrack,
         secondaryTrack,
-        mode: input.mode,
-        secondaryFailureLabel: 'Failed to generate secondary YouTube subtitle track',
+        secondaryFailureLabel:
+          input.mode === 'generate'
+            ? 'Failed to generate secondary YouTube subtitle track'
+            : 'Failed to download secondary YouTube subtitle track',
+        tokenizationWarmupPromise,
+        showDownloadProgress: false,
       });
-      const resolvedPrimaryPath = await deps.retimeYoutubePrimaryTrack({
-        targetUrl: input.url,
-        primaryTrack,
-        primaryPath: acquired.primaryPath,
-        secondaryTrack,
-        secondaryPath: acquired.secondaryPath,
-      });
-      deps.showMpvOsd('Loading subtitles...');
-      const refreshedActiveSubtitle = await injectDownloadedSubtitles(
-        deps,
-        primaryTrack,
-        resolvedPrimaryPath,
-        secondaryTrack,
-        acquired.secondaryPath,
-      );
-      await tokenizationWarmupPromise;
-      if (refreshedActiveSubtitle) {
-        await deps.waitForTokenizationReady();
+      if (!loaded) {
+        reportPrimarySubtitleFailure();
       }
-      await deps.waitForAnkiReady();
     } catch (error) {
       deps.warn(
-        `Failed to generate primary YouTube subtitle track: ${
+        `Failed to ${
+          input.mode === 'generate' ? 'generate' : 'download'
+        } primary YouTube subtitle track: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
+      reportPrimarySubtitleFailure();
     } finally {
       releasePlaybackGate(deps);
       restoreOverlayInputFocus(deps);
@@ -576,6 +647,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
 
   return {
     runYoutubePlaybackFlow,
+    openManualPicker,
     resolveActivePicker,
     cancelActivePicker,
     hasActiveSession: () => Boolean(activeSession),

@@ -26,6 +26,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
       calls.push('post-watch');
     },
     logSubtitleTimingError: () => calls.push('subtitle-error'),
+    shouldSuppressSubtitleEvents: () => false,
 
     setCurrentSubText: (text) => calls.push(`set-sub:${text}`),
     broadcastSubtitle: (payload) => calls.push(`broadcast-sub:${payload.text}`),
@@ -92,4 +93,68 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   assert.ok(calls.includes('presence-refresh'));
   assert.ok(calls.includes('sync-immersion'));
   assert.ok(calls.includes('flush-playback'));
+});
+
+test('main mpv event binder suppresses subtitle broadcasts while youtube flow is pending', () => {
+  const handlers = new Map<string, (payload: unknown) => void>();
+  const calls: string[] = [];
+
+  const bind = createBindMpvMainEventHandlersHandler({
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    resetSubtitleSidebarEmbeddedLayout: () => {},
+    hasInitialJellyfinPlayArg: () => false,
+    isOverlayRuntimeInitialized: () => false,
+    isQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    isMpvConnected: () => false,
+    quitApp: () => {},
+    recordImmersionSubtitleLine: () => {},
+    hasSubtitleTimingTracker: () => false,
+    recordSubtitleTiming: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    shouldSuppressSubtitleEvents: () => true,
+    setCurrentSubText: (text) => calls.push(`set-sub:${text}`),
+    broadcastSubtitle: (payload) => calls.push(`broadcast-sub:${payload.text}`),
+    onSubtitleChange: (text) => calls.push(`subtitle-change:${text}`),
+    refreshDiscordPresence: () => calls.push('presence-refresh'),
+    setCurrentSubAssText: (text) => calls.push(`set-ass:${text}`),
+    broadcastSubtitleAss: (text) => calls.push(`broadcast-ass:${text}`),
+    broadcastSecondarySubtitle: (text) => calls.push(`broadcast-secondary:${text}`),
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    notifyImmersionTitleUpdate: () => {},
+    recordPlaybackPosition: () => {},
+    recordMediaDuration: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    recordPauseState: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    setPreviousSecondarySubVisibility: () => {},
+  });
+
+  bind({
+    on: (event, handler) => {
+      handlers.set(event, handler as (payload: unknown) => void);
+    },
+  });
+
+  handlers.get('subtitle-change')?.({ text: 'line' });
+  handlers.get('subtitle-ass-change')?.({ text: 'ass' });
+  handlers.get('secondary-subtitle-change')?.({ text: 'sec' });
+
+  assert.ok(calls.includes('set-sub:line'));
+  assert.ok(calls.includes('set-ass:ass'));
+  assert.ok(calls.includes('presence-refresh'));
+  assert.ok(!calls.includes('broadcast-sub:line'));
+  assert.ok(!calls.includes('subtitle-change:line'));
+  assert.ok(!calls.includes('broadcast-ass:ass'));
+  assert.ok(!calls.includes('broadcast-secondary:sec'));
 });

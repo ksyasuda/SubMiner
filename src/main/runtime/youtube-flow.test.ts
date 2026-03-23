@@ -19,14 +19,12 @@ const secondaryTrack: YoutubeTrackOption = {
   label: 'English (manual)',
 };
 
-test('youtube flow clears internal tracks and binds external primary+secondary subtitles', async () => {
+test('youtube flow auto-loads default primary+secondary subtitles without opening the picker', async () => {
   const commands: Array<Array<string | number>> = [];
   const osdMessages: string[] = [];
   const order: string[] = [];
   const refreshedSubtitles: string[] = [];
-  const waits: number[] = [];
   const focusOverlayCalls: string[] = [];
-  let pickerPayload: YoutubePickerOpenPayload | null = null;
   let trackListRequests = 0;
 
   const runtime = createYoutubeFlowRuntime({
@@ -66,27 +64,19 @@ test('youtube flow clears internal tracks and binds external primary+secondary s
       order.push('wait-anki-ready');
     },
     waitForPlaybackWindowReady: async () => {
-      order.push('wait-window-ready');
+      throw new Error('startup auto-load should not wait for modal window readiness');
     },
     waitForOverlayGeometryReady: async () => {
-      order.push('wait-overlay-geometry');
+      throw new Error('startup auto-load should not wait for modal overlay geometry');
     },
     focusOverlayWindow: () => {
       focusOverlayCalls.push('focus-overlay');
     },
-    openPicker: async (payload) => {
-      assert.deepEqual(waits, [150]);
-      order.push('open-picker');
-      pickerPayload = payload;
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: secondaryTrack.id,
-        });
-      });
-      return true;
+    openPicker: async () => {
+      throw new Error('startup auto-load should not open the picker');
+    },
+    reportSubtitleFailure: () => {
+      throw new Error('startup auto-load should not report failure on success');
     },
     pauseMpv: () => {
       commands.push(['set_property', 'pause', 'yes']);
@@ -97,7 +87,7 @@ test('youtube flow clears internal tracks and binds external primary+secondary s
     sendMpvCommand: (command) => {
       commands.push(command);
     },
-    requestMpvProperty: async (name) => {
+    requestMpvProperty: async (name: string) => {
       if (name === 'sub-text') {
         return '字幕です';
       }
@@ -128,13 +118,11 @@ test('youtube flow clears internal tracks and binds external primary+secondary s
     refreshCurrentSubtitle: (text) => {
       refreshedSubtitles.push(text);
     },
-    wait: async (ms) => {
-      waits.push(ms);
-    },
+    wait: async () => {},
     showMpvOsd: (text) => {
       osdMessages.push(text);
     },
-    warn: (message) => {
+    warn: (message: string) => {
       throw new Error(message);
     },
     log: () => {},
@@ -142,24 +130,24 @@ test('youtube flow clears internal tracks and binds external primary+secondary s
   });
   await runtime.runYoutubePlaybackFlow({ url: 'https://example.com', mode: 'download' });
 
-  assert.ok(pickerPayload);
   assert.deepEqual(order, [
     'start-tokenization-warmups',
-    'wait-window-ready',
-    'wait-overlay-geometry',
-    'open-picker',
     'wait-tokenization-ready',
     'wait-anki-ready',
   ]);
   assert.deepEqual(osdMessages, [
     'Opening YouTube video',
     'Getting subtitles...',
-    'Downloading subtitles...',
     'Loading subtitles...',
     'Primary and secondary subtitles loaded.',
   ]);
   assert.deepEqual(commands, [
     ['set_property', 'pause', 'yes'],
+    ['set_property', 'sub-auto', 'no'],
+    ['set_property', 'sid', 'no'],
+    ['set_property', 'secondary-sid', 'no'],
+    ['set_property', 'sub-visibility', 'no'],
+    ['set_property', 'secondary-sub-visibility', 'no'],
     ['set_property', 'sub-delay', 0],
     ['set_property', 'sid', 'no'],
     ['set_property', 'secondary-sid', 'no'],
@@ -174,8 +162,10 @@ test('youtube flow clears internal tracks and binds external primary+secondary s
   assert.deepEqual(refreshedSubtitles, ['字幕です']);
 });
 
-test('youtube flow can cancel active picker session', async () => {
-  const focusOverlayCalls: string[] = [];
+test('youtube flow refreshes parsed subtitle cues from the resolved primary subtitle path after auto-load', async () => {
+  const refreshedSidebarSources: string[] = [];
+  let trackListRequests = 0;
+
   const runtime = createYoutubeFlowRuntime({
     probeYoutubeTracks: async () => ({
       videoId: 'video123',
@@ -183,48 +173,57 @@ test('youtube flow can cancel active picker session', async () => {
       tracks: [primaryTrack],
     }),
     acquireYoutubeSubtitleTracks: async () => {
-      throw new Error('should not batch download after cancel');
+      throw new Error('single-track auto-load should not batch acquire');
     },
-    acquireYoutubeSubtitleTrack: async () => {
-      throw new Error('should not download after cancel');
-    },
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
+    acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/auto-ja-orig.vtt' }),
+    retimeYoutubePrimaryTrack: async () => '/tmp/auto-ja-orig_retimed.vtt',
     startTokenizationWarmups: async () => {},
     waitForTokenizationReady: async () => {},
     waitForAnkiReady: async () => {},
     waitForPlaybackWindowReady: async () => {},
     waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {
-      focusOverlayCalls.push('focus-overlay');
-    },
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        assert.equal(runtime.cancelActivePicker(), true);
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: null,
-        });
-      });
-      return true;
+    focusOverlayWindow: () => {},
+    openPicker: async () => false,
+    reportSubtitleFailure: () => {
+      throw new Error('primary subtitle should load successfully');
     },
     pauseMpv: () => {},
     resumeMpv: () => {},
     sendMpvCommand: () => {},
-    requestMpvProperty: async () => null,
+    requestMpvProperty: async (name: string) => {
+      if (name === 'sub-text') {
+        return '字幕です';
+      }
+      assert.equal(name, 'track-list');
+      trackListRequests += 1;
+      return [
+        {
+          type: 'sub',
+          id: 5,
+          lang: 'ja-orig',
+          title: 'primary',
+          external: true,
+          'external-filename': '/tmp/auto-ja-orig_retimed.vtt',
+        },
+      ];
+    },
     refreshCurrentSubtitle: () => {},
+    refreshSubtitleSidebarSource: async (sourcePath: string) => {
+      refreshedSidebarSources.push(sourcePath);
+    },
     wait: async () => {},
     showMpvOsd: () => {},
-    warn: () => {},
+    warn: (message: string) => {
+      throw new Error(message);
+    },
     log: () => {},
     getYoutubeOutputDir: () => '/tmp',
-  });
+  } as never);
 
   await runtime.runYoutubePlaybackFlow({ url: 'https://example.com', mode: 'download' });
-  assert.equal(runtime.hasActiveSession(), false);
-  assert.equal(runtime.cancelActivePicker(), false);
-  assert.deepEqual(focusOverlayCalls, ['focus-overlay']);
+
+  assert.equal(trackListRequests > 0, true);
+  assert.deepEqual(refreshedSidebarSources, ['/tmp/auto-ja-orig_retimed.vtt']);
 });
 
 test('youtube flow retries secondary after partial batch subtitle failure', async () => {
@@ -257,21 +256,20 @@ test('youtube flow retries secondary after partial batch subtitle failure', asyn
     startTokenizationWarmups: async () => {},
     waitForTokenizationReady: async () => {},
     waitForAnkiReady: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
+    waitForPlaybackWindowReady: async () => {
+      throw new Error('startup auto-load should not wait for modal window readiness');
+    },
+    waitForOverlayGeometryReady: async () => {
+      throw new Error('startup auto-load should not wait for modal overlay geometry');
+    },
     focusOverlayWindow: () => {
       focusOverlayCalls.push('focus-overlay');
     },
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: secondaryTrack.id,
-        });
-      });
-      return true;
+    openPicker: async () => {
+      throw new Error('startup auto-load should not open the picker');
+    },
+    reportSubtitleFailure: () => {
+      throw new Error('secondary retry should not report primary failure');
     },
     pauseMpv: () => {},
     resumeMpv: () => {},
@@ -332,7 +330,7 @@ test('youtube flow retries secondary after partial batch subtitle failure', asyn
   await runtime.runYoutubePlaybackFlow({ url: 'https://example.com', mode: 'download' });
 
   assert.deepEqual(acquireSingleCalls, [secondaryTrack.id]);
-  assert.ok(waits.includes(150));
+  assert.ok(waits.includes(350));
   assert.deepEqual(focusOverlayCalls, ['focus-overlay']);
   assert.deepEqual(refreshedSubtitles, ['字幕です']);
   assert.ok(
@@ -377,21 +375,20 @@ test('youtube flow waits for tokenization readiness before releasing playback', 
     waitForAnkiReady: async () => {
       releaseOrder.push('wait-anki-ready');
     },
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
+    waitForPlaybackWindowReady: async () => {
+      throw new Error('startup auto-load should not wait for modal window readiness');
+    },
+    waitForOverlayGeometryReady: async () => {
+      throw new Error('startup auto-load should not wait for modal overlay geometry');
+    },
     focusOverlayWindow: () => {
       releaseOrder.push('focus-overlay');
     },
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: null,
-        });
-      });
-      return true;
+    openPicker: async () => {
+      throw new Error('startup auto-load should not open the picker');
+    },
+    reportSubtitleFailure: () => {
+      throw new Error('successful auto-load should not report failure');
     },
     pauseMpv: () => {},
     resumeMpv: () => {
@@ -450,10 +447,10 @@ test('youtube flow waits for tokenization readiness before releasing playback', 
   ]);
 });
 
-test('youtube flow cleans up paused picker state when opening the picker throws', async () => {
+test('youtube flow reports primary auto-load failure through the configured reporter when the primary subtitle never binds', async () => {
   const commands: Array<Array<string | number>> = [];
   const warns: string[] = [];
-  const focusOverlayCalls: string[] = [];
+  const reportedFailures: string[] = [];
 
   const runtime = createYoutubeFlowRuntime({
     probeYoutubeTracks: async () => ({
@@ -465,78 +462,22 @@ test('youtube flow cleans up paused picker state when opening the picker throws'
     acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/auto-ja-orig.vtt' }),
     retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
+    waitForTokenizationReady: async () => {
+      throw new Error('bind failure should not wait for tokenization readiness');
+    },
     waitForAnkiReady: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {
-      focusOverlayCalls.push('focus-overlay');
+    waitForPlaybackWindowReady: async () => {
+      throw new Error('startup auto-load should not wait for modal window readiness');
     },
-    openPicker: async () => {
-      throw new Error('picker boom');
+    waitForOverlayGeometryReady: async () => {
+      throw new Error('startup auto-load should not wait for modal overlay geometry');
     },
-    pauseMpv: () => {
-      commands.push(['set_property', 'pause', 'yes']);
-    },
-    resumeMpv: () => {
-      commands.push(['set_property', 'pause', 'no']);
-    },
-    sendMpvCommand: (command) => {
-      commands.push(command);
-    },
-    requestMpvProperty: async () => null,
-    refreshCurrentSubtitle: () => {},
-    wait: async () => {},
-    showMpvOsd: () => {},
-    warn: (message) => {
-      warns.push(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
-  });
-
-  await runtime.runYoutubePlaybackFlow({ url: 'https://example.com', mode: 'download' });
-
-  assert.deepEqual(commands, [
-    ['set_property', 'pause', 'yes'],
-    ['script-message', 'subminer-autoplay-ready'],
-    ['set_property', 'pause', 'no'],
-  ]);
-  assert.deepEqual(focusOverlayCalls, ['focus-overlay']);
-  assert.equal(warns.some((message) => message.includes('picker boom')), true);
-  assert.equal(runtime.hasActiveSession(), false);
-});
-
-test('youtube flow reports failure when the primary subtitle never binds', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const osdMessages: string[] = [];
-  const warns: string[] = [];
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [primaryTrack],
-    }),
-    acquireYoutubeSubtitleTracks: async () => new Map<string, string>(),
-    acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/auto-ja-orig.vtt' }),
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
     focusOverlayWindow: () => {},
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: null,
-        });
-      });
-      return true;
+    openPicker: async () => {
+      throw new Error('startup auto-load should not open the picker');
+    },
+    reportSubtitleFailure: (message) => {
+      reportedFailures.push(message);
     },
     pauseMpv: () => {},
     resumeMpv: () => {},
@@ -553,9 +494,7 @@ test('youtube flow reports failure when the primary subtitle never binds', async
       throw new Error('should not refresh subtitle text on bind failure');
     },
     wait: async () => {},
-    showMpvOsd: (text) => {
-      osdMessages.push(text);
-    },
+    showMpvOsd: () => {},
     warn: (message) => {
       warns.push(message);
     },
@@ -569,6 +508,129 @@ test('youtube flow reports failure when the primary subtitle never binds', async
     commands.some((command) => command[0] === 'set_property' && command[1] === 'sid' && command[2] !== 'no'),
     false,
   );
-  assert.deepEqual(osdMessages.slice(-1), ['Primary subtitles failed to load.']);
+  assert.deepEqual(reportedFailures, [
+    'Primary subtitles failed to load. Use the YouTube subtitle picker to try manually.',
+  ]);
   assert.equal(warns.some((message) => message.includes('Unable to bind downloaded primary subtitle track')), true);
+});
+
+test('youtube flow can open a manual picker session and load the selected subtitles', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const focusOverlayCalls: string[] = [];
+  const osdMessages: string[] = [];
+  const openedPayloads: YoutubePickerOpenPayload[] = [];
+  const waits: number[] = [];
+
+  const runtime = createYoutubeFlowRuntime({
+    probeYoutubeTracks: async () => ({
+      videoId: 'video123',
+      title: 'Video 123',
+      tracks: [primaryTrack, secondaryTrack],
+    }),
+    acquireYoutubeSubtitleTracks: async ({ tracks }) => {
+      assert.deepEqual(
+        tracks.map((track) => track.id),
+        [primaryTrack.id, secondaryTrack.id],
+      );
+      return new Map<string, string>([
+        [primaryTrack.id, '/tmp/auto-ja-orig.vtt'],
+        [secondaryTrack.id, '/tmp/manual-en.vtt'],
+      ]);
+    },
+    acquireYoutubeSubtitleTrack: async ({ track }) => ({ path: `/tmp/${track.id}.vtt` }),
+    retimeYoutubePrimaryTrack: async ({ primaryPath }) => `${primaryPath}.retimed`,
+    startTokenizationWarmups: async () => {},
+    waitForTokenizationReady: async () => {},
+    waitForAnkiReady: async () => {},
+    waitForPlaybackWindowReady: async () => {
+      waits.push(1);
+    },
+    waitForOverlayGeometryReady: async () => {
+      waits.push(2);
+    },
+    focusOverlayWindow: () => {
+      focusOverlayCalls.push('focus-overlay');
+    },
+    openPicker: async (payload) => {
+      openedPayloads.push(payload);
+      queueMicrotask(() => {
+        void runtime.resolveActivePicker({
+          sessionId: payload.sessionId,
+          action: 'use-selected',
+          primaryTrackId: primaryTrack.id,
+          secondaryTrackId: secondaryTrack.id,
+        });
+      });
+      return true;
+    },
+    reportSubtitleFailure: () => {
+      throw new Error('manual picker success should not report failure');
+    },
+    pauseMpv: () => {
+      throw new Error('manual picker should not pause playback');
+    },
+    resumeMpv: () => {
+      throw new Error('manual picker should not resume playback');
+    },
+    sendMpvCommand: (command) => {
+      commands.push(command);
+    },
+    requestMpvProperty: async (name) => {
+      if (name === 'sub-text') {
+        return '字幕です';
+      }
+      return [
+        {
+          type: 'sub',
+          id: 5,
+          lang: 'ja-orig',
+          title: 'primary',
+          external: true,
+          'external-filename': '/tmp/auto-ja-orig.vtt.retimed',
+        },
+        {
+          type: 'sub',
+          id: 6,
+          lang: 'en',
+          title: 'secondary',
+          external: true,
+          'external-filename': '/tmp/manual-en.vtt',
+        },
+      ];
+    },
+    refreshCurrentSubtitle: () => {},
+    wait: async (ms) => {
+      waits.push(ms);
+    },
+    showMpvOsd: (text) => {
+      osdMessages.push(text);
+    },
+    warn: (message) => {
+      throw new Error(message);
+    },
+    log: () => {},
+    getYoutubeOutputDir: () => '/tmp',
+  });
+
+  await runtime.openManualPicker({ url: 'https://example.com', mode: 'download' });
+
+  assert.equal(openedPayloads.length, 1);
+  assert.equal(openedPayloads[0]?.defaultPrimaryTrackId, primaryTrack.id);
+  assert.equal(openedPayloads[0]?.defaultSecondaryTrackId, secondaryTrack.id);
+  assert.ok(waits.includes(150));
+  assert.deepEqual(osdMessages, [
+    'Getting subtitles...',
+    'Downloading subtitles...',
+    'Loading subtitles...',
+    'Primary and secondary subtitles loaded.',
+  ]);
+  assert.ok(
+    commands.some(
+      (command) =>
+        command[0] === 'sub-add' &&
+        command[1] === '/tmp/auto-ja-orig.vtt.retimed' &&
+        command[2] === 'select',
+    ),
+  );
+  assert.deepEqual(focusOverlayCalls, ['focus-overlay']);
 });

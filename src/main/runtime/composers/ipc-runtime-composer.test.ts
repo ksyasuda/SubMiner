@@ -10,6 +10,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
     mpvCommandMainDeps: {
       triggerSubsyncFromConfig: async () => {},
       openRuntimeOptionsPalette: () => {},
+      openYoutubeTrackPicker: () => {},
       cycleRuntimeOption: () => ({ ok: true }),
       showMpvOsd: () => {},
       replayCurrentSubtitle: () => {},
