@@ -61,6 +61,18 @@ export function findActiveSubtitleCueIndex(
     return -1;
   }
 
+  const hasCurrentTiming =
+    typeof current?.startTime === 'number' && Number.isFinite(current.startTime);
+
+  if (hasCurrentTiming) {
+    const timingMatch = cues.findIndex(
+      (cue) => current.startTime! >= cue.startTime && current.startTime! < cue.endTime,
+    );
+    if (timingMatch >= 0) {
+      return timingMatch;
+    }
+  }
+
   if (typeof currentTimeSec === 'number' && Number.isFinite(currentTimeSec)) {
     const activeOrUpcomingCue = cues.findIndex(
       (cue) =>
@@ -79,15 +91,6 @@ export function findActiveSubtitleCueIndex(
 
   if (!current) {
     return -1;
-  }
-
-  if (typeof current.startTime === 'number' && Number.isFinite(current.startTime)) {
-    const timingMatch = cues.findIndex(
-      (cue) => current.startTime! >= cue.startTime && current.startTime! < cue.endTime,
-    );
-    if (timingMatch >= 0) {
-      return timingMatch;
-    }
   }
 
   const normalizedText = normalizeCueText(current.text);

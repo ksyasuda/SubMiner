@@ -127,6 +127,10 @@ body {
   z-index: 1100;
 }
 
+#youtubePickerModal {
+  z-index: 1110;
+}
+
 .modal.hidden {
   display: none;
 }
@@ -138,11 +142,11 @@ body {
 .modal-content {
   width: min(720px, 92%);
   max-height: 80%;
-  background: rgba(20, 20, 20, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(36, 39, 58, 0.95);
+  border: 1px solid rgba(110, 115, 141, 0.18);
   border-radius: 12px;
   padding: 16px;
-  color: #fff;
+  color: #cad3f5;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -161,16 +165,17 @@ body {
 }
 
 .modal-close {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(73, 77, 100, 0.5);
+  color: #a5adcb;
+  border: 1px solid rgba(110, 115, 141, 0.2);
   border-radius: 6px;
   padding: 6px 10px;
   cursor: pointer;
 }
 
 .modal-close:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(91, 96, 120, 0.6);
+  color: #cad3f5;
 }
 
 .modal-body {
@@ -286,6 +291,91 @@ body {
 
 .jimaku-link.hidden {
   display: none;
+}
+
+.youtube-picker-content {
+  width: min(820px, 92%);
+  background:
+    radial-gradient(circle at top right, rgba(198, 160, 246, 0.10), transparent 34%),
+    linear-gradient(180deg, rgba(36, 39, 58, 0.98), rgba(30, 32, 48, 0.98));
+  border-color: rgba(138, 173, 244, 0.25);
+}
+
+.youtube-picker-body {
+  gap: 14px;
+}
+
+.youtube-picker-title {
+  font-size: 13px;
+  color: #b8c0e0;
+}
+
+.youtube-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.youtube-picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #a5adcb;
+}
+
+.youtube-picker-field select {
+  min-height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(110, 115, 141, 0.28);
+  background: rgba(24, 25, 38, 0.92);
+  color: #cad3f5;
+  padding: 6px 10px;
+}
+
+.youtube-picker-status {
+  min-height: 20px;
+  font-size: 13px;
+  color: #a5adcb;
+}
+
+.youtube-picker-tracks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(110, 115, 141, 0.18);
+}
+
+.youtube-picker-tracks li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(110, 115, 141, 0.08);
+  color: #cad3f5;
+}
+
+.youtube-picker-tracks li:last-child {
+  border-bottom: none;
+}
+
+.youtube-picker-track-meta {
+  color: #6e738d;
+  font-size: 12px;
+}
+
+.youtube-picker-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 700px) {
+  .youtube-picker-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -982,15 +1072,15 @@ iframe[id^='yomitan-popup'] {
 .kiku-confirm-button {
   padding: 8px 20px;
   border-radius: 6px;
-  border: 1px solid rgba(100, 180, 255, 0.4);
-  background: rgba(100, 180, 255, 0.15);
-  color: rgba(100, 180, 255, 0.95);
+  border: 1px solid rgba(138, 173, 244, 0.4);
+  background: rgba(138, 173, 244, 0.15);
+  color: #8aadf4;
   font-weight: 600;
   cursor: pointer;
 }
 
 .kiku-confirm-button:hover {
-  background: rgba(100, 180, 255, 0.25);
+  background: rgba(138, 173, 244, 0.25);
 }
 
 .subsync-modal-content {
@@ -1288,9 +1378,9 @@ iframe[id^='yomitan-popup'] {
 .btn-learn {
   padding: 5px 14px;
   border-radius: 5px;
-  border: 1px solid rgba(100, 180, 255, 0.4);
-  background: rgba(100, 180, 255, 0.15);
-  color: rgba(100, 180, 255, 0.95);
+  border: 1px solid rgba(138, 173, 244, 0.4);
+  background: rgba(138, 173, 244, 0.15);
+  color: #8aadf4;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -1298,28 +1388,28 @@ iframe[id^='yomitan-popup'] {
 }
 
 .btn-learn:hover {
-  background: rgba(100, 180, 255, 0.25);
+  background: rgba(138, 173, 244, 0.25);
 }
 
 .btn-learn.active {
-  border-color: rgba(100, 180, 255, 0.7);
-  background: rgba(100, 180, 255, 0.25);
+  border-color: rgba(138, 173, 244, 0.7);
+  background: rgba(138, 173, 244, 0.25);
 }
 
 .btn-secondary {
   padding: 5px 12px;
   border-radius: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(110, 115, 141, 0.2);
   background: transparent;
-  color: rgba(255, 255, 255, 0.55);
+  color: #6e738d;
   font-size: 12px;
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.85);
+  background: rgba(73, 77, 100, 0.4);
+  color: #a5adcb;
 }
 
 .controller-debug-content {

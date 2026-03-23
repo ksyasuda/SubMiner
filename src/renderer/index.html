@@ -85,6 +85,36 @@
           </div>
         </div>
       </div>
+      <div id="youtubePickerModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content youtube-picker-content">
+          <div class="modal-header">
+            <div class="modal-title">YouTube Subtitle Tracks</div>
+            <button id="youtubePickerCloseButton" class="modal-close" type="button">
+              Continue without subtitles
+            </button>
+          </div>
+          <div class="modal-body youtube-picker-body">
+            <div id="youtubePickerTitle" class="youtube-picker-title"></div>
+            <div class="youtube-picker-grid">
+              <label class="youtube-picker-field">
+                <span>Primary subtitle</span>
+                <select id="youtubePickerPrimarySelect"></select>
+              </label>
+              <label class="youtube-picker-field">
+                <span>Secondary subtitle</span>
+                <select id="youtubePickerSecondarySelect"></select>
+              </label>
+            </div>
+            <div id="youtubePickerStatus" class="youtube-picker-status"></div>
+            <ul id="youtubePickerTracks" class="youtube-picker-tracks"></ul>
+            <div class="youtube-picker-footer">
+              <button id="youtubePickerContinueButton" class="kiku-confirm-button" type="button">
+                Use selected subtitles
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div id="kikuFieldGroupingModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content">
           <div class="modal-header">

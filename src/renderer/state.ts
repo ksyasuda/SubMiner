@@ -13,6 +13,7 @@ import type {
   SubtitleSidebarConfig,
   SubtitleCue,
   SubsyncSourceTrack,
+  YoutubePickerOpenPayload,
 } from '../types';
 
 export type KikuModalStep = 'select' | 'preview';
@@ -39,6 +40,12 @@ export type RendererState = {
   selectedFileIndex: number;
   currentEpisodeFilter: number | null;
   currentEntryId: number | null;
+
+  youtubePickerModalOpen: boolean;
+  youtubePickerPayload: YoutubePickerOpenPayload | null;
+  youtubePickerPrimaryTrackId: string | null;
+  youtubePickerSecondaryTrackId: string | null;
+  youtubePickerStatus: string;
 
   kikuModalOpen: boolean;
   kikuSelectedCard: 1 | 2;
@@ -130,6 +137,12 @@ export function createRendererState(): RendererState {
     selectedFileIndex: 0,
     currentEpisodeFilter: null,
     currentEntryId: null,
+
+    youtubePickerModalOpen: false,
+    youtubePickerPayload: null,
+    youtubePickerPrimaryTrackId: null,
+    youtubePickerSecondaryTrackId: null,
+    youtubePickerStatus: '',
 
     kikuModalOpen: false,
     kikuSelectedCard: 1,
