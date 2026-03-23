@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 import type { YoutubeTrackOption } from '../../../types';
 import { formatYoutubeTrackLabel, normalizeYoutubeLangCode, type YoutubeTrackKind } from './labels';
 
+const YOUTUBE_TRACK_PROBE_TIMEOUT_MS = 15_000;
+
 export type YoutubeTrackProbeResult = {
   videoId: string;
   title: string;
@@ -17,11 +19,19 @@ type YtDlpInfo = {
   automatic_captions?: Record<string, YtDlpSubtitleEntry>;
 };
 
-function runCapture(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+function runCapture(
+  command: string,
+  args: string[],
+  timeoutMs = YOUTUBE_TRACK_PROBE_TIMEOUT_MS,
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
+    const timer = setTimeout(() => {
+      proc.kill();
+      reject(new Error(`yt-dlp timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     proc.stdout.setEncoding('utf8');
     proc.stderr.setEncoding('utf8');
     proc.stdout.on('data', (chunk) => {
@@ -30,8 +40,12 @@ function runCapture(command: string, args: string[]): Promise<{ stdout: string; 
     proc.stderr.on('data', (chunk) => {
       stderr += String(chunk);
     });
-    proc.once('error', reject);
+    proc.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     proc.once('close', (code) => {
+      clearTimeout(timer);
       if (code === 0) {
         resolve({ stdout, stderr });
         return;

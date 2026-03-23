@@ -37,6 +37,21 @@ async function waitForPendingAnimeMetadata(tracker: ImmersionTrackerService): Pr
   await privateApi.pendingAnimeMetadataUpdates?.get(videoId);
 }
 
+async function waitForCondition(
+  predicate: () => boolean,
+  timeoutMs = 1_000,
+  intervalMs = 10,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  assert.equal(predicate(), true);
+}
+
 function makeMergedToken(overrides: Partial<MergedToken>): MergedToken {
   return {
     surface: '',
@@ -2305,13 +2320,24 @@ test('handleMediaChange stores youtube metadata for new youtube sessions', async
 
   try {
     const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yt-dlp-bin-'));
-    const scriptPath = path.join(fakeBinDir, 'yt-dlp');
-    fs.writeFileSync(
-      scriptPath,
-      `#!/bin/sh
-printf '%s\n' '{"id":"abc123","title":"Video Name","webpage_url":"https://www.youtube.com/watch?v=abc123","thumbnail":"https://i.ytimg.com/vi/abc123/hqdefault.jpg","channel_id":"UCcreator123","channel":"Creator Name","channel_url":"https://www.youtube.com/channel/UCcreator123","uploader_id":"@creator","uploader_url":"https://www.youtube.com/@creator","description":"Video description","channel_follower_count":12345,"thumbnails":[{"url":"https://i.ytimg.com/vi/abc123/hqdefault.jpg"},{"url":"https://yt3.googleusercontent.com/channel-avatar=s88"}]}'\n`,
-      { mode: 0o755 },
-    );
+    const ytDlpOutput =
+      '{"id":"abc123","title":"Video Name","webpage_url":"https://www.youtube.com/watch?v=abc123","thumbnail":"https://i.ytimg.com/vi/abc123/hqdefault.jpg","channel_id":"UCcreator123","channel":"Creator Name","channel_url":"https://www.youtube.com/channel/UCcreator123","uploader_id":"@creator","uploader_url":"https://www.youtube.com/@creator","description":"Video description","channel_follower_count":12345,"thumbnails":[{"url":"https://i.ytimg.com/vi/abc123/hqdefault.jpg"},{"url":"https://yt3.googleusercontent.com/channel-avatar=s88"}]}';
+    if (process.platform === 'win32') {
+      fs.writeFileSync(
+        path.join(fakeBinDir, 'yt-dlp.cmd'),
+        `@echo off\r\necho ${ytDlpOutput.replace(/"/g, '\\"')}\r\n`,
+        'utf8',
+      );
+    } else {
+      const scriptPath = path.join(fakeBinDir, 'yt-dlp');
+      fs.writeFileSync(
+        scriptPath,
+        `#!/bin/sh
+printf '%s\n' '${ytDlpOutput}'
+`,
+        { mode: 0o755 },
+      );
+    }
     process.env.PATH = `${fakeBinDir}${path.delimiter}${originalPath ?? ''}`;
 
     globalThis.fetch = async (input) => {
@@ -2333,11 +2359,16 @@ printf '%s\n' '{"id":"abc123","title":"Video Name","webpage_url":"https://www.yo
     const Ctor = await loadTrackerCtor();
     tracker = new Ctor({ dbPath });
     tracker.handleMediaChange('https://www.youtube.com/watch?v=abc123', 'Player Title');
-
-    await waitForPendingAnimeMetadata(tracker);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-
     const privateApi = tracker as unknown as { db: DatabaseSync };
+    await waitForCondition(
+      () => {
+        const stored = privateApi.db
+          .prepare("SELECT 1 AS ready FROM imm_youtube_videos WHERE youtube_video_id = 'abc123'")
+          .get() as { ready: number } | null;
+        return stored?.ready === 1;
+      },
+      5_000,
+    );
     const row = privateApi.db
       .prepare(
         `

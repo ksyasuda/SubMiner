@@ -79,7 +79,12 @@ export async function probeYoutubeVideoMetadata(
     '--skip-download',
     targetUrl,
   ]);
-  const info = JSON.parse(stdout) as YtDlpYoutubeMetadata;
+  let info: YtDlpYoutubeMetadata;
+  try {
+    info = JSON.parse(stdout) as YtDlpYoutubeMetadata;
+  } catch {
+    return null;
+  }
   const youtubeVideoId = info.id?.trim();
   const videoUrl = info.webpage_url?.trim() || targetUrl.trim();
   if (!youtubeVideoId || !videoUrl) {

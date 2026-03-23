@@ -303,6 +303,33 @@ test('downloadYoutubeSubtitleTrack prefers direct download URL when available', 
   });
 });
 
+test('downloadYoutubeSubtitleTrack sanitizes metadata source language in filenames', async () => {
+  await withTempDir(async (root) => {
+    await withStubFetch(
+      async () => new Response('WEBVTT\n', { status: 200 }),
+      async () => {
+        const result = await downloadYoutubeSubtitleTrack({
+          targetUrl: 'https://www.youtube.com/watch?v=abc123',
+          outputDir: path.join(root, 'out'),
+          track: {
+            id: 'auto:../../ja-orig',
+            language: 'ja',
+            sourceLanguage: '../ja-orig/../../evil',
+            kind: 'auto',
+            label: 'Japanese (auto)',
+            downloadUrl: 'https://example.com/subs/ja.vtt',
+            fileExtension: 'vtt',
+          },
+          mode: 'download',
+        });
+
+        assert.equal(path.dirname(result.path), path.join(root, 'out'));
+        assert.equal(path.basename(result.path), 'auto-ja-orig.ja-orig-evil.vtt');
+      },
+    );
+  });
+});
+
 test('downloadYoutubeSubtitleTrack converts srv3 auto subtitles into regular vtt', async () => {
   await withTempDir(async (root) => {
     await withStubFetch(

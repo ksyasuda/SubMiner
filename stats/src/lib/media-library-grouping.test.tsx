@@ -2,8 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { MediaLibraryItem } from '../types/stats';
-import { groupMediaLibraryItems, resolveMediaArtworkUrl } from './media-library-grouping';
+import {
+  groupMediaLibraryItems,
+  resolveMediaArtworkUrl,
+  summarizeMediaLibraryGroups,
+} from './media-library-grouping';
 import { CoverImage } from '../components/library/CoverImage';
+import { MediaCard } from '../components/library/MediaCard';
 
 const youtubeEpisodeA: MediaLibraryItem = {
   videoId: 1,
@@ -85,6 +90,16 @@ test('resolveMediaArtworkUrl prefers youtube thumbnails for video and channel im
   assert.equal(resolveMediaArtworkUrl(localVideo, 'channel'), null);
 });
 
+test('summarizeMediaLibraryGroups stays aligned with rendered group buckets', () => {
+  const groups = groupMediaLibraryItems([youtubeEpisodeA, localVideo, youtubeEpisodeB]);
+  const summary = summarizeMediaLibraryGroups(groups);
+
+  assert.deepEqual(summary, {
+    totalMs: 29_000,
+    totalVideos: 3,
+  });
+});
+
 test('CoverImage renders explicit remote artwork when src is provided', () => {
   const markup = renderToStaticMarkup(
     <CoverImage
@@ -96,4 +111,13 @@ test('CoverImage renders explicit remote artwork when src is provided', () => {
   );
 
   assert.match(markup, /src="https:\/\/i\.ytimg\.com\/vi\/yt-1\/hqdefault\.jpg"/);
+});
+
+test('MediaCard uses the proxied cover endpoint instead of metadata artwork urls', () => {
+  const markup = renderToStaticMarkup(
+    <MediaCard item={youtubeEpisodeA} onClick={() => {}} />,
+  );
+
+  assert.match(markup, /src="http:\/\/127\.0\.0\.1:6969\/api\/stats\/media\/1\/cover"/);
+  assert.doesNotMatch(markup, /https:\/\/i\.ytimg\.com\/vi\/yt-1\/hqdefault\.jpg/);
 });

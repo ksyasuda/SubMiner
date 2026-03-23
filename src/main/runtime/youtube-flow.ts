@@ -258,6 +258,11 @@ async function injectDownloadedSubtitles(
     }
   }
 
+  if (primaryTrackId === null) {
+    deps.showMpvOsd('Primary subtitles failed to load.');
+    return false;
+  }
+
   const currentSubText = await deps.requestMpvProperty('sub-text');
   if (typeof currentSubText === 'string' && currentSubText.trim().length > 0) {
     deps.refreshCurrentSubtitle(currentSubText);

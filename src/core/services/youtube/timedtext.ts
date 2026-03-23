@@ -6,6 +6,18 @@ interface YoutubeTimedTextRow {
 
 const YOUTUBE_TIMEDTEXT_EXTENSIONS = new Set(['srv1', 'srv2', 'srv3', 'ytsrv3']);
 
+function decodeNumericEntity(match: string, codePoint: number): string {
+  if (
+    !Number.isInteger(codePoint) ||
+    codePoint < 0 ||
+    codePoint > 0x10ffff ||
+    (codePoint >= 0xd800 && codePoint <= 0xdfff)
+  ) {
+    return match;
+  }
+  return String.fromCodePoint(codePoint);
+}
+
 function decodeHtmlEntities(value: string): string {
   return value
     .replace(/&amp;/g, '&')
@@ -13,9 +25,11 @@ function decodeHtmlEntities(value: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&#(\d+);/g, (_match, codePoint) => String.fromCodePoint(Number(codePoint)))
-    .replace(/&#x([0-9a-f]+);/gi, (_match, codePoint) =>
-      String.fromCodePoint(Number.parseInt(codePoint, 16)),
+    .replace(/&#(\d+);/g, (match, codePoint) =>
+      decodeNumericEntity(match, Number(codePoint)),
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (match, codePoint) =>
+      decodeNumericEntity(match, Number.parseInt(codePoint, 16)),
     );
 }
 
@@ -85,7 +99,6 @@ export function convertYoutubeTimedTextToVtt(xml: string): string {
         ? Math.max(row.startMs, nextRow.startMs - 1)
         : unclampedEnd;
     if (clampedEnd <= row.startMs) {
-      previousText = row.text;
       continue;
     }
 

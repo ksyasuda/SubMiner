@@ -506,3 +506,69 @@ test('youtube flow cleans up paused picker state when opening the picker throws'
   assert.equal(warns.some((message) => message.includes('picker boom')), true);
   assert.equal(runtime.hasActiveSession(), false);
 });
+
+test('youtube flow reports failure when the primary subtitle never binds', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const osdMessages: string[] = [];
+  const warns: string[] = [];
+
+  const runtime = createYoutubeFlowRuntime({
+    probeYoutubeTracks: async () => ({
+      videoId: 'video123',
+      title: 'Video 123',
+      tracks: [primaryTrack],
+    }),
+    acquireYoutubeSubtitleTracks: async () => new Map<string, string>(),
+    acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/auto-ja-orig.vtt' }),
+    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
+    startTokenizationWarmups: async () => {},
+    waitForTokenizationReady: async () => {},
+    waitForAnkiReady: async () => {},
+    waitForPlaybackWindowReady: async () => {},
+    waitForOverlayGeometryReady: async () => {},
+    focusOverlayWindow: () => {},
+    openPicker: async (payload) => {
+      queueMicrotask(() => {
+        void runtime.resolveActivePicker({
+          sessionId: payload.sessionId,
+          action: 'use-selected',
+          primaryTrackId: primaryTrack.id,
+          secondaryTrackId: null,
+        });
+      });
+      return true;
+    },
+    pauseMpv: () => {},
+    resumeMpv: () => {},
+    sendMpvCommand: (command) => {
+      commands.push(command);
+    },
+    requestMpvProperty: async (name) => {
+      if (name === 'track-list') {
+        return [];
+      }
+      throw new Error(`unexpected property request: ${name}`);
+    },
+    refreshCurrentSubtitle: () => {
+      throw new Error('should not refresh subtitle text on bind failure');
+    },
+    wait: async () => {},
+    showMpvOsd: (text) => {
+      osdMessages.push(text);
+    },
+    warn: (message) => {
+      warns.push(message);
+    },
+    log: () => {},
+    getYoutubeOutputDir: () => '/tmp',
+  });
+
+  await runtime.runYoutubePlaybackFlow({ url: 'https://example.com', mode: 'download' });
+
+  assert.equal(
+    commands.some((command) => command[0] === 'set_property' && command[1] === 'sid' && command[2] !== 'no'),
+    false,
+  );
+  assert.deepEqual(osdMessages.slice(-1), ['Primary subtitles failed to load.']);
+  assert.equal(warns.some((message) => message.includes('Unable to bind downloaded primary subtitle track')), true);
+});

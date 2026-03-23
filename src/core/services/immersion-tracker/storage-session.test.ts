@@ -278,6 +278,8 @@ test('ensureSchema creates large-history performance indexes', () => {
     assert.ok(indexNames.has('idx_kanji_frequency'));
     assert.ok(indexNames.has('idx_media_art_anilist_id'));
     assert.ok(indexNames.has('idx_media_art_cover_url'));
+    assert.ok(indexNames.has('idx_youtube_videos_channel_id'));
+    assert.ok(indexNames.has('idx_youtube_videos_youtube_video_id'));
   } finally {
     db.close();
     cleanupDbPath(dbPath);

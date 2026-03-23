@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useMediaLibrary } from '../../hooks/useMediaLibrary';
 import { formatDuration, formatNumber } from '../../lib/formatters';
-import { groupMediaLibraryItems } from '../../lib/media-library-grouping';
+import { groupMediaLibraryItems, summarizeMediaLibraryGroups } from '../../lib/media-library-grouping';
 import { CoverImage } from './CoverImage';
 import { MediaCard } from './MediaCard';
 import { MediaDetailView } from './MediaDetailView';
@@ -30,8 +30,7 @@ export function LibraryTab({ onNavigateToSession }: LibraryTabProps) {
     });
   }, [media, search]);
   const grouped = useMemo(() => groupMediaLibraryItems(filtered), [filtered]);
-
-  const totalMs = media.reduce((sum, m) => sum + m.totalActiveMs, 0);
+  const summary = useMemo(() => summarizeMediaLibraryGroups(grouped), [grouped]);
 
   if (selectedVideoId !== null) {
     return <MediaDetailView videoId={selectedVideoId} onBack={() => setSelectedVideoId(null)} />;
@@ -51,8 +50,8 @@ export function LibraryTab({ onNavigateToSession }: LibraryTabProps) {
           className="flex-1 bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay2 focus:outline-none focus:border-ctp-blue"
         />
         <div className="text-xs text-ctp-overlay2 shrink-0">
-          {grouped.length} channel{grouped.length !== 1 ? 's' : ''} · {filtered.length} video
-          {filtered.length !== 1 ? 's' : ''} · {formatDuration(totalMs)}
+          {grouped.length} group{grouped.length !== 1 ? 's' : ''} · {summary.totalVideos} video
+          {summary.totalVideos !== 1 ? 's' : ''} · {formatDuration(summary.totalMs)}
         </div>
       </div>
 

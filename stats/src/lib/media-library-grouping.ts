@@ -27,21 +27,35 @@ export function resolveMediaCoverApiUrl(videoId: number): string {
   return `${BASE_URL}/api/stats/media/${videoId}/cover`;
 }
 
+export function summarizeMediaLibraryGroups(groups: MediaLibraryGroup[]): {
+  totalMs: number;
+  totalVideos: number;
+} {
+  return groups.reduce(
+    (summary, group) => ({
+      totalMs: summary.totalMs + group.totalActiveMs,
+      totalVideos: summary.totalVideos + group.items.length,
+    }),
+    { totalMs: 0, totalVideos: 0 },
+  );
+}
+
 export function groupMediaLibraryItems(items: MediaLibraryItem[]): MediaLibraryGroup[] {
   const groups = new Map<string, MediaLibraryGroup>();
 
   for (const item of items) {
-    const key = item.channelId?.trim() || `video:${item.videoId}`;
+    const channelId = item.channelId?.trim() || null;
+    const channelName = item.channelName?.trim() || null;
+    const uploaderId = item.uploaderId?.trim() || null;
+    const videoTitle = item.videoTitle?.trim() || null;
+    const key = channelId || `video:${item.videoId}`;
     const title =
-      item.channelName?.trim() ||
-      item.uploaderId?.trim() ||
-      item.videoTitle?.trim() ||
-      item.canonicalTitle;
+      channelName || uploaderId || videoTitle || item.canonicalTitle;
     const subtitle =
-      item.channelId?.trim() != null && item.channelId?.trim() !== ''
-        ? `${item.channelId}`
-        : item.videoTitle?.trim() && item.videoTitle !== item.canonicalTitle
-          ? item.videoTitle
+      channelId
+        ? channelId
+        : videoTitle && videoTitle !== item.canonicalTitle
+          ? videoTitle
           : null;
     const existing = groups.get(key);
     if (existing) {

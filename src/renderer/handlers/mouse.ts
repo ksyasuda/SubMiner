@@ -57,9 +57,10 @@ export function createMouseHandlers(
     );
 
     ctx.state.isOverSubtitle = overPrimarySubtitle || overSecondarySubtitle;
-    if (!overSecondarySubtitle) {
-      ctx.dom.secondarySubContainer.classList.remove('secondary-sub-hover-active');
-    }
+    ctx.dom.secondarySubContainer.classList.toggle(
+      'secondary-sub-hover-active',
+      overSecondarySubtitle,
+    );
 
     return ctx.state.isOverSubtitle;
   }

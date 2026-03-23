@@ -14,10 +14,12 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   }
 }
 
-function makeFakeYtDlpScript(dir: string, payload: unknown): void {
+function makeFakeYtDlpScript(dir: string, payload: unknown, rawScript = false): void {
   const scriptPath = path.join(dir, 'yt-dlp');
   const stdoutBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
-  const script = `#!/usr/bin/env node
+  const script = rawScript
+    ? stdoutBody
+    : `#!/usr/bin/env node
 process.stdout.write(${JSON.stringify(stdoutBody)});
 `;
   fs.writeFileSync(scriptPath, script, 'utf8');
@@ -27,11 +29,15 @@ process.stdout.write(${JSON.stringify(stdoutBody)});
   fs.writeFileSync(scriptPath + '.cmd', `@echo off\r\nnode "${scriptPath}"\r\n`, 'utf8');
 }
 
-async function withFakeYtDlp<T>(payload: unknown, fn: () => Promise<T>): Promise<T> {
+async function withFakeYtDlp<T>(
+  payload: unknown,
+  fn: () => Promise<T>,
+  options: { rawScript?: boolean } = {},
+): Promise<T> {
   return await withTempDir(async (root) => {
     const binDir = path.join(root, 'bin');
     fs.mkdirSync(binDir, { recursive: true });
-    makeFakeYtDlpScript(binDir, payload);
+    makeFakeYtDlpScript(binDir, payload, options.rawScript === true);
     const originalPath = process.env.PATH ?? '';
     process.env.PATH = `${binDir}${path.delimiter}${originalPath}`;
     try {

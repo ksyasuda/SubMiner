@@ -1,6 +1,5 @@
-import { CoverImage } from './CoverImage';
 import { formatDuration, formatNumber } from '../../lib/formatters';
-import { resolveMediaArtworkUrl } from '../../lib/media-library-grouping';
+import { CoverImage } from './CoverImage';
 import type { MediaLibraryItem } from '../../types/stats';
 
 interface MediaCardProps {
@@ -18,7 +17,6 @@ export function MediaCard({ item, onClick }: MediaCardProps) {
       <CoverImage
         videoId={item.videoId}
         title={item.canonicalTitle}
-        src={resolveMediaArtworkUrl(item, 'video')}
         className="w-full aspect-[3/4] rounded-t-lg"
       />
       <div className="p-3">

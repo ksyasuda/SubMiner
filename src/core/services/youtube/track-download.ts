@@ -9,6 +9,11 @@ const YOUTUBE_SUBTITLE_EXTENSIONS = new Set(['.srt', '.vtt', '.ass']);
 const YOUTUBE_BATCH_PREFIX = 'youtube-batch';
 const YOUTUBE_DOWNLOAD_TIMEOUT_MS = 15_000;
 
+function sanitizeFilenameSegment(value: string): string {
+  const sanitized = value.trim().replace(/[^a-z0-9_-]+/gi, '-').replace(/-+/g, '-');
+  return sanitized.replace(/^-+|-+$/g, '') || 'unknown';
+}
+
 function createFetchTimeoutSignal(timeoutMs: number): AbortSignal | undefined {
   if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
     return AbortSignal.timeout(timeoutMs);
@@ -154,9 +159,10 @@ async function downloadSubtitleFromUrl(input: {
     : YOUTUBE_SUBTITLE_EXTENSIONS.has(`.${ext}`)
       ? ext
       : 'vtt';
+  const safeSourceLanguage = sanitizeFilenameSegment(input.track.sourceLanguage);
   const targetPath = path.join(
     input.outputDir,
-    `${input.prefix}.${input.track.sourceLanguage}.${safeExt}`,
+    `${input.prefix}.${safeSourceLanguage}.${safeExt}`,
   );
   const response = await fetch(input.track.downloadUrl, {
     signal: createFetchTimeoutSignal(YOUTUBE_DOWNLOAD_TIMEOUT_MS),
