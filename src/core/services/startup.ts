@@ -290,13 +290,14 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   if (deps.texthookerOnlyMode) {
     deps.log('Texthooker-only mode enabled; skipping overlay window.');
   } else if (deps.shouldAutoInitializeOverlayRuntimeFromConfig()) {
+    await deps.loadYomitanExtension();
     deps.setVisibleOverlayVisible(true);
     deps.initializeOverlayRuntime();
   } else {
     deps.log('Overlay runtime deferred: waiting for explicit overlay command.');
+    await deps.loadYomitanExtension();
   }
 
-  await deps.loadYomitanExtension();
   await deps.handleFirstRunSetup();
   deps.handleInitialArgs();
   deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);

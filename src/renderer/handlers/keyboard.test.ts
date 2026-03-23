@@ -332,6 +332,7 @@ function createKeyboardHandlerHarness() {
       return true;
     },
     handleControllerDebugKeydown: () => false,
+    handleYoutubePickerKeydown: () => false,
     handleSessionHelpKeydown: () => false,
     openSessionHelpModal: () => {},
     appendClipboardVideoToQueue: () => {},
@@ -485,6 +486,34 @@ test('keyboard mode: repeated popup navigation keys are forwarded while popup is
     );
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('popup-visible mpv keybindings still fire for bound keys', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateKeybindings([
+      {
+        key: 'Space',
+        command: ['cycle', 'pause'],
+      },
+      {
+        key: 'KeyQ',
+        command: ['quit'],
+      },
+    ] as never);
+
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+
+    testGlobals.dispatchKeydown({ key: ' ', code: 'Space' });
+    testGlobals.dispatchKeydown({ key: 'q', code: 'KeyQ' });
+
+    assert.deepEqual(testGlobals.mpvCommands.slice(-2), [['cycle', 'pause'], ['quit']]);
+  } finally {
     testGlobals.restore();
   }
 });
@@ -813,6 +842,22 @@ test('keyboard mode: closing lookup clears yomitan active text source so same to
     ]);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('subtitle refresh outside keyboard mode clears yomitan active text source', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    handlers.handleSubtitleContentUpdated();
+    await wait(0);
+
+    const clearCommands = testGlobals.commandEvents.filter(
+      (event) => event.type === 'clearActiveTextSource',
+    );
+    assert.deepEqual(clearCommands, [{ type: 'clearActiveTextSource' }]);
+  } finally {
     testGlobals.restore();
   }
 });

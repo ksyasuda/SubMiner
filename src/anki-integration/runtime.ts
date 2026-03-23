@@ -9,6 +9,7 @@ import {
 export interface AnkiIntegrationRuntimeProxyServer {
   start(options: { host: string; port: number; upstreamUrl: string }): void;
   stop(): void;
+  waitUntilReady(): Promise<void>;
 }
 
 interface AnkiIntegrationRuntimeDeps {
@@ -129,6 +130,13 @@ export class AnkiIntegrationRuntime {
 
   getConfig(): AnkiConnectConfig {
     return this.config;
+  }
+
+  waitUntilReady(): Promise<void> {
+    if (!this.started || !this.isProxyTransportEnabled()) {
+      return Promise.resolve();
+    }
+    return this.getOrCreateProxyServer().waitUntilReady();
   }
 
   start(): void {

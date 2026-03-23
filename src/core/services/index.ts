@@ -79,7 +79,10 @@ export {
   handleOverlayWindowBeforeInputEvent,
   isTabInputForMpvForwarding,
 } from './overlay-window-input';
-export { initializeOverlayRuntime } from './overlay-runtime-init';
+export {
+  initializeOverlayAnkiIntegration,
+  initializeOverlayRuntime,
+} from './overlay-runtime-init';
 export { setVisibleOverlayVisible, updateVisibleOverlayVisibility } from './overlay-visibility';
 export {
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
