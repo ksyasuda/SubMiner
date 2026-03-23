@@ -4,6 +4,7 @@ title: Forward launcher log level into mpv plugin script opts
 status: Done
 assignee: []
 created_date: '2026-03-18 21:16'
+updated_date: '2026-03-23 03:22'
 labels: []
 dependencies:
   - TASK-198
@@ -12,8 +13,8 @@ references:
   - /home/sudacode/projects/japanese/SubMiner/launcher/mpv.ts
   - /home/sudacode/projects/japanese/SubMiner/launcher/main.test.ts
   - /home/sudacode/projects/japanese/SubMiner/launcher/aniskip-metadata.test.ts
-documentation: []
 priority: medium
+ordinal: 134500
 ---
 
 ## Description

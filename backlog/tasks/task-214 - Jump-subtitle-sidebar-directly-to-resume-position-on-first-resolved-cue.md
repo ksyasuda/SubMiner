@@ -1,10 +1,10 @@
 ---
 id: TASK-214
 title: Jump subtitle sidebar directly to resume position on first resolved cue
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-21 11:15'
-updated_date: '2026-03-21 11:15'
+updated_date: '2026-03-23 03:22'
 labels:
   - bug
   - ux
@@ -12,9 +12,12 @@ labels:
   - subtitles
 dependencies: []
 references:
-  - /Users/sudacode/projects/japanese/SubMiner/src/renderer/modals/subtitle-sidebar.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/renderer/modals/subtitle-sidebar.test.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/renderer/modals/subtitle-sidebar.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/renderer/modals/subtitle-sidebar.test.ts
 priority: medium
+ordinal: 142500
 ---
 
 ## Description

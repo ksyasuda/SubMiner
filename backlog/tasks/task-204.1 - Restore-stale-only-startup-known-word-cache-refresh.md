@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Codex'
 created_date: '2026-03-20 02:52'
-updated_date: '2026-03-20 03:02'
+updated_date: '2026-03-23 03:22'
 labels:
   - anki
   - cache
@@ -17,6 +17,7 @@ references:
   - docs/plans/2026-03-19-known-word-cache-incremental-sync-design.md
 parent_task_id: TASK-204
 priority: high
+ordinal: 124500
 ---
 
 ## Description

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-19 19:38'
-updated_date: '2026-03-19 19:40'
+updated_date: '2026-03-23 03:22'
 labels:
   - stats
   - immersion-tracking
@@ -17,6 +17,7 @@ references:
   - stats/src/lib/dashboard-data.ts
 parent_task_id: TASK-177
 priority: medium
+ordinal: 130500
 ---
 
 ## Description

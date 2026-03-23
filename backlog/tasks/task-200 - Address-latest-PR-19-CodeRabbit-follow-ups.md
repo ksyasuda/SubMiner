@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-19 07:18'
-updated_date: '2026-03-19 07:28'
+updated_date: '2026-03-23 03:22'
 labels:
   - pr-review
   - anki-integration
@@ -19,6 +19,7 @@ references:
   - src/anki-integration/runtime.ts
   - src/anki-integration/known-word-cache.ts
 priority: medium
+ordinal: 133500
 ---
 
 ## Description

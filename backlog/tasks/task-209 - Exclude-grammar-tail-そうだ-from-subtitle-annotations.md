@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-20 04:06'
-updated_date: '2026-03-20 04:33'
+updated_date: '2026-03-23 03:22'
 labels:
   - bug
   - tokenizer
@@ -18,6 +18,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/src/core/services/tokenizer.test.ts
 priority: high
+ordinal: 120500
 ---
 
 ## Description

@@ -4,6 +4,7 @@ title: App-owned YouTube subtitle picker flow
 status: Done
 assignee: []
 created_date: '2026-03-18 07:52'
+updated_date: '2026-03-23 03:22'
 labels: []
 dependencies: []
 references:
@@ -13,6 +14,7 @@ references:
 documentation:
   - /home/sudacode/projects/japanese/SubMiner/youtube.md
 priority: medium
+ordinal: 137500
 ---
 
 ## Description

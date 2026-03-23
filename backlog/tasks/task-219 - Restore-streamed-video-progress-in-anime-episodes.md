@@ -1,0 +1,33 @@
+---
+id: TASK-219
+title: 'Restore streamed video progress in anime episodes'
+status: In Progress
+assignee:
+  - codex
+created_date: '2026-03-22 21:25'
+updated_date: '2026-03-22 21:25'
+labels:
+  - stats
+  - immersion-tracker
+  - youtube
+priority: medium
+dependencies: []
+references:
+  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/query.ts
+  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker-service.ts
+  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/__tests__/query.test.ts
+  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker-service.test.ts
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Episode progress for streamed media can stay at `0%` because some remote sessions persist `ended_media_ms = 0` even when subtitle timing and watch activity clearly advanced, and the anime episode query currently treats `0` as a valid progress checkpoint.
+<!-- SECTION:DESCRIPTION:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [ ] #1 Anime episode progress ignores zero-valued session checkpoints and falls back to subtitle/event timing
+- [ ] #2 New streamed sessions persist meaningful progress even when playback-position updates are missing or sparse
+- [ ] #3 Regression tests cover the zero-checkpoint remote-session case
+<!-- AC:END -->

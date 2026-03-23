@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-20 03:03'
-updated_date: '2026-03-20 03:04'
+updated_date: '2026-03-23 03:22'
 labels:
   - pr-review
   - anki-integration
@@ -15,6 +15,7 @@ dependencies: []
 references:
   - src/anki-integration/anki-connect-proxy.test.ts
 priority: medium
+ordinal: 123500
 ---
 
 ## Description

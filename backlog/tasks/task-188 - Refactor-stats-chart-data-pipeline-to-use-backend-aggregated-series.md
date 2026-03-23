@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-18 00:29'
-updated_date: '2026-03-18 00:55'
+updated_date: '2026-03-23 03:22'
 labels:
   - stats
   - performance
@@ -22,6 +22,7 @@ references:
   - stats/src/types/stats.ts
   - stats/src/lib/dashboard-data.ts
 priority: medium
+ordinal: 138500
 ---
 
 ## Description

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Codex'
 created_date: '2026-03-20 04:09'
-updated_date: '2026-03-20 04:25'
+updated_date: '2026-03-23 03:22'
 labels:
   - stats
   - bug
@@ -17,6 +17,7 @@ references:
   - src/core/services/immersion-tracker/query.ts
   - src/core/services/immersion-tracker/session.ts
   - src/core/services/immersion-tracker-service.ts
+ordinal: 121500
 ---
 
 ## Description
