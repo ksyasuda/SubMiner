@@ -3893,6 +3893,172 @@ test('tokenizeSubtitle keeps frequency for content-led merged token with trailin
   assert.equal(result.tokens?.[0]?.frequencyRank, 5468);
 });
 
+test('tokenizeSubtitle clears all annotations for explanatory contrast endings', async () => {
+  const result = await tokenizeSubtitle(
+    '最近辛いものが続いとるんですけど',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: '最近', reading: 'さいきん', headword: '最近' },
+        { surface: '辛い', reading: 'つらい', headword: '辛い' },
+        { surface: 'もの', reading: 'もの', headword: 'もの' },
+        { surface: 'が', reading: 'が', headword: 'が' },
+        { surface: '続いとる', reading: 'つづいとる', headword: '続く' },
+        { surface: 'んですけど', reading: 'んですけど', headword: 'ん' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) =>
+          text === '最近' ? 120 : text === '辛い' ? 800 : text === '続く' ? 240 : 77,
+        getJlptLevel: (text) =>
+          text === '最近' ? 'N4' : text === '辛い' ? 'N2' : text === '続く' ? 'N4' : null,
+        isKnownWord: (text) => text === '最近',
+        getMinSentenceWordsForNPlusOne: () => 1,
+        tokenizeWithMecab: async () => [
+          {
+            headword: '最近',
+            surface: '最近',
+            reading: 'サイキン',
+            startPos: 0,
+            endPos: 2,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '副詞可能',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: '辛い',
+            surface: '辛い',
+            reading: 'ツライ',
+            startPos: 2,
+            endPos: 4,
+            partOfSpeech: PartOfSpeech.i_adjective,
+            pos1: '形容詞',
+            pos2: '自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'もの',
+            surface: 'もの',
+            reading: 'モノ',
+            startPos: 4,
+            endPos: 6,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '一般',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'が',
+            surface: 'が',
+            reading: 'ガ',
+            startPos: 6,
+            endPos: 7,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '格助詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: '続く',
+            surface: '続いとる',
+            reading: 'ツヅイトル',
+            startPos: 7,
+            endPos: 11,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '動詞',
+            pos2: '自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'ん',
+            surface: 'んですけど',
+            reading: 'ンデスケド',
+            startPos: 11,
+            endPos: 16,
+            partOfSpeech: PartOfSpeech.other,
+            pos1: '名詞|助動詞|助詞',
+            pos2: '非自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+      },
+    ),
+  );
+
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      isKnown: token.isKnown,
+      isNPlusOneTarget: token.isNPlusOneTarget,
+      frequencyRank: token.frequencyRank,
+      jlptLevel: token.jlptLevel,
+    })),
+    [
+      {
+        surface: '最近',
+        headword: '最近',
+        isKnown: true,
+        isNPlusOneTarget: false,
+        frequencyRank: 120,
+        jlptLevel: 'N4',
+      },
+      {
+        surface: '辛い',
+        headword: '辛い',
+        isKnown: false,
+        isNPlusOneTarget: false,
+        frequencyRank: 800,
+        jlptLevel: 'N2',
+      },
+      {
+        surface: 'もの',
+        headword: 'もの',
+        isKnown: false,
+        isNPlusOneTarget: false,
+        frequencyRank: 77,
+        jlptLevel: undefined,
+      },
+      {
+        surface: 'が',
+        headword: 'が',
+        isKnown: false,
+        isNPlusOneTarget: false,
+        frequencyRank: undefined,
+        jlptLevel: undefined,
+      },
+      {
+        surface: '続いとる',
+        headword: '続く',
+        isKnown: false,
+        isNPlusOneTarget: false,
+        frequencyRank: 240,
+        jlptLevel: 'N4',
+      },
+      {
+        surface: 'んですけど',
+        headword: 'ん',
+        isKnown: false,
+        isNPlusOneTarget: false,
+        frequencyRank: undefined,
+        jlptLevel: undefined,
+      },
+    ],
+  );
+});
+
 test('tokenizeSubtitle excludes default non-independent pos2 from N+1 when JLPT/frequency are disabled', async () => {
   let mecabCalls = 0;
   const result = await tokenizeSubtitle(
