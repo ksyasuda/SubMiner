@@ -1,3 +1,5 @@
+import { isYoutubeMediaPath } from './youtube-playback';
+
 type AnilistGuess = {
   title: string;
   episode: number | null;
@@ -128,6 +130,9 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
 
     const mediaKey = deps.getCurrentMediaKey();
     if (!mediaKey || !deps.hasMpvClient()) {
+      return;
+    }
+    if (isYoutubeMediaPath(mediaKey)) {
       return;
     }
     if (deps.getTrackedMediaKey() !== mediaKey) {

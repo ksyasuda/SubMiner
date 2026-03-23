@@ -20,6 +20,18 @@ test('get current anilist media key trims and normalizes empty path', () => {
   assert.equal(getEmptyKey(), null);
 });
 
+test('get current anilist media key skips youtube playback urls', () => {
+  const getYoutubeKey = createGetCurrentAnilistMediaKeyHandler({
+    getCurrentMediaPath: () => ' https://www.youtube.com/watch?v=abc123 ',
+  });
+  const getShortYoutubeKey = createGetCurrentAnilistMediaKeyHandler({
+    getCurrentMediaPath: () => 'https://youtu.be/abc123',
+  });
+
+  assert.equal(getYoutubeKey(), null);
+  assert.equal(getShortYoutubeKey(), null);
+});
+
 test('reset anilist media tracking clears duration/guess/probe state', () => {
   let mediaKey: string | null = 'old';
   let mediaDurationSec: number | null = 123;

@@ -68,3 +68,32 @@ test('ensureAnilistMediaGuess memoizes in-flight guess promise', async () => {
   });
   assert.equal(state.mediaGuessPromise, null);
 });
+
+test('ensureAnilistMediaGuess skips youtube playback urls', async () => {
+  let state: AnilistMediaGuessRuntimeState = {
+    mediaKey: 'https://www.youtube.com/watch?v=abc123',
+    mediaDurationSec: null,
+    mediaGuess: null,
+    mediaGuessPromise: null,
+    lastDurationProbeAtMs: 0,
+  };
+  let calls = 0;
+  const ensureGuess = createEnsureAnilistMediaGuessHandler({
+    getState: () => state,
+    setState: (next) => {
+      state = next;
+    },
+    resolveMediaPathForJimaku: (value) => value,
+    getCurrentMediaPath: () => 'https://www.youtube.com/watch?v=abc123',
+    getCurrentMediaTitle: () => 'Video',
+    guessAnilistMediaInfo: async () => {
+      calls += 1;
+      return { title: 'Show', season: null, episode: 1, source: 'guessit' };
+    },
+  });
+
+  const guess = await ensureGuess('https://www.youtube.com/watch?v=abc123');
+  assert.equal(guess, null);
+  assert.equal(calls, 0);
+  assert.equal(state.mediaGuess, null);
+});

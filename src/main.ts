@@ -412,6 +412,7 @@ import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/charac
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
+import { isYoutubePlaybackActive } from './main/runtime/youtube-playback';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
 import {
@@ -1231,6 +1232,13 @@ const startupOsdSequencer = createStartupOsdSequencer({
   showOsd: (message) => showMpvOsd(message),
 });
 
+function isYoutubePlaybackActiveNow(): boolean {
+  return isYoutubePlaybackActive(
+    appState.currentMediaPath,
+    appState.mpvClient?.currentVideoPath ?? null,
+  );
+}
+
 function maybeSignalPluginAutoplayReady(
   payload: SubtitleData,
   options?: { forceWhilePaused?: boolean },
@@ -1741,7 +1749,10 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
   getConfig: () => {
     const config = getResolvedConfig().anilist.characterDictionary;
     return {
-      enabled: config.enabled && yomitanProfilePolicy.isCharacterDictionaryEnabled(),
+      enabled:
+        config.enabled &&
+        yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
+        !isYoutubePlaybackActiveNow(),
       maxLoaded: config.maxLoaded,
       profileScope: config.profileScope,
     };
@@ -3518,7 +3529,7 @@ const {
       );
     },
     scheduleCharacterDictionarySync: () => {
-      if (!yomitanProfilePolicy.isCharacterDictionaryEnabled()) {
+      if (!yomitanProfilePolicy.isCharacterDictionaryEnabled() || isYoutubePlaybackActiveNow()) {
         return;
       }
       characterDictionaryAutoSyncRuntime.scheduleSync();
@@ -3613,7 +3624,8 @@ const {
         ),
       getCharacterDictionaryEnabled: () =>
         getResolvedConfig().anilist.characterDictionary.enabled &&
-        yomitanProfilePolicy.isCharacterDictionaryEnabled(),
+        yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
+        !isYoutubePlaybackActiveNow(),
       getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(

@@ -31,6 +31,8 @@ import type {
   VocabularyStatsRow,
 } from './types';
 import { buildCoverBlobReference, normalizeCoverBlobBytes } from './storage';
+import { rebuildLifetimeSummariesInTransaction } from './lifetime';
+import { rebuildRollupsInTransaction } from './maintenance';
 import { PartOfSpeech, type MergedToken } from '../../../types';
 import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
 import { deriveStoredPartOfSpeech } from '../tokenizer/part-of-speech';
@@ -1746,7 +1748,7 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
       v.duration_ms AS durationMs,
       (
         SELECT COALESCE(
-          s_recent.ended_media_ms,
+          NULLIF(s_recent.ended_media_ms, 0),
           (
             SELECT MAX(line.segment_end_ms)
             FROM imm_subtitle_lines line
@@ -2467,6 +2469,8 @@ export function deleteSession(db: DatabaseSync, sessionId: number): void {
   try {
     deleteSessionsByIds(db, sessionIds);
     refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    rebuildLifetimeSummariesInTransaction(db);
+    rebuildRollupsInTransaction(db);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -2483,6 +2487,8 @@ export function deleteSessions(db: DatabaseSync, sessionIds: number[]): void {
   try {
     deleteSessionsByIds(db, sessionIds);
     refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    rebuildLifetimeSummariesInTransaction(db);
+    rebuildRollupsInTransaction(db);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -2519,6 +2525,8 @@ export function deleteVideo(db: DatabaseSync, videoId: number): void {
     cleanupUnusedCoverArtBlobHash(db, artRow?.coverBlobHash ?? null);
     db.prepare('DELETE FROM imm_videos WHERE video_id = ?').run(videoId);
     refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    rebuildLifetimeSummariesInTransaction(db);
+    rebuildRollupsInTransaction(db);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

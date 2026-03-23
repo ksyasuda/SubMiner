@@ -31,11 +31,12 @@ function checkDependencies(args: Args): void {
 
   if (!commandExists('mpv')) missing.push('mpv');
 
-  if (args.targetKind === 'url' && isYoutubeTarget(args.target) && !commandExists('yt-dlp')) {
+  const isYoutubeUrl = args.targetKind === 'url' && isYoutubeTarget(args.target);
+  if (args.targetKind === 'url' && !isYoutubeUrl && !commandExists('yt-dlp')) {
     missing.push('yt-dlp');
   }
 
-  if (args.targetKind === 'url' && isYoutubeTarget(args.target) && !commandExists('ffmpeg')) {
+  if (args.targetKind === 'url' && !isYoutubeUrl && !commandExists('ffmpeg')) {
     missing.push('ffmpeg');
   }
 

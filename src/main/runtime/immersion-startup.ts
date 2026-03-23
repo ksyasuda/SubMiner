@@ -23,6 +23,8 @@ type ImmersionTrackingConfig = {
 
 type ImmersionTrackerPolicy = Omit<ImmersionTrackingPolicy, 'enabled'>;
 
+const DISABLE_IMMERSION_TRACKING_SESSION_ENV = 'SUBMINER_DISABLE_IMMERSION_TRACKING';
+
 type ImmersionTrackerServiceParams = {
   dbPath: string;
   policy: ImmersionTrackerPolicy;
@@ -49,7 +51,16 @@ export type ImmersionTrackerStartupDeps = {
 export function createImmersionTrackerStartupHandler(
   deps: ImmersionTrackerStartupDeps,
 ): () => void {
+  const isSessionTrackingDisabled = process.env[DISABLE_IMMERSION_TRACKING_SESSION_ENV] === '1';
+
   return () => {
+    if (isSessionTrackingDisabled) {
+      deps.logInfo(
+        `Immersion tracking disabled for this session by ${DISABLE_IMMERSION_TRACKING_SESSION_ENV}=1.`,
+      );
+      return;
+    }
+
     const config = deps.getResolvedConfig();
     if (config.immersionTracking?.enabled === false) {
       deps.logInfo('Immersion tracking disabled in config');

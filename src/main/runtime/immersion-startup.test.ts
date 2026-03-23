@@ -56,6 +56,57 @@ test('createImmersionTrackerStartupHandler skips when disabled', () => {
   assert.equal(tracker, 'unchanged');
 });
 
+test('createImmersionTrackerStartupHandler skips when env disables session tracking', () => {
+  const calls: string[] = [];
+  const originalEnv = process.env.SUBMINER_DISABLE_IMMERSION_TRACKING;
+  process.env.SUBMINER_DISABLE_IMMERSION_TRACKING = '1';
+
+  try {
+    let tracker: unknown = 'unchanged';
+    const handler = createImmersionTrackerStartupHandler({
+      getResolvedConfig: () => {
+        calls.push('getResolvedConfig');
+        return makeConfig();
+      },
+      getConfiguredDbPath: () => {
+        calls.push('getConfiguredDbPath');
+        return '/tmp/subminer.db';
+      },
+      createTrackerService: () => {
+        calls.push('createTrackerService');
+        return {};
+      },
+      setTracker: (nextTracker) => {
+        tracker = nextTracker;
+      },
+      getMpvClient: () => null,
+      seedTrackerFromCurrentMedia: () => calls.push('seedTracker'),
+      logInfo: (message) => calls.push(`info:${message}`),
+      logDebug: (message) => calls.push(`debug:${message}`),
+      logWarn: (message) => calls.push(`warn:${message}`),
+    });
+
+    handler();
+
+    assert.equal(calls.includes('getResolvedConfig'), false);
+    assert.equal(calls.includes('getConfiguredDbPath'), false);
+    assert.equal(calls.includes('createTrackerService'), false);
+    assert.equal(calls.includes('seedTracker'), false);
+    assert.equal(tracker, 'unchanged');
+    assert.ok(
+      calls.includes(
+        'info:Immersion tracking disabled for this session by SUBMINER_DISABLE_IMMERSION_TRACKING=1.',
+      ),
+    );
+  } finally {
+    if (originalEnv === undefined) {
+      delete process.env.SUBMINER_DISABLE_IMMERSION_TRACKING;
+    } else {
+      process.env.SUBMINER_DISABLE_IMMERSION_TRACKING = originalEnv;
+    }
+  }
+});
+
 test('createImmersionTrackerStartupHandler creates tracker and auto-connects mpv', () => {
   const calls: string[] = [];
   const trackerInstance = { kind: 'tracker' };

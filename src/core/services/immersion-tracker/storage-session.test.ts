@@ -15,8 +15,14 @@ import {
   getOrCreateAnimeRecord,
   getOrCreateVideoRecord,
   linkVideoToAnimeRecord,
+  linkYoutubeVideoToAnimeRecord,
 } from './storage';
-import { EVENT_SUBTITLE_LINE, SESSION_STATUS_ENDED, SOURCE_TYPE_LOCAL } from './types';
+import {
+  EVENT_SUBTITLE_LINE,
+  SESSION_STATUS_ENDED,
+  SOURCE_TYPE_LOCAL,
+  SOURCE_TYPE_REMOTE,
+} from './types';
 
 function makeDbPath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-imm-storage-session-'));
@@ -811,6 +817,123 @@ test('anime rows are reused by normalized parsed title and upgraded with AniList
         parsed_episode: 6,
       },
     ]);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('youtube videos can be regrouped under a shared channel anime identity', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const firstVideoId = getOrCreateVideoRecord(
+      db,
+      'remote:https://www.youtube.com/watch?v=video-1',
+      {
+        canonicalTitle: 'watch?v video-1',
+        sourcePath: null,
+        sourceUrl: 'https://www.youtube.com/watch?v=video-1',
+        sourceType: SOURCE_TYPE_REMOTE,
+      },
+    );
+    const secondVideoId = getOrCreateVideoRecord(
+      db,
+      'remote:https://www.youtube.com/watch?v=video-2',
+      {
+        canonicalTitle: 'watch?v video-2',
+        sourcePath: null,
+        sourceUrl: 'https://www.youtube.com/watch?v=video-2',
+        sourceType: SOURCE_TYPE_REMOTE,
+      },
+    );
+
+    const firstAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'watch?v video-1',
+      canonicalTitle: 'watch?v video-1',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, firstVideoId, {
+      animeId: firstAnimeId,
+      parsedBasename: null,
+      parsedTitle: 'watch?v video-1',
+      parsedSeason: null,
+      parsedEpisode: null,
+      parserSource: 'fallback',
+      parserConfidence: 0.2,
+      parseMetadataJson: '{"source":"fallback"}',
+    });
+
+    const secondAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'watch?v video-2',
+      canonicalTitle: 'watch?v video-2',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, secondVideoId, {
+      animeId: secondAnimeId,
+      parsedBasename: null,
+      parsedTitle: 'watch?v video-2',
+      parsedSeason: null,
+      parsedEpisode: null,
+      parserSource: 'fallback',
+      parserConfidence: 0.2,
+      parseMetadataJson: '{"source":"fallback"}',
+    });
+
+    linkYoutubeVideoToAnimeRecord(db, firstVideoId, {
+      youtubeVideoId: 'video-1',
+      videoUrl: 'https://www.youtube.com/watch?v=video-1',
+      videoTitle: 'Video One',
+      videoThumbnailUrl: 'https://i.ytimg.com/vi/video-1/hqdefault.jpg',
+      channelId: 'UC123',
+      channelName: 'Channel Name',
+      channelUrl: 'https://www.youtube.com/channel/UC123',
+      channelThumbnailUrl: 'https://yt3.googleusercontent.com/channel-123=s176-c-k-c0x00ffffff-no-rj',
+      uploaderId: '@channelname',
+      uploaderUrl: 'https://www.youtube.com/@channelname',
+      description: null,
+      metadataJson: '{"id":"video-1"}',
+    });
+    linkYoutubeVideoToAnimeRecord(db, secondVideoId, {
+      youtubeVideoId: 'video-2',
+      videoUrl: 'https://www.youtube.com/watch?v=video-2',
+      videoTitle: 'Video Two',
+      videoThumbnailUrl: 'https://i.ytimg.com/vi/video-2/hqdefault.jpg',
+      channelId: 'UC123',
+      channelName: 'Channel Name',
+      channelUrl: 'https://www.youtube.com/channel/UC123',
+      channelThumbnailUrl: 'https://yt3.googleusercontent.com/channel-123=s176-c-k-c0x00ffffff-no-rj',
+      uploaderId: '@channelname',
+      uploaderUrl: 'https://www.youtube.com/@channelname',
+      description: null,
+      metadataJson: '{"id":"video-2"}',
+    });
+
+    const animeRows = db.prepare('SELECT anime_id, canonical_title FROM imm_anime').all() as Array<{
+      anime_id: number;
+      canonical_title: string;
+    }>;
+    const videoRows = db
+      .prepare('SELECT video_id, anime_id, parsed_title FROM imm_videos ORDER BY video_id ASC')
+      .all() as Array<{ video_id: number; anime_id: number | null; parsed_title: string | null }>;
+
+    const channelAnimeRows = animeRows.filter((row) => row.canonical_title === 'Channel Name');
+    assert.equal(channelAnimeRows.length, 1);
+    assert.equal(videoRows[0]?.anime_id, channelAnimeRows[0]?.anime_id);
+    assert.equal(videoRows[1]?.anime_id, channelAnimeRows[0]?.anime_id);
+    assert.equal(videoRows[0]?.parsed_title, 'Channel Name');
+    assert.equal(videoRows[1]?.parsed_title, 'Channel Name');
   } finally {
     db.close();
     cleanupDbPath(dbPath);

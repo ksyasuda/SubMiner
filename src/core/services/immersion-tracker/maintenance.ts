@@ -113,6 +113,14 @@ function setLastRollupSampleMs(db: DatabaseSync, sampleMs: number): void {
   ).run(ROLLUP_STATE_KEY, sampleMs);
 }
 
+function resetRollups(db: DatabaseSync): void {
+  db.exec(`
+    DELETE FROM imm_daily_rollups;
+    DELETE FROM imm_monthly_rollups;
+  `);
+  setLastRollupSampleMs(db, ZERO_ID);
+}
+
 function upsertDailyRollupsForGroups(
   db: DatabaseSync,
   groups: Array<{ rollupDay: number; videoId: number }>,
@@ -281,8 +289,20 @@ function dedupeGroups<T extends { rollupDay?: number; rollupMonth?: number; vide
 }
 
 export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): void {
+  if (forceRebuild) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      rebuildRollupsInTransaction(db);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+    return;
+  }
+
   const rollupNowMs = Date.now();
-  const lastRollupSampleMs = forceRebuild ? ZERO_ID : getLastRollupSampleMs(db);
+  const lastRollupSampleMs = getLastRollupSampleMs(db);
 
   const maxSampleRow = db
     .prepare('SELECT MAX(sample_ms) AS maxSampleMs FROM imm_session_telemetry')
@@ -322,6 +342,41 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
     db.exec('ROLLBACK');
     throw error;
   }
+}
+
+export function rebuildRollupsInTransaction(db: DatabaseSync): void {
+  const rollupNowMs = Date.now();
+  const maxSampleRow = db
+    .prepare('SELECT MAX(sample_ms) AS maxSampleMs FROM imm_session_telemetry')
+    .get() as unknown as RollupTelemetryResult | null;
+
+  resetRollups(db);
+  if (!maxSampleRow?.maxSampleMs) {
+    return;
+  }
+
+  const affectedGroups = getAffectedRollupGroups(db, ZERO_ID);
+  if (affectedGroups.length === 0) {
+    setLastRollupSampleMs(db, Number(maxSampleRow.maxSampleMs));
+    return;
+  }
+
+  const dailyGroups = dedupeGroups(
+    affectedGroups.map((group) => ({
+      rollupDay: group.rollupDay,
+      videoId: group.videoId,
+    })),
+  );
+  const monthlyGroups = dedupeGroups(
+    affectedGroups.map((group) => ({
+      rollupMonth: group.rollupMonth,
+      videoId: group.videoId,
+    })),
+  );
+
+  upsertDailyRollupsForGroups(db, dailyGroups, rollupNowMs);
+  upsertMonthlyRollupsForGroups(db, monthlyGroups, rollupNowMs);
+  setLastRollupSampleMs(db, Number(maxSampleRow.maxSampleMs));
 }
 
 export function runOptimizeMaintenance(db: DatabaseSync): void {

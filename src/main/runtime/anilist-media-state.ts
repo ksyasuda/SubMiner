@@ -1,11 +1,15 @@
 import type { AnilistMediaGuessRuntimeState } from './anilist-media-guess';
+import { isYoutubeMediaPath } from './youtube-playback';
 
 export function createGetCurrentAnilistMediaKeyHandler(deps: {
   getCurrentMediaPath: () => string | null;
 }) {
   return (): string | null => {
     const mediaPath = deps.getCurrentMediaPath()?.trim();
-    return mediaPath && mediaPath.length > 0 ? mediaPath : null;
+    if (!mediaPath || mediaPath.length === 0 || isYoutubeMediaPath(mediaPath)) {
+      return null;
+    }
+    return mediaPath;
   };
 }
 

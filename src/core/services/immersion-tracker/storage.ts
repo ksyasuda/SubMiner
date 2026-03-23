@@ -39,6 +39,41 @@ export interface VideoAnimeLinkInput {
   parseMetadataJson: string | null;
 }
 
+function buildYoutubeChannelAnimeIdentity(metadata: YoutubeVideoMetadata): {
+  parsedTitle: string;
+  canonicalTitle: string;
+  metadataJson: string;
+} | null {
+  const channelId = metadata.channelId?.trim() || null;
+  const channelUrl = metadata.channelUrl?.trim() || null;
+  const channelName = metadata.channelName?.trim() || null;
+  const uploaderId = metadata.uploaderId?.trim() || null;
+  const videoTitle = metadata.videoTitle?.trim() || null;
+
+  const parsedTitle = channelId
+    ? `youtube-channel:${channelId}`
+    : channelUrl
+      ? `youtube-channel-url:${channelUrl}`
+      : channelName
+        ? `youtube-channel-name:${channelName}`
+        : null;
+  if (!parsedTitle) {
+    return null;
+  }
+
+  return {
+    parsedTitle,
+    canonicalTitle: channelName || uploaderId || videoTitle || parsedTitle,
+    metadataJson: JSON.stringify({
+      source: 'youtube-channel',
+      channelId,
+      channelUrl,
+      channelName,
+      uploaderId,
+    }),
+  };
+}
+
 const COVER_BLOB_REFERENCE_PREFIX = '__subminer_cover_blob_ref__:';
 const WAL_JOURNAL_SIZE_LIMIT_BYTES = 64 * 1024 * 1024;
 
@@ -437,6 +472,38 @@ export function linkVideoToAnimeRecord(
     Date.now(),
     videoId,
   );
+}
+
+export function linkYoutubeVideoToAnimeRecord(
+  db: DatabaseSync,
+  videoId: number,
+  metadata: YoutubeVideoMetadata,
+): number | null {
+  const identity = buildYoutubeChannelAnimeIdentity(metadata);
+  if (!identity) {
+    return null;
+  }
+
+  const animeId = getOrCreateAnimeRecord(db, {
+    parsedTitle: identity.parsedTitle,
+    canonicalTitle: identity.canonicalTitle,
+    anilistId: null,
+    titleRomaji: null,
+    titleEnglish: null,
+    titleNative: null,
+    metadataJson: identity.metadataJson,
+  });
+  linkVideoToAnimeRecord(db, videoId, {
+    animeId,
+    parsedBasename: null,
+    parsedTitle: identity.canonicalTitle,
+    parsedSeason: null,
+    parsedEpisode: null,
+    parserSource: 'youtube',
+    parserConfidence: 1,
+    parseMetadataJson: identity.metadataJson,
+  });
+  return animeId;
 }
 
 function migrateLegacyAnimeMetadata(db: DatabaseSync): void {
