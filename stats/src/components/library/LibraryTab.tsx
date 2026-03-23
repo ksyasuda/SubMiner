@@ -1,7 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useMediaLibrary } from '../../hooks/useMediaLibrary';
 import { formatDuration, formatNumber } from '../../lib/formatters';
-import { groupMediaLibraryItems, summarizeMediaLibraryGroups } from '../../lib/media-library-grouping';
+import {
+  groupMediaLibraryItems,
+  summarizeMediaLibraryGroups,
+} from '../../lib/media-library-grouping';
 import { CoverImage } from './CoverImage';
 import { MediaCard } from './MediaCard';
 import { MediaDetailView } from './MediaDetailView';

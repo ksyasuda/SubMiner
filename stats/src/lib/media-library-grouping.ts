@@ -49,14 +49,12 @@ export function groupMediaLibraryItems(items: MediaLibraryItem[]): MediaLibraryG
     const uploaderId = item.uploaderId?.trim() || null;
     const videoTitle = item.videoTitle?.trim() || null;
     const key = channelId || `video:${item.videoId}`;
-    const title =
-      channelName || uploaderId || videoTitle || item.canonicalTitle;
-    const subtitle =
-      channelId
-        ? channelId
-        : videoTitle && videoTitle !== item.canonicalTitle
-          ? videoTitle
-          : null;
+    const title = channelName || uploaderId || videoTitle || item.canonicalTitle;
+    const subtitle = channelId
+      ? channelId
+      : videoTitle && videoTitle !== item.canonicalTitle
+        ? videoTitle
+        : null;
     const existing = groups.get(key);
     if (existing) {
       existing.items.push(item);

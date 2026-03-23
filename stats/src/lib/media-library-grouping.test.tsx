@@ -114,9 +114,7 @@ test('CoverImage renders explicit remote artwork when src is provided', () => {
 });
 
 test('MediaCard uses the proxied cover endpoint instead of metadata artwork urls', () => {
-  const markup = renderToStaticMarkup(
-    <MediaCard item={youtubeEpisodeA} onClick={() => {}} />,
-  );
+  const markup = renderToStaticMarkup(<MediaCard item={youtubeEpisodeA} onClick={() => {}} />);
 
   assert.match(markup, /src="http:\/\/127\.0\.0\.1:6969\/api\/stats\/media\/1\/cover"/);
   assert.doesNotMatch(markup, /https:\/\/i\.ytimg\.com\/vi\/yt-1\/hqdefault\.jpg/);
