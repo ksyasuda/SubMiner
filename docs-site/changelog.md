@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.0 (2026-03-22)
+- Added an app-owned YouTube subtitle picker flow that boots mpv paused, opens an overlay picker, and downloads selected subtitles into external files before playback resumes.
+- Added explicit launcher/app YouTube subtitle modes `download` and `generate`, with `download` as the default path.
+- Disabled mpv native YouTube subtitle auto-loading for the app-owned flow so injected external subtitle files stay authoritative.
+- Added OSD status updates covering YouTube playback startup, subtitle acquisition, and subtitle loading.
+- Improved sidebar startup/resume behavior and overlay/sidebar subtitle synchronization.
+
 ## v0.8.0 (2026-03-22)
 - Added a configurable subtitle sidebar feature (`subtitleSidebar`) with overlay/embedded rendering, click-to-seek cue list, and hot-reloadable visibility and behavior controls.
 - Added a rendered sidebar modal with cue list display, click-to-seek, active-cue highlighting, and embedded layout support.

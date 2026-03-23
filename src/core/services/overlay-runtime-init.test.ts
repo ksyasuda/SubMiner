@@ -152,6 +152,93 @@ test('initializeOverlayAnkiIntegration can initialize Anki transport after overl
   assert.equal(setIntegrationCalls, 1);
 });
 
+test('initializeOverlayAnkiIntegration returns false when integration already exists', () => {
+  let createdIntegrations = 0;
+  let startedIntegrations = 0;
+  let setIntegrationCalls = 0;
+
+  const result = initializeOverlayAnkiIntegration({
+    getResolvedConfig: () => ({
+      ankiConnect: { enabled: true } as never,
+    }),
+    getSubtitleTimingTracker: () => ({}),
+    getMpvClient: () => ({
+      send: () => {},
+    }),
+    getRuntimeOptionsManager: () => ({
+      getEffectiveAnkiConnectConfig: (config) => config as never,
+    }),
+    getAnkiIntegration: () => ({}),
+    createAnkiIntegration: () => {
+      createdIntegrations += 1;
+      return {
+        start: () => {
+          startedIntegrations += 1;
+        },
+      };
+    },
+    setAnkiIntegration: () => {
+      setIntegrationCalls += 1;
+    },
+    showDesktopNotification: () => {},
+    createFieldGroupingCallback: () => async () => ({
+      keepNoteId: 11,
+      deleteNoteId: 12,
+      deleteDuplicate: false,
+      cancelled: false,
+    }),
+    getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+  });
+
+  assert.equal(result, false);
+  assert.equal(createdIntegrations, 0);
+  assert.equal(startedIntegrations, 0);
+  assert.equal(setIntegrationCalls, 0);
+});
+
+test('initializeOverlayAnkiIntegration returns false when ankiConnect is disabled', () => {
+  let createdIntegrations = 0;
+  let startedIntegrations = 0;
+  let setIntegrationCalls = 0;
+
+  const result = initializeOverlayAnkiIntegration({
+    getResolvedConfig: () => ({
+      ankiConnect: { enabled: false } as never,
+    }),
+    getSubtitleTimingTracker: () => ({}),
+    getMpvClient: () => ({
+      send: () => {},
+    }),
+    getRuntimeOptionsManager: () => ({
+      getEffectiveAnkiConnectConfig: (config) => config as never,
+    }),
+    createAnkiIntegration: () => {
+      createdIntegrations += 1;
+      return {
+        start: () => {
+          startedIntegrations += 1;
+        },
+      };
+    },
+    setAnkiIntegration: () => {
+      setIntegrationCalls += 1;
+    },
+    showDesktopNotification: () => {},
+    createFieldGroupingCallback: () => async () => ({
+      keepNoteId: 11,
+      deleteNoteId: 12,
+      deleteDuplicate: false,
+      cancelled: false,
+    }),
+    getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+  });
+
+  assert.equal(result, false);
+  assert.equal(createdIntegrations, 0);
+  assert.equal(startedIntegrations, 0);
+  assert.equal(setIntegrationCalls, 0);
+});
+
 test('initializeOverlayRuntime can skip starting Anki integration transport', () => {
   let createdIntegrations = 0;
   let startedIntegrations = 0;

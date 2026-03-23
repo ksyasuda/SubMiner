@@ -6,10 +6,6 @@ import path from 'node:path';
 import { retimeYoutubeSubtitle } from './retime';
 
 test('retimeYoutubeSubtitle uses the downloaded subtitle path as-is', async () => {
-  if (process.platform === 'win32') {
-    return;
-  }
-
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-youtube-retime-'));
   try {
     const primaryPath = path.join(root, 'primary.vtt');

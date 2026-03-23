@@ -17,6 +17,7 @@
  */
 
 import type { SubtitleCue } from './core/services/subtitle-cue-parser';
+import type { YoutubeTrackKind } from './core/services/youtube/kinds';
 
 export enum PartOfSpeech {
   noun = 'noun',
@@ -561,7 +562,7 @@ export interface ControllerRuntimeSnapshot {
 
 export type JimakuLanguagePreference = 'ja' | 'en' | 'none';
 export type YoutubeFlowMode = 'download' | 'generate';
-export type YoutubeTrackKind = 'manual' | 'auto';
+export type { YoutubeTrackKind };
 
 export interface YoutubeTrackOption {
   id: string;
@@ -584,12 +585,19 @@ export interface YoutubePickerOpenPayload {
   hasTracks: boolean;
 }
 
-export interface YoutubePickerResolveRequest {
-  sessionId: string;
-  action: 'use-selected' | 'continue-without-subtitles';
-  primaryTrackId: string | null;
-  secondaryTrackId: string | null;
-}
+export type YoutubePickerResolveRequest =
+  | {
+      sessionId: string;
+      action: 'continue-without-subtitles';
+      primaryTrackId: null;
+      secondaryTrackId: null;
+    }
+  | {
+      sessionId: string;
+      action: 'use-selected';
+      primaryTrackId: string | null;
+      secondaryTrackId: string | null;
+    };
 
 export interface YoutubePickerResolveResult {
   ok: boolean;

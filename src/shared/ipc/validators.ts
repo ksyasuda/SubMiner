@@ -259,6 +259,17 @@ export function parseYoutubePickerResolveRequest(value: unknown): YoutubePickerR
   if (!isObject(value)) return null;
   if (typeof value.sessionId !== 'string' || !value.sessionId.trim()) return null;
   if (value.action !== 'use-selected' && value.action !== 'continue-without-subtitles') return null;
+  if (value.action === 'continue-without-subtitles') {
+    if (value.primaryTrackId !== null || value.secondaryTrackId !== null) {
+      return null;
+    }
+    return {
+      sessionId: value.sessionId,
+      action: 'continue-without-subtitles',
+      primaryTrackId: null,
+      secondaryTrackId: null,
+    };
+  }
   if (value.primaryTrackId !== null && value.primaryTrackId !== undefined && typeof value.primaryTrackId !== 'string') {
     return null;
   }
@@ -271,7 +282,7 @@ export function parseYoutubePickerResolveRequest(value: unknown): YoutubePickerR
   }
   return {
     sessionId: value.sessionId,
-    action: value.action,
+    action: 'use-selected',
     primaryTrackId: value.primaryTrackId ?? null,
     secondaryTrackId: value.secondaryTrackId ?? null,
   };

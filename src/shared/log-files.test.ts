@@ -10,9 +10,11 @@ import {
 } from './log-files';
 
 test('resolveDefaultLogFilePath uses app prefix by default', () => {
+  const now = new Date('2026-03-22T12:00:00.000Z');
   const resolved = resolveDefaultLogFilePath('app', {
     platform: 'linux',
     homeDir: '/home/tester',
+    now,
   });
 
   assert.equal(
@@ -22,7 +24,7 @@ test('resolveDefaultLogFilePath uses app prefix by default', () => {
       '.config',
       'SubMiner',
       'logs',
-      `app-${new Date().toISOString().slice(0, 10)}.log`,
+      `app-${now.toISOString().slice(0, 10)}.log`,
     ),
   );
 });

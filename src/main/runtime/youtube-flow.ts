@@ -392,12 +392,26 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
         }`,
       );
     });
-    const probe = await deps.probeYoutubeTracks(input.url);
-    const defaults = chooseDefaultYoutubeTrackIds(probe.tracks);
-    const sessionId = createSessionId();
-    const outputDir = normalizeOutputPath(deps.getYoutubeOutputDir());
 
     deps.pauseMpv();
+    const outputDir = normalizeOutputPath(deps.getYoutubeOutputDir());
+
+    let probe: YoutubeTrackProbeResult;
+    try {
+      probe = await deps.probeYoutubeTracks(input.url);
+    } catch (error) {
+      deps.warn(
+        `Failed to probe YouTube subtitle tracks: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      releasePlaybackGate(deps);
+      restoreOverlayInputFocus(deps);
+      return;
+    }
+
+    const defaults = chooseDefaultYoutubeTrackIds(probe.tracks);
+    const sessionId = createSessionId();
 
     const openPayload: YoutubePickerOpenPayload = {
       sessionId,
@@ -416,7 +430,22 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       deps.showMpvOsd('Getting subtitles...');
       const pickerSelection = createPickerSelectionPromise(sessionId);
       void pickerSelection.catch(() => undefined);
-      const opened = await deps.openPicker(openPayload);
+      let opened = false;
+      try {
+        opened = await deps.openPicker(openPayload);
+      } catch (error) {
+        activeSession?.reject(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+        deps.warn(
+          `Unable to open YouTube subtitle picker: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        releasePlaybackGate(deps);
+        restoreOverlayInputFocus(deps);
+        return;
+      }
       if (!opened) {
         activeSession?.reject(new Error('Unable to open YouTube subtitle picker.'));
         activeSession = null;

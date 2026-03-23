@@ -449,3 +449,60 @@ test('youtube flow waits for tokenization readiness before releasing playback', 
     'focus-overlay',
   ]);
 });
+
+test('youtube flow cleans up paused picker state when opening the picker throws', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const warns: string[] = [];
+  const focusOverlayCalls: string[] = [];
+
+  const runtime = createYoutubeFlowRuntime({
+    probeYoutubeTracks: async () => ({
+      videoId: 'video123',
+      title: 'Video 123',
+      tracks: [primaryTrack],
+    }),
+    acquireYoutubeSubtitleTracks: async () => new Map<string, string>(),
+    acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/auto-ja-orig.vtt' }),
+    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
+    startTokenizationWarmups: async () => {},
+    waitForTokenizationReady: async () => {},
+    waitForAnkiReady: async () => {},
+    waitForPlaybackWindowReady: async () => {},
+    waitForOverlayGeometryReady: async () => {},
+    focusOverlayWindow: () => {
+      focusOverlayCalls.push('focus-overlay');
+    },
+    openPicker: async () => {
+      throw new Error('picker boom');
+    },
+    pauseMpv: () => {
+      commands.push(['set_property', 'pause', 'yes']);
+    },
+    resumeMpv: () => {
+      commands.push(['set_property', 'pause', 'no']);
+    },
+    sendMpvCommand: (command) => {
+      commands.push(command);
+    },
+    requestMpvProperty: async () => null,
+    refreshCurrentSubtitle: () => {},
+    wait: async () => {},
+    showMpvOsd: () => {},
+    warn: (message) => {
+      warns.push(message);
+    },
+    log: () => {},
+    getYoutubeOutputDir: () => '/tmp',
+  });
+
+  await runtime.runYoutubePlaybackFlow({ url: 'https://example.com', mode: 'download' });
+
+  assert.deepEqual(commands, [
+    ['set_property', 'pause', 'yes'],
+    ['script-message', 'subminer-autoplay-ready'],
+    ['set_property', 'pause', 'no'],
+  ]);
+  assert.deepEqual(focusOverlayCalls, ['focus-overlay']);
+  assert.equal(warns.some((message) => message.includes('picker boom')), true);
+  assert.equal(runtime.hasActiveSession(), false);
+});

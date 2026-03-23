@@ -423,7 +423,6 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.stats ||
     args.jellyfin ||
     args.jellyfinPlay ||
-    Boolean(args.youtubePlay) ||
     args.texthooker
   ) {
     if (args.launchMpv) {

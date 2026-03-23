@@ -310,6 +310,7 @@ test(
       const appStartPath = path.join(smokeCase.artifactsDir, 'fake-app-start.log');
       const appStopPath = path.join(smokeCase.artifactsDir, 'fake-app-stop.log');
       await waitForJsonLines(appStartPath, 1);
+      await waitForJsonLines(appStopPath, 1);
 
       const appStartEntries = readJsonLines(appStartPath);
       const appStopEntries = readJsonLines(appStopPath);

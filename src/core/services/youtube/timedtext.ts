@@ -74,16 +74,31 @@ export function convertYoutubeTimedTextToVtt(xml: string): string {
     return 'WEBVTT\n';
   }
 
-  const blocks = rows.map((row, index) => {
+  const blocks: string[] = [];
+  let previousText = '';
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index]!;
     const nextRow = rows[index + 1];
     const unclampedEnd = row.startMs + row.durationMs;
     const clampedEnd =
       nextRow && unclampedEnd > nextRow.startMs
         ? Math.max(row.startMs, nextRow.startMs - 1)
         : unclampedEnd;
+    if (clampedEnd <= row.startMs) {
+      previousText = row.text;
+      continue;
+    }
 
-    return `${formatVttTimestamp(row.startMs)} --> ${formatVttTimestamp(clampedEnd)}\n${row.text}`;
-  });
+    const text =
+      previousText && row.text.startsWith(previousText)
+        ? row.text.slice(previousText.length).trimStart()
+        : row.text;
+    previousText = row.text;
+    if (!text) {
+      continue;
+    }
+    blocks.push(`${formatVttTimestamp(row.startMs)} --> ${formatVttTimestamp(clampedEnd)}\n${text}`);
+  }
 
   return `WEBVTT\n\n${blocks.join('\n\n')}\n`;
 }

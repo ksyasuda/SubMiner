@@ -4,6 +4,7 @@ local OVERLAY_START_RETRY_DELAY_SECONDS = 0.2
 local OVERLAY_START_MAX_ATTEMPTS = 6
 local AUTO_PLAY_READY_LOADING_OSD = "Loading subtitle tokenization..."
 local AUTO_PLAY_READY_READY_OSD = "Subtitle tokenization ready"
+local DEFAULT_AUTO_PLAY_READY_TIMEOUT_SECONDS = 15
 
 function M.create(ctx)
 	local mp = ctx.mp
@@ -47,7 +48,7 @@ function M.create(ctx)
 				return parsed
 			end
 		end
-		return 15
+		return DEFAULT_AUTO_PLAY_READY_TIMEOUT_SECONDS
 	end
 
 	local function normalize_socket_path(path)

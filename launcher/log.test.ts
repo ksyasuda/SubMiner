@@ -4,6 +4,7 @@ import path from 'node:path';
 import { getDefaultLauncherLogFile, getDefaultMpvLogFile } from './types.js';
 
 test('getDefaultMpvLogFile uses APPDATA on windows', () => {
+  const today = new Date().toISOString().slice(0, 10);
   const resolved = getDefaultMpvLogFile({
     platform: 'win32',
     homeDir: 'C:\\Users\\tester',
@@ -17,13 +18,14 @@ test('getDefaultMpvLogFile uses APPDATA on windows', () => {
         'C:\\Users\\tester\\AppData\\Roaming',
         'SubMiner',
         'logs',
-        `mpv-${new Date().toISOString().slice(0, 10)}.log`,
+        `mpv-${today}.log`,
       ),
     ),
   );
 });
 
 test('getDefaultLauncherLogFile uses launcher prefix', () => {
+  const today = new Date().toISOString().slice(0, 10);
   const resolved = getDefaultLauncherLogFile({
     platform: 'linux',
     homeDir: '/home/tester',
@@ -36,7 +38,7 @@ test('getDefaultLauncherLogFile uses launcher prefix', () => {
       '.config',
       'SubMiner',
       'logs',
-      `launcher-${new Date().toISOString().slice(0, 10)}.log`,
+      `launcher-${today}.log`,
     ),
   );
 });

@@ -933,7 +933,8 @@ async function runYoutubePlaybackFlowMain(request: {
   mode: 'download' | 'generate';
   source: CliCommandSource;
 }): Promise<void> {
-  const shouldResumeWarmupsAfterFlow = appState.youtubePlaybackFlowPending;
+  const wasYoutubePlaybackFlowPending = appState.youtubePlaybackFlowPending;
+  appState.youtubePlaybackFlowPending = true;
   if (process.platform === 'win32' && !appState.mpvClient?.connected) {
     const launchResult = launchWindowsMpv(
       [request.url],
@@ -964,8 +965,8 @@ async function runYoutubePlaybackFlowMain(request: {
     });
     logger.info(`YouTube playback flow completed from ${request.source}.`);
   } finally {
-    if (shouldResumeWarmupsAfterFlow) {
-      appState.youtubePlaybackFlowPending = false;
+    appState.youtubePlaybackFlowPending = wasYoutubePlaybackFlowPending;
+    if (!wasYoutubePlaybackFlowPending) {
       startBackgroundWarmupsIfAllowed();
     }
   }

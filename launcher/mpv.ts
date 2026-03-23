@@ -789,7 +789,8 @@ function stopManagedOverlayApp(args: Args): void {
   const stopArgs = ['--stop'];
   if (args.logLevel !== 'info') stopArgs.push('--log-level', args.logLevel);
 
-  const result = spawnSync(state.appPath, stopArgs, {
+  const target = resolveAppSpawnTarget(state.appPath, stopArgs);
+  const result = spawnSync(target.command, target.args, {
     stdio: 'ignore',
     env: buildAppEnv(),
   });
@@ -919,7 +920,7 @@ export function runAppCommandWithInherit(appPath: string, appArgs: string[]): vo
   proc.once('error', (error) => {
     fail(`Failed to run app command: ${error.message}`);
   });
-  proc.once('exit', (code) => {
+  proc.once('close', (code) => {
     process.exit(code ?? 0);
   });
 }
@@ -970,7 +971,7 @@ export function runAppCommandAttached(
     proc.once('error', (error) => {
       reject(error);
     });
-    proc.once('exit', (code, signal) => {
+    proc.once('close', (code, signal) => {
       if (code !== null) {
         resolve(code);
       } else if (signal) {

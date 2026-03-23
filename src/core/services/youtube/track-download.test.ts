@@ -470,3 +470,48 @@ test('downloadYoutubeSubtitleTracks prefers direct download URLs when available'
     );
   });
 });
+
+test('downloadYoutubeSubtitleTracks keeps duplicate source-language direct downloads distinct', async () => {
+  await withTempDir(async (root) => {
+    const seen: string[] = [];
+    await withStubFetch(
+      async (url) => {
+        seen.push(url);
+        return new Response(`WEBVTT\n${url}\n`, { status: 200 });
+      },
+      async () => {
+        const result = await downloadYoutubeSubtitleTracks({
+          targetUrl: 'https://www.youtube.com/watch?v=abc123',
+          outputDir: path.join(root, 'out'),
+          tracks: [
+            {
+              id: 'auto:ja-orig',
+              language: 'ja',
+              sourceLanguage: 'ja-orig',
+              kind: 'auto',
+              label: 'Japanese (auto)',
+              downloadUrl: 'https://example.com/subs/ja-auto.vtt',
+              fileExtension: 'vtt',
+            },
+            {
+              id: 'manual:ja-orig',
+              language: 'ja',
+              sourceLanguage: 'ja-orig',
+              kind: 'manual',
+              label: 'Japanese (manual)',
+              downloadUrl: 'https://example.com/subs/ja-manual.vtt',
+              fileExtension: 'vtt',
+            },
+          ],
+          mode: 'download',
+        });
+
+        assert.deepEqual(seen, [
+          'https://example.com/subs/ja-auto.vtt',
+          'https://example.com/subs/ja-manual.vtt',
+        ]);
+        assert.notEqual(result.get('auto:ja-orig'), result.get('manual:ja-orig'));
+      },
+    );
+  });
+});

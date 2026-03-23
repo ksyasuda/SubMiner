@@ -259,7 +259,6 @@ export function createMouseHandlers(
     });
 
     document.addEventListener('mousemove', (e: MouseEvent) => {
-      updatePointerPosition(e);
       if (!ctx.state.isDragging) return;
 
       const deltaY = ctx.state.dragStartY - e.clientY;

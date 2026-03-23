@@ -194,6 +194,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
     } else {
       deps.createMpvClient();
       deps.createSubtitleTimingTracker();
+      await deps.loadYomitanExtension();
       deps.initializeOverlayRuntime();
       deps.handleInitialArgs();
     }

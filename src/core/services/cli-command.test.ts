@@ -250,6 +250,21 @@ test('handleCliCommand starts youtube playback flow on initial launch', () => {
   ]);
 });
 
+test('handleCliCommand defaults youtube mode to download when omitted', () => {
+  const { deps, calls } = createDeps({
+    runYoutubePlaybackFlow: async (request) => {
+      calls.push(`youtube:${request.url}:${request.mode}`);
+    },
+  });
+
+  handleCliCommand(makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc' }), 'initial', deps);
+
+  assert.deepEqual(calls, [
+    'initializeOverlayRuntime',
+    'youtube:https://youtube.com/watch?v=abc:download',
+  ]);
+});
+
 test('handleCliCommand processes --start for second-instance when overlay runtime is not initialized', () => {
   const { deps, calls } = createDeps();
   const args = makeArgs({ start: true });

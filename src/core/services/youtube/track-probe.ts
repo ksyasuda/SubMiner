@@ -1,10 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { YoutubeTrackOption } from '../../../types';
-import {
-  formatYoutubeTrackLabel,
-  normalizeYoutubeLangCode,
-  type YoutubeTrackKind,
-} from './labels';
+import { formatYoutubeTrackLabel, normalizeYoutubeLangCode, type YoutubeTrackKind } from './labels';
 
 export type YoutubeTrackProbeResult = {
   videoId: string;
@@ -102,7 +98,21 @@ export type { YoutubeTrackOption };
 
 export async function probeYoutubeTracks(targetUrl: string): Promise<YoutubeTrackProbeResult> {
   const { stdout } = await runCapture('yt-dlp', ['--dump-single-json', '--no-warnings', targetUrl]);
-  const info = JSON.parse(stdout) as YtDlpInfo;
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error('yt-dlp returned empty output while probing subtitle tracks');
+  }
+  let info: YtDlpInfo;
+  try {
+    info = JSON.parse(trimmedStdout) as YtDlpInfo;
+  } catch (error) {
+    const snippet = trimmedStdout.slice(0, 200);
+    throw new Error(
+      `Failed to parse yt-dlp output as JSON: ${
+        error instanceof Error ? error.message : String(error)
+      }${snippet ? `; stdout=${snippet}` : ''}`,
+    );
+  }
   const tracks = [...toTracks(info.subtitles, 'manual'), ...toTracks(info.automatic_captions, 'auto')];
   return {
     videoId: info.id || '',

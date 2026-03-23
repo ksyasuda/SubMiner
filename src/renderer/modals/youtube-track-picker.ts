@@ -114,13 +114,26 @@ export function createYoutubeTrackPickerModal(
       return;
     }
 
-    const response = await window.electronAPI.youtubePickerResolve({
-      sessionId: payload.sessionId,
-      action,
-      primaryTrackId: action === 'use-selected' ? ctx.dom.youtubePickerPrimarySelect.value || null : null,
-      secondaryTrackId:
-        action === 'use-selected' ? ctx.dom.youtubePickerSecondarySelect.value || null : null,
-    });
+    let response;
+    try {
+      response =
+        action === 'use-selected'
+          ? await window.electronAPI.youtubePickerResolve({
+              sessionId: payload.sessionId,
+              action: 'use-selected',
+              primaryTrackId: ctx.dom.youtubePickerPrimarySelect.value || null,
+              secondaryTrackId: ctx.dom.youtubePickerSecondarySelect.value || null,
+            })
+          : await window.electronAPI.youtubePickerResolve({
+              sessionId: payload.sessionId,
+              action: 'continue-without-subtitles',
+              primaryTrackId: null,
+              secondaryTrackId: null,
+            });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+      return;
+    }
     if (!response.ok) {
       setStatus(response.message, true);
       return;
@@ -129,7 +142,12 @@ export function createYoutubeTrackPickerModal(
   }
 
   function openYoutubePickerModal(payload: YoutubePickerOpenPayload): void {
-    if (ctx.state.youtubePickerModalOpen) return;
+    if (ctx.state.youtubePickerModalOpen) {
+      options.syncSettingsModalSubtitleSuppression();
+      applyPayload(payload);
+      window.electronAPI.notifyOverlayModalOpened('youtube-track-picker');
+      return;
+    }
     ctx.state.youtubePickerModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
     applyPayload(payload);

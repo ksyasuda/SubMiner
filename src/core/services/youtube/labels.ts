@@ -1,4 +1,6 @@
-export type YoutubeTrackKind = 'manual' | 'auto';
+import type { YoutubeTrackKind } from './kinds';
+
+export type { YoutubeTrackKind };
 
 export function normalizeYoutubeLangCode(value: string): string {
   return value.trim().toLowerCase().replace(/_/g, '-').replace(/[^a-z0-9-]+/g, '');
@@ -37,4 +39,3 @@ export function formatYoutubeTrackLabel(input: {
   const base = input.title?.trim() || language;
   return `${base} (${input.kind})`;
 }
-

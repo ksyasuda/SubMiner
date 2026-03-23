@@ -16,11 +16,15 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 
 function makeFakeYtDlpScript(dir: string, payload: unknown): void {
   const scriptPath = path.join(dir, 'yt-dlp');
+  const stdoutBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
   const script = `#!/usr/bin/env node
-process.stdout.write(${JSON.stringify(JSON.stringify(payload))});
+process.stdout.write(${JSON.stringify(stdoutBody)});
 `;
   fs.writeFileSync(scriptPath, script, 'utf8');
-  fs.chmodSync(scriptPath, 0o755);
+  if (process.platform !== 'win32') {
+    fs.chmodSync(scriptPath, 0o755);
+  }
+  fs.writeFileSync(scriptPath + '.cmd', `@echo off\r\nnode "${scriptPath}"\r\n`, 'utf8');
 }
 
 async function withFakeYtDlp<T>(payload: unknown, fn: () => Promise<T>): Promise<T> {
@@ -77,4 +81,13 @@ test('probeYoutubeTracks keeps preferring srt for manual captions', async () => 
       assert.equal(result.tracks[0]?.fileExtension, 'srt');
     },
   );
+});
+
+test('probeYoutubeTracks reports malformed yt-dlp JSON with context', async () => {
+  await withFakeYtDlp('not-json', async () => {
+    await assert.rejects(
+      async () => await probeYoutubeTracks('https://www.youtube.com/watch?v=abc123'),
+      /Failed to parse yt-dlp output as JSON/,
+    );
+  });
 });

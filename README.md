@@ -4,7 +4,7 @@
 
 # SubMiner
 
-### Turn mpv into a sentence-mining workstation.
+## Turn mpv into a sentence-mining workstation.
 
 Look up words with Yomitan, export to Anki in one key, track your immersion — all without leaving mpv.
 

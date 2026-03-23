@@ -558,7 +558,7 @@ export function buildSubminerScriptOpts(
   const parts = [
     `subminer-binary_path=${sanitizeScriptOptValue(appPath)}`,
     `subminer-socket_path=${sanitizeScriptOptValue(socketPath)}`,
-    ...extraParts,
+    ...extraParts.map(sanitizeScriptOptValue),
   ];
   if (logLevel !== 'info') {
     parts.push(`subminer-log_level=${sanitizeScriptOptValue(logLevel)}`);

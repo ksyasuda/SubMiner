@@ -172,3 +172,179 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
     });
   }
 });
+
+test('youtube track picker re-acknowledges repeated open requests', () => {
+  const openedNotifications: string[] = [];
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createFakeElement(),
+    },
+  });
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      dispatchEvent: () => true,
+      focus: () => {},
+      electronAPI: {
+        notifyOverlayModalOpened: (modal: string) => {
+          openedNotifications.push(modal);
+        },
+        notifyOverlayModalClosed: () => {},
+        youtubePickerResolve: async () => ({ ok: true, message: '' }),
+        setIgnoreMouseEvents: () => {},
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const dom = {
+      overlay: {
+        classList: createClassList(),
+        focus: () => {},
+      },
+      youtubePickerModal: createFakeElement(),
+      youtubePickerTitle: createFakeElement(),
+      youtubePickerPrimarySelect: createFakeElement(),
+      youtubePickerSecondarySelect: createFakeElement(),
+      youtubePickerTracks: createFakeElement(),
+      youtubePickerStatus: createFakeElement(),
+      youtubePickerContinueButton: createFakeElement(),
+      youtubePickerCloseButton: createFakeElement(),
+    };
+
+    const modal = createYoutubeTrackPickerModal(
+      {
+        state,
+        dom,
+        platform: {
+          shouldToggleMouseIgnore: false,
+        },
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => true },
+        restorePointerInteractionState: () => {},
+        syncSettingsModalSubtitleSuppression: () => {},
+      },
+    );
+
+    modal.openYoutubePickerModal({
+      sessionId: 'yt-1',
+      url: 'https://example.com/one',
+      mode: 'download',
+      tracks: [],
+      defaultPrimaryTrackId: null,
+      defaultSecondaryTrackId: null,
+      hasTracks: false,
+    });
+    modal.openYoutubePickerModal({
+      sessionId: 'yt-2',
+      url: 'https://example.com/two',
+      mode: 'generate',
+      tracks: [],
+      defaultPrimaryTrackId: null,
+      defaultSecondaryTrackId: null,
+      hasTracks: false,
+    });
+
+    assert.deepEqual(openedNotifications, ['youtube-track-picker', 'youtube-track-picker']);
+    assert.equal(state.youtubePickerPayload?.sessionId, 'yt-2');
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});
+
+test('youtube track picker surfaces rejected resolve calls as modal status', async () => {
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createFakeElement(),
+    },
+  });
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      dispatchEvent: () => true,
+      focus: () => {},
+      electronAPI: {
+        notifyOverlayModalOpened: () => {},
+        notifyOverlayModalClosed: () => {},
+        youtubePickerResolve: async () => {
+          throw new Error('resolve failed');
+        },
+        setIgnoreMouseEvents: () => {},
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const dom = {
+      overlay: {
+        classList: createClassList(),
+        focus: () => {},
+      },
+      youtubePickerModal: createFakeElement(),
+      youtubePickerTitle: createFakeElement(),
+      youtubePickerPrimarySelect: createFakeElement(),
+      youtubePickerSecondarySelect: createFakeElement(),
+      youtubePickerTracks: createFakeElement(),
+      youtubePickerStatus: createFakeElement(),
+      youtubePickerContinueButton: createFakeElement(),
+      youtubePickerCloseButton: createFakeElement(),
+    };
+
+    const modal = createYoutubeTrackPickerModal(
+      {
+        state,
+        dom,
+        platform: {
+          shouldToggleMouseIgnore: false,
+        },
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => true },
+        restorePointerInteractionState: () => {},
+        syncSettingsModalSubtitleSuppression: () => {},
+      },
+    );
+
+    modal.openYoutubePickerModal({
+      sessionId: 'yt-1',
+      url: 'https://example.com',
+      mode: 'download',
+      tracks: [
+        {
+          id: 'auto:ja-orig',
+          language: 'ja',
+          sourceLanguage: 'ja-orig',
+          kind: 'auto',
+          label: 'Japanese (auto)',
+        },
+      ],
+      defaultPrimaryTrackId: 'auto:ja-orig',
+      defaultSecondaryTrackId: null,
+      hasTracks: true,
+    });
+    modal.wireDomEvents();
+
+    const listeners = dom.youtubePickerContinueButton.listeners.get('click') ?? [];
+    await Promise.all(listeners.map((listener) => listener()));
+
+    assert.equal(state.youtubePickerModalOpen, true);
+    assert.equal(dom.youtubePickerStatus.textContent, 'resolve failed');
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});

@@ -48,6 +48,8 @@ function resolvePreferredUrlFromMpvEdlSource(
     return typedMatch;
   }
 
+  // mpv EDL sources usually list audio streams first and video streams last, so
+  // when classifyMediaUrl cannot identify a typed URL we fall back to stream order.
   return kind === 'audio' ? urls[0] ?? null : urls[urls.length - 1] ?? null;
 }
 

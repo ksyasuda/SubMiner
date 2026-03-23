@@ -75,11 +75,5 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
     return true;
   }
 
-  return Boolean(
-    args.jellyfin ||
-    args.jellyfinLogin ||
-    args.jellyfinLogout ||
-    args.jellyfinPlay ||
-    args.jellyfinDiscovery,
-  );
+  return false;
 }

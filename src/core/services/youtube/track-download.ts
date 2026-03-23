@@ -7,12 +7,28 @@ import { convertYoutubeTimedTextToVtt, isYoutubeTimedTextExtension } from './tim
 
 const YOUTUBE_SUBTITLE_EXTENSIONS = new Set(['.srt', '.vtt', '.ass']);
 const YOUTUBE_BATCH_PREFIX = 'youtube-batch';
+const YOUTUBE_DOWNLOAD_TIMEOUT_MS = 15_000;
 
-function runCapture(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+function createFetchTimeoutSignal(timeoutMs: number): AbortSignal | undefined {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(timeoutMs);
+  }
+  return undefined;
+}
+
+function runCapture(
+  command: string,
+  args: string[],
+  timeoutMs = YOUTUBE_DOWNLOAD_TIMEOUT_MS,
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
+    const timer = setTimeout(() => {
+      proc.kill();
+      reject(new Error(`yt-dlp timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     proc.stdout.setEncoding('utf8');
     proc.stderr.setEncoding('utf8');
     proc.stdout.on('data', (chunk) => {
@@ -21,8 +37,12 @@ function runCapture(command: string, args: string[]): Promise<{ stdout: string; 
     proc.stderr.on('data', (chunk) => {
       stderr += String(chunk);
     });
-    proc.once('error', reject);
+    proc.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     proc.once('close', (code) => {
+      clearTimeout(timer);
       if (code === 0) {
         resolve({ stdout, stderr });
         return;
@@ -35,11 +55,16 @@ function runCapture(command: string, args: string[]): Promise<{ stdout: string; 
 function runCaptureDetailed(
   command: string,
   args: string[],
+  timeoutMs = YOUTUBE_DOWNLOAD_TIMEOUT_MS,
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
+    const timer = setTimeout(() => {
+      proc.kill();
+      reject(new Error(`yt-dlp timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     proc.stdout.setEncoding('utf8');
     proc.stderr.setEncoding('utf8');
     proc.stdout.on('data', (chunk) => {
@@ -48,8 +73,12 @@ function runCaptureDetailed(
     proc.stderr.on('data', (chunk) => {
       stderr += String(chunk);
     });
-    proc.once('error', reject);
+    proc.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     proc.once('close', (code) => {
+      clearTimeout(timer);
       resolve({ stdout, stderr, code: code ?? 1 });
     });
   });
@@ -125,8 +154,13 @@ async function downloadSubtitleFromUrl(input: {
     : YOUTUBE_SUBTITLE_EXTENSIONS.has(`.${ext}`)
       ? ext
       : 'vtt';
-  const targetPath = path.join(input.outputDir, `${input.prefix}.${input.track.sourceLanguage}.${safeExt}`);
-  const response = await fetch(input.track.downloadUrl);
+  const targetPath = path.join(
+    input.outputDir,
+    `${input.prefix}.${input.track.sourceLanguage}.${safeExt}`,
+  );
+  const response = await fetch(input.track.downloadUrl, {
+    signal: createFetchTimeoutSignal(YOUTUBE_DOWNLOAD_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status} while downloading ${input.track.sourceLanguage}`);
   }
@@ -195,6 +229,8 @@ export async function downloadYoutubeSubtitleTracks(input: {
   mode: YoutubeFlowMode;
 }): Promise<Map<string, string>> {
   fs.mkdirSync(input.outputDir, { recursive: true });
+  const hasDuplicateSourceLanguages =
+    new Set(input.tracks.map((track) => track.sourceLanguage)).size !== input.tracks.length;
   for (const name of fs.readdirSync(input.outputDir)) {
     if (name.startsWith(`${YOUTUBE_BATCH_PREFIX}.`)) {
       try {
@@ -204,12 +240,12 @@ export async function downloadYoutubeSubtitleTracks(input: {
       }
     }
   }
-  if (input.tracks.every(canDownloadSubtitleFromUrl)) {
+  if (hasDuplicateSourceLanguages || input.tracks.every(canDownloadSubtitleFromUrl)) {
     const results = new Map<string, string>();
     for (const track of input.tracks) {
       const download = await downloadSubtitleFromUrl({
         outputDir: input.outputDir,
-        prefix: YOUTUBE_BATCH_PREFIX,
+        prefix: track.id.replace(/[^a-z0-9_-]+/gi, '-'),
         track,
       });
       results.set(track.id, download.path);
