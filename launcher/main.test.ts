@@ -257,6 +257,10 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
       'utf8',
     );
     fs.chmodSync(path.join(binDir, 'mpv'), 0o755);
+    fs.writeFileSync(path.join(binDir, 'yt-dlp'), '#!/bin/sh\nexit 0\n', 'utf8');
+    fs.writeFileSync(path.join(binDir, 'ffmpeg'), '#!/bin/sh\nexit 0\n', 'utf8');
+    fs.chmodSync(path.join(binDir, 'yt-dlp'), 0o755);
+    fs.chmodSync(path.join(binDir, 'ffmpeg'), 0o755);
 
     const env = {
       ...makeTestEnv(homeDir, xdgConfigHome),
