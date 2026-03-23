@@ -228,12 +228,13 @@ If you also use Yomitan in a browser, configure that browser profile separately;
 ### YouTube Playback
 
 `subminer` accepts direct URLs (for example, YouTube links) and `ytsearch:` targets.
-For YouTube playback, SubMiner now generates or downloads subtitle tracks before mpv starts, then launches mpv with the resolved subtitle files attached.
+For YouTube playback, SubMiner now resolves subtitle tracks before mpv starts playback: it pauses at startup, opens an overlay subtitle picker, resolves the selected tracks, then resumes with the downloaded subtitle files attached.
 
 Notes:
 
 - Install `yt-dlp` so mpv can resolve YouTube streams and subtitle tracks reliably.
-- For YouTube URLs, `subminer` now generates any missing subtitles before mpv launch.
+- For YouTube URLs, the overlay picker lets you choose the primary and optional secondary subtitle tracks before playback resumes.
+- For YouTube URLs, `subminer` generates only the missing tracks after probing YouTube's native/manual subtitle inventory.
 - It probes manual/native YouTube subtitle tracks first, then falls back to local `whisper.cpp` only for missing tracks.
 - Primary subtitle target languages come from `youtubeSubgen.primarySubLanguages` (defaults to `["ja","jpn"]`).
 - Secondary target languages come from `secondarySub.secondarySubLanguages` (defaults to English if unset).

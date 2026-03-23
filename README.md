@@ -67,6 +67,10 @@ Local stats dashboard — watch time, anime library, vocabulary growth, mining t
 
 <table>
   <tr>
+    <td><b>YouTube</b></td>
+    <td>App-owned subtitle picker with downloaded/native track selection and local fallback generation</td>
+  </tr>
+  <tr>
     <td><b>AniList</b></td>
     <td>Automatic episode tracking and progress sync</td>
   </tr>
