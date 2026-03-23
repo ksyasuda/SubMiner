@@ -10,6 +10,7 @@ import type {
   RuntimeOptionValue,
   SubtitlePosition,
   SubsyncManualRunRequest,
+  YoutubePickerResolveRequest,
 } from '../../types';
 import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
 
@@ -251,5 +252,27 @@ export function parseJimakuDownloadQuery(value: unknown): JimakuDownloadQuery | 
     entryId: value.entryId,
     url: value.url,
     name: value.name,
+  };
+}
+
+export function parseYoutubePickerResolveRequest(value: unknown): YoutubePickerResolveRequest | null {
+  if (!isObject(value)) return null;
+  if (typeof value.sessionId !== 'string' || !value.sessionId.trim()) return null;
+  if (value.action !== 'use-selected' && value.action !== 'continue-without-subtitles') return null;
+  if (value.primaryTrackId !== null && value.primaryTrackId !== undefined && typeof value.primaryTrackId !== 'string') {
+    return null;
+  }
+  if (
+    value.secondaryTrackId !== null &&
+    value.secondaryTrackId !== undefined &&
+    typeof value.secondaryTrackId !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    sessionId: value.sessionId,
+    action: value.action,
+    primaryTrackId: value.primaryTrackId ?? null,
+    secondaryTrackId: value.secondaryTrackId ?? null,
   };
 }

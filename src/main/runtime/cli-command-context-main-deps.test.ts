@@ -9,6 +9,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
     mpvClient: null,
     texthookerPort: 5174,
     overlayRuntimeInitialized: false,
+    youtubePlaybackFlowPending: false,
   };
 
   const build = createBuildCliCommandContextMainDepsHandler({
@@ -83,6 +84,9 @@ test('cli command context main deps builder maps state and callbacks', async () 
     },
     runJellyfinCommand: async () => {
       calls.push('run-jellyfin');
+    },
+    runYoutubePlaybackFlow: async () => {
+      calls.push('run-youtube');
     },
 
     openYomitanSettings: () => calls.push('open-yomitan'),

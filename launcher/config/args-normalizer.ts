@@ -111,6 +111,7 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     youtubeSubgenAudioFormat: process.env.SUBMINER_YT_SUBGEN_AUDIO_FORMAT || 'm4a',
     youtubeSubgenKeepTemp: process.env.SUBMINER_YT_SUBGEN_KEEP_TEMP === '1',
     youtubeFixWithAi: launcherConfig.fixWithAi === true,
+    youtubeMode: undefined,
     jimakuApiKey: process.env.SUBMINER_JIMAKU_API_KEY || '',
     jimakuApiKeyCommand: process.env.SUBMINER_JIMAKU_API_KEY_COMMAND || '',
     jimakuApiBaseUrl: process.env.SUBMINER_JIMAKU_API_BASE_URL || DEFAULT_JIMAKU_API_BASE_URL,
@@ -250,6 +251,9 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
   }
 
   if (invocations.ytInvocation) {
+    if (invocations.ytInvocation.mode) {
+      parsed.youtubeMode = invocations.ytInvocation.mode;
+    }
     if (invocations.ytInvocation.logLevel)
       parsed.logLevel = parseLogLevel(invocations.ytInvocation.logLevel);
     if (invocations.ytInvocation.outDir)

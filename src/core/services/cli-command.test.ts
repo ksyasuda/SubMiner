@@ -9,6 +9,8 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     start: false,
     launchMpv: false,
     launchMpvTargets: [],
+    youtubePlay: undefined,
+    youtubeMode: undefined,
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
@@ -184,6 +186,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     runJellyfinCommand: async () => {
       calls.push('runJellyfinCommand');
     },
+    runYoutubePlaybackFlow: async ({ url, mode }) => {
+      calls.push(`runYoutubePlaybackFlow:${url}:${mode}`);
+    },
     printHelp: () => {
       calls.push('printHelp');
     },
@@ -224,6 +229,25 @@ test('handleCliCommand reconnects MPV for second-instance --start when overlay r
     calls.some((value) => value.includes('initializeOverlayRuntime')),
     false,
   );
+});
+
+test('handleCliCommand starts youtube playback flow on initial launch', () => {
+  const { deps, calls } = createDeps({
+    runYoutubePlaybackFlow: async (request) => {
+      calls.push(`youtube:${request.url}:${request.mode}`);
+    },
+  });
+
+  handleCliCommand(
+    makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc', youtubeMode: 'generate' }),
+    'initial',
+    deps,
+  );
+
+  assert.deepEqual(calls, [
+    'initializeOverlayRuntime',
+    'youtube:https://youtube.com/watch?v=abc:generate',
+  ]);
 });
 
 test('handleCliCommand processes --start for second-instance when overlay runtime is not initialized', () => {

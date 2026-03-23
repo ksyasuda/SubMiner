@@ -3,6 +3,8 @@ export interface CliArgs {
   start: boolean;
   launchMpv: boolean;
   launchMpvTargets: string[];
+  youtubePlay?: string;
+  youtubeMode?: 'download' | 'generate';
   stop: boolean;
   toggle: boolean;
   toggleVisibleOverlay: boolean;
@@ -79,6 +81,8 @@ export function parseArgs(argv: string[]): CliArgs {
     start: false,
     launchMpv: false,
     launchMpvTargets: [],
+    youtubePlay: undefined,
+    youtubeMode: undefined,
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
@@ -140,7 +144,19 @@ export function parseArgs(argv: string[]): CliArgs {
 
     if (arg === '--background') args.background = true;
     else if (arg === '--start') args.start = true;
-    else if (arg === '--launch-mpv') {
+    else if (arg.startsWith('--youtube-play=')) {
+      const value = arg.split('=', 2)[1];
+      if (value) args.youtubePlay = value;
+    } else if (arg === '--youtube-play') {
+      const value = readValue(argv[i + 1]);
+      if (value) args.youtubePlay = value;
+    } else if (arg.startsWith('--youtube-mode=')) {
+      const value = arg.split('=', 2)[1];
+      if (value === 'download' || value === 'generate') args.youtubeMode = value;
+    } else if (arg === '--youtube-mode') {
+      const value = readValue(argv[i + 1]);
+      if (value === 'download' || value === 'generate') args.youtubeMode = value;
+    } else if (arg === '--launch-mpv') {
       args.launchMpv = true;
       args.launchMpvTargets = argv.slice(i + 1).filter((value) => value && !value.startsWith('--'));
       break;
@@ -334,6 +350,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
   return (
     args.background ||
     args.start ||
+    Boolean(args.youtubePlay) ||
     args.launchMpv ||
     args.stop ||
     args.toggle ||
@@ -385,6 +402,7 @@ export function shouldStartApp(args: CliArgs): boolean {
   if (
     args.background ||
     args.start ||
+    Boolean(args.youtubePlay) ||
     args.launchMpv ||
     args.toggle ||
     args.toggleVisibleOverlay ||
@@ -405,6 +423,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.stats ||
     args.jellyfin ||
     args.jellyfinPlay ||
+    Boolean(args.youtubePlay) ||
     args.texthooker
   ) {
     if (args.launchMpv) {
@@ -452,6 +471,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.jellyfinItems &&
     !args.jellyfinSubtitles &&
     !args.jellyfinPlay &&
+    !args.youtubePlay &&
     !args.jellyfinRemoteAnnounce &&
     !args.jellyfinPreviewAuth &&
     !args.texthooker &&
@@ -481,5 +501,6 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.openRuntimeOptions
+    || Boolean(args.youtubePlay)
   );
 }

@@ -34,6 +34,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     currentSubtitleData?: SubtitleData | null;
     playbackPaused: boolean | null;
     previousSecondarySubVisibility: boolean | null;
+    youtubePlaybackFlowPending: boolean;
   };
   getQuitOnDisconnectArmed: () => boolean;
   scheduleQuitCheck: (callback: () => void) => void;

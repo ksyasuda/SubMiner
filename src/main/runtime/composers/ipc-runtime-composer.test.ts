@@ -67,6 +67,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
         getAnilistQueueStatus: () => ({}) as never,
         retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
         appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+        onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
       },
       ankiJimakuDeps: {
         patchAnkiConnectEnabled: () => {},

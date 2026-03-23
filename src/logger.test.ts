@@ -17,7 +17,7 @@ test('resolveDefaultLogFilePath uses APPDATA on windows', () => {
         'C:\\Users\\tester\\AppData\\Roaming',
         'SubMiner',
         'logs',
-        `SubMiner-${new Date().toISOString().slice(0, 10)}.log`,
+        `app-${new Date().toISOString().slice(0, 10)}.log`,
       ),
     ),
   );
@@ -36,7 +36,7 @@ test('resolveDefaultLogFilePath uses .config on linux', () => {
       '.config',
       'SubMiner',
       'logs',
-      `SubMiner-${new Date().toISOString().slice(0, 10)}.log`,
+      `app-${new Date().toISOString().slice(0, 10)}.log`,
     ),
   );
 });

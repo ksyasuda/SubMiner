@@ -302,7 +302,47 @@ test('startOverlay resolves without fixed 2s sleep when readiness signals arrive
   }
 });
 
-test('cleanupPlaybackSession preserves background app while stopping mpv-owned children', async () => {
+test('startOverlay captures app stdout and stderr into app log', async () => {
+  const { dir, socketPath } = createTempSocketPath();
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const appLogPath = path.join(dir, 'app.log');
+  const originalAppLog = process.env.SUBMINER_APP_LOG;
+  fs.writeFileSync(
+    appPath,
+    '#!/bin/sh\nprintf "hello from stdout\\n"\nprintf "hello from stderr\\n" >&2\nexit 0\n',
+  );
+  fs.chmodSync(appPath, 0o755);
+  fs.writeFileSync(socketPath, '');
+  const originalCreateConnection = net.createConnection;
+  try {
+    process.env.SUBMINER_APP_LOG = appLogPath;
+    net.createConnection = (() => {
+      const socket = new EventEmitter() as net.Socket;
+      socket.destroy = (() => socket) as net.Socket['destroy'];
+      socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
+      setTimeout(() => socket.emit('connect'), 10);
+      return socket;
+    }) as typeof net.createConnection;
+
+    await startOverlay(appPath, makeArgs(), socketPath);
+
+    const logText = fs.readFileSync(appLogPath, 'utf8');
+    assert.match(logText, /\[STDOUT\] hello from stdout/);
+    assert.match(logText, /\[STDERR\] hello from stderr/);
+  } finally {
+    net.createConnection = originalCreateConnection;
+    state.overlayProc = null;
+    state.overlayManagedByLauncher = false;
+    if (originalAppLog === undefined) {
+      delete process.env.SUBMINER_APP_LOG;
+    } else {
+      process.env.SUBMINER_APP_LOG = originalAppLog;
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('cleanupPlaybackSession stops launcher-managed overlay app and mpv-owned children', async () => {
   const { dir } = createTempSocketPath();
   const appPath = path.join(dir, 'fake-subminer.sh');
   const appInvocationsPath = path.join(dir, 'app-invocations.log');
@@ -345,8 +385,8 @@ test('cleanupPlaybackSession preserves background app while stopping mpv-owned c
   try {
     await cleanupPlaybackSession(makeArgs());
 
-    assert.deepEqual(calls, ['mpv-kill', 'helper-kill']);
-    assert.equal(fs.existsSync(appInvocationsPath), false);
+    assert.deepEqual(calls, ['overlay-kill', 'mpv-kill', 'helper-kill']);
+    assert.match(fs.readFileSync(appInvocationsPath, 'utf8'), /--stop/);
   } finally {
     state.overlayProc = null;
     state.mpvProc = null;

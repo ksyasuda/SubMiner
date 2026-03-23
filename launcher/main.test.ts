@@ -205,136 +205,6 @@ test('doctor refresh-known-words forwards app refresh command without requiring 
   });
 });
 
-test('youtube command rejects removed --mode option', () => {
-  withTempDir((root) => {
-    const homeDir = path.join(root, 'home');
-    const xdgConfigHome = path.join(root, 'xdg');
-    const appPath = path.join(root, 'fake-subminer.sh');
-    fs.writeFileSync(appPath, '#!/bin/sh\nexit 0\n');
-    fs.chmodSync(appPath, 0o755);
-
-    const env = {
-      ...makeTestEnv(homeDir, xdgConfigHome),
-      SUBMINER_APPIMAGE_PATH: appPath,
-    };
-    const result = runLauncher(
-      ['youtube', 'https://www.youtube.com/watch?v=test123', '--mode', 'automatic'],
-      env,
-    );
-
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /unknown option '--mode'/i);
-  });
-});
-
-test('youtube playback generates subtitles before mpv launch', { timeout: 15000 }, () => {
-  withTempDir((root) => {
-    const homeDir = path.join(root, 'home');
-    const xdgConfigHome = path.join(root, 'xdg');
-    const binDir = path.join(root, 'bin');
-    const appPath = path.join(root, 'fake-subminer.sh');
-    const ytdlpLogPath = path.join(root, 'yt-dlp.log');
-    const mpvCapturePath = path.join(root, 'mpv-order.txt');
-    const mpvArgsPath = path.join(root, 'mpv-args.txt');
-    const socketPath = path.join(root, 'mpv.sock');
-    const bunBinary = JSON.stringify(process.execPath.replace(/\\/g, '/'));
-
-    fs.mkdirSync(binDir, { recursive: true });
-    fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
-    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
-    fs.writeFileSync(
-      path.join(xdgConfigHome, 'SubMiner', 'setup-state.json'),
-      JSON.stringify({
-        version: 1,
-        status: 'completed',
-        completedAt: '2026-03-08T00:00:00.000Z',
-        completionSource: 'user',
-        lastSeenYomitanDictionaryCount: 0,
-        pluginInstallStatus: 'installed',
-        pluginInstallPathSummary: null,
-      }),
-    );
-    fs.writeFileSync(
-      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
-      `socket_path=${socketPath}\nauto_start=no\nauto_start_visible_overlay=no\nauto_start_pause_until_ready=no\n`,
-    );
-    fs.writeFileSync(appPath, '#!/bin/sh\nexit 0\n');
-    fs.chmodSync(appPath, 0o755);
-
-    fs.writeFileSync(
-      path.join(binDir, 'yt-dlp'),
-      `#!/bin/sh
-set -eu
-printf '%s\\n' "$*" >> "$SUBMINER_TEST_YTDLP_LOG"
-if printf '%s\\n' "$*" | grep -q -- '--dump-single-json'; then
-  printf '{"id":"video123"}\\n'
-  exit 0
-fi
-out_dir=""
-prev=""
-for arg in "$@"; do
-  if [ "$prev" = "-o" ]; then
-    out_dir=$(dirname "$arg")
-    break
-  fi
-  prev="$arg"
-done
-mkdir -p "$out_dir"
-printf '1\\n00:00:00,000 --> 00:00:01,000\\nこんにちは\\n' > "$out_dir/video123.ja.srt"
-printf '1\\n00:00:00,000 --> 00:00:01,000\\nhello\\n' > "$out_dir/video123.en.srt"
-`,
-      'utf8',
-    );
-    fs.chmodSync(path.join(binDir, 'yt-dlp'), 0o755);
-
-    fs.writeFileSync(path.join(binDir, 'ffmpeg'), '#!/bin/sh\nexit 0\n', 'utf8');
-    fs.chmodSync(path.join(binDir, 'ffmpeg'), 0o755);
-
-    fs.writeFileSync(
-      path.join(binDir, 'mpv'),
-      `#!/bin/sh
-set -eu
-if [ -s "$SUBMINER_TEST_YTDLP_LOG" ]; then
-  printf 'generated-before-mpv\\n' > "$SUBMINER_TEST_MPV_ORDER"
-else
-  printf 'mpv-before-generation\\n' > "$SUBMINER_TEST_MPV_ORDER"
-fi
-printf '%s\\n' "$@" > "$SUBMINER_TEST_MPV_ARGS"
-socket_path=""
-for arg in "$@"; do
-  case "$arg" in
-    --input-ipc-server=*)
-      socket_path="\${arg#--input-ipc-server=}"
-      ;;
-  esac
-done
-		${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); const path=require('node:path'); const socket=process.argv[1]||''; try{ if(socket) fs.mkdirSync(path.dirname(socket),{recursive:true}); }catch{} try{ if(socket) fs.rmSync(socket,{force:true}); }catch{} const server=net.createServer((c)=>c.end()); server.on('error',()=>process.exit(0)); if(!socket) process.exit(0); try{ server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250)); } catch { process.exit(0); }" "$socket_path"
-		`,
-      'utf8',
-    );
-    fs.chmodSync(path.join(binDir, 'mpv'), 0o755);
-
-    const env = {
-      ...makeTestEnv(homeDir, xdgConfigHome),
-      PATH: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
-      Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
-      SUBMINER_APPIMAGE_PATH: appPath,
-      SUBMINER_TEST_YTDLP_LOG: ytdlpLogPath,
-      SUBMINER_TEST_MPV_ORDER: mpvCapturePath,
-      SUBMINER_TEST_MPV_ARGS: mpvArgsPath,
-    };
-    const result = runLauncher(['youtube', 'https://www.youtube.com/watch?v=test123'], env);
-
-    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-    assert.equal(fs.readFileSync(mpvCapturePath, 'utf8').trim(), 'generated-before-mpv');
-    assert.match(
-      fs.readFileSync(mpvArgsPath, 'utf8'),
-      /https:\/\/www\.youtube\.com\/watch\?v=test123/,
-    );
-    assert.match(fs.readFileSync(ytdlpLogPath, 'utf8'), /--dump-single-json/);
-  });
-});
-
 test('launcher forwards --args to mpv as parsed tokens', { timeout: 15000 }, () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
@@ -480,6 +350,78 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
     assert.match(
       fs.readFileSync(mpvArgsPath, 'utf8'),
       /--script-opts=.*subminer-log_level=debug/,
+    );
+  });
+});
+
+test('launcher disables plugin startup pause gate for app-owned youtube flow', { timeout: 15000 }, () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const binDir = path.join(root, 'bin');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const mpvArgsPath = path.join(root, 'mpv-args.txt');
+    const socketPath = path.join(root, 'mpv.sock');
+    const bunBinary = JSON.stringify(process.execPath.replace(/\\/g, '/'));
+
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
+    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
+    fs.writeFileSync(
+      path.join(xdgConfigHome, 'SubMiner', 'setup-state.json'),
+      JSON.stringify({
+        version: 1,
+        status: 'completed',
+        completedAt: '2026-03-08T00:00:00.000Z',
+        completionSource: 'user',
+        lastSeenYomitanDictionaryCount: 0,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+      }),
+    );
+    fs.writeFileSync(
+      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
+      `socket_path=${socketPath}\nauto_start=yes\nauto_start_visible_overlay=yes\nauto_start_pause_until_ready=yes\n`,
+    );
+    fs.writeFileSync(
+      appPath,
+      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+    );
+    fs.chmodSync(appPath, 0o755);
+
+    fs.writeFileSync(
+      path.join(binDir, 'mpv'),
+      `#!/bin/sh
+set -eu
+printf '%s\\n' "$@" > "$SUBMINER_TEST_MPV_ARGS"
+socket_path=""
+for arg in "$@"; do
+  case "$arg" in
+    --input-ipc-server=*)
+      socket_path="\${arg#--input-ipc-server=}"
+      ;;
+  esac
+done
+${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); const path=require('node:path'); const socket=process.argv[1]||''; try{ if (socket) fs.mkdirSync(path.dirname(socket),{recursive:true}); }catch{} try{ if (socket) fs.rmSync(socket,{force:true}); }catch{} if(!socket) process.exit(0); const server=net.createServer((c)=>c.end()); server.on('error',()=>process.exit(0)); try{ server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250)); } catch { process.exit(0); }" "$socket_path"
+`,
+      'utf8',
+    );
+    fs.chmodSync(path.join(binDir, 'mpv'), 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      PATH: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_MPV_ARGS: mpvArgsPath,
+      SUBMINER_TEST_CAPTURE: path.join(root, 'captured-args.txt'),
+    };
+    const result = runLauncher(['yt', 'https://www.youtube.com/watch?v=abc123'], env);
+
+    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.match(
+      fs.readFileSync(mpvArgsPath, 'utf8'),
+      /--script-opts=.*subminer-auto_start_pause_until_ready=no/,
     );
   });
 });

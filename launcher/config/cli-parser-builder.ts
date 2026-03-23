@@ -16,6 +16,7 @@ export interface JellyfinInvocation {
 
 export interface YtInvocation {
   target?: string;
+  mode?: 'download' | 'generate';
   outDir?: string;
   keepTemp?: boolean;
   whisperBin?: string;
@@ -222,6 +223,7 @@ export function parseCliPrograms(
     .alias('youtube')
     .description('YouTube workflows')
     .argument('[target]', 'YouTube URL or ytsearch: query')
+    .option('--mode <mode>', 'YouTube subtitle acquisition mode')
     .option('-o, --out-dir <dir>', 'Subtitle output dir')
     .option('--keep-temp', 'Keep temp files')
     .option('--whisper-bin <path>', 'whisper.cpp CLI path')
@@ -233,6 +235,10 @@ export function parseCliPrograms(
     .action((target: string | undefined, options: Record<string, unknown>) => {
       ytInvocation = {
         target,
+        mode:
+          typeof options.mode === 'string' && (options.mode === 'download' || options.mode === 'generate')
+            ? options.mode
+            : undefined,
         outDir: typeof options.outDir === 'string' ? options.outDir : undefined,
         keepTemp: options.keepTemp === true,
         whisperBin: typeof options.whisperBin === 'string' ? options.whisperBin : undefined,

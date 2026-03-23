@@ -21,6 +21,7 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
     if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
     appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
+    return true;
   }
 
   if (args.jellyfinLogin) {
@@ -44,6 +45,7 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
     if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
     appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
+    return true;
   }
 
   if (args.jellyfinLogout) {
@@ -51,6 +53,7 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
     if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
     appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
+    return true;
   }
 
   if (args.jellyfinPlay) {
@@ -69,6 +72,7 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
     if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
     appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
+    return true;
   }
 
   return Boolean(

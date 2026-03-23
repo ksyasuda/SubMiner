@@ -553,10 +553,12 @@ export function buildSubminerScriptOpts(
   socketPath: string,
   aniSkipMetadata: AniSkipMetadata | null,
   logLevel: LogLevel = 'info',
+  extraParts: string[] = [],
 ): string {
   const parts = [
     `subminer-binary_path=${sanitizeScriptOptValue(appPath)}`,
     `subminer-socket_path=${sanitizeScriptOptValue(socketPath)}`,
+    ...extraParts,
   ];
   if (logLevel !== 'info') {
     parts.push(`subminer-log_level=${sanitizeScriptOptValue(logLevel)}`);

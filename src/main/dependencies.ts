@@ -57,6 +57,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getVisibleOverlayVisibility: IpcDepsRuntimeOptions['getVisibleOverlayVisibility'];
   onOverlayModalClosed: IpcDepsRuntimeOptions['onOverlayModalClosed'];
   onOverlayModalOpened?: IpcDepsRuntimeOptions['onOverlayModalOpened'];
+  onYoutubePickerResolve: IpcDepsRuntimeOptions['onYoutubePickerResolve'];
   openYomitanSettings: IpcDepsRuntimeOptions['openYomitanSettings'];
   quitApp: IpcDepsRuntimeOptions['quitApp'];
   toggleVisibleOverlay: IpcDepsRuntimeOptions['toggleVisibleOverlay'];
@@ -166,16 +167,17 @@ export interface CliCommandRuntimeServiceDepsParams {
     runStatsCommand: CliCommandDepsRuntimeOptions['jellyfin']['runStatsCommand'];
     runCommand: CliCommandDepsRuntimeOptions['jellyfin']['runCommand'];
   };
+  app: {
+    stop: CliCommandDepsRuntimeOptions['app']['stop'];
+    hasMainWindow: CliCommandDepsRuntimeOptions['app']['hasMainWindow'];
+    runYoutubePlaybackFlow: CliCommandDepsRuntimeOptions['app']['runYoutubePlaybackFlow'];
+  };
   ui: {
     openFirstRunSetup: CliCommandDepsRuntimeOptions['ui']['openFirstRunSetup'];
     openYomitanSettings: CliCommandDepsRuntimeOptions['ui']['openYomitanSettings'];
     cycleSecondarySubMode: CliCommandDepsRuntimeOptions['ui']['cycleSecondarySubMode'];
     openRuntimeOptionsPalette: CliCommandDepsRuntimeOptions['ui']['openRuntimeOptionsPalette'];
     printHelp: CliCommandDepsRuntimeOptions['ui']['printHelp'];
-  };
-  app: {
-    stop: CliCommandDepsRuntimeOptions['app']['stop'];
-    hasMainWindow: CliCommandDepsRuntimeOptions['app']['hasMainWindow'];
   };
   getMultiCopyTimeoutMs: CliCommandDepsRuntimeOptions['getMultiCopyTimeoutMs'];
   schedule: CliCommandDepsRuntimeOptions['schedule'];
@@ -207,6 +209,7 @@ export function createMainIpcRuntimeServiceDeps(
     getVisibleOverlayVisibility: params.getVisibleOverlayVisibility,
     onOverlayModalClosed: params.onOverlayModalClosed,
     onOverlayModalOpened: params.onOverlayModalOpened,
+    onYoutubePickerResolve: params.onYoutubePickerResolve,
     openYomitanSettings: params.openYomitanSettings,
     quitApp: params.quitApp,
     toggleVisibleOverlay: params.toggleVisibleOverlay,
@@ -324,16 +327,17 @@ export function createCliCommandRuntimeServiceDeps(
       runStatsCommand: params.jellyfin.runStatsCommand,
       runCommand: params.jellyfin.runCommand,
     },
+    app: {
+      stop: params.app.stop,
+      hasMainWindow: params.app.hasMainWindow,
+      runYoutubePlaybackFlow: params.app.runYoutubePlaybackFlow,
+    },
     ui: {
       openFirstRunSetup: params.ui.openFirstRunSetup,
       openYomitanSettings: params.ui.openYomitanSettings,
       cycleSecondarySubMode: params.ui.cycleSecondarySubMode,
       openRuntimeOptionsPalette: params.ui.openRuntimeOptionsPalette,
       printHelp: params.ui.printHelp,
-    },
-    app: {
-      stop: params.app.stop,
-      hasMainWindow: params.app.hasMainWindow,
     },
     getMultiCopyTimeoutMs: params.getMultiCopyTimeoutMs,
     schedule: params.schedule,

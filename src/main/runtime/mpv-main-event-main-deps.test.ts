@@ -25,6 +25,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     currentSubAssText: '',
     playbackPaused: null,
     previousSecondarySubVisibility: false,
+    youtubePlaybackFlowPending: false,
   };
 
   const deps = createBuildBindMpvMainEventHandlersMainDepsHandler({

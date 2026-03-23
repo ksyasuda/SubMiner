@@ -85,6 +85,13 @@ test('parseArgs maps mpv idle action', () => {
   assert.equal(parsed.mpvStatus, false);
 });
 
+test('parseArgs captures youtube mode forwarding', () => {
+  const parsed = parseArgs(['youtube', 'https://example.com', '--mode', 'generate'], 'subminer', {});
+
+  assert.equal(parsed.target, 'https://example.com');
+  assert.equal(parsed.youtubeMode, 'generate');
+});
+
 test('parseArgs maps dictionary command and log-level override', () => {
   const parsed = parseArgs(['dictionary', '.', '--log-level', 'debug'], 'subminer', {});
 

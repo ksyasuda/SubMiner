@@ -188,6 +188,7 @@ export interface AppState {
   overlayDebugVisualizationEnabled: boolean;
   statsOverlayVisible: boolean;
   subsyncInProgress: boolean;
+  youtubePlaybackFlowPending: boolean;
   initialArgs: CliArgs | null;
   mpvSocketPath: string;
   texthookerPort: number;
@@ -272,6 +273,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     fieldGroupingResolver: null,
     fieldGroupingResolverSequence: 0,
     subsyncInProgress: false,
+    youtubePlaybackFlowPending: false,
     initialArgs: null,
     mpvSocketPath: values.mpvSocketPath,
     texthookerPort: values.texthookerPort,
@@ -291,6 +293,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
 
 export function applyStartupState(appState: AppState, startupState: StartupState): void {
   appState.initialArgs = startupState.initialArgs;
+  appState.youtubePlaybackFlowPending = Boolean(startupState.initialArgs.youtubePlay);
   appState.mpvSocketPath = startupState.mpvSocketPath;
   appState.texthookerPort = startupState.texthookerPort;
   appState.backendOverride = startupState.backendOverride;

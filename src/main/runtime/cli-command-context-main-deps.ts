@@ -1,4 +1,5 @@
 import type { CliArgs } from '../../cli/args';
+import type { YoutubeFlowMode } from '../../types';
 import type { CliCommandContextFactoryDeps } from './cli-command-context';
 
 type CliCommandContextMainState = {
@@ -41,6 +42,11 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   generateCharacterDictionary: CliCommandContextFactoryDeps['generateCharacterDictionary'];
   runStatsCommand: CliCommandContextFactoryDeps['runStatsCommand'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
+  runYoutubePlaybackFlow: (request: {
+    url: string;
+    mode: YoutubeFlowMode;
+    source: 'initial' | 'second-instance';
+  }) => Promise<void>;
 
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
@@ -95,6 +101,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
       deps.generateCharacterDictionary(targetPath),
     runStatsCommand: (args: CliArgs, source) => deps.runStatsCommand(args, source),
     runJellyfinCommand: (args: CliArgs) => deps.runJellyfinCommand(args),
+    runYoutubePlaybackFlow: (request) => deps.runYoutubePlaybackFlow(request),
     openYomitanSettings: () => deps.openYomitanSettings(),
     cycleSecondarySubMode: () => deps.cycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => deps.openRuntimeOptionsPalette(),

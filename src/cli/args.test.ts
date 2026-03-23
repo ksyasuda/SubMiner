@@ -56,6 +56,15 @@ test('parseArgs captures launch-mpv targets and keeps it out of app startup', ()
   assert.equal(shouldStartApp(args), false);
 });
 
+test('parseArgs captures youtube playback commands and mode', () => {
+  const args = parseArgs(['--youtube-play', 'https://youtube.com/watch?v=abc', '--youtube-mode', 'generate']);
+
+  assert.equal(args.youtubePlay, 'https://youtube.com/watch?v=abc');
+  assert.equal(args.youtubeMode, 'generate');
+  assert.equal(hasExplicitCommand(args), true);
+  assert.equal(shouldStartApp(args), true);
+});
+
 test('parseArgs handles jellyfin item listing controls', () => {
   const args = parseArgs([
     '--jellyfin-items',

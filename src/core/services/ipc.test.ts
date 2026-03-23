@@ -144,6 +144,7 @@ function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServ
     getAnilistQueueStatus: () => ({}),
     retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
     appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+    onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
     immersionTracker: null,
     ...overrides,
   };
@@ -236,6 +237,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
       return { ok: true, message: 'done' };
     },
     appendClipboardVideoToQueue: () => ({ ok: true, message: 'queued' }),
+    onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
   });
 
   assert.deepEqual(deps.getAnilistStatus(), { tokenStatus: 'resolved' });
@@ -305,6 +307,7 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
       getAnilistQueueStatus: () => ({}),
       retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
       appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+      onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
     },
     registrar,
   );
@@ -611,6 +614,7 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       getAnilistQueueStatus: () => ({}),
       retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
       appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+      onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
     },
     registrar,
   );
@@ -677,6 +681,7 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
       getAnilistQueueStatus: () => ({}),
       retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
       appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+      onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
     },
     registrar,
   );
@@ -746,6 +751,7 @@ test('registerIpcHandlers rejects malformed controller preference payloads', asy
       getAnilistQueueStatus: () => ({}),
       retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
       appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+      onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
     },
     registrar,
   );
