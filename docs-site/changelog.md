@@ -2,10 +2,14 @@
 
 ## v0.8.0 (2026-03-22)
 - Added a configurable subtitle sidebar feature (`subtitleSidebar`) with overlay/embedded rendering, click-to-seek cue list, and hot-reloadable visibility and behavior controls.
-- Added release docs updates for sidebar configuration, including options, sample config, and toggle shortcut behavior.
-- Synced sidebar and overlay subtitle states during playback transitions via IPC-backed snapshot plumbing.
-- Fixed sidebar cue tracking to remain stable across timing edge cases and stale subtitle refreshes.
-- Improved sidebar resume/start behavior by jumping directly to the first resolved active cue.
+- Added a rendered sidebar modal with cue list display, click-to-seek, active-cue highlighting, and embedded layout support.
+- Added sidebar snapshot plumbing between main and renderer for overlay/sidebar synchronization.
+- Added sidebar configuration options for visibility and behavior (enabled, layout, toggle key, autoOpen, pauseOnHover, autoScroll) plus typography and sizing controls.
+- Documented `subtitleSidebar` configuration and behavior in user-facing docs (configuration.md, shortcuts.md, config.example.jsonc).
+- Updated subtitle prefetch/rendering flow to keep overlay and sidebar state in sync through media transitions.
+- Kept sidebar cue tracking stable across playback transitions and timing edge cases.
+- Fixed sidebar startup/resume positioning to jump directly to the first resolved active cue.
+- Prevented stale subtitle refreshes from regressing active-cue state.
 
 ## v0.7.0 (2026-03-19)
 - Added a full local immersion dashboard release line with Overview, Library, Trends, Vocabulary, and Sessions drill-down views backed by SQLite tracking data.

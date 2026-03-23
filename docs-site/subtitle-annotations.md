@@ -24,7 +24,7 @@ N+1 highlighting identifies sentences where you know every word except one, maki
 | --- | --- | --- |
 | `ankiConnect.knownWords.highlightEnabled` | `false` | Enable known-word cache lookups used by N+1 highlighting |
 | `ankiConnect.knownWords.refreshMinutes` | `1440` | Minutes between Anki cache refreshes |
-| `ankiConnect.knownWords.decks` | `[]` | Decks to query (falls back to `ankiConnect.deck`) |
+| `ankiConnect.knownWords.decks` | `{}` | Deck→fields map for known-word cache queries (legacy fallback: `ankiConnect.deck`) |
 | `ankiConnect.knownWords.matchMode` | `"headword"` | `"headword"` (dictionary form) or `"surface"` (raw text) |
 | `ankiConnect.nPlusOne.minSentenceWords` | `3` | Minimum tokens in a sentence for N+1 to trigger |
 | `ankiConnect.nPlusOne.nPlusOne` | `#c6a0f6` | Color for the single unknown target word |

@@ -1,60 +1,159 @@
 <div align="center">
-  <img src="assets/SubMiner.png" width="140" alt="SubMiner logo">
+
+<img src="assets/SubMiner.png" width="160" alt="SubMiner logo">
 
 # SubMiner
 
-**Sentence-mine from mpv — look up words, one-key Anki export, immersion tracking.**
+### Turn mpv into a sentence-mining workstation.
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Linux](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-informational)](https://github.com/ksyasuda/SubMiner)
-[![Docs](https://img.shields.io/badge/docs-docs.subminer.moe-blueviolet)](https://docs.subminer.moe)
-[![AUR](https://img.shields.io/aur/version/subminer-bin)](https://aur.archlinux.org/packages/subminer-bin)
+Look up words with Yomitan, export to Anki in one key, track your immersion — all without leaving mpv.
 
-</div>
+[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-1a1a2e?style=flat-square)](https://www.gnu.org/licenses/gpl-3.0)
+[![Platform](https://img.shields.io/badge/platform-Linux%20·%20macOS%20·%20Windows-1a1a2e?style=flat-square)](https://github.com/ksyasuda/SubMiner)
+[![Docs](https://img.shields.io/badge/docs-docs.subminer.moe-e6a817?style=flat-square)](https://docs.subminer.moe)
+[![AUR](https://img.shields.io/aur/version/subminer-bin?style=flat-square&color=1a1a2e)](https://aur.archlinux.org/packages/subminer-bin)
 
----
-
-SubMiner is an Electron overlay for [mpv](https://mpv.io) that turns video into a sentence-mining workstation. Look up any word with [Yomitan](https://github.com/yomidevs/yomitan), mine it to Anki with one key, and track your immersion over time.
-
-<div align="center">
-
-[![SubMiner demo (Animated preview)](./assets/minecard.webp)](./assets/minecard.mp4)
+[![SubMiner demo](./assets/minecard.webp)](./assets/minecard.mp4)
 
 </div>
+
+## How It Works
+
+SubMiner runs as an invisible Electron overlay on top of mpv. Subtitles render as an interactive layer. Move your cursor over any word and trigger a [Yomitan](https://github.com/yomidevs/yomitan) lookup. Press one key to snapshot the sentence, audio, and screenshot into Anki via AnkiConnect.
 
 ## Features
 
-**Dictionary lookups** — Yomitan runs inside the overlay. Hover or navigate to any word for full dictionary popups without leaving mpv.
+### Dictionary Lookups
 
-**One-key Anki mining** — Press one key to create a card with the sentence, audio clip, screenshot, and machine translation from the exact playback moment.
-
-<div align="center">
-  <img src="docs-site/public/screenshots/yomitan-lookup.png" width="800" alt="Yomitan popup with dictionary entry and mine button over annotated subtitles in mpv">
-</div>
-
-**Reading annotations** — Real-time subtitle annotations with N+1 targeting, frequency highlighting, JLPT tags, and a character name dictionary. Grammar-only tokens render as plain text.
+Yomitan runs inside the overlay. Trigger a lookup on any word for full dictionary popups — definitions, pitch accent, frequency data — without ever leaving mpv.
 
 <div align="center">
-  <img src="docs-site/public/screenshots/annotations.png" width="800" alt="Annotated subtitles with frequency highlighting, JLPT underlines, known words, and N+1 targets">
+  <img src="docs-site/public/screenshots/yomitan-lookup.png" width="800" alt="Yomitan dictionary popup over annotated subtitles in mpv">
 </div>
 
-**Immersion dashboard** — Local stats dashboard with watch time, anime progress, vocabulary growth, mining throughput, and session history.
+<br>
+
+### Instant Anki Mining
+
+Create an Anki card with the sentence, audio clip, screenshot, and machine translation from the exact playback moment with one key press, click, or controller input.
 
 <div align="center">
-  <img src="docs-site/public/screenshots/stats-overview.png" width="800" alt="Stats dashboard with watch time, cards mined, streaks, and tracking snapshot">
+  <img src="docs-site/public/screenshots/one-key-mining.png" width="800" alt="Anki card created from SubMiner with sentence, audio, and screenshot">
 </div>
 
-**Integrations** — AniList episode tracking, Jellyfin remote playback, Jimaku subtitle downloads, alass/ffsubsync, and an annotated websocket feed for external clients.
+<br>
+
+### Reading Annotations
+
+Real-time subtitle annotations with frequency highlighting, JLPT tags, N+1 targeting, and a character name dictionary. Known words fade back; new words stand out. Grammar-only tokens render as plain text so you focus on what matters.
 
 <div align="center">
-  <img src="docs-site/public/screenshots/texthooker.png" width="800" alt="Texthooker page with annotated subtitle lines and frequency highlighting">
+  <img src="docs-site/public/screenshots/annotations.png" width="800" alt="Annotated subtitles with frequency coloring, JLPT underlines, and N+1 targets">
 </div>
+
+<br>
+
+### Immersion Dashboard
+
+Local stats dashboard — watch time, anime library, vocabulary growth, mining throughput, session history, and trends. All stored locally, no third-party tracking.
+
+<div align="center">
+  <img src="docs-site/public/screenshots/stats-overview.png" width="800" alt="Stats dashboard showing watch time, cards mined, streaks, and tracking data">
+</div>
+
+<br>
+
+### Integrations
+
+<table>
+  <tr>
+    <td><b>AniList</b></td>
+    <td>Automatic episode tracking and progress sync</td>
+  </tr>
+  <tr>
+    <td><b>Jellyfin</b></td>
+    <td>Browse and launch media from your Jellyfin server</td>
+  </tr>
+  <tr>
+    <td><b>Jimaku</b></td>
+    <td>Search and download Japanese subtitles</td>
+  </tr>
+  <tr>
+    <td><b>alass / ffsubsync</b></td>
+    <td>Automatic subtitle retiming</td>
+  </tr>
+  <tr>
+    <td><b>WebSocket</b></td>
+    <td>Annotated subtitle feed for external clients (texthooker pages, custom tools)</td>
+  </tr>
+</table>
+
+<div align="center">
+  <img src="docs-site/public/screenshots/texthooker.png" width="800" alt="Texthooker page receiving annotated subtitle lines via WebSocket">
+</div>
+
+<br>
+
+---
+
+## Requirements
+
+|                | Required                                | Optional                               |
+| -------------- | --------------------------------------- | -------------------------------------- |
+| **Player**     | [`mpv`](https://mpv.io) with IPC socket | —                                      |
+| **Processing** | `ffmpeg`, `mecab` + `mecab-ipadic`      | `guessit` (AniSkip)                    |
+| **Media**      | —                                       | `yt-dlp`, `chafa`, `ffmpegthumbnailer` |
+| **Selection**  | —                                       | `fzf` / `rofi`                         |
+
+> [!NOTE]
+> [`bun`](https://bun.sh) is required if building from source or using the CLI wrapper: `subminer`. Pre-built releases (AppImage, DMG, installer) do not require it.
+
+**Platform-specific:**
+
+| Linux                               | macOS                    | Windows       |
+| ----------------------------------- | ------------------------ | ------------- |
+| `hyprctl` or `xdotool` + `xwininfo` | Accessibility permission | No extra deps |
+
+<details>
+<summary><b>Arch Linux</b></summary>
+
+```bash
+paru -S --needed mpv ffmpeg mecab-git mecab-ipadic
+# Optional
+paru -S --needed yt-dlp fzf rofi chafa ffmpegthumbnailer xdotool xorg-xwininfo
+# X11 / XWAYLAND
+paru -S --needed xdotool xorg-xwininfo
+```
+
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+brew install mpv ffmpeg mecab mecab-ipadic
+# Optional
+brew install yt-dlp fzf rofi chafa ffmpegthumbnailer
+```
+
+Grant Accessibility permission to SubMiner in **System Settings > Privacy & Security > Accessibility**.
+
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+Install [`mpv`](https://mpv.io/installation/) and [`ffmpeg`](https://ffmpeg.org/download.html) and ensure both are on your `PATH`.
+
+For MeCab, install [MeCab for Windows](https://taku910.github.io/mecab/#download) with the UTF-8 dictionary.
+
+</details>
 
 ---
 
 ## Quick Start
 
-### Install
+### 1. Install
 
 <details>
 <summary><b>Arch Linux (AUR)</b></summary>
@@ -88,53 +187,62 @@ wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~
 </details>
 
 <details>
-<summary><b>macOS / Windows / From source</b></summary>
+<summary><b>macOS</b></summary>
 
-**macOS** — Download the latest DMG/ZIP from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest) and drag `SubMiner.app` into `/Applications`.
-
-**Windows** — Download the latest installer or portable `.zip` from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Keep `mpv` on `PATH`.
-
-**From source** — See [docs.subminer.moe/installation#from-source](https://docs.subminer.moe/installation#from-source).
+Download the latest DMG or ZIP from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest) and drag `SubMiner.app` into `/Applications`.
 
 </details>
 
-### First Launch
+<details>
+<summary><b>Windows</b></summary>
 
-Run `SubMiner.AppImage` (Linux), `SubMiner.app` (macOS), or `SubMiner.exe` (Windows). On first launch, SubMiner starts in the tray, creates a default config, and opens a setup popup where you can install the mpv plugin and configure Yomitan dictionaries.
+Download the latest installer or portable `.zip` from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Make sure `mpv` is on your `PATH`.
 
-### Mine
+</details>
+
+<details>
+<summary><b>From source</b></summary>
+
+See the [build-from-source guide](https://docs.subminer.moe/installation#from-source).
+
+</details>
+
+### 2. First Launch
+
+Run the app. On first launch SubMiner starts in the system tray, creates a default config, and opens a setup popup to install the mpv plugin and configure Yomitan dictionaries.
+
+### 3. Mine
 
 ```bash
-subminer video.mkv          # auto-starts overlay + resumes playback
-subminer --start video.mkv  # explicit overlay start (if plugin auto_start=no)
-subminer stats              # open the immersion dashboard
-subminer stats -b           # keep the stats daemon running in background
-subminer stats -s           # stop the dedicated stats daemon
-subminer stats cleanup      # repair/prune stored stats vocabulary rows
+subminer video.mkv          # play video with overlay
+subminer --start video.mkv  # explicit overlay start
+subminer stats              # open immersion dashboard
+subminer stats -b           # stats daemon in background
 ```
 
 ---
 
-## Requirements
-
-| Required                                               | Optional                      |
-| ------------------------------------------------------ | ----------------------------- |
-| [`mpv`](https://mpv.io) with IPC socket                | `yt-dlp`                      |
-| `ffmpeg`                                               | `guessit` (AniSkip detection) |
-| `mecab` + `mecab-ipadic`                               | `fzf` / `rofi`                |
-| [`bun`](https://bun.sh) (source builds, Linux wrapper) | `chafa`, `ffmpegthumbnailer`  |
-| Linux: `hyprctl` or `xdotool` + `xwininfo`             |                               |
-| macOS: Accessibility permission                        |                               |
-
-Windows uses native window tracking and does not need the Linux compositor tools.
-
 ## Documentation
 
-Full guides on configuration, Anki, Jellyfin, immersion tracking, and more at **[docs.subminer.moe](https://docs.subminer.moe)**.
+Full guides on configuration, Anki setup, Jellyfin, immersion tracking, and more: **[docs.subminer.moe](https://docs.subminer.moe)**
+
+---
 
 ## Acknowledgments
 
-Built on [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner), [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui), [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script), and [Bee's Character Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary). Subtitles from [Jimaku.cc](https://jimaku.cc). Lookups via [Yomitan](https://github.com/yomidevs/yomitan). JLPT tags from [yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab).
+SubMiner builds on the work of these open-source projects:
+
+| Project                                                                                     | Role                                                                    |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script)                          | Inspiration for the mining workflow                                     |
+| [asbplayer](https://github.com/killergerbah/asbplayer)                                      | Inspiration for subtitle sidebar and logic for YouTube subtitle parsing |
+| [Bee's Character Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary) | Character name recognition in subtitles                                 |
+| [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner)                          | Inspiration for Electron overlay with Yomitan integration               |
+| [jellyfin-mpv-shim](https://github.com/jellyfin/jellyfin-mpv-shim)                          | Jellyfin integration                                                    |
+| [Jimaku.cc](https://jimaku.cc)                                                              | Japanese subtitle search and downloads                                  |
+| [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui)                        | Base for the WebSocket texthooker integration                           |
+| [Yomitan](https://github.com/yomidevs/yomitan)                                              | Dictionary engine powering all lookups and the morphological parser     |
+| [yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab)                       | JLPT level tags for vocabulary                                          |
 
 ## License
 

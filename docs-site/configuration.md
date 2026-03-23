@@ -17,6 +17,11 @@ For most users, start with this minimal configuration:
   "ankiConnect": {
     "enabled": true,
     "deck": "YourDeckName",
+    "knownWords": {
+      "decks": {
+        "YourDeckName": ["Word", "Word Reading", "Expression"]
+      }
+    },
     "fields": {
       "sentence": "Sentence",
       "audio": "Audio",
@@ -25,6 +30,8 @@ For most users, start with this minimal configuration:
   }
 }
 ```
+
+`ankiConnect.deck` is still accepted for backward-compatible polling scope and legacy known-word fallback behavior. For known-word cache scope, prefer `ankiConnect.knownWords.decks` with deck-to-fields mapping.
 
 Then customize as needed using the sections below.
 
@@ -348,7 +355,8 @@ Configure the parsed-subtitle sidebar modal.
 ```json
 {
   "subtitleSidebar": {
-    "enabled": true,
+    "enabled": false,
+    "autoOpen": false,
     "layout": "overlay",
     "toggleKey": "Backslash",
     "pauseVideoOnHover": false,
@@ -362,12 +370,13 @@ Configure the parsed-subtitle sidebar modal.
 | Option                      | Values           | Description                                                                      |
 | --------------------------- | ---------------- | -------------------------------------------------------------------------------- |
 | `enabled`                   | boolean          | Enable subtitle sidebar support (`false` by default)                             |
+| `autoOpen`                  | boolean          | Open sidebar automatically on overlay startup (`false` by default)                |
 | `layout`                    | string           | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space to mimic browser-like layout |
 | `toggleKey`                 | string           | `KeyboardEvent.code` used to open/close the sidebar (default: `"Backslash"`)     |
 | `pauseVideoOnHover`         | boolean          | Pause playback while hovering the sidebar cue list                               |
 | `autoScroll`                | boolean          | Keep the active cue in view while playback advances                              |
 | `maxWidth`                  | number           | Maximum sidebar width in CSS pixels (default: `420`)                             |
-| `opacity`                   | number           | Sidebar opacity between `0` and `1` (default: `0.78`)                            |
+| `opacity`                   | number           | Sidebar opacity between `0` and `1` (default: `0.95`)                            |
 | `backgroundColor`           | string           | Sidebar shell background color                                                   |
 | `textColor`                 | hex color        | Default cue text color                                                           |
 | `fontFamily`                | string           | CSS `font-family` value applied to sidebar cue text                             |
@@ -751,6 +760,8 @@ Anki and YouTube subtitle cleanup both read this provider, then apply feature-lo
 | `apiKey`           | string                | Static API key for the shared provider               |
 | `apiKeyCommand`    | string                | Shell command used to resolve the API key            |
 | `baseUrl`          | string (URL)          | OpenAI-compatible base URL                           |
+| `model`            | string                | Optional model override for shared provider workflows   |
+| `systemPrompt`     | string                | Optional system prompt override for shared provider workflows |
 | `requestTimeoutMs` | integer milliseconds  | Shared request timeout (default: `15000`)            |
 
 SubMiner uses the shared provider in two places:
@@ -840,8 +851,8 @@ This example is intentionally compact. The option table below documents availabl
 | `proxy.port`                            | number                                  | Bind port for local AnkiConnect proxy (default: `8766`)                                                                                       |
 | `proxy.upstreamUrl`                     | string (URL)                            | Upstream AnkiConnect URL that proxy forwards to (default: `http://127.0.0.1:8765`)                                                            |
 | `tags`                                  | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                 |
-| `deck`                                  | string                                  | Anki deck to monitor for new cards                                                                                                            |
-| `ankiConnect.knownWords.decks`          | array of strings                        | Decks used for known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                                 |
+| `ankiConnect.deck`                      | string                                  | Legacy Anki polling/compatibility scope. Newer known-word cache scoping should use `ankiConnect.knownWords.decks`.                               |
+| `ankiConnect.knownWords.decks`          | object                                  | Deck→fields mapping for known-word cache queries (for example `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                                  |
 | `fields.word`                           | string                                  | Card field for mined word / expression text (default: `Expression`)                                                                            |
 | `fields.audio`                          | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                       |
 | `fields.image`                          | string                                  | Card field for images (default: `Picture`)                                                                                                    |
@@ -862,6 +873,7 @@ This example is intentionally compact. The option table below documents availabl
 | `media.animatedMaxWidth`                | number (px)                             | Max width for animated AVIF (default: `640`)                                                                                                  |
 | `media.animatedMaxHeight`               | number (px)                             | Optional max height for animated AVIF. Unset keeps source aspect-constrained height.                                                          |
 | `media.animatedCrf`                     | number (0-63)                           | CRF quality for AVIF; lower = higher quality (default: `35`)                                                                                  |
+| `media.syncAnimatedImageToWordAudio`    | `true`, `false`                         | Whether animated AVIF includes an opening frame synced to sentence word-audio timing (default: `true`). |
 | `media.audioPadding`                    | number (seconds)                        | Padding around audio clip timing (default: `0.5`)                                                                                             |
 | `media.fallbackDuration`                | number (seconds)                        | Default duration if timing unavailable (default: `3.0`)                                                                                       |
 | `media.maxMediaDuration`                | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                                         |
@@ -870,10 +882,11 @@ This example is intentionally compact. The option table below documents availabl
 | `behavior.mediaInsertMode`              | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                         |
 | `behavior.highlightWord`                | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                      |
 | `ankiConnect.knownWords.highlightEnabled` | `true`, `false`                       | Enable fast local highlighting for words already known in Anki (default: `false`)                                                             |
+| `ankiConnect.knownWords.addMinedWordsImmediately` | `true`, `false`                         | Add words from successful mines into the local known-word cache immediately (default: `true`)                                                   |
 | `ankiConnect.knownWords.color`          | hex color string                        | Text color for tokens already found in the local known-word cache (default: `"#a6da95"`).                                                     |
 | `ankiConnect.knownWords.matchMode`      | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
 | `ankiConnect.knownWords.refreshMinutes` | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                  |
-| `ankiConnect.knownWords.decks`          | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                               |
+| `ankiConnect.knownWords.decks`          | object                                  | Deck→fields mapping used for known-word cache query scope (e.g. `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                              |
 | `ankiConnect.nPlusOne.nPlusOne`         | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`).               |
 | `ankiConnect.nPlusOne.minSentenceWords` | number                                  | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                        |
 | `behavior.notificationType`             | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                           |
@@ -919,7 +932,7 @@ Known-word cache policy:
 - `ankiConnect.nPlusOne.nPlusOne` sets the color for the single target token when exactly one eligible unknown word exists.
 - `ankiConnect.nPlusOne.minSentenceWords` sets the minimum token count required in a sentence for N+1 highlighting (default: `3`).
 - `ankiConnect.knownWords.color` sets the known-word highlight color for tokens already in Anki.
-- `ankiConnect.knownWords.decks` accepts one or more decks. If empty, it uses the legacy single `ankiConnect.deck` value as scope.
+- `ankiConnect.knownWords.decks` accepts an object keyed by deck name. If omitted or empty, it falls back to the legacy `ankiConnect.deck` single-deck scope.
 - Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
 - The cache is automatically invalidated when the configured scope changes (for example, when deck changes).
 - Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set `ankiConnect.knownWords.matchMode` to `"surface"` for raw subtitle text matching.
@@ -1283,7 +1296,7 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
 {
   "stats": {
     "toggleKey": "Backquote",
-    "serverPort": 5175,
+    "serverPort": 6969,
     "autoStartServer": true,
     "autoOpenBrowser": true
   }
@@ -1293,7 +1306,7 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
 | Option            | Values            | Description                                                                 |
 | ----------------- | ----------------- | --------------------------------------------------------------------------- |
 | `toggleKey`       | Electron key code | Overlay-local key code used to toggle the stats overlay. Default `Backquote`. |
-| `serverPort`      | integer           | Localhost port for the browser stats UI. Default `5175`.                    |
+| `serverPort`      | integer           | Localhost port for the browser stats UI. Default `6969`.                    |
 | `autoStartServer` | `true`, `false`   | Start the local stats HTTP server automatically once immersion tracking is active. Default `true`. |
 | `autoOpenBrowser` | `true`, `false`   | When `subminer stats` starts the server on demand, also open the dashboard in your default browser. Default `true`. |
 

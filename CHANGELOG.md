@@ -1,16 +1,25 @@
 # Changelog
 
+## v0.9.0 (2026-03-22)
+
+### Changed
+- Subtitle Sidebar: Added subtitle sidebar state and behavior updates, including startup-auto-open controls and resume positioning improvements.
+- Subtitle Sidebar: Fixed subtitle prefetch and embedded overlay passthrough sync between sidebar and overlay subtitle rendering.
+- Launcher: Added an app-owned YouTube subtitle picker flow that boots mpv paused, opens an overlay track picker, and downloads selected subtitles into external files.
+- Launcher: Added explicit `download` and `generate` YouTube subtitle modes with `download` as the default path.
+- Launcher: Disabled mpv native YouTube subtitle auto-loading for the app-owned flow so external subtitle files stay authoritative.
+- Launcher: Added OSD status messages for YouTube playback startup, subtitle acquisition, and subtitle loading so the flow stays visible before and during the picker.
+
 ## v0.8.0 (2026-03-22)
 
 ### Added
-- Overlay: Added the subtitle sidebar feature with a new `subtitleSidebar` configuration surface.
-- Overlay: Added a sidebar modal with cue list rendering, click-to-seek, active-cue highlighting, and embedded layout support.
+- Overlay: Added the subtitle sidebar feature with a new `subtitleSidebar` configuration surface and rendered sidebar modal with cue list rendering, click-to-seek, active-cue highlighting, and embedded layout support.
 - IPC: Added sidebar snapshot plumbing between renderer and main process for overlay/sidebar synchronization.
 
 ### Changed
 - Config: Added hot-reloadable sidebar options for enablement, layout, visibility, typography, opacity, sizing, and interaction behavior (`autoOpen`, `pauseOnHover`, `autoScroll`, toggle key).
 - Docs: Added full `subtitleSidebar` documentation coverage, including sample config, option table, and toggle shortcut notes.
-- Runtime: Improved subtitle prefetch and rendering flow so sidebar and overlay subtitle states are kept in sync across media transitions.
+- Runtime: Improved subtitle prefetch/rendering flow so sidebar and overlay subtitle states stay in sync across media transitions.
 
 ### Fixed
 - Overlay: Kept sidebar cue tracking stable across playback transitions and timing edge cases.

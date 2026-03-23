@@ -6,11 +6,28 @@ This guide walks through the sentence mining loop — from watching a video to c
 
 SubMiner runs as a transparent overlay on top of mpv. As subtitles play, the overlay displays them as interactive text. You hover a word, trigger Yomitan lookup with your configured lookup key/modifier, then create an Anki card with a single action. SubMiner automatically attaches the sentence, audio clip, and screenshot.
 
-```text
-Watch video → See subtitle → Hover word + trigger lookup → Yomitan popup → Add to Anki
-                                                              ↓
-                                              SubMiner auto-fills:
-                                              sentence, audio, image, translation
+```mermaid
+flowchart LR
+  classDef step fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef action fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef result fill:#a6da95,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef enrich fill:#8bd5ca,stroke:#494d64,color:#24273a,stroke-width:1.5px
+
+  Watch["Watch Video"]:::step
+  Sub["Subtitle Appears"]:::step
+  Hover["Hover Word"]:::action
+  Lookup["Trigger Lookup"]:::action
+  Yomi["Yomitan Popup"]:::result
+  Add["Add to Anki"]:::result
+
+  Watch --> Sub --> Hover --> Lookup --> Yomi --> Add
+
+  Add --> Enrich["SubMiner Enriches"]:::enrich
+
+  Enrich --> S["Sentence"]:::enrich
+  Enrich --> A["Audio Clip"]:::enrich
+  Enrich --> I["Screenshot"]:::enrich
+  Enrich --> T["Translation"]:::enrich
 ```
 
 ## Subtitle Delivery Path (Startup + Runtime)
@@ -208,7 +225,7 @@ Enable it in your config:
 }
 ```
 
-Open the dashboard in the overlay with `stats.toggleKey` (default: `` ` ``), launch it in a browser with `subminer stats`, keep a dedicated background server alive with `subminer stats -b`, stop that background server with `subminer stats -s`, or visit `http://127.0.0.1:5175` directly if the local stats server is already running. The dashboard covers overview totals, anime progress, session detail, and vocabulary drill-down from the same local immersion database.
+Open the dashboard in the overlay with `stats.toggleKey` (default: `` ` ``), launch it in a browser with `subminer stats`, keep a dedicated background server alive with `subminer stats -b`, stop that background server with `subminer stats -s`, or visit `http://127.0.0.1:6969` directly if the local stats server is already running. The dashboard covers overview totals, anime progress, session detail, and vocabulary drill-down from the same local immersion database.
 
 See [Immersion Tracking](/immersion-tracking) for dashboard details, schema, and retention settings.
 
