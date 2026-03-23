@@ -34,10 +34,7 @@ export function useMediaLibrary() {
         .then((rows) => {
           if (cancelled) return;
           setMedia(rows);
-          if (
-            shouldRefreshMediaLibraryRows(rows) &&
-            retryCount < MEDIA_LIBRARY_MAX_RETRIES
-          ) {
+          if (shouldRefreshMediaLibraryRows(rows) && retryCount < MEDIA_LIBRARY_MAX_RETRIES) {
             retryCount += 1;
             retryTimer = setTimeout(() => {
               retryTimer = null;
