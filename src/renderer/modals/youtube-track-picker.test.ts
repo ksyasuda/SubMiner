@@ -349,6 +349,126 @@ test('youtube track picker surfaces rejected resolve calls as modal status', asy
   }
 });
 
+test('youtube track picker ignores duplicate resolve submissions while request is in flight', async () => {
+  const resolveCalls: Array<{
+    sessionId: string;
+    action: string;
+    primaryTrackId: string | null;
+    secondaryTrackId: string | null;
+  }> = [];
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  let releaseResolve: (() => void) | null = null;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createFakeElement(),
+    },
+  });
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      dispatchEvent: () => true,
+      focus: () => {},
+      electronAPI: {
+        notifyOverlayModalOpened: () => {},
+        notifyOverlayModalClosed: () => {},
+        youtubePickerResolve: async (payload: {
+          sessionId: string;
+          action: string;
+          primaryTrackId: string | null;
+          secondaryTrackId: string | null;
+        }) => {
+          resolveCalls.push(payload);
+          await new Promise<void>((resolve) => {
+            releaseResolve = resolve;
+          });
+          return { ok: true, message: '' };
+        },
+        setIgnoreMouseEvents: () => {},
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const dom = {
+      overlay: {
+        classList: createClassList(),
+        focus: () => {},
+      },
+      youtubePickerModal: createFakeElement(),
+      youtubePickerTitle: createFakeElement(),
+      youtubePickerPrimarySelect: createFakeElement(),
+      youtubePickerSecondarySelect: createFakeElement(),
+      youtubePickerTracks: createFakeElement(),
+      youtubePickerStatus: createFakeElement(),
+      youtubePickerContinueButton: createFakeElement(),
+      youtubePickerCloseButton: createFakeElement(),
+    };
+
+    const modal = createYoutubeTrackPickerModal(
+      {
+        state,
+        dom,
+        platform: {
+          shouldToggleMouseIgnore: false,
+        },
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => true },
+        restorePointerInteractionState: () => {},
+        syncSettingsModalSubtitleSuppression: () => {},
+      },
+    );
+
+    modal.openYoutubePickerModal({
+      sessionId: 'yt-1',
+      url: 'https://example.com',
+      mode: 'download',
+      tracks: [
+        {
+          id: 'auto:ja-orig',
+          language: 'ja',
+          sourceLanguage: 'ja-orig',
+          kind: 'auto',
+          label: 'Japanese (auto)',
+        },
+      ],
+      defaultPrimaryTrackId: 'auto:ja-orig',
+      defaultSecondaryTrackId: null,
+      hasTracks: true,
+    });
+    modal.wireDomEvents();
+
+    const listeners = dom.youtubePickerContinueButton.listeners.get('click') ?? [];
+    const first = listeners[0]?.();
+    const second = listeners[0]?.();
+    await Promise.resolve();
+
+    assert.equal(resolveCalls.length, 1);
+    assert.equal(dom.youtubePickerPrimarySelect.disabled, true);
+    assert.equal(dom.youtubePickerSecondarySelect.disabled, true);
+    assert.equal(dom.youtubePickerContinueButton.disabled, true);
+    assert.equal(dom.youtubePickerCloseButton.disabled, true);
+
+    assert.ok(releaseResolve);
+    const release = releaseResolve as () => void;
+    release();
+    await Promise.all([first, second]);
+
+    assert.equal(dom.youtubePickerPrimarySelect.disabled, false);
+    assert.equal(dom.youtubePickerSecondarySelect.disabled, false);
+    assert.equal(dom.youtubePickerContinueButton.disabled, false);
+    assert.equal(dom.youtubePickerCloseButton.disabled, false);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});
+
 test('youtube track picker only consumes handled keys', async () => {
   const originalWindow = globalThis.window;
   const originalDocument = globalThis.document;

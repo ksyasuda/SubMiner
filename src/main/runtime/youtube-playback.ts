@@ -6,6 +6,10 @@ function trimToNull(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function matchesYoutubeHost(hostname: string, expectedHost: string): boolean {
+  return hostname === expectedHost || hostname.endsWith(`.${expectedHost}`);
+}
+
 export function isYoutubeMediaPath(mediaPath: string | null | undefined): boolean {
   const normalized = trimToNull(mediaPath);
   if (!normalized) {
@@ -21,10 +25,9 @@ export function isYoutubeMediaPath(mediaPath: string | null | undefined): boolea
 
   const host = parsed.hostname.toLowerCase();
   return (
-    host === 'youtu.be' ||
-    host.endsWith('.youtu.be') ||
-    host.endsWith('youtube.com') ||
-    host.endsWith('youtube-nocookie.com')
+    matchesYoutubeHost(host, 'youtu.be') ||
+    matchesYoutubeHost(host, 'youtube.com') ||
+    matchesYoutubeHost(host, 'youtube-nocookie.com')
   );
 }
 

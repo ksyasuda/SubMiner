@@ -17,6 +17,8 @@ export function createYoutubeTrackPickerModal(
     syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
+  let resolveSelectionInFlight = false;
+
   function setStatus(message: string, isError = false): void {
     ctx.state.youtubePickerStatus = message;
     ctx.dom.youtubePickerStatus.textContent = message;
@@ -34,7 +36,12 @@ export function createYoutubeTrackPickerModal(
     const payload = ctx.state.youtubePickerPayload;
     if (!payload || payload.tracks.length === 0) {
       const li = document.createElement('li');
-      li.innerHTML = '<span>No subtitle tracks found</span><span class="youtube-picker-track-meta">Continue without subtitles</span>';
+      const left = document.createElement('span');
+      left.textContent = 'No subtitle tracks found';
+      const right = document.createElement('span');
+      right.className = 'youtube-picker-track-meta';
+      right.textContent = 'Continue without subtitles';
+      li.append(left, right);
       ctx.dom.youtubePickerTracks.appendChild(li);
       return;
     }
@@ -49,6 +56,13 @@ export function createYoutubeTrackPickerModal(
       li.append(left, right);
       ctx.dom.youtubePickerTracks.appendChild(li);
     }
+  }
+
+  function setResolveControlsDisabled(disabled: boolean): void {
+    ctx.dom.youtubePickerPrimarySelect.disabled = disabled;
+    ctx.dom.youtubePickerSecondarySelect.disabled = disabled;
+    ctx.dom.youtubePickerContinueButton.disabled = disabled;
+    ctx.dom.youtubePickerCloseButton.disabled = disabled;
   }
 
   function syncSecondaryOptions(): void {
@@ -107,6 +121,9 @@ export function createYoutubeTrackPickerModal(
   }
 
   async function resolveSelection(action: 'use-selected' | 'continue-without-subtitles'): Promise<void> {
+    if (resolveSelectionInFlight) {
+      return;
+    }
     const payload = ctx.state.youtubePickerPayload;
     if (!payload) return;
     if (action === 'use-selected' && payload.hasTracks && !ctx.dom.youtubePickerPrimarySelect.value) {
@@ -114,9 +131,10 @@ export function createYoutubeTrackPickerModal(
       return;
     }
 
-    let response;
+    resolveSelectionInFlight = true;
+    setResolveControlsDisabled(true);
     try {
-      response =
+      const response =
         action === 'use-selected'
           ? await window.electronAPI.youtubePickerResolve({
               sessionId: payload.sessionId,
@@ -130,15 +148,17 @@ export function createYoutubeTrackPickerModal(
               primaryTrackId: null,
               secondaryTrackId: null,
             });
+      if (!response.ok) {
+        setStatus(response.message, true);
+        return;
+      }
+      closeYoutubePickerModal();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), true);
-      return;
+    } finally {
+      resolveSelectionInFlight = false;
+      setResolveControlsDisabled(false);
     }
-    if (!response.ok) {
-      setStatus(response.message, true);
-      return;
-    }
-    closeYoutubePickerModal();
   }
 
   function openYoutubePickerModal(payload: YoutubePickerOpenPayload): void {

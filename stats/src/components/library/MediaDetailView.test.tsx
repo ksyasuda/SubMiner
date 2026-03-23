@@ -5,6 +5,7 @@ import { getRelatedCollectionLabel } from './MediaDetailView';
 test('getRelatedCollectionLabel returns View Channel for youtube-backed media', () => {
   assert.equal(
     getRelatedCollectionLabel({
+      videoId: 1,
       animeId: 1,
       canonicalTitle: 'Video',
       totalSessions: 1,
@@ -24,6 +25,7 @@ test('getRelatedCollectionLabel returns View Channel for youtube-backed media', 
 test('getRelatedCollectionLabel returns View Anime for non-youtube media', () => {
   assert.equal(
     getRelatedCollectionLabel({
+      videoId: 2,
       animeId: 1,
       canonicalTitle: 'Episode 5',
       totalSessions: 1,

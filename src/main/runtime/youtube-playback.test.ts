@@ -12,6 +12,7 @@ test('isYoutubeMediaPath detects youtube watch and short urls', () => {
 test('isYoutubeMediaPath ignores local files and non-youtube urls', () => {
   assert.equal(isYoutubeMediaPath('/tmp/video.mkv'), false);
   assert.equal(isYoutubeMediaPath('https://example.com/watch?v=abc123'), false);
+  assert.equal(isYoutubeMediaPath('https://notyoutube.com/watch?v=abc123'), false);
   assert.equal(isYoutubeMediaPath('   '), false);
   assert.equal(isYoutubeMediaPath(null), false);
 });
