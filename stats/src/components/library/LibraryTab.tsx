@@ -34,12 +34,7 @@ export function LibraryTab({ onNavigateToSession }: LibraryTabProps) {
   const totalMs = media.reduce((sum, m) => sum + m.totalActiveMs, 0);
 
   if (selectedVideoId !== null) {
-    return (
-      <MediaDetailView
-        videoId={selectedVideoId}
-        onBack={() => setSelectedVideoId(null)}
-      />
-    );
+    return <MediaDetailView videoId={selectedVideoId} onBack={() => setSelectedVideoId(null)} />;
   }
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
@@ -89,7 +84,9 @@ export function LibraryTab({ onNavigateToSession }: LibraryTabProps) {
                         {group.title}
                       </a>
                     ) : (
-                      <h3 className="text-base font-semibold text-ctp-text truncate">{group.title}</h3>
+                      <h3 className="text-base font-semibold text-ctp-text truncate">
+                        {group.title}
+                      </h3>
                     )}
                   </div>
                   {group.subtitle ? (
