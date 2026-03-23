@@ -557,13 +557,9 @@ export async function startMpv(
   const mpvArgs: string[] = [];
   if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
   mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
-  if (args.mpvArgs) {
-    mpvArgs.push(...parseMpvArgString(args.mpvArgs));
-  }
-
   if (targetKind === 'url' && isYoutubeTarget(target)) {
     log('info', args.logLevel, 'Applying URL playback options');
-    mpvArgs.push('--ytdl=yes', '--ytdl-raw-options=');
+    mpvArgs.push('--ytdl=yes');
 
     if (isYoutubeTarget(target)) {
       const subtitleLangs = uniqueNormalizedLangCodes([
@@ -587,6 +583,9 @@ export async function startMpv(
         mpvArgs.push('--sub-auto=no');
       }
     }
+  }
+  if (args.mpvArgs) {
+    mpvArgs.push(...parseMpvArgString(args.mpvArgs));
   }
 
   if (preloadedSubtitles?.primaryPath) {
