@@ -424,6 +424,8 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
       ...makeTestEnv(homeDir, xdgConfigHome),
       PATH: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
       Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      DISPLAY: ':99',
+      XDG_SESSION_TYPE: 'x11',
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_MPV_ARGS: mpvArgsPath,
       SUBMINER_TEST_CAPTURE: path.join(root, 'captured-args.txt'),
