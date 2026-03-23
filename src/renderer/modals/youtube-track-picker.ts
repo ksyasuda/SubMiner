@@ -209,7 +209,7 @@ export function createYoutubeTrackPickerModal(
       return true;
     }
 
-    return true;
+    return false;
   }
 
   function wireDomEvents(): void {

@@ -77,6 +77,30 @@ test('groupMediaLibraryItems groups youtube videos by channel and leaves local m
   assert.equal(groups[1]?.items.length, 1);
 });
 
+test('groupMediaLibraryItems falls back to channel metadata when youtube channel id is missing', () => {
+  const first = {
+    ...youtubeEpisodeA,
+    videoId: 20,
+    youtubeVideoId: 'yt-20',
+    videoUrl: 'https://www.youtube.com/watch?v=yt-20',
+    channelId: null,
+  };
+  const second = {
+    ...youtubeEpisodeB,
+    videoId: 21,
+    youtubeVideoId: 'yt-21',
+    videoUrl: 'https://www.youtube.com/watch?v=yt-21',
+    channelId: null,
+  };
+
+  const groups = groupMediaLibraryItems([first, second]);
+
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0]?.title, 'Creator Name');
+  assert.equal(groups[0]?.items.length, 2);
+  assert.equal(groups[0]?.channelUrl, 'https://www.youtube.com/channel/UC123');
+});
+
 test('resolveMediaArtworkUrl prefers youtube thumbnails for video and channel images', () => {
   assert.equal(
     resolveMediaArtworkUrl(youtubeEpisodeA, 'video'),
@@ -146,4 +170,11 @@ test('MediaCard uses the proxied cover endpoint instead of metadata artwork urls
 
   assert.match(markup, /src="http:\/\/127\.0\.0\.1:6969\/api\/stats\/media\/1\/cover"/);
   assert.doesNotMatch(markup, /https:\/\/i\.ytimg\.com\/vi\/yt-1\/hqdefault\.jpg/);
+});
+
+test('MediaCard prefers youtube video title over canonical fallback url slug', () => {
+  const markup = renderToStaticMarkup(<MediaCard item={youtubeEpisodeA} onClick={() => {}} />);
+
+  assert.match(markup, />Video 1</);
+  assert.match(markup, />Episode 1</);
 });

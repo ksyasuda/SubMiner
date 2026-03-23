@@ -1,5 +1,6 @@
-type: fixed
-area: immersion
+type: changed
+area: launcher
 
-- Hardened immersion tracker storage/session/query paths with the updated YouTube metadata flow.
-- Added metadata probe support for YouTube subtitle retrieval edge cases.
+- Added an app-owned YouTube subtitle flow that pauses mpv, lets the overlay picker choose tracks, and injects downloaded subtitle files before playback resumes.
+- Added absPlayer-style YouTube timedtext parsing/conversion so downloaded subtitle tracks load as parsed cues for the sidebar, tokenization, and mining flows.
+- Added yt-dlp metadata probing so YouTube playback and immersion tracking keep canonical video and channel metadata.

@@ -348,3 +348,91 @@ test('youtube track picker surfaces rejected resolve calls as modal status', asy
     Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
   }
 });
+
+test('youtube track picker only consumes handled keys', async () => {
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createFakeElement(),
+    },
+  });
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      dispatchEvent: () => true,
+      focus: () => {},
+      electronAPI: {
+        notifyOverlayModalOpened: () => {},
+        notifyOverlayModalClosed: () => {},
+        youtubePickerResolve: async () => ({ ok: true, message: '' }),
+        setIgnoreMouseEvents: () => {},
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const dom = {
+      overlay: {
+        classList: createClassList(),
+        focus: () => {},
+      },
+      youtubePickerModal: createFakeElement(),
+      youtubePickerTitle: createFakeElement(),
+      youtubePickerPrimarySelect: createFakeElement(),
+      youtubePickerSecondarySelect: createFakeElement(),
+      youtubePickerTracks: createFakeElement(),
+      youtubePickerStatus: createFakeElement(),
+      youtubePickerContinueButton: createFakeElement(),
+      youtubePickerCloseButton: createFakeElement(),
+    };
+
+    const modal = createYoutubeTrackPickerModal(
+      {
+        state,
+        dom,
+        platform: {
+          shouldToggleMouseIgnore: false,
+        },
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => true },
+        restorePointerInteractionState: () => {},
+        syncSettingsModalSubtitleSuppression: () => {},
+      },
+    );
+
+    modal.openYoutubePickerModal({
+      sessionId: 'yt-1',
+      url: 'https://example.com',
+      mode: 'download',
+      tracks: [],
+      defaultPrimaryTrackId: null,
+      defaultSecondaryTrackId: null,
+      hasTracks: false,
+    });
+
+    assert.equal(
+      modal.handleYoutubePickerKeydown({
+        key: ' ',
+        preventDefault: () => {},
+      } as KeyboardEvent),
+      false,
+    );
+    assert.equal(
+      modal.handleYoutubePickerKeydown({
+        key: 'Escape',
+        preventDefault: () => {},
+      } as KeyboardEvent),
+      true,
+    );
+    await Promise.resolve();
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});

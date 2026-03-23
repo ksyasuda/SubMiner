@@ -619,6 +619,33 @@ test('keyboard mode: configured stats toggle works even while popup is open', as
   }
 });
 
+test('youtube picker: unhandled keys still dispatch mpv keybindings', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateKeybindings([
+      {
+        key: 'Space',
+        command: ['cycle', 'pause'],
+      },
+      {
+        key: 'KeyQ',
+        command: ['quit'],
+      },
+    ] as never);
+
+    ctx.state.youtubePickerModalOpen = true;
+
+    testGlobals.dispatchKeydown({ key: ' ', code: 'Space' });
+    testGlobals.dispatchKeydown({ key: 'q', code: 'KeyQ' });
+
+    assert.deepEqual(testGlobals.mpvCommands.slice(-2), [['cycle', 'pause'], ['quit']]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: h moves left when popup is closed', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 

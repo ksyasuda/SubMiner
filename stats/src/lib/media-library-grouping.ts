@@ -45,9 +45,16 @@ export function groupMediaLibraryItems(items: MediaLibraryItem[]): MediaLibraryG
   for (const item of items) {
     const channelId = item.channelId?.trim() || null;
     const channelName = item.channelName?.trim() || null;
+    const channelUrl = item.channelUrl?.trim() || null;
     const uploaderId = item.uploaderId?.trim() || null;
     const videoTitle = item.videoTitle?.trim() || null;
-    const key = channelId || `video:${item.videoId}`;
+    const key = channelId
+      ? `youtube:channel:${channelId}`
+      : channelUrl
+        ? `youtube:channel-url:${channelUrl}`
+        : channelName
+          ? `youtube:channel-name:${channelName.toLowerCase()}`
+          : `video:${item.videoId}`;
     const title = channelName || uploaderId || videoTitle || item.canonicalTitle;
     const subtitle = channelId
       ? channelId

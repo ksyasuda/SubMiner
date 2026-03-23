@@ -843,8 +843,9 @@ export function createKeyboardHandlers(
         return;
       }
       if (ctx.state.youtubePickerModalOpen) {
-        options.handleYoutubePickerKeydown(e);
-        return;
+        if (options.handleYoutubePickerKeydown(e)) {
+          return;
+        }
       }
       if (ctx.state.controllerSelectModalOpen) {
         options.handleControllerSelectKeydown(e);

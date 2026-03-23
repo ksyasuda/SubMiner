@@ -1276,6 +1276,14 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
 | `retention.monthlyRollupsDays` | integer (`0`-`36500`)         | Monthly rollup retention window. Default `0` (keep all).                                                    |
 | `retention.vacuumIntervalDays` | integer (`0`-`3650`)          | Minimum spacing between `VACUUM` passes. `0` disables vacuum. Default `0` (disabled).                         |
 
+You can also disable immersion tracking for a single session using:
+
+```bash
+SUBMINER_DISABLE_IMMERSION_TRACKING=1 subminer
+```
+
+When this is set, SubMiner skips immersion-tracker startup and does not initialize or read the immersion SQLite database for that session.
+
 Default behavior keeps raw events, telemetry, sessions, and rollups forever while still maintaining lifetime summary tables and daily/monthly rollups for faster reads. If you later want bounded retention, switch `retentionMode` or set explicit `retention.*` values.
 
 When `dbPath` is blank or omitted, SubMiner writes telemetry and session summaries to the default app-data location:
