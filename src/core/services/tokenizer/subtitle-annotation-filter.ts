@@ -41,6 +41,7 @@ const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES = [
   'ね',
   'よ',
   'な',
+  'けど',
   'よね',
   'かな',
   'かね',
