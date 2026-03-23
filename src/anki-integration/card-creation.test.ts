@@ -283,3 +283,117 @@ test('CardCreationService keeps updating after recordCardsMinedCallback throws',
   assert.equal(calls.notesInfo, 1);
   assert.equal(calls.updateNoteFields, 1);
 });
+
+test('CardCreationService uses stream-open-filename for remote media generation', async () => {
+  const audioPaths: string[] = [];
+  const imagePaths: string[] = [];
+  const edlSource = [
+    'edl://!new_stream;!no_clip;!no_chapters;%70%https://audio.example/videoplayback?mime=audio%2Fwebm',
+    '!new_stream;!no_clip;!no_chapters;%69%https://video.example/videoplayback?mime=video%2Fmp4',
+    '!global_tags,title=test',
+  ].join(';');
+
+  const service = new CardCreationService({
+    getConfig: () =>
+      ({
+        deck: 'Mining',
+        fields: {
+          sentence: 'Sentence',
+          audio: 'SentenceAudio',
+          image: 'Picture',
+        },
+        media: {
+          generateAudio: true,
+          generateImage: true,
+          imageFormat: 'jpg',
+        },
+        behavior: {},
+        ai: false,
+      }) as AnkiConnectConfig,
+    getAiConfig: () => ({}),
+    getTimingTracker: () => ({}) as never,
+    getMpvClient: () =>
+      ({
+        currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+        currentSubText: '字幕',
+        currentSubStart: 1,
+        currentSubEnd: 2,
+        currentTimePos: 1.5,
+        currentAudioStreamIndex: 0,
+        requestProperty: async (name: string) => {
+          assert.equal(name, 'stream-open-filename');
+          return edlSource;
+        },
+      }) as never,
+    client: {
+      addNote: async () => 42,
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: {
+            Sentence: { value: '' },
+            SentenceAudio: { value: '' },
+            Picture: { value: '' },
+          },
+        },
+      ],
+      updateNoteFields: async () => undefined,
+      storeMediaFile: async () => undefined,
+      findNotes: async () => [],
+      retrieveMediaFile: async () => '',
+    },
+    mediaGenerator: {
+      generateAudio: async (path) => {
+        audioPaths.push(path);
+        return Buffer.from('audio');
+      },
+      generateScreenshot: async (path) => {
+        imagePaths.push(path);
+        return Buffer.from('image');
+      },
+      generateAnimatedImage: async () => null,
+    },
+    showOsdNotification: () => undefined,
+    showUpdateResult: () => undefined,
+    showStatusNotification: () => undefined,
+    showNotification: async () => undefined,
+    beginUpdateProgress: () => undefined,
+    endUpdateProgress: () => undefined,
+    withUpdateProgress: async (_message, action) => action(),
+    resolveConfiguredFieldName: (noteInfo, preferredName) => {
+      if (!preferredName) return null;
+      return Object.keys(noteInfo.fields).find((field) => field === preferredName) ?? null;
+    },
+    resolveNoteFieldName: (noteInfo, preferredName) => {
+      if (!preferredName) return null;
+      return Object.keys(noteInfo.fields).find((field) => field === preferredName) ?? null;
+    },
+    getAnimatedImageLeadInSeconds: async () => 0,
+    extractFields: () => ({}),
+    processSentence: (sentence) => sentence,
+    setCardTypeFields: () => undefined,
+    mergeFieldValue: (_existing, newValue) => newValue,
+    formatMiscInfoPattern: () => '',
+    getEffectiveSentenceCardConfig: () => ({
+      model: 'Sentence',
+      sentenceField: 'Sentence',
+      audioField: 'SentenceAudio',
+      lapisEnabled: false,
+      kikuEnabled: false,
+      kikuFieldGrouping: 'disabled',
+      kikuDeleteDuplicateInAuto: false,
+    }),
+    getFallbackDurationSeconds: () => 10,
+    appendKnownWordsFromNoteInfo: () => undefined,
+    isUpdateInProgress: () => false,
+    setUpdateInProgress: () => undefined,
+    trackLastAddedNoteId: () => undefined,
+  });
+
+  const created = await service.createSentenceCard('テスト', 0, 1);
+
+  assert.equal(created, true);
+  assert.deepEqual(audioPaths, ['https://audio.example/videoplayback?mime=audio%2Fwebm']);
+  assert.deepEqual(imagePaths, ['https://video.example/videoplayback?mime=video%2Fmp4']);
+});
