@@ -106,6 +106,7 @@ test('ensureSchema creates immersion core tables', () => {
     assert.ok(tableNames.has('imm_kanji_line_occurrences'));
     assert.ok(tableNames.has('imm_rollup_state'));
     assert.ok(tableNames.has('imm_cover_art_blobs'));
+    assert.ok(tableNames.has('imm_youtube_videos'));
 
     const videoColumns = new Set(
       (
@@ -140,6 +141,114 @@ test('ensureSchema creates immersion core tables', () => {
     } | null;
     assert.ok(rollupStateRow);
     assert.equal(rollupStateRow?.state_value, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('ensureSchema adds youtube metadata table to existing schema version 15 databases', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    db.exec(`
+      CREATE TABLE imm_schema_version (
+        schema_version INTEGER PRIMARY KEY,
+        applied_at_ms INTEGER NOT NULL
+      );
+      INSERT INTO imm_schema_version(schema_version, applied_at_ms) VALUES (15, 1000);
+
+      CREATE TABLE imm_rollup_state(
+        state_key TEXT PRIMARY KEY,
+        state_value INTEGER NOT NULL
+      );
+      INSERT INTO imm_rollup_state(state_key, state_value) VALUES ('last_rollup_sample_ms', 123);
+
+      CREATE TABLE imm_anime(
+        anime_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        normalized_title_key TEXT NOT NULL UNIQUE,
+        canonical_title TEXT NOT NULL,
+        anilist_id INTEGER UNIQUE,
+        title_romaji TEXT,
+        title_english TEXT,
+        title_native TEXT,
+        episodes_total INTEGER,
+        description TEXT,
+        metadata_json TEXT,
+        CREATED_DATE INTEGER,
+        LAST_UPDATE_DATE INTEGER
+      );
+
+      CREATE TABLE imm_videos(
+        video_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        video_key TEXT NOT NULL UNIQUE,
+        anime_id INTEGER,
+        canonical_title TEXT NOT NULL,
+        source_type INTEGER NOT NULL,
+        source_path TEXT,
+        source_url TEXT,
+        parsed_basename TEXT,
+        parsed_title TEXT,
+        parsed_season INTEGER,
+        parsed_episode INTEGER,
+        parser_source TEXT,
+        parser_confidence REAL,
+        parse_metadata_json TEXT,
+        watched INTEGER NOT NULL DEFAULT 0,
+        duration_ms INTEGER NOT NULL CHECK(duration_ms>=0),
+        file_size_bytes INTEGER CHECK(file_size_bytes>=0),
+        codec_id INTEGER, container_id INTEGER,
+        width_px INTEGER, height_px INTEGER, fps_x100 INTEGER,
+        bitrate_kbps INTEGER, audio_codec_id INTEGER,
+        hash_sha256 TEXT, screenshot_path TEXT,
+        metadata_json TEXT,
+        CREATED_DATE INTEGER,
+        LAST_UPDATE_DATE INTEGER,
+        FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE SET NULL
+      );
+    `);
+
+    ensureSchema(db);
+
+    const tables = new Set(
+      (
+        db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'imm_%'`).all() as Array<{
+          name: string;
+        }>
+      ).map((row) => row.name),
+    );
+    assert.ok(tables.has('imm_youtube_videos'));
+
+    const columns = new Set(
+      (
+        db.prepare('PRAGMA table_info(imm_youtube_videos)').all() as Array<{
+          name: string;
+        }>
+      ).map((row) => row.name),
+    );
+
+    assert.deepEqual(
+      columns,
+      new Set([
+        'video_id',
+        'youtube_video_id',
+        'video_url',
+        'video_title',
+        'video_thumbnail_url',
+        'channel_id',
+        'channel_name',
+        'channel_url',
+        'channel_thumbnail_url',
+        'uploader_id',
+        'uploader_url',
+        'description',
+        'metadata_json',
+        'fetched_at_ms',
+        'CREATED_DATE',
+        'LAST_UPDATE_DATE',
+      ]),
+    );
   } finally {
     db.close();
     cleanupDbPath(dbPath);

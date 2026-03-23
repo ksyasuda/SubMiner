@@ -1817,6 +1817,17 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
       COALESCE(lm.total_cards, 0) AS totalCards,
       COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
       COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs,
+      yv.youtube_video_id AS youtubeVideoId,
+      yv.video_url AS videoUrl,
+      yv.video_title AS videoTitle,
+      yv.video_thumbnail_url AS videoThumbnailUrl,
+      yv.channel_id AS channelId,
+      yv.channel_name AS channelName,
+      yv.channel_url AS channelUrl,
+      yv.channel_thumbnail_url AS channelThumbnailUrl,
+      yv.uploader_id AS uploaderId,
+      yv.uploader_url AS uploaderUrl,
+      yv.description AS description,
       CASE
         WHEN ma.cover_blob_hash IS NOT NULL OR ma.cover_blob IS NOT NULL THEN 1
         ELSE 0
@@ -1824,6 +1835,7 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
     FROM imm_videos v
     JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
     LEFT JOIN imm_media_art ma ON ma.video_id = v.video_id
+    LEFT JOIN imm_youtube_videos yv ON yv.video_id = v.video_id
     ORDER BY lm.last_watched_ms DESC
   `,
     )
@@ -1846,9 +1858,21 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
       COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
       COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
-      COALESCE(SUM(COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount
+      COALESCE(SUM(COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount,
+      yv.youtube_video_id AS youtubeVideoId,
+      yv.video_url AS videoUrl,
+      yv.video_title AS videoTitle,
+      yv.video_thumbnail_url AS videoThumbnailUrl,
+      yv.channel_id AS channelId,
+      yv.channel_name AS channelName,
+      yv.channel_url AS channelUrl,
+      yv.channel_thumbnail_url AS channelThumbnailUrl,
+      yv.uploader_id AS uploaderId,
+      yv.uploader_url AS uploaderUrl,
+      yv.description AS description
     FROM imm_videos v
     JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
+    LEFT JOIN imm_youtube_videos yv ON yv.video_id = v.video_id
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     WHERE v.video_id = ?

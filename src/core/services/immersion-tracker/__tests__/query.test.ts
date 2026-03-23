@@ -39,6 +39,7 @@ import {
 } from '../query.js';
 import {
   SOURCE_TYPE_LOCAL,
+  SOURCE_TYPE_REMOTE,
   EVENT_CARD_MINED,
   EVENT_SUBTITLE_LINE,
   EVENT_YOMITAN_LOOKUP,
@@ -1950,6 +1951,100 @@ test('media library and detail queries read lifetime totals', () => {
     assert.equal(detail.totalCards, 4);
     assert.equal(detail.totalTokensSeen, 180);
     assert.equal(detail.totalLinesSeen, 10);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('media library and detail queries include joined youtube metadata when present', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const mediaOne = getOrCreateVideoRecord(db, 'yt:https://www.youtube.com/watch?v=abc123', {
+      canonicalTitle: 'Local Fallback Title',
+      sourcePath: null,
+      sourceUrl: 'https://www.youtube.com/watch?v=abc123',
+      sourceType: SOURCE_TYPE_REMOTE,
+    });
+
+    db.prepare(
+      `
+        INSERT INTO imm_lifetime_media (
+          video_id,
+          total_sessions,
+          total_active_ms,
+          total_cards,
+          total_lines_seen,
+          total_tokens_seen,
+          completed,
+          first_watched_ms,
+          last_watched_ms,
+          CREATED_DATE,
+          LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(mediaOne, 2, 6_000, 1, 5, 80, 0, 1_000, 9_000, 9_000, 9_000);
+
+    db.prepare(
+      `
+        INSERT INTO imm_youtube_videos (
+          video_id,
+          youtube_video_id,
+          video_url,
+          video_title,
+          video_thumbnail_url,
+          channel_id,
+          channel_name,
+          channel_url,
+          channel_thumbnail_url,
+          uploader_id,
+          uploader_url,
+          description,
+          metadata_json,
+          fetched_at_ms,
+          CREATED_DATE,
+          LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(
+      mediaOne,
+      'abc123',
+      'https://www.youtube.com/watch?v=abc123',
+      'Tracked Video Title',
+      'https://i.ytimg.com/vi/abc123/hqdefault.jpg',
+      'UCcreator123',
+      'Creator Name',
+      'https://www.youtube.com/channel/UCcreator123',
+      'https://yt3.googleusercontent.com/channel-avatar=s88',
+      '@creator',
+      'https://www.youtube.com/@creator',
+      'Video description',
+      '{"source":"test"}',
+      10_000,
+      10_000,
+      10_000,
+    );
+
+    const library = getMediaLibrary(db);
+    const detail = getMediaDetail(db, mediaOne);
+
+    assert.equal(library.length, 1);
+    assert.equal(library[0]?.youtubeVideoId, 'abc123');
+    assert.equal(library[0]?.videoTitle, 'Tracked Video Title');
+    assert.equal(library[0]?.channelId, 'UCcreator123');
+    assert.equal(library[0]?.channelName, 'Creator Name');
+    assert.equal(library[0]?.channelUrl, 'https://www.youtube.com/channel/UCcreator123');
+    assert.equal(detail?.youtubeVideoId, 'abc123');
+    assert.equal(detail?.videoUrl, 'https://www.youtube.com/watch?v=abc123');
+    assert.equal(detail?.videoThumbnailUrl, 'https://i.ytimg.com/vi/abc123/hqdefault.jpg');
+    assert.equal(detail?.channelThumbnailUrl, 'https://yt3.googleusercontent.com/channel-avatar=s88');
+    assert.equal(detail?.uploaderId, '@creator');
+    assert.equal(detail?.uploaderUrl, 'https://www.youtube.com/@creator');
+    assert.equal(detail?.description, 'Video description');
   } finally {
     db.close();
     cleanupDbPath(dbPath);

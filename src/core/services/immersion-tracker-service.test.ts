@@ -2297,6 +2297,99 @@ test('reassignAnimeAnilist preserves existing description when description is om
   }
 });
 
+test('handleMediaChange stores youtube metadata for new youtube sessions', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const originalFetch = globalThis.fetch;
+  const originalPath = process.env.PATH;
+
+  try {
+    const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yt-dlp-bin-'));
+    const scriptPath = path.join(fakeBinDir, 'yt-dlp');
+    fs.writeFileSync(
+      scriptPath,
+      `#!/bin/sh
+printf '%s\n' '{"id":"abc123","title":"Video Name","webpage_url":"https://www.youtube.com/watch?v=abc123","thumbnail":"https://i.ytimg.com/vi/abc123/hqdefault.jpg","channel_id":"UCcreator123","channel":"Creator Name","channel_url":"https://www.youtube.com/channel/UCcreator123","uploader_id":"@creator","uploader_url":"https://www.youtube.com/@creator","description":"Video description","channel_follower_count":12345,"thumbnails":[{"url":"https://i.ytimg.com/vi/abc123/hqdefault.jpg"},{"url":"https://yt3.googleusercontent.com/channel-avatar=s88"}]}'\n`,
+      { mode: 0o755 },
+    );
+    process.env.PATH = `${fakeBinDir}${path.delimiter}${originalPath ?? ''}`;
+
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      if (url.includes('/oembed')) {
+        return new Response(
+          JSON.stringify({
+            thumbnail_url: 'https://i.ytimg.com/vi/abc123/hqdefault.jpg',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg' },
+      });
+    };
+
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('https://www.youtube.com/watch?v=abc123', 'Player Title');
+
+    await waitForPendingAnimeMetadata(tracker);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    const row = privateApi.db
+      .prepare(
+        `
+          SELECT
+            youtube_video_id AS youtubeVideoId,
+            video_url AS videoUrl,
+            video_title AS videoTitle,
+            video_thumbnail_url AS videoThumbnailUrl,
+            channel_id AS channelId,
+            channel_name AS channelName,
+            channel_url AS channelUrl,
+            channel_thumbnail_url AS channelThumbnailUrl,
+            uploader_id AS uploaderId,
+            uploader_url AS uploaderUrl,
+            description AS description
+          FROM imm_youtube_videos
+        `,
+      )
+      .get() as {
+      youtubeVideoId: string;
+      videoUrl: string;
+      videoTitle: string;
+      videoThumbnailUrl: string;
+      channelId: string;
+      channelName: string;
+      channelUrl: string;
+      channelThumbnailUrl: string;
+      uploaderId: string;
+      uploaderUrl: string;
+      description: string;
+    } | null;
+
+    assert.ok(row);
+    assert.equal(row.youtubeVideoId, 'abc123');
+    assert.equal(row.videoUrl, 'https://www.youtube.com/watch?v=abc123');
+    assert.equal(row.videoTitle, 'Video Name');
+    assert.equal(row.videoThumbnailUrl, 'https://i.ytimg.com/vi/abc123/hqdefault.jpg');
+    assert.equal(row.channelId, 'UCcreator123');
+    assert.equal(row.channelName, 'Creator Name');
+    assert.equal(row.channelUrl, 'https://www.youtube.com/channel/UCcreator123');
+    assert.equal(row.channelThumbnailUrl, 'https://yt3.googleusercontent.com/channel-avatar=s88');
+    assert.equal(row.uploaderId, '@creator');
+    assert.equal(row.uploaderUrl, 'https://www.youtube.com/@creator');
+    assert.equal(row.description, 'Video description');
+  } finally {
+    process.env.PATH = originalPath;
+    globalThis.fetch = originalFetch;
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('reassignAnimeAnilist clears description when description is explicitly null', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

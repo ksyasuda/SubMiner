@@ -1,6 +1,7 @@
 import path from 'node:path';
 import * as fs from 'node:fs';
 import { createLogger } from '../../logger';
+import { MediaGenerator } from '../../media-generator';
 import type { CoverArtFetcher } from './anilist/cover-art-fetcher';
 import { getLocalVideoMetadata, guessAnimeVideoMetadata } from './immersion-tracker/metadata';
 import {
@@ -22,6 +23,7 @@ import {
   type TrackerPreparedStatements,
   updateVideoMetadataRecord,
   updateVideoTitleRecord,
+  upsertYoutubeVideoMetadata,
 } from './immersion-tracker/storage';
 import {
   applySessionLifetimeSummary,
@@ -153,6 +155,104 @@ import {
 import type { MergedToken } from '../../types';
 import { shouldExcludeTokenFromVocabularyPersistence } from './tokenizer/annotation-stage';
 import { deriveStoredPartOfSpeech } from './tokenizer/part-of-speech';
+import { probeYoutubeVideoMetadata } from './youtube/metadata-probe';
+
+const YOUTUBE_COVER_RETRY_MS = 5 * 60 * 1000;
+const YOUTUBE_SCREENSHOT_MAX_SECONDS = 120;
+const YOUTUBE_OEMBED_ENDPOINT = 'https://www.youtube.com/oembed';
+const YOUTUBE_ID_PATTERN = /^[A-Za-z0-9_-]{6,}$/;
+
+function isValidYouTubeVideoId(value: string | null): boolean {
+  return Boolean(value && YOUTUBE_ID_PATTERN.test(value));
+}
+
+function extractYouTubeVideoId(mediaUrl: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(mediaUrl);
+  } catch {
+    return null;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  if (
+    host !== 'youtu.be' &&
+    !host.endsWith('.youtu.be') &&
+    !host.endsWith('youtube.com') &&
+    !host.endsWith('youtube-nocookie.com')
+  ) {
+    return null;
+  }
+
+  if (host === 'youtu.be' || host.endsWith('.youtu.be')) {
+    const pathId = parsed.pathname.split('/').filter(Boolean)[0];
+    return isValidYouTubeVideoId(pathId ?? null) ? (pathId as string) : null;
+  }
+
+  const queryId = parsed.searchParams.get('v') ?? parsed.searchParams.get('vi') ?? null;
+  if (isValidYouTubeVideoId(queryId)) {
+    return queryId;
+  }
+
+  const pathParts = parsed.pathname.split('/').filter(Boolean);
+  for (let i = 0; i < pathParts.length; i += 1) {
+    const current = pathParts[i];
+    const next = pathParts[i + 1];
+    if (!current || !next) continue;
+    if (
+      current.toLowerCase() === 'shorts' ||
+      current.toLowerCase() === 'embed' ||
+      current.toLowerCase() === 'live' ||
+      current.toLowerCase() === 'v'
+    ) {
+      const candidate = decodeURIComponent(next);
+      if (isValidYouTubeVideoId(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+function buildYouTubeThumbnailUrls(videoId: string): string[] {
+  return [
+    `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+    `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`,
+    `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+    `https://i.ytimg.com/vi/${videoId}/0.jpg`,
+    `https://i.ytimg.com/vi/${videoId}/default.jpg`,
+  ];
+}
+
+async function fetchYouTubeOEmbedThumbnail(mediaUrl: string): Promise<string | null> {
+  try {
+    const response = await fetch(`${YOUTUBE_OEMBED_ENDPOINT}?url=${encodeURIComponent(mediaUrl)}&format=json`);
+    if (!response.ok) {
+      return null;
+    }
+    const payload = (await response.json()) as { thumbnail_url?: unknown };
+    const candidate = typeof payload.thumbnail_url === 'string' ? payload.thumbnail_url.trim() : '';
+    return candidate || null;
+  } catch {
+    return null;
+  }
+}
+
+async function downloadImage(url: string): Promise<Buffer | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const contentType = response.headers.get('content-type');
+    if (contentType && !contentType.toLowerCase().startsWith('image/')) {
+      return null;
+    }
+    return Buffer.from(await response.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
 
 export type {
   AnimeAnilistEntryRow,
@@ -212,9 +312,11 @@ export class ImmersionTrackerService {
   private sessionState: SessionState | null = null;
   private currentVideoKey = '';
   private currentMediaPathOrUrl = '';
+  private readonly mediaGenerator = new MediaGenerator();
   private readonly preparedStatements: TrackerPreparedStatements;
   private coverArtFetcher: CoverArtFetcher | null = null;
   private readonly pendingCoverFetches = new Map<number, Promise<boolean>>();
+  private readonly pendingYoutubeMetadataFetches = new Map<number, Promise<void>>();
   private readonly recordedSubtitleKeys = new Set<string>();
   private readonly pendingAnimeMetadataUpdates = new Map<number, Promise<void>>();
   private readonly resolveLegacyVocabularyPos:
@@ -647,6 +749,17 @@ export class ImmersionTrackerService {
     if (existing?.coverBlob) {
       return true;
     }
+
+    const row = this.db
+      .prepare('SELECT source_url AS sourceUrl FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { sourceUrl: string | null } | null;
+    const sourceUrl = row?.sourceUrl?.trim() ?? '';
+    const youtubeVideoId = sourceUrl ? extractYouTubeVideoId(sourceUrl) : null;
+    if (youtubeVideoId) {
+      const youtubePromise = this.ensureYouTubeCoverArt(videoId, sourceUrl, youtubeVideoId);
+      return await youtubePromise;
+    }
+
     if (!this.coverArtFetcher) {
       return false;
     }
@@ -675,6 +788,140 @@ export class ImmersionTrackerService {
     } finally {
       this.pendingCoverFetches.delete(videoId);
     }
+  }
+
+  private ensureYouTubeCoverArt(videoId: number, sourceUrl: string, youtubeVideoId: string): Promise<boolean> {
+    const existing = this.pendingCoverFetches.get(videoId);
+    if (existing) {
+      return existing;
+    }
+    const promise = this.captureYouTubeCoverArt(videoId, sourceUrl, youtubeVideoId);
+    this.pendingCoverFetches.set(videoId, promise);
+    promise.finally(() => {
+      this.pendingCoverFetches.delete(videoId);
+    });
+    return promise;
+  }
+
+  private async captureYouTubeCoverArt(
+    videoId: number,
+    sourceUrl: string,
+    youtubeVideoId: string,
+  ): Promise<boolean> {
+    if (this.isDestroyed) return false;
+    const existing = await this.getCoverArt(videoId);
+    if (existing?.coverBlob) {
+      return true;
+    }
+    if (
+      existing?.coverUrl === null &&
+      existing?.anilistId === null &&
+      existing?.coverBlob === null &&
+      Date.now() - existing.fetchedAtMs < YOUTUBE_COVER_RETRY_MS
+    ) {
+      return false;
+    }
+
+    let coverBlob: Buffer | null = null;
+    let coverUrl: string | null = null;
+
+    const embedThumbnailUrl = await fetchYouTubeOEmbedThumbnail(sourceUrl);
+    if (embedThumbnailUrl) {
+      const embedBlob = await downloadImage(embedThumbnailUrl);
+      if (embedBlob) {
+        coverBlob = embedBlob;
+        coverUrl = embedThumbnailUrl;
+      }
+    }
+
+    if (!coverBlob) {
+      for (const candidate of buildYouTubeThumbnailUrls(youtubeVideoId)) {
+        const candidateBlob = await downloadImage(candidate);
+        if (!candidateBlob) {
+          continue;
+        }
+        coverBlob = candidateBlob;
+        coverUrl = candidate;
+        break;
+      }
+    }
+
+    if (!coverBlob) {
+      const durationMs = getVideoDurationMs(this.db, videoId);
+      const maxSeconds = durationMs > 0 ? Math.min(durationMs / 1000, YOUTUBE_SCREENSHOT_MAX_SECONDS) : null;
+      const seekSecond = Math.random() * (maxSeconds ?? YOUTUBE_SCREENSHOT_MAX_SECONDS);
+      try {
+        coverBlob = await this.mediaGenerator.generateScreenshot(
+          sourceUrl,
+          seekSecond,
+          {
+            format: 'jpg',
+            quality: 90,
+            maxWidth: 640,
+          },
+        );
+      } catch (error) {
+        this.logger.warn(
+          'cover-art: failed to generate YouTube screenshot for videoId=%d: %s',
+          videoId,
+          (error as Error).message,
+        );
+      }
+    }
+
+    if (coverBlob) {
+      upsertCoverArt(this.db, videoId, {
+        anilistId: existing?.anilistId ?? null,
+        coverUrl,
+        coverBlob,
+        titleRomaji: existing?.titleRomaji ?? null,
+        titleEnglish: existing?.titleEnglish ?? null,
+        episodesTotal: existing?.episodesTotal ?? null,
+      });
+      return true;
+    }
+
+    const shouldCacheNoMatch =
+      !existing || (existing.coverUrl === null && existing.anilistId === null);
+    if (shouldCacheNoMatch) {
+      upsertCoverArt(this.db, videoId, {
+        anilistId: null,
+        coverUrl: null,
+        coverBlob: null,
+        titleRomaji: existing?.titleRomaji ?? null,
+        titleEnglish: existing?.titleEnglish ?? null,
+        episodesTotal: existing?.episodesTotal ?? null,
+      });
+    }
+
+    return false;
+  }
+
+  private captureYoutubeMetadataAsync(videoId: number, sourceUrl: string): void {
+    if (this.pendingYoutubeMetadataFetches.has(videoId)) {
+      return;
+    }
+
+    const pending = (async () => {
+      try {
+        const metadata = await probeYoutubeVideoMetadata(sourceUrl);
+        if (!metadata) {
+          return;
+        }
+        upsertYoutubeVideoMetadata(this.db, videoId, metadata);
+      } catch (error) {
+        this.logger.debug(
+          'youtube metadata capture skipped for videoId=%d: %s',
+          videoId,
+          (error as Error).message,
+        );
+      }
+    })();
+
+    this.pendingYoutubeMetadataFetches.set(videoId, pending);
+    pending.finally(() => {
+      this.pendingYoutubeMetadataFetches.delete(videoId);
+    });
   }
 
   handleMediaChange(mediaPath: string | null, mediaTitle: string | null): void {
@@ -721,6 +968,13 @@ export class ImmersionTrackerService {
       `Starting immersion session for path=${normalizedPath} videoId=${sessionInfo.videoId}`,
     );
     this.startSession(sessionInfo.videoId, sessionInfo.startedAtMs);
+    if (sourceType === SOURCE_TYPE_REMOTE) {
+      const youtubeVideoId = extractYouTubeVideoId(normalizedPath);
+      if (youtubeVideoId) {
+        void this.ensureYouTubeCoverArt(sessionInfo.videoId, normalizedPath, youtubeVideoId);
+        this.captureYoutubeMetadataAsync(sessionInfo.videoId, normalizedPath);
+      }
+    }
     this.captureAnimeMetadataAsync(sessionInfo.videoId, normalizedPath, normalizedTitle || null);
     this.captureVideoMetadataAsync(sessionInfo.videoId, sourceType, normalizedPath);
   }

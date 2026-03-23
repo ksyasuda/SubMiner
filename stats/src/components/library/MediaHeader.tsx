@@ -3,6 +3,7 @@ import { CoverImage } from './CoverImage';
 import { formatDuration, formatNumber, formatPercent } from '../../lib/formatters';
 import { getStatsClient } from '../../hooks/useStatsApi';
 import { buildLookupRateDisplay } from '../../lib/yomitan-lookup';
+import { resolveMediaArtworkUrl } from '../../lib/media-library-grouping';
 import type { MediaDetailData } from '../../types/stats';
 
 interface MediaHeaderProps {
@@ -45,10 +46,27 @@ export function MediaHeader({ detail, initialKnownWordsSummary = null }: MediaHe
       <CoverImage
         videoId={detail.videoId}
         title={detail.canonicalTitle}
+        src={resolveMediaArtworkUrl(detail, 'video')}
         className="w-32 h-44 rounded-lg shrink-0"
       />
       <div className="flex-1 min-w-0">
         <h2 className="text-lg font-bold text-ctp-text truncate">{detail.canonicalTitle}</h2>
+        {detail.channelName ? (
+          <div className="mt-1 text-sm text-ctp-subtext1 truncate">
+            {detail.channelUrl ? (
+              <a
+                href={detail.channelUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-ctp-blue transition-colors"
+              >
+                {detail.channelName}
+              </a>
+            ) : (
+              detail.channelName
+            )}
+          </div>
+        ) : null}
         <div className="grid grid-cols-2 gap-2 mt-3 text-sm">
           <div>
             <div className="text-ctp-blue font-medium">{formatDuration(detail.totalActiveMs)}</div>

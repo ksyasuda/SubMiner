@@ -22,6 +22,7 @@ Read when: you need to find the owner module for a behavior or test surface
 - Subtitle/token pipeline: `src/core/services/tokenizer*`, `src/subtitle/`, `src/tokenizers/`
 - Anki workflow: `src/anki-integration/`, `src/core/services/anki-jimaku*.ts`
 - Immersion tracking: `src/core/services/immersion-tracker/`
+  Includes stats storage/query schema such as `imm_videos`, `imm_media_art`, and `imm_youtube_videos` for per-video and YouTube-specific library metadata.
 - AniList tracking: `src/core/services/anilist/`, `src/main/runtime/composers/anilist-*`
 - Jellyfin integration: `src/core/services/jellyfin*.ts`, `src/main/runtime/composers/jellyfin-*`
 - Window trackers: `src/window-trackers/`
