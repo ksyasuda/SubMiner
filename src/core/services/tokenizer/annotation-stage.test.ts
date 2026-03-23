@@ -246,6 +246,18 @@ test('shouldExcludeTokenFromSubtitleAnnotations excludes explanatory pondering e
   assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
 });
 
+test('shouldExcludeTokenFromSubtitleAnnotations excludes explanatory contrast endings', () => {
+  const token = makeToken({
+    surface: 'んですけど',
+    headword: 'ん',
+    reading: 'ンデスケド',
+    pos1: '名詞|助動詞|助詞',
+    pos2: '非自立',
+  });
+
+  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
+});
+
 test('shouldExcludeTokenFromSubtitleAnnotations excludes auxiliary-stem そうだ grammar tails', () => {
   const token = makeToken({
     surface: 'そうだ',
