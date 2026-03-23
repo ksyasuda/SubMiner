@@ -90,6 +90,16 @@ test('resolveMediaArtworkUrl prefers youtube thumbnails for video and channel im
   assert.equal(resolveMediaArtworkUrl(localVideo, 'channel'), null);
 });
 
+test('resolveMediaArtworkUrl normalizes blank thumbnail urls to null', () => {
+  const item = {
+    videoThumbnailUrl: '   ',
+    channelThumbnailUrl: '',
+  };
+
+  assert.equal(resolveMediaArtworkUrl(item, 'video'), null);
+  assert.equal(resolveMediaArtworkUrl(item, 'channel'), null);
+});
+
 test('summarizeMediaLibraryGroups stays aligned with rendered group buckets', () => {
   const groups = groupMediaLibraryItems([youtubeEpisodeA, localVideo, youtubeEpisodeB]);
   const summary = summarizeMediaLibraryGroups(groups);
@@ -98,6 +108,24 @@ test('summarizeMediaLibraryGroups stays aligned with rendered group buckets', ()
     totalMs: 29_000,
     totalVideos: 3,
   });
+});
+
+test('groupMediaLibraryItems backfills missing group artwork from later items', () => {
+  const first = {
+    ...youtubeEpisodeA,
+    videoId: 10,
+    videoThumbnailUrl: null,
+    channelThumbnailUrl: null,
+  };
+  const second = {
+    ...youtubeEpisodeB,
+    videoId: 11,
+    channelThumbnailUrl: null,
+  };
+
+  const groups = groupMediaLibraryItems([first, second]);
+
+  assert.equal(groups[0]?.imageUrl, second.videoThumbnailUrl);
 });
 
 test('CoverImage renders explicit remote artwork when src is provided', () => {

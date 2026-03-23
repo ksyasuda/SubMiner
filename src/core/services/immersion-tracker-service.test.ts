@@ -2317,15 +2317,18 @@ test('handleMediaChange stores youtube metadata for new youtube sessions', async
   let tracker: ImmersionTrackerService | null = null;
   const originalFetch = globalThis.fetch;
   const originalPath = process.env.PATH;
+  let fakeBinDir: string | null = null;
 
   try {
-    const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yt-dlp-bin-'));
+    fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yt-dlp-bin-'));
     const ytDlpOutput =
       '{"id":"abc123","title":"Video Name","webpage_url":"https://www.youtube.com/watch?v=abc123","thumbnail":"https://i.ytimg.com/vi/abc123/hqdefault.jpg","channel_id":"UCcreator123","channel":"Creator Name","channel_url":"https://www.youtube.com/channel/UCcreator123","uploader_id":"@creator","uploader_url":"https://www.youtube.com/@creator","description":"Video description","channel_follower_count":12345,"thumbnails":[{"url":"https://i.ytimg.com/vi/abc123/hqdefault.jpg"},{"url":"https://yt3.googleusercontent.com/channel-avatar=s88"}]}';
     if (process.platform === 'win32') {
+      const outputPath = path.join(fakeBinDir, 'output.json');
+      fs.writeFileSync(outputPath, ytDlpOutput, 'utf8');
       fs.writeFileSync(
         path.join(fakeBinDir, 'yt-dlp.cmd'),
-        `@echo off\r\necho ${ytDlpOutput.replace(/"/g, '\\"')}\r\n`,
+        '@echo off\r\ntype "%~dp0output.json"\r\n',
         'utf8',
       );
     } else {
@@ -2429,6 +2432,9 @@ printf '%s\n' '${ytDlpOutput}'
     globalThis.fetch = originalFetch;
     tracker?.destroy();
     cleanupDbPath(dbPath);
+    if (fakeBinDir) {
+      fs.rmSync(fakeBinDir, { recursive: true, force: true });
+    }
   }
 });
 

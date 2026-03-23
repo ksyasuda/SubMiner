@@ -17,10 +17,9 @@ export function resolveMediaArtworkUrl(
   item: Pick<MediaLibraryItem, 'videoThumbnailUrl' | 'channelThumbnailUrl'>,
   kind: 'video' | 'channel',
 ): string | null {
-  if (kind === 'channel') {
-    return item.channelThumbnailUrl ?? null;
-  }
-  return item.videoThumbnailUrl ?? null;
+  const raw = kind === 'channel' ? item.channelThumbnailUrl : item.videoThumbnailUrl;
+  const normalized = raw?.trim() ?? '';
+  return normalized.length > 0 ? normalized : null;
 }
 
 export function resolveMediaCoverApiUrl(videoId: number): string {
@@ -61,6 +60,10 @@ export function groupMediaLibraryItems(items: MediaLibraryItem[]): MediaLibraryG
       existing.totalActiveMs += item.totalActiveMs;
       existing.totalCards += item.totalCards;
       existing.lastWatchedMs = Math.max(existing.lastWatchedMs, item.lastWatchedMs);
+      if (!existing.imageUrl) {
+        existing.imageUrl =
+          resolveMediaArtworkUrl(item, 'channel') ?? resolveMediaArtworkUrl(item, 'video');
+      }
       continue;
     }
 
