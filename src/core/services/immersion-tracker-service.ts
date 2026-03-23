@@ -909,6 +909,9 @@ export class ImmersionTrackerService {
           return;
         }
         upsertYoutubeVideoMetadata(this.db, videoId, metadata);
+        if (metadata.videoTitle?.trim()) {
+          updateVideoTitleRecord(this.db, videoId, metadata.videoTitle.trim());
+        }
       } catch (error) {
         this.logger.debug(
           'youtube metadata capture skipped for videoId=%d: %s',

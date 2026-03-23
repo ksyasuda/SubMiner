@@ -2369,8 +2369,18 @@ printf '%s\n' '{"id":"abc123","title":"Video Name","webpage_url":"https://www.yo
       uploaderUrl: string;
       description: string;
     } | null;
+    const videoRow = privateApi.db
+      .prepare(
+        `
+          SELECT canonical_title AS canonicalTitle
+          FROM imm_videos
+          WHERE video_id = 1
+        `,
+      )
+      .get() as { canonicalTitle: string } | null;
 
     assert.ok(row);
+    assert.ok(videoRow);
     assert.equal(row.youtubeVideoId, 'abc123');
     assert.equal(row.videoUrl, 'https://www.youtube.com/watch?v=abc123');
     assert.equal(row.videoTitle, 'Video Name');
@@ -2382,6 +2392,7 @@ printf '%s\n' '{"id":"abc123","title":"Video Name","webpage_url":"https://www.yo
     assert.equal(row.uploaderId, '@creator');
     assert.equal(row.uploaderUrl, 'https://www.youtube.com/@creator');
     assert.equal(row.description, 'Video description');
+    assert.equal(videoRow.canonicalTitle, 'Video Name');
   } finally {
     process.env.PATH = originalPath;
     globalThis.fetch = originalFetch;

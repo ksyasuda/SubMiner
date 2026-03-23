@@ -42,6 +42,8 @@ Recent sessions, streak calendar, watch-time history, and a tracking snapshot wi
 
 Cover-art library with search and sorting, per-series progress, episode drill-down, and direct links into mined cards.
 
+When YouTube channel metadata is available, the Library tab groups videos by creator/channel and treats each tracked video as an episode-like entry inside that channel section.
+
 ![Stats Library](/screenshots/stats-library.png)
 
 #### Trends
