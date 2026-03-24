@@ -68,7 +68,7 @@ Local stats dashboard — watch time, anime library, vocabulary growth, mining t
 <table>
   <tr>
     <td><b>YouTube</b></td>
-    <td>Auto-loaded yt-dlp subtitle tracks with manual retry picker on demand</td>
+    <td>Auto-loaded yt-dlp subtitle tracks at startup with a manual overlay picker on demand (<code>Ctrl+Alt+C</code>)</td>
   </tr>
   <tr>
     <td><b>AniList</b></td>
@@ -222,6 +222,7 @@ subminer video.mkv          # play video with overlay
 subminer --start video.mkv  # explicit overlay start
 subminer stats              # open immersion dashboard
 subminer stats -b           # stats daemon in background
+subminer stats -s           # stop background stats daemon
 ```
 
 ---

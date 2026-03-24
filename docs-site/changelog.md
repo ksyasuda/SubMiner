@@ -1,12 +1,17 @@
 # Changelog
 
-## v0.9.0 (2026-03-22)
-- Added an app-owned YouTube subtitle flow that boots mpv paused, auto-loads the default primary subtitle plus a best-effort secondary subtitle, and resumes once the primary subtitle is loaded and tokenized.
+## v0.9.0 (2026-03-23)
+- Added an app-owned YouTube subtitle flow with absPlayer-style timedtext parsing that auto-loads the default primary subtitle plus a best-effort secondary at startup and resumes once the primary is ready.
 - Added a manual YouTube subtitle picker on `Ctrl+Alt+C` so subtitle selection can be retried on demand during active YouTube playback.
-- Standardized on the default YouTube subtitle auto-load startup flow and removed explicit subtitle mode switching.
+- Added yt-dlp metadata probing so YouTube playback and immersion tracking record canonical video title and channel metadata.
 - Disabled conflicting mpv native subtitle auto-selection for the app-owned flow so injected explicit tracks stay authoritative.
 - Added OSD status updates covering YouTube playback startup, subtitle acquisition, and subtitle loading.
-- Improved sidebar startup/resume behavior and overlay/sidebar subtitle synchronization.
+- Stopped forcing `--ytdl-raw-options=` before user-provided mpv options so existing YouTube cookie integrations are preserved.
+- Improved sidebar startup/resume behavior, scroll handling, and overlay/sidebar subtitle synchronization.
+- Stats Library tab now shows YouTube video title, channel name, and thumbnail for YouTube media entries.
+- Added a new WebSocket / Texthooker API integration guide covering payload formats, custom client patterns, and mpv plugin automation.
+- Fixed Anki media mining for mpv YouTube streams so audio and screenshot capture work correctly during YouTube playback sessions.
+- Fixed YouTube media path handling in immersion tracking so YouTube sessions record correct media references and AniList state transitions do not fire for YouTube media.
 - Reused existing authoritative YouTube subtitle tracks when present, fell back only for missing sides, and kept native mpv secondary subtitle rendering hidden so the overlay remains the visible secondary subtitle surface.
 
 ## v0.8.0 (2026-03-22)
