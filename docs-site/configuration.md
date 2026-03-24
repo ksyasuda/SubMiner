@@ -1344,10 +1344,12 @@ Set defaults used by the `subminer` launcher for YouTube subtitle loading:
 
 Current launcher behavior:
 
-- For YouTube URLs, SubMiner probes subtitle tracks with yt-dlp and loads auto-selected tracks before regular playback starts.
+- For YouTube URLs, SubMiner probes subtitle tracks with yt-dlp after mpv bootstrap and binds auto-selected tracks before normal playback resumes.
+- If YouTube/mpv already exposes an authoritative matching subtitle track, SubMiner reuses it; otherwise it downloads and injects only the missing side.
 - SubMiner loads the primary subtitle plus a best-effort secondary subtitle.
 - Playback waits only for primary subtitle readiness; secondary failures do not block playback.
 - English secondary subtitles are selected from `secondarySub.secondarySubLanguages` when primary language matches are unavailable.
+- Native mpv secondary subtitle rendering stays hidden during this flow so the SubMiner overlay remains the visible secondary subtitle surface.
 - If primary subtitle loading fails, use `Ctrl+Alt+C` to open the subtitle modal and pick a track.
 
 Language targets are derived from subtitle config:

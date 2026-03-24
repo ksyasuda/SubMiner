@@ -8,3 +8,4 @@ area: launcher
 - Kept `youtubeSubgen.whisper*` settings as legacy compatibility configuration only; normal startup now resolves tracks through YouTube source download/selection.
 - Fixed startup-launched YouTube playback so primary subtitle overlay updates continue after auto-load completes.
 - Fixed auto-loaded YouTube primary subtitles so parsed cues appear in the subtitle sidebar without needing a manual picker retry.
+- Prefer existing authoritative YouTube subtitle tracks when available, fall back to downloaded tracks only for missing sides, and keep native mpv secondary subtitle rendering hidden so the overlay remains the sole secondary display.

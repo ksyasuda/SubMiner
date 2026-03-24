@@ -7,6 +7,7 @@
 - Disabled conflicting mpv native subtitle auto-selection for the app-owned flow so injected explicit tracks stay authoritative.
 - Added OSD status updates covering YouTube playback startup, subtitle acquisition, and subtitle loading.
 - Improved sidebar startup/resume behavior and overlay/sidebar subtitle synchronization.
+- Reused existing authoritative YouTube subtitle tracks when present, fell back only for missing sides, and kept native mpv secondary subtitle rendering hidden so the overlay remains the visible secondary subtitle surface.
 
 ## v0.8.0 (2026-03-22)
 - Added a configurable subtitle sidebar feature (`subtitleSidebar`) with overlay/embedded rendering, click-to-seek cue list, and hot-reloadable visibility and behavior controls.

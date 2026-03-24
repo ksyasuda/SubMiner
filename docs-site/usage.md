@@ -225,14 +225,15 @@ If you also use Yomitan in a browser, configure that browser profile separately;
 ### YouTube Playback
 
 `subminer` accepts direct URLs (for example, YouTube links) and `ytsearch:` targets.
-For YouTube playback, SubMiner resolves subtitle selection before mpv starts regular playback: it pauses at startup, auto-selects the default primary subtitle track plus a best-effort secondary track, then resumes when primary subtitles are ready.
+For YouTube playback, SubMiner resolves subtitle selection during startup while mpv is paused: it auto-selects the default primary subtitle track plus a best-effort secondary track, then resumes when primary subtitles are ready.
 
 Notes:
 
 - Install `yt-dlp` so mpv can resolve YouTube streams and subtitle tracks reliably.
 - For YouTube URLs, startup no longer requires opening the picker first; SubMiner loads subtitles and keeps the overlay available for retries.
 - Press `Ctrl+Alt+C` during active YouTube playback to open the manual YouTube subtitle picker and retry track selection.
-- For YouTube URLs, `subminer` probes available YouTube/manual subtitle tracks and loads matching tracks in mpv.
+- For YouTube URLs, `subminer` probes available YouTube subtitle tracks, reuses existing authoritative tracks when available, and downloads only missing sides.
+- Native mpv secondary subtitle rendering stays hidden so the overlay remains the visible secondary subtitle surface.
 - Primary subtitle target languages come from `youtubeSubgen.primarySubLanguages` (defaults to `["ja","jpn"]`).
 - Secondary target languages come from `secondarySub.secondarySubLanguages` (defaults to English if unset).
 - Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtubeSubgen` and `secondarySub`.
