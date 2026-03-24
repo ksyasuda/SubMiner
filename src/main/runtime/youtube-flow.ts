@@ -175,10 +175,113 @@ function normalizeTrackListEntry(track: Record<string, unknown>): {
   };
 }
 
+function matchesTitleBasename(title: string, basename: string): boolean {
+  const normalizedTitle = title.trim();
+  return normalizedTitle.length > 0 && path.basename(normalizedTitle) === basename;
+}
+
+function isLikelyTranslatedYoutubeTrack(entry: { lang: string; title: string }): boolean {
+  const normalizedTitle = entry.title.trim().toLowerCase();
+  if (normalizedTitle.includes(' from ')) {
+    return true;
+  }
+  return /-[a-z]{2,}(?:-[a-z0-9]+)?$/i.test(entry.lang.trim());
+}
+
+function matchExistingManualYoutubeTrackId(
+  trackListRaw: unknown,
+  trackOption: YoutubeTrackOption,
+  excludeId: number | null = null,
+): number | null {
+  if (!Array.isArray(trackListRaw)) {
+    return null;
+  }
+
+  const expectedTitle = trackOption.title?.trim().toLowerCase() || '';
+  const expectedLanguages = new Set(
+    [trackOption.language, trackOption.sourceLanguage]
+      .map((value) => value.trim().toLowerCase())
+      .filter((value) => value.length > 0),
+  );
+  const tracks = trackListRaw
+    .filter(
+      (track): track is Record<string, unknown> => Boolean(track) && typeof track === 'object',
+    )
+    .filter((track) => track.type === 'sub')
+    .map(normalizeTrackListEntry)
+    .filter((track) => track.external && track.id !== null && track.id !== excludeId)
+    .filter((track) => !isLikelyTranslatedYoutubeTrack(track));
+
+  const exactTitleMatch = tracks.find(
+    (track) =>
+      expectedTitle.length > 0 &&
+      track.title.trim().toLowerCase() === expectedTitle &&
+      expectedLanguages.has(track.lang.trim().toLowerCase()),
+  );
+  if (exactTitleMatch?.id !== null && exactTitleMatch?.id !== undefined) {
+    return exactTitleMatch.id;
+  }
+
+  if (expectedTitle.length === 0) {
+    const languageOnlyMatch = tracks.find((track) =>
+      expectedLanguages.has(track.lang.trim().toLowerCase()),
+    );
+    if (languageOnlyMatch?.id !== null && languageOnlyMatch?.id !== undefined) {
+      return languageOnlyMatch.id;
+    }
+  }
+
+  return null;
+}
+
+function matchExistingYoutubeTrackId(
+  trackListRaw: unknown,
+  trackOption: YoutubeTrackOption,
+  excludeId: number | null = null,
+): number | null {
+  if (!Array.isArray(trackListRaw)) {
+    return null;
+  }
+
+  const expectedTitle = trackOption.title?.trim().toLowerCase() || '';
+  const expectedLanguages = new Set(
+    [trackOption.language, trackOption.sourceLanguage]
+      .map((value) => value.trim().toLowerCase())
+      .filter((value) => value.length > 0),
+  );
+  const tracks = trackListRaw
+    .filter(
+      (track): track is Record<string, unknown> => Boolean(track) && typeof track === 'object',
+    )
+    .filter((track) => track.type === 'sub')
+    .map(normalizeTrackListEntry)
+    .filter((track) => track.external && track.id !== null && track.id !== excludeId);
+
+  const exactTitleMatch = tracks.find(
+    (track) =>
+      expectedTitle.length > 0 &&
+      track.title.trim().toLowerCase() === expectedTitle &&
+      expectedLanguages.has(track.lang.trim().toLowerCase()),
+  );
+  if (exactTitleMatch?.id !== null && exactTitleMatch?.id !== undefined) {
+    return exactTitleMatch.id;
+  }
+
+  if (expectedTitle.length === 0) {
+    const languageOnlyMatch = tracks.find((track) =>
+      expectedLanguages.has(track.lang.trim().toLowerCase()),
+    );
+    if (languageOnlyMatch?.id !== null && languageOnlyMatch?.id !== undefined) {
+      return languageOnlyMatch.id;
+    }
+  }
+
+  return null;
+}
+
 function matchExternalTrackId(
   trackListRaw: unknown,
   filePath: string,
-  trackOption: YoutubeTrackOption,
   excludeId: number | null = null,
 ): number | null {
   if (!Array.isArray(trackListRaw)) {
@@ -209,16 +312,9 @@ function matchExternalTrackId(
     return basenameMatch.id;
   }
 
-  const languageMatch = externalTracks.find((track) => track.lang === trackOption.sourceLanguage);
-  if (languageMatch?.id !== null && languageMatch?.id !== undefined) {
-    return languageMatch.id;
-  }
-
-  const normalizedLanguageMatch = externalTracks.find(
-    (track) => track.lang === trackOption.language,
-  );
-  if (normalizedLanguageMatch?.id !== null && normalizedLanguageMatch?.id !== undefined) {
-    return normalizedLanguageMatch.id;
+  const titleMatch = externalTracks.find((track) => matchesTitleBasename(track.title, basename));
+  if (titleMatch?.id !== null && titleMatch?.id !== undefined) {
+    return titleMatch.id;
   }
 
   return null;
@@ -226,43 +322,61 @@ function matchExternalTrackId(
 
 async function injectDownloadedSubtitles(
   deps: YoutubeFlowDeps,
-  primaryTrack: YoutubeTrackOption,
-  primaryPath: string,
+  primarySelection: {
+    track: YoutubeTrackOption;
+    existingTrackId: number | null;
+    injectedPath: string | null;
+  },
   secondaryTrack: YoutubeTrackOption | null,
-  secondaryPath: string | null,
+  secondarySelection: {
+    existingTrackId: number | null;
+    injectedPath: string | null;
+  } | null,
 ): Promise<boolean> {
   deps.sendMpvCommand(['set_property', 'sub-delay', 0]);
   deps.sendMpvCommand(['set_property', 'sid', 'no']);
   deps.sendMpvCommand(['set_property', 'secondary-sid', 'no']);
-  deps.sendMpvCommand([
-    'sub-add',
-    primaryPath,
-    'select',
-    path.basename(primaryPath),
-    primaryTrack.sourceLanguage,
-  ]);
-  if (secondaryPath && secondaryTrack) {
+  if (primarySelection.injectedPath) {
     deps.sendMpvCommand([
       'sub-add',
-      secondaryPath,
+      primarySelection.injectedPath,
+      'select',
+      path.basename(primarySelection.injectedPath),
+      primarySelection.track.sourceLanguage,
+    ]);
+  }
+  if (secondarySelection?.injectedPath && secondaryTrack) {
+    deps.sendMpvCommand([
+      'sub-add',
+      secondarySelection.injectedPath,
       'cached',
-      path.basename(secondaryPath),
+      path.basename(secondarySelection.injectedPath),
       secondaryTrack.sourceLanguage,
     ]);
   }
 
-  let trackListRaw: unknown = null;
-  let primaryTrackId: number | null = null;
-  let secondaryTrackId: number | null = null;
+  let trackListRaw: unknown = await deps.requestMpvProperty('track-list');
+  let primaryTrackId: number | null = primarySelection.existingTrackId;
+  let secondaryTrackId: number | null = secondarySelection?.existingTrackId ?? null;
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    await deps.wait(attempt === 0 ? 150 : 100);
-    trackListRaw = await deps.requestMpvProperty('track-list');
-    primaryTrackId = matchExternalTrackId(trackListRaw, primaryPath, primaryTrack);
-    secondaryTrackId =
-      secondaryPath && secondaryTrack
-        ? matchExternalTrackId(trackListRaw, secondaryPath, secondaryTrack, primaryTrackId)
-        : null;
-    if (primaryTrackId !== null && (!secondaryPath || secondaryTrackId !== null)) {
+    if (attempt > 0 || primarySelection.injectedPath || secondarySelection?.injectedPath) {
+      await deps.wait(attempt === 0 ? 150 : 100);
+      trackListRaw = await deps.requestMpvProperty('track-list');
+    }
+    if (primaryTrackId === null && primarySelection.injectedPath) {
+      primaryTrackId = matchExternalTrackId(trackListRaw, primarySelection.injectedPath);
+    }
+    if (secondarySelection?.injectedPath && secondaryTrack && secondaryTrackId === null) {
+      secondaryTrackId = matchExternalTrackId(
+        trackListRaw,
+        secondarySelection.injectedPath,
+        primaryTrackId,
+      );
+    }
+    if (
+      primaryTrackId !== null &&
+      (!secondaryTrack || secondarySelection === null || secondaryTrackId !== null)
+    ) {
       break;
     }
   }
@@ -276,20 +390,25 @@ async function injectDownloadedSubtitles(
     deps.sendMpvCommand(['set_property', 'sub-visibility', 'yes']);
   } else {
     deps.warn(
-      `Unable to bind downloaded primary subtitle track in mpv: ${path.basename(primaryPath)}`,
+      `Unable to bind downloaded primary subtitle track in mpv: ${
+        primarySelection.injectedPath ? path.basename(primarySelection.injectedPath) : primarySelection.track.label
+      }`,
     );
   }
-  if (secondaryPath && secondaryTrack) {
+  if (secondaryTrack && secondarySelection) {
     if (secondaryTrackId !== null) {
       await ensureSubtitleTrackSelection({
         deps,
         property: 'secondary-sid',
         targetId: secondaryTrackId,
       });
-      deps.sendMpvCommand(['set_property', 'secondary-sub-visibility', 'yes']);
     } else {
       deps.warn(
-        `Unable to bind downloaded secondary subtitle track in mpv: ${path.basename(secondaryPath)}`,
+        `Unable to bind downloaded secondary subtitle track in mpv: ${
+          secondarySelection.injectedPath
+            ? path.basename(secondarySelection.injectedPath)
+            : secondaryTrack.label
+        }`,
       );
     }
   }
@@ -304,7 +423,7 @@ async function injectDownloadedSubtitles(
   }
 
   deps.showMpvOsd(
-    secondaryPath && secondaryTrack ? 'Primary and secondary subtitles loaded.' : 'Subtitles loaded.',
+    secondaryTrack ? 'Primary and secondary subtitles loaded.' : 'Subtitles loaded.',
   );
   return true;
 }
@@ -455,33 +574,134 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       osdProgress.setMessage('Downloading subtitles...');
     }
     try {
-      const acquired = await acquireSelectedTracks({
-        targetUrl: input.url,
-        outputDir: input.outputDir,
-        primaryTrack: input.primaryTrack,
-        secondaryTrack: input.secondaryTrack,
-        secondaryFailureLabel: input.secondaryFailureLabel,
-      });
-      const resolvedPrimaryPath = await deps.retimeYoutubePrimaryTrack({
-        targetUrl: input.url,
-        primaryTrack: input.primaryTrack,
-        primaryPath: acquired.primaryPath,
-        secondaryTrack: input.secondaryTrack,
-        secondaryPath: acquired.secondaryPath,
-      });
+      let initialTrackListRaw: unknown = null;
+      let existingPrimaryTrackId: number | null = null;
+      let existingSecondaryTrackId: number | null = null;
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        if (attempt > 0) {
+          await deps.wait(attempt === 1 ? 150 : 100);
+        }
+        initialTrackListRaw = await deps.requestMpvProperty('track-list');
+        existingPrimaryTrackId =
+          input.primaryTrack.kind === 'manual'
+            ? matchExistingManualYoutubeTrackId(initialTrackListRaw, input.primaryTrack)
+            : null;
+        existingSecondaryTrackId =
+          input.secondaryTrack?.kind === 'manual'
+            ? matchExistingManualYoutubeTrackId(
+                initialTrackListRaw,
+                input.secondaryTrack,
+                existingPrimaryTrackId,
+              )
+            : null;
+        const primaryReady = input.primaryTrack.kind !== 'manual' || existingPrimaryTrackId !== null;
+        const secondaryReady =
+          !input.secondaryTrack ||
+          input.secondaryTrack.kind !== 'manual' ||
+          existingSecondaryTrackId !== null;
+        if (primaryReady && secondaryReady) {
+          break;
+        }
+      }
+
+      let primarySidebarPath: string;
+      let primaryInjectedPath: string | null = null;
+      let secondaryInjectedPath: string | null = null;
+
+      if (existingPrimaryTrackId !== null) {
+        primarySidebarPath = (
+          await deps.acquireYoutubeSubtitleTrack({
+            targetUrl: input.url,
+            outputDir: input.outputDir,
+            track: input.primaryTrack,
+          })
+        ).path;
+      } else if (existingSecondaryTrackId !== null || !input.secondaryTrack) {
+        primaryInjectedPath = (
+          await deps.acquireYoutubeSubtitleTrack({
+            targetUrl: input.url,
+            outputDir: input.outputDir,
+            track: input.primaryTrack,
+          })
+        ).path;
+        primarySidebarPath = await deps.retimeYoutubePrimaryTrack({
+          targetUrl: input.url,
+          primaryTrack: input.primaryTrack,
+          primaryPath: primaryInjectedPath,
+          secondaryTrack: input.secondaryTrack,
+          secondaryPath: null,
+        });
+        primaryInjectedPath = primarySidebarPath;
+      } else {
+        const acquired = await acquireSelectedTracks({
+          targetUrl: input.url,
+          outputDir: input.outputDir,
+          primaryTrack: input.primaryTrack,
+          secondaryTrack: existingSecondaryTrackId === null ? input.secondaryTrack : null,
+          secondaryFailureLabel: input.secondaryFailureLabel,
+        });
+        primarySidebarPath = await deps.retimeYoutubePrimaryTrack({
+          targetUrl: input.url,
+          primaryTrack: input.primaryTrack,
+          primaryPath: acquired.primaryPath,
+          secondaryTrack: input.secondaryTrack,
+          secondaryPath: acquired.secondaryPath,
+        });
+        primaryInjectedPath = primarySidebarPath;
+        secondaryInjectedPath = acquired.secondaryPath;
+      }
+
+      if (input.secondaryTrack && existingSecondaryTrackId === null && secondaryInjectedPath === null) {
+        try {
+          secondaryInjectedPath = (
+            await deps.acquireYoutubeSubtitleTrack({
+              targetUrl: input.url,
+              outputDir: input.outputDir,
+              track: input.secondaryTrack,
+            })
+          ).path;
+        } catch (error) {
+          const fallbackExistingSecondaryTrackId =
+            input.secondaryTrack.kind === 'auto'
+              ? matchExistingYoutubeTrackId(
+                  initialTrackListRaw,
+                  input.secondaryTrack,
+                  existingPrimaryTrackId,
+                )
+              : null;
+          if (fallbackExistingSecondaryTrackId !== null) {
+            existingSecondaryTrackId = fallbackExistingSecondaryTrackId;
+          } else {
+            deps.warn(
+              `${input.secondaryFailureLabel}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }
+        }
+      }
+
       deps.showMpvOsd('Loading subtitles...');
       const refreshedActiveSubtitle = await injectDownloadedSubtitles(
         deps,
-        input.primaryTrack,
-        resolvedPrimaryPath,
+        {
+          track: input.primaryTrack,
+          existingTrackId: existingPrimaryTrackId,
+          injectedPath: primaryInjectedPath,
+        },
         input.secondaryTrack,
-        acquired.secondaryPath,
+        input.secondaryTrack
+          ? {
+              existingTrackId: existingSecondaryTrackId,
+              injectedPath: secondaryInjectedPath,
+            }
+          : null,
       );
       if (!refreshedActiveSubtitle) {
         return false;
       }
       try {
-        await deps.refreshSubtitleSidebarSource?.(resolvedPrimaryPath);
+        await deps.refreshSubtitleSidebarSource?.(primarySidebarPath);
       } catch (error) {
         deps.warn(
           `Failed to refresh parsed subtitle cues for sidebar: ${
