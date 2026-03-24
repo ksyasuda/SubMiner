@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.9.1 (2026-03-24)
+- Reduced packaged release size by excluding duplicate `extraResources` payload and pruning docs, tests, sourcemaps, and other source-only files from Electron bundles.
+- Restored controller navigation and lookup/mining controls while the subtitle sidebar is open, while keeping true modal dialogs blocking controller actions.
+- Fixed subtitle annotation clearing so explanatory contrast endings like `んですけど` are excluded consistently across the shared tokenizer filter and annotation stage.
+
 ## v0.9.0 (2026-03-23)
 - Added an app-owned YouTube subtitle flow with absPlayer-style timedtext parsing that auto-loads the default primary subtitle plus a best-effort secondary at startup and resumes once the primary is ready.
 - Added a manual YouTube subtitle picker on `Ctrl+Alt+C` so subtitle selection can be retried on demand during active YouTube playback.

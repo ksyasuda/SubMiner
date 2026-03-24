@@ -78,6 +78,30 @@ test('release packaging keeps default file inclusion and excludes large source-o
   assert.ok(files.includes('!release-*{,/**/*}'));
   assert.ok(files.includes('!vendor/subminer-yomitan{,/**/*}'));
   assert.ok(files.includes('!vendor/texthooker-ui/src{,/**/*}'));
+  assert.ok(files.includes('!assets{,/**/*}'));
+  assert.ok(files.includes('!plugin{,/**/*}'));
+  assert.ok(files.includes('!vendor/yomitan-jlpt-vocab{,/**/*}'));
+  assert.ok(files.includes('!docs{,/**/*}'));
+  assert.ok(files.includes('!tests{,/**/*}'));
+  assert.ok(files.includes('!packaging{,/**/*}'));
+  assert.ok(files.includes('!README.md'));
+  assert.ok(files.includes('!CHANGELOG.md'));
+  assert.ok(files.includes('!AGENTS.md'));
+  assert.ok(files.includes('!CLAUDE.md'));
+  assert.ok(files.includes('!stats/public{,/**/*}'));
+  assert.ok(files.includes('!stats/package.json'));
+  assert.ok(files.includes('!stats/tsconfig.json'));
+  assert.ok(files.includes('!stats/vite.config.ts'));
+  assert.ok(files.includes('!dist/**/*.map'));
+  assert.ok(files.includes('!dist/**/*.test.*'));
+  assert.ok(files.includes('!dist/**/__tests__{,/**/*}'));
+  assert.ok(files.includes('!scripts/**/*.test.*'));
+  assert.ok(files.includes('!vendor/texthooker-ui/public{,/**/*}'));
+  assert.ok(files.includes('!vendor/texthooker-ui/.vscode{,/**/*}'));
+  assert.ok(files.includes('!vendor/texthooker-ui/README.md'));
+  assert.ok(files.includes('!vendor/texthooker-ui/package.json'));
+  assert.ok(files.includes('!vendor/texthooker-ui/tsconfig*.json'));
+  assert.ok(files.includes('!node_modules/@libsql/linux-x64-musl{,/**/*}'));
 });
 
 test('config example generation runs directly from source without unrelated bundle prerequisites', () => {
