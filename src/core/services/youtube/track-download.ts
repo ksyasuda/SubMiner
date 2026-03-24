@@ -1,9 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import type { YoutubeFlowMode } from '../../../types';
 import type { YoutubeTrackOption } from './track-probe';
-import { convertYoutubeTimedTextToVtt, isYoutubeTimedTextExtension } from './timedtext';
+import {
+  convertYoutubeTimedTextToVtt,
+  isYoutubeTimedTextExtension,
+  normalizeYoutubeAutoVtt,
+} from './timedtext';
 
 const YOUTUBE_SUBTITLE_EXTENSIONS = new Set(['.srt', '.vtt', '.ass']);
 const YOUTUBE_BATCH_PREFIX = 'youtube-batch';
@@ -171,7 +174,11 @@ async function downloadSubtitleFromUrl(input: {
     throw new Error(`HTTP ${response.status} while downloading ${input.track.sourceLanguage}`);
   }
   const body = await response.text();
-  const normalizedBody = isYoutubeTimedTextExtension(ext) ? convertYoutubeTimedTextToVtt(body) : body;
+  const normalizedBody = isYoutubeTimedTextExtension(ext)
+    ? convertYoutubeTimedTextToVtt(body)
+    : input.track.kind === 'auto' && safeExt === 'vtt'
+      ? normalizeYoutubeAutoVtt(body)
+      : body;
   fs.writeFileSync(targetPath, normalizedBody, 'utf8');
   return { path: targetPath };
 }
@@ -185,11 +192,21 @@ function canDownloadSubtitleFromUrl(track: YoutubeTrackOption): boolean {
   return isYoutubeTimedTextExtension(ext) || YOUTUBE_SUBTITLE_EXTENSIONS.has(`.${ext}`);
 }
 
+function normalizeDownloadedAutoSubtitle(pathname: string, track: YoutubeTrackOption): void {
+  if (track.kind !== 'auto' || path.extname(pathname).toLowerCase() !== '.vtt') {
+    return;
+  }
+  const content = fs.readFileSync(pathname, 'utf8');
+  const normalized = normalizeYoutubeAutoVtt(content);
+  if (normalized !== content) {
+    fs.writeFileSync(pathname, normalized, 'utf8');
+  }
+}
+
 export async function downloadYoutubeSubtitleTrack(input: {
   targetUrl: string;
   outputDir: string;
   track: YoutubeTrackOption;
-  mode: YoutubeFlowMode;
 }): Promise<{ path: string }> {
   fs.mkdirSync(input.outputDir, { recursive: true });
   const prefix = input.track.id.replace(/[^a-z0-9_-]+/gi, '-');
@@ -215,7 +232,7 @@ export async function downloadYoutubeSubtitleTrack(input: {
       targetUrl: input.targetUrl,
       outputTemplate,
       sourceLanguages: [input.track.sourceLanguage],
-      includeAutoSubs: input.mode === 'generate' || input.track.kind === 'auto',
+      includeAutoSubs: input.track.kind === 'auto',
       includeManualSubs: input.track.kind === 'manual',
     }),
   ];
@@ -225,6 +242,7 @@ export async function downloadYoutubeSubtitleTrack(input: {
   if (!subtitlePath) {
     throw new Error(`No subtitle file was downloaded for ${input.track.sourceLanguage}`);
   }
+  normalizeDownloadedAutoSubtitle(subtitlePath, input.track);
   return { path: subtitlePath };
 }
 
@@ -232,7 +250,6 @@ export async function downloadYoutubeSubtitleTracks(input: {
   targetUrl: string;
   outputDir: string;
   tracks: YoutubeTrackOption[];
-  mode: YoutubeFlowMode;
 }): Promise<Map<string, string>> {
   fs.mkdirSync(input.outputDir, { recursive: true });
   const hasDuplicateSourceLanguages =
@@ -260,8 +277,7 @@ export async function downloadYoutubeSubtitleTracks(input: {
   }
 
   const outputTemplate = path.join(input.outputDir, `${YOUTUBE_BATCH_PREFIX}.%(ext)s`);
-  const includeAutoSubs =
-    input.mode === 'generate' || input.tracks.some((track) => track.kind === 'auto');
+  const includeAutoSubs = input.tracks.some((track) => track.kind === 'auto');
   const includeManualSubs = input.tracks.some((track) => track.kind === 'manual');
 
   const result = await runCaptureDetailed(
@@ -283,6 +299,7 @@ export async function downloadYoutubeSubtitleTracks(input: {
       track.sourceLanguage,
     );
     if (subtitlePath) {
+      normalizeDownloadedAutoSubtitle(subtitlePath, track);
       results.set(track.id, subtitlePath);
     }
   }

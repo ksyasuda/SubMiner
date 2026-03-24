@@ -174,7 +174,6 @@ test('downloadYoutubeSubtitleTrack prefers subtitle files over later webp artifa
         kind: 'auto',
         label: 'Japanese (auto)',
       },
-      mode: 'download',
     });
 
     assert.equal(path.extname(result.path), '.vtt');
@@ -204,7 +203,6 @@ test('downloadYoutubeSubtitleTrack ignores stale subtitle files from prior runs'
             kind: 'auto',
             label: 'Japanese (auto)',
           },
-          mode: 'download',
         }),
       /No subtitle file was downloaded/,
     );
@@ -233,7 +231,6 @@ test('downloadYoutubeSubtitleTrack uses auto subtitle flags and raw source langu
             kind: 'auto',
             label: 'Japanese (auto)',
           },
-          mode: 'download',
         });
 
         assert.equal(path.extname(result.path), '.vtt');
@@ -264,11 +261,47 @@ test('downloadYoutubeSubtitleTrack keeps manual subtitle flag for manual tracks'
             kind: 'manual',
             label: 'Japanese (manual)',
           },
-          mode: 'download',
         });
 
         assert.equal(path.extname(result.path), '.vtt');
       },
+    );
+  });
+});
+
+test('downloadYoutubeSubtitleTrack normalizes rolling auto-caption vtt output from yt-dlp', async () => {
+  if (process.platform === 'win32') {
+    return;
+  }
+
+  await withFakeYtDlp('rolling-auto', async (root) => {
+    const result = await downloadYoutubeSubtitleTrack({
+      targetUrl: 'https://www.youtube.com/watch?v=abc123',
+      outputDir: path.join(root, 'out'),
+      track: {
+        id: 'auto:ja-orig',
+        language: 'ja',
+        sourceLanguage: 'ja-orig',
+        kind: 'auto',
+        label: 'Japanese (auto)',
+      },
+    });
+
+    assert.equal(
+      fs.readFileSync(result.path, 'utf8'),
+      [
+        'WEBVTT',
+        '',
+        '00:00:01.000 --> 00:00:02.000',
+        '今日は',
+        '',
+        '00:00:02.000 --> 00:00:03.000',
+        'いい天気ですね',
+        '',
+        '00:00:03.000 --> 00:00:04.000',
+        '本当に',
+        '',
+      ].join('\n'),
     );
   });
 });
@@ -293,7 +326,6 @@ test('downloadYoutubeSubtitleTrack prefers direct download URL when available', 
             downloadUrl: 'https://example.com/subs/ja.vtt',
             fileExtension: 'vtt',
           },
-          mode: 'download',
         });
 
         assert.equal(path.basename(result.path), 'auto-ja-orig.ja-orig.vtt');
@@ -320,7 +352,6 @@ test('downloadYoutubeSubtitleTrack sanitizes metadata source language in filenam
             downloadUrl: 'https://example.com/subs/ja.vtt',
             fileExtension: 'vtt',
           },
-          mode: 'download',
         });
 
         assert.equal(path.dirname(result.path), path.join(root, 'out'));
@@ -359,7 +390,6 @@ test('downloadYoutubeSubtitleTrack converts srv3 auto subtitles into regular vtt
             downloadUrl: 'https://example.com/subs/ja.srv3',
             fileExtension: 'srv3',
           },
-          mode: 'download',
         });
 
         assert.equal(path.basename(result.path), 'auto-ja-orig.ja-orig.vtt');
@@ -410,7 +440,6 @@ test('downloadYoutubeSubtitleTracks downloads primary and secondary in one invoc
           label: 'English (auto)',
         },
       ],
-      mode: 'download',
     });
 
     assert.match(path.basename(result.get('auto:ja-orig') ?? ''), /\.ja-orig\.vtt$/);
@@ -444,7 +473,6 @@ test('downloadYoutubeSubtitleTracks preserves successfully downloaded primary fi
           label: 'English (auto)',
         },
       ],
-      mode: 'download',
     });
 
     assert.match(path.basename(result.get('auto:ja-orig') ?? ''), /\.ja-orig\.vtt$/);
@@ -484,7 +512,6 @@ test('downloadYoutubeSubtitleTracks prefers direct download URLs when available'
               fileExtension: 'vtt',
             },
           ],
-          mode: 'download',
         });
 
         assert.deepEqual(seen, [
@@ -530,7 +557,6 @@ test('downloadYoutubeSubtitleTracks keeps duplicate source-language direct downl
               fileExtension: 'vtt',
             },
           ],
-          mode: 'download',
         });
 
         assert.deepEqual(seen, [

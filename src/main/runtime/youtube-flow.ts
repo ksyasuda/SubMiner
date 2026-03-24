@@ -1,7 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
 import type {
-  YoutubeFlowMode,
   YoutubePickerOpenPayload,
   YoutubePickerResolveRequest,
   YoutubePickerResolveResult,
@@ -21,6 +20,7 @@ import {
 import { resolveSubtitleSourcePath } from './subtitle-prefetch-source';
 
 type YoutubeFlowOpenPicker = (payload: YoutubePickerOpenPayload) => Promise<boolean>;
+type YoutubeFlowMode = 'download' | 'generate';
 
 type YoutubeFlowDeps = {
   probeYoutubeTracks: (url: string) => Promise<YoutubeTrackProbeResult>;
@@ -132,6 +132,22 @@ function parseTrackId(value: unknown): number | null {
     return Number.isInteger(parsed) ? parsed : null;
   }
   return null;
+}
+
+async function ensureSubtitleTrackSelection(input: {
+  deps: YoutubeFlowDeps;
+  property: 'sid' | 'secondary-sid';
+  targetId: number;
+}): Promise<void> {
+  input.deps.sendMpvCommand(['set_property', input.property, input.targetId]);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const currentId = parseTrackId(await input.deps.requestMpvProperty(input.property));
+    if (currentId === input.targetId) {
+      return;
+    }
+    await input.deps.wait(100);
+    input.deps.sendMpvCommand(['set_property', input.property, input.targetId]);
+  }
 }
 
 function normalizeTrackListEntry(track: Record<string, unknown>): {
@@ -252,7 +268,12 @@ async function injectDownloadedSubtitles(
   }
 
   if (primaryTrackId !== null) {
-    deps.sendMpvCommand(['set_property', 'sid', primaryTrackId]);
+    await ensureSubtitleTrackSelection({
+      deps,
+      property: 'sid',
+      targetId: primaryTrackId,
+    });
+    deps.sendMpvCommand(['set_property', 'sub-visibility', 'yes']);
   } else {
     deps.warn(
       `Unable to bind downloaded primary subtitle track in mpv: ${path.basename(primaryPath)}`,
@@ -260,7 +281,12 @@ async function injectDownloadedSubtitles(
   }
   if (secondaryPath && secondaryTrack) {
     if (secondaryTrackId !== null) {
-      deps.sendMpvCommand(['set_property', 'secondary-sid', secondaryTrackId]);
+      await ensureSubtitleTrackSelection({
+        deps,
+        property: 'secondary-sid',
+        targetId: secondaryTrackId,
+      });
+      deps.sendMpvCommand(['set_property', 'secondary-sub-visibility', 'yes']);
     } else {
       deps.warn(
         `Unable to bind downloaded secondary subtitle track in mpv: ${path.basename(secondaryPath)}`,
@@ -280,7 +306,7 @@ async function injectDownloadedSubtitles(
   deps.showMpvOsd(
     secondaryPath && secondaryTrack ? 'Primary and secondary subtitles loaded.' : 'Subtitles loaded.',
   );
-  return typeof currentSubText === 'string' && currentSubText.trim().length > 0;
+  return true;
 }
 
 export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
@@ -291,7 +317,6 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     outputDir: string;
     primaryTrack: YoutubeTrackOption;
     secondaryTrack: YoutubeTrackOption | null;
-    mode: YoutubeFlowMode;
     secondaryFailureLabel: string;
   }): Promise<{ primaryPath: string; secondaryPath: string | null }> => {
     if (!input.secondaryTrack) {
@@ -300,7 +325,6 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
           targetUrl: input.targetUrl,
           outputDir: input.outputDir,
           track: input.primaryTrack,
-          mode: input.mode,
         })
       ).path;
       return { primaryPath, secondaryPath: null };
@@ -311,7 +335,6 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
         targetUrl: input.targetUrl,
         outputDir: input.outputDir,
         tracks: [input.primaryTrack, input.secondaryTrack],
-        mode: input.mode,
       });
       const primaryPath = batchResult.get(input.primaryTrack.id) ?? null;
       const secondaryPath = batchResult.get(input.secondaryTrack.id) ?? null;
@@ -332,7 +355,6 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
               targetUrl: input.targetUrl,
               outputDir: input.outputDir,
               track: input.secondaryTrack,
-              mode: input.mode,
             })
           ).path;
           return { primaryPath, secondaryPath: retriedSecondaryPath };
@@ -355,7 +377,6 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
           targetUrl: input.targetUrl,
           outputDir: input.outputDir,
           track: input.primaryTrack,
-          mode: input.mode,
         })
       ).path;
       return { primaryPath, secondaryPath: null };
@@ -403,7 +424,6 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
   const buildOpenPayload = (
     input: {
       url: string;
-      mode: YoutubeFlowMode;
     },
     probe: YoutubeTrackProbeResult,
   ): YoutubePickerOpenPayload => {
@@ -411,7 +431,6 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     return {
       sessionId: createSessionId(),
       url: input.url,
-      mode: input.mode,
       tracks: probe.tracks,
       defaultPrimaryTrackId: defaults.primaryTrackId,
       defaultSecondaryTrackId: defaults.secondaryTrackId,
@@ -441,7 +460,6 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
         outputDir: input.outputDir,
         primaryTrack: input.primaryTrack,
         secondaryTrack: input.secondaryTrack,
-        mode: input.mode,
         secondaryFailureLabel: input.secondaryFailureLabel,
       });
       const resolvedPrimaryPath = await deps.retimeYoutubePrimaryTrack({
@@ -484,7 +502,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
 
   const openManualPicker = async (input: {
     url: string;
-    mode: YoutubeFlowMode;
+    mode?: YoutubeFlowMode;
   }): Promise<void> => {
     let probe: YoutubeTrackProbeResult;
     try {
@@ -549,15 +567,18 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
 
     try {
       deps.showMpvOsd('Getting subtitles...');
-      await loadTracksIntoMpv({
+      const loaded = await loadTracksIntoMpv({
         url: input.url,
-        mode: input.mode,
+        mode: input.mode ?? 'download',
         outputDir: normalizeOutputPath(deps.getYoutubeOutputDir()),
         primaryTrack,
         secondaryTrack,
         secondaryFailureLabel: 'Failed to download secondary YouTube subtitle track',
         showDownloadProgress: true,
       });
+      if (!loaded) {
+        reportPrimarySubtitleFailure();
+      }
     } catch (error) {
       deps.warn(
         `Failed to download primary YouTube subtitle track: ${

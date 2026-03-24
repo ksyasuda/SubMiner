@@ -560,28 +560,25 @@ export async function startMpv(
   if (targetKind === 'url' && isYoutubeTarget(target)) {
     log('info', args.logLevel, 'Applying URL playback options');
     mpvArgs.push('--ytdl=yes');
-
-    if (isYoutubeTarget(target)) {
-      const subtitleLangs = uniqueNormalizedLangCodes([
-        ...args.youtubePrimarySubLangs,
-        ...args.youtubeSecondarySubLangs,
-      ]).join(',');
-      const audioLangs = uniqueNormalizedLangCodes(args.youtubeAudioLangs).join(',');
-      log('info', args.logLevel, 'Applying YouTube playback options');
-      log('debug', args.logLevel, `YouTube subtitle langs: ${subtitleLangs}`);
-      log('debug', args.logLevel, `YouTube audio langs: ${audioLangs}`);
-      mpvArgs.push(`--ytdl-format=${DEFAULT_YOUTUBE_YTDL_FORMAT}`, `--alang=${audioLangs}`);
-      if (options?.disableYoutubeSubtitleAutoLoad !== true) {
-        mpvArgs.push(
-          '--sub-auto=fuzzy',
-          `--slang=${subtitleLangs}`,
-          '--ytdl-raw-options-append=write-subs=',
-          '--ytdl-raw-options-append=sub-format=vtt/best',
-          `--ytdl-raw-options-append=sub-langs=${subtitleLangs}`,
-        );
-      } else {
-        mpvArgs.push('--sub-auto=no');
-      }
+    const subtitleLangs = uniqueNormalizedLangCodes([
+      ...args.youtubePrimarySubLangs,
+      ...args.youtubeSecondarySubLangs,
+    ]).join(',');
+    const audioLangs = uniqueNormalizedLangCodes(args.youtubeAudioLangs).join(',');
+    log('info', args.logLevel, 'Applying YouTube playback options');
+    log('debug', args.logLevel, `YouTube subtitle langs: ${subtitleLangs}`);
+    log('debug', args.logLevel, `YouTube audio langs: ${audioLangs}`);
+    mpvArgs.push(`--ytdl-format=${DEFAULT_YOUTUBE_YTDL_FORMAT}`, `--alang=${audioLangs}`);
+    if (options?.disableYoutubeSubtitleAutoLoad !== true) {
+      mpvArgs.push(
+        '--sub-auto=fuzzy',
+        `--slang=${subtitleLangs}`,
+        '--ytdl-raw-options-append=write-subs=',
+        '--ytdl-raw-options-append=sub-format=vtt/best',
+        `--ytdl-raw-options-append=sub-langs=${subtitleLangs}`,
+      );
+    } else {
+      mpvArgs.push('--sub-auto=no');
     }
   }
   if (args.mpvArgs) {

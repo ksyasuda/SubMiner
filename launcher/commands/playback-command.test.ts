@@ -82,16 +82,26 @@ function createContext(): LauncherCommandContext {
   };
 }
 
-test('youtube playback launches overlay with youtube-play args in the primary app start', async () => {
+test('youtube playback launches overlay with app-owned youtube flow args', async () => {
   const calls: string[] = [];
   const context = createContext();
+  let receivedStartMpvOptions: Record<string, unknown> | null = null;
 
   await runPlaybackCommandWithDeps(context, {
     ensurePlaybackSetupReady: async () => {},
     chooseTarget: async (_args, _scriptPath) => ({ target: context.args.target, kind: 'url' }),
     checkDependencies: () => {},
     registerCleanup: () => {},
-    startMpv: async () => {
+    startMpv: async (
+      _target,
+      _targetKind,
+      _args,
+      _socketPath,
+      _appPath,
+      _preloadedSubtitles,
+      options,
+    ) => {
+      receivedStartMpvOptions = options ?? null;
       calls.push('startMpv');
     },
     waitForUnixSocketReady: async () => true,
@@ -110,4 +120,8 @@ test('youtube playback launches overlay with youtube-play args in the primary ap
     'startMpv',
     'startOverlay:--youtube-play https://www.youtube.com/watch?v=65Ovd7t8sNw --youtube-mode download',
   ]);
+  assert.deepEqual(receivedStartMpvOptions, {
+    startPaused: true,
+    disableYoutubeSubtitleAutoLoad: true,
+  });
 });

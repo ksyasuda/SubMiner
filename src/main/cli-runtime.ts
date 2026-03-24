@@ -1,6 +1,5 @@
 import { handleCliCommand, createCliCommandDepsRuntime } from '../core/services';
 import type { CliArgs, CliCommandSource } from '../cli/args';
-import type { YoutubeFlowMode } from '../types';
 import {
   createCliCommandRuntimeServiceDeps,
   CliCommandRuntimeServiceDepsParams,
@@ -39,11 +38,7 @@ export interface CliCommandRuntimeServiceContext {
   openJellyfinSetup: CliCommandRuntimeServiceDepsParams['jellyfin']['openSetup'];
   runStatsCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runStatsCommand'];
   runJellyfinCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runCommand'];
-  runYoutubePlaybackFlow: (request: {
-    url: string;
-    mode: YoutubeFlowMode;
-    source: CliCommandSource;
-  }) => Promise<void>;
+  runYoutubePlaybackFlow: CliCommandRuntimeServiceDepsParams['app']['runYoutubePlaybackFlow'];
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;

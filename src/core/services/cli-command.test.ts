@@ -186,8 +186,8 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     runJellyfinCommand: async () => {
       calls.push('runJellyfinCommand');
     },
-    runYoutubePlaybackFlow: async ({ url, mode }) => {
-      calls.push(`runYoutubePlaybackFlow:${url}:${mode}`);
+    runYoutubePlaybackFlow: async (request) => {
+      calls.push(`runYoutubePlaybackFlow:${request.url}:${request.mode}:${request.source}`);
     },
     printHelp: () => {
       calls.push('printHelp');
@@ -211,25 +211,6 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
 
   return { deps, calls, osd };
 }
-
-test('handleCliCommand reconnects MPV for second-instance --start when overlay runtime is already initialized', () => {
-  const { deps, calls } = createDeps({
-    isOverlayRuntimeInitialized: () => true,
-  });
-  const args = makeArgs({ start: true });
-
-  handleCliCommand(args, 'second-instance', deps);
-
-  assert.ok(calls.includes('setMpvClientSocketPath:/tmp/subminer.sock'));
-  assert.equal(
-    calls.some((value) => value.includes('connectMpvClient')),
-    true,
-  );
-  assert.equal(
-    calls.some((value) => value.includes('initializeOverlayRuntime')),
-    false,
-  );
-});
 
 test('handleCliCommand starts youtube playback flow on initial launch', () => {
   const { deps, calls } = createDeps({
@@ -263,6 +244,25 @@ test('handleCliCommand defaults youtube mode to download when omitted', () => {
     'initializeOverlayRuntime',
     'youtube:https://youtube.com/watch?v=abc:download',
   ]);
+});
+
+test('handleCliCommand reconnects MPV for second-instance --start when overlay runtime is already initialized', () => {
+  const { deps, calls } = createDeps({
+    isOverlayRuntimeInitialized: () => true,
+  });
+  const args = makeArgs({ start: true });
+
+  handleCliCommand(args, 'second-instance', deps);
+
+  assert.ok(calls.includes('setMpvClientSocketPath:/tmp/subminer.sock'));
+  assert.equal(
+    calls.some((value) => value.includes('connectMpvClient')),
+    true,
+  );
+  assert.equal(
+    calls.some((value) => value.includes('initializeOverlayRuntime')),
+    false,
+  );
 });
 
 test('handleCliCommand processes --start for second-instance when overlay runtime is not initialized', () => {

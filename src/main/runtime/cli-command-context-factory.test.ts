@@ -9,7 +9,6 @@ test('cli command context factory composes main deps and context handlers', () =
     mpvClient: null,
     texthookerPort: 5174,
     overlayRuntimeInitialized: false,
-    youtubePlaybackFlowPending: false,
   };
 
   const createContext = createCliCommandContextFactory({

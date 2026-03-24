@@ -324,6 +324,10 @@ import {
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
 import { createYoutubeFlowRuntime } from './main/runtime/youtube-flow';
+import {
+  clearYoutubePrimarySubtitleNotificationTimer,
+  createYoutubePrimarySubtitleNotificationRuntime,
+} from './main/runtime/youtube-primary-subtitle-notification';
 import { resolveAutoplayReadyMaxReleaseAttempts } from './main/runtime/startup-autoplay-release-policy';
 import {
   buildFirstRunSetupHtml,
@@ -802,9 +806,6 @@ const appState = createAppState({
   texthookerPort: DEFAULT_TEXTHOOKER_PORT,
 });
 const startBackgroundWarmupsIfAllowed = (): void => {
-  if (appState.youtubePlaybackFlowPending) {
-    return;
-  }
   startBackgroundWarmups();
 };
 const youtubeFlowRuntime = createYoutubeFlowRuntime({
@@ -942,11 +943,9 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
 
 async function runYoutubePlaybackFlowMain(request: {
   url: string;
-  mode: 'download' | 'generate';
+  mode: NonNullable<CliArgs['youtubeMode']>;
   source: CliCommandSource;
 }): Promise<void> {
-  const wasYoutubePlaybackFlowPending = appState.youtubePlaybackFlowPending;
-  appState.youtubePlaybackFlowPending = true;
   if (process.platform === 'win32' && !appState.mpvClient?.connected) {
     const launchResult = launchWindowsMpv(
       [request.url],
@@ -969,18 +968,12 @@ async function runYoutubePlaybackFlowMain(request: {
   if (!appState.mpvClient?.connected) {
     appState.mpvClient?.connect();
   }
-  try {
-    await youtubeFlowRuntime.runYoutubePlaybackFlow({
-      url: request.url,
-      mode: request.mode,
-    });
-    logger.info(`YouTube playback flow completed from ${request.source}.`);
-  } finally {
-    appState.youtubePlaybackFlowPending = wasYoutubePlaybackFlowPending;
-    if (!wasYoutubePlaybackFlowPending) {
-      startBackgroundWarmupsIfAllowed();
-    }
-  }
+
+  await youtubeFlowRuntime.runYoutubePlaybackFlow({
+    url: request.url,
+    mode: request.mode,
+  });
+  logger.info(`YouTube playback flow completed from ${request.source}.`);
 }
 
 let firstRunSetupMessage: string | null = null;
@@ -1236,6 +1229,12 @@ const currentMediaTokenizationGate = createCurrentMediaTokenizationGate();
 const startupOsdSequencer = createStartupOsdSequencer({
   showOsd: (message) => showMpvOsd(message),
 });
+const youtubePrimarySubtitleNotificationRuntime = createYoutubePrimarySubtitleNotificationRuntime({
+  getPrimarySubtitleLanguages: () => getResolvedConfig().youtubeSubgen.primarySubLanguages,
+  notifyFailure: (message) => reportYoutubeSubtitleFailure(message),
+  schedule: (fn, delayMs) => setTimeout(fn, delayMs),
+  clearSchedule: clearYoutubePrimarySubtitleNotificationTimer,
+});
 
 function isYoutubePlaybackActiveNow(): boolean {
   return isYoutubePlaybackActive(
@@ -1267,7 +1266,6 @@ async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
   }
   await youtubeFlowRuntime.openManualPicker({
     url: currentMediaPath,
-    mode: 'download',
   });
 }
 
@@ -1275,9 +1273,6 @@ function maybeSignalPluginAutoplayReady(
   payload: SubtitleData,
   options?: { forceWhilePaused?: boolean },
 ): void {
-  if (appState.youtubePlaybackFlowPending) {
-    return;
-  }
   if (!payload.text.trim()) {
     return;
   }
@@ -3544,6 +3539,7 @@ const {
       startupOsdSequencer.reset();
       clearScheduledSubtitlePrefetchRefresh();
       subtitlePrefetchInitController.cancelPendingInit();
+      youtubePrimarySubtitleNotificationRuntime.handleMediaPathChange(path);
       if (path) {
         ensureImmersionTrackerStarted();
         // Delay slightly to allow MPV's track-list to be populated.
@@ -3571,9 +3567,6 @@ const {
       immersionMediaRuntime.syncFromCurrentMediaState();
     },
     signalAutoplayReadyIfWarm: () => {
-      if (appState.youtubePlaybackFlowPending) {
-        return;
-      }
       if (!isTokenizationWarmupReady()) {
         return;
       }
@@ -3604,11 +3597,13 @@ const {
       }
       lastObservedTimePos = time;
     },
-    onSubtitleTrackChange: () => {
+    onSubtitleTrackChange: (sid) => {
       scheduleSubtitlePrefetchRefresh();
+      youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackChange(sid);
     },
-    onSubtitleTrackListChange: () => {
+    onSubtitleTrackListChange: (trackList) => {
       scheduleSubtitlePrefetchRefresh();
+      youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackListChange(trackList);
     },
     updateSubtitleRenderMetrics: (patch) => {
       updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
@@ -4867,10 +4862,7 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
         appState.overlayRuntimeInitialized = initialized;
       },
       startBackgroundWarmups: () => {
-        if (
-          (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) ||
-          appState.youtubePlaybackFlowPending
-        ) {
+        if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
           return;
         }
         startBackgroundWarmups();

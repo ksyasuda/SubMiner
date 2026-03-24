@@ -499,7 +499,7 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.triggerFieldGrouping ||
     args.triggerSubsync ||
     args.markAudioCard ||
-    args.openRuntimeOptions
-    || Boolean(args.youtubePlay)
+    args.openRuntimeOptions ||
+    Boolean(args.youtubePlay)
   );
 }

@@ -115,3 +115,52 @@ export function convertYoutubeTimedTextToVtt(xml: string): string {
 
   return `WEBVTT\n\n${blocks.join('\n\n')}\n`;
 }
+
+function normalizeRollingCaptionText(text: string, previousText: string): string {
+  if (!previousText || !text.startsWith(previousText)) {
+    return text;
+  }
+  return text.slice(previousText.length).trimStart();
+}
+
+export function normalizeYoutubeAutoVtt(content: string): string {
+  const normalizedContent = content.replace(/\r\n?/g, '\n');
+  const blocks = normalizedContent.split(/\n{2,}/);
+  if (blocks.length === 0) {
+    return content;
+  }
+
+  let previousText = '';
+  let changed = false;
+  const normalizedBlocks = blocks.map((block) => {
+    if (!block.includes('-->')) {
+      return block;
+    }
+
+    const lines = block.split('\n');
+    const timingLineIndex = lines.findIndex((line) => line.includes('-->'));
+    if (timingLineIndex < 0 || timingLineIndex === lines.length - 1) {
+      return block;
+    }
+
+    const textLines = lines.slice(timingLineIndex + 1);
+    const originalText = textLines.join('\n').trim();
+    if (!originalText) {
+      return block;
+    }
+
+    const normalizedText = normalizeRollingCaptionText(originalText, previousText);
+    previousText = originalText;
+    if (!normalizedText || normalizedText === originalText) {
+      return block;
+    }
+
+    changed = true;
+    return [...lines.slice(0, timingLineIndex + 1), normalizedText].join('\n');
+  });
+
+  if (!changed) {
+    return content;
+  }
+  return `${normalizedBlocks.join('\n\n')}\n`;
+}
