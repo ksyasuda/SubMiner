@@ -10,7 +10,6 @@ test('launcher root help lists subcommands', () => {
 
   assert.match(output, /Commands:/);
   assert.match(output, /jellyfin\|jf/);
-  assert.match(output, /yt\|youtube/);
   assert.match(output, /doctor/);
   assert.match(output, /config/);
   assert.match(output, /mpv/);

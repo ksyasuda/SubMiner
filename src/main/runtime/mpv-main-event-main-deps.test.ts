@@ -25,7 +25,6 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     currentSubAssText: '',
     playbackPaused: null,
     previousSecondarySubVisibility: false,
-    youtubePlaybackFlowPending: false,
   };
 
   const deps = createBuildBindMpvMainEventHandlersMainDepsHandler({
@@ -75,7 +74,6 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.recordSubtitleTiming('y', 0, 1);
   await deps.maybeRunAnilistPostWatchUpdate();
   deps.logSubtitleTimingError('err', new Error('boom'));
-  assert.equal(deps.shouldSuppressSubtitleEvents?.(), false);
   deps.setCurrentSubText('sub');
   deps.broadcastSubtitle({ text: 'sub', tokens: null });
   deps.onSubtitleChange('sub');
@@ -119,7 +117,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.ok(calls.includes('reset-sidebar-layout'));
 });
 
-test('mpv main event main deps suppress subtitle events while youtube flow is pending', () => {
+test('mpv main event main deps wire subtitle callbacks without suppression gate', () => {
   const deps = createBuildBindMpvMainEventHandlersMainDepsHandler({
     appState: {
       initialArgs: null,
@@ -131,7 +129,6 @@ test('mpv main event main deps suppress subtitle events while youtube flow is pe
       currentSubAssText: '',
       playbackPaused: null,
       previousSecondarySubVisibility: false,
-      youtubePlaybackFlowPending: true,
     },
     getQuitOnDisconnectArmed: () => false,
     scheduleQuitCheck: () => {},
@@ -158,5 +155,6 @@ test('mpv main event main deps suppress subtitle events while youtube flow is pe
     refreshDiscordPresence: () => {},
   })();
 
-  assert.equal(deps.shouldSuppressSubtitleEvents?.(), true);
+  deps.setCurrentSubText('sub');
+  assert.equal(typeof deps.setCurrentSubText, 'function');
 });

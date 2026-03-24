@@ -96,7 +96,7 @@ export function createYoutubeTrackPickerModal(
 
   function applyPayload(payload: YoutubePickerOpenPayload): void {
     ctx.state.youtubePickerPayload = payload;
-    ctx.dom.youtubePickerTitle.textContent = `${payload.mode === 'generate' ? 'Generate' : 'Download'} subtitles for ${payload.url}`;
+    ctx.dom.youtubePickerTitle.textContent = `Select YouTube subtitles for ${payload.url}`;
     ctx.dom.youtubePickerPrimarySelect.innerHTML = '';
     ctx.dom.youtubePickerSecondarySelect.innerHTML = '';
 

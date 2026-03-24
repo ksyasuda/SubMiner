@@ -151,7 +151,6 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
     modal.openYoutubePickerModal({
       sessionId: 'yt-1',
       url: 'https://example.com',
-      mode: 'download',
       tracks: [],
       defaultPrimaryTrackId: null,
       defaultSecondaryTrackId: null,
@@ -241,7 +240,6 @@ test('youtube track picker re-acknowledges repeated open requests', () => {
     modal.openYoutubePickerModal({
       sessionId: 'yt-1',
       url: 'https://example.com/one',
-      mode: 'download',
       tracks: [],
       defaultPrimaryTrackId: null,
       defaultSecondaryTrackId: null,
@@ -250,7 +248,6 @@ test('youtube track picker re-acknowledges repeated open requests', () => {
     modal.openYoutubePickerModal({
       sessionId: 'yt-2',
       url: 'https://example.com/two',
-      mode: 'generate',
       tracks: [],
       defaultPrimaryTrackId: null,
       defaultSecondaryTrackId: null,
@@ -327,7 +324,6 @@ test('youtube track picker surfaces rejected resolve calls as modal status', asy
     modal.openYoutubePickerModal({
       sessionId: 'yt-1',
       url: 'https://example.com',
-      mode: 'download',
       tracks: [
         {
           id: 'auto:ja-orig',
@@ -432,7 +428,6 @@ test('youtube track picker ignores duplicate resolve submissions while request i
     modal.openYoutubePickerModal({
       sessionId: 'yt-1',
       url: 'https://example.com',
-      mode: 'download',
       tracks: [
         {
           id: 'auto:ja-orig',
@@ -534,7 +529,6 @@ test('youtube track picker only consumes handled keys', async () => {
     modal.openYoutubePickerModal({
       sessionId: 'yt-1',
       url: 'https://example.com',
-      mode: 'download',
       tracks: [],
       defaultPrimaryTrackId: null,
       defaultSecondaryTrackId: null,
@@ -640,7 +634,6 @@ test('youtube track picker ignores immediate Enter after open before allowing ke
     modal.openYoutubePickerModal({
       sessionId: 'yt-1',
       url: 'https://example.com',
-      mode: 'download',
       tracks: [
         {
           id: 'auto:ja-orig',

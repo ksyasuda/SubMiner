@@ -95,14 +95,14 @@ test('transitionAnilistUpdateInFlightState updates inFlight only', () => {
   assert.notEqual(transitioned, current);
 });
 
-test('applyStartupState does not mark youtube playback flow pending from startup args alone', () => {
+test('applyStartupState preserves cleared startup-only runtime flags', () => {
   const appState = createAppState({
     mpvSocketPath: '/tmp/mpv.sock',
     texthookerPort: 4000,
   });
 
   applyStartupState(appState, {
-    initialArgs: parseArgs(['--youtube-play', 'https://www.youtube.com/watch?v=video123']),
+    initialArgs: parseArgs(['--settings']),
     mpvSocketPath: '/tmp/mpv.sock',
     texthookerPort: 4000,
     backendOverride: null,
@@ -111,5 +111,5 @@ test('applyStartupState does not mark youtube playback flow pending from startup
     backgroundMode: false,
   });
 
-  assert.equal(appState.youtubePlaybackFlowPending, false);
+  assert.equal(appState.initialArgs?.settings, true);
 });

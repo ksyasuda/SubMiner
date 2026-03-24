@@ -6,7 +6,6 @@ import type { YoutubePickerOpenPayload } from '../../types';
 const payload: YoutubePickerOpenPayload = {
   sessionId: 'yt-1',
   url: 'https://example.com/watch?v=abc',
-  mode: 'download',
   tracks: [],
   defaultPrimaryTrackId: null,
   defaultSecondaryTrackId: null,

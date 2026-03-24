@@ -111,7 +111,6 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     youtubeSubgenAudioFormat: process.env.SUBMINER_YT_SUBGEN_AUDIO_FORMAT || 'm4a',
     youtubeSubgenKeepTemp: process.env.SUBMINER_YT_SUBGEN_KEEP_TEMP === '1',
     youtubeFixWithAi: launcherConfig.fixWithAi === true,
-    youtubeMode: undefined,
     jimakuApiKey: process.env.SUBMINER_JIMAKU_API_KEY || '',
     jimakuApiKeyCommand: process.env.SUBMINER_JIMAKU_API_KEY_COMMAND || '',
     jimakuApiBaseUrl: process.env.SUBMINER_JIMAKU_API_BASE_URL || DEFAULT_JIMAKU_API_BASE_URL,
@@ -248,29 +247,6 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
     parsed.jellyfinPlay = Boolean(modeFlags.play);
     parsed.jellyfinLogin = Boolean(modeFlags.login);
     parsed.jellyfinLogout = Boolean(modeFlags.logout);
-  }
-
-  if (invocations.ytInvocation) {
-    if (invocations.ytInvocation.mode) {
-      parsed.youtubeMode = invocations.ytInvocation.mode;
-    }
-    if (invocations.ytInvocation.logLevel)
-      parsed.logLevel = parseLogLevel(invocations.ytInvocation.logLevel);
-    if (invocations.ytInvocation.outDir)
-      parsed.youtubeSubgenOutDir = invocations.ytInvocation.outDir;
-    if (invocations.ytInvocation.keepTemp) parsed.youtubeSubgenKeepTemp = true;
-    if (invocations.ytInvocation.whisperBin)
-      parsed.whisperBin = invocations.ytInvocation.whisperBin;
-    if (invocations.ytInvocation.whisperModel)
-      parsed.whisperModel = invocations.ytInvocation.whisperModel;
-    if (invocations.ytInvocation.whisperVadModel)
-      parsed.whisperVadModel = invocations.ytInvocation.whisperVadModel;
-    if (invocations.ytInvocation.whisperThreads)
-      parsed.whisperThreads = invocations.ytInvocation.whisperThreads;
-    if (invocations.ytInvocation.ytSubgenAudioFormat) {
-      parsed.youtubeSubgenAudioFormat = invocations.ytInvocation.ytSubgenAudioFormat;
-    }
-    if (invocations.ytInvocation.target) ensureTarget(invocations.ytInvocation.target, parsed);
   }
 
   if (invocations.dictionaryLogLevel) {

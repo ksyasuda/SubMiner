@@ -362,7 +362,7 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
   });
 });
 
-test('launcher disables plugin startup pause gate for app-owned youtube flow', { timeout: 15000 }, () => {
+test('launcher routes youtube urls through regular playback startup', { timeout: 15000 }, () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
@@ -430,13 +430,16 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
       SUBMINER_TEST_MPV_ARGS: mpvArgsPath,
       SUBMINER_TEST_CAPTURE: path.join(root, 'captured-args.txt'),
     };
-    const result = runLauncher(['yt', 'https://www.youtube.com/watch?v=abc123'], env);
+    const result = runLauncher(['https://www.youtube.com/watch?v=abc123'], env);
 
     assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-    assert.match(
-      fs.readFileSync(mpvArgsPath, 'utf8'),
-      /--script-opts=.*subminer-auto_start_pause_until_ready=no/,
-    );
+    const forwardedArgs = fs
+      .readFileSync(mpvArgsPath, 'utf8')
+      .trim()
+      .split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    assert.equal(forwardedArgs.includes('https://www.youtube.com/watch?v=abc123'), true);
   });
 });
 

@@ -115,7 +115,7 @@ test('initial args handler forwards args to cli handler', () => {
 
 test('initial args handler bootstraps overlay before initial overlay-runtime commands', () => {
   const calls: string[] = [];
-  const args = { youtubePlay: 'https://youtube.com/watch?v=abc' } as never;
+  const args = { settings: true } as never;
   const handleInitialArgs = createHandleInitialArgsHandler({
     getInitialArgs: () => args,
     isBackgroundMode: () => false,

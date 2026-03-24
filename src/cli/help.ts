@@ -13,8 +13,6 @@ ${B}Session${R}
   --background                   Start in tray/background mode
   --start                        Connect to mpv and launch overlay
   --launch-mpv ${D}[targets...]${R}       Launch mpv with the SubMiner mpv profile and exit
-  --youtube-play ${D}URL${R}              Start app-owned YouTube subtitle auto-load flow for a URL
-  --youtube-mode ${D}download|generate${R}  Subtitle acquisition mode for YouTube flow
   --stop                         Stop the running instance
   --stats                        Open the stats dashboard in your browser
   --texthooker                   Start texthooker server only ${D}(no overlay)${R}

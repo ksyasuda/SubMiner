@@ -35,7 +35,6 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   recordSubtitleTiming: (text: string, start: number, end: number) => void;
   maybeRunAnilistPostWatchUpdate: () => Promise<void>;
   logSubtitleTimingError: (message: string, error: unknown) => void;
-  shouldSuppressSubtitleEvents?: () => boolean;
 
   setCurrentSubText: (text: string) => void;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
@@ -100,7 +99,6 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       logError: (message, error) => deps.logSubtitleTimingError(message, error),
     });
     const handleMpvSubtitleChange = createHandleMpvSubtitleChangeHandler({
-      shouldSuppressSubtitleEvents: () => deps.shouldSuppressSubtitleEvents?.() ?? false,
       setCurrentSubText: (text) => deps.setCurrentSubText(text),
       getImmediateSubtitlePayload: (text) => deps.getImmediateSubtitlePayload?.(text) ?? null,
       emitImmediateSubtitle: (payload) => deps.emitImmediateSubtitle?.(payload),
@@ -109,12 +107,10 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     });
     const handleMpvSubtitleAssChange = createHandleMpvSubtitleAssChangeHandler({
-      shouldSuppressSubtitleEvents: () => deps.shouldSuppressSubtitleEvents?.() ?? false,
       setCurrentSubAssText: (text) => deps.setCurrentSubAssText(text),
       broadcastSubtitleAss: (text) => deps.broadcastSubtitleAss(text),
     });
     const handleMpvSecondarySubtitleChange = createHandleMpvSecondarySubtitleChangeHandler({
-      shouldSuppressSubtitleEvents: () => deps.shouldSuppressSubtitleEvents?.() ?? false,
       broadcastSecondarySubtitle: (text) => deps.broadcastSecondarySubtitle(text),
     });
     const handleMpvMediaPathChange = createHandleMpvMediaPathChangeHandler({

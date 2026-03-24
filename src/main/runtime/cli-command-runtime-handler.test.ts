@@ -54,7 +54,7 @@ test('cli command runtime handler prepares overlay prerequisites before overlay 
     },
   });
 
-  handler({ youtubePlay: 'https://www.youtube.com/watch?v=test' } as never);
+  handler({ settings: true } as never);
 
   assert.deepEqual(calls, ['prereqs', 'context', 'cli:initial:ctx']);
 });

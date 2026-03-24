@@ -561,7 +561,6 @@ export interface ControllerRuntimeSnapshot {
 }
 
 export type JimakuLanguagePreference = 'ja' | 'en' | 'none';
-export type YoutubeFlowMode = 'download' | 'generate';
 export type { YoutubeTrackKind };
 
 export interface YoutubeTrackOption {
@@ -578,7 +577,6 @@ export interface YoutubeTrackOption {
 export interface YoutubePickerOpenPayload {
   sessionId: string;
   url: string;
-  mode: YoutubeFlowMode;
   tracks: YoutubeTrackOption[];
   defaultPrimaryTrackId: string | null;
   defaultSecondaryTrackId: string | null;

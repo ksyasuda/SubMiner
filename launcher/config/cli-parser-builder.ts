@@ -14,19 +14,6 @@ export interface JellyfinInvocation {
   logLevel?: string;
 }
 
-export interface YtInvocation {
-  target?: string;
-  mode?: 'download' | 'generate';
-  outDir?: string;
-  keepTemp?: boolean;
-  whisperBin?: string;
-  whisperModel?: string;
-  whisperVadModel?: string;
-  whisperThreads?: number;
-  ytSubgenAudioFormat?: string;
-  logLevel?: string;
-}
-
 export interface CommandActionInvocation {
   action: string;
   logLevel?: string;
@@ -34,7 +21,6 @@ export interface CommandActionInvocation {
 
 export interface CliInvocations {
   jellyfinInvocation: JellyfinInvocation | null;
-  ytInvocation: YtInvocation | null;
   configInvocation: CommandActionInvocation | null;
   mpvInvocation: CommandActionInvocation | null;
   appInvocation: { appArgs: string[] } | null;
@@ -90,8 +76,6 @@ function getTopLevelCommand(argv: string[]): { name: string; index: number } | n
   const commandNames = new Set([
     'jellyfin',
     'jf',
-    'yt',
-    'youtube',
     'doctor',
     'config',
     'mpv',
@@ -143,7 +127,6 @@ export function parseCliPrograms(
   invocations: CliInvocations;
 } {
   let jellyfinInvocation: JellyfinInvocation | null = null;
-  let ytInvocation: YtInvocation | null = null;
   let configInvocation: CommandActionInvocation | null = null;
   let mpvInvocation: CommandActionInvocation | null = null;
   let appInvocation: { appArgs: string[] } | null = null;
@@ -214,43 +197,6 @@ export function parseCliPrograms(
         password: typeof options.password === 'string' ? options.password : undefined,
         passwordStore:
           typeof options.passwordStore === 'string' ? options.passwordStore : undefined,
-        logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,
-      };
-    });
-
-  commandProgram
-    .command('yt')
-    .alias('youtube')
-    .description('YouTube workflows')
-    .argument('[target]', 'YouTube URL or ytsearch: query')
-    .option('--mode <mode>', 'YouTube subtitle acquisition mode')
-    .option('-o, --out-dir <dir>', 'Subtitle output dir')
-    .option('--keep-temp', 'Keep temp files')
-    .option('--whisper-bin <path>', 'whisper.cpp CLI path')
-    .option('--whisper-model <path>', 'whisper model path')
-    .option('--whisper-vad-model <path>', 'whisper.cpp VAD model path')
-    .option('--whisper-threads <n>', 'whisper.cpp thread count')
-    .option('--yt-subgen-audio-format <format>', 'Audio extraction format')
-    .option('--log-level <level>', 'Log level')
-    .action((target: string | undefined, options: Record<string, unknown>) => {
-      ytInvocation = {
-        target,
-        mode:
-          typeof options.mode === 'string' && (options.mode === 'download' || options.mode === 'generate')
-            ? options.mode
-            : undefined,
-        outDir: typeof options.outDir === 'string' ? options.outDir : undefined,
-        keepTemp: options.keepTemp === true,
-        whisperBin: typeof options.whisperBin === 'string' ? options.whisperBin : undefined,
-        whisperModel: typeof options.whisperModel === 'string' ? options.whisperModel : undefined,
-        whisperVadModel:
-          typeof options.whisperVadModel === 'string' ? options.whisperVadModel : undefined,
-        whisperThreads:
-          typeof options.whisperThreads === 'number' && Number.isFinite(options.whisperThreads)
-            ? Math.floor(options.whisperThreads)
-            : undefined,
-        ytSubgenAudioFormat:
-          typeof options.ytSubgenAudioFormat === 'string' ? options.ytSubgenAudioFormat : undefined,
         logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,
       };
     });
@@ -388,7 +334,6 @@ export function parseCliPrograms(
     rootTarget: rootProgram.processedArgs[0],
     invocations: {
       jellyfinInvocation,
-      ytInvocation,
       configInvocation,
       mpvInvocation,
       appInvocation,
