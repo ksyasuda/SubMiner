@@ -1,22 +1,26 @@
 ---
 id: TASK-219
-title: 'Restore streamed video progress in anime episodes'
-status: In Progress
+title: Restore streamed video progress in anime episodes
+status: Done
 assignee:
   - codex
 created_date: '2026-03-22 21:25'
-updated_date: '2026-03-22 21:25'
+updated_date: '2026-03-24 06:44'
 labels:
   - stats
   - immersion-tracker
   - youtube
-priority: medium
 dependencies: []
 references:
-  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/query.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker-service.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/__tests__/query.test.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker-service.test.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/query.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker-service.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/__tests__/query.test.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker-service.test.ts
+priority: medium
 ---
 
 ## Description
@@ -27,7 +31,13 @@ Episode progress for streamed media can stay at `0%` because some remote session
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Anime episode progress ignores zero-valued session checkpoints and falls back to subtitle/event timing
-- [ ] #2 New streamed sessions persist meaningful progress even when playback-position updates are missing or sparse
-- [ ] #3 Regression tests cover the zero-checkpoint remote-session case
+- [x] #1 Anime episode progress ignores zero-valued session checkpoints and falls back to subtitle/event timing
+- [x] #2 New streamed sessions persist meaningful progress even when playback-position updates are missing or sparse
+- [x] #3 Regression tests cover the zero-checkpoint remote-session case
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Restored anime episode progress handling for streamed sessions by ignoring zero-valued `ended_media_ms` checkpoints and falling back to subtitle/event timing, with regression coverage for the remote-session zero-checkpoint case.
+<!-- SECTION:FINAL_SUMMARY:END -->
