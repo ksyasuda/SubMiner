@@ -4,7 +4,7 @@ title: Fix frozen primary YouTube subtitle display after auto-load startup
 status: Done
 assignee: []
 created_date: '2026-03-23 20:07'
-updated_date: '2026-03-23 20:15'
+updated_date: '2026-03-24 06:41'
 labels:
   - bug
   - youtube
@@ -12,6 +12,7 @@ labels:
 dependencies:
   - TASK-224
 priority: high
+ordinal: 149500
 ---
 
 ## Description

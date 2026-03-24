@@ -4,7 +4,7 @@ title: Restore subtitle sidebar cues for auto-loaded YouTube subtitles
 status: Done
 assignee: []
 created_date: '2026-03-23 20:21'
-updated_date: '2026-03-23 20:25'
+updated_date: '2026-03-24 06:41'
 labels:
   - bug
   - youtube
@@ -13,6 +13,7 @@ dependencies:
   - TASK-224
   - TASK-225
 priority: high
+ordinal: 148500
 ---
 
 ## Description

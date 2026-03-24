@@ -1,21 +1,26 @@
 ---
 id: TASK-218
-title: 'Delete zero-session media from stats library and trends'
+title: Delete zero-session media from stats library and trends
 status: Done
 assignee:
   - codex
 created_date: '2026-03-22 16:20'
-updated_date: '2026-03-22 21:10'
+updated_date: '2026-03-24 06:41'
 labels:
   - stats
   - immersion-tracker
-priority: medium
 dependencies: []
 references:
-  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/query.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/lifetime.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/maintenance.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/__tests__/query.test.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/query.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/lifetime.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/maintenance.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker/__tests__/query.test.ts
+priority: medium
+ordinal: 153500
 ---
 
 ## Description

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-23 08:32'
-updated_date: '2026-03-23 08:38'
+updated_date: '2026-03-24 06:41'
 labels:
   - bug
 dependencies: []
@@ -13,6 +13,7 @@ references:
   - /Users/sudacode/projects/japanese/SubMiner/src/main/runtime
   - /Users/sudacode/projects/japanese/SubMiner/src/core/services
 priority: high
+ordinal: 151500
 ---
 
 ## Description

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-24 03:53'
-updated_date: '2026-03-24 03:56'
+updated_date: '2026-03-24 06:41'
 labels:
   - pr-review
   - coderabbit
@@ -15,6 +15,7 @@ references:
     PR #31 feat: add app-owned YouTube subtitle flow with absPlayer-style
     parsing
 priority: medium
+ordinal: 147500
 ---
 
 ## Description

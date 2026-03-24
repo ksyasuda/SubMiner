@@ -7,7 +7,7 @@ status: Done
 assignee:
   - Codex
 created_date: '2026-03-23 18:51'
-updated_date: '2026-03-23 19:14'
+updated_date: '2026-03-24 06:41'
 labels:
   - youtube
   - mpv
@@ -20,6 +20,7 @@ references:
     /Users/sudacode/projects/japanese/SubMiner/src/renderer/modals/youtube-track-picker.ts
   - /Users/sudacode/projects/japanese/SubMiner/src/config/definitions/shared.ts
 priority: high
+ordinal: 150500
 ---
 
 ## Description

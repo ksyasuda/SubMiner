@@ -1,11 +1,11 @@
 ---
 id: TASK-223
 title: Fix YouTube overlay Anki initialization regression
-status: In Progress
+status: Done
 assignee:
   - codex
 created_date: '2026-03-23 08:41'
-updated_date: '2026-03-23 18:24'
+updated_date: '2026-03-24 06:41'
 labels:
   - bug
   - youtube
@@ -20,6 +20,7 @@ references:
 documentation:
   - /Users/sudacode/projects/japanese/SubMiner/docs/workflow/verification.md
 priority: high
+ordinal: 154500
 ---
 
 ## Description

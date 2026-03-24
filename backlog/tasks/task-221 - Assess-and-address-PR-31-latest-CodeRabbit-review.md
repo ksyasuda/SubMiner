@@ -4,7 +4,7 @@ title: 'Assess and address PR #31 latest CodeRabbit review'
 status: Done
 assignee: []
 created_date: '2026-03-23 07:53'
-updated_date: '2026-03-23 08:20'
+updated_date: '2026-03-24 06:41'
 labels:
   - pr-review
   - coderabbit
@@ -14,6 +14,7 @@ references:
     PR #31 feat: add app-owned YouTube subtitle flow with absPlayer-style
     parsing
 priority: medium
+ordinal: 152500
 ---
 
 ## Description

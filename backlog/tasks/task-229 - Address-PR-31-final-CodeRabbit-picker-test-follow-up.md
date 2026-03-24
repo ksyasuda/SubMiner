@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-24 04:27'
-updated_date: '2026-03-24 04:32'
+updated_date: '2026-03-24 06:41'
 labels:
   - pr-review
   - coderabbit
@@ -18,6 +18,7 @@ references:
     CodeRabbit comment on src/renderer/modals/youtube-track-picker.test.ts
     global restoration / harness duplication
 priority: medium
+ordinal: 145500
 ---
 
 ## Description
