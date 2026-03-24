@@ -310,6 +310,7 @@ test(
       const appStartPath = path.join(smokeCase.artifactsDir, 'fake-app-start.log');
       const appStopPath = path.join(smokeCase.artifactsDir, 'fake-app-stop.log');
       await waitForJsonLines(appStartPath, 1);
+      await waitForJsonLines(appStopPath, 1);
 
       const appStartEntries = readJsonLines(appStartPath);
       const appStopEntries = readJsonLines(appStopPath);
@@ -324,7 +325,7 @@ test(
       assert.match(result.stdout, /Starting SubMiner overlay/i);
 
       assert.equal(appStartEntries.length, 1);
-      assert.equal(appStopEntries.length, 0);
+      assert.equal(appStopEntries.length, 1);
       assert.equal(mpvEntries.length >= 1, true);
 
       const appStartArgs = appStartEntries[0]?.argv;

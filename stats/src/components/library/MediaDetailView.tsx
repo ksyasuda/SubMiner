@@ -5,7 +5,14 @@ import { confirmSessionDelete } from '../../lib/delete-confirm';
 import { getSessionDisplayWordCount } from '../../lib/session-word-count';
 import { MediaHeader } from './MediaHeader';
 import { MediaSessionList } from './MediaSessionList';
-import type { SessionSummary } from '../../types/stats';
+import type { MediaDetailData, SessionSummary } from '../../types/stats';
+
+export function getRelatedCollectionLabel(detail: MediaDetailData['detail']): string {
+  if (detail?.channelName?.trim()) {
+    return 'View Channel';
+  }
+  return 'View Anime';
+}
 
 interface MediaDetailViewProps {
   videoId: number;
@@ -53,6 +60,7 @@ export function MediaDetailView({
     totalLookupHits: sessions.reduce((sum, session) => sum + session.lookupHits, 0),
     totalYomitanLookupCount: sessions.reduce((sum, session) => sum + session.yomitanLookupCount, 0),
   };
+  const relatedCollectionLabel = getRelatedCollectionLabel(detail);
 
   const handleDeleteSession = async (session: SessionSummary) => {
     if (!confirmSessionDelete()) return;
@@ -87,7 +95,7 @@ export function MediaDetailView({
             onClick={() => onNavigateToAnime(animeId)}
             className="text-sm text-ctp-blue hover:text-ctp-sapphire transition-colors"
           >
-            View Anime &rarr;
+            {relatedCollectionLabel} &rarr;
           </button>
         ) : null}
       </div>

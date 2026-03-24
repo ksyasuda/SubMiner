@@ -58,24 +58,30 @@ subminer --start video.mkv      # optional explicit overlay start when plugin au
 subminer -S video.mkv           # same as above via --start-overlay
 subminer https://youtu.be/...   # YouTube playback (requires yt-dlp)
 subminer ytsearch:"jp news"     # YouTube search
+subminer stats                  # open immersion dashboard
+subminer stats -b               # start background stats daemon
+subminer stats -s               # stop background stats daemon
 subminer --setup                # Open first-run setup popup
 ```
 
 ## Subcommands
 
-| Subcommand                 | Purpose                                                    |
-| -------------------------- | ---------------------------------------------------------- |
-| `subminer jellyfin` / `jf` | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login) |
-| `subminer yt` / `youtube`  | YouTube shorthand (`-o`, `-m`)                             |
-| `subminer doctor`          | Dependency + config + socket diagnostics                   |
-| `subminer config path`     | Print active config file path                              |
-| `subminer config show`     | Print active config contents                               |
-| `subminer mpv status`      | Check mpv socket readiness                                 |
-| `subminer mpv socket`      | Print active socket path                                   |
-| `subminer mpv idle`        | Launch detached idle mpv instance                          |
-| `subminer dictionary <path>` | Generate character dictionary ZIP from file/dir target   |
-| `subminer texthooker`      | Launch texthooker-only mode                                |
-| `subminer app`             | Pass arguments directly to SubMiner binary                 |
+| Subcommand                   | Purpose                                                    |
+| ---------------------------- | ---------------------------------------------------------- |
+| `subminer jellyfin` / `jf`   | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login) |
+| `subminer stats`             | Start stats server and open immersion dashboard in browser |
+| `subminer stats -b`          | Start or reuse background stats daemon (non-blocking)      |
+| `subminer stats -s`          | Stop the background stats daemon                           |
+| `subminer stats cleanup`     | Backfill vocabulary metadata and prune stale rows          |
+| `subminer doctor`            | Dependency + config + socket diagnostics                   |
+| `subminer config path`       | Print active config file path                              |
+| `subminer config show`       | Print active config contents                               |
+| `subminer mpv status`        | Check mpv socket readiness                                 |
+| `subminer mpv socket`        | Print active socket path                                   |
+| `subminer mpv idle`          | Launch detached idle mpv instance                          |
+| `subminer dictionary <path>` | Generate character dictionary ZIP from file/dir target     |
+| `subminer texthooker`        | Launch texthooker-only mode                                |
+| `subminer app`               | Pass arguments directly to SubMiner binary                 |
 
 Use `subminer <subcommand> -h` for command-specific help.
 

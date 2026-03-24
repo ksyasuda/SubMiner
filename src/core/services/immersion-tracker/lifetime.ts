@@ -134,6 +134,49 @@ function resetLifetimeSummaries(db: DatabaseSync, nowMs: number): void {
   ).run(nowMs, nowMs);
 }
 
+function rebuildLifetimeSummariesInternal(
+  db: DatabaseSync,
+  rebuiltAtMs: number,
+): LifetimeRebuildSummary {
+  const sessions = db
+    .prepare(
+      `
+      SELECT
+        session_id AS sessionId,
+        video_id AS videoId,
+        started_at_ms AS startedAtMs,
+        ended_at_ms AS endedAtMs,
+        total_watched_ms AS totalWatchedMs,
+        active_watched_ms AS activeWatchedMs,
+        lines_seen AS linesSeen,
+        tokens_seen AS tokensSeen,
+        cards_mined AS cardsMined,
+        lookup_count AS lookupCount,
+        lookup_hits AS lookupHits,
+        yomitan_lookup_count AS yomitanLookupCount,
+        pause_count AS pauseCount,
+        pause_ms AS pauseMs,
+        seek_forward_count AS seekForwardCount,
+        seek_backward_count AS seekBackwardCount,
+        media_buffer_events AS mediaBufferEvents
+      FROM imm_sessions
+      WHERE ended_at_ms IS NOT NULL
+      ORDER BY started_at_ms ASC, session_id ASC
+      `,
+    )
+    .all() as RetainedSessionRow[];
+
+  resetLifetimeSummaries(db, rebuiltAtMs);
+  for (const session of sessions) {
+    applySessionLifetimeSummary(db, toRebuildSessionState(session), session.endedAtMs);
+  }
+
+  return {
+    appliedSessions: sessions.length,
+    rebuiltAtMs,
+  };
+}
+
 function toRebuildSessionState(row: RetainedSessionRow): SessionState {
   return {
     sessionId: row.sessionId,
@@ -482,50 +525,22 @@ export function applySessionLifetimeSummary(
 
 export function rebuildLifetimeSummaries(db: DatabaseSync): LifetimeRebuildSummary {
   const rebuiltAtMs = Date.now();
-  const sessions = db
-    .prepare(
-      `
-      SELECT
-        session_id AS sessionId,
-        video_id AS videoId,
-        started_at_ms AS startedAtMs,
-        ended_at_ms AS endedAtMs,
-        total_watched_ms AS totalWatchedMs,
-        active_watched_ms AS activeWatchedMs,
-        lines_seen AS linesSeen,
-        tokens_seen AS tokensSeen,
-        cards_mined AS cardsMined,
-        lookup_count AS lookupCount,
-        lookup_hits AS lookupHits,
-        yomitan_lookup_count AS yomitanLookupCount,
-        pause_count AS pauseCount,
-        pause_ms AS pauseMs,
-        seek_forward_count AS seekForwardCount,
-        seek_backward_count AS seekBackwardCount,
-        media_buffer_events AS mediaBufferEvents
-      FROM imm_sessions
-      WHERE ended_at_ms IS NOT NULL
-      ORDER BY started_at_ms ASC, session_id ASC
-      `,
-    )
-    .all() as RetainedSessionRow[];
-
   db.exec('BEGIN');
   try {
-    resetLifetimeSummaries(db, rebuiltAtMs);
-    for (const session of sessions) {
-      applySessionLifetimeSummary(db, toRebuildSessionState(session), session.endedAtMs);
-    }
+    const summary = rebuildLifetimeSummariesInTransaction(db, rebuiltAtMs);
     db.exec('COMMIT');
+    return summary;
   } catch (error) {
     db.exec('ROLLBACK');
     throw error;
   }
+}
 
-  return {
-    appliedSessions: sessions.length,
-    rebuiltAtMs,
-  };
+export function rebuildLifetimeSummariesInTransaction(
+  db: DatabaseSync,
+  rebuiltAtMs = Date.now(),
+): LifetimeRebuildSummary {
+  return rebuildLifetimeSummariesInternal(db, rebuiltAtMs);
 }
 
 export function reconcileStaleActiveSessions(db: DatabaseSync): number {

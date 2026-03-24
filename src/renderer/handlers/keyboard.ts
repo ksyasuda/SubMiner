@@ -15,6 +15,7 @@ export function createKeyboardHandlers(
     handleSubsyncKeydown: (e: KeyboardEvent) => boolean;
     handleKikuKeydown: (e: KeyboardEvent) => boolean;
     handleJimakuKeydown: (e: KeyboardEvent) => boolean;
+    handleYoutubePickerKeydown: (e: KeyboardEvent) => boolean;
     handleControllerSelectKeydown: (e: KeyboardEvent) => boolean;
     handleControllerDebugKeydown: (e: KeyboardEvent) => boolean;
     handleSessionHelpKeydown: (e: KeyboardEvent) => boolean;
@@ -479,6 +480,8 @@ export function createKeyboardHandlers(
 
   function handleSubtitleContentUpdated(): void {
     if (!ctx.state.keyboardDrivenModeEnabled) {
+      dispatchYomitanFrontendClearActiveTextSource();
+      clearNativeSubtitleSelection();
       return;
     }
     if (pendingSelectionAnchorAfterSubtitleSeek) {
@@ -678,6 +681,11 @@ export function createKeyboardHandlers(
     ]);
     if (modifierOnlyCodes.has(e.code)) return false;
 
+    const keyString = keyEventToString(e);
+    if (ctx.state.keybindingsMap.has(keyString)) {
+      return false;
+    }
+
     if (!e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'KeyM') {
       if (e.repeat) return false;
       dispatchYomitanPopupMineSelected();
@@ -834,6 +842,11 @@ export function createKeyboardHandlers(
         options.handleJimakuKeydown(e);
         return;
       }
+      if (ctx.state.youtubePickerModalOpen) {
+        if (options.handleYoutubePickerKeydown(e)) {
+          return;
+        }
+      }
       if (ctx.state.controllerSelectModalOpen) {
         options.handleControllerSelectKeydown(e);
         return;
@@ -871,8 +884,8 @@ export function createKeyboardHandlers(
       ) {
         if (handleYomitanPopupKeybind(e)) {
           e.preventDefault();
+          return;
         }
-        return;
       }
 
       if (ctx.state.keyboardDrivenModeEnabled && handleKeyboardDrivenModeNavigation(e)) {

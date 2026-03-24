@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-19 18:47'
-updated_date: '2026-03-19 19:01'
+updated_date: '2026-03-23 03:22'
 labels:
   - bug
   - macos
@@ -20,6 +20,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/src/core/services/overlay-visibility.test.ts
 priority: high
+ordinal: 131500
 ---
 
 ## Description

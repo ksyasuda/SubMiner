@@ -9,6 +9,8 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     start: false,
     launchMpv: false,
     launchMpvTargets: [],
+    youtubePlay: undefined,
+    youtubeMode: undefined,
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
@@ -184,6 +186,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     runJellyfinCommand: async () => {
       calls.push('runJellyfinCommand');
     },
+    runYoutubePlaybackFlow: async (request) => {
+      calls.push(`runYoutubePlaybackFlow:${request.url}:${request.mode}:${request.source}`);
+    },
     printHelp: () => {
       calls.push('printHelp');
     },
@@ -206,6 +211,58 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
 
   return { deps, calls, osd };
 }
+
+test('handleCliCommand starts youtube playback flow on initial launch', () => {
+  const { deps, calls } = createDeps({
+    runYoutubePlaybackFlow: async (request) => {
+      calls.push(`youtube:${request.url}:${request.mode}`);
+    },
+  });
+
+  handleCliCommand(
+    makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc', youtubeMode: 'generate' }),
+    'initial',
+    deps,
+  );
+
+  assert.deepEqual(calls, [
+    'initializeOverlayRuntime',
+    'youtube:https://youtube.com/watch?v=abc:generate',
+  ]);
+});
+
+test('handleCliCommand defaults youtube mode to download when omitted', () => {
+  const { deps, calls } = createDeps({
+    runYoutubePlaybackFlow: async (request) => {
+      calls.push(`youtube:${request.url}:${request.mode}`);
+    },
+  });
+
+  handleCliCommand(makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc' }), 'initial', deps);
+
+  assert.deepEqual(calls, [
+    'initializeOverlayRuntime',
+    'youtube:https://youtube.com/watch?v=abc:download',
+  ]);
+});
+
+test('handleCliCommand reports youtube playback flow failures to logs and OSD', async () => {
+  const { deps, calls, osd } = createDeps({
+    runYoutubePlaybackFlow: async () => {
+      throw new Error('yt failed');
+    },
+  });
+
+  handleCliCommand(
+    makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc', youtubeMode: 'download' }),
+    'initial',
+    deps,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(calls.some((value) => value.startsWith('error:runYoutubePlaybackFlow failed:')));
+  assert.ok(osd.includes('YouTube playback failed: yt failed'));
+});
 
 test('handleCliCommand reconnects MPV for second-instance --start when overlay runtime is already initialized', () => {
   const { deps, calls } = createDeps({

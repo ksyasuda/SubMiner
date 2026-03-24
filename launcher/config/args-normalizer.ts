@@ -249,26 +249,6 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
     parsed.jellyfinLogout = Boolean(modeFlags.logout);
   }
 
-  if (invocations.ytInvocation) {
-    if (invocations.ytInvocation.logLevel)
-      parsed.logLevel = parseLogLevel(invocations.ytInvocation.logLevel);
-    if (invocations.ytInvocation.outDir)
-      parsed.youtubeSubgenOutDir = invocations.ytInvocation.outDir;
-    if (invocations.ytInvocation.keepTemp) parsed.youtubeSubgenKeepTemp = true;
-    if (invocations.ytInvocation.whisperBin)
-      parsed.whisperBin = invocations.ytInvocation.whisperBin;
-    if (invocations.ytInvocation.whisperModel)
-      parsed.whisperModel = invocations.ytInvocation.whisperModel;
-    if (invocations.ytInvocation.whisperVadModel)
-      parsed.whisperVadModel = invocations.ytInvocation.whisperVadModel;
-    if (invocations.ytInvocation.whisperThreads)
-      parsed.whisperThreads = invocations.ytInvocation.whisperThreads;
-    if (invocations.ytInvocation.ytSubgenAudioFormat) {
-      parsed.youtubeSubgenAudioFormat = invocations.ytInvocation.ytSubgenAudioFormat;
-    }
-    if (invocations.ytInvocation.target) ensureTarget(invocations.ytInvocation.target, parsed);
-  }
-
   if (invocations.dictionaryLogLevel) {
     parsed.logLevel = parseLogLevel(invocations.dictionaryLogLevel);
   }

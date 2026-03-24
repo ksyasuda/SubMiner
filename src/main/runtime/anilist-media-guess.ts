@@ -1,4 +1,5 @@
 import type { AnilistMediaGuess } from '../../core/services/anilist/anilist-updater';
+import { isYoutubeMediaPath } from './youtube-playback';
 
 export type AnilistMediaGuessRuntimeState = {
   mediaKey: string | null;
@@ -24,6 +25,9 @@ export function createMaybeProbeAnilistDurationHandler(deps: {
   return async (mediaKey: string): Promise<number | null> => {
     const state = deps.getState();
     if (state.mediaKey !== mediaKey) {
+      return null;
+    }
+    if (isYoutubeMediaPath(mediaKey)) {
       return null;
     }
     if (typeof state.mediaDurationSec === 'number' && state.mediaDurationSec > 0) {
@@ -71,6 +75,9 @@ export function createEnsureAnilistMediaGuessHandler(deps: {
   return async (mediaKey: string): Promise<AnilistMediaGuess | null> => {
     const state = deps.getState();
     if (state.mediaKey !== mediaKey) {
+      return null;
+    }
+    if (isYoutubeMediaPath(mediaKey)) {
       return null;
     }
     if (state.mediaGuess) {

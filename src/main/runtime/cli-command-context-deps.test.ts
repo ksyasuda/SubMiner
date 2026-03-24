@@ -60,6 +60,9 @@ test('build cli command context deps maps handlers and values', () => {
     runJellyfinCommand: async () => {
       calls.push('run-jellyfin');
     },
+    runYoutubePlaybackFlow: async () => {
+      calls.push('run-youtube-playback');
+    },
     openYomitanSettings: () => calls.push('yomitan'),
     cycleSecondarySubMode: () => calls.push('cycle-secondary'),
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),

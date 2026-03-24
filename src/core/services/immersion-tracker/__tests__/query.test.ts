@@ -39,6 +39,7 @@ import {
 } from '../query.js';
 import {
   SOURCE_TYPE_LOCAL,
+  SOURCE_TYPE_REMOTE,
   EVENT_CARD_MINED,
   EVENT_SUBTITLE_LINE,
   EVENT_YOMITAN_LOOKUP,
@@ -273,6 +274,78 @@ test('getAnimeEpisodes falls back to the latest subtitle segment end when sessio
     assert.equal(episode?.endedMediaMs, 21_000);
     assert.equal(episode?.totalSessions, 1);
     assert.equal(episode?.totalActiveMs, 10_000);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getAnimeEpisodes ignores zero-valued session checkpoints and falls back to subtitle progress', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+    const videoId = getOrCreateVideoRecord(db, 'remote:https://www.youtube.com/watch?v=zero123', {
+      canonicalTitle: 'Zero Checkpoint Stream',
+      sourcePath: null,
+      sourceUrl: 'https://www.youtube.com/watch?v=zero123',
+      sourceType: SOURCE_TYPE_REMOTE,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Zero Checkpoint Anime',
+      canonicalTitle: 'Zero Checkpoint Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'watch?v=zero123',
+      parsedTitle: 'Zero Checkpoint Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":1}',
+    });
+    db.prepare('UPDATE imm_videos SET duration_ms = ? WHERE video_id = ?').run(600_000, videoId);
+
+    const startedAtMs = 1_200_000;
+    const sessionId = startSessionRecord(db, videoId, startedAtMs).sessionId;
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET
+        ended_at_ms = ?,
+        status = 2,
+        ended_media_ms = 0,
+        active_watched_ms = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE session_id = ?
+      `,
+    ).run(startedAtMs + 30_000, 180_000, startedAtMs + 30_000, sessionId);
+    stmts.eventInsertStmt.run(
+      sessionId,
+      startedAtMs + 29_000,
+      EVENT_SUBTITLE_LINE,
+      1,
+      170_000,
+      185_000,
+      4,
+      0,
+      '{"line":"stream progress"}',
+      startedAtMs + 29_000,
+      startedAtMs + 29_000,
+    );
+
+    const [episode] = getAnimeEpisodes(db, animeId);
+    assert.ok(episode);
+    assert.equal(episode?.endedMediaMs, 185_000);
+    assert.equal(episode?.durationMs, 600_000);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -1956,6 +2029,100 @@ test('media library and detail queries read lifetime totals', () => {
   }
 });
 
+test('media library and detail queries include joined youtube metadata when present', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const mediaOne = getOrCreateVideoRecord(db, 'yt:https://www.youtube.com/watch?v=abc123', {
+      canonicalTitle: 'Local Fallback Title',
+      sourcePath: null,
+      sourceUrl: 'https://www.youtube.com/watch?v=abc123',
+      sourceType: SOURCE_TYPE_REMOTE,
+    });
+
+    db.prepare(
+      `
+        INSERT INTO imm_lifetime_media (
+          video_id,
+          total_sessions,
+          total_active_ms,
+          total_cards,
+          total_lines_seen,
+          total_tokens_seen,
+          completed,
+          first_watched_ms,
+          last_watched_ms,
+          CREATED_DATE,
+          LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(mediaOne, 2, 6_000, 1, 5, 80, 0, 1_000, 9_000, 9_000, 9_000);
+
+    db.prepare(
+      `
+        INSERT INTO imm_youtube_videos (
+          video_id,
+          youtube_video_id,
+          video_url,
+          video_title,
+          video_thumbnail_url,
+          channel_id,
+          channel_name,
+          channel_url,
+          channel_thumbnail_url,
+          uploader_id,
+          uploader_url,
+          description,
+          metadata_json,
+          fetched_at_ms,
+          CREATED_DATE,
+          LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(
+      mediaOne,
+      'abc123',
+      'https://www.youtube.com/watch?v=abc123',
+      'Tracked Video Title',
+      'https://i.ytimg.com/vi/abc123/hqdefault.jpg',
+      'UCcreator123',
+      'Creator Name',
+      'https://www.youtube.com/channel/UCcreator123',
+      'https://yt3.googleusercontent.com/channel-avatar=s88',
+      '@creator',
+      'https://www.youtube.com/@creator',
+      'Video description',
+      '{"source":"test"}',
+      10_000,
+      10_000,
+      10_000,
+    );
+
+    const library = getMediaLibrary(db);
+    const detail = getMediaDetail(db, mediaOne);
+
+    assert.equal(library.length, 1);
+    assert.equal(library[0]?.youtubeVideoId, 'abc123');
+    assert.equal(library[0]?.videoTitle, 'Tracked Video Title');
+    assert.equal(library[0]?.channelId, 'UCcreator123');
+    assert.equal(library[0]?.channelName, 'Creator Name');
+    assert.equal(library[0]?.channelUrl, 'https://www.youtube.com/channel/UCcreator123');
+    assert.equal(detail?.youtubeVideoId, 'abc123');
+    assert.equal(detail?.videoUrl, 'https://www.youtube.com/watch?v=abc123');
+    assert.equal(detail?.videoThumbnailUrl, 'https://i.ytimg.com/vi/abc123/hqdefault.jpg');
+    assert.equal(detail?.channelThumbnailUrl, 'https://yt3.googleusercontent.com/channel-avatar=s88');
+    assert.equal(detail?.uploaderId, '@creator');
+    assert.equal(detail?.uploaderUrl, 'https://www.youtube.com/@creator');
+    assert.equal(detail?.description, 'Video description');
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('cover art queries reuse a shared blob across duplicate anime art rows', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
@@ -2674,6 +2841,203 @@ test('deleteSession rebuilds word and kanji aggregates from retained subtitle li
     assert.equal(sharedKanjiRow.first_seen, keptTs);
     assert.equal(sharedKanjiRow.last_seen, keptTs);
     assert.equal(deletedOnlyKanjiRow ?? null, null);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('deleteSession removes zero-session media from library and trends', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Delete Me Anime',
+      canonicalTitle: 'Delete Me Anime',
+      anilistId: 404_404,
+      titleRomaji: 'Delete Me Anime',
+      titleEnglish: 'Delete Me Anime',
+      titleNative: 'Delete Me Anime',
+      metadataJson: null,
+    });
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/delete-last-session.mkv', {
+      canonicalTitle: 'Delete Last Session',
+      sourcePath: '/tmp/delete-last-session.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'Delete Last Session',
+      parsedTitle: 'Delete Me Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":1}',
+    });
+
+    const startedAtMs = 9_000_000;
+    const endedAtMs = startedAtMs + 120_000;
+    const rollupDay = Math.floor(startedAtMs / 86_400_000);
+    const rollupMonth = 197001;
+    const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
+
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET
+        ended_at_ms = ?,
+        ended_media_ms = ?,
+        total_watched_ms = ?,
+        active_watched_ms = ?,
+        lines_seen = ?,
+        tokens_seen = ?,
+        cards_mined = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE session_id = ?
+      `,
+    ).run(endedAtMs, 120000, 120000, 120000, 12, 120, 3, endedAtMs, sessionId);
+
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_applied_sessions (
+        session_id,
+        applied_at_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?)
+      `,
+    ).run(sessionId, endedAtMs, endedAtMs, endedAtMs);
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_media (
+        video_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_lines_seen,
+        total_tokens_seen,
+        completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(videoId, 1, 120_000, 3, 12, 120, 0, startedAtMs, endedAtMs, endedAtMs, endedAtMs);
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_anime (
+        anime_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_lines_seen,
+        total_tokens_seen,
+        episodes_started,
+        episodes_completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(animeId, 1, 120000, 3, 12, 120, 1, 0, startedAtMs, endedAtMs, endedAtMs, endedAtMs);
+    db.prepare(
+      `
+      UPDATE imm_lifetime_global
+      SET
+        total_sessions = 1,
+        total_active_ms = 120000,
+        total_cards = 3,
+        active_days = 1,
+        episodes_started = 1,
+        episodes_completed = 0,
+        anime_completed = 0,
+        last_rebuilt_ms = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE global_id = 1
+      `,
+    ).run(endedAtMs, endedAtMs);
+    db.prepare(
+      `
+      INSERT INTO imm_daily_rollups (
+        rollup_day,
+        video_id,
+        total_sessions,
+        total_active_min,
+        total_lines_seen,
+        total_tokens_seen,
+        total_cards,
+        cards_per_hour,
+        tokens_per_min,
+        lookup_hit_rate,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(rollupDay, videoId, 1, 2, 12, 120, 3, 90, 60, null, endedAtMs, endedAtMs);
+    db.prepare(
+      `
+      INSERT INTO imm_monthly_rollups (
+        rollup_month,
+        video_id,
+        total_sessions,
+        total_active_min,
+        total_lines_seen,
+        total_tokens_seen,
+        total_cards,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(rollupMonth, videoId, 1, 2, 12, 120, 3, endedAtMs, endedAtMs);
+
+    deleteSession(db, sessionId);
+
+    assert.deepEqual(getMediaLibrary(db), []);
+    assert.equal(getMediaDetail(db, videoId) ?? null, null);
+    assert.deepEqual(getAnimeLibrary(db), []);
+    assert.equal(getAnimeDetail(db, animeId) ?? null, null);
+
+    const trends = getTrendsDashboard(db, 'all', 'day');
+    assert.deepEqual(trends.activity.watchTime, []);
+    assert.deepEqual(trends.activity.sessions, []);
+
+    const dailyRollups = getDailyRollups(db, 30);
+    const monthlyRollups = getMonthlyRollups(db, 30);
+    assert.deepEqual(dailyRollups, []);
+    assert.deepEqual(monthlyRollups, []);
+
+    const lifetimeMediaCount = Number(
+      (
+        db.prepare('SELECT COUNT(*) AS total FROM imm_lifetime_media WHERE video_id = ?').get(
+          videoId,
+        ) as { total: number }
+      ).total,
+    );
+    const lifetimeAnimeCount = Number(
+      (
+        db.prepare('SELECT COUNT(*) AS total FROM imm_lifetime_anime WHERE anime_id = ?').get(
+          animeId,
+        ) as { total: number }
+      ).total,
+    );
+    const appliedSessionCount = Number(
+      (
+        db
+          .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_applied_sessions WHERE session_id = ?')
+          .get(sessionId) as { total: number }
+      ).total,
+    );
+
+    assert.equal(lifetimeMediaCount, 0);
+    assert.equal(lifetimeAnimeCount, 0);
+    assert.equal(appliedSessionCount, 0);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

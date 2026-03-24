@@ -1,10 +1,10 @@
 ---
 id: TASK-215
 title: Add startup auto-open option for subtitle sidebar
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-21 11:35'
-updated_date: '2026-03-21 11:35'
+updated_date: '2026-03-23 03:22'
 labels:
   - feature
   - ux
@@ -13,11 +13,15 @@ labels:
 dependencies: []
 references:
   - /Users/sudacode/projects/japanese/SubMiner/src/types.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/config/definitions/defaults-subtitle.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/config/resolve/subtitle-domains.ts
-  - /Users/sudacode/projects/japanese/SubMiner/src/renderer/modals/subtitle-sidebar.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/config/definitions/defaults-subtitle.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/config/resolve/subtitle-domains.ts
+  - >-
+    /Users/sudacode/projects/japanese/SubMiner/src/renderer/modals/subtitle-sidebar.ts
   - /Users/sudacode/projects/japanese/SubMiner/src/renderer/renderer.ts
 priority: medium
+ordinal: 143500
 ---
 
 ## Description

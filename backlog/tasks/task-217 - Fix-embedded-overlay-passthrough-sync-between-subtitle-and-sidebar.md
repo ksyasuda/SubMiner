@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-21 23:16'
-updated_date: '2026-03-21 23:28'
+updated_date: '2026-03-23 03:22'
 labels:
   - bug
   - overlay
@@ -18,6 +18,7 @@ references:
 documentation:
   - docs/workflow/verification.md
 priority: high
+ordinal: 118500
 ---
 
 ## Description

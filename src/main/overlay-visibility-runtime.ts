@@ -8,6 +8,7 @@ const OVERLAY_LOADING_OSD_COOLDOWN_MS = 30_000;
 
 export interface OverlayVisibilityRuntimeDeps {
   getMainWindow: () => BrowserWindow | null;
+  getModalActive: () => boolean;
   getVisibleOverlayVisible: () => boolean;
   getForceMousePassthrough: () => boolean;
   getWindowTracker: () => BaseWindowTracker | null;
@@ -37,6 +38,7 @@ export function createOverlayVisibilityRuntimeService(
     updateVisibleOverlayVisibility(): void {
       updateVisibleOverlayVisibility({
         visibleOverlayVisible: deps.getVisibleOverlayVisible(),
+        modalActive: deps.getModalActive(),
         forceMousePassthrough: deps.getForceMousePassthrough(),
         mainWindow: deps.getMainWindow(),
         windowTracker: deps.getWindowTracker(),

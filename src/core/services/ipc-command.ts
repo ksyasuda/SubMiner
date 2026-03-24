@@ -14,9 +14,11 @@ export interface HandleMpvCommandFromIpcOptions {
     PLAY_NEXT_SUBTITLE: string;
     SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START: string;
     SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START: string;
+    YOUTUBE_PICKER_OPEN: string;
   };
   triggerSubsyncFromConfig: () => void;
   openRuntimeOptionsPalette: () => void;
+  openYoutubeTrackPicker: () => void | Promise<void>;
   runtimeOptionsCycle: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   showMpvOsd: (text: string) => void;
   mpvReplaySubtitle: () => void;
@@ -87,6 +89,11 @@ export function handleMpvCommandFromIpc(
 
   if (first === options.specialCommands.RUNTIME_OPTIONS_OPEN) {
     options.openRuntimeOptionsPalette();
+    return;
+  }
+
+  if (first === options.specialCommands.YOUTUBE_PICKER_OPEN) {
+    void options.openYoutubeTrackPicker();
     return;
   }
 

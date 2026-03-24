@@ -1,16 +1,42 @@
 # Changelog
 
+## v0.9.0 (2026-03-23)
+
+### Added
+- Docs: Added a new WebSocket / Texthooker API and integration guide covering WebSocket payloads, custom client patterns, mpv plugin automation, and webhook-style relay examples. Linked from configuration and mining workflow docs for easier discovery.
+
+### Changed
+- Launcher: Added an app-owned YouTube subtitle flow that pauses mpv, uses absPlayer-style YouTube timedtext parsing/conversion to download subtitle tracks, and injects them as external files before playback resumes.
+- Launcher: Changed YouTube subtitle startup to auto-load the best-available primary and secondary subtitle tracks at launch instead of forcing the picker modal first. Secondary subtitle failures no longer block playback resume.
+- Launcher: Added `Ctrl+Alt+C` as the default keybinding to manually open the YouTube subtitle picker during active YouTube playback.
+- Launcher: Added yt-dlp metadata probing so YouTube playback and immersion tracking record canonical video title and channel metadata.
+- Launcher: Stopped forcing `--ytdl-raw-options=` before user-provided mpv options so existing YouTube cookie integrations in user `--args` are no longer clobbered.
+- Launcher: Disabled mpv native YouTube subtitle auto-loading for the app-owned flow so injected external subtitle files remain authoritative.
+- Launcher: Added OSD status messages for YouTube playback startup, subtitle acquisition, and subtitle loading so the flow stays visible before and during the picker.
+- Subtitle Sidebar: Added startup-auto-open controls and resume positioning improvements so the sidebar jumps directly to the first resolved active cue.
+- Subtitle Sidebar: Improved subtitle prefetch and embedded overlay passthrough sync so sidebar and overlay subtitle states stay consistent across media transitions.
+- Subtitle Sidebar: Updated scroll handling, embedded layout styling, and active-cue visual behavior.
+- Stats: Stats Library tab now displays YouTube video title, channel name, and channel thumbnail for YouTube media entries, with retry logic to fill in metadata that arrives after initial load.
+
+### Fixed
+- Launcher: Fixed Anki media mining for mpv YouTube streams by unwrapping the stream URL so audio and screenshot capture work correctly for YouTube playback sessions.
+- Immersion: Fixed YouTube media path handling in the immersion runtime and tracking so YouTube sessions record correct media references, AniList guessing skips YouTube URLs, and post-watch state transitions do not fire for YouTube media.
+- Launcher: Fixed startup-launched YouTube playback so primary subtitle overlay updates continue after auto-load completes.
+- Launcher: Fixed auto-loaded YouTube primary subtitles so parsed cues appear in the subtitle sidebar without needing a manual picker retry.
+- Launcher: Fixed the YouTube picker to guard against duplicate subtitle submissions and tightened YouTube URL detection so follow-up runtime flows only treat real YouTube hosts as YouTube playback.
+- Launcher: Fixed primary subtitle failure notifications being shown while app-owned YouTube subtitle probing and downloads are still in flight.
+- Launcher: Preserved existing authoritative YouTube subtitle tracks when available; downloaded tracks are used only to fill missing sides, and native mpv secondary subtitle rendering is hidden so the overlay remains the sole secondary display.
+
 ## v0.8.0 (2026-03-22)
 
 ### Added
-- Overlay: Added the subtitle sidebar feature with a new `subtitleSidebar` configuration surface.
-- Overlay: Added a sidebar modal with cue list rendering, click-to-seek, active-cue highlighting, and embedded layout support.
+- Overlay: Added the subtitle sidebar feature with a new `subtitleSidebar` configuration surface and rendered sidebar modal with cue list rendering, click-to-seek, active-cue highlighting, and embedded layout support.
 - IPC: Added sidebar snapshot plumbing between renderer and main process for overlay/sidebar synchronization.
 
 ### Changed
 - Config: Added hot-reloadable sidebar options for enablement, layout, visibility, typography, opacity, sizing, and interaction behavior (`autoOpen`, `pauseOnHover`, `autoScroll`, toggle key).
 - Docs: Added full `subtitleSidebar` documentation coverage, including sample config, option table, and toggle shortcut notes.
-- Runtime: Improved subtitle prefetch and rendering flow so sidebar and overlay subtitle states are kept in sync across media transitions.
+- Runtime: Improved subtitle prefetch/rendering flow so sidebar and overlay subtitle states stay in sync across media transitions.
 
 ### Fixed
 - Overlay: Kept sidebar cue tracking stable across playback transitions and timing edge cases.

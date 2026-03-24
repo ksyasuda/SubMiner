@@ -5,7 +5,7 @@ import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
 import type { LogLevel, Backend, Args, MpvTrack } from './types.js';
 import { DEFAULT_MPV_SUBMINER_ARGS, DEFAULT_YOUTUBE_YTDL_FORMAT } from './types.js';
-import { log, fail, getMpvLogPath } from './log.js';
+import { appendToAppLog, getAppLogPath, log, fail, getMpvLogPath } from './log.js';
 import { buildSubminerScriptOpts, resolveAniSkipMetadataForFile } from './aniskip-metadata.js';
 import {
   commandExists,
@@ -542,7 +542,7 @@ export async function startMpv(
   socketPath: string,
   appPath: string,
   preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
-  options?: { startPaused?: boolean },
+  options?: { startPaused?: boolean; disableYoutubeSubtitleAutoLoad?: boolean },
 ): Promise<void> {
   if (targetKind === 'file' && (!fs.existsSync(target) || !fs.statSync(target).isFile())) {
     fail(`Video file not found: ${target}`);
@@ -557,24 +557,19 @@ export async function startMpv(
   const mpvArgs: string[] = [];
   if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
   mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
-  if (args.mpvArgs) {
-    mpvArgs.push(...parseMpvArgString(args.mpvArgs));
-  }
-
   if (targetKind === 'url' && isYoutubeTarget(target)) {
     log('info', args.logLevel, 'Applying URL playback options');
-    mpvArgs.push('--ytdl=yes', '--ytdl-raw-options=');
-
-    if (isYoutubeTarget(target)) {
-      const subtitleLangs = uniqueNormalizedLangCodes([
-        ...args.youtubePrimarySubLangs,
-        ...args.youtubeSecondarySubLangs,
-      ]).join(',');
-      const audioLangs = uniqueNormalizedLangCodes(args.youtubeAudioLangs).join(',');
-      log('info', args.logLevel, 'Applying YouTube playback options');
-      log('debug', args.logLevel, `YouTube subtitle langs: ${subtitleLangs}`);
-      log('debug', args.logLevel, `YouTube audio langs: ${audioLangs}`);
-      mpvArgs.push(`--ytdl-format=${DEFAULT_YOUTUBE_YTDL_FORMAT}`, `--alang=${audioLangs}`);
+    mpvArgs.push('--ytdl=yes');
+    const subtitleLangs = uniqueNormalizedLangCodes([
+      ...args.youtubePrimarySubLangs,
+      ...args.youtubeSecondarySubLangs,
+    ]).join(',');
+    const audioLangs = uniqueNormalizedLangCodes(args.youtubeAudioLangs).join(',');
+    log('info', args.logLevel, 'Applying YouTube playback options');
+    log('debug', args.logLevel, `YouTube subtitle langs: ${subtitleLangs}`);
+    log('debug', args.logLevel, `YouTube audio langs: ${audioLangs}`);
+    mpvArgs.push(`--ytdl-format=${DEFAULT_YOUTUBE_YTDL_FORMAT}`, `--alang=${audioLangs}`);
+    if (options?.disableYoutubeSubtitleAutoLoad !== true) {
       mpvArgs.push(
         '--sub-auto=fuzzy',
         `--slang=${subtitleLangs}`,
@@ -582,7 +577,12 @@ export async function startMpv(
         '--ytdl-raw-options-append=sub-format=vtt/best',
         `--ytdl-raw-options-append=sub-langs=${subtitleLangs}`,
       );
+    } else {
+      mpvArgs.push('--sub-auto=no');
     }
+  }
+  if (args.mpvArgs) {
+    mpvArgs.push(...parseMpvArgString(args.mpvArgs));
   }
 
   if (preloadedSubtitles?.primaryPath) {
@@ -597,7 +597,17 @@ export async function startMpv(
   const aniSkipMetadata = shouldResolveAniSkipMetadata(target, targetKind, preloadedSubtitles)
     ? await resolveAniSkipMetadataForFile(target)
     : null;
-  const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata, args.logLevel);
+  const extraScriptOpts =
+    targetKind === 'url' && isYoutubeTarget(target) && options?.disableYoutubeSubtitleAutoLoad === true
+      ? ['subminer-auto_start_pause_until_ready=no']
+      : [];
+  const scriptOpts = buildSubminerScriptOpts(
+    appPath,
+    socketPath,
+    aniSkipMetadata,
+    args.logLevel,
+    extraScriptOpts,
+  );
   if (aniSkipMetadata) {
     log(
       'debug',
@@ -661,19 +671,25 @@ async function waitForOverlayStartCommandSettled(
   });
 }
 
-export async function startOverlay(appPath: string, args: Args, socketPath: string): Promise<void> {
+export async function startOverlay(
+  appPath: string,
+  args: Args,
+  socketPath: string,
+  extraAppArgs: string[] = [],
+): Promise<void> {
   const backend = detectBackend(args.backend);
   log('info', args.logLevel, `Starting SubMiner overlay (backend: ${backend})...`);
 
-  const overlayArgs = ['--start', '--backend', backend, '--socket', socketPath];
+  const overlayArgs = ['--start', '--backend', backend, '--socket', socketPath, ...extraAppArgs];
   if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
   if (args.useTexthooker) overlayArgs.push('--texthooker');
 
   const target = resolveAppSpawnTarget(appPath, overlayArgs);
   state.overlayProc = spawn(target.command, target.args, {
-    stdio: 'inherit',
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: buildAppEnv(),
   });
+  attachAppProcessLogging(state.overlayProc);
   state.overlayManagedByLauncher = true;
 
   const [socketReady] = await Promise.all([
@@ -699,10 +715,7 @@ export function launchTexthookerOnly(appPath: string, args: Args): never {
   if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
 
   log('info', args.logLevel, 'Launching texthooker mode...');
-  const result = spawnSync(appPath, overlayArgs, {
-    stdio: 'inherit',
-    env: buildAppEnv(),
-  });
+  const result = runSyncAppCommand(appPath, overlayArgs, true);
   if (result.error) {
     fail(`Failed to launch texthooker mode: ${result.error.message}`);
   }
@@ -713,30 +726,7 @@ export function stopOverlay(args: Args): void {
   if (state.stopRequested) return;
   state.stopRequested = true;
 
-  if (state.overlayManagedByLauncher && state.appPath) {
-    log('info', args.logLevel, 'Stopping SubMiner overlay...');
-
-    const stopArgs = ['--stop'];
-    if (args.logLevel !== 'info') stopArgs.push('--log-level', args.logLevel);
-
-    const result = spawnSync(state.appPath, stopArgs, {
-      stdio: 'ignore',
-      env: buildAppEnv(),
-    });
-    if (result.error) {
-      log('warn', args.logLevel, `Failed to stop SubMiner overlay: ${result.error.message}`);
-    } else if (typeof result.status === 'number' && result.status !== 0) {
-      log('warn', args.logLevel, `SubMiner overlay stop command exited with status ${result.status}`);
-    }
-
-    if (state.overlayProc && !state.overlayProc.killed) {
-      try {
-        state.overlayProc.kill('SIGTERM');
-      } catch {
-        // ignore
-      }
-    }
-  }
+  stopManagedOverlayApp(args);
 
   if (state.mpvProc && !state.mpvProc.killed) {
     try {
@@ -761,6 +751,8 @@ export function stopOverlay(args: Args): void {
 }
 
 export async function cleanupPlaybackSession(args: Args): Promise<void> {
+  stopManagedOverlayApp(args);
+
   if (state.mpvProc && !state.mpvProc.killed) {
     try {
       state.mpvProc.kill('SIGTERM');
@@ -783,9 +775,40 @@ export async function cleanupPlaybackSession(args: Args): Promise<void> {
   await terminateTrackedDetachedMpv(args.logLevel);
 }
 
+function stopManagedOverlayApp(args: Args): void {
+  if (!(state.overlayManagedByLauncher && state.appPath)) {
+    return;
+  }
+
+  log('info', args.logLevel, 'Stopping SubMiner overlay...');
+
+  const stopArgs = ['--stop'];
+  if (args.logLevel !== 'info') stopArgs.push('--log-level', args.logLevel);
+
+  const target = resolveAppSpawnTarget(state.appPath, stopArgs);
+  const result = spawnSync(target.command, target.args, {
+    stdio: 'ignore',
+    env: buildAppEnv(),
+  });
+  if (result.error) {
+    log('warn', args.logLevel, `Failed to stop SubMiner overlay: ${result.error.message}`);
+  } else if (typeof result.status === 'number' && result.status !== 0) {
+    log('warn', args.logLevel, `SubMiner overlay stop command exited with status ${result.status}`);
+  }
+
+  if (state.overlayProc && !state.overlayProc.killed) {
+    try {
+      state.overlayProc.kill('SIGTERM');
+    } catch {
+      // ignore
+    }
+  }
+}
+
 function buildAppEnv(): NodeJS.ProcessEnv {
   const env: Record<string, string | undefined> = {
     ...process.env,
+    SUBMINER_APP_LOG: getAppLogPath(),
     SUBMINER_MPV_LOG: getMpvLogPath(),
   };
   delete env.ELECTRON_RUN_AS_NODE;
@@ -802,6 +825,64 @@ function buildAppEnv(): NodeJS.ProcessEnv {
     }
   }
   return env;
+}
+
+function appendCapturedAppOutput(kind: 'STDOUT' | 'STDERR', chunk: string): void {
+  const normalized = chunk.replace(/\r\n/g, '\n');
+  for (const line of normalized.split('\n')) {
+    if (!line) continue;
+    appendToAppLog(`[${kind}] ${line}`);
+  }
+}
+
+function attachAppProcessLogging(
+  proc: ReturnType<typeof spawn>,
+  options?: {
+    mirrorStdout?: boolean;
+    mirrorStderr?: boolean;
+  },
+): void {
+  proc.stdout?.setEncoding('utf8');
+  proc.stderr?.setEncoding('utf8');
+  proc.stdout?.on('data', (chunk: string) => {
+    appendCapturedAppOutput('STDOUT', chunk);
+    if (options?.mirrorStdout) process.stdout.write(chunk);
+  });
+  proc.stderr?.on('data', (chunk: string) => {
+    appendCapturedAppOutput('STDERR', chunk);
+    if (options?.mirrorStderr) process.stderr.write(chunk);
+  });
+}
+
+function runSyncAppCommand(
+  appPath: string,
+  appArgs: string[],
+  mirrorOutput: boolean,
+): {
+  status: number;
+  stdout: string;
+  stderr: string;
+  error?: Error;
+} {
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  const result = spawnSync(target.command, target.args, {
+    env: buildAppEnv(),
+    encoding: 'utf8',
+  });
+  if (result.stdout) {
+    appendCapturedAppOutput('STDOUT', result.stdout);
+    if (mirrorOutput) process.stdout.write(result.stdout);
+  }
+  if (result.stderr) {
+    appendCapturedAppOutput('STDERR', result.stderr);
+    if (mirrorOutput) process.stderr.write(result.stderr);
+  }
+  return {
+    status: result.status ?? 1,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+    error: result.error ?? undefined,
+  };
 }
 
 function maybeCaptureAppArgs(appArgs: string[]): boolean {
@@ -821,20 +902,23 @@ function resolveAppSpawnTarget(appPath: string, appArgs: string[]): SpawnTarget 
   return resolveCommandInvocation(appPath, appArgs);
 }
 
-export function runAppCommandWithInherit(appPath: string, appArgs: string[]): never {
+export function runAppCommandWithInherit(appPath: string, appArgs: string[]): void {
   if (maybeCaptureAppArgs(appArgs)) {
     process.exit(0);
   }
 
   const target = resolveAppSpawnTarget(appPath, appArgs);
-  const result = spawnSync(target.command, target.args, {
-    stdio: 'inherit',
+  const proc = spawn(target.command, target.args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: buildAppEnv(),
   });
-  if (result.error) {
-    fail(`Failed to run app command: ${result.error.message}`);
-  }
-  process.exit(result.status ?? 0);
+  attachAppProcessLogging(proc, { mirrorStdout: true, mirrorStderr: true });
+  proc.once('error', (error) => {
+    fail(`Failed to run app command: ${error.message}`);
+  });
+  proc.once('close', (code) => {
+    process.exit(code ?? 0);
+  });
 }
 
 export function runAppCommandCaptureOutput(
@@ -854,18 +938,7 @@ export function runAppCommandCaptureOutput(
     };
   }
 
-  const target = resolveAppSpawnTarget(appPath, appArgs);
-  const result = spawnSync(target.command, target.args, {
-    env: buildAppEnv(),
-    encoding: 'utf8',
-  });
-
-  return {
-    status: result.status ?? 1,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-    error: result.error ?? undefined,
-  };
+  return runSyncAppCommand(appPath, appArgs, false);
 }
 
 export function runAppCommandAttached(
@@ -887,13 +960,14 @@ export function runAppCommandAttached(
 
   return new Promise((resolve, reject) => {
     const proc = spawn(target.command, target.args, {
-      stdio: 'inherit',
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: buildAppEnv(),
     });
+    attachAppProcessLogging(proc, { mirrorStdout: true, mirrorStderr: true });
     proc.once('error', (error) => {
       reject(error);
     });
-    proc.once('exit', (code, signal) => {
+    proc.once('close', (code, signal) => {
       if (code !== null) {
         resolve(code);
       } else if (signal) {
@@ -921,10 +995,7 @@ export function runAppCommandWithInheritLogged(
     logLevel,
     `${label}: launching app with args: ${[target.command, ...target.args].join(' ')}`,
   );
-  const result = spawnSync(target.command, target.args, {
-    stdio: 'inherit',
-    env: buildAppEnv(),
-  });
+  const result = runSyncAppCommand(appPath, appArgs, true);
   if (result.error) {
     fail(`Failed to run app command: ${result.error.message}`);
   }
@@ -953,15 +1024,24 @@ export function launchAppCommandDetached(
     logLevel,
     `${label}: launching detached app with args: ${[target.command, ...target.args].join(' ')}`,
   );
-  const proc = spawn(target.command, target.args, {
-    stdio: 'ignore',
-    detached: true,
-    env: buildAppEnv(),
-  });
-  proc.once('error', (error) => {
-    log('warn', logLevel, `${label}: failed to launch detached app: ${error.message}`);
-  });
-  proc.unref();
+  const appLogPath = getAppLogPath();
+  fs.mkdirSync(path.dirname(appLogPath), { recursive: true });
+  const stdoutFd = fs.openSync(appLogPath, 'a');
+  const stderrFd = fs.openSync(appLogPath, 'a');
+  try {
+    const proc = spawn(target.command, target.args, {
+      stdio: ['ignore', stdoutFd, stderrFd],
+      detached: true,
+      env: buildAppEnv(),
+    });
+    proc.once('error', (error) => {
+      log('warn', logLevel, `${label}: failed to launch detached app: ${error.message}`);
+    });
+    proc.unref();
+  } finally {
+    fs.closeSync(stdoutFd);
+    fs.closeSync(stderrFd);
+  }
 }
 
 export function launchMpvIdleDetached(

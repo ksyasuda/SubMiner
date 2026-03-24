@@ -41,6 +41,7 @@ export type CliCommandContextFactoryDeps = {
   generateCharacterDictionary: CliCommandRuntimeServiceContext['generateCharacterDictionary'];
   runStatsCommand: CliCommandRuntimeServiceContext['runStatsCommand'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
+  runYoutubePlaybackFlow: CliCommandRuntimeServiceContext['runYoutubePlaybackFlow'];
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
@@ -95,6 +96,7 @@ export function createCliCommandContext(
     generateCharacterDictionary: deps.generateCharacterDictionary,
     runStatsCommand: deps.runStatsCommand,
     runJellyfinCommand: deps.runJellyfinCommand,
+    runYoutubePlaybackFlow: deps.runYoutubePlaybackFlow,
     openYomitanSettings: deps.openYomitanSettings,
     cycleSecondarySubMode: deps.cycleSecondarySubMode,
     openRuntimeOptionsPalette: deps.openRuntimeOptionsPalette,

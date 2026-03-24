@@ -47,6 +47,24 @@ function createDefaultAnkiIntegration(args: CreateAnkiIntegrationArgs): AnkiInte
 }
 
 export function initializeOverlayRuntime(options: {
+  getMpvSocketPath: () => string;
+  getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig; ai?: AiConfig };
+  getSubtitleTimingTracker: () => unknown | null;
+  getMpvClient: () => {
+    send?: (payload: { command: string[] }) => void;
+  } | null;
+  getRuntimeOptionsManager: () => {
+    getEffectiveAnkiConnectConfig: (config?: AnkiConnectConfig) => AnkiConnectConfig;
+  } | null;
+  getAnkiIntegration?: () => unknown | null;
+  setAnkiIntegration: (integration: unknown | null) => void;
+  showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  createFieldGroupingCallback: () => (
+    data: KikuFieldGroupingRequestData,
+  ) => Promise<KikuFieldGroupingChoice>;
+  getKnownWordCacheStatePath: () => string;
+  shouldStartAnkiIntegration?: () => boolean;
+  createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
   backendOverride: string | null;
   createMainWindow: () => void;
   registerGlobalShortcuts: () => void;
@@ -60,23 +78,6 @@ export function initializeOverlayRuntime(options: {
     override?: string | null,
     targetMpvSocketPath?: string | null,
   ) => BaseWindowTracker | null;
-  getMpvSocketPath: () => string;
-  getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig; ai?: AiConfig };
-  getSubtitleTimingTracker: () => unknown | null;
-  getMpvClient: () => {
-    send?: (payload: { command: string[] }) => void;
-  } | null;
-  getRuntimeOptionsManager: () => {
-    getEffectiveAnkiConnectConfig: (config?: AnkiConnectConfig) => AnkiConnectConfig;
-  } | null;
-  setAnkiIntegration: (integration: unknown | null) => void;
-  showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
-  createFieldGroupingCallback: () => (
-    data: KikuFieldGroupingRequestData,
-  ) => Promise<KikuFieldGroupingChoice>;
-  getKnownWordCacheStatePath: () => string;
-  shouldStartAnkiIntegration?: () => boolean;
-  createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
 }): void {
   options.createMainWindow();
   options.registerGlobalShortcuts();
@@ -112,35 +113,64 @@ export function initializeOverlayRuntime(options: {
     windowTracker.start();
   }
 
+  initializeOverlayAnkiIntegration(options);
+
+  options.updateVisibleOverlayVisibility();
+}
+
+export function initializeOverlayAnkiIntegration(options: {
+  getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig; ai?: AiConfig };
+  getSubtitleTimingTracker: () => unknown | null;
+  getMpvClient: () => {
+    send?: (payload: { command: string[] }) => void;
+  } | null;
+  getRuntimeOptionsManager: () => {
+    getEffectiveAnkiConnectConfig: (config?: AnkiConnectConfig) => AnkiConnectConfig;
+  } | null;
+  getAnkiIntegration?: () => unknown | null;
+  setAnkiIntegration: (integration: unknown | null) => void;
+  showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  createFieldGroupingCallback: () => (
+    data: KikuFieldGroupingRequestData,
+  ) => Promise<KikuFieldGroupingChoice>;
+  getKnownWordCacheStatePath: () => string;
+  shouldStartAnkiIntegration?: () => boolean;
+  createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
+}): boolean {
+  if (options.getAnkiIntegration?.()) {
+    return false;
+  }
+
   const config = options.getResolvedConfig();
   const subtitleTimingTracker = options.getSubtitleTimingTracker();
   const mpvClient = options.getMpvClient();
   const runtimeOptionsManager = options.getRuntimeOptionsManager();
 
   if (
-    config.ankiConnect?.enabled === true &&
-    subtitleTimingTracker &&
-    mpvClient &&
-    runtimeOptionsManager
+    config.ankiConnect?.enabled !== true ||
+    !subtitleTimingTracker ||
+    !mpvClient ||
+    !runtimeOptionsManager
   ) {
-    const effectiveAnkiConfig = runtimeOptionsManager.getEffectiveAnkiConnectConfig(
-      config.ankiConnect,
-    );
-    const createAnkiIntegration = options.createAnkiIntegration ?? createDefaultAnkiIntegration;
-    const integration = createAnkiIntegration({
-      config: effectiveAnkiConfig,
-      aiConfig: mergeAiConfig(config.ai, config.ankiConnect?.ai),
-      subtitleTimingTracker,
-      mpvClient,
-      showDesktopNotification: options.showDesktopNotification,
-      createFieldGroupingCallback: options.createFieldGroupingCallback,
-      knownWordCacheStatePath: options.getKnownWordCacheStatePath(),
-    });
-    if (options.shouldStartAnkiIntegration?.() !== false) {
-      integration.start();
-    }
-    options.setAnkiIntegration(integration);
+    return false;
   }
 
-  options.updateVisibleOverlayVisibility();
+  const effectiveAnkiConfig = runtimeOptionsManager.getEffectiveAnkiConnectConfig(
+    config.ankiConnect,
+  );
+  const createAnkiIntegration = options.createAnkiIntegration ?? createDefaultAnkiIntegration;
+  const integration = createAnkiIntegration({
+    config: effectiveAnkiConfig,
+    aiConfig: mergeAiConfig(config.ai, config.ankiConnect?.ai),
+    subtitleTimingTracker,
+    mpvClient,
+    showDesktopNotification: options.showDesktopNotification,
+    createFieldGroupingCallback: options.createFieldGroupingCallback,
+    knownWordCacheStatePath: options.getKnownWordCacheStatePath(),
+  });
+  if (options.shouldStartAnkiIntegration?.() !== false) {
+    integration.start();
+  }
+  options.setAnkiIntegration(integration);
+  return true;
 }

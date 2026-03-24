@@ -275,6 +275,82 @@ test('sendToActiveOverlayWindow prefers visible main overlay window for modal op
   assert.deepEqual(mainWindow.sent, [['runtime-options:open']]);
 });
 
+test('sendToActiveOverlayWindow can prefer modal window even when main overlay is visible', () => {
+  const mainWindow = createMockWindow();
+  mainWindow.visible = true;
+  const modalWindow = createMockWindow();
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => mainWindow as never,
+    getModalWindow: () => modalWindow as never,
+    createModalWindow: () => modalWindow as never,
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  const sent = runtime.sendToActiveOverlayWindow('youtube:picker-open', { sessionId: 'yt-1' }, {
+    restoreOnModalClose: 'youtube-track-picker',
+    preferModalWindow: true,
+  });
+
+  assert.equal(sent, true);
+  assert.deepEqual(mainWindow.sent, []);
+  assert.deepEqual(modalWindow.sent, [['youtube:picker-open', { sessionId: 'yt-1' }]]);
+});
+
+test('modal window path makes visible main overlay click-through until modal closes', () => {
+  const mainWindow = createMockWindow();
+  mainWindow.visible = true;
+  const modalWindow = createMockWindow();
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => mainWindow as never,
+    getModalWindow: () => modalWindow as never,
+    createModalWindow: () => modalWindow as never,
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  const sent = runtime.sendToActiveOverlayWindow('youtube:picker-open', { sessionId: 'yt-1' }, {
+    restoreOnModalClose: 'youtube-track-picker',
+    preferModalWindow: true,
+  });
+  runtime.notifyOverlayModalOpened('youtube-track-picker');
+
+  assert.equal(sent, true);
+  assert.equal(mainWindow.ignoreMouseEvents, true);
+  assert.equal(modalWindow.ignoreMouseEvents, false);
+
+  runtime.handleOverlayModalClosed('youtube-track-picker');
+
+  assert.equal(mainWindow.ignoreMouseEvents, false);
+});
+
+test('modal window path hides visible main overlay until modal closes', () => {
+  const mainWindow = createMockWindow();
+  mainWindow.visible = true;
+  const modalWindow = createMockWindow();
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => mainWindow as never,
+    getModalWindow: () => modalWindow as never,
+    createModalWindow: () => modalWindow as never,
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  runtime.sendToActiveOverlayWindow('youtube:picker-open', { sessionId: 'yt-1' }, {
+    restoreOnModalClose: 'youtube-track-picker',
+    preferModalWindow: true,
+  });
+  runtime.notifyOverlayModalOpened('youtube-track-picker');
+
+  assert.equal(mainWindow.getHideCount(), 1);
+  assert.equal(mainWindow.isVisible(), false);
+
+  runtime.handleOverlayModalClosed('youtube-track-picker');
+
+  assert.equal(mainWindow.getShowCount(), 1);
+  assert.equal(mainWindow.isVisible(), true);
+});
+
 test('modal runtime notifies callers when modal input state becomes active/inactive', () => {
   const window = createMockWindow();
   const state: boolean[] = [];
@@ -429,4 +505,34 @@ test('modal fallback reveal keeps mouse events ignored until modal confirms open
 
   runtime.notifyOverlayModalOpened('jimaku');
   assert.equal(window.ignoreMouseEvents, false);
+});
+
+test('waitForModalOpen resolves true after modal acknowledgement', async () => {
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => null,
+    getModalWindow: () => null,
+    createModalWindow: () => null,
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  runtime.sendToActiveOverlayWindow('youtube:picker-open', { sessionId: 'yt-1' }, {
+    restoreOnModalClose: 'youtube-track-picker',
+  });
+  const pending = runtime.waitForModalOpen('youtube-track-picker', 1000);
+  runtime.notifyOverlayModalOpened('youtube-track-picker');
+
+  assert.equal(await pending, true);
+});
+
+test('waitForModalOpen resolves false on timeout', async () => {
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => null,
+    getModalWindow: () => null,
+    createModalWindow: () => null,
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  assert.equal(await runtime.waitForModalOpen('youtube-track-picker', 5), false);
 });

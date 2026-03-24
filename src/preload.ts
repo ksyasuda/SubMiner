@@ -17,6 +17,7 @@
  */
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { resolveOverlayLayerFromArgv } from './preload-args';
 import type {
   SubtitleData,
   SubtitlePosition,
@@ -51,13 +52,13 @@ import type {
   ControllerConfigUpdate,
   ControllerPreferenceUpdate,
   ResolvedControllerConfig,
+  YoutubePickerOpenPayload,
+  YoutubePickerResolveRequest,
+  YoutubePickerResolveResult,
 } from './types';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 
-const overlayLayerArg = process.argv.find((arg) => arg.startsWith('--overlay-layer='));
-const overlayLayerFromArg = overlayLayerArg?.slice('--overlay-layer='.length);
-const overlayLayer =
-  overlayLayerFromArg === 'visible' || overlayLayerFromArg === 'modal' ? overlayLayerFromArg : null;
+const overlayLayer = resolveOverlayLayerFromArgv(process.argv);
 
 type EmptyListener = () => void;
 type PayloadedListener<T> = (payload: T) => void;
@@ -121,6 +122,13 @@ function createQueuedIpcListenerWithPayload<T>(
 
 const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
 const onOpenJimakuEvent = createQueuedIpcListener(IPC_CHANNELS.event.jimakuOpen);
+const onOpenYoutubeTrackPickerEvent = createQueuedIpcListenerWithPayload<YoutubePickerOpenPayload>(
+  IPC_CHANNELS.event.youtubePickerOpen,
+  (payload) => payload as YoutubePickerOpenPayload,
+);
+const onCancelYoutubeTrackPickerEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.youtubePickerCancel,
+);
 const onKeyboardModeToggleRequestedEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.keyboardModeToggleRequested,
 );
@@ -313,10 +321,16 @@ const electronAPI: ElectronAPI = {
   },
   onOpenRuntimeOptions: onOpenRuntimeOptionsEvent,
   onOpenJimaku: onOpenJimakuEvent,
+  onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
+  onCancelYoutubeTrackPicker: onCancelYoutubeTrackPickerEvent,
   onKeyboardModeToggleRequested: onKeyboardModeToggleRequestedEvent,
   onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,
   appendClipboardVideoToQueue: (): Promise<ClipboardAppendResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.appendClipboardVideoToQueue),
+  youtubePickerResolve: (
+    request: YoutubePickerResolveRequest,
+  ): Promise<YoutubePickerResolveResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.youtubePickerResolve, request),
   notifyOverlayModalClosed: (modal) => {
     ipcRenderer.send(IPC_CHANNELS.command.overlayModalClosed, modal);
   },

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-20 02:41'
-updated_date: '2026-03-20 02:46'
+updated_date: '2026-03-23 03:22'
 labels: []
 milestone: m-1
 dependencies: []
@@ -14,6 +14,7 @@ references:
   - stats/src/hooks/useSessions.ts
   - stats/src/hooks/useTrends.ts
 priority: medium
+ordinal: 126500
 ---
 
 ## Description

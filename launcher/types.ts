@@ -1,5 +1,6 @@
 import path from 'node:path';
 import os from 'node:os';
+import { resolveDefaultLogFilePath } from '../src/shared/log-files.js';
 export { VIDEO_EXTENSIONS } from '../src/shared/video-extensions.js';
 
 export const ROFI_THEME_FILE = 'subminer.rasi';
@@ -29,21 +30,28 @@ export const DEFAULT_YOUTUBE_SUBGEN_OUT_DIR = path.join(
   'subminer',
   'youtube-subs',
 );
+export function getDefaultLauncherLogFile(options?: {
+  platform?: NodeJS.Platform;
+  homeDir?: string;
+  appDataDir?: string;
+}): string {
+  return resolveDefaultLogFilePath('launcher', {
+    platform: options?.platform ?? process.platform,
+    homeDir: options?.homeDir ?? os.homedir(),
+    appDataDir: options?.appDataDir,
+  });
+}
+
 export function getDefaultMpvLogFile(options?: {
   platform?: NodeJS.Platform;
   homeDir?: string;
   appDataDir?: string;
 }): string {
-  const platform = options?.platform ?? process.platform;
-  const homeDir = options?.homeDir ?? os.homedir();
-  const baseDir =
-    platform === 'win32'
-      ? path.join(
-          options?.appDataDir?.trim() || path.join(homeDir, 'AppData', 'Roaming'),
-          'SubMiner',
-        )
-      : path.join(homeDir, '.config', 'SubMiner');
-  return path.join(baseDir, 'logs', `SubMiner-${new Date().toISOString().slice(0, 10)}.log`);
+  return resolveDefaultLogFilePath('mpv', {
+    platform: options?.platform ?? process.platform,
+    homeDir: options?.homeDir ?? os.homedir(),
+    appDataDir: options?.appDataDir,
+  });
 }
 
 export const DEFAULT_MPV_LOG_FILE = getDefaultMpvLogFile();
@@ -79,6 +87,7 @@ export interface Args {
   recursive: boolean;
   profile: string;
   startOverlay: boolean;
+  youtubeMode?: 'download' | 'generate';
   whisperBin: string;
   whisperModel: string;
   whisperVadModel: string;

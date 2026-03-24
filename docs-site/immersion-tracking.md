@@ -28,7 +28,7 @@ The same immersion data powers the stats dashboard.
 - Launcher command: run `subminer stats` to start the local stats server on demand and open the dashboard in your browser.
 - Background server: run `subminer stats -b` to start or reuse a dedicated background stats daemon without keeping the launcher attached, and `subminer stats -s` to stop that daemon.
 - Maintenance command: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand.
-- Browser page: open `http://127.0.0.1:5175` directly if the local stats server is already running.
+- Browser page: open `http://127.0.0.1:6969` directly if the local stats server is already running.
 
 ### Dashboard Tabs
 
@@ -41,6 +41,8 @@ Recent sessions, streak calendar, watch-time history, and a tracking snapshot wi
 #### Library
 
 Cover-art library with search and sorting, per-series progress, episode drill-down, and direct links into mined cards.
+
+When YouTube channel metadata is available, the Library tab groups videos by creator/channel and treats each tracked video as an episode-like entry inside that channel section.
 
 ![Stats Library](/screenshots/stats-library.png)
 
@@ -68,7 +70,7 @@ Stats server config lives under `stats`:
 {
   "stats": {
     "toggleKey": "Backquote",
-    "serverPort": 5175,
+    "serverPort": 6969,
     "autoStartServer": true,
     "autoOpenBrowser": true
   }

@@ -78,8 +78,6 @@ subminer mpv idle                 # Launch detached idle mpv with SubMiner defau
 subminer dictionary /path/to/file-or-directory  # Generate character dictionary ZIP from target (manual Yomitan import)
 subminer texthooker               # Launch texthooker-only mode
 subminer app --anilist            # Pass args directly to SubMiner binary (example: AniList login flow)
-subminer yt -o ~/subs https://youtu.be/...  # YouTube subcommand: output directory shortcut
-subminer yt --keep-temp --whisper-bin /path/to/whisper-cli --whisper-model /path/to/model.bin --whisper-vad-model /path/to/ggml-vad.bin https://youtu.be/...  # Keep generated subtitle workspace for debugging
 
 # Direct packaged app control
 SubMiner.AppImage --background             # Start in background (tray + IPC wait, minimal logs)
@@ -137,14 +135,13 @@ This flow requires `mpv.exe` to be on `PATH`. If it is installed elsewhere, set 
 ### Launcher Subcommands
 
 - `subminer jellyfin` / `subminer jf`: Jellyfin-focused workflow aliases.
-- `subminer yt` / `subminer youtube`: YouTube-focused shorthand flags (`-o`, `--keep-temp`, `--whisper-*`).
 - `subminer doctor`: health checks for core dependencies and runtime paths.
 - `subminer config`: config helpers (`path`, `show`).
 - `subminer mpv`: mpv helpers (`status`, `socket`, `idle`).
 - `subminer dictionary <path>`: generates a Yomitan-importable character dictionary ZIP from a file/directory target.
 - `subminer texthooker`: texthooker-only shortcut (same behavior as `--texthooker`).
 - `subminer app` / `subminer bin`: direct passthrough to the SubMiner binary/AppImage.
-- Subcommand help pages are available (for example `subminer jellyfin -h`, `subminer yt -h`).
+- Subcommand help pages are available (for example `subminer jellyfin -h`).
 
 ### First-Run Setup
 
@@ -174,8 +171,8 @@ AniList character dictionary auto-sync (optional):
 - SubMiner syncs the currently watched AniList media into a per-media snapshot, then rebuilds one merged `SubMiner Character Dictionary` from the most recently used snapshots.
 - Rotation limit defaults to 3 recent media snapshots in that merged dictionary (`maxLoaded`).
 
-Use subcommands for Jellyfin/YouTube command families (`subminer jellyfin ...`, `subminer yt ...`).
-Top-level launcher flags like `--jellyfin-*` and `--yt-subgen-*` are intentionally rejected.
+Use subcommands for Jellyfin workflows (`subminer jellyfin ...`).
+Top-level launcher flags like `--jellyfin-*` are intentionally rejected.
 
 ### MPV Profile Example (mpv.conf)
 
@@ -228,26 +225,18 @@ If you also use Yomitan in a browser, configure that browser profile separately;
 ### YouTube Playback
 
 `subminer` accepts direct URLs (for example, YouTube links) and `ytsearch:` targets.
-For YouTube playback, SubMiner now generates or downloads subtitle tracks before mpv starts, then launches mpv with the resolved subtitle files attached.
+For YouTube playback, SubMiner resolves subtitle selection during startup while mpv is paused: it auto-selects the default primary subtitle track plus a best-effort secondary track, then resumes when primary subtitles are ready.
 
 Notes:
 
 - Install `yt-dlp` so mpv can resolve YouTube streams and subtitle tracks reliably.
-- For YouTube URLs, `subminer` now generates any missing subtitles before mpv launch.
-- It probes manual/native YouTube subtitle tracks first, then falls back to local `whisper.cpp` only for missing tracks.
+- For YouTube URLs, startup no longer requires opening the picker first; SubMiner loads subtitles and keeps the overlay available for retries.
+- Press `Ctrl+Alt+C` during active YouTube playback to open the manual YouTube subtitle picker and retry track selection.
+- For YouTube URLs, `subminer` probes available YouTube subtitle tracks, reuses existing authoritative tracks when available, and downloads only missing sides.
+- Native mpv secondary subtitle rendering stays hidden so the overlay remains the visible secondary subtitle surface.
 - Primary subtitle target languages come from `youtubeSubgen.primarySubLanguages` (defaults to `["ja","jpn"]`).
 - Secondary target languages come from `secondarySub.secondarySubLanguages` (defaults to English if unset).
-- Whisper translation fallback currently only supports English secondary targets; non-English secondary targets rely on native/manual subtitle availability.
-- Optional AI cleanup for whisper-generated subtitles is controlled by `youtubeSubgen.fixWithAi` plus the shared top-level `ai` config (with optional `youtubeSubgen.ai` overrides).
-- Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtubeSubgen`, `secondarySub`, and `ai`.
-- CLI overrides are available through `subminer yt` / `subminer youtube`:
-  - `-o, --out-dir`
-  - `--keep-temp`
-  - `--whisper-bin`
-  - `--whisper-model`
-  - `--whisper-vad-model`
-  - `--whisper-threads`
-  - `--yt-subgen-audio-format`
+- Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtubeSubgen` and `secondarySub`.
 
 ## Controller Support
 

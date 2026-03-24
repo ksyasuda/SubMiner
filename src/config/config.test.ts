@@ -1735,7 +1735,7 @@ test('accepts top-level ai config', () => {
   assert.equal(config.ai.requestTimeoutMs, 20000);
 });
 
-test('accepts per-feature ai overrides for anki and youtube subtitle generation', () => {
+test('accepts per-feature ai overrides for anki and YouTube subtitles', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
@@ -2074,16 +2074,16 @@ test('template generator includes known keys', () => {
   );
   assert.match(
     output,
-    /"fixWithAi": false,? \/\/ Use shared AI provider to post-process whisper-generated YouTube subtitles\. Values: true \| false/,
+    /"fixWithAi": false,? \/\/ Legacy subtitle fallback post-processing switch kept for compatibility; use is currently disabled by default\. Values: true \| false/,
   );
   assert.match(
     output,
-    /"systemPrompt": "",? \/\/ Optional system prompt override for YouTube subtitle AI post-processing\./,
+    /"systemPrompt": "",? \/\/ Optional system prompt override for legacy subtitle fallback post-processing; not used by default\./,
   );
   assert.doesNotMatch(output, /"mode": "automatic"/);
   assert.match(
     output,
-    /"whisperThreads": 4,? \/\/ Thread count passed to whisper\.cpp subtitle generation runs\./,
+    /"whisperThreads": 4,? \/\/ Legacy thread tuning for subtitle fallback tooling; not used by default\./,
   );
   assert.match(
     output,

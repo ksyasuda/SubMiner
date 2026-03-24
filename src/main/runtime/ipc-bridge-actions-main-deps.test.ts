@@ -13,6 +13,7 @@ test('ipc bridge action main deps builders map callbacks', async () => {
     buildMpvCommandDeps: () => ({
       triggerSubsyncFromConfig: async () => {},
       openRuntimeOptionsPalette: () => {},
+      openYoutubeTrackPicker: () => {},
       cycleRuntimeOption: () => ({ ok: false as const, error: 'x' }),
       showMpvOsd: () => {},
       replayCurrentSubtitle: () => {},

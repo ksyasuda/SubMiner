@@ -26,6 +26,7 @@ function createRuntime(
       start: ({ host, port, upstreamUrl }) =>
         calls.push(`proxy:start:${host}:${port}:${upstreamUrl}`),
       stop: () => calls.push('proxy:stop'),
+      waitUntilReady: async () => undefined,
     }),
     logInfo: () => undefined,
     logWarn: () => undefined,
@@ -78,6 +79,44 @@ test('AnkiIntegrationRuntime starts proxy transport when proxy mode is enabled',
   runtime.start();
 
   assert.deepEqual(calls, ['known:start', 'proxy:start:127.0.0.1:9999:http://upstream:8765']);
+});
+
+test('AnkiIntegrationRuntime waits for proxy readiness when proxy mode is enabled', async () => {
+  let releaseReady!: () => void;
+  const waitUntilReadyCalls: string[] = [];
+  const readyPromise = new Promise<void>((resolve) => {
+    releaseReady = resolve;
+  });
+  const { runtime } = createRuntime(
+    {
+      proxy: {
+        enabled: true,
+        host: '127.0.0.1',
+        port: 9999,
+        upstreamUrl: 'http://upstream:8765',
+      },
+    },
+    {
+      proxyServerFactory: () => ({
+        start: () => undefined,
+        stop: () => undefined,
+        waitUntilReady: async () => {
+          waitUntilReadyCalls.push('proxy:wait-until-ready');
+          await readyPromise;
+        },
+      }),
+    },
+  );
+
+  runtime.start();
+  const waitPromise = runtime.waitUntilReady().then(() => {
+    waitUntilReadyCalls.push('proxy:ready');
+  });
+
+  assert.deepEqual(waitUntilReadyCalls, ['proxy:wait-until-ready']);
+  releaseReady();
+  await waitPromise;
+  assert.deepEqual(waitUntilReadyCalls, ['proxy:wait-until-ready', 'proxy:ready']);
 });
 
 test('AnkiIntegrationRuntime switches transports and clears known words when runtime patch disables highlighting', () => {

@@ -9,6 +9,7 @@ function isBlockingOverlayModalOpen(state: RendererState): boolean {
     state.controllerSelectModalOpen ||
       state.controllerDebugModalOpen ||
       state.jimakuModalOpen ||
+      state.youtubePickerModalOpen ||
       state.kikuModalOpen ||
       state.runtimeOptionsModalOpen ||
       state.subsyncModalOpen ||

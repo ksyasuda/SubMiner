@@ -10,6 +10,7 @@ test('handle mpv command handler forwards command and built deps', () => {
   const deps = {
     triggerSubsyncFromConfig: () => {},
     openRuntimeOptionsPalette: () => {},
+    openYoutubeTrackPicker: () => {},
     cycleRuntimeOption: () => ({ ok: false as const, error: 'x' }),
     showMpvOsd: () => {},
     replayCurrentSubtitle: () => {},

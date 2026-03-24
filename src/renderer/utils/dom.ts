@@ -20,6 +20,15 @@ export type RendererDom = {
   jimakuFilesList: HTMLUListElement;
   jimakuBroadenButton: HTMLButtonElement;
 
+  youtubePickerModal: HTMLDivElement;
+  youtubePickerTitle: HTMLDivElement;
+  youtubePickerPrimarySelect: HTMLSelectElement;
+  youtubePickerSecondarySelect: HTMLSelectElement;
+  youtubePickerContinueButton: HTMLButtonElement;
+  youtubePickerCloseButton: HTMLButtonElement;
+  youtubePickerStatus: HTMLDivElement;
+  youtubePickerTracks: HTMLUListElement;
+
   kikuModal: HTMLDivElement;
   kikuCard1: HTMLDivElement;
   kikuCard2: HTMLDivElement;
@@ -119,6 +128,19 @@ export function resolveRendererDom(): RendererDom {
     jimakuFilesSection: getRequiredElement<HTMLDivElement>('jimakuFilesSection'),
     jimakuFilesList: getRequiredElement<HTMLUListElement>('jimakuFiles'),
     jimakuBroadenButton: getRequiredElement<HTMLButtonElement>('jimakuBroaden'),
+
+    youtubePickerModal: getRequiredElement<HTMLDivElement>('youtubePickerModal'),
+    youtubePickerTitle: getRequiredElement<HTMLDivElement>('youtubePickerTitle'),
+    youtubePickerPrimarySelect: getRequiredElement<HTMLSelectElement>('youtubePickerPrimarySelect'),
+    youtubePickerSecondarySelect: getRequiredElement<HTMLSelectElement>(
+      'youtubePickerSecondarySelect',
+    ),
+    youtubePickerContinueButton: getRequiredElement<HTMLButtonElement>(
+      'youtubePickerContinueButton',
+    ),
+    youtubePickerCloseButton: getRequiredElement<HTMLButtonElement>('youtubePickerCloseButton'),
+    youtubePickerStatus: getRequiredElement<HTMLDivElement>('youtubePickerStatus'),
+    youtubePickerTracks: getRequiredElement<HTMLUListElement>('youtubePickerTracks'),
 
     kikuModal: getRequiredElement<HTMLDivElement>('kikuFieldGroupingModal'),
     kikuCard1: getRequiredElement<HTMLDivElement>('kikuCard1'),

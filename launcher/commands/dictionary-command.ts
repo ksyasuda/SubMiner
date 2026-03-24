@@ -2,7 +2,7 @@ import { runAppCommandWithInherit } from '../mpv.js';
 import type { LauncherCommandContext } from './context.js';
 
 interface DictionaryCommandDeps {
-  runAppCommandWithInherit: (appPath: string, appArgs: string[]) => never;
+  runAppCommandWithInherit: (appPath: string, appArgs: string[]) => void;
 }
 
 const defaultDeps: DictionaryCommandDeps = {
@@ -27,5 +27,5 @@ export function runDictionaryCommand(
   }
 
   deps.runAppCommandWithInherit(appPath, forwarded);
-  throw new Error('Dictionary command app handoff unexpectedly returned.');
+  return true;
 }

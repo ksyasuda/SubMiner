@@ -8,6 +8,7 @@ import { createLogger } from '../logger';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
 import { MpvClient } from '../types';
 import { resolveSentenceBackText } from './ai';
+import { resolveMediaGenerationInputPath } from './media-source';
 
 const log = createLogger('anki').child('integration.card-creation');
 
@@ -501,7 +502,12 @@ export class CardCreationService {
     this.deps.showOsdNotification('Creating sentence card...');
     try {
       return await this.deps.withUpdateProgress('Creating sentence card', async () => {
-        const videoPath = mpvClient.currentVideoPath;
+        const videoPath = await resolveMediaGenerationInputPath(mpvClient, 'video');
+        const audioSourcePath = await resolveMediaGenerationInputPath(mpvClient, 'audio');
+        if (!videoPath) {
+          this.deps.showOsdNotification('No video loaded');
+          return false;
+        }
         const fields: Record<string, string> = {};
         const errors: string[] = [];
         let miscInfoFilename: string | null = null;
@@ -605,7 +611,9 @@ export class CardCreationService {
 
         try {
           const audioFilename = this.generateAudioFilename();
-          const audioBuffer = await this.mediaGenerateAudio(videoPath, startTime, endTime);
+          const audioBuffer = audioSourcePath
+            ? await this.mediaGenerateAudio(audioSourcePath, startTime, endTime)
+            : null;
 
           if (audioBuffer) {
             await this.deps.client.storeMediaFile(audioFilename, audioBuffer);

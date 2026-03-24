@@ -37,6 +37,7 @@ import { createSessionHelpModal } from './modals/session-help.js';
 import { createSubtitleSidebarModal } from './modals/subtitle-sidebar.js';
 import { createRuntimeOptionsModal } from './modals/runtime-options.js';
 import { createSubsyncModal } from './modals/subsync.js';
+import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js';
 import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
@@ -68,6 +69,7 @@ function isAnySettingsModalOpen(): boolean {
     ctx.state.subsyncModalOpen ||
     ctx.state.kikuModalOpen ||
     ctx.state.jimakuModalOpen ||
+    ctx.state.youtubePickerModalOpen ||
     ctx.state.sessionHelpModalOpen
   );
 }
@@ -80,6 +82,7 @@ function isAnyModalOpen(): boolean {
     ctx.state.kikuModalOpen ||
     ctx.state.runtimeOptionsModalOpen ||
     ctx.state.subsyncModalOpen ||
+    ctx.state.youtubePickerModalOpen ||
     ctx.state.sessionHelpModalOpen ||
     ctx.state.subtitleSidebarModalOpen
   );
@@ -128,11 +131,29 @@ const jimakuModal = createJimakuModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const mouseHandlers = createMouseHandlers(ctx, {
+  modalStateReader: { isAnySettingsModalOpen, isAnyModalOpen },
+  applyYPercent: positioning.applyYPercent,
+  getCurrentYPercent: positioning.getCurrentYPercent,
+  persistSubtitlePositionPatch: positioning.persistSubtitlePositionPatch,
+  getSubtitleHoverAutoPauseEnabled: () => ctx.state.autoPauseVideoOnSubtitleHover,
+  getYomitanPopupAutoPauseEnabled: () => ctx.state.autoPauseVideoOnYomitanPopup,
+  getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
+  sendMpvCommand: (command) => {
+    window.electronAPI.sendMpvCommand(command);
+  },
+});
+const youtubePickerModal = createYoutubeTrackPickerModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  restorePointerInteractionState: mouseHandlers.restorePointerInteractionState,
+  syncSettingsModalSubtitleSuppression,
+});
 const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
   handleSubsyncKeydown: subsyncModal.handleSubsyncKeydown,
   handleKikuKeydown: kikuModal.handleKikuKeydown,
   handleJimakuKeydown: jimakuModal.handleJimakuKeydown,
+  handleYoutubePickerKeydown: youtubePickerModal.handleYoutubePickerKeydown,
   handleControllerSelectKeydown: controllerSelectModal.handleControllerSelectKeydown,
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
@@ -151,18 +172,6 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   },
   toggleSubtitleSidebarModal: () => {
     void subtitleSidebarModal.toggleSubtitleSidebarModal();
-  },
-});
-const mouseHandlers = createMouseHandlers(ctx, {
-  modalStateReader: { isAnySettingsModalOpen, isAnyModalOpen },
-  applyYPercent: positioning.applyYPercent,
-  getCurrentYPercent: positioning.getCurrentYPercent,
-  persistSubtitlePositionPatch: positioning.persistSubtitlePositionPatch,
-  getSubtitleHoverAutoPauseEnabled: () => ctx.state.autoPauseVideoOnSubtitleHover,
-  getYomitanPopupAutoPauseEnabled: () => ctx.state.autoPauseVideoOnYomitanPopup,
-  getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
-  sendMpvCommand: (command) => {
-    window.electronAPI.sendMpvCommand(command);
   },
 });
 
@@ -194,6 +203,7 @@ function getActiveModal(): string | null {
   if (ctx.state.controllerDebugModalOpen) return 'controller-debug';
   if (ctx.state.subtitleSidebarModalOpen) return 'subtitle-sidebar';
   if (ctx.state.jimakuModalOpen) return 'jimaku';
+  if (ctx.state.youtubePickerModalOpen) return 'youtube-track-picker';
   if (ctx.state.kikuModalOpen) return 'kiku';
   if (ctx.state.runtimeOptionsModalOpen) return 'runtime-options';
   if (ctx.state.subsyncModalOpen) return 'subsync';
@@ -213,6 +223,9 @@ function dismissActiveUiAfterError(): void {
   }
   if (ctx.state.jimakuModalOpen) {
     jimakuModal.closeJimakuModal();
+  }
+  if (ctx.state.youtubePickerModalOpen) {
+    youtubePickerModal.closeYoutubePickerModal();
   }
   if (ctx.state.runtimeOptionsModalOpen) {
     runtimeOptionsModal.closeRuntimeOptionsModal();
@@ -416,6 +429,16 @@ function registerModalOpenHandlers(): void {
       window.electronAPI.notifyOverlayModalOpened('jimaku');
     });
   });
+  window.electronAPI.onOpenYoutubeTrackPicker((payload) => {
+    runGuarded('youtube:picker-open', () => {
+      youtubePickerModal.openYoutubePickerModal(payload);
+    });
+  });
+  window.electronAPI.onCancelYoutubeTrackPicker(() => {
+    runGuarded('youtube:picker-cancel', () => {
+      youtubePickerModal.closeYoutubePickerModal();
+    });
+  });
   window.electronAPI.onSubsyncManualOpen((payload: SubsyncManualPayload) => {
     runGuarded('subsync:manual-open', () => {
       subsyncModal.openSubsyncModal(payload);
@@ -528,6 +551,7 @@ async function init(): Promise<void> {
   ctx.dom.secondarySubContainer.addEventListener('mouseleave', mouseHandlers.handleSecondaryMouseLeave);
 
   mouseHandlers.setupResizeHandler();
+  mouseHandlers.setupPointerTracking();
   mouseHandlers.setupSelectionObserver();
   mouseHandlers.setupYomitanObserver();
   setupDragDropToMpvQueue();
@@ -536,6 +560,7 @@ async function init(): Promise<void> {
   });
 
   jimakuModal.wireDomEvents();
+  youtubePickerModal.wireDomEvents();
   kikuModal.wireDomEvents();
   runtimeOptionsModal.wireDomEvents();
   subsyncModal.wireDomEvents();

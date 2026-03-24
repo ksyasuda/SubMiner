@@ -9,7 +9,7 @@ interface DoctorCommandDeps {
   commandExists(command: string): boolean;
   configExists(path: string): boolean;
   resolveMainConfigPath(): string;
-  runAppCommandWithInherit(appPath: string, appArgs: string[]): never;
+  runAppCommandWithInherit(appPath: string, appArgs: string[]): void;
 }
 
 const defaultDeps: DoctorCommandDeps = {
@@ -51,7 +51,7 @@ export function runDoctorCommand(
       ok: deps.commandExists('ffmpeg'),
       detail: deps.commandExists('ffmpeg')
         ? 'found'
-        : 'missing (optional unless subtitle generation)',
+        : 'missing (optional unless legacy subtitle fallback is enabled)',
     },
     {
       label: 'fzf',
@@ -85,6 +85,7 @@ export function runDoctorCommand(
       return true;
     }
     deps.runAppCommandWithInherit(appPath, ['--refresh-known-words']);
+    return true;
   }
 
   const hasHardFailure = checks.some((entry) =>

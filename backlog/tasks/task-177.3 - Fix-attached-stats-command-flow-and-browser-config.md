@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-19 20:15'
-updated_date: '2026-03-19 20:17'
+updated_date: '2026-03-23 03:22'
 labels:
   - launcher
   - stats
@@ -19,6 +19,7 @@ references:
   - src/main/runtime/stats-cli-command.test.ts
 parent_task_id: TASK-177
 priority: medium
+ordinal: 129500
 ---
 
 ## Description

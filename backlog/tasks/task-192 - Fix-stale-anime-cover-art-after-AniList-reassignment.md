@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-20 00:12'
-updated_date: '2026-03-20 00:14'
+updated_date: '2026-03-23 03:22'
 labels:
   - stats
   - immersion-tracker
@@ -17,6 +17,7 @@ references:
   - src/core/services/immersion-tracker/query.ts
   - src/core/services/immersion-tracker-service.test.ts
 priority: medium
+ordinal: 127500
 ---
 
 ## Description

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { parseMediaInfo } from '../../../jimaku/utils';
 import type { DatabaseSync } from './sqlite';
 import { SCHEMA_VERSION } from './types';
-import type { QueuedWrite, VideoMetadata } from './types';
+import type { QueuedWrite, VideoMetadata, YoutubeVideoMetadata } from './types';
 
 export interface TrackerPreparedStatements {
   telemetryInsertStmt: ReturnType<DatabaseSync['prepare']>;
@@ -37,6 +37,41 @@ export interface VideoAnimeLinkInput {
   parserSource: string | null;
   parserConfidence: number | null;
   parseMetadataJson: string | null;
+}
+
+function buildYoutubeChannelAnimeIdentity(metadata: YoutubeVideoMetadata): {
+  parsedTitle: string;
+  canonicalTitle: string;
+  metadataJson: string;
+} | null {
+  const channelId = metadata.channelId?.trim() || null;
+  const channelUrl = metadata.channelUrl?.trim() || null;
+  const channelName = metadata.channelName?.trim() || null;
+  const uploaderId = metadata.uploaderId?.trim() || null;
+  const videoTitle = metadata.videoTitle?.trim() || null;
+
+  const parsedTitle = channelId
+    ? `youtube-channel:${channelId}`
+    : channelUrl
+      ? `youtube-channel-url:${channelUrl}`
+      : channelName
+        ? `youtube-channel-name:${channelName}`
+        : null;
+  if (!parsedTitle) {
+    return null;
+  }
+
+  return {
+    parsedTitle,
+    canonicalTitle: channelName || uploaderId || videoTitle || parsedTitle,
+    metadataJson: JSON.stringify({
+      source: 'youtube-channel',
+      channelId,
+      channelUrl,
+      channelName,
+      uploaderId,
+    }),
+  };
 }
 
 const COVER_BLOB_REFERENCE_PREFIX = '__subminer_cover_blob_ref__:';
@@ -439,6 +474,38 @@ export function linkVideoToAnimeRecord(
   );
 }
 
+export function linkYoutubeVideoToAnimeRecord(
+  db: DatabaseSync,
+  videoId: number,
+  metadata: YoutubeVideoMetadata,
+): number | null {
+  const identity = buildYoutubeChannelAnimeIdentity(metadata);
+  if (!identity) {
+    return null;
+  }
+
+  const animeId = getOrCreateAnimeRecord(db, {
+    parsedTitle: identity.parsedTitle,
+    canonicalTitle: identity.canonicalTitle,
+    anilistId: null,
+    titleRomaji: null,
+    titleEnglish: null,
+    titleNative: null,
+    metadataJson: identity.metadataJson,
+  });
+  linkVideoToAnimeRecord(db, videoId, {
+    animeId,
+    parsedBasename: null,
+    parsedTitle: identity.canonicalTitle,
+    parsedSeason: null,
+    parsedEpisode: null,
+    parserSource: 'youtube',
+    parserConfidence: 1,
+    parseMetadataJson: identity.metadataJson,
+  });
+  return animeId;
+}
+
 function migrateLegacyAnimeMetadata(db: DatabaseSync): void {
   addColumnIfMissing(db, 'imm_videos', 'anime_id', 'INTEGER REFERENCES imm_anime(anime_id)');
   addColumnIfMissing(db, 'imm_videos', 'parsed_basename', 'TEXT');
@@ -737,6 +804,27 @@ export function ensureSchema(db: DatabaseSync): void {
       title_romaji TEXT,
       title_english TEXT,
       episodes_total INTEGER,
+      fetched_at_ms INTEGER NOT NULL,
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER,
+      FOREIGN KEY(video_id) REFERENCES imm_videos(video_id) ON DELETE CASCADE
+    );
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_youtube_videos(
+      video_id INTEGER PRIMARY KEY,
+      youtube_video_id TEXT NOT NULL,
+      video_url TEXT NOT NULL,
+      video_title TEXT,
+      video_thumbnail_url TEXT,
+      channel_id TEXT,
+      channel_name TEXT,
+      channel_url TEXT,
+      channel_thumbnail_url TEXT,
+      uploader_id TEXT,
+      uploader_url TEXT,
+      description TEXT,
+      metadata_json TEXT,
       fetched_at_ms INTEGER NOT NULL,
       CREATED_DATE INTEGER,
       LAST_UPDATE_DATE INTEGER,
@@ -1134,6 +1222,14 @@ export function ensureSchema(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_media_art_cover_url
     ON imm_media_art(cover_url)
   `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_youtube_videos_channel_id
+    ON imm_youtube_videos(channel_id)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_youtube_videos_youtube_video_id
+    ON imm_youtube_videos(youtube_video_id)
+  `);
 
   if (currentVersion?.schema_version && currentVersion.schema_version < SCHEMA_VERSION) {
     db.exec('DELETE FROM imm_daily_rollups');
@@ -1505,4 +1601,66 @@ export function updateVideoTitleRecord(
       WHERE video_id = ?
     `,
   ).run(canonicalTitle, Date.now(), videoId);
+}
+
+export function upsertYoutubeVideoMetadata(
+  db: DatabaseSync,
+  videoId: number,
+  metadata: YoutubeVideoMetadata,
+): void {
+  const nowMs = Date.now();
+  db.prepare(
+    `
+      INSERT INTO imm_youtube_videos (
+        video_id,
+        youtube_video_id,
+        video_url,
+        video_title,
+        video_thumbnail_url,
+        channel_id,
+        channel_name,
+        channel_url,
+        channel_thumbnail_url,
+        uploader_id,
+        uploader_url,
+        description,
+        metadata_json,
+        fetched_at_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(video_id) DO UPDATE SET
+        youtube_video_id = excluded.youtube_video_id,
+        video_url = excluded.video_url,
+        video_title = excluded.video_title,
+        video_thumbnail_url = excluded.video_thumbnail_url,
+        channel_id = excluded.channel_id,
+        channel_name = excluded.channel_name,
+        channel_url = excluded.channel_url,
+        channel_thumbnail_url = excluded.channel_thumbnail_url,
+        uploader_id = excluded.uploader_id,
+        uploader_url = excluded.uploader_url,
+        description = excluded.description,
+        metadata_json = excluded.metadata_json,
+        fetched_at_ms = excluded.fetched_at_ms,
+        LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
+    `,
+  ).run(
+    videoId,
+    metadata.youtubeVideoId,
+    metadata.videoUrl,
+    metadata.videoTitle ?? null,
+    metadata.videoThumbnailUrl ?? null,
+    metadata.channelId ?? null,
+    metadata.channelName ?? null,
+    metadata.channelUrl ?? null,
+    metadata.channelThumbnailUrl ?? null,
+    metadata.uploaderId ?? null,
+    metadata.uploaderUrl ?? null,
+    metadata.description ?? null,
+    metadata.metadataJson ?? null,
+    nowMs,
+    nowMs,
+    nowMs,
+  );
 }

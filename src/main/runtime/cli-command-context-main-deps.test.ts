@@ -84,7 +84,9 @@ test('cli command context main deps builder maps state and callbacks', async () 
     runJellyfinCommand: async () => {
       calls.push('run-jellyfin');
     },
-
+    runYoutubePlaybackFlow: async () => {
+      calls.push('run-youtube-playback');
+    },
     openYomitanSettings: () => calls.push('open-yomitan'),
     cycleSecondarySubMode: () => calls.push('cycle-secondary'),
     openRuntimeOptionsPalette: () => calls.push('open-runtime-options'),

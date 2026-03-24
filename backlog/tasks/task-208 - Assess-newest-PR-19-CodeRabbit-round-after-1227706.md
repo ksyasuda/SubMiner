@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-20 03:37'
-updated_date: '2026-03-20 03:47'
+updated_date: '2026-03-23 03:22'
 labels:
   - pr-review
   - launcher
@@ -17,6 +17,7 @@ references:
   - launcher/mpv.ts
   - src/anki-integration.ts
 priority: medium
+ordinal: 122500
 ---
 
 ## Description

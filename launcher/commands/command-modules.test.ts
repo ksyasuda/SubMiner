@@ -149,20 +149,16 @@ test('doctor command forwards refresh-known-words to app binary', () => {
   context.args.doctorRefreshKnownWords = true;
   const forwarded: string[][] = [];
 
-  assert.throws(
-    () =>
-      runDoctorCommand(context, {
-        commandExists: () => false,
-        configExists: () => true,
-        resolveMainConfigPath: () => '/tmp/SubMiner/config.jsonc',
-        runAppCommandWithInherit: (_appPath, appArgs) => {
-          forwarded.push(appArgs);
-          throw new ExitSignal(0);
-        },
-      }),
-    (error: unknown) => error instanceof ExitSignal && error.code === 0,
-  );
+  const handled = runDoctorCommand(context, {
+    commandExists: () => false,
+    configExists: () => true,
+    resolveMainConfigPath: () => '/tmp/SubMiner/config.jsonc',
+    runAppCommandWithInherit: (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+    },
+  });
 
+  assert.equal(handled, true);
   assert.deepEqual(forwarded, [['--refresh-known-words']]);
 });
 
@@ -187,31 +183,25 @@ test('dictionary command forwards --dictionary and target path to app binary', (
   context.args.dictionaryTarget = '/tmp/anime';
   const forwarded: string[][] = [];
 
-  assert.throws(
-    () =>
-      runDictionaryCommand(context, {
-        runAppCommandWithInherit: (_appPath, appArgs) => {
-          forwarded.push(appArgs);
-          throw new ExitSignal(0);
-        },
-      }),
-    (error: unknown) => error instanceof ExitSignal && error.code === 0,
-  );
+  const handled = runDictionaryCommand(context, {
+    runAppCommandWithInherit: (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+    },
+  });
 
+  assert.equal(handled, true);
   assert.deepEqual(forwarded, [['--dictionary', '--dictionary-target', '/tmp/anime']]);
 });
 
-test('dictionary command throws if app handoff unexpectedly returns', () => {
+test('dictionary command returns after app handoff starts', () => {
   const context = createContext();
   context.args.dictionary = true;
 
-  assert.throws(
-    () =>
-      runDictionaryCommand(context, {
-        runAppCommandWithInherit: () => undefined as never,
-      }),
-    /unexpectedly returned/,
-  );
+  const handled = runDictionaryCommand(context, {
+    runAppCommandWithInherit: () => undefined,
+  });
+
+  assert.equal(handled, true);
 });
 
 test('stats command launches attached app command with response path', async () => {

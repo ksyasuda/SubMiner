@@ -1,10 +1,10 @@
 ---
 id: TASK-213
 title: Show character dictionary progress during paused startup waits
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-20 08:59'
-updated_date: '2026-03-20 09:22'
+updated_date: '2026-03-23 03:22'
 labels:
   - bug
   - ux
@@ -18,6 +18,7 @@ references:
     /Users/sudacode/projects/japanese/SubMiner/src/main/runtime/character-dictionary-auto-sync-notifications.ts
   - /Users/sudacode/projects/japanese/SubMiner/src/main.ts
 priority: medium
+ordinal: 141500
 ---
 
 ## Description

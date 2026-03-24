@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-19 20:31'
-updated_date: '2026-03-19 20:52'
+updated_date: '2026-03-23 03:22'
 labels:
   - bug
   - stats
@@ -17,6 +17,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/stats/src/lib/session-detail.test.tsx
 parent_task_id: TASK-182
+ordinal: 128500
 ---
 
 ## Description

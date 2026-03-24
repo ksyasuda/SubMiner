@@ -1,11 +1,11 @@
 ---
 id: TASK-143
 title: Keep character dictionary auto-sync non-blocking during startup
-status: In Progress
+status: Done
 assignee:
   - codex
 created_date: '2026-03-09 01:45'
-updated_date: '2026-03-20 09:22'
+updated_date: '2026-03-23 03:22'
 labels:
   - dictionary
   - startup
@@ -18,7 +18,7 @@ references:
   - >-
     /home/sudacode/projects/japanese/SubMiner/src/main/runtime/current-media-tokenization-gate.ts
 priority: high
-ordinal: 38500
+ordinal: 144500
 ---
 
 ## Description

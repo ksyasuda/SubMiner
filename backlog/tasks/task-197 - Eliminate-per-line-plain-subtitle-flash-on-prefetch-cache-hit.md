@@ -4,15 +4,19 @@ title: Eliminate per-line plain subtitle flash on prefetch cache hit
 status: Done
 assignee: []
 created_date: '2026-03-18 16:28'
+updated_date: '2026-03-23 03:22'
 labels: []
 dependencies:
   - TASK-196
 references:
-  - /home/sudacode/projects/japanese/SubMiner/src/core/services/subtitle-processing-controller.ts
-  - /home/sudacode/projects/japanese/SubMiner/src/main/runtime/mpv-main-event-actions.ts
-  - /home/sudacode/projects/japanese/SubMiner/src/main/runtime/mpv-main-event-main-deps.ts
-documentation: []
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/src/core/services/subtitle-processing-controller.ts
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/src/main/runtime/mpv-main-event-actions.ts
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/src/main/runtime/mpv-main-event-main-deps.ts
 priority: high
+ordinal: 135500
 ---
 
 ## Description

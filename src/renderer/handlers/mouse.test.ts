@@ -3,7 +3,10 @@ import test from 'node:test';
 
 import type { SubtitleSidebarConfig } from '../../types';
 import { createMouseHandlers } from './mouse.js';
-import { YOMITAN_POPUP_HIDDEN_EVENT, YOMITAN_POPUP_SHOWN_EVENT } from '../yomitan-popup.js';
+import {
+  YOMITAN_POPUP_HIDDEN_EVENT,
+  YOMITAN_POPUP_SHOWN_EVENT,
+} from '../yomitan-popup.js';
 
 function createClassList() {
   const classes = new Set<string>();
@@ -17,6 +20,22 @@ function createClassList() {
       for (const token of tokens) {
         classes.delete(token);
       }
+    },
+    toggle: (token: string, force?: boolean) => {
+      if (force === undefined) {
+        if (classes.has(token)) {
+          classes.delete(token);
+          return false;
+        }
+        classes.add(token);
+        return true;
+      }
+      if (force) {
+        classes.add(token);
+        return true;
+      }
+      classes.delete(token);
+      return false;
     },
     contains: (token: string) => classes.has(token),
   };
@@ -311,6 +330,74 @@ test('subtitle leave restores passthrough while embedded sidebar is open but not
     assert.deepEqual(ignoreMouseCalls.at(-1), [true, { forward: true }]);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+  }
+});
+
+test('restorePointerInteractionState reapplies the secondary hover class from pointer location', async () => {
+  const ctx = createMouseTestContext();
+  ctx.platform.shouldToggleMouseIgnore = true;
+
+  const documentListeners = new Map<string, Array<(event: MouseEvent | PointerEvent) => void>>();
+  const originalDocument = (globalThis as { document?: unknown }).document;
+  const originalWindow = (globalThis as { window?: unknown }).window;
+
+  const secondarySubContainer = ctx.dom.secondarySubContainer as unknown as object;
+  const overlay = ctx.dom.overlay as unknown as { classList: ReturnType<typeof createClassList> };
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: (event: MouseEvent | PointerEvent) => void) => {
+        const listeners = documentListeners.get(type) ?? [];
+        listeners.push(listener);
+        documentListeners.set(type, listeners);
+      },
+      elementFromPoint: () => secondarySubContainer,
+    },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        setIgnoreMouseEvents: () => {},
+      },
+      innerHeight: 1000,
+      getSelection: () => ({ rangeCount: 0, isCollapsed: true }),
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => false,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => false,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: () => {},
+    });
+
+    handlers.setupPointerTracking();
+    await handlers.handleSecondaryMouseEnter({
+      clientX: 10,
+      clientY: 20,
+    } as unknown as MouseEvent);
+    handlers.restorePointerInteractionState();
+
+    overlay.classList.add('interactive');
+    const mousemove = documentListeners.get('mousemove')?.[0];
+    assert.ok(mousemove);
+    mousemove?.({ clientX: 10, clientY: 20 } as MouseEvent);
+
+    assert.equal(ctx.state.isOverSubtitle, true);
+    assert.equal(ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'), true);
+  } finally {
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
   }
 });
 
@@ -610,5 +697,155 @@ test('popup open pauses and popup close resumes when yomitan popup auto-pause is
       value: previousMutationObserver,
     });
     Object.defineProperty(globalThis, 'Node', { configurable: true, value: previousNode });
+  }
+});
+
+test('restorePointerInteractionState re-enables subtitle hover when pointer is already over subtitles', () => {
+  const ctx = createMouseTestContext();
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
+  const documentListeners = new Map<string, Array<(event: unknown) => void>>();
+  ctx.platform.shouldToggleMouseIgnore = true;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+          ignoreCalls.push({ ignore, forward: options?.forward });
+        },
+      },
+      getComputedStyle: () => ({
+        visibility: 'hidden',
+        display: 'none',
+        opacity: '0',
+      }),
+      focus: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: (event: unknown) => void) => {
+        const bucket = documentListeners.get(type) ?? [];
+        bucket.push(listener);
+        documentListeners.set(type, bucket);
+      },
+      elementFromPoint: () => ctx.dom.subtitleContainer,
+      querySelectorAll: () => [],
+      body: {},
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => false,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => false,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: () => {},
+    });
+
+    handlers.setupPointerTracking();
+    for (const listener of documentListeners.get('mousemove') ?? []) {
+      listener({ clientX: 120, clientY: 240 });
+    }
+    handlers.restorePointerInteractionState();
+
+    assert.equal(ctx.state.isOverSubtitle, true);
+    assert.equal(ctx.dom.overlay.classList.contains('interactive'), true);
+    assert.deepEqual(ignoreCalls, [{ ignore: false, forward: undefined }]);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});
+
+test('restorePointerInteractionState keeps overlay interactive until first real pointer move can resync hover', () => {
+  const ctx = createMouseTestContext();
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
+  const documentListeners = new Map<string, Array<(event: unknown) => void>>();
+  let hoveredElement: unknown = null;
+  ctx.platform.shouldToggleMouseIgnore = true;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+          ignoreCalls.push({ ignore, forward: options?.forward });
+        },
+      },
+      getComputedStyle: () => ({
+        visibility: 'hidden',
+        display: 'none',
+        opacity: '0',
+      }),
+      focus: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: (event: unknown) => void) => {
+        const bucket = documentListeners.get(type) ?? [];
+        bucket.push(listener);
+        documentListeners.set(type, bucket);
+      },
+      elementFromPoint: () => hoveredElement,
+      querySelectorAll: () => [],
+      body: {},
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => false,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => false,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: () => {},
+    });
+
+    handlers.setupPointerTracking();
+    handlers.restorePointerInteractionState();
+
+    assert.equal(ctx.state.isOverSubtitle, false);
+    assert.equal(ctx.dom.overlay.classList.contains('interactive'), true);
+    assert.deepEqual(ignoreCalls, [
+      { ignore: true, forward: true },
+      { ignore: false, forward: undefined },
+    ]);
+
+    hoveredElement = null;
+    for (const listener of documentListeners.get('mousemove') ?? []) {
+      listener({ clientX: 24, clientY: 48 });
+    }
+
+    assert.equal(ctx.state.isOverSubtitle, false);
+    assert.equal(ctx.dom.overlay.classList.contains('interactive'), false);
+    assert.deepEqual(ignoreCalls, [
+      { ignore: true, forward: true },
+      { ignore: false, forward: undefined },
+      { ignore: true, forward: true },
+    ]);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
   }
 });

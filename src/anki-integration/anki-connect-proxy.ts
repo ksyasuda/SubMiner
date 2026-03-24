@@ -35,6 +35,9 @@ export class AnkiConnectProxyServer {
   private pendingNoteIdSet = new Set<number>();
   private inFlightNoteIds = new Set<number>();
   private processingQueue = false;
+  private readyPromise: Promise<void> | null = null;
+  private resolveReady: (() => void) | null = null;
+  private rejectReady: ((error: Error) => void) | null = null;
 
   constructor(private readonly deps: AnkiConnectProxyServerDeps) {
     this.client = axios.create({
@@ -48,6 +51,13 @@ export class AnkiConnectProxyServer {
     return this.server !== null;
   }
 
+  waitUntilReady(): Promise<void> {
+    if (!this.server || this.server.listening) {
+      return Promise.resolve();
+    }
+    return this.readyPromise ?? Promise.resolve();
+  }
+
   start(options: StartProxyOptions): void {
     this.stop();
 
@@ -58,15 +68,26 @@ export class AnkiConnectProxyServer {
       return;
     }
 
+    this.readyPromise = new Promise<void>((resolve, reject) => {
+      this.resolveReady = resolve;
+      this.rejectReady = reject;
+    });
+
     this.server = http.createServer((req, res) => {
       void this.handleRequest(req, res, options.upstreamUrl);
     });
 
     this.server.on('error', (error) => {
+      this.rejectReady?.(error as Error);
+      this.resolveReady = null;
+      this.rejectReady = null;
       this.deps.logError('[anki-proxy] Server error:', (error as Error).message);
     });
 
     this.server.listen(options.port, options.host, () => {
+      this.resolveReady?.();
+      this.resolveReady = null;
+      this.rejectReady = null;
       this.deps.logInfo(
         `[anki-proxy] Listening on http://${options.host}:${options.port} -> ${options.upstreamUrl}`,
       );
@@ -79,6 +100,10 @@ export class AnkiConnectProxyServer {
       this.server = null;
       this.deps.logInfo('[anki-proxy] Stopped');
     }
+    this.rejectReady?.(new Error('AnkiConnect proxy stopped before becoming ready'));
+    this.readyPromise = null;
+    this.resolveReady = null;
+    this.rejectReady = null;
     this.pendingNoteIds = [];
     this.pendingNoteIdSet.clear();
     this.inFlightNoteIds.clear();

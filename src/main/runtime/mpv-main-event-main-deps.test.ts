@@ -116,3 +116,45 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.ok(calls.includes('restore-mpv-sub'));
   assert.ok(calls.includes('reset-sidebar-layout'));
 });
+
+test('mpv main event main deps wire subtitle callbacks without suppression gate', () => {
+  const deps = createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState: {
+      initialArgs: null,
+      overlayRuntimeInitialized: true,
+      mpvClient: null,
+      immersionTracker: null,
+      subtitleTimingTracker: null,
+      currentSubText: '',
+      currentSubAssText: '',
+      playbackPaused: null,
+      previousSecondarySubVisibility: false,
+    },
+    getQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    quitApp: () => {},
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    broadcastToOverlayWindows: () => {},
+    onSubtitleChange: () => {},
+    ensureImmersionTrackerInitialized: () => {},
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    resetSubtitleSidebarEmbeddedLayout: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    refreshDiscordPresence: () => {},
+  })();
+
+  deps.setCurrentSubText('sub');
+  assert.equal(typeof deps.setCurrentSubText, 'function');
+});

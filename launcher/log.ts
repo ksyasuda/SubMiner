@@ -1,7 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import type { LogLevel } from './types.js';
-import { DEFAULT_MPV_LOG_FILE } from './types.js';
+import { DEFAULT_MPV_LOG_FILE, getDefaultLauncherLogFile } from './types.js';
+import { appendLogLine, resolveDefaultLogFilePath } from '../src/shared/log-files.js';
 
 export const COLORS = {
   red: '\x1b[0;31m',
@@ -28,14 +27,32 @@ export function getMpvLogPath(): string {
   return DEFAULT_MPV_LOG_FILE;
 }
 
+export function getLauncherLogPath(): string {
+  const envPath = process.env.SUBMINER_LAUNCHER_LOG?.trim();
+  if (envPath) return envPath;
+  return getDefaultLauncherLogFile();
+}
+
+export function getAppLogPath(): string {
+  const envPath = process.env.SUBMINER_APP_LOG?.trim();
+  if (envPath) return envPath;
+  return resolveDefaultLogFilePath('app');
+}
+
+function appendTimestampedLog(logPath: string, message: string): void {
+  appendLogLine(logPath, `[${new Date().toISOString()}] ${message}`);
+}
+
 export function appendToMpvLog(message: string): void {
-  const logPath = getMpvLogPath();
-  try {
-    fs.mkdirSync(path.dirname(logPath), { recursive: true });
-    fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${message}\n`, { encoding: 'utf8' });
-  } catch {
-    // ignore logging failures
-  }
+  appendTimestampedLog(getMpvLogPath(), message);
+}
+
+export function appendToLauncherLog(message: string): void {
+  appendTimestampedLog(getLauncherLogPath(), message);
+}
+
+export function appendToAppLog(message: string): void {
+  appendTimestampedLog(getAppLogPath(), message);
 }
 
 export function log(level: LogLevel, configured: LogLevel, message: string): void {
@@ -49,11 +66,11 @@ export function log(level: LogLevel, configured: LogLevel, message: string): voi
           ? COLORS.red
           : COLORS.cyan;
   process.stdout.write(`${color}[${level.toUpperCase()}]${COLORS.reset} ${message}\n`);
-  appendToMpvLog(`[${level.toUpperCase()}] ${message}`);
+  appendToLauncherLog(`[${level.toUpperCase()}] ${message}`);
 }
 
 export function fail(message: string): never {
   process.stderr.write(`${COLORS.red}[ERROR]${COLORS.reset} ${message}\n`);
-  appendToMpvLog(`[ERROR] ${message}`);
+  appendToLauncherLog(`[ERROR] ${message}`);
   process.exit(1);
 }

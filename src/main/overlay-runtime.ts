@@ -16,11 +16,15 @@ export interface OverlayModalRuntime {
   sendToActiveOverlayWindow: (
     channel: string,
     payload?: unknown,
-    runtimeOptions?: { restoreOnModalClose?: OverlayHostedModal },
+    runtimeOptions?: {
+      restoreOnModalClose?: OverlayHostedModal;
+      preferModalWindow?: boolean;
+    },
   ) => boolean;
   openRuntimeOptionsPalette: () => void;
   handleOverlayModalClosed: (modal: OverlayHostedModal) => void;
   notifyOverlayModalOpened: (modal: OverlayHostedModal) => void;
+  waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
   getRestoreVisibleOverlayOnModalClose: () => Set<OverlayHostedModal>;
 }
 
@@ -33,7 +37,10 @@ export function createOverlayModalRuntimeService(
   options: OverlayModalRuntimeOptions = {},
 ): OverlayModalRuntime {
   const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
+  const modalOpenWaiters = new Map<OverlayHostedModal, Array<(opened: boolean) => void>>();
   let modalActive = false;
+  let mainWindowMousePassthroughForcedByModal = false;
+  let mainWindowHiddenByModal = false;
   let pendingModalWindowReveal: BrowserWindow | null = null;
   let pendingModalWindowRevealTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -163,6 +170,54 @@ export function createOverlayModalRuntimeService(
     pendingModalWindowReveal = null;
   };
 
+  const setMainWindowMousePassthroughForModal = (enabled: boolean): void => {
+    const mainWindow = deps.getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      mainWindowMousePassthroughForcedByModal = false;
+      return;
+    }
+
+    if (enabled) {
+      if (!mainWindow.isVisible()) {
+        mainWindowMousePassthroughForcedByModal = false;
+        return;
+      }
+      mainWindow.setIgnoreMouseEvents(true, { forward: true });
+      mainWindowMousePassthroughForcedByModal = true;
+      return;
+    }
+
+    if (!mainWindowMousePassthroughForcedByModal) {
+      return;
+    }
+    mainWindow.setIgnoreMouseEvents(false);
+    mainWindowMousePassthroughForcedByModal = false;
+  };
+
+  const setMainWindowVisibilityForModal = (hidden: boolean): void => {
+    const mainWindow = deps.getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      mainWindowHiddenByModal = false;
+      return;
+    }
+
+    if (hidden) {
+      if (!mainWindow.isVisible()) {
+        mainWindowHiddenByModal = false;
+        return;
+      }
+      mainWindow.hide();
+      mainWindowHiddenByModal = true;
+      return;
+    }
+
+    if (!mainWindowHiddenByModal) {
+      return;
+    }
+    mainWindow.show();
+    mainWindowHiddenByModal = false;
+  };
+
   const scheduleModalWindowReveal = (window: BrowserWindow): void => {
     pendingModalWindowReveal = window;
     if (pendingModalWindowRevealTimeout !== null) {
@@ -182,9 +237,13 @@ export function createOverlayModalRuntimeService(
   const sendToActiveOverlayWindow = (
     channel: string,
     payload?: unknown,
-    runtimeOptions?: { restoreOnModalClose?: OverlayHostedModal },
+    runtimeOptions?: {
+      restoreOnModalClose?: OverlayHostedModal;
+      preferModalWindow?: boolean;
+    },
   ): boolean => {
     const restoreOnModalClose = runtimeOptions?.restoreOnModalClose;
+    const preferModalWindow = runtimeOptions?.preferModalWindow === true;
 
     const sendNow = (window: BrowserWindow): void => {
       ensureModalWindowInteractive(window);
@@ -198,7 +257,7 @@ export function createOverlayModalRuntimeService(
     if (restoreOnModalClose) {
       restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
       const mainWindow = getTargetOverlayWindow();
-      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+      if (!preferModalWindow && mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
         sendOrQueueForWindow(mainWindow, (window) => {
           if (payload === undefined) {
             window.webContents.send(channel);
@@ -255,6 +314,8 @@ export function createOverlayModalRuntimeService(
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
       notifyModalStateChange(false);
+      setMainWindowMousePassthroughForModal(false);
+      setMainWindowVisibilityForModal(false);
       if (modalWindow && !modalWindow.isDestroyed()) {
         modalWindow.hide();
       }
@@ -263,11 +324,22 @@ export function createOverlayModalRuntimeService(
 
   const notifyOverlayModalOpened = (modal: OverlayHostedModal): void => {
     if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
+    const waiters = modalOpenWaiters.get(modal) ?? [];
+    modalOpenWaiters.delete(modal);
+    for (const resolve of waiters) {
+      resolve(true);
+    }
     notifyModalStateChange(true);
     const targetWindow = getActiveOverlayWindowForModalInput();
     clearPendingModalWindowReveal();
     if (!targetWindow || targetWindow.isDestroyed()) {
       return;
+    }
+
+    const modalWindow = deps.getModalWindow();
+    if (modalWindow && !modalWindow.isDestroyed() && targetWindow === modalWindow) {
+      setMainWindowMousePassthroughForModal(true);
+      setMainWindowVisibilityForModal(true);
     }
 
     if (targetWindow.isVisible()) {
@@ -285,11 +357,34 @@ export function createOverlayModalRuntimeService(
     showModalWindow(targetWindow);
   };
 
+  const waitForModalOpen = async (
+    modal: OverlayHostedModal,
+    timeoutMs: number,
+  ): Promise<boolean> =>
+    await new Promise<boolean>((resolve) => {
+      const waiters = modalOpenWaiters.get(modal) ?? [];
+      const finish = (opened: boolean): void => {
+        clearTimeout(timeout);
+        resolve(opened);
+      };
+      waiters.push(finish);
+      modalOpenWaiters.set(modal, waiters);
+      const timeout = setTimeout(() => {
+        const current = modalOpenWaiters.get(modal) ?? [];
+        modalOpenWaiters.set(
+          modal,
+          current.filter((candidate) => candidate !== finish),
+        );
+        resolve(false);
+      }, timeoutMs);
+    });
+
   return {
     sendToActiveOverlayWindow,
     openRuntimeOptionsPalette,
     handleOverlayModalClosed,
     notifyOverlayModalOpened,
+    waitForModalOpen,
     getRestoreVisibleOverlayOnModalClose: () => restoreVisibleOverlayOnModalClose,
   };
 }

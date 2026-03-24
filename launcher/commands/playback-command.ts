@@ -6,13 +6,13 @@ import { commandExists, isYoutubeTarget, realpathMaybe, resolvePathMaybe } from 
 import { collectVideos, showFzfMenu, showRofiMenu } from '../picker.js';
 import {
   cleanupPlaybackSession,
+  launchAppCommandDetached,
   startMpv,
   startOverlay,
   state,
   stopOverlay,
   waitForUnixSocketReady,
 } from '../mpv.js';
-import { generateYoutubeSubtitles } from '../youtube.js';
 import type { Args } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
 import { ensureLauncherSetupReady } from '../setup-gate.js';
@@ -31,11 +31,12 @@ function checkDependencies(args: Args): void {
 
   if (!commandExists('mpv')) missing.push('mpv');
 
-  if (args.targetKind === 'url' && isYoutubeTarget(args.target) && !commandExists('yt-dlp')) {
+  const isYoutubeUrl = args.targetKind === 'url' && isYoutubeTarget(args.target);
+  if (args.targetKind === 'url' && !isYoutubeUrl && !commandExists('yt-dlp')) {
     missing.push('yt-dlp');
   }
 
-  if (args.targetKind === 'url' && isYoutubeTarget(args.target) && !commandExists('ffmpeg')) {
+  if (args.targetKind === 'url' && !isYoutubeUrl && !commandExists('ffmpeg')) {
     missing.push('ffmpeg');
   }
 
@@ -126,30 +127,66 @@ async function ensurePlaybackSetupReady(context: LauncherCommandContext): Promis
 }
 
 export async function runPlaybackCommand(context: LauncherCommandContext): Promise<void> {
+  return runPlaybackCommandWithDeps(context, {
+    ensurePlaybackSetupReady,
+    chooseTarget,
+    checkDependencies,
+    registerCleanup,
+    startMpv,
+    waitForUnixSocketReady,
+    startOverlay,
+    launchAppCommandDetached,
+    log,
+    cleanupPlaybackSession,
+    getMpvProc: () => state.mpvProc,
+  });
+}
+
+type PlaybackCommandDeps = {
+  ensurePlaybackSetupReady: (context: LauncherCommandContext) => Promise<void>;
+  chooseTarget: (
+    args: Args,
+    scriptPath: string,
+  ) => Promise<{ target: string; kind: 'file' | 'url' } | null>;
+  checkDependencies: (args: Args) => void;
+  registerCleanup: (context: LauncherCommandContext) => void;
+  startMpv: typeof startMpv;
+  waitForUnixSocketReady: typeof waitForUnixSocketReady;
+  startOverlay: typeof startOverlay;
+  launchAppCommandDetached: typeof launchAppCommandDetached;
+  log: typeof log;
+  cleanupPlaybackSession: typeof cleanupPlaybackSession;
+  getMpvProc: () => typeof state.mpvProc;
+};
+
+export async function runPlaybackCommandWithDeps(
+  context: LauncherCommandContext,
+  deps: PlaybackCommandDeps,
+): Promise<void> {
   const { args, appPath, scriptPath, mpvSocketPath, pluginRuntimeConfig, processAdapter } = context;
   if (!appPath) {
     fail('SubMiner AppImage not found. Install to ~/.local/bin/ or set SUBMINER_APPIMAGE_PATH.');
   }
 
-  await ensurePlaybackSetupReady(context);
+  await deps.ensurePlaybackSetupReady(context);
 
   if (!args.target) {
     checkPickerDependencies(args);
   }
 
-  const targetChoice = await chooseTarget(args, scriptPath);
+  const targetChoice = await deps.chooseTarget(args, scriptPath);
   if (!targetChoice) {
-    log('info', args.logLevel, 'No video selected, exiting');
+    deps.log('info', args.logLevel, 'No video selected, exiting');
     processAdapter.exit(0);
   }
 
-  checkDependencies({
+  deps.checkDependencies({
     ...args,
     target: targetChoice ? targetChoice.target : args.target,
     targetKind: targetChoice ? targetChoice.kind : 'url',
   });
 
-  registerCleanup(context);
+  deps.registerCleanup(context);
 
   const selectedTarget = targetChoice
     ? {
@@ -159,30 +196,11 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
     : { target: args.target, kind: 'url' as const };
 
   const isYoutubeUrl = selectedTarget.kind === 'url' && isYoutubeTarget(selectedTarget.target);
-  let preloadedSubtitles: { primaryPath?: string; secondaryPath?: string } | undefined;
+  const isAppOwnedYoutubeFlow = isYoutubeUrl;
+  const youtubeMode = args.youtubeMode ?? 'download';
 
   if (isYoutubeUrl) {
-    log('info', args.logLevel, 'YouTube subtitle generation: preload before mpv');
-    const generated = await generateYoutubeSubtitles(selectedTarget.target, args);
-    preloadedSubtitles = {
-      primaryPath: generated.primaryPath,
-      secondaryPath: generated.secondaryPath,
-    };
-    const primaryStatus = generated.primaryPath
-      ? 'ready'
-      : generated.primaryNative
-        ? 'native'
-        : 'missing';
-    const secondaryStatus = generated.secondaryPath
-      ? 'ready'
-      : generated.secondaryNative
-        ? 'native'
-        : 'missing';
-    log(
-      'info',
-      args.logLevel,
-      `YouTube subtitle result: primary=${primaryStatus}, secondary=${secondaryStatus}`,
-    );
+    deps.log('info', args.logLevel, 'YouTube subtitle flow: app-owned picker after mpv bootstrap');
   }
 
   const shouldPauseUntilOverlayReady =
@@ -191,47 +209,57 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
     pluginRuntimeConfig.autoStartPauseUntilReady;
 
   if (shouldPauseUntilOverlayReady) {
-    log('info', args.logLevel, 'Configured to pause mpv until overlay and tokenization are ready');
+    deps.log('info', args.logLevel, 'Configured to pause mpv until overlay and tokenization are ready');
   }
 
-  await startMpv(
+  await deps.startMpv(
     selectedTarget.target,
     selectedTarget.kind,
     args,
     mpvSocketPath,
     appPath,
-    preloadedSubtitles,
-    { startPaused: shouldPauseUntilOverlayReady },
+    undefined,
+    {
+      startPaused: shouldPauseUntilOverlayReady || isAppOwnedYoutubeFlow,
+      disableYoutubeSubtitleAutoLoad: isAppOwnedYoutubeFlow,
+    },
   );
 
-  const ready = await waitForUnixSocketReady(mpvSocketPath, 10000);
+  const ready = await deps.waitForUnixSocketReady(mpvSocketPath, 10000);
   const pluginAutoStartEnabled = pluginRuntimeConfig.autoStart;
-  const shouldStartOverlay = args.startOverlay || args.autoStartOverlay;
+  const shouldStartOverlay = args.startOverlay || args.autoStartOverlay || isAppOwnedYoutubeFlow;
   if (shouldStartOverlay) {
     if (ready) {
-      log('info', args.logLevel, 'MPV IPC socket ready, starting SubMiner overlay');
+      deps.log('info', args.logLevel, 'MPV IPC socket ready, starting SubMiner overlay');
     } else {
-      log(
+      deps.log(
         'info',
         args.logLevel,
         'MPV IPC socket not ready after timeout, starting SubMiner overlay anyway',
       );
     }
-    await startOverlay(appPath, args, mpvSocketPath);
+    await deps.startOverlay(
+      appPath,
+      args,
+      mpvSocketPath,
+      isAppOwnedYoutubeFlow
+        ? ['--youtube-play', selectedTarget.target, '--youtube-mode', youtubeMode]
+        : [],
+    );
   } else if (pluginAutoStartEnabled) {
     if (ready) {
-      log('info', args.logLevel, 'MPV IPC socket ready, relying on mpv plugin auto-start');
+      deps.log('info', args.logLevel, 'MPV IPC socket ready, relying on mpv plugin auto-start');
     } else {
-      log('info', args.logLevel, 'MPV IPC socket not ready yet, relying on mpv plugin auto-start');
+      deps.log('info', args.logLevel, 'MPV IPC socket not ready yet, relying on mpv plugin auto-start');
     }
   } else if (ready) {
-    log(
+    deps.log(
       'info',
       args.logLevel,
       'MPV IPC socket ready, overlay auto-start disabled (use y-s to start)',
     );
   } else {
-    log(
+    deps.log(
       'info',
       args.logLevel,
       'MPV IPC socket not ready yet, overlay auto-start disabled (use y-s to start)',
@@ -239,7 +267,7 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
   }
 
   await new Promise<void>((resolve) => {
-    const mpvProc = state.mpvProc;
+    const mpvProc = deps.getMpvProc();
     if (!mpvProc) {
       stopOverlay(args);
       resolve();
@@ -247,7 +275,7 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
     }
 
     const finalize = (code: number | null | undefined) => {
-      void cleanupPlaybackSession(args).finally(() => {
+      void deps.cleanupPlaybackSession(args).finally(() => {
         processAdapter.setExitCode(code ?? 0);
         resolve();
       });

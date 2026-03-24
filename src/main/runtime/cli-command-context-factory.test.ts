@@ -63,6 +63,7 @@ test('cli command context factory composes main deps and context handlers', () =
     }),
     runStatsCommand: async () => {},
     runJellyfinCommand: async () => {},
+    runYoutubePlaybackFlow: async () => {},
     openYomitanSettings: () => {},
     cycleSecondarySubMode: () => {},
     openRuntimeOptionsPalette: () => {},

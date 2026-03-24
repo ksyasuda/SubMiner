@@ -1,5 +1,5 @@
-import { CoverImage } from './CoverImage';
 import { formatDuration, formatNumber } from '../../lib/formatters';
+import { CoverImage } from './CoverImage';
 import type { MediaLibraryItem } from '../../types/stats';
 
 interface MediaCardProps {
@@ -8,6 +8,10 @@ interface MediaCardProps {
 }
 
 export function MediaCard({ item, onClick }: MediaCardProps) {
+  const primaryTitle = item.videoTitle?.trim() || item.canonicalTitle;
+  const secondaryTitle =
+    item.videoTitle?.trim() && item.videoTitle !== item.canonicalTitle ? item.canonicalTitle : null;
+
   return (
     <button
       type="button"
@@ -20,7 +24,10 @@ export function MediaCard({ item, onClick }: MediaCardProps) {
         className="w-full aspect-[3/4] rounded-t-lg"
       />
       <div className="p-3">
-        <div className="text-sm font-medium text-ctp-text truncate">{item.canonicalTitle}</div>
+        <div className="text-sm font-medium text-ctp-text truncate">{primaryTitle}</div>
+        {secondaryTitle ? (
+          <div className="text-xs text-ctp-subtext1 truncate mt-1">{secondaryTitle}</div>
+        ) : null}
         <div className="text-xs text-ctp-overlay2 mt-1">
           {formatDuration(item.totalActiveMs)} · {formatNumber(item.totalCards)} cards
         </div>

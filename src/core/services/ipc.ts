@@ -10,6 +10,8 @@ import type {
   SubtitlePosition,
   SubsyncManualRunRequest,
   SubsyncResult,
+  YoutubePickerResolveRequest,
+  YoutubePickerResolveResult,
 } from '../../types';
 import { IPC_CHANNELS, type OverlayHostedModal } from '../../shared/ipc/contracts';
 import {
@@ -23,6 +25,7 @@ import {
   parseRuntimeOptionValue,
   parseSubtitlePosition,
   parseSubsyncManualRunRequest,
+  parseYoutubePickerResolveRequest,
 } from '../../shared/ipc/validators';
 
 const { BrowserWindow, ipcMain } = electron;
@@ -61,6 +64,7 @@ export interface IpcServiceDeps {
   getCurrentSecondarySub: () => string;
   focusMainWindow: () => void;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
+  onYoutubePickerResolve: (request: YoutubePickerResolveRequest) => Promise<YoutubePickerResolveResult>;
   getAnkiConnectStatus: () => boolean;
   getRuntimeOptions: () => unknown;
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
@@ -163,6 +167,7 @@ export interface IpcDepsRuntimeOptions {
   getMpvClient: () => MpvClientLike | null;
   focusMainWindow: () => void;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
+  onYoutubePickerResolve: (request: YoutubePickerResolveRequest) => Promise<YoutubePickerResolveResult>;
   getAnkiConnectStatus: () => boolean;
   getRuntimeOptions: () => unknown;
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
@@ -225,6 +230,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
       mainWindow.focus();
     },
     runSubsyncManual: options.runSubsyncManual,
+    onYoutubePickerResolve: options.onYoutubePickerResolve,
     getAnkiConnectStatus: options.getAnkiConnectStatus,
     getRuntimeOptions: options.getRuntimeOptions,
     setRuntimeOption: options.setRuntimeOption,
@@ -283,6 +289,14 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     if (!parsedModal) return;
     if (!deps.onOverlayModalOpened) return;
     deps.onOverlayModalOpened(parsedModal);
+  });
+
+  ipc.handle(IPC_CHANNELS.request.youtubePickerResolve, async (_event: unknown, request: unknown) => {
+    const parsedRequest = parseYoutubePickerResolveRequest(request);
+    if (!parsedRequest) {
+      return { ok: false, message: 'Invalid YouTube picker resolve payload' };
+    }
+    return await deps.onYoutubePickerResolve(parsedRequest);
   });
 
   ipc.on(IPC_CHANNELS.command.openYomitanSettings, () => {

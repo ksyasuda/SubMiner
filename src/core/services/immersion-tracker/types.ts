@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -420,6 +420,17 @@ export interface MediaLibraryRow {
   totalTokensSeen: number;
   lastWatchedMs: number;
   hasCoverArt: number;
+  youtubeVideoId: string | null;
+  videoUrl: string | null;
+  videoTitle: string | null;
+  videoThumbnailUrl: string | null;
+  channelId: string | null;
+  channelName: string | null;
+  channelUrl: string | null;
+  channelThumbnailUrl: string | null;
+  uploaderId: string | null;
+  uploaderUrl: string | null;
+  description: string | null;
 }
 
 export interface MediaDetailRow {
@@ -434,6 +445,32 @@ export interface MediaDetailRow {
   totalLookupCount: number;
   totalLookupHits: number;
   totalYomitanLookupCount: number;
+  youtubeVideoId: string | null;
+  videoUrl: string | null;
+  videoTitle: string | null;
+  videoThumbnailUrl: string | null;
+  channelId: string | null;
+  channelName: string | null;
+  channelUrl: string | null;
+  channelThumbnailUrl: string | null;
+  uploaderId: string | null;
+  uploaderUrl: string | null;
+  description: string | null;
+}
+
+export interface YoutubeVideoMetadata {
+  youtubeVideoId: string;
+  videoUrl: string;
+  videoTitle: string | null;
+  videoThumbnailUrl: string | null;
+  channelId: string | null;
+  channelName: string | null;
+  channelUrl: string | null;
+  channelThumbnailUrl: string | null;
+  uploaderId: string | null;
+  uploaderUrl: string | null;
+  description: string | null;
+  metadataJson: string | null;
 }
 
 export interface AnimeLibraryRow {

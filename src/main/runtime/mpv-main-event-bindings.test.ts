@@ -26,7 +26,6 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
       calls.push('post-watch');
     },
     logSubtitleTimingError: () => calls.push('subtitle-error'),
-
     setCurrentSubText: (text) => calls.push(`set-sub:${text}`),
     broadcastSubtitle: (payload) => calls.push(`broadcast-sub:${payload.text}`),
     onSubtitleChange: (text) => calls.push(`subtitle-change:${text}`),

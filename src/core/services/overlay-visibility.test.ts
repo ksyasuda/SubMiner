@@ -200,6 +200,44 @@ test('Windows visible overlay stays click-through and does not steal focus while
   assert.ok(!calls.includes('focus'));
 });
 
+test('visible overlay stays hidden while a modal window is active', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+  };
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    modalActive: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: true,
+    isWindowsPlatform: false,
+  } as never);
+
+  assert.ok(calls.includes('hide'));
+  assert.ok(!calls.includes('show'));
+  assert.ok(!calls.includes('update-bounds'));
+});
+
 test('macOS tracked visible overlay stays visible without passively stealing focus', () => {
   const { window, calls } = createMainWindowRecorder();
   const tracker: WindowTrackerStub = {

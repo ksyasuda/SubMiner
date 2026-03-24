@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { parseArgs } from '../cli/args';
 import {
+  applyStartupState,
+  createAppState,
   createInitialAnilistMediaGuessRuntimeState,
   createInitialAnilistUpdateInFlightState,
   transitionAnilistClientSecretState,
@@ -90,4 +93,23 @@ test('transitionAnilistUpdateInFlightState updates inFlight only', () => {
   assert.deepEqual(current, { inFlight: false });
   assert.deepEqual(transitioned, { inFlight: true });
   assert.notEqual(transitioned, current);
+});
+
+test('applyStartupState preserves cleared startup-only runtime flags', () => {
+  const appState = createAppState({
+    mpvSocketPath: '/tmp/mpv.sock',
+    texthookerPort: 4000,
+  });
+
+  applyStartupState(appState, {
+    initialArgs: parseArgs(['--settings']),
+    mpvSocketPath: '/tmp/mpv.sock',
+    texthookerPort: 4000,
+    backendOverride: null,
+    autoStartOverlay: false,
+    texthookerOnlyMode: false,
+    backgroundMode: false,
+  });
+
+  assert.equal(appState.initialArgs?.settings, true);
 });

@@ -74,7 +74,7 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     title: 'Secondary Subtitles',
     description: [
       'Dual subtitle track options.',
-      'Used by subminer YouTube subtitle generation as secondary language preferences.',
+      'Used by the YouTube subtitle loading flow as secondary language preferences.',
     ],
     notes: ['Hot-reload: defaultMode updates live while SubMiner is running.'],
     key: 'secondarySub',
@@ -130,8 +130,8 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'jimaku',
   },
   {
-    title: 'YouTube Subtitle Generation',
-    description: ['Defaults for SubMiner YouTube subtitle generation.'],
+    title: 'YouTube Playback Settings',
+    description: ['Defaults for SubMiner YouTube subtitle loading and languages.'],
     key: 'youtubeSubgen',
   },
   {

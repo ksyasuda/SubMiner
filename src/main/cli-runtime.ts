@@ -38,6 +38,7 @@ export interface CliCommandRuntimeServiceContext {
   openJellyfinSetup: CliCommandRuntimeServiceDepsParams['jellyfin']['openSetup'];
   runStatsCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runStatsCommand'];
   runJellyfinCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runCommand'];
+  runYoutubePlaybackFlow: CliCommandRuntimeServiceDepsParams['app']['runYoutubePlaybackFlow'];
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
@@ -105,16 +106,17 @@ function createCliCommandDepsFromContext(
       runStatsCommand: context.runStatsCommand,
       runCommand: context.runJellyfinCommand,
     },
+    app: {
+      stop: context.stopApp,
+      hasMainWindow: context.hasMainWindow,
+      runYoutubePlaybackFlow: context.runYoutubePlaybackFlow,
+    },
     ui: {
       openFirstRunSetup: context.openFirstRunSetup,
       openYomitanSettings: context.openYomitanSettings,
       cycleSecondarySubMode: context.cycleSecondarySubMode,
       openRuntimeOptionsPalette: context.openRuntimeOptionsPalette,
       printHelp: context.printHelp,
-    },
-    app: {
-      stop: context.stopApp,
-      hasMainWindow: context.hasMainWindow,
     },
     getMultiCopyTimeoutMs: context.getMultiCopyTimeoutMs,
     schedule: context.schedule,

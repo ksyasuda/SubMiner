@@ -25,6 +25,74 @@ export function createMouseHandlers(
   let popupPauseRequestId = 0;
   let pausedBySubtitleHover = false;
   let pausedByYomitanPopup = false;
+  let lastPointerPosition: { clientX: number; clientY: number } | null = null;
+  let pendingPointerResync = false;
+
+  function isElementWithinContainer(element: Element | null, container: HTMLElement): boolean {
+    if (!element) {
+      return false;
+    }
+    if (element === container) {
+      return true;
+    }
+    return typeof container.contains === 'function' ? container.contains(element) : false;
+  }
+
+  function updatePointerPosition(event: MouseEvent | PointerEvent): void {
+    lastPointerPosition = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+    };
+  }
+
+  function syncHoverStateFromPoint(clientX: number, clientY: number): boolean {
+    const hoveredElement =
+      typeof document.elementFromPoint === 'function'
+        ? document.elementFromPoint(clientX, clientY)
+        : null;
+    const overPrimarySubtitle = isElementWithinContainer(hoveredElement, ctx.dom.subtitleContainer);
+    const overSecondarySubtitle = isElementWithinContainer(
+      hoveredElement,
+      ctx.dom.secondarySubContainer,
+    );
+
+    ctx.state.isOverSubtitle = overPrimarySubtitle || overSecondarySubtitle;
+    ctx.dom.secondarySubContainer.classList.toggle(
+      'secondary-sub-hover-active',
+      overSecondarySubtitle,
+    );
+
+    return ctx.state.isOverSubtitle;
+  }
+
+  function restorePointerInteractionState(): void {
+    const pointerPosition = lastPointerPosition;
+    pendingPointerResync = false;
+    if (pointerPosition) {
+      syncHoverStateFromPoint(pointerPosition.clientX, pointerPosition.clientY);
+    } else {
+      ctx.state.isOverSubtitle = false;
+      ctx.dom.secondarySubContainer.classList.remove('secondary-sub-hover-active');
+    }
+    syncOverlayMouseIgnoreState(ctx);
+
+    if (!ctx.platform.shouldToggleMouseIgnore || ctx.state.isOverSubtitle) {
+      return;
+    }
+
+    pendingPointerResync = true;
+    ctx.dom.overlay.classList.add('interactive');
+    window.electronAPI.setIgnoreMouseEvents(false);
+  }
+
+  function maybeResyncPointerHoverState(event: MouseEvent | PointerEvent): void {
+    if (!pendingPointerResync) {
+      return;
+    }
+    pendingPointerResync = false;
+    syncHoverStateFromPoint(event.clientX, event.clientY);
+    syncOverlayMouseIgnoreState(ctx);
+  }
 
   function isWithinOtherSubtitleContainer(
     relatedTarget: EventTarget | null,
@@ -222,6 +290,17 @@ export function createMouseHandlers(
     });
   }
 
+  function setupPointerTracking(): void {
+    document.addEventListener('mousemove', (event: MouseEvent) => {
+      updatePointerPosition(event);
+      maybeResyncPointerHoverState(event);
+    });
+    document.addEventListener('pointermove', (event: PointerEvent) => {
+      updatePointerPosition(event);
+      maybeResyncPointerHoverState(event);
+    });
+  }
+
   function setupSelectionObserver(): void {
     document.addEventListener('selectionchange', () => {
       const selection = window.getSelection();
@@ -283,7 +362,9 @@ export function createMouseHandlers(
     handleSecondaryMouseLeave: (event?: MouseEvent) => handleMouseLeave(event, true),
     handleMouseEnter,
     handleMouseLeave,
+    restorePointerInteractionState,
     setupDragging,
+    setupPointerTracking,
     setupResizeHandler,
     setupSelectionObserver,
     setupYomitanObserver,

@@ -17,6 +17,7 @@
  */
 
 import type { SubtitleCue } from './core/services/subtitle-cue-parser';
+import type { YoutubeTrackKind } from './core/services/youtube/kinds';
 
 export enum PartOfSpeech {
   noun = 'noun',
@@ -139,6 +140,7 @@ export interface MpvClient {
   currentSubStart: number;
   currentSubEnd: number;
   currentAudioStreamIndex: number | null;
+  requestProperty?: (name: string) => Promise<unknown>;
   send(command: { command: unknown[]; request_id?: number }): boolean;
 }
 
@@ -559,6 +561,46 @@ export interface ControllerRuntimeSnapshot {
 }
 
 export type JimakuLanguagePreference = 'ja' | 'en' | 'none';
+export type { YoutubeTrackKind };
+
+export interface YoutubeTrackOption {
+  id: string;
+  language: string;
+  sourceLanguage: string;
+  kind: YoutubeTrackKind;
+  label: string;
+  title?: string;
+  downloadUrl?: string;
+  fileExtension?: string;
+}
+
+export interface YoutubePickerOpenPayload {
+  sessionId: string;
+  url: string;
+  tracks: YoutubeTrackOption[];
+  defaultPrimaryTrackId: string | null;
+  defaultSecondaryTrackId: string | null;
+  hasTracks: boolean;
+}
+
+export type YoutubePickerResolveRequest =
+  | {
+      sessionId: string;
+      action: 'continue-without-subtitles';
+      primaryTrackId: null;
+      secondaryTrackId: null;
+    }
+  | {
+      sessionId: string;
+      action: 'use-selected';
+      primaryTrackId: string | null;
+      secondaryTrackId: string | null;
+    };
+
+export interface YoutubePickerResolveResult {
+  ok: boolean;
+  message: string;
+}
 
 export interface JimakuConfig {
   apiKey?: string;
@@ -1166,14 +1208,20 @@ export interface ElectronAPI {
   onRuntimeOptionsChanged: (callback: (options: RuntimeOptionState[]) => void) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
+  onOpenYoutubeTrackPicker: (callback: (payload: YoutubePickerOpenPayload) => void) => void;
+  onCancelYoutubeTrackPicker: (callback: () => void) => void;
   onKeyboardModeToggleRequested: (callback: () => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;
   appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;
+  youtubePickerResolve: (
+    request: YoutubePickerResolveRequest,
+  ) => Promise<YoutubePickerResolveResult>;
   notifyOverlayModalClosed: (
     modal:
       | 'runtime-options'
       | 'subsync'
       | 'jimaku'
+      | 'youtube-track-picker'
       | 'kiku'
       | 'controller-select'
       | 'controller-debug'
@@ -1184,6 +1232,7 @@ export interface ElectronAPI {
       | 'runtime-options'
       | 'subsync'
       | 'jimaku'
+      | 'youtube-track-picker'
       | 'kiku'
       | 'controller-select'
       | 'controller-debug'

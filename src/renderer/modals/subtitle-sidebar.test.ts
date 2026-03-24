@@ -84,6 +84,18 @@ test('findActiveSubtitleCueIndex prefers timing match before text fallback', () 
   assert.equal(findActiveSubtitleCueIndex(cues, { text: 'same', startTime: null }), 0);
 });
 
+test('findActiveSubtitleCueIndex prefers current subtitle timing over near-future clock lookahead', () => {
+  const cues = [
+    { startTime: 231, endTime: 233.2, text: 'previous' },
+    { startTime: 233.05, endTime: 236, text: 'next' },
+  ];
+
+  assert.equal(
+    findActiveSubtitleCueIndex(cues, { text: 'previous', startTime: 231 }, 233, 0),
+    0,
+  );
+});
+
 test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback', async () => {
   const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
   const previousWindow = globals.window;

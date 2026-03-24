@@ -33,3 +33,28 @@ test('cli command runtime handler applies precheck and forwards command with con
     'cli:initial:ctx',
   ]);
 });
+
+test('cli command runtime handler prepares overlay prerequisites before overlay runtime commands', () => {
+  const calls: string[] = [];
+  const handler = createCliCommandRuntimeHandler({
+    handleTexthookerOnlyModeTransitionMainDeps: {
+      isTexthookerOnlyMode: () => false,
+      setTexthookerOnlyMode: () => calls.push('set-mode'),
+      commandNeedsOverlayRuntime: () => true,
+      ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
+      startBackgroundWarmups: () => calls.push('warmups'),
+      logInfo: (message) => calls.push(`log:${message}`),
+    },
+    createCliCommandContext: () => {
+      calls.push('context');
+      return { id: 'ctx' };
+    },
+    handleCliCommandRuntimeServiceWithContext: (_args, source, context) => {
+      calls.push(`cli:${source}:${context.id}`);
+    },
+  });
+
+  handler({ settings: true } as never);
+
+  assert.deepEqual(calls, ['prereqs', 'context', 'cli:initial:ctx']);
+});

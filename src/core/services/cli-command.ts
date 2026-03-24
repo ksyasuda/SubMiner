@@ -63,6 +63,11 @@ export interface CliCommandServiceDeps {
   }>;
   runStatsCommand: (args: CliArgs, source: CliCommandSource) => Promise<void>;
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
+  runYoutubePlaybackFlow: (request: {
+    url: string;
+    mode: NonNullable<CliArgs['youtubeMode']>;
+    source: CliCommandSource;
+  }) => Promise<void>;
   printHelp: () => void;
   hasMainWindow: () => boolean;
   getMultiCopyTimeoutMs: () => number;
@@ -135,6 +140,7 @@ interface AnilistCliRuntime {
 interface AppCliRuntime {
   stop: () => void;
   hasMainWindow: () => boolean;
+  runYoutubePlaybackFlow: CliCommandServiceDeps['runYoutubePlaybackFlow'];
 }
 
 export interface CliCommandDepsRuntimeOptions {
@@ -226,6 +232,7 @@ export function createCliCommandDepsRuntime(
     generateCharacterDictionary: options.dictionary.generate,
     runStatsCommand: options.jellyfin.runStatsCommand,
     runJellyfinCommand: options.jellyfin.runCommand,
+    runYoutubePlaybackFlow: options.app.runYoutubePlaybackFlow,
     printHelp: options.ui.printHelp,
     hasMainWindow: options.app.hasMainWindow,
     getMultiCopyTimeoutMs: options.getMultiCopyTimeoutMs,
@@ -396,6 +403,19 @@ export function handleCliCommand(
   } else if (args.jellyfin) {
     deps.openJellyfinSetup();
     deps.log('Opened Jellyfin setup flow.');
+  } else if (args.youtubePlay) {
+    const youtubeUrl = args.youtubePlay;
+    runAsyncWithOsd(
+      () =>
+        deps.runYoutubePlaybackFlow({
+          url: youtubeUrl,
+          mode: args.youtubeMode ?? 'download',
+          source,
+        }),
+      deps,
+      'runYoutubePlaybackFlow',
+      'YouTube playback failed',
+    );
   } else if (args.dictionary) {
     const shouldStopAfterRun = source === 'initial' && !deps.hasMainWindow();
     deps.log('Generating character dictionary for current anime...');

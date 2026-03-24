@@ -33,13 +33,17 @@ export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps): string {
   return '';
 }
 
-export function buildWindowsMpvLaunchArgs(targets: string[]): string[] {
-  return ['--player-operation-mode=pseudo-gui', '--profile=subminer', ...targets];
+export function buildWindowsMpvLaunchArgs(
+  targets: string[],
+  extraArgs: string[] = [],
+): string[] {
+  return ['--player-operation-mode=pseudo-gui', '--profile=subminer', ...extraArgs, ...targets];
 }
 
 export function launchWindowsMpv(
   targets: string[],
   deps: WindowsMpvLaunchDeps,
+  extraArgs: string[] = [],
 ): { ok: boolean; mpvPath: string } {
   const mpvPath = resolveWindowsMpvPath(deps);
   if (!mpvPath) {
@@ -51,7 +55,7 @@ export function launchWindowsMpv(
   }
 
   try {
-    deps.spawnDetached(mpvPath, buildWindowsMpvLaunchArgs(targets));
+    deps.spawnDetached(mpvPath, buildWindowsMpvLaunchArgs(targets, extraArgs));
     return { ok: true, mpvPath };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

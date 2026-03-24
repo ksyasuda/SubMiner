@@ -51,8 +51,8 @@ features:
   - icon:
       src: /assets/video.svg
       alt: Video playback icon
-    title: YouTube & Whisper
-    details: Play YouTube URLs or searches with native subtitles, or generate them with whisper.cpp and optional AI cleanup.
+    title: YouTube Playback
+    details: Play YouTube URLs or ytsearch targets directly — SubMiner automatically selects and loads subtitles for the video.
     link: /usage#youtube-playback
     linkText: YouTube playback
   - icon:
@@ -72,10 +72,10 @@ features:
   - icon:
       src: /assets/tokenization.svg
       alt: Tracking chart icon
-    title: Immersion Tracking
-    details: Logs watch time, words encountered, and cards mined to SQLite, then surfaces the same data in a local stats dashboard with rollups and session drill-down.
+    title: Stats Dashboard
+    details: Browse session history, streak calendars, vocabulary frequency, and per-series progress in a local dashboard — then mine cards straight from your viewing history.
     link: /immersion-tracking
-    linkText: Stats details
+    linkText: Dashboard & tracking
   - icon:
       src: /assets/cross-platform.svg
       alt: Cross-platform icon
@@ -120,7 +120,7 @@ const demoAssetVersion = '20260223-2';
       <div class="workflow-step" style="animation-delay: 240ms">
         <div class="step-number">05</div>
         <div class="step-title">Track</div>
-        <div class="step-desc">Review immersion history and repeat high-value patterns over time.</div>
+        <div class="step-desc">Open the stats dashboard to review sessions, vocabulary trends, and mine cards from past viewing history.</div>
       </div>
     </div>
   </section>

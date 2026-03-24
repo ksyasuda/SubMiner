@@ -130,6 +130,17 @@ export interface MediaLibraryItem {
   totalTokensSeen: number;
   lastWatchedMs: number;
   hasCoverArt: number;
+  youtubeVideoId?: string | null;
+  videoUrl?: string | null;
+  videoTitle?: string | null;
+  videoThumbnailUrl?: string | null;
+  channelId?: string | null;
+  channelName?: string | null;
+  channelUrl?: string | null;
+  channelThumbnailUrl?: string | null;
+  uploaderId?: string | null;
+  uploaderUrl?: string | null;
+  description?: string | null;
 }
 
 export interface MediaDetailData {
@@ -145,6 +156,17 @@ export interface MediaDetailData {
     totalLookupCount: number;
     totalLookupHits: number;
     totalYomitanLookupCount: number;
+    youtubeVideoId?: string | null;
+    videoUrl?: string | null;
+    videoTitle?: string | null;
+    videoThumbnailUrl?: string | null;
+    channelId?: string | null;
+    channelName?: string | null;
+    channelUrl?: string | null;
+    channelThumbnailUrl?: string | null;
+    uploaderId?: string | null;
+    uploaderUrl?: string | null;
+    description?: string | null;
   } | null;
   sessions: SessionSummary[];
   rollups: DailyRollup[];

@@ -113,6 +113,7 @@ import {
 } from './cli/args';
 import type { CliArgs, CliCommandSource } from './cli/args';
 import { printHelp } from './cli/help';
+import { IPC_CHANNELS } from './shared/ipc/contracts';
 import {
   buildConfigParseErrorDetails,
   buildConfigWarningDialogDetails,
@@ -279,6 +280,7 @@ import {
   handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
   importYomitanDictionaryFromZip,
+  initializeOverlayAnkiIntegration as initializeOverlayAnkiIntegrationCore,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
   jellyfinTicksToSecondsRuntime,
   listJellyfinItemsRuntime,
@@ -309,12 +311,23 @@ import {
   upsertYomitanDictionarySettings,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
+import {
+  acquireYoutubeSubtitleTrack,
+  acquireYoutubeSubtitleTracks,
+} from './core/services/youtube/generate';
+import { retimeYoutubeSubtitle } from './core/services/youtube/retime';
+import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import { startStatsServer } from './core/services/stats-server';
 import { registerStatsOverlayToggle, destroyStatsWindow } from './core/services/stats-window.js';
 import {
   createFirstRunSetupService,
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
+import { createYoutubeFlowRuntime } from './main/runtime/youtube-flow';
+import {
+  clearYoutubePrimarySubtitleNotificationTimer,
+  createYoutubePrimarySubtitleNotificationRuntime,
+} from './main/runtime/youtube-primary-subtitle-notification';
 import { resolveAutoplayReadyMaxReleaseAttempts } from './main/runtime/startup-autoplay-release-policy';
 import {
   buildFirstRunSetupHtml,
@@ -332,6 +345,7 @@ import {
   detectWindowsMpvShortcuts,
   resolveWindowsMpvShortcutPaths,
 } from './main/runtime/windows-mpv-shortcuts';
+import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
 import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
 import {
@@ -384,6 +398,7 @@ import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
+import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import type { OverlayHostedModal } from './shared/ipc/contracts';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
@@ -402,6 +417,7 @@ import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/charac
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
+import { isYoutubePlaybackActive } from './main/runtime/youtube-playback';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
 import {
@@ -442,7 +458,7 @@ import {
   resolveSubtitleSourcePath,
 } from './main/runtime/subtitle-prefetch-source';
 import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
-import { codecToExtension } from './subsync/utils';
+import { codecToExtension, getSubsyncConfig } from './subsync/utils';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -743,6 +759,7 @@ process.on('SIGTERM', () => {
 const overlayManager = createOverlayManager();
 let overlayModalInputExclusive = false;
 let syncOverlayShortcutsForModal: (isActive: boolean) => void = () => {};
+let syncOverlayVisibilityForModal: () => void = () => {};
 
 const handleModalInputStateChange = (isActive: boolean): void => {
   if (overlayModalInputExclusive === isActive) return;
@@ -759,6 +776,7 @@ const handleModalInputStateChange = (isActive: boolean): void => {
     }
   }
   syncOverlayShortcutsForModal(isActive);
+  syncOverlayVisibilityForModal();
 };
 
 const buildOverlayContentMeasurementStoreMainDepsHandler =
@@ -787,6 +805,181 @@ const appState = createAppState({
   mpvSocketPath: getDefaultSocketPath(),
   texthookerPort: DEFAULT_TEXTHOOKER_PORT,
 });
+const startBackgroundWarmupsIfAllowed = (): void => {
+  startBackgroundWarmups();
+};
+const youtubeFlowRuntime = createYoutubeFlowRuntime({
+  probeYoutubeTracks: (url: string) => probeYoutubeTracks(url),
+  acquireYoutubeSubtitleTrack: (input) => acquireYoutubeSubtitleTrack(input),
+  acquireYoutubeSubtitleTracks: (input) => acquireYoutubeSubtitleTracks(input),
+  retimeYoutubePrimaryTrack: async ({ primaryTrack, primaryPath, secondaryTrack, secondaryPath }) => {
+    if (primaryTrack.kind !== 'auto') {
+      return primaryPath;
+    }
+    const result = await retimeYoutubeSubtitle({
+      primaryPath,
+      secondaryPath: secondaryTrack ? secondaryPath : null,
+    });
+    logger.info(`Using YouTube subtitle path: ${result.path} (${result.strategy})`);
+    return result.path;
+  },
+  openPicker: async (payload) => {
+    return await openYoutubeTrackPicker(
+      {
+        sendToActiveOverlayWindow: (channel, nextPayload, runtimeOptions) =>
+          overlayModalRuntime.sendToActiveOverlayWindow(channel, nextPayload, runtimeOptions),
+        waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
+        logWarn: (message) => logger.warn(message),
+      },
+      payload,
+    );
+  },
+  pauseMpv: () => {
+    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'yes']);
+  },
+  resumeMpv: () => {
+    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'no']);
+  },
+  sendMpvCommand: (command) => {
+    sendMpvCommandRuntime(appState.mpvClient, command);
+  },
+  requestMpvProperty: async (name: string) => {
+    const client = appState.mpvClient;
+    if (!client) return null;
+    return await client.requestProperty(name);
+  },
+  refreshCurrentSubtitle: (text: string) => {
+    subtitleProcessingController.refreshCurrentSubtitle(text);
+  },
+  refreshSubtitleSidebarSource: async (sourcePath: string) => {
+    await refreshSubtitleSidebarFromSource(sourcePath);
+  },
+  startTokenizationWarmups: async () => {
+    await startTokenizationWarmups();
+  },
+  waitForTokenizationReady: async () => {
+    await currentMediaTokenizationGate.waitUntilReady(
+      appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
+    );
+  },
+  waitForAnkiReady: async () => {
+    const integration = appState.ankiIntegration;
+    if (!integration) {
+      return;
+    }
+    try {
+      await Promise.race([
+        integration.waitUntilReady(),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Timed out waiting for AnkiConnect integration')), 2500);
+        }),
+      ]);
+    } catch (error) {
+      logger.warn(
+        'Continuing YouTube playback before AnkiConnect integration reported ready:',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  },
+  wait: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+  waitForPlaybackWindowReady: async () => {
+    const deadline = Date.now() + 4000;
+    let stableGeometry: WindowGeometry | null = null;
+    let stableSinceMs = 0;
+    while (Date.now() < deadline) {
+      const tracker = appState.windowTracker;
+      const trackerGeometry = tracker?.getGeometry() ?? null;
+      const mediaPath =
+        appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
+      const trackerFocused = tracker?.isTargetWindowFocused() ?? false;
+      if (tracker && tracker.isTracking() && trackerGeometry && trackerFocused && mediaPath) {
+        if (!geometryMatches(stableGeometry, trackerGeometry)) {
+          stableGeometry = trackerGeometry;
+          stableSinceMs = Date.now();
+        } else if (Date.now() - stableSinceMs >= 200) {
+          return;
+        }
+      } else {
+        stableGeometry = null;
+        stableSinceMs = 0;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    logger.warn(
+      'Timed out waiting for tracked playback window focus/media readiness before opening YouTube subtitle picker.',
+    );
+  },
+  waitForOverlayGeometryReady: async () => {
+    const deadline = Date.now() + 4000;
+    while (Date.now() < deadline) {
+      const tracker = appState.windowTracker;
+      const trackerGeometry = tracker?.getGeometry() ?? null;
+      if (trackerGeometry && geometryMatches(lastOverlayWindowGeometry, trackerGeometry)) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    logger.warn('Timed out waiting for overlay geometry to match tracked playback window.');
+  },
+  focusOverlayWindow: () => {
+    const mainWindow = overlayManager.getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+    mainWindow.setIgnoreMouseEvents(false);
+    if (!mainWindow.isFocused()) {
+      mainWindow.focus();
+    }
+    if (!mainWindow.webContents.isFocused()) {
+      mainWindow.webContents.focus();
+    }
+  },
+  showMpvOsd: (text: string) => showMpvOsd(text),
+  reportSubtitleFailure: (message: string) => reportYoutubeSubtitleFailure(message),
+  warn: (message: string) => logger.warn(message),
+  log: (message: string) => logger.info(message),
+  getYoutubeOutputDir: () => path.join(os.homedir(), '.cache', 'subminer', 'youtube-subs'),
+});
+
+async function runYoutubePlaybackFlowMain(request: {
+  url: string;
+  mode: NonNullable<CliArgs['youtubeMode']>;
+  source: CliCommandSource;
+}): Promise<void> {
+  youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(true);
+  try {
+    if (process.platform === 'win32' && !appState.mpvClient?.connected) {
+      const launchResult = launchWindowsMpv(
+        [request.url],
+        createWindowsMpvLaunchDeps({
+          showError: (title, content) => dialog.showErrorBox(title, content),
+        }),
+        [
+          '--pause=yes',
+          '--sub-auto=no',
+          '--sid=no',
+          '--secondary-sid=no',
+          '--script-opts=subminer-auto_start_pause_until_ready=no',
+          `--input-ipc-server=${appState.mpvSocketPath}`,
+        ],
+      );
+      if (!launchResult.ok) {
+        logger.warn('Unable to bootstrap Windows mpv for YouTube playback.');
+      }
+    }
+    if (!appState.mpvClient?.connected) {
+      appState.mpvClient?.connect();
+    }
+    await youtubeFlowRuntime.runYoutubePlaybackFlow({
+      url: request.url,
+      mode: request.mode,
+    });
+    logger.info(`YouTube playback flow completed from ${request.source}.`);
+  } finally {
+    youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(false);
+  }
+}
+
 let firstRunSetupMessage: string | null = null;
 const resolveWindowsMpvShortcutRuntimePaths = () =>
   resolveWindowsMpvShortcutPaths({
@@ -1040,6 +1233,49 @@ const currentMediaTokenizationGate = createCurrentMediaTokenizationGate();
 const startupOsdSequencer = createStartupOsdSequencer({
   showOsd: (message) => showMpvOsd(message),
 });
+const youtubePrimarySubtitleNotificationRuntime = createYoutubePrimarySubtitleNotificationRuntime({
+  getPrimarySubtitleLanguages: () => getResolvedConfig().youtubeSubgen.primarySubLanguages,
+  notifyFailure: (message) => reportYoutubeSubtitleFailure(message),
+  schedule: (fn, delayMs) => setTimeout(fn, delayMs),
+  clearSchedule: clearYoutubePrimarySubtitleNotificationTimer,
+});
+
+function isYoutubePlaybackActiveNow(): boolean {
+  return isYoutubePlaybackActive(
+    appState.currentMediaPath,
+    appState.mpvClient?.currentVideoPath ?? null,
+  );
+}
+
+function reportYoutubeSubtitleFailure(message: string): void {
+  const type = getResolvedConfig().ankiConnect.behavior.notificationType;
+  if (type === 'osd' || type === 'both') {
+    showMpvOsd(message);
+  }
+  if (type === 'system' || type === 'both') {
+    try {
+      showDesktopNotification('SubMiner', { body: message });
+    } catch {
+      logger.warn(`Unable to show desktop notification: ${message}`);
+    }
+  }
+}
+
+async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
+  if (youtubeFlowRuntime.hasActiveSession()) {
+    showMpvOsd('YouTube subtitle flow already in progress.');
+    return;
+  }
+  const currentMediaPath =
+    appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
+  if (!isYoutubePlaybackActiveNow() || !currentMediaPath) {
+    showMpvOsd('YouTube subtitle picker is only available during YouTube playback.');
+    return;
+  }
+  await youtubeFlowRuntime.openManualPicker({
+    url: currentMediaPath,
+  });
+}
 
 function maybeSignalPluginAutoplayReady(
   payload: SubtitleData,
@@ -1214,6 +1450,18 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
     appState.activeParsedSubtitleSource = sourceKey;
   },
 });
+
+async function refreshSubtitleSidebarFromSource(sourcePath: string): Promise<void> {
+  const normalizedSourcePath = resolveSubtitleSourcePath(sourcePath.trim());
+  if (!normalizedSourcePath) {
+    return;
+  }
+  await subtitlePrefetchInitController.initSubtitlePrefetch(
+    normalizedSourcePath,
+    lastObservedTimePos,
+    normalizedSourcePath,
+  );
+}
 
 async function refreshSubtitlePrefetchFromActiveTrack(): Promise<void> {
   const client = appState.mpvClient;
@@ -1548,7 +1796,10 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
   getConfig: () => {
     const config = getResolvedConfig().anilist.characterDictionary;
     return {
-      enabled: config.enabled && yomitanProfilePolicy.isCharacterDictionaryEnabled(),
+      enabled:
+        config.enabled &&
+        yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
+        !isYoutubePlaybackActiveNow(),
       maxLoaded: config.maxLoaded,
       profileScope: config.profileScope,
     };
@@ -1656,6 +1907,7 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
 const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   createBuildOverlayVisibilityRuntimeMainDepsHandler({
     getMainWindow: () => overlayManager.getMainWindow(),
+    getModalActive: () => overlayModalInputExclusive,
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => appState.statsOverlayVisible,
     getWindowTracker: () => appState.windowTracker,
@@ -1717,6 +1969,9 @@ const buildRestorePreviousSecondarySubVisibilityMainDepsHandler =
   createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler({
     getMpvClient: () => appState.mpvClient,
   });
+syncOverlayVisibilityForModal = () => {
+  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+};
 const restorePreviousSecondarySubVisibilityMainDeps =
   buildRestorePreviousSecondarySubVisibilityMainDepsHandler();
 const restorePreviousSecondarySubVisibilityHandler =
@@ -3064,7 +3319,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
       await prewarmSubtitleDictionaries();
     },
     startBackgroundWarmups: () => {
-      startBackgroundWarmups();
+      startBackgroundWarmupsIfAllowed();
     },
     texthookerOnlyMode: appState.texthookerOnlyMode,
     shouldAutoInitializeOverlayRuntimeFromConfig: () =>
@@ -3173,39 +3428,7 @@ void initializeDiscordPresenceService();
 const handleCliCommand = createCliCommandRuntimeHandler({
   handleTexthookerOnlyModeTransitionMainDeps: {
     isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
-    ensureOverlayStartupPrereqs: () => {
-      if (appState.subtitlePosition === null) {
-        loadSubtitlePosition();
-      }
-      if (appState.keybindings.length === 0) {
-        appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
-      }
-      if (!appState.mpvClient) {
-        appState.mpvClient = createMpvClientRuntimeService();
-      }
-      if (!appState.runtimeOptionsManager) {
-        appState.runtimeOptionsManager = new RuntimeOptionsManager(
-          () => configService.getConfig().ankiConnect,
-          {
-            applyAnkiPatch: (patch) => {
-              if (appState.ankiIntegration) {
-                appState.ankiIntegration.applyRuntimeConfigPatch(patch);
-              }
-            },
-            getSubtitleStyleConfig: () => configService.getConfig().subtitleStyle,
-            onOptionsChanged: () => {
-              subtitleProcessingController.invalidateTokenizationCache();
-              subtitlePrefetchService?.onSeek(lastObservedTimePos);
-              broadcastRuntimeOptionsChanged();
-              refreshOverlayShortcuts();
-            },
-          },
-        );
-      }
-      if (!appState.subtitleTimingTracker) {
-        appState.subtitleTimingTracker = new SubtitleTimingTracker();
-      }
-    },
+    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
     setTexthookerOnlyMode: (enabled) => {
       appState.texthookerOnlyMode = enabled;
     },
@@ -3218,6 +3441,40 @@ const handleCliCommand = createCliCommandRuntimeHandler({
     handleCliCommandRuntimeServiceWithContext(args, source, cliContext),
 });
 
+function ensureOverlayStartupPrereqs(): void {
+  if (appState.subtitlePosition === null) {
+    loadSubtitlePosition();
+  }
+  if (appState.keybindings.length === 0) {
+    appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+  }
+  if (!appState.mpvClient) {
+    appState.mpvClient = createMpvClientRuntimeService();
+  }
+  if (!appState.runtimeOptionsManager) {
+    appState.runtimeOptionsManager = new RuntimeOptionsManager(
+      () => configService.getConfig().ankiConnect,
+      {
+        applyAnkiPatch: (patch) => {
+          if (appState.ankiIntegration) {
+            appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+          }
+        },
+        getSubtitleStyleConfig: () => configService.getConfig().subtitleStyle,
+        onOptionsChanged: () => {
+          subtitleProcessingController.invalidateTokenizationCache();
+          subtitlePrefetchService?.onSeek(lastObservedTimePos);
+          broadcastRuntimeOptionsChanged();
+          refreshOverlayShortcuts();
+        },
+      },
+    );
+  }
+  if (!appState.subtitleTimingTracker) {
+    appState.subtitleTimingTracker = new SubtitleTimingTracker();
+  }
+}
+
 const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   getInitialArgs: () => appState.initialArgs,
   isBackgroundMode: () => appState.backgroundMode,
@@ -3227,6 +3484,10 @@ const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
   hasImmersionTracker: () => Boolean(appState.immersionTracker),
   getMpvClient: () => appState.mpvClient,
+  commandNeedsOverlayRuntime: (args) => commandNeedsOverlayRuntime(args),
+  ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+  isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+  initializeOverlayRuntime: () => initializeOverlayRuntime(),
   logInfo: (message) => logger.info(message),
   handleCliCommand: (args, source) => handleCliCommand(args, source),
 });
@@ -3242,6 +3503,7 @@ const {
   createMecabTokenizerAndCheck,
   prewarmSubtitleDictionaries,
   startBackgroundWarmups,
+  startTokenizationWarmups,
   isTokenizationWarmupReady,
 } = composeMpvRuntimeHandlers<
   MpvIpcClient,
@@ -3285,6 +3547,7 @@ const {
       startupOsdSequencer.reset();
       clearScheduledSubtitlePrefetchRefresh();
       subtitlePrefetchInitController.cancelPendingInit();
+      youtubePrimarySubtitleNotificationRuntime.handleMediaPathChange(path);
       if (path) {
         ensureImmersionTrackerStarted();
         // Delay slightly to allow MPV's track-list to be populated.
@@ -3321,7 +3584,7 @@ const {
       );
     },
     scheduleCharacterDictionarySync: () => {
-      if (!yomitanProfilePolicy.isCharacterDictionaryEnabled()) {
+      if (!yomitanProfilePolicy.isCharacterDictionaryEnabled() || isYoutubePlaybackActiveNow()) {
         return;
       }
       characterDictionaryAutoSyncRuntime.scheduleSync();
@@ -3342,11 +3605,13 @@ const {
       }
       lastObservedTimePos = time;
     },
-    onSubtitleTrackChange: () => {
+    onSubtitleTrackChange: (sid) => {
       scheduleSubtitlePrefetchRefresh();
+      youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackChange(sid);
     },
-    onSubtitleTrackListChange: () => {
+    onSubtitleTrackListChange: (trackList) => {
       scheduleSubtitlePrefetchRefresh();
+      youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackListChange(trackList);
     },
     updateSubtitleRenderMetrics: (patch) => {
       updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
@@ -3416,7 +3681,8 @@ const {
         ),
       getCharacterDictionaryEnabled: () =>
         getResolvedConfig().anilist.characterDictionary.enabled &&
-        yomitanProfilePolicy.isCharacterDictionaryEnabled(),
+        yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
+        !isYoutubePlaybackActiveNow(),
       getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
@@ -3513,7 +3779,19 @@ const {
 tokenizeSubtitleDeferred = tokenizeSubtitle;
 
 function createMpvClientRuntimeService(): MpvIpcClient {
-  return createMpvClientRuntimeServiceHandler() as MpvIpcClient;
+  const client = createMpvClientRuntimeServiceHandler() as MpvIpcClient;
+  client.on('connection-change', ({ connected }) => {
+    if (connected) {
+      return;
+    }
+    if (!youtubeFlowRuntime.hasActiveSession()) {
+      return;
+    }
+    youtubeFlowRuntime.cancelActivePicker();
+    broadcastToOverlayWindows(IPC_CHANNELS.event.youtubePickerCancel, null);
+    overlayModalRuntime.handleOverlayModalClosed('youtube-track-picker');
+  });
+  return client;
 }
 
 function resetSubtitleSidebarEmbeddedLayoutRuntime(): void {
@@ -3544,6 +3822,11 @@ function getCurrentOverlayGeometry(): WindowGeometry {
   const trackerGeometry = appState.windowTracker?.getGeometry();
   if (trackerGeometry) return trackerGeometry;
   return getOverlayGeometryFallback();
+}
+
+function geometryMatches(a: WindowGeometry | null, b: WindowGeometry | null): boolean {
+  if (!a || !b) return false;
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
 
 function applyOverlayRegions(geometry: WindowGeometry): void {
@@ -4146,6 +4429,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     cycleRuntimeOption: (id, direction) => {
       if (!appState.runtimeOptionsManager) {
         return { ok: false, error: 'Runtime options manager unavailable' };
@@ -4189,6 +4473,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       onOverlayModalOpened: (modal) => {
         overlayModalRuntime.notifyOverlayModalOpened(modal);
       },
+      onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
       openYomitanSettings: () => openYomitanSettings(),
       quitApp: () => requestAppQuit(),
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
@@ -4403,6 +4688,7 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
   runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
     runStatsCliCommand(argsFromCommand, source),
+  runYoutubePlaybackFlow: (request) => runYoutubePlaybackFlowMain(request),
   openYomitanSettings: () => openYomitanSettings(),
   cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
   openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),

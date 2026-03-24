@@ -31,6 +31,8 @@ import type {
   VocabularyStatsRow,
 } from './types';
 import { buildCoverBlobReference, normalizeCoverBlobBytes } from './storage';
+import { rebuildLifetimeSummariesInTransaction } from './lifetime';
+import { rebuildRollupsInTransaction } from './maintenance';
 import { PartOfSpeech, type MergedToken } from '../../../types';
 import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
 import { deriveStoredPartOfSpeech } from '../tokenizer/part-of-speech';
@@ -1746,7 +1748,7 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
       v.duration_ms AS durationMs,
       (
         SELECT COALESCE(
-          s_recent.ended_media_ms,
+          NULLIF(s_recent.ended_media_ms, 0),
           (
             SELECT MAX(line.segment_end_ms)
             FROM imm_subtitle_lines line
@@ -1817,6 +1819,17 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
       COALESCE(lm.total_cards, 0) AS totalCards,
       COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
       COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs,
+      yv.youtube_video_id AS youtubeVideoId,
+      yv.video_url AS videoUrl,
+      yv.video_title AS videoTitle,
+      yv.video_thumbnail_url AS videoThumbnailUrl,
+      yv.channel_id AS channelId,
+      yv.channel_name AS channelName,
+      yv.channel_url AS channelUrl,
+      yv.channel_thumbnail_url AS channelThumbnailUrl,
+      yv.uploader_id AS uploaderId,
+      yv.uploader_url AS uploaderUrl,
+      yv.description AS description,
       CASE
         WHEN ma.cover_blob_hash IS NOT NULL OR ma.cover_blob IS NOT NULL THEN 1
         ELSE 0
@@ -1824,6 +1837,7 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
     FROM imm_videos v
     JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
     LEFT JOIN imm_media_art ma ON ma.video_id = v.video_id
+    LEFT JOIN imm_youtube_videos yv ON yv.video_id = v.video_id
     ORDER BY lm.last_watched_ms DESC
   `,
     )
@@ -1846,9 +1860,21 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
       COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
       COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
-      COALESCE(SUM(COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount
+      COALESCE(SUM(COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount,
+      yv.youtube_video_id AS youtubeVideoId,
+      yv.video_url AS videoUrl,
+      yv.video_title AS videoTitle,
+      yv.video_thumbnail_url AS videoThumbnailUrl,
+      yv.channel_id AS channelId,
+      yv.channel_name AS channelName,
+      yv.channel_url AS channelUrl,
+      yv.channel_thumbnail_url AS channelThumbnailUrl,
+      yv.uploader_id AS uploaderId,
+      yv.uploader_url AS uploaderUrl,
+      yv.description AS description
     FROM imm_videos v
     JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
+    LEFT JOIN imm_youtube_videos yv ON yv.video_id = v.video_id
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     WHERE v.video_id = ?
@@ -2443,6 +2469,8 @@ export function deleteSession(db: DatabaseSync, sessionId: number): void {
   try {
     deleteSessionsByIds(db, sessionIds);
     refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    rebuildLifetimeSummariesInTransaction(db);
+    rebuildRollupsInTransaction(db);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -2459,6 +2487,8 @@ export function deleteSessions(db: DatabaseSync, sessionIds: number[]): void {
   try {
     deleteSessionsByIds(db, sessionIds);
     refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    rebuildLifetimeSummariesInTransaction(db);
+    rebuildRollupsInTransaction(db);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -2495,6 +2525,8 @@ export function deleteVideo(db: DatabaseSync, videoId: number): void {
     cleanupUnusedCoverArtBlobHash(db, artRow?.coverBlobHash ?? null);
     db.prepare('DELETE FROM imm_videos WHERE video_id = ?').run(videoId);
     refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    rebuildLifetimeSummariesInTransaction(db);
+    rebuildRollupsInTransaction(db);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

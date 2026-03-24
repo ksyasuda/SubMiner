@@ -67,6 +67,7 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub` |
 | `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions` |
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`         |
+| `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                  |
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`     |
 | `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey`    |
 | `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`              |

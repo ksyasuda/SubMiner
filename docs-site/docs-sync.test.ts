@@ -20,7 +20,7 @@ function extractReleaseHeadings(content: string, count: number): string[] {
 test('docs reflect current launcher and release surfaces', () => {
   expect(usageContents).not.toContain('--mode preprocess');
   expect(usageContents).not.toContain('"automatic" (default)');
-  expect(usageContents).toContain('before mpv starts');
+  expect(usageContents).toContain('during startup while mpv is paused');
 
   expect(installationContents).toContain('bun run build:appimage');
   expect(installationContents).toContain('bun run build:win');

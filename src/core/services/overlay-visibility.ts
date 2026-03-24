@@ -4,6 +4,7 @@ import { WindowGeometry } from '../../types';
 
 export function updateVisibleOverlayVisibility(args: {
   visibleOverlayVisible: boolean;
+  modalActive?: boolean;
   forceMousePassthrough?: boolean;
   mainWindow: BrowserWindow | null;
   windowTracker: BaseWindowTracker | null;
@@ -27,6 +28,12 @@ export function updateVisibleOverlayVisibility(args: {
   }
 
   const mainWindow = args.mainWindow;
+
+  if (args.modalActive) {
+    mainWindow.hide();
+    args.syncOverlayShortcuts();
+    return;
+  }
 
   const showPassiveVisibleOverlay = (): void => {
     const forceMousePassthrough = args.forceMousePassthrough === true;

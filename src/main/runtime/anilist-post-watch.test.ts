@@ -76,3 +76,52 @@ test('createMaybeRunAnilistPostWatchUpdateHandler queues when token missing', as
   assert.ok(calls.includes('inflight:true'));
   assert.ok(calls.includes('inflight:false'));
 });
+
+test('createMaybeRunAnilistPostWatchUpdateHandler skips youtube playback entirely', async () => {
+  const calls: string[] = [];
+  const handler = createMaybeRunAnilistPostWatchUpdateHandler({
+    getInFlight: () => false,
+    setInFlight: (value) => calls.push(`inflight:${value}`),
+    getResolvedConfig: () => ({}),
+    isAnilistTrackingEnabled: () => true,
+    getCurrentMediaKey: () => 'https://www.youtube.com/watch?v=abc123',
+    hasMpvClient: () => true,
+    getTrackedMediaKey: () => 'https://www.youtube.com/watch?v=abc123',
+    resetTrackedMedia: () => calls.push('reset'),
+    getWatchedSeconds: () => 1000,
+    maybeProbeAnilistDuration: async () => {
+      calls.push('probe');
+      return 1000;
+    },
+    ensureAnilistMediaGuess: async () => {
+      calls.push('guess');
+      return { title: 'Show', season: null, episode: 1 };
+    },
+    hasAttemptedUpdateKey: () => false,
+    processNextAnilistRetryUpdate: async () => {
+      calls.push('process-retry');
+      return { ok: true, message: 'noop' };
+    },
+    refreshAnilistClientSecretState: async () => {
+      calls.push('refresh-token');
+      return 'token';
+    },
+    enqueueRetry: () => calls.push('enqueue'),
+    markRetryFailure: () => calls.push('mark-failure'),
+    markRetrySuccess: () => calls.push('mark-success'),
+    refreshRetryQueueState: () => calls.push('refresh'),
+    updateAnilistPostWatchProgress: async () => {
+      calls.push('update');
+      return { status: 'updated', message: 'ok' };
+    },
+    rememberAttemptedUpdateKey: () => calls.push('remember'),
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    logInfo: (message) => calls.push(`info:${message}`),
+    logWarn: (message) => calls.push(`warn:${message}`),
+    minWatchSeconds: 600,
+    minWatchRatio: 0.85,
+  });
+
+  await handler();
+  assert.deepEqual(calls, []);
+});

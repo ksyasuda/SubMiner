@@ -2,9 +2,9 @@ local M = {}
 
 local OVERLAY_START_RETRY_DELAY_SECONDS = 0.2
 local OVERLAY_START_MAX_ATTEMPTS = 6
-local AUTO_PLAY_READY_TIMEOUT_SECONDS = 15
 local AUTO_PLAY_READY_LOADING_OSD = "Loading subtitle tokenization..."
 local AUTO_PLAY_READY_READY_OSD = "Subtitle tokenization ready"
+local DEFAULT_AUTO_PLAY_READY_TIMEOUT_SECONDS = 15
 
 function M.create(ctx)
 	local mp = ctx.mp
@@ -32,6 +32,23 @@ function M.create(ctx)
 			raw_pause_until_ready = opts["auto-start-pause-until-ready"]
 		end
 		return options_helper.coerce_bool(raw_pause_until_ready, false)
+	end
+
+	local function resolve_pause_until_ready_timeout_seconds()
+		local raw_timeout_seconds = opts.auto_start_pause_until_ready_timeout_seconds
+		if raw_timeout_seconds == nil then
+			raw_timeout_seconds = opts["auto-start-pause-until-ready-timeout-seconds"]
+		end
+		if type(raw_timeout_seconds) == "number" then
+			return raw_timeout_seconds
+		end
+		if type(raw_timeout_seconds) == "string" then
+			local parsed = tonumber(raw_timeout_seconds)
+			if parsed ~= nil then
+				return parsed
+			end
+		end
+		return DEFAULT_AUTO_PLAY_READY_TIMEOUT_SECONDS
 	end
 
 	local function normalize_socket_path(path)
@@ -118,17 +135,20 @@ function M.create(ctx)
 			end)
 		end
 		subminer_log("info", "process", "Pausing playback until SubMiner overlay/tokenization readiness signal")
-		state.auto_play_ready_timeout = mp.add_timeout(AUTO_PLAY_READY_TIMEOUT_SECONDS, function()
-			if not state.auto_play_ready_gate_armed then
-				return
-			end
-			subminer_log(
-				"warn",
-				"process",
-				"Startup readiness signal timed out; resuming playback to avoid stalled pause"
-			)
-			release_auto_play_ready_gate("timeout")
-		end)
+		local timeout_seconds = resolve_pause_until_ready_timeout_seconds()
+		if timeout_seconds and timeout_seconds > 0 then
+			state.auto_play_ready_timeout = mp.add_timeout(timeout_seconds, function()
+				if not state.auto_play_ready_gate_armed then
+					return
+				end
+				subminer_log(
+					"warn",
+					"process",
+					"Startup readiness signal timed out; resuming playback to avoid stalled pause"
+				)
+				release_auto_play_ready_gate("timeout")
+			end)
+		end
 	end
 
 	local function notify_auto_play_ready()

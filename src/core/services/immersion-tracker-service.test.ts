@@ -37,6 +37,21 @@ async function waitForPendingAnimeMetadata(tracker: ImmersionTrackerService): Pr
   await privateApi.pendingAnimeMetadataUpdates?.get(videoId);
 }
 
+async function waitForCondition(
+  predicate: () => boolean,
+  timeoutMs = 1_000,
+  intervalMs = 10,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  assert.equal(predicate(), true);
+}
+
 function makeMergedToken(overrides: Partial<MergedToken>): MergedToken {
   return {
     surface: '',
@@ -1269,6 +1284,40 @@ test('flushTelemetry checkpoints latest playback position on the active session 
   }
 });
 
+test('recordSubtitleLine advances session checkpoint progress when playback position is unavailable', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('https://stream.example.com/subtitle-progress.m3u8', 'Subtitle Progress');
+    tracker.recordSubtitleLine('line one', 170, 185, [], null);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      sessionState: { sessionId: number } | null;
+      flushTelemetry: (force?: boolean) => void;
+      flushNow: () => void;
+    };
+    const sessionId = privateApi.sessionState?.sessionId;
+    assert.ok(sessionId);
+
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    const row = privateApi.db
+      .prepare('SELECT ended_media_ms FROM imm_sessions WHERE session_id = ?')
+      .get(sessionId) as { ended_media_ms: number | null } | null;
+
+    assert.equal(row?.ended_media_ms, 185_000);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('deleteSession ignores the currently active session and keeps new writes flushable', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -2291,6 +2340,565 @@ test('reassignAnimeAnilist preserves existing description when description is om
 
     assert.equal(row?.anilistId, 33489);
     assert.equal(row?.description, 'Original description');
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('handleMediaChange stores youtube metadata for new youtube sessions', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const originalFetch = globalThis.fetch;
+  const originalPath = process.env.PATH;
+  let fakeBinDir: string | null = null;
+
+  try {
+    fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yt-dlp-bin-'));
+    const ytDlpOutput =
+      '{"id":"abc123","title":"Video Name","webpage_url":"https://www.youtube.com/watch?v=abc123","thumbnail":"https://i.ytimg.com/vi/abc123/hqdefault.jpg","channel_id":"UCcreator123","channel":"Creator Name","channel_url":"https://www.youtube.com/channel/UCcreator123","uploader_id":"@creator","uploader_url":"https://www.youtube.com/@creator","description":"Video description","channel_follower_count":12345,"thumbnails":[{"url":"https://i.ytimg.com/vi/abc123/hqdefault.jpg"},{"url":"https://yt3.googleusercontent.com/channel-avatar=s88"}]}';
+    if (process.platform === 'win32') {
+      const outputPath = path.join(fakeBinDir, 'output.json');
+      fs.writeFileSync(outputPath, ytDlpOutput, 'utf8');
+      fs.writeFileSync(
+        path.join(fakeBinDir, 'yt-dlp.cmd'),
+        '@echo off\r\ntype "%~dp0output.json"\r\n',
+        'utf8',
+      );
+    } else {
+      const scriptPath = path.join(fakeBinDir, 'yt-dlp');
+      fs.writeFileSync(
+        scriptPath,
+        `#!/bin/sh
+printf '%s\n' '${ytDlpOutput}'
+`,
+        { mode: 0o755 },
+      );
+    }
+    process.env.PATH = `${fakeBinDir}${path.delimiter}${originalPath ?? ''}`;
+
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      if (url.includes('/oembed')) {
+        return new Response(
+          JSON.stringify({
+            thumbnail_url: 'https://i.ytimg.com/vi/abc123/hqdefault.jpg',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg' },
+      });
+    };
+
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('https://www.youtube.com/watch?v=abc123', 'Player Title');
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    await waitForCondition(
+      () => {
+        const stored = privateApi.db
+          .prepare("SELECT 1 AS ready FROM imm_youtube_videos WHERE youtube_video_id = 'abc123'")
+          .get() as { ready: number } | null;
+        return stored?.ready === 1;
+      },
+      5_000,
+    );
+    const row = privateApi.db
+      .prepare(
+        `
+          SELECT
+            youtube_video_id AS youtubeVideoId,
+            video_url AS videoUrl,
+            video_title AS videoTitle,
+            video_thumbnail_url AS videoThumbnailUrl,
+            channel_id AS channelId,
+            channel_name AS channelName,
+            channel_url AS channelUrl,
+            channel_thumbnail_url AS channelThumbnailUrl,
+            uploader_id AS uploaderId,
+            uploader_url AS uploaderUrl,
+            description AS description
+          FROM imm_youtube_videos
+        `,
+      )
+      .get() as {
+      youtubeVideoId: string;
+      videoUrl: string;
+      videoTitle: string;
+      videoThumbnailUrl: string;
+      channelId: string;
+      channelName: string;
+      channelUrl: string;
+      channelThumbnailUrl: string;
+      uploaderId: string;
+      uploaderUrl: string;
+      description: string;
+    } | null;
+    const videoRow = privateApi.db
+      .prepare(
+        `
+          SELECT canonical_title AS canonicalTitle
+          FROM imm_videos
+          WHERE video_id = 1
+        `,
+      )
+      .get() as { canonicalTitle: string } | null;
+    const animeRow = privateApi.db
+      .prepare(
+        `
+          SELECT
+            a.canonical_title AS canonicalTitle,
+            v.parsed_title AS parsedTitle,
+            v.parser_source AS parserSource
+          FROM imm_videos v
+          JOIN imm_anime a ON a.anime_id = v.anime_id
+          WHERE v.video_id = 1
+        `,
+      )
+      .get() as {
+      canonicalTitle: string;
+      parsedTitle: string | null;
+      parserSource: string | null;
+    } | null;
+
+    assert.ok(row);
+    assert.ok(videoRow);
+    assert.equal(row.youtubeVideoId, 'abc123');
+    assert.equal(row.videoUrl, 'https://www.youtube.com/watch?v=abc123');
+    assert.equal(row.videoTitle, 'Video Name');
+    assert.equal(row.videoThumbnailUrl, 'https://i.ytimg.com/vi/abc123/hqdefault.jpg');
+    assert.equal(row.channelId, 'UCcreator123');
+    assert.equal(row.channelName, 'Creator Name');
+    assert.equal(row.channelUrl, 'https://www.youtube.com/channel/UCcreator123');
+    assert.equal(row.channelThumbnailUrl, 'https://yt3.googleusercontent.com/channel-avatar=s88');
+    assert.equal(row.uploaderId, '@creator');
+    assert.equal(row.uploaderUrl, 'https://www.youtube.com/@creator');
+    assert.equal(row.description, 'Video description');
+    assert.equal(videoRow.canonicalTitle, 'Video Name');
+    assert.equal(animeRow?.canonicalTitle, 'Creator Name');
+    assert.equal(animeRow?.parsedTitle, 'Creator Name');
+    assert.equal(animeRow?.parserSource, 'youtube');
+  } finally {
+    process.env.PATH = originalPath;
+    globalThis.fetch = originalFetch;
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+    if (fakeBinDir) {
+      fs.rmSync(fakeBinDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('getMediaLibrary lazily backfills missing youtube metadata for existing rows', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const originalPath = process.env.PATH;
+  let fakeBinDir: string | null = null;
+
+  try {
+    fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yt-dlp-bin-'));
+    const ytDlpOutput =
+      '{"id":"backfill123","title":"Backfilled Video Title","webpage_url":"https://www.youtube.com/watch?v=backfill123","thumbnail":"https://i.ytimg.com/vi/backfill123/hqdefault.jpg","channel_id":"UCbackfill123","channel":"Backfill Creator","channel_url":"https://www.youtube.com/channel/UCbackfill123","uploader_id":"@backfill","uploader_url":"https://www.youtube.com/@backfill","description":"Backfilled description","thumbnails":[{"url":"https://i.ytimg.com/vi/backfill123/hqdefault.jpg"},{"url":"https://yt3.googleusercontent.com/backfill-avatar=s88"}]}';
+    if (process.platform === 'win32') {
+      const outputPath = path.join(fakeBinDir, 'output.json');
+      fs.writeFileSync(outputPath, ytDlpOutput, 'utf8');
+      fs.writeFileSync(
+        path.join(fakeBinDir, 'yt-dlp.cmd'),
+        '@echo off\r\ntype "%~dp0output.json"\r\n',
+        'utf8',
+      );
+    } else {
+      const scriptPath = path.join(fakeBinDir, 'yt-dlp');
+      fs.writeFileSync(
+        scriptPath,
+        `#!/bin/sh
+printf '%s\n' '${ytDlpOutput}'
+`,
+        { mode: 0o755 },
+      );
+    }
+    process.env.PATH = `${fakeBinDir}${path.delimiter}${originalPath ?? ''}`;
+
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    const nowMs = Date.now();
+
+    privateApi.db
+      .prepare(
+        `
+          INSERT INTO imm_videos (
+            video_key,
+            canonical_title,
+            source_type,
+            source_path,
+            source_url,
+            duration_ms,
+            file_size_bytes,
+            codec_id,
+            container_id,
+            width_px,
+            height_px,
+            fps_x100,
+            bitrate_kbps,
+            audio_codec_id,
+            hash_sha256,
+            screenshot_path,
+            metadata_json,
+            CREATED_DATE,
+            LAST_UPDATE_DATE
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        'remote:https://www.youtube.com/watch?v=backfill123',
+        'watch?v=backfill123',
+        2,
+        null,
+        'https://www.youtube.com/watch?v=backfill123',
+        0,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        nowMs,
+        nowMs,
+      );
+    privateApi.db
+      .prepare(
+        `
+          INSERT INTO imm_lifetime_media (
+            video_id,
+            total_sessions,
+            total_active_ms,
+            total_cards,
+            total_lines_seen,
+            total_tokens_seen,
+            completed,
+            first_watched_ms,
+            last_watched_ms,
+            CREATED_DATE,
+            LAST_UPDATE_DATE
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(1, 1, 5_000, 0, 0, 50, 0, nowMs, nowMs, nowMs, nowMs);
+
+    const before = await tracker.getMediaLibrary();
+    assert.equal(before[0]?.channelName ?? null, null);
+
+    await waitForCondition(() => {
+      const row = privateApi.db
+        .prepare(
+          `
+            SELECT
+              video_title AS videoTitle,
+              channel_name AS channelName,
+              channel_thumbnail_url AS channelThumbnailUrl
+            FROM imm_youtube_videos
+            WHERE video_id = 1
+          `,
+        )
+        .get() as {
+        videoTitle: string | null;
+        channelName: string | null;
+        channelThumbnailUrl: string | null;
+      } | null;
+      return (
+        row?.videoTitle === 'Backfilled Video Title' &&
+        row.channelName === 'Backfill Creator' &&
+        row.channelThumbnailUrl === 'https://yt3.googleusercontent.com/backfill-avatar=s88'
+      );
+    }, 5_000);
+
+    const after = await tracker.getMediaLibrary();
+    assert.equal(after[0]?.videoTitle, 'Backfilled Video Title');
+    assert.equal(after[0]?.channelName, 'Backfill Creator');
+    assert.equal(
+      after[0]?.channelThumbnailUrl,
+      'https://yt3.googleusercontent.com/backfill-avatar=s88',
+    );
+  } finally {
+    process.env.PATH = originalPath;
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+    if (fakeBinDir) {
+      fs.rmSync(fakeBinDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('getAnimeLibrary lazily relinks youtube rows to channel groupings', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    const nowMs = Date.now();
+
+    privateApi.db.exec(`
+      INSERT INTO imm_anime (
+        anime_id,
+        normalized_title_key,
+        canonical_title,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (1, 'watch v first', 'watch?v first', ${nowMs}, ${nowMs}),
+        (2, 'watch v second', 'watch?v second', ${nowMs}, ${nowMs});
+
+      INSERT INTO imm_videos (
+        video_id,
+        anime_id,
+        video_key,
+        canonical_title,
+        parsed_title,
+        parser_source,
+        source_type,
+        source_path,
+        source_url,
+        duration_ms,
+        file_size_bytes,
+        codec_id,
+        container_id,
+        width_px,
+        height_px,
+        fps_x100,
+        bitrate_kbps,
+        audio_codec_id,
+        hash_sha256,
+        screenshot_path,
+        metadata_json,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (
+          1,
+          1,
+          'remote:https://www.youtube.com/watch?v=first',
+          'watch?v first',
+          'watch?v first',
+          'fallback',
+          2,
+          NULL,
+          'https://www.youtube.com/watch?v=first',
+          0,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          ${nowMs},
+          ${nowMs}
+        ),
+        (
+          2,
+          2,
+          'remote:https://www.youtube.com/watch?v=second',
+          'watch?v second',
+          'watch?v second',
+          'fallback',
+          2,
+          NULL,
+          'https://www.youtube.com/watch?v=second',
+          0,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          ${nowMs},
+          ${nowMs}
+        );
+
+      INSERT INTO imm_youtube_videos (
+        video_id,
+        youtube_video_id,
+        video_url,
+        video_title,
+        video_thumbnail_url,
+        channel_id,
+        channel_name,
+        channel_url,
+        channel_thumbnail_url,
+        uploader_id,
+        uploader_url,
+        description,
+        metadata_json,
+        fetched_at_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (
+          1,
+          'first',
+          'https://www.youtube.com/watch?v=first',
+          'First Video',
+          'https://i.ytimg.com/vi/first/hqdefault.jpg',
+          'UCchannel1',
+          'Shared Channel',
+          'https://www.youtube.com/channel/UCchannel1',
+          'https://yt3.googleusercontent.com/shared=s88',
+          '@shared',
+          'https://www.youtube.com/@shared',
+          NULL,
+          '{}',
+          ${nowMs},
+          ${nowMs},
+          ${nowMs}
+        ),
+        (
+          2,
+          'second',
+          'https://www.youtube.com/watch?v=second',
+          'Second Video',
+          'https://i.ytimg.com/vi/second/hqdefault.jpg',
+          'UCchannel1',
+          'Shared Channel',
+          'https://www.youtube.com/channel/UCchannel1',
+          'https://yt3.googleusercontent.com/shared=s88',
+          '@shared',
+          'https://www.youtube.com/@shared',
+          NULL,
+          '{}',
+          ${nowMs},
+          ${nowMs},
+          ${nowMs}
+        );
+
+      INSERT INTO imm_sessions (
+        session_id,
+        session_uuid,
+        video_id,
+        started_at_ms,
+        ended_at_ms,
+        status,
+        total_watched_ms,
+        active_watched_ms,
+        lines_seen,
+        tokens_seen,
+        cards_mined,
+        lookup_count,
+        lookup_hits,
+        yomitan_lookup_count,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (
+          1,
+          'session-youtube-1',
+          1,
+          ${nowMs - 70000},
+          ${nowMs - 10000},
+          2,
+          65000,
+          60000,
+          0,
+          100,
+          0,
+          0,
+          0,
+          0,
+          ${nowMs},
+          ${nowMs}
+        ),
+        (
+          2,
+          'session-youtube-2',
+          2,
+          ${nowMs - 50000},
+          ${nowMs - 5000},
+          2,
+          35000,
+          30000,
+          0,
+          50,
+          0,
+          0,
+          0,
+          0,
+          ${nowMs},
+          ${nowMs}
+        );
+
+      INSERT INTO imm_lifetime_anime (
+        anime_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_lines_seen,
+        total_tokens_seen,
+        episodes_started,
+        episodes_completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (1, 1, 60000, 0, 0, 100, 1, 0, ${nowMs}, ${nowMs}, ${nowMs}, ${nowMs}),
+        (2, 1, 30000, 0, 0, 50, 1, 0, ${nowMs}, ${nowMs}, ${nowMs}, ${nowMs});
+
+      INSERT INTO imm_lifetime_media (
+        video_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_lines_seen,
+        total_tokens_seen,
+        completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (1, 1, 60000, 0, 0, 100, 0, ${nowMs}, ${nowMs}, ${nowMs}, ${nowMs}),
+        (2, 1, 30000, 0, 0, 50, 0, ${nowMs}, ${nowMs}, ${nowMs}, ${nowMs});
+    `);
+
+    const rows = await tracker.getAnimeLibrary();
+    const sharedRows = rows.filter((row) => row.canonicalTitle === 'Shared Channel');
+
+    assert.equal(sharedRows.length, 1);
+    assert.equal(sharedRows[0]?.episodeCount, 2);
+
+    const relinked = privateApi.db
+      .prepare(
+        `
+          SELECT a.canonical_title AS canonicalTitle, COUNT(*) AS total
+          FROM imm_videos v
+          JOIN imm_anime a ON a.anime_id = v.anime_id
+          GROUP BY a.anime_id, a.canonical_title
+          ORDER BY total DESC, a.anime_id ASC
+        `,
+      )
+      .all() as Array<{ canonicalTitle: string; total: number }>;
+
+    assert.equal(relinked[0]?.canonicalTitle, 'Shared Channel');
+    assert.equal(relinked[0]?.total, 2);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

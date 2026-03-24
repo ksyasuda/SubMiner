@@ -4,13 +4,16 @@ title: Fix subtitle prefetch cache-key mismatch and active-cue window
 status: Done
 assignee: []
 created_date: '2026-03-18 16:05'
+updated_date: '2026-03-23 03:22'
 labels: []
 dependencies: []
 references:
-  - /home/sudacode/projects/japanese/SubMiner/src/core/services/subtitle-processing-controller.ts
-  - /home/sudacode/projects/japanese/SubMiner/src/core/services/subtitle-prefetch.ts
-documentation: []
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/src/core/services/subtitle-processing-controller.ts
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/src/core/services/subtitle-prefetch.ts
 priority: high
+ordinal: 136500
 ---
 
 ## Description

@@ -58,6 +58,7 @@ import { NoteUpdateWorkflow } from './anki-integration/note-update-workflow';
 import { FieldGroupingWorkflow } from './anki-integration/field-grouping-workflow';
 import { resolveAnimatedImageLeadInSeconds } from './anki-integration/animated-image-sync';
 import { AnkiIntegrationRuntime, normalizeAnkiIntegrationConfig } from './anki-integration/runtime';
+import { resolveMediaGenerationInputPath } from './anki-integration/media-source';
 
 const log = createLogger('anki').child('integration');
 
@@ -597,6 +598,10 @@ export class AnkiIntegration {
     this.runtime.start();
   }
 
+  waitUntilReady(): Promise<void> {
+    return this.runtime.waitUntilReady();
+  }
+
   stop(): void {
     this.runtime.stop();
   }
@@ -647,7 +652,10 @@ export class AnkiIntegration {
       return null;
     }
 
-    const videoPath = mpvClient.currentVideoPath;
+    const videoPath = await resolveMediaGenerationInputPath(mpvClient, 'audio');
+    if (!videoPath) {
+      return null;
+    }
     let startTime = mpvClient.currentSubStart;
     let endTime = mpvClient.currentSubEnd;
 
@@ -672,7 +680,10 @@ export class AnkiIntegration {
       return null;
     }
 
-    const videoPath = this.mpvClient.currentVideoPath;
+    const videoPath = await resolveMediaGenerationInputPath(this.mpvClient, 'video');
+    if (!videoPath) {
+      return null;
+    }
     const timestamp = this.mpvClient.currentTimePos || 0;
 
     if (this.config.media?.imageType === 'avif') {
@@ -946,8 +957,15 @@ export class AnkiIntegration {
       if (this.mpvClient && this.mpvClient.currentVideoPath) {
         try {
           const timestamp = this.mpvClient.currentTimePos || 0;
+          const notificationIconSource = await resolveMediaGenerationInputPath(
+            this.mpvClient,
+            'video',
+          );
+          if (!notificationIconSource) {
+            throw new Error('No media source available for notification icon');
+          }
           const iconBuffer = await this.mediaGenerator.generateNotificationIcon(
-            this.mpvClient.currentVideoPath,
+            notificationIconSource,
             timestamp,
           );
           if (iconBuffer && iconBuffer.length > 0) {

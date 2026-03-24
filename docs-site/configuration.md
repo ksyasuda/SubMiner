@@ -17,6 +17,11 @@ For most users, start with this minimal configuration:
   "ankiConnect": {
     "enabled": true,
     "deck": "YourDeckName",
+    "knownWords": {
+      "decks": {
+        "YourDeckName": ["Word", "Word Reading", "Expression"]
+      }
+    },
     "fields": {
       "sentence": "Sentence",
       "audio": "Audio",
@@ -25,6 +30,8 @@ For most users, start with this minimal configuration:
   }
 }
 ```
+
+`ankiConnect.deck` is still accepted for backward-compatible polling scope and legacy known-word fallback behavior. For known-word cache scope, prefer `ankiConnect.knownWords.decks` with deck-to-fields mapping.
 
 Then customize as needed using the sections below.
 
@@ -120,7 +127,7 @@ The configuration file includes several main sections:
 - [**Discord Rich Presence**](#discord-rich-presence) - Optional Discord activity card updates
 - [**Immersion Tracking**](#immersion-tracking) - Track subtitle sessions and mining activity in SQLite
 - [**Stats Dashboard**](#stats-dashboard) - Local dashboard and overlay for immersion progress
-- [**YouTube Subtitle Generation**](#youtube-subtitle-generation) - Launcher defaults for yt-dlp + local whisper fallback
+- [**YouTube Playback Settings**](#youtube-playback-settings) - Defaults for YouTube subtitle loading
 
 ## Core Settings
 
@@ -348,7 +355,8 @@ Configure the parsed-subtitle sidebar modal.
 ```json
 {
   "subtitleSidebar": {
-    "enabled": true,
+    "enabled": false,
+    "autoOpen": false,
     "layout": "overlay",
     "toggleKey": "Backslash",
     "pauseVideoOnHover": false,
@@ -362,12 +370,13 @@ Configure the parsed-subtitle sidebar modal.
 | Option                      | Values           | Description                                                                      |
 | --------------------------- | ---------------- | -------------------------------------------------------------------------------- |
 | `enabled`                   | boolean          | Enable subtitle sidebar support (`false` by default)                             |
+| `autoOpen`                  | boolean          | Open sidebar automatically on overlay startup (`false` by default)                |
 | `layout`                    | string           | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space to mimic browser-like layout |
 | `toggleKey`                 | string           | `KeyboardEvent.code` used to open/close the sidebar (default: `"Backslash"`)     |
 | `pauseVideoOnHover`         | boolean          | Pause playback while hovering the sidebar cue list                               |
 | `autoScroll`                | boolean          | Keep the active cue in view while playback advances                              |
 | `maxWidth`                  | number           | Maximum sidebar width in CSS pixels (default: `420`)                             |
-| `opacity`                   | number           | Sidebar opacity between `0` and `1` (default: `0.78`)                            |
+| `opacity`                   | number           | Sidebar opacity between `0` and `1` (default: `0.95`)                            |
 | `backgroundColor`           | string           | Sidebar shell background color                                                   |
 | `textColor`                 | hex color        | Default cue text color                                                           |
 | `fontFamily`                | string           | CSS `font-family` value applied to sidebar cue text                             |
@@ -460,6 +469,7 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 | `Space`              | `["cycle", "pause"]`         | Toggle pause                          |
 | `KeyJ`               | `["cycle", "sid"]`           | Cycle primary subtitle track          |
 | `Shift+KeyJ`         | `["cycle", "secondary-sid"]` | Cycle secondary subtitle track        |
+| `Ctrl+Alt+KeyC`    | `["__youtube-picker-open"]`     | Open the manual YouTube subtitle picker |
 | `ArrowRight`         | `["seek", 5]`                | Seek forward 5 seconds                |
 | `ArrowLeft`          | `["seek", -5]`               | Seek backward 5 seconds               |
 | `ArrowUp`            | `["seek", 60]`               | Seek forward 60 seconds               |
@@ -731,7 +741,7 @@ Palette controls:
 ### Shared AI Provider
 
 Shared OpenAI-compatible transport settings live at the top level under `ai`.
-Anki and YouTube subtitle cleanup both read this provider, then apply feature-local overrides where supported.
+Anki reads this provider directly. Legacy subtitle fallback keeps the same provider shape for compatibility, then applies feature-local overrides where supported.
 
 ```json
 {
@@ -751,12 +761,14 @@ Anki and YouTube subtitle cleanup both read this provider, then apply feature-lo
 | `apiKey`           | string                | Static API key for the shared provider               |
 | `apiKeyCommand`    | string                | Shell command used to resolve the API key            |
 | `baseUrl`          | string (URL)          | OpenAI-compatible base URL                           |
+| `model`            | string                | Optional model override for shared provider workflows   |
+| `systemPrompt`     | string                | Optional system prompt override for shared provider workflows |
 | `requestTimeoutMs` | integer milliseconds  | Shared request timeout (default: `15000`)            |
 
-SubMiner uses the shared provider in two places:
+SubMiner uses the shared provider for:
 
 - Anki translation/enrichment when `ankiConnect.ai.enabled` is `true`
-- YouTube whisper subtitle post-processing when `youtubeSubgen.fixWithAi` is `true`
+- Legacy subtitle fallback compatibility when `youtubeSubgen.fixWithAi` is `true`
 
 ### AnkiConnect
 
@@ -840,8 +852,8 @@ This example is intentionally compact. The option table below documents availabl
 | `proxy.port`                            | number                                  | Bind port for local AnkiConnect proxy (default: `8766`)                                                                                       |
 | `proxy.upstreamUrl`                     | string (URL)                            | Upstream AnkiConnect URL that proxy forwards to (default: `http://127.0.0.1:8765`)                                                            |
 | `tags`                                  | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                 |
-| `deck`                                  | string                                  | Anki deck to monitor for new cards                                                                                                            |
-| `ankiConnect.knownWords.decks`          | array of strings                        | Decks used for known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                                 |
+| `ankiConnect.deck`                      | string                                  | Legacy Anki polling/compatibility scope. Newer known-word cache scoping should use `ankiConnect.knownWords.decks`.                               |
+| `ankiConnect.knownWords.decks`          | object                                  | Deck→fields mapping for known-word cache queries (for example `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                                  |
 | `fields.word`                           | string                                  | Card field for mined word / expression text (default: `Expression`)                                                                            |
 | `fields.audio`                          | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                       |
 | `fields.image`                          | string                                  | Card field for images (default: `Picture`)                                                                                                    |
@@ -862,6 +874,7 @@ This example is intentionally compact. The option table below documents availabl
 | `media.animatedMaxWidth`                | number (px)                             | Max width for animated AVIF (default: `640`)                                                                                                  |
 | `media.animatedMaxHeight`               | number (px)                             | Optional max height for animated AVIF. Unset keeps source aspect-constrained height.                                                          |
 | `media.animatedCrf`                     | number (0-63)                           | CRF quality for AVIF; lower = higher quality (default: `35`)                                                                                  |
+| `media.syncAnimatedImageToWordAudio`    | `true`, `false`                         | Whether animated AVIF includes an opening frame synced to sentence word-audio timing (default: `true`). |
 | `media.audioPadding`                    | number (seconds)                        | Padding around audio clip timing (default: `0.5`)                                                                                             |
 | `media.fallbackDuration`                | number (seconds)                        | Default duration if timing unavailable (default: `3.0`)                                                                                       |
 | `media.maxMediaDuration`                | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                                         |
@@ -870,10 +883,11 @@ This example is intentionally compact. The option table below documents availabl
 | `behavior.mediaInsertMode`              | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                         |
 | `behavior.highlightWord`                | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                      |
 | `ankiConnect.knownWords.highlightEnabled` | `true`, `false`                       | Enable fast local highlighting for words already known in Anki (default: `false`)                                                             |
+| `ankiConnect.knownWords.addMinedWordsImmediately` | `true`, `false`                         | Add words from successful mines into the local known-word cache immediately (default: `true`)                                                   |
 | `ankiConnect.knownWords.color`          | hex color string                        | Text color for tokens already found in the local known-word cache (default: `"#a6da95"`).                                                     |
 | `ankiConnect.knownWords.matchMode`      | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
 | `ankiConnect.knownWords.refreshMinutes` | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                  |
-| `ankiConnect.knownWords.decks`          | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                               |
+| `ankiConnect.knownWords.decks`          | object                                  | Deck→fields mapping used for known-word cache query scope (e.g. `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                              |
 | `ankiConnect.nPlusOne.nPlusOne`         | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`).               |
 | `ankiConnect.nPlusOne.minSentenceWords` | number                                  | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                        |
 | `behavior.notificationType`             | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                           |
@@ -919,7 +933,7 @@ Known-word cache policy:
 - `ankiConnect.nPlusOne.nPlusOne` sets the color for the single target token when exactly one eligible unknown word exists.
 - `ankiConnect.nPlusOne.minSentenceWords` sets the minimum token count required in a sentence for N+1 highlighting (default: `3`).
 - `ankiConnect.knownWords.color` sets the known-word highlight color for tokens already in Anki.
-- `ankiConnect.knownWords.decks` accepts one or more decks. If empty, it uses the legacy single `ankiConnect.deck` value as scope.
+- `ankiConnect.knownWords.decks` accepts an object keyed by deck name. If omitted or empty, it falls back to the legacy `ankiConnect.deck` single-deck scope.
 - Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
 - The cache is automatically invalidated when the configured scope changes (for example, when deck changes).
 - Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set `ankiConnect.knownWords.matchMode` to `"surface"` for raw subtitle text matching.
@@ -1263,6 +1277,14 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
 | `retention.monthlyRollupsDays` | integer (`0`-`36500`)         | Monthly rollup retention window. Default `0` (keep all).                                                    |
 | `retention.vacuumIntervalDays` | integer (`0`-`3650`)          | Minimum spacing between `VACUUM` passes. `0` disables vacuum. Default `0` (disabled).                         |
 
+You can also disable immersion tracking for a single session using:
+
+```bash
+SUBMINER_DISABLE_IMMERSION_TRACKING=1 subminer
+```
+
+When this is set, SubMiner skips immersion-tracker startup and does not initialize or read the immersion SQLite database for that session.
+
 Default behavior keeps raw events, telemetry, sessions, and rollups forever while still maintaining lifetime summary tables and daily/monthly rollups for faster reads. If you later want bounded retention, switch `retentionMode` or set explicit `retention.*` values.
 
 When `dbPath` is blank or omitted, SubMiner writes telemetry and session summaries to the default app-data location:
@@ -1283,7 +1305,7 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
 {
   "stats": {
     "toggleKey": "Backquote",
-    "serverPort": 5175,
+    "serverPort": 6969,
     "autoStartServer": true,
     "autoOpenBrowser": true
   }
@@ -1293,7 +1315,7 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
 | Option            | Values            | Description                                                                 |
 | ----------------- | ----------------- | --------------------------------------------------------------------------- |
 | `toggleKey`       | Electron key code | Overlay-local key code used to toggle the stats overlay. Default `Backquote`. |
-| `serverPort`      | integer           | Localhost port for the browser stats UI. Default `5175`.                    |
+| `serverPort`      | integer           | Localhost port for the browser stats UI. Default `6969`.                    |
 | `autoStartServer` | `true`, `false`   | Start the local stats HTTP server automatically once immersion tracking is active. Default `true`. |
 | `autoOpenBrowser` | `true`, `false`   | When `subminer stats` starts the server on demand, also open the dashboard in your default browser. Default `true`. |
 
@@ -1304,22 +1326,13 @@ Usage notes:
 - The dashboard reads from the same immersion-tracking database, so keep `immersionTracking.enabled` on if you want data to appear.
 - The UI includes Overview, Library, Trends, Vocabulary, and Sessions tabs.
 
-### YouTube Subtitle Generation
+### YouTube Playback Settings
 
-Set defaults used by the `subminer` launcher for YouTube subtitle generation:
+Set defaults used by the `subminer` launcher for YouTube subtitle loading:
 
 ```json
 {
   "youtubeSubgen": {
-    "whisperBin": "/path/to/whisper-cli",
-    "whisperModel": "/path/to/ggml-model.bin",
-    "whisperVadModel": "/path/to/ggml-vad.bin",
-    "whisperThreads": 4,
-    "fixWithAi": false,
-    "ai": {
-      "model": "openai/gpt-4o-mini",
-      "systemPrompt": "Fix subtitle mistakes only."
-    },
     "primarySubLanguages": ["ja", "jpn"]
   }
 }
@@ -1327,27 +1340,22 @@ Set defaults used by the `subminer` launcher for YouTube subtitle generation:
 
 | Option                | Values               | Description                                                                                    |
 | --------------------- | -------------------- | ---------------------------------------------------------------------------------------------- |
-| `whisperBin`          | string path          | Path to `whisper.cpp` CLI binary used as fallback transcription engine                        |
-| `whisperModel`        | string path          | Path to whisper model used by fallback transcription                                          |
-| `whisperVadModel`     | string path          | Optional whisper VAD model path                                                               |
-| `whisperThreads`      | integer              | Thread count passed to whisper runs                                                           |
-| `fixWithAi`           | `true`, `false`      | Run shared AI post-processing on whisper-generated subtitles                                  |
-| `ai.model`            | string               | Optional model override for YouTube AI subtitle cleanup                                       |
-| `ai.systemPrompt`     | string               | Optional system prompt override for YouTube AI subtitle cleanup                               |
-| `primarySubLanguages` | string[]             | Primary subtitle language priority for YouTube subtitle generation (default `["ja", "jpn"]`) |
+| `primarySubLanguages` | string[]             | Primary subtitle language priority for YouTube auto-loading (default `["ja", "jpn"]`) |
 
-Launcher behavior:
+Current launcher behavior:
 
-- For YouTube URLs, subtitle generation now runs before mpv launch.
-- SubMiner probes manual/native YouTube subtitle tracks first.
-- Missing tracks fall back to local `whisper.cpp`.
-- English secondary subtitles can use whisper translate fallback when no manual track exists.
-- If `fixWithAi` is enabled, only whisper-generated `.srt` output is post-processed with the shared top-level `ai` provider.
+- For YouTube URLs, SubMiner probes subtitle tracks with yt-dlp after mpv bootstrap and binds auto-selected tracks before normal playback resumes.
+- If YouTube/mpv already exposes an authoritative matching subtitle track, SubMiner reuses it; otherwise it downloads and injects only the missing side.
+- SubMiner loads the primary subtitle plus a best-effort secondary subtitle.
+- Playback waits only for primary subtitle readiness; secondary failures do not block playback.
+- English secondary subtitles are selected from `secondarySub.secondarySubLanguages` when primary language matches are unavailable.
+- Native mpv secondary subtitle rendering stays hidden during this flow so the SubMiner overlay remains the visible secondary subtitle surface.
+- If primary subtitle loading fails, use `Ctrl+Alt+C` to open the subtitle modal and pick a track.
 
 Language targets are derived from subtitle config:
 
 - primary track: `youtubeSubgen.primarySubLanguages` (falls back to `["ja","jpn"]`)
 - secondary track: `secondarySub.secondarySubLanguages` (falls back to English when empty)
-- Subtitle files are generated or downloaded before mpv starts; the older launcher mode switch has been removed.
+- Tracks are resolved and loaded before mpv starts; the older launcher mode switch has been removed.
 
 Precedence for launcher defaults is: CLI flag > environment variable > `config.jsonc` > built-in default.

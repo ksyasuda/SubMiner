@@ -1,11 +1,29 @@
 # Changelog
 
+## v0.9.0 (2026-03-23)
+- Added an app-owned YouTube subtitle flow with absPlayer-style timedtext parsing that auto-loads the default primary subtitle plus a best-effort secondary at startup and resumes once the primary is ready.
+- Added a manual YouTube subtitle picker on `Ctrl+Alt+C` so subtitle selection can be retried on demand during active YouTube playback.
+- Added yt-dlp metadata probing so YouTube playback and immersion tracking record canonical video title and channel metadata.
+- Disabled conflicting mpv native subtitle auto-selection for the app-owned flow so injected explicit tracks stay authoritative.
+- Added OSD status updates covering YouTube playback startup, subtitle acquisition, and subtitle loading.
+- Stopped forcing `--ytdl-raw-options=` before user-provided mpv options so existing YouTube cookie integrations are preserved.
+- Improved sidebar startup/resume behavior, scroll handling, and overlay/sidebar subtitle synchronization.
+- Stats Library tab now shows YouTube video title, channel name, and thumbnail for YouTube media entries.
+- Added a new WebSocket / Texthooker API integration guide covering payload formats, custom client patterns, and mpv plugin automation.
+- Fixed Anki media mining for mpv YouTube streams so audio and screenshot capture work correctly during YouTube playback sessions.
+- Fixed YouTube media path handling in immersion tracking so YouTube sessions record correct media references and AniList state transitions do not fire for YouTube media.
+- Reused existing authoritative YouTube subtitle tracks when present, fell back only for missing sides, and kept native mpv secondary subtitle rendering hidden so the overlay remains the visible secondary subtitle surface.
+
 ## v0.8.0 (2026-03-22)
 - Added a configurable subtitle sidebar feature (`subtitleSidebar`) with overlay/embedded rendering, click-to-seek cue list, and hot-reloadable visibility and behavior controls.
-- Added release docs updates for sidebar configuration, including options, sample config, and toggle shortcut behavior.
-- Synced sidebar and overlay subtitle states during playback transitions via IPC-backed snapshot plumbing.
-- Fixed sidebar cue tracking to remain stable across timing edge cases and stale subtitle refreshes.
-- Improved sidebar resume/start behavior by jumping directly to the first resolved active cue.
+- Added a rendered sidebar modal with cue list display, click-to-seek, active-cue highlighting, and embedded layout support.
+- Added sidebar snapshot plumbing between main and renderer for overlay/sidebar synchronization.
+- Added sidebar configuration options for visibility and behavior (enabled, layout, toggle key, autoOpen, pauseOnHover, autoScroll) plus typography and sizing controls.
+- Documented `subtitleSidebar` configuration and behavior in user-facing docs (configuration.md, shortcuts.md, config.example.jsonc).
+- Updated subtitle prefetch/rendering flow to keep overlay and sidebar state in sync through media transitions.
+- Kept sidebar cue tracking stable across playback transitions and timing edge cases.
+- Fixed sidebar startup/resume positioning to jump directly to the first resolved active cue.
+- Prevented stale subtitle refreshes from regressing active-cue state.
 
 ## v0.7.0 (2026-03-19)
 - Added a full local immersion dashboard release line with Overview, Library, Trends, Vocabulary, and Sessions drill-down views backed by SQLite tracking data.

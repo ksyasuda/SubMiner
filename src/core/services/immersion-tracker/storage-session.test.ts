@@ -15,8 +15,14 @@ import {
   getOrCreateAnimeRecord,
   getOrCreateVideoRecord,
   linkVideoToAnimeRecord,
+  linkYoutubeVideoToAnimeRecord,
 } from './storage';
-import { EVENT_SUBTITLE_LINE, SESSION_STATUS_ENDED, SOURCE_TYPE_LOCAL } from './types';
+import {
+  EVENT_SUBTITLE_LINE,
+  SESSION_STATUS_ENDED,
+  SOURCE_TYPE_LOCAL,
+  SOURCE_TYPE_REMOTE,
+} from './types';
 
 function makeDbPath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-imm-storage-session-'));
@@ -106,6 +112,7 @@ test('ensureSchema creates immersion core tables', () => {
     assert.ok(tableNames.has('imm_kanji_line_occurrences'));
     assert.ok(tableNames.has('imm_rollup_state'));
     assert.ok(tableNames.has('imm_cover_art_blobs'));
+    assert.ok(tableNames.has('imm_youtube_videos'));
 
     const videoColumns = new Set(
       (
@@ -146,6 +153,114 @@ test('ensureSchema creates immersion core tables', () => {
   }
 });
 
+test('ensureSchema adds youtube metadata table to existing schema version 15 databases', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    db.exec(`
+      CREATE TABLE imm_schema_version (
+        schema_version INTEGER PRIMARY KEY,
+        applied_at_ms INTEGER NOT NULL
+      );
+      INSERT INTO imm_schema_version(schema_version, applied_at_ms) VALUES (15, 1000);
+
+      CREATE TABLE imm_rollup_state(
+        state_key TEXT PRIMARY KEY,
+        state_value INTEGER NOT NULL
+      );
+      INSERT INTO imm_rollup_state(state_key, state_value) VALUES ('last_rollup_sample_ms', 123);
+
+      CREATE TABLE imm_anime(
+        anime_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        normalized_title_key TEXT NOT NULL UNIQUE,
+        canonical_title TEXT NOT NULL,
+        anilist_id INTEGER UNIQUE,
+        title_romaji TEXT,
+        title_english TEXT,
+        title_native TEXT,
+        episodes_total INTEGER,
+        description TEXT,
+        metadata_json TEXT,
+        CREATED_DATE INTEGER,
+        LAST_UPDATE_DATE INTEGER
+      );
+
+      CREATE TABLE imm_videos(
+        video_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        video_key TEXT NOT NULL UNIQUE,
+        anime_id INTEGER,
+        canonical_title TEXT NOT NULL,
+        source_type INTEGER NOT NULL,
+        source_path TEXT,
+        source_url TEXT,
+        parsed_basename TEXT,
+        parsed_title TEXT,
+        parsed_season INTEGER,
+        parsed_episode INTEGER,
+        parser_source TEXT,
+        parser_confidence REAL,
+        parse_metadata_json TEXT,
+        watched INTEGER NOT NULL DEFAULT 0,
+        duration_ms INTEGER NOT NULL CHECK(duration_ms>=0),
+        file_size_bytes INTEGER CHECK(file_size_bytes>=0),
+        codec_id INTEGER, container_id INTEGER,
+        width_px INTEGER, height_px INTEGER, fps_x100 INTEGER,
+        bitrate_kbps INTEGER, audio_codec_id INTEGER,
+        hash_sha256 TEXT, screenshot_path TEXT,
+        metadata_json TEXT,
+        CREATED_DATE INTEGER,
+        LAST_UPDATE_DATE INTEGER,
+        FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE SET NULL
+      );
+    `);
+
+    ensureSchema(db);
+
+    const tables = new Set(
+      (
+        db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'imm_%'`).all() as Array<{
+          name: string;
+        }>
+      ).map((row) => row.name),
+    );
+    assert.ok(tables.has('imm_youtube_videos'));
+
+    const columns = new Set(
+      (
+        db.prepare('PRAGMA table_info(imm_youtube_videos)').all() as Array<{
+          name: string;
+        }>
+      ).map((row) => row.name),
+    );
+
+    assert.deepEqual(
+      columns,
+      new Set([
+        'video_id',
+        'youtube_video_id',
+        'video_url',
+        'video_title',
+        'video_thumbnail_url',
+        'channel_id',
+        'channel_name',
+        'channel_url',
+        'channel_thumbnail_url',
+        'uploader_id',
+        'uploader_url',
+        'description',
+        'metadata_json',
+        'fetched_at_ms',
+        'CREATED_DATE',
+        'LAST_UPDATE_DATE',
+      ]),
+    );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('ensureSchema creates large-history performance indexes', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
@@ -169,6 +284,8 @@ test('ensureSchema creates large-history performance indexes', () => {
     assert.ok(indexNames.has('idx_kanji_frequency'));
     assert.ok(indexNames.has('idx_media_art_anilist_id'));
     assert.ok(indexNames.has('idx_media_art_cover_url'));
+    assert.ok(indexNames.has('idx_youtube_videos_channel_id'));
+    assert.ok(indexNames.has('idx_youtube_videos_youtube_video_id'));
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -700,6 +817,123 @@ test('anime rows are reused by normalized parsed title and upgraded with AniList
         parsed_episode: 6,
       },
     ]);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('youtube videos can be regrouped under a shared channel anime identity', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const firstVideoId = getOrCreateVideoRecord(
+      db,
+      'remote:https://www.youtube.com/watch?v=video-1',
+      {
+        canonicalTitle: 'watch?v video-1',
+        sourcePath: null,
+        sourceUrl: 'https://www.youtube.com/watch?v=video-1',
+        sourceType: SOURCE_TYPE_REMOTE,
+      },
+    );
+    const secondVideoId = getOrCreateVideoRecord(
+      db,
+      'remote:https://www.youtube.com/watch?v=video-2',
+      {
+        canonicalTitle: 'watch?v video-2',
+        sourcePath: null,
+        sourceUrl: 'https://www.youtube.com/watch?v=video-2',
+        sourceType: SOURCE_TYPE_REMOTE,
+      },
+    );
+
+    const firstAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'watch?v video-1',
+      canonicalTitle: 'watch?v video-1',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, firstVideoId, {
+      animeId: firstAnimeId,
+      parsedBasename: null,
+      parsedTitle: 'watch?v video-1',
+      parsedSeason: null,
+      parsedEpisode: null,
+      parserSource: 'fallback',
+      parserConfidence: 0.2,
+      parseMetadataJson: '{"source":"fallback"}',
+    });
+
+    const secondAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'watch?v video-2',
+      canonicalTitle: 'watch?v video-2',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, secondVideoId, {
+      animeId: secondAnimeId,
+      parsedBasename: null,
+      parsedTitle: 'watch?v video-2',
+      parsedSeason: null,
+      parsedEpisode: null,
+      parserSource: 'fallback',
+      parserConfidence: 0.2,
+      parseMetadataJson: '{"source":"fallback"}',
+    });
+
+    linkYoutubeVideoToAnimeRecord(db, firstVideoId, {
+      youtubeVideoId: 'video-1',
+      videoUrl: 'https://www.youtube.com/watch?v=video-1',
+      videoTitle: 'Video One',
+      videoThumbnailUrl: 'https://i.ytimg.com/vi/video-1/hqdefault.jpg',
+      channelId: 'UC123',
+      channelName: 'Channel Name',
+      channelUrl: 'https://www.youtube.com/channel/UC123',
+      channelThumbnailUrl: 'https://yt3.googleusercontent.com/channel-123=s176-c-k-c0x00ffffff-no-rj',
+      uploaderId: '@channelname',
+      uploaderUrl: 'https://www.youtube.com/@channelname',
+      description: null,
+      metadataJson: '{"id":"video-1"}',
+    });
+    linkYoutubeVideoToAnimeRecord(db, secondVideoId, {
+      youtubeVideoId: 'video-2',
+      videoUrl: 'https://www.youtube.com/watch?v=video-2',
+      videoTitle: 'Video Two',
+      videoThumbnailUrl: 'https://i.ytimg.com/vi/video-2/hqdefault.jpg',
+      channelId: 'UC123',
+      channelName: 'Channel Name',
+      channelUrl: 'https://www.youtube.com/channel/UC123',
+      channelThumbnailUrl: 'https://yt3.googleusercontent.com/channel-123=s176-c-k-c0x00ffffff-no-rj',
+      uploaderId: '@channelname',
+      uploaderUrl: 'https://www.youtube.com/@channelname',
+      description: null,
+      metadataJson: '{"id":"video-2"}',
+    });
+
+    const animeRows = db.prepare('SELECT anime_id, canonical_title FROM imm_anime').all() as Array<{
+      anime_id: number;
+      canonical_title: string;
+    }>;
+    const videoRows = db
+      .prepare('SELECT video_id, anime_id, parsed_title FROM imm_videos ORDER BY video_id ASC')
+      .all() as Array<{ video_id: number; anime_id: number | null; parsed_title: string | null }>;
+
+    const channelAnimeRows = animeRows.filter((row) => row.canonical_title === 'Channel Name');
+    assert.equal(channelAnimeRows.length, 1);
+    assert.equal(videoRows[0]?.anime_id, channelAnimeRows[0]?.anime_id);
+    assert.equal(videoRows[1]?.anime_id, channelAnimeRows[0]?.anime_id);
+    assert.equal(videoRows[0]?.parsed_title, 'Channel Name');
+    assert.equal(videoRows[1]?.parsed_title, 'Channel Name');
   } finally {
     db.close();
     cleanupDbPath(dbPath);

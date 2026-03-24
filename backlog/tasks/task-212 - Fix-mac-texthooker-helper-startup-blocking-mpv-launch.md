@@ -1,10 +1,10 @@
 ---
 id: TASK-212
 title: Fix mac texthooker helper startup blocking mpv launch
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-20 08:27'
-updated_date: '2026-03-20 08:45'
+updated_date: '2026-03-23 03:22'
 labels:
   - bug
   - macos
@@ -15,6 +15,7 @@ references:
   - /Users/sudacode/projects/japanese/SubMiner/src/main.ts
   - /Users/sudacode/projects/japanese/SubMiner/plugin/subminer/process.lua
 priority: high
+ordinal: 140500
 ---
 
 ## Description

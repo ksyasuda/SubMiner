@@ -15,12 +15,16 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
       PLAY_NEXT_SUBTITLE: '__play-next-subtitle',
       SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START: '__sub-delay-next-line',
       SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START: '__sub-delay-prev-line',
+      YOUTUBE_PICKER_OPEN: '__youtube-picker-open',
     },
     triggerSubsyncFromConfig: () => {
       calls.push('subsync');
     },
     openRuntimeOptionsPalette: () => {
       calls.push('runtime-options');
+    },
+    openYoutubeTrackPicker: () => {
+      calls.push('youtube-picker');
     },
     runtimeOptionsCycle: () => ({ ok: true }),
     showMpvOsd: (text) => {
@@ -94,6 +98,14 @@ test('handleMpvCommandFromIpc dispatches special subtitle-delay shift command', 
   const { options, calls, sentCommands, osd } = createOptions();
   handleMpvCommandFromIpc(['__sub-delay-next-line'], options);
   assert.deepEqual(calls, ['shift:next']);
+  assert.deepEqual(sentCommands, []);
+  assert.deepEqual(osd, []);
+});
+
+test('handleMpvCommandFromIpc dispatches special youtube picker open command', () => {
+  const { options, calls, sentCommands, osd } = createOptions();
+  handleMpvCommandFromIpc(['__youtube-picker-open'], options);
+  assert.deepEqual(calls, ['youtube-picker']);
   assert.deepEqual(sentCommands, []);
   assert.deepEqual(osd, []);
 });

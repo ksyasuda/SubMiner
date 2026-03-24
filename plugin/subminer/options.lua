@@ -33,6 +33,7 @@ function M.load(options_lib, default_socket_path)
 		auto_start = true,
 		auto_start_visible_overlay = true,
 		auto_start_pause_until_ready = true,
+		auto_start_pause_until_ready_timeout_seconds = 15,
 		osd_messages = true,
 		log_level = "info",
 		aniskip_enabled = true,
