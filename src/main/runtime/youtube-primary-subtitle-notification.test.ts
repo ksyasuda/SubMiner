@@ -82,6 +82,28 @@ test('notifier suppresses failure when preferred primary subtitle is selected', 
   assert.deepEqual(notifications, []);
 });
 
+test('notifier suppresses failure when selected track is marked active before sid arrives', () => {
+  const notifications: string[] = [];
+  const timers = createTimerHarness();
+  const runtime = createYoutubePrimarySubtitleNotificationRuntime({
+    getPrimarySubtitleLanguages: () => ['ja', 'jpn'],
+    notifyFailure: (message) => {
+      notifications.push(message);
+    },
+    schedule: (fn) => timers.schedule(fn),
+    clearSchedule: (timer) => timers.clear(timer),
+  });
+
+  runtime.handleMediaPathChange('https://www.youtube.com/watch?v=abc');
+  runtime.handleSubtitleTrackChange(null);
+  runtime.handleSubtitleTrackListChange([
+    { type: 'sub', id: 5, lang: 'ja', title: 'Japanese', external: false, selected: true },
+  ]);
+  timers.runAll();
+
+  assert.deepEqual(notifications, []);
+});
+
 test('notifier suppresses failure when any external subtitle track is selected', () => {
   const notifications: string[] = [];
   const timers = createTimerHarness();

@@ -8,6 +8,7 @@ type SubtitleTrackEntry = {
   type: string;
   lang: string;
   external: boolean;
+  selected: boolean;
 };
 
 function parseTrackId(value: unknown): number | null {
@@ -31,6 +32,7 @@ function normalizeTrack(entry: unknown): SubtitleTrackEntry | null {
     type: String(track.type || '').trim(),
     lang: String(track.lang || '').trim(),
     external: track.external === true,
+    selected: track.selected === true,
   };
 }
 
@@ -74,12 +76,15 @@ function hasSelectedPrimarySubtitle(
   trackList: unknown[] | null,
   preferredLanguages: Set<string>,
 ): boolean {
-  if (sid === null || !Array.isArray(trackList)) {
+  if (!Array.isArray(trackList)) {
     return false;
   }
 
+  const tracks = trackList.map(normalizeTrack);
   const activeTrack =
-    trackList.map(normalizeTrack).find((track) => track?.type === 'sub' && track.id === sid) ?? null;
+    (sid === null ? null : tracks.find((track) => track?.type === 'sub' && track.id === sid) ?? null) ??
+    tracks.find((track) => track?.type === 'sub' && track.selected) ??
+    null;
   if (!activeTrack) {
     return false;
   }

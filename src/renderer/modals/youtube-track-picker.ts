@@ -9,6 +9,10 @@ function createOption(value: string, label: string): HTMLOptionElement {
   return option;
 }
 
+function payloadHasTracks(payload: YoutubePickerOpenPayload | null): boolean {
+  return (payload?.tracks.length ?? 0) > 0;
+}
+
 export function createYoutubeTrackPickerModal(
   ctx: RendererContext,
   options: {
@@ -34,9 +38,9 @@ export function createYoutubeTrackPickerModal(
   }
 
   function renderTrackList(): void {
-    ctx.dom.youtubePickerTracks.innerHTML = '';
+    ctx.dom.youtubePickerTracks.replaceChildren();
     const payload = ctx.state.youtubePickerPayload;
-    if (!payload || payload.tracks.length === 0) {
+    if (!payload || !payloadHasTracks(payload)) {
       const li = document.createElement('li');
       const left = document.createElement('span');
       left.textContent = 'No subtitle tracks found';
@@ -70,7 +74,7 @@ export function createYoutubeTrackPickerModal(
   function syncSecondaryOptions(): void {
     const payload = ctx.state.youtubePickerPayload;
     const primaryTrackId = ctx.dom.youtubePickerPrimarySelect.value || null;
-    ctx.dom.youtubePickerSecondarySelect.innerHTML = '';
+    ctx.dom.youtubePickerSecondarySelect.replaceChildren();
     ctx.dom.youtubePickerSecondarySelect.appendChild(createOption('', 'None'));
     if (!payload) return;
 
@@ -97,10 +101,10 @@ export function createYoutubeTrackPickerModal(
   function applyPayload(payload: YoutubePickerOpenPayload): void {
     ctx.state.youtubePickerPayload = payload;
     ctx.dom.youtubePickerTitle.textContent = `Select YouTube subtitles for ${payload.url}`;
-    ctx.dom.youtubePickerPrimarySelect.innerHTML = '';
-    ctx.dom.youtubePickerSecondarySelect.innerHTML = '';
+    ctx.dom.youtubePickerPrimarySelect.replaceChildren();
+    ctx.dom.youtubePickerSecondarySelect.replaceChildren();
 
-    if (payload.tracks.length === 0) {
+    if (!payloadHasTracks(payload)) {
       ctx.dom.youtubePickerPrimarySelect.appendChild(createOption('', 'No tracks available'));
       ctx.dom.youtubePickerPrimarySelect.disabled = true;
       ctx.dom.youtubePickerSecondarySelect.disabled = true;
@@ -128,7 +132,8 @@ export function createYoutubeTrackPickerModal(
     }
     const payload = ctx.state.youtubePickerPayload;
     if (!payload) return;
-    if (action === 'use-selected' && payload.hasTracks && !ctx.dom.youtubePickerPrimarySelect.value) {
+    const hasTracks = payloadHasTracks(payload);
+    if (action === 'use-selected' && hasTracks && !ctx.dom.youtubePickerPrimarySelect.value) {
       setStatus('Primary subtitle selection is required.', true);
       return;
     }
@@ -160,7 +165,7 @@ export function createYoutubeTrackPickerModal(
     } finally {
       resolveSelectionInFlight = false;
       const shouldKeepDisabled =
-        ctx.state.youtubePickerModalOpen && !(ctx.state.youtubePickerPayload?.hasTracks ?? false);
+        ctx.state.youtubePickerModalOpen && !payloadHasTracks(ctx.state.youtubePickerPayload);
       setResolveControlsDisabled(shouldKeepDisabled);
     }
   }
@@ -233,7 +238,7 @@ export function createYoutubeTrackPickerModal(
         return true;
       }
       void resolveSelection(
-        ctx.state.youtubePickerPayload?.hasTracks ? 'use-selected' : 'continue-without-subtitles',
+        payloadHasTracks(ctx.state.youtubePickerPayload) ? 'use-selected' : 'continue-without-subtitles',
       );
       return true;
     }
@@ -264,7 +269,7 @@ export function createYoutubeTrackPickerModal(
 
     ctx.dom.youtubePickerContinueButton.addEventListener('click', () => {
       void resolveSelection(
-        ctx.state.youtubePickerPayload?.hasTracks ? 'use-selected' : 'continue-without-subtitles',
+        payloadHasTracks(ctx.state.youtubePickerPayload) ? 'use-selected' : 'continue-without-subtitles',
       );
     });
 

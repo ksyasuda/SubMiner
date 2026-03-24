@@ -35,6 +35,9 @@ function createFakeElement() {
     append(...children: any[]) {
       this.children.push(...children);
     },
+    replaceChildren(...children: any[]) {
+      this.children = [...children];
+    },
     addEventListener(type: string, listener: (event?: any) => void) {
       const existing = this.listeners.get(type) ?? [];
       existing.push(listener);
@@ -759,6 +762,112 @@ test('youtube track picker ignores immediate Enter after open before allowing ke
     ]);
   } finally {
     Date.now = originalDateNow;
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});
+
+test('youtube track picker uses track list as the source of truth for available selections', async () => {
+  const resolveCalls: Array<{
+    sessionId: string;
+    action: string;
+    primaryTrackId: string | null;
+    secondaryTrackId: string | null;
+  }> = [];
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createFakeElement(),
+    },
+  });
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      dispatchEvent: () => true,
+      focus: () => {},
+      electronAPI: {
+        notifyOverlayModalOpened: () => {},
+        notifyOverlayModalClosed: () => {},
+        youtubePickerResolve: async (payload: {
+          sessionId: string;
+          action: string;
+          primaryTrackId: string | null;
+          secondaryTrackId: string | null;
+        }) => {
+          resolveCalls.push(payload);
+          return { ok: true, message: '' };
+        },
+        setIgnoreMouseEvents: () => {},
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const dom = {
+      overlay: {
+        classList: createClassList(),
+        focus: () => {},
+      },
+      youtubePickerModal: createFakeElement(),
+      youtubePickerTitle: createFakeElement(),
+      youtubePickerPrimarySelect: createFakeElement(),
+      youtubePickerSecondarySelect: createFakeElement(),
+      youtubePickerTracks: createFakeElement(),
+      youtubePickerStatus: createFakeElement(),
+      youtubePickerContinueButton: createFakeElement(),
+      youtubePickerCloseButton: createFakeElement(),
+    };
+
+    const modal = createYoutubeTrackPickerModal(
+      {
+        state,
+        dom,
+        platform: {
+          shouldToggleMouseIgnore: false,
+        },
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => true },
+        restorePointerInteractionState: () => {},
+        syncSettingsModalSubtitleSuppression: () => {},
+      },
+    );
+
+    modal.openYoutubePickerModal({
+      sessionId: 'yt-1',
+      url: 'https://example.com',
+      tracks: [
+        {
+          id: 'manual:ja',
+          language: 'ja',
+          sourceLanguage: 'ja',
+          kind: 'manual',
+          label: 'Japanese',
+        },
+      ],
+      defaultPrimaryTrackId: 'manual:ja',
+      defaultSecondaryTrackId: null,
+      hasTracks: false,
+    });
+    modal.wireDomEvents();
+
+    const listeners = dom.youtubePickerContinueButton.listeners.get('click') ?? [];
+    await Promise.all(listeners.map((listener) => listener()));
+
+    assert.deepEqual(resolveCalls, [
+      {
+        sessionId: 'yt-1',
+        action: 'use-selected',
+        primaryTrackId: 'manual:ja',
+        secondaryTrackId: null,
+      },
+    ]);
+  } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
   }

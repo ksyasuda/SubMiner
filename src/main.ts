@@ -947,30 +947,29 @@ async function runYoutubePlaybackFlowMain(request: {
   source: CliCommandSource;
 }): Promise<void> {
   youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(true);
-  if (process.platform === 'win32' && !appState.mpvClient?.connected) {
-    const launchResult = launchWindowsMpv(
-      [request.url],
-      createWindowsMpvLaunchDeps({
-        showError: (title, content) => dialog.showErrorBox(title, content),
-      }),
-      [
-        '--pause=yes',
-        '--sub-auto=no',
-        '--sid=no',
-        '--secondary-sid=no',
-        '--script-opts=subminer-auto_start_pause_until_ready=no',
-        `--input-ipc-server=${appState.mpvSocketPath}`,
-      ],
-    );
-    if (!launchResult.ok) {
-      logger.warn('Unable to bootstrap Windows mpv for YouTube playback.');
-    }
-  }
-  if (!appState.mpvClient?.connected) {
-    appState.mpvClient?.connect();
-  }
-
   try {
+    if (process.platform === 'win32' && !appState.mpvClient?.connected) {
+      const launchResult = launchWindowsMpv(
+        [request.url],
+        createWindowsMpvLaunchDeps({
+          showError: (title, content) => dialog.showErrorBox(title, content),
+        }),
+        [
+          '--pause=yes',
+          '--sub-auto=no',
+          '--sid=no',
+          '--secondary-sid=no',
+          '--script-opts=subminer-auto_start_pause_until_ready=no',
+          `--input-ipc-server=${appState.mpvSocketPath}`,
+        ],
+      );
+      if (!launchResult.ok) {
+        logger.warn('Unable to bootstrap Windows mpv for YouTube playback.');
+      }
+    }
+    if (!appState.mpvClient?.connected) {
+      appState.mpvClient?.connect();
+    }
     await youtubeFlowRuntime.runYoutubePlaybackFlow({
       url: request.url,
       mode: request.mode,
@@ -1263,6 +1262,10 @@ function reportYoutubeSubtitleFailure(message: string): void {
 }
 
 async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
+  if (youtubeFlowRuntime.hasActiveSession()) {
+    showMpvOsd('YouTube subtitle flow already in progress.');
+    return;
+  }
   const currentMediaPath =
     appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
   if (!isYoutubePlaybackActiveNow() || !currentMediaPath) {
