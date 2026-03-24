@@ -51,8 +51,8 @@ features:
   - icon:
       src: /assets/video.svg
       alt: Video playback icon
-    title: YouTube & Whisper
-    details: Play YouTube URLs or searches with native subtitles, or generate them with whisper.cpp and optional AI cleanup.
+    title: YouTube Playback
+    details: Play YouTube URLs or searches with native subtitles and auto-loaded tracks.
     link: /usage#youtube-playback
     linkText: YouTube playback
   - icon:

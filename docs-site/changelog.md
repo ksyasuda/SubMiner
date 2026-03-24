@@ -2,9 +2,9 @@
 
 ## v0.9.0 (2026-03-22)
 - Added an app-owned YouTube subtitle flow that boots mpv paused, auto-loads the default primary subtitle plus a best-effort secondary subtitle, and resumes once the primary subtitle is loaded and tokenized.
-- Added a manual YouTube subtitle picker on `Ctrl+Shift+J` so subtitle selection can be retried on demand during active YouTube playback.
-- Added explicit launcher/app YouTube subtitle modes `download` and `generate`, with `download` as the default path.
-- Disabled mpv native YouTube subtitle auto-loading for the app-owned flow so injected external subtitle files stay authoritative.
+- Added a manual YouTube subtitle picker on `Ctrl+Alt+C` so subtitle selection can be retried on demand during active YouTube playback.
+- Standardized on the default YouTube subtitle auto-load startup flow and removed explicit subtitle mode switching.
+- Disabled conflicting mpv native subtitle auto-selection for the app-owned flow so injected explicit tracks stay authoritative.
 - Added OSD status updates covering YouTube playback startup, subtitle acquisition, and subtitle loading.
 - Improved sidebar startup/resume behavior and overlay/sidebar subtitle synchronization.
 

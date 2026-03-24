@@ -127,7 +127,7 @@ The configuration file includes several main sections:
 - [**Discord Rich Presence**](#discord-rich-presence) - Optional Discord activity card updates
 - [**Immersion Tracking**](#immersion-tracking) - Track subtitle sessions and mining activity in SQLite
 - [**Stats Dashboard**](#stats-dashboard) - Local dashboard and overlay for immersion progress
-- [**YouTube Subtitle Generation**](#youtube-subtitle-generation) - Launcher defaults for yt-dlp + local whisper fallback
+- [**YouTube Playback Settings**](#youtube-playback-settings) - Defaults for YouTube subtitle loading
 
 ## Core Settings
 
@@ -469,7 +469,7 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 | `Space`              | `["cycle", "pause"]`         | Toggle pause                          |
 | `KeyJ`               | `["cycle", "sid"]`           | Cycle primary subtitle track          |
 | `Shift+KeyJ`         | `["cycle", "secondary-sid"]` | Cycle secondary subtitle track        |
-| `Ctrl+Shift+KeyJ`    | `["__youtube-picker-open"]` | Open the manual YouTube subtitle picker |
+| `Ctrl+Alt+KeyC`    | `["__youtube-picker-open"]`     | Open the manual YouTube subtitle picker |
 | `ArrowRight`         | `["seek", 5]`                | Seek forward 5 seconds                |
 | `ArrowLeft`          | `["seek", -5]`               | Seek backward 5 seconds               |
 | `ArrowUp`            | `["seek", 60]`               | Seek forward 60 seconds               |
@@ -741,7 +741,7 @@ Palette controls:
 ### Shared AI Provider
 
 Shared OpenAI-compatible transport settings live at the top level under `ai`.
-Anki and YouTube subtitle cleanup both read this provider, then apply feature-local overrides where supported.
+Anki reads this provider directly. Legacy subtitle fallback keeps the same provider shape for compatibility, then applies feature-local overrides where supported.
 
 ```json
 {
@@ -765,10 +765,10 @@ Anki and YouTube subtitle cleanup both read this provider, then apply feature-lo
 | `systemPrompt`     | string                | Optional system prompt override for shared provider workflows |
 | `requestTimeoutMs` | integer milliseconds  | Shared request timeout (default: `15000`)            |
 
-SubMiner uses the shared provider in two places:
+SubMiner uses the shared provider for:
 
 - Anki translation/enrichment when `ankiConnect.ai.enabled` is `true`
-- YouTube whisper subtitle post-processing when `youtubeSubgen.fixWithAi` is `true`
+- Legacy subtitle fallback compatibility when `youtubeSubgen.fixWithAi` is `true`
 
 ### AnkiConnect
 
@@ -1326,22 +1326,13 @@ Usage notes:
 - The dashboard reads from the same immersion-tracking database, so keep `immersionTracking.enabled` on if you want data to appear.
 - The UI includes Overview, Library, Trends, Vocabulary, and Sessions tabs.
 
-### YouTube Subtitle Generation
+### YouTube Playback Settings
 
-Set defaults used by the `subminer` launcher for YouTube subtitle generation:
+Set defaults used by the `subminer` launcher for YouTube subtitle loading:
 
 ```json
 {
   "youtubeSubgen": {
-    "whisperBin": "/path/to/whisper-cli",
-    "whisperModel": "/path/to/ggml-model.bin",
-    "whisperVadModel": "/path/to/ggml-vad.bin",
-    "whisperThreads": 4,
-    "fixWithAi": false,
-    "ai": {
-      "model": "openai/gpt-4o-mini",
-      "systemPrompt": "Fix subtitle mistakes only."
-    },
     "primarySubLanguages": ["ja", "jpn"]
   }
 }
@@ -1349,28 +1340,20 @@ Set defaults used by the `subminer` launcher for YouTube subtitle generation:
 
 | Option                | Values               | Description                                                                                    |
 | --------------------- | -------------------- | ---------------------------------------------------------------------------------------------- |
-| `whisperBin`          | string path          | Path to `whisper.cpp` CLI binary used as fallback transcription engine                        |
-| `whisperModel`        | string path          | Path to whisper model used by fallback transcription                                          |
-| `whisperVadModel`     | string path          | Optional whisper VAD model path                                                               |
-| `whisperThreads`      | integer              | Thread count passed to whisper runs                                                           |
-| `fixWithAi`           | `true`, `false`      | Run shared AI post-processing on whisper-generated subtitles                                  |
-| `ai.model`            | string               | Optional model override for YouTube AI subtitle cleanup                                       |
-| `ai.systemPrompt`     | string               | Optional system prompt override for YouTube AI subtitle cleanup                               |
-| `primarySubLanguages` | string[]             | Primary subtitle language priority for YouTube subtitle generation (default `["ja", "jpn"]`) |
+| `primarySubLanguages` | string[]             | Primary subtitle language priority for YouTube auto-loading (default `["ja", "jpn"]`) |
 
-Launcher behavior:
+Current launcher behavior:
 
-- For YouTube URLs, SubMiner auto-loads the default primary subtitle plus a best-effort secondary subtitle during startup.
-- SubMiner probes manual/native YouTube subtitle tracks first.
-- Missing tracks fall back to local `whisper.cpp`.
-- Playback waits only for the primary subtitle to load and tokenize; startup secondary failures never block playback.
-- English secondary subtitles can use whisper translate fallback when no manual track exists.
-- If `fixWithAi` is enabled, only whisper-generated `.srt` output is post-processed with the shared top-level `ai` provider.
+- For YouTube URLs, SubMiner probes subtitle tracks with yt-dlp and loads auto-selected tracks before regular playback starts.
+- SubMiner loads the primary subtitle plus a best-effort secondary subtitle.
+- Playback waits only for primary subtitle readiness; secondary failures do not block playback.
+- English secondary subtitles are selected from `secondarySub.secondarySubLanguages` when primary language matches are unavailable.
+- If primary subtitle loading fails, use `Ctrl+Alt+C` to open the subtitle modal and pick a track.
 
 Language targets are derived from subtitle config:
 
 - primary track: `youtubeSubgen.primarySubLanguages` (falls back to `["ja","jpn"]`)
 - secondary track: `secondarySub.secondarySubLanguages` (falls back to English when empty)
-- Subtitle files are generated or downloaded before mpv starts; the older launcher mode switch has been removed.
+- Tracks are resolved and loaded before mpv starts; the older launcher mode switch has been removed.
 
 Precedence for launcher defaults is: CLI flag > environment variable > `config.jsonc` > built-in default.

@@ -51,7 +51,7 @@ export function runDoctorCommand(
       ok: deps.commandExists('ffmpeg'),
       detail: deps.commandExists('ffmpeg')
         ? 'found'
-        : 'missing (optional unless subtitle generation)',
+        : 'missing (optional unless legacy subtitle fallback is enabled)',
     },
     {
       label: 'fzf',

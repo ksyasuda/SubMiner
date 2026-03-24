@@ -187,7 +187,7 @@
   // ==========================================
   // Secondary Subtitles
   // Dual subtitle track options.
-  // Used by subminer YouTube subtitle generation as secondary language preferences.
+  // Used by the YouTube subtitle loading flow as secondary language preferences.
   // Hot-reload: defaultMode updates live while SubMiner is running.
   // ==========================================
   "secondarySub": {
@@ -414,24 +414,24 @@
   }, // Jimaku API configuration and defaults.
 
   // ==========================================
-  // YouTube Subtitle Generation
-  // Defaults for SubMiner YouTube subtitle generation.
+  // YouTube Playback Settings
+  // Defaults for SubMiner YouTube subtitle loading and languages.
   // ==========================================
   "youtubeSubgen": {
-    "whisperBin": "", // Path to whisper.cpp CLI used as fallback transcription engine.
-    "whisperModel": "", // Path to whisper model used for fallback transcription.
-    "whisperVadModel": "", // Path to optional whisper VAD model used for subtitle generation.
-    "whisperThreads": 4, // Thread count passed to whisper.cpp subtitle generation runs.
-    "fixWithAi": false, // Use shared AI provider to post-process whisper-generated YouTube subtitles. Values: true | false
+    "whisperBin": "", // Legacy compatibility path kept for external subtitle fallback tools; not used by default.
+    "whisperModel": "", // Legacy compatibility model path kept for external subtitle fallback tooling; not used by default.
+    "whisperVadModel": "", // Legacy compatibility VAD path kept for external subtitle fallback tooling; not used by default.
+    "whisperThreads": 4, // Legacy thread tuning for subtitle fallback tooling; not used by default.
+    "fixWithAi": false, // Legacy subtitle fallback post-processing switch kept for compatibility; use is currently disabled by default. Values: true | false
     "ai": {
-      "model": "", // Optional model override for YouTube subtitle AI post-processing.
-      "systemPrompt": "" // Optional system prompt override for YouTube subtitle AI post-processing.
+      "model": "", // Optional model override for legacy subtitle fallback post-processing; not used by default.
+      "systemPrompt": "" // Optional system prompt override for legacy subtitle fallback post-processing; not used by default.
     }, // Ai setting.
     "primarySubLanguages": [
       "ja",
       "jpn"
     ] // Comma-separated primary subtitle language priority used by the launcher.
-  }, // Defaults for SubMiner YouTube subtitle generation.
+  }, // Defaults for SubMiner YouTube subtitle loading and languages.
 
   // ==========================================
   // Anilist

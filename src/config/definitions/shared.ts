@@ -65,7 +65,7 @@ export const DEFAULT_KEYBINDINGS: NonNullable<ResolvedConfig['keybindings']> = [
     key: 'Shift+BracketLeft',
     command: [SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START],
   },
-  { key: 'Ctrl+Shift+KeyJ', command: [SPECIAL_COMMANDS.YOUTUBE_PICKER_OPEN] },
+  { key: 'Ctrl+Alt+KeyC', command: [SPECIAL_COMMANDS.YOUTUBE_PICKER_OPEN] },
   { key: 'Ctrl+Shift+KeyH', command: [SPECIAL_COMMANDS.REPLAY_SUBTITLE] },
   { key: 'Ctrl+Shift+KeyL', command: [SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE] },
   { key: 'KeyQ', command: ['quit'] },

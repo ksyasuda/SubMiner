@@ -66,7 +66,6 @@ subminer --setup                # Open first-run setup popup
 | Subcommand                 | Purpose                                                    |
 | -------------------------- | ---------------------------------------------------------- |
 | `subminer jellyfin` / `jf` | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login) |
-| `subminer yt` / `youtube`  | YouTube shorthand (`-o`, `-m`)                             |
 | `subminer doctor`          | Dependency + config + socket diagnostics                   |
 | `subminer config path`     | Print active config file path                              |
 | `subminer config show`     | Print active config contents                               |

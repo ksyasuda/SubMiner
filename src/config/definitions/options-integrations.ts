@@ -369,43 +369,47 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'youtubeSubgen.whisperBin',
       kind: 'string',
       defaultValue: defaultConfig.youtubeSubgen.whisperBin,
-      description: 'Path to whisper.cpp CLI used as fallback transcription engine.',
+      description: 'Legacy compatibility path kept for external subtitle fallback tools; not used by default.',
     },
     {
       path: 'youtubeSubgen.whisperModel',
       kind: 'string',
       defaultValue: defaultConfig.youtubeSubgen.whisperModel,
-      description: 'Path to whisper model used for fallback transcription.',
+      description: 'Legacy compatibility model path kept for external subtitle fallback tooling; not used by default.',
     },
     {
       path: 'youtubeSubgen.whisperVadModel',
       kind: 'string',
       defaultValue: defaultConfig.youtubeSubgen.whisperVadModel,
-      description: 'Path to optional whisper VAD model used for subtitle generation.',
+      description:
+        'Legacy compatibility VAD path kept for external subtitle fallback tooling; not used by default.',
     },
     {
       path: 'youtubeSubgen.whisperThreads',
       kind: 'number',
       defaultValue: defaultConfig.youtubeSubgen.whisperThreads,
-      description: 'Thread count passed to whisper.cpp subtitle generation runs.',
+      description: 'Legacy thread tuning for subtitle fallback tooling; not used by default.',
     },
     {
       path: 'youtubeSubgen.fixWithAi',
       kind: 'boolean',
       defaultValue: defaultConfig.youtubeSubgen.fixWithAi,
-      description: 'Use shared AI provider to post-process whisper-generated YouTube subtitles.',
+      description:
+        'Legacy subtitle fallback post-processing switch kept for compatibility; use is currently disabled by default.',
     },
     {
       path: 'youtubeSubgen.ai.model',
       kind: 'string',
       defaultValue: defaultConfig.youtubeSubgen.ai.model,
-      description: 'Optional model override for YouTube subtitle AI post-processing.',
+      description:
+        'Optional model override for legacy subtitle fallback post-processing; not used by default.',
     },
     {
       path: 'youtubeSubgen.ai.systemPrompt',
       kind: 'string',
       defaultValue: defaultConfig.youtubeSubgen.ai.systemPrompt,
-      description: 'Optional system prompt override for YouTube subtitle AI post-processing.',
+      description:
+        'Optional system prompt override for legacy subtitle fallback post-processing; not used by default.',
     },
     {
       path: 'youtubeSubgen.primarySubLanguages',

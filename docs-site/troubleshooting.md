@@ -29,7 +29,7 @@ SubMiner retries the connection automatically with increasing delays (200 ms, 50
 - Common spikes come from:
   - first subtitle parse/tokenization bursts
   - media generation (`ffmpeg` audio/image and AVIF paths)
-  - media sync and subtitle tooling (`alass`, `ffsubsync`, `whisper` fallback path)
+  - media sync and subtitle tooling (`alass`, `ffsubsync`)
   - `ankiConnect` enrichment (plus polling overhead when proxy mode is disabled)
 
 ### If playback feels sluggish
@@ -57,7 +57,7 @@ SubMiner retries the connection automatically with increasing delays (200 ms, 50
 
 - disable AI translation when not needed (`ankiConnect.ai.enabled: false`)
 - if needed, run immersion telemetry with lower duration expectations (`immersionTracking.enabled: false` for constrained sessions)
-- prefer YouTube `--mode automatic` over `preprocess` on low-resource systems
+- favor the default lightweight YouTube subtitle startup settings on low-resource systems
 
 ### Practical low-impact profile
 
