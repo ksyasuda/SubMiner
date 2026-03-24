@@ -53,6 +53,122 @@ function createFakeElement() {
   };
 }
 
+function createYoutubePickerDomFixture() {
+  return {
+    overlay: {
+      classList: createClassList(),
+      focus: () => {},
+    },
+    youtubePickerModal: createFakeElement(),
+    youtubePickerTitle: createFakeElement(),
+    youtubePickerPrimarySelect: createFakeElement(),
+    youtubePickerSecondarySelect: createFakeElement(),
+    youtubePickerTracks: createFakeElement(),
+    youtubePickerStatus: createFakeElement(),
+    youtubePickerContinueButton: createFakeElement(),
+    youtubePickerCloseButton: createFakeElement(),
+  };
+}
+
+type YoutubePickerTestWindow = {
+  dispatchEvent: (event: Event & { detail?: unknown }) => boolean;
+  focus: () => void;
+  electronAPI: Record<string, unknown>;
+};
+
+function restoreGlobalProp<K extends keyof typeof globalThis>(
+  key: K,
+  originalValue: (typeof globalThis)[K],
+  hadOwnProperty: boolean,
+) {
+  if (hadOwnProperty) {
+    Object.defineProperty(globalThis, key, {
+      configurable: true,
+      value: originalValue,
+      writable: true,
+    });
+    return;
+  }
+  Reflect.deleteProperty(globalThis, key);
+}
+
+function setupYoutubePickerTestEnv(options?: {
+  windowValue?: YoutubePickerTestWindow;
+  customEventValue?: unknown;
+  now?: () => number;
+}) {
+  const hadWindow = Object.prototype.hasOwnProperty.call(globalThis, 'window');
+  const hadDocument = Object.prototype.hasOwnProperty.call(globalThis, 'document');
+  const hadCustomEvent = Object.prototype.hasOwnProperty.call(globalThis, 'CustomEvent');
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const originalCustomEvent = globalThis.CustomEvent;
+  const originalDateNow = Date.now;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createFakeElement(),
+    },
+    writable: true,
+  });
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value:
+      options?.windowValue ??
+      ({
+        dispatchEvent: (_event) => true,
+        focus: () => {},
+        electronAPI: {
+          notifyOverlayModalOpened: () => {},
+          notifyOverlayModalClosed: () => {},
+          youtubePickerResolve: async () => ({ ok: true, message: '' }),
+          setIgnoreMouseEvents: () => {},
+        },
+      } satisfies YoutubePickerTestWindow),
+    writable: true,
+  });
+
+  if (options?.customEventValue) {
+    Object.defineProperty(globalThis, 'CustomEvent', {
+      configurable: true,
+      value: options.customEventValue,
+      writable: true,
+    });
+  }
+
+  if (options?.now) {
+    Date.now = options.now;
+  }
+
+  return {
+    restore() {
+      Date.now = originalDateNow;
+      restoreGlobalProp('window', originalWindow, hadWindow);
+      restoreGlobalProp('document', originalDocument, hadDocument);
+      restoreGlobalProp('CustomEvent', originalCustomEvent, hadCustomEvent);
+    },
+  };
+}
+
+test('youtube picker test env restore deletes injected globals that were originally absent', () => {
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
+
+  const env = setupYoutubePickerTestEnv();
+
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), true);
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), true);
+
+  env.restore();
+
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
+  assert.equal(typeof globalThis.window, 'undefined');
+  assert.equal(typeof globalThis.document, 'undefined');
+});
+
 test('youtube track picker close restores focus and mouse-ignore state', () => {
   const overlayFocusCalls: number[] = [];
   const windowFocusCalls: number[] = [];
@@ -61,9 +177,6 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
   const notifications: string[] = [];
   const frontendCommands: unknown[] = [];
   const syncCalls: string[] = [];
-  const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
-  const originalCustomEvent = globalThis.CustomEvent;
 
   class TestCustomEvent extends Event {
     detail: unknown;
@@ -74,16 +187,8 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
     }
   }
 
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createFakeElement(),
-    },
-  });
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
+  const env = setupYoutubePickerTestEnv({
+    windowValue: {
       dispatchEvent: (event: Event & { detail?: unknown }) => {
         frontendCommands.push(event.detail ?? null);
         return true;
@@ -104,33 +209,17 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
           ignoreCalls.push({ ignore, forward: options?.forward });
         },
       },
-    },
-  });
-
-  Object.defineProperty(globalThis, 'CustomEvent', {
-    configurable: true,
-    value: TestCustomEvent,
+    } satisfies YoutubePickerTestWindow,
+    customEventValue: TestCustomEvent,
   });
 
   try {
     const state = createRendererState();
-    const overlay = {
-      classList: createClassList(),
-      focus: () => {
-        overlayFocusCalls.push(1);
-      },
+    const dom = createYoutubePickerDomFixture();
+    dom.overlay.focus = () => {
+      overlayFocusCalls.push(1);
     };
-    const dom = {
-      overlay,
-      youtubePickerModal: createFakeElement(),
-      youtubePickerTitle: createFakeElement(),
-      youtubePickerPrimarySelect: createFakeElement(),
-      youtubePickerSecondarySelect: createFakeElement(),
-      youtubePickerTracks: createFakeElement(),
-      youtubePickerStatus: createFakeElement(),
-      youtubePickerContinueButton: createFakeElement(),
-      youtubePickerCloseButton: createFakeElement(),
-    };
+    const { overlay } = dom;
 
     const modal = createYoutubeTrackPickerModal(
       {
@@ -171,31 +260,15 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
     assert.equal(windowFocusCalls.length > 0, true);
     assert.deepEqual(ignoreCalls, [{ ignore: true, forward: true }]);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
-    Object.defineProperty(globalThis, 'CustomEvent', {
-      configurable: true,
-      value: originalCustomEvent,
-    });
+    env.restore();
   }
 });
 
 test('youtube track picker re-acknowledges repeated open requests', () => {
   const openedNotifications: string[] = [];
-  const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createFakeElement(),
-    },
-  });
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      dispatchEvent: () => true,
+  const env = setupYoutubePickerTestEnv({
+    windowValue: {
+      dispatchEvent: (_event) => true,
       focus: () => {},
       electronAPI: {
         notifyOverlayModalOpened: (modal: string) => {
@@ -205,25 +278,12 @@ test('youtube track picker re-acknowledges repeated open requests', () => {
         youtubePickerResolve: async () => ({ ok: true, message: '' }),
         setIgnoreMouseEvents: () => {},
       },
-    },
+    } satisfies YoutubePickerTestWindow,
   });
 
   try {
     const state = createRendererState();
-    const dom = {
-      overlay: {
-        classList: createClassList(),
-        focus: () => {},
-      },
-      youtubePickerModal: createFakeElement(),
-      youtubePickerTitle: createFakeElement(),
-      youtubePickerPrimarySelect: createFakeElement(),
-      youtubePickerSecondarySelect: createFakeElement(),
-      youtubePickerTracks: createFakeElement(),
-      youtubePickerStatus: createFakeElement(),
-      youtubePickerContinueButton: createFakeElement(),
-      youtubePickerCloseButton: createFakeElement(),
-    };
+    const dom = createYoutubePickerDomFixture();
 
     const modal = createYoutubeTrackPickerModal(
       {
@@ -260,26 +320,14 @@ test('youtube track picker re-acknowledges repeated open requests', () => {
     assert.deepEqual(openedNotifications, ['youtube-track-picker', 'youtube-track-picker']);
     assert.equal(state.youtubePickerPayload?.sessionId, 'yt-2');
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+    env.restore();
   }
 });
 
 test('youtube track picker surfaces rejected resolve calls as modal status', async () => {
-  const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createFakeElement(),
-    },
-  });
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      dispatchEvent: () => true,
+  const env = setupYoutubePickerTestEnv({
+    windowValue: {
+      dispatchEvent: (_event) => true,
       focus: () => {},
       electronAPI: {
         notifyOverlayModalOpened: () => {},
@@ -289,25 +337,12 @@ test('youtube track picker surfaces rejected resolve calls as modal status', asy
         },
         setIgnoreMouseEvents: () => {},
       },
-    },
+    } satisfies YoutubePickerTestWindow,
   });
 
   try {
     const state = createRendererState();
-    const dom = {
-      overlay: {
-        classList: createClassList(),
-        focus: () => {},
-      },
-      youtubePickerModal: createFakeElement(),
-      youtubePickerTitle: createFakeElement(),
-      youtubePickerPrimarySelect: createFakeElement(),
-      youtubePickerSecondarySelect: createFakeElement(),
-      youtubePickerTracks: createFakeElement(),
-      youtubePickerStatus: createFakeElement(),
-      youtubePickerContinueButton: createFakeElement(),
-      youtubePickerCloseButton: createFakeElement(),
-    };
+    const dom = createYoutubePickerDomFixture();
 
     const modal = createYoutubeTrackPickerModal(
       {
@@ -348,8 +383,7 @@ test('youtube track picker surfaces rejected resolve calls as modal status', asy
     assert.equal(state.youtubePickerModalOpen, true);
     assert.equal(dom.youtubePickerStatus.textContent, 'resolve failed');
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+    env.restore();
   }
 });
 
@@ -360,21 +394,10 @@ test('youtube track picker ignores duplicate resolve submissions while request i
     primaryTrackId: string | null;
     secondaryTrackId: string | null;
   }> = [];
-  const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
   let releaseResolve: (() => void) | null = null;
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createFakeElement(),
-    },
-  });
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      dispatchEvent: () => true,
+  const env = setupYoutubePickerTestEnv({
+    windowValue: {
+      dispatchEvent: (_event) => true,
       focus: () => {},
       electronAPI: {
         notifyOverlayModalOpened: () => {},
@@ -393,25 +416,12 @@ test('youtube track picker ignores duplicate resolve submissions while request i
         },
         setIgnoreMouseEvents: () => {},
       },
-    },
+    } satisfies YoutubePickerTestWindow,
   });
 
   try {
     const state = createRendererState();
-    const dom = {
-      overlay: {
-        classList: createClassList(),
-        focus: () => {},
-      },
-      youtubePickerModal: createFakeElement(),
-      youtubePickerTitle: createFakeElement(),
-      youtubePickerPrimarySelect: createFakeElement(),
-      youtubePickerSecondarySelect: createFakeElement(),
-      youtubePickerTracks: createFakeElement(),
-      youtubePickerStatus: createFakeElement(),
-      youtubePickerContinueButton: createFakeElement(),
-      youtubePickerCloseButton: createFakeElement(),
-    };
+    const dom = createYoutubePickerDomFixture();
 
     const modal = createYoutubeTrackPickerModal(
       {
@@ -467,26 +477,14 @@ test('youtube track picker ignores duplicate resolve submissions while request i
     assert.equal(dom.youtubePickerContinueButton.disabled, false);
     assert.equal(dom.youtubePickerCloseButton.disabled, false);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+    env.restore();
   }
 });
 
 test('youtube track picker keeps no-track controls disabled after a rejected continue request', async () => {
-  const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createFakeElement(),
-    },
-  });
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      dispatchEvent: () => true,
+  const env = setupYoutubePickerTestEnv({
+    windowValue: {
+      dispatchEvent: (_event) => true,
       focus: () => {},
       electronAPI: {
         notifyOverlayModalOpened: () => {},
@@ -494,25 +492,12 @@ test('youtube track picker keeps no-track controls disabled after a rejected con
         youtubePickerResolve: async () => ({ ok: false, message: 'still no tracks' }),
         setIgnoreMouseEvents: () => {},
       },
-    },
+    } satisfies YoutubePickerTestWindow,
   });
 
   try {
     const state = createRendererState();
-    const dom = {
-      overlay: {
-        classList: createClassList(),
-        focus: () => {},
-      },
-      youtubePickerModal: createFakeElement(),
-      youtubePickerTitle: createFakeElement(),
-      youtubePickerPrimarySelect: createFakeElement(),
-      youtubePickerSecondarySelect: createFakeElement(),
-      youtubePickerTracks: createFakeElement(),
-      youtubePickerStatus: createFakeElement(),
-      youtubePickerContinueButton: createFakeElement(),
-      youtubePickerCloseButton: createFakeElement(),
-    };
+    const dom = createYoutubePickerDomFixture();
 
     const modal = createYoutubeTrackPickerModal(
       {
@@ -548,52 +533,16 @@ test('youtube track picker keeps no-track controls disabled after a rejected con
     assert.equal(dom.youtubePickerCloseButton.disabled, true);
     assert.equal(dom.youtubePickerStatus.textContent, 'still no tracks');
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+    env.restore();
   }
 });
 
 test('youtube track picker only consumes handled keys', async () => {
-  const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createFakeElement(),
-    },
-  });
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      dispatchEvent: () => true,
-      focus: () => {},
-      electronAPI: {
-        notifyOverlayModalOpened: () => {},
-        notifyOverlayModalClosed: () => {},
-        youtubePickerResolve: async () => ({ ok: true, message: '' }),
-        setIgnoreMouseEvents: () => {},
-      },
-    },
-  });
+  const env = setupYoutubePickerTestEnv();
 
   try {
     const state = createRendererState();
-    const dom = {
-      overlay: {
-        classList: createClassList(),
-        focus: () => {},
-      },
-      youtubePickerModal: createFakeElement(),
-      youtubePickerTitle: createFakeElement(),
-      youtubePickerPrimarySelect: createFakeElement(),
-      youtubePickerSecondarySelect: createFakeElement(),
-      youtubePickerTracks: createFakeElement(),
-      youtubePickerStatus: createFakeElement(),
-      youtubePickerContinueButton: createFakeElement(),
-      youtubePickerCloseButton: createFakeElement(),
-    };
+    const dom = createYoutubePickerDomFixture();
 
     const modal = createYoutubeTrackPickerModal(
       {
@@ -635,8 +584,7 @@ test('youtube track picker only consumes handled keys', async () => {
     );
     await Promise.resolve();
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+    env.restore();
   }
 });
 
@@ -647,24 +595,11 @@ test('youtube track picker ignores immediate Enter after open before allowing ke
     primaryTrackId: string | null;
     secondaryTrackId: string | null;
   }> = [];
-  const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
-  const originalDateNow = Date.now;
   let now = 10_000;
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createFakeElement(),
-    },
-  });
-
-  Date.now = () => now;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      dispatchEvent: () => true,
+  const env = setupYoutubePickerTestEnv({
+    now: () => now,
+    windowValue: {
+      dispatchEvent: (_event) => true,
       focus: () => {},
       electronAPI: {
         notifyOverlayModalOpened: () => {},
@@ -680,25 +615,12 @@ test('youtube track picker ignores immediate Enter after open before allowing ke
         },
         setIgnoreMouseEvents: () => {},
       },
-    },
+    } satisfies YoutubePickerTestWindow,
   });
 
   try {
     const state = createRendererState();
-    const dom = {
-      overlay: {
-        classList: createClassList(),
-        focus: () => {},
-      },
-      youtubePickerModal: createFakeElement(),
-      youtubePickerTitle: createFakeElement(),
-      youtubePickerPrimarySelect: createFakeElement(),
-      youtubePickerSecondarySelect: createFakeElement(),
-      youtubePickerTracks: createFakeElement(),
-      youtubePickerStatus: createFakeElement(),
-      youtubePickerContinueButton: createFakeElement(),
-      youtubePickerCloseButton: createFakeElement(),
-    };
+    const dom = createYoutubePickerDomFixture();
 
     const modal = createYoutubeTrackPickerModal(
       {
@@ -761,9 +683,7 @@ test('youtube track picker ignores immediate Enter after open before allowing ke
       },
     ]);
   } finally {
-    Date.now = originalDateNow;
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+    env.restore();
   }
 });
 
@@ -774,20 +694,9 @@ test('youtube track picker uses track list as the source of truth for available 
     primaryTrackId: string | null;
     secondaryTrackId: string | null;
   }> = [];
-  const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createFakeElement(),
-    },
-  });
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      dispatchEvent: () => true,
+  const env = setupYoutubePickerTestEnv({
+    windowValue: {
+      dispatchEvent: (_event) => true,
       focus: () => {},
       electronAPI: {
         notifyOverlayModalOpened: () => {},
@@ -803,25 +712,12 @@ test('youtube track picker uses track list as the source of truth for available 
         },
         setIgnoreMouseEvents: () => {},
       },
-    },
+    } satisfies YoutubePickerTestWindow,
   });
 
   try {
     const state = createRendererState();
-    const dom = {
-      overlay: {
-        classList: createClassList(),
-        focus: () => {},
-      },
-      youtubePickerModal: createFakeElement(),
-      youtubePickerTitle: createFakeElement(),
-      youtubePickerPrimarySelect: createFakeElement(),
-      youtubePickerSecondarySelect: createFakeElement(),
-      youtubePickerTracks: createFakeElement(),
-      youtubePickerStatus: createFakeElement(),
-      youtubePickerContinueButton: createFakeElement(),
-      youtubePickerCloseButton: createFakeElement(),
-    };
+    const dom = createYoutubePickerDomFixture();
 
     const modal = createYoutubeTrackPickerModal(
       {
@@ -868,7 +764,6 @@ test('youtube track picker uses track list as the source of truth for available 
       },
     ]);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+    env.restore();
   }
 });
