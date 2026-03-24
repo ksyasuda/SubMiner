@@ -147,3 +147,29 @@ test('notifier ignores empty and null media paths and waits for track list befor
   timers.runAll();
   assert.deepEqual(notifications, []);
 });
+
+test('notifier suppresses timer while app-owned youtube flow is still settling', () => {
+  const notifications: string[] = [];
+  const timers = createTimerHarness();
+  const runtime = createYoutubePrimarySubtitleNotificationRuntime({
+    getPrimarySubtitleLanguages: () => ['ja'],
+    notifyFailure: (message) => {
+      notifications.push(message);
+    },
+    schedule: (fn) => timers.schedule(fn),
+    clearSchedule: (timer) => timers.clear(timer),
+  });
+
+  runtime.setAppOwnedFlowInFlight(true);
+  runtime.handleMediaPathChange('https://www.youtube.com/watch?v=abc');
+
+  assert.equal(timers.size(), 0);
+
+  runtime.setAppOwnedFlowInFlight(false);
+  assert.equal(timers.size(), 1);
+
+  timers.runAll();
+  assert.deepEqual(notifications, [
+    'Primary subtitle failed to download or load. Try again from the subtitle modal.',
+  ]);
+});

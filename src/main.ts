@@ -946,6 +946,7 @@ async function runYoutubePlaybackFlowMain(request: {
   mode: NonNullable<CliArgs['youtubeMode']>;
   source: CliCommandSource;
 }): Promise<void> {
+  youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(true);
   if (process.platform === 'win32' && !appState.mpvClient?.connected) {
     const launchResult = launchWindowsMpv(
       [request.url],
@@ -969,11 +970,15 @@ async function runYoutubePlaybackFlowMain(request: {
     appState.mpvClient?.connect();
   }
 
-  await youtubeFlowRuntime.runYoutubePlaybackFlow({
-    url: request.url,
-    mode: request.mode,
-  });
-  logger.info(`YouTube playback flow completed from ${request.source}.`);
+  try {
+    await youtubeFlowRuntime.runYoutubePlaybackFlow({
+      url: request.url,
+      mode: request.mode,
+    });
+    logger.info(`YouTube playback flow completed from ${request.source}.`);
+  } finally {
+    youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(false);
+  }
 }
 
 let firstRunSetupMessage: string | null = null;
@@ -3965,21 +3970,6 @@ function destroyTray(): void {
 
 function initializeOverlayRuntime(): void {
   initializeOverlayRuntimeHandler();
-  initializeOverlayAnkiIntegrationCore({
-    getResolvedConfig: () => getResolvedConfig(),
-    getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
-    getMpvClient: () => appState.mpvClient,
-    getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-    getAnkiIntegration: () => appState.ankiIntegration,
-    setAnkiIntegration: (integration) => {
-      appState.ankiIntegration = integration as AnkiIntegration | null;
-    },
-    showDesktopNotification,
-    createFieldGroupingCallback: () => createFieldGroupingCallback(),
-    getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
-    shouldStartAnkiIntegration: () =>
-      !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
-  });
   appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
   syncOverlayMpvSubtitleSuppression();
 }

@@ -102,6 +102,7 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
   let currentTrackList: unknown[] | null = null;
   let pendingTimer: YoutubePrimarySubtitleNotificationTimer | null = null;
   let lastReportedMediaPath: string | null = null;
+  let appOwnedFlowInFlight = false;
 
   const clearPendingTimer = (): void => {
     deps.clearSchedule(pendingTimer);
@@ -129,6 +130,9 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
 
   const schedulePendingCheck = (): void => {
     clearPendingTimer();
+    if (appOwnedFlowInFlight) {
+      return;
+    }
     const mediaPath = currentMediaPath?.trim() || '';
     if (!mediaPath || !isYoutubeMediaPath(mediaPath)) {
       return;
@@ -163,6 +167,14 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
       if (hasSelectedPrimarySubtitle(currentSid, currentTrackList, preferredLanguages)) {
         clearPendingTimer();
       }
+    },
+    setAppOwnedFlowInFlight: (inFlight: boolean): void => {
+      appOwnedFlowInFlight = inFlight;
+      if (inFlight) {
+        clearPendingTimer();
+        return;
+      }
+      schedulePendingCheck();
     },
   };
 }

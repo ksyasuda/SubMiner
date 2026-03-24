@@ -85,6 +85,12 @@ function createContext(): LauncherCommandContext {
 test('youtube playback launches overlay with app-owned youtube flow args', async () => {
   const calls: string[] = [];
   const context = createContext();
+  context.pluginRuntimeConfig = {
+    ...context.pluginRuntimeConfig,
+    autoStart: false,
+    autoStartVisibleOverlay: false,
+    autoStartPauseUntilReady: false,
+  };
   let receivedStartMpvOptions: Record<string, unknown> | null = null;
 
   await runPlaybackCommandWithDeps(context, {

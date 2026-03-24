@@ -404,11 +404,18 @@ export function handleCliCommand(
     deps.openJellyfinSetup();
     deps.log('Opened Jellyfin setup flow.');
   } else if (args.youtubePlay) {
-    void deps.runYoutubePlaybackFlow({
-      url: args.youtubePlay,
-      mode: args.youtubeMode ?? 'download',
-      source,
-    });
+    const youtubeUrl = args.youtubePlay;
+    runAsyncWithOsd(
+      () =>
+        deps.runYoutubePlaybackFlow({
+          url: youtubeUrl,
+          mode: args.youtubeMode ?? 'download',
+          source,
+        }),
+      deps,
+      'runYoutubePlaybackFlow',
+      'YouTube playback failed',
+    );
   } else if (args.dictionary) {
     const shouldStopAfterRun = source === 'initial' && !deps.hasMainWindow();
     deps.log('Generating character dictionary for current anime...');

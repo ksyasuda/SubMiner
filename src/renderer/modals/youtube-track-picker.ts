@@ -159,7 +159,9 @@ export function createYoutubeTrackPickerModal(
       setStatus(error instanceof Error ? error.message : String(error), true);
     } finally {
       resolveSelectionInFlight = false;
-      setResolveControlsDisabled(false);
+      const shouldKeepDisabled =
+        ctx.state.youtubePickerModalOpen && !(ctx.state.youtubePickerPayload?.hasTracks ?? false);
+      setResolveControlsDisabled(shouldKeepDisabled);
     }
   }
 

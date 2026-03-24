@@ -469,6 +469,87 @@ test('youtube track picker ignores duplicate resolve submissions while request i
   }
 });
 
+test('youtube track picker keeps no-track controls disabled after a rejected continue request', async () => {
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createFakeElement(),
+    },
+  });
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      dispatchEvent: () => true,
+      focus: () => {},
+      electronAPI: {
+        notifyOverlayModalOpened: () => {},
+        notifyOverlayModalClosed: () => {},
+        youtubePickerResolve: async () => ({ ok: false, message: 'still no tracks' }),
+        setIgnoreMouseEvents: () => {},
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const dom = {
+      overlay: {
+        classList: createClassList(),
+        focus: () => {},
+      },
+      youtubePickerModal: createFakeElement(),
+      youtubePickerTitle: createFakeElement(),
+      youtubePickerPrimarySelect: createFakeElement(),
+      youtubePickerSecondarySelect: createFakeElement(),
+      youtubePickerTracks: createFakeElement(),
+      youtubePickerStatus: createFakeElement(),
+      youtubePickerContinueButton: createFakeElement(),
+      youtubePickerCloseButton: createFakeElement(),
+    };
+
+    const modal = createYoutubeTrackPickerModal(
+      {
+        state,
+        dom,
+        platform: {
+          shouldToggleMouseIgnore: false,
+        },
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => true },
+        restorePointerInteractionState: () => {},
+        syncSettingsModalSubtitleSuppression: () => {},
+      },
+    );
+
+    modal.openYoutubePickerModal({
+      sessionId: 'yt-1',
+      url: 'https://example.com',
+      tracks: [],
+      defaultPrimaryTrackId: null,
+      defaultSecondaryTrackId: null,
+      hasTracks: false,
+    });
+    modal.wireDomEvents();
+
+    const listeners = dom.youtubePickerContinueButton.listeners.get('click') ?? [];
+    await Promise.all(listeners.map((listener) => listener()));
+
+    assert.equal(dom.youtubePickerPrimarySelect.disabled, true);
+    assert.equal(dom.youtubePickerSecondarySelect.disabled, true);
+    assert.equal(dom.youtubePickerContinueButton.disabled, true);
+    assert.equal(dom.youtubePickerCloseButton.disabled, true);
+    assert.equal(dom.youtubePickerStatus.textContent, 'still no tracks');
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});
+
 test('youtube track picker only consumes handled keys', async () => {
   const originalWindow = globalThis.window;
   const originalDocument = globalThis.document;
