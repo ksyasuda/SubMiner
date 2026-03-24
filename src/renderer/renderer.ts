@@ -35,6 +35,7 @@ import { createJimakuModal } from './modals/jimaku.js';
 import { createKikuModal } from './modals/kiku.js';
 import { createSessionHelpModal } from './modals/session-help.js';
 import { createSubtitleSidebarModal } from './modals/subtitle-sidebar.js';
+import { isControllerInteractionBlocked } from './controller-interaction-blocking.js';
 import { createRuntimeOptionsModal } from './modals/runtime-options.js';
 import { createSubsyncModal } from './modals/subsync.js';
 import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js';
@@ -86,6 +87,10 @@ function isAnyModalOpen(): boolean {
     ctx.state.sessionHelpModalOpen ||
     ctx.state.subtitleSidebarModalOpen
   );
+}
+
+function isControllerInputBlocked(): boolean {
+  return isControllerInteractionBlocked(ctx.state);
 }
 
 function syncSettingsModalSubtitleSuppression(): void {
@@ -323,7 +328,7 @@ function startControllerPolling(): void {
       },
     getKeyboardModeEnabled: () => ctx.state.keyboardDrivenModeEnabled,
     getLookupWindowOpen: () => ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document),
-    getInteractionBlocked: () => isAnyModalOpen(),
+    getInteractionBlocked: () => isControllerInputBlocked(),
     toggleKeyboardMode: () => keyboardHandlers.handleKeyboardModeToggleRequested(),
     toggleLookup: () => keyboardHandlers.handleLookupWindowToggleRequested(),
     closeLookup: () => {
