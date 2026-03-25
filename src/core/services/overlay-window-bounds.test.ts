@@ -7,6 +7,11 @@ test('normalizeOverlayWindowBoundsForPlatform returns original geometry outside 
   assert.deepEqual(normalizeOverlayWindowBoundsForPlatform(geometry, 'linux', null), geometry);
 });
 
+test('normalizeOverlayWindowBoundsForPlatform returns original geometry on Windows when screen is unavailable', () => {
+  const geometry = { x: 150, y: 90, width: 1200, height: 675 };
+  assert.deepEqual(normalizeOverlayWindowBoundsForPlatform(geometry, 'win32', null), geometry);
+});
+
 test('normalizeOverlayWindowBoundsForPlatform converts Windows physical pixels to DIP', () => {
   assert.deepEqual(
     normalizeOverlayWindowBoundsForPlatform(

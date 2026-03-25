@@ -76,6 +76,27 @@ test('mpv connection handler quits standalone youtube playback even after overla
   assert.deepEqual(calls, ['presence-refresh', 'report-stop', 'schedule', 'quit']);
 });
 
+test('mpv connection handler keeps overlay-initialized non-youtube sessions alive', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvConnectionChangeHandler({
+    reportJellyfinRemoteStopped: () => calls.push('report-stop'),
+    refreshDiscordPresence: () => calls.push('presence-refresh'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
+    hasInitialPlaybackQuitOnDisconnectArg: () => true,
+    isOverlayRuntimeInitialized: () => true,
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => false,
+    isQuitOnDisconnectArmed: () => true,
+    scheduleQuitCheck: () => {
+      calls.push('schedule');
+    },
+    isMpvConnected: () => false,
+    quitApp: () => calls.push('quit'),
+  });
+
+  handler({ connected: false });
+  assert.deepEqual(calls, ['presence-refresh', 'report-stop']);
+});
+
 test('mpv subtitle timing handler ignores blank subtitle lines', () => {
   const calls: string[] = [];
   const handler = createHandleMpvSubtitleTimingHandler({

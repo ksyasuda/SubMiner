@@ -2,6 +2,18 @@ import { spawn } from 'node:child_process';
 
 const YOUTUBE_PLAYBACK_RESOLVE_TIMEOUT_MS = 15_000;
 const DEFAULT_PLAYBACK_FORMAT = 'b';
+const MAX_CAPTURE_BYTES = 1024 * 1024;
+
+function terminateCaptureProcess(proc: ReturnType<typeof spawn>): void {
+  if (proc.killed) {
+    return;
+  }
+  try {
+    proc.kill('SIGKILL');
+  } catch {
+    proc.kill();
+  }
+}
 
 function runCapture(
   command: string,
@@ -12,29 +24,62 @@ function runCapture(
     const proc = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    const cleanup = (): void => {
+      clearTimeout(timer);
+      proc.stdout.removeAllListeners('data');
+      proc.stderr.removeAllListeners('data');
+      proc.removeAllListeners('error');
+      proc.removeAllListeners('close');
+    };
+    const rejectOnce = (error: Error): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const resolveOnce = (result: { stdout: string; stderr: string }): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(result);
+    };
+    const appendChunk = (
+      current: string,
+      chunk: unknown,
+      streamName: 'stdout' | 'stderr',
+    ): string => {
+      const next = current + String(chunk);
+      if (Buffer.byteLength(next, 'utf8') > MAX_CAPTURE_BYTES) {
+        terminateCaptureProcess(proc);
+        rejectOnce(new Error(`yt-dlp ${streamName} exceeded ${MAX_CAPTURE_BYTES} bytes`));
+      }
+      return next;
+    };
     const timer = setTimeout(() => {
-      proc.kill();
-      reject(new Error(`yt-dlp timed out after ${timeoutMs}ms`));
+      terminateCaptureProcess(proc);
+      rejectOnce(new Error(`yt-dlp timed out after ${timeoutMs}ms`));
     }, timeoutMs);
     proc.stdout.setEncoding('utf8');
     proc.stderr.setEncoding('utf8');
     proc.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
+      stdout = appendChunk(stdout, chunk, 'stdout');
     });
     proc.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
+      stderr = appendChunk(stderr, chunk, 'stderr');
     });
     proc.once('error', (error) => {
-      clearTimeout(timer);
-      reject(error);
+      rejectOnce(error);
     });
     proc.once('close', (code) => {
-      clearTimeout(timer);
-      if (code === 0) {
-        resolve({ stdout, stderr });
+      if (settled) {
         return;
       }
-      reject(new Error(stderr.trim() || `yt-dlp exited with status ${code ?? 'unknown'}`));
+      if (code === 0) {
+        resolveOnce({ stdout, stderr });
+        return;
+      }
+      rejectOnce(new Error(stderr.trim() || `yt-dlp exited with status ${code ?? 'unknown'}`));
     });
   });
 }

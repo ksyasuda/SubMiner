@@ -501,6 +501,7 @@ const anilistAttemptedUpdateKeys = new Set<string>();
 let anilistCachedAccessToken: string | null = null;
 let jellyfinPlayQuitOnDisconnectArmed = false;
 let youtubePlayQuitOnDisconnectArmed = false;
+let youtubePlayQuitOnDisconnectArmTimer: ReturnType<typeof setTimeout> | null = null;
 const JELLYFIN_LANG_PREF = 'ja,jp,jpn,japanese,en,eng,english,enUS,en-US';
 const JELLYFIN_TICKS_PER_SECOND = 10_000_000;
 const JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS = 3000;
@@ -972,13 +973,23 @@ const waitForYoutubeMpvConnected = createWaitForMpvConnectedHandler({
   sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
 });
 
+function clearYoutubePlayQuitOnDisconnectArmTimer(): void {
+  if (youtubePlayQuitOnDisconnectArmTimer) {
+    clearTimeout(youtubePlayQuitOnDisconnectArmTimer);
+    youtubePlayQuitOnDisconnectArmTimer = null;
+  }
+}
+
 async function runYoutubePlaybackFlowMain(request: {
   url: string;
   mode: NonNullable<CliArgs['youtubeMode']>;
   source: CliCommandSource;
 }): Promise<void> {
   youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(true);
+  let flowCompleted = false;
   try {
+    clearYoutubePlayQuitOnDisconnectArmTimer();
+    youtubePlayQuitOnDisconnectArmed = false;
     let playbackUrl = request.url;
     let launchedWindowsMpv = false;
     if (process.platform === 'win32') {
@@ -1032,20 +1043,27 @@ async function runYoutubePlaybackFlowMain(request: {
           : 'MPV not connected. Start mpv with the SubMiner profile or retry after mpv finishes starting.',
       );
     }
-    youtubePlayQuitOnDisconnectArmed = false;
-    setTimeout(() => {
-      youtubePlayQuitOnDisconnectArmed = true;
-    }, 3000);
+    if (request.source === 'initial') {
+      youtubePlayQuitOnDisconnectArmTimer = setTimeout(() => {
+        youtubePlayQuitOnDisconnectArmed = true;
+        youtubePlayQuitOnDisconnectArmTimer = null;
+      }, 3000);
+    }
     const mediaReady = await prepareYoutubePlaybackInMpv({ url: playbackUrl });
     if (!mediaReady) {
-      logger.warn('Timed out waiting for mpv to load requested YouTube URL; continuing anyway.');
+      throw new Error('Timed out waiting for mpv to load the requested YouTube URL.');
     }
     await youtubeFlowRuntime.runYoutubePlaybackFlow({
       url: request.url,
       mode: request.mode,
     });
+    flowCompleted = true;
     logger.info(`YouTube playback flow completed from ${request.source}.`);
   } finally {
+    if (!flowCompleted) {
+      clearYoutubePlayQuitOnDisconnectArmTimer();
+      youtubePlayQuitOnDisconnectArmed = false;
+    }
     youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(false);
   }
 }

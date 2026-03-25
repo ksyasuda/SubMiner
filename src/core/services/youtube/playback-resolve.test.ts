@@ -65,3 +65,12 @@ test('resolveYoutubePlaybackUrl rejects when yt-dlp returns no URL', async () =>
     );
   });
 });
+
+test('resolveYoutubePlaybackUrl rejects when yt-dlp output exceeds capture limit', async () => {
+  await withFakeYtDlp(`${'x'.repeat(1024 * 1024 + 1)}\n`, async () => {
+    await assert.rejects(
+      resolveYoutubePlaybackUrl('https://www.youtube.com/watch?v=abc123'),
+      /exceeded 1048576 bytes/,
+    );
+  });
+});

@@ -36,6 +36,32 @@ test('prepare youtube playback treats matching video IDs as already loaded', asy
   assert.deepEqual(commands, []);
 });
 
+test('prepare youtube playback does not mark matching target ready until tracks exist', async () => {
+  const commands: Array<Array<string>> = [];
+  let requestCount = 0;
+  const prepare = createPrepareYoutubePlaybackInMpvHandler({
+    requestPath: async () => {
+      requestCount += 1;
+      return 'https://www.youtube.com/watch?v=abc123';
+    },
+    requestProperty: async (name) => {
+      if (name !== 'track-list') return null;
+      return requestCount >= 3 ? [{ type: 'video', id: 1 }] : [];
+    },
+    sendMpvCommand: (command) => commands.push(command),
+    wait: createWaitStub(),
+  });
+
+  const ok = await prepare({
+    url: 'https://www.youtube.com/watch?v=abc123',
+    timeoutMs: 1500,
+    pollIntervalMs: 1,
+  });
+
+  assert.equal(ok, true);
+  assert.deepEqual(commands, []);
+});
+
 test('prepare youtube playback replaces media and waits for path switch', async () => {
   const commands: Array<Array<string>> = [];
   const observedPaths = [

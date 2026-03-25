@@ -95,15 +95,26 @@ export function createPrepareYoutubePlaybackInMpvHandler(deps: YoutubePlaybackLa
       // Ignore transient path request failures and continue with bootstrap commands.
     }
 
-    if (pathMatchesYoutubeTarget(previousPath, targetUrl)) {
-      return true;
+    const alreadyTarget = pathMatchesYoutubeTarget(previousPath, targetUrl);
+    if (alreadyTarget) {
+      if (!deps.requestProperty) {
+        return true;
+      }
+      try {
+        const trackList = await deps.requestProperty('track-list');
+        if (hasPlayableMediaTracks(trackList)) {
+          return true;
+        }
+      } catch {
+        // Keep polling; mpv can report the target path before tracks are ready.
+      }
+    } else {
+      deps.sendMpvCommand(['set_property', 'pause', 'yes']);
+      deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
+      deps.sendMpvCommand(['set_property', 'sid', 'no']);
+      deps.sendMpvCommand(['set_property', 'secondary-sid', 'no']);
+      deps.sendMpvCommand(['loadfile', targetUrl, 'replace']);
     }
-
-    deps.sendMpvCommand(['set_property', 'pause', 'yes']);
-    deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
-    deps.sendMpvCommand(['set_property', 'sid', 'no']);
-    deps.sendMpvCommand(['set_property', 'secondary-sid', 'no']);
-    deps.sendMpvCommand(['loadfile', targetUrl, 'replace']);
 
     const deadline = now() + timeoutMs;
     while (now() < deadline) {
