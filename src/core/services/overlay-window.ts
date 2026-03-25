@@ -1,4 +1,4 @@
-import { BrowserWindow, type Session } from 'electron';
+import { BrowserWindow, screen, type Session } from 'electron';
 import * as path from 'path';
 import { WindowGeometry } from '../../types';
 import { createLogger } from '../../logger';
@@ -8,6 +8,7 @@ import {
   type OverlayWindowKind,
 } from './overlay-window-input';
 import { buildOverlayWindowOptions } from './overlay-window-options';
+import { normalizeOverlayWindowBoundsForPlatform } from './overlay-window-bounds';
 
 const logger = createLogger('main:overlay-window');
 const overlayWindowLayerByInstance = new WeakMap<BrowserWindow, OverlayWindowKind>();
@@ -33,12 +34,7 @@ export function updateOverlayWindowBounds(
   window: BrowserWindow | null,
 ): void {
   if (!geometry || !window || window.isDestroyed()) return;
-  window.setBounds({
-    x: geometry.x,
-    y: geometry.y,
-    width: geometry.width,
-    height: geometry.height,
-  });
+  window.setBounds(normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen));
 }
 
 export function ensureOverlayWindowLevel(window: BrowserWindow): void {
