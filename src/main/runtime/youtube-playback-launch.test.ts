@@ -193,3 +193,44 @@ test('prepare youtube playback accepts a non-youtube resolved path once playable
   assert.equal(ok, true);
   assert.deepEqual(commands[4], ['loadfile', 'https://www.youtube.com/watch?v=newvid', 'replace']);
 });
+
+test('prepare youtube playback does not accept a different youtube video after path change', async () => {
+  const commands: Array<Array<string>> = [];
+  let nowTick = 0;
+  const observedPaths = [
+    '/videos/episode01.mkv',
+    'https://www.youtube.com/watch?v=wrongvid',
+    'https://www.youtube.com/watch?v=wrongvid',
+  ];
+  let requestCount = 0;
+  const prepare = createPrepareYoutubePlaybackInMpvHandler({
+    requestPath: async () => {
+      const value = observedPaths[Math.min(requestCount, observedPaths.length - 1)] ?? null;
+      requestCount += 1;
+      return value;
+    },
+    requestProperty: async (name) => {
+      if (name !== 'track-list') return null;
+      return [{ type: 'video', id: 1 }];
+    },
+    sendMpvCommand: (command) => commands.push(command),
+    wait: createWaitStub(),
+    now: () => {
+      nowTick += 100;
+      return nowTick;
+    },
+  });
+
+  const ok = await prepare({
+    url: 'https://www.youtube.com/watch?v=targetvid',
+    timeoutMs: 350,
+    pollIntervalMs: 1,
+  });
+
+  assert.equal(ok, false);
+  assert.deepEqual(commands[4], [
+    'loadfile',
+    'https://www.youtube.com/watch?v=targetvid',
+    'replace',
+  ]);
+});

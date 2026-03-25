@@ -140,11 +140,10 @@ export function createPrepareYoutubePlaybackInMpvHandler(deps: YoutubePlaybackLa
         }
       }
       if (previousPath && currentPath !== previousPath) {
-        if (
-          isYoutubeMediaPath(currentPath) &&
-          isYoutubeMediaPath(targetUrl)
-        ) {
-          return true;
+        if (isYoutubeMediaPath(currentPath) && isYoutubeMediaPath(targetUrl)) {
+          if (!pathMatchesYoutubeTarget(currentPath, targetUrl)) {
+            continue;
+          }
         }
         if (deps.requestProperty) {
           try {
