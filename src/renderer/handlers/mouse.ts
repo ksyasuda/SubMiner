@@ -20,6 +20,12 @@ export function createMouseHandlers(
     sendMpvCommand: (command: (string | number)[]) => void;
   },
 ) {
+  type HoverPointState = {
+    overPrimarySubtitle: boolean;
+    overSecondarySubtitle: boolean;
+    isOverSubtitle: boolean;
+  };
+
   let yomitanPopupVisible = false;
   let hoverPauseRequestId = 0;
   let popupPauseRequestId = 0;
@@ -45,7 +51,7 @@ export function createMouseHandlers(
     };
   }
 
-  function syncHoverStateFromPoint(clientX: number, clientY: number): boolean {
+  function getHoverStateFromPoint(clientX: number, clientY: number): HoverPointState {
     const hoveredElement =
       typeof document.elementFromPoint === 'function'
         ? document.elementFromPoint(clientX, clientY)
@@ -56,13 +62,52 @@ export function createMouseHandlers(
       ctx.dom.secondarySubContainer,
     );
 
-    ctx.state.isOverSubtitle = overPrimarySubtitle || overSecondarySubtitle;
+    return {
+      overPrimarySubtitle,
+      overSecondarySubtitle,
+      isOverSubtitle: overPrimarySubtitle || overSecondarySubtitle,
+    };
+  }
+
+  function syncHoverStateFromPoint(clientX: number, clientY: number): HoverPointState {
+    const hoverState = getHoverStateFromPoint(clientX, clientY);
+
+    ctx.state.isOverSubtitle = hoverState.isOverSubtitle;
     ctx.dom.secondarySubContainer.classList.toggle(
       'secondary-sub-hover-active',
-      overSecondarySubtitle,
+      hoverState.overSecondarySubtitle,
     );
 
-    return ctx.state.isOverSubtitle;
+    return hoverState;
+  }
+
+  function syncHoverStateFromTrackedPointer(event: MouseEvent | PointerEvent): void {
+    if (!ctx.platform.shouldToggleMouseIgnore || ctx.state.isDragging) {
+      return;
+    }
+
+    const wasOverSubtitle = ctx.state.isOverSubtitle;
+    const wasOverSecondarySubtitle = ctx.dom.secondarySubContainer.classList.contains(
+      'secondary-sub-hover-active',
+    );
+    const hoverState = syncHoverStateFromPoint(event.clientX, event.clientY);
+
+    if (!wasOverSubtitle && hoverState.isOverSubtitle) {
+      void handleMouseEnter(undefined, hoverState.overSecondarySubtitle);
+      return;
+    }
+
+    if (wasOverSubtitle && !hoverState.isOverSubtitle) {
+      void handleMouseLeave(undefined, wasOverSecondarySubtitle);
+      return;
+    }
+
+    if (
+      hoverState.isOverSubtitle &&
+      hoverState.overSecondarySubtitle !== wasOverSecondarySubtitle
+    ) {
+      syncOverlayMouseIgnoreState(ctx);
+    }
   }
 
   function restorePointerInteractionState(): void {
@@ -293,10 +338,12 @@ export function createMouseHandlers(
   function setupPointerTracking(): void {
     document.addEventListener('mousemove', (event: MouseEvent) => {
       updatePointerPosition(event);
+      syncHoverStateFromTrackedPointer(event);
       maybeResyncPointerHoverState(event);
     });
     document.addEventListener('pointermove', (event: PointerEvent) => {
       updatePointerPosition(event);
+      syncHoverStateFromTrackedPointer(event);
       maybeResyncPointerHoverState(event);
     });
   }

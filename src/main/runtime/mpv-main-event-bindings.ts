@@ -23,8 +23,9 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   syncOverlayMpvSubtitleSuppression: () => void;
   resetSubtitleSidebarEmbeddedLayout: () => void;
   scheduleCharacterDictionarySync?: () => void;
-  hasInitialJellyfinPlayArg: () => boolean;
+  hasInitialPlaybackQuitOnDisconnectArg: () => boolean;
   isOverlayRuntimeInitialized: () => boolean;
+  shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => boolean;
   isQuitOnDisconnectArmed: () => boolean;
   scheduleQuitCheck: (callback: () => void) => void;
   isMpvConnected: () => boolean;
@@ -77,8 +78,11 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
       syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
-      hasInitialJellyfinPlayArg: () => deps.hasInitialJellyfinPlayArg(),
+      hasInitialPlaybackQuitOnDisconnectArg: () =>
+        deps.hasInitialPlaybackQuitOnDisconnectArg(),
       isOverlayRuntimeInitialized: () => deps.isOverlayRuntimeInitialized(),
+      shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () =>
+        deps.shouldQuitOnDisconnectWhenOverlayRuntimeInitialized(),
       isQuitOnDisconnectArmed: () => deps.isQuitOnDisconnectArmed(),
       scheduleQuitCheck: (callback) => deps.scheduleQuitCheck(callback),
       isMpvConnected: () => deps.isMpvConnected(),

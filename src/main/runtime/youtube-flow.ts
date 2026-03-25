@@ -417,7 +417,7 @@ async function injectDownloadedSubtitles(
     return false;
   }
 
-  const currentSubText = await deps.requestMpvProperty('sub-text');
+  const currentSubText = await deps.requestMpvProperty('sub-text').catch(() => null);
   if (typeof currentSubText === 'string' && currentSubText.trim().length > 0) {
     deps.refreshCurrentSubtitle(currentSubText);
   }

@@ -246,6 +246,23 @@ test('handleCliCommand defaults youtube mode to download when omitted', () => {
   ]);
 });
 
+test('handleCliCommand reuses initialized overlay runtime for second-instance youtube playback', () => {
+  const { deps, calls } = createDeps({
+    isOverlayRuntimeInitialized: () => true,
+    runYoutubePlaybackFlow: async (request) => {
+      calls.push(`youtube:${request.url}:${request.mode}:${request.source}`);
+    },
+  });
+
+  handleCliCommand(
+    makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc', youtubeMode: 'download' }),
+    'second-instance',
+    deps,
+  );
+
+  assert.deepEqual(calls, ['youtube:https://youtube.com/watch?v=abc:download:second-instance']);
+});
+
 test('handleCliCommand reports youtube playback flow failures to logs and OSD', async () => {
   const { deps, calls, osd } = createDeps({
     runYoutubePlaybackFlow: async () => {

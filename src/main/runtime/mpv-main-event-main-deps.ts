@@ -2,7 +2,7 @@ import type { MergedToken, SubtitleData } from '../../types';
 
 export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   appState: {
-    initialArgs?: { jellyfinPlay?: unknown } | null;
+    initialArgs?: { jellyfinPlay?: unknown; youtubePlay?: unknown } | null;
     overlayRuntimeInitialized: boolean;
     mpvClient:
       | {
@@ -79,8 +79,11 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   return () => ({
     reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
     syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
-    hasInitialJellyfinPlayArg: () => Boolean(deps.appState.initialArgs?.jellyfinPlay),
+    hasInitialPlaybackQuitOnDisconnectArg: () =>
+      Boolean(deps.appState.initialArgs?.jellyfinPlay || deps.appState.initialArgs?.youtubePlay),
     isOverlayRuntimeInitialized: () => deps.appState.overlayRuntimeInitialized,
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () =>
+      Boolean(deps.appState.initialArgs?.youtubePlay),
     isQuitOnDisconnectArmed: () => deps.getQuitOnDisconnectArmed(),
     scheduleQuitCheck: (callback: () => void) => deps.scheduleQuitCheck(callback),
     isMpvConnected: () => Boolean(deps.appState.mpvClient?.connected),
@@ -187,17 +190,26 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       if (!mpvClient?.requestProperty) {
         return;
       }
-      void mpvClient.requestProperty('time-pos').then((timePos) => {
-        const currentPath = (deps.appState.currentMediaPath ?? '').trim();
-        if (currentPath.length > 0 && currentPath !== mediaPath) {
-          return;
-        }
-        const resolvedTime = Number(timePos);
-        if (Number.isFinite(currentKnownTime) && Number.isFinite(resolvedTime) && currentKnownTime === resolvedTime) {
-          return;
-        }
-        writePlaybackPositionFromMpv(resolvedTime);
-      });
+      void mpvClient
+        .requestProperty('time-pos')
+        .then((timePos) => {
+          const currentPath = (deps.appState.currentMediaPath ?? '').trim();
+          if (currentPath.length > 0 && currentPath !== mediaPath) {
+            return;
+          }
+          const resolvedTime = Number(timePos);
+          if (
+            Number.isFinite(currentKnownTime) &&
+            Number.isFinite(resolvedTime) &&
+            currentKnownTime === resolvedTime
+          ) {
+            return;
+          }
+          writePlaybackPositionFromMpv(resolvedTime);
+        })
+        .catch(() => {
+          // mpv can disconnect while clearing media; keep the last cached position.
+        });
     },
     updateSubtitleRenderMetrics: (patch: Record<string, unknown>) =>
       deps.updateSubtitleRenderMetrics(patch),

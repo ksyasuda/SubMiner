@@ -18,6 +18,16 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
     unregisterAllGlobalShortcuts: () => calls.push('unregister-shortcuts'),
     stopSubtitleWebsocket: () => calls.push('stop-ws'),
     stopTexthookerService: () => calls.push('stop-texthooker'),
+    getMainOverlayWindow: () => ({
+      isDestroyed: () => false,
+      destroy: () => calls.push('destroy-main-overlay-window'),
+    }),
+    clearMainOverlayWindow: () => calls.push('clear-main-overlay-window'),
+    getModalOverlayWindow: () => ({
+      isDestroyed: () => false,
+      destroy: () => calls.push('destroy-modal-overlay-window'),
+    }),
+    clearModalOverlayWindow: () => calls.push('clear-modal-overlay-window'),
 
     getYomitanParserWindow: () => ({
       isDestroyed: () => false,
@@ -61,6 +71,10 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
   cleanup();
 
   assert.ok(calls.includes('destroy-tray'));
+  assert.ok(calls.includes('destroy-main-overlay-window'));
+  assert.ok(calls.includes('clear-main-overlay-window'));
+  assert.ok(calls.includes('destroy-modal-overlay-window'));
+  assert.ok(calls.includes('clear-modal-overlay-window'));
   assert.ok(calls.includes('destroy-yomitan-window'));
   assert.ok(calls.includes('flush-mpv-log'));
   assert.ok(calls.includes('destroy-socket'));
@@ -85,6 +99,16 @@ test('cleanup deps builder skips destroyed yomitan window', () => {
     unregisterAllGlobalShortcuts: () => {},
     stopSubtitleWebsocket: () => {},
     stopTexthookerService: () => {},
+    getMainOverlayWindow: () => ({
+      isDestroyed: () => true,
+      destroy: () => calls.push('destroy-main-overlay-window'),
+    }),
+    clearMainOverlayWindow: () => calls.push('clear-main-overlay-window'),
+    getModalOverlayWindow: () => ({
+      isDestroyed: () => true,
+      destroy: () => calls.push('destroy-modal-overlay-window'),
+    }),
+    clearModalOverlayWindow: () => calls.push('clear-modal-overlay-window'),
     getYomitanParserWindow: () => ({
       isDestroyed: () => true,
       destroy: () => calls.push('destroy-yomitan-window'),

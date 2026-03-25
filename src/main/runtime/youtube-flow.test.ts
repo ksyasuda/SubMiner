@@ -378,6 +378,73 @@ test('youtube flow does not report failure when subtitle track binds before cue 
   assert.deepEqual(failures, []);
 });
 
+test('youtube flow does not fail when mpv reports sub-text as unavailable after track bind', async () => {
+  const failures: string[] = [];
+
+  const runtime = createYoutubeFlowRuntime({
+    probeYoutubeTracks: async () => ({
+      videoId: 'video123',
+      title: 'Video 123',
+      tracks: [primaryTrack],
+    }),
+    acquireYoutubeSubtitleTracks: async () => new Map(),
+    acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/auto-ja-orig.vtt' }),
+    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
+    openPicker: async (payload) => {
+      queueMicrotask(() => {
+        void runtime.resolveActivePicker({
+          sessionId: payload.sessionId,
+          action: 'use-selected',
+          primaryTrackId: primaryTrack.id,
+          secondaryTrackId: null,
+        });
+      });
+      return true;
+    },
+    pauseMpv: () => {},
+    resumeMpv: () => {},
+    sendMpvCommand: () => {},
+    requestMpvProperty: async (name) => {
+      if (name === 'sub-text') {
+        throw new Error("Failed to read MPV property 'sub-text': property unavailable");
+      }
+      return [
+        {
+          type: 'sub',
+          id: 5,
+          lang: 'ja-orig',
+          title: 'primary',
+          external: true,
+          'external-filename': '/tmp/auto-ja-orig.vtt',
+        },
+      ];
+    },
+    refreshCurrentSubtitle: () => {
+      throw new Error('should not refresh when sub-text is unavailable');
+    },
+    startTokenizationWarmups: async () => {},
+    waitForTokenizationReady: async () => {},
+    waitForAnkiReady: async () => {},
+    wait: async () => {},
+    waitForPlaybackWindowReady: async () => {},
+    waitForOverlayGeometryReady: async () => {},
+    focusOverlayWindow: () => {},
+    showMpvOsd: () => {},
+    reportSubtitleFailure: (message) => {
+      failures.push(message);
+    },
+    warn: (message) => {
+      throw new Error(message);
+    },
+    log: () => {},
+    getYoutubeOutputDir: () => '/tmp',
+  });
+
+  await runtime.openManualPicker({ url: 'https://example.com' });
+
+  assert.deepEqual(failures, []);
+});
+
 test('youtube flow retries secondary subtitle selection until mpv reports the expected secondary sid', async () => {
   const commands: Array<Array<string | number>> = [];
   const waits: number[] = [];

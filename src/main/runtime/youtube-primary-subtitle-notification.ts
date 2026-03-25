@@ -181,5 +181,6 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
       }
       schedulePendingCheck();
     },
+    isAppOwnedFlowInFlight: (): boolean => appOwnedFlowInFlight,
   };
 }

@@ -22,8 +22,9 @@ export function createHandleMpvConnectionChangeHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
   refreshDiscordPresence: () => void;
   syncOverlayMpvSubtitleSuppression: () => void;
-  hasInitialJellyfinPlayArg: () => boolean;
+  hasInitialPlaybackQuitOnDisconnectArg: () => boolean;
   isOverlayRuntimeInitialized: () => boolean;
+  shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => boolean;
   isQuitOnDisconnectArmed: () => boolean;
   scheduleQuitCheck: (callback: () => void) => void;
   isMpvConnected: () => boolean;
@@ -36,8 +37,13 @@ export function createHandleMpvConnectionChangeHandler(deps: {
       return;
     }
     deps.reportJellyfinRemoteStopped();
-    if (!deps.hasInitialJellyfinPlayArg()) return;
-    if (deps.isOverlayRuntimeInitialized()) return;
+    if (!deps.hasInitialPlaybackQuitOnDisconnectArg()) return;
+    if (
+      deps.isOverlayRuntimeInitialized() &&
+      !deps.shouldQuitOnDisconnectWhenOverlayRuntimeInitialized()
+    ) {
+      return;
+    }
     if (!deps.isQuitOnDisconnectArmed()) return;
     deps.scheduleQuitCheck(() => {
       if (deps.isMpvConnected()) return;

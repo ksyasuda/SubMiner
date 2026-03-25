@@ -315,6 +315,7 @@ import {
   acquireYoutubeSubtitleTrack,
   acquireYoutubeSubtitleTracks,
 } from './core/services/youtube/generate';
+import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
 import { retimeYoutubeSubtitle } from './core/services/youtube/retime';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import { startStatsServer } from './core/services/stats-server';
@@ -346,6 +347,9 @@ import {
   resolveWindowsMpvShortcutPaths,
 } from './main/runtime/windows-mpv-shortcuts';
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
+import { createWaitForMpvConnectedHandler } from './main/runtime/jellyfin-remote-connection';
+import { createPrepareYoutubePlaybackInMpvHandler } from './main/runtime/youtube-playback-launch';
+import { shouldEnsureTrayOnStartupForInitialArgs } from './main/runtime/startup-tray-policy';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
 import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
 import {
@@ -496,12 +500,17 @@ let anilistUpdateInFlightState = createInitialAnilistUpdateInFlightState();
 const anilistAttemptedUpdateKeys = new Set<string>();
 let anilistCachedAccessToken: string | null = null;
 let jellyfinPlayQuitOnDisconnectArmed = false;
+let youtubePlayQuitOnDisconnectArmed = false;
 const JELLYFIN_LANG_PREF = 'ja,jp,jpn,japanese,en,eng,english,enUS,en-US';
 const JELLYFIN_TICKS_PER_SECOND = 10_000_000;
 const JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS = 3000;
 const DISCORD_PRESENCE_APP_ID = '1475264834730856619';
 const JELLYFIN_MPV_CONNECT_TIMEOUT_MS = 3000;
 const JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS = 20000;
+const YOUTUBE_MPV_CONNECT_TIMEOUT_MS = 3000;
+const YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS = 10000;
+const YOUTUBE_MPV_YTDL_FORMAT = 'bestvideo*+bestaudio/best';
+const YOUTUBE_DIRECT_PLAYBACK_FORMAT = 'b';
 const MPV_JELLYFIN_DEFAULT_ARGS = [
   '--sub-auto=fuzzy',
   '--sub-file-paths=.;subs;subtitles',
@@ -940,6 +949,28 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
   log: (message: string) => logger.info(message),
   getYoutubeOutputDir: () => path.join(os.homedir(), '.cache', 'subminer', 'youtube-subs'),
 });
+const prepareYoutubePlaybackInMpv = createPrepareYoutubePlaybackInMpvHandler({
+  requestPath: async () => {
+    const client = appState.mpvClient;
+    if (!client) return null;
+    const value = await client.requestProperty('path').catch(() => null);
+    return typeof value === 'string' ? value : null;
+  },
+  requestProperty: async (name) => {
+    const client = appState.mpvClient;
+    if (!client) return null;
+    return await client.requestProperty(name);
+  },
+  sendMpvCommand: (command) => {
+    sendMpvCommandRuntime(appState.mpvClient, command);
+  },
+  wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+});
+const waitForYoutubeMpvConnected = createWaitForMpvConnectedHandler({
+  getMpvClient: () => appState.mpvClient,
+  now: () => Date.now(),
+  sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
+});
 
 async function runYoutubePlaybackFlowMain(request: {
   url: string;
@@ -948,27 +979,66 @@ async function runYoutubePlaybackFlowMain(request: {
 }): Promise<void> {
   youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(true);
   try {
+    let playbackUrl = request.url;
+    let launchedWindowsMpv = false;
+    if (process.platform === 'win32') {
+      try {
+        playbackUrl = await resolveYoutubePlaybackUrl(request.url, YOUTUBE_DIRECT_PLAYBACK_FORMAT);
+        logger.info('Resolved direct YouTube playback URL for Windows MPV startup.');
+      } catch (error) {
+        logger.warn(
+          `Failed to resolve direct YouTube playback URL; falling back to page URL: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
     if (process.platform === 'win32' && !appState.mpvClient?.connected) {
       const launchResult = launchWindowsMpv(
-        [request.url],
+        [playbackUrl],
         createWindowsMpvLaunchDeps({
           showError: (title, content) => dialog.showErrorBox(title, content),
         }),
         [
           '--pause=yes',
+          '--ytdl=yes',
+          `--ytdl-format=${YOUTUBE_MPV_YTDL_FORMAT}`,
           '--sub-auto=no',
-          '--sid=no',
-          '--secondary-sid=no',
-          '--script-opts=subminer-auto_start_pause_until_ready=no',
+          '--sub-file-paths=.;subs;subtitles',
+          '--sid=auto',
+          '--secondary-sid=auto',
+          '--secondary-sub-visibility=no',
+          '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+          '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+          `--log-file=${DEFAULT_MPV_LOG_PATH}`,
           `--input-ipc-server=${appState.mpvSocketPath}`,
         ],
       );
+      launchedWindowsMpv = launchResult.ok;
+      if (launchResult.ok) {
+        logger.info(`Bootstrapping Windows mpv for YouTube playback via ${launchResult.mpvPath}`);
+      }
       if (!launchResult.ok) {
         logger.warn('Unable to bootstrap Windows mpv for YouTube playback.');
       }
     }
-    if (!appState.mpvClient?.connected) {
-      appState.mpvClient?.connect();
+    const connected = await waitForYoutubeMpvConnected(
+      launchedWindowsMpv ? YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS : YOUTUBE_MPV_CONNECT_TIMEOUT_MS,
+    );
+    if (!connected) {
+      throw new Error(
+        launchedWindowsMpv
+          ? 'MPV not connected after auto-launch. Ensure mpv is installed and can open the requested YouTube URL.'
+          : 'MPV not connected. Start mpv with the SubMiner profile or retry after mpv finishes starting.',
+      );
+    }
+    youtubePlayQuitOnDisconnectArmed = false;
+    setTimeout(() => {
+      youtubePlayQuitOnDisconnectArmed = true;
+    }, 3000);
+    const mediaReady = await prepareYoutubePlaybackInMpv({ url: playbackUrl });
+    if (!mediaReady) {
+      logger.warn('Timed out waiting for mpv to load requested YouTube URL; continuing anyway.');
     }
     await youtubeFlowRuntime.runYoutubePlaybackFlow({
       url: request.url,
@@ -1281,6 +1351,10 @@ function maybeSignalPluginAutoplayReady(
   payload: SubtitleData,
   options?: { forceWhilePaused?: boolean },
 ): void {
+  if (youtubePrimarySubtitleNotificationRuntime.isAppOwnedFlowInFlight()) {
+    logger.debug('[autoplay-ready] suppressed while app-owned YouTube flow is active');
+    return;
+  }
   if (!payload.text.trim()) {
     return;
   }
@@ -2829,6 +2903,10 @@ const {
       annotationSubtitleWsService.stop();
     },
     stopTexthookerService: () => texthookerService.stop(),
+    getMainOverlayWindow: () => overlayManager.getMainWindow(),
+    clearMainOverlayWindow: () => overlayManager.setMainWindow(null),
+    getModalOverlayWindow: () => overlayManager.getModalWindow(),
+    clearModalOverlayWindow: () => overlayManager.setModalWindow(null),
     getYomitanParserWindow: () => appState.yomitanParserWindow,
     clearYomitanParserState: () => {
       appState.yomitanParserWindow = null;
@@ -3478,7 +3556,8 @@ function ensureOverlayStartupPrereqs(): void {
 const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   getInitialArgs: () => appState.initialArgs,
   isBackgroundMode: () => appState.backgroundMode,
-  shouldEnsureTrayOnStartup: () => process.platform === 'win32',
+  shouldEnsureTrayOnStartup: () =>
+    shouldEnsureTrayOnStartupForInitialArgs(process.platform, appState.initialArgs),
   shouldRunHeadlessInitialCommand: (args) => isHeadlessInitialCommand(args),
   ensureTray: () => ensureTray(),
   isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
@@ -3512,7 +3591,8 @@ const {
 >({
   bindMpvMainEventHandlersMainDeps: {
     appState,
-    getQuitOnDisconnectArmed: () => jellyfinPlayQuitOnDisconnectArmed,
+    getQuitOnDisconnectArmed: () =>
+      jellyfinPlayQuitOnDisconnectArmed || youtubePlayQuitOnDisconnectArmed,
     scheduleQuitCheck: (callback) => {
       setTimeout(callback, 500);
     },

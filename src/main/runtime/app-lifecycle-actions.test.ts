@@ -16,6 +16,8 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     unregisterAllGlobalShortcuts: () => calls.push('unregister-shortcuts'),
     stopSubtitleWebsocket: () => calls.push('stop-ws'),
     stopTexthookerService: () => calls.push('stop-texthooker'),
+    destroyMainOverlayWindow: () => calls.push('destroy-main-overlay-window'),
+    destroyModalOverlayWindow: () => calls.push('destroy-modal-overlay-window'),
     destroyYomitanParserWindow: () => calls.push('destroy-yomitan-window'),
     clearYomitanParserState: () => calls.push('clear-yomitan-state'),
     stopWindowTracker: () => calls.push('stop-tracker'),
@@ -38,7 +40,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
   });
 
   cleanup();
-  assert.equal(calls.length, 26);
+  assert.equal(calls.length, 28);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-discord-presence');
   assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));

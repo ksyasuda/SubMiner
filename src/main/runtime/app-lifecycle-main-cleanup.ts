@@ -25,6 +25,10 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   unregisterAllGlobalShortcuts: () => void;
   stopSubtitleWebsocket: () => void;
   stopTexthookerService: () => void;
+  getMainOverlayWindow: () => DestroyableWindow | null;
+  clearMainOverlayWindow: () => void;
+  getModalOverlayWindow: () => DestroyableWindow | null;
+  clearModalOverlayWindow: () => void;
 
   getYomitanParserWindow: () => DestroyableWindow | null;
   clearYomitanParserState: () => void;
@@ -60,6 +64,20 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     unregisterAllGlobalShortcuts: () => deps.unregisterAllGlobalShortcuts(),
     stopSubtitleWebsocket: () => deps.stopSubtitleWebsocket(),
     stopTexthookerService: () => deps.stopTexthookerService(),
+    destroyMainOverlayWindow: () => {
+      const window = deps.getMainOverlayWindow();
+      if (!window) return;
+      if (window.isDestroyed()) return;
+      window.destroy();
+      deps.clearMainOverlayWindow();
+    },
+    destroyModalOverlayWindow: () => {
+      const window = deps.getModalOverlayWindow();
+      if (!window) return;
+      if (window.isDestroyed()) return;
+      window.destroy();
+      deps.clearModalOverlayWindow();
+    },
     destroyYomitanParserWindow: () => {
       const window = deps.getYomitanParserWindow();
       if (!window) return;

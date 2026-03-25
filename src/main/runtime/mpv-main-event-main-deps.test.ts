@@ -61,7 +61,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     refreshDiscordPresence: () => calls.push('presence-refresh'),
   })();
 
-  assert.equal(deps.hasInitialJellyfinPlayArg(), true);
+  assert.equal(deps.hasInitialPlaybackQuitOnDisconnectArg(), true);
   assert.equal(deps.isOverlayRuntimeInitialized(), true);
   assert.equal(deps.isQuitOnDisconnectArmed(), true);
   assert.equal(deps.isMpvConnected(), true);
@@ -157,4 +157,60 @@ test('mpv main event main deps wire subtitle callbacks without suppression gate'
 
   deps.setCurrentSubText('sub');
   assert.equal(typeof deps.setCurrentSubText, 'function');
+});
+
+test('flushPlaybackPositionOnMediaPathClear ignores disconnected mpv time-pos reads', async () => {
+  const recorded: number[] = [];
+  const deps = createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState: {
+      initialArgs: null,
+      overlayRuntimeInitialized: true,
+      mpvClient: {
+        connected: false,
+        currentTimePos: 42,
+        requestProperty: async () => {
+          throw new Error('disconnected');
+        },
+      },
+      immersionTracker: {
+        recordPlaybackPosition: (time: number) => {
+          recorded.push(time);
+        },
+      },
+      subtitleTimingTracker: null,
+      currentMediaPath: '',
+      currentSubText: '',
+      currentSubAssText: '',
+      playbackPaused: null,
+      previousSecondarySubVisibility: false,
+    },
+    getQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    quitApp: () => {},
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    broadcastToOverlayWindows: () => {},
+    onSubtitleChange: () => {},
+    ensureImmersionTrackerInitialized: () => {},
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    resetSubtitleSidebarEmbeddedLayout: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    refreshDiscordPresence: () => {},
+  })();
+
+  deps.flushPlaybackPositionOnMediaPathClear?.('');
+  await Promise.resolve();
+
+  assert.deepEqual(recorded, [42]);
 });

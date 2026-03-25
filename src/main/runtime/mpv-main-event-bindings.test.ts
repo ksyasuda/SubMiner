@@ -10,8 +10,9 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     reportJellyfinRemoteStopped: () => calls.push('remote-stopped'),
     syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
     resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
-    hasInitialJellyfinPlayArg: () => false,
+    hasInitialPlaybackQuitOnDisconnectArg: () => false,
     isOverlayRuntimeInitialized: () => false,
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => false,
     isQuitOnDisconnectArmed: () => false,
     scheduleQuitCheck: () => {
       calls.push('schedule-quit-check');

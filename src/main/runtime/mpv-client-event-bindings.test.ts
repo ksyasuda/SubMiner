@@ -12,8 +12,9 @@ test('mpv connection handler reports stop and quits when disconnect guard passes
     reportJellyfinRemoteStopped: () => calls.push('report-stop'),
     refreshDiscordPresence: () => calls.push('presence-refresh'),
     syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
-    hasInitialJellyfinPlayArg: () => true,
+    hasInitialPlaybackQuitOnDisconnectArg: () => true,
     isOverlayRuntimeInitialized: () => false,
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => false,
     isQuitOnDisconnectArmed: () => true,
     scheduleQuitCheck: (callback) => {
       calls.push('schedule');
@@ -36,8 +37,9 @@ test('mpv connection handler syncs overlay subtitle suppression on connect', () 
     refreshDiscordPresence: () => calls.push('presence-refresh'),
     syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
     scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
-    hasInitialJellyfinPlayArg: () => true,
+    hasInitialPlaybackQuitOnDisconnectArg: () => true,
     isOverlayRuntimeInitialized: () => false,
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => false,
     isQuitOnDisconnectArmed: () => true,
     scheduleQuitCheck: () => {
       calls.push('schedule');
@@ -50,6 +52,28 @@ test('mpv connection handler syncs overlay subtitle suppression on connect', () 
   handler({ connected: true });
 
   assert.deepEqual(calls, ['presence-refresh', 'sync-overlay-mpv-sub']);
+});
+
+test('mpv connection handler quits standalone youtube playback even after overlay runtime init', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvConnectionChangeHandler({
+    reportJellyfinRemoteStopped: () => calls.push('report-stop'),
+    refreshDiscordPresence: () => calls.push('presence-refresh'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
+    hasInitialPlaybackQuitOnDisconnectArg: () => true,
+    isOverlayRuntimeInitialized: () => true,
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => true,
+    isQuitOnDisconnectArmed: () => true,
+    scheduleQuitCheck: (callback) => {
+      calls.push('schedule');
+      callback();
+    },
+    isMpvConnected: () => false,
+    quitApp: () => calls.push('quit'),
+  });
+
+  handler({ connected: false });
+  assert.deepEqual(calls, ['presence-refresh', 'report-stop', 'schedule', 'quit']);
 });
 
 test('mpv subtitle timing handler ignores blank subtitle lines', () => {

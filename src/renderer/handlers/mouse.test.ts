@@ -761,7 +761,153 @@ test('restorePointerInteractionState re-enables subtitle hover when pointer is a
 
     assert.equal(ctx.state.isOverSubtitle, true);
     assert.equal(ctx.dom.overlay.classList.contains('interactive'), true);
+    assert.deepEqual(ignoreCalls, [
+      { ignore: false, forward: undefined },
+      { ignore: false, forward: undefined },
+    ]);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});
+
+test('pointer tracking enables overlay interaction as soon as the cursor reaches subtitles', () => {
+  const ctx = createMouseTestContext();
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
+  const documentListeners = new Map<string, Array<(event: unknown) => void>>();
+  ctx.platform.shouldToggleMouseIgnore = true;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+          ignoreCalls.push({ ignore, forward: options?.forward });
+        },
+      },
+      getComputedStyle: () => ({
+        visibility: 'hidden',
+        display: 'none',
+        opacity: '0',
+      }),
+      focus: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: (event: unknown) => void) => {
+        const bucket = documentListeners.get(type) ?? [];
+        bucket.push(listener);
+        documentListeners.set(type, bucket);
+      },
+      elementFromPoint: () => ctx.dom.subtitleContainer,
+      querySelectorAll: () => [],
+      body: {},
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => false,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => false,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: () => {},
+    });
+
+    handlers.setupPointerTracking();
+    for (const listener of documentListeners.get('mousemove') ?? []) {
+      listener({ clientX: 120, clientY: 240 });
+    }
+
+    assert.equal(ctx.state.isOverSubtitle, true);
+    assert.equal(ctx.dom.overlay.classList.contains('interactive'), true);
     assert.deepEqual(ignoreCalls, [{ ignore: false, forward: undefined }]);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});
+
+test('pointer tracking restores click-through after the cursor leaves subtitles', () => {
+  const ctx = createMouseTestContext();
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
+  const documentListeners = new Map<string, Array<(event: unknown) => void>>();
+  let hoveredElement: unknown = ctx.dom.subtitleContainer;
+  ctx.platform.shouldToggleMouseIgnore = true;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+          ignoreCalls.push({ ignore, forward: options?.forward });
+        },
+      },
+      getComputedStyle: () => ({
+        visibility: 'hidden',
+        display: 'none',
+        opacity: '0',
+      }),
+      focus: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: (event: unknown) => void) => {
+        const bucket = documentListeners.get(type) ?? [];
+        bucket.push(listener);
+        documentListeners.set(type, bucket);
+      },
+      elementFromPoint: () => hoveredElement,
+      querySelectorAll: () => [],
+      body: {},
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => false,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => false,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: () => {},
+    });
+
+    handlers.setupPointerTracking();
+    for (const listener of documentListeners.get('mousemove') ?? []) {
+      listener({ clientX: 120, clientY: 240 });
+    }
+
+    hoveredElement = null;
+    for (const listener of documentListeners.get('mousemove') ?? []) {
+      listener({ clientX: 640, clientY: 360 });
+    }
+
+    assert.equal(ctx.state.isOverSubtitle, false);
+    assert.equal(ctx.dom.overlay.classList.contains('interactive'), false);
+    assert.deepEqual(ignoreCalls, [
+      { ignore: false, forward: undefined },
+      { ignore: true, forward: true },
+    ]);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
