@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.9.2 (2026-03-25)
+
+### Fixed
+- Overlay: Fixed overlay pointer tracking so Windows click-through toggles immediately when the cursor enters or leaves subtitle regions, without waiting for a later hover resync.
+- Overlay: Fixed Windows overlay window tracking on scaled displays by converting native tracked window bounds to Electron DIP coordinates before applying overlay bounds.
+- Launcher: Fixed Windows direct `--youtube-play` startup so MPV boots reliably, stays paused until the app-owned subtitle flow is ready, and reuses an already-running SubMiner instance when available.
+- Launcher: Fixed standalone Windows `--youtube-play` sessions so closing MPV fully exits SubMiner instead of leaving hidden overlay windows or a background process behind.
+- Overlay: Fixed `subminer <youtube-url>` on Linux so the YouTube playback flow waits for Yomitan to load before creating the overlay window, avoiding the broken lookup popup state that previously required a manual overlay refresh.
+
 ## v0.9.1 (2026-03-24)
 
 ### Changed
