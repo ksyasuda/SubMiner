@@ -68,6 +68,8 @@ test('texthooker precheck no-ops for texthooker command', () => {
 test('texthooker precheck transitions for youtube playback startup prereqs', () => {
   let mode = true;
   let prereqs = 0;
+  let warmups = 0;
+  let logs = 0;
   const handlePrecheck = createHandleTexthookerOnlyModeTransitionHandler({
     isTexthookerOnlyMode: () => mode,
     setTexthookerOnlyMode: (enabled) => {
@@ -77,12 +79,18 @@ test('texthooker precheck transitions for youtube playback startup prereqs', () 
     ensureOverlayStartupPrereqs: () => {
       prereqs += 1;
     },
-    startBackgroundWarmups: () => {},
-    logInfo: () => {},
+    startBackgroundWarmups: () => {
+      warmups += 1;
+    },
+    logInfo: () => {
+      logs += 1;
+    },
   });
 
   handlePrecheck({ youtubePlay: 'https://youtube.com/watch?v=abc', texthooker: false } as never);
 
   assert.equal(mode, false);
   assert.equal(prereqs, 1);
+  assert.equal(warmups, 1);
+  assert.equal(logs, 1);
 });

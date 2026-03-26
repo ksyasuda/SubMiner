@@ -503,6 +503,7 @@ let anilistCachedAccessToken: string | null = null;
 let jellyfinPlayQuitOnDisconnectArmed = false;
 let youtubePlayQuitOnDisconnectArmed = false;
 let youtubePlayQuitOnDisconnectArmTimer: ReturnType<typeof setTimeout> | null = null;
+let youtubePlaybackFlowGeneration = 0;
 const JELLYFIN_LANG_PREF = 'ja,jp,jpn,japanese,en,eng,english,enUS,en-US';
 const JELLYFIN_TICKS_PER_SECOND = 10_000_000;
 const JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS = 3000;
@@ -986,6 +987,7 @@ async function runYoutubePlaybackFlowMain(request: {
   mode: NonNullable<CliArgs['youtubeMode']>;
   source: CliCommandSource;
 }): Promise<void> {
+  const flowGeneration = ++youtubePlaybackFlowGeneration;
   youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(true);
   let flowCompleted = false;
   try {
@@ -1047,6 +1049,9 @@ async function runYoutubePlaybackFlowMain(request: {
     }
     if (request.source === 'initial') {
       youtubePlayQuitOnDisconnectArmTimer = setTimeout(() => {
+        if (youtubePlaybackFlowGeneration !== flowGeneration) {
+          return;
+        }
         youtubePlayQuitOnDisconnectArmed = true;
         youtubePlayQuitOnDisconnectArmTimer = null;
       }, 3000);
@@ -1062,11 +1067,13 @@ async function runYoutubePlaybackFlowMain(request: {
     flowCompleted = true;
     logger.info(`YouTube playback flow completed from ${request.source}.`);
   } finally {
-    if (!flowCompleted) {
-      clearYoutubePlayQuitOnDisconnectArmTimer();
-      youtubePlayQuitOnDisconnectArmed = false;
+    if (youtubePlaybackFlowGeneration === flowGeneration) {
+      if (!flowCompleted) {
+        clearYoutubePlayQuitOnDisconnectArmTimer();
+        youtubePlayQuitOnDisconnectArmed = false;
+      }
+      youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(false);
     }
-    youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(false);
   }
 }
 

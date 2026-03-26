@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  commandNeedsOverlayStartupPrereqs,
   commandNeedsOverlayRuntime,
   hasExplicitCommand,
   isHeadlessInitialCommand,
@@ -75,6 +76,7 @@ test('youtube playback does not use generic overlay-runtime bootstrap classifica
   const args = parseArgs(['--youtube-play', 'https://youtube.com/watch?v=abc']);
 
   assert.equal(commandNeedsOverlayRuntime(args), false);
+  assert.equal(commandNeedsOverlayStartupPrereqs(args), true);
 });
 
 test('parseArgs handles jellyfin item listing controls', () => {
@@ -147,6 +149,9 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(hasExplicitCommand(help), true);
   assert.equal(shouldStartApp(help), false);
   assert.equal(shouldRunSettingsOnlyStartup(help), false);
+
+  const youtubePlay = parseArgs(['--youtube-play', 'https://youtube.com/watch?v=abc']);
+  assert.equal(commandNeedsOverlayStartupPrereqs(youtubePlay), true);
 
   const anilistStatus = parseArgs(['--anilist-status']);
   assert.equal(anilistStatus.anilistStatus, true);

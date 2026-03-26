@@ -144,13 +144,13 @@ export function createPrepareYoutubePlaybackInMpvHandler(deps: YoutubePlaybackLa
           // Continue polling until media tracks are actually available.
         }
       }
-      const pathChanged = currentPath !== previousPath;
+      const pathDiffersFromInitial = currentPath !== previousPath;
       const matchesChangedTarget =
         currentPath === targetUrl ||
         (isYoutubeMediaPath(currentPath) &&
           isYoutubeMediaPath(targetUrl) &&
           pathMatchesYoutubeTarget(currentPath, targetUrl));
-      if (pathChanged && matchesChangedTarget) {
+      if (pathDiffersFromInitial && matchesChangedTarget) {
         if (deps.requestProperty) {
           try {
             const trackList = await deps.requestProperty('track-list');
