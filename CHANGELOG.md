@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.9.3 (2026-03-25)
+
+### Changed
+- Launcher: Moved YouTube primary subtitle language defaults to `youtube.primarySubLanguages`.
+- Launcher: Removed the placeholder YouTube subtitle retime step and now uses downloaded primary subtitle tracks directly, so there is no fake path rewrite before playback/sidebar loading.
+- YouTube: Removed the `src/core/services/youtube/retime` helper and its tests after retiring the internal retime strategy.
+- Docs: Clarified optional `alass` / `ffsubsync` subtitle-sync requirements and setup steps, including fallback behavior when sync tools are absent.
+- Launcher: Removed the old `youtubeSubgen.primarySubLanguages` config path from the generated config and docs.
+
 ## v0.9.2 (2026-03-25)
 
 ### Fixed

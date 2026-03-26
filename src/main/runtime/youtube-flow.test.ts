@@ -46,7 +46,6 @@ test('youtube flow can open a manual picker session and load the selected subtit
     acquireYoutubeSubtitleTrack: async ({ track }) => ({
       path: `/tmp/${track.id.replace(/[^a-z0-9_-]+/gi, '-')}.vtt`,
     }),
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => `${primaryPath}.retimed`,
     openPicker: async (payload) => {
       openedPayloads.push(payload);
       queueMicrotask(() => {
@@ -75,7 +74,7 @@ test('youtube flow can open a manual picker session and load the selected subtit
           lang: 'ja-orig',
           title: 'primary',
           external: true,
-          'external-filename': '/tmp/auto-ja-orig.vtt.retimed',
+          'external-filename': '/tmp/auto-ja-orig.vtt',
         },
         {
           type: 'sub',
@@ -135,7 +134,7 @@ test('youtube flow can open a manual picker session and load the selected subtit
     commands.some(
       (command) =>
         command[0] === 'sub-add' &&
-        command[1] === '/tmp/auto-ja-orig.vtt.retimed' &&
+        command[1] === '/tmp/auto-ja-orig.vtt' &&
         command[2] === 'select',
     ),
   );
@@ -157,7 +156,7 @@ test('youtube flow can open a manual picker session and load the selected subtit
         ),
     ),
   );
-  assert.deepEqual(refreshedSidebarSources, ['/tmp/auto-ja-orig.vtt.retimed']);
+  assert.deepEqual(refreshedSidebarSources, ['/tmp/auto-ja-orig.vtt']);
   assert.deepEqual(focusOverlayCalls, ['focus-overlay']);
 });
 
@@ -179,7 +178,6 @@ test('youtube flow retries secondary after partial batch subtitle failure', asyn
       acquireSingleCalls.push(track.id);
       return { path: `/tmp/${track.id}.vtt` };
     },
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     openPicker: async (payload) => {
       queueMicrotask(() => {
         void runtime.resolveActivePicker({
@@ -281,7 +279,6 @@ test('youtube flow reports probe failure through the configured reporter in manu
     },
     acquireYoutubeSubtitleTracks: async () => new Map(),
     acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/unused.vtt' }),
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     openPicker: async () => true,
     pauseMpv: () => {},
     resumeMpv: () => {},
@@ -322,7 +319,6 @@ test('youtube flow does not report failure when subtitle track binds before cue 
     }),
     acquireYoutubeSubtitleTracks: async () => new Map(),
     acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/auto-ja-orig.vtt' }),
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     openPicker: async (payload) => {
       queueMicrotask(() => {
         void runtime.resolveActivePicker({
@@ -389,7 +385,6 @@ test('youtube flow does not fail when mpv reports sub-text as unavailable after 
     }),
     acquireYoutubeSubtitleTracks: async () => new Map(),
     acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/auto-ja-orig.vtt' }),
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     openPicker: async (payload) => {
       queueMicrotask(() => {
         void runtime.resolveActivePicker({
@@ -464,7 +459,6 @@ test('youtube flow retries secondary subtitle selection until mpv reports the ex
     acquireYoutubeSubtitleTrack: async ({ track }) => ({
       path: `/tmp/${track.id.replace(/[^a-z0-9_-]+/gi, '-')}.vtt`,
     }),
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     openPicker: async (payload) => {
       queueMicrotask(() => {
         void runtime.resolveActivePicker({
@@ -568,7 +562,6 @@ test('youtube flow reuses the matching existing manual secondary track instead o
     acquireYoutubeSubtitleTrack: async ({ track }) => ({
       path: `/tmp/${track.id.replace(/[^a-z0-9_-]+/gi, '-')}.vtt`,
     }),
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     openPicker: async (payload) => {
       queueMicrotask(() => {
         void runtime.resolveActivePicker({
@@ -678,7 +671,6 @@ test('youtube flow leaves non-authoritative youtube subtitle tracks untouched af
     acquireYoutubeSubtitleTrack: async ({ track }) => ({
       path: `/tmp/${track.id.replace(/[^a-z0-9_-]+/gi, '-')}.vtt`,
     }),
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     openPicker: async (payload) => {
       queueMicrotask(() => {
         void runtime.resolveActivePicker({
@@ -772,7 +764,6 @@ test('youtube flow reuses existing manual youtube subtitle tracks when both requ
       }
       throw new Error('should not download secondary track when manual english already exists');
     },
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     openPicker: async (payload) => {
       queueMicrotask(() => {
         void runtime.resolveActivePicker({
@@ -871,7 +862,6 @@ test('youtube flow waits for manual youtube tracks to appear before falling back
       }
       throw new Error('should not download secondary track when manual english appears in mpv');
     },
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     openPicker: async (payload) => {
       queueMicrotask(() => {
         void runtime.resolveActivePicker({
@@ -982,7 +972,6 @@ test('youtube flow reuses manual youtube tracks even when mpv exposes external f
       }
       throw new Error('should not download secondary track when existing manual english track is reusable');
     },
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     openPicker: async () => false,
     pauseMpv: () => {},
     resumeMpv: () => {},
@@ -1102,7 +1091,6 @@ test('youtube flow falls back to existing auto secondary track when auto seconda
       }
       return { path: '/tmp/auto-ja-orig.ja-orig.vtt' };
     },
-    retimeYoutubePrimaryTrack: async ({ primaryPath }) => primaryPath,
     openPicker: async () => false,
     pauseMpv: () => {},
     resumeMpv: () => {},

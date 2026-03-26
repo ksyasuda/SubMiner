@@ -317,7 +317,6 @@ import {
   acquireYoutubeSubtitleTracks,
 } from './core/services/youtube/generate';
 import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
-import { retimeYoutubeSubtitle } from './core/services/youtube/retime';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import { startStatsServer } from './core/services/stats-server';
 import { registerStatsOverlayToggle, destroyStatsWindow } from './core/services/stats-window.js';
@@ -824,17 +823,6 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
   probeYoutubeTracks: (url: string) => probeYoutubeTracks(url),
   acquireYoutubeSubtitleTrack: (input) => acquireYoutubeSubtitleTrack(input),
   acquireYoutubeSubtitleTracks: (input) => acquireYoutubeSubtitleTracks(input),
-  retimeYoutubePrimaryTrack: async ({ primaryTrack, primaryPath, secondaryTrack, secondaryPath }) => {
-    if (primaryTrack.kind !== 'auto') {
-      return primaryPath;
-    }
-    const result = await retimeYoutubeSubtitle({
-      primaryPath,
-      secondaryPath: secondaryTrack ? secondaryPath : null,
-    });
-    logger.info(`Using YouTube subtitle path: ${result.path} (${result.strategy})`);
-    return result.path;
-  },
   openPicker: async (payload) => {
     return await openYoutubeTrackPicker(
       {

@@ -26,13 +26,6 @@ type YoutubeFlowDeps = {
   probeYoutubeTracks: (url: string) => Promise<YoutubeTrackProbeResult>;
   acquireYoutubeSubtitleTrack: typeof acquireYoutubeSubtitleTrack;
   acquireYoutubeSubtitleTracks: typeof acquireYoutubeSubtitleTracks;
-  retimeYoutubePrimaryTrack: (input: {
-    targetUrl: string;
-    primaryTrack: YoutubeTrackOption;
-    primaryPath: string;
-    secondaryTrack: YoutubeTrackOption | null;
-    secondaryPath: string | null;
-  }) => Promise<string>;
   openPicker: YoutubeFlowOpenPicker;
   pauseMpv: () => void;
   resumeMpv: () => void;
@@ -624,14 +617,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
             track: input.primaryTrack,
           })
         ).path;
-        primarySidebarPath = await deps.retimeYoutubePrimaryTrack({
-          targetUrl: input.url,
-          primaryTrack: input.primaryTrack,
-          primaryPath: primaryInjectedPath,
-          secondaryTrack: input.secondaryTrack,
-          secondaryPath: null,
-        });
-        primaryInjectedPath = primarySidebarPath;
+        primarySidebarPath = primaryInjectedPath;
       } else {
         const acquired = await acquireSelectedTracks({
           targetUrl: input.url,
@@ -640,13 +626,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
           secondaryTrack: existingSecondaryTrackId === null ? input.secondaryTrack : null,
           secondaryFailureLabel: input.secondaryFailureLabel,
         });
-        primarySidebarPath = await deps.retimeYoutubePrimaryTrack({
-          targetUrl: input.url,
-          primaryTrack: input.primaryTrack,
-          primaryPath: acquired.primaryPath,
-          secondaryTrack: input.secondaryTrack,
-          secondaryPath: acquired.secondaryPath,
-        });
+        primarySidebarPath = acquired.primaryPath;
         primaryInjectedPath = primarySidebarPath;
         secondaryInjectedPath = acquired.secondaryPath;
       }

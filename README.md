@@ -84,7 +84,7 @@ Local stats dashboard — watch time, anime library, vocabulary growth, mining t
   </tr>
   <tr>
     <td><b>alass / ffsubsync</b></td>
-    <td>Automatic subtitle retiming</td>
+    <td>Automatic subtitle retiming — requires <code>alass</code> or <code>ffsubsync</code> on your <code>PATH</code> (optional; subtitle syncing is disabled without them)</td>
   </tr>
   <tr>
     <td><b>WebSocket</b></td>
@@ -105,7 +105,7 @@ Local stats dashboard — watch time, anime library, vocabulary growth, mining t
 |                | Required                                | Optional                               |
 | -------------- | --------------------------------------- | -------------------------------------- |
 | **Player**     | [`mpv`](https://mpv.io) with IPC socket | —                                      |
-| **Processing** | `ffmpeg`, `mecab` + `mecab-ipadic`      | `guessit` (AniSkip)                    |
+| **Processing** | `ffmpeg`, `mecab` + `mecab-ipadic`      | `guessit` (AniSkip), `alass` / `ffsubsync` (subtitle sync) |
 | **Media**      | —                                       | `yt-dlp`, `chafa`, `ffmpegthumbnailer` |
 | **Selection**  | —                                       | `fzf` / `rofi`                         |
 
@@ -125,6 +125,8 @@ Local stats dashboard — watch time, anime library, vocabulary growth, mining t
 paru -S --needed mpv ffmpeg mecab-git mecab-ipadic
 # Optional
 paru -S --needed yt-dlp fzf rofi chafa ffmpegthumbnailer xdotool xorg-xwininfo
+# Optional: subtitle sync (install at least one for subtitle syncing to work)
+paru -S --needed alass python-ffsubsync
 # X11 / XWAYLAND
 paru -S --needed xdotool xorg-xwininfo
 ```
@@ -138,6 +140,9 @@ paru -S --needed xdotool xorg-xwininfo
 brew install mpv ffmpeg mecab mecab-ipadic
 # Optional
 brew install yt-dlp fzf rofi chafa ffmpegthumbnailer
+# Optional: subtitle sync (install at least one for subtitle syncing to work)
+brew install alass
+pip install ffsubsync
 ```
 
 Grant Accessibility permission to SubMiner in **System Settings > Privacy & Security > Accessibility**.
