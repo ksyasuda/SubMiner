@@ -3,7 +3,7 @@ import type { CliArgs } from '../../cli/args';
 export function createHandleTexthookerOnlyModeTransitionHandler(deps: {
   isTexthookerOnlyMode: () => boolean;
   setTexthookerOnlyMode: (enabled: boolean) => void;
-  commandNeedsOverlayRuntime: (args: CliArgs) => boolean;
+  commandNeedsOverlayStartupPrereqs: (args: CliArgs) => boolean;
   ensureOverlayStartupPrereqs: () => void;
   startBackgroundWarmups: () => void;
   logInfo: (message: string) => void;
@@ -12,7 +12,7 @@ export function createHandleTexthookerOnlyModeTransitionHandler(deps: {
     if (
       deps.isTexthookerOnlyMode() &&
       !args.texthooker &&
-      (args.start || deps.commandNeedsOverlayRuntime(args))
+      (args.start || deps.commandNeedsOverlayStartupPrereqs(args))
     ) {
       deps.ensureOverlayStartupPrereqs();
       deps.setTexthookerOnlyMode(false);

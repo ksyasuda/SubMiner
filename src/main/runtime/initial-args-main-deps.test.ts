@@ -15,6 +15,7 @@ test('initial args main deps builder maps runtime callbacks and state readers', 
     isTexthookerOnlyMode: () => false,
     hasImmersionTracker: () => true,
     getMpvClient: () => mpvClient,
+    commandNeedsOverlayStartupPrereqs: () => true,
     commandNeedsOverlayRuntime: () => true,
     ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
     isOverlayRuntimeInitialized: () => false,
@@ -30,6 +31,7 @@ test('initial args main deps builder maps runtime callbacks and state readers', 
   assert.equal(deps.isTexthookerOnlyMode(), false);
   assert.equal(deps.hasImmersionTracker(), true);
   assert.equal(deps.getMpvClient(), mpvClient);
+  assert.equal(deps.commandNeedsOverlayStartupPrereqs(args), true);
   assert.equal(deps.commandNeedsOverlayRuntime(args), true);
   assert.equal(deps.isOverlayRuntimeInitialized(), false);
 

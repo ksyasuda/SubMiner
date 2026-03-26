@@ -14,6 +14,7 @@ export function createHandleInitialArgsHandler(deps: {
   isTexthookerOnlyMode: () => boolean;
   hasImmersionTracker: () => boolean;
   getMpvClient: () => MpvClientLike | null;
+  commandNeedsOverlayStartupPrereqs: (args: CliArgs) => boolean;
   commandNeedsOverlayRuntime: (args: CliArgs) => boolean;
   ensureOverlayStartupPrereqs: () => void;
   isOverlayRuntimeInitialized: () => boolean;
@@ -43,8 +44,10 @@ export function createHandleInitialArgsHandler(deps: {
       mpvClient.connect();
     }
 
-    if (!runHeadless && deps.commandNeedsOverlayRuntime(initialArgs)) {
+    if (!runHeadless && deps.commandNeedsOverlayStartupPrereqs(initialArgs)) {
       deps.ensureOverlayStartupPrereqs();
+    }
+    if (!runHeadless && deps.commandNeedsOverlayRuntime(initialArgs)) {
       if (!deps.isOverlayRuntimeInitialized()) {
         deps.initializeOverlayRuntime();
       }

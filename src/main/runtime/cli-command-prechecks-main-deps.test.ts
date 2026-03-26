@@ -7,14 +7,14 @@ test('cli prechecks main deps builder maps transition handlers', () => {
   const deps = createBuildHandleTexthookerOnlyModeTransitionMainDepsHandler({
     isTexthookerOnlyMode: () => true,
     setTexthookerOnlyMode: (enabled) => calls.push(`set:${enabled}`),
-    commandNeedsOverlayRuntime: () => true,
+    commandNeedsOverlayStartupPrereqs: () => true,
     ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
     startBackgroundWarmups: () => calls.push('warmups'),
     logInfo: (message) => calls.push(`info:${message}`),
   })();
 
   assert.equal(deps.isTexthookerOnlyMode(), true);
-  assert.equal(deps.commandNeedsOverlayRuntime({} as never), true);
+  assert.equal(deps.commandNeedsOverlayStartupPrereqs({} as never), true);
   deps.setTexthookerOnlyMode(false);
   deps.ensureOverlayStartupPrereqs();
   deps.startBackgroundWarmups();

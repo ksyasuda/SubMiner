@@ -9,6 +9,7 @@ export function createBuildHandleInitialArgsMainDepsHandler(deps: {
   isTexthookerOnlyMode: () => boolean;
   hasImmersionTracker: () => boolean;
   getMpvClient: () => { connected: boolean; connect: () => void } | null;
+  commandNeedsOverlayStartupPrereqs: (args: CliArgs) => boolean;
   commandNeedsOverlayRuntime: (args: CliArgs) => boolean;
   ensureOverlayStartupPrereqs: () => void;
   isOverlayRuntimeInitialized: () => boolean;
@@ -25,6 +26,8 @@ export function createBuildHandleInitialArgsMainDepsHandler(deps: {
     isTexthookerOnlyMode: () => deps.isTexthookerOnlyMode(),
     hasImmersionTracker: () => deps.hasImmersionTracker(),
     getMpvClient: () => deps.getMpvClient(),
+    commandNeedsOverlayStartupPrereqs: (args: CliArgs) =>
+      deps.commandNeedsOverlayStartupPrereqs(args),
     commandNeedsOverlayRuntime: (args: CliArgs) => deps.commandNeedsOverlayRuntime(args),
     ensureOverlayStartupPrereqs: () => deps.ensureOverlayStartupPrereqs(),
     isOverlayRuntimeInitialized: () => deps.isOverlayRuntimeInitialized(),

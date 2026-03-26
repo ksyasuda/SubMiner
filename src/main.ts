@@ -105,6 +105,7 @@ import { createLogger, setLogLevel, type LogLevelSource } from './logger';
 import { resolveDefaultLogFilePath } from './logger';
 import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
 import {
+  commandNeedsOverlayStartupPrereqs,
   commandNeedsOverlayRuntime,
   isHeadlessInitialCommand,
   parseArgs,
@@ -990,6 +991,7 @@ async function runYoutubePlaybackFlowMain(request: {
   try {
     clearYoutubePlayQuitOnDisconnectArmTimer();
     youtubePlayQuitOnDisconnectArmed = false;
+    await ensureYoutubePlaybackRuntimeReady();
     let playbackUrl = request.url;
     let launchedWindowsMpv = false;
     if (process.platform === 'win32') {
@@ -3528,7 +3530,7 @@ const handleCliCommand = createCliCommandRuntimeHandler({
     setTexthookerOnlyMode: (enabled) => {
       appState.texthookerOnlyMode = enabled;
     },
-    commandNeedsOverlayRuntime: (inputArgs) => commandNeedsOverlayRuntime(inputArgs),
+    commandNeedsOverlayStartupPrereqs: (inputArgs) => commandNeedsOverlayStartupPrereqs(inputArgs),
     startBackgroundWarmups: () => startBackgroundWarmups(),
     logInfo: (message: string) => logger.info(message),
   },
@@ -3571,6 +3573,16 @@ function ensureOverlayStartupPrereqs(): void {
   }
 }
 
+async function ensureYoutubePlaybackRuntimeReady(): Promise<void> {
+  ensureOverlayStartupPrereqs();
+  await ensureYomitanExtensionLoaded();
+  if (!appState.overlayRuntimeInitialized) {
+    initializeOverlayRuntime();
+    return;
+  }
+  ensureOverlayWindowsReadyForVisibilityActions();
+}
+
 const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   getInitialArgs: () => appState.initialArgs,
   isBackgroundMode: () => appState.backgroundMode,
@@ -3581,6 +3593,7 @@ const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
   hasImmersionTracker: () => Boolean(appState.immersionTracker),
   getMpvClient: () => appState.mpvClient,
+  commandNeedsOverlayStartupPrereqs: (args) => commandNeedsOverlayStartupPrereqs(args),
   commandNeedsOverlayRuntime: (args) => commandNeedsOverlayRuntime(args),
   ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
   isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,

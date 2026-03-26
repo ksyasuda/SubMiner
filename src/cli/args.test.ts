@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  commandNeedsOverlayRuntime,
   hasExplicitCommand,
   isHeadlessInitialCommand,
   parseArgs,
@@ -68,6 +69,12 @@ test('parseArgs captures youtube startup forwarding flags', () => {
   assert.equal(args.youtubeMode, 'generate');
   assert.equal(hasExplicitCommand(args), true);
   assert.equal(shouldStartApp(args), true);
+});
+
+test('youtube playback does not use generic overlay-runtime bootstrap classification', () => {
+  const args = parseArgs(['--youtube-play', 'https://youtube.com/watch?v=abc']);
+
+  assert.equal(commandNeedsOverlayRuntime(args), false);
 });
 
 test('parseArgs handles jellyfin item listing controls', () => {

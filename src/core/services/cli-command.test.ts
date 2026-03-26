@@ -225,10 +225,7 @@ test('handleCliCommand starts youtube playback flow on initial launch', () => {
     deps,
   );
 
-  assert.deepEqual(calls, [
-    'initializeOverlayRuntime',
-    'youtube:https://youtube.com/watch?v=abc:generate',
-  ]);
+  assert.deepEqual(calls, ['youtube:https://youtube.com/watch?v=abc:generate']);
 });
 
 test('handleCliCommand defaults youtube mode to download when omitted', () => {
@@ -240,10 +237,7 @@ test('handleCliCommand defaults youtube mode to download when omitted', () => {
 
   handleCliCommand(makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc' }), 'initial', deps);
 
-  assert.deepEqual(calls, [
-    'initializeOverlayRuntime',
-    'youtube:https://youtube.com/watch?v=abc:download',
-  ]);
+  assert.deepEqual(calls, ['youtube:https://youtube.com/watch?v=abc:download']);
 });
 
 test('handleCliCommand reuses initialized overlay runtime for second-instance youtube playback', () => {

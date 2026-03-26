@@ -13,6 +13,7 @@ test('initial args handler no-ops without initial args', () => {
     isTexthookerOnlyMode: () => false,
     hasImmersionTracker: () => false,
     getMpvClient: () => null,
+    commandNeedsOverlayStartupPrereqs: () => false,
     commandNeedsOverlayRuntime: () => false,
     ensureOverlayStartupPrereqs: () => {},
     isOverlayRuntimeInitialized: () => false,
@@ -40,6 +41,7 @@ test('initial args handler ensures tray in background mode', () => {
     isTexthookerOnlyMode: () => true,
     hasImmersionTracker: () => false,
     getMpvClient: () => null,
+    commandNeedsOverlayStartupPrereqs: () => false,
     commandNeedsOverlayRuntime: () => false,
     ensureOverlayStartupPrereqs: () => {},
     isOverlayRuntimeInitialized: () => false,
@@ -69,6 +71,7 @@ test('initial args handler auto-connects mpv when needed', () => {
         connectCalls += 1;
       },
     }),
+    commandNeedsOverlayStartupPrereqs: () => false,
     commandNeedsOverlayRuntime: () => false,
     ensureOverlayStartupPrereqs: () => {},
     isOverlayRuntimeInitialized: () => false,
@@ -95,6 +98,7 @@ test('initial args handler forwards args to cli handler', () => {
     isTexthookerOnlyMode: () => false,
     hasImmersionTracker: () => false,
     getMpvClient: () => null,
+    commandNeedsOverlayStartupPrereqs: () => false,
     commandNeedsOverlayRuntime: () => false,
     ensureOverlayStartupPrereqs: () => {
       seenSources.push('prereqs');
@@ -125,6 +129,7 @@ test('initial args handler bootstraps overlay before initial overlay-runtime com
     isTexthookerOnlyMode: () => false,
     hasImmersionTracker: () => false,
     getMpvClient: () => null,
+    commandNeedsOverlayStartupPrereqs: (inputArgs) => inputArgs === args,
     commandNeedsOverlayRuntime: (inputArgs) => inputArgs === args,
     ensureOverlayStartupPrereqs: () => {
       calls.push('prereqs');
@@ -144,6 +149,38 @@ test('initial args handler bootstraps overlay before initial overlay-runtime com
   assert.deepEqual(calls, ['prereqs', 'init-overlay', 'cli:initial']);
 });
 
+test('initial args handler prepares prereqs but skips eager overlay bootstrap for youtube playback', () => {
+  const calls: string[] = [];
+  const args = { youtubePlay: 'https://youtube.com/watch?v=abc' } as never;
+  const handleInitialArgs = createHandleInitialArgsHandler({
+    getInitialArgs: () => args,
+    isBackgroundMode: () => false,
+    shouldEnsureTrayOnStartup: () => false,
+    shouldRunHeadlessInitialCommand: () => false,
+    ensureTray: () => {},
+    isTexthookerOnlyMode: () => false,
+    hasImmersionTracker: () => false,
+    getMpvClient: () => null,
+    commandNeedsOverlayStartupPrereqs: () => true,
+    commandNeedsOverlayRuntime: () => false,
+    ensureOverlayStartupPrereqs: () => {
+      calls.push('prereqs');
+    },
+    isOverlayRuntimeInitialized: () => false,
+    initializeOverlayRuntime: () => {
+      calls.push('init-overlay');
+    },
+    logInfo: () => {},
+    handleCliCommand: (_args, source) => {
+      calls.push(`cli:${source}`);
+    },
+  });
+
+  handleInitialArgs();
+
+  assert.deepEqual(calls, ['prereqs', 'cli:initial']);
+});
+
 test('initial args handler can ensure tray outside background mode when requested', () => {
   let ensuredTray = false;
   const handleInitialArgs = createHandleInitialArgsHandler({
@@ -157,6 +194,7 @@ test('initial args handler can ensure tray outside background mode when requeste
     isTexthookerOnlyMode: () => true,
     hasImmersionTracker: () => false,
     getMpvClient: () => null,
+    commandNeedsOverlayStartupPrereqs: () => false,
     commandNeedsOverlayRuntime: () => false,
     ensureOverlayStartupPrereqs: () => {},
     isOverlayRuntimeInitialized: () => false,
@@ -188,6 +226,7 @@ test('initial args handler skips tray and mpv auto-connect for headless refresh'
         connectCalls += 1;
       },
     }),
+    commandNeedsOverlayStartupPrereqs: () => true,
     commandNeedsOverlayRuntime: () => true,
     ensureOverlayStartupPrereqs: () => {},
     isOverlayRuntimeInitialized: () => false,

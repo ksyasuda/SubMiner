@@ -25,7 +25,7 @@ export function createCliCommandRuntimeHandler<TCliContext>(deps: {
     handleTexthookerOnlyModeTransitionHandler(args);
     if (
       !deps.handleTexthookerOnlyModeTransitionMainDeps.isTexthookerOnlyMode() &&
-      deps.handleTexthookerOnlyModeTransitionMainDeps.commandNeedsOverlayRuntime(args)
+      deps.handleTexthookerOnlyModeTransitionMainDeps.commandNeedsOverlayStartupPrereqs(args)
     ) {
       deps.handleTexthookerOnlyModeTransitionMainDeps.ensureOverlayStartupPrereqs();
     }

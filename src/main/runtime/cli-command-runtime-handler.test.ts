@@ -8,7 +8,7 @@ test('cli command runtime handler applies precheck and forwards command with con
     handleTexthookerOnlyModeTransitionMainDeps: {
       isTexthookerOnlyMode: () => true,
       setTexthookerOnlyMode: () => calls.push('set-mode'),
-      commandNeedsOverlayRuntime: () => true,
+      commandNeedsOverlayStartupPrereqs: () => true,
       ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
       startBackgroundWarmups: () => calls.push('warmups'),
       logInfo: (message) => calls.push(`log:${message}`),
@@ -40,7 +40,7 @@ test('cli command runtime handler prepares overlay prerequisites before overlay 
     handleTexthookerOnlyModeTransitionMainDeps: {
       isTexthookerOnlyMode: () => false,
       setTexthookerOnlyMode: () => calls.push('set-mode'),
-      commandNeedsOverlayRuntime: () => true,
+      commandNeedsOverlayStartupPrereqs: () => true,
       ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
       startBackgroundWarmups: () => calls.push('warmups'),
       logInfo: (message) => calls.push(`log:${message}`),
@@ -57,4 +57,29 @@ test('cli command runtime handler prepares overlay prerequisites before overlay 
   handler({ settings: true } as never);
 
   assert.deepEqual(calls, ['prereqs', 'context', 'cli:initial:ctx']);
+});
+
+test('cli command runtime handler skips generic overlay prerequisites for youtube playback', () => {
+  const calls: string[] = [];
+  const handler = createCliCommandRuntimeHandler({
+    handleTexthookerOnlyModeTransitionMainDeps: {
+      isTexthookerOnlyMode: () => false,
+      setTexthookerOnlyMode: () => calls.push('set-mode'),
+      commandNeedsOverlayStartupPrereqs: () => false,
+      ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
+      startBackgroundWarmups: () => calls.push('warmups'),
+      logInfo: (message) => calls.push(`log:${message}`),
+    },
+    createCliCommandContext: () => {
+      calls.push('context');
+      return { id: 'ctx' };
+    },
+    handleCliCommandRuntimeServiceWithContext: (_args, source, context) => {
+      calls.push(`cli:${source}:${context.id}`);
+    },
+  });
+
+  handler({ youtubePlay: 'https://youtube.com/watch?v=abc' } as never);
+
+  assert.deepEqual(calls, ['context', 'cli:initial:ctx']);
 });
