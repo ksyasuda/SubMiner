@@ -79,6 +79,13 @@ function hasPlayableMediaTracks(trackListRaw: unknown): boolean {
   });
 }
 
+function sendPlaybackPrepCommands(sendMpvCommand: (command: Array<string>) => void): void {
+  sendMpvCommand(['set_property', 'pause', 'yes']);
+  sendMpvCommand(['set_property', 'sub-auto', 'no']);
+  sendMpvCommand(['set_property', 'sid', 'no']);
+  sendMpvCommand(['set_property', 'secondary-sid', 'no']);
+}
+
 export function createPrepareYoutubePlaybackInMpvHandler(deps: YoutubePlaybackLaunchDeps) {
   const now = deps.now ?? (() => Date.now());
   return async (input: YoutubePlaybackLaunchInput): Promise<boolean> => {
@@ -95,6 +102,8 @@ export function createPrepareYoutubePlaybackInMpvHandler(deps: YoutubePlaybackLa
       // Ignore transient path request failures and continue with bootstrap commands.
     }
 
+    sendPlaybackPrepCommands(deps.sendMpvCommand);
+
     const alreadyTarget = pathMatchesYoutubeTarget(previousPath, targetUrl);
     if (alreadyTarget) {
       if (!deps.requestProperty) {
@@ -109,10 +118,6 @@ export function createPrepareYoutubePlaybackInMpvHandler(deps: YoutubePlaybackLa
         // Keep polling; mpv can report the target path before tracks are ready.
       }
     } else {
-      deps.sendMpvCommand(['set_property', 'pause', 'yes']);
-      deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
-      deps.sendMpvCommand(['set_property', 'sid', 'no']);
-      deps.sendMpvCommand(['set_property', 'secondary-sid', 'no']);
       deps.sendMpvCommand(['loadfile', targetUrl, 'replace']);
     }
 
@@ -139,12 +144,13 @@ export function createPrepareYoutubePlaybackInMpvHandler(deps: YoutubePlaybackLa
           // Continue polling until media tracks are actually available.
         }
       }
-      if (previousPath && currentPath !== previousPath) {
-        if (isYoutubeMediaPath(currentPath) && isYoutubeMediaPath(targetUrl)) {
-          if (!pathMatchesYoutubeTarget(currentPath, targetUrl)) {
-            continue;
-          }
-        }
+      const pathChanged = currentPath !== previousPath;
+      const matchesChangedTarget =
+        currentPath === targetUrl ||
+        (isYoutubeMediaPath(currentPath) &&
+          isYoutubeMediaPath(targetUrl) &&
+          pathMatchesYoutubeTarget(currentPath, targetUrl));
+      if (pathChanged && matchesChangedTarget) {
         if (deps.requestProperty) {
           try {
             const trackList = await deps.requestProperty('track-list');

@@ -18,7 +18,12 @@ test('prepare youtube playback skips load when current path already matches exac
   const ok = await prepare({ url: 'https://www.youtube.com/watch?v=abc123' });
 
   assert.equal(ok, true);
-  assert.deepEqual(commands, []);
+  assert.deepEqual(commands, [
+    ['set_property', 'pause', 'yes'],
+    ['set_property', 'sub-auto', 'no'],
+    ['set_property', 'sid', 'no'],
+    ['set_property', 'secondary-sid', 'no'],
+  ]);
 });
 
 test('prepare youtube playback treats matching video IDs as already loaded', async () => {
@@ -33,7 +38,12 @@ test('prepare youtube playback treats matching video IDs as already loaded', asy
   const ok = await prepare({ url: 'https://www.youtube.com/watch?v=abc123' });
 
   assert.equal(ok, true);
-  assert.deepEqual(commands, []);
+  assert.deepEqual(commands, [
+    ['set_property', 'pause', 'yes'],
+    ['set_property', 'sub-auto', 'no'],
+    ['set_property', 'sid', 'no'],
+    ['set_property', 'secondary-sid', 'no'],
+  ]);
 });
 
 test('prepare youtube playback does not mark matching target ready until tracks exist', async () => {
@@ -59,7 +69,12 @@ test('prepare youtube playback does not mark matching target ready until tracks 
   });
 
   assert.equal(ok, true);
-  assert.deepEqual(commands, []);
+  assert.deepEqual(commands, [
+    ['set_property', 'pause', 'yes'],
+    ['set_property', 'sub-auto', 'no'],
+    ['set_property', 'sid', 'no'],
+    ['set_property', 'secondary-sid', 'no'],
+  ]);
 });
 
 test('prepare youtube playback replaces media and waits for path switch', async () => {
@@ -185,13 +200,17 @@ test('prepare youtube playback accepts a non-youtube resolved path once playable
   });
 
   const ok = await prepare({
-    url: 'https://www.youtube.com/watch?v=newvid',
+    url: 'https://rr16---sn.example.googlevideo.com/videoplayback?id=abc',
     timeoutMs: 1500,
     pollIntervalMs: 1,
   });
 
   assert.equal(ok, true);
-  assert.deepEqual(commands[4], ['loadfile', 'https://www.youtube.com/watch?v=newvid', 'replace']);
+  assert.deepEqual(commands[4], [
+    'loadfile',
+    'https://rr16---sn.example.googlevideo.com/videoplayback?id=abc',
+    'replace',
+  ]);
 });
 
 test('prepare youtube playback does not accept a different youtube video after path change', async () => {
@@ -231,6 +250,42 @@ test('prepare youtube playback does not accept a different youtube video after p
   assert.deepEqual(commands[4], [
     'loadfile',
     'https://www.youtube.com/watch?v=targetvid',
+    'replace',
+  ]);
+});
+
+test('prepare youtube playback accepts a fresh-start path change when the direct target matches exactly', async () => {
+  const commands: Array<Array<string>> = [];
+  const observedPaths = [
+    '',
+    'https://rr16---sn.example.googlevideo.com/videoplayback?id=abc',
+  ];
+  const observedTrackLists = [[], [{ type: 'video', id: 1 }, { type: 'audio', id: 2 }]];
+  let requestCount = 0;
+  const prepare = createPrepareYoutubePlaybackInMpvHandler({
+    requestPath: async () => {
+      const value = observedPaths[Math.min(requestCount, observedPaths.length - 1)] ?? null;
+      requestCount += 1;
+      return value;
+    },
+    requestProperty: async (name) => {
+      if (name !== 'track-list') return null;
+      return observedTrackLists[Math.min(requestCount - 1, observedTrackLists.length - 1)] ?? [];
+    },
+    sendMpvCommand: (command) => commands.push(command),
+    wait: createWaitStub(),
+  });
+
+  const ok = await prepare({
+    url: 'https://rr16---sn.example.googlevideo.com/videoplayback?id=abc',
+    timeoutMs: 1500,
+    pollIntervalMs: 1,
+  });
+
+  assert.equal(ok, true);
+  assert.deepEqual(commands[4], [
+    'loadfile',
+    'https://rr16---sn.example.googlevideo.com/videoplayback?id=abc',
     'replace',
   ]);
 });
