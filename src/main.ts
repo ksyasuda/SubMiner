@@ -982,12 +982,18 @@ function clearYoutubePlayQuitOnDisconnectArmTimer(): void {
   }
 }
 
+function invalidatePendingAutoplayReadyFallbacks(): void {
+  autoPlayReadySignalMediaPath = null;
+  autoPlayReadySignalGeneration += 1;
+}
+
 async function runYoutubePlaybackFlowMain(request: {
   url: string;
   mode: NonNullable<CliArgs['youtubeMode']>;
   source: CliCommandSource;
 }): Promise<void> {
   const flowGeneration = ++youtubePlaybackFlowGeneration;
+  invalidatePendingAutoplayReadyFallbacks();
   youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(true);
   let flowCompleted = false;
   try {
