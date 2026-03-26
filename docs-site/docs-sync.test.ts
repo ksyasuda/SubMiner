@@ -40,6 +40,8 @@ test('docs reflect current launcher and release surfaces', () => {
   expect(ankiIntegrationContents).not.toContain('alwaysUseAiTranslation');
   expect(ankiIntegrationContents).not.toContain('targetLanguage');
   expect(configurationContents).not.toContain('youtubeSubgen": {\n    "mode"');
+  expect(configurationContents).not.toContain('youtubeSubgen.primarySubLanguages');
+  expect(configurationContents).toContain('youtube.primarySubLanguages');
   expect(configurationContents).toContain('### Shared AI Provider');
 
   expect(changelogContents).toContain('## v0.5.1 (2026-03-09)');

@@ -231,13 +231,6 @@ Run `make help` for a full list of targets. Key ones:
 | `SUBMINER_ROFI_THEME`              | Override rofi theme path for launcher picker                                   |
 | `SUBMINER_LOG_LEVEL`               | Override app logger level (`debug`, `info`, `warn`, `error`)                   |
 | `SUBMINER_MPV_LOG`                 | Override mpv/app shared log file path                                          |
-| `SUBMINER_WHISPER_BIN`             | Override legacy `youtubeSubgen.whisperBin` fallback compatibility path          |
-| `SUBMINER_WHISPER_MODEL`           | Override legacy `youtubeSubgen.whisperModel` fallback compatibility path        |
-| `SUBMINER_WHISPER_VAD_MODEL`       | Override legacy `youtubeSubgen.whisperVadModel` fallback compatibility path      |
-| `SUBMINER_WHISPER_THREADS`         | Override legacy `youtubeSubgen.whisperThreads` fallback compatibility value      |
-| `SUBMINER_YT_SUBGEN_OUT_DIR`       | Override legacy fallback subtitle output directory                               |
-| `SUBMINER_YT_SUBGEN_AUDIO_FORMAT`  | Override extraction format used by legacy fallback subtitle path                  |
-| `SUBMINER_YT_SUBGEN_KEEP_TEMP`     | Set to `1` to keep legacy fallback subtitle workspace                          |
 | `SUBMINER_JIMAKU_API_KEY`          | Override Jimaku API key for launcher subtitle downloads                        |
 | `SUBMINER_JIMAKU_API_KEY_COMMAND`  | Command used to resolve Jimaku API key at runtime                              |
 | `SUBMINER_JIMAKU_API_BASE_URL`     | Override Jimaku API base URL                                                   |

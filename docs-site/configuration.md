@@ -768,7 +768,6 @@ Anki reads this provider directly. Legacy subtitle fallback keeps the same provi
 SubMiner uses the shared provider for:
 
 - Anki translation/enrichment when `ankiConnect.ai.enabled` is `true`
-- Legacy subtitle fallback compatibility when `youtubeSubgen.fixWithAi` is `true`
 
 ### AnkiConnect
 
@@ -999,7 +998,10 @@ Set `openBrowser` to `false` to only print the URL without opening a browser.
 
 ### Auto Subtitle Sync
 
-Sync the active subtitle track using `alass` (preferred) or `ffsubsync`:
+Sync the active subtitle track using `alass` (preferred) or `ffsubsync`. Both are **optional external tools** that must be installed separately and available on your `PATH` (or configured via the path options below). Subtitle syncing is silently skipped if neither is found.
+
+- [`alass`](https://github.com/kaegi/alass) — fast, audio-independent sync using a secondary subtitle as reference
+- [`ffsubsync`](https://github.com/smacke/ffsubsync) — audio-based sync using the video file as reference (fallback)
 
 ```json
 {
@@ -1016,8 +1018,8 @@ Sync the active subtitle track using `alass` (preferred) or `ffsubsync`:
 | Option           | Values               | Description                                                                                                               |
 | ---------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `defaultMode`    | `"auto"`, `"manual"` | `auto`: try `alass` against secondary subtitle, then fallback to `ffsubsync`; `manual`: open overlay picker               |
-| `alass_path`     | string path          | Path to `alass` executable. Empty or `null` falls back to `/usr/bin/alass`.                                               |
-| `ffsubsync_path` | string path          | Path to `ffsubsync` executable. Empty or `null` falls back to `/usr/bin/ffsubsync`.                                       |
+| `alass_path`     | string path          | Path to `alass` executable. Empty or `null` resolves from `PATH`. `alass` must be installed separately.                  |
+| `ffsubsync_path` | string path          | Path to `ffsubsync` executable. Empty or `null` resolves from `PATH`. `ffsubsync` must be installed separately.          |
 | `ffmpeg_path`    | string path          | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.                |
 | `replace`        | `true`, `false`      | When `true` (default), overwrite the active subtitle file on successful sync. When `false`, write `<name>_retimed.<ext>`. |
 
@@ -1332,7 +1334,7 @@ Set defaults used by the `subminer` launcher for YouTube subtitle loading:
 
 ```json
 {
-  "youtubeSubgen": {
+  "youtube": {
     "primarySubLanguages": ["ja", "jpn"]
   }
 }
@@ -1354,7 +1356,7 @@ Current launcher behavior:
 
 Language targets are derived from subtitle config:
 
-- primary track: `youtubeSubgen.primarySubLanguages` (falls back to `["ja","jpn"]`)
+- primary track: `youtube.primarySubLanguages` (falls back to `["ja","jpn"]`)
 - secondary track: `secondarySub.secondarySubLanguages` (falls back to English when empty)
 - Tracks are resolved and loaded before mpv starts; the older launcher mode switch has been removed.
 

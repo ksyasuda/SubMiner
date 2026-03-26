@@ -1,6 +1,14 @@
 .mermaid-interactive {
   cursor: zoom-in;
   transition: outline-color 180ms ease;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+}
+
+.mermaid-interactive svg {
+  display: inline-block;
+  min-width: 0;
 }
 
 .mermaid-interactive:focus-visible {

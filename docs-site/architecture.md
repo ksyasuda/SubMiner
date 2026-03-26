@@ -32,6 +32,7 @@ plugin/
                           #   state · messages · hover · ui · options · environment · log
                           #   binary · aniskip · aniskip_match)
 src/
+  ai/                      # AI translation provider utilities (client, config)
   main-entry.ts           # Background-mode bootstrap wrapper before loading main.js
   main.ts                  # Entry point — delegates to runtime composers/domain modules
   preload.ts               # Electron preload bridge
@@ -134,7 +135,7 @@ src/renderer/
 The main process orchestrates a single primary overlay window plus modal surfaces: `main.ts` delegates to composition modules that wire together domain services. Subtitle layers (primary + secondary bar) are rendered in the same overlay renderer process, connected through `preload.ts`. External runtimes (launcher CLI and mpv plugin) operate independently and communicate via IPC socket or CLI passthrough.
 
 ```mermaid
-flowchart LR
+flowchart TB
   classDef entry fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:2px,font-weight:bold
   classDef comp fill:#b7bdf8,stroke:#494d64,color:#24273a,stroke-width:1.5px
   classDef svc fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
@@ -144,29 +145,22 @@ flowchart LR
   classDef extrt fill:#eed49f,stroke:#494d64,color:#24273a,stroke-width:1.5px
 
   subgraph ExtRt["External Runtimes"]
+    direction LR
     Launcher["Launcher CLI"]:::extrt
     Plugin["mpv Plugin"]:::extrt
-  end
-
-  subgraph Ext["External Systems"]
-    mpvExt["mpv"]:::ext
-    AnkiExt["AnkiConnect"]:::ext
-    JimakuExt["Jimaku"]:::ext
-    TrackerExt["Window Tracker"]:::ext
-    AnilistExt["AniList"]:::ext
-    JellyfinExt["Jellyfin"]:::ext
-    DiscordExt["Discord"]:::ext
   end
 
   Main["main.ts"]:::entry
 
   subgraph Comp["Composition"]
+    direction LR
     Startup["Startup & Lifecycle"]:::comp
     Wiring["Runtime Wiring"]:::comp
     Composers["Domain Composers"]:::comp
   end
 
   subgraph Svc["Services"]
+    direction LR
     Mpv["MPV Stack"]:::svc
     OverlaySvc["Overlay Manager"]:::svc
     Mining["Mining & Subtitles"]:::svc
@@ -179,8 +173,20 @@ flowchart LR
   Bridge(["preload.ts"]):::bridge
 
   subgraph Rend["Renderer"]
+    direction LR
     OverlayWin["Overlay Window"]:::rend
     UI["Subtitles & Modals"]:::rend
+  end
+
+  subgraph Ext["External Systems"]
+    direction LR
+    mpvExt["mpv"]:::ext
+    AnkiExt["AnkiConnect"]:::ext
+    JimakuExt["Jimaku"]:::ext
+    TrackerExt["Window Tracker"]:::ext
+    AnilistExt["AniList"]:::ext
+    JellyfinExt["Jellyfin"]:::ext
+    DiscordExt["Discord"]:::ext
   end
 
   Launcher -->|"CLI"| Main
@@ -189,6 +195,9 @@ flowchart LR
   Main --> Comp
   Comp --> Svc
 
+  Svc --> Bridge
+  Bridge --> Rend
+
   mpvExt <-->|"socket"| Mpv
   AnkiExt <-->|"HTTP"| AnkiProxy
   JimakuExt <-->|"HTTP"| Integrations
@@ -196,10 +205,6 @@ flowchart LR
   AnilistExt <-->|"HTTP"| Tracking
   JellyfinExt <-->|"HTTP"| Tracking
   DiscordExt <-->|"RPC"| Integrations
-
-  OverlaySvc & Mining --> Bridge
-  Bridge --> OverlayWin
-  OverlayWin --> UI
 
   style Comp fill:#363a4f,stroke:#494d64,color:#cad3f5
   style Svc fill:#363a4f,stroke:#494d64,color:#cad3f5
@@ -273,7 +278,7 @@ For domains migrated to reducer-style transitions (for example AniList token/que
 - **Shutdown:** `onWillQuitCleanup` destroys tray + config watcher, unregisters shortcuts, stops WebSocket + texthooker servers, closes the mpv socket + flushes OSD log, stops the window tracker, closes the Yomitan parser window, flushes the immersion tracker (SQLite), stops Jellyfin/Discord services, stops the AnkiConnect proxy server, and cleans Anki/AniList state.
 
 ```mermaid
-flowchart LR
+flowchart TB
   classDef start fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:2px,font-weight:bold
   classDef phase fill:#b7bdf8,stroke:#494d64,color:#24273a,stroke-width:1.5px
   classDef decision fill:#f5a97f,stroke:#494d64,color:#24273a,stroke-width:1.5px
@@ -285,7 +290,7 @@ flowchart LR
   CLI["CLI + Environment"]:::start
   CLI --> Init["Module Init"]:::phase
   Init --> Parse["Parse argv"]:::phase
-  Parse --> GenCheck{"--generate\nconfig?"}:::decision
+  Parse --> GenCheck{"--generate-config?"}:::decision
   GenCheck -->|"yes"| GenExit["Write & exit"]:::phase
   GenCheck -->|"no"| Lock["Acquire lock"]:::phase
 
@@ -300,21 +305,14 @@ flowchart LR
   OverlayInit --> MainWin["Create window"]:::init
   OverlayInit --> Shortcuts["Register shortcuts"]:::init
 
-  MainWin & Shortcuts --> Warmups["Background Warmups"]:::phase
+  MainWin & Shortcuts --> Warmups
 
-  subgraph WarmupGroup[" "]
-    direction TB
-    W1["MeCab"]:::warmup
-    W2["Yomitan"]:::warmup
-    W3["Dictionaries"]:::warmup
-    W4["Jellyfin"]:::warmup
-    W5["Discord"]:::warmup
-    W6["AniList"]:::warmup
-    W7["Anki Proxy"]:::warmup
-    W1 ~~~ W2 ~~~ W3 ~~~ W4 ~~~ W5 ~~~ W6 ~~~ W7
+  subgraph Warmups["Background Warmups (parallel)"]
+    direction LR
+    W1["MeCab"]:::warmup ~~~ W2["Yomitan"]:::warmup ~~~ W3["Dictionaries"]:::warmup ~~~ W4["Jellyfin"]:::warmup ~~~ W5["Discord"]:::warmup ~~~ W6["AniList"]:::warmup ~~~ W7["Anki Proxy"]:::warmup
   end
 
-  Warmups --> WarmupGroup
+  Warmups --> Loop
 
   subgraph Loop["Event Loop"]
     direction TB
@@ -324,17 +322,51 @@ flowchart LR
     Pipeline --> Broadcast["State + Renderer"]:::runtime
   end
 
-  WarmupGroup --> Loop
-
-  style WarmupGroup fill:transparent,stroke:none
+  style Warmups fill:#363a4f,stroke:#494d64,color:#cad3f5
 
   Loop -->|"quit"| Quit["Shutdown"]:::shutdown
 
-  Quit --> T1["UI cleanup"]:::shutdown
-  Quit --> T2["Socket + server teardown"]:::shutdown
-  Quit --> T3["Flush tracking + state"]:::shutdown
+  subgraph Cleanup[" "]
+    direction LR
+    T1["UI cleanup"]:::shutdown
+    T2["Socket + server teardown"]:::shutdown
+    T3["Flush tracking + state"]:::shutdown
+  end
 
+  Quit --> Cleanup
+
+  style Cleanup fill:transparent,stroke:none
   style Loop fill:#363a4f,stroke:#494d64,color:#cad3f5
+```
+
+## Subtitle Prefetch Pipeline
+
+SubMiner can pre-tokenize upcoming subtitle lines before they appear on screen. When an external subtitle file (SRT, VTT, or ASS) is detected on the active track, the `SubtitlePrefetchService` parses all cues via the `SubtitleCueParser`, identifies a priority window of upcoming lines based on the current playback position, and tokenizes them in the background through the same pipeline used for live subtitles. Results are stored directly into the `SubtitleProcessingController` cache, so when a subtitle actually appears during playback, it hits a warm cache and renders in ~30-50ms instead of ~200-320ms.
+
+The prefetcher yields to live subtitle processing (which always takes priority over background work) and re-computes its priority window on seek. Cache invalidation events (e.g. marking a word as known) trigger re-prefetching of the current window to keep results fresh.
+
+```mermaid
+flowchart TB
+  classDef phase fill:#b7bdf8,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef init fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef runtime fill:#8bd5ca,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef warmup fill:#eed49f,stroke:#494d64,color:#24273a,stroke-width:1.5px
+
+  SubFile["External Sub File"]:::init
+  Parse["Cue Parser"]:::phase
+  Window["Upcoming Lines"]:::phase
+  Tokenize["Pre-tokenize"]:::warmup
+  Cache["Token Cache"]:::runtime
+  Appear["Subtitle Appears"]:::init
+  Hit["Cache Hit"]:::runtime
+  Render["Fast Render"]:::runtime
+
+  SubFile --> Parse --> Window --> Tokenize --> Cache
+  Appear --> Hit --> Render
+  Cache -.->|"warm"| Hit
+
+  style SubFile stroke-width:2px
+  style Render stroke-width:2px
 ```
 
 ## Why This Design

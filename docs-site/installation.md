@@ -34,8 +34,8 @@
 | chafa             | Thumbnail previews in fzf                                     |
 | ffmpegthumbnailer | Generate video thumbnails for picker                          |
 | guessit           | Better AniSkip title/season/episode parsing for file playback |
-| alass             | Subtitle sync engine (preferred)                              |
-| ffsubsync         | Subtitle sync engine (fallback)                               |
+| alass             | Subtitle sync engine (preferred) — must be on `PATH` or set `subsync.alass_path` in config; subtitle syncing is disabled without it or ffsubsync |
+| ffsubsync         | Subtitle sync engine (fallback) — must be on `PATH` or set `subsync.ffsubsync_path` in config; subtitle syncing is disabled without it or alass  |
 
 ## Linux
 

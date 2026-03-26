@@ -2,21 +2,48 @@
 @import '@fontsource/jetbrains-mono/500.css';
 @import '@fontsource/jetbrains-mono/600.css';
 @import '@fontsource/jetbrains-mono/700.css';
-@import '@fontsource/manrope/400.css';
-@import '@fontsource/manrope/500.css';
-@import '@fontsource/manrope/600.css';
-@import '@fontsource/manrope/700.css';
-@import '@fontsource/manrope/800.css';
+
+@font-face {
+  font-family: 'M PLUS 1';
+  src: url('/assets/fonts/Mplus1-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Manrope Default';
+  src: url('/assets/fonts/manrope-latin-600-normal.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   --tui-font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
-  --tui-font-body: 'Manrope', system-ui, sans-serif;
+  --tui-font-body:
+    'Manrope Default',
+    'M PLUS 1',
+    'Manrope',
+    'Noto Sans CJK JP',
+    'Noto Sans JP',
+    'Hiragino Kaku Gothic ProN',
+    'Meiryo',
+    'Yu Gothic',
+    'Hiragino Sans',
+    system-ui,
+    sans-serif;
   --tui-transition: 180ms ease;
 }
 
 :root {
   --vp-font-family-base: var(--tui-font-body);
+  --vp-font-family-heading: var(--tui-font-body);
   --vp-font-family-mono: var(--tui-font-mono);
+}
+
+.vp-doc {
+  font-family: var(--vp-font-family-base);
 }
 
 /* === Selection === */
@@ -132,7 +159,7 @@ button,
 .vp-doc h2,
 .vp-doc h3,
 .vp-doc h4 {
-  font-family: var(--tui-font-mono);
+  font-family: var(--vp-font-family-heading);
 }
 
 .vp-doc h1 {
@@ -172,6 +199,8 @@ button,
   background: var(--vp-c-bg-soft);
   border: 1px solid var(--vp-c-divider);
   color: var(--vp-c-brand-1);
+  font-family: var(--tui-font-mono), 'M PLUS 1', 'Noto Sans CJK JP', 'Noto Sans JP',
+    monospace;
 }
 
 /* === Code blocks === */
@@ -179,6 +208,8 @@ button,
   border-radius: 0;
   border: 1px solid var(--vp-c-divider);
   background: var(--vp-c-bg-alt) !important;
+  font-family: var(--tui-font-mono), 'M PLUS 1', 'Noto Sans CJK JP', 'Noto Sans JP',
+    monospace;
 }
 
 .vp-doc div[class*='language-']::before {

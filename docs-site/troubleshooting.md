@@ -252,12 +252,23 @@ Resume playback and wait for the next subtitle to appear, then try mining again.
 
 ## Subtitle Sync (Subsync)
 
+Both **alass** and **ffsubsync** are optional external dependencies. Subtitle syncing requires at least one of them to be installed.
+
 **"Configured alass executable not found"**
 
 Install alass or configure the path:
 
-- **Arch Linux (AUR)**: `yay -S alass-git`
+- **Arch Linux (AUR)**: `paru -S alass`
+- **Cargo**: `cargo install alass-cli`
 - Set the path: `subsync.alass_path` in your config.
+
+**"Configured ffsubsync executable not found"**
+
+Install ffsubsync or configure the path:
+
+- **Arch Linux (AUR)**: `paru -S python-ffsubsync`
+- **pip**: `pip install ffsubsync`
+- Must be on `PATH` or configured via `subsync.ffsubsync_path` in your config.
 
 **"Subtitle synchronization failed"**
 
@@ -266,6 +277,7 @@ SubMiner tries alass first, then falls back to ffsubsync. If both fail:
 - Ensure the reference subtitle track exists in the video (alass requires a source track).
 - Check that `ffmpeg` is available (used to extract the internal subtitle track).
 - Try running the sync tool manually to see detailed error output.
+- ffsubsync requires local files and cannot handle remote media streams (e.g., streaming URLs).
 
 ## Jimaku
 

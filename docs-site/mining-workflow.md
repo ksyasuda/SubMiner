@@ -7,7 +7,7 @@ This guide walks through the sentence mining loop — from watching a video to c
 SubMiner runs as a transparent overlay on top of mpv. As subtitles play, the overlay displays them as interactive text. You hover a word, trigger Yomitan lookup with your configured lookup key/modifier, then create an Anki card with a single action. SubMiner automatically attaches the sentence, audio clip, and screenshot.
 
 ```mermaid
-flowchart LR
+flowchart TB
   classDef step fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:1.5px
   classDef action fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
   classDef result fill:#a6da95,stroke:#494d64,color:#24273a,stroke-width:1.5px

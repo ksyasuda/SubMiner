@@ -234,9 +234,9 @@ Notes:
 - Press `Ctrl+Alt+C` during active YouTube playback to open the manual YouTube subtitle picker and retry track selection.
 - For YouTube URLs, `subminer` probes available YouTube subtitle tracks, reuses existing authoritative tracks when available, and downloads only missing sides.
 - Native mpv secondary subtitle rendering stays hidden so the overlay remains the visible secondary subtitle surface.
-- Primary subtitle target languages come from `youtubeSubgen.primarySubLanguages` (defaults to `["ja","jpn"]`).
+- Primary subtitle target languages come from `youtube.primarySubLanguages` (defaults to `["ja","jpn"]`).
 - Secondary target languages come from `secondarySub.secondarySubLanguages` (defaults to English if unset).
-- Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtubeSubgen` and `secondarySub`.
+- Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtube` and `secondarySub`.
 
 ## Controller Support
 

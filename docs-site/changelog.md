@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.2 (2026-03-25)
+- Fixed overlay pointer tracking so Windows click-through toggles immediately when the cursor enters or leaves subtitle regions.
+- Fixed Windows overlay window tracking on scaled displays by converting native tracked window bounds to Electron DIP coordinates.
+- Fixed Windows direct `--youtube-play` startup so MPV boots reliably, stays paused until the app-owned subtitle flow is ready, and reuses an already-running SubMiner instance.
+- Fixed standalone Windows `--youtube-play` sessions so closing MPV fully exits SubMiner instead of leaving hidden overlay windows behind.
+- Fixed `subminer <youtube-url>` on Linux so the YouTube playback flow waits for Yomitan to load before creating the overlay window.
+
 ## v0.9.1 (2026-03-24)
 - Reduced packaged release size by excluding duplicate `extraResources` payload and pruning docs, tests, sourcemaps, and other source-only files from Electron bundles.
 - Restored controller navigation and lookup/mining controls while the subtitle sidebar is open, while keeping true modal dialogs blocking controller actions.

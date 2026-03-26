@@ -9,7 +9,7 @@ The contract system enforces this by making channel names, payload shapes, and v
 Renderer-initiated calls (`invoke`) pass through four boundaries before reaching a service. Fire-and-forget messages (`send`) follow the same path but skip the response leg. Malformed payloads are caught at the validator and never reach domain code.
 
 ```mermaid
-flowchart LR
+flowchart TB
   classDef rend fill:#8bd5ca,stroke:#494d64,color:#24273a,stroke-width:1.5px
   classDef bridge fill:#f5a97f,stroke:#494d64,color:#24273a,stroke-width:1.5px
   classDef valid fill:#eed49f,stroke:#494d64,color:#24273a,stroke-width:1.5px

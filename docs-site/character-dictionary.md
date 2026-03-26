@@ -32,7 +32,7 @@ The feature has three stages: **snapshot**, **merge**, and **match**.
 3. **Match** — During subtitle rendering, Yomitan scans subtitle text against all loaded dictionaries including the character dictionary. Tokens that match a character entry are flagged with `isNameMatch` and highlighted in the overlay with a distinct color.
 
 ```mermaid
-flowchart LR
+flowchart TB
   classDef api fill:#a6da95,stroke:#494d64,color:#24273a,stroke-width:1.5px
   classDef store fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
   classDef build fill:#b7bdf8,stroke:#494d64,color:#24273a,stroke-width:1.5px
@@ -59,7 +59,7 @@ flowchart LR
 
 Character dictionary sync is disabled by default. To turn it on:
 
-1. Authenticate with AniList (see [AniList configuration](/configuration#anilist)).
+1. Authenticate with AniList (see [AniList Integration](/anilist-integration#setup)).
 2. Set `anilist.characterDictionary.enabled` to `true` in your config.
 3. Start watching — SubMiner will generate a snapshot for the current media and import the merged dictionary into Yomitan automatically.
 
@@ -274,5 +274,5 @@ If you work with visual novels or want a standalone dictionary generator indepen
 ## Related
 
 - [Subtitle Annotations](/subtitle-annotations) — how name matches interact with N+1, frequency, and JLPT layers
-- [AniList Configuration](/configuration#anilist) — authentication and AniList settings
+- [AniList Integration](/anilist-integration) — authentication, episode tracking, and AniList settings
 - [Configuration Reference](/configuration) — full config options
