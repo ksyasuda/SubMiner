@@ -135,16 +135,12 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       warn('youtubeSubgen.ai', src.youtubeSubgen.ai, resolved.youtubeSubgen.ai, 'Expected object.');
     }
 
-    if (Array.isArray(src.youtubeSubgen.primarySubLanguages)) {
-      resolved.youtubeSubgen.primarySubLanguages = src.youtubeSubgen.primarySubLanguages.filter(
-        (item): item is string => typeof item === 'string',
-      );
-    } else if (src.youtubeSubgen.primarySubLanguages !== undefined) {
+    if (src.youtubeSubgen.primarySubLanguages !== undefined) {
       warn(
         'youtubeSubgen.primarySubLanguages',
         src.youtubeSubgen.primarySubLanguages,
-        resolved.youtubeSubgen.primarySubLanguages,
-        'Expected string array.',
+        undefined,
+        'Removed. Use youtube.primarySubLanguages instead.',
       );
     }
   }

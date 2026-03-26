@@ -29,6 +29,8 @@ test('parseLauncherYoutubeSubgenConfig keeps only valid typed values', () => {
         model: 'openrouter/subgen-model',
         systemPrompt: 'Fix subtitles only.',
       },
+    },
+    youtube: {
       primarySubLanguages: ['ja', 42, 'en'],
     },
     secondarySub: {

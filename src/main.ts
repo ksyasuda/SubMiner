@@ -1337,7 +1337,7 @@ const startupOsdSequencer = createStartupOsdSequencer({
   showOsd: (message) => showMpvOsd(message),
 });
 const youtubePrimarySubtitleNotificationRuntime = createYoutubePrimarySubtitleNotificationRuntime({
-  getPrimarySubtitleLanguages: () => getResolvedConfig().youtubeSubgen.primarySubLanguages,
+  getPrimarySubtitleLanguages: () => getResolvedConfig().youtube.primarySubLanguages,
   notifyFailure: (message) => reportYoutubeSubtitleFailure(message),
   schedule: (fn, delayMs) => setTimeout(fn, delayMs),
   clearSchedule: clearYoutubePrimarySubtitleNotificationTimer,

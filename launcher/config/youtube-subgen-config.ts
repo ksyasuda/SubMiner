@@ -14,6 +14,9 @@ export function parseLauncherYoutubeSubgenConfig(
     youtubeSubgenRaw && typeof youtubeSubgenRaw === 'object'
       ? (youtubeSubgenRaw as Record<string, unknown>)
       : null;
+  const youtubeRaw = root.youtube;
+  const youtube =
+    youtubeRaw && typeof youtubeRaw === 'object' ? (youtubeRaw as Record<string, unknown>) : null;
   const secondarySubRaw = root.secondarySub;
   const secondarySub =
     secondarySubRaw && typeof secondarySubRaw === 'object'
@@ -74,7 +77,7 @@ export function parseLauncherYoutubeSubgenConfig(
           }
         : undefined,
     ),
-    primarySubLanguages: asStringArray(youtubeSubgen?.primarySubLanguages),
+    primarySubLanguages: asStringArray(youtube?.primarySubLanguages),
     secondarySubLanguages: asStringArray(secondarySub?.secondarySubLanguages),
     jimakuApiKey: typeof jimaku?.apiKey === 'string' ? jimaku.apiKey : undefined,
     jimakuApiKeyCommand:

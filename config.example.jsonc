@@ -417,20 +417,11 @@
   // YouTube Playback Settings
   // Defaults for SubMiner YouTube subtitle loading and languages.
   // ==========================================
-  "youtubeSubgen": {
-    "whisperBin": "", // Legacy compatibility path kept for external subtitle fallback tools; not used by default.
-    "whisperModel": "", // Legacy compatibility model path kept for external subtitle fallback tooling; not used by default.
-    "whisperVadModel": "", // Legacy compatibility VAD path kept for external subtitle fallback tooling; not used by default.
-    "whisperThreads": 4, // Legacy thread tuning for subtitle fallback tooling; not used by default.
-    "fixWithAi": false, // Legacy subtitle fallback post-processing switch kept for compatibility; use is currently disabled by default. Values: true | false
-    "ai": {
-      "model": "", // Optional model override for legacy subtitle fallback post-processing; not used by default.
-      "systemPrompt": "" // Optional system prompt override for legacy subtitle fallback post-processing; not used by default.
-    }, // Ai setting.
+  "youtube": {
     "primarySubLanguages": [
       "ja",
       "jpn"
-    ] // Comma-separated primary subtitle language priority used by the launcher.
+    ] // Comma-separated primary subtitle language priority for YouTube auto-loading.
   }, // Defaults for SubMiner YouTube subtitle loading and languages.
 
   // ==========================================

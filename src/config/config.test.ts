@@ -919,7 +919,7 @@ test('accepts trailing commas in jsonc', () => {
         "enabled": "auto",
         "port": 7788,
       },
-      "youtubeSubgen": {
+      "youtube": {
         "primarySubLanguages": ["ja", "en",],
       },
     }`,
@@ -929,7 +929,7 @@ test('accepts trailing commas in jsonc', () => {
   const service = new ConfigService(dir);
   const config = service.getConfig();
   assert.equal(config.websocket.port, 7788);
-  assert.deepEqual(config.youtubeSubgen.primarySubLanguages, ['ja', 'en']);
+  assert.deepEqual(config.youtube.primarySubLanguages, ['ja', 'en']);
 });
 
 test('reloadConfigStrict rejects invalid jsonc and preserves previous config', () => {
@@ -1149,8 +1149,10 @@ test('parses global shortcuts and startup settings', () => {
         "toggleVisibleOverlayGlobal": "Alt+Shift+U",
         "openJimaku": "Ctrl+Alt+J"
       },
+      "youtube": {
+        "primarySubLanguages": ["ja", "jpn", "jp"]
+      },
       "youtubeSubgen": {
-        "primarySubLanguages": ["ja", "jpn", "jp"],
         "whisperVadModel": "/models/vad.bin",
         "whisperThreads": 12,
         "fixWithAi": true
@@ -1165,7 +1167,7 @@ test('parses global shortcuts and startup settings', () => {
   assert.equal(config.ai.apiKeyCommand, 'pass show subminer/ai');
   assert.equal(config.shortcuts.toggleVisibleOverlayGlobal, 'Alt+Shift+U');
   assert.equal(config.shortcuts.openJimaku, 'Ctrl+Alt+J');
-  assert.deepEqual(config.youtubeSubgen.primarySubLanguages, ['ja', 'jpn', 'jp']);
+  assert.deepEqual(config.youtube.primarySubLanguages, ['ja', 'jpn', 'jp']);
   assert.equal(config.youtubeSubgen.whisperVadModel, '/models/vad.bin');
   assert.equal(config.youtubeSubgen.whisperThreads, 12);
   assert.equal(config.youtubeSubgen.fixWithAi, true);
@@ -2008,7 +2010,8 @@ test('template generator includes known keys', () => {
   assert.match(output, /"websocket":/);
   assert.match(output, /"discordPresence":/);
   assert.match(output, /"startupWarmups":/);
-  assert.match(output, /"youtubeSubgen":/);
+  assert.match(output, /"youtube":/);
+  assert.doesNotMatch(output, /"youtubeSubgen":/);
   assert.match(output, /"characterDictionary":\s*\{/);
   assert.match(output, /"preserveLineBreaks": false/);
   assert.match(output, /"knownWords"\s*:\s*\{/);
@@ -2074,17 +2077,11 @@ test('template generator includes known keys', () => {
   );
   assert.match(
     output,
-    /"fixWithAi": false,? \/\/ Legacy subtitle fallback post-processing switch kept for compatibility; use is currently disabled by default\. Values: true \| false/,
-  );
-  assert.match(
-    output,
-    /"systemPrompt": "",? \/\/ Optional system prompt override for legacy subtitle fallback post-processing; not used by default\./,
+    /"primarySubLanguages": \[\s*"ja",\s*"jpn"\s*\],? \/\/ Comma-separated primary subtitle language priority for YouTube auto-loading\./,
   );
   assert.doesNotMatch(output, /"mode": "automatic"/);
-  assert.match(
-    output,
-    /"whisperThreads": 4,? \/\/ Legacy thread tuning for subtitle fallback tooling; not used by default\./,
-  );
+  assert.doesNotMatch(output, /"fixWithAi": false/);
+  assert.doesNotMatch(output, /"whisperThreads": 4/);
   assert.match(
     output,
     /"launchAtStartup": true,? \/\/ Launch texthooker server automatically when SubMiner starts\. Values: true \| false/,

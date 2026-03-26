@@ -411,11 +411,5 @@ export function buildIntegrationConfigOptionRegistry(
       description:
         'Optional system prompt override for legacy subtitle fallback post-processing; not used by default.',
     },
-    {
-      path: 'youtubeSubgen.primarySubLanguages',
-      kind: 'string',
-      defaultValue: defaultConfig.youtubeSubgen.primarySubLanguages.join(','),
-      description: 'Comma-separated primary subtitle language priority used by the launcher.',
-    },
   ];
 }

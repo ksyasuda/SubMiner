@@ -152,6 +152,5 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       model: '',
       systemPrompt: '',
     },
-    primarySubLanguages: ['ja', 'jpn'],
   },
 };

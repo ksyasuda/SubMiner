@@ -84,6 +84,12 @@ export function buildCoreConfigOptionRegistry(
       description: 'Minimum log level for runtime logging.',
     },
     {
+      path: 'youtube.primarySubLanguages',
+      kind: 'string',
+      defaultValue: defaultConfig.youtube.primarySubLanguages.join(','),
+      description: 'Comma-separated primary subtitle language priority for YouTube auto-loading.',
+    },
+    {
       path: 'controller.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.controller.enabled,

@@ -683,6 +683,10 @@ export interface AiConfig {
   requestTimeoutMs?: number;
 }
 
+export interface YoutubeConfig {
+  primarySubLanguages?: string[];
+}
+
 export interface YoutubeSubgenConfig {
   whisperBin?: string;
   whisperModel?: string;
@@ -690,7 +694,6 @@ export interface YoutubeSubgenConfig {
   whisperThreads?: number;
   fixWithAi?: boolean;
   ai?: AiFeatureConfig;
-  primarySubLanguages?: string[];
 }
 
 export interface StatsConfig {
@@ -750,6 +753,7 @@ export interface Config {
   jellyfin?: JellyfinConfig;
   discordPresence?: DiscordPresenceConfig;
   ai?: AiConfig;
+  youtube?: YoutubeConfig;
   youtubeSubgen?: YoutubeSubgenConfig;
   immersionTracking?: ImmersionTrackingConfig;
   stats?: StatsConfig;
@@ -929,6 +933,9 @@ export interface ResolvedConfig {
     systemPrompt: string;
     requestTimeoutMs: number;
   };
+  youtube: YoutubeConfig & {
+    primarySubLanguages: string[];
+  };
   youtubeSubgen: YoutubeSubgenConfig & {
     whisperBin: string;
     whisperModel: string;
@@ -936,7 +943,6 @@ export interface ResolvedConfig {
     whisperThreads: number;
     fixWithAi: boolean;
     ai: AiFeatureConfig;
-    primarySubLanguages: string[];
   };
   immersionTracking: {
     enabled: boolean;

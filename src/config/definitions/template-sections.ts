@@ -132,7 +132,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'YouTube Playback Settings',
     description: ['Defaults for SubMiner YouTube subtitle loading and languages.'],
-    key: 'youtubeSubgen',
+    key: 'youtube',
   },
   {
     title: 'Anilist',

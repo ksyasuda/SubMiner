@@ -11,6 +11,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'controller'
   | 'shortcuts'
   | 'secondarySub'
+  | 'youtube'
   | 'subsync'
   | 'startupWarmups'
   | 'auto_start_overlay'
@@ -92,6 +93,9 @@ export const CORE_DEFAULT_CONFIG: Pick<
     secondarySubLanguages: [],
     autoLoadSecondarySub: false,
     defaultMode: 'hover',
+  },
+  youtube: {
+    primarySubLanguages: ['ja', 'jpn'],
   },
   subsync: {
     defaultMode: 'auto',

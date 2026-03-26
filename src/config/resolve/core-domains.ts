@@ -524,6 +524,21 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
     }
   }
 
+  if (isObject(src.youtube)) {
+    if (Array.isArray(src.youtube.primarySubLanguages)) {
+      resolved.youtube.primarySubLanguages = src.youtube.primarySubLanguages.filter(
+        (item): item is string => typeof item === 'string',
+      );
+    } else if (src.youtube.primarySubLanguages !== undefined) {
+      warn(
+        'youtube.primarySubLanguages',
+        src.youtube.primarySubLanguages,
+        resolved.youtube.primarySubLanguages,
+        'Expected string array.',
+      );
+    }
+  }
+
   if (isObject(src.subsync)) {
     const mode = src.subsync.defaultMode;
     if (mode === 'auto' || mode === 'manual') {
