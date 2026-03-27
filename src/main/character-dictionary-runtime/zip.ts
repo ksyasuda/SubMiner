@@ -5,8 +5,8 @@ import type { CharacterDictionarySnapshotImage, CharacterDictionaryTermEntry } f
 
 type ZipEntry = {
   name: string;
-  data: Buffer;
   crc32: number;
+  size: number;
   localHeaderOffset: number;
 };
 
@@ -67,97 +67,78 @@ function crc32(data: Buffer): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function createStoredZip(files: Array<{ name: string; data: Buffer }>): Buffer {
-  const chunks: Buffer[] = [];
-  const entries: ZipEntry[] = [];
-  let offset = 0;
+function createLocalFileHeader(fileName: Buffer, fileCrc32: number, fileSize: number): Buffer {
+  const local = Buffer.alloc(30 + fileName.length);
+  let cursor = 0;
+  writeUint32LE(local, 0x04034b50, cursor);
+  cursor += 4;
+  local.writeUInt16LE(20, cursor);
+  cursor += 2;
+  local.writeUInt16LE(0, cursor);
+  cursor += 2;
+  local.writeUInt16LE(0, cursor);
+  cursor += 2;
+  local.writeUInt16LE(0, cursor);
+  cursor += 2;
+  local.writeUInt16LE(0, cursor);
+  cursor += 2;
+  writeUint32LE(local, fileCrc32, cursor);
+  cursor += 4;
+  writeUint32LE(local, fileSize, cursor);
+  cursor += 4;
+  writeUint32LE(local, fileSize, cursor);
+  cursor += 4;
+  local.writeUInt16LE(fileName.length, cursor);
+  cursor += 2;
+  local.writeUInt16LE(0, cursor);
+  cursor += 2;
+  fileName.copy(local, cursor);
+  return local;
+}
 
-  for (const file of files) {
-    const fileName = Buffer.from(file.name, 'utf8');
-    const fileData = file.data;
-    const fileCrc32 = crc32(fileData);
-    const local = Buffer.alloc(30 + fileName.length);
-    let cursor = 0;
-    writeUint32LE(local, 0x04034b50, cursor);
-    cursor += 4;
-    local.writeUInt16LE(20, cursor);
-    cursor += 2;
-    local.writeUInt16LE(0, cursor);
-    cursor += 2;
-    local.writeUInt16LE(0, cursor);
-    cursor += 2;
-    local.writeUInt16LE(0, cursor);
-    cursor += 2;
-    local.writeUInt16LE(0, cursor);
-    cursor += 2;
-    writeUint32LE(local, fileCrc32, cursor);
-    cursor += 4;
-    writeUint32LE(local, fileData.length, cursor);
-    cursor += 4;
-    writeUint32LE(local, fileData.length, cursor);
-    cursor += 4;
-    local.writeUInt16LE(fileName.length, cursor);
-    cursor += 2;
-    local.writeUInt16LE(0, cursor);
-    cursor += 2;
-    fileName.copy(local, cursor);
+function createCentralDirectoryHeader(entry: ZipEntry): Buffer {
+  const fileName = Buffer.from(entry.name, 'utf8');
+  const central = Buffer.alloc(46 + fileName.length);
+  let cursor = 0;
+  writeUint32LE(central, 0x02014b50, cursor);
+  cursor += 4;
+  central.writeUInt16LE(20, cursor);
+  cursor += 2;
+  central.writeUInt16LE(20, cursor);
+  cursor += 2;
+  central.writeUInt16LE(0, cursor);
+  cursor += 2;
+  central.writeUInt16LE(0, cursor);
+  cursor += 2;
+  central.writeUInt16LE(0, cursor);
+  cursor += 2;
+  central.writeUInt16LE(0, cursor);
+  cursor += 2;
+  writeUint32LE(central, entry.crc32, cursor);
+  cursor += 4;
+  writeUint32LE(central, entry.size, cursor);
+  cursor += 4;
+  writeUint32LE(central, entry.size, cursor);
+  cursor += 4;
+  central.writeUInt16LE(fileName.length, cursor);
+  cursor += 2;
+  central.writeUInt16LE(0, cursor);
+  cursor += 2;
+  central.writeUInt16LE(0, cursor);
+  cursor += 2;
+  central.writeUInt16LE(0, cursor);
+  cursor += 2;
+  central.writeUInt16LE(0, cursor);
+  cursor += 2;
+  writeUint32LE(central, 0, cursor);
+  cursor += 4;
+  writeUint32LE(central, entry.localHeaderOffset, cursor);
+  cursor += 4;
+  fileName.copy(central, cursor);
+  return central;
+}
 
-    chunks.push(local, fileData);
-    entries.push({
-      name: file.name,
-      data: fileData,
-      crc32: fileCrc32,
-      localHeaderOffset: offset,
-    });
-    offset += local.length + fileData.length;
-  }
-
-  const centralStart = offset;
-  const centralChunks: Buffer[] = [];
-  for (const entry of entries) {
-    const fileName = Buffer.from(entry.name, 'utf8');
-    const central = Buffer.alloc(46 + fileName.length);
-    let cursor = 0;
-    writeUint32LE(central, 0x02014b50, cursor);
-    cursor += 4;
-    central.writeUInt16LE(20, cursor);
-    cursor += 2;
-    central.writeUInt16LE(20, cursor);
-    cursor += 2;
-    central.writeUInt16LE(0, cursor);
-    cursor += 2;
-    central.writeUInt16LE(0, cursor);
-    cursor += 2;
-    central.writeUInt16LE(0, cursor);
-    cursor += 2;
-    central.writeUInt16LE(0, cursor);
-    cursor += 2;
-    writeUint32LE(central, entry.crc32, cursor);
-    cursor += 4;
-    writeUint32LE(central, entry.data.length, cursor);
-    cursor += 4;
-    writeUint32LE(central, entry.data.length, cursor);
-    cursor += 4;
-    central.writeUInt16LE(fileName.length, cursor);
-    cursor += 2;
-    central.writeUInt16LE(0, cursor);
-    cursor += 2;
-    central.writeUInt16LE(0, cursor);
-    cursor += 2;
-    central.writeUInt16LE(0, cursor);
-    cursor += 2;
-    central.writeUInt16LE(0, cursor);
-    cursor += 2;
-    writeUint32LE(central, 0, cursor);
-    cursor += 4;
-    writeUint32LE(central, entry.localHeaderOffset, cursor);
-    cursor += 4;
-    fileName.copy(central, cursor);
-    centralChunks.push(central);
-    offset += central.length;
-  }
-
-  const centralSize = offset - centralStart;
+function createEndOfCentralDirectory(entriesLength: number, centralSize: number, centralStart: number): Buffer {
   const end = Buffer.alloc(22);
   let cursor = 0;
   writeUint32LE(end, 0x06054b50, cursor);
@@ -166,17 +147,63 @@ function createStoredZip(files: Array<{ name: string; data: Buffer }>): Buffer {
   cursor += 2;
   end.writeUInt16LE(0, cursor);
   cursor += 2;
-  end.writeUInt16LE(entries.length, cursor);
+  end.writeUInt16LE(entriesLength, cursor);
   cursor += 2;
-  end.writeUInt16LE(entries.length, cursor);
+  end.writeUInt16LE(entriesLength, cursor);
   cursor += 2;
   writeUint32LE(end, centralSize, cursor);
   cursor += 4;
   writeUint32LE(end, centralStart, cursor);
   cursor += 4;
   end.writeUInt16LE(0, cursor);
+  return end;
+}
 
-  return Buffer.concat([...chunks, ...centralChunks, end]);
+function writeBuffer(fd: number, buffer: Buffer): void {
+  let written = 0;
+  while (written < buffer.length) {
+    written += fs.writeSync(fd, buffer, written, buffer.length - written);
+  }
+}
+
+function writeStoredZip(outputPath: string, files: Iterable<{ name: string; data: Buffer }>): void {
+  const entries: ZipEntry[] = [];
+  let offset = 0;
+  const fd = fs.openSync(outputPath, 'w');
+
+  try {
+    for (const file of files) {
+      const fileName = Buffer.from(file.name, 'utf8');
+      const fileSize = file.data.length;
+      const fileCrc32 = crc32(file.data);
+      const localHeader = createLocalFileHeader(fileName, fileCrc32, fileSize);
+      writeBuffer(fd, localHeader);
+      writeBuffer(fd, file.data);
+      entries.push({
+        name: file.name,
+        crc32: fileCrc32,
+        size: fileSize,
+        localHeaderOffset: offset,
+      });
+      offset += localHeader.length + fileSize;
+    }
+
+    const centralStart = offset;
+    for (const entry of entries) {
+      const centralHeader = createCentralDirectoryHeader(entry);
+      writeBuffer(fd, centralHeader);
+      offset += centralHeader.length;
+    }
+
+    const centralSize = offset - centralStart;
+    writeBuffer(fd, createEndOfCentralDirectory(entries.length, centralSize, centralStart));
+  } catch (error) {
+    fs.closeSync(fd);
+    fs.rmSync(outputPath, { force: true });
+    throw error;
+  }
+
+  fs.closeSync(fd);
 }
 
 export function buildDictionaryZip(
@@ -187,36 +214,37 @@ export function buildDictionaryZip(
   termEntries: CharacterDictionaryTermEntry[],
   images: CharacterDictionarySnapshotImage[],
 ): { zipPath: string; entryCount: number } {
-  const zipFiles: Array<{ name: string; data: Buffer }> = [
-    {
+  ensureDir(path.dirname(outputPath));
+
+  function* zipFiles(): Iterable<{ name: string; data: Buffer }> {
+    yield {
       name: 'index.json',
       data: Buffer.from(
         JSON.stringify(createIndex(dictionaryTitle, description, revision), null, 2),
         'utf8',
       ),
-    },
-    {
+    };
+    yield {
       name: 'tag_bank_1.json',
       data: Buffer.from(JSON.stringify(createTagBank()), 'utf8'),
-    },
-  ];
+    };
 
-  for (const image of images) {
-    zipFiles.push({
-      name: image.path,
-      data: Buffer.from(image.dataBase64, 'base64'),
-    });
+    for (const image of images) {
+      yield {
+        name: image.path,
+        data: Buffer.from(image.dataBase64, 'base64'),
+      };
+    }
+
+    const entriesPerBank = 10_000;
+    for (let i = 0; i < termEntries.length; i += entriesPerBank) {
+      yield {
+        name: `term_bank_${Math.floor(i / entriesPerBank) + 1}.json`,
+        data: Buffer.from(JSON.stringify(termEntries.slice(i, i + entriesPerBank)), 'utf8'),
+      };
+    }
   }
 
-  const entriesPerBank = 10_000;
-  for (let i = 0; i < termEntries.length; i += entriesPerBank) {
-    zipFiles.push({
-      name: `term_bank_${Math.floor(i / entriesPerBank) + 1}.json`,
-      data: Buffer.from(JSON.stringify(termEntries.slice(i, i + entriesPerBank)), 'utf8'),
-    });
-  }
-
-  ensureDir(path.dirname(outputPath));
-  fs.writeFileSync(outputPath, createStoredZip(zipFiles));
+  writeStoredZip(outputPath, zipFiles());
   return { zipPath: outputPath, entryCount: termEntries.length };
 }

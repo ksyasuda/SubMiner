@@ -1078,6 +1078,56 @@ test('executeQueuedWrite inserts event and telemetry rows', () => {
   }
 });
 
+test('executeQueuedWrite rejects partial telemetry writes instead of zero-filling', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/partial-telemetry.mkv', {
+      canonicalTitle: 'Partial Telemetry',
+      sourcePath: '/tmp/partial-telemetry.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const { sessionId } = startSessionRecord(db, videoId, 5_000);
+
+    assert.throws(
+      () =>
+        executeQueuedWrite(
+          {
+            kind: 'telemetry',
+            sessionId,
+            sampleMs: 6_000,
+            totalWatchedMs: 1_000,
+            activeWatchedMs: 900,
+            linesSeen: 3,
+            cardsMined: 1,
+            lookupCount: 2,
+            lookupHits: 1,
+            yomitanLookupCount: 0,
+            pauseCount: 1,
+            pauseMs: 50,
+            seekForwardCount: 0,
+            seekBackwardCount: 0,
+            mediaBufferEvents: 0,
+          },
+          stmts,
+        ),
+      /Incomplete telemetry write/,
+    );
+
+    const telemetryCount = db
+      .prepare('SELECT COUNT(*) AS total FROM imm_session_telemetry WHERE session_id = ?')
+      .get(sessionId) as { total: number };
+    assert.equal(telemetryCount.total, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('executeQueuedWrite inserts and upserts word and kanji rows', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

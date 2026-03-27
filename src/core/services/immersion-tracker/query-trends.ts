@@ -112,6 +112,16 @@ function makeTrendLabel(value: number): string {
   });
 }
 
+function getLocalEpochDay(timestampMs: number): number {
+  const date = new Date(timestampMs);
+  return Math.floor((timestampMs - date.getTimezoneOffset() * 60_000) / 86_400_000);
+}
+
+function getLocalDateForEpochDay(epochDay: number): Date {
+  const utcDate = new Date(epochDay * 86_400_000);
+  return new Date(utcDate.getTime() + utcDate.getTimezoneOffset() * 60_000);
+}
+
 function getTrendSessionWordCount(session: Pick<TrendSessionMetricRow, 'tokensSeen'>): number {
   return session.tokensSeen;
 }
@@ -188,7 +198,7 @@ function buildWatchTimeByHour(sessions: TrendSessionMetricRow[]): TrendChartPoin
 }
 
 function dayLabel(epochDay: number): string {
-  return new Date(epochDay * 86_400_000).toLocaleDateString(undefined, {
+  return getLocalDateForEpochDay(epochDay).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
   });
@@ -200,7 +210,7 @@ function buildSessionSeriesByDay(
 ): TrendChartPoint[] {
   const byDay = new Map<number, number>();
   for (const session of sessions) {
-    const epochDay = Math.floor(session.startedAtMs / 86_400_000);
+    const epochDay = getLocalEpochDay(session.startedAtMs);
     byDay.set(epochDay, (byDay.get(epochDay) ?? 0) + getValue(session));
   }
   return Array.from(byDay.entries())
@@ -213,7 +223,7 @@ function buildLookupsPerHundredWords(sessions: TrendSessionMetricRow[]): TrendCh
   const wordsByDay = new Map<number, number>();
 
   for (const session of sessions) {
-    const epochDay = Math.floor(session.startedAtMs / 86_400_000);
+    const epochDay = getLocalEpochDay(session.startedAtMs);
     lookupsByDay.set(epochDay, (lookupsByDay.get(epochDay) ?? 0) + session.yomitanLookupCount);
     wordsByDay.set(epochDay, (wordsByDay.get(epochDay) ?? 0) + getTrendSessionWordCount(session));
   }
@@ -237,7 +247,7 @@ function buildPerAnimeFromSessions(
 
   for (const session of sessions) {
     const animeTitle = resolveTrendAnimeTitle(session);
-    const epochDay = Math.floor(session.startedAtMs / 86_400_000);
+    const epochDay = getLocalEpochDay(session.startedAtMs);
     const dayMap = byAnime.get(animeTitle) ?? new Map();
     dayMap.set(epochDay, (dayMap.get(epochDay) ?? 0) + getValue(session));
     byAnime.set(animeTitle, dayMap);
@@ -258,7 +268,7 @@ function buildLookupsPerHundredPerAnime(sessions: TrendSessionMetricRow[]): Tren
 
   for (const session of sessions) {
     const animeTitle = resolveTrendAnimeTitle(session);
-    const epochDay = Math.floor(session.startedAtMs / 86_400_000);
+    const epochDay = getLocalEpochDay(session.startedAtMs);
 
     const lookupMap = lookups.get(animeTitle) ?? new Map();
     lookupMap.set(epochDay, (lookupMap.get(epochDay) ?? 0) + session.yomitanLookupCount);
@@ -462,7 +472,7 @@ function buildNewWordsPerDay(db: DatabaseSync, cutoffMs: number | null): TrendCh
   const whereClause = cutoffMs === null ? '' : 'AND first_seen >= ?';
   const prepared = db.prepare(`
     SELECT
-      CAST(first_seen / 86400 AS INTEGER) AS epochDay,
+      CAST(julianday(first_seen, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS epochDay,
       COUNT(*) AS wordCount
     FROM imm_words
     WHERE first_seen IS NOT NULL

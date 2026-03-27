@@ -72,6 +72,14 @@ add_blocker() {
   BLOCKED=1
 }
 
+validate_artifact_dir() {
+  local candidate=$1
+  if [[ ! "$candidate" =~ ^[A-Za-z0-9._/@:+-]+$ ]]; then
+    echo "Invalid characters in --artifact-dir path" >&2
+    exit 2
+  fi
+}
+
 append_step_record() {
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" >>"$STEPS_TSV"
@@ -411,6 +419,7 @@ if [[ -z "${ARTIFACT_DIR:-}" ]]; then
   SESSION_ID=$(generate_session_id)
   ARTIFACT_DIR="$REPO_ROOT/.tmp/skill-verification/$SESSION_ID"
 else
+  validate_artifact_dir "$ARTIFACT_DIR"
   SESSION_ID=$(basename "$ARTIFACT_DIR")
 fi
 

@@ -208,6 +208,104 @@ test('getAnimeEpisodes prefers the latest session media position when the latest
   }
 });
 
+test('getAnimeEpisodes includes unwatched episodes for the anime', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const watchedVideoId = getOrCreateVideoRecord(db, 'local:/tmp/watched-episode.mkv', {
+      canonicalTitle: 'Watched Episode',
+      sourcePath: '/tmp/watched-episode.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const unwatchedVideoId = getOrCreateVideoRecord(db, 'local:/tmp/unwatched-episode.mkv', {
+      canonicalTitle: 'Unwatched Episode',
+      sourcePath: '/tmp/unwatched-episode.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Episode Coverage Anime',
+      canonicalTitle: 'Episode Coverage Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, watchedVideoId, {
+      animeId,
+      parsedBasename: 'watched-episode.mkv',
+      parsedTitle: 'Episode Coverage Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":1}',
+    });
+    linkVideoToAnimeRecord(db, unwatchedVideoId, {
+      animeId,
+      parsedBasename: 'unwatched-episode.mkv',
+      parsedTitle: 'Episode Coverage Anime',
+      parsedSeason: 1,
+      parsedEpisode: 2,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":2}',
+    });
+
+    const watchedSessionId = startSessionRecord(db, watchedVideoId, 1_000_000).sessionId;
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET
+        ended_at_ms = ?,
+        status = 2,
+        ended_media_ms = ?,
+        active_watched_ms = ?,
+        cards_mined = ?,
+        tokens_seen = ?,
+        yomitan_lookup_count = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE session_id = ?
+      `,
+    ).run(1_005_000, 7_000, 3_000, 2, 20, 4, 1_005_000, watchedSessionId);
+
+    const episodes = getAnimeEpisodes(db, animeId);
+    assert.equal(episodes.length, 2);
+    assert.deepEqual(
+      episodes.map((episode) => ({
+        videoId: episode.videoId,
+        totalSessions: episode.totalSessions,
+        totalActiveMs: episode.totalActiveMs,
+        totalCards: episode.totalCards,
+        totalTokensSeen: episode.totalTokensSeen,
+      })),
+      [
+        {
+          videoId: watchedVideoId,
+          totalSessions: 1,
+          totalActiveMs: 3_000,
+          totalCards: 2,
+          totalTokensSeen: 20,
+        },
+        {
+          videoId: unwatchedVideoId,
+          totalSessions: 0,
+          totalActiveMs: 0,
+          totalCards: 0,
+          totalTokensSeen: 0,
+        },
+      ],
+    );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getAnimeEpisodes falls back to the latest subtitle segment end when session progress checkpoints are missing', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
@@ -580,6 +678,109 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
       dashboard.patterns.watchTimeByDayOfWeek.reduce((sum, point) => sum + point.value, 0),
       75,
     );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/local-midnight-trends.mkv', {
+      canonicalTitle: 'Local Midnight Trends',
+      sourcePath: '/tmp/local-midnight-trends.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Local Midnight Trends',
+      canonicalTitle: 'Local Midnight Trends',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'local-midnight-trends.mkv',
+      parsedTitle: 'Local Midnight Trends',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    const beforeMidnight = new Date(2026, 2, 1, 23, 30).getTime();
+    const afterMidnight = new Date(2026, 2, 2, 0, 30).getTime();
+    const firstSessionId = startSessionRecord(db, videoId, beforeMidnight).sessionId;
+    const secondSessionId = startSessionRecord(db, videoId, afterMidnight).sessionId;
+
+    for (const [sessionId, startedAtMs, tokensSeen, lookupCount] of [
+      [firstSessionId, beforeMidnight, 100, 4],
+      [secondSessionId, afterMidnight, 120, 6],
+    ] as const) {
+      stmts.telemetryInsertStmt.run(
+        sessionId,
+        startedAtMs + 60_000,
+        60_000,
+        60_000,
+        1,
+        tokensSeen,
+        0,
+        lookupCount,
+        lookupCount,
+        lookupCount,
+        0,
+        0,
+        0,
+        0,
+        startedAtMs + 60_000,
+        startedAtMs + 60_000,
+      );
+      db.prepare(
+        `
+        UPDATE imm_sessions
+        SET
+          ended_at_ms = ?,
+          status = 2,
+          total_watched_ms = ?,
+          active_watched_ms = ?,
+          lines_seen = ?,
+          tokens_seen = ?,
+          lookup_count = ?,
+          lookup_hits = ?,
+          yomitan_lookup_count = ?,
+          LAST_UPDATE_DATE = ?
+        WHERE session_id = ?
+        `,
+      ).run(
+        startedAtMs + 60_000,
+        60_000,
+        60_000,
+        1,
+        tokensSeen,
+        lookupCount,
+        lookupCount,
+        lookupCount,
+        startedAtMs + 60_000,
+        sessionId,
+      );
+    }
+
+    const dashboard = getTrendsDashboard(db, 'all', 'day');
+    assert.equal(dashboard.progress.lookups.length, 2);
+    assert.deepEqual(
+      dashboard.progress.lookups.map((point) => point.value),
+      [4, 10],
+    );
+    assert.equal(dashboard.ratios.lookupsPerHundred.length, 2);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -1018,6 +1219,36 @@ test('getMonthlyRollups returns all rows for the most recent rollup months', () 
     assert.equal(rows[0]?.videoId, 2);
     assert.equal(rows[1]?.rollupDayOrMonth, 202602);
     assert.equal(rows[1]?.videoId, 1);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getMonthlyRollups derives rate metrics from stored monthly totals', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  try {
+    ensureSchema(db);
+    const insertRollup = db.prepare(
+      `
+      INSERT INTO imm_monthly_rollups (
+        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    );
+    const nowMs = Date.now();
+    insertRollup.run(202602, 1, 2, 30, 20, 90, 15, nowMs, nowMs);
+    insertRollup.run(202602, 2, 1, 0, 10, 25, 5, nowMs, nowMs);
+
+    const rows = getMonthlyRollups(db, 1);
+    assert.equal(rows.length, 2);
+    assert.equal(rows[1]?.cardsPerHour, 30);
+    assert.equal(rows[1]?.tokensPerMin, 3);
+    assert.equal(rows[1]?.lookupHitRate ?? null, null);
+    assert.equal(rows[0]?.cardsPerHour ?? null, null);
+    assert.equal(rows[0]?.tokensPerMin ?? null, null);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -2234,9 +2465,8 @@ test('cover art queries reuse a shared blob across duplicate anime art rows', ()
     const animeArt = getAnimeCoverArt(db, animeId);
     const library = getMediaLibrary(db);
 
-    assert.equal(artOne?.coverBlob?.length, 4);
-    assert.equal(artTwo?.coverBlob?.length, 4);
-    assert.deepEqual(artOne?.coverBlob, artTwo?.coverBlob);
+    assert.deepEqual(artOne?.coverBlob, Buffer.from([1, 2, 3, 4]));
+    assert.deepEqual(artTwo?.coverBlob, Buffer.from([9, 9, 9, 9]));
     assert.equal(animeArt?.coverBlob?.length, 4);
     assert.deepEqual(
       library.map((row) => ({
@@ -2248,6 +2478,52 @@ test('cover art queries reuse a shared blob across duplicate anime art rows', ()
         { videoId: videoTwo, hasCoverArt: 1 },
       ],
     );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('upsertCoverArt prefers freshly fetched bytes over a reused shared hash', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const originalVideoId = getOrCreateVideoRecord(db, 'local:/tmp/shared-cover-original.mkv', {
+      canonicalTitle: 'Shared Cover Original',
+      sourcePath: '/tmp/shared-cover-original.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const refreshedVideoId = getOrCreateVideoRecord(db, 'local:/tmp/shared-cover-refresh.mkv', {
+      canonicalTitle: 'Shared Cover Refresh',
+      sourcePath: '/tmp/shared-cover-refresh.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    upsertCoverArt(db, originalVideoId, {
+      anilistId: 999,
+      coverUrl: 'https://images.test/shared-refresh.jpg',
+      coverBlob: Buffer.from([1, 2, 3, 4]),
+      titleRomaji: 'Shared Cover Refresh',
+      titleEnglish: 'Shared Cover Refresh',
+      episodesTotal: 12,
+    });
+    upsertCoverArt(db, refreshedVideoId, {
+      anilistId: 999,
+      coverUrl: 'https://images.test/shared-refresh.jpg',
+      coverBlob: Buffer.from([9, 8, 7, 6]),
+      titleRomaji: 'Shared Cover Refresh',
+      titleEnglish: 'Shared Cover Refresh',
+      episodesTotal: 12,
+    });
+
+    const originalArt = getCoverArt(db, originalVideoId);
+    const refreshedArt = getCoverArt(db, refreshedVideoId);
+    assert.deepEqual(originalArt?.coverBlob, Buffer.from([1, 2, 3, 4]));
+    assert.deepEqual(refreshedArt?.coverBlob, Buffer.from([9, 8, 7, 6]));
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -2836,13 +3112,13 @@ test('deleteSession rebuilds word and kanji aggregates from retained subtitle li
 
     assert.ok(sharedWordRow);
     assert.equal(sharedWordRow.frequency, 1);
-    assert.equal(sharedWordRow.first_seen, keptTs);
-    assert.equal(sharedWordRow.last_seen, keptTs);
+    assert.equal(sharedWordRow.first_seen, Math.floor(keptTs / 1000));
+    assert.equal(sharedWordRow.last_seen, Math.floor(keptTs / 1000));
     assert.equal(deletedOnlyWordRow ?? null, null);
     assert.ok(sharedKanjiRow);
     assert.equal(sharedKanjiRow.frequency, 1);
-    assert.equal(sharedKanjiRow.first_seen, keptTs);
-    assert.equal(sharedKanjiRow.last_seen, keptTs);
+    assert.equal(sharedKanjiRow.first_seen, Math.floor(keptTs / 1000));
+    assert.equal(sharedKanjiRow.last_seen, Math.floor(keptTs / 1000));
     assert.equal(deletedOnlyKanjiRow ?? null, null);
   } finally {
     db.close();

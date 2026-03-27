@@ -352,15 +352,16 @@ export function upsertCoverArt(
   const sharedCoverBlobHash = findSharedCoverBlobHash(db, videoId, art.anilistId, art.coverUrl);
   const fetchedAtMs = toDbMs(nowMs());
   const coverBlob = normalizeCoverBlobBytes(art.coverBlob);
-  let coverBlobHash = sharedCoverBlobHash ?? null;
-  if (!coverBlobHash && coverBlob && coverBlob.length > 0) {
-    coverBlobHash = createHash('sha256').update(coverBlob).digest('hex');
-  }
+  const computedCoverBlobHash =
+    coverBlob && coverBlob.length > 0
+      ? createHash('sha256').update(coverBlob).digest('hex')
+      : null;
+  let coverBlobHash = computedCoverBlobHash ?? sharedCoverBlobHash ?? null;
   if (!coverBlobHash && (!coverBlob || coverBlob.length === 0)) {
     coverBlobHash = existing?.coverBlobHash ?? null;
   }
 
-  if (coverBlobHash && coverBlob && coverBlob.length > 0 && !sharedCoverBlobHash) {
+  if (computedCoverBlobHash && coverBlob && coverBlob.length > 0) {
     db.prepare(
       `
         INSERT INTO imm_cover_art_blobs (blob_hash, cover_blob, CREATED_DATE, LAST_UPDATE_DATE)
@@ -368,7 +369,7 @@ export function upsertCoverArt(
         ON CONFLICT(blob_hash) DO UPDATE SET
           LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
       `,
-    ).run(coverBlobHash, coverBlob, fetchedAtMs, fetchedAtMs);
+    ).run(computedCoverBlobHash, coverBlob, fetchedAtMs, fetchedAtMs);
   }
 
   db.prepare(

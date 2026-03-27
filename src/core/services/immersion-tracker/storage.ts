@@ -1406,27 +1406,46 @@ function incrementKanjiAggregate(
 export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedStatements): void {
   const currentMs = toDbMs(nowMs());
   if (write.kind === 'telemetry') {
+    if (
+      write.totalWatchedMs === undefined ||
+      write.activeWatchedMs === undefined ||
+      write.linesSeen === undefined ||
+      write.tokensSeen === undefined ||
+      write.cardsMined === undefined ||
+      write.lookupCount === undefined ||
+      write.lookupHits === undefined ||
+      write.yomitanLookupCount === undefined ||
+      write.pauseCount === undefined ||
+      write.pauseMs === undefined ||
+      write.seekForwardCount === undefined ||
+      write.seekBackwardCount === undefined ||
+      write.mediaBufferEvents === undefined
+    ) {
+      throw new Error('Incomplete telemetry write');
+    }
     const telemetrySampleMs = toDbMs(write.sampleMs ?? Number(currentMs));
     stmts.telemetryInsertStmt.run(
       write.sessionId,
       telemetrySampleMs,
-      write.totalWatchedMs ?? 0,
-      write.activeWatchedMs ?? 0,
-      write.linesSeen ?? 0,
-      write.tokensSeen ?? 0,
-      write.cardsMined ?? 0,
-      write.lookupCount ?? 0,
-      write.lookupHits ?? 0,
-      write.yomitanLookupCount ?? 0,
-      write.pauseCount ?? 0,
-      write.pauseMs ?? 0,
-      write.seekForwardCount ?? 0,
-      write.seekBackwardCount ?? 0,
-      write.mediaBufferEvents ?? 0,
+      write.totalWatchedMs,
+      write.activeWatchedMs,
+      write.linesSeen,
+      write.tokensSeen,
+      write.cardsMined,
+      write.lookupCount,
+      write.lookupHits,
+      write.yomitanLookupCount,
+      write.pauseCount,
+      write.pauseMs,
+      write.seekForwardCount,
+      write.seekBackwardCount,
+      write.mediaBufferEvents,
       currentMs,
       currentMs,
     );
-    stmts.sessionCheckpointStmt.run(write.lastMediaMs ?? null, currentMs, write.sessionId);
+    if (write.lastMediaMs !== undefined) {
+      stmts.sessionCheckpointStmt.run(write.lastMediaMs ?? null, currentMs, write.sessionId);
+    }
     return;
   }
   if (write.kind === 'word') {

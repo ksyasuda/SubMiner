@@ -156,7 +156,7 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
       COALESCE(SUM(COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount,
       MAX(s.started_at_ms) AS lastWatchedMs
     FROM imm_videos v
-    JOIN imm_sessions s ON s.video_id = v.video_id
+    LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     WHERE v.anime_id = ?
     GROUP BY v.video_id

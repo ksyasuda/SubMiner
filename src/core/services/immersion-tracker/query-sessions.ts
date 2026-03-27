@@ -204,7 +204,7 @@ export function getQueryHints(db: DatabaseSync): {
 
   const now = new Date();
   const todayLocal = Math.floor(
-    new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 86_400_000,
+    (now.getTime() / 1000 - now.getTimezoneOffset() * 60) / 86_400,
   );
 
   const episodesToday =
@@ -333,9 +333,15 @@ export function getMonthlyRollups(db: DatabaseSync, limit = 24): ImmersionSessio
       total_lines_seen AS totalLinesSeen,
       total_tokens_seen AS totalTokensSeen,
       total_cards AS totalCards,
-      0 AS cardsPerHour,
-      0 AS tokensPerMin,
-      0 AS lookupHitRate
+      CASE
+        WHEN total_active_min > 0 THEN (total_cards * 60.0) / total_active_min
+        ELSE NULL
+      END AS cardsPerHour,
+      CASE
+        WHEN total_active_min > 0 THEN total_tokens_seen * 1.0 / total_active_min
+        ELSE NULL
+      END AS tokensPerMin,
+      NULL AS lookupHitRate
     FROM imm_monthly_rollups
     WHERE rollup_month IN (SELECT rollup_month FROM recent_months)
     ORDER BY rollup_month DESC, video_id DESC

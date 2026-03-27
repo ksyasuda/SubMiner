@@ -197,7 +197,12 @@ function refreshWordAggregates(db: DatabaseSync, wordIds: number[]): void {
       deleteStmt.run(row.wordId);
       continue;
     }
-    updateStmt.run(row.frequency, row.firstSeen, row.lastSeen, row.wordId);
+    updateStmt.run(
+      row.frequency,
+      Math.floor(row.firstSeen / 1000),
+      Math.floor(row.lastSeen / 1000),
+      row.wordId,
+    );
   }
 }
 
@@ -241,7 +246,12 @@ function refreshKanjiAggregates(db: DatabaseSync, kanjiIds: number[]): void {
       deleteStmt.run(row.kanjiId);
       continue;
     }
-    updateStmt.run(row.frequency, row.firstSeen, row.lastSeen, row.kanjiId);
+    updateStmt.run(
+      row.frequency,
+      Math.floor(row.firstSeen / 1000),
+      Math.floor(row.lastSeen / 1000),
+      row.kanjiId,
+    );
   }
 }
 
