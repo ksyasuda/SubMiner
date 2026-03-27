@@ -18,6 +18,8 @@ references:
   - backlog/tasks/task-87 - Codebase-health-harden-verification-and-retire-dead-architecture-identified-in-the-March-2026-review.md
   - backlog/completed/task-87.4 - Runtime-composition-root-remove-dead-symbols-and-tighten-module-boundaries-in-src-main.ts.md
   - backlog/completed/task-87.6 - Anki-integration-maintainability-continue-decomposing-the-oversized-orchestration-layer.md
+  - backlog/tasks/task-238.6 - Extract-remaining-inline-runtime-logic-and-composer-gaps-from-src-main.ts.md
+  - backlog/tasks/task-238.7 - Split-src-main.ts-into-boot-phase-services-runtimes-and-handlers.md
 priority: high
 ---
 
@@ -45,6 +47,8 @@ Recommended sequencing:
 2. Run TASK-238.4 and TASK-238.5 in parallel after TASK-238.3 if desired; they touch different domains.
 3. Run TASK-238.1 after or alongside the domain refactors, but keep it focused on window/bootstrap composition only.
 4. Run TASK-238.2 after TASK-238.1 because both touch `src/main.ts` and the CLI/headless flow should build on the cleaner composition root.
+5. Run TASK-238.6 after the current composer/setup-window-factory work lands, so the remaining inline runtime logic and composer gaps are extracted from the already-cleaned composition root.
+6. Run TASK-238.7 only after TASK-238.6 confirms the remaining entrypoint surface still justifies a boot-phase split; then move the boot wiring into dedicated service/runtime/handler modules.
 
 Shared guardrails:
 

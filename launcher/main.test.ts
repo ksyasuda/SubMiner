@@ -43,6 +43,7 @@ function runLauncher(argv: string[], env: NodeJS.ProcessEnv): RunResult {
     {
       env,
       encoding: 'utf8',
+      timeout: 10000,
     },
   );
   return {

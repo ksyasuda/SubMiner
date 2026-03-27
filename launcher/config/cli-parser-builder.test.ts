@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { parseCliPrograms, resolveTopLevelCommand } from './cli-parser-builder.js';
+
+test('resolveTopLevelCommand skips root options and finds the first command', () => {
+  assert.deepEqual(resolveTopLevelCommand(['--backend', 'macos', 'config', 'show']), {
+    name: 'config',
+    index: 2,
+  });
+});
+
+test('resolveTopLevelCommand respects the app alias after root options', () => {
+  assert.deepEqual(resolveTopLevelCommand(['--log-level', 'debug', 'bin', '--foo']), {
+    name: 'bin',
+    index: 2,
+  });
+});
+
+test('parseCliPrograms keeps root options and target when no command is present', () => {
+  const result = parseCliPrograms(['--backend', 'x11', '/tmp/movie.mkv'], 'subminer');
+
+  assert.equal(result.options.backend, 'x11');
+  assert.equal(result.rootTarget, '/tmp/movie.mkv');
+  assert.equal(result.invocations.appInvocation, null);
+});
+
+test('parseCliPrograms routes app alias arguments through passthrough mode', () => {
+  const result = parseCliPrograms(
+    ['--backend', 'macos', 'bin', '--anilist', '--log-level', 'debug'],
+    'subminer',
+  );
+
+  assert.equal(result.options.backend, 'macos');
+  assert.deepEqual(result.invocations.appInvocation, {
+    appArgs: ['--anilist', '--log-level', 'debug'],
+  });
+});

@@ -14,6 +14,8 @@ const baseConfig = {
   debounceMs: 200,
 } as const;
 
+const BASE_SESSION_STARTED_AT_MS = 1_700_000 * 1_000_000;
+
 const baseSnapshot: DiscordPresenceSnapshot = {
   mediaTitle: 'Sousou no Frieren E01',
   mediaPath: '/media/Frieren/E01.mkv',
@@ -22,7 +24,7 @@ const baseSnapshot: DiscordPresenceSnapshot = {
   mediaDurationSec: 1450,
   paused: false,
   connected: true,
-  sessionStartedAtMs: 1_700_000_000_000,
+  sessionStartedAtMs: BASE_SESSION_STARTED_AT_MS,
 };
 
 test('buildDiscordPresenceActivity maps polished payload fields', () => {
@@ -32,7 +34,7 @@ test('buildDiscordPresenceActivity maps polished payload fields', () => {
   assert.equal(payload.largeImageKey, 'subminer-logo');
   assert.equal(payload.smallImageKey, 'study');
   assert.equal(payload.buttons, undefined);
-  assert.equal(payload.startTimestamp, 1_700_000_000);
+  assert.equal(payload.startTimestamp, Math.floor(BASE_SESSION_STARTED_AT_MS / 1000));
 });
 
 test('buildDiscordPresenceActivity falls back to idle when disconnected', () => {

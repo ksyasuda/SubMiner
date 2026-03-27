@@ -1,4 +1,9 @@
 import type { DatabaseSync } from './sqlite';
+import { nowMs } from './time';
+
+function toDbMs(ms: number | bigint): bigint {
+  return BigInt(Math.trunc(Number(ms)));
+}
 
 const ROLLUP_STATE_KEY = 'last_rollup_sample_ms';
 const DAILY_MS = 86_400_000;
@@ -118,7 +123,7 @@ function getLastRollupSampleMs(db: DatabaseSync): number {
   return row ? Number(row.state_value) : ZERO_ID;
 }
 
-function setLastRollupSampleMs(db: DatabaseSync, sampleMs: number): void {
+function setLastRollupSampleMs(db: DatabaseSync, sampleMs: number | bigint): void {
   db.prepare(
     `INSERT INTO imm_rollup_state (state_key, state_value)
        VALUES (?, ?)
@@ -137,7 +142,7 @@ function resetRollups(db: DatabaseSync): void {
 function upsertDailyRollupsForGroups(
   db: DatabaseSync,
   groups: Array<{ rollupDay: number; videoId: number }>,
-  rollupNowMs: number,
+  rollupNowMs: bigint,
 ): void {
   if (groups.length === 0) {
     return;
@@ -210,7 +215,7 @@ function upsertDailyRollupsForGroups(
 function upsertMonthlyRollupsForGroups(
   db: DatabaseSync,
   groups: Array<{ rollupMonth: number; videoId: number }>,
-  rollupNowMs: number,
+  rollupNowMs: bigint,
 ): void {
   if (groups.length === 0) {
     return;
@@ -314,7 +319,7 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
     return;
   }
 
-  const rollupNowMs = Date.now();
+  const rollupNowMs = toDbMs(nowMs());
   const lastRollupSampleMs = getLastRollupSampleMs(db);
 
   const maxSampleRow = db
@@ -349,7 +354,7 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
   try {
     upsertDailyRollupsForGroups(db, dailyGroups, rollupNowMs);
     upsertMonthlyRollupsForGroups(db, monthlyGroups, rollupNowMs);
-    setLastRollupSampleMs(db, Number(maxSampleRow.maxSampleMs));
+    setLastRollupSampleMs(db, toDbMs(maxSampleRow.maxSampleMs ?? ZERO_ID));
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -358,7 +363,7 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
 }
 
 export function rebuildRollupsInTransaction(db: DatabaseSync): void {
-  const rollupNowMs = Date.now();
+  const rollupNowMs = toDbMs(nowMs());
   const maxSampleRow = db
     .prepare('SELECT MAX(sample_ms) AS maxSampleMs FROM imm_session_telemetry')
     .get() as unknown as RollupTelemetryResult | null;
@@ -370,7 +375,7 @@ export function rebuildRollupsInTransaction(db: DatabaseSync): void {
 
   const affectedGroups = getAffectedRollupGroups(db, ZERO_ID);
   if (affectedGroups.length === 0) {
-    setLastRollupSampleMs(db, Number(maxSampleRow.maxSampleMs));
+    setLastRollupSampleMs(db, toDbMs(maxSampleRow.maxSampleMs ?? ZERO_ID));
     return;
   }
 
@@ -389,7 +394,7 @@ export function rebuildRollupsInTransaction(db: DatabaseSync): void {
 
   upsertDailyRollupsForGroups(db, dailyGroups, rollupNowMs);
   upsertMonthlyRollupsForGroups(db, monthlyGroups, rollupNowMs);
-  setLastRollupSampleMs(db, Number(maxSampleRow.maxSampleMs));
+  setLastRollupSampleMs(db, toDbMs(maxSampleRow.maxSampleMs ?? ZERO_ID));
 }
 
 export function runOptimizeMaintenance(db: DatabaseSync): void {

@@ -14,6 +14,7 @@ import {
   waitForUnixSocketReady,
 } from '../mpv.js';
 import type { Args } from '../types.js';
+import { nowMs } from '../time.js';
 import type { LauncherCommandContext } from './context.js';
 import { ensureLauncherSetupReady } from '../setup-gate.js';
 import {
@@ -116,7 +117,7 @@ async function ensurePlaybackSetupReady(context: LauncherCommandContext): Promis
       child.unref();
     },
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-    now: () => Date.now(),
+    now: () => nowMs(),
     timeoutMs: SETUP_WAIT_TIMEOUT_MS,
     pollIntervalMs: SETUP_POLL_INTERVAL_MS,
   });

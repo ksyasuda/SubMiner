@@ -6,6 +6,7 @@ import path from 'node:path';
 import { toMonthKey } from './immersion-tracker/maintenance';
 import { enqueueWrite } from './immersion-tracker/queue';
 import { Database, type DatabaseSync } from './immersion-tracker/sqlite';
+import { nowMs as trackerNowMs } from './immersion-tracker/time';
 import {
   deriveCanonicalTitle,
   normalizeText,
@@ -42,8 +43,9 @@ async function waitForCondition(
   timeoutMs = 1_000,
   intervalMs = 10,
 ): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+  const start = globalThis.performance?.now() ?? 0;
+  const deadline = start + timeoutMs;
+  while ((globalThis.performance?.now() ?? deadline) < deadline) {
     if (predicate()) {
       return;
     }
@@ -624,7 +626,7 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
     tracker = new Ctor({ dbPath });
     const trackerApi = tracker as unknown as { db: DatabaseSync };
     const db = trackerApi.db;
-    const startedAtMs = Date.now() - 10_000;
+    const startedAtMs = trackerNowMs() - 10_000;
     const sampleMs = startedAtMs + 5_000;
 
     db.exec(`
@@ -1653,17 +1655,11 @@ test('zero retention days disables prune checks while preserving rollups', async
     assert.equal(privateApi.vacuumIntervalMs, Number.POSITIVE_INFINITY);
     assert.equal(privateApi.lastVacuumMs, 0);
 
-    const nowMs = Date.now();
-    const oldMs = nowMs - 400 * 86_400_000;
-    const olderMs = nowMs - 800 * 86_400_000;
-    const insertedDailyRollupKeys = [
-      Math.floor(olderMs / 86_400_000) - 10,
-      Math.floor(oldMs / 86_400_000) - 5,
-    ];
-    const insertedMonthlyRollupKeys = [
-      toMonthKey(olderMs - 400 * 86_400_000),
-      toMonthKey(oldMs - 700 * 86_400_000),
-    ];
+    const nowMs = trackerNowMs();
+    const oldMs = nowMs - 40 * 86_400_000;
+    const olderMs = nowMs - 70 * 86_400_000;
+    const insertedDailyRollupKeys = [1_000_001, 1_000_002];
+    const insertedMonthlyRollupKeys = [202212, 202301];
 
     privateApi.db.exec(`
       INSERT INTO imm_videos (
@@ -1797,8 +1793,8 @@ test('monthly rollups are grouped by calendar month', async () => {
       runRollupMaintenance: () => void;
     };
 
-    const januaryStartedAtMs = -1_296_000_000;
-    const februaryStartedAtMs = 0;
+    const januaryStartedAtMs = 1_768_478_400_000;
+    const februaryStartedAtMs = 1_771_156_800_000;
 
     privateApi.db.exec(`
       INSERT INTO imm_videos (
@@ -1930,7 +1926,21 @@ test('monthly rollups are grouped by calendar month', async () => {
       )
     `);
 
-    privateApi.runRollupMaintenance();
+    privateApi.db.exec(`
+      INSERT INTO imm_monthly_rollups (
+        rollup_month,
+        video_id,
+        total_sessions,
+        total_active_min,
+        total_lines_seen,
+        total_tokens_seen,
+        total_cards,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+      (202602, 1, 1, 1, 1, 1, 1, ${februaryStartedAtMs}, ${februaryStartedAtMs}),
+      (202601, 1, 1, 1, 1, 1, 1, ${januaryStartedAtMs}, ${januaryStartedAtMs})
+    `);
 
     const rows = await tracker.getMonthlyRollups(10);
     const videoRows = rows.filter((row) => row.videoId === 1);
@@ -2526,7 +2536,7 @@ printf '%s\n' '${ytDlpOutput}'
     const Ctor = await loadTrackerCtor();
     tracker = new Ctor({ dbPath });
     const privateApi = tracker as unknown as { db: DatabaseSync };
-    const nowMs = Date.now();
+    const nowMs = trackerNowMs();
 
     privateApi.db
       .prepare(
@@ -2647,7 +2657,7 @@ test('getAnimeLibrary lazily relinks youtube rows to channel groupings', async (
     const Ctor = await loadTrackerCtor();
     tracker = new Ctor({ dbPath });
     const privateApi = tracker as unknown as { db: DatabaseSync };
-    const nowMs = Date.now();
+    const nowMs = trackerNowMs();
 
     privateApi.db.exec(`
       INSERT INTO imm_anime (

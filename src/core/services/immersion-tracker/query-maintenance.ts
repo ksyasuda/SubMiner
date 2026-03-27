@@ -3,6 +3,7 @@ import type { DatabaseSync } from './sqlite';
 import { buildCoverBlobReference, normalizeCoverBlobBytes } from './storage';
 import { rebuildLifetimeSummariesInTransaction } from './lifetime';
 import { rebuildRollupsInTransaction } from './maintenance';
+import { nowMs } from './time';
 import { PartOfSpeech, type MergedToken } from '../../../types';
 import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
 import { deriveStoredPartOfSpeech } from '../tokenizer/part-of-speech';
@@ -349,7 +350,7 @@ export function upsertCoverArt(
     )
     .get(videoId) as { coverBlobHash: string | null } | undefined;
   const sharedCoverBlobHash = findSharedCoverBlobHash(db, videoId, art.anilistId, art.coverUrl);
-  const nowMs = Date.now();
+  const fetchedAtMs = toDbMs(nowMs());
   const coverBlob = normalizeCoverBlobBytes(art.coverBlob);
   let coverBlobHash = sharedCoverBlobHash ?? null;
   if (!coverBlobHash && coverBlob && coverBlob.length > 0) {
@@ -367,7 +368,7 @@ export function upsertCoverArt(
         ON CONFLICT(blob_hash) DO UPDATE SET
           LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
       `,
-    ).run(coverBlobHash, coverBlob, nowMs, nowMs);
+    ).run(coverBlobHash, coverBlob, fetchedAtMs, fetchedAtMs);
   }
 
   db.prepare(
@@ -397,9 +398,9 @@ export function upsertCoverArt(
     art.titleRomaji,
     art.titleEnglish,
     art.episodesTotal,
-    nowMs,
-    nowMs,
-    nowMs,
+    fetchedAtMs,
+    fetchedAtMs,
+    fetchedAtMs,
   );
 
   if (existing?.coverBlobHash !== coverBlobHash) {
@@ -441,7 +442,7 @@ export function updateAnimeAnilistInfo(
     info.titleEnglish,
     info.titleNative,
     info.episodesTotal,
-    Date.now(),
+    toDbMs(nowMs()),
     row.anime_id,
   );
 }
@@ -449,7 +450,7 @@ export function updateAnimeAnilistInfo(
 export function markVideoWatched(db: DatabaseSync, videoId: number, watched: boolean): void {
   db.prepare('UPDATE imm_videos SET watched = ?, LAST_UPDATE_DATE = ? WHERE video_id = ?').run(
     watched ? 1 : 0,
-    Date.now(),
+    toDbMs(nowMs()),
     videoId,
   );
 }
@@ -540,4 +541,7 @@ export function deleteVideo(db: DatabaseSync, videoId: number): void {
     db.exec('ROLLBACK');
     throw error;
   }
+}
+function toDbMs(ms: number | bigint): bigint {
+  return BigInt(Math.trunc(Number(ms)));
 }

@@ -7,6 +7,7 @@ import type { LogLevel, Backend, Args, MpvTrack } from './types.js';
 import { DEFAULT_MPV_SUBMINER_ARGS, DEFAULT_YOUTUBE_YTDL_FORMAT } from './types.js';
 import { appendToAppLog, getAppLogPath, log, fail, getMpvLogPath } from './log.js';
 import { buildSubminerScriptOpts, resolveAniSkipMetadataForFile } from './aniskip-metadata.js';
+import { nowMs } from './time.js';
 import {
   commandExists,
   getPathEnv,
@@ -200,8 +201,8 @@ async function terminateTrackedDetachedMpv(logLevel: LogLevel): Promise<void> {
     return;
   }
 
-  const deadline = Date.now() + 1500;
-  while (Date.now() < deadline) {
+  const deadline = nowMs() + 1500;
+  while (nowMs() < deadline) {
     if (!isProcessAlive(pid)) {
       clearTrackedDetachedMpvPid();
       return;
@@ -344,7 +345,7 @@ export function sendMpvCommandWithResponse(
   timeoutMs = 5000,
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const requestId = Date.now() + Math.floor(Math.random() * 1000);
+    const requestId = nowMs() + Math.floor(Math.random() * 1000);
     const socket = net.createConnection(socketPath);
     let buffer = '';
 
@@ -1117,8 +1118,8 @@ export async function waitForUnixSocketReady(
   socketPath: string,
   timeoutMs: number,
 ): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+  const deadline = nowMs() + timeoutMs;
+  while (nowMs() < deadline) {
     try {
       if (fs.existsSync(socketPath)) {
         const ready = await canConnectUnixSocket(socketPath);

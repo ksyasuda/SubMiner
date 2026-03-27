@@ -1,4 +1,5 @@
 import type { DatabaseSync } from './sqlite';
+import { nowMs } from './time';
 import type {
   ImmersionSessionRollupRow,
   SessionSummaryQueryRow,
@@ -219,7 +220,7 @@ export function getQueryHints(db: DatabaseSync): {
         .get(todayLocal) as { count: number }
     )?.count ?? 0;
 
-  const thirtyDaysAgoMs = Date.now() - 30 * 86400000;
+  const thirtyDaysAgoMs = nowMs() - 30 * 86400000;
   const activeAnimeCount =
     (
       db

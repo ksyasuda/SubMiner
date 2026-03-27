@@ -1,5 +1,6 @@
 import type { DatabaseSync } from './sqlite';
 import { finalizeSessionRecord } from './session';
+import { nowMs } from './time';
 import type { LifetimeRebuildSummary, SessionState } from './types';
 
 interface TelemetryRow {
@@ -97,8 +98,7 @@ function isFirstSessionForLocalDay(
           `
       SELECT COUNT(*) AS count
       FROM imm_sessions
-      WHERE CAST(strftime('%s', started_at_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) / 86400
-        = CAST(strftime('%s', ? / 1000, 'unixepoch', 'localtime') AS INTEGER) / 86400
+      WHERE date(started_at_ms / 1000, 'unixepoch', 'localtime') = date(? / 1000, 'unixepoch', 'localtime')
         AND (
           started_at_ms < ?
           OR (started_at_ms = ? AND session_id < ?)
@@ -393,7 +393,7 @@ export function applySessionLifetimeSummary(
       ON CONFLICT(session_id) DO NOTHING
       `,
     )
-    .run(session.sessionId, endedAtMs, Date.now(), Date.now());
+    .run(session.sessionId, endedAtMs, nowMs(), nowMs());
 
   if ((applyResult.changes ?? 0) <= 0) {
     return;
@@ -468,7 +468,7 @@ export function applySessionLifetimeSummary(
       ? 1
       : 0;
 
-  const nowMs = Date.now();
+  const updatedAtMs = nowMs();
   db.prepare(
     `
     UPDATE imm_lifetime_global
@@ -490,13 +490,13 @@ export function applySessionLifetimeSummary(
     isFirstSessionForVideoRun ? 1 : 0,
     isFirstCompletedSessionForVideoRun ? 1 : 0,
     animeCompletedDelta,
-    nowMs,
+    updatedAtMs,
   );
 
   upsertLifetimeMedia(
     db,
     session.videoId,
-    nowMs,
+    updatedAtMs,
     activeMs,
     cardsMined,
     linesSeen,
@@ -510,7 +510,7 @@ export function applySessionLifetimeSummary(
     upsertLifetimeAnime(
       db,
       video.anime_id,
-      nowMs,
+      updatedAtMs,
       activeMs,
       cardsMined,
       linesSeen,
@@ -524,7 +524,7 @@ export function applySessionLifetimeSummary(
 }
 
 export function rebuildLifetimeSummaries(db: DatabaseSync): LifetimeRebuildSummary {
-  const rebuiltAtMs = Date.now();
+  const rebuiltAtMs = nowMs();
   db.exec('BEGIN');
   try {
     const summary = rebuildLifetimeSummariesInTransaction(db, rebuiltAtMs);
@@ -538,7 +538,7 @@ export function rebuildLifetimeSummaries(db: DatabaseSync): LifetimeRebuildSumma
 
 export function rebuildLifetimeSummariesInTransaction(
   db: DatabaseSync,
-  rebuiltAtMs = Date.now(),
+  rebuiltAtMs = nowMs(),
 ): LifetimeRebuildSummary {
   return rebuildLifetimeSummariesInternal(db, rebuiltAtMs);
 }

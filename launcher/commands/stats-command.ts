@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { runAppCommandAttached } from '../mpv.js';
+import { nowMs } from '../time.js';
 import { sleep } from '../util.js';
 import type { LauncherCommandContext } from './context.js';
 
@@ -45,8 +46,8 @@ const defaultDeps: StatsCommandDeps = {
   runAppCommandAttached: (appPath, appArgs, logLevel, label) =>
     runAppCommandAttached(appPath, appArgs, logLevel, label),
   waitForStatsResponse: async (responsePath, signal) => {
-    const deadline = Date.now() + STATS_STARTUP_RESPONSE_TIMEOUT_MS;
-    while (Date.now() < deadline) {
+    const deadline = nowMs() + STATS_STARTUP_RESPONSE_TIMEOUT_MS;
+    while (nowMs() < deadline) {
       if (signal?.aborted) {
         return {
           ok: false,
