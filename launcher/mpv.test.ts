@@ -427,7 +427,10 @@ function withFindAppBinaryEnvSandbox(run: () => void): void {
   }
 }
 
-function withAccessSyncStub(isExecutablePath: (filePath: string) => boolean, run: () => void): void {
+function withAccessSyncStub(
+  isExecutablePath: (filePath: string) => boolean,
+  run: () => void,
+): void {
   const originalAccessSync = fs.accessSync;
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -468,10 +471,13 @@ test('findAppBinary resolves /opt/SubMiner/SubMiner.AppImage when ~/.local/bin c
   try {
     os.homedir = () => baseDir;
     withFindAppBinaryEnvSandbox(() => {
-      withAccessSyncStub((filePath) => filePath === '/opt/SubMiner/SubMiner.AppImage', () => {
-        const result = findAppBinary('/some/other/path/subminer');
-        assert.equal(result, '/opt/SubMiner/SubMiner.AppImage');
-      });
+      withAccessSyncStub(
+        (filePath) => filePath === '/opt/SubMiner/SubMiner.AppImage',
+        () => {
+          const result = findAppBinary('/some/other/path/subminer');
+          assert.equal(result, '/opt/SubMiner/SubMiner.AppImage');
+        },
+      );
     });
   } finally {
     os.homedir = originalHomedir;
@@ -492,11 +498,14 @@ test('findAppBinary finds subminer on PATH when AppImage candidates do not exist
     process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ''}`;
 
     withFindAppBinaryEnvSandbox(() => {
-      withAccessSyncStub((filePath) => filePath === wrapperPath, () => {
-        // selfPath must differ from wrapperPath so the self-check does not exclude it
-        const result = findAppBinary(path.join(baseDir, 'launcher', 'subminer'));
-        assert.equal(result, wrapperPath);
-      });
+      withAccessSyncStub(
+        (filePath) => filePath === wrapperPath,
+        () => {
+          // selfPath must differ from wrapperPath so the self-check does not exclude it
+          const result = findAppBinary(path.join(baseDir, 'launcher', 'subminer'));
+          assert.equal(result, wrapperPath);
+        },
+      );
     });
   } finally {
     os.homedir = originalHomedir;

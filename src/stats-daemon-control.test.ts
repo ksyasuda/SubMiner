@@ -69,7 +69,9 @@ test('stats daemon control clears stale state, starts daemon, and waits for resp
     },
     resolveUrl: (state) => `http://127.0.0.1:${state.port}`,
     spawnDaemon: async (options) => {
-      calls.push(`spawnDaemon:${options.scriptPath}:${options.responsePath}:${options.userDataPath}`);
+      calls.push(
+        `spawnDaemon:${options.scriptPath}:${options.responsePath}:${options.userDataPath}`,
+      );
       return 999;
     },
     waitForDaemonResponse: async (responsePath) => {

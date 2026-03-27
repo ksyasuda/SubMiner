@@ -17,7 +17,12 @@ export function applyStatsConfig(context: ResolveContext): void {
   if (markWatchedKey !== undefined) {
     resolved.stats.markWatchedKey = markWatchedKey;
   } else if (src.stats.markWatchedKey !== undefined) {
-    warn('stats.markWatchedKey', src.stats.markWatchedKey, resolved.stats.markWatchedKey, 'Expected string.');
+    warn(
+      'stats.markWatchedKey',
+      src.stats.markWatchedKey,
+      resolved.stats.markWatchedKey,
+      'Expected string.',
+    );
   }
 
   const serverPort = asNumber(src.stats.serverPort);

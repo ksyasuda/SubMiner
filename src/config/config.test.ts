@@ -1325,8 +1325,14 @@ test('controller descriptor config rejects malformed binding objects', () => {
     config.controller.bindings.leftStickHorizontal,
     DEFAULT_CONFIG.controller.bindings.leftStickHorizontal,
   );
-  assert.equal(warnings.some((warning) => warning.path === 'controller.bindings.toggleLookup'), true);
-  assert.equal(warnings.some((warning) => warning.path === 'controller.bindings.closeLookup'), true);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'controller.bindings.toggleLookup'),
+    true,
+  );
+  assert.equal(
+    warnings.some((warning) => warning.path === 'controller.bindings.closeLookup'),
+    true,
+  );
   assert.equal(
     warnings.some((warning) => warning.path === 'controller.bindings.leftStickHorizontal'),
     true,

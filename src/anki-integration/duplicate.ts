@@ -179,7 +179,10 @@ function getDuplicateSourceCandidates(
     const fallbackFieldName = configuredFieldNames[0]?.toLowerCase() || 'expression';
     const fallbackKey = `${fallbackFieldName}:${normalizeDuplicateValue(trimmedFallback)}`;
     if (!dedupeKey.has(fallbackKey)) {
-      candidates.push({ fieldName: configuredFieldNames[0] || 'Expression', value: trimmedFallback });
+      candidates.push({
+        fieldName: configuredFieldNames[0] || 'Expression',
+        value: trimmedFallback,
+      });
     }
   }
 

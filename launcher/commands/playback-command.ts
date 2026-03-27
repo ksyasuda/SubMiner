@@ -209,7 +209,11 @@ export async function runPlaybackCommandWithDeps(
     pluginRuntimeConfig.autoStartPauseUntilReady;
 
   if (shouldPauseUntilOverlayReady) {
-    deps.log('info', args.logLevel, 'Configured to pause mpv until overlay and tokenization are ready');
+    deps.log(
+      'info',
+      args.logLevel,
+      'Configured to pause mpv until overlay and tokenization are ready',
+    );
   }
 
   await deps.startMpv(
@@ -250,7 +254,11 @@ export async function runPlaybackCommandWithDeps(
     if (ready) {
       deps.log('info', args.logLevel, 'MPV IPC socket ready, relying on mpv plugin auto-start');
     } else {
-      deps.log('info', args.logLevel, 'MPV IPC socket not ready yet, relying on mpv plugin auto-start');
+      deps.log(
+        'info',
+        args.logLevel,
+        'MPV IPC socket not ready yet, relying on mpv plugin auto-start',
+      );
     }
   } else if (ready) {
     deps.log(

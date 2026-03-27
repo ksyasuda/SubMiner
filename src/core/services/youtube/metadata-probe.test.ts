@@ -75,15 +75,11 @@ test('probeYoutubeVideoMetadata returns null on malformed yt-dlp JSON', async ()
   });
 });
 
-test(
-  'probeYoutubeVideoMetadata times out when yt-dlp hangs',
-  { timeout: 20_000 },
-  async () => {
-    await withHangingFakeYtDlp(async () => {
-      await assert.rejects(
-        probeYoutubeVideoMetadata('https://www.youtube.com/watch?v=abc123'),
-        /timed out after 15000ms/,
-      );
-    });
-  },
-);
+test('probeYoutubeVideoMetadata times out when yt-dlp hangs', { timeout: 20_000 }, async () => {
+  await withHangingFakeYtDlp(async () => {
+    await assert.rejects(
+      probeYoutubeVideoMetadata('https://www.youtube.com/watch?v=abc123'),
+      /timed out after 15000ms/,
+    );
+  });
+});

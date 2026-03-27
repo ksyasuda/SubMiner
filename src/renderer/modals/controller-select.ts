@@ -31,8 +31,9 @@ export function createControllerSelectModal(
   let lastRenderedActiveGamepadId: string | null = null;
   let lastRenderedPreferredId = '';
   type ControllerBindingKey = keyof NonNullable<typeof ctx.state.controllerConfig>['bindings'];
-  type ControllerBindingValue =
-    NonNullable<NonNullable<typeof ctx.state.controllerConfig>['bindings']>[ControllerBindingKey];
+  type ControllerBindingValue = NonNullable<
+    NonNullable<typeof ctx.state.controllerConfig>['bindings']
+  >[ControllerBindingKey];
   let learningActionId: ControllerBindingKey | null = null;
   let dpadLearningActionId: ControllerBindingKey | null = null;
   let bindingCapture: ReturnType<typeof createControllerBindingCapture> | null = null;
@@ -198,7 +199,9 @@ export function createControllerSelectModal(
     lastRenderedPreferredId = preferredId;
   }
 
-  async function saveControllerConfig(update: Parameters<typeof window.electronAPI.saveControllerConfig>[0]) {
+  async function saveControllerConfig(
+    update: Parameters<typeof window.electronAPI.saveControllerConfig>[0],
+  ) {
     await window.electronAPI.saveControllerConfig(update);
     if (!ctx.state.controllerConfig) return;
     if (update.preferredGamepadId !== undefined) {
@@ -304,7 +307,10 @@ export function createControllerSelectModal(
         if (result.bindingType === 'dpad') {
           void saveDpadFallback(result.actionId as ControllerBindingKey, result.dpadDirection);
         } else {
-          void saveBinding(result.actionId as ControllerBindingKey, result.binding as ControllerBindingValue);
+          void saveBinding(
+            result.actionId as ControllerBindingKey,
+            result.binding as ControllerBindingValue,
+          );
         }
       }
     }

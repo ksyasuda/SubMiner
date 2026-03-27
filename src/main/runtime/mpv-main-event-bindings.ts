@@ -78,8 +78,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
       syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
-      hasInitialPlaybackQuitOnDisconnectArg: () =>
-        deps.hasInitialPlaybackQuitOnDisconnectArg(),
+      hasInitialPlaybackQuitOnDisconnectArg: () => deps.hasInitialPlaybackQuitOnDisconnectArg(),
       isOverlayRuntimeInitialized: () => deps.isOverlayRuntimeInitialized(),
       shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () =>
         deps.shouldQuitOnDisconnectWhenOverlayRuntimeInitialized(),
@@ -88,7 +87,11 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       isMpvConnected: () => deps.isMpvConnected(),
       quitApp: () => deps.quitApp(),
     });
-    const handleMpvConnectionChangeWithSidebarReset = ({ connected }: { connected: boolean }): void => {
+    const handleMpvConnectionChangeWithSidebarReset = ({
+      connected,
+    }: {
+      connected: boolean;
+    }): void => {
       if (connected) {
         deps.resetSubtitleSidebarEmbeddedLayout();
       }

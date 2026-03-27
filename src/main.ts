@@ -603,7 +603,8 @@ const isDev = process.argv.includes('--dev') || process.argv.includes('--debug')
 const texthookerService = new Texthooker(() => {
   const config = getResolvedConfig();
   const characterDictionaryEnabled =
-    config.anilist.characterDictionary.enabled && yomitanProfilePolicy.isCharacterDictionaryEnabled();
+    config.anilist.characterDictionary.enabled &&
+    yomitanProfilePolicy.isCharacterDictionaryEnabled();
   const knownAndNPlusOneEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.nPlusOne',
     config.ankiConnect.knownWords.highlightEnabled,
@@ -828,7 +829,8 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
       {
         sendToActiveOverlayWindow: (channel, nextPayload, runtimeOptions) =>
           overlayModalRuntime.sendToActiveOverlayWindow(channel, nextPayload, runtimeOptions),
-        waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
+        waitForModalOpen: (modal, timeoutMs) =>
+          overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
         logWarn: (message) => logger.warn(message),
       },
       payload,
@@ -871,7 +873,10 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
       await Promise.race([
         integration.waitUntilReady(),
         new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Timed out waiting for AnkiConnect integration')), 2500);
+          setTimeout(
+            () => reject(new Error('Timed out waiting for AnkiConnect integration')),
+            2500,
+          );
         }),
       ]);
     } catch (error) {
@@ -1568,10 +1573,10 @@ async function refreshSubtitlePrefetchFromActiveTrack(): Promise<void> {
     const [currentExternalFilenameRaw, currentTrackRaw, trackListRaw, sidRaw, videoPathRaw] =
       await Promise.all([
         client.requestProperty('current-tracks/sub/external-filename').catch(() => null),
-      client.requestProperty('current-tracks/sub').catch(() => null),
-      client.requestProperty('track-list'),
-      client.requestProperty('sid'),
-      client.requestProperty('path'),
+        client.requestProperty('current-tracks/sub').catch(() => null),
+        client.requestProperty('track-list'),
+        client.requestProperty('sid'),
+        client.requestProperty('path'),
       ]);
     const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
     if (!videoPath) {
@@ -3027,7 +3032,8 @@ const ensureStatsServerStarted = (): string => {
       knownWordCachePath: path.join(USER_DATA_PATH, 'known-words-cache.json'),
       mpvSocketPath: appState.mpvSocketPath,
       ankiConnectConfig: getResolvedConfig().ankiConnect,
-      resolveAnkiNoteId: (noteId: number) => appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
+      resolveAnkiNoteId: (noteId: number) =>
+        appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
       addYomitanNote: async (word: string) => {
         const ankiUrl = getResolvedConfig().ankiConnect.url || 'http://127.0.0.1:8765';
         await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
@@ -3434,10 +3440,10 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     shouldUseMinimalStartup: () =>
       Boolean(
         appState.initialArgs?.texthooker ||
-          (appState.initialArgs?.stats &&
-            (appState.initialArgs?.statsCleanup ||
-              appState.initialArgs?.statsBackground ||
-              appState.initialArgs?.statsStop)),
+        (appState.initialArgs?.stats &&
+          (appState.initialArgs?.statsCleanup ||
+            appState.initialArgs?.statsBackground ||
+            appState.initialArgs?.statsStop)),
       ),
     shouldSkipHeavyStartup: () =>
       Boolean(
@@ -4589,7 +4595,8 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       openYomitanSettings: () => openYomitanSettings(),
       quitApp: () => requestAppQuit(),
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
-      tokenizeCurrentSubtitle: async () => withCurrentSubtitleTiming(await tokenizeSubtitle(appState.currentSubText)),
+      tokenizeCurrentSubtitle: async () =>
+        withCurrentSubtitleTiming(await tokenizeSubtitle(appState.currentSubText)),
       getCurrentSubtitleRaw: () => appState.currentSubText,
       getCurrentSubtitleAss: () => appState.currentSubAssText,
       getSubtitleSidebarSnapshot: async () => {
@@ -4611,19 +4618,14 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         }
 
         try {
-          const [
-            currentExternalFilenameRaw,
-            currentTrackRaw,
-            trackListRaw,
-            sidRaw,
-            videoPathRaw,
-          ] = await Promise.all([
-            client.requestProperty('current-tracks/sub/external-filename').catch(() => null),
-            client.requestProperty('current-tracks/sub').catch(() => null),
-            client.requestProperty('track-list'),
-            client.requestProperty('sid'),
-            client.requestProperty('path'),
-          ]);
+          const [currentExternalFilenameRaw, currentTrackRaw, trackListRaw, sidRaw, videoPathRaw] =
+            await Promise.all([
+              client.requestProperty('current-tracks/sub/external-filename').catch(() => null),
+              client.requestProperty('current-tracks/sub').catch(() => null),
+              client.requestProperty('track-list'),
+              client.requestProperty('sid'),
+              client.requestProperty('path'),
+            ]);
           const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
           if (!videoPath) {
             return {

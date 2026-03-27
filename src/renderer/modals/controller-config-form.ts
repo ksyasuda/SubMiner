@@ -118,10 +118,14 @@ export function getDefaultControllerBinding(actionId: ControllerBindingActionId)
   if (!definition) {
     return { kind: 'none' } as const;
   }
-  return JSON.parse(JSON.stringify(definition.defaultBinding)) as ResolvedControllerConfig['bindings'][ControllerBindingActionId];
+  return JSON.parse(
+    JSON.stringify(definition.defaultBinding),
+  ) as ResolvedControllerConfig['bindings'][ControllerBindingActionId];
 }
 
-export function getDefaultDpadFallback(actionId: ControllerBindingActionId): ControllerDpadFallback {
+export function getDefaultDpadFallback(
+  actionId: ControllerBindingActionId,
+): ControllerDpadFallback {
   const definition = getControllerBindingDefinition(actionId);
   if (!definition || definition.defaultBinding.kind !== 'axis') return 'none';
   const binding = definition.defaultBinding;
@@ -249,7 +253,11 @@ export function createControllerConfigForm(options: {
 
       if (definition.bindingType === 'axis') {
         renderAxisStickRow(definition, binding as ResolvedControllerAxisBinding, learningActionId);
-        renderAxisDpadRow(definition, binding as ResolvedControllerAxisBinding, dpadLearningActionId);
+        renderAxisDpadRow(
+          definition,
+          binding as ResolvedControllerAxisBinding,
+          dpadLearningActionId,
+        );
       } else {
         renderDiscreteRow(definition, binding, learningActionId);
       }
@@ -265,7 +273,12 @@ export function createControllerConfigForm(options: {
     const isExpanded = expandedRowKey === rowKey;
     const isLearning = learningActionId === definition.id;
 
-    const row = createRow(definition.label, formatFriendlyBindingLabel(binding), binding.kind === 'none', isExpanded);
+    const row = createRow(
+      definition.label,
+      formatFriendlyBindingLabel(binding),
+      binding.kind === 'none',
+      isExpanded,
+    );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
       render();
@@ -277,9 +290,18 @@ export function createControllerConfigForm(options: {
         ? 'Press a button, trigger, or move a stick\u2026'
         : `Currently: ${formatControllerBindingSummary(binding)}`;
       const panel = createEditPanel(hint, isLearning, {
-        onLearn: (e) => { e.stopPropagation(); options.onLearn(definition.id, definition.bindingType); },
-        onClear: (e) => { e.stopPropagation(); options.onClear(definition.id); },
-        onReset: (e) => { e.stopPropagation(); options.onReset(definition.id); },
+        onLearn: (e) => {
+          e.stopPropagation();
+          options.onLearn(definition.id, definition.bindingType);
+        },
+        onClear: (e) => {
+          e.stopPropagation();
+          options.onClear(definition.id);
+        },
+        onReset: (e) => {
+          e.stopPropagation();
+          options.onReset(definition.id);
+        },
       });
       options.container.appendChild(panel);
     }
@@ -294,7 +316,12 @@ export function createControllerConfigForm(options: {
     const isExpanded = expandedRowKey === rowKey;
     const isLearning = learningActionId === definition.id;
 
-    const row = createRow(`${definition.label} (Stick)`, formatFriendlyStickLabel(binding), binding.kind === 'none', isExpanded);
+    const row = createRow(
+      `${definition.label} (Stick)`,
+      formatFriendlyStickLabel(binding),
+      binding.kind === 'none',
+      isExpanded,
+    );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
       render();
@@ -305,9 +332,18 @@ export function createControllerConfigForm(options: {
       const summary = binding.kind === 'none' ? 'Disabled' : `Axis ${binding.axisIndex}`;
       const hint = isLearning ? 'Move a stick or trigger\u2026' : `Currently: ${summary}`;
       const panel = createEditPanel(hint, isLearning, {
-        onLearn: (e) => { e.stopPropagation(); options.onLearn(definition.id, 'axis'); },
-        onClear: (e) => { e.stopPropagation(); options.onClear(definition.id); },
-        onReset: (e) => { e.stopPropagation(); options.onReset(definition.id); },
+        onLearn: (e) => {
+          e.stopPropagation();
+          options.onLearn(definition.id, 'axis');
+        },
+        onClear: (e) => {
+          e.stopPropagation();
+          options.onClear(definition.id);
+        },
+        onReset: (e) => {
+          e.stopPropagation();
+          options.onReset(definition.id);
+        },
       });
       options.container.appendChild(panel);
     }
@@ -322,9 +358,15 @@ export function createControllerConfigForm(options: {
     const isExpanded = expandedRowKey === rowKey;
     const isLearning = dpadLearningActionId === definition.id;
 
-    const dpadFallback: ControllerDpadFallback = binding.kind === 'none' ? 'none' : binding.dpadFallback;
+    const dpadFallback: ControllerDpadFallback =
+      binding.kind === 'none' ? 'none' : binding.dpadFallback;
     const badgeText = DPAD_FALLBACK_LABELS[dpadFallback];
-    const row = createRow(`${definition.label} (D-pad)`, badgeText, dpadFallback === 'none', isExpanded);
+    const row = createRow(
+      `${definition.label} (D-pad)`,
+      badgeText,
+      dpadFallback === 'none',
+      isExpanded,
+    );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
       render();
@@ -336,15 +378,29 @@ export function createControllerConfigForm(options: {
         ? 'Press a D-pad direction\u2026'
         : `Currently: ${DPAD_FALLBACK_LABELS[dpadFallback]}`;
       const panel = createEditPanel(hint, isLearning, {
-        onLearn: (e) => { e.stopPropagation(); options.onDpadLearn(definition.id); },
-        onClear: (e) => { e.stopPropagation(); options.onDpadClear(definition.id); },
-        onReset: (e) => { e.stopPropagation(); options.onDpadReset(definition.id); },
+        onLearn: (e) => {
+          e.stopPropagation();
+          options.onDpadLearn(definition.id);
+        },
+        onClear: (e) => {
+          e.stopPropagation();
+          options.onDpadClear(definition.id);
+        },
+        onReset: (e) => {
+          e.stopPropagation();
+          options.onDpadReset(definition.id);
+        },
       });
       options.container.appendChild(panel);
     }
   }
 
-  function createRow(labelText: string, badgeText: string, isDisabled: boolean, isExpanded: boolean): HTMLDivElement {
+  function createRow(
+    labelText: string,
+    badgeText: string,
+    isDisabled: boolean,
+    isExpanded: boolean,
+  ): HTMLDivElement {
     const row = document.createElement('div');
     row.className = 'controller-config-row';
     if (isExpanded) row.classList.add('expanded');

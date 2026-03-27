@@ -90,10 +90,7 @@ test('findActiveSubtitleCueIndex prefers current subtitle timing over near-futur
     { startTime: 233.05, endTime: 236, text: 'next' },
   ];
 
-  assert.equal(
-    findActiveSubtitleCueIndex(cues, { text: 'previous', startTime: 231 }, 233, 0),
-    0,
-  );
+  assert.equal(findActiveSubtitleCueIndex(cues, { text: 'previous', startTime: 231 }, 233, 0), 0);
 });
 
 test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback', async () => {
@@ -1217,10 +1214,22 @@ test('subtitle sidebar polling schedules serialized timeouts instead of interval
     assert.equal(timeoutCount > 0, true);
     assert.equal(intervalCount, 0);
   } finally {
-    Object.defineProperty(globalThis, 'setTimeout', { configurable: true, value: previousSetTimeout });
-    Object.defineProperty(globalThis, 'clearTimeout', { configurable: true, value: previousClearTimeout });
-    Object.defineProperty(globalThis, 'setInterval', { configurable: true, value: previousSetInterval });
-    Object.defineProperty(globalThis, 'clearInterval', { configurable: true, value: previousClearInterval });
+    Object.defineProperty(globalThis, 'setTimeout', {
+      configurable: true,
+      value: previousSetTimeout,
+    });
+    Object.defineProperty(globalThis, 'clearTimeout', {
+      configurable: true,
+      value: previousClearTimeout,
+    });
+    Object.defineProperty(globalThis, 'setInterval', {
+      configurable: true,
+      value: previousSetInterval,
+    });
+    Object.defineProperty(globalThis, 'clearInterval', {
+      configurable: true,
+      value: previousClearInterval,
+    });
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
   }
@@ -1564,17 +1573,13 @@ test('subtitle sidebar embedded layout reserves and releases mpv right margin', 
     assert.ok(
       mpvCommands.some(
         (command) =>
-          command[0] === 'set_property' &&
-          command[1] === 'osd-align-x' &&
-          command[2] === 'left',
+          command[0] === 'set_property' && command[1] === 'osd-align-x' && command[2] === 'left',
       ),
     );
     assert.ok(
       mpvCommands.some(
         (command) =>
-          command[0] === 'set_property' &&
-          command[1] === 'osd-align-y' &&
-          command[2] === 'top',
+          command[0] === 'set_property' && command[1] === 'osd-align-y' && command[2] === 'top',
       ),
     );
     assert.ok(
@@ -1597,7 +1602,11 @@ test('subtitle sidebar embedded layout reserves and releases mpv right margin', 
     assert.deepEqual(mpvCommands.at(-5), ['set_property', 'video-margin-ratio-right', 0]);
     assert.deepEqual(mpvCommands.at(-4), ['set_property', 'osd-align-x', 'left']);
     assert.deepEqual(mpvCommands.at(-3), ['set_property', 'osd-align-y', 'top']);
-    assert.deepEqual(mpvCommands.at(-2), ['set_property', 'user-data/osc/margins', '{"l":0,"r":0,"t":0,"b":0}']);
+    assert.deepEqual(mpvCommands.at(-2), [
+      'set_property',
+      'user-data/osc/margins',
+      '{"l":0,"r":0,"t":0,"b":0}',
+    ]);
     assert.deepEqual(mpvCommands.at(-1), ['set_property', 'video-pan-x', 0]);
     assert.equal(bodyClassList.contains('subtitle-sidebar-embedded-open'), false);
     assert.deepEqual(rootStyleCalls.at(-1), ['--subtitle-sidebar-reserved-width', '0px']);

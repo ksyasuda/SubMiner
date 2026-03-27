@@ -140,7 +140,11 @@ function isExcludedFromSubtitleAnnotationsByPos1(normalizedPos1: string): boolea
 function isExcludedTrailingParticleMergedToken(token: MergedToken): boolean {
   const normalizedSurface = normalizeJlptTextForExclusion(token.surface);
   const normalizedHeadword = normalizeJlptTextForExclusion(token.headword);
-  if (!normalizedSurface || !normalizedHeadword || !normalizedSurface.startsWith(normalizedHeadword)) {
+  if (
+    !normalizedSurface ||
+    !normalizedHeadword ||
+    !normalizedSurface.startsWith(normalizedHeadword)
+  ) {
     return false;
   }
 
@@ -164,7 +168,10 @@ function isExcludedTrailingParticleMergedToken(token: MergedToken): boolean {
 
 function isAuxiliaryStemGrammarTailToken(token: MergedToken): boolean {
   const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
-  if (pos1Parts.length === 0 || !pos1Parts.every((part) => AUXILIARY_STEM_GRAMMAR_TAIL_POS1.has(part))) {
+  if (
+    pos1Parts.length === 0 ||
+    !pos1Parts.every((part) => AUXILIARY_STEM_GRAMMAR_TAIL_POS1.has(part))
+  ) {
     return false;
   }
 

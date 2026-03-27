@@ -1,8 +1,4 @@
-import type {
-  SubtitleCue,
-  SubtitleData,
-  SubtitleSidebarSnapshot,
-} from '../../types';
+import type { SubtitleCue, SubtitleData, SubtitleSidebarSnapshot } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 
@@ -76,8 +72,7 @@ export function findActiveSubtitleCueIndex(
   if (typeof currentTimeSec === 'number' && Number.isFinite(currentTimeSec)) {
     const activeOrUpcomingCue = cues.findIndex(
       (cue) =>
-        cue.endTime > currentTimeSec &&
-        cue.startTime <= currentTimeSec + ACTIVE_CUE_LOOKAHEAD_SEC,
+        cue.endTime > currentTimeSec && cue.startTime <= currentTimeSec + ACTIVE_CUE_LOOKAHEAD_SEC,
     );
     if (activeOrUpcomingCue >= 0) {
       return activeOrUpcomingCue;
@@ -109,8 +104,7 @@ export function findActiveSubtitleCueIndex(
     return -1;
   }
 
-  const hasTiming =
-    typeof current.startTime === 'number' && Number.isFinite(current.startTime);
+  const hasTiming = typeof current.startTime === 'number' && Number.isFinite(current.startTime);
 
   if (preferredCueIndex >= 0) {
     if (!hasTiming && currentTimeSec === null) {
@@ -213,16 +207,8 @@ export function createSubtitleSidebarModal(
       'video-margin-ratio-right',
       Number(ratio.toFixed(4)),
     ]);
-    window.electronAPI.sendMpvCommand([
-      'set_property',
-      'osd-align-x',
-      'left',
-    ]);
-    window.electronAPI.sendMpvCommand([
-      'set_property',
-      'osd-align-y',
-      'top',
-    ]);
+    window.electronAPI.sendMpvCommand(['set_property', 'osd-align-x', 'left']);
+    window.electronAPI.sendMpvCommand(['set_property', 'osd-align-y', 'top']);
     window.electronAPI.sendMpvCommand([
       'set_property',
       'user-data/osc/margins',
@@ -302,13 +288,14 @@ export function createSubtitleSidebarModal(
     }
 
     const list = ctx.dom.subtitleSidebarList;
-    const active = list.children[ctx.state.subtitleSidebarActiveCueIndex] as HTMLElement | undefined;
+    const active = list.children[ctx.state.subtitleSidebarActiveCueIndex] as
+      | HTMLElement
+      | undefined;
     if (!active) {
       return;
     }
 
-    const targetScrollTop =
-      active.offsetTop - (list.clientHeight - active.clientHeight) / 2;
+    const targetScrollTop = active.offsetTop - (list.clientHeight - active.clientHeight) / 2;
     const nextScrollTop = Math.max(0, targetScrollTop);
     if (previousActiveCueIndex < 0) {
       list.scrollTop = nextScrollTop;
@@ -363,9 +350,9 @@ export function createSubtitleSidebarModal(
     }
 
     if (ctx.state.subtitleSidebarActiveCueIndex >= 0) {
-      const current = ctx.dom.subtitleSidebarList.children[ctx.state.subtitleSidebarActiveCueIndex] as
-        | HTMLElement
-        | undefined;
+      const current = ctx.dom.subtitleSidebarList.children[
+        ctx.state.subtitleSidebarActiveCueIndex
+      ] as HTMLElement | undefined;
       current?.classList.add('active');
     }
   }
@@ -476,7 +463,11 @@ export function createSubtitleSidebarModal(
 
   async function autoOpenSubtitleSidebarOnStartup(): Promise<void> {
     const snapshot = await refreshSnapshot();
-    if (!snapshot.config.enabled || !snapshot.config.autoOpen || ctx.state.subtitleSidebarModalOpen) {
+    if (
+      !snapshot.config.enabled ||
+      !snapshot.config.autoOpen ||
+      ctx.state.subtitleSidebarModalOpen
+    ) {
       return;
     }
     await openSubtitleSidebarModal();
@@ -512,10 +503,7 @@ export function createSubtitleSidebarModal(
       return;
     }
 
-    updateActiveCue(
-      { text: data.text, startTime: data.startTime },
-      data.startTime ?? null,
-    );
+    updateActiveCue({ text: data.text, startTime: data.startTime }, data.startTime ?? null);
   }
 
   function wireDomEvents(): void {

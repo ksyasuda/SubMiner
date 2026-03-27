@@ -228,7 +228,11 @@ test('consumeCachedSubtitle returns prefetched payload and prevents reprocessing
   controller.onSubtitleChange('猫\nです');
   await flushMicrotasks();
 
-  assert.equal(tokenizeCalls, 0, 'same cached subtitle should not reprocess after immediate consume');
+  assert.equal(
+    tokenizeCalls,
+    0,
+    'same cached subtitle should not reprocess after immediate consume',
+  );
   assert.deepEqual(emitted, []);
 });
 

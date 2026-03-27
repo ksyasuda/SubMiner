@@ -13,7 +13,10 @@ const YOUTUBE_BATCH_PREFIX = 'youtube-batch';
 const YOUTUBE_DOWNLOAD_TIMEOUT_MS = 15_000;
 
 function sanitizeFilenameSegment(value: string): string {
-  const sanitized = value.trim().replace(/[^a-z0-9_-]+/gi, '-').replace(/-+/g, '-');
+  const sanitized = value
+    .trim()
+    .replace(/[^a-z0-9_-]+/gi, '-')
+    .replace(/-+/g, '-');
   return sanitized.replace(/^-+|-+$/g, '') || 'unknown';
 }
 
@@ -163,10 +166,7 @@ async function downloadSubtitleFromUrl(input: {
       ? ext
       : 'vtt';
   const safeSourceLanguage = sanitizeFilenameSegment(input.track.sourceLanguage);
-  const targetPath = path.join(
-    input.outputDir,
-    `${input.prefix}.${safeSourceLanguage}.${safeExt}`,
-  );
+  const targetPath = path.join(input.outputDir, `${input.prefix}.${safeSourceLanguage}.${safeExt}`);
   const response = await fetch(input.track.downloadUrl, {
     signal: createFetchTimeoutSignal(YOUTUBE_DOWNLOAD_TIMEOUT_MS),
   });

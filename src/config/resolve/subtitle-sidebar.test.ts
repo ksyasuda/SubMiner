@@ -49,7 +49,10 @@ test('subtitleSidebar accepts zero opacity', () => {
   applySubtitleDomainConfig(context);
 
   assert.equal(context.resolved.subtitleSidebar.opacity, 0);
-  assert.equal(warnings.some((warning) => warning.path === 'subtitleSidebar.opacity'), false);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'subtitleSidebar.opacity'),
+    false,
+  );
 });
 
 test('subtitleSidebar falls back and warns on invalid values', () => {

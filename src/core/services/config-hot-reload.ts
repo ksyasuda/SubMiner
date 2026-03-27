@@ -58,7 +58,12 @@ function classifyDiff(prev: ResolvedConfig, next: ResolvedConfig): ConfigHotRelo
   ]);
 
   for (const key of keys) {
-    if (key === 'subtitleStyle' || key === 'keybindings' || key === 'shortcuts' || key === 'subtitleSidebar') {
+    if (
+      key === 'subtitleStyle' ||
+      key === 'keybindings' ||
+      key === 'shortcuts' ||
+      key === 'subtitleSidebar'
+    ) {
       continue;
     }
 

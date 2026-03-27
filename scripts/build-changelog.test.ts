@@ -111,7 +111,11 @@ test('writeChangelogArtifacts skips changelog prepend when release section alrea
   fs.mkdirSync(projectRoot, { recursive: true });
   fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
   fs.writeFileSync(path.join(projectRoot, 'CHANGELOG.md'), existingChangelog, 'utf8');
-  fs.writeFileSync(path.join(projectRoot, 'changes', '001.md'), ['type: added', 'area: overlay', '', '- Stale release fragment.'].join('\n'), 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: added', 'area: overlay', '', '- Stale release fragment.'].join('\n'),
+    'utf8',
+  );
 
   try {
     const result = writeChangelogArtifacts({
@@ -125,7 +129,10 @@ test('writeChangelogArtifacts skips changelog prepend when release section alrea
 
     const changelog = fs.readFileSync(path.join(projectRoot, 'CHANGELOG.md'), 'utf8');
     assert.equal(changelog, existingChangelog);
-    const releaseNotes = fs.readFileSync(path.join(projectRoot, 'release', 'release-notes.md'), 'utf8');
+    const releaseNotes = fs.readFileSync(
+      path.join(projectRoot, 'release', 'release-notes.md'),
+      'utf8',
+    );
     assert.match(releaseNotes, /## Highlights\n### Added\n- Existing release bullet\./);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });

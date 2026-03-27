@@ -33,7 +33,9 @@ export function createInvokeStatsWordHelperHandler(deps: {
       });
 
       const startupResult = await Promise.race([
-        deps.waitForResponse(responsePath).then((response) => ({ kind: 'response' as const, response })),
+        deps
+          .waitForResponse(responsePath)
+          .then((response) => ({ kind: 'response' as const, response })),
         helperExitPromise.then((status) => ({ kind: 'exit' as const, status })),
       ]);
 
@@ -42,7 +44,9 @@ export function createInvokeStatsWordHelperHandler(deps: {
         response = startupResult.response;
       } else {
         if (startupResult.status !== 0) {
-          throw new Error(`Stats word helper exited before response (status ${startupResult.status}).`);
+          throw new Error(
+            `Stats word helper exited before response (status ${startupResult.status}).`,
+          );
         }
         response = await deps.waitForResponse(responsePath);
       }

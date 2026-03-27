@@ -3,7 +3,11 @@ import type { YoutubeTrackKind } from './kinds';
 export type { YoutubeTrackKind };
 
 export function normalizeYoutubeLangCode(value: string): string {
-  return value.trim().toLowerCase().replace(/_/g, '-').replace(/[^a-z0-9-]+/g, '');
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, '-')
+    .replace(/[^a-z0-9-]+/g, '');
 }
 
 export function isJapaneseYoutubeLang(value: string): boolean {

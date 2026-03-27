@@ -384,7 +384,9 @@ async function injectDownloadedSubtitles(
   } else {
     deps.warn(
       `Unable to bind downloaded primary subtitle track in mpv: ${
-        primarySelection.injectedPath ? path.basename(primarySelection.injectedPath) : primarySelection.track.label
+        primarySelection.injectedPath
+          ? path.basename(primarySelection.injectedPath)
+          : primarySelection.track.label
       }`,
     );
   }
@@ -415,9 +417,7 @@ async function injectDownloadedSubtitles(
     deps.refreshCurrentSubtitle(currentSubText);
   }
 
-  deps.showMpvOsd(
-    secondaryTrack ? 'Primary and secondary subtitles loaded.' : 'Subtitles loaded.',
-  );
+  deps.showMpvOsd(secondaryTrack ? 'Primary and secondary subtitles loaded.' : 'Subtitles loaded.');
   return true;
 }
 
@@ -587,7 +587,8 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
                 existingPrimaryTrackId,
               )
             : null;
-        const primaryReady = input.primaryTrack.kind !== 'manual' || existingPrimaryTrackId !== null;
+        const primaryReady =
+          input.primaryTrack.kind !== 'manual' || existingPrimaryTrackId !== null;
         const secondaryReady =
           !input.secondaryTrack ||
           input.secondaryTrack.kind !== 'manual' ||
@@ -631,7 +632,11 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
         secondaryInjectedPath = acquired.secondaryPath;
       }
 
-      if (input.secondaryTrack && existingSecondaryTrackId === null && secondaryInjectedPath === null) {
+      if (
+        input.secondaryTrack &&
+        existingSecondaryTrackId === null &&
+        secondaryInjectedPath === null
+      ) {
         try {
           secondaryInjectedPath = (
             await deps.acquireYoutubeSubtitleTrack({

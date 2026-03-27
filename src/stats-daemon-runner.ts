@@ -13,7 +13,10 @@ import {
   writeBackgroundStatsServerState,
 } from './main/runtime/stats-daemon';
 import { writeStatsCliCommandResponse } from './main/runtime/stats-cli-command';
-import { createInvokeStatsWordHelperHandler, type StatsWordHelperResponse } from './stats-word-helper-client';
+import {
+  createInvokeStatsWordHelperHandler,
+  type StatsWordHelperResponse,
+} from './stats-word-helper-client';
 
 const logger = createLogger('stats-daemon');
 const STATS_WORD_HELPER_RESPONSE_TIMEOUT_MS = 20_000;

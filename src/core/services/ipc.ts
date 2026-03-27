@@ -64,7 +64,9 @@ export interface IpcServiceDeps {
   getCurrentSecondarySub: () => string;
   focusMainWindow: () => void;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
-  onYoutubePickerResolve: (request: YoutubePickerResolveRequest) => Promise<YoutubePickerResolveResult>;
+  onYoutubePickerResolve: (
+    request: YoutubePickerResolveRequest,
+  ) => Promise<YoutubePickerResolveResult>;
   getAnkiConnectStatus: () => boolean;
   getRuntimeOptions: () => unknown;
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
@@ -167,7 +169,9 @@ export interface IpcDepsRuntimeOptions {
   getMpvClient: () => MpvClientLike | null;
   focusMainWindow: () => void;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
-  onYoutubePickerResolve: (request: YoutubePickerResolveRequest) => Promise<YoutubePickerResolveResult>;
+  onYoutubePickerResolve: (
+    request: YoutubePickerResolveRequest,
+  ) => Promise<YoutubePickerResolveResult>;
   getAnkiConnectStatus: () => boolean;
   getRuntimeOptions: () => unknown;
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
@@ -291,13 +295,16 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     deps.onOverlayModalOpened(parsedModal);
   });
 
-  ipc.handle(IPC_CHANNELS.request.youtubePickerResolve, async (_event: unknown, request: unknown) => {
-    const parsedRequest = parseYoutubePickerResolveRequest(request);
-    if (!parsedRequest) {
-      return { ok: false, message: 'Invalid YouTube picker resolve payload' };
-    }
-    return await deps.onYoutubePickerResolve(parsedRequest);
-  });
+  ipc.handle(
+    IPC_CHANNELS.request.youtubePickerResolve,
+    async (_event: unknown, request: unknown) => {
+      const parsedRequest = parseYoutubePickerResolveRequest(request);
+      if (!parsedRequest) {
+        return { ok: false, message: 'Invalid YouTube picker resolve payload' };
+      }
+      return await deps.onYoutubePickerResolve(parsedRequest);
+    },
+  );
 
   ipc.on(IPC_CHANNELS.command.openYomitanSettings, () => {
     deps.openYomitanSettings();
@@ -375,13 +382,16 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     },
   );
 
-  ipc.handle(IPC_CHANNELS.command.saveControllerConfig, async (_event: unknown, update: unknown) => {
-    const parsedUpdate = parseControllerConfigUpdate(update);
-    if (!parsedUpdate) {
-      throw new Error('Invalid controller config payload');
-    }
-    await deps.saveControllerConfig(parsedUpdate);
-  });
+  ipc.handle(
+    IPC_CHANNELS.command.saveControllerConfig,
+    async (_event: unknown, update: unknown) => {
+      const parsedUpdate = parseControllerConfigUpdate(update);
+      if (!parsedUpdate) {
+        throw new Error('Invalid controller config payload');
+      }
+      await deps.saveControllerConfig(parsedUpdate);
+    },
+  );
 
   ipc.handle(IPC_CHANNELS.request.getMecabStatus, () => {
     return deps.getMecabStatus();

@@ -47,7 +47,11 @@ export function parseMpvArgString(input: string): string[] {
   let inDoubleQuote = false;
   let escaping = false;
   const canEscape = (nextChar: string | undefined): boolean =>
-    nextChar === undefined || nextChar === '"' || nextChar === "'" || nextChar === '\\' || /\s/.test(nextChar);
+    nextChar === undefined ||
+    nextChar === '"' ||
+    nextChar === "'" ||
+    nextChar === '\\' ||
+    /\s/.test(nextChar);
 
   for (let i = 0; i < chars.length; i += 1) {
     const ch = chars[i] || '';
@@ -598,7 +602,9 @@ export async function startMpv(
     ? await resolveAniSkipMetadataForFile(target)
     : null;
   const extraScriptOpts =
-    targetKind === 'url' && isYoutubeTarget(target) && options?.disableYoutubeSubtitleAutoLoad === true
+    targetKind === 'url' &&
+    isYoutubeTarget(target) &&
+    options?.disableYoutubeSubtitleAutoLoad === true
       ? ['subminer-auto_start_pause_until_ready=no']
       : [];
   const scriptOpts = buildSubminerScriptOpts(
@@ -1064,7 +1070,9 @@ export function launchMpvIdleDetached(
       mpvArgs.push(...parseMpvArgString(args.mpvArgs));
     }
     mpvArgs.push('--idle=yes');
-    mpvArgs.push(`--script-opts=${buildSubminerScriptOpts(appPath, socketPath, null, args.logLevel)}`);
+    mpvArgs.push(
+      `--script-opts=${buildSubminerScriptOpts(appPath, socketPath, null, args.logLevel)}`,
+    );
     mpvArgs.push(`--log-file=${getMpvLogPath()}`);
     mpvArgs.push(`--input-ipc-server=${socketPath}`);
     const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);

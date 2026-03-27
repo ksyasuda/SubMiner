@@ -25,9 +25,7 @@ function decodeHtmlEntities(value: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&#(\d+);/g, (match, codePoint) =>
-      decodeNumericEntity(match, Number(codePoint)),
-    )
+    .replace(/&#(\d+);/g, (match, codePoint) => decodeNumericEntity(match, Number(codePoint)))
     .replace(/&#x([0-9a-f]+);/gi, (match, codePoint) =>
       decodeNumericEntity(match, Number.parseInt(codePoint, 16)),
     );
@@ -52,9 +50,7 @@ function extractYoutubeTimedTextRows(xml: string): YoutubeTimedTextRow[] {
       continue;
     }
 
-    const inner = (match[2] ?? '')
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<[^>]+>/g, '');
+    const inner = (match[2] ?? '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
     const text = decodeHtmlEntities(inner).trim();
     if (!text) {
       continue;
@@ -110,7 +106,9 @@ export function convertYoutubeTimedTextToVtt(xml: string): string {
     if (!text) {
       continue;
     }
-    blocks.push(`${formatVttTimestamp(row.startMs)} --> ${formatVttTimestamp(clampedEnd)}\n${text}`);
+    blocks.push(
+      `${formatVttTimestamp(row.startMs)} --> ${formatVttTimestamp(clampedEnd)}\n${text}`,
+    );
   }
 
   return `WEBVTT\n\n${blocks.join('\n\n')}\n`;

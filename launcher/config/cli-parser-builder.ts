@@ -236,17 +236,12 @@ export function parseCliPrograms(
         normalizedAction !== 'rebuild' &&
         normalizedAction !== 'backfill'
       ) {
-        throw new Error(
-          'Invalid stats action. Valid values are cleanup, rebuild, or backfill.',
-        );
+        throw new Error('Invalid stats action. Valid values are cleanup, rebuild, or backfill.');
       }
       if (normalizedAction && (statsBackground || statsStop)) {
         throw new Error('Stats background and stop flags cannot be combined with stats actions.');
       }
-      if (
-        normalizedAction !== 'cleanup' &&
-        (options.vocab === true || options.lifetime === true)
-      ) {
+      if (normalizedAction !== 'cleanup' && (options.vocab === true || options.lifetime === true)) {
         throw new Error('Stats --vocab and --lifetime flags require the cleanup action.');
       }
       if (normalizedAction === 'cleanup') {

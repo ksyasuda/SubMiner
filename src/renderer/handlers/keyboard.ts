@@ -194,13 +194,7 @@ export function createKeyboardHandlers(
       (isBackslashConfigured && e.key === '\\') ||
       (toggleKey.length === 1 && e.key === toggleKey);
 
-    return (
-      keyMatches &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.metaKey &&
-      !e.repeat
-    );
+    return keyMatches && !e.ctrlKey && !e.altKey && !e.metaKey && !e.repeat;
   }
 
   function isStatsOverlayToggle(e: KeyboardEvent): boolean {

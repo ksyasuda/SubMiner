@@ -10,9 +10,10 @@ function pickTrack(
   return matching[0] ?? null;
 }
 
-export function chooseDefaultYoutubeTrackIds(
-  tracks: YoutubeTrackOption[],
-): { primaryTrackId: string | null; secondaryTrackId: string | null } {
+export function chooseDefaultYoutubeTrackIds(tracks: YoutubeTrackOption[]): {
+  primaryTrackId: string | null;
+  secondaryTrackId: string | null;
+} {
   const primary =
     pickTrack(
       tracks.filter((track) => track.kind === 'manual'),
@@ -52,7 +53,11 @@ export function normalizeYoutubeTrackSelection(input: {
   primaryTrackId: string | null;
   secondaryTrackId: string | null;
 } {
-  if (input.primaryTrackId && input.secondaryTrackId && input.primaryTrackId === input.secondaryTrackId) {
+  if (
+    input.primaryTrackId &&
+    input.secondaryTrackId &&
+    input.primaryTrackId === input.secondaryTrackId
+  ) {
     return {
       primaryTrackId: input.primaryTrackId,
       secondaryTrackId: null,
@@ -60,4 +65,3 @@ export function normalizeYoutubeTrackSelection(input: {
   }
   return input;
 }
-

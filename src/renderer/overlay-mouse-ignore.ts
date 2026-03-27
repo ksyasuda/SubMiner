@@ -7,14 +7,14 @@ function isBlockingOverlayModalOpen(state: RendererState): boolean {
 
   return Boolean(
     state.controllerSelectModalOpen ||
-      state.controllerDebugModalOpen ||
-      state.jimakuModalOpen ||
-      state.youtubePickerModalOpen ||
-      state.kikuModalOpen ||
-      state.runtimeOptionsModalOpen ||
-      state.subsyncModalOpen ||
-      state.sessionHelpModalOpen ||
-      (state.subtitleSidebarModalOpen && !embeddedSidebarOpen),
+    state.controllerDebugModalOpen ||
+    state.jimakuModalOpen ||
+    state.youtubePickerModalOpen ||
+    state.kikuModalOpen ||
+    state.runtimeOptionsModalOpen ||
+    state.subsyncModalOpen ||
+    state.sessionHelpModalOpen ||
+    (state.subtitleSidebarModalOpen && !embeddedSidebarOpen),
   );
 }
 

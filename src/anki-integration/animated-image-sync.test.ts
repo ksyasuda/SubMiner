@@ -4,10 +4,10 @@ import test from 'node:test';
 import { resolveAnimatedImageLeadInSeconds, extractSoundFilenames } from './animated-image-sync';
 
 test('extractSoundFilenames returns ordered sound filenames from an Anki field value', () => {
-  assert.deepEqual(
-    extractSoundFilenames('before [sound:word.mp3] middle [sound:alt.ogg] after'),
-    ['word.mp3', 'alt.ogg'],
-  );
+  assert.deepEqual(extractSoundFilenames('before [sound:word.mp3] middle [sound:alt.ogg] after'), [
+    'word.mp3',
+    'alt.ogg',
+  ]);
 });
 
 test('resolveAnimatedImageLeadInSeconds sums configured word audio durations for animated images', async () => {

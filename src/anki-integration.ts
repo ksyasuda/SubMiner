@@ -21,15 +21,15 @@ import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { MediaGenerator } from './media-generator';
 import path from 'path';
 import {
-  AiConfig,
   AnkiConnectConfig,
   KikuDuplicateCardInfo,
   KikuFieldGroupingChoice,
   KikuMergePreviewResponse,
-  MpvClient,
   NotificationOptions,
-  NPlusOneMatchMode,
-} from './types';
+} from './types/anki';
+import { AiConfig } from './types/integrations';
+import { MpvClient } from './types/runtime';
+import { NPlusOneMatchMode } from './types/subtitle';
 import { DEFAULT_ANKI_CONNECT_CONFIG } from './config';
 import {
   getConfiguredWordFieldCandidates,
@@ -212,10 +212,7 @@ export class AnkiIntegration {
     try {
       this.recordCardsMinedCallback(count, noteIds);
     } catch (error) {
-      log.warn(
-        `recordCardsMined callback failed during ${source}:`,
-        (error as Error).message,
-      );
+      log.warn(`recordCardsMined callback failed during ${source}:`, (error as Error).message);
     }
   }
 

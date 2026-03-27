@@ -22,7 +22,4 @@ export function resolveAutoplayReadyMaxReleaseAttempts(options?: {
   return Math.max(3, Math.ceil(startupTimeoutMs / retryDelayMs));
 }
 
-export {
-  DEFAULT_AUTOPLAY_RELEASE_RETRY_DELAY_MS,
-  STARTUP_AUTOPLAY_RELEASE_TIMEOUT_MS,
-};
+export { DEFAULT_AUTOPLAY_RELEASE_RETRY_DELAY_MS, STARTUP_AUTOPLAY_RELEASE_TIMEOUT_MS };

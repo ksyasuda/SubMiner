@@ -14,12 +14,7 @@ test('getDefaultMpvLogFile uses APPDATA on windows', () => {
   assert.equal(
     path.normalize(resolved),
     path.normalize(
-      path.join(
-        'C:\\Users\\tester\\AppData\\Roaming',
-        'SubMiner',
-        'logs',
-        `mpv-${today}.log`,
-      ),
+      path.join('C:\\Users\\tester\\AppData\\Roaming', 'SubMiner', 'logs', `mpv-${today}.log`),
     ),
   );
 });
@@ -33,12 +28,6 @@ test('getDefaultLauncherLogFile uses launcher prefix', () => {
 
   assert.equal(
     resolved,
-    path.join(
-      '/home/tester',
-      '.config',
-      'SubMiner',
-      'logs',
-      `launcher-${today}.log`,
-    ),
+    path.join('/home/tester', '.config', 'SubMiner', 'logs', `launcher-${today}.log`),
   );
 });

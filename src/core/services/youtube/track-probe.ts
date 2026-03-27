@@ -127,7 +127,10 @@ export async function probeYoutubeTracks(targetUrl: string): Promise<YoutubeTrac
       }${snippet ? `; stdout=${snippet}` : ''}`,
     );
   }
-  const tracks = [...toTracks(info.subtitles, 'manual'), ...toTracks(info.automatic_captions, 'auto')];
+  const tracks = [
+    ...toTracks(info.subtitles, 'manual'),
+    ...toTracks(info.automatic_captions, 'auto'),
+  ];
   return {
     videoId: info.id || '',
     title: info.title || '',

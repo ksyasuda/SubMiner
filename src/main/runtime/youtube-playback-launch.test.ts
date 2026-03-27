@@ -183,7 +183,13 @@ test('prepare youtube playback accepts a non-youtube resolved path once playable
     '/videos/episode01.mkv',
     'https://rr16---sn.example.googlevideo.com/videoplayback?id=abc',
   ];
-  const observedTrackLists = [[], [{ type: 'video', id: 1 }, { type: 'audio', id: 2 }]];
+  const observedTrackLists = [
+    [],
+    [
+      { type: 'video', id: 1 },
+      { type: 'audio', id: 2 },
+    ],
+  ];
   let requestCount = 0;
   const prepare = createPrepareYoutubePlaybackInMpvHandler({
     requestPath: async () => {
@@ -256,11 +262,14 @@ test('prepare youtube playback does not accept a different youtube video after p
 
 test('prepare youtube playback accepts a fresh-start path change when the direct target matches exactly', async () => {
   const commands: Array<Array<string>> = [];
-  const observedPaths = [
-    '',
-    'https://rr16---sn.example.googlevideo.com/videoplayback?id=abc',
+  const observedPaths = ['', 'https://rr16---sn.example.googlevideo.com/videoplayback?id=abc'];
+  const observedTrackLists = [
+    [],
+    [
+      { type: 'video', id: 1 },
+      { type: 'audio', id: 2 },
+    ],
   ];
-  const observedTrackLists = [[], [{ type: 'video', id: 1 }, { type: 'audio', id: 2 }]];
   let requestCount = 0;
   const prepare = createPrepareYoutubePlaybackInMpvHandler({
     requestPath: async () => {

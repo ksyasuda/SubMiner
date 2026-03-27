@@ -47,7 +47,10 @@ type ControllerBindingCaptureResult =
       dpadDirection: ControllerDpadFallback;
     };
 
-function isActiveButton(button: ControllerButtonState | undefined, triggerDeadzone: number): boolean {
+function isActiveButton(
+  button: ControllerButtonState | undefined,
+  triggerDeadzone: number,
+): boolean {
   if (!button) return false;
   return Boolean(button.pressed) || button.value >= triggerDeadzone;
 }
@@ -90,7 +93,10 @@ export function createControllerBindingCapture(options: {
     });
   }
 
-  function arm(nextTarget: ControllerBindingCaptureTarget, snapshot: ControllerBindingCaptureSnapshot): void {
+  function arm(
+    nextTarget: ControllerBindingCaptureTarget,
+    snapshot: ControllerBindingCaptureSnapshot,
+  ): void {
     target = nextTarget;
     resetBlockedState(snapshot);
   }
@@ -139,7 +145,10 @@ export function createControllerBindingCapture(options: {
     }
 
     // After dpad early-return, only 'discrete' | 'axis' remain
-    const narrowedTarget: Extract<ControllerBindingCaptureTarget, { bindingType: 'discrete' | 'axis' }> = target;
+    const narrowedTarget: Extract<
+      ControllerBindingCaptureTarget,
+      { bindingType: 'discrete' | 'axis' }
+    > = target;
 
     for (let index = 0; index < snapshot.buttons.length; index += 1) {
       if (!isActiveButton(snapshot.buttons[index], options.triggerDeadzone)) continue;
