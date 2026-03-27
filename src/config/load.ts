@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { RawConfig } from '../types';
+import { RawConfig } from '../types/config';
 import { parseConfigContent } from './parse';
 
 export interface ConfigPaths {

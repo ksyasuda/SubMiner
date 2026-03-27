@@ -1,4 +1,4 @@
-import { ResolvedConfig } from '../../types.js';
+import { ResolvedConfig } from '../../types/config.js';
 import { ConfigOptionRegistryEntry } from './shared.js';
 
 export function buildStatsConfigOptionRegistry(
@@ -15,7 +15,8 @@ export function buildStatsConfigOptionRegistry(
       path: 'stats.markWatchedKey',
       kind: 'string',
       defaultValue: defaultConfig.stats.markWatchedKey,
-      description: 'Key code to mark the current video as watched and advance to the next playlist entry.',
+      description:
+        'Key code to mark the current video as watched and advance to the next playlist entry.',
     },
     {
       path: 'stats.serverPort',

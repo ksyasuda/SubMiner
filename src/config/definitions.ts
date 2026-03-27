@@ -1,4 +1,4 @@
-import { RawConfig, ResolvedConfig } from '../types';
+import { RawConfig, ResolvedConfig } from '../types/config';
 import { CORE_DEFAULT_CONFIG } from './definitions/defaults-core';
 import { IMMERSION_DEFAULT_CONFIG } from './definitions/defaults-immersion';
 import { INTEGRATIONS_DEFAULT_CONFIG } from './definitions/defaults-integrations';

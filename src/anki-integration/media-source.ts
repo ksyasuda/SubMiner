@@ -1,5 +1,5 @@
 import { isRemoteMediaPath } from '../jimaku/utils';
-import type { MpvClient } from '../types';
+import type { MpvClient } from '../types/runtime';
 
 export type MediaGenerationKind = 'audio' | 'video';
 
@@ -50,7 +50,7 @@ function resolvePreferredUrlFromMpvEdlSource(
 
   // mpv EDL sources usually list audio streams first and video streams last, so
   // when classifyMediaUrl cannot identify a typed URL we fall back to stream order.
-  return kind === 'audio' ? urls[0] ?? null : urls[urls.length - 1] ?? null;
+  return kind === 'audio' ? (urls[0] ?? null) : (urls[urls.length - 1] ?? null);
 }
 
 export async function resolveMediaGenerationInputPath(

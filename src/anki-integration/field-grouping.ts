@@ -1,4 +1,4 @@
-import { KikuMergePreviewResponse } from '../types';
+import { KikuMergePreviewResponse } from '../types/anki';
 import { createLogger } from '../logger';
 import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 

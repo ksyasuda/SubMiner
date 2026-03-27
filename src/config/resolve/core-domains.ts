@@ -8,7 +8,7 @@ import type {
   ControllerDiscreteBindingConfig,
   ResolvedControllerAxisBinding,
   ResolvedControllerDiscreteBinding,
-} from '../../types';
+} from '../../types/runtime';
 import { ResolveContext } from './context';
 import { asBoolean, asNumber, asString, isObject } from './shared';
 
@@ -27,7 +27,12 @@ const CONTROLLER_BUTTON_BINDINGS = [
   'rightTrigger',
 ] as const;
 
-const CONTROLLER_AXIS_BINDINGS = ['leftStickX', 'leftStickY', 'rightStickX', 'rightStickY'] as const;
+const CONTROLLER_AXIS_BINDINGS = [
+  'leftStickX',
+  'leftStickY',
+  'rightStickX',
+  'rightStickY',
+] as const;
 
 const CONTROLLER_AXIS_INDEX_BY_BINDING: Record<ControllerAxisBinding, number> = {
   leftStickX: 0,
@@ -98,7 +103,9 @@ function parseDiscreteBindingObject(value: unknown): ResolvedControllerDiscreteB
     return { kind: 'none' };
   }
   if (value.kind === 'button') {
-    return typeof value.buttonIndex === 'number' && Number.isInteger(value.buttonIndex) && value.buttonIndex >= 0
+    return typeof value.buttonIndex === 'number' &&
+      Number.isInteger(value.buttonIndex) &&
+      value.buttonIndex >= 0
       ? { kind: 'button', buttonIndex: value.buttonIndex }
       : null;
   }
@@ -121,7 +128,11 @@ function parseAxisBindingObject(
     return { kind: 'none' };
   }
   if (!isObject(value) || value.kind !== 'axis') return null;
-  if (typeof value.axisIndex !== 'number' || !Number.isInteger(value.axisIndex) || value.axisIndex < 0) {
+  if (
+    typeof value.axisIndex !== 'number' ||
+    !Number.isInteger(value.axisIndex) ||
+    value.axisIndex < 0
+  ) {
     return null;
   }
   if (value.dpadFallback !== undefined && !isControllerDpadFallback(value.dpadFallback)) {
@@ -368,7 +379,9 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
         const legacyValue = asString(bindingValue);
         if (
           legacyValue !== undefined &&
-          CONTROLLER_BUTTON_BINDINGS.includes(legacyValue as (typeof CONTROLLER_BUTTON_BINDINGS)[number])
+          CONTROLLER_BUTTON_BINDINGS.includes(
+            legacyValue as (typeof CONTROLLER_BUTTON_BINDINGS)[number],
+          )
         ) {
           resolved.controller.bindings[key] = resolveLegacyDiscreteBinding(
             legacyValue as ControllerButtonBinding,
@@ -401,7 +414,9 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
         const legacyValue = asString(bindingValue);
         if (
           legacyValue !== undefined &&
-          CONTROLLER_AXIS_BINDINGS.includes(legacyValue as (typeof CONTROLLER_AXIS_BINDINGS)[number])
+          CONTROLLER_AXIS_BINDINGS.includes(
+            legacyValue as (typeof CONTROLLER_AXIS_BINDINGS)[number],
+          )
         ) {
           resolved.controller.bindings[key] = resolveLegacyAxisBinding(
             legacyValue as ControllerAxisBinding,

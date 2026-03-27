@@ -1,11 +1,11 @@
-import {
-  AnkiConnectConfig,
-  ResolvedConfig,
+import type { AnkiConnectConfig } from '../../types/anki';
+import type { ResolvedConfig } from '../../types/config';
+import type {
   RuntimeOptionId,
   RuntimeOptionScope,
   RuntimeOptionValue,
   RuntimeOptionValueType,
-} from '../../types';
+} from '../../types/runtime-options';
 
 export type ConfigValueKind = 'boolean' | 'number' | 'string' | 'enum' | 'array' | 'object';
 

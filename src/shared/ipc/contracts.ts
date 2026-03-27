@@ -1,4 +1,5 @@
-import type { OverlayContentMeasurement, RuntimeOptionId, RuntimeOptionValue } from '../../types';
+import type { OverlayContentMeasurement } from '../../types/runtime';
+import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-options';
 
 export const OVERLAY_HOSTED_MODALS = [
   'runtime-options',

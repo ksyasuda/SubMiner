@@ -1,4 +1,4 @@
-import { ResolvedConfig } from '../../types';
+import { ResolvedConfig } from '../../types/config';
 import { RuntimeOptionRegistryEntry } from './shared';
 
 export function buildRuntimeOptionRegistry(

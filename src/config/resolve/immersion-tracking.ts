@@ -1,5 +1,8 @@
 import { ResolveContext } from './context';
-import { ImmersionTrackingRetentionMode, ImmersionTrackingRetentionPreset } from '../../types';
+import {
+  ImmersionTrackingRetentionMode,
+  ImmersionTrackingRetentionPreset,
+} from '../../types/integrations';
 import { asBoolean, asNumber, asString, isObject } from './shared';
 
 const DEFAULT_RETENTION_MODE: ImmersionTrackingRetentionMode = 'preset';

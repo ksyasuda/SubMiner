@@ -1,4 +1,4 @@
-import { ResolvedConfig } from '../types';
+import { ResolvedConfig } from '../types/config';
 import {
   CONFIG_OPTION_REGISTRY,
   CONFIG_TEMPLATE_SECTIONS,

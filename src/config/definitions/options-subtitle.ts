@@ -1,4 +1,4 @@
-import { ResolvedConfig } from '../../types';
+import { ResolvedConfig } from '../../types/config';
 import { ConfigOptionRegistryEntry } from './shared';
 
 export function buildSubtitleConfigOptionRegistry(

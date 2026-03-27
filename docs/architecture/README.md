@@ -3,7 +3,7 @@
 # Architecture Map
 
 Status: active
-Last verified: 2026-03-13
+Last verified: 2026-03-26
 Owner: Kyle Yasuda
 Read when: runtime ownership, composition boundaries, or layering questions
 
@@ -27,6 +27,7 @@ The desktop app keeps `src/main.ts` as composition root and pushes behavior into
 - `src/core/services/` owns focused runtime services plus pure or side-effect-bounded logic.
 - `src/renderer/` owns overlay rendering and input behavior.
 - `src/config/` owns config definitions, defaults, loading, and resolution.
+- `src/types/` owns shared cross-runtime contracts via domain entrypoints; `src/types.ts` stays a compatibility barrel.
 - `src/main/runtime/composers/` owns larger domain compositions.
 
 ## Architecture Intent

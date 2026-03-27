@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.3 (2026-03-25)
+- Moved YouTube primary subtitle language defaults to `youtube.primarySubLanguages`.
+- Removed the placeholder YouTube subtitle retime step; downloaded primary subtitle tracks are now used directly.
+- Removed the old internal YouTube retime helper and its tests.
+- Clarified optional `alass` / `ffsubsync` subtitle-sync setup and fallback behavior in the docs.
+- Removed the legacy `youtubeSubgen.primarySubLanguages` config path from generated config and docs.
+
 ## v0.9.2 (2026-03-25)
 - Fixed overlay pointer tracking so Windows click-through toggles immediately when the cursor enters or leaves subtitle regions.
 - Fixed Windows overlay window tracking on scaled displays by converting native tracked window bounds to Electron DIP coordinates.

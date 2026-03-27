@@ -1,4 +1,4 @@
-import { ResolvedConfig } from '../../types.js';
+import { ResolvedConfig } from '../../types/config.js';
 
 export const STATS_DEFAULT_CONFIG: Pick<ResolvedConfig, 'stats'> = {
   stats: {

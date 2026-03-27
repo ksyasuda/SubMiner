@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
-import type { AnkiConnectConfig } from '../types';
+import type { AnkiConnectConfig } from '../types/anki';
 
 type NoteInfoLike = {
   noteId: number;
@@ -36,9 +36,7 @@ export function extractSoundFilenames(value: string): string[] {
 }
 
 function shouldSyncAnimatedImageToWordAudio(config: Pick<AnkiConnectConfig, 'media'>): boolean {
-  return (
-    config.media?.imageType === 'avif' && config.media?.syncAnimatedImageToWordAudio !== false
-  );
+  return config.media?.imageType === 'avif' && config.media?.syncAnimatedImageToWordAudio !== false;
 }
 
 export async function probeAudioDurationSeconds(

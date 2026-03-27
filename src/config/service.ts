@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ConfigValidationWarning, RawConfig, ResolvedConfig } from '../types';
+import { ConfigValidationWarning, RawConfig, ResolvedConfig } from '../types/config';
 import { DEFAULT_CONFIG, deepCloneConfig, deepMergeRawConfig } from './definitions';
 import { ConfigPaths, loadRawConfig, loadRawConfigStrict } from './load';
 import { resolveConfig } from './resolve';

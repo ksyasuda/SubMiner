@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FieldGroupingWorkflow } from './field-grouping-workflow';
-import type { KikuDuplicateCardInfo, KikuFieldGroupingChoice } from '../types';
+import type { KikuDuplicateCardInfo, KikuFieldGroupingChoice } from '../types/anki';
 
 type NoteInfo = {
   noteId: number;

@@ -1,4 +1,4 @@
-import { AnkiConnectConfig } from '../types';
+import { AnkiConnectConfig } from '../types/anki';
 import { getConfiguredWordFieldName } from '../anki-field-config';
 
 interface FieldGroupingMergeMedia {

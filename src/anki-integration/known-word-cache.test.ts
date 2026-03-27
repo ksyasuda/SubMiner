@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { AnkiConnectConfig } from '../types';
+import type { AnkiConnectConfig } from '../types/anki';
 import { KnownWordCacheManager } from './known-word-cache';
 
 async function waitForCondition(
@@ -351,10 +351,7 @@ test('KnownWordCacheManager preserves cache state key captured before refresh wo
       scope: string;
       words: string[];
     };
-    assert.equal(
-      persisted.scope,
-      '{"refreshMinutes":1,"scope":"is:note","fieldsWord":"Word"}',
-    );
+    assert.equal(persisted.scope, '{"refreshMinutes":1,"scope":"is:note","fieldsWord":"Word"}');
     assert.deepEqual(persisted.words, ['猫']);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });

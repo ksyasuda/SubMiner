@@ -1,4 +1,4 @@
-import { ResolvedConfig } from '../../types';
+import { ResolvedConfig } from '../../types/config';
 
 export const IMMERSION_DEFAULT_CONFIG: Pick<ResolvedConfig, 'immersionTracking'> = {
   immersionTracking: {

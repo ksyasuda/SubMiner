@@ -1,4 +1,4 @@
-import { ResolvedConfig } from '../../types';
+import { ResolvedConfig } from '../../types/config';
 
 export const CORE_DEFAULT_CONFIG: Pick<
   ResolvedConfig,

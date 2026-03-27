@@ -1,4 +1,4 @@
-import { ConfigValidationWarning } from '../types';
+import { ConfigValidationWarning } from '../types/config';
 
 export interface WarningCollector {
   warnings: ConfigValidationWarning[];
