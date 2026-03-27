@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
 import type { ImmersionTrackerService } from './immersion-tracker-service.js';
 import { basename, extname, resolve, sep } from 'node:path';
 import { readFileSync, existsSync, statSync } from 'node:fs';
@@ -155,6 +154,22 @@ export interface StatsServerConfig {
   addYomitanNote?: (word: string) => Promise<number | null>;
   resolveAnkiNoteId?: (noteId: number) => number;
 }
+
+type StatsServerHandle = {
+  stop: () => void;
+};
+
+type StatsApp = ReturnType<typeof createStatsApp>;
+
+type BunRuntime = {
+  Bun: {
+    serve: (options: {
+      fetch: StatsApp['fetch'];
+      port: number;
+      hostname: string;
+    }) => StatsServerHandle;
+  };
+};
 
 const STATS_STATIC_CONTENT_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -1001,7 +1016,7 @@ export function startStatsServer(config: StatsServerConfig): { close: () => void
     resolveAnkiNoteId: config.resolveAnkiNoteId,
   });
 
-  const server = serve({
+  const server = (globalThis as typeof globalThis & BunRuntime).Bun.serve({
     fetch: app.fetch,
     port: config.port,
     hostname: '127.0.0.1',
@@ -1009,7 +1024,7 @@ export function startStatsServer(config: StatsServerConfig): { close: () => void
 
   return {
     close: () => {
-      server.close();
+      server.stop();
     },
   };
 }
