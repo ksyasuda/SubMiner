@@ -219,7 +219,9 @@ test('ensureSchema adds youtube metadata table to existing schema version 15 dat
 
     const tables = new Set(
       (
-        db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'imm_%'`).all() as Array<{
+        db
+          .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'imm_%'`)
+          .all() as Array<{
           name: string;
         }>
       ).map((row) => row.name),
@@ -899,7 +901,8 @@ test('youtube videos can be regrouped under a shared channel anime identity', ()
       channelId: 'UC123',
       channelName: 'Channel Name',
       channelUrl: 'https://www.youtube.com/channel/UC123',
-      channelThumbnailUrl: 'https://yt3.googleusercontent.com/channel-123=s176-c-k-c0x00ffffff-no-rj',
+      channelThumbnailUrl:
+        'https://yt3.googleusercontent.com/channel-123=s176-c-k-c0x00ffffff-no-rj',
       uploaderId: '@channelname',
       uploaderUrl: 'https://www.youtube.com/@channelname',
       description: null,
@@ -913,7 +916,8 @@ test('youtube videos can be regrouped under a shared channel anime identity', ()
       channelId: 'UC123',
       channelName: 'Channel Name',
       channelUrl: 'https://www.youtube.com/channel/UC123',
-      channelThumbnailUrl: 'https://yt3.googleusercontent.com/channel-123=s176-c-k-c0x00ffffff-no-rj',
+      channelThumbnailUrl:
+        'https://yt3.googleusercontent.com/channel-123=s176-c-k-c0x00ffffff-no-rj',
       uploaderId: '@channelname',
       uploaderUrl: 'https://www.youtube.com/@channelname',
       description: null,

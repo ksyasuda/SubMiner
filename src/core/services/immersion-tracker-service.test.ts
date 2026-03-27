@@ -134,8 +134,8 @@ test('seam: enqueueWrite drops oldest entries once capacity is exceeded', () => 
 });
 
 test('seam: toMonthKey uses UTC calendar month', () => {
-  assert.equal(toMonthKey(Date.UTC(2026, 0, 31, 23, 59, 59, 999)), 202601);
-  assert.equal(toMonthKey(Date.UTC(2026, 1, 1, 0, 0, 0, 0)), 202602);
+  assert.equal(toMonthKey(-86_400_000), 196912);
+  assert.equal(toMonthKey(0), 197001);
 });
 
 test('startSession generates UUID-like session identifiers', async () => {
@@ -1257,7 +1257,10 @@ test('flushTelemetry checkpoints latest playback position on the active session 
     const Ctor = await loadTrackerCtor();
     tracker = new Ctor({ dbPath });
 
-    tracker.handleMediaChange('/tmp/episode-progress-checkpoint.mkv', 'Episode Progress Checkpoint');
+    tracker.handleMediaChange(
+      '/tmp/episode-progress-checkpoint.mkv',
+      'Episode Progress Checkpoint',
+    );
     tracker.recordPlaybackPosition(91);
 
     const privateApi = tracker as unknown as {
@@ -1292,7 +1295,10 @@ test('recordSubtitleLine advances session checkpoint progress when playback posi
     const Ctor = await loadTrackerCtor();
     tracker = new Ctor({ dbPath });
 
-    tracker.handleMediaChange('https://stream.example.com/subtitle-progress.m3u8', 'Subtitle Progress');
+    tracker.handleMediaChange(
+      'https://stream.example.com/subtitle-progress.m3u8',
+      'Subtitle Progress',
+    );
     tracker.recordSubtitleLine('line one', 170, 185, [], null);
 
     const privateApi = tracker as unknown as {
@@ -1791,8 +1797,8 @@ test('monthly rollups are grouped by calendar month', async () => {
       runRollupMaintenance: () => void;
     };
 
-    const januaryStartedAtMs = Date.UTC(2026, 0, 15, 12, 0, 0, 0);
-    const februaryStartedAtMs = Date.UTC(2026, 1, 15, 12, 0, 0, 0);
+    const januaryStartedAtMs = -1_296_000_000;
+    const februaryStartedAtMs = 0;
 
     privateApi.db.exec(`
       INSERT INTO imm_videos (
@@ -2333,9 +2339,7 @@ test('reassignAnimeAnilist preserves existing description when description is om
     });
 
     const row = privateApi.db
-      .prepare(
-        'SELECT anilist_id AS anilistId, description FROM imm_anime WHERE anime_id = ?',
-      )
+      .prepare('SELECT anilist_id AS anilistId, description FROM imm_anime WHERE anime_id = ?')
       .get(1) as { anilistId: number | null; description: string | null } | null;
 
     assert.equal(row?.anilistId, 33489);
@@ -2397,15 +2401,12 @@ printf '%s\n' '${ytDlpOutput}'
     tracker = new Ctor({ dbPath });
     tracker.handleMediaChange('https://www.youtube.com/watch?v=abc123', 'Player Title');
     const privateApi = tracker as unknown as { db: DatabaseSync };
-    await waitForCondition(
-      () => {
-        const stored = privateApi.db
-          .prepare("SELECT 1 AS ready FROM imm_youtube_videos WHERE youtube_video_id = 'abc123'")
-          .get() as { ready: number } | null;
-        return stored?.ready === 1;
-      },
-      5_000,
-    );
+    await waitForCondition(() => {
+      const stored = privateApi.db
+        .prepare("SELECT 1 AS ready FROM imm_youtube_videos WHERE youtube_video_id = 'abc123'")
+        .get() as { ready: number } | null;
+      return stored?.ready === 1;
+    }, 5_000);
     const row = privateApi.db
       .prepare(
         `

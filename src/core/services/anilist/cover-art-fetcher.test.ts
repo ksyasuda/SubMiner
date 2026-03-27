@@ -6,7 +6,8 @@ import test from 'node:test';
 import { createCoverArtFetcher, stripFilenameTags } from './cover-art-fetcher.js';
 import { Database } from '../immersion-tracker/sqlite.js';
 import { ensureSchema, getOrCreateVideoRecord } from '../immersion-tracker/storage.js';
-import { getCoverArt, upsertCoverArt } from '../immersion-tracker/query.js';
+import { getCoverArt } from '../immersion-tracker/query-library.js';
+import { upsertCoverArt } from '../immersion-tracker/query-maintenance.js';
 import { SOURCE_TYPE_LOCAL } from '../immersion-tracker/types.js';
 
 function makeDbPath(): string {

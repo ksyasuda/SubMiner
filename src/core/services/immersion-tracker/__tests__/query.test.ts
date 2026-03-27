@@ -470,8 +470,8 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
       parseMetadataJson: null,
     });
 
-    const dayOneStart = new Date(2026, 2, 15, 12, 0, 0, 0).getTime();
-    const dayTwoStart = new Date(2026, 2, 16, 18, 0, 0, 0).getTime();
+    const dayOneStart = 1_700_000_000_000;
+    const dayTwoStart = dayOneStart + 86_400_000;
 
     const sessionOne = startSessionRecord(db, videoId, dayOneStart);
     const sessionTwo = startSessionRecord(db, videoId, dayTwoStart);
@@ -2113,7 +2113,10 @@ test('media library and detail queries include joined youtube metadata when pres
     assert.equal(detail?.youtubeVideoId, 'abc123');
     assert.equal(detail?.videoUrl, 'https://www.youtube.com/watch?v=abc123');
     assert.equal(detail?.videoThumbnailUrl, 'https://i.ytimg.com/vi/abc123/hqdefault.jpg');
-    assert.equal(detail?.channelThumbnailUrl, 'https://yt3.googleusercontent.com/channel-avatar=s88');
+    assert.equal(
+      detail?.channelThumbnailUrl,
+      'https://yt3.googleusercontent.com/channel-avatar=s88',
+    );
     assert.equal(detail?.uploaderId, '@creator');
     assert.equal(detail?.uploaderUrl, 'https://www.youtube.com/@creator');
     assert.equal(detail?.description, 'Video description');
@@ -3015,22 +3018,24 @@ test('deleteSession removes zero-session media from library and trends', () => {
 
     const lifetimeMediaCount = Number(
       (
-        db.prepare('SELECT COUNT(*) AS total FROM imm_lifetime_media WHERE video_id = ?').get(
-          videoId,
-        ) as { total: number }
+        db
+          .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_media WHERE video_id = ?')
+          .get(videoId) as { total: number }
       ).total,
     );
     const lifetimeAnimeCount = Number(
       (
-        db.prepare('SELECT COUNT(*) AS total FROM imm_lifetime_anime WHERE anime_id = ?').get(
-          animeId,
-        ) as { total: number }
+        db
+          .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_anime WHERE anime_id = ?')
+          .get(animeId) as { total: number }
       ).total,
     );
     const appliedSessionCount = Number(
       (
         db
-          .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_applied_sessions WHERE session_id = ?')
+          .prepare(
+            'SELECT COUNT(*) AS total FROM imm_lifetime_applied_sessions WHERE session_id = ?',
+          )
           .get(sessionId) as { total: number }
       ).total,
     );

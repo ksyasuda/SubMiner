@@ -33,54 +33,60 @@ import {
   shouldBackfillLifetimeSummaries,
 } from './immersion-tracker/lifetime';
 import {
-  cleanupVocabularyStats,
+  getAllDistinctHeadwords,
+  getAnimeDistinctHeadwords,
+  getDailyRollups,
+  getMediaDistinctHeadwords,
+  getMonthlyRollups,
+  getQueryHints,
+  getSessionSummaries,
+  getSessionTimeline,
+  getSessionWordsByLine,
+} from './immersion-tracker/query-sessions';
+import { getTrendsDashboard } from './immersion-tracker/query-trends';
+import {
+  getKanjiAnimeAppearances,
+  getKanjiDetail,
+  getKanjiOccurrences,
+  getKanjiStats,
+  getKanjiWords,
+  getSessionEvents,
+  getSimilarWords,
+  getVocabularyStats,
+  getWordAnimeAppearances,
+  getWordDetail,
+  getWordOccurrences,
+} from './immersion-tracker/query-lexical';
+import {
+  getAnimeAnilistEntries,
   getAnimeCoverArt,
   getAnimeDailyRollups,
-  getAnimeAnilistEntries,
   getAnimeDetail,
   getAnimeEpisodes,
   getAnimeLibrary,
   getAnimeWords,
+  getCoverArt,
   getEpisodeCardEvents,
   getEpisodeSessions,
   getEpisodeWords,
-  getCoverArt,
-  getDailyRollups,
   getEpisodesPerDay,
-  getKanjiAnimeAppearances,
-  getKanjiDetail,
-  getKanjiWords,
-  getNewAnimePerDay,
-  getSimilarWords,
-  getStreakCalendar,
-  getKanjiOccurrences,
-  getKanjiStats,
   getMediaDailyRollups,
   getMediaDetail,
   getMediaLibrary,
   getMediaSessions,
-  getMonthlyRollups,
-  getQueryHints,
-  getSessionEvents,
-  getSessionSummaries,
-  getSessionTimeline,
-  getSessionWordsByLine,
-  getTrendsDashboard,
-  getAllDistinctHeadwords,
-  getAnimeDistinctHeadwords,
-  getMediaDistinctHeadwords,
-  getVocabularyStats,
+  getNewAnimePerDay,
+  getStreakCalendar,
   getWatchTimePerAnime,
-  getWordAnimeAppearances,
-  getWordDetail,
-  getWordOccurrences,
-  getVideoDurationMs,
-  upsertCoverArt,
-  markVideoWatched,
+} from './immersion-tracker/query-library';
+import {
+  cleanupVocabularyStats,
   deleteSession as deleteSessionQuery,
   deleteSessions as deleteSessionsQuery,
   deleteVideo as deleteVideoQuery,
-} from './immersion-tracker/query';
+  getVideoDurationMs,
+  markVideoWatched,
+  upsertCoverArt,
+} from './immersion-tracker/query-maintenance';
 import {
   buildVideoKey,
   deriveCanonicalTitle,
@@ -230,7 +236,9 @@ function buildYouTubeThumbnailUrls(videoId: string): string[] {
 
 async function fetchYouTubeOEmbedThumbnail(mediaUrl: string): Promise<string | null> {
   try {
-    const response = await fetch(`${YOUTUBE_OEMBED_ENDPOINT}?url=${encodeURIComponent(mediaUrl)}&format=json`);
+    const response = await fetch(
+      `${YOUTUBE_OEMBED_ENDPOINT}?url=${encodeURIComponent(mediaUrl)}&format=json`,
+    );
     if (!response.ok) {
       return null;
     }
@@ -798,7 +806,11 @@ export class ImmersionTrackerService {
     }
   }
 
-  private ensureYouTubeCoverArt(videoId: number, sourceUrl: string, youtubeVideoId: string): Promise<boolean> {
+  private ensureYouTubeCoverArt(
+    videoId: number,
+    sourceUrl: string,
+    youtubeVideoId: string,
+  ): Promise<boolean> {
     const existing = this.pendingCoverFetches.get(videoId);
     if (existing) {
       return existing;
@@ -856,18 +868,15 @@ export class ImmersionTrackerService {
 
     if (!coverBlob) {
       const durationMs = getVideoDurationMs(this.db, videoId);
-      const maxSeconds = durationMs > 0 ? Math.min(durationMs / 1000, YOUTUBE_SCREENSHOT_MAX_SECONDS) : null;
+      const maxSeconds =
+        durationMs > 0 ? Math.min(durationMs / 1000, YOUTUBE_SCREENSHOT_MAX_SECONDS) : null;
       const seekSecond = Math.random() * (maxSeconds ?? YOUTUBE_SCREENSHOT_MAX_SECONDS);
       try {
-        coverBlob = await this.mediaGenerator.generateScreenshot(
-          sourceUrl,
-          seekSecond,
-          {
-            format: 'jpg',
-            quality: 90,
-            maxWidth: 640,
-          },
-        );
+        coverBlob = await this.mediaGenerator.generateScreenshot(sourceUrl, seekSecond, {
+          format: 'jpg',
+          quality: 90,
+          maxWidth: 640,
+        });
       } catch (error) {
         this.logger.warn(
           'cover-art: failed to generate YouTube screenshot for videoId=%d: %s',
@@ -969,10 +978,10 @@ export class ImmersionTrackerService {
           LIMIT 1
         `,
       )
-      .get(
-        SOURCE_TYPE_REMOTE,
-        Date.now() - YOUTUBE_METADATA_REFRESH_MS,
-      ) as { videoId: number; sourceUrl: string | null } | null;
+      .get(SOURCE_TYPE_REMOTE, Date.now() - YOUTUBE_METADATA_REFRESH_MS) as {
+      videoId: number;
+      sourceUrl: string | null;
+    } | null;
     if (!candidate?.sourceUrl) {
       return;
     }
@@ -1009,11 +1018,9 @@ export class ImmersionTrackerService {
             )
         `,
       )
-      .get(
-        videoId,
-        SOURCE_TYPE_REMOTE,
-        Date.now() - YOUTUBE_METADATA_REFRESH_MS,
-      ) as { sourceUrl: string | null } | null;
+      .get(videoId, SOURCE_TYPE_REMOTE, Date.now() - YOUTUBE_METADATA_REFRESH_MS) as {
+      sourceUrl: string | null;
+    } | null;
     if (!candidate?.sourceUrl) {
       return;
     }
@@ -1063,20 +1070,20 @@ export class ImmersionTrackerService {
         `,
       )
       .all(SOURCE_TYPE_REMOTE) as Array<{
-          videoId: number;
-          youtubeVideoId: string | null;
-          videoUrl: string | null;
-          videoTitle: string | null;
-          videoThumbnailUrl: string | null;
-          channelId: string | null;
-          channelName: string | null;
-          channelUrl: string | null;
-          channelThumbnailUrl: string | null;
-          uploaderId: string | null;
-          uploaderUrl: string | null;
-          description: string | null;
-          metadataJson: string | null;
-        }>;
+      videoId: number;
+      youtubeVideoId: string | null;
+      videoUrl: string | null;
+      videoTitle: string | null;
+      videoThumbnailUrl: string | null;
+      channelId: string | null;
+      channelName: string | null;
+      channelUrl: string | null;
+      channelThumbnailUrl: string | null;
+      uploaderId: string | null;
+      uploaderUrl: string | null;
+      description: string | null;
+      metadataJson: string | null;
+    }>;
 
     if (candidates.length === 0) {
       return;

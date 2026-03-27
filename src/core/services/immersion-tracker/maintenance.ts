@@ -25,8 +25,21 @@ interface RawRetentionResult {
 }
 
 export function toMonthKey(timestampMs: number): number {
-  const monthDate = new Date(timestampMs);
-  return monthDate.getUTCFullYear() * 100 + monthDate.getUTCMonth() + 1;
+  const epochDay = Number(BigInt(Math.trunc(timestampMs)) / BigInt(DAILY_MS));
+  const z = epochDay + 719468;
+  const era = Math.floor(z / 146097);
+  const doe = z - era * 146097;
+  const yoe = Math.floor(
+    (doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365,
+  );
+  let year = yoe + era * 400;
+  const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
+  const mp = Math.floor((5 * doy + 2) / 153);
+  const month = mp + (mp < 10 ? 3 : -9);
+  if (month <= 2) {
+    year += 1;
+  }
+  return year * 100 + month;
 }
 
 export function pruneRawRetention(
