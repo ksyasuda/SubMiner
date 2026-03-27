@@ -1160,4 +1160,30 @@ describe('stats server API routes', () => {
       bun.Bun.serve = originalServe;
     }
   });
+
+  it('falls back to node:http when Bun.serve is unavailable', () => {
+    type BunRuntime = {
+      Bun: {
+        serve?: (options: { fetch: unknown; port: number; hostname: string }) => {
+          stop: () => void;
+        };
+      };
+    };
+
+    const bun = globalThis as typeof globalThis & BunRuntime;
+    const originalServe = bun.Bun.serve;
+    bun.Bun.serve = undefined;
+
+    try {
+      const server = startStatsServer({
+        port: 0,
+        staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-')),
+        tracker: createMockTracker(),
+      });
+
+      server.close();
+    } finally {
+      bun.Bun.serve = originalServe;
+    }
+  });
 });

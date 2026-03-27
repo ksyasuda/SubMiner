@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { ImmersionTrackerService } from './immersion-tracker-service.js';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { basename, extname, resolve, sep } from 'node:path';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { MediaGenerator } from '../../media-generator.js';
@@ -171,6 +172,10 @@ type BunRuntime = {
   };
 };
 
+type NodeRuntimeHandle = {
+  stop: () => void;
+};
+
 const STATS_STATIC_CONTENT_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
   '.gif': 'image/gif',
@@ -197,7 +202,9 @@ function buildAnkiNotePreview(
   return {
     word: getPreferredNoteFieldValue(fields, [getConfiguredWordFieldName(ankiConfig)]),
     sentence: getPreferredNoteFieldValue(fields, [getConfiguredSentenceFieldName(ankiConfig)]),
-    translation: getPreferredNoteFieldValue(fields, [getConfiguredTranslationFieldName(ankiConfig)]),
+    translation: getPreferredNoteFieldValue(fields, [
+      getConfiguredTranslationFieldName(ankiConfig),
+    ]),
   };
 }
 
@@ -239,6 +246,82 @@ function createStatsStaticResponse(staticDir: string, requestPath: string): Resp
         : 'public, max-age=31536000, immutable',
     },
   });
+}
+
+async function readNodeRequestBody(req: IncomingMessage): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+async function createNodeRequest(req: IncomingMessage): Promise<Request> {
+  const host = req.headers.host ?? '127.0.0.1';
+  const url = new URL(req.url ?? '/', `http://${host}`);
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      headers.set(name, value.join(', '));
+    } else {
+      headers.set(name, value);
+    }
+  }
+
+  const method = req.method ?? 'GET';
+  const body = method === 'GET' || method === 'HEAD' ? undefined : await readNodeRequestBody(req);
+  const init: RequestInit = {
+    method,
+    headers,
+  };
+  if (body !== undefined && body.length > 0) {
+    init.body = new Uint8Array(body);
+  }
+  return new Request(url, init);
+}
+
+async function writeNodeResponse(
+  res: ServerResponse<IncomingMessage>,
+  response: Response,
+): Promise<void> {
+  res.statusCode = response.status;
+  res.statusMessage = response.statusText;
+  response.headers.forEach((value, key) => {
+    res.setHeader(key, value);
+  });
+
+  if (!response.body) {
+    res.end();
+    return;
+  }
+
+  const body = Buffer.from(await response.arrayBuffer());
+  res.end(body);
+}
+
+function startNodeStatsServer(app: StatsApp, port: number): NodeRuntimeHandle {
+  const server = createServer((req, res) => {
+    void (async () => {
+      try {
+        const response = await app.fetch(await createNodeRequest(req));
+        await writeNodeResponse(res, response);
+      } catch {
+        if (!res.headersSent) {
+          res.statusCode = 500;
+        }
+        res.end('Internal Server Error');
+      }
+    })();
+  });
+
+  server.listen(port, '127.0.0.1');
+
+  return {
+    stop: () => {
+      server.close();
+    },
+  };
 }
 
 export function createStatsApp(
@@ -672,7 +755,11 @@ export function createStatsApp(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(ANKI_CONNECT_FETCH_TIMEOUT_MS),
-        body: JSON.stringify({ action: 'notesInfo', version: 6, params: { notes: resolvedNoteIds } }),
+        body: JSON.stringify({
+          action: 'notesInfo',
+          version: 6,
+          params: { notes: resolvedNoteIds },
+        }),
       });
       const result = (await response.json()) as {
         result?: Array<{ noteId: number; fields: Record<string, { value: string }> }>;
@@ -1016,11 +1103,14 @@ export function startStatsServer(config: StatsServerConfig): { close: () => void
     resolveAnkiNoteId: config.resolveAnkiNoteId,
   });
 
-  const server = (globalThis as typeof globalThis & BunRuntime).Bun.serve({
-    fetch: app.fetch,
-    port: config.port,
-    hostname: '127.0.0.1',
-  });
+  const bunServe = (globalThis as typeof globalThis & Partial<BunRuntime>).Bun?.serve;
+  const server = bunServe
+    ? bunServe({
+        fetch: app.fetch,
+        port: config.port,
+        hostname: '127.0.0.1',
+      })
+    : startNodeStatsServer(app, config.port);
 
   return {
     close: () => {
