@@ -1,0 +1,222 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import { ensureDir } from './fs-utils';
+import type { CharacterDictionarySnapshotImage, CharacterDictionaryTermEntry } from './types';
+
+type ZipEntry = {
+  name: string;
+  data: Buffer;
+  crc32: number;
+  localHeaderOffset: number;
+};
+
+function writeUint32LE(buffer: Buffer, value: number, offset: number): number {
+  const normalized = value >>> 0;
+  buffer[offset] = normalized & 0xff;
+  buffer[offset + 1] = (normalized >>> 8) & 0xff;
+  buffer[offset + 2] = (normalized >>> 16) & 0xff;
+  buffer[offset + 3] = (normalized >>> 24) & 0xff;
+  return offset + 4;
+}
+
+export function buildDictionaryTitle(mediaId: number): string {
+  return `SubMiner Character Dictionary (AniList ${mediaId})`;
+}
+
+function createIndex(
+  dictionaryTitle: string,
+  description: string,
+  revision: string,
+): Record<string, unknown> {
+  return {
+    title: dictionaryTitle,
+    revision,
+    format: 3,
+    author: 'SubMiner',
+    description,
+  };
+}
+
+function createTagBank(): Array<[string, string, number, string, number]> {
+  return [
+    ['name', 'partOfSpeech', 0, 'Character name', 0],
+    ['main', 'name', 0, 'Protagonist', 0],
+    ['primary', 'name', 0, 'Main character', 0],
+    ['side', 'name', 0, 'Side character', 0],
+    ['appears', 'name', 0, 'Minor appearance', 0],
+  ];
+}
+
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    let crc = i;
+    for (let j = 0; j < 8; j += 1) {
+      crc = (crc & 1) !== 0 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+    }
+    table[i] = crc >>> 0;
+  }
+  return table;
+})();
+
+function crc32(data: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of data) {
+    crc = CRC32_TABLE[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function createStoredZip(files: Array<{ name: string; data: Buffer }>): Buffer {
+  const chunks: Buffer[] = [];
+  const entries: ZipEntry[] = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const fileName = Buffer.from(file.name, 'utf8');
+    const fileData = file.data;
+    const fileCrc32 = crc32(fileData);
+    const local = Buffer.alloc(30 + fileName.length);
+    let cursor = 0;
+    writeUint32LE(local, 0x04034b50, cursor);
+    cursor += 4;
+    local.writeUInt16LE(20, cursor);
+    cursor += 2;
+    local.writeUInt16LE(0, cursor);
+    cursor += 2;
+    local.writeUInt16LE(0, cursor);
+    cursor += 2;
+    local.writeUInt16LE(0, cursor);
+    cursor += 2;
+    local.writeUInt16LE(0, cursor);
+    cursor += 2;
+    writeUint32LE(local, fileCrc32, cursor);
+    cursor += 4;
+    writeUint32LE(local, fileData.length, cursor);
+    cursor += 4;
+    writeUint32LE(local, fileData.length, cursor);
+    cursor += 4;
+    local.writeUInt16LE(fileName.length, cursor);
+    cursor += 2;
+    local.writeUInt16LE(0, cursor);
+    cursor += 2;
+    fileName.copy(local, cursor);
+
+    chunks.push(local, fileData);
+    entries.push({
+      name: file.name,
+      data: fileData,
+      crc32: fileCrc32,
+      localHeaderOffset: offset,
+    });
+    offset += local.length + fileData.length;
+  }
+
+  const centralStart = offset;
+  const centralChunks: Buffer[] = [];
+  for (const entry of entries) {
+    const fileName = Buffer.from(entry.name, 'utf8');
+    const central = Buffer.alloc(46 + fileName.length);
+    let cursor = 0;
+    writeUint32LE(central, 0x02014b50, cursor);
+    cursor += 4;
+    central.writeUInt16LE(20, cursor);
+    cursor += 2;
+    central.writeUInt16LE(20, cursor);
+    cursor += 2;
+    central.writeUInt16LE(0, cursor);
+    cursor += 2;
+    central.writeUInt16LE(0, cursor);
+    cursor += 2;
+    central.writeUInt16LE(0, cursor);
+    cursor += 2;
+    central.writeUInt16LE(0, cursor);
+    cursor += 2;
+    writeUint32LE(central, entry.crc32, cursor);
+    cursor += 4;
+    writeUint32LE(central, entry.data.length, cursor);
+    cursor += 4;
+    writeUint32LE(central, entry.data.length, cursor);
+    cursor += 4;
+    central.writeUInt16LE(fileName.length, cursor);
+    cursor += 2;
+    central.writeUInt16LE(0, cursor);
+    cursor += 2;
+    central.writeUInt16LE(0, cursor);
+    cursor += 2;
+    central.writeUInt16LE(0, cursor);
+    cursor += 2;
+    central.writeUInt16LE(0, cursor);
+    cursor += 2;
+    writeUint32LE(central, 0, cursor);
+    cursor += 4;
+    writeUint32LE(central, entry.localHeaderOffset, cursor);
+    cursor += 4;
+    fileName.copy(central, cursor);
+    centralChunks.push(central);
+    offset += central.length;
+  }
+
+  const centralSize = offset - centralStart;
+  const end = Buffer.alloc(22);
+  let cursor = 0;
+  writeUint32LE(end, 0x06054b50, cursor);
+  cursor += 4;
+  end.writeUInt16LE(0, cursor);
+  cursor += 2;
+  end.writeUInt16LE(0, cursor);
+  cursor += 2;
+  end.writeUInt16LE(entries.length, cursor);
+  cursor += 2;
+  end.writeUInt16LE(entries.length, cursor);
+  cursor += 2;
+  writeUint32LE(end, centralSize, cursor);
+  cursor += 4;
+  writeUint32LE(end, centralStart, cursor);
+  cursor += 4;
+  end.writeUInt16LE(0, cursor);
+
+  return Buffer.concat([...chunks, ...centralChunks, end]);
+}
+
+export function buildDictionaryZip(
+  outputPath: string,
+  dictionaryTitle: string,
+  description: string,
+  revision: string,
+  termEntries: CharacterDictionaryTermEntry[],
+  images: CharacterDictionarySnapshotImage[],
+): { zipPath: string; entryCount: number } {
+  const zipFiles: Array<{ name: string; data: Buffer }> = [
+    {
+      name: 'index.json',
+      data: Buffer.from(
+        JSON.stringify(createIndex(dictionaryTitle, description, revision), null, 2),
+        'utf8',
+      ),
+    },
+    {
+      name: 'tag_bank_1.json',
+      data: Buffer.from(JSON.stringify(createTagBank()), 'utf8'),
+    },
+  ];
+
+  for (const image of images) {
+    zipFiles.push({
+      name: image.path,
+      data: Buffer.from(image.dataBase64, 'base64'),
+    });
+  }
+
+  const entriesPerBank = 10_000;
+  for (let i = 0; i < termEntries.length; i += entriesPerBank) {
+    zipFiles.push({
+      name: `term_bank_${Math.floor(i / entriesPerBank) + 1}.json`,
+      data: Buffer.from(JSON.stringify(termEntries.slice(i, i + entriesPerBank)), 'utf8'),
+    });
+  }
+
+  ensureDir(path.dirname(outputPath));
+  fs.writeFileSync(outputPath, createStoredZip(zipFiles));
+  return { zipPath: outputPath, entryCount: termEntries.length };
+}

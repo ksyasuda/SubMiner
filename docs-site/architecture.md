@@ -39,6 +39,7 @@ src/
   types.ts                 # Shared type definitions
   main/                    # Main-process composition/runtime adapters
     app-lifecycle.ts       # App lifecycle + app-ready runtime runner factories
+    character-dictionary-runtime.ts # Character-dictionary orchestration/public runtime API
     cli-runtime.ts         # CLI command runtime service adapters
     config-validation.ts   # Startup/hot-reload config error formatting and fail-fast helpers
     dependencies.ts        # Shared dependency builders for IPC/runtime services
@@ -53,6 +54,7 @@ src/
     startup-lifecycle.ts    # Lifecycle runtime runner adapter
     state.ts                # Application runtime state container + reducer transitions
     subsync-runtime.ts      # Subsync command runtime adapter
+    character-dictionary-runtime/ # Character-dictionary fetch/build/cache modules + focused tests
     runtime/
       composers/            # High-level composition clusters used by main.ts
       domains/              # Domain barrel exports (startup/overlay/mpv/jellyfin/...)
