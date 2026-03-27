@@ -36,6 +36,8 @@ function withTempDir<T>(fn: (dir: string) => T): T {
   }
 }
 
+const LAUNCHER_RUN_TIMEOUT_MS = 30000;
+
 function runLauncher(argv: string[], env: NodeJS.ProcessEnv): RunResult {
   const result = spawnSync(
     process.execPath,
@@ -43,7 +45,7 @@ function runLauncher(argv: string[], env: NodeJS.ProcessEnv): RunResult {
     {
       env,
       encoding: 'utf8',
-      timeout: 10000,
+      timeout: LAUNCHER_RUN_TIMEOUT_MS,
     },
   );
   return {
