@@ -170,7 +170,6 @@ import {
   createBuildEnforceOverlayLayerOrderMainDepsHandler,
   createBuildEnsureOverlayWindowLevelMainDepsHandler,
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
-  createOverlayWindowRuntimeHandlers,
   createTrayRuntimeHandlers,
   createOverlayVisibilityRuntime,
   createBroadcastRuntimeOptionsChangedHandler,
@@ -235,11 +234,6 @@ import {
   createHandleMineSentenceDigitHandler,
   createHandleMultiCopyDigitHandler,
 } from './main/runtime/domains/mining';
-import {
-  createCliCommandContextFactory,
-  createInitialArgsRuntimeHandler,
-  createCliCommandRuntimeHandler,
-} from './main/runtime/domains/ipc';
 import {
   enforceUnsupportedWaylandMode,
   forceX11Backend,
@@ -384,9 +378,12 @@ import {
   composeAnilistSetupHandlers,
   composeAnilistTrackingHandlers,
   composeAppReadyRuntime,
+  composeCliStartupHandlers,
+  composeHeadlessStartupHandlers,
   composeIpcRuntimeHandlers,
   composeJellyfinRuntimeHandlers,
   composeMpvRuntimeHandlers,
+  composeOverlayWindowHandlers,
   composeShortcutRuntimes,
   composeStartupLifecycleHandlers,
 } from './main/runtime/composers';
@@ -421,6 +418,11 @@ import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/charac
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
+import {
+  createCreateAnilistSetupWindowHandler,
+  createCreateFirstRunSetupWindowHandler,
+  createCreateJellyfinSetupWindowHandler,
+} from './main/runtime/setup-window-factory';
 import { isYoutubePlaybackActive } from './main/runtime/youtube-playback';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
@@ -2360,18 +2362,9 @@ const {
     getSetupWindow: () => appState.jellyfinSetupWindow,
   },
   openJellyfinSetupWindowMainDeps: {
-    createSetupWindow: () =>
-      new BrowserWindow({
-        width: 520,
-        height: 560,
-        title: 'Jellyfin Setup',
-        show: true,
-        autoHideMenuBar: true,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true,
-        },
-      }),
+    createSetupWindow: createCreateJellyfinSetupWindowHandler({
+      createBrowserWindow: (options) => new BrowserWindow(options),
+    }),
     buildSetupFormHtml: (defaultServer, defaultUser) =>
       buildJellyfinSetupFormHtml(defaultServer, defaultUser),
     parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
@@ -2405,21 +2398,9 @@ const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSe
 });
 const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
   maybeFocusExistingSetupWindow: maybeFocusExistingFirstRunSetupWindow,
-  createSetupWindow: () =>
-    new BrowserWindow({
-      width: 480,
-      height: 460,
-      title: 'SubMiner Setup',
-      show: true,
-      autoHideMenuBar: true,
-      resizable: false,
-      minimizable: false,
-      maximizable: false,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-      },
-    }),
+  createSetupWindow: createCreateFirstRunSetupWindowHandler({
+    createBrowserWindow: (options) => new BrowserWindow(options),
+  }),
   getSetupSnapshot: async () => {
     const snapshot = await firstRunSetupService.getSetupStatus();
     return {
@@ -2564,18 +2545,9 @@ const maybeFocusExistingAnilistSetupWindow = createMaybeFocusExistingAnilistSetu
 const buildOpenAnilistSetupWindowMainDepsHandler = createBuildOpenAnilistSetupWindowMainDepsHandler(
   {
     maybeFocusExistingSetupWindow: maybeFocusExistingAnilistSetupWindow,
-    createSetupWindow: () =>
-      new BrowserWindow({
-        width: 1000,
-        height: 760,
-        title: 'Anilist Setup',
-        show: true,
-        autoHideMenuBar: true,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true,
-        },
-      }),
+    createSetupWindow: createCreateAnilistSetupWindowHandler({
+      createBrowserWindow: (options) => new BrowserWindow(options),
+    }),
     buildAuthorizeUrl: () =>
       buildAnilistSetupUrl({
         authorizeUrl: ANILIST_SETUP_CLIENT_ID_URL,
@@ -3464,88 +3436,6 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
   immersionTrackerStartupMainDeps,
 });
 
-const { runAndApplyStartupState } = runtimeRegistry.startup.createStartupRuntimeHandlers<
-  CliArgs,
-  StartupState,
-  ReturnType<typeof createStartupBootstrapRuntimeDeps>
->({
-  appLifecycleRuntimeRunnerMainDeps: {
-    app: appLifecycleApp,
-    platform: process.platform,
-    shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
-    parseArgs: (argv: string[]) => parseArgs(argv),
-    handleCliCommand: (nextArgs: CliArgs, source: CliCommandSource) =>
-      handleCliCommand(nextArgs, source),
-    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-    logNoRunningInstance: () => appLogger.logNoRunningInstance(),
-    onReady: appReadyRuntimeRunner,
-    onWillQuitCleanup: () => onWillQuitCleanupHandler(),
-    shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
-    restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
-    shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
-  },
-  createAppLifecycleRuntimeRunner: (params) => createAppLifecycleRuntimeRunner(params),
-  buildStartupBootstrapMainDeps: (startAppLifecycle) => ({
-    argv: process.argv,
-    parseArgs: (argv: string[]) => parseArgs(argv),
-    setLogLevel: (level: string, source: LogLevelSource) => {
-      setLogLevel(level, source);
-    },
-    forceX11Backend: (args: CliArgs) => {
-      forceX11Backend(args);
-    },
-    enforceUnsupportedWaylandMode: (args: CliArgs) => {
-      enforceUnsupportedWaylandMode(args);
-    },
-    shouldStartApp: (args: CliArgs) => shouldStartApp(args),
-    getDefaultSocketPath: () => getDefaultSocketPath(),
-    defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
-    configDir: CONFIG_DIR,
-    defaultConfig: DEFAULT_CONFIG,
-    generateConfigTemplate: (config: ResolvedConfig) => generateConfigTemplate(config),
-    generateDefaultConfigFile: (
-      args: CliArgs,
-      options: {
-        configDir: string;
-        defaultConfig: unknown;
-        generateTemplate: (config: unknown) => string;
-      },
-    ) => generateDefaultConfigFile(args, options),
-    setExitCode: (code) => {
-      process.exitCode = code;
-    },
-    quitApp: () => requestAppQuit(),
-    logGenerateConfigError: (message) => logger.error(message),
-    startAppLifecycle,
-  }),
-  createStartupBootstrapRuntimeDeps: (deps) => createStartupBootstrapRuntimeDeps(deps),
-  runStartupBootstrapRuntime,
-  applyStartupState: (startupState) => applyStartupState(appState, startupState),
-});
-
-runAndApplyStartupState();
-if (isAnilistTrackingEnabled(getResolvedConfig())) {
-  void refreshAnilistClientSecretStateIfEnabled({ force: true });
-  anilistStateRuntime.refreshRetryQueueState();
-}
-void initializeDiscordPresenceService();
-
-const handleCliCommand = createCliCommandRuntimeHandler({
-  handleTexthookerOnlyModeTransitionMainDeps: {
-    isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
-    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
-    setTexthookerOnlyMode: (enabled) => {
-      appState.texthookerOnlyMode = enabled;
-    },
-    commandNeedsOverlayStartupPrereqs: (inputArgs) => commandNeedsOverlayStartupPrereqs(inputArgs),
-    startBackgroundWarmups: () => startBackgroundWarmups(),
-    logInfo: (message: string) => logger.info(message),
-  },
-  createCliCommandContext: () => createCliCommandContextHandler(),
-  handleCliCommandRuntimeServiceWithContext: (args, source, cliContext) =>
-    handleCliCommandRuntimeServiceWithContext(args, source, cliContext),
-});
-
 function ensureOverlayStartupPrereqs(): void {
   if (appState.subtitlePosition === null) {
     loadSubtitlePosition();
@@ -3588,29 +3478,6 @@ async function ensureYoutubePlaybackRuntimeReady(): Promise<void> {
     return;
   }
   ensureOverlayWindowsReadyForVisibilityActions();
-}
-
-const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
-  getInitialArgs: () => appState.initialArgs,
-  isBackgroundMode: () => appState.backgroundMode,
-  shouldEnsureTrayOnStartup: () =>
-    shouldEnsureTrayOnStartupForInitialArgs(process.platform, appState.initialArgs),
-  shouldRunHeadlessInitialCommand: (args) => isHeadlessInitialCommand(args),
-  ensureTray: () => ensureTray(),
-  isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
-  hasImmersionTracker: () => Boolean(appState.immersionTracker),
-  getMpvClient: () => appState.mpvClient,
-  commandNeedsOverlayStartupPrereqs: (args) => commandNeedsOverlayStartupPrereqs(args),
-  commandNeedsOverlayRuntime: (args) => commandNeedsOverlayRuntime(args),
-  ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
-  isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-  initializeOverlayRuntime: () => initializeOverlayRuntime(),
-  logInfo: (message) => logger.info(message),
-  handleCliCommand: (args, source) => handleCliCommand(args, source),
-});
-
-function handleInitialArgs(): void {
-  handleInitialArgsRuntimeHandler();
 }
 
 const {
@@ -4763,60 +4630,161 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
     registerIpcRuntimeServices,
   },
 });
-const createCliCommandContextHandler = createCliCommandContextFactory({
-  appState,
-  setLogLevel: (level) => setLogLevel(level, 'cli'),
-  texthookerService,
-  getResolvedConfig: () => getResolvedConfig(),
-  openExternal: (url: string) => shell.openExternal(url),
-  logBrowserOpenError: (url: string, error: unknown) =>
-    logger.error(`Failed to open browser for texthooker URL: ${url}`, error),
-  showMpvOsd: (text: string) => showMpvOsd(text),
-  initializeOverlayRuntime: () => initializeOverlayRuntime(),
-  toggleVisibleOverlay: () => toggleVisibleOverlay(),
-  openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
-  setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
-  copyCurrentSubtitle: () => copyCurrentSubtitle(),
-  startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
-  mineSentenceCard: () => mineSentenceCard(),
-  startPendingMineSentenceMultiple: (timeoutMs: number) =>
-    startPendingMineSentenceMultiple(timeoutMs),
-  updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
-  refreshKnownWordCache: () => refreshKnownWordCache(),
-  triggerFieldGrouping: () => triggerFieldGrouping(),
-  triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-  markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
-  getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
-  clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
-  openAnilistSetupWindow: () => openAnilistSetupWindow(),
-  openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
-  getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
-  processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
-  generateCharacterDictionary: async (targetPath?: string) => {
-    const disabledReason = yomitanProfilePolicy.getCharacterDictionaryDisabledReason();
-    if (disabledReason) {
-      throw new Error(disabledReason);
-    }
-    return await characterDictionaryRuntime.generateForCurrentMedia(targetPath);
+const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
+  cliCommandContextMainDeps: {
+    appState,
+    setLogLevel: (level) => setLogLevel(level, 'cli'),
+    texthookerService,
+    getResolvedConfig: () => getResolvedConfig(),
+    openExternal: (url: string) => shell.openExternal(url),
+    logBrowserOpenError: (url: string, error: unknown) =>
+      logger.error(`Failed to open browser for texthooker URL: ${url}`, error),
+    showMpvOsd: (text: string) => showMpvOsd(text),
+    initializeOverlayRuntime: () => initializeOverlayRuntime(),
+    toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
+    setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
+    copyCurrentSubtitle: () => copyCurrentSubtitle(),
+    startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
+    mineSentenceCard: () => mineSentenceCard(),
+    startPendingMineSentenceMultiple: (timeoutMs: number) =>
+      startPendingMineSentenceMultiple(timeoutMs),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+    refreshKnownWordCache: () => refreshKnownWordCache(),
+    triggerFieldGrouping: () => triggerFieldGrouping(),
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+    getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
+    clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
+    openAnilistSetupWindow: () => openAnilistSetupWindow(),
+    openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
+    getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
+    processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
+    generateCharacterDictionary: async (targetPath?: string) => {
+      const disabledReason = yomitanProfilePolicy.getCharacterDictionaryDisabledReason();
+      if (disabledReason) {
+        throw new Error(disabledReason);
+      }
+      return await characterDictionaryRuntime.generateForCurrentMedia(targetPath);
+    },
+    runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
+    runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
+      runStatsCliCommand(argsFromCommand, source),
+    runYoutubePlaybackFlow: (request) => runYoutubePlaybackFlowMain(request),
+    openYomitanSettings: () => openYomitanSettings(),
+    cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+    stopApp: () => requestAppQuit(),
+    hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
+    getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
+    schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
+    logInfo: (message: string) => logger.info(message),
+    logWarn: (message: string) => logger.warn(message),
+    logError: (message: string, err: unknown) => logger.error(message, err),
   },
-  runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
-  runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
-    runStatsCliCommand(argsFromCommand, source),
-  runYoutubePlaybackFlow: (request) => runYoutubePlaybackFlowMain(request),
-  openYomitanSettings: () => openYomitanSettings(),
-  cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
-  openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-  printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-  stopApp: () => requestAppQuit(),
-  hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
-  getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
-  schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
-  logInfo: (message: string) => logger.info(message),
-  logWarn: (message: string) => logger.warn(message),
-  logError: (message: string, err: unknown) => logger.error(message, err),
+  cliCommandRuntimeHandlerMainDeps: {
+    handleTexthookerOnlyModeTransitionMainDeps: {
+      isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
+      ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+      setTexthookerOnlyMode: (enabled) => {
+        appState.texthookerOnlyMode = enabled;
+      },
+      commandNeedsOverlayStartupPrereqs: (inputArgs) =>
+        commandNeedsOverlayStartupPrereqs(inputArgs),
+      startBackgroundWarmups: () => startBackgroundWarmups(),
+      logInfo: (message: string) => logger.info(message),
+    },
+    handleCliCommandRuntimeServiceWithContext: (args, source, cliContext) =>
+      handleCliCommandRuntimeServiceWithContext(args, source, cliContext),
+  },
+  initialArgsRuntimeHandlerMainDeps: {
+    getInitialArgs: () => appState.initialArgs,
+    isBackgroundMode: () => appState.backgroundMode,
+    shouldEnsureTrayOnStartup: () =>
+      shouldEnsureTrayOnStartupForInitialArgs(process.platform, appState.initialArgs),
+    shouldRunHeadlessInitialCommand: (args) => isHeadlessInitialCommand(args),
+    ensureTray: () => ensureTray(),
+    isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
+    hasImmersionTracker: () => Boolean(appState.immersionTracker),
+    getMpvClient: () => appState.mpvClient,
+    commandNeedsOverlayStartupPrereqs: (args) => commandNeedsOverlayStartupPrereqs(args),
+    commandNeedsOverlayRuntime: (args) => commandNeedsOverlayRuntime(args),
+    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+    initializeOverlayRuntime: () => initializeOverlayRuntime(),
+    logInfo: (message) => logger.info(message),
+  },
 });
+const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
+  CliArgs,
+  StartupState,
+  ReturnType<typeof createStartupBootstrapRuntimeDeps>
+>({
+  startupRuntimeHandlersDeps: {
+    appLifecycleRuntimeRunnerMainDeps: {
+      app: appLifecycleApp,
+      platform: process.platform,
+      shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
+      parseArgs: (argv: string[]) => parseArgs(argv),
+      handleCliCommand: (nextArgs: CliArgs, source: CliCommandSource) =>
+        handleCliCommand(nextArgs, source),
+      printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+      logNoRunningInstance: () => appLogger.logNoRunningInstance(),
+      onReady: appReadyRuntimeRunner,
+      onWillQuitCleanup: () => onWillQuitCleanupHandler(),
+      shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
+      restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
+      shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
+    },
+    createAppLifecycleRuntimeRunner: (params) => createAppLifecycleRuntimeRunner(params),
+    buildStartupBootstrapMainDeps: (startAppLifecycle) => ({
+      argv: process.argv,
+      parseArgs: (argv: string[]) => parseArgs(argv),
+      setLogLevel: (level: string, source: LogLevelSource) => {
+        setLogLevel(level, source);
+      },
+      forceX11Backend: (args: CliArgs) => {
+        forceX11Backend(args);
+      },
+      enforceUnsupportedWaylandMode: (args: CliArgs) => {
+        enforceUnsupportedWaylandMode(args);
+      },
+      shouldStartApp: (args: CliArgs) => shouldStartApp(args),
+      getDefaultSocketPath: () => getDefaultSocketPath(),
+      defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
+      configDir: CONFIG_DIR,
+      defaultConfig: DEFAULT_CONFIG,
+      generateConfigTemplate: (config: ResolvedConfig) => generateConfigTemplate(config),
+      generateDefaultConfigFile: (
+        args: CliArgs,
+        options: {
+          configDir: string;
+          defaultConfig: unknown;
+          generateTemplate: (config: unknown) => string;
+        },
+      ) => generateDefaultConfigFile(args, options),
+      setExitCode: (code) => {
+        process.exitCode = code;
+      },
+      quitApp: () => requestAppQuit(),
+      logGenerateConfigError: (message) => logger.error(message),
+      startAppLifecycle,
+    }),
+    createStartupBootstrapRuntimeDeps: (deps) => createStartupBootstrapRuntimeDeps(deps),
+    runStartupBootstrapRuntime,
+    applyStartupState: (startupState) => applyStartupState(appState, startupState),
+  },
+});
+
+runAndApplyStartupState();
+if (isAnilistTrackingEnabled(getResolvedConfig())) {
+  void refreshAnilistClientSecretStateIfEnabled({ force: true });
+  anilistStateRuntime.refreshRetryQueueState();
+}
+void initializeDiscordPresenceService();
 const { createMainWindow: createMainWindowHandler, createModalWindow: createModalWindowHandler } =
-  createOverlayWindowRuntimeHandlers<BrowserWindow>({
+  composeOverlayWindowHandlers<BrowserWindow>({
     createOverlayWindowDeps: {
       createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
       isDev,
