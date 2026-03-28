@@ -402,30 +402,6 @@ import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
 import { createMainBootServices } from './main/boot/services';
-import {
-  composeBootOverlayVisibilityRuntime,
-  composeBootJellyfinRuntimeHandlers,
-  composeBootAnilistSetupHandlers,
-  createBootMaybeFocusExistingAnilistSetupWindowHandler,
-  createBootBuildOpenAnilistSetupWindowMainDepsHandler,
-  createBootOpenAnilistSetupWindowHandler,
-  composeBootAnilistTrackingHandlers,
-  composeBootStatsStartupRuntime,
-  createBootRunStatsCliCommandHandler,
-  composeBootAppReadyRuntime,
-  composeBootMpvRuntimeHandlers,
-  createBootTrayRuntimeHandlers,
-  createBootYomitanProfilePolicy,
-  createBootYomitanExtensionRuntime,
-  createBootYomitanSettingsRuntime,
-} from './main/boot/runtimes';
-import {
-  composeBootStartupLifecycleHandlers,
-  composeBootIpcRuntimeHandlers,
-  composeBootCliStartupHandlers,
-  composeBootHeadlessStartupHandlers,
-  composeBootOverlayWindowHandlers,
-} from './main/boot/handlers';
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
@@ -1916,7 +1892,7 @@ const buildOpenRuntimeOptionsPaletteMainDepsHandler =
   createBuildOpenRuntimeOptionsPaletteMainDepsHandler({
     openRuntimeOptionsPaletteRuntime: () => overlayModalRuntime.openRuntimeOptionsPalette(),
   });
-const overlayVisibilityComposer = composeBootOverlayVisibilityRuntime({
+const overlayVisibilityComposer = composeOverlayVisibilityRuntime({
   overlayVisibilityRuntime,
   restorePreviousSecondarySubVisibilityMainDeps:
     buildRestorePreviousSecondarySubVisibilityMainDepsHandler(),
@@ -1988,7 +1964,7 @@ const {
   stopJellyfinRemoteSession,
   runJellyfinCommand,
   openJellyfinSetupWindow,
-} = composeBootJellyfinRuntimeHandlers({
+} = composeJellyfinRuntimeHandlers({
   getResolvedJellyfinConfigMainDeps: {
     getResolvedConfig: () => getResolvedConfig(),
     loadStoredSession: () => jellyfinTokenStore.loadSession(),
@@ -2288,7 +2264,7 @@ const {
   consumeAnilistSetupTokenFromUrl,
   handleAnilistSetupProtocolUrl,
   registerSubminerProtocolClient,
-} = composeBootAnilistSetupHandlers({
+} = composeAnilistSetupHandlers({
   notifyDeps: {
     hasMpvClient: () => Boolean(appState.mpvClient),
     showMpvOsd: (message) => showMpvOsd(message),
@@ -2339,10 +2315,10 @@ const {
   },
 });
 
-const maybeFocusExistingAnilistSetupWindow = createBootMaybeFocusExistingAnilistSetupWindowHandler({
+const maybeFocusExistingAnilistSetupWindow = createMaybeFocusExistingAnilistSetupWindowHandler({
   getSetupWindow: () => appState.anilistSetupWindow,
 });
-const buildOpenAnilistSetupWindowMainDepsHandler = createBootBuildOpenAnilistSetupWindowMainDepsHandler(
+const buildOpenAnilistSetupWindowMainDepsHandler = createBuildOpenAnilistSetupWindowMainDepsHandler(
   {
     maybeFocusExistingSetupWindow: maybeFocusExistingAnilistSetupWindow,
     createSetupWindow: createCreateAnilistSetupWindowHandler({
@@ -2390,7 +2366,7 @@ const buildOpenAnilistSetupWindowMainDepsHandler = createBootBuildOpenAnilistSet
 );
 
 function openAnilistSetupWindow(): void {
-  createBootOpenAnilistSetupWindowHandler(buildOpenAnilistSetupWindowMainDepsHandler())();
+  createOpenAnilistSetupWindowHandler(buildOpenAnilistSetupWindowMainDepsHandler())();
 }
 
 const {
@@ -2404,7 +2380,7 @@ const {
   ensureAnilistMediaGuess,
   processNextAnilistRetryUpdate,
   maybeRunAnilistPostWatchUpdate,
-} = composeBootAnilistTrackingHandlers({
+} = composeAnilistTrackingHandlers({
   refreshClientSecretMainDeps: {
     getResolvedConfig: () => getResolvedConfig(),
     isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
@@ -2671,7 +2647,7 @@ const {
   onWillQuitCleanup: onWillQuitCleanupHandler,
   shouldRestoreWindowsOnActivate: shouldRestoreWindowsOnActivateHandler,
   restoreWindowsOnActivate: restoreWindowsOnActivateHandler,
-} = composeBootStartupLifecycleHandlers({
+} = composeStartupLifecycleHandlers({
   registerProtocolUrlHandlersMainDeps: {
     registerOpenUrl: (listener) => {
       app.on('open-url', listener);
@@ -2979,7 +2955,7 @@ const ensureImmersionTrackerStarted = (): void => {
   hasAttemptedImmersionTrackerStartup = true;
   createImmersionTrackerStartup();
 };
-const statsStartupRuntime = composeBootStatsStartupRuntime({
+const statsStartupRuntime = composeStatsStartupRuntime({
   ensureStatsServerStarted: () => ensureStatsServerStarted(),
   ensureBackgroundStatsServerStarted: () => ensureBackgroundStatsServerStarted(),
   stopBackgroundStatsServer: () => stopBackgroundStatsServer(),
@@ -2993,7 +2969,7 @@ const statsStartupRuntime = composeBootStatsStartupRuntime({
   },
 });
 
-const runStatsCliCommand = createBootRunStatsCliCommandHandler({
+const runStatsCliCommand = createRunStatsCliCommandHandler({
   getResolvedConfig: () => getResolvedConfig(),
   ensureImmersionTrackerStarted: () => statsStartupRuntime.ensureImmersionTrackerStarted(),
   ensureVocabularyCleanupTokenizerReady: async () => {
@@ -3060,7 +3036,7 @@ async function runHeadlessInitialCommand(): Promise<void> {
   }
 }
 
-const { appReadyRuntimeRunner } = composeBootAppReadyRuntime({
+const { appReadyRuntimeRunner } = composeAppReadyRuntime({
   reloadConfigMainDeps: {
     reloadConfigStrict: () => configService.reloadConfigStrict(),
     logInfo: (message) => appLogger.logInfo(message),
@@ -3295,7 +3271,7 @@ const {
   startBackgroundWarmups,
   startTokenizationWarmups,
   isTokenizationWarmupReady,
-} = composeBootMpvRuntimeHandlers<
+} = composeMpvRuntimeHandlers<
   MpvIpcClient,
   ReturnType<typeof createTokenizerDepsRuntime>,
   SubtitleData
@@ -4142,7 +4118,7 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
-const { registerIpcRuntimeHandlers } = composeBootIpcRuntimeHandlers({
+const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
@@ -4362,7 +4338,7 @@ const { registerIpcRuntimeHandlers } = composeBootIpcRuntimeHandlers({
     registerIpcRuntimeServices,
   },
 });
-const { handleCliCommand, handleInitialArgs } = composeBootCliStartupHandlers({
+const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
   cliCommandContextMainDeps: {
     appState,
     setLogLevel: (level) => setLogLevel(level, 'cli'),
@@ -4448,7 +4424,7 @@ const { handleCliCommand, handleInitialArgs } = composeBootCliStartupHandlers({
     logInfo: (message) => logger.info(message),
   },
 });
-const { runAndApplyStartupState } = composeBootHeadlessStartupHandlers<
+const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
   CliArgs,
   StartupState,
   ReturnType<typeof createStartupBootstrapRuntimeDeps>
@@ -4516,7 +4492,7 @@ if (isAnilistTrackingEnabled(getResolvedConfig())) {
 }
 void initializeDiscordPresenceService();
 const { createMainWindow: createMainWindowHandler, createModalWindow: createModalWindowHandler } =
-  composeBootOverlayWindowHandlers<BrowserWindow>({
+  composeOverlayWindowHandlers<BrowserWindow>({
     createOverlayWindowDeps: {
       createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
       isDev,
@@ -4542,7 +4518,7 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
     setModalWindow: (window) => overlayManager.setModalWindow(window),
   });
 const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
-  createBootTrayRuntimeHandlers({
+  createTrayRuntimeHandlers({
     resolveTrayIconPathDeps: {
       resolveTrayIconPathRuntime,
       platform: process.platform,
@@ -4589,12 +4565,12 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
     },
     buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
   });
-const yomitanProfilePolicy = createBootYomitanProfilePolicy({
+const yomitanProfilePolicy = createYomitanProfilePolicy({
   externalProfilePath: getResolvedConfig().yomitan.externalProfilePath,
   logInfo: (message) => logger.info(message),
 });
 const configuredExternalYomitanProfilePath = yomitanProfilePolicy.externalProfilePath;
-const yomitanExtensionRuntime = createBootYomitanExtensionRuntime({
+const yomitanExtensionRuntime = createYomitanExtensionRuntime({
   loadYomitanExtensionCore,
   userDataPath: USER_DATA_PATH,
   externalProfilePath: configuredExternalYomitanProfilePath,
@@ -4676,7 +4652,7 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       },
     },
   });
-const { openYomitanSettings: openYomitanSettingsHandler } = createBootYomitanSettingsRuntime({
+const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSettingsRuntime({
   ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
   getYomitanSession: () => appState.yomitanSession,
   openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow, yomitanSession }) => {
