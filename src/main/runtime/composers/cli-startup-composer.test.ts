@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { CliArgs } from '../../../cli/args';
 import { composeCliStartupHandlers } from './cli-startup-composer';
 
 test('composeCliStartupHandlers returns callable CLI startup handlers', () => {
+  const calls: string[] = [];
   const handlers = composeCliStartupHandlers({
     cliCommandContextMainDeps: {
       appState: {} as never,
@@ -57,7 +59,9 @@ test('composeCliStartupHandlers returns callable CLI startup handlers', () => {
         startBackgroundWarmups: () => {},
         logInfo: () => {},
       },
-      handleCliCommandRuntimeServiceWithContext: () => {},
+      handleCliCommandRuntimeServiceWithContext: (args, _source, _ctx) => {
+        calls.push(`handleCommand:${(args as { command?: string }).command ?? 'unknown'}`);
+      },
     },
     initialArgsRuntimeHandlerMainDeps: {
       getInitialArgs: () => null,
@@ -80,4 +84,8 @@ test('composeCliStartupHandlers returns callable CLI startup handlers', () => {
   assert.equal(typeof handlers.createCliCommandContext, 'function');
   assert.equal(typeof handlers.handleCliCommand, 'function');
   assert.equal(typeof handlers.handleInitialArgs, 'function');
+
+  // handleCliCommand routes to the injected handleCliCommandRuntimeServiceWithContext dep
+  handlers.handleCliCommand({ command: 'start' } as unknown as CliArgs);
+  assert.deepEqual(calls, ['handleCommand:start']);
 });

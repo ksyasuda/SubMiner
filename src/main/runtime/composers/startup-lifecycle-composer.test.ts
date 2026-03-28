@@ -3,6 +3,7 @@ import test from 'node:test';
 import { composeStartupLifecycleHandlers } from './startup-lifecycle-composer';
 
 test('composeStartupLifecycleHandlers returns callable startup lifecycle handlers', () => {
+  const calls: string[] = [];
   const composed = composeStartupLifecycleHandlers({
     registerProtocolUrlHandlersMainDeps: {
       registerOpenUrl: () => {},
@@ -51,7 +52,9 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       getAllWindowCount: () => 0,
     },
     restoreWindowsOnActivateMainDeps: {
-      createMainWindow: () => {},
+      createMainWindow: () => {
+        calls.push('createMainWindow');
+      },
       updateVisibleOverlayVisibility: () => {},
       syncOverlayMpvSubtitleSuppression: () => {},
     },
@@ -61,4 +64,11 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
   assert.equal(typeof composed.onWillQuitCleanup, 'function');
   assert.equal(typeof composed.shouldRestoreWindowsOnActivate, 'function');
   assert.equal(typeof composed.restoreWindowsOnActivate, 'function');
+
+  // shouldRestoreWindowsOnActivate returns false when overlay runtime is not initialized
+  assert.equal(composed.shouldRestoreWindowsOnActivate(), false);
+
+  // restoreWindowsOnActivate invokes the injected createMainWindow dep
+  composed.restoreWindowsOnActivate();
+  assert.deepEqual(calls, ['createMainWindow']);
 });
