@@ -386,7 +386,6 @@ import {
   composeMpvRuntimeHandlers,
   composeOverlayVisibilityRuntime,
   composeShortcutRuntimes,
-  composeSubtitlePrefetchRuntime,
   composeStartupLifecycleHandlers,
 } from './main/runtime/composers';
 import { createOverlayWindowRuntimeHandlers } from './main/runtime/overlay-window-runtime-handlers';
@@ -1396,13 +1395,14 @@ function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
     void refreshSubtitlePrefetchFromActiveTrackHandler();
   }, delayMs);
 }
-const subtitlePrefetchRuntime = composeSubtitlePrefetchRuntime({
-  subtitlePrefetchInitController,
-  refreshSubtitleSidebarFromSource: (sourcePath) => refreshSubtitleSidebarFromSource(sourcePath),
+const subtitlePrefetchRuntime = {
+  cancelPendingInit: () => subtitlePrefetchInitController.cancelPendingInit(),
+  initSubtitlePrefetch: subtitlePrefetchInitController.initSubtitlePrefetch,
+  refreshSubtitleSidebarFromSource: (sourcePath: string) => refreshSubtitleSidebarFromSource(sourcePath),
   refreshSubtitlePrefetchFromActiveTrack: () => refreshSubtitlePrefetchFromActiveTrackHandler(),
-  scheduleSubtitlePrefetchRefresh: (delayMs) => scheduleSubtitlePrefetchRefresh(delayMs),
+  scheduleSubtitlePrefetchRefresh: (delayMs?: number) => scheduleSubtitlePrefetchRefresh(delayMs),
   clearScheduledSubtitlePrefetchRefresh: () => clearScheduledSubtitlePrefetchRefresh(),
-});
+} as const;
 
 const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
   createBuildOverlayShortcutsRuntimeMainDepsHandler({
