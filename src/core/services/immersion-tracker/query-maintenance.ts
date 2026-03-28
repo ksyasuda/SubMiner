@@ -16,7 +16,7 @@ import {
   getAffectedWordIdsForSessions,
   getAffectedWordIdsForVideo,
   refreshLexicalAggregates,
-} from './query-shared.js';
+} from './query-shared';
 
 type CleanupVocabularyRow = {
   id: number;

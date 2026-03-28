@@ -1,7 +1,7 @@
 import type { DatabaseSync } from './sqlite';
 import type { ImmersionSessionRollupRow } from './types';
-import { ACTIVE_SESSION_METRICS_CTE, makePlaceholders } from './query-shared.js';
-import { getDailyRollups, getMonthlyRollups } from './query-sessions.js';
+import { ACTIVE_SESSION_METRICS_CTE, makePlaceholders } from './query-shared';
+import { getDailyRollups, getMonthlyRollups } from './query-sessions';
 
 type TrendRange = '7d' | '30d' | '90d' | 'all';
 type TrendGroupBy = 'day' | 'month';

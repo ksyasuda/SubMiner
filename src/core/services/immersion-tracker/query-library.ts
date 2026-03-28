@@ -16,7 +16,7 @@ import type {
   StreakCalendarRow,
   WatchTimePerAnimeRow,
 } from './types';
-import { ACTIVE_SESSION_METRICS_CTE, resolvedCoverBlobExpr } from './query-shared.js';
+import { ACTIVE_SESSION_METRICS_CTE, resolvedCoverBlobExpr } from './query-shared';
 
 export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
   return db

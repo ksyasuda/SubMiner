@@ -5,7 +5,7 @@ import type {
   SessionSummaryQueryRow,
   SessionTimelineRow,
 } from './types';
-import { ACTIVE_SESSION_METRICS_CTE } from './query-shared.js';
+import { ACTIVE_SESSION_METRICS_CTE } from './query-shared';
 
 export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummaryQueryRow[] {
   const prepared = db.prepare(`
