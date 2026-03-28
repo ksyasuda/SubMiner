@@ -85,14 +85,12 @@ function withMockDate<T>(fixedDate: Date, run: (realDate: typeof Date) => T): T 
   const realDate = Date;
   const fixedDateMs = fixedDate.getTime();
 
-  type MockDateArgs = [any, any, any, any, any, any, any];
-
   class MockDate extends Date {
-    constructor(...args: MockDateArgs) {
+    constructor(...args: any[]) {
       if (args.length === 0) {
         super(fixedDateMs);
       } else {
-        super(...args);
+        super(args[0]);
       }
     }
 
