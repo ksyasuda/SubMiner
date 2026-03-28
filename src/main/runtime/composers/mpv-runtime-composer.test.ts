@@ -30,37 +30,13 @@ function createDeferred(): { promise: Promise<void>; resolve: () => void } {
   return { promise, resolve };
 }
 
-test('composeMpvRuntimeHandlers returns callable handlers and forwards to injected deps', async () => {
-  const calls: string[] = [];
-  let started = false;
-  let metrics = BASE_METRICS;
-  let mecabTokenizer: { id: string } | null = null;
+class DefaultFakeMpvClient {
+  connect(): void {}
+  on(): void {}
+}
 
-  class FakeMpvClient {
-    connected = false;
-
-    constructor(
-      public socketPath: string,
-      public options: unknown,
-    ) {
-      const autoStartOverlay = (options as { autoStartOverlay: boolean }).autoStartOverlay;
-      calls.push(`create-client:${socketPath}`);
-      calls.push(`auto-start:${String(autoStartOverlay)}`);
-    }
-
-    on(): void {}
-
-    connect(): void {
-      this.connected = true;
-      calls.push('client-connect');
-    }
-  }
-
-  const composed = composeMpvRuntimeHandlers<
-    FakeMpvClient,
-    { isKnownWord: (text: string) => boolean },
-    { text: string }
-  >({
+function createDefaultMpvFixture() {
+  return {
     bindMpvMainEventHandlersMainDeps: {
       appState: {
         initialArgs: null,
@@ -97,14 +73,118 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
       updateSubtitleRenderMetrics: () => {},
     },
     mpvClientRuntimeServiceFactoryMainDeps: {
-      createClient: FakeMpvClient,
+      createClient: DefaultFakeMpvClient,
       getSocketPath: () => '/tmp/mpv.sock',
       getResolvedConfig: () => ({ auto_start_overlay: false }),
-      isAutoStartOverlayEnabled: () => true,
+      isAutoStartOverlayEnabled: () => false,
       setOverlayVisible: () => {},
       isVisibleOverlayVisible: () => false,
       getReconnectTimer: () => null,
       setReconnectTimer: () => {},
+    },
+    updateMpvSubtitleRenderMetricsMainDeps: {
+      getCurrentMetrics: () => BASE_METRICS,
+      setCurrentMetrics: () => {},
+      applyPatch: (current: MpvSubtitleRenderMetrics, patch: Partial<MpvSubtitleRenderMetrics>) => ({
+        next: { ...current, ...patch },
+        changed: true,
+      }),
+      broadcastMetrics: () => {},
+    },
+    tokenizer: {
+      buildTokenizerDepsMainDeps: {
+        getYomitanExt: () => null,
+        getYomitanParserWindow: () => null,
+        setYomitanParserWindow: () => {},
+        getYomitanParserReadyPromise: () => null,
+        setYomitanParserReadyPromise: () => {},
+        getYomitanParserInitPromise: () => null,
+        setYomitanParserInitPromise: () => {},
+        isKnownWord: () => false,
+        recordLookup: () => {},
+        getKnownWordMatchMode: () => 'headword' as const,
+        getNPlusOneEnabled: () => false,
+        getMinSentenceWordsForNPlusOne: () => 3,
+        getJlptLevel: () => null,
+        getJlptEnabled: () => false,
+        getFrequencyDictionaryEnabled: () => false,
+        getFrequencyDictionaryMatchMode: () => 'headword' as const,
+        getFrequencyRank: () => null,
+        getYomitanGroupDebugEnabled: () => false,
+        getMecabTokenizer: () => null,
+      },
+      createTokenizerRuntimeDeps: () => ({ isKnownWord: () => false }),
+      tokenizeSubtitle: async (text: string) => ({ text }),
+      createMecabTokenizerAndCheckMainDeps: {
+        getMecabTokenizer: () => null,
+        setMecabTokenizer: () => {},
+        createMecabTokenizer: () => ({ id: 'mecab' }),
+        checkAvailability: async () => {},
+      },
+      prewarmSubtitleDictionariesMainDeps: {
+        ensureJlptDictionaryLookup: async () => {},
+        ensureFrequencyDictionaryLookup: async () => {},
+      },
+    },
+    warmups: {
+      launchBackgroundWarmupTaskMainDeps: {
+        now: () => 0,
+        logDebug: () => {},
+        logWarn: () => {},
+      },
+      startBackgroundWarmupsMainDeps: {
+        getStarted: () => false,
+        setStarted: () => {},
+        isTexthookerOnlyMode: () => false,
+        ensureYomitanExtensionLoaded: async () => {},
+        shouldWarmupMecab: () => false,
+        shouldWarmupYomitanExtension: () => false,
+        shouldWarmupSubtitleDictionaries: () => false,
+        shouldWarmupJellyfinRemoteSession: () => false,
+        shouldAutoConnectJellyfinRemote: () => false,
+        startJellyfinRemoteSession: async () => {},
+      },
+    },
+  };
+}
+
+test('composeMpvRuntimeHandlers returns callable handlers and forwards to injected deps', async () => {
+  const calls: string[] = [];
+  let started = false;
+  let metrics = BASE_METRICS;
+  let mecabTokenizer: { id: string } | null = null;
+
+  class FakeMpvClient {
+    connected = false;
+
+    constructor(
+      public socketPath: string,
+      public options: unknown,
+    ) {
+      const autoStartOverlay = (options as { autoStartOverlay: boolean }).autoStartOverlay;
+      calls.push(`create-client:${socketPath}`);
+      calls.push(`auto-start:${String(autoStartOverlay)}`);
+    }
+
+    on(): void {}
+
+    connect(): void {
+      this.connected = true;
+      calls.push('client-connect');
+    }
+  }
+
+  const fixture = createDefaultMpvFixture();
+  const composed = composeMpvRuntimeHandlers<
+    FakeMpvClient,
+    { isKnownWord: (text: string) => boolean },
+    { text: string }
+  >({
+    ...fixture,
+    mpvClientRuntimeServiceFactoryMainDeps: {
+      ...fixture.mpvClientRuntimeServiceFactoryMainDeps,
+      createClient: FakeMpvClient,
+      isAutoStartOverlayEnabled: () => true,
     },
     updateMpvSubtitleRenderMetricsMainDeps: {
       getCurrentMetrics: () => metrics,
@@ -121,25 +201,12 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
       },
     },
     tokenizer: {
+      ...fixture.tokenizer,
       buildTokenizerDepsMainDeps: {
-        getYomitanExt: () => null,
-        getYomitanParserWindow: () => null,
-        setYomitanParserWindow: () => {},
-        getYomitanParserReadyPromise: () => null,
-        setYomitanParserReadyPromise: () => {},
-        getYomitanParserInitPromise: () => null,
-        setYomitanParserInitPromise: () => {},
+        ...fixture.tokenizer.buildTokenizerDepsMainDeps,
         isKnownWord: (text) => text === 'known',
-        recordLookup: () => {},
-        getKnownWordMatchMode: () => 'headword',
-        getMinSentenceWordsForNPlusOne: () => 3,
-        getJlptLevel: () => null,
         getJlptEnabled: () => true,
         getFrequencyDictionaryEnabled: () => true,
-        getFrequencyDictionaryMatchMode: () => 'headword',
-        getFrequencyRank: () => null,
-        getYomitanGroupDebugEnabled: () => false,
-        getMecabTokenizer: () => null,
       },
       createTokenizerRuntimeDeps: (deps) => {
         calls.push('create-tokenizer-runtime-deps');
@@ -184,12 +251,12 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
         },
       },
       startBackgroundWarmupsMainDeps: {
+        ...fixture.warmups.startBackgroundWarmupsMainDeps,
         getStarted: () => started,
         setStarted: (next) => {
           started = next;
           calls.push(`set-started:${String(next)}`);
         },
-        isTexthookerOnlyMode: () => false,
         ensureYomitanExtensionLoaded: async () => {
           calls.push('warmup-yomitan');
         },
@@ -197,7 +264,6 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
         shouldWarmupYomitanExtension: () => true,
         shouldWarmupSubtitleDictionaries: () => true,
         shouldWarmupJellyfinRemoteSession: () => true,
-        shouldAutoConnectJellyfinRemote: () => false,
         startJellyfinRemoteSession: async () => {
           calls.push('warmup-jellyfin');
         },
@@ -264,86 +330,20 @@ test('composeMpvRuntimeHandlers skips MeCab warmup when all POS-dependent annota
     }
   }
 
+  const fixture = createDefaultMpvFixture();
   const composed = composeMpvRuntimeHandlers<
     FakeMpvClient,
     { isKnownWord: (text: string) => boolean },
     { text: string }
   >({
-    bindMpvMainEventHandlersMainDeps: {
-      appState: {
-        initialArgs: null,
-        overlayRuntimeInitialized: true,
-        mpvClient: null,
-        immersionTracker: null,
-        subtitleTimingTracker: null,
-        currentSubText: '',
-        currentSubAssText: '',
-        playbackPaused: null,
-        previousSecondarySubVisibility: null,
-      },
-      getQuitOnDisconnectArmed: () => false,
-      scheduleQuitCheck: () => {},
-      quitApp: () => {},
-      reportJellyfinRemoteStopped: () => {},
-      syncOverlayMpvSubtitleSuppression: () => {},
-      maybeRunAnilistPostWatchUpdate: async () => {},
-      logSubtitleTimingError: () => {},
-      broadcastToOverlayWindows: () => {},
-      onSubtitleChange: () => {},
-      refreshDiscordPresence: () => {},
-      ensureImmersionTrackerInitialized: () => {},
-      updateCurrentMediaPath: () => {},
-      restoreMpvSubVisibility: () => {},
-      getCurrentAnilistMediaKey: () => null,
-      resetAnilistMediaTracking: () => {},
-      maybeProbeAnilistDuration: () => {},
-      ensureAnilistMediaGuess: () => {},
-      syncImmersionMediaState: () => {},
-      updateCurrentMediaTitle: () => {},
-      resetAnilistMediaGuessState: () => {},
-      reportJellyfinRemoteProgress: () => {},
-      updateSubtitleRenderMetrics: () => {},
-    },
+    ...fixture,
     mpvClientRuntimeServiceFactoryMainDeps: {
+      ...fixture.mpvClientRuntimeServiceFactoryMainDeps,
       createClient: FakeMpvClient,
-      getSocketPath: () => '/tmp/mpv.sock',
-      getResolvedConfig: () => ({ auto_start_overlay: false }),
       isAutoStartOverlayEnabled: () => true,
-      setOverlayVisible: () => {},
-      isVisibleOverlayVisible: () => false,
-      getReconnectTimer: () => null,
-      setReconnectTimer: () => {},
-    },
-    updateMpvSubtitleRenderMetricsMainDeps: {
-      getCurrentMetrics: () => BASE_METRICS,
-      setCurrentMetrics: () => {},
-      applyPatch: (current, patch) => ({ next: { ...current, ...patch }, changed: true }),
-      broadcastMetrics: () => {},
     },
     tokenizer: {
-      buildTokenizerDepsMainDeps: {
-        getYomitanExt: () => null,
-        getYomitanParserWindow: () => null,
-        setYomitanParserWindow: () => {},
-        getYomitanParserReadyPromise: () => null,
-        setYomitanParserReadyPromise: () => {},
-        getYomitanParserInitPromise: () => null,
-        setYomitanParserInitPromise: () => {},
-        isKnownWord: () => false,
-        recordLookup: () => {},
-        getKnownWordMatchMode: () => 'headword',
-        getNPlusOneEnabled: () => false,
-        getMinSentenceWordsForNPlusOne: () => 3,
-        getJlptLevel: () => null,
-        getJlptEnabled: () => false,
-        getFrequencyDictionaryEnabled: () => false,
-        getFrequencyDictionaryMatchMode: () => 'headword',
-        getFrequencyRank: () => null,
-        getYomitanGroupDebugEnabled: () => false,
-        getMecabTokenizer: () => null,
-      },
-      createTokenizerRuntimeDeps: () => ({ isKnownWord: () => false }),
-      tokenizeSubtitle: async (text) => ({ text }),
+      ...fixture.tokenizer,
       createMecabTokenizerAndCheckMainDeps: {
         getMecabTokenizer: () => mecabTokenizer,
         setMecabTokenizer: (next) => {
@@ -357,29 +357,6 @@ test('composeMpvRuntimeHandlers skips MeCab warmup when all POS-dependent annota
         checkAvailability: async () => {
           calls.push('check-mecab');
         },
-      },
-      prewarmSubtitleDictionariesMainDeps: {
-        ensureJlptDictionaryLookup: async () => {},
-        ensureFrequencyDictionaryLookup: async () => {},
-      },
-    },
-    warmups: {
-      launchBackgroundWarmupTaskMainDeps: {
-        now: () => 0,
-        logDebug: () => {},
-        logWarn: () => {},
-      },
-      startBackgroundWarmupsMainDeps: {
-        getStarted: () => false,
-        setStarted: () => {},
-        isTexthookerOnlyMode: () => false,
-        ensureYomitanExtensionLoaded: async () => {},
-        shouldWarmupMecab: () => false,
-        shouldWarmupYomitanExtension: () => false,
-        shouldWarmupSubtitleDictionaries: () => false,
-        shouldWarmupJellyfinRemoteSession: () => false,
-        shouldAutoConnectJellyfinRemote: () => false,
-        startJellyfinRemoteSession: async () => {},
       },
     },
   });
@@ -395,97 +372,18 @@ test('composeMpvRuntimeHandlers runs tokenization warmup once across sequential 
   let prewarmFrequencyCalls = 0;
   const tokenizeCalls: string[] = [];
 
+  const fixture = createDefaultMpvFixture();
   const composed = composeMpvRuntimeHandlers<
     { connect: () => void; on: () => void },
     { isKnownWord: () => boolean },
     { text: string }
   >({
-    bindMpvMainEventHandlersMainDeps: {
-      appState: {
-        initialArgs: null,
-        overlayRuntimeInitialized: true,
-        mpvClient: null,
-        immersionTracker: null,
-        subtitleTimingTracker: null,
-        currentSubText: '',
-        currentSubAssText: '',
-        playbackPaused: null,
-        previousSecondarySubVisibility: null,
-      },
-      getQuitOnDisconnectArmed: () => false,
-      scheduleQuitCheck: () => {},
-      quitApp: () => {},
-      reportJellyfinRemoteStopped: () => {},
-      syncOverlayMpvSubtitleSuppression: () => {},
-      maybeRunAnilistPostWatchUpdate: async () => {},
-      logSubtitleTimingError: () => {},
-      broadcastToOverlayWindows: () => {},
-      onSubtitleChange: () => {},
-      refreshDiscordPresence: () => {},
-      ensureImmersionTrackerInitialized: () => {},
-      updateCurrentMediaPath: () => {},
-      restoreMpvSubVisibility: () => {},
-      getCurrentAnilistMediaKey: () => null,
-      resetAnilistMediaTracking: () => {},
-      maybeProbeAnilistDuration: () => {},
-      ensureAnilistMediaGuess: () => {},
-      syncImmersionMediaState: () => {},
-      updateCurrentMediaTitle: () => {},
-      resetAnilistMediaGuessState: () => {},
-      reportJellyfinRemoteProgress: () => {},
-      updateSubtitleRenderMetrics: () => {},
-    },
-    mpvClientRuntimeServiceFactoryMainDeps: {
-      createClient: class {
-        connect(): void {}
-        on(): void {}
-      },
-      getSocketPath: () => '/tmp/mpv.sock',
-      getResolvedConfig: () => ({ auto_start_overlay: false }),
-      isAutoStartOverlayEnabled: () => false,
-      setOverlayVisible: () => {},
-      isVisibleOverlayVisible: () => false,
-      getReconnectTimer: () => null,
-      setReconnectTimer: () => {},
-    },
-    updateMpvSubtitleRenderMetricsMainDeps: {
-      getCurrentMetrics: () => BASE_METRICS,
-      setCurrentMetrics: () => {},
-      applyPatch: (current, patch) => ({ next: { ...current, ...patch }, changed: true }),
-      broadcastMetrics: () => {},
-    },
+    ...fixture,
     tokenizer: {
-      buildTokenizerDepsMainDeps: {
-        getYomitanExt: () => null,
-        getYomitanParserWindow: () => null,
-        setYomitanParserWindow: () => {},
-        getYomitanParserReadyPromise: () => null,
-        setYomitanParserReadyPromise: () => {},
-        getYomitanParserInitPromise: () => null,
-        setYomitanParserInitPromise: () => {},
-        isKnownWord: () => false,
-        recordLookup: () => {},
-        getKnownWordMatchMode: () => 'headword',
-        getNPlusOneEnabled: () => false,
-        getMinSentenceWordsForNPlusOne: () => 3,
-        getJlptLevel: () => null,
-        getJlptEnabled: () => false,
-        getFrequencyDictionaryEnabled: () => false,
-        getFrequencyDictionaryMatchMode: () => 'headword',
-        getFrequencyRank: () => null,
-        getYomitanGroupDebugEnabled: () => false,
-        getMecabTokenizer: () => null,
-      },
-      createTokenizerRuntimeDeps: () => ({ isKnownWord: () => false }),
+      ...fixture.tokenizer,
       tokenizeSubtitle: async (text) => {
         tokenizeCalls.push(text);
         return { text };
-      },
-      createMecabTokenizerAndCheckMainDeps: {
-        getMecabTokenizer: () => null,
-        setMecabTokenizer: () => {},
-        createMecabTokenizer: () => ({ id: 'mecab' }),
-        checkAvailability: async () => {},
       },
       prewarmSubtitleDictionariesMainDeps: {
         ensureJlptDictionaryLookup: async () => {
@@ -497,24 +395,12 @@ test('composeMpvRuntimeHandlers runs tokenization warmup once across sequential 
       },
     },
     warmups: {
-      launchBackgroundWarmupTaskMainDeps: {
-        now: () => 0,
-        logDebug: () => {},
-        logWarn: () => {},
-      },
+      ...fixture.warmups,
       startBackgroundWarmupsMainDeps: {
-        getStarted: () => false,
-        setStarted: () => {},
-        isTexthookerOnlyMode: () => false,
+        ...fixture.warmups.startBackgroundWarmupsMainDeps,
         ensureYomitanExtensionLoaded: async () => {
           yomitanWarmupCalls += 1;
         },
-        shouldWarmupMecab: () => false,
-        shouldWarmupYomitanExtension: () => false,
-        shouldWarmupSubtitleDictionaries: () => false,
-        shouldWarmupJellyfinRemoteSession: () => false,
-        shouldAutoConnectJellyfinRemote: () => false,
-        startJellyfinRemoteSession: async () => {},
       },
     },
   });
@@ -534,117 +420,28 @@ test('composeMpvRuntimeHandlers does not block first tokenization on dictionary 
   const mecabDeferred = createDeferred();
   let tokenizeResolved = false;
 
+  const fixture = createDefaultMpvFixture();
   const composed = composeMpvRuntimeHandlers<
     { connect: () => void; on: () => void },
     { isKnownWord: () => boolean },
     { text: string }
   >({
-    bindMpvMainEventHandlersMainDeps: {
-      appState: {
-        initialArgs: null,
-        overlayRuntimeInitialized: true,
-        mpvClient: null,
-        immersionTracker: null,
-        subtitleTimingTracker: null,
-        currentSubText: '',
-        currentSubAssText: '',
-        playbackPaused: null,
-        previousSecondarySubVisibility: null,
-      },
-      getQuitOnDisconnectArmed: () => false,
-      scheduleQuitCheck: () => {},
-      quitApp: () => {},
-      reportJellyfinRemoteStopped: () => {},
-      syncOverlayMpvSubtitleSuppression: () => {},
-      maybeRunAnilistPostWatchUpdate: async () => {},
-      logSubtitleTimingError: () => {},
-      broadcastToOverlayWindows: () => {},
-      onSubtitleChange: () => {},
-      refreshDiscordPresence: () => {},
-      ensureImmersionTrackerInitialized: () => {},
-      updateCurrentMediaPath: () => {},
-      restoreMpvSubVisibility: () => {},
-      getCurrentAnilistMediaKey: () => null,
-      resetAnilistMediaTracking: () => {},
-      maybeProbeAnilistDuration: () => {},
-      ensureAnilistMediaGuess: () => {},
-      syncImmersionMediaState: () => {},
-      updateCurrentMediaTitle: () => {},
-      resetAnilistMediaGuessState: () => {},
-      reportJellyfinRemoteProgress: () => {},
-      updateSubtitleRenderMetrics: () => {},
-    },
-    mpvClientRuntimeServiceFactoryMainDeps: {
-      createClient: class {
-        connect(): void {}
-        on(): void {}
-      },
-      getSocketPath: () => '/tmp/mpv.sock',
-      getResolvedConfig: () => ({ auto_start_overlay: false }),
-      isAutoStartOverlayEnabled: () => false,
-      setOverlayVisible: () => {},
-      isVisibleOverlayVisible: () => false,
-      getReconnectTimer: () => null,
-      setReconnectTimer: () => {},
-    },
-    updateMpvSubtitleRenderMetricsMainDeps: {
-      getCurrentMetrics: () => BASE_METRICS,
-      setCurrentMetrics: () => {},
-      applyPatch: (current, patch) => ({ next: { ...current, ...patch }, changed: true }),
-      broadcastMetrics: () => {},
-    },
+    ...fixture,
     tokenizer: {
+      ...fixture.tokenizer,
       buildTokenizerDepsMainDeps: {
-        getYomitanExt: () => null,
-        getYomitanParserWindow: () => null,
-        setYomitanParserWindow: () => {},
-        getYomitanParserReadyPromise: () => null,
-        setYomitanParserReadyPromise: () => {},
-        getYomitanParserInitPromise: () => null,
-        setYomitanParserInitPromise: () => {},
-        isKnownWord: () => false,
-        recordLookup: () => {},
-        getKnownWordMatchMode: () => 'headword',
+        ...fixture.tokenizer.buildTokenizerDepsMainDeps,
         getNPlusOneEnabled: () => true,
-        getMinSentenceWordsForNPlusOne: () => 3,
-        getJlptLevel: () => null,
         getJlptEnabled: () => true,
         getFrequencyDictionaryEnabled: () => true,
-        getFrequencyDictionaryMatchMode: () => 'headword',
-        getFrequencyRank: () => null,
-        getYomitanGroupDebugEnabled: () => false,
-        getMecabTokenizer: () => null,
       },
-      createTokenizerRuntimeDeps: () => ({ isKnownWord: () => false }),
-      tokenizeSubtitle: async (text) => ({ text }),
       createMecabTokenizerAndCheckMainDeps: {
-        getMecabTokenizer: () => null,
-        setMecabTokenizer: () => {},
-        createMecabTokenizer: () => ({ id: 'mecab' }),
+        ...fixture.tokenizer.createMecabTokenizerAndCheckMainDeps,
         checkAvailability: async () => mecabDeferred.promise,
       },
       prewarmSubtitleDictionariesMainDeps: {
         ensureJlptDictionaryLookup: async () => jlptDeferred.promise,
         ensureFrequencyDictionaryLookup: async () => frequencyDeferred.promise,
-      },
-    },
-    warmups: {
-      launchBackgroundWarmupTaskMainDeps: {
-        now: () => 0,
-        logDebug: () => {},
-        logWarn: () => {},
-      },
-      startBackgroundWarmupsMainDeps: {
-        getStarted: () => false,
-        setStarted: () => {},
-        isTexthookerOnlyMode: () => false,
-        ensureYomitanExtensionLoaded: async () => undefined,
-        shouldWarmupMecab: () => false,
-        shouldWarmupYomitanExtension: () => false,
-        shouldWarmupSubtitleDictionaries: () => false,
-        shouldWarmupJellyfinRemoteSession: () => false,
-        shouldAutoConnectJellyfinRemote: () => false,
-        startJellyfinRemoteSession: async () => {},
       },
     },
   });
@@ -667,86 +464,19 @@ test('composeMpvRuntimeHandlers shows annotation loading OSD after tokenization-
   const frequencyDeferred = createDeferred();
   const osdMessages: string[] = [];
 
+  const fixture = createDefaultMpvFixture();
   const composed = composeMpvRuntimeHandlers<
     { connect: () => void; on: () => void },
     { onTokenizationReady?: (text: string) => void },
     { text: string }
   >({
-    bindMpvMainEventHandlersMainDeps: {
-      appState: {
-        initialArgs: null,
-        overlayRuntimeInitialized: true,
-        mpvClient: null,
-        immersionTracker: null,
-        subtitleTimingTracker: null,
-        currentSubText: '',
-        currentSubAssText: '',
-        playbackPaused: null,
-        previousSecondarySubVisibility: null,
-      },
-      getQuitOnDisconnectArmed: () => false,
-      scheduleQuitCheck: () => {},
-      quitApp: () => {},
-      reportJellyfinRemoteStopped: () => {},
-      syncOverlayMpvSubtitleSuppression: () => {},
-      maybeRunAnilistPostWatchUpdate: async () => {},
-      logSubtitleTimingError: () => {},
-      broadcastToOverlayWindows: () => {},
-      onSubtitleChange: () => {},
-      refreshDiscordPresence: () => {},
-      ensureImmersionTrackerInitialized: () => {},
-      updateCurrentMediaPath: () => {},
-      restoreMpvSubVisibility: () => {},
-      getCurrentAnilistMediaKey: () => null,
-      resetAnilistMediaTracking: () => {},
-      maybeProbeAnilistDuration: () => {},
-      ensureAnilistMediaGuess: () => {},
-      syncImmersionMediaState: () => {},
-      updateCurrentMediaTitle: () => {},
-      resetAnilistMediaGuessState: () => {},
-      reportJellyfinRemoteProgress: () => {},
-      updateSubtitleRenderMetrics: () => {},
-    },
-    mpvClientRuntimeServiceFactoryMainDeps: {
-      createClient: class {
-        connect(): void {}
-        on(): void {}
-      },
-      getSocketPath: () => '/tmp/mpv.sock',
-      getResolvedConfig: () => ({ auto_start_overlay: false }),
-      isAutoStartOverlayEnabled: () => false,
-      setOverlayVisible: () => {},
-      isVisibleOverlayVisible: () => false,
-      getReconnectTimer: () => null,
-      setReconnectTimer: () => {},
-    },
-    updateMpvSubtitleRenderMetricsMainDeps: {
-      getCurrentMetrics: () => BASE_METRICS,
-      setCurrentMetrics: () => {},
-      applyPatch: (current, patch) => ({ next: { ...current, ...patch }, changed: true }),
-      broadcastMetrics: () => {},
-    },
+    ...fixture,
     tokenizer: {
+      ...fixture.tokenizer,
       buildTokenizerDepsMainDeps: {
-        getYomitanExt: () => null,
-        getYomitanParserWindow: () => null,
-        setYomitanParserWindow: () => {},
-        getYomitanParserReadyPromise: () => null,
-        setYomitanParserReadyPromise: () => {},
-        getYomitanParserInitPromise: () => null,
-        setYomitanParserInitPromise: () => {},
-        isKnownWord: () => false,
-        recordLookup: () => {},
-        getKnownWordMatchMode: () => 'headword',
-        getNPlusOneEnabled: () => false,
-        getMinSentenceWordsForNPlusOne: () => 3,
-        getJlptLevel: () => null,
+        ...fixture.tokenizer.buildTokenizerDepsMainDeps,
         getJlptEnabled: () => true,
         getFrequencyDictionaryEnabled: () => true,
-        getFrequencyDictionaryMatchMode: () => 'headword',
-        getFrequencyRank: () => null,
-        getYomitanGroupDebugEnabled: () => false,
-        getMecabTokenizer: () => null,
       },
       createTokenizerRuntimeDeps: (deps) =>
         deps as unknown as { onTokenizationReady?: (text: string) => void },
@@ -754,37 +484,12 @@ test('composeMpvRuntimeHandlers shows annotation loading OSD after tokenization-
         deps.onTokenizationReady?.(text);
         return { text };
       },
-      createMecabTokenizerAndCheckMainDeps: {
-        getMecabTokenizer: () => null,
-        setMecabTokenizer: () => {},
-        createMecabTokenizer: () => ({ id: 'mecab' }),
-        checkAvailability: async () => {},
-      },
       prewarmSubtitleDictionariesMainDeps: {
         ensureJlptDictionaryLookup: async () => jlptDeferred.promise,
         ensureFrequencyDictionaryLookup: async () => frequencyDeferred.promise,
         showMpvOsd: (message) => {
           osdMessages.push(message);
         },
-      },
-    },
-    warmups: {
-      launchBackgroundWarmupTaskMainDeps: {
-        now: () => 0,
-        logDebug: () => {},
-        logWarn: () => {},
-      },
-      startBackgroundWarmupsMainDeps: {
-        getStarted: () => false,
-        setStarted: () => {},
-        isTexthookerOnlyMode: () => false,
-        ensureYomitanExtensionLoaded: async () => undefined,
-        shouldWarmupMecab: () => false,
-        shouldWarmupYomitanExtension: () => false,
-        shouldWarmupSubtitleDictionaries: () => false,
-        shouldWarmupJellyfinRemoteSession: () => false,
-        shouldAutoConnectJellyfinRemote: () => false,
-        startJellyfinRemoteSession: async () => {},
       },
     },
   });
@@ -814,89 +519,22 @@ test('composeMpvRuntimeHandlers reuses completed background tokenization warmups
   let frequencyWarmupCalls = 0;
   let mecabTokenizer: { tokenize: () => Promise<never[]> } | null = null;
 
+  const fixture = createDefaultMpvFixture();
   const composed = composeMpvRuntimeHandlers<
     { connect: () => void; on: () => void },
     { isKnownWord: () => boolean },
     { text: string }
   >({
-    bindMpvMainEventHandlersMainDeps: {
-      appState: {
-        initialArgs: null,
-        overlayRuntimeInitialized: true,
-        mpvClient: null,
-        immersionTracker: null,
-        subtitleTimingTracker: null,
-        currentSubText: '',
-        currentSubAssText: '',
-        playbackPaused: null,
-        previousSecondarySubVisibility: null,
-      },
-      getQuitOnDisconnectArmed: () => false,
-      scheduleQuitCheck: () => {},
-      quitApp: () => {},
-      reportJellyfinRemoteStopped: () => {},
-      syncOverlayMpvSubtitleSuppression: () => {},
-      maybeRunAnilistPostWatchUpdate: async () => {},
-      logSubtitleTimingError: () => {},
-      broadcastToOverlayWindows: () => {},
-      onSubtitleChange: () => {},
-      refreshDiscordPresence: () => {},
-      ensureImmersionTrackerInitialized: () => {},
-      updateCurrentMediaPath: () => {},
-      restoreMpvSubVisibility: () => {},
-      getCurrentAnilistMediaKey: () => null,
-      resetAnilistMediaTracking: () => {},
-      maybeProbeAnilistDuration: () => {},
-      ensureAnilistMediaGuess: () => {},
-      syncImmersionMediaState: () => {},
-      updateCurrentMediaTitle: () => {},
-      resetAnilistMediaGuessState: () => {},
-      reportJellyfinRemoteProgress: () => {},
-      updateSubtitleRenderMetrics: () => {},
-    },
-    mpvClientRuntimeServiceFactoryMainDeps: {
-      createClient: class {
-        connect(): void {}
-        on(): void {}
-      },
-      getSocketPath: () => '/tmp/mpv.sock',
-      getResolvedConfig: () => ({ auto_start_overlay: false }),
-      isAutoStartOverlayEnabled: () => false,
-      setOverlayVisible: () => {},
-      isVisibleOverlayVisible: () => false,
-      getReconnectTimer: () => null,
-      setReconnectTimer: () => {},
-    },
-    updateMpvSubtitleRenderMetricsMainDeps: {
-      getCurrentMetrics: () => BASE_METRICS,
-      setCurrentMetrics: () => {},
-      applyPatch: (current, patch) => ({ next: { ...current, ...patch }, changed: true }),
-      broadcastMetrics: () => {},
-    },
+    ...fixture,
     tokenizer: {
+      ...fixture.tokenizer,
       buildTokenizerDepsMainDeps: {
-        getYomitanExt: () => null,
-        getYomitanParserWindow: () => null,
-        setYomitanParserWindow: () => {},
-        getYomitanParserReadyPromise: () => null,
-        setYomitanParserReadyPromise: () => {},
-        getYomitanParserInitPromise: () => null,
-        setYomitanParserInitPromise: () => {},
-        isKnownWord: () => false,
-        recordLookup: () => {},
-        getKnownWordMatchMode: () => 'headword',
+        ...fixture.tokenizer.buildTokenizerDepsMainDeps,
         getNPlusOneEnabled: () => true,
-        getMinSentenceWordsForNPlusOne: () => 3,
-        getJlptLevel: () => null,
         getJlptEnabled: () => true,
         getFrequencyDictionaryEnabled: () => true,
-        getFrequencyDictionaryMatchMode: () => 'headword',
-        getFrequencyRank: () => null,
-        getYomitanGroupDebugEnabled: () => false,
         getMecabTokenizer: () => mecabTokenizer,
       },
-      createTokenizerRuntimeDeps: () => ({ isKnownWord: () => false }),
-      tokenizeSubtitle: async (text) => ({ text }),
       createMecabTokenizerAndCheckMainDeps: {
         getMecabTokenizer: () => mecabTokenizer,
         setMecabTokenizer: (next) => {
@@ -917,26 +555,19 @@ test('composeMpvRuntimeHandlers reuses completed background tokenization warmups
       },
     },
     warmups: {
-      launchBackgroundWarmupTaskMainDeps: {
-        now: () => 0,
-        logDebug: () => {},
-        logWarn: () => {},
-      },
+      ...fixture.warmups,
       startBackgroundWarmupsMainDeps: {
+        ...fixture.warmups.startBackgroundWarmupsMainDeps,
         getStarted: () => started,
         setStarted: (next) => {
           started = next;
         },
-        isTexthookerOnlyMode: () => false,
         ensureYomitanExtensionLoaded: async () => {
           yomitanWarmupCalls += 1;
         },
         shouldWarmupMecab: () => true,
         shouldWarmupYomitanExtension: () => true,
         shouldWarmupSubtitleDictionaries: () => true,
-        shouldWarmupJellyfinRemoteSession: () => false,
-        shouldAutoConnectJellyfinRemote: () => false,
-        startJellyfinRemoteSession: async () => {},
       },
     },
   });
