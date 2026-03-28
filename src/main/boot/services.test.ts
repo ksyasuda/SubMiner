@@ -24,7 +24,7 @@ test('createMainBootServices builds boot-phase service bundle', () => {
     { scope: string; warn: () => void; info: () => void; error: () => void },
     { registry: boolean },
     { getModalWindow: () => null },
-    { inputState: boolean },
+    { inputState: boolean; getModalInputExclusive: () => boolean; handleModalInputStateChange: (isActive: boolean) => void },
     { measurementStore: boolean },
     { modalRuntime: boolean },
     { mpvSocketPath: string; texthookerPort: number },
@@ -50,7 +50,7 @@ test('createMainBootServices builds boot-phase service bundle', () => {
         setPathValue = value;
       },
       quit: () => {},
-      on: (event) => {
+      on: (event: string) => {
         appOnCalls.push(event);
         return {};
       },
@@ -80,7 +80,7 @@ test('createMainBootServices builds boot-phase service bundle', () => {
     createOverlayManager: () => ({
       getModalWindow: () => null,
     }),
-    createOverlayModalInputState: () => ({ inputState: true }),
+    createOverlayModalInputState: () => ({ inputState: true, getModalInputExclusive: () => false, handleModalInputStateChange: () => {} }),
     createOverlayContentMeasurementStore: () => ({ measurementStore: true }),
     getSyncOverlayShortcutsForModal: () => () => {},
     getSyncOverlayVisibilityForModal: () => () => {},

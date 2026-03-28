@@ -1,5 +1,17 @@
-import { BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
 import { ConfigStartupParseError } from '../../config';
+
+export interface AppLifecycleShape {
+  requestSingleInstanceLock: () => boolean;
+  quit: () => void;
+  on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  whenReady: () => Promise<void>;
+}
+
+export interface OverlayModalInputStateShape {
+  getModalInputExclusive: () => boolean;
+  handleModalInputStateChange: (isActive: boolean) => void;
+}
 
 export interface MainBootServicesParams<
   TConfigService,
@@ -38,7 +50,8 @@ export interface MainBootServicesParams<
   app: {
     setPath: (name: string, value: string) => void;
     quit: () => void;
-    on: (event: any, listener: (...args: unknown[]) => void) => any;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type -- Electron App.on has 50+ overloaded signatures
+    on: Function;
     whenReady: () => Promise<void>;
   };
   shouldBypassSingleInstanceLock: () => boolean;
@@ -124,11 +137,11 @@ export function createMainBootServices<
   TLogger,
   TRuntimeRegistry,
   TOverlayManager extends { getModalWindow: () => BrowserWindow | null },
-  TOverlayModalInputState,
+  TOverlayModalInputState extends OverlayModalInputStateShape,
   TOverlayContentMeasurementStore,
   TOverlayModalRuntime,
   TAppState,
-  TAppLifecycleApp,
+  TAppLifecycleApp extends AppLifecycleShape,
 >(
   params: MainBootServicesParams<
     TConfigService,
@@ -212,8 +225,7 @@ export function createMainBootServices<
     overlayManager,
     overlayModalInputState,
     onModalStateChange: (isActive: boolean) =>
-      (overlayModalInputState as { handleModalInputStateChange?: (isActive: boolean) => void })
-        .handleModalInputStateChange?.(isActive),
+      overlayModalInputState.handleModalInputStateChange(isActive),
   });
   const appState = params.createAppState({
     mpvSocketPath: params.getDefaultSocketPath(),
@@ -242,7 +254,7 @@ export function createMainBootServices<
       return appLifecycleApp;
     },
     whenReady: () => params.app.whenReady(),
-  } as TAppLifecycleApp;
+  } satisfies AppLifecycleShape as TAppLifecycleApp;
 
   return {
     configDir,
