@@ -384,13 +384,12 @@ import {
   composeIpcRuntimeHandlers,
   composeJellyfinRuntimeHandlers,
   composeMpvRuntimeHandlers,
-  composeOverlayWindowHandlers,
   composeOverlayVisibilityRuntime,
   composeShortcutRuntimes,
-  composeStatsStartupRuntime,
   composeSubtitlePrefetchRuntime,
   composeStartupLifecycleHandlers,
 } from './main/runtime/composers';
+import { createOverlayWindowRuntimeHandlers } from './main/runtime/overlay-window-runtime-handlers';
 import { createStartupBootstrapRuntimeDeps } from './main/startup';
 import { createAppLifecycleRuntimeRunner } from './main/startup-lifecycle';
 import {
@@ -2955,7 +2954,7 @@ const ensureImmersionTrackerStarted = (): void => {
   hasAttemptedImmersionTrackerStartup = true;
   createImmersionTrackerStartup();
 };
-const statsStartupRuntime = composeStatsStartupRuntime({
+const statsStartupRuntime = {
   ensureStatsServerStarted: () => ensureStatsServerStarted(),
   ensureBackgroundStatsServerStarted: () => ensureBackgroundStatsServerStarted(),
   stopBackgroundStatsServer: () => stopBackgroundStatsServer(),
@@ -2967,7 +2966,7 @@ const statsStartupRuntime = composeStatsStartupRuntime({
       appState.statsStartupInProgress = false;
     }
   },
-});
+} as const;
 
 const runStatsCliCommand = createRunStatsCliCommandHandler({
   getResolvedConfig: () => getResolvedConfig(),
@@ -4492,7 +4491,7 @@ if (isAnilistTrackingEnabled(getResolvedConfig())) {
 }
 void initializeDiscordPresenceService();
 const { createMainWindow: createMainWindowHandler, createModalWindow: createModalWindowHandler } =
-  composeOverlayWindowHandlers<BrowserWindow>({
+  createOverlayWindowRuntimeHandlers<BrowserWindow>({
     createOverlayWindowDeps: {
       createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
       isDev,
