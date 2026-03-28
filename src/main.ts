@@ -401,6 +401,31 @@ import {
 import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
+import { createMainBootServices } from './main/boot/services';
+import {
+  composeBootOverlayVisibilityRuntime,
+  composeBootJellyfinRuntimeHandlers,
+  composeBootAnilistSetupHandlers,
+  createBootMaybeFocusExistingAnilistSetupWindowHandler,
+  createBootBuildOpenAnilistSetupWindowMainDepsHandler,
+  createBootOpenAnilistSetupWindowHandler,
+  composeBootAnilistTrackingHandlers,
+  composeBootStatsStartupRuntime,
+  createBootRunStatsCliCommandHandler,
+  composeBootAppReadyRuntime,
+  composeBootMpvRuntimeHandlers,
+  createBootTrayRuntimeHandlers,
+  createBootYomitanProfilePolicy,
+  createBootYomitanExtensionRuntime,
+  createBootYomitanSettingsRuntime,
+} from './main/boot/runtimes';
+import {
+  composeBootStartupLifecycleHandlers,
+  composeBootIpcRuntimeHandlers,
+  composeBootCliStartupHandlers,
+  composeBootHeadlessStartupHandlers,
+  composeBootOverlayWindowHandlers,
+} from './main/boot/handlers';
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
@@ -555,59 +580,6 @@ function applyJellyfinMpvDefaults(
   applyJellyfinMpvDefaultsHandler(client);
 }
 
-const CONFIG_DIR = resolveConfigDir({
-  platform: process.platform,
-  appDataDir: process.env.APPDATA,
-  xdgConfigHome: process.env.XDG_CONFIG_HOME,
-  homeDir: os.homedir(),
-  existsSync: fs.existsSync,
-});
-const USER_DATA_PATH = CONFIG_DIR;
-const DEFAULT_MPV_LOG_PATH = process.env.SUBMINER_MPV_LOG?.trim() || DEFAULT_MPV_LOG_FILE;
-const DEFAULT_IMMERSION_DB_PATH = path.join(USER_DATA_PATH, 'immersion.sqlite');
-const configService = (() => {
-  try {
-    return new ConfigService(CONFIG_DIR);
-  } catch (error) {
-    if (error instanceof ConfigStartupParseError) {
-      failStartupFromConfig(
-        'SubMiner config parse error',
-        buildConfigParseErrorDetails(error.path, error.parseError),
-        {
-          logError: (details) => console.error(details),
-          showErrorBox: (title, details) => dialog.showErrorBox(title, details),
-          quit: () => requestAppQuit(),
-        },
-      );
-    }
-    throw error;
-  }
-})();
-const anilistTokenStore = createAnilistTokenStore(
-  path.join(USER_DATA_PATH, ANILIST_TOKEN_STORE_FILE),
-  {
-    info: (message: string) => console.info(message),
-    warn: (message: string, details?: unknown) => console.warn(message, details),
-    error: (message: string, details?: unknown) => console.error(message, details),
-    warnUser: (message: string) => notifyAnilistTokenStoreWarning(message),
-  },
-);
-const jellyfinTokenStore = createJellyfinTokenStore(
-  path.join(USER_DATA_PATH, JELLYFIN_TOKEN_STORE_FILE),
-  {
-    info: (message: string) => console.info(message),
-    warn: (message: string, details?: unknown) => console.warn(message, details),
-    error: (message: string, details?: unknown) => console.error(message, details),
-  },
-);
-const anilistUpdateQueue = createAnilistUpdateQueue(
-  path.join(USER_DATA_PATH, ANILIST_RETRY_QUEUE_FILE),
-  {
-    info: (message: string) => console.info(message),
-    warn: (message: string, details?: unknown) => console.warn(message, details),
-    error: (message: string, details?: unknown) => console.error(message, details),
-  },
-);
 const isDev = process.argv.includes('--dev') || process.argv.includes('--debug');
 const texthookerService = new Texthooker(() => {
   const config = getResolvedConfig();
@@ -644,9 +616,141 @@ const texthookerService = new Texthooker(() => {
     },
   };
 });
-const subtitleWsService = new SubtitleWebSocket();
-const annotationSubtitleWsService = new SubtitleWebSocket();
-const logger = createLogger('main');
+let syncOverlayShortcutsForModal: (isActive: boolean) => void = () => {};
+let syncOverlayVisibilityForModal: () => void = () => {};
+const buildGetDefaultSocketPathMainDepsHandler = createBuildGetDefaultSocketPathMainDepsHandler({
+  platform: process.platform,
+});
+const getDefaultSocketPathMainDeps = buildGetDefaultSocketPathMainDepsHandler();
+const getDefaultSocketPathHandler = createGetDefaultSocketPathHandler(getDefaultSocketPathMainDeps);
+
+function getDefaultSocketPath(): string {
+  return getDefaultSocketPathHandler();
+}
+const bootServices = createMainBootServices({
+  platform: process.platform,
+  argv: process.argv,
+  appDataDir: process.env.APPDATA,
+  xdgConfigHome: process.env.XDG_CONFIG_HOME,
+  homeDir: os.homedir(),
+  defaultMpvLogFile: DEFAULT_MPV_LOG_FILE,
+  envMpvLog: process.env.SUBMINER_MPV_LOG,
+  defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
+  getDefaultSocketPath: () => getDefaultSocketPath(),
+  resolveConfigDir,
+  existsSync: fs.existsSync,
+  mkdirSync: fs.mkdirSync,
+  joinPath: (...parts) => path.join(...parts),
+  app,
+  shouldBypassSingleInstanceLock: () => shouldBypassSingleInstanceLockForArgv(process.argv),
+  requestSingleInstanceLockEarly: () => requestSingleInstanceLockEarly(app),
+  registerSecondInstanceHandlerEarly: (listener) => {
+    registerSecondInstanceHandlerEarly(app, listener);
+  },
+  onConfigStartupParseError: (error) => {
+    failStartupFromConfig(
+      'SubMiner config parse error',
+      buildConfigParseErrorDetails(error.path, error.parseError),
+      {
+        logError: (details) => console.error(details),
+        showErrorBox: (title, details) => dialog.showErrorBox(title, details),
+        quit: () => requestAppQuit(),
+      },
+    );
+  },
+  createConfigService: (configDir) => new ConfigService(configDir),
+  createAnilistTokenStore: (targetPath) =>
+    createAnilistTokenStore(targetPath, {
+      info: (message: string) => console.info(message),
+      warn: (message: string, details?: unknown) => console.warn(message, details),
+      error: (message: string, details?: unknown) => console.error(message, details),
+      warnUser: (message: string) => notifyAnilistTokenStoreWarning(message),
+    }),
+  createJellyfinTokenStore: (targetPath) =>
+    createJellyfinTokenStore(targetPath, {
+      info: (message: string) => console.info(message),
+      warn: (message: string, details?: unknown) => console.warn(message, details),
+      error: (message: string, details?: unknown) => console.error(message, details),
+    }),
+  createAnilistUpdateQueue: (targetPath) =>
+    createAnilistUpdateQueue(targetPath, {
+      info: (message: string) => console.info(message),
+      warn: (message: string, details?: unknown) => console.warn(message, details),
+      error: (message: string, details?: unknown) => console.error(message, details),
+    }),
+  createSubtitleWebSocket: () => new SubtitleWebSocket(),
+  createLogger,
+  createMainRuntimeRegistry,
+  createOverlayManager,
+  createOverlayModalInputState,
+  createOverlayContentMeasurementStore: ({ logger }) => {
+    const buildHandler = createBuildOverlayContentMeasurementStoreMainDepsHandler({
+      now: () => Date.now(),
+      warn: (message: string) => logger.warn(message),
+    });
+    return createOverlayContentMeasurementStore(buildHandler());
+  },
+  getSyncOverlayShortcutsForModal: () => syncOverlayShortcutsForModal,
+  getSyncOverlayVisibilityForModal: () => syncOverlayVisibilityForModal,
+  createOverlayModalRuntime: ({ overlayManager, overlayModalInputState }) => {
+    const buildHandler = createBuildOverlayModalRuntimeMainDepsHandler({
+      getMainWindow: () => overlayManager.getMainWindow(),
+      getModalWindow: () => overlayManager.getModalWindow(),
+      createModalWindow: () => createModalWindow(),
+      getModalGeometry: () => getCurrentOverlayGeometry(),
+      setModalWindowBounds: (geometry) => overlayManager.setModalWindowBounds(geometry),
+    });
+    return createOverlayModalRuntimeService(buildHandler(), {
+      onModalStateChange: (isActive: boolean) =>
+        overlayModalInputState.handleModalInputStateChange(isActive),
+    });
+  },
+  createAppState,
+}) as {
+  configDir: string;
+  userDataPath: string;
+  defaultMpvLogPath: string;
+  defaultImmersionDbPath: string;
+  configService: ConfigService;
+  anilistTokenStore: ReturnType<typeof createAnilistTokenStore>;
+  jellyfinTokenStore: ReturnType<typeof createJellyfinTokenStore>;
+  anilistUpdateQueue: ReturnType<typeof createAnilistUpdateQueue>;
+  subtitleWsService: SubtitleWebSocket;
+  annotationSubtitleWsService: SubtitleWebSocket;
+  logger: ReturnType<typeof createLogger>;
+  runtimeRegistry: ReturnType<typeof createMainRuntimeRegistry>;
+  overlayManager: ReturnType<typeof createOverlayManager>;
+  overlayModalInputState: ReturnType<typeof createOverlayModalInputState>;
+  overlayContentMeasurementStore: ReturnType<typeof createOverlayContentMeasurementStore>;
+  overlayModalRuntime: ReturnType<typeof createOverlayModalRuntimeService>;
+  appState: ReturnType<typeof createAppState>;
+  appLifecycleApp: {
+    requestSingleInstanceLock: () => boolean;
+    quit: () => void;
+    on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+    whenReady: () => Promise<void>;
+  };
+};
+const {
+  configDir: CONFIG_DIR,
+  userDataPath: USER_DATA_PATH,
+  defaultMpvLogPath: DEFAULT_MPV_LOG_PATH,
+  defaultImmersionDbPath: DEFAULT_IMMERSION_DB_PATH,
+  configService,
+  anilistTokenStore,
+  jellyfinTokenStore,
+  anilistUpdateQueue,
+  subtitleWsService,
+  annotationSubtitleWsService,
+  logger,
+  runtimeRegistry,
+  overlayManager,
+  overlayModalInputState,
+  overlayContentMeasurementStore,
+  overlayModalRuntime,
+  appState,
+  appLifecycleApp,
+} = bootServices;
 notifyAnilistTokenStoreWarning = (message: string) => {
   logger.warn(`[AniList] ${message}`);
   try {
@@ -681,41 +785,6 @@ const appLogger = {
     );
   },
 };
-const runtimeRegistry = createMainRuntimeRegistry();
-const appLifecycleApp = {
-  requestSingleInstanceLock: () =>
-    shouldBypassSingleInstanceLockForArgv(process.argv)
-      ? true
-      : requestSingleInstanceLockEarly(app),
-  quit: () => app.quit(),
-  on: (event: string, listener: (...args: unknown[]) => void) => {
-    if (event === 'second-instance') {
-      registerSecondInstanceHandlerEarly(
-        app,
-        listener as (_event: unknown, argv: string[]) => void,
-      );
-      return app;
-    }
-    app.on(event as Parameters<typeof app.on>[0], listener as (...args: any[]) => void);
-    return app;
-  },
-  whenReady: () => app.whenReady(),
-};
-
-const buildGetDefaultSocketPathMainDepsHandler = createBuildGetDefaultSocketPathMainDepsHandler({
-  platform: process.platform,
-});
-const getDefaultSocketPathMainDeps = buildGetDefaultSocketPathMainDepsHandler();
-const getDefaultSocketPathHandler = createGetDefaultSocketPathHandler(getDefaultSocketPathMainDeps);
-
-function getDefaultSocketPath(): string {
-  return getDefaultSocketPathHandler();
-}
-
-if (!fs.existsSync(USER_DATA_PATH)) {
-  fs.mkdirSync(USER_DATA_PATH, { recursive: true });
-}
-app.setPath('userData', USER_DATA_PATH);
 
 let forceQuitTimer: ReturnType<typeof setTimeout> | null = null;
 let statsServer: ReturnType<typeof startStatsServer> | null = null;
@@ -777,46 +846,6 @@ process.on('SIGTERM', () => {
   requestAppQuit();
 });
 
-const overlayManager = createOverlayManager();
-let syncOverlayShortcutsForModal: (isActive: boolean) => void = () => {};
-let syncOverlayVisibilityForModal: () => void = () => {};
-const overlayModalInputState = createOverlayModalInputState({
-  getModalWindow: () => overlayManager.getModalWindow(),
-  syncOverlayShortcutsForModal: (isActive) => {
-    syncOverlayShortcutsForModal(isActive);
-  },
-  syncOverlayVisibilityForModal: () => {
-    syncOverlayVisibilityForModal();
-  },
-});
-
-const buildOverlayContentMeasurementStoreMainDepsHandler =
-  createBuildOverlayContentMeasurementStoreMainDepsHandler({
-    now: () => Date.now(),
-    warn: (message: string) => logger.warn(message),
-  });
-const buildOverlayModalRuntimeMainDepsHandler = createBuildOverlayModalRuntimeMainDepsHandler({
-  getMainWindow: () => overlayManager.getMainWindow(),
-  getModalWindow: () => overlayManager.getModalWindow(),
-  createModalWindow: () => createModalWindow(),
-  getModalGeometry: () => getCurrentOverlayGeometry(),
-  setModalWindowBounds: (geometry) => overlayManager.setModalWindowBounds(geometry),
-});
-const overlayContentMeasurementStoreMainDeps = buildOverlayContentMeasurementStoreMainDepsHandler();
-const overlayContentMeasurementStore = createOverlayContentMeasurementStore(
-  overlayContentMeasurementStoreMainDeps,
-);
-const overlayModalRuntime = createOverlayModalRuntimeService(
-  buildOverlayModalRuntimeMainDepsHandler(),
-  {
-    onModalStateChange: (isActive: boolean) =>
-      overlayModalInputState.handleModalInputStateChange(isActive),
-  },
-);
-const appState = createAppState({
-  mpvSocketPath: getDefaultSocketPath(),
-  texthookerPort: DEFAULT_TEXTHOOKER_PORT,
-});
 const startBackgroundWarmupsIfAllowed = (): void => {
   startBackgroundWarmups();
 };
@@ -1887,7 +1916,7 @@ const buildOpenRuntimeOptionsPaletteMainDepsHandler =
   createBuildOpenRuntimeOptionsPaletteMainDepsHandler({
     openRuntimeOptionsPaletteRuntime: () => overlayModalRuntime.openRuntimeOptionsPalette(),
   });
-const overlayVisibilityComposer = composeOverlayVisibilityRuntime({
+const overlayVisibilityComposer = composeBootOverlayVisibilityRuntime({
   overlayVisibilityRuntime,
   restorePreviousSecondarySubVisibilityMainDeps:
     buildRestorePreviousSecondarySubVisibilityMainDepsHandler(),
@@ -1959,7 +1988,7 @@ const {
   stopJellyfinRemoteSession,
   runJellyfinCommand,
   openJellyfinSetupWindow,
-} = composeJellyfinRuntimeHandlers({
+} = composeBootJellyfinRuntimeHandlers({
   getResolvedJellyfinConfigMainDeps: {
     getResolvedConfig: () => getResolvedConfig(),
     loadStoredSession: () => jellyfinTokenStore.loadSession(),
@@ -2259,7 +2288,7 @@ const {
   consumeAnilistSetupTokenFromUrl,
   handleAnilistSetupProtocolUrl,
   registerSubminerProtocolClient,
-} = composeAnilistSetupHandlers({
+} = composeBootAnilistSetupHandlers({
   notifyDeps: {
     hasMpvClient: () => Boolean(appState.mpvClient),
     showMpvOsd: (message) => showMpvOsd(message),
@@ -2310,10 +2339,10 @@ const {
   },
 });
 
-const maybeFocusExistingAnilistSetupWindow = createMaybeFocusExistingAnilistSetupWindowHandler({
+const maybeFocusExistingAnilistSetupWindow = createBootMaybeFocusExistingAnilistSetupWindowHandler({
   getSetupWindow: () => appState.anilistSetupWindow,
 });
-const buildOpenAnilistSetupWindowMainDepsHandler = createBuildOpenAnilistSetupWindowMainDepsHandler(
+const buildOpenAnilistSetupWindowMainDepsHandler = createBootBuildOpenAnilistSetupWindowMainDepsHandler(
   {
     maybeFocusExistingSetupWindow: maybeFocusExistingAnilistSetupWindow,
     createSetupWindow: createCreateAnilistSetupWindowHandler({
@@ -2361,7 +2390,7 @@ const buildOpenAnilistSetupWindowMainDepsHandler = createBuildOpenAnilistSetupWi
 );
 
 function openAnilistSetupWindow(): void {
-  createOpenAnilistSetupWindowHandler(buildOpenAnilistSetupWindowMainDepsHandler())();
+  createBootOpenAnilistSetupWindowHandler(buildOpenAnilistSetupWindowMainDepsHandler())();
 }
 
 const {
@@ -2375,7 +2404,7 @@ const {
   ensureAnilistMediaGuess,
   processNextAnilistRetryUpdate,
   maybeRunAnilistPostWatchUpdate,
-} = composeAnilistTrackingHandlers({
+} = composeBootAnilistTrackingHandlers({
   refreshClientSecretMainDeps: {
     getResolvedConfig: () => getResolvedConfig(),
     isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
@@ -2642,7 +2671,7 @@ const {
   onWillQuitCleanup: onWillQuitCleanupHandler,
   shouldRestoreWindowsOnActivate: shouldRestoreWindowsOnActivateHandler,
   restoreWindowsOnActivate: restoreWindowsOnActivateHandler,
-} = composeStartupLifecycleHandlers({
+} = composeBootStartupLifecycleHandlers({
   registerProtocolUrlHandlersMainDeps: {
     registerOpenUrl: (listener) => {
       app.on('open-url', listener);
@@ -2950,7 +2979,7 @@ const ensureImmersionTrackerStarted = (): void => {
   hasAttemptedImmersionTrackerStartup = true;
   createImmersionTrackerStartup();
 };
-const statsStartupRuntime = composeStatsStartupRuntime({
+const statsStartupRuntime = composeBootStatsStartupRuntime({
   ensureStatsServerStarted: () => ensureStatsServerStarted(),
   ensureBackgroundStatsServerStarted: () => ensureBackgroundStatsServerStarted(),
   stopBackgroundStatsServer: () => stopBackgroundStatsServer(),
@@ -2964,7 +2993,7 @@ const statsStartupRuntime = composeStatsStartupRuntime({
   },
 });
 
-const runStatsCliCommand = createRunStatsCliCommandHandler({
+const runStatsCliCommand = createBootRunStatsCliCommandHandler({
   getResolvedConfig: () => getResolvedConfig(),
   ensureImmersionTrackerStarted: () => statsStartupRuntime.ensureImmersionTrackerStarted(),
   ensureVocabularyCleanupTokenizerReady: async () => {
@@ -3031,7 +3060,7 @@ async function runHeadlessInitialCommand(): Promise<void> {
   }
 }
 
-const { appReadyRuntimeRunner } = composeAppReadyRuntime({
+const { appReadyRuntimeRunner } = composeBootAppReadyRuntime({
   reloadConfigMainDeps: {
     reloadConfigStrict: () => configService.reloadConfigStrict(),
     logInfo: (message) => appLogger.logInfo(message),
@@ -3266,7 +3295,7 @@ const {
   startBackgroundWarmups,
   startTokenizationWarmups,
   isTokenizationWarmupReady,
-} = composeMpvRuntimeHandlers<
+} = composeBootMpvRuntimeHandlers<
   MpvIpcClient,
   ReturnType<typeof createTokenizerDepsRuntime>,
   SubtitleData
@@ -4113,7 +4142,7 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
-const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
+const { registerIpcRuntimeHandlers } = composeBootIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
@@ -4333,7 +4362,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
     registerIpcRuntimeServices,
   },
 });
-const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
+const { handleCliCommand, handleInitialArgs } = composeBootCliStartupHandlers({
   cliCommandContextMainDeps: {
     appState,
     setLogLevel: (level) => setLogLevel(level, 'cli'),
@@ -4419,7 +4448,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     logInfo: (message) => logger.info(message),
   },
 });
-const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
+const { runAndApplyStartupState } = composeBootHeadlessStartupHandlers<
   CliArgs,
   StartupState,
   ReturnType<typeof createStartupBootstrapRuntimeDeps>
@@ -4487,7 +4516,7 @@ if (isAnilistTrackingEnabled(getResolvedConfig())) {
 }
 void initializeDiscordPresenceService();
 const { createMainWindow: createMainWindowHandler, createModalWindow: createModalWindowHandler } =
-  composeOverlayWindowHandlers<BrowserWindow>({
+  composeBootOverlayWindowHandlers<BrowserWindow>({
     createOverlayWindowDeps: {
       createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
       isDev,
@@ -4513,7 +4542,7 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
     setModalWindow: (window) => overlayManager.setModalWindow(window),
   });
 const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
-  createTrayRuntimeHandlers({
+  createBootTrayRuntimeHandlers({
     resolveTrayIconPathDeps: {
       resolveTrayIconPathRuntime,
       platform: process.platform,
@@ -4560,12 +4589,12 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
     },
     buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
   });
-const yomitanProfilePolicy = createYomitanProfilePolicy({
+const yomitanProfilePolicy = createBootYomitanProfilePolicy({
   externalProfilePath: getResolvedConfig().yomitan.externalProfilePath,
   logInfo: (message) => logger.info(message),
 });
 const configuredExternalYomitanProfilePath = yomitanProfilePolicy.externalProfilePath;
-const yomitanExtensionRuntime = createYomitanExtensionRuntime({
+const yomitanExtensionRuntime = createBootYomitanExtensionRuntime({
   loadYomitanExtensionCore,
   userDataPath: USER_DATA_PATH,
   externalProfilePath: configuredExternalYomitanProfilePath,
@@ -4647,7 +4676,7 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       },
     },
   });
-const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSettingsRuntime({
+const { openYomitanSettings: openYomitanSettingsHandler } = createBootYomitanSettingsRuntime({
   ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
   getYomitanSession: () => appState.yomitanSession,
   openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow, yomitanSession }) => {

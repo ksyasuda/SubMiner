@@ -24,6 +24,7 @@ The desktop app keeps `src/main.ts` as composition root and pushes behavior into
 ## Current Shape
 
 - `src/main/` owns composition, runtime setup, IPC wiring, and app lifecycle adapters.
+- `src/main/boot/` owns boot-phase assembly seams so `src/main.ts` can stay focused on lifecycle coordination and startup-path selection.
 - `src/core/services/` owns focused runtime services plus pure or side-effect-bounded logic.
 - `src/renderer/` owns overlay rendering and input behavior.
 - `src/config/` owns config definitions, defaults, loading, and resolution.
