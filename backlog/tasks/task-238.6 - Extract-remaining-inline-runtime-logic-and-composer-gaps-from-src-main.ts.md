@@ -4,7 +4,7 @@ title: Extract remaining inline runtime logic and composer gaps from src/main.ts
 status: Done
 assignee: []
 created_date: '2026-03-27 00:00'
-updated_date: '2026-03-27 19:24'
+updated_date: '2026-03-27 22:13'
 labels:
   - tech-debt
   - runtime
@@ -79,4 +79,6 @@ Re-scan result for the boot-phase split follow-up: the entrypoint is materially 
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 TASK-238.6 is complete. Verification passed with `bun run typecheck`, focused runtime/composer tests, `bun run test:fast`, `bun run test:env`, and `bun run build`. The remaining `src/main.ts` work is now better isolated behind runtime modules and composer helpers, and the boot-phase split can wait for a later cleanup pass instead of being treated as immediate follow-on work.
+
+Backlog completion now includes changelog artifact `changes/2026-03-27-task-238.6-main-runtime-refactor.md` under runtime internals.
 <!-- SECTION:FINAL_SUMMARY:END -->
