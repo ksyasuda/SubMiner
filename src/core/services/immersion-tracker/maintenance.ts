@@ -61,19 +61,19 @@ export function pruneRawRetention(
   const sessionsCutoff = nowMs - policy.sessionsRetentionMs;
 
   const deletedSessionEvents = (
-    db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(eventCutoff) as {
+    db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(toDbMs(eventCutoff)) as {
       changes: number;
     }
   ).changes;
   const deletedTelemetryRows = (
-    db.prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`).run(telemetryCutoff) as {
-      changes: number;
-    }
+    db
+      .prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`)
+      .run(toDbMs(telemetryCutoff)) as { changes: number }
   ).changes;
   const deletedEndedSessions = (
     db
       .prepare(`DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`)
-      .run(sessionsCutoff) as { changes: number }
+      .run(toDbMs(sessionsCutoff)) as { changes: number }
   ).changes;
 
   return {

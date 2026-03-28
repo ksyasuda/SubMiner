@@ -61,7 +61,7 @@ export class ConfigService {
   }
 
   getRawConfig(): RawConfig {
-    return JSON.parse(JSON.stringify(this.rawConfig)) as RawConfig;
+    return structuredClone(this.rawConfig);
   }
 
   getWarnings(): ConfigValidationWarning[] {

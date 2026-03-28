@@ -34,6 +34,8 @@ None.
 | SM-008 | P3  | todo   | subtitles         | Add core subtitle-position persistence/path tests                |
 | SM-009 | P3  | todo   | tokenizer         | Add tests for JLPT token filter                                  |
 | SM-010 | P1  | todo   | immersion-tracker | Refactor storage + immersion-tracker service into focused modules    |
+| SM-011 | P1  | done   | tests             | Add coverage reporting for maintained test lanes                 |
+| SM-012 | P2  | done   | config/runtime    | Replace JSON serialize-clone helpers with structured cloning     |
 
 ## Icebox
 
@@ -45,7 +47,7 @@ None.
 
 Title: Add tests for CLI parser and args normalizer
 Priority: P1
-Status: todo
+Status: done
 Scope:
 
 - `launcher/config/cli-parser-builder.ts`
@@ -192,3 +194,43 @@ Acceptance:
 - YouTube code split into pure utilities, a stateful manager (`YouTubeManager`), and a dedicated write queue (`WriteQueue`)
 - removed `storage.ts` is replaced with focused modules and updated imports
 - no API or migration regressions; existing tests for trackers/storage coverage remain green or receive focused updates
+
+### SM-011
+
+Title: Add coverage reporting for maintained test lanes
+Priority: P1
+Status: done
+Scope:
+
+- `package.json`
+- CI workflow files under `.github/`
+- `docs/workflow/verification.md`
+  Acceptance:
+- at least one maintained test lane emits machine-readable coverage output
+- CI surfaces coverage as an artifact, summary, or check output
+- local contributor path for coverage is documented
+- chosen coverage path works with Bun/TypeScript lanes already maintained by the repo
+Implementation note:
+- Added `bun run test:coverage:src` for the maintained source lane via a sharded coverage runner, with merged LCOV output at `coverage/test-src/lcov.info` and CI/release artifact upload as `coverage-test-src`.
+
+### SM-012
+
+Title: Replace JSON serialize-clone helpers with structured cloning
+Priority: P2
+Status: todo
+Scope:
+
+- `src/runtime-options.ts`
+- `src/config/definitions.ts`
+- `src/config/service.ts`
+- `src/main/controller-config-update.ts`
+  Acceptance:
+- runtime/config clone helpers stop using `JSON.parse(JSON.stringify(...))`
+- replacement preserves current behavior for plain config/runtime objects
+- focused tests cover clone/merge behavior that could regress during the swap
+- no new clone helper is introduced in these paths without a documented reason
+
+Done:
+
+- replaced JSON serialize-clone call sites in runtime/config/controller update paths with `structuredClone`
+- updated focused tests and fixtures to cover detached clone behavior and guard against regressions

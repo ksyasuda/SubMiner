@@ -36,6 +36,13 @@ test('release workflow verifies generated config examples before packaging artif
   assert.match(releaseWorkflow, /bun run verify:config-example/);
 });
 
+test('release quality gate runs the maintained source coverage lane and uploads lcov output', () => {
+  assert.match(releaseWorkflow, /name: Coverage suite \(maintained source lane\)/);
+  assert.match(releaseWorkflow, /run: bun run test:coverage:src/);
+  assert.match(releaseWorkflow, /name: Upload coverage artifact/);
+  assert.match(releaseWorkflow, /path: coverage\/test-src\/lcov\.info/);
+});
+
 test('release build jobs install and cache stats dependencies before packaging', () => {
   assert.match(releaseWorkflow, /build-linux:[\s\S]*stats\/node_modules/);
   assert.match(releaseWorkflow, /build-macos:[\s\S]*stats\/node_modules/);

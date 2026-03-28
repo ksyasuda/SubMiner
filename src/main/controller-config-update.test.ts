@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
 import { applyControllerConfigUpdate } from './controller-config-update.js';
+
+test('SM-012 controller config update path does not use JSON serialize-clone helpers', () => {
+  const source = fs.readFileSync(
+    path.join(process.cwd(), 'src/main/controller-config-update.ts'),
+    'utf-8',
+  );
+  assert.equal(source.includes('JSON.parse(JSON.stringify('), false);
+});
 
 test('applyControllerConfigUpdate replaces binding descriptors instead of deep-merging them', () => {
   const next = applyControllerConfigUpdate(
@@ -51,4 +61,17 @@ test('applyControllerConfigUpdate merges buttonIndices while replacing only upda
   });
   assert.deepEqual(next.bindings?.toggleLookup, { kind: 'button', buttonIndex: 0 });
   assert.deepEqual(next.bindings?.closeLookup, { kind: 'none' });
+});
+
+test('applyControllerConfigUpdate detaches updated binding values from the patch object', () => {
+  const update = {
+    bindings: {
+      toggleLookup: { kind: 'button' as const, buttonIndex: 7 },
+    },
+  };
+
+  const next = applyControllerConfigUpdate(undefined, update);
+  update.bindings.toggleLookup.buttonIndex = 99;
+
+  assert.deepEqual(next.bindings?.toggleLookup, { kind: 'button', buttonIndex: 7 });
 });

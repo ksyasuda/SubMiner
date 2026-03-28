@@ -85,13 +85,15 @@ test('KnownWordCacheManager startLifecycle keeps fresh persisted cache without i
     },
   };
   const { manager, calls, statePath, cleanup } = createKnownWordCacheHarness(config);
+  const originalDateNow = Date.now;
 
   try {
+    Date.now = () => 120_000;
     fs.writeFileSync(
       statePath,
       JSON.stringify({
         version: 2,
-        refreshedAtMs: Date.now(),
+        refreshedAtMs: 120_000,
         scope: '{"refreshMinutes":60,"scope":"is:note","fieldsWord":""}',
         words: ['猫'],
         notes: {
@@ -102,12 +104,20 @@ test('KnownWordCacheManager startLifecycle keeps fresh persisted cache without i
     );
 
     manager.startLifecycle();
-    await new Promise((resolve) => setTimeout(resolve, 25));
 
     assert.equal(manager.isKnownWord('猫'), true);
     assert.equal(calls.findNotes, 0);
     assert.equal(calls.notesInfo, 0);
+    assert.equal(
+      (
+        manager as unknown as {
+          getMsUntilNextRefresh: () => number;
+        }
+      ).getMsUntilNextRefresh() > 0,
+      true,
+    );
   } finally {
+    Date.now = originalDateNow;
     manager.stopLifecycle();
     cleanup();
   }
@@ -124,13 +134,15 @@ test('KnownWordCacheManager startLifecycle immediately refreshes stale persisted
     },
   };
   const { manager, calls, statePath, clientState, cleanup } = createKnownWordCacheHarness(config);
+  const originalDateNow = Date.now;
 
   try {
+    Date.now = () => 120_000;
     fs.writeFileSync(
       statePath,
       JSON.stringify({
         version: 2,
-        refreshedAtMs: Date.now() - 61_000,
+        refreshedAtMs: 59_000,
         scope: '{"refreshMinutes":1,"scope":"is:note","fieldsWord":"Word"}',
         words: ['猫'],
         notes: {
@@ -156,6 +168,7 @@ test('KnownWordCacheManager startLifecycle immediately refreshes stale persisted
     assert.equal(manager.isKnownWord('猫'), false);
     assert.equal(manager.isKnownWord('犬'), true);
   } finally {
+    Date.now = originalDateNow;
     manager.stopLifecycle();
     cleanup();
   }

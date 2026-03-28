@@ -84,11 +84,11 @@ export const CONFIG_OPTION_REGISTRY = [
 export { CONFIG_TEMPLATE_SECTIONS };
 
 export function deepCloneConfig(config: ResolvedConfig): ResolvedConfig {
-  return JSON.parse(JSON.stringify(config)) as ResolvedConfig;
+  return structuredClone(config);
 }
 
 export function deepMergeRawConfig(base: RawConfig, patch: RawConfig): RawConfig {
-  const clone = JSON.parse(JSON.stringify(base)) as Record<string, unknown>;
+  const clone = structuredClone(base) as Record<string, unknown>;
   const patchObject = patch as Record<string, unknown>;
 
   const mergeInto = (target: Record<string, unknown>, source: Record<string, unknown>): void => {

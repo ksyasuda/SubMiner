@@ -8,7 +8,6 @@ import {
   pruneRawRetention,
   pruneRollupRetention,
   runOptimizeMaintenance,
-  toMonthKey,
 } from './maintenance';
 import { ensureSchema } from './storage';
 
@@ -31,9 +30,9 @@ test('pruneRawRetention uses session retention separately from telemetry retenti
 
   try {
     ensureSchema(db);
-    const nowMs = 90 * 86_400_000;
-    const staleEndedAtMs = nowMs - 40 * 86_400_000;
-    const keptEndedAtMs = nowMs - 5 * 86_400_000;
+    const nowMs = 1_000_000_000;
+    const staleEndedAtMs = nowMs - 400_000_000;
+    const keptEndedAtMs = nowMs - 50_000_000;
 
     db.exec(`
       INSERT INTO imm_videos (
@@ -49,14 +48,14 @@ test('pruneRawRetention uses session retention separately from telemetry retenti
       INSERT INTO imm_session_telemetry (
         session_id, sample_ms, total_watched_ms, active_watched_ms, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES
-        (1, ${nowMs - 2 * 86_400_000}, 0, 0, ${nowMs}, ${nowMs}),
-        (2, ${nowMs - 12 * 60 * 60 * 1000}, 0, 0, ${nowMs}, ${nowMs});
+        (1, ${nowMs - 200_000_000}, 0, 0, ${nowMs}, ${nowMs}),
+        (2, ${nowMs - 10_000_000}, 0, 0, ${nowMs}, ${nowMs});
     `);
 
     const result = pruneRawRetention(db, nowMs, {
-      eventsRetentionMs: 7 * 86_400_000,
-      telemetryRetentionMs: 1 * 86_400_000,
-      sessionsRetentionMs: 30 * 86_400_000,
+      eventsRetentionMs: 120_000_000,
+      telemetryRetentionMs: 80_000_000,
+      sessionsRetentionMs: 300_000_000,
     });
 
     const remainingSessions = db
@@ -88,9 +87,9 @@ test('raw retention keeps rollups and rollup retention prunes them separately', 
 
   try {
     ensureSchema(db);
-    const nowMs = Date.UTC(2026, 2, 16, 12, 0, 0, 0);
-    const oldDay = Math.floor((nowMs - 90 * 86_400_000) / 86_400_000);
-    const oldMonth = toMonthKey(nowMs - 400 * 86_400_000);
+    const nowMs = 1_000_000_000;
+    const oldDay = Math.floor((nowMs - 200_000_000) / 86_400_000);
+    const oldMonth = 196912;
 
     db.exec(`
       INSERT INTO imm_videos (
@@ -101,12 +100,12 @@ test('raw retention keeps rollups and rollup retention prunes them separately', 
       INSERT INTO imm_sessions (
         session_id, session_uuid, video_id, started_at_ms, ended_at_ms, status, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        1, 'session-1', 1, ${nowMs - 90 * 86_400_000}, ${nowMs - 90 * 86_400_000 + 1_000}, 2, ${nowMs}, ${nowMs}
+        1, 'session-1', 1, ${nowMs - 200_000_000}, ${nowMs - 199_999_000}, 2, ${nowMs}, ${nowMs}
       );
       INSERT INTO imm_session_telemetry (
         session_id, sample_ms, total_watched_ms, active_watched_ms, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        1, ${nowMs - 90 * 86_400_000}, 0, 0, ${nowMs}, ${nowMs}
+        1, ${nowMs - 200_000_000}, 0, 0, ${nowMs}, ${nowMs}
       );
       INSERT INTO imm_daily_rollups (
         rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
@@ -123,9 +122,9 @@ test('raw retention keeps rollups and rollup retention prunes them separately', 
     `);
 
     pruneRawRetention(db, nowMs, {
-      eventsRetentionMs: 7 * 86_400_000,
-      telemetryRetentionMs: 30 * 86_400_000,
-      sessionsRetentionMs: 30 * 86_400_000,
+      eventsRetentionMs: 120_000_000,
+      telemetryRetentionMs: 120_000_000,
+      sessionsRetentionMs: 120_000_000,
     });
 
     const rollupsAfterRawPrune = db
@@ -139,8 +138,8 @@ test('raw retention keeps rollups and rollup retention prunes them separately', 
     assert.equal(monthlyAfterRawPrune?.total, 1);
 
     const rollupPrune = pruneRollupRetention(db, nowMs, {
-      dailyRollupRetentionMs: 30 * 86_400_000,
-      monthlyRollupRetentionMs: 365 * 86_400_000,
+      dailyRollupRetentionMs: 120_000_000,
+      monthlyRollupRetentionMs: 1,
     });
 
     const rollupsAfterRollupPrune = db

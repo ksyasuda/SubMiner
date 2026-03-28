@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { ConfigService, ConfigStartupParseError } from './service';
-import { DEFAULT_CONFIG, RUNTIME_OPTION_REGISTRY } from './definitions';
+import { DEFAULT_CONFIG, RUNTIME_OPTION_REGISTRY, deepMergeRawConfig } from './definitions';
 import { generateConfigTemplate } from './template';
 
 function makeTempDir(): string {
@@ -1030,6 +1030,61 @@ test('reloadConfigStrict parse failure does not mutate raw config or warnings', 
   assert.deepEqual(service.getConfig(), beforeConfig);
   assert.deepEqual(service.getRawConfig(), beforeRaw);
   assert.deepEqual(service.getWarnings(), beforeWarnings);
+});
+
+test('SM-012 config paths do not use JSON serialize-clone helpers', () => {
+  const definitionsSource = fs.readFileSync(
+    path.join(process.cwd(), 'src/config/definitions.ts'),
+    'utf-8',
+  );
+  const serviceSource = fs.readFileSync(path.join(process.cwd(), 'src/config/service.ts'), 'utf-8');
+
+  assert.equal(definitionsSource.includes('JSON.parse(JSON.stringify('), false);
+  assert.equal(serviceSource.includes('JSON.parse(JSON.stringify('), false);
+});
+
+test('getRawConfig returns a detached clone', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "tags": ["SubMiner"]
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const raw = service.getRawConfig();
+  raw.ankiConnect!.tags!.push('mutated');
+
+  assert.deepEqual(service.getRawConfig().ankiConnect?.tags, ['SubMiner']);
+});
+
+test('deepMergeRawConfig returns a detached merged clone', () => {
+  const base = {
+    ankiConnect: {
+      tags: ['SubMiner'],
+      behavior: {
+        autoUpdateNewCards: true,
+      },
+    },
+  };
+
+  const merged = deepMergeRawConfig(base, {
+    ankiConnect: {
+      behavior: {
+        autoUpdateNewCards: false,
+      },
+    },
+  });
+
+  merged.ankiConnect!.tags!.push('mutated');
+  merged.ankiConnect!.behavior!.autoUpdateNewCards = true;
+
+  assert.deepEqual(base.ankiConnect?.tags, ['SubMiner']);
+  assert.equal(base.ankiConnect?.behavior?.autoUpdateNewCards, true);
 });
 
 test('warning emission order is deterministic across reloads', () => {

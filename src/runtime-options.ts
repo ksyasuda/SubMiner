@@ -29,7 +29,7 @@ import { RUNTIME_OPTION_REGISTRY, RuntimeOptionRegistryEntry } from './config';
 type RuntimeOverrides = Record<string, unknown>;
 
 function deepClone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
+  return structuredClone(value);
 }
 
 function getPathValue(source: Record<string, unknown>, path: string): unknown {

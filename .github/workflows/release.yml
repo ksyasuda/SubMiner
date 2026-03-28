@@ -49,6 +49,16 @@ jobs:
       - name: Test suite (source)
         run: bun run test:fast
 
+      - name: Coverage suite (maintained source lane)
+        run: bun run test:coverage:src
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-test-src
+          path: coverage/test-src/lcov.info
+          if-no-files-found: error
+
       - name: Launcher smoke suite (source)
         run: bun run test:launcher:smoke:src
 

@@ -21,6 +21,7 @@ Read when: you need internal architecture, workflow, verification, or release gu
 
 - New feature or refactor: [Workflow](./workflow/README.md), then [Architecture](./architecture/README.md)
 - Test/build/release work: [Verification](./workflow/verification.md), then [Release Guide](./RELEASING.md)
+- Coverage lane selection or LCOV artifact path: [Verification](./workflow/verification.md)
 - “What owns this behavior?”: [Domains](./architecture/domains.md)
 - “Can these modules depend on each other?”: [Layering](./architecture/layering.md)
 - “What doc should exist for this?”: [Catalog](./knowledge-base/catalog.md)
