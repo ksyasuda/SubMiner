@@ -26,7 +26,7 @@ test('ci workflow verifies generated config examples stay in sync', () => {
 test('package scripts expose a sharded maintained source coverage lane with lcov output', () => {
   assert.equal(
     packageJson.scripts['test:coverage:src'],
-    'bun run scripts/run-coverage-lane.ts bun-src-full --coverage-dir coverage/test-src',
+    'bun run build:yomitan && bun run scripts/run-coverage-lane.ts bun-src-full --coverage-dir coverage/test-src',
   );
 });
 

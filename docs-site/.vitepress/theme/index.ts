@@ -10,10 +10,15 @@ let mermaidLoader: Promise<any> | null = null;
 let plausibleTrackerInitialized = false;
 const MERMAID_MODAL_ID = 'mermaid-diagram-modal';
 const PLAUSIBLE_DOMAIN = 'subminer.moe';
+const PLAUSIBLE_ENABLED_HOSTNAMES = new Set(['docs.subminer.moe']);
 const PLAUSIBLE_ENDPOINT = 'https://worker.subminer.moe/api/capture';
 
 async function initPlausibleTracker() {
   if (typeof window === 'undefined' || plausibleTrackerInitialized) {
+    return;
+  }
+
+  if (!PLAUSIBLE_ENABLED_HOSTNAMES.has(window.location.hostname)) {
     return;
   }
 
