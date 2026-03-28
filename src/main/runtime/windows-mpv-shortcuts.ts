@@ -24,7 +24,7 @@ export interface WindowsMpvShortcutInstallResult {
 }
 
 export function resolveWindowsStartMenuProgramsDir(appDataDir: string): string {
-  return path.join(appDataDir, 'Microsoft', 'Windows', 'Start Menu', 'Programs');
+  return path.win32.join(appDataDir, 'Microsoft', 'Windows', 'Start Menu', 'Programs');
 }
 
 export function resolveWindowsMpvShortcutPaths(options: {
@@ -32,11 +32,11 @@ export function resolveWindowsMpvShortcutPaths(options: {
   desktopDir: string;
 }): WindowsMpvShortcutPaths {
   return {
-    startMenuPath: path.join(
+    startMenuPath: path.win32.join(
       resolveWindowsStartMenuProgramsDir(options.appDataDir),
       WINDOWS_MPV_SHORTCUT_NAME,
     ),
-    desktopPath: path.join(options.desktopDir, WINDOWS_MPV_SHORTCUT_NAME),
+    desktopPath: path.win32.join(options.desktopDir, WINDOWS_MPV_SHORTCUT_NAME),
   };
 }
 
@@ -54,7 +54,7 @@ export function buildWindowsMpvShortcutDetails(exePath: string): WindowsShortcut
   return {
     target: exePath,
     args: '--launch-mpv',
-    cwd: path.dirname(exePath),
+    cwd: path.win32.dirname(exePath),
     description: 'Launch mpv with the SubMiner profile',
     icon: exePath,
     iconIndex: 0,
@@ -79,7 +79,7 @@ export function applyWindowsMpvShortcuts(options: {
   const failures: string[] = [];
 
   const ensureShortcut = (shortcutPath: string): void => {
-    mkdirSync(path.dirname(shortcutPath), { recursive: true });
+    mkdirSync(path.win32.dirname(shortcutPath), { recursive: true });
     const ok = options.writeShortcutLink(shortcutPath, 'replace', details);
     if (!ok) {
       failures.push(shortcutPath);
