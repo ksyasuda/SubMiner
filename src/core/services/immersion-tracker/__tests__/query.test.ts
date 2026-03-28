@@ -793,12 +793,9 @@ test('getTrendsDashboard month grouping spans every touched calendar month and k
   const RealDate = Date;
 
   class MockDate extends Date {
-    constructor(...args: any[]) {
-      if (args.length === 0) {
-        super(new RealDate(2026, 2, 1, 12, 0, 0).getTime());
-      } else {
-        super(...args);
-      }
+    constructor(...args: ConstructorParameters<typeof Date>) {
+      const resolvedArgs = args.length === 0 ? [new RealDate(2026, 2, 1, 12, 0, 0).getTime()] : args;
+      return Reflect.construct(RealDate, resolvedArgs, new.target) as this;
     }
 
     static override now(): number {
@@ -1069,12 +1066,9 @@ test('getQueryHints computes weekly new-word cutoff from calendar midnights', ()
   const RealDate = Date;
 
   class MockDate extends Date {
-    constructor(...args: any[]) {
-      if (args.length === 0) {
-        super(new RealDate(2026, 2, 15, 12, 0, 0).getTime());
-      } else {
-        super(...args);
-      }
+    constructor(...args: ConstructorParameters<typeof Date>) {
+      const resolvedArgs = args.length === 0 ? [new RealDate(2026, 2, 15, 12, 0, 0).getTime()] : args;
+      return Reflect.construct(RealDate, resolvedArgs, new.target) as this;
     }
 
     static override now(): number {
