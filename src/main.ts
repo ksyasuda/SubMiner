@@ -319,11 +319,12 @@ import {
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
 import { createYoutubeFlowRuntime } from './main/runtime/youtube-flow';
+import { createYoutubePlaybackRuntime } from './main/runtime/youtube-playback-runtime';
 import {
   clearYoutubePrimarySubtitleNotificationTimer,
   createYoutubePrimarySubtitleNotificationRuntime,
 } from './main/runtime/youtube-primary-subtitle-notification';
-import { resolveAutoplayReadyMaxReleaseAttempts } from './main/runtime/startup-autoplay-release-policy';
+import { createAutoplayReadyGate } from './main/runtime/autoplay-ready-gate';
 import {
   buildFirstRunSetupHtml,
   createMaybeFocusExistingFirstRunSetupWindowHandler,
@@ -384,7 +385,10 @@ import {
   composeJellyfinRuntimeHandlers,
   composeMpvRuntimeHandlers,
   composeOverlayWindowHandlers,
+  composeOverlayVisibilityRuntime,
   composeShortcutRuntimes,
+  composeStatsStartupRuntime,
+  composeSubtitlePrefetchRuntime,
   composeStartupLifecycleHandlers,
 } from './main/runtime/composers';
 import { createStartupBootstrapRuntimeDeps } from './main/startup';
@@ -399,6 +403,7 @@ import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
+import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import type { OverlayHostedModal } from './shared/ipc/contracts';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
@@ -412,12 +417,17 @@ import {
 } from './main/jlpt-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
+import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
 import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/character-dictionary-auto-sync-completion';
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
+import {
+  createRefreshSubtitlePrefetchFromActiveTrackHandler,
+  createResolveActiveSubtitleSidebarSourceHandler,
+} from './main/runtime/subtitle-prefetch-runtime';
 import {
   createCreateAnilistSetupWindowHandler,
   createCreateFirstRunSetupWindowHandler,
@@ -502,9 +512,6 @@ let anilistUpdateInFlightState = createInitialAnilistUpdateInFlightState();
 const anilistAttemptedUpdateKeys = new Set<string>();
 let anilistCachedAccessToken: string | null = null;
 let jellyfinPlayQuitOnDisconnectArmed = false;
-let youtubePlayQuitOnDisconnectArmed = false;
-let youtubePlayQuitOnDisconnectArmTimer: ReturnType<typeof setTimeout> | null = null;
-let youtubePlaybackFlowGeneration = 0;
 const JELLYFIN_LANG_PREF = 'ja,jp,jpn,japanese,en,eng,english,enUS,en-US';
 const JELLYFIN_TICKS_PER_SECOND = 10_000_000;
 const JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS = 3000;
@@ -771,27 +778,17 @@ process.on('SIGTERM', () => {
 });
 
 const overlayManager = createOverlayManager();
-let overlayModalInputExclusive = false;
 let syncOverlayShortcutsForModal: (isActive: boolean) => void = () => {};
 let syncOverlayVisibilityForModal: () => void = () => {};
-
-const handleModalInputStateChange = (isActive: boolean): void => {
-  if (overlayModalInputExclusive === isActive) return;
-  overlayModalInputExclusive = isActive;
-  if (isActive) {
-    const modalWindow = overlayManager.getModalWindow();
-    if (modalWindow && !modalWindow.isDestroyed()) {
-      modalWindow.setIgnoreMouseEvents(false);
-      modalWindow.setAlwaysOnTop(true, 'screen-saver', 1);
-      modalWindow.focus();
-      if (!modalWindow.webContents.isFocused()) {
-        modalWindow.webContents.focus();
-      }
-    }
-  }
-  syncOverlayShortcutsForModal(isActive);
-  syncOverlayVisibilityForModal();
-};
+const overlayModalInputState = createOverlayModalInputState({
+  getModalWindow: () => overlayManager.getModalWindow(),
+  syncOverlayShortcutsForModal: (isActive) => {
+    syncOverlayShortcutsForModal(isActive);
+  },
+  syncOverlayVisibilityForModal: () => {
+    syncOverlayVisibilityForModal();
+  },
+});
 
 const buildOverlayContentMeasurementStoreMainDepsHandler =
   createBuildOverlayContentMeasurementStoreMainDepsHandler({
@@ -812,7 +809,8 @@ const overlayContentMeasurementStore = createOverlayContentMeasurementStore(
 const overlayModalRuntime = createOverlayModalRuntimeService(
   buildOverlayModalRuntimeMainDepsHandler(),
   {
-    onModalStateChange: (isActive: boolean) => handleModalInputStateChange(isActive),
+    onModalStateChange: (isActive: boolean) =>
+      overlayModalInputState.handleModalInputStateChange(isActive),
   },
 );
 const appState = createAppState({
@@ -856,7 +854,7 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
     subtitleProcessingController.refreshCurrentSubtitle(text);
   },
   refreshSubtitleSidebarSource: async (sourcePath: string) => {
-    await refreshSubtitleSidebarFromSource(sourcePath);
+    await subtitlePrefetchRuntime.refreshSubtitleSidebarFromSource(sourcePath);
   },
   startTokenizationWarmups: async () => {
     await startTokenizationWarmups();
@@ -969,114 +967,51 @@ const waitForYoutubeMpvConnected = createWaitForMpvConnectedHandler({
   now: () => Date.now(),
   sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
 });
-
-function clearYoutubePlayQuitOnDisconnectArmTimer(): void {
-  if (youtubePlayQuitOnDisconnectArmTimer) {
-    clearTimeout(youtubePlayQuitOnDisconnectArmTimer);
-    youtubePlayQuitOnDisconnectArmTimer = null;
-  }
-}
-
-function invalidatePendingAutoplayReadyFallbacks(): void {
-  autoPlayReadySignalMediaPath = null;
-  autoPlayReadySignalGeneration += 1;
-}
-
-async function runYoutubePlaybackFlowMain(request: {
-  url: string;
-  mode: NonNullable<CliArgs['youtubeMode']>;
-  source: CliCommandSource;
-}): Promise<void> {
-  const flowGeneration = ++youtubePlaybackFlowGeneration;
-  invalidatePendingAutoplayReadyFallbacks();
-  youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(true);
-  let flowCompleted = false;
-  try {
-    clearYoutubePlayQuitOnDisconnectArmTimer();
-    youtubePlayQuitOnDisconnectArmed = false;
+const autoplayReadyGate = createAutoplayReadyGate({
+  isAppOwnedFlowInFlight: () => youtubePrimarySubtitleNotificationRuntime.isAppOwnedFlowInFlight(),
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getCurrentVideoPath: () => appState.mpvClient?.currentVideoPath ?? null,
+  getPlaybackPaused: () => appState.playbackPaused,
+  getMpvClient: () => appState.mpvClient,
+  signalPluginAutoplayReady: () => {
+    sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
+  },
+  schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+  logDebug: (message) => logger.debug(message),
+});
+const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
+  platform: process.platform,
+  directPlaybackFormat: YOUTUBE_DIRECT_PLAYBACK_FORMAT,
+  mpvYtdlFormat: YOUTUBE_MPV_YTDL_FORMAT,
+  autoLaunchTimeoutMs: YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS,
+  connectTimeoutMs: YOUTUBE_MPV_CONNECT_TIMEOUT_MS,
+  socketPath: appState.mpvSocketPath,
+  getMpvConnected: () => Boolean(appState.mpvClient?.connected),
+  invalidatePendingAutoplayReadyFallbacks: () =>
+    autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks(),
+  setAppOwnedFlowInFlight: (next) => {
+    youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(next);
+  },
+  ensureYoutubePlaybackRuntimeReady: async () => {
     await ensureYoutubePlaybackRuntimeReady();
-    let playbackUrl = request.url;
-    let launchedWindowsMpv = false;
-    if (process.platform === 'win32') {
-      try {
-        playbackUrl = await resolveYoutubePlaybackUrl(request.url, YOUTUBE_DIRECT_PLAYBACK_FORMAT);
-        logger.info('Resolved direct YouTube playback URL for Windows MPV startup.');
-      } catch (error) {
-        logger.warn(
-          `Failed to resolve direct YouTube playback URL; falling back to page URL: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-    }
-    if (process.platform === 'win32' && !appState.mpvClient?.connected) {
-      const launchResult = launchWindowsMpv(
-        [playbackUrl],
-        createWindowsMpvLaunchDeps({
-          showError: (title, content) => dialog.showErrorBox(title, content),
-        }),
-        [
-          '--pause=yes',
-          '--ytdl=yes',
-          `--ytdl-format=${YOUTUBE_MPV_YTDL_FORMAT}`,
-          '--sub-auto=no',
-          '--sub-file-paths=.;subs;subtitles',
-          '--sid=auto',
-          '--secondary-sid=auto',
-          '--secondary-sub-visibility=no',
-          '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-          '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-          `--log-file=${DEFAULT_MPV_LOG_PATH}`,
-          `--input-ipc-server=${appState.mpvSocketPath}`,
-        ],
-      );
-      launchedWindowsMpv = launchResult.ok;
-      if (launchResult.ok) {
-        logger.info(`Bootstrapping Windows mpv for YouTube playback via ${launchResult.mpvPath}`);
-      }
-      if (!launchResult.ok) {
-        logger.warn('Unable to bootstrap Windows mpv for YouTube playback.');
-      }
-    }
-    const connected = await waitForYoutubeMpvConnected(
-      launchedWindowsMpv ? YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS : YOUTUBE_MPV_CONNECT_TIMEOUT_MS,
-    );
-    if (!connected) {
-      throw new Error(
-        launchedWindowsMpv
-          ? 'MPV not connected after auto-launch. Ensure mpv is installed and can open the requested YouTube URL.'
-          : 'MPV not connected. Start mpv with the SubMiner profile or retry after mpv finishes starting.',
-      );
-    }
-    if (request.source === 'initial') {
-      youtubePlayQuitOnDisconnectArmTimer = setTimeout(() => {
-        if (youtubePlaybackFlowGeneration !== flowGeneration) {
-          return;
-        }
-        youtubePlayQuitOnDisconnectArmed = true;
-        youtubePlayQuitOnDisconnectArmTimer = null;
-      }, 3000);
-    }
-    const mediaReady = await prepareYoutubePlaybackInMpv({ url: playbackUrl });
-    if (!mediaReady) {
-      throw new Error('Timed out waiting for mpv to load the requested YouTube URL.');
-    }
-    await youtubeFlowRuntime.runYoutubePlaybackFlow({
-      url: request.url,
-      mode: request.mode,
-    });
-    flowCompleted = true;
-    logger.info(`YouTube playback flow completed from ${request.source}.`);
-  } finally {
-    if (youtubePlaybackFlowGeneration === flowGeneration) {
-      if (!flowCompleted) {
-        clearYoutubePlayQuitOnDisconnectArmTimer();
-        youtubePlayQuitOnDisconnectArmed = false;
-      }
-      youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(false);
-    }
-  }
-}
+  },
+  resolveYoutubePlaybackUrl: (url, format) => resolveYoutubePlaybackUrl(url, format),
+  launchWindowsMpv: (playbackUrl, args) =>
+    launchWindowsMpv(
+      [playbackUrl],
+      createWindowsMpvLaunchDeps({
+        showError: (title, content) => dialog.showErrorBox(title, content),
+      }),
+      [...args, `--log-file=${DEFAULT_MPV_LOG_PATH}`],
+    ),
+  waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
+  prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
+  runYoutubePlaybackFlow: (request) => youtubeFlowRuntime.runYoutubePlaybackFlow(request),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message) => logger.warn(message),
+  schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearScheduled: (timer) => clearTimeout(timer),
+});
 
 let firstRunSetupMessage: string | null = null;
 const resolveWindowsMpvShortcutRuntimePaths = () =>
@@ -1148,40 +1083,21 @@ const firstRunSetupService = createFirstRunSetupService({
 });
 const discordPresenceSessionStartedAtMs = Date.now();
 let discordPresenceMediaDurationSec: number | null = null;
-
-function refreshDiscordPresenceMediaDuration(): void {
-  const client = appState.mpvClient;
-  if (!client || !client.connected) return;
-  void client
-    .requestProperty('duration')
-    .then((value) => {
-      const numeric = Number(value);
-      discordPresenceMediaDurationSec = Number.isFinite(numeric) && numeric > 0 ? numeric : null;
-    })
-    .catch(() => {
-      discordPresenceMediaDurationSec = null;
-    });
-}
-
-function publishDiscordPresence(): void {
-  const discordPresenceService = appState.discordPresenceService;
-  if (!discordPresenceService || getResolvedConfig().discordPresence.enabled !== true) {
-    return;
-  }
-
-  refreshDiscordPresenceMediaDuration();
-  discordPresenceService.publish({
-    mediaTitle: appState.currentMediaTitle,
-    mediaPath: appState.currentMediaPath,
-    subtitleText: appState.currentSubText,
-    currentTimeSec: appState.mpvClient?.currentTimePos ?? null,
-    mediaDurationSec:
-      discordPresenceMediaDurationSec ?? anilistMediaGuessRuntimeState.mediaDurationSec,
-    paused: appState.playbackPaused,
-    connected: Boolean(appState.mpvClient?.connected),
-    sessionStartedAtMs: discordPresenceSessionStartedAtMs,
-  });
-}
+const discordPresenceRuntime = createDiscordPresenceRuntime({
+  getDiscordPresenceService: () => appState.discordPresenceService,
+  isDiscordPresenceEnabled: () => getResolvedConfig().discordPresence.enabled === true,
+  getMpvClient: () => appState.mpvClient,
+  getCurrentMediaTitle: () => appState.currentMediaTitle,
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getCurrentSubtitleText: () => appState.currentSubText,
+  getPlaybackPaused: () => appState.playbackPaused,
+  getFallbackMediaDurationSec: () => anilistMediaGuessRuntimeState.mediaDurationSec,
+  getSessionStartedAtMs: () => discordPresenceSessionStartedAtMs,
+  getMediaDurationSec: () => discordPresenceMediaDurationSec,
+  setMediaDurationSec: (next) => {
+    discordPresenceMediaDurationSec = next;
+  },
+});
 
 function createDiscordRpcClient() {
   const discordRpc = require('discord-rpc') as {
@@ -1215,7 +1131,7 @@ async function initializeDiscordPresenceService(): Promise<void> {
     logDebug: (message, meta) => logger.debug(message, meta),
   });
   await appState.discordPresenceService.start();
-  publishDiscordPresence();
+  discordPresenceRuntime.publishDiscordPresence();
 }
 const ensureOverlayMpvSubtitlesHidden = createEnsureOverlayMpvSubtitlesHiddenHandler({
   getMpvClient: () => appState.mpvClient,
@@ -1325,8 +1241,6 @@ const statsCoverArtFetcher = createCoverArtFetcher(
 const anilistStateRuntime = createAnilistStateRuntime(buildAnilistStateRuntimeMainDepsHandler());
 const configDerivedRuntime = createConfigDerivedRuntime(buildConfigDerivedRuntimeMainDepsHandler());
 const subsyncRuntime = createMainSubsyncRuntime(buildMainSubsyncRuntimeMainDepsHandler());
-let autoPlayReadySignalMediaPath: string | null = null;
-let autoPlayReadySignalGeneration = 0;
 const currentMediaTokenizationGate = createCurrentMediaTokenizationGate();
 const startupOsdSequencer = createStartupOsdSequencer({
   showOsd: (message) => showMpvOsd(message),
@@ -1373,110 +1287,6 @@ async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
   await youtubeFlowRuntime.openManualPicker({
     url: currentMediaPath,
   });
-}
-
-function maybeSignalPluginAutoplayReady(
-  payload: SubtitleData,
-  options?: { forceWhilePaused?: boolean },
-): void {
-  if (youtubePrimarySubtitleNotificationRuntime.isAppOwnedFlowInFlight()) {
-    logger.debug('[autoplay-ready] suppressed while app-owned YouTube flow is active');
-    return;
-  }
-  if (!payload.text.trim()) {
-    return;
-  }
-  const mediaPath =
-    appState.currentMediaPath?.trim() ||
-    appState.mpvClient?.currentVideoPath?.trim() ||
-    '__unknown__';
-  const duplicateMediaSignal = autoPlayReadySignalMediaPath === mediaPath;
-  const allowDuplicateWhilePaused =
-    options?.forceWhilePaused === true && appState.playbackPaused !== false;
-  if (duplicateMediaSignal && !allowDuplicateWhilePaused) {
-    return;
-  }
-  const signalPluginAutoplayReady = (): void => {
-    logger.debug(`[autoplay-ready] signaling mpv for media: ${mediaPath}`);
-    sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
-  };
-  if (duplicateMediaSignal && allowDuplicateWhilePaused) {
-    // Keep re-notifying the plugin while paused (for startup visibility sync), but
-    // do not run local unpause fallback on duplicates to avoid resuming user-paused playback.
-    signalPluginAutoplayReady();
-    return;
-  }
-  autoPlayReadySignalMediaPath = mediaPath;
-  const playbackGeneration = ++autoPlayReadySignalGeneration;
-  signalPluginAutoplayReady();
-  const isPlaybackPaused = async (client: {
-    requestProperty: (property: string) => Promise<unknown>;
-  }): Promise<boolean> => {
-    try {
-      const pauseProperty = await client.requestProperty('pause');
-      if (typeof pauseProperty === 'boolean') {
-        return pauseProperty;
-      }
-      if (typeof pauseProperty === 'string') {
-        return pauseProperty.toLowerCase() !== 'no' && pauseProperty !== '0';
-      }
-      if (typeof pauseProperty === 'number') {
-        return pauseProperty !== 0;
-      }
-      logger.debug(
-        `[autoplay-ready] unrecognized pause property for media ${mediaPath}: ${String(pauseProperty)}`,
-      );
-    } catch (error) {
-      logger.debug(
-        `[autoplay-ready] failed to read pause property for media ${mediaPath}: ${(error as Error).message}`,
-      );
-    }
-    return true;
-  };
-
-  // Fallback: repeatedly try to release pause for a short window in case startup
-  // gate arming and tokenization-ready signal arrive out of order.
-  const releaseRetryDelayMs = 200;
-  const maxReleaseAttempts = resolveAutoplayReadyMaxReleaseAttempts({
-    forceWhilePaused: options?.forceWhilePaused === true,
-    retryDelayMs: releaseRetryDelayMs,
-  });
-  const attemptRelease = (attempt: number): void => {
-    void (async () => {
-      if (
-        autoPlayReadySignalMediaPath !== mediaPath ||
-        playbackGeneration !== autoPlayReadySignalGeneration
-      ) {
-        return;
-      }
-
-      const mpvClient = appState.mpvClient;
-      if (!mpvClient?.connected) {
-        if (attempt < maxReleaseAttempts) {
-          setTimeout(() => attemptRelease(attempt + 1), releaseRetryDelayMs);
-        }
-        return;
-      }
-
-      const shouldUnpause = await isPlaybackPaused(mpvClient);
-      logger.debug(
-        `[autoplay-ready] mpv paused before fallback attempt ${attempt} for ${mediaPath}: ${shouldUnpause}`,
-      );
-      if (!shouldUnpause) {
-        if (attempt === 0) {
-          logger.debug('[autoplay-ready] mpv already playing; no fallback unpause needed');
-        }
-        return;
-      }
-
-      signalPluginAutoplayReady();
-      mpvClient.send({ command: ['set_property', 'pause', false] });
-      if (attempt < maxReleaseAttempts) {
-        setTimeout(() => attemptRelease(attempt + 1), releaseRetryDelayMs);
-      }
-    })();
-  };
-  attemptRelease(0);
 }
 
 let appTray: Tray | null = null;
@@ -1552,6 +1362,11 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
     appState.activeParsedSubtitleSource = sourceKey;
   },
 });
+const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler({
+  getFfmpegPath: () => getResolvedConfig().subsync.ffmpeg_path.trim() || 'ffmpeg',
+  extractInternalSubtitleTrack: (ffmpegPath, videoPath, track) =>
+    extractInternalSubtitleTrackToTempFile(ffmpegPath, videoPath, track),
+});
 
 async function refreshSubtitleSidebarFromSource(sourcePath: string): Promise<void> {
   const normalizedSourcePath = resolveSubtitleSourcePath(sourcePath.trim());
@@ -1564,60 +1379,29 @@ async function refreshSubtitleSidebarFromSource(sourcePath: string): Promise<voi
     normalizedSourcePath,
   );
 }
-
-async function refreshSubtitlePrefetchFromActiveTrack(): Promise<void> {
-  const client = appState.mpvClient;
-  if (!client?.connected) {
-    return;
-  }
-
-  try {
-    const [currentExternalFilenameRaw, currentTrackRaw, trackListRaw, sidRaw, videoPathRaw] =
-      await Promise.all([
-        client.requestProperty('current-tracks/sub/external-filename').catch(() => null),
-        client.requestProperty('current-tracks/sub').catch(() => null),
-        client.requestProperty('track-list'),
-        client.requestProperty('sid'),
-        client.requestProperty('path'),
-      ]);
-    const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
-    if (!videoPath) {
-      subtitlePrefetchInitController.cancelPendingInit();
-      return;
-    }
-
-    const resolvedSource = await resolveActiveSubtitleSidebarSource(
-      currentExternalFilenameRaw,
-      currentTrackRaw,
-      trackListRaw,
-      sidRaw,
-      videoPath,
-    );
-    if (!resolvedSource) {
-      subtitlePrefetchInitController.cancelPendingInit();
-      return;
-    }
-    try {
-      await subtitlePrefetchInitController.initSubtitlePrefetch(
-        resolvedSource.path,
-        lastObservedTimePos,
-        resolvedSource.sourceKey,
-      );
-    } finally {
-      await resolvedSource.cleanup?.();
-    }
-  } catch {
-    // Track list query failed; skip subtitle prefetch refresh.
-  }
-}
+const refreshSubtitlePrefetchFromActiveTrackHandler =
+  createRefreshSubtitlePrefetchFromActiveTrackHandler({
+    getMpvClient: () => appState.mpvClient,
+    getLastObservedTimePos: () => lastObservedTimePos,
+    subtitlePrefetchInitController,
+    resolveActiveSubtitleSidebarSource: (input) =>
+      resolveActiveSubtitleSidebarSourceHandler(input),
+  });
 
 function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
   clearScheduledSubtitlePrefetchRefresh();
   subtitlePrefetchRefreshTimer = setTimeout(() => {
     subtitlePrefetchRefreshTimer = null;
-    void refreshSubtitlePrefetchFromActiveTrack();
+    void refreshSubtitlePrefetchFromActiveTrackHandler();
   }, delayMs);
 }
+const subtitlePrefetchRuntime = composeSubtitlePrefetchRuntime({
+  subtitlePrefetchInitController,
+  refreshSubtitleSidebarFromSource: (sourcePath) => refreshSubtitleSidebarFromSource(sourcePath),
+  refreshSubtitlePrefetchFromActiveTrack: () => refreshSubtitlePrefetchFromActiveTrackHandler(),
+  scheduleSubtitlePrefetchRefresh: (delayMs) => scheduleSubtitlePrefetchRefresh(delayMs),
+  clearScheduledSubtitlePrefetchRefresh: () => clearScheduledSubtitlePrefetchRefresh(),
+});
 
 const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
   createBuildOverlayShortcutsRuntimeMainDepsHandler({
@@ -2009,7 +1793,7 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
 const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   createBuildOverlayVisibilityRuntimeMainDepsHandler({
     getMainWindow: () => overlayManager.getMainWindow(),
-    getModalActive: () => overlayModalInputExclusive,
+    getModalActive: () => overlayModalInputState.getModalInputExclusive(),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => appState.statsOverlayVisible,
     getWindowTracker: () => appState.windowTracker,
@@ -2048,12 +1832,10 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     },
   })(),
 );
-
-const buildGetRuntimeOptionsStateMainDepsHandler = createBuildGetRuntimeOptionsStateMainDepsHandler(
-  {
+const buildGetRuntimeOptionsStateMainDepsHandler =
+  createBuildGetRuntimeOptionsStateMainDepsHandler({
     getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-  },
-);
+  });
 const getRuntimeOptionsStateMainDeps = buildGetRuntimeOptionsStateMainDepsHandler();
 const getRuntimeOptionsStateHandler = createGetRuntimeOptionsStateHandler(
   getRuntimeOptionsStateMainDeps,
@@ -2074,14 +1856,6 @@ const buildRestorePreviousSecondarySubVisibilityMainDepsHandler =
 syncOverlayVisibilityForModal = () => {
   overlayVisibilityRuntime.updateVisibleOverlayVisibility();
 };
-const restorePreviousSecondarySubVisibilityMainDeps =
-  buildRestorePreviousSecondarySubVisibilityMainDepsHandler();
-const restorePreviousSecondarySubVisibilityHandler =
-  createRestorePreviousSecondarySubVisibilityHandler(restorePreviousSecondarySubVisibilityMainDeps);
-
-function restorePreviousSecondarySubVisibility(): void {
-  restorePreviousSecondarySubVisibilityHandler();
-}
 
 function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
   overlayManager.broadcastToOverlayWindows(channel, ...args);
@@ -2093,32 +1867,12 @@ const buildBroadcastRuntimeOptionsChangedMainDepsHandler =
     getRuntimeOptionsState: () => getRuntimeOptionsState(),
     broadcastToOverlayWindows: (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
   });
-const broadcastRuntimeOptionsChangedMainDeps = buildBroadcastRuntimeOptionsChangedMainDepsHandler();
-const broadcastRuntimeOptionsChangedHandler = createBroadcastRuntimeOptionsChangedHandler(
-  broadcastRuntimeOptionsChangedMainDeps,
-);
-
-function broadcastRuntimeOptionsChanged(): void {
-  broadcastRuntimeOptionsChangedHandler();
-}
 
 const buildSendToActiveOverlayWindowMainDepsHandler =
   createBuildSendToActiveOverlayWindowMainDepsHandler({
     sendToActiveOverlayWindowRuntime: (channel, payload, runtimeOptions) =>
       overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
   });
-const sendToActiveOverlayWindowMainDeps = buildSendToActiveOverlayWindowMainDepsHandler();
-const sendToActiveOverlayWindowHandler = createSendToActiveOverlayWindowHandler(
-  sendToActiveOverlayWindowMainDeps,
-);
-
-function sendToActiveOverlayWindow(
-  channel: string,
-  payload?: unknown,
-  runtimeOptions?: { restoreOnModalClose?: OverlayHostedModal },
-): boolean {
-  return sendToActiveOverlayWindowHandler(channel, payload, runtimeOptions);
-}
 
 const buildSetOverlayDebugVisualizationEnabledMainDepsHandler =
   createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler({
@@ -2128,27 +1882,44 @@ const buildSetOverlayDebugVisualizationEnabledMainDepsHandler =
       appState.overlayDebugVisualizationEnabled = next;
     },
   });
-const setOverlayDebugVisualizationEnabledMainDeps =
-  buildSetOverlayDebugVisualizationEnabledMainDepsHandler();
-const setOverlayDebugVisualizationEnabledHandler = createSetOverlayDebugVisualizationEnabledHandler(
-  setOverlayDebugVisualizationEnabledMainDeps,
-);
-
-function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
-  setOverlayDebugVisualizationEnabledHandler(enabled);
-}
 
 const buildOpenRuntimeOptionsPaletteMainDepsHandler =
   createBuildOpenRuntimeOptionsPaletteMainDepsHandler({
     openRuntimeOptionsPaletteRuntime: () => overlayModalRuntime.openRuntimeOptionsPalette(),
   });
-const openRuntimeOptionsPaletteMainDeps = buildOpenRuntimeOptionsPaletteMainDepsHandler();
-const openRuntimeOptionsPaletteHandler = createOpenRuntimeOptionsPaletteHandler(
-  openRuntimeOptionsPaletteMainDeps,
-);
+const overlayVisibilityComposer = composeOverlayVisibilityRuntime({
+  overlayVisibilityRuntime,
+  restorePreviousSecondarySubVisibilityMainDeps:
+    buildRestorePreviousSecondarySubVisibilityMainDepsHandler(),
+  broadcastRuntimeOptionsChangedMainDeps: buildBroadcastRuntimeOptionsChangedMainDepsHandler(),
+  sendToActiveOverlayWindowMainDeps: buildSendToActiveOverlayWindowMainDepsHandler(),
+  setOverlayDebugVisualizationEnabledMainDeps:
+    buildSetOverlayDebugVisualizationEnabledMainDepsHandler(),
+  openRuntimeOptionsPaletteMainDeps: buildOpenRuntimeOptionsPaletteMainDepsHandler(),
+});
+
+function restorePreviousSecondarySubVisibility(): void {
+  overlayVisibilityComposer.restorePreviousSecondarySubVisibility();
+}
+
+function broadcastRuntimeOptionsChanged(): void {
+  overlayVisibilityComposer.broadcastRuntimeOptionsChanged();
+}
+
+function sendToActiveOverlayWindow(
+  channel: string,
+  payload?: unknown,
+  runtimeOptions?: { restoreOnModalClose?: OverlayHostedModal },
+): boolean {
+  return overlayVisibilityComposer.sendToActiveOverlayWindow(channel, payload, runtimeOptions);
+}
+
+function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
+  overlayVisibilityComposer.setOverlayDebugVisualizationEnabled(enabled);
+}
 
 function openRuntimeOptionsPalette(): void {
-  openRuntimeOptionsPaletteHandler();
+  overlayVisibilityComposer.openRuntimeOptionsPalette();
 }
 
 function getResolvedConfig() {
@@ -3179,9 +2950,10 @@ const ensureImmersionTrackerStarted = (): void => {
   hasAttemptedImmersionTrackerStartup = true;
   createImmersionTrackerStartup();
 };
-
-const runStatsCliCommand = createRunStatsCliCommandHandler({
-  getResolvedConfig: () => getResolvedConfig(),
+const statsStartupRuntime = composeStatsStartupRuntime({
+  ensureStatsServerStarted: () => ensureStatsServerStarted(),
+  ensureBackgroundStatsServerStarted: () => ensureBackgroundStatsServerStarted(),
+  stopBackgroundStatsServer: () => stopBackgroundStatsServer(),
   ensureImmersionTrackerStarted: () => {
     appState.statsStartupInProgress = true;
     try {
@@ -3190,13 +2962,18 @@ const runStatsCliCommand = createRunStatsCliCommandHandler({
       appState.statsStartupInProgress = false;
     }
   },
+});
+
+const runStatsCliCommand = createRunStatsCliCommandHandler({
+  getResolvedConfig: () => getResolvedConfig(),
+  ensureImmersionTrackerStarted: () => statsStartupRuntime.ensureImmersionTrackerStarted(),
   ensureVocabularyCleanupTokenizerReady: async () => {
     await createMecabTokenizerAndCheck();
   },
   getImmersionTracker: () => appState.immersionTracker,
-  ensureStatsServerStarted: () => ensureStatsServerStarted(),
-  ensureBackgroundStatsServerStarted: () => ensureBackgroundStatsServerStarted(),
-  stopBackgroundStatsServer: () => stopBackgroundStatsServer(),
+  ensureStatsServerStarted: () => statsStartupRuntime.ensureStatsServerStarted(),
+  ensureBackgroundStatsServerStarted: () => statsStartupRuntime.ensureBackgroundStatsServerStarted(),
+  stopBackgroundStatsServer: () => statsStartupRuntime.stopBackgroundStatsServer(),
   openExternal: (url: string) => shell.openExternal(url),
   writeResponse: (responsePath, payload) => {
     writeStatsCliCommandResponse(responsePath, payload);
@@ -3497,7 +3274,7 @@ const {
   bindMpvMainEventHandlersMainDeps: {
     appState,
     getQuitOnDisconnectArmed: () =>
-      jellyfinPlayQuitOnDisconnectArmed || youtubePlayQuitOnDisconnectArmed,
+      jellyfinPlayQuitOnDisconnectArmed || youtubePlaybackRuntime.getQuitOnDisconnectArmed(),
     scheduleQuitCheck: (callback) => {
       setTimeout(callback, 500);
     },
@@ -3519,7 +3296,7 @@ const {
       subtitleProcessingController.onSubtitleChange(text);
     },
     refreshDiscordPresence: () => {
-      publishDiscordPresence();
+      discordPresenceRuntime.publishDiscordPresence();
     },
     ensureImmersionTrackerInitialized: () => {
       ensureImmersionTrackerStarted();
@@ -3527,16 +3304,16 @@ const {
     tokenizeSubtitleForImmersion: async (text): Promise<SubtitleData | null> =>
       tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : null,
     updateCurrentMediaPath: (path) => {
-      autoPlayReadySignalMediaPath = null;
+      autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks();
       currentMediaTokenizationGate.updateCurrentMediaPath(path);
       startupOsdSequencer.reset();
-      clearScheduledSubtitlePrefetchRefresh();
-      subtitlePrefetchInitController.cancelPendingInit();
+      subtitlePrefetchRuntime.clearScheduledSubtitlePrefetchRefresh();
+      subtitlePrefetchRuntime.cancelPendingInit();
       youtubePrimarySubtitleNotificationRuntime.handleMediaPathChange(path);
       if (path) {
         ensureImmersionTrackerStarted();
         // Delay slightly to allow MPV's track-list to be populated.
-        scheduleSubtitlePrefetchRefresh(500);
+        subtitlePrefetchRuntime.scheduleSubtitlePrefetchRefresh(500);
       }
       mediaRuntime.updateCurrentMediaPath(path);
     },
@@ -3563,7 +3340,7 @@ const {
       if (!isTokenizationWarmupReady()) {
         return;
       }
-      maybeSignalPluginAutoplayReady(
+      autoplayReadyGate.maybeSignalPluginAutoplayReady(
         { text: '__warm__', tokens: null },
         { forceWhilePaused: true },
       );
@@ -3684,7 +3461,10 @@ const {
           appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
         );
         startupOsdSequencer.markTokenizationReady();
-        maybeSignalPluginAutoplayReady({ text, tokens: null }, { forceWhilePaused: true });
+        autoplayReadyGate.maybeSignalPluginAutoplayReady(
+          { text, tokens: null },
+          { forceWhilePaused: true },
+        );
       },
     },
     createTokenizerRuntimeDeps: (deps) =>
@@ -4254,48 +4034,6 @@ function parseTrackId(value: unknown): number | null {
   return null;
 }
 
-function getActiveSubtitleTrack(
-  currentTrackRaw: unknown,
-  trackListRaw: unknown,
-  sidRaw: unknown,
-): MpvSubtitleTrackLike | null {
-  if (currentTrackRaw && typeof currentTrackRaw === 'object') {
-    const track = currentTrackRaw as MpvSubtitleTrackLike;
-    if (track.type === undefined || track.type === 'sub') {
-      return track;
-    }
-  }
-
-  const sid = parseTrackId(sidRaw);
-  if (!Array.isArray(trackListRaw)) {
-    return null;
-  }
-
-  const bySid =
-    sid === null
-      ? null
-      : ((trackListRaw.find((entry: unknown) => {
-          if (!entry || typeof entry !== 'object') {
-            return false;
-          }
-          const track = entry as MpvSubtitleTrackLike;
-          return track.type === 'sub' && parseTrackId(track.id) === sid;
-        }) as MpvSubtitleTrackLike | undefined) ?? null);
-  if (bySid) {
-    return bySid;
-  }
-
-  return (
-    (trackListRaw.find((entry: unknown) => {
-      if (!entry || typeof entry !== 'object') {
-        return false;
-      }
-      const track = entry as MpvSubtitleTrackLike;
-      return track.type === 'sub' && track.selected === true;
-    }) as MpvSubtitleTrackLike | undefined) ?? null
-  );
-}
-
 function buildFfmpegSubtitleExtractionArgs(
   videoPath: string,
   ffIndex: number,
@@ -4365,41 +4103,6 @@ async function extractInternalSubtitleTrackToTempFile(
     cleanup: async () => {
       await fs.promises.rm(tempDir, { recursive: true, force: true });
     },
-  };
-}
-
-async function resolveActiveSubtitleSidebarSource(
-  currentExternalFilenameRaw: unknown,
-  currentTrackRaw: unknown,
-  trackListRaw: unknown,
-  sidRaw: unknown,
-  videoPath: string,
-): Promise<{ path: string; sourceKey: string; cleanup?: () => Promise<void> } | null> {
-  const currentExternalFilename =
-    typeof currentExternalFilenameRaw === 'string' ? currentExternalFilenameRaw.trim() : '';
-  if (currentExternalFilename) {
-    return { path: currentExternalFilename, sourceKey: currentExternalFilename };
-  }
-
-  const track = getActiveSubtitleTrack(currentTrackRaw, trackListRaw, sidRaw);
-  if (!track) {
-    return null;
-  }
-
-  const externalFilename =
-    typeof track['external-filename'] === 'string' ? track['external-filename'].trim() : '';
-  if (externalFilename) {
-    return { path: externalFilename, sourceKey: externalFilename };
-  }
-
-  const ffmpegPath = getResolvedConfig().subsync.ffmpeg_path.trim() || 'ffmpeg';
-  const extracted = await extractInternalSubtitleTrackToTempFile(ffmpegPath, videoPath, track);
-  if (!extracted) {
-    return null;
-  }
-  return {
-    ...extracted,
-    sourceKey: buildSubtitleSidebarSourceKey(videoPath, track, extracted.path),
   };
 }
 
@@ -4503,13 +4206,13 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             };
           }
 
-          const resolvedSource = await resolveActiveSubtitleSidebarSource(
+          const resolvedSource = await resolveActiveSubtitleSidebarSourceHandler({
             currentExternalFilenameRaw,
             currentTrackRaw,
             trackListRaw,
             sidRaw,
             videoPath,
-          );
+          });
           if (!resolvedSource) {
             return {
               cues: appState.activeParsedSubtitleCues,
@@ -4670,7 +4373,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
     runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
       runStatsCliCommand(argsFromCommand, source),
-    runYoutubePlaybackFlow: (request) => runYoutubePlaybackFlowMain(request),
+    runYoutubePlaybackFlow: (request) => youtubePlaybackRuntime.runYoutubePlaybackFlow(request),
     openYomitanSettings: () => openYomitanSettings(),
     cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),

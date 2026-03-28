@@ -9,5 +9,8 @@ export * from './jellyfin-remote-composer';
 export * from './jellyfin-runtime-composer';
 export * from './mpv-runtime-composer';
 export * from './overlay-window-composer';
+export * from './overlay-visibility-runtime-composer';
 export * from './shortcuts-runtime-composer';
+export * from './stats-startup-composer';
+export * from './subtitle-prefetch-runtime-composer';
 export * from './startup-lifecycle-composer';
