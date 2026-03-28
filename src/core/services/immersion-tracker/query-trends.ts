@@ -83,7 +83,13 @@ function getTrendMonthlyLimit(range: TrendRange): number {
   if (range === 'all') {
     return 120;
   }
-  return Math.max(1, Math.ceil(TREND_DAY_LIMITS[range] / 30));
+  const now = new Date();
+  const cutoff = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - (TREND_DAY_LIMITS[range] - 1),
+  );
+  return Math.max(1, (now.getFullYear() - cutoff.getFullYear()) * 12 + now.getMonth() - cutoff.getMonth() + 1);
 }
 
 function getTrendCutoffMs(range: TrendRange): number | null {
@@ -120,6 +126,11 @@ function getLocalEpochDay(timestampMs: number): number {
 function getLocalDateForEpochDay(epochDay: number): Date {
   const utcDate = new Date(epochDay * 86_400_000);
   return new Date(utcDate.getTime() + utcDate.getTimezoneOffset() * 60_000);
+}
+
+function getLocalMonthKey(timestampMs: number): number {
+  const date = new Date(timestampMs);
+  return date.getFullYear() * 100 + date.getMonth() + 1;
 }
 
 function getTrendSessionWordCount(session: Pick<TrendSessionMetricRow, 'tokensSeen'>): number {
@@ -216,6 +227,20 @@ function buildSessionSeriesByDay(
   return Array.from(byDay.entries())
     .sort(([left], [right]) => left - right)
     .map(([epochDay, value]) => ({ label: dayLabel(epochDay), value }));
+}
+
+function buildSessionSeriesByMonth(
+  sessions: TrendSessionMetricRow[],
+  getValue: (session: TrendSessionMetricRow) => number,
+): TrendChartPoint[] {
+  const byMonth = new Map<number, number>();
+  for (const session of sessions) {
+    const monthKey = getLocalMonthKey(session.startedAtMs);
+    byMonth.set(monthKey, (byMonth.get(monthKey) ?? 0) + getValue(session));
+  }
+  return Array.from(byMonth.entries())
+    .sort(([left], [right]) => left - right)
+    .map(([monthKey, value]) => ({ label: makeTrendLabel(monthKey), value }));
 }
 
 function buildLookupsPerHundredWords(sessions: TrendSessionMetricRow[]): TrendChartPoint[] {
@@ -441,6 +466,26 @@ function buildEpisodesPerDayFromDailyRollups(
     }));
 }
 
+function buildEpisodesPerMonthFromRollups(rollups: ImmersionSessionRollupRow[]): TrendChartPoint[] {
+  const byMonth = new Map<number, Set<number>>();
+
+  for (const rollup of rollups) {
+    if (rollup.videoId === null) {
+      continue;
+    }
+    const videoIds = byMonth.get(rollup.rollupDayOrMonth) ?? new Set<number>();
+    videoIds.add(rollup.videoId);
+    byMonth.set(rollup.rollupDayOrMonth, videoIds);
+  }
+
+  return Array.from(byMonth.entries())
+    .sort(([left], [right]) => left - right)
+    .map(([monthKey, videoIds]) => ({
+      label: makeTrendLabel(monthKey),
+      value: videoIds.size,
+    }));
+}
+
 function getTrendSessionMetrics(
   db: DatabaseSync,
   cutoffMs: number | null,
@@ -494,6 +539,32 @@ function buildNewWordsPerDay(db: DatabaseSync, cutoffMs: number | null): TrendCh
   }));
 }
 
+function buildNewWordsPerMonth(db: DatabaseSync, cutoffMs: number | null): TrendChartPoint[] {
+  const whereClause = cutoffMs === null ? '' : 'AND first_seen >= ?';
+  const prepared = db.prepare(`
+    SELECT
+      CAST(strftime('%Y%m', first_seen, 'unixepoch', 'localtime') AS INTEGER) AS monthKey,
+      COUNT(*) AS wordCount
+    FROM imm_words
+    WHERE first_seen IS NOT NULL
+    ${whereClause}
+    GROUP BY monthKey
+    ORDER BY monthKey ASC
+  `);
+
+  const rows = (
+    cutoffMs === null ? prepared.all() : prepared.all(Math.floor(cutoffMs / 1000))
+  ) as Array<{
+    monthKey: number;
+    wordCount: number;
+  }>;
+
+  return rows.map((row) => ({
+    label: makeTrendLabel(row.monthKey),
+    value: row.wordCount,
+  }));
+}
+
 export function getTrendsDashboard(
   db: DatabaseSync,
   range: TrendRange = '30d',
@@ -502,10 +573,11 @@ export function getTrendsDashboard(
   const dayLimit = getTrendDayLimit(range);
   const monthlyLimit = getTrendMonthlyLimit(range);
   const cutoffMs = getTrendCutoffMs(range);
-
-  const chartRollups =
-    groupBy === 'month' ? getMonthlyRollups(db, monthlyLimit) : getDailyRollups(db, dayLimit);
+  const useMonthlyBuckets = groupBy === 'month';
   const dailyRollups = getDailyRollups(db, dayLimit);
+  const monthlyRollups = getMonthlyRollups(db, monthlyLimit);
+
+  const chartRollups = useMonthlyBuckets ? monthlyRollups : dailyRollups;
   const sessions = getTrendSessionMetrics(db, cutoffMs);
   const titlesByVideoId = getVideoAnimeTitleMap(
     db,
@@ -545,11 +617,19 @@ export function getTrendsDashboard(
       watchTime: accumulatePoints(activity.watchTime),
       sessions: accumulatePoints(activity.sessions),
       words: accumulatePoints(activity.words),
-      newWords: accumulatePoints(buildNewWordsPerDay(db, cutoffMs)),
+      newWords: accumulatePoints(
+        useMonthlyBuckets ? buildNewWordsPerMonth(db, cutoffMs) : buildNewWordsPerDay(db, cutoffMs),
+      ),
       cards: accumulatePoints(activity.cards),
-      episodes: accumulatePoints(buildEpisodesPerDayFromDailyRollups(dailyRollups)),
+      episodes: accumulatePoints(
+        useMonthlyBuckets
+          ? buildEpisodesPerMonthFromRollups(monthlyRollups)
+          : buildEpisodesPerDayFromDailyRollups(dailyRollups),
+      ),
       lookups: accumulatePoints(
-        buildSessionSeriesByDay(sessions, (session) => session.yomitanLookupCount),
+        useMonthlyBuckets
+          ? buildSessionSeriesByMonth(sessions, (session) => session.yomitanLookupCount)
+          : buildSessionSeriesByDay(sessions, (session) => session.yomitanLookupCount),
       ),
     },
     ratios: {

@@ -18,7 +18,9 @@ Priority keys:
 
 ## Active
 
-None.
+| ID     | Pri | Status | Area           | Title                                               |
+| ------ | --- | ------ | -------------- | --------------------------------------------------- |
+| SM-013 | P1  | doing  | review-followup | Address PR #36 CodeRabbit action items              |
 
 ## Ready
 
@@ -234,3 +236,22 @@ Done:
 
 - replaced JSON serialize-clone call sites in runtime/config/controller update paths with `structuredClone`
 - updated focused tests and fixtures to cover detached clone behavior and guard against regressions
+
+### SM-013
+
+Title: Address PR #36 CodeRabbit action items
+Priority: P1
+Status: doing
+Scope:
+
+- `plugins/subminer-workflow/skills/subminer-change-verification/scripts/verify_subminer_change.sh`
+- `scripts/subminer-change-verification.test.ts`
+- `src/core/services/immersion-tracker/query-sessions.ts`
+- `src/core/services/immersion-tracker/query-trends.ts`
+- `src/core/services/immersion-tracker/maintenance.ts`
+- `src/main/boot/services.ts`
+- `src/main/character-dictionary-runtime/zip.test.ts`
+  Acceptance:
+- fix valid open CodeRabbit findings on PR #36
+- add focused regression coverage for behavior changes where practical
+- verify touched tests plus typecheck stay green

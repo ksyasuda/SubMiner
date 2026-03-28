@@ -5,6 +5,8 @@ import { createMainBootServices } from './services';
 test('createMainBootServices builds boot-phase service bundle', () => {
   const calls: string[] = [];
   let setPathValue: string | null = null;
+  const appOnCalls: string[] = [];
+  let secondInstanceHandlerRegistered = false;
 
   const services = createMainBootServices({
     platform: 'linux',
@@ -27,12 +29,17 @@ test('createMainBootServices builds boot-phase service bundle', () => {
         setPathValue = value;
       },
       quit: () => {},
-      on: () => ({}),
+      on: (event) => {
+        appOnCalls.push(event);
+        return {};
+      },
       whenReady: async () => {},
     },
     shouldBypassSingleInstanceLock: () => false,
     requestSingleInstanceLockEarly: () => true,
-    registerSecondInstanceHandlerEarly: () => {},
+    registerSecondInstanceHandlerEarly: () => {
+      secondInstanceHandlerRegistered = true;
+    },
     onConfigStartupParseError: () => {
       throw new Error('unexpected parse failure');
     },
@@ -78,6 +85,10 @@ test('createMainBootServices builds boot-phase service bundle', () => {
     mpvSocketPath: '/tmp/subminer.sock',
     texthookerPort: 5174,
   });
+  assert.equal(services.appLifecycleApp.on('ready', () => {}), services.appLifecycleApp);
+  assert.equal(services.appLifecycleApp.on('second-instance', () => {}), services.appLifecycleApp);
+  assert.deepEqual(appOnCalls, ['ready']);
+  assert.equal(secondInstanceHandlerRegistered, true);
   assert.deepEqual(calls, ['mkdir:/tmp/subminer-config']);
   assert.equal(setPathValue, '/tmp/subminer-config');
 });

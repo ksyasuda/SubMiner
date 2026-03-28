@@ -113,15 +113,17 @@ run_step() {
   local name=$2
   local command=$3
   local note=${4:-}
+  local lane_slug=${lane//[^a-zA-Z0-9_-]/-}
   local slug=${name//[^a-zA-Z0-9_-]/-}
-  local stdout_rel="steps/${slug}.stdout.log"
-  local stderr_rel="steps/${slug}.stderr.log"
+  local step_slug="${lane_slug}--${slug}"
+  local stdout_rel="steps/${step_slug}.stdout.log"
+  local stderr_rel="steps/${step_slug}.stderr.log"
   local stdout_path="$ARTIFACT_DIR/$stdout_rel"
   local stderr_path="$ARTIFACT_DIR/$stderr_rel"
   local status exit_code
 
   COMMANDS_RUN+=("$command")
-  printf '%s\n' "$command" >"$ARTIFACT_DIR/steps/${slug}.command.txt"
+  printf '%s\n' "$command" >"$ARTIFACT_DIR/steps/${step_slug}.command.txt"
 
   if [[ "$DRY_RUN" == "1" ]]; then
     printf '[dry-run] %s\n' "$command" >"$stdout_path"
@@ -129,7 +131,11 @@ run_step() {
     status="dry-run"
     exit_code=0
   else
-    if bash -lc "cd \"$REPO_ROOT\" && $command" >"$stdout_path" 2>"$stderr_path"; then
+    if HOME="$SESSION_HOME" \
+      XDG_CONFIG_HOME="$SESSION_XDG_CONFIG_HOME" \
+      SUBMINER_SESSION_LOGS_DIR="$SESSION_LOGS_DIR" \
+      SUBMINER_SESSION_MPV_LOG="$SESSION_MPV_LOG" \
+      bash -c "cd \"$REPO_ROOT\" && $command" >"$stdout_path" 2>"$stderr_path"; then
       status="passed"
       exit_code=0
       EXECUTED_REAL_STEPS=1
@@ -157,9 +163,11 @@ record_nonpassing_step() {
   local name=$2
   local status=$3
   local note=$4
+  local lane_slug=${lane//[^a-zA-Z0-9_-]/-}
   local slug=${name//[^a-zA-Z0-9_-]/-}
-  local stdout_rel="steps/${slug}.stdout.log"
-  local stderr_rel="steps/${slug}.stderr.log"
+  local step_slug="${lane_slug}--${slug}"
+  local stdout_rel="steps/${step_slug}.stdout.log"
+  local stderr_rel="steps/${step_slug}.stderr.log"
   printf '%s\n' "$note" >"$ARTIFACT_DIR/$stdout_rel"
   : >"$ARTIFACT_DIR/$stderr_rel"
   append_step_record "$lane" "$name" "$status" "0" "" "$stdout_rel" "$stderr_rel" "$note"
@@ -179,8 +187,10 @@ record_failed_step() {
   FAILED=1
   FAILURE_STEP=$2
   FAILURE_COMMAND=${FAILURE_COMMAND:-"(validation)"}
-  FAILURE_STDOUT="steps/${2//[^a-zA-Z0-9_-]/-}.stdout.log"
-  FAILURE_STDERR="steps/${2//[^a-zA-Z0-9_-]/-}.stderr.log"
+  local lane_slug=${1//[^a-zA-Z0-9_-]/-}
+  local step_slug=${2//[^a-zA-Z0-9_-]/-}
+  FAILURE_STDOUT="steps/${lane_slug}--${step_slug}.stdout.log"
+  FAILURE_STDERR="steps/${lane_slug}--${step_slug}.stderr.log"
   add_blocker "$3"
   record_nonpassing_step "$1" "$2" "failed" "$3"
 }
@@ -212,7 +222,7 @@ acquire_real_runtime_lease() {
   if [[ -f "$lease_dir/session_id" ]]; then
     owner=$(cat "$lease_dir/session_id")
   fi
-  add_blocker "real-runtime lease already held${owner:+ by $owner}"
+  REAL_RUNTIME_LEASE_ERROR="real-runtime lease already held${owner:+ by $owner}"
   return 1
 }
 
@@ -377,7 +387,10 @@ FAILURE_COMMAND=""
 FAILURE_STDOUT=""
 FAILURE_STDERR=""
 REAL_RUNTIME_LEASE_DIR=""
+REAL_RUNTIME_LEASE_ERROR=""
 PATH_SELECTION_MODE="auto"
+
+trap 'release_real_runtime_lease' EXIT
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -486,7 +499,7 @@ for lane in "${SELECTED_LANES[@]}"; do
         continue
       fi
       if ! acquire_real_runtime_lease; then
-        record_blocked_step "$lane" "real-runtime-lease" "${BLOCKERS[-1]}"
+        record_blocked_step "$lane" "real-runtime-lease" "$REAL_RUNTIME_LEASE_ERROR"
         continue
       fi
       helper=$(find_real_runtime_helper || true)

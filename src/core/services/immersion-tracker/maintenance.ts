@@ -30,7 +30,7 @@ interface RawRetentionResult {
 }
 
 export function toMonthKey(timestampMs: number): number {
-  const epochDay = Number(BigInt(Math.trunc(timestampMs)) / BigInt(DAILY_MS));
+  const epochDay = Math.floor(timestampMs / DAILY_MS);
   const z = epochDay + 719468;
   const era = Math.floor(z / 146097);
   const doe = z - era * 146097;

@@ -48,9 +48,14 @@ test('buildDictionaryZip writes a valid stored zip without fs.writeFileSync', ()
   const termEntries: CharacterDictionaryTermEntry[] = [
     ['アルファ', 'あるふぁ', '', '', 0, ['Alpha entry'], 0, 'name'],
   ];
+  const originalWriteFileSync = fs.writeFileSync;
   const originalBufferConcat = Buffer.concat;
 
   try {
+    fs.writeFileSync = ((..._args: unknown[]) => {
+      throw new Error('buildDictionaryZip should not call fs.writeFileSync');
+    }) as typeof fs.writeFileSync;
+
     Buffer.concat = ((...args: Parameters<typeof Buffer.concat>) => {
       throw new Error(`buildDictionaryZip should not Buffer.concat the full archive (${args[0].length} chunks)`);
     }) as typeof Buffer.concat;
@@ -92,6 +97,7 @@ test('buildDictionaryZip writes a valid stored zip without fs.writeFileSync', ()
     assert.equal(termBank[0]?.[0], 'アルファ');
     assert.deepEqual(entries.get('images/alpha.bin'), Buffer.from([1, 2, 3]));
   } finally {
+    fs.writeFileSync = originalWriteFileSync;
     Buffer.concat = originalBufferConcat;
     cleanupDir(tempDir);
   }

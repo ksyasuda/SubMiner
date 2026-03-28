@@ -787,6 +787,208 @@ test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
   }
 });
 
+test('getTrendsDashboard month grouping spans every touched calendar month and keeps progress monthly', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  const RealDate = Date;
+
+  class MockDate extends Date {
+    constructor(...args: ConstructorParameters<typeof Date>) {
+      super(...(args.length === 0 ? [new RealDate(2026, 2, 1, 12, 0, 0).getTime()] : args));
+    }
+
+    static override now(): number {
+      return new RealDate(2026, 2, 1, 12, 0, 0).getTime();
+    }
+  }
+
+  try {
+    globalThis.Date = MockDate as DateConstructor;
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+    const febVideoId = getOrCreateVideoRecord(db, 'local:/tmp/feb-trends.mkv', {
+      canonicalTitle: 'Monthly Trends',
+      sourcePath: '/tmp/feb-trends.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const marVideoId = getOrCreateVideoRecord(db, 'local:/tmp/mar-trends.mkv', {
+      canonicalTitle: 'Monthly Trends',
+      sourcePath: '/tmp/mar-trends.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Monthly Trends',
+      canonicalTitle: 'Monthly Trends',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, febVideoId, {
+      animeId,
+      parsedBasename: 'feb-trends.mkv',
+      parsedTitle: 'Monthly Trends',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, marVideoId, {
+      animeId,
+      parsedBasename: 'mar-trends.mkv',
+      parsedTitle: 'Monthly Trends',
+      parsedSeason: 1,
+      parsedEpisode: 2,
+      parserSource: 'test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    const febStartedAtMs = new RealDate(2026, 1, 15, 20, 0, 0).getTime();
+    const marStartedAtMs = new RealDate(2026, 2, 1, 9, 0, 0).getTime();
+    const febSessionId = startSessionRecord(db, febVideoId, febStartedAtMs).sessionId;
+    const marSessionId = startSessionRecord(db, marVideoId, marStartedAtMs).sessionId;
+
+    for (const [sessionId, startedAtMs, tokensSeen, cardsMined, yomitanLookupCount] of [
+      [febSessionId, febStartedAtMs, 100, 2, 3],
+      [marSessionId, marStartedAtMs, 120, 4, 5],
+    ] as const) {
+      stmts.telemetryInsertStmt.run(
+        sessionId,
+        startedAtMs + 60_000,
+        30 * 60_000,
+        30 * 60_000,
+        4,
+        tokensSeen,
+        cardsMined,
+        yomitanLookupCount,
+        yomitanLookupCount,
+        yomitanLookupCount,
+        0,
+        0,
+        0,
+        0,
+        startedAtMs + 60_000,
+        startedAtMs + 60_000,
+      );
+      db.prepare(
+        `
+        UPDATE imm_sessions
+        SET
+          ended_at_ms = ?,
+          status = 2,
+          total_watched_ms = ?,
+          active_watched_ms = ?,
+          lines_seen = ?,
+          tokens_seen = ?,
+          cards_mined = ?,
+          lookup_count = ?,
+          lookup_hits = ?,
+          yomitan_lookup_count = ?,
+          LAST_UPDATE_DATE = ?
+        WHERE session_id = ?
+        `,
+      ).run(
+        startedAtMs + 60_000,
+        30 * 60_000,
+        30 * 60_000,
+        4,
+        tokensSeen,
+        cardsMined,
+        yomitanLookupCount,
+        yomitanLookupCount,
+        yomitanLookupCount,
+        startedAtMs + 60_000,
+        sessionId,
+      );
+    }
+
+    const insertDailyRollup = db.prepare(
+      `
+      INSERT INTO imm_daily_rollups (
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    );
+    const insertMonthlyRollup = db.prepare(
+      `
+      INSERT INTO imm_monthly_rollups (
+        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    );
+    const febEpochDay = Math.floor(febStartedAtMs / 86_400_000);
+    const marEpochDay = Math.floor(marStartedAtMs / 86_400_000);
+    insertDailyRollup.run(febEpochDay, febVideoId, 1, 30, 4, 100, 2, febStartedAtMs, febStartedAtMs);
+    insertDailyRollup.run(marEpochDay, marVideoId, 1, 30, 4, 120, 4, marStartedAtMs, marStartedAtMs);
+    insertMonthlyRollup.run(202602, febVideoId, 1, 30, 4, 100, 2, febStartedAtMs, febStartedAtMs);
+    insertMonthlyRollup.run(202603, marVideoId, 1, 30, 4, 120, 4, marStartedAtMs, marStartedAtMs);
+
+    db.prepare(
+      `
+      INSERT INTO imm_words (
+        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(
+      '二月',
+      '二月',
+      'にがつ',
+      'noun',
+      '名詞',
+      '',
+      '',
+      Math.floor(febStartedAtMs / 1000),
+      Math.floor(febStartedAtMs / 1000),
+      1,
+    );
+    db.prepare(
+      `
+      INSERT INTO imm_words (
+        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(
+      '三月',
+      '三月',
+      'さんがつ',
+      'noun',
+      '名詞',
+      '',
+      '',
+      Math.floor(marStartedAtMs / 1000),
+      Math.floor(marStartedAtMs / 1000),
+      1,
+    );
+
+    const dashboard = getTrendsDashboard(db, '30d', 'month');
+
+    assert.equal(dashboard.activity.watchTime.length, 2);
+    assert.deepEqual(
+      dashboard.progress.newWords.map((point) => point.label),
+      dashboard.activity.watchTime.map((point) => point.label),
+    );
+    assert.deepEqual(
+      dashboard.progress.episodes.map((point) => point.label),
+      dashboard.activity.watchTime.map((point) => point.label),
+    );
+    assert.deepEqual(
+      dashboard.progress.lookups.map((point) => point.label),
+      dashboard.activity.watchTime.map((point) => point.label),
+    );
+  } finally {
+    globalThis.Date = RealDate;
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getQueryHints reads all-time totals from lifetime summary', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
@@ -852,6 +1054,72 @@ test('getQueryHints reads all-time totals from lifetime summary', () => {
     assert.equal(hints.totalTokensSeen, 120);
     assert.equal(hints.totalYomitanLookupCount, 8);
   } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getQueryHints computes weekly new-word cutoff from calendar midnights', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  const RealDate = Date;
+
+  class MockDate extends Date {
+    constructor(...args: ConstructorParameters<typeof Date>) {
+      super(...(args.length === 0 ? [new RealDate(2026, 2, 15, 12, 0, 0).getTime()] : args));
+    }
+
+    static override now(): number {
+      return new RealDate(2026, 2, 15, 12, 0, 0).getTime();
+    }
+  }
+
+  try {
+    globalThis.Date = MockDate as DateConstructor;
+    ensureSchema(db);
+
+    const insertWord = db.prepare(
+      `
+      INSERT INTO imm_words (
+        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    );
+    const justBeforeWeekBoundary = Math.floor(
+      new RealDate(2026, 2, 7, 23, 30, 0).getTime() / 1000,
+    );
+    const justAfterWeekBoundary = Math.floor(
+      new RealDate(2026, 2, 8, 0, 30, 0).getTime() / 1000,
+    );
+    insertWord.run(
+      '境界前',
+      '境界前',
+      'きょうかいまえ',
+      'noun',
+      '名詞',
+      '',
+      '',
+      justBeforeWeekBoundary,
+      justBeforeWeekBoundary,
+      1,
+    );
+    insertWord.run(
+      '境界後',
+      '境界後',
+      'きょうかいご',
+      'noun',
+      '名詞',
+      '',
+      '',
+      justAfterWeekBoundary,
+      justAfterWeekBoundary,
+      1,
+    );
+
+    const hints = getQueryHints(db);
+    assert.equal(hints.newWordsThisWeek, 1);
+  } finally {
+    globalThis.Date = RealDate;
     db.close();
     cleanupDbPath(dbPath);
   }

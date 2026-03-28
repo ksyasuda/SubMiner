@@ -131,7 +131,8 @@ export function getSessionWordsByLine(
 function getNewWordCounts(db: DatabaseSync): { newWordsToday: number; newWordsThisWeek: number } {
   const now = new Date();
   const todayStartSec = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
-  const weekAgoSec = todayStartSec - 7 * 86_400;
+  const weekAgoSec =
+    new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).getTime() / 1000;
 
   const row = db
     .prepare(

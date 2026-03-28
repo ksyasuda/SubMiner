@@ -231,10 +231,10 @@ export function createMainBootServices<
         params.registerSecondInstanceHandlerEarly(
           listener as (_event: unknown, argv: string[]) => void,
         );
-        return params.app;
+        return appLifecycleApp;
       }
       params.app.on(event, listener);
-      return params.app;
+      return appLifecycleApp;
     },
     whenReady: () => params.app.whenReady(),
   } as TAppLifecycleApp;

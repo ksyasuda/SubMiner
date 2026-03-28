@@ -8,6 +8,7 @@ import {
   pruneRawRetention,
   pruneRollupRetention,
   runOptimizeMaintenance,
+  toMonthKey,
 } from './maintenance';
 import { ensureSchema } from './storage';
 
@@ -79,6 +80,12 @@ test('pruneRawRetention uses session retention separately from telemetry retenti
     db.close();
     cleanupDbPath(dbPath);
   }
+});
+
+test('toMonthKey floors negative timestamps into the prior UTC month', () => {
+  assert.equal(toMonthKey(-1), 196912);
+  assert.equal(toMonthKey(-86_400_000), 196912);
+  assert.equal(toMonthKey(0), 197001);
 });
 
 test('raw retention keeps rollups and rollup retention prunes them separately', () => {
