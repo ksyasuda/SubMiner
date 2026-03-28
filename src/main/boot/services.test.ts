@@ -3,12 +3,33 @@ import test from 'node:test';
 import { createMainBootServices } from './services';
 
 test('createMainBootServices builds boot-phase service bundle', () => {
+  type MockAppLifecycleApp = {
+    requestSingleInstanceLock: () => boolean;
+    quit: () => void;
+    on: (event: string, listener: (...args: unknown[]) => void) => MockAppLifecycleApp;
+    whenReady: () => Promise<void>;
+  };
+
   const calls: string[] = [];
   let setPathValue: string | null = null;
   const appOnCalls: string[] = [];
   let secondInstanceHandlerRegistered = false;
 
-  const services = createMainBootServices({
+  const services = createMainBootServices<
+    { configDir: string },
+    { targetPath: string },
+    { targetPath: string },
+    { targetPath: string },
+    { kind: string },
+    { scope: string; warn: () => void; info: () => void; error: () => void },
+    { registry: boolean },
+    { getModalWindow: () => null },
+    { inputState: boolean },
+    { measurementStore: boolean },
+    { modalRuntime: boolean },
+    { mpvSocketPath: string; texthookerPort: number },
+    MockAppLifecycleApp
+  >({
     platform: 'linux',
     argv: ['node', 'main.ts'],
     appDataDir: undefined,
