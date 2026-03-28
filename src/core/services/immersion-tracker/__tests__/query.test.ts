@@ -90,7 +90,7 @@ function withMockDate<T>(fixedDate: Date, run: (realDate: typeof Date) => T): T 
       if (args.length === 0) {
         super(fixedDateMs);
       } else {
-        super(args[0]);
+        super(...(args as [any?, any?, any?, any?, any?, any?, any?]));
       }
     }
 
@@ -1516,11 +1516,11 @@ test('getMonthlyRollups derives rate metrics from stored monthly totals', () => 
     const rows = getMonthlyRollups(db, 1);
     assert.equal(rows.length, 2);
     const rowsByVideoId = new Map(rows.map((row) => [row.videoId, row]));
-    assert.equal(rowsByVideoId.get(2)?.cardsPerHour, 30);
-    assert.equal(rowsByVideoId.get(2)?.tokensPerMin, 3);
-    assert.equal(rowsByVideoId.get(2)?.lookupHitRate ?? null, null);
-    assert.equal(rowsByVideoId.get(1)?.cardsPerHour ?? null, null);
-    assert.equal(rowsByVideoId.get(1)?.tokensPerMin ?? null, null);
+    assert.equal(rowsByVideoId.get(1)?.cardsPerHour, 30);
+    assert.equal(rowsByVideoId.get(1)?.tokensPerMin, 3);
+    assert.equal(rowsByVideoId.get(1)?.lookupHitRate ?? null, null);
+    assert.equal(rowsByVideoId.get(2)?.cardsPerHour ?? null, null);
+    assert.equal(rowsByVideoId.get(2)?.tokensPerMin ?? null, null);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
