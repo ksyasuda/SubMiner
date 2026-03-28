@@ -501,9 +501,6 @@ const ANILIST_DEVELOPER_SETTINGS_URL = 'https://anilist.co/settings/developer';
 const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
-const ANILIST_TOKEN_STORE_FILE = 'anilist-token-store.json';
-const JELLYFIN_TOKEN_STORE_FILE = 'jellyfin-token-store.json';
-const ANILIST_RETRY_QUEUE_FILE = 'anilist-retry-queue.json';
 const TRAY_TOOLTIP = 'SubMiner';
 
 let anilistMediaGuessRuntimeState: AnilistMediaGuessRuntimeState =
