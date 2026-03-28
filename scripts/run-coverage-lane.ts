@@ -1,6 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { join, relative, resolve } from 'node:path';
 
 type LaneConfig = {
@@ -17,7 +16,7 @@ type LcovRecord = {
   branches: Map<string, { line: number; block: string; branch: string; hits: number | null }>;
 };
 
-const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const repoRoot = resolve(__dirname, '..');
 
 const lanes: Record<string, LaneConfig> = {
   'bun-src-full': {
@@ -77,7 +76,7 @@ function parseCoverageDirArg(argv: string[]): string {
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === '--coverage-dir') {
       const next = argv[index + 1];
-      if (!next) {
+      if (typeof next !== 'string') {
         throw new Error('Missing value for --coverage-dir');
       }
       return next;
@@ -137,6 +136,9 @@ function parseLcovReport(report: string): LcovRecord[] {
     }
     if (line.startsWith('BRDA:')) {
       const [lineNumber, block, branch, hits] = line.slice(5).split(',');
+      if (lineNumber === undefined || block === undefined || branch === undefined || hits === undefined) {
+        continue;
+      }
       ensureCurrent().branches.set(`${lineNumber}:${block}:${branch}`, {
         line: Number(lineNumber),
         block,
@@ -244,7 +246,7 @@ export function mergeLcovReports(reports: string[]): string {
 
 function runCoverageLane(): number {
   const laneName = process.argv[2];
-  if (!laneName) {
+  if (laneName === undefined) {
     process.stderr.write('Missing coverage lane name\n');
     return 1;
   }
@@ -291,6 +293,6 @@ function runCoverageLane(): number {
   return 0;
 }
 
-if (import.meta.main) {
+if (require.main === module) {
   process.exit(runCoverageLane());
 }

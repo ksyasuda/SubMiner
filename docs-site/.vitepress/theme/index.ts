@@ -10,7 +10,7 @@ let mermaidLoader: Promise<any> | null = null;
 let plausibleTrackerInitialized = false;
 const MERMAID_MODAL_ID = 'mermaid-diagram-modal';
 const PLAUSIBLE_DOMAIN = 'subminer.moe';
-const PLAUSIBLE_ENDPOINT = 'https://worker.subminer.moe/api/event';
+const PLAUSIBLE_ENDPOINT = 'https://worker.subminer.moe/api/capture';
 
 async function initPlausibleTracker() {
   if (typeof window === 'undefined' || plausibleTrackerInitialized) {
