@@ -89,72 +89,61 @@ export function findSharedCoverBlobHash(
   return null;
 }
 
-export function getAffectedWordIdsForSessions(db: DatabaseSync, sessionIds: number[]): number[] {
-  if (sessionIds.length === 0) {
-    return [];
-  }
+type LexicalEntity = 'word' | 'kanji';
 
+function getAffectedIdsForSessions(
+  db: DatabaseSync,
+  entity: LexicalEntity,
+  sessionIds: number[],
+): number[] {
+  if (sessionIds.length === 0) return [];
+  const table = entity === 'word' ? 'imm_word_line_occurrences' : 'imm_kanji_line_occurrences';
+  const col = `${entity}_id`;
   return (
     db
       .prepare(
-        `
-          SELECT DISTINCT o.word_id AS wordId
-          FROM imm_word_line_occurrences o
-          JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
-          WHERE sl.session_id IN (${makePlaceholders(sessionIds)})
-        `,
+        `SELECT DISTINCT o.${col} AS id
+         FROM ${table} o
+         JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
+         WHERE sl.session_id IN (${makePlaceholders(sessionIds)})`,
       )
-      .all(...sessionIds) as Array<{ wordId: number }>
-  ).map((row) => row.wordId);
+      .all(...sessionIds) as Array<{ id: number }>
+  ).map((row) => row.id);
+}
+
+function getAffectedIdsForVideo(
+  db: DatabaseSync,
+  entity: LexicalEntity,
+  videoId: number,
+): number[] {
+  const table = entity === 'word' ? 'imm_word_line_occurrences' : 'imm_kanji_line_occurrences';
+  const col = `${entity}_id`;
+  return (
+    db
+      .prepare(
+        `SELECT DISTINCT o.${col} AS id
+         FROM ${table} o
+         JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
+         WHERE sl.video_id = ?`,
+      )
+      .all(videoId) as Array<{ id: number }>
+  ).map((row) => row.id);
+}
+
+export function getAffectedWordIdsForSessions(db: DatabaseSync, sessionIds: number[]): number[] {
+  return getAffectedIdsForSessions(db, 'word', sessionIds);
 }
 
 export function getAffectedKanjiIdsForSessions(db: DatabaseSync, sessionIds: number[]): number[] {
-  if (sessionIds.length === 0) {
-    return [];
-  }
-
-  return (
-    db
-      .prepare(
-        `
-          SELECT DISTINCT o.kanji_id AS kanjiId
-          FROM imm_kanji_line_occurrences o
-          JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
-          WHERE sl.session_id IN (${makePlaceholders(sessionIds)})
-        `,
-      )
-      .all(...sessionIds) as Array<{ kanjiId: number }>
-  ).map((row) => row.kanjiId);
+  return getAffectedIdsForSessions(db, 'kanji', sessionIds);
 }
 
 export function getAffectedWordIdsForVideo(db: DatabaseSync, videoId: number): number[] {
-  return (
-    db
-      .prepare(
-        `
-          SELECT DISTINCT o.word_id AS wordId
-          FROM imm_word_line_occurrences o
-          JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
-          WHERE sl.video_id = ?
-        `,
-      )
-      .all(videoId) as Array<{ wordId: number }>
-  ).map((row) => row.wordId);
+  return getAffectedIdsForVideo(db, 'word', videoId);
 }
 
 export function getAffectedKanjiIdsForVideo(db: DatabaseSync, videoId: number): number[] {
-  return (
-    db
-      .prepare(
-        `
-          SELECT DISTINCT o.kanji_id AS kanjiId
-          FROM imm_kanji_line_occurrences o
-          JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
-          WHERE sl.video_id = ?
-        `,
-      )
-      .all(videoId) as Array<{ kanjiId: number }>
-  ).map((row) => row.kanjiId);
+  return getAffectedIdsForVideo(db, 'kanji', videoId);
 }
 
 function refreshWordAggregates(db: DatabaseSync, wordIds: number[]): void {
