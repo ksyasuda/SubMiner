@@ -1,6 +1,6 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import * as electron from 'electron';
+import { ensureDirForFile } from '../../../shared/fs-utils';
 
 interface PersistedTokenPayload {
   encryptedToken?: string;
@@ -21,15 +21,8 @@ export interface SafeStorageLike {
   getSelectedStorageBackend?: () => string;
 }
 
-function ensureDirectory(filePath: string): void {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
 function writePayload(filePath: string, payload: PersistedTokenPayload): void {
-  ensureDirectory(filePath);
+  ensureDirForFile(filePath);
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
 }
 

@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import * as path from 'path';
+import { ensureDirForFile } from '../../../shared/fs-utils';
 
 const INITIAL_BACKOFF_MS = 30_000;
 const MAX_BACKOFF_MS = 6 * 60 * 60 * 1000;
@@ -35,13 +35,6 @@ export interface AnilistUpdateQueue {
   getSnapshot: (nowMs?: number) => AnilistRetryQueueSnapshot;
 }
 
-function ensureDir(filePath: string): void {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
 function clampBackoffMs(attemptCount: number): number {
   const computed = INITIAL_BACKOFF_MS * Math.pow(2, Math.max(0, attemptCount - 1));
   return Math.min(MAX_BACKOFF_MS, computed);
@@ -60,7 +53,7 @@ export function createAnilistUpdateQueue(
 
   const persist = () => {
     try {
-      ensureDir(filePath);
+      ensureDirForFile(filePath);
       const payload: AnilistRetryQueuePayload = { pending, deadLetter };
       fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
     } catch (error) {
