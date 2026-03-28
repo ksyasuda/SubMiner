@@ -270,3 +270,7 @@ export function deleteSessionsByIds(db: DatabaseSync, sessionIds: number[]): voi
   );
   db.prepare(`DELETE FROM imm_sessions WHERE session_id IN (${placeholders})`).run(...sessionIds);
 }
+
+export function toDbMs(ms: number | bigint): bigint {
+  return BigInt(Math.trunc(Number(ms)));
+}

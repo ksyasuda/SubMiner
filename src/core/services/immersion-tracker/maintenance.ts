@@ -1,9 +1,6 @@
 import type { DatabaseSync } from './sqlite';
 import { nowMs } from './time';
-
-function toDbMs(ms: number | bigint): bigint {
-  return BigInt(Math.trunc(Number(ms)));
-}
+import { toDbMs } from './query-shared';
 
 const ROLLUP_STATE_KEY = 'last_rollup_sample_ms';
 const DAILY_MS = 86_400_000;

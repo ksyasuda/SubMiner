@@ -16,6 +16,7 @@ import {
   getAffectedWordIdsForSessions,
   getAffectedWordIdsForVideo,
   refreshLexicalAggregates,
+  toDbMs,
 } from './query-shared';
 
 type CleanupVocabularyRow = {
@@ -542,7 +543,4 @@ export function deleteVideo(db: DatabaseSync, videoId: number): void {
     db.exec('ROLLBACK');
     throw error;
   }
-}
-function toDbMs(ms: number | bigint): bigint {
-  return BigInt(Math.trunc(Number(ms)));
 }

@@ -4,10 +4,7 @@ import type { DatabaseSync } from './sqlite';
 import { nowMs } from './time';
 import { SCHEMA_VERSION } from './types';
 import type { QueuedWrite, VideoMetadata, YoutubeVideoMetadata } from './types';
-
-function toDbMs(ms: number | bigint): bigint {
-  return BigInt(Math.trunc(Number(ms)));
-}
+import { toDbMs } from './query-shared';
 
 export interface TrackerPreparedStatements {
   telemetryInsertStmt: ReturnType<DatabaseSync['prepare']>;

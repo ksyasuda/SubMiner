@@ -4,10 +4,7 @@ import { createInitialSessionState } from './reducer';
 import { nowMs } from './time';
 import { SESSION_STATUS_ACTIVE, SESSION_STATUS_ENDED } from './types';
 import type { SessionState } from './types';
-
-function toDbMs(ms: number | bigint): bigint {
-  return BigInt(Math.trunc(Number(ms)));
-}
+import { toDbMs } from './query-shared';
 
 export function startSessionRecord(
   db: DatabaseSync,
