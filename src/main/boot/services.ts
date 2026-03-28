@@ -1,3 +1,4 @@
+import { BrowserWindow } from 'electron';
 import { ConfigStartupParseError } from '../../config';
 
 export interface MainBootServicesParams<
@@ -37,7 +38,7 @@ export interface MainBootServicesParams<
   app: {
     setPath: (name: string, value: string) => void;
     quit: () => void;
-    on: (...args: any[]) => unknown;
+    on: (event: any, listener: (...args: unknown[]) => void) => any;
     whenReady: () => Promise<void>;
   };
   shouldBypassSingleInstanceLock: () => boolean;
@@ -58,7 +59,11 @@ export interface MainBootServicesParams<
   };
   createMainRuntimeRegistry: () => TRuntimeRegistry;
   createOverlayManager: () => TOverlayManager;
-  createOverlayModalInputState: (params: any) => TOverlayModalInputState;
+  createOverlayModalInputState: (params: {
+    getModalWindow: () => BrowserWindow | null;
+    syncOverlayShortcutsForModal: (isActive: boolean) => void;
+    syncOverlayVisibilityForModal: () => void;
+  }) => TOverlayModalInputState;
   createOverlayContentMeasurementStore: (params: {
     logger: TLogger;
   }) => TOverlayContentMeasurementStore;
@@ -118,7 +123,7 @@ export function createMainBootServices<
   TSubtitleWebSocket,
   TLogger,
   TRuntimeRegistry,
-  TOverlayManager extends { getModalWindow: () => unknown },
+  TOverlayManager extends { getModalWindow: () => BrowserWindow | null },
   TOverlayModalInputState,
   TOverlayContentMeasurementStore,
   TOverlayModalRuntime,
