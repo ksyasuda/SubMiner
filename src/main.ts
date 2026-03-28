@@ -101,8 +101,7 @@ import { AnkiIntegration } from './anki-integration';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { RuntimeOptionsManager } from './runtime-options';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
-import { createLogger, setLogLevel, type LogLevelSource } from './logger';
-import { resolveDefaultLogFilePath } from './logger';
+import { createLogger, setLogLevel, resolveDefaultLogFilePath, type LogLevelSource } from './logger';
 import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
 import {
   commandNeedsOverlayStartupPrereqs,
@@ -111,10 +110,11 @@ import {
   parseArgs,
   shouldRunSettingsOnlyStartup,
   shouldStartApp,
+  type CliArgs,
+  type CliCommandSource,
 } from './cli/args';
-import type { CliArgs, CliCommandSource } from './cli/args';
 import { printHelp } from './cli/help';
-import { IPC_CHANNELS } from './shared/ipc/contracts';
+import { IPC_CHANNELS, type OverlayHostedModal } from './shared/ipc/contracts';
 import {
   buildConfigParseErrorDetails,
   buildConfigWarningDialogDetails,
@@ -142,9 +142,9 @@ import {
   createGetDefaultSocketPathHandler,
   buildJellyfinSetupFormHtml,
   parseJellyfinSetupSubmissionUrl,
+  getConfiguredJellyfinSession,
+  type ActiveJellyfinRemotePlaybackState,
 } from './main/runtime/domains/jellyfin';
-import type { ActiveJellyfinRemotePlaybackState } from './main/runtime/domains/jellyfin';
-import { getConfiguredJellyfinSession } from './main/runtime/domains/jellyfin';
 import {
   createBuildConfigHotReloadMessageMainDepsHandler,
   createBuildConfigHotReloadAppliedMainDepsHandler,
@@ -404,7 +404,6 @@ import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
-import type { OverlayHostedModal } from './shared/ipc/contracts';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
   createFrequencyDictionaryRuntimeService,
@@ -466,8 +465,7 @@ import {
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
 import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
-import { createSubtitlePrefetchService } from './core/services/subtitle-prefetch';
-import type { SubtitlePrefetchService } from './core/services/subtitle-prefetch';
+import { createSubtitlePrefetchService, type SubtitlePrefetchService } from './core/services/subtitle-prefetch';
 import {
   buildSubtitleSidebarSourceKey,
   resolveSubtitleSourcePath,
