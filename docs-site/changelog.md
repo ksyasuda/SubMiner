@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.10.0 (2026-03-29)
+- Fixed stats startup so the immersion tracker can run when `Bun.serve` is unavailable.
+- Added a Node `http` fallback for Electron/runtime paths that do not expose Bun, so stats keeps working there too.
+- Updated Discord Rich Presence to the maintained `@xhayper/discord-rpc` wrapper.
+
 ## v0.9.3 (2026-03-25)
 - Moved YouTube primary subtitle language defaults to `youtube.primarySubLanguages`.
 - Removed the placeholder YouTube subtitle retime step; downloaded primary subtitle tracks are now used directly.

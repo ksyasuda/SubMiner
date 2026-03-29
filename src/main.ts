@@ -31,6 +31,7 @@ import {
   screen,
 } from 'electron';
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
+import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { mergeAiConfig } from './ai/config';
 
 function getPasswordStoreArg(argv: string[]): string | null {
@@ -1115,26 +1116,6 @@ const discordPresenceRuntime = createDiscordPresenceRuntime({
   },
 });
 
-function createDiscordRpcClient() {
-  const discordRpc = require('discord-rpc') as {
-    Client: new (opts: { transport: 'ipc' }) => {
-      login: (opts: { clientId: string }) => Promise<void>;
-      setActivity: (activity: Record<string, unknown>) => Promise<void>;
-      clearActivity: () => Promise<void>;
-      destroy: () => void;
-    };
-  };
-  const client = new discordRpc.Client({ transport: 'ipc' });
-
-  return {
-    login: () => client.login({ clientId: DISCORD_PRESENCE_APP_ID }),
-    setActivity: (activity: unknown) =>
-      client.setActivity(activity as unknown as Record<string, unknown>),
-    clearActivity: () => client.clearActivity(),
-    destroy: () => client.destroy(),
-  };
-}
-
 async function initializeDiscordPresenceService(): Promise<void> {
   if (getResolvedConfig().discordPresence.enabled !== true) {
     appState.discordPresenceService = null;
@@ -1143,7 +1124,7 @@ async function initializeDiscordPresenceService(): Promise<void> {
 
   appState.discordPresenceService = createDiscordPresenceService({
     config: getResolvedConfig().discordPresence,
-    createClient: () => createDiscordRpcClient(),
+    createClient: () => createDiscordRpcClient(DISCORD_PRESENCE_APP_ID),
     logDebug: (message, meta) => logger.debug(message, meta),
   });
   await appState.discordPresenceService.start();

@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.10.0 (2026-03-29)
+
+### Changed
+- Integrations: Replaced the deprecated Discord Rich Presence wrapper with the maintained `@xhayper/discord-rpc` package.
+
+### Fixed
+- Stats: Fixed stats startup so the immersion tracker can run when `Bun.serve` is unavailable.
+- Stats: Stats server now falls back to a Node `http` listener in Electron/runtime paths that do not expose Bun.
+
+### Internal
+- Release: Added a maintained source coverage lane that shards Bun coverage one test file at a time and merges LCOV output into `coverage/test-src/lcov.info`.
+- Release: CI and release quality-gate now upload the merged source-lane LCOV artifact for inspection.
+- Runtime: Extracted remaining inline runtime logic from `src/main.ts` into dedicated runtime modules and composer helpers.
+- Runtime: Added focused regression tests for the extracted runtime/composer boundaries.
+- Runtime: Updated task tracking notes to mark TASK-238.6 complete and confirm follow-on boot-phase split can be deferred.
+- Runtime: Split `src/main.ts` boot wiring into dedicated `src/main/boot/services.ts`, `src/main/boot/runtimes.ts`, and `src/main/boot/handlers.ts` modules.
+- Runtime: Added focused tests for the new boot-phase seams and kept the startup/typecheck/build verification lanes green.
+- Runtime: Updated internal architecture/task docs to record the boot-phase split and new ownership boundary.
+
 ## v0.9.3 (2026-03-25)
 
 ### Changed
