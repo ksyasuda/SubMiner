@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 
 type LaneConfig = {
   roots: string[];
@@ -83,6 +83,15 @@ function parseCoverageDirArg(argv: string[]): string {
     }
   }
   return 'coverage';
+}
+
+export function resolveCoverageDir(repoRootDir: string, argv: string[]): string {
+  const candidate = resolve(repoRootDir, parseCoverageDirArg(argv));
+  const rel = relative(repoRootDir, candidate);
+  if (isAbsolute(rel) || rel.startsWith('..')) {
+    throw new Error(`--coverage-dir must be within repository: ${candidate}`);
+  }
+  return candidate;
 }
 
 function parseLcovReport(report: string): LcovRecord[] {
@@ -251,7 +260,7 @@ function runCoverageLane(): number {
     return 1;
   }
 
-  const coverageDir = resolve(repoRoot, parseCoverageDirArg(process.argv.slice(3)));
+  const coverageDir = resolveCoverageDir(repoRoot, process.argv.slice(3));
   const shardRoot = join(coverageDir, '.shards');
   mkdirSync(coverageDir, { recursive: true });
   rmSync(shardRoot, { recursive: true, force: true });
@@ -260,37 +269,40 @@ function runCoverageLane(): number {
   const files = getLaneFiles(laneName);
   const reports: string[] = [];
 
-  for (const [index, file] of files.entries()) {
-    const shardDir = join(shardRoot, `${String(index + 1).padStart(3, '0')}`);
-    const result = spawnSync(
-      'bun',
-      ['test', '--coverage', '--coverage-reporter=lcov', '--coverage-dir', shardDir, `./${file}`],
-      {
-        cwd: repoRoot,
-        stdio: 'inherit',
-      },
-    );
+  try {
+    for (const [index, file] of files.entries()) {
+      const shardDir = join(shardRoot, `${String(index + 1).padStart(3, '0')}`);
+      const result = spawnSync(
+        'bun',
+        ['test', '--coverage', '--coverage-reporter=lcov', '--coverage-dir', shardDir, `./${file}`],
+        {
+          cwd: repoRoot,
+          stdio: 'inherit',
+        },
+      );
 
-    if (result.error) {
-      throw result.error;
-    }
-    if ((result.status ?? 1) !== 0) {
-      return result.status ?? 1;
+      if (result.error) {
+        throw result.error;
+      }
+      if ((result.status ?? 1) !== 0) {
+        return result.status ?? 1;
+      }
+
+      const lcovPath = join(shardDir, 'lcov.info');
+      if (!existsSync(lcovPath)) {
+        process.stdout.write(`Skipping empty coverage shard for ${file}\n`);
+        continue;
+      }
+
+      reports.push(readFileSync(lcovPath, 'utf8'));
     }
 
-    const lcovPath = join(shardDir, 'lcov.info');
-    if (!existsSync(lcovPath)) {
-      process.stdout.write(`Skipping empty coverage shard for ${file}\n`);
-      continue;
-    }
-
-    reports.push(readFileSync(lcovPath, 'utf8'));
+    writeFileSync(join(coverageDir, 'lcov.info'), mergeLcovReports(reports), 'utf8');
+    process.stdout.write(`Merged LCOV written to ${relative(repoRoot, join(coverageDir, 'lcov.info'))}\n`);
+    return 0;
+  } finally {
+    rmSync(shardRoot, { recursive: true, force: true });
   }
-
-  writeFileSync(join(coverageDir, 'lcov.info'), mergeLcovReports(reports), 'utf8');
-  rmSync(shardRoot, { recursive: true, force: true });
-  process.stdout.write(`Merged LCOV written to ${relative(repoRoot, join(coverageDir, 'lcov.info'))}\n`);
-  return 0;
 }
 
 if (require.main === module) {

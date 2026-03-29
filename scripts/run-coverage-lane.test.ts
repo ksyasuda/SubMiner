@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
 import test from 'node:test';
 
-import { mergeLcovReports } from './run-coverage-lane';
+import { mergeLcovReports, resolveCoverageDir } from './run-coverage-lane';
 
 test('mergeLcovReports combines duplicate source-file counters across shard outputs', () => {
   const merged = mergeLcovReports([
@@ -58,4 +59,16 @@ test('mergeLcovReports keeps distinct source files as separate records', () => {
 
   assert.match(merged, /SF:src\/a\.ts[\s\S]*end_of_record/);
   assert.match(merged, /SF:src\/b\.ts[\s\S]*end_of_record/);
+});
+
+test('resolveCoverageDir keeps coverage output inside the repository', () => {
+  const repoRoot = resolve('/tmp', 'subminer-repo-root');
+
+  assert.equal(resolveCoverageDir(repoRoot, []), resolve(repoRoot, 'coverage'));
+  assert.equal(
+    resolveCoverageDir(repoRoot, ['--coverage-dir', 'coverage/test-src']),
+    resolve(repoRoot, 'coverage/test-src'),
+  );
+  assert.throws(() => resolveCoverageDir(repoRoot, ['--coverage-dir', '../escape']));
+  assert.throws(() => resolveCoverageDir(repoRoot, ['--coverage-dir', '/tmp/escape']));
 });
