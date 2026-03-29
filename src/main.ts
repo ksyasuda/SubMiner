@@ -356,6 +356,7 @@ import {
 import {
   detectInstalledFirstRunPlugin,
   installFirstRunPluginToDefaultLocation,
+  syncInstalledFirstRunPluginBinaryPath,
 } from './main/runtime/first-run-setup-plugin';
 import {
   applyWindowsMpvShortcuts,
@@ -1036,6 +1037,12 @@ const resolveWindowsMpvShortcutRuntimePaths = () =>
     appDataDir: app.getPath('appData'),
     desktopDir: app.getPath('desktop'),
   });
+syncInstalledFirstRunPluginBinaryPath({
+  platform: process.platform,
+  homeDir: os.homedir(),
+  xdgConfigHome: process.env.XDG_CONFIG_HOME,
+  binaryPath: process.execPath,
+});
 const firstRunSetupService = createFirstRunSetupService({
   platform: process.platform,
   configDir: CONFIG_DIR,
@@ -1065,6 +1072,7 @@ const firstRunSetupService = createFirstRunSetupService({
       dirname: __dirname,
       appPath: app.getAppPath(),
       resourcesPath: process.resourcesPath,
+      binaryPath: process.execPath,
     }),
   detectWindowsMpvShortcuts: () => {
     if (process.platform !== 'win32') {
