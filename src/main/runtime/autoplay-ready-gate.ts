@@ -46,19 +46,6 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
     const duplicateMediaSignal = autoPlayReadySignalMediaPath === mediaPath;
     const allowDuplicateWhilePaused =
       options?.forceWhilePaused === true && deps.getPlaybackPaused() !== false;
-    if (duplicateMediaSignal && !allowDuplicateWhilePaused) {
-      return;
-    }
-
-    if (duplicateMediaSignal && allowDuplicateWhilePaused) {
-      deps.signalPluginAutoplayReady();
-      return;
-    }
-
-    autoPlayReadySignalMediaPath = mediaPath;
-    const playbackGeneration = ++autoPlayReadySignalGeneration;
-    deps.signalPluginAutoplayReady();
-
     const releaseRetryDelayMs = 200;
     const maxReleaseAttempts = resolveAutoplayReadyMaxReleaseAttempts({
       forceWhilePaused: options?.forceWhilePaused === true,
@@ -88,7 +75,7 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
       return true;
     };
 
-    const attemptRelease = (attempt: number): void => {
+    const attemptRelease = (playbackGeneration: number, attempt: number): void => {
       void (async () => {
         if (
           autoPlayReadySignalMediaPath !== mediaPath ||
@@ -100,7 +87,7 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
         const mpvClient = deps.getMpvClient();
         if (!mpvClient?.connected) {
           if (attempt < maxReleaseAttempts) {
-            deps.schedule(() => attemptRelease(attempt + 1), releaseRetryDelayMs);
+            deps.schedule(() => attemptRelease(playbackGeneration, attempt + 1), releaseRetryDelayMs);
           }
           return;
         }
@@ -110,15 +97,27 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
           return;
         }
 
-        deps.signalPluginAutoplayReady();
         mpvClient.send({ command: ['set_property', 'pause', false] });
         if (attempt < maxReleaseAttempts) {
-          deps.schedule(() => attemptRelease(attempt + 1), releaseRetryDelayMs);
+          deps.schedule(() => attemptRelease(playbackGeneration, attempt + 1), releaseRetryDelayMs);
         }
       })();
     };
 
-    attemptRelease(0);
+    if (duplicateMediaSignal && !allowDuplicateWhilePaused) {
+      return;
+    }
+
+    if (!duplicateMediaSignal) {
+      autoPlayReadySignalMediaPath = mediaPath;
+      const playbackGeneration = ++autoPlayReadySignalGeneration;
+      deps.signalPluginAutoplayReady();
+      attemptRelease(playbackGeneration, 0);
+      return;
+    }
+
+    const playbackGeneration = ++autoPlayReadySignalGeneration;
+    attemptRelease(playbackGeneration, 0);
   };
 
   return {

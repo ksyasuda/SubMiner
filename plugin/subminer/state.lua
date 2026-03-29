@@ -32,6 +32,7 @@ function M.new()
 		auto_play_ready_gate_armed = false,
 		auto_play_ready_timeout = nil,
 		auto_play_ready_osd_timer = nil,
+		suppress_ready_overlay_restore = false,
 	}
 end
 

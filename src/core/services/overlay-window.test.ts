@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   handleOverlayWindowBeforeInputEvent,
+  handleOverlayWindowBlurred,
   isTabInputForMpvForwarding,
 } from './overlay-window-input';
 
@@ -81,4 +82,59 @@ test('handleOverlayWindowBeforeInputEvent leaves modal Tab handling alone', () =
 
   assert.equal(handled, false);
   assert.deepEqual(calls, []);
+});
+
+test('handleOverlayWindowBlurred skips visible overlay restacking after manual hide', () => {
+  const calls: string[] = [];
+
+  const handled = handleOverlayWindowBlurred({
+    kind: 'visible',
+    windowVisible: true,
+    isOverlayVisible: () => false,
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    moveWindowTop: () => {
+      calls.push('move-top');
+    },
+  });
+
+  assert.equal(handled, false);
+  assert.deepEqual(calls, []);
+});
+
+test('handleOverlayWindowBlurred preserves active visible/modal window stacking', () => {
+  const calls: string[] = [];
+
+  assert.equal(
+    handleOverlayWindowBlurred({
+      kind: 'visible',
+      windowVisible: true,
+      isOverlayVisible: () => true,
+      ensureOverlayWindowLevel: () => {
+        calls.push('ensure-visible');
+      },
+      moveWindowTop: () => {
+        calls.push('move-visible');
+      },
+    }),
+    true,
+  );
+
+  assert.equal(
+    handleOverlayWindowBlurred({
+      kind: 'modal',
+      windowVisible: true,
+      isOverlayVisible: () => false,
+      ensureOverlayWindowLevel: () => {
+        calls.push('ensure-modal');
+      },
+      moveWindowTop: () => {
+        calls.push('move-modal');
+      },
+    }),
+    true,
+  );
+
+  assert.deepEqual(calls, ['ensure-visible', 'move-visible', 'ensure-modal']);
 });

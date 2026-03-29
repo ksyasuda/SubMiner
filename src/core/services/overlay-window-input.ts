@@ -59,3 +59,21 @@ export function handleOverlayWindowBeforeInputEvent(options: {
   options.preventDefault();
   return true;
 }
+
+export function handleOverlayWindowBlurred(options: {
+  kind: OverlayWindowKind;
+  windowVisible: boolean;
+  isOverlayVisible: (kind: OverlayWindowKind) => boolean;
+  ensureOverlayWindowLevel: () => void;
+  moveWindowTop: () => void;
+}): boolean {
+  if (options.kind === 'visible' && !options.isOverlayVisible(options.kind)) {
+    return false;
+  }
+
+  options.ensureOverlayWindowLevel();
+  if (options.kind === 'visible' && options.windowVisible) {
+    options.moveWindowTop();
+  }
+  return true;
+}

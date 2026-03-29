@@ -5,6 +5,7 @@ import { createLogger } from '../../logger';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import {
   handleOverlayWindowBeforeInputEvent,
+  handleOverlayWindowBlurred,
   type OverlayWindowKind,
 } from './overlay-window-input';
 import { buildOverlayWindowOptions } from './overlay-window-options';
@@ -124,12 +125,18 @@ export function createOverlayWindow(
   });
 
   window.on('blur', () => {
-    if (!window.isDestroyed()) {
-      options.ensureOverlayWindowLevel(window);
-      if (kind === 'visible' && window.isVisible()) {
+    if (window.isDestroyed()) return;
+    handleOverlayWindowBlurred({
+      kind,
+      windowVisible: window.isVisible(),
+      isOverlayVisible: options.isOverlayVisible,
+      ensureOverlayWindowLevel: () => {
+        options.ensureOverlayWindowLevel(window);
+      },
+      moveWindowTop: () => {
         window.moveTop();
-      }
-    }
+      },
+    });
   });
 
   if (options.isDev && kind === 'visible') {
