@@ -6,6 +6,7 @@ test('youtube playback runtime resets flow ownership after a successful run', as
   const calls: string[] = [];
   let appOwnedFlowInFlight = false;
   let timeoutCallback: (() => void) | null = null;
+  let socketPath = '/tmp/mpv.sock';
 
   const runtime = createYoutubePlaybackRuntime({
     platform: 'linux',
@@ -13,7 +14,7 @@ test('youtube playback runtime resets flow ownership after a successful run', as
     mpvYtdlFormat: 'bestvideo+bestaudio',
     autoLaunchTimeoutMs: 2_000,
     connectTimeoutMs: 1_000,
-    socketPath: '/tmp/mpv.sock',
+    getSocketPath: () => socketPath,
     getMpvConnected: () => true,
     invalidatePendingAutoplayReadyFallbacks: () => {
       calls.push('invalidate-autoplay');
@@ -77,4 +78,71 @@ test('youtube playback runtime resets flow ownership after a successful run', as
   const scheduledCallback = timeoutCallback as () => void;
   scheduledCallback();
   assert.equal(runtime.getQuitOnDisconnectArmed(), true);
+});
+
+test('youtube playback runtime resolves the socket path lazily for windows startup', async () => {
+  const calls: string[] = [];
+  let socketPath = '/tmp/initial.sock';
+
+  const runtime = createYoutubePlaybackRuntime({
+    platform: 'win32',
+    directPlaybackFormat: 'best',
+    mpvYtdlFormat: 'bestvideo+bestaudio',
+    autoLaunchTimeoutMs: 2_000,
+    connectTimeoutMs: 1_000,
+    getSocketPath: () => socketPath,
+    getMpvConnected: () => false,
+    invalidatePendingAutoplayReadyFallbacks: () => {
+      calls.push('invalidate-autoplay');
+    },
+    setAppOwnedFlowInFlight: (next) => {
+      calls.push(`app-owned:${next}`);
+    },
+    ensureYoutubePlaybackRuntimeReady: async () => {
+      calls.push('ensure-runtime-ready');
+    },
+    resolveYoutubePlaybackUrl: async (url, format) => {
+      calls.push(`resolve:${url}:${format}`);
+      return 'https://example.com/direct';
+    },
+    launchWindowsMpv: (_playbackUrl, args) => {
+      calls.push(`launch:${args.join(' ')}`);
+      return { ok: true, mpvPath: '/usr/bin/mpv' };
+    },
+    waitForYoutubeMpvConnected: async (timeoutMs) => {
+      calls.push(`wait-connected:${timeoutMs}`);
+      return true;
+    },
+    prepareYoutubePlaybackInMpv: async ({ url }) => {
+      calls.push(`prepare:${url}`);
+      return true;
+    },
+    runYoutubePlaybackFlow: async ({ url, mode }) => {
+      calls.push(`run-flow:${url}:${mode}`);
+    },
+    logInfo: (message) => {
+      calls.push(`info:${message}`);
+    },
+    logWarn: (message) => {
+      calls.push(`warn:${message}`);
+    },
+    schedule: (callback) => {
+      calls.push('schedule-arm');
+      callback();
+      return 1 as never;
+    },
+    clearScheduled: () => {
+      calls.push('clear-scheduled');
+    },
+  });
+
+  socketPath = '/tmp/updated.sock';
+
+  await runtime.runYoutubePlaybackFlow({
+    url: 'https://youtu.be/demo',
+    mode: 'download',
+    source: 'initial',
+  });
+
+  assert.ok(calls.some((entry) => entry.includes('--input-ipc-server=/tmp/updated.sock')));
 });

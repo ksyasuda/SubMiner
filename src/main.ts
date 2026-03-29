@@ -1003,7 +1003,7 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   mpvYtdlFormat: YOUTUBE_MPV_YTDL_FORMAT,
   autoLaunchTimeoutMs: YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS,
   connectTimeoutMs: YOUTUBE_MPV_CONNECT_TIMEOUT_MS,
-  socketPath: appState.mpvSocketPath,
+  getSocketPath: () => appState.mpvSocketPath,
   getMpvConnected: () => Boolean(appState.mpvClient?.connected),
   invalidatePendingAutoplayReadyFallbacks: () =>
     autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks(),

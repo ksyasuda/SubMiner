@@ -11,7 +11,7 @@ export type YoutubePlaybackRuntimeDeps = {
   mpvYtdlFormat: string;
   autoLaunchTimeoutMs: number;
   connectTimeoutMs: number;
-  socketPath: string;
+  getSocketPath: () => string;
   getMpvConnected: () => boolean;
   invalidatePendingAutoplayReadyFallbacks: () => void;
   setAppOwnedFlowInFlight: (next: boolean) => void;
@@ -76,6 +76,7 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
       }
 
       if (deps.platform === 'win32' && !deps.getMpvConnected()) {
+        const socketPath = deps.getSocketPath();
         const launchResult = deps.launchWindowsMpv(playbackUrl, [
           '--pause=yes',
           '--ytdl=yes',
@@ -87,7 +88,7 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
           '--secondary-sub-visibility=no',
           '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
           '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-          `--input-ipc-server=${deps.socketPath}`,
+          `--input-ipc-server=${socketPath}`,
         ]);
         launchedWindowsMpv = launchResult.ok;
         if (launchResult.ok && launchResult.mpvPath) {
