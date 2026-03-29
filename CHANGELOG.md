@@ -8,6 +8,8 @@
 ### Fixed
 - Stats: Fixed stats startup so the immersion tracker can run when `Bun.serve` is unavailable.
 - Stats: Stats server now falls back to a Node `http` listener in Electron/runtime paths that do not expose Bun.
+- Overlay: Fixed the macOS visible-overlay toggle path so manual hides stay hidden and the plugin uses the explicit visible-overlay toggle command.
+- Subtitle Sidebar: Restored macOS mpv passthrough while the overlay subtitle sidebar is open so clicks outside the sidebar can refocus mpv and keep native keybindings working.
 
 ### Internal
 - Release: Added a maintained source coverage lane that shards Bun coverage one test file at a time and merges LCOV output into `coverage/test-src/lcov.info`.

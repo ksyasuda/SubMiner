@@ -518,6 +518,26 @@ test('popup-visible mpv keybindings still fire for bound keys', async () => {
   }
 });
 
+test('visible-layer y-t dispatches mpv plugin toggle while overlay owns focus', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchKeydown({ key: 'y', code: 'KeyY' });
+    testGlobals.dispatchKeydown({ key: 't', code: 'KeyT' });
+
+    assert.equal(
+      testGlobals.mpvCommands.some(
+        (command) => command[0] === 'script-message' && command[1] === 'subminer-toggle',
+      ),
+      true,
+    );
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: controller helpers dispatch popup audio play/cycle and scroll bridge commands', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 

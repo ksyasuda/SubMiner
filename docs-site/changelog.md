@@ -4,6 +4,8 @@
 - Fixed stats startup so the immersion tracker can run when `Bun.serve` is unavailable.
 - Added a Node `http` fallback for Electron/runtime paths that do not expose Bun, so stats keeps working there too.
 - Updated Discord Rich Presence to the maintained `@xhayper/discord-rpc` wrapper.
+- Fixed the macOS visible-overlay toggle path so manual hides stay hidden and the plugin uses the explicit visible-overlay toggle command.
+- Restored macOS mpv passthrough while the overlay subtitle sidebar is open so clicks outside the sidebar can refocus mpv and keep native keybindings working.
 
 ## v0.9.3 (2026-03-25)
 - Moved YouTube primary subtitle language defaults to `youtube.primarySubLanguages`.
