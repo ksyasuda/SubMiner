@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { ensureDir } from '../../shared/fs-utils';
 import type { AnilistCharacterDictionaryProfileScope } from '../../types';
 import type {
   CharacterDictionarySnapshotProgressCallbacks,
@@ -61,12 +62,6 @@ export interface CharacterDictionaryAutoSyncRuntimeDeps {
   logWarn?: (message: string) => void;
   onSyncStatus?: (event: CharacterDictionaryAutoSyncStatusEvent) => void;
   onSyncComplete?: (result: { mediaId: number; mediaTitle: string; changed: boolean }) => void;
-}
-
-function ensureDir(dirPath: string): void {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-  }
 }
 
 function normalizeMediaId(rawMediaId: number): number | null {

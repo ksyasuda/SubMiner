@@ -1,8 +1,4 @@
-import type {
-  SubtitleCue,
-  SubtitleData,
-  SubtitleSidebarSnapshot,
-} from '../../types';
+import type { SubtitleCue, SubtitleData, SubtitleSidebarSnapshot } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 
@@ -76,8 +72,7 @@ export function findActiveSubtitleCueIndex(
   if (typeof currentTimeSec === 'number' && Number.isFinite(currentTimeSec)) {
     const activeOrUpcomingCue = cues.findIndex(
       (cue) =>
-        cue.endTime > currentTimeSec &&
-        cue.startTime <= currentTimeSec + ACTIVE_CUE_LOOKAHEAD_SEC,
+        cue.endTime > currentTimeSec && cue.startTime <= currentTimeSec + ACTIVE_CUE_LOOKAHEAD_SEC,
     );
     if (activeOrUpcomingCue >= 0) {
       return activeOrUpcomingCue;
@@ -109,8 +104,7 @@ export function findActiveSubtitleCueIndex(
     return -1;
   }
 
-  const hasTiming =
-    typeof current.startTime === 'number' && Number.isFinite(current.startTime);
+  const hasTiming = typeof current.startTime === 'number' && Number.isFinite(current.startTime);
 
   if (preferredCueIndex >= 0) {
     if (!hasTiming && currentTimeSec === null) {
@@ -149,9 +143,21 @@ export function createSubtitleSidebarModal(
   let lastAppliedVideoMarginRatio: number | null = null;
   let subtitleSidebarHoverRequestId = 0;
   let disposeDomEvents: (() => void) | null = null;
+  let subtitleSidebarHovered = false;
+  let subtitleSidebarFocusedWithin = false;
 
   function restoreEmbeddedSidebarPassthrough(): void {
     syncOverlayMouseIgnoreState(ctx);
+  }
+
+  function syncSidebarInteractionState(): void {
+    ctx.state.isOverSubtitleSidebar = subtitleSidebarHovered || subtitleSidebarFocusedWithin;
+  }
+
+  function clearSidebarInteractionState(): void {
+    subtitleSidebarHovered = false;
+    subtitleSidebarFocusedWithin = false;
+    syncSidebarInteractionState();
   }
 
   function setStatus(message: string): void {
@@ -213,16 +219,8 @@ export function createSubtitleSidebarModal(
       'video-margin-ratio-right',
       Number(ratio.toFixed(4)),
     ]);
-    window.electronAPI.sendMpvCommand([
-      'set_property',
-      'osd-align-x',
-      'left',
-    ]);
-    window.electronAPI.sendMpvCommand([
-      'set_property',
-      'osd-align-y',
-      'top',
-    ]);
+    window.electronAPI.sendMpvCommand(['set_property', 'osd-align-x', 'left']);
+    window.electronAPI.sendMpvCommand(['set_property', 'osd-align-y', 'top']);
     window.electronAPI.sendMpvCommand([
       'set_property',
       'user-data/osc/margins',
@@ -302,13 +300,14 @@ export function createSubtitleSidebarModal(
     }
 
     const list = ctx.dom.subtitleSidebarList;
-    const active = list.children[ctx.state.subtitleSidebarActiveCueIndex] as HTMLElement | undefined;
+    const active = list.children[ctx.state.subtitleSidebarActiveCueIndex] as
+      | HTMLElement
+      | undefined;
     if (!active) {
       return;
     }
 
-    const targetScrollTop =
-      active.offsetTop - (list.clientHeight - active.clientHeight) / 2;
+    const targetScrollTop = active.offsetTop - (list.clientHeight - active.clientHeight) / 2;
     const nextScrollTop = Math.max(0, targetScrollTop);
     if (previousActiveCueIndex < 0) {
       list.scrollTop = nextScrollTop;
@@ -363,9 +362,9 @@ export function createSubtitleSidebarModal(
     }
 
     if (ctx.state.subtitleSidebarActiveCueIndex >= 0) {
-      const current = ctx.dom.subtitleSidebarList.children[ctx.state.subtitleSidebarActiveCueIndex] as
-        | HTMLElement
-        | undefined;
+      const current = ctx.dom.subtitleSidebarList.children[
+        ctx.state.subtitleSidebarActiveCueIndex
+      ] as HTMLElement | undefined;
       current?.classList.add('active');
     }
   }
@@ -392,6 +391,7 @@ export function createSubtitleSidebarModal(
     applyConfig(snapshot);
     if (!snapshot.config.enabled) {
       resumeSubtitleSidebarHoverPause();
+      clearSidebarInteractionState();
       ctx.state.subtitleSidebarCues = [];
       ctx.state.subtitleSidebarModalOpen = false;
       ctx.dom.subtitleSidebarModal.classList.add('hidden');
@@ -463,7 +463,7 @@ export function createSubtitleSidebarModal(
     }
 
     ctx.state.subtitleSidebarModalOpen = true;
-    ctx.state.isOverSubtitleSidebar = false;
+    clearSidebarInteractionState();
     ctx.dom.subtitleSidebarModal.classList.remove('hidden');
     ctx.dom.subtitleSidebarModal.setAttribute('aria-hidden', 'false');
     renderCueList();
@@ -476,7 +476,11 @@ export function createSubtitleSidebarModal(
 
   async function autoOpenSubtitleSidebarOnStartup(): Promise<void> {
     const snapshot = await refreshSnapshot();
-    if (!snapshot.config.enabled || !snapshot.config.autoOpen || ctx.state.subtitleSidebarModalOpen) {
+    if (
+      !snapshot.config.enabled ||
+      !snapshot.config.autoOpen ||
+      ctx.state.subtitleSidebarModalOpen
+    ) {
       return;
     }
     await openSubtitleSidebarModal();
@@ -487,7 +491,7 @@ export function createSubtitleSidebarModal(
       return;
     }
     resumeSubtitleSidebarHoverPause();
-    ctx.state.isOverSubtitleSidebar = false;
+    clearSidebarInteractionState();
     ctx.state.subtitleSidebarModalOpen = false;
     ctx.dom.subtitleSidebarModal.classList.add('hidden');
     ctx.dom.subtitleSidebarModal.setAttribute('aria-hidden', 'true');
@@ -512,10 +516,7 @@ export function createSubtitleSidebarModal(
       return;
     }
 
-    updateActiveCue(
-      { text: data.text, startTime: data.startTime },
-      data.startTime ?? null,
-    );
+    updateActiveCue({ text: data.text, startTime: data.startTime }, data.startTime ?? null);
   }
 
   function wireDomEvents(): void {
@@ -548,8 +549,9 @@ export function createSubtitleSidebarModal(
     ctx.dom.subtitleSidebarList.addEventListener('wheel', () => {
       ctx.state.subtitleSidebarManualScrollUntilMs = Date.now() + MANUAL_SCROLL_HOLD_MS;
     });
-    ctx.dom.subtitleSidebarModal.addEventListener('mouseenter', async () => {
-      ctx.state.isOverSubtitleSidebar = true;
+    ctx.dom.subtitleSidebarContent.addEventListener('mouseenter', async () => {
+      subtitleSidebarHovered = true;
+      syncSidebarInteractionState();
       restoreEmbeddedSidebarPassthrough();
       if (!ctx.state.subtitleSidebarPauseVideoOnHover || ctx.state.subtitleSidebarPausedByHover) {
         return;
@@ -569,8 +571,36 @@ export function createSubtitleSidebarModal(
         ctx.state.subtitleSidebarPausedByHover = true;
       }
     });
-    ctx.dom.subtitleSidebarModal.addEventListener('mouseleave', () => {
-      ctx.state.isOverSubtitleSidebar = false;
+    ctx.dom.subtitleSidebarContent.addEventListener('mouseleave', () => {
+      subtitleSidebarHovered = false;
+      syncSidebarInteractionState();
+      if (ctx.state.isOverSubtitleSidebar) {
+        restoreEmbeddedSidebarPassthrough();
+        return;
+      }
+      resumeSubtitleSidebarHoverPause();
+    });
+    ctx.dom.subtitleSidebarContent.addEventListener('focusin', () => {
+      subtitleSidebarFocusedWithin = true;
+      syncSidebarInteractionState();
+      restoreEmbeddedSidebarPassthrough();
+    });
+    ctx.dom.subtitleSidebarContent.addEventListener('focusout', (event: FocusEvent) => {
+      const relatedTarget = event.relatedTarget;
+      if (
+        typeof Node !== 'undefined' &&
+        relatedTarget instanceof Node &&
+        ctx.dom.subtitleSidebarContent.contains(relatedTarget)
+      ) {
+        return;
+      }
+
+      subtitleSidebarFocusedWithin = false;
+      syncSidebarInteractionState();
+      if (ctx.state.isOverSubtitleSidebar) {
+        restoreEmbeddedSidebarPassthrough();
+        return;
+      }
       resumeSubtitleSidebarHoverPause();
     });
     const resizeHandler = () => {

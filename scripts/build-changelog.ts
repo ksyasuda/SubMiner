@@ -354,11 +354,7 @@ export function writeChangelogArtifacts(options?: ChangelogOptions): {
       log(`Removed ${fragment.path}`);
     }
 
-    const releaseNotesPath = writeReleaseNotesFile(
-      cwd,
-      existingReleaseSection,
-      options?.deps,
-    );
+    const releaseNotesPath = writeReleaseNotesFile(cwd, existingReleaseSection, options?.deps);
     log(`Generated ${releaseNotesPath}`);
 
     return {

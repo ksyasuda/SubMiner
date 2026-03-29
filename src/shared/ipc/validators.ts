@@ -1,17 +1,17 @@
+import type { KikuFieldGroupingChoice, KikuMergePreviewRequest } from '../../types/anki';
 import type {
-  ControllerConfigUpdate,
-  ControllerPreferenceUpdate,
   JimakuDownloadQuery,
   JimakuFilesQuery,
   JimakuSearchQuery,
-  KikuFieldGroupingChoice,
-  KikuMergePreviewRequest,
-  RuntimeOptionId,
-  RuntimeOptionValue,
-  SubtitlePosition,
-  SubsyncManualRunRequest,
   YoutubePickerResolveRequest,
-} from '../../types';
+} from '../../types/integrations';
+import type {
+  ControllerConfigUpdate,
+  ControllerPreferenceUpdate,
+  SubsyncManualRunRequest,
+} from '../../types/runtime';
+import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-options';
+import type { SubtitlePosition } from '../../types/subtitle';
 import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
 
 const RUNTIME_OPTION_IDS: RuntimeOptionId[] = [
@@ -255,7 +255,9 @@ export function parseJimakuDownloadQuery(value: unknown): JimakuDownloadQuery | 
   };
 }
 
-export function parseYoutubePickerResolveRequest(value: unknown): YoutubePickerResolveRequest | null {
+export function parseYoutubePickerResolveRequest(
+  value: unknown,
+): YoutubePickerResolveRequest | null {
   if (!isObject(value)) return null;
   if (typeof value.sessionId !== 'string' || !value.sessionId.trim()) return null;
   if (value.action !== 'use-selected' && value.action !== 'continue-without-subtitles') return null;
@@ -270,7 +272,11 @@ export function parseYoutubePickerResolveRequest(value: unknown): YoutubePickerR
       secondaryTrackId: null,
     };
   }
-  if (value.primaryTrackId !== null && value.primaryTrackId !== undefined && typeof value.primaryTrackId !== 'string') {
+  if (
+    value.primaryTrackId !== null &&
+    value.primaryTrackId !== undefined &&
+    typeof value.primaryTrackId !== 'string'
+  ) {
     return null;
   }
   if (

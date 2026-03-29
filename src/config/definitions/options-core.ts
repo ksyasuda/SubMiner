@@ -1,4 +1,4 @@
-import { ResolvedConfig } from '../../types';
+import { ResolvedConfig } from '../../types/config';
 import { ConfigOptionRegistryEntry } from './shared';
 
 export function buildCoreConfigOptionRegistry(
@@ -263,7 +263,8 @@ export function buildCoreConfigOptionRegistry(
       {
         path: `controller.bindings.${binding.id}.axisIndex`,
         kind: 'number' as const,
-        defaultValue: binding.defaultValue.kind === 'axis' ? binding.defaultValue.axisIndex : undefined,
+        defaultValue:
+          binding.defaultValue.kind === 'axis' ? binding.defaultValue.axisIndex : undefined,
         description: 'Raw axis index captured for this discrete controller action.',
       },
       {
@@ -293,7 +294,8 @@ export function buildCoreConfigOptionRegistry(
       {
         path: `controller.bindings.${binding.id}.axisIndex`,
         kind: 'number' as const,
-        defaultValue: binding.defaultValue.kind === 'axis' ? binding.defaultValue.axisIndex : undefined,
+        defaultValue:
+          binding.defaultValue.kind === 'axis' ? binding.defaultValue.axisIndex : undefined,
         description: 'Raw axis index captured for this analog controller action.',
       },
       {
@@ -302,7 +304,8 @@ export function buildCoreConfigOptionRegistry(
         enumValues: ['none', 'horizontal', 'vertical'],
         defaultValue:
           binding.defaultValue.kind === 'axis' ? binding.defaultValue.dpadFallback : undefined,
-        description: 'Optional D-pad fallback used when this analog controller action should also read D-pad input.',
+        description:
+          'Optional D-pad fallback used when this analog controller action should also read D-pad input.',
       },
     ]),
     {

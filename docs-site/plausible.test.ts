@@ -6,14 +6,17 @@ const docsThemePath = new URL('./.vitepress/theme/index.ts', import.meta.url);
 const docsConfigContents = readFileSync(docsConfigPath, 'utf8');
 const docsThemeContents = readFileSync(docsThemePath, 'utf8');
 
-test('docs site keeps docs hostname while sending plausible events to subminer.moe via worker.subminer.moe', () => {
+test('docs site keeps docs hostname while sending plausible events to subminer.moe via worker.subminer.moe capture endpoint', () => {
   expect(docsConfigContents).toContain("hostname: 'https://docs.subminer.moe'");
   expect(docsThemeContents).toContain("const PLAUSIBLE_DOMAIN = 'subminer.moe'");
+  expect(docsThemeContents).toContain('const PLAUSIBLE_ENABLED_HOSTNAMES = new Set([');
+  expect(docsThemeContents).toContain("'docs.subminer.moe'");
   expect(docsThemeContents).toContain(
-    "const PLAUSIBLE_ENDPOINT = 'https://worker.subminer.moe/api/event'",
+    "const PLAUSIBLE_ENDPOINT = 'https://worker.subminer.moe/api/capture'",
   );
   expect(docsThemeContents).toContain('@plausible-analytics/tracker');
   expect(docsThemeContents).toContain('const { init } = await import');
+  expect(docsThemeContents).toContain('!PLAUSIBLE_ENABLED_HOSTNAMES.has(window.location.hostname)');
   expect(docsThemeContents).toContain('domain: PLAUSIBLE_DOMAIN');
   expect(docsThemeContents).toContain('endpoint: PLAUSIBLE_ENDPOINT');
   expect(docsThemeContents).toContain('outboundLinks: true');

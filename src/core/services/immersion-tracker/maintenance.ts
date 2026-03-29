@@ -1,4 +1,6 @@
 import type { DatabaseSync } from './sqlite';
+import { nowMs } from './time';
+import { toDbMs } from './query-shared';
 
 const ROLLUP_STATE_KEY = 'last_rollup_sample_ms';
 const DAILY_MS = 86_400_000;
@@ -25,38 +27,53 @@ interface RawRetentionResult {
 }
 
 export function toMonthKey(timestampMs: number): number {
-  const monthDate = new Date(timestampMs);
-  return monthDate.getUTCFullYear() * 100 + monthDate.getUTCMonth() + 1;
+  const epochDay = Math.floor(timestampMs / DAILY_MS);
+  const z = epochDay + 719468;
+  const era = Math.floor(z / 146097);
+  const doe = z - era * 146097;
+  const yoe = Math.floor(
+    (doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365,
+  );
+  let year = yoe + era * 400;
+  const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
+  const mp = Math.floor((5 * doy + 2) / 153);
+  const month = mp + (mp < 10 ? 3 : -9);
+  if (month <= 2) {
+    year += 1;
+  }
+  return year * 100 + month;
 }
 
 export function pruneRawRetention(
   db: DatabaseSync,
-  nowMs: number,
+  currentMs: number,
   policy: {
     eventsRetentionMs: number;
     telemetryRetentionMs: number;
     sessionsRetentionMs: number;
   },
 ): RawRetentionResult {
-  const eventCutoff = nowMs - policy.eventsRetentionMs;
-  const telemetryCutoff = nowMs - policy.telemetryRetentionMs;
-  const sessionsCutoff = nowMs - policy.sessionsRetentionMs;
-
-  const deletedSessionEvents = (
-    db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(eventCutoff) as {
-      changes: number;
-    }
-  ).changes;
-  const deletedTelemetryRows = (
-    db.prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`).run(telemetryCutoff) as {
-      changes: number;
-    }
-  ).changes;
-  const deletedEndedSessions = (
-    db
-      .prepare(`DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`)
-      .run(sessionsCutoff) as { changes: number }
-  ).changes;
+  const deletedSessionEvents = Number.isFinite(policy.eventsRetentionMs)
+    ? (
+        db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(
+          toDbMs(currentMs - policy.eventsRetentionMs),
+        ) as { changes: number }
+      ).changes
+    : 0;
+  const deletedTelemetryRows = Number.isFinite(policy.telemetryRetentionMs)
+    ? (
+        db
+          .prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`)
+          .run(toDbMs(currentMs - policy.telemetryRetentionMs)) as { changes: number }
+      ).changes
+    : 0;
+  const deletedEndedSessions = Number.isFinite(policy.sessionsRetentionMs)
+    ? (
+        db
+          .prepare(`DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`)
+          .run(toDbMs(currentMs - policy.sessionsRetentionMs)) as { changes: number }
+      ).changes
+    : 0;
 
   return {
     deletedSessionEvents,
@@ -67,7 +84,7 @@ export function pruneRawRetention(
 
 export function pruneRollupRetention(
   db: DatabaseSync,
-  nowMs: number,
+  currentMs: number,
   policy: {
     dailyRollupRetentionMs: number;
     monthlyRollupRetentionMs: number;
@@ -77,7 +94,7 @@ export function pruneRollupRetention(
     ? (
         db
           .prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day < ?`)
-          .run(Math.floor((nowMs - policy.dailyRollupRetentionMs) / DAILY_MS)) as {
+          .run(Math.floor((currentMs - policy.dailyRollupRetentionMs) / DAILY_MS)) as {
           changes: number;
         }
       ).changes
@@ -86,7 +103,7 @@ export function pruneRollupRetention(
     ? (
         db
           .prepare(`DELETE FROM imm_monthly_rollups WHERE rollup_month < ?`)
-          .run(toMonthKey(nowMs - policy.monthlyRollupRetentionMs)) as {
+          .run(toMonthKey(currentMs - policy.monthlyRollupRetentionMs)) as {
           changes: number;
         }
       ).changes
@@ -105,7 +122,7 @@ function getLastRollupSampleMs(db: DatabaseSync): number {
   return row ? Number(row.state_value) : ZERO_ID;
 }
 
-function setLastRollupSampleMs(db: DatabaseSync, sampleMs: number): void {
+function setLastRollupSampleMs(db: DatabaseSync, sampleMs: number | bigint): void {
   db.prepare(
     `INSERT INTO imm_rollup_state (state_key, state_value)
        VALUES (?, ?)
@@ -124,7 +141,7 @@ function resetRollups(db: DatabaseSync): void {
 function upsertDailyRollupsForGroups(
   db: DatabaseSync,
   groups: Array<{ rollupDay: number; videoId: number }>,
-  rollupNowMs: number,
+  rollupNowMs: bigint,
 ): void {
   if (groups.length === 0) {
     return;
@@ -140,29 +157,32 @@ function upsertDailyRollupsForGroups(
       CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS rollup_day,
       s.video_id AS video_id,
       COUNT(DISTINCT s.session_id) AS total_sessions,
-      COALESCE(SUM(sm.max_active_ms), 0) / 60000.0 AS total_active_min,
-      COALESCE(SUM(sm.max_lines), 0) AS total_lines_seen,
-      COALESCE(SUM(sm.max_tokens), 0) AS total_tokens_seen,
-      COALESCE(SUM(sm.max_cards), 0) AS total_cards,
+      COALESCE(SUM(COALESCE(sm.max_active_ms, s.active_watched_ms)), 0) / 60000.0 AS total_active_min,
+      COALESCE(SUM(COALESCE(sm.max_lines, s.lines_seen)), 0) AS total_lines_seen,
+      COALESCE(SUM(COALESCE(sm.max_tokens, s.tokens_seen)), 0) AS total_tokens_seen,
+      COALESCE(SUM(COALESCE(sm.max_cards, s.cards_mined)), 0) AS total_cards,
       CASE
-        WHEN COALESCE(SUM(sm.max_active_ms), 0) > 0
-          THEN (COALESCE(SUM(sm.max_cards), 0) * 60.0) / (COALESCE(SUM(sm.max_active_ms), 0) / 60000.0)
+        WHEN COALESCE(SUM(COALESCE(sm.max_active_ms, s.active_watched_ms)), 0) > 0
+          THEN (COALESCE(SUM(COALESCE(sm.max_cards, s.cards_mined)), 0) * 60.0)
+            / (COALESCE(SUM(COALESCE(sm.max_active_ms, s.active_watched_ms)), 0) / 60000.0)
         ELSE NULL
       END AS cards_per_hour,
       CASE
-        WHEN COALESCE(SUM(sm.max_active_ms), 0) > 0
-          THEN COALESCE(SUM(sm.max_tokens), 0) / (COALESCE(SUM(sm.max_active_ms), 0) / 60000.0)
+        WHEN COALESCE(SUM(COALESCE(sm.max_active_ms, s.active_watched_ms)), 0) > 0
+          THEN COALESCE(SUM(COALESCE(sm.max_tokens, s.tokens_seen)), 0)
+            / (COALESCE(SUM(COALESCE(sm.max_active_ms, s.active_watched_ms)), 0) / 60000.0)
         ELSE NULL
       END AS tokens_per_min,
       CASE
-        WHEN COALESCE(SUM(sm.max_lookups), 0) > 0
-          THEN CAST(COALESCE(SUM(sm.max_hits), 0) AS REAL) / CAST(SUM(sm.max_lookups) AS REAL)
+        WHEN COALESCE(SUM(COALESCE(sm.max_lookups, s.lookup_count)), 0) > 0
+          THEN CAST(COALESCE(SUM(COALESCE(sm.max_hits, s.lookup_hits)), 0) AS REAL)
+            / CAST(COALESCE(SUM(COALESCE(sm.max_lookups, s.lookup_count)), 0) AS REAL)
         ELSE NULL
       END AS lookup_hit_rate,
       ? AS CREATED_DATE,
       ? AS LAST_UPDATE_DATE
     FROM imm_sessions s
-    JOIN (
+    LEFT JOIN (
       SELECT
         t.session_id,
         MAX(t.active_watched_ms) AS max_active_ms,
@@ -197,7 +217,7 @@ function upsertDailyRollupsForGroups(
 function upsertMonthlyRollupsForGroups(
   db: DatabaseSync,
   groups: Array<{ rollupMonth: number; videoId: number }>,
-  rollupNowMs: number,
+  rollupNowMs: bigint,
 ): void {
   if (groups.length === 0) {
     return;
@@ -212,14 +232,14 @@ function upsertMonthlyRollupsForGroups(
       CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) AS rollup_month,
       s.video_id AS video_id,
       COUNT(DISTINCT s.session_id) AS total_sessions,
-      COALESCE(SUM(sm.max_active_ms), 0) / 60000.0 AS total_active_min,
-      COALESCE(SUM(sm.max_lines), 0) AS total_lines_seen,
-      COALESCE(SUM(sm.max_tokens), 0) AS total_tokens_seen,
-      COALESCE(SUM(sm.max_cards), 0) AS total_cards,
+      COALESCE(SUM(COALESCE(sm.max_active_ms, s.active_watched_ms)), 0) / 60000.0 AS total_active_min,
+      COALESCE(SUM(COALESCE(sm.max_lines, s.lines_seen)), 0) AS total_lines_seen,
+      COALESCE(SUM(COALESCE(sm.max_tokens, s.tokens_seen)), 0) AS total_tokens_seen,
+      COALESCE(SUM(COALESCE(sm.max_cards, s.cards_mined)), 0) AS total_cards,
       ? AS CREATED_DATE,
       ? AS LAST_UPDATE_DATE
     FROM imm_sessions s
-    JOIN (
+    LEFT JOIN (
       SELECT
         t.session_id,
         MAX(t.active_watched_ms) AS max_active_ms,
@@ -261,7 +281,7 @@ function getAffectedRollupGroups(
           FROM imm_session_telemetry t
           JOIN imm_sessions s
             ON s.session_id = t.session_id
-          WHERE t.sample_ms > ?
+          WHERE t.sample_ms >= ?
         `,
       )
       .all(lastRollupSampleMs) as unknown as RollupGroupRow[]
@@ -301,7 +321,7 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
     return;
   }
 
-  const rollupNowMs = Date.now();
+  const rollupNowMs = toDbMs(nowMs());
   const lastRollupSampleMs = getLastRollupSampleMs(db);
 
   const maxSampleRow = db
@@ -336,7 +356,7 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
   try {
     upsertDailyRollupsForGroups(db, dailyGroups, rollupNowMs);
     upsertMonthlyRollupsForGroups(db, monthlyGroups, rollupNowMs);
-    setLastRollupSampleMs(db, Number(maxSampleRow.maxSampleMs));
+    setLastRollupSampleMs(db, toDbMs(maxSampleRow.maxSampleMs ?? ZERO_ID));
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -345,7 +365,7 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
 }
 
 export function rebuildRollupsInTransaction(db: DatabaseSync): void {
-  const rollupNowMs = Date.now();
+  const rollupNowMs = toDbMs(nowMs());
   const maxSampleRow = db
     .prepare('SELECT MAX(sample_ms) AS maxSampleMs FROM imm_session_telemetry')
     .get() as unknown as RollupTelemetryResult | null;
@@ -357,7 +377,7 @@ export function rebuildRollupsInTransaction(db: DatabaseSync): void {
 
   const affectedGroups = getAffectedRollupGroups(db, ZERO_ID);
   if (affectedGroups.length === 0) {
-    setLastRollupSampleMs(db, Number(maxSampleRow.maxSampleMs));
+    setLastRollupSampleMs(db, toDbMs(maxSampleRow.maxSampleMs ?? ZERO_ID));
     return;
   }
 
@@ -376,7 +396,7 @@ export function rebuildRollupsInTransaction(db: DatabaseSync): void {
 
   upsertDailyRollupsForGroups(db, dailyGroups, rollupNowMs);
   upsertMonthlyRollupsForGroups(db, monthlyGroups, rollupNowMs);
-  setLastRollupSampleMs(db, Number(maxSampleRow.maxSampleMs));
+  setLastRollupSampleMs(db, toDbMs(maxSampleRow.maxSampleMs ?? ZERO_ID));
 }
 
 export function runOptimizeMaintenance(db: DatabaseSync): void {

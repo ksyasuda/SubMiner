@@ -1,4 +1,4 @@
-import { ResolvedConfig } from '../../types';
+import { ResolvedConfig } from '../../types/config';
 
 export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   ResolvedConfig,
@@ -129,6 +129,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   },
   discordPresence: {
     enabled: false,
+    presenceStyle: 'default' as const,
     updateIntervalMs: 3_000,
     debounceMs: 750,
   },

@@ -46,7 +46,11 @@ const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES = [
   'かな',
   'かね',
 ] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_THOUGHT_SUFFIXES = ['か', 'かな', 'かね'] as const;
+const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_THOUGHT_SUFFIXES = [
+  'か',
+  'かな',
+  'かね',
+] as const;
 const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS = new Set(
   SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES.flatMap((prefix) =>
     SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES.flatMap((core) =>
@@ -96,9 +100,7 @@ function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<strin
   return parts.every((part) => exclusions.has(part));
 }
 
-function resolvePos1Exclusions(
-  options: SubtitleAnnotationFilterOptions = {},
-): ReadonlySet<string> {
+function resolvePos1Exclusions(options: SubtitleAnnotationFilterOptions = {}): ReadonlySet<string> {
   if (options.pos1Exclusions) {
     return options.pos1Exclusions;
   }
@@ -106,9 +108,7 @@ function resolvePos1Exclusions(
   return resolveAnnotationPos1ExclusionSet(DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG);
 }
 
-function resolvePos2Exclusions(
-  options: SubtitleAnnotationFilterOptions = {},
-): ReadonlySet<string> {
+function resolvePos2Exclusions(options: SubtitleAnnotationFilterOptions = {}): ReadonlySet<string> {
   if (options.pos2Exclusions) {
     return options.pos2Exclusions;
   }
@@ -212,7 +212,11 @@ function isReduplicatedKanaSfxWithOptionalTrailingTo(text: string): boolean {
 function isExcludedTrailingParticleMergedToken(token: MergedToken): boolean {
   const normalizedSurface = normalizeKana(token.surface);
   const normalizedHeadword = normalizeKana(token.headword);
-  if (!normalizedSurface || !normalizedHeadword || !normalizedSurface.startsWith(normalizedHeadword)) {
+  if (
+    !normalizedSurface ||
+    !normalizedHeadword ||
+    !normalizedSurface.startsWith(normalizedHeadword)
+  ) {
     return false;
   }
 
@@ -236,7 +240,10 @@ function isExcludedTrailingParticleMergedToken(token: MergedToken): boolean {
 
 function isAuxiliaryStemGrammarTailToken(token: MergedToken): boolean {
   const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
-  if (pos1Parts.length === 0 || !pos1Parts.every((part) => AUXILIARY_STEM_GRAMMAR_TAIL_POS1.has(part))) {
+  if (
+    pos1Parts.length === 0 ||
+    !pos1Parts.every((part) => AUXILIARY_STEM_GRAMMAR_TAIL_POS1.has(part))
+  ) {
     return false;
   }
 

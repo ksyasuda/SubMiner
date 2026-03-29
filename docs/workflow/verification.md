@@ -31,7 +31,14 @@ bun run docs:build
 - Config/schema/defaults: `bun run test:config`, then `bun run generate:config-example` if template/defaults changed
 - Launcher/plugin: `bun run test:launcher` or `bun run test:env`
 - Runtime-compat / compiled behavior: `bun run test:runtime:compat`
+- Coverage for the maintained source lane: `bun run test:coverage:src`
 - Deep/local full gate: default handoff gate above
+
+## Coverage Reporting
+
+- `bun run test:coverage:src` runs the maintained `test:src` lane through a sharded coverage runner: one Bun coverage process per test file, then merged LCOV output.
+- Machine-readable output lands at `coverage/test-src/lcov.info`.
+- CI and release quality-gate runs upload that LCOV file as the `coverage-test-src` artifact.
 
 ## Rules
 

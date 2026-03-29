@@ -10,6 +10,7 @@ import type {
   JellyfinGroupEntry,
 } from './types.js';
 import { log, fail, getMpvLogPath } from './log.js';
+import { nowMs } from './time.js';
 import { commandExists, resolvePathMaybe, sleep } from './util.js';
 import {
   pickLibrary,
@@ -453,9 +454,9 @@ async function runAppJellyfinCommand(
       }
       return retriedAfterStart ? 12000 : 4000;
     })();
-    const settleDeadline = Date.now() + settleWindowMs;
+    const settleDeadline = nowMs() + settleWindowMs;
     const settleOffset = attempt.logOffset;
-    while (Date.now() < settleDeadline) {
+    while (nowMs() < settleDeadline) {
       await sleep(100);
       const settledOutput = readLogAppendedSince(settleOffset);
       if (!settledOutput.trim()) {
@@ -489,8 +490,8 @@ async function requestJellyfinPreviewAuthFromApp(
       return null;
     }
 
-    const deadline = Date.now() + 4000;
-    while (Date.now() < deadline) {
+    const deadline = nowMs() + 4000;
+    while (nowMs() < deadline) {
       try {
         if (fs.existsSync(responsePath)) {
           const raw = fs.readFileSync(responsePath, 'utf8');

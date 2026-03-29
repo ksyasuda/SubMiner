@@ -3,7 +3,7 @@ import path from 'path';
 
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import { getConfiguredWordFieldName } from '../anki-field-config';
-import { AnkiConnectConfig } from '../types';
+import { AnkiConnectConfig } from '../types/anki';
 import { createLogger } from '../logger';
 
 const log = createLogger('anki').child('integration.known-word-cache');
@@ -316,9 +316,9 @@ export class KnownWordCacheManager {
       const currentDeck = this.deps.getConfig().deck?.trim();
       const selectedDeckEntry =
         currentDeck !== undefined && currentDeck.length > 0
-          ? trimmedDeckEntries.find(([deckName]) => deckName === currentDeck) ?? null
+          ? (trimmedDeckEntries.find(([deckName]) => deckName === currentDeck) ?? null)
           : trimmedDeckEntries.length === 1
-            ? trimmedDeckEntries[0] ?? null
+            ? (trimmedDeckEntries[0] ?? null)
             : null;
 
       if (!selectedDeckEntry) {
@@ -329,7 +329,10 @@ export class KnownWordCacheManager {
       if (Array.isArray(deckFields)) {
         const normalizedFields = [
           ...new Set(
-            deckFields.map(String).map((field) => field.trim()).filter((field) => field.length > 0),
+            deckFields
+              .map(String)
+              .map((field) => field.trim())
+              .filter((field) => field.length > 0),
           ),
         ];
         if (normalizedFields.length > 0) {
@@ -353,7 +356,14 @@ export class KnownWordCacheManager {
           continue;
         }
         const normalizedFields = Array.isArray(fields)
-          ? [...new Set(fields.map(String).map((field) => field.trim()).filter(Boolean))]
+          ? [
+              ...new Set(
+                fields
+                  .map(String)
+                  .map((field) => field.trim())
+                  .filter(Boolean),
+              ),
+            ]
           : [];
         scopes.push({
           query: `deck:"${escapeAnkiSearchValue(trimmedDeckName)}"`,
@@ -402,7 +412,10 @@ export class KnownWordCacheManager {
   private async fetchKnownWordNoteFieldsById(): Promise<Map<number, string[]>> {
     const scopes = this.getKnownWordQueryScopes();
     const noteFieldsById = new Map<number, string[]>();
-    log.debug('Refreshing known-word cache', `queries=${scopes.map((scope) => scope.query).join(' | ')}`);
+    log.debug(
+      'Refreshing known-word cache',
+      `queries=${scopes.map((scope) => scope.query).join(' | ')}`,
+    );
 
     for (const scope of scopes) {
       const noteIds = (await this.deps.client.findNotes(scope.query, {
@@ -414,10 +427,7 @@ export class KnownWordCacheManager {
           continue;
         }
         const existingFields = noteFieldsById.get(noteId) ?? [];
-        noteFieldsById.set(
-          noteId,
-          [...new Set([...existingFields, ...scope.fields])],
-        );
+        noteFieldsById.set(noteId, [...new Set([...existingFields, ...scope.fields])]);
       }
     }
 

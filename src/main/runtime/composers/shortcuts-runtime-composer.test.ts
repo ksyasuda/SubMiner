@@ -3,6 +3,7 @@ import test from 'node:test';
 import { composeShortcutRuntimes } from './shortcuts-runtime-composer';
 
 test('composeShortcutRuntimes returns callable shortcut runtime handlers', () => {
+  const calls: string[] = [];
   const composed = composeShortcutRuntimes({
     globalShortcuts: {
       getConfiguredShortcutsMainDeps: {
@@ -39,9 +40,13 @@ test('composeShortcutRuntimes returns callable shortcut runtime handlers', () =>
     },
     overlayShortcutsRuntimeMainDeps: {
       overlayShortcutsRuntime: {
-        registerOverlayShortcuts: () => {},
+        registerOverlayShortcuts: () => {
+          calls.push('registerOverlayShortcuts');
+        },
         unregisterOverlayShortcuts: () => {},
-        syncOverlayShortcuts: () => {},
+        syncOverlayShortcuts: () => {
+          calls.push('syncOverlayShortcuts');
+        },
         refreshOverlayShortcuts: () => {},
       },
     },
@@ -58,4 +63,12 @@ test('composeShortcutRuntimes returns callable shortcut runtime handlers', () =>
   assert.equal(typeof composed.unregisterOverlayShortcuts, 'function');
   assert.equal(typeof composed.syncOverlayShortcuts, 'function');
   assert.equal(typeof composed.refreshOverlayShortcuts, 'function');
+
+  // registerOverlayShortcuts forwards to the injected overlayShortcutsRuntime dep
+  composed.registerOverlayShortcuts();
+  assert.deepEqual(calls, ['registerOverlayShortcuts']);
+
+  // syncOverlayShortcuts forwards to the injected overlayShortcutsRuntime dep
+  composed.syncOverlayShortcuts();
+  assert.deepEqual(calls, ['registerOverlayShortcuts', 'syncOverlayShortcuts']);
 });

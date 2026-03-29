@@ -1255,7 +1255,7 @@ test('dictionary settings helpers upsert and remove dictionary entries without r
   const deps = createDeps(async (script) => {
     scripts.push(script);
     if (script.includes('optionsGetFull')) {
-      return JSON.parse(JSON.stringify(optionsFull));
+      return structuredClone(optionsFull);
     }
     if (script.includes('setAllSettings')) {
       return true;

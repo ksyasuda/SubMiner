@@ -1,16 +1,18 @@
 import crypto from 'node:crypto';
 import type { DatabaseSync } from './sqlite';
 import { createInitialSessionState } from './reducer';
+import { nowMs } from './time';
 import { SESSION_STATUS_ACTIVE, SESSION_STATUS_ENDED } from './types';
 import type { SessionState } from './types';
+import { toDbMs } from './query-shared';
 
 export function startSessionRecord(
   db: DatabaseSync,
   videoId: number,
-  startedAtMs = Date.now(),
+  startedAtMs = nowMs(),
 ): { sessionId: number; state: SessionState } {
   const sessionUuid = crypto.randomUUID();
-  const nowMs = Date.now();
+  const createdAtMs = nowMs();
   const result = db
     .prepare(
       `
@@ -20,7 +22,14 @@ export function startSessionRecord(
       ) VALUES (?, ?, ?, ?, ?, ?)
     `,
     )
-    .run(sessionUuid, videoId, startedAtMs, SESSION_STATUS_ACTIVE, startedAtMs, nowMs);
+    .run(
+      sessionUuid,
+      videoId,
+      toDbMs(startedAtMs),
+      SESSION_STATUS_ACTIVE,
+      toDbMs(startedAtMs),
+      toDbMs(createdAtMs),
+    );
   const sessionId = Number(result.lastInsertRowid);
   return {
     sessionId,
@@ -31,7 +40,7 @@ export function startSessionRecord(
 export function finalizeSessionRecord(
   db: DatabaseSync,
   sessionState: SessionState,
-  endedAtMs = Date.now(),
+  endedAtMs = nowMs(),
 ): void {
   db.prepare(
     `
@@ -57,9 +66,9 @@ export function finalizeSessionRecord(
       WHERE session_id = ?
     `,
   ).run(
-    endedAtMs,
+    toDbMs(endedAtMs),
     SESSION_STATUS_ENDED,
-    sessionState.lastMediaMs,
+    sessionState.lastMediaMs === null ? null : toDbMs(sessionState.lastMediaMs),
     sessionState.totalWatchedMs,
     sessionState.activeWatchedMs,
     sessionState.linesSeen,
@@ -73,7 +82,7 @@ export function finalizeSessionRecord(
     sessionState.seekForwardCount,
     sessionState.seekBackwardCount,
     sessionState.mediaBufferEvents,
-    Date.now(),
+    toDbMs(nowMs()),
     sessionState.sessionId,
   );
 }

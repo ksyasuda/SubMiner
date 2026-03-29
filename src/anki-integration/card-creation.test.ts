@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { CardCreationService } from './card-creation';
-import type { AnkiConnectConfig } from '../types';
+import type { AnkiConnectConfig } from '../types/anki';
 
 test('CardCreationService counts locally created sentence cards', async () => {
   const minedCards: Array<{ count: number; noteIds?: number[] }> = [];

@@ -7,6 +7,7 @@ import type { LogLevel, Backend, Args, MpvTrack } from './types.js';
 import { DEFAULT_MPV_SUBMINER_ARGS, DEFAULT_YOUTUBE_YTDL_FORMAT } from './types.js';
 import { appendToAppLog, getAppLogPath, log, fail, getMpvLogPath } from './log.js';
 import { buildSubminerScriptOpts, resolveAniSkipMetadataForFile } from './aniskip-metadata.js';
+import { nowMs } from './time.js';
 import {
   commandExists,
   getPathEnv,
@@ -47,7 +48,11 @@ export function parseMpvArgString(input: string): string[] {
   let inDoubleQuote = false;
   let escaping = false;
   const canEscape = (nextChar: string | undefined): boolean =>
-    nextChar === undefined || nextChar === '"' || nextChar === "'" || nextChar === '\\' || /\s/.test(nextChar);
+    nextChar === undefined ||
+    nextChar === '"' ||
+    nextChar === "'" ||
+    nextChar === '\\' ||
+    /\s/.test(nextChar);
 
   for (let i = 0; i < chars.length; i += 1) {
     const ch = chars[i] || '';
@@ -196,8 +201,8 @@ async function terminateTrackedDetachedMpv(logLevel: LogLevel): Promise<void> {
     return;
   }
 
-  const deadline = Date.now() + 1500;
-  while (Date.now() < deadline) {
+  const deadline = nowMs() + 1500;
+  while (nowMs() < deadline) {
     if (!isProcessAlive(pid)) {
       clearTrackedDetachedMpvPid();
       return;
@@ -340,7 +345,7 @@ export function sendMpvCommandWithResponse(
   timeoutMs = 5000,
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const requestId = Date.now() + Math.floor(Math.random() * 1000);
+    const requestId = nowMs() + Math.floor(Math.random() * 1000);
     const socket = net.createConnection(socketPath);
     let buffer = '';
 
@@ -598,7 +603,9 @@ export async function startMpv(
     ? await resolveAniSkipMetadataForFile(target)
     : null;
   const extraScriptOpts =
-    targetKind === 'url' && isYoutubeTarget(target) && options?.disableYoutubeSubtitleAutoLoad === true
+    targetKind === 'url' &&
+    isYoutubeTarget(target) &&
+    options?.disableYoutubeSubtitleAutoLoad === true
       ? ['subminer-auto_start_pause_until_ready=no']
       : [];
   const scriptOpts = buildSubminerScriptOpts(
@@ -1064,7 +1071,9 @@ export function launchMpvIdleDetached(
       mpvArgs.push(...parseMpvArgString(args.mpvArgs));
     }
     mpvArgs.push('--idle=yes');
-    mpvArgs.push(`--script-opts=${buildSubminerScriptOpts(appPath, socketPath, null, args.logLevel)}`);
+    mpvArgs.push(
+      `--script-opts=${buildSubminerScriptOpts(appPath, socketPath, null, args.logLevel)}`,
+    );
     mpvArgs.push(`--log-file=${getMpvLogPath()}`);
     mpvArgs.push(`--input-ipc-server=${socketPath}`);
     const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);
@@ -1109,8 +1118,8 @@ export async function waitForUnixSocketReady(
   socketPath: string,
   timeoutMs: number,
 ): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+  const deadline = nowMs() + timeoutMs;
+  while (nowMs() < deadline) {
     try {
       if (fs.existsSync(socketPath)) {
         const ready = await canConnectUnixSocket(socketPath);

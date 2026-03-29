@@ -10,9 +10,12 @@ import {
 
 const baseConfig = {
   enabled: true,
+  presenceStyle: 'default' as const,
   updateIntervalMs: 10_000,
   debounceMs: 200,
 } as const;
+
+const BASE_SESSION_STARTED_AT_MS = 1_700_000 * 1_000_000;
 
 const baseSnapshot: DiscordPresenceSnapshot = {
   mediaTitle: 'Sousou no Frieren E01',
@@ -22,27 +25,70 @@ const baseSnapshot: DiscordPresenceSnapshot = {
   mediaDurationSec: 1450,
   paused: false,
   connected: true,
-  sessionStartedAtMs: 1_700_000_000_000,
+  sessionStartedAtMs: BASE_SESSION_STARTED_AT_MS,
 };
 
-test('buildDiscordPresenceActivity maps polished payload fields', () => {
+test('buildDiscordPresenceActivity maps polished payload fields (default style)', () => {
   const payload = buildDiscordPresenceActivity(baseConfig, baseSnapshot);
   assert.equal(payload.details, 'Sousou no Frieren E01');
   assert.equal(payload.state, 'Playing 01:35 / 24:10');
   assert.equal(payload.largeImageKey, 'subminer-logo');
   assert.equal(payload.smallImageKey, 'study');
+  assert.equal(payload.smallImageText, '日本語学習中');
   assert.equal(payload.buttons, undefined);
-  assert.equal(payload.startTimestamp, 1_700_000_000);
+  assert.equal(payload.startTimestamp, Math.floor(BASE_SESSION_STARTED_AT_MS / 1000));
 });
 
-test('buildDiscordPresenceActivity falls back to idle when disconnected', () => {
+test('buildDiscordPresenceActivity falls back to idle with default style', () => {
   const payload = buildDiscordPresenceActivity(baseConfig, {
     ...baseSnapshot,
     connected: false,
     mediaPath: null,
   });
   assert.equal(payload.state, 'Idle');
+  assert.equal(payload.details, 'Sentence Mining');
+});
+
+test('buildDiscordPresenceActivity uses meme style fallback', () => {
+  const memeConfig = { ...baseConfig, presenceStyle: 'meme' as const };
+  const payload = buildDiscordPresenceActivity(memeConfig, {
+    ...baseSnapshot,
+    connected: false,
+    mediaPath: null,
+  });
   assert.equal(payload.details, 'Mining and crafting (Anki cards)');
+  assert.equal(payload.smallImageText, 'Sentence Mining');
+});
+
+test('buildDiscordPresenceActivity uses japanese style', () => {
+  const jpConfig = { ...baseConfig, presenceStyle: 'japanese' as const };
+  const payload = buildDiscordPresenceActivity(jpConfig, {
+    ...baseSnapshot,
+    connected: false,
+    mediaPath: null,
+  });
+  assert.equal(payload.details, '文の採掘中');
+  assert.equal(payload.smallImageText, 'イマージョン学習');
+});
+
+test('buildDiscordPresenceActivity uses minimal style', () => {
+  const minConfig = { ...baseConfig, presenceStyle: 'minimal' as const };
+  const payload = buildDiscordPresenceActivity(minConfig, {
+    ...baseSnapshot,
+    connected: false,
+    mediaPath: null,
+  });
+  assert.equal(payload.details, 'SubMiner');
+  assert.equal(payload.smallImageKey, undefined);
+  assert.equal(payload.smallImageText, undefined);
+});
+
+test('buildDiscordPresenceActivity shows media title regardless of style', () => {
+  for (const presenceStyle of ['default', 'meme', 'japanese', 'minimal'] as const) {
+    const payload = buildDiscordPresenceActivity({ ...baseConfig, presenceStyle }, baseSnapshot);
+    assert.equal(payload.details, 'Sousou no Frieren E01');
+    assert.equal(payload.state, 'Playing 01:35 / 24:10');
+  }
 });
 
 test('service deduplicates identical updates and sends changed timeline', async () => {

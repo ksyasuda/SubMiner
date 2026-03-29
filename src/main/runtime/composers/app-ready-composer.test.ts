@@ -3,9 +3,13 @@ import test from 'node:test';
 import { composeAppReadyRuntime } from './app-ready-composer';
 
 test('composeAppReadyRuntime returns reload/critical/app-ready handlers', () => {
+  const calls: string[] = [];
   const composed = composeAppReadyRuntime({
     reloadConfigMainDeps: {
-      reloadConfigStrict: () => ({ ok: true, path: '/tmp/config.jsonc', warnings: [] }),
+      reloadConfigStrict: () => {
+        calls.push('reloadConfigStrict');
+        return { ok: true, path: '/tmp/config.jsonc', warnings: [] };
+      },
       logInfo: () => {},
       logWarning: () => {},
       showDesktopNotification: () => {},
@@ -79,4 +83,8 @@ test('composeAppReadyRuntime returns reload/critical/app-ready handlers', () => 
   assert.equal(typeof composed.reloadConfig, 'function');
   assert.equal(typeof composed.criticalConfigError, 'function');
   assert.equal(typeof composed.appReadyRuntimeRunner, 'function');
+
+  // reloadConfig invokes the injected reloadConfigStrict dep
+  composed.reloadConfig();
+  assert.deepEqual(calls, ['reloadConfigStrict']);
 });

@@ -21,7 +21,7 @@ test('process next anilist retry update main deps builder maps callbacks', async
     now: () => 7,
   })();
 
-  assert.deepEqual(deps.nextReady(), { key: 'k', title: 't', episode: 1 });
+  assert.deepEqual(deps.nextReady(), { key: 'k', title: 't', season: null, episode: 1 });
   deps.refreshRetryQueueState();
   deps.setLastAttemptAt(1);
   deps.setLastError('x');

@@ -498,6 +498,7 @@
   // ==========================================
   "discordPresence": {
     "enabled": false, // Enable optional Discord Rich Presence updates. Values: true | false
+    "presenceStyle": "default", // Presence card text preset: "default" (clean bilingual), "meme" (Mining and crafting), "japanese" (fully JP), or "minimal".
     "updateIntervalMs": 3000, // Minimum interval between presence payload updates.
     "debounceMs": 750 // Debounce delay used to collapse bursty presence updates.
   }, // Optional Discord Rich Presence activity card updates for current playback/study session.

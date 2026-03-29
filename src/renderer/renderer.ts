@@ -552,8 +552,14 @@ async function init(): Promise<void> {
 
   ctx.dom.subtitleContainer.addEventListener('mouseenter', mouseHandlers.handlePrimaryMouseEnter);
   ctx.dom.subtitleContainer.addEventListener('mouseleave', mouseHandlers.handlePrimaryMouseLeave);
-  ctx.dom.secondarySubContainer.addEventListener('mouseenter', mouseHandlers.handleSecondaryMouseEnter);
-  ctx.dom.secondarySubContainer.addEventListener('mouseleave', mouseHandlers.handleSecondaryMouseLeave);
+  ctx.dom.secondarySubContainer.addEventListener(
+    'mouseenter',
+    mouseHandlers.handleSecondaryMouseEnter,
+  );
+  ctx.dom.secondarySubContainer.addEventListener(
+    'mouseleave',
+    mouseHandlers.handleSecondaryMouseLeave,
+  );
 
   mouseHandlers.setupResizeHandler();
   mouseHandlers.setupPointerTracking();

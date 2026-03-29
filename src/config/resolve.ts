@@ -1,4 +1,4 @@
-import { ConfigValidationWarning, RawConfig, ResolvedConfig } from '../types';
+import { ConfigValidationWarning, RawConfig, ResolvedConfig } from '../types/config';
 import { applyAnkiConnectResolution } from './resolve/anki-connect';
 import { createResolveContext } from './resolve/context';
 import { applyCoreDomainConfig } from './resolve/core-domains';

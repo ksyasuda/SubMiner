@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.10.0 (2026-03-29)
+- Fixed stats startup so the immersion tracker can run when `Bun.serve` is unavailable.
+- Added a Node `http` fallback for Electron/runtime paths that do not expose Bun, so stats keeps working there too.
+- Updated Discord Rich Presence to the maintained `@xhayper/discord-rpc` wrapper.
+- Fixed the macOS visible-overlay toggle path so manual hides stay hidden and the plugin uses the explicit visible-overlay toggle command.
+- Restored macOS mpv passthrough while the overlay subtitle sidebar is open so clicks outside the sidebar can refocus mpv and keep native keybindings working.
+
+## v0.9.3 (2026-03-25)
+- Moved YouTube primary subtitle language defaults to `youtube.primarySubLanguages`.
+- Removed the placeholder YouTube subtitle retime step; downloaded primary subtitle tracks are now used directly.
+- Removed the old internal YouTube retime helper and its tests.
+- Clarified optional `alass` / `ffsubsync` subtitle-sync setup and fallback behavior in the docs.
+- Removed the legacy `youtubeSubgen.primarySubLanguages` config path from generated config and docs.
+
 ## v0.9.2 (2026-03-25)
 - Fixed overlay pointer tracking so Windows click-through toggles immediately when the cursor enters or leaves subtitle regions.
 - Fixed Windows overlay window tracking on scaled displays by converting native tracked window bounds to Electron DIP coordinates.

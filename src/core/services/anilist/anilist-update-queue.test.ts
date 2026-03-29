@@ -51,7 +51,7 @@ test('anilist update queue applies retry backoff and dead-letter', () => {
   const loggerState = createLogger();
   const queue = createAnilistUpdateQueue(queueFile, loggerState.logger);
 
-  const now = 1_700_000_000_000;
+  const now = 1_700_000 * 1_000_000;
   queue.enqueue('k2', 'Backoff Demo', 2);
 
   queue.markFailure('k2', 'fail-1', now);
@@ -62,7 +62,7 @@ test('anilist update queue applies retry backoff and dead-letter', () => {
     pending: Array<{ attemptCount: number; nextAttemptAt: number }>;
   };
   assert.equal(pendingPayload.pending[0]?.attemptCount, 1);
-  assert.equal(pendingPayload.pending[0]?.nextAttemptAt, now + 30_000);
+  assert.equal((pendingPayload.pending[0]?.nextAttemptAt ?? now) - now, 30_000);
 
   for (let attempt = 2; attempt <= 8; attempt += 1) {
     queue.markFailure('k2', `fail-${attempt}`, now);

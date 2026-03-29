@@ -3,10 +3,7 @@ import test from 'node:test';
 
 import type { SubtitleSidebarConfig } from '../../types';
 import { createMouseHandlers } from './mouse.js';
-import {
-  YOMITAN_POPUP_HIDDEN_EVENT,
-  YOMITAN_POPUP_SHOWN_EVENT,
-} from '../yomitan-popup.js';
+import { YOMITAN_POPUP_HIDDEN_EVENT, YOMITAN_POPUP_SHOWN_EVENT } from '../yomitan-popup.js';
 
 function createClassList() {
   const classes = new Set<string>();
@@ -118,9 +115,15 @@ test('secondary hover pauses on enter, reveals secondary subtitle, and resumes o
   });
 
   await handlers.handleSecondaryMouseEnter();
-  assert.equal(ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'), true);
+  assert.equal(
+    ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'),
+    true,
+  );
   await handlers.handleSecondaryMouseLeave();
-  assert.equal(ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'), false);
+  assert.equal(
+    ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'),
+    false,
+  );
 
   assert.deepEqual(mpvCommands, [
     ['set_property', 'pause', 'yes'],
@@ -186,7 +189,10 @@ test('secondary leave toward primary subtitle container clears the secondary hov
   } as unknown as MouseEvent);
 
   assert.equal(ctx.state.isOverSubtitle, false);
-  assert.equal(ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'), false);
+  assert.equal(
+    ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'),
+    false,
+  );
   assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
 });
 
@@ -237,7 +243,10 @@ test('primary hover pauses on enter without revealing secondary subtitle', async
   });
 
   await handlers.handlePrimaryMouseEnter();
-  assert.equal(ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'), false);
+  assert.equal(
+    ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'),
+    false,
+  );
   await handlers.handlePrimaryMouseLeave();
 
   assert.deepEqual(mpvCommands, [
@@ -394,7 +403,10 @@ test('restorePointerInteractionState reapplies the secondary hover class from po
     mousemove?.({ clientX: 10, clientY: 20 } as MouseEvent);
 
     assert.equal(ctx.state.isOverSubtitle, true);
-    assert.equal(ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'), true);
+    assert.equal(
+      ctx.dom.secondarySubContainer.classList.contains('secondary-sub-hover-active'),
+      true,
+    );
   } finally {
     Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
     Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });

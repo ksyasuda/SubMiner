@@ -141,9 +141,7 @@ test('youtube flow can open a manual picker session and load the selected subtit
   assert.ok(
     commands.some(
       (command) =>
-        command[0] === 'set_property' &&
-        command[1] === 'sub-visibility' &&
-        command[2] === 'yes',
+        command[0] === 'set_property' && command[1] === 'sub-visibility' && command[2] === 'yes',
     ),
   );
   assert.ok(
@@ -263,9 +261,7 @@ test('youtube flow retries secondary after partial batch subtitle failure', asyn
   assert.ok(
     commands.some(
       (command) =>
-        command[0] === 'sub-add' &&
-        command[1] === '/tmp/manual:en.vtt' &&
-        command[2] === 'cached',
+        command[0] === 'sub-add' && command[1] === '/tmp/manual:en.vtt' && command[2] === 'cached',
     ),
   );
 });
@@ -708,12 +704,54 @@ test('youtube flow leaves non-authoritative youtube subtitle tracks untouched af
         return selectedSecondarySid;
       }
       return [
-        { type: 'sub', id: 1, lang: 'en', title: 'English', external: true, 'external-filename': null },
-        { type: 'sub', id: 2, lang: 'ja', title: 'Japanese', external: true, 'external-filename': null },
-        { type: 'sub', id: 3, lang: 'ja-en', title: 'Japanese from English', external: true, 'external-filename': null },
-        { type: 'sub', id: 4, lang: 'ja-ja', title: 'Japanese from Japanese', external: true, 'external-filename': null },
-        { type: 'sub', id: 5, lang: 'ja-orig', title: 'auto-ja-orig.vtt', external: true, 'external-filename': '/tmp/auto-ja-orig.vtt' },
-        { type: 'sub', id: 6, lang: 'en', title: 'manual-en.en.srt', external: true, 'external-filename': '/tmp/manual-en.en.srt' },
+        {
+          type: 'sub',
+          id: 1,
+          lang: 'en',
+          title: 'English',
+          external: true,
+          'external-filename': null,
+        },
+        {
+          type: 'sub',
+          id: 2,
+          lang: 'ja',
+          title: 'Japanese',
+          external: true,
+          'external-filename': null,
+        },
+        {
+          type: 'sub',
+          id: 3,
+          lang: 'ja-en',
+          title: 'Japanese from English',
+          external: true,
+          'external-filename': null,
+        },
+        {
+          type: 'sub',
+          id: 4,
+          lang: 'ja-ja',
+          title: 'Japanese from Japanese',
+          external: true,
+          'external-filename': null,
+        },
+        {
+          type: 'sub',
+          id: 5,
+          lang: 'ja-orig',
+          title: 'auto-ja-orig.vtt',
+          external: true,
+          'external-filename': '/tmp/auto-ja-orig.vtt',
+        },
+        {
+          type: 'sub',
+          id: 6,
+          lang: 'en',
+          title: 'manual-en.en.srt',
+          external: true,
+          'external-filename': '/tmp/manual-en.en.srt',
+        },
       ];
     },
     refreshCurrentSubtitle: () => {},
@@ -737,7 +775,10 @@ test('youtube flow leaves non-authoritative youtube subtitle tracks untouched af
 
   await runtime.openManualPicker({ url: 'https://example.com' });
 
-  assert.equal(commands.some((command) => command[0] === 'sub-remove'), false);
+  assert.equal(
+    commands.some((command) => command[0] === 'sub-remove'),
+    false,
+  );
 });
 
 test('youtube flow reuses existing manual youtube subtitle tracks when both requested languages already exist', async () => {
@@ -751,8 +792,20 @@ test('youtube flow reuses existing manual youtube subtitle tracks when both requ
       videoId: 'video123',
       title: 'Video 123',
       tracks: [
-        { ...primaryTrack, id: 'manual:ja', sourceLanguage: 'ja', kind: 'manual', title: 'Japanese' },
-        { ...secondaryTrack, id: 'manual:en', sourceLanguage: 'en', kind: 'manual', title: 'English' },
+        {
+          ...primaryTrack,
+          id: 'manual:ja',
+          sourceLanguage: 'ja',
+          kind: 'manual',
+          title: 'Japanese',
+        },
+        {
+          ...secondaryTrack,
+          id: 'manual:en',
+          sourceLanguage: 'en',
+          kind: 'manual',
+          title: 'English',
+        },
       ],
     }),
     acquireYoutubeSubtitleTracks: async () => {
@@ -801,10 +854,38 @@ test('youtube flow reuses existing manual youtube subtitle tracks when both requ
         return selectedSecondarySid;
       }
       return [
-        { type: 'sub', id: 1, lang: 'en', title: 'English', external: true, 'external-filename': null },
-        { type: 'sub', id: 2, lang: 'ja', title: 'Japanese', external: true, 'external-filename': null },
-        { type: 'sub', id: 3, lang: 'ja-en', title: 'Japanese from English', external: true, 'external-filename': null },
-        { type: 'sub', id: 4, lang: 'ja-ja', title: 'Japanese from Japanese', external: true, 'external-filename': null },
+        {
+          type: 'sub',
+          id: 1,
+          lang: 'en',
+          title: 'English',
+          external: true,
+          'external-filename': null,
+        },
+        {
+          type: 'sub',
+          id: 2,
+          lang: 'ja',
+          title: 'Japanese',
+          external: true,
+          'external-filename': null,
+        },
+        {
+          type: 'sub',
+          id: 3,
+          lang: 'ja-en',
+          title: 'Japanese from English',
+          external: true,
+          'external-filename': null,
+        },
+        {
+          type: 'sub',
+          id: 4,
+          lang: 'ja-ja',
+          title: 'Japanese from Japanese',
+          external: true,
+          'external-filename': null,
+        },
       ];
     },
     refreshCurrentSubtitle: () => {},
@@ -833,9 +914,15 @@ test('youtube flow reuses existing manual youtube subtitle tracks when both requ
 
   assert.equal(selectedPrimarySid, 2);
   assert.equal(selectedSecondarySid, 1);
-  assert.equal(commands.some((command) => command[0] === 'sub-add'), false);
+  assert.equal(
+    commands.some((command) => command[0] === 'sub-add'),
+    false,
+  );
   assert.deepEqual(refreshedSidebarSources, ['/tmp/manual-ja.ja.srt']);
-  assert.equal(commands.some((command) => command[0] === 'sub-remove'), false);
+  assert.equal(
+    commands.some((command) => command[0] === 'sub-remove'),
+    false,
+  );
 });
 
 test('youtube flow waits for manual youtube tracks to appear before falling back to injected copies', async () => {
@@ -849,8 +936,20 @@ test('youtube flow waits for manual youtube tracks to appear before falling back
       videoId: 'video123',
       title: 'Video 123',
       tracks: [
-        { ...primaryTrack, id: 'manual:ja', sourceLanguage: 'ja', kind: 'manual', title: 'Japanese' },
-        { ...secondaryTrack, id: 'manual:en', sourceLanguage: 'en', kind: 'manual', title: 'English' },
+        {
+          ...primaryTrack,
+          id: 'manual:ja',
+          sourceLanguage: 'ja',
+          kind: 'manual',
+          title: 'Japanese',
+        },
+        {
+          ...secondaryTrack,
+          id: 'manual:en',
+          sourceLanguage: 'en',
+          kind: 'manual',
+          title: 'English',
+        },
       ],
     }),
     acquireYoutubeSubtitleTracks: async () => {
@@ -903,10 +1002,38 @@ test('youtube flow waits for manual youtube tracks to appear before falling back
         return [];
       }
       return [
-        { type: 'sub', id: 1, lang: 'en', title: 'English', external: true, 'external-filename': null },
-        { type: 'sub', id: 2, lang: 'ja', title: 'Japanese', external: true, 'external-filename': null },
-        { type: 'sub', id: 3, lang: 'ja-en', title: 'Japanese from English', external: true, 'external-filename': null },
-        { type: 'sub', id: 4, lang: 'ja-ja', title: 'Japanese from Japanese', external: true, 'external-filename': null },
+        {
+          type: 'sub',
+          id: 1,
+          lang: 'en',
+          title: 'English',
+          external: true,
+          'external-filename': null,
+        },
+        {
+          type: 'sub',
+          id: 2,
+          lang: 'ja',
+          title: 'Japanese',
+          external: true,
+          'external-filename': null,
+        },
+        {
+          type: 'sub',
+          id: 3,
+          lang: 'ja-en',
+          title: 'Japanese from English',
+          external: true,
+          'external-filename': null,
+        },
+        {
+          type: 'sub',
+          id: 4,
+          lang: 'ja-ja',
+          title: 'Japanese from Japanese',
+          external: true,
+          'external-filename': null,
+        },
       ];
     },
     refreshCurrentSubtitle: () => {},
@@ -932,7 +1059,10 @@ test('youtube flow waits for manual youtube tracks to appear before falling back
 
   assert.equal(selectedPrimarySid, 2);
   assert.equal(selectedSecondarySid, 1);
-  assert.equal(commands.some((command) => command[0] === 'sub-add'), false);
+  assert.equal(
+    commands.some((command) => command[0] === 'sub-add'),
+    false,
+  );
 });
 
 test('youtube flow reuses manual youtube tracks even when mpv exposes external filenames', async () => {
@@ -970,7 +1100,9 @@ test('youtube flow reuses manual youtube tracks even when mpv exposes external f
       if (track.id === 'manual:ja') {
         return { path: '/tmp/manual-ja.ja.srt' };
       }
-      throw new Error('should not download secondary track when existing manual english track is reusable');
+      throw new Error(
+        'should not download secondary track when existing manual english track is reusable',
+      );
     },
     openPicker: async () => false,
     pauseMpv: () => {},
@@ -1051,7 +1183,10 @@ test('youtube flow reuses manual youtube tracks even when mpv exposes external f
 
   assert.equal(selectedPrimarySid, 2);
   assert.equal(selectedSecondarySid, 1);
-  assert.equal(commands.some((command) => command[0] === 'sub-add'), false);
+  assert.equal(
+    commands.some((command) => command[0] === 'sub-add'),
+    false,
+  );
 });
 
 test('youtube flow falls back to existing auto secondary track when auto secondary download fails', async () => {

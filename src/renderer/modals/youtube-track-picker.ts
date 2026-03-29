@@ -28,13 +28,13 @@ export function createYoutubeTrackPickerModal(
   function setStatus(message: string, isError = false): void {
     ctx.state.youtubePickerStatus = message;
     ctx.dom.youtubePickerStatus.textContent = message;
-    ctx.dom.youtubePickerStatus.style.color = isError
-      ? '#ed8796'
-      : '#a5adcb';
+    ctx.dom.youtubePickerStatus.style.color = isError ? '#ed8796' : '#a5adcb';
   }
 
   function getTrackLabel(trackId: string): string {
-    return ctx.state.youtubePickerPayload?.tracks.find((track) => track.id === trackId)?.label ?? '';
+    return (
+      ctx.state.youtubePickerPayload?.tracks.find((track) => track.id === trackId)?.label ?? ''
+    );
   }
 
   function renderTrackList(): void {
@@ -82,10 +82,7 @@ export function createYoutubeTrackPickerModal(
       if (track.id === primaryTrackId) continue;
       ctx.dom.youtubePickerSecondarySelect.appendChild(createOption(track.id, track.label));
     }
-    if (
-      primaryTrackId &&
-      ctx.dom.youtubePickerSecondarySelect.value === primaryTrackId
-    ) {
+    if (primaryTrackId && ctx.dom.youtubePickerSecondarySelect.value === primaryTrackId) {
       ctx.dom.youtubePickerSecondarySelect.value = '';
     }
   }
@@ -126,7 +123,9 @@ export function createYoutubeTrackPickerModal(
     setStatus('Select the subtitle tracks to download.');
   }
 
-  async function resolveSelection(action: 'use-selected' | 'continue-without-subtitles'): Promise<void> {
+  async function resolveSelection(
+    action: 'use-selected' | 'continue-without-subtitles',
+  ): Promise<void> {
     if (resolveSelectionInFlight) {
       return;
     }
@@ -238,7 +237,9 @@ export function createYoutubeTrackPickerModal(
         return true;
       }
       void resolveSelection(
-        payloadHasTracks(ctx.state.youtubePickerPayload) ? 'use-selected' : 'continue-without-subtitles',
+        payloadHasTracks(ctx.state.youtubePickerPayload)
+          ? 'use-selected'
+          : 'continue-without-subtitles',
       );
       return true;
     }
@@ -269,7 +270,9 @@ export function createYoutubeTrackPickerModal(
 
     ctx.dom.youtubePickerContinueButton.addEventListener('click', () => {
       void resolveSelection(
-        payloadHasTracks(ctx.state.youtubePickerPayload) ? 'use-selected' : 'continue-without-subtitles',
+        payloadHasTracks(ctx.state.youtubePickerPayload)
+          ? 'use-selected'
+          : 'continue-without-subtitles',
       );
     });
 

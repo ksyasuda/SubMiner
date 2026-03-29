@@ -1,4 +1,4 @@
-import { KikuDuplicateCardInfo, KikuFieldGroupingChoice } from '../types';
+import { KikuDuplicateCardInfo, KikuFieldGroupingChoice } from '../types/anki';
 import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 
 export interface FieldGroupingWorkflowNoteInfo {
@@ -181,7 +181,8 @@ export class FieldGroupingWorkflow {
     return {
       noteId: noteInfo.noteId,
       expression:
-        getPreferredWordValueFromExtractedFields(fields, this.deps.getConfig()) || fallbackExpression,
+        getPreferredWordValueFromExtractedFields(fields, this.deps.getConfig()) ||
+        fallbackExpression,
       sentencePreview: this.deps.truncateSentence(
         fields[(sentenceCardConfig.sentenceField || 'sentence').toLowerCase()] ||
           (isOriginal ? '' : this.deps.getCurrentSubtitleText() || ''),

@@ -55,19 +55,15 @@ exit 1
 `,
     );
 
-    const result = spawnSync(
-      'bash',
-      ['scripts/patch-modernz.sh', '--target', target],
-      {
-        cwd: process.cwd(),
-        encoding: 'utf8',
-        env: {
-          ...process.env,
-          HOME: path.join(root, 'home'),
-          PATH: `${binDir}:${process.env.PATH || ''}`,
-        },
+    const result = spawnSync('bash', ['scripts/patch-modernz.sh', '--target', target], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: path.join(root, 'home'),
+        PATH: `${binDir}:${process.env.PATH || ''}`,
       },
-    );
+    });
 
     assert.equal(result.status, 1, result.stderr || result.stdout);
     assert.match(result.stderr, /failed to apply patch to/);

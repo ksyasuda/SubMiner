@@ -9,6 +9,7 @@ out/
 dist/
 release/
 build/yomitan/
+coverage/
 
 # Launcher build artifact (produced by make build-launcher)
 /subminer

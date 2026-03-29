@@ -228,10 +228,7 @@ export function createMouseHandlers(
     syncOverlayMouseIgnoreState(ctx);
   }
 
-  async function handleMouseEnter(
-    _event?: MouseEvent,
-    showSecondaryHover = false,
-  ): Promise<void> {
+  async function handleMouseEnter(_event?: MouseEvent, showSecondaryHover = false): Promise<void> {
     ctx.state.isOverSubtitle = true;
     if (showSecondaryHover) {
       ctx.dom.secondarySubContainer.classList.add('secondary-sub-hover-active');
@@ -267,10 +264,7 @@ export function createMouseHandlers(
     pausedBySubtitleHover = true;
   }
 
-  async function handleMouseLeave(
-    _event?: MouseEvent,
-    hideSecondaryHover = false,
-  ): Promise<void> {
+  async function handleMouseLeave(_event?: MouseEvent, hideSecondaryHover = false): Promise<void> {
     const relatedTarget = _event?.relatedTarget ?? null;
     const otherContainer = hideSecondaryHover
       ? ctx.dom.subtitleContainer

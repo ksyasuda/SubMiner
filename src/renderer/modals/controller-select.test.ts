@@ -66,7 +66,10 @@ function createFakeElement() {
       if (!match) return null;
       const testId = match[1];
       for (const child of el.children) {
-        if (typeof child.getAttribute === 'function' && child.getAttribute('data-testid') === testId) {
+        if (
+          typeof child.getAttribute === 'function' &&
+          child.getAttribute('data-testid') === testId
+        ) {
           return child;
         }
         if (typeof child.querySelector === 'function') {
@@ -105,7 +108,10 @@ function installFakeDom() {
   return {
     restore: () => {
       Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-      Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+      Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: previousDocument,
+      });
     },
   };
 }

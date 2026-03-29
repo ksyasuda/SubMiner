@@ -271,7 +271,7 @@ export function handleCliCommand(
 
   const reuseSecondInstanceStart =
     source === 'second-instance' && args.start && deps.isOverlayRuntimeInitialized();
-  const shouldStart = args.start || args.toggle || args.toggleVisibleOverlay;
+  const shouldConnectMpv = args.start;
   const needsOverlayRuntime = commandNeedsOverlayRuntime(args);
   const shouldInitializeOverlayRuntime = needsOverlayRuntime || args.start;
 
@@ -302,7 +302,7 @@ export function handleCliCommand(
     deps.initializeOverlayRuntime();
   }
 
-  if (shouldStart && deps.hasMpvClient()) {
+  if (shouldConnectMpv && deps.hasMpvClient()) {
     const socketPath = deps.getMpvSocketPath();
     deps.setMpvClientSocketPath(socketPath);
     deps.connectMpvClient();

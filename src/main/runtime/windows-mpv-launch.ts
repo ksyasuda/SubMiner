@@ -33,10 +33,7 @@ export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps): string {
   return '';
 }
 
-export function buildWindowsMpvLaunchArgs(
-  targets: string[],
-  extraArgs: string[] = [],
-): string[] {
+export function buildWindowsMpvLaunchArgs(targets: string[], extraArgs: string[] = []): string[] {
   return ['--player-operation-mode=pseudo-gui', '--profile=subminer', ...extraArgs, ...targets];
 }
 

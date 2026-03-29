@@ -1,4 +1,8 @@
-import { RuntimeOptionApplyResult, RuntimeOptionId, RuntimeOptionValue } from '../../types';
+import {
+  RuntimeOptionApplyResult,
+  RuntimeOptionId,
+  RuntimeOptionValue,
+} from '../../types/runtime-options';
 
 export interface RuntimeOptionsManagerLike {
   setOptionValue: (id: RuntimeOptionId, value: RuntimeOptionValue) => RuntimeOptionApplyResult;

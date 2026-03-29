@@ -4,6 +4,7 @@ import os from 'node:os';
 import { spawn } from 'node:child_process';
 import type { LogLevel, CommandExecOptions, CommandExecResult } from './types.js';
 import { log } from './log.js';
+import { nowMs } from './time.js';
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -198,7 +199,7 @@ export function normalizeBasename(value: string, fallback: string): string {
   if (safe) return safe;
   const fallbackSafe = sanitizeToken(fallback);
   if (fallbackSafe) return fallbackSafe;
-  return `${Date.now()}`;
+  return `${nowMs()}`;
 }
 
 export function normalizeLangCode(value: string): string {

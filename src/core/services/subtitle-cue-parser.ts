@@ -4,6 +4,8 @@ export interface SubtitleCue {
   text: string;
 }
 
+const HTML_SUBTITLE_TAG_PATTERN = /<\/?[A-Za-z][^>\n]*>/g;
+
 const SRT_TIMING_PATTERN =
   /^\s*(?:(\d{1,2}):)?(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(?:(\d{1,2}):)?(\d{2}):(\d{2})[,.](\d{1,3})/;
 
@@ -19,6 +21,10 @@ function parseTimestamp(
     Number(seconds) +
     Number(millis.padEnd(3, '0')) / 1000
   );
+}
+
+function sanitizeSubtitleCueText(text: string): string {
+  return text.replace(ASS_OVERRIDE_TAG_PATTERN, '').replace(HTML_SUBTITLE_TAG_PATTERN, '').trim();
 }
 
 export function parseSrtCues(content: string): SubtitleCue[] {
@@ -54,7 +60,7 @@ export function parseSrtCues(content: string): SubtitleCue[] {
       i += 1;
     }
 
-    const text = textLines.join('\n').trim();
+    const text = sanitizeSubtitleCueText(textLines.join('\n'));
     if (text) {
       cues.push({ startTime, endTime, text });
     }
@@ -140,13 +146,9 @@ export function parseAssCues(content: string): SubtitleCue[] {
       continue;
     }
 
-    const rawText = fields
-      .slice(textFieldIndex)
-      .join(',')
-      .replace(ASS_OVERRIDE_TAG_PATTERN, '')
-      .trim();
-    if (rawText) {
-      cues.push({ startTime, endTime, text: rawText });
+    const text = sanitizeSubtitleCueText(fields.slice(textFieldIndex).join(','));
+    if (text) {
+      cues.push({ startTime, endTime, text });
     }
   }
 

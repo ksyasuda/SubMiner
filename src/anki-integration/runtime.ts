@@ -1,5 +1,5 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
-import type { AnkiConnectConfig } from '../types';
+import type { AnkiConnectConfig } from '../types/anki';
 import {
   getKnownWordCacheLifecycleConfig,
   getKnownWordCacheRefreshIntervalMinutes,

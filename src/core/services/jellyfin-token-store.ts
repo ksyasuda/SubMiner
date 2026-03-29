@@ -1,6 +1,6 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import electron from 'electron';
+import { ensureDirForFile } from '../../shared/fs-utils';
 
 const { safeStorage } = electron;
 
@@ -27,15 +27,8 @@ export interface JellyfinTokenStore {
   clearSession: () => void;
 }
 
-function ensureDirectory(filePath: string): void {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
 function writePayload(filePath: string, payload: PersistedSessionPayload): void {
-  ensureDirectory(filePath);
+  ensureDirForFile(filePath);
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
 }
 

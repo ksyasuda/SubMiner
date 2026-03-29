@@ -185,11 +185,7 @@ test('runAppReadyRuntime uses minimal startup for texthooker-only mode', async (
 
   await runAppReadyRuntime(deps);
 
-  assert.deepEqual(calls, [
-    'ensureDefaultConfigBootstrap',
-    'reloadConfig',
-    'handleInitialArgs',
-  ]);
+  assert.deepEqual(calls, ['ensureDefaultConfigBootstrap', 'reloadConfig', 'handleInitialArgs']);
 });
 
 test('runAppReadyRuntime skips Jellyfin remote startup when dependency is not wired', async () => {

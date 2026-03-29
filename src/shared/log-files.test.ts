@@ -3,11 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  appendLogLine,
-  pruneLogFiles,
-  resolveDefaultLogFilePath,
-} from './log-files';
+import { appendLogLine, pruneLogFiles, resolveDefaultLogFilePath } from './log-files';
 
 test('resolveDefaultLogFilePath uses app prefix by default', () => {
   const now = new Date('2026-03-22T12:00:00.000Z');
@@ -36,8 +32,16 @@ test('pruneLogFiles removes logs older than retention window', () => {
   fs.writeFileSync(stalePath, 'stale\n', 'utf8');
   fs.writeFileSync(freshPath, 'fresh\n', 'utf8');
   const now = new Date('2026-03-22T12:00:00.000Z');
-  fs.utimesSync(stalePath, new Date('2026-03-01T12:00:00.000Z'), new Date('2026-03-01T12:00:00.000Z'));
-  fs.utimesSync(freshPath, new Date('2026-03-21T12:00:00.000Z'), new Date('2026-03-21T12:00:00.000Z'));
+  fs.utimesSync(
+    stalePath,
+    new Date('2026-03-01T12:00:00.000Z'),
+    new Date('2026-03-01T12:00:00.000Z'),
+  );
+  fs.utimesSync(
+    freshPath,
+    new Date('2026-03-21T12:00:00.000Z'),
+    new Date('2026-03-21T12:00:00.000Z'),
+  );
 
   try {
     pruneLogFiles(logsDir, { retentionDays: 7, now });

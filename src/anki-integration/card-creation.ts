@@ -3,10 +3,11 @@ import {
   getConfiguredWordFieldName,
   getPreferredWordValueFromExtractedFields,
 } from '../anki-field-config';
-import { AiConfig, AnkiConnectConfig } from '../types';
+import { AnkiConnectConfig } from '../types/anki';
 import { createLogger } from '../logger';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
-import { MpvClient } from '../types';
+import { AiConfig } from '../types/integrations';
+import { MpvClient } from '../types/runtime';
 import { resolveSentenceBackText } from './ai';
 import { resolveMediaGenerationInputPath } from './media-source';
 

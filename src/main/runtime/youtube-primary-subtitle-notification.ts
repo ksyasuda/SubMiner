@@ -1,7 +1,9 @@
 import { isYoutubeMediaPath } from './youtube-playback';
 import { normalizeYoutubeLangCode } from '../../core/services/youtube/labels';
 
-export type YoutubePrimarySubtitleNotificationTimer = ReturnType<typeof setTimeout> | { id: number };
+export type YoutubePrimarySubtitleNotificationTimer =
+  | ReturnType<typeof setTimeout>
+  | { id: number };
 
 type SubtitleTrackEntry = {
   id: number | null;
@@ -82,7 +84,9 @@ function hasSelectedPrimarySubtitle(
 
   const tracks = trackList.map(normalizeTrack);
   const activeTrack =
-    (sid === null ? null : tracks.find((track) => track?.type === 'sub' && track.id === sid) ?? null) ??
+    (sid === null
+      ? null
+      : (tracks.find((track) => track?.type === 'sub' && track.id === sid) ?? null)) ??
     tracks.find((track) => track?.type === 'sub' && track.selected) ??
     null;
   if (!activeTrack) {
@@ -130,7 +134,9 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
       return;
     }
     lastReportedMediaPath = mediaPath;
-    deps.notifyFailure('Primary subtitle failed to download or load. Try again from the subtitle modal.');
+    deps.notifyFailure(
+      'Primary subtitle failed to download or load. Try again from the subtitle modal.',
+    );
   };
 
   const schedulePendingCheck = (): void => {
@@ -150,7 +156,8 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
 
   return {
     handleMediaPathChange: (path: string | null): void => {
-      const normalizedPath = typeof path === 'string' && path.trim().length > 0 ? path.trim() : null;
+      const normalizedPath =
+        typeof path === 'string' && path.trim().length > 0 ? path.trim() : null;
       if (currentMediaPath !== normalizedPath) {
         lastReportedMediaPath = null;
       }

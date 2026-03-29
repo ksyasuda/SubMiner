@@ -28,7 +28,7 @@ export function applyControllerConfigUpdate(
       [keyof RawControllerBindings, RawControllerBindings[keyof RawControllerBindings] | undefined]
     >) {
       if (value === undefined) continue;
-      (nextBindings as Record<string, unknown>)[key] = JSON.parse(JSON.stringify(value));
+      (nextBindings as Record<string, unknown>)[key] = structuredClone(value);
     }
 
     nextController.bindings = nextBindings;

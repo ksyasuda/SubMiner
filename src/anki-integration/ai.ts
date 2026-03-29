@@ -1,4 +1,4 @@
-import type { AiConfig } from '../types';
+import type { AiConfig } from '../types/integrations';
 import { requestAiChatCompletion } from '../ai/client';
 
 const DEFAULT_AI_SYSTEM_PROMPT =

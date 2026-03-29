@@ -1,4 +1,4 @@
-import { ResolvedConfig } from '../../types';
+import { ResolvedConfig } from '../../types/config';
 import { ResolveContext } from './context';
 import {
   asBoolean,
@@ -467,7 +467,9 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     );
     if (pauseVideoOnHover !== undefined) {
       resolved.subtitleSidebar.pauseVideoOnHover = pauseVideoOnHover;
-    } else if ((src.subtitleSidebar as { pauseVideoOnHover?: unknown }).pauseVideoOnHover !== undefined) {
+    } else if (
+      (src.subtitleSidebar as { pauseVideoOnHover?: unknown }).pauseVideoOnHover !== undefined
+    ) {
       resolved.subtitleSidebar.pauseVideoOnHover = fallback.pauseVideoOnHover;
       warn(
         'subtitleSidebar.pauseVideoOnHover',

@@ -35,6 +35,21 @@ test('parseSrtCues handles multi-line subtitle text', () => {
   assert.equal(cues[0]!.text, 'これは\nテストです');
 });
 
+test('parseSrtCues strips HTML-like markup while preserving line breaks', () => {
+  const content = [
+    '1',
+    '00:01:00,000 --> 00:01:05,000',
+    '<font color="japanese">これは</font>',
+    '<font color="japanese">テストです</font>',
+    '',
+  ].join('\n');
+
+  const cues = parseSrtCues(content);
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]!.text, 'これは\nテストです');
+});
+
 test('parseSrtCues handles hours in timestamps', () => {
   const content = ['1', '01:30:00,000 --> 01:30:05,000', 'テスト', ''].join('\n');
 
@@ -127,6 +142,18 @@ test('parseAssCues handles \\N line breaks', () => {
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
     'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,一行目\\N二行目',
+  ].join('\n');
+
+  const cues = parseAssCues(content);
+
+  assert.equal(cues[0]!.text, '一行目\\N二行目');
+});
+
+test('parseAssCues strips HTML-like markup while preserving ASS line breaks', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,<font color="japanese">一行目</font>\\N<font color="japanese">二行目</font>',
   ].join('\n');
 
   const cues = parseAssCues(content);

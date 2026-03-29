@@ -47,8 +47,8 @@ test('update-aur-package updates PKGBUILD and .SRCINFO without makepkg', () => {
 
     const pkgbuild = fs.readFileSync(path.join(pkgDir, 'PKGBUILD'), 'utf8');
     const srcinfo = fs.readFileSync(path.join(pkgDir, '.SRCINFO'), 'utf8');
-    const expectedSums = [appImagePath, wrapperPath, assetsPath].map((filePath) =>
-      execFileSync('sha256sum', [filePath], { encoding: 'utf8' }).split(/\s+/)[0],
+    const expectedSums = [appImagePath, wrapperPath, assetsPath].map(
+      (filePath) => execFileSync('sha256sum', [filePath], { encoding: 'utf8' }).split(/\s+/)[0],
     );
 
     assert.match(pkgbuild, /^pkgver=0\.6\.3$/m);

@@ -227,11 +227,7 @@ test('stats background command launches attached daemon control command with res
 
   assert.equal(handled, true);
   assert.deepEqual(harness.forwarded, [
-    [
-      '--stats-daemon-start',
-      '--stats-response-path',
-      '/tmp/subminer-stats-test/response.json',
-    ],
+    ['--stats-daemon-start', '--stats-response-path', '/tmp/subminer-stats-test/response.json'],
   ]);
   assert.equal(harness.removedPaths.length, 1);
 });
@@ -257,11 +253,7 @@ test('stats command waits for attached app exit after startup response', async (
   const final = await statsCommand;
   assert.equal(final, true);
   assert.deepEqual(harness.forwarded, [
-    [
-      '--stats',
-      '--stats-response-path',
-      '/tmp/subminer-stats-test/response.json',
-    ],
+    ['--stats', '--stats-response-path', '/tmp/subminer-stats-test/response.json'],
   ]);
   assert.equal(harness.removedPaths.length, 1);
 });
@@ -317,11 +309,7 @@ test('stats stop command forwards stop flag to the app', async () => {
 
   assert.equal(handled, true);
   assert.deepEqual(harness.forwarded, [
-    [
-      '--stats-daemon-stop',
-      '--stats-response-path',
-      '/tmp/subminer-stats-test/response.json',
-    ],
+    ['--stats-daemon-stop', '--stats-response-path', '/tmp/subminer-stats-test/response.json'],
   ]);
   assert.equal(harness.removedPaths.length, 1);
 });

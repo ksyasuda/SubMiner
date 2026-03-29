@@ -13,6 +13,7 @@ This section is the internal workflow map for contributors and agents.
 
 - [Planning](./planning.md) - when to write a lightweight plan vs a full execution plan
 - [Verification](./verification.md) - maintained test/build lanes and handoff gate
+- [Agent Plugins](./agent-plugins.md) - repo-local plugin ownership for agent workflow skills
 - [Release Guide](../RELEASING.md) - tagged release workflow
 
 ## Default Flow

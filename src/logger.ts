@@ -1,4 +1,7 @@
-import { appendLogLine, resolveDefaultLogFilePath as resolveSharedDefaultLogFilePath } from './shared/log-files';
+import {
+  appendLogLine,
+  resolveDefaultLogFilePath as resolveSharedDefaultLogFilePath,
+} from './shared/log-files';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogLevelSource = 'cli' | 'config';

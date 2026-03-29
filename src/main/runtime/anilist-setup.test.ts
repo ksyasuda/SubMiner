@@ -84,51 +84,63 @@ test('findAnilistSetupDeepLinkArgvUrl returns null when missing', () => {
 });
 
 test('consumeAnilistSetupCallbackUrl persists token and closes window for callback URL', () => {
+  const originalDateNow = Date.now;
   const events: string[] = [];
-  const handled = consumeAnilistSetupCallbackUrl({
-    rawUrl: 'https://anilist.subminer.moe/#access_token=saved-token',
-    saveToken: (value: string) => events.push(`save:${value}`),
-    setCachedToken: (value: string) => events.push(`cache:${value}`),
-    setResolvedState: (timestampMs: number) =>
-      events.push(`state:${timestampMs > 0 ? 'ok' : 'bad'}`),
-    setSetupPageOpened: (opened: boolean) => events.push(`opened:${opened}`),
-    onSuccess: () => events.push('success'),
-    closeWindow: () => events.push('close'),
-  });
+  try {
+    Date.now = () => 120_000;
+    const handled = consumeAnilistSetupCallbackUrl({
+      rawUrl: 'https://anilist.subminer.moe/#access_token=saved-token',
+      saveToken: (value: string) => events.push(`save:${value}`),
+      setCachedToken: (value: string) => events.push(`cache:${value}`),
+      setResolvedState: (timestampMs: number) =>
+        events.push(`state:${timestampMs > 0 ? 'ok' : 'bad'}`),
+      setSetupPageOpened: (opened: boolean) => events.push(`opened:${opened}`),
+      onSuccess: () => events.push('success'),
+      closeWindow: () => events.push('close'),
+    });
 
-  assert.equal(handled, true);
-  assert.deepEqual(events, [
-    'save:saved-token',
-    'cache:saved-token',
-    'state:ok',
-    'opened:false',
-    'success',
-    'close',
-  ]);
+    assert.equal(handled, true);
+    assert.deepEqual(events, [
+      'save:saved-token',
+      'cache:saved-token',
+      'state:ok',
+      'opened:false',
+      'success',
+      'close',
+    ]);
+  } finally {
+    Date.now = originalDateNow;
+  }
 });
 
 test('consumeAnilistSetupCallbackUrl persists token for subminer deep link URL', () => {
+  const originalDateNow = Date.now;
   const events: string[] = [];
-  const handled = consumeAnilistSetupCallbackUrl({
-    rawUrl: 'subminer://anilist-setup?access_token=saved-token',
-    saveToken: (value: string) => events.push(`save:${value}`),
-    setCachedToken: (value: string) => events.push(`cache:${value}`),
-    setResolvedState: (timestampMs: number) =>
-      events.push(`state:${timestampMs > 0 ? 'ok' : 'bad'}`),
-    setSetupPageOpened: (opened: boolean) => events.push(`opened:${opened}`),
-    onSuccess: () => events.push('success'),
-    closeWindow: () => events.push('close'),
-  });
+  try {
+    Date.now = () => 120_000;
+    const handled = consumeAnilistSetupCallbackUrl({
+      rawUrl: 'subminer://anilist-setup?access_token=saved-token',
+      saveToken: (value: string) => events.push(`save:${value}`),
+      setCachedToken: (value: string) => events.push(`cache:${value}`),
+      setResolvedState: (timestampMs: number) =>
+        events.push(`state:${timestampMs > 0 ? 'ok' : 'bad'}`),
+      setSetupPageOpened: (opened: boolean) => events.push(`opened:${opened}`),
+      onSuccess: () => events.push('success'),
+      closeWindow: () => events.push('close'),
+    });
 
-  assert.equal(handled, true);
-  assert.deepEqual(events, [
-    'save:saved-token',
-    'cache:saved-token',
-    'state:ok',
-    'opened:false',
-    'success',
-    'close',
-  ]);
+    assert.equal(handled, true);
+    assert.deepEqual(events, [
+      'save:saved-token',
+      'cache:saved-token',
+      'state:ok',
+      'opened:false',
+      'success',
+      'close',
+    ]);
+  } finally {
+    Date.now = originalDateNow;
+  }
 });
 
 test('consumeAnilistSetupCallbackUrl ignores non-callback URLs', () => {

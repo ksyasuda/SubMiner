@@ -16,7 +16,7 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 
 function makeFakeYtDlpScript(dir: string): string {
   const scriptPath = path.join(dir, 'yt-dlp');
-const script = `#!/usr/bin/env node
+  const script = `#!/usr/bin/env node
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -115,7 +115,9 @@ async function withFakeYtDlp<T>(
 }
 
 async function withFakeYtDlpExpectations<T>(
-  expectations: Partial<Record<'YTDLP_EXPECT_AUTO_SUBS' | 'YTDLP_EXPECT_MANUAL_SUBS' | 'YTDLP_EXPECT_SUB_LANG', string>>,
+  expectations: Partial<
+    Record<'YTDLP_EXPECT_AUTO_SUBS' | 'YTDLP_EXPECT_MANUAL_SUBS' | 'YTDLP_EXPECT_SUB_LANG', string>
+  >,
   fn: () => Promise<T>,
 ): Promise<T> {
   const previous = {
@@ -144,11 +146,7 @@ async function withStubFetch<T>(
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: string | URL | Request) => {
     const url =
-      typeof input === 'string'
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input.url;
+      typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     return await handler(url);
   }) as typeof fetch;
   try {

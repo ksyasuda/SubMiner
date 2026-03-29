@@ -1,4 +1,4 @@
-import type { AnkiConnectConfig } from './types';
+import type { AnkiConnectConfig } from './types/anki';
 
 type NoteFieldValue = { value?: string } | string | null | undefined;
 
@@ -8,7 +8,9 @@ function normalizeFieldName(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function getConfiguredWordFieldName(config?: Pick<AnkiConnectConfig, 'fields'> | null): string {
+export function getConfiguredWordFieldName(
+  config?: Pick<AnkiConnectConfig, 'fields'> | null,
+): string {
   return normalizeFieldName(config?.fields?.word) ?? 'Expression';
 }
 

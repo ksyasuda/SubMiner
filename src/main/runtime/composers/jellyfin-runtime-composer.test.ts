@@ -190,4 +190,9 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
   assert.equal(typeof composed.stopJellyfinRemoteSession, 'function');
   assert.equal(typeof composed.runJellyfinCommand, 'function');
   assert.equal(typeof composed.openJellyfinSetupWindow, 'function');
+
+  // getResolvedJellyfinConfig forwards to the injected getResolvedConfig dep
+  const jellyfinConfig = composed.getResolvedJellyfinConfig();
+  assert.equal(jellyfinConfig.enabled, false);
+  assert.equal(jellyfinConfig.serverUrl, '');
 });

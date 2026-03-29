@@ -443,13 +443,23 @@ test('handleCliCommand still runs non-start actions on second-instance', () => {
   );
 });
 
-test('handleCliCommand connects MPV for toggle on second-instance', () => {
+test('handleCliCommand does not connect MPV for pure toggle on second-instance', () => {
   const { deps, calls } = createDeps();
   handleCliCommand(makeArgs({ toggle: true }), 'second-instance', deps);
   assert.ok(calls.includes('toggleVisibleOverlay'));
   assert.equal(
     calls.some((value) => value === 'connectMpvClient'),
-    true,
+    false,
+  );
+});
+
+test('handleCliCommand does not connect MPV for explicit visible-overlay toggle', () => {
+  const { deps, calls } = createDeps();
+  handleCliCommand(makeArgs({ toggleVisibleOverlay: true }), 'second-instance', deps);
+  assert.ok(calls.includes('toggleVisibleOverlay'));
+  assert.equal(
+    calls.some((value) => value === 'connectMpvClient'),
+    false,
   );
 });
 

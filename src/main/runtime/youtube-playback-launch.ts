@@ -74,7 +74,9 @@ function hasPlayableMediaTracks(trackListRaw: unknown): boolean {
   if (!Array.isArray(trackListRaw)) return false;
   return trackListRaw.some((track) => {
     if (!track || typeof track !== 'object') return false;
-    const type = String((track as Record<string, unknown>).type || '').trim().toLowerCase();
+    const type = String((track as Record<string, unknown>).type || '')
+      .trim()
+      .toLowerCase();
     return type === 'video' || type === 'audio';
   });
 }

@@ -67,7 +67,7 @@ features:
       alt: Subtitle download icon
     title: Subtitle Download & Sync
     details: Search and pull subtitles from Jimaku, then auto-sync timing with alass or ffsubsync — all from the overlay.
-    link: /configuration#jimaku
+    link: /jimaku-integration
     linkText: Jimaku integration
   - icon:
       src: /assets/tokenization.svg
@@ -223,12 +223,12 @@ const demoAssetVersion = '20260223-2';
 }
 
 .workflow-step:hover {
-  background: hsla(232, 23%, 18%, 0.6);
+  background: var(--tui-step-hover-bg);
 }
 
 .workflow-step:hover .step-number {
   color: var(--vp-c-brand-1);
-  text-shadow: 0 0 12px hsla(267, 83%, 80%, 0.3);
+  text-shadow: 0 0 12px var(--tui-step-hover-glow);
 }
 
 .workflow-connector {

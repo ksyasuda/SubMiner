@@ -287,10 +287,14 @@ test('sendToActiveOverlayWindow can prefer modal window even when main overlay i
     setModalWindowBounds: () => {},
   });
 
-  const sent = runtime.sendToActiveOverlayWindow('youtube:picker-open', { sessionId: 'yt-1' }, {
-    restoreOnModalClose: 'youtube-track-picker',
-    preferModalWindow: true,
-  });
+  const sent = runtime.sendToActiveOverlayWindow(
+    'youtube:picker-open',
+    { sessionId: 'yt-1' },
+    {
+      restoreOnModalClose: 'youtube-track-picker',
+      preferModalWindow: true,
+    },
+  );
 
   assert.equal(sent, true);
   assert.deepEqual(mainWindow.sent, []);
@@ -309,10 +313,14 @@ test('modal window path makes visible main overlay click-through until modal clo
     setModalWindowBounds: () => {},
   });
 
-  const sent = runtime.sendToActiveOverlayWindow('youtube:picker-open', { sessionId: 'yt-1' }, {
-    restoreOnModalClose: 'youtube-track-picker',
-    preferModalWindow: true,
-  });
+  const sent = runtime.sendToActiveOverlayWindow(
+    'youtube:picker-open',
+    { sessionId: 'yt-1' },
+    {
+      restoreOnModalClose: 'youtube-track-picker',
+      preferModalWindow: true,
+    },
+  );
   runtime.notifyOverlayModalOpened('youtube-track-picker');
 
   assert.equal(sent, true);
@@ -336,10 +344,14 @@ test('modal window path hides visible main overlay until modal closes', () => {
     setModalWindowBounds: () => {},
   });
 
-  runtime.sendToActiveOverlayWindow('youtube:picker-open', { sessionId: 'yt-1' }, {
-    restoreOnModalClose: 'youtube-track-picker',
-    preferModalWindow: true,
-  });
+  runtime.sendToActiveOverlayWindow(
+    'youtube:picker-open',
+    { sessionId: 'yt-1' },
+    {
+      restoreOnModalClose: 'youtube-track-picker',
+      preferModalWindow: true,
+    },
+  );
   runtime.notifyOverlayModalOpened('youtube-track-picker');
 
   assert.equal(mainWindow.getHideCount(), 1);
@@ -516,9 +528,13 @@ test('waitForModalOpen resolves true after modal acknowledgement', async () => {
     setModalWindowBounds: () => {},
   });
 
-  runtime.sendToActiveOverlayWindow('youtube:picker-open', { sessionId: 'yt-1' }, {
-    restoreOnModalClose: 'youtube-track-picker',
-  });
+  runtime.sendToActiveOverlayWindow(
+    'youtube:picker-open',
+    { sessionId: 'yt-1' },
+    {
+      restoreOnModalClose: 'youtube-track-picker',
+    },
+  );
   const pending = runtime.waitForModalOpen('youtube-track-picker', 1000);
   runtime.notifyOverlayModalOpened('youtube-track-picker');
 

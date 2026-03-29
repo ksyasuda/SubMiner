@@ -4,14 +4,12 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   appState: {
     initialArgs?: { jellyfinPlay?: unknown; youtubePlay?: unknown } | null;
     overlayRuntimeInitialized: boolean;
-    mpvClient:
-      | {
-          connected?: boolean;
-          currentSecondarySubText?: string;
-          currentTimePos?: number;
-          requestProperty?: (name: string) => Promise<unknown>;
-        }
-      | null;
+    mpvClient: {
+      connected?: boolean;
+      currentSecondarySubText?: string;
+      currentTimePos?: number;
+      requestProperty?: (name: string) => Promise<unknown>;
+    } | null;
     immersionTracker: {
       recordSubtitleLine?: (
         text: string,

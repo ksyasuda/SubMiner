@@ -2,9 +2,9 @@ import type {
   AnkiConnectConfig,
   KikuFieldGroupingChoice,
   KikuFieldGroupingRequestData,
-  WindowGeometry,
-} from '../../types';
+} from '../../types/anki';
 import type { BrowserWindow } from 'electron';
+import type { WindowGeometry } from '../../types/runtime';
 import type { BaseWindowTracker } from '../../window-trackers';
 
 type OverlayRuntimeOptions = {

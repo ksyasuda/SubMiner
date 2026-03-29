@@ -263,7 +263,9 @@ test('reportProgress posts timeline payload and treats failure as non-fatal', as
     audioStreamIndex: 1,
     subtitleStreamIndex: 2,
   });
-  const expectedPostedPayload = JSON.parse(JSON.stringify(expectedPayload));
+  const expectedPostedPayload = Object.fromEntries(
+    Object.entries(structuredClone(expectedPayload)).filter(([, value]) => value !== undefined),
+  );
 
   const ok = await service.reportProgress({
     itemId: 'movie-2',

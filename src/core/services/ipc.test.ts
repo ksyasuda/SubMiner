@@ -70,7 +70,11 @@ function createControllerConfigFixture() {
       nextAudio: { kind: 'button' as const, buttonIndex: 5 },
       playCurrentAudio: { kind: 'button' as const, buttonIndex: 7 },
       toggleMpvPause: { kind: 'button' as const, buttonIndex: 6 },
-      leftStickHorizontal: { kind: 'axis' as const, axisIndex: 0, dpadFallback: 'horizontal' as const },
+      leftStickHorizontal: {
+        kind: 'axis' as const,
+        axisIndex: 0,
+        dpadFallback: 'horizontal' as const,
+      },
       leftStickVertical: { kind: 'axis' as const, axisIndex: 1, dpadFallback: 'vertical' as const },
       rightStickHorizontal: { kind: 'axis' as const, axisIndex: 3, dpadFallback: 'none' as const },
       rightStickVertical: { kind: 'axis' as const, axisIndex: 4, dpadFallback: 'none' as const },

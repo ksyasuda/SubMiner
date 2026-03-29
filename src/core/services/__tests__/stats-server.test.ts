@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createStatsApp } from '../stats-server.js';
+import { createStatsApp, startStatsServer } from '../stats-server.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 
 const SESSION_SUMMARIES = [
@@ -1109,5 +1109,81 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('content-type'), 'image/jpeg');
     assert.equal(ensureCalls, 1);
+  });
+
+  it('starts the stats server with Bun.serve', () => {
+    type BunRuntime = {
+      Bun: {
+        serve: (options: { fetch: unknown; port: number; hostname: string }) => {
+          stop: () => void;
+        };
+      };
+    };
+
+    const bun = globalThis as typeof globalThis & BunRuntime;
+    const originalServe = bun.Bun.serve;
+    let servedWith: { fetch: unknown; port: number; hostname: string } | null = null;
+    let stopCalls = 0;
+
+    bun.Bun.serve = (options: { fetch: unknown; port: number; hostname: string }) => {
+      servedWith = options;
+      return {
+        stop: () => {
+          stopCalls += 1;
+        },
+      };
+    };
+
+    try {
+      const server = startStatsServer({
+        port: 3210,
+        staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-start-')),
+        tracker: createMockTracker(),
+      });
+
+      if (servedWith === null) {
+        throw new Error('expected Bun.serve to be called');
+      }
+
+      const servedOptions = servedWith as {
+        fetch: unknown;
+        port: number;
+        hostname: string;
+      };
+      assert.equal(servedOptions.port, 3210);
+      assert.equal(servedOptions.hostname, '127.0.0.1');
+      assert.equal(typeof servedOptions.fetch, 'function');
+
+      server.close();
+      assert.equal(stopCalls, 1);
+    } finally {
+      bun.Bun.serve = originalServe;
+    }
+  });
+
+  it('falls back to node:http when Bun.serve is unavailable', () => {
+    type BunRuntime = {
+      Bun: {
+        serve?: (options: { fetch: unknown; port: number; hostname: string }) => {
+          stop: () => void;
+        };
+      };
+    };
+
+    const bun = globalThis as typeof globalThis & BunRuntime;
+    const originalServe = bun.Bun.serve;
+    bun.Bun.serve = undefined;
+
+    try {
+      const server = startStatsServer({
+        port: 0,
+        staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-')),
+        tracker: createMockTracker(),
+      });
+
+      server.close();
+    } finally {
+      bun.Bun.serve = originalServe;
+    }
   });
 });

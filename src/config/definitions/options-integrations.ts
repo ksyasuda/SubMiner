@@ -1,4 +1,4 @@
-import { ResolvedConfig } from '../../types';
+import { ResolvedConfig } from '../../types/config';
 import { ConfigOptionRegistryEntry, RuntimeOptionRegistryEntry } from './shared';
 
 export function buildIntegrationConfigOptionRegistry(
@@ -324,6 +324,13 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Enable optional Discord Rich Presence updates.',
     },
     {
+      path: 'discordPresence.presenceStyle',
+      kind: 'string',
+      defaultValue: defaultConfig.discordPresence.presenceStyle,
+      description:
+        'Presence card text preset: "default" (clean bilingual), "meme" (Mining and crafting), "japanese" (fully JP), or "minimal".',
+    },
+    {
       path: 'discordPresence.updateIntervalMs',
       kind: 'number',
       defaultValue: defaultConfig.discordPresence.updateIntervalMs,
@@ -369,13 +376,15 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'youtubeSubgen.whisperBin',
       kind: 'string',
       defaultValue: defaultConfig.youtubeSubgen.whisperBin,
-      description: 'Legacy compatibility path kept for external subtitle fallback tools; not used by default.',
+      description:
+        'Legacy compatibility path kept for external subtitle fallback tools; not used by default.',
     },
     {
       path: 'youtubeSubgen.whisperModel',
       kind: 'string',
       defaultValue: defaultConfig.youtubeSubgen.whisperModel,
-      description: 'Legacy compatibility model path kept for external subtitle fallback tooling; not used by default.',
+      description:
+        'Legacy compatibility model path kept for external subtitle fallback tooling; not used by default.',
     },
     {
       path: 'youtubeSubgen.whisperVadModel',

@@ -357,10 +357,7 @@ export function createOverlayModalRuntimeService(
     showModalWindow(targetWindow);
   };
 
-  const waitForModalOpen = async (
-    modal: OverlayHostedModal,
-    timeoutMs: number,
-  ): Promise<boolean> =>
+  const waitForModalOpen = async (modal: OverlayHostedModal, timeoutMs: number): Promise<boolean> =>
     await new Promise<boolean>((resolve) => {
       const waiters = modalOpenWaiters.get(modal) ?? [];
       const finish = (opened: boolean): void => {

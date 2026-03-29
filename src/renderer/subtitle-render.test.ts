@@ -981,18 +981,9 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
     cssText,
     'body.subtitle-sidebar-embedded-open #secondarySubContainer.secondary-sub-hover',
   );
-  assert.match(
-    secondaryEmbeddedHoverBlock,
-    /right:\s*var\(--subtitle-sidebar-reserved-width\);/,
-  );
-  assert.match(
-    secondaryEmbeddedHoverBlock,
-    /max-width:\s*none;/,
-  );
-  assert.match(
-    secondaryEmbeddedHoverBlock,
-    /transform:\s*none;/,
-  );
+  assert.match(secondaryEmbeddedHoverBlock, /right:\s*var\(--subtitle-sidebar-reserved-width\);/);
+  assert.match(secondaryEmbeddedHoverBlock, /max-width:\s*none;/);
+  assert.match(secondaryEmbeddedHoverBlock, /transform:\s*none;/);
   assert.doesNotMatch(
     secondaryEmbeddedHoverBlock,
     /transform:\s*translateX\(calc\(var\(--subtitle-sidebar-reserved-width\)\s*\*\s*-0\.5\)\);/,

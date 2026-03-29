@@ -1,4 +1,4 @@
-import { ConfigValidationWarning, RawConfig, ResolvedConfig } from '../../types';
+import { ConfigValidationWarning, RawConfig, ResolvedConfig } from '../../types/config';
 import { DEFAULT_CONFIG, deepCloneConfig } from '../definitions';
 import { createWarningCollector } from '../warnings';
 import { isObject } from './shared';

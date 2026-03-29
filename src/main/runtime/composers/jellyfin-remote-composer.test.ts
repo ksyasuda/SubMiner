@@ -2,8 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { composeJellyfinRemoteHandlers } from './jellyfin-remote-composer';
 
-test('composeJellyfinRemoteHandlers returns callable jellyfin remote handlers', () => {
+test('composeJellyfinRemoteHandlers returns callable jellyfin remote handlers', async () => {
   let lastProgressAt = 0;
+  let activePlayback: unknown = { itemId: 'item-1', mediaSourceId: 'src-1', playMethod: 'DirectPlay', audioStreamIndex: null, subtitleStreamIndex: null };
+  const calls: string[] = [];
+
   const composed = composeJellyfinRemoteHandlers({
     getConfiguredSession: () => null,
     getClientInfo: () =>
@@ -14,8 +17,11 @@ test('composeJellyfinRemoteHandlers returns callable jellyfin remote handlers', 
     getMpvClient: () => null,
     sendMpvCommand: () => {},
     jellyfinTicksToSeconds: () => 0,
-    getActivePlayback: () => null,
-    clearActivePlayback: () => {},
+    getActivePlayback: () => activePlayback as never,
+    clearActivePlayback: () => {
+      activePlayback = null;
+      calls.push('clearActivePlayback');
+    },
     getSession: () => null,
     getNow: () => 0,
     getLastProgressAtMs: () => lastProgressAt,
@@ -32,4 +38,9 @@ test('composeJellyfinRemoteHandlers returns callable jellyfin remote handlers', 
   assert.equal(typeof composed.handleJellyfinRemotePlay, 'function');
   assert.equal(typeof composed.handleJellyfinRemotePlaystate, 'function');
   assert.equal(typeof composed.handleJellyfinRemoteGeneralCommand, 'function');
+
+  // reportJellyfinRemoteStopped clears active playback when there is no connected session
+  await composed.reportJellyfinRemoteStopped();
+  assert.equal(activePlayback, null);
+  assert.deepEqual(calls, ['clearActivePlayback']);
 });

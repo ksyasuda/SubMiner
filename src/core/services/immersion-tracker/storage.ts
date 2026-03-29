@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 import { parseMediaInfo } from '../../../jimaku/utils';
 import type { DatabaseSync } from './sqlite';
+import { nowMs } from './time';
 import { SCHEMA_VERSION } from './types';
 import type { QueuedWrite, VideoMetadata, YoutubeVideoMetadata } from './types';
+import { toDbMs } from './query-shared';
 
 export interface TrackerPreparedStatements {
   telemetryInsertStmt: ReturnType<DatabaseSync['prepare']>;
@@ -128,7 +130,7 @@ function deduplicateExistingCoverArtRows(db: DatabaseSync): void {
     return;
   }
 
-  const nowMs = Date.now();
+  const nowMsValue = toDbMs(nowMs());
   const upsertBlobStmt = db.prepare(`
     INSERT INTO imm_cover_art_blobs (blob_hash, cover_blob, CREATED_DATE, LAST_UPDATE_DATE)
     VALUES (?, ?, ?, ?)
@@ -150,14 +152,14 @@ function deduplicateExistingCoverArtRows(db: DatabaseSync): void {
     const refHash = parseCoverBlobReference(coverBlob);
     if (refHash) {
       if (row.cover_blob_hash !== refHash) {
-        updateMediaStmt.run(coverBlob, refHash, nowMs, row.video_id);
+        updateMediaStmt.run(coverBlob, refHash, nowMsValue, row.video_id);
       }
       continue;
     }
 
     const hash = createHash('sha256').update(coverBlob).digest('hex');
-    upsertBlobStmt.run(hash, coverBlob, nowMs, nowMs);
-    updateMediaStmt.run(buildCoverBlobReference(hash), hash, nowMs, row.video_id);
+    upsertBlobStmt.run(hash, coverBlob, nowMsValue, nowMsValue);
+    updateMediaStmt.run(buildCoverBlobReference(hash), hash, nowMsValue, row.video_id);
   }
 }
 
@@ -273,7 +275,7 @@ function parseLegacyAnimeBackfillCandidate(
 }
 
 function ensureLifetimeSummaryTables(db: DatabaseSync): void {
-  const nowMs = Date.now();
+  const nowMsValue = toDbMs(nowMs());
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_lifetime_global(
@@ -315,8 +317,8 @@ function ensureLifetimeSummaryTables(db: DatabaseSync): void {
       0,
       0,
       NULL,
-      ${nowMs},
-      ${nowMs}
+      ${nowMsValue},
+      ${nowMsValue}
     WHERE NOT EXISTS (SELECT 1 FROM imm_lifetime_global LIMIT 1)
   `);
 
@@ -403,13 +405,13 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
       input.titleEnglish,
       input.titleNative,
       input.metadataJson,
-      Date.now(),
+      toDbMs(nowMs()),
       existing.anime_id,
     );
     return existing.anime_id;
   }
 
-  const nowMs = Date.now();
+  const nowMsValue = toDbMs(nowMs());
   const result = db
     .prepare(
       `
@@ -434,8 +436,8 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
       input.titleEnglish,
       input.titleNative,
       input.metadataJson,
-      nowMs,
-      nowMs,
+      nowMsValue,
+      nowMsValue,
     );
   return Number(result.lastInsertRowid);
 }
@@ -469,7 +471,7 @@ export function linkVideoToAnimeRecord(
     input.parserSource,
     input.parserConfidence,
     input.parseMetadataJson,
-    Date.now(),
+    toDbMs(nowMs()),
     videoId,
   );
 }
@@ -854,7 +856,7 @@ export function ensureSchema(db: DatabaseSync): void {
     addColumnIfMissing(db, 'imm_monthly_rollups', 'CREATED_DATE');
     addColumnIfMissing(db, 'imm_monthly_rollups', 'LAST_UPDATE_DATE');
 
-    const nowMs = Date.now();
+    const migratedAtMs = toDbMs(nowMs());
     db.prepare(
       `
         UPDATE imm_videos
@@ -894,7 +896,7 @@ export function ensureSchema(db: DatabaseSync): void {
           CREATED_DATE = COALESCE(CREATED_DATE, ?),
           LAST_UPDATE_DATE = COALESCE(LAST_UPDATE_DATE, ?)
       `,
-    ).run(nowMs, nowMs);
+    ).run(migratedAtMs, migratedAtMs);
     db.prepare(
       `
         UPDATE imm_monthly_rollups
@@ -902,7 +904,7 @@ export function ensureSchema(db: DatabaseSync): void {
           CREATED_DATE = COALESCE(CREATED_DATE, ?),
           LAST_UPDATE_DATE = COALESCE(LAST_UPDATE_DATE, ?)
       `,
-    ).run(nowMs, nowMs);
+    ).run(migratedAtMs, migratedAtMs);
   }
 
   if (currentVersion?.schema_version === 1 || currentVersion?.schema_version === 2) {
@@ -1241,7 +1243,7 @@ export function ensureSchema(db: DatabaseSync): void {
 
   db.exec(`
     INSERT INTO imm_schema_version(schema_version, applied_at_ms)
-    VALUES (${SCHEMA_VERSION}, ${Date.now()})
+    VALUES (${SCHEMA_VERSION}, ${toDbMs(nowMs())})
     ON CONFLICT DO NOTHING
   `);
 }
@@ -1399,28 +1401,48 @@ function incrementKanjiAggregate(
 }
 
 export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedStatements): void {
+  const currentMs = toDbMs(nowMs());
   if (write.kind === 'telemetry') {
-    const nowMs = Date.now();
+    if (
+      write.totalWatchedMs === undefined ||
+      write.activeWatchedMs === undefined ||
+      write.linesSeen === undefined ||
+      write.tokensSeen === undefined ||
+      write.cardsMined === undefined ||
+      write.lookupCount === undefined ||
+      write.lookupHits === undefined ||
+      write.yomitanLookupCount === undefined ||
+      write.pauseCount === undefined ||
+      write.pauseMs === undefined ||
+      write.seekForwardCount === undefined ||
+      write.seekBackwardCount === undefined ||
+      write.mediaBufferEvents === undefined
+    ) {
+      throw new Error('Incomplete telemetry write');
+    }
+    const telemetrySampleMs = toDbMs(write.sampleMs ?? Number(currentMs));
     stmts.telemetryInsertStmt.run(
       write.sessionId,
-      write.sampleMs!,
-      write.totalWatchedMs!,
-      write.activeWatchedMs!,
-      write.linesSeen!,
-      write.tokensSeen!,
-      write.cardsMined!,
-      write.lookupCount!,
-      write.lookupHits!,
-      write.yomitanLookupCount ?? 0,
-      write.pauseCount!,
-      write.pauseMs!,
-      write.seekForwardCount!,
-      write.seekBackwardCount!,
-      write.mediaBufferEvents!,
-      nowMs,
-      nowMs,
+      telemetrySampleMs,
+      write.totalWatchedMs,
+      write.activeWatchedMs,
+      write.linesSeen,
+      write.tokensSeen,
+      write.cardsMined,
+      write.lookupCount,
+      write.lookupHits,
+      write.yomitanLookupCount,
+      write.pauseCount,
+      write.pauseMs,
+      write.seekForwardCount,
+      write.seekBackwardCount,
+      write.mediaBufferEvents,
+      currentMs,
+      currentMs,
     );
-    stmts.sessionCheckpointStmt.run(write.lastMediaMs ?? null, nowMs, write.sessionId);
+    if (write.lastMediaMs !== undefined) {
+      stmts.sessionCheckpointStmt.run(write.lastMediaMs ?? null, currentMs, write.sessionId);
+    }
     return;
   }
   if (write.kind === 'word') {
@@ -1456,8 +1478,8 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
       write.segmentEndMs ?? null,
       write.text,
       write.secondaryText ?? null,
-      Date.now(),
-      Date.now(),
+      currentMs,
+      currentMs,
     );
     const lineId = Number(lineResult.lastInsertRowid);
     for (const occurrence of write.wordOccurrences) {
@@ -1473,16 +1495,16 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
 
   stmts.eventInsertStmt.run(
     write.sessionId,
-    write.sampleMs!,
-    write.eventType!,
+    toDbMs(write.sampleMs ?? Number(currentMs)),
+    write.eventType ?? 0,
     write.lineIndex ?? null,
     write.segmentStartMs ?? null,
     write.segmentEndMs ?? null,
     write.tokensDelta ?? 0,
     write.cardsDelta ?? 0,
     write.payloadJson ?? null,
-    Date.now(),
-    Date.now(),
+    currentMs,
+    currentMs,
   );
 }
 
@@ -1508,11 +1530,11 @@ export function getOrCreateVideoRecord(
           LAST_UPDATE_DATE = ?
         WHERE video_id = ?
       `,
-    ).run(details.canonicalTitle || 'unknown', Date.now(), existing.video_id);
+    ).run(details.canonicalTitle || 'unknown', toDbMs(nowMs()), existing.video_id);
     return existing.video_id;
   }
 
-  const nowMs = Date.now();
+  const currentMs = toDbMs(nowMs());
   const insert = db.prepare(`
     INSERT INTO imm_videos (
       video_key, canonical_title, source_type, source_path, source_url,
@@ -1539,8 +1561,8 @@ export function getOrCreateVideoRecord(
     null,
     null,
     null,
-    nowMs,
-    nowMs,
+    currentMs,
+    currentMs,
   );
   return Number(result.lastInsertRowid);
 }
@@ -1582,7 +1604,7 @@ export function updateVideoMetadataRecord(
     metadata.hashSha256,
     metadata.screenshotPath,
     metadata.metadataJson,
-    Date.now(),
+    toDbMs(nowMs()),
     videoId,
   );
 }
@@ -1600,7 +1622,7 @@ export function updateVideoTitleRecord(
         LAST_UPDATE_DATE = ?
       WHERE video_id = ?
     `,
-  ).run(canonicalTitle, Date.now(), videoId);
+  ).run(canonicalTitle, toDbMs(nowMs()), videoId);
 }
 
 export function upsertYoutubeVideoMetadata(
@@ -1608,7 +1630,7 @@ export function upsertYoutubeVideoMetadata(
   videoId: number,
   metadata: YoutubeVideoMetadata,
 ): void {
-  const nowMs = Date.now();
+  const currentMs = toDbMs(nowMs());
   db.prepare(
     `
       INSERT INTO imm_youtube_videos (
@@ -1659,8 +1681,8 @@ export function upsertYoutubeVideoMetadata(
     metadata.uploaderUrl ?? null,
     metadata.description ?? null,
     metadata.metadataJson ?? null,
-    nowMs,
-    nowMs,
-    nowMs,
+    currentMs,
+    currentMs,
+    currentMs,
   );
 }

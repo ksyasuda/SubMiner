@@ -3428,40 +3428,43 @@ test('tokenizeSubtitle keeps standalone grammar-only tokens hoverable while clea
 test('tokenizeSubtitle keeps trailing quote-particle merged tokens hoverable while clearing only their annotation metadata', async () => {
   const result = await tokenizeSubtitle(
     'どうしてもって',
-    makeDepsFromYomitanTokens([{ surface: 'どうしてもって', reading: 'どうしてもって', headword: 'どうしても' }], {
-      getFrequencyDictionaryEnabled: () => true,
-      getFrequencyRank: (text) => (text === 'どうしても' ? 123 : null),
-      getJlptLevel: (text) => (text === 'どうしても' ? 'N3' : null),
-      tokenizeWithMecab: async () => [
-        {
-          headword: 'どうしても',
-          surface: 'どうしても',
-          reading: 'ドウシテモ',
-          startPos: 0,
-          endPos: 5,
-          partOfSpeech: PartOfSpeech.other,
-          pos1: '副詞',
-          pos2: '一般',
-          isMerged: false,
-          isKnown: false,
-          isNPlusOneTarget: false,
-        },
-        {
-          headword: 'って',
-          surface: 'って',
-          reading: 'ッテ',
-          startPos: 5,
-          endPos: 7,
-          partOfSpeech: PartOfSpeech.particle,
-          pos1: '助詞',
-          pos2: '格助詞',
-          isMerged: false,
-          isKnown: false,
-          isNPlusOneTarget: false,
-        },
-      ],
-      getMinSentenceWordsForNPlusOne: () => 1,
-    }),
+    makeDepsFromYomitanTokens(
+      [{ surface: 'どうしてもって', reading: 'どうしてもって', headword: 'どうしても' }],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) => (text === 'どうしても' ? 123 : null),
+        getJlptLevel: (text) => (text === 'どうしても' ? 'N3' : null),
+        tokenizeWithMecab: async () => [
+          {
+            headword: 'どうしても',
+            surface: 'どうしても',
+            reading: 'ドウシテモ',
+            startPos: 0,
+            endPos: 5,
+            partOfSpeech: PartOfSpeech.other,
+            pos1: '副詞',
+            pos2: '一般',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'って',
+            surface: 'って',
+            reading: 'ッテ',
+            startPos: 5,
+            endPos: 7,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '格助詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+        getMinSentenceWordsForNPlusOne: () => 1,
+      },
+    ),
   );
 
   assert.equal(result.text, 'どうしてもって');
@@ -3812,7 +3815,14 @@ test('tokenizeSubtitle clears all annotations for explanatory pondering endings'
       jlptLevel: token.jlptLevel,
     })),
     [
-      { surface: '俺', headword: '俺', isKnown: true, isNPlusOneTarget: false, frequencyRank: 19, jlptLevel: 'N5' },
+      {
+        surface: '俺',
+        headword: '俺',
+        isKnown: true,
+        isNPlusOneTarget: false,
+        frequencyRank: 19,
+        jlptLevel: 'N5',
+      },
       {
         surface: 'どうかしちゃった',
         headword: 'どうかしちゃう',

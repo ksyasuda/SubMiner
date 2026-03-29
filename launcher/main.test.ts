@@ -36,6 +36,8 @@ function withTempDir<T>(fn: (dir: string) => T): T {
   }
 }
 
+const LAUNCHER_RUN_TIMEOUT_MS = 30000;
+
 function runLauncher(argv: string[], env: NodeJS.ProcessEnv): RunResult {
   const result = spawnSync(
     process.execPath,
@@ -43,6 +45,7 @@ function runLauncher(argv: string[], env: NodeJS.ProcessEnv): RunResult {
     {
       env,
       encoding: 'utf8',
+      timeout: LAUNCHER_RUN_TIMEOUT_MS,
     },
   );
   return {
@@ -269,10 +272,7 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_MPV_ARGS: mpvArgsPath,
     };
-    const result = runLauncher(
-      ['--args', '--pause=yes --title="movie night"', videoPath],
-      env,
-    );
+    const result = runLauncher(['--args', '--pause=yes --title="movie night"', videoPath], env);
 
     assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
     const argsFile = fs.readFileSync(mpvArgsPath, 'utf8');
@@ -355,10 +355,7 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
     const result = runLauncher(['--log-level', 'debug', videoPath], env);
 
     assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-    assert.match(
-      fs.readFileSync(mpvArgsPath, 'utf8'),
-      /--script-opts=.*subminer-log_level=debug/,
-    );
+    assert.match(fs.readFileSync(mpvArgsPath, 'utf8'), /--script-opts=.*subminer-log_level=debug/);
   });
 });
 

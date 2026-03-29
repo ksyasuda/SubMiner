@@ -1,4 +1,4 @@
-import { NotificationOptions } from '../types';
+import { NotificationOptions } from '../types/anki';
 
 export interface UiFeedbackState {
   progressDepth: number;

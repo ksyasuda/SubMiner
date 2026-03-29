@@ -296,7 +296,7 @@ body {
 .youtube-picker-content {
   width: min(820px, 92%);
   background:
-    radial-gradient(circle at top right, rgba(198, 160, 246, 0.10), transparent 34%),
+    radial-gradient(circle at top right, rgba(198, 160, 246, 0.1), transparent 34%),
     linear-gradient(180deg, rgba(36, 39, 58, 0.98), rgba(30, 32, 48, 0.98));
   border-color: rgba(138, 173, 244, 0.25);
 }
@@ -1342,8 +1342,14 @@ iframe[id^='yomitan-popup'] {
 }
 
 @keyframes configEditSlideIn {
-  from { max-height: 0; opacity: 0; }
-  to { max-height: 120px; opacity: 1; }
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+  to {
+    max-height: 120px;
+    opacity: 1;
+  }
 }
 
 .controller-config-edit-inner {
@@ -1365,8 +1371,13 @@ iframe[id^='yomitan-popup'] {
 }
 
 @keyframes configLearnPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .controller-config-edit-actions {
@@ -1404,7 +1415,9 @@ iframe[id^='yomitan-popup'] {
   color: #6e738d;
   font-size: 12px;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 
 .btn-secondary:hover {
@@ -1497,14 +1510,13 @@ body.subtitle-sidebar-embedded-open .subtitle-sidebar-modal {
   max-height: calc(100vh - 28px);
   height: auto;
   margin-left: auto;
-  font-family:
-    var(
-      --subtitle-sidebar-font-family,
-      'M PLUS 1',
-      'Noto Sans CJK JP',
-      'Hiragino Sans',
-      sans-serif
-    );
+  font-family: var(
+    --subtitle-sidebar-font-family,
+    'M PLUS 1',
+    'Noto Sans CJK JP',
+    'Hiragino Sans',
+    sans-serif
+  );
   font-size: var(--subtitle-sidebar-font-size, 16px);
   background: var(--subtitle-sidebar-background-color, rgba(73, 77, 100, 0.9));
   color: var(--subtitle-sidebar-text-color, #cad3f5);

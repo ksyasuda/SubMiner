@@ -838,6 +838,92 @@ do
 			[binary_path] = true,
 		},
 	})
+	assert_true(recorded ~= nil, "plugin failed to load for manual toggle-off ready scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(recorded.script_messages["subminer-toggle"] ~= nil, "subminer-toggle script message not registered")
+	recorded.script_messages["subminer-toggle"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--toggle-visible-overlay") == 1,
+		"manual toggle should use explicit visible-overlay toggle command"
+	)
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		"manual toggle-off before readiness should suppress ready-time visible overlay restore"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(
+		recorded ~= nil,
+		"plugin failed to load for repeated ready restore suppression scenario: " .. tostring(err)
+	)
+	fire_event(recorded, "file-loaded")
+	assert_true(recorded.script_messages["subminer-toggle"] ~= nil, "subminer-toggle script message not registered")
+	recorded.script_messages["subminer-toggle"]()
+	recorded.script_messages["subminer-autoplay-ready"]()
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		"manual toggle-off should suppress repeated ready-time visible overlay restores for the same session"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+		},
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for manual toggle command scenario: " .. tostring(err))
+	assert_true(recorded.script_messages["subminer-toggle"] ~= nil, "subminer-toggle script message not registered")
+	recorded.script_messages["subminer-toggle"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--toggle-visible-overlay") == 1,
+		"script-message toggle should issue explicit visible-overlay toggle command"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--toggle") == 0,
+		"script-message toggle should not issue legacy generic toggle command"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
 	assert_true(recorded ~= nil, "plugin failed to load for pause cleanup scenario: " .. tostring(err))
 	fire_event(recorded, "file-loaded")
 	fire_event(recorded, "end-file")

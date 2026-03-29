@@ -1,3 +1,4 @@
+import type { DiscordPresenceStylePreset } from '../../types/integrations';
 import type { ResolvedConfig } from '../../types';
 
 export interface DiscordPresenceSnapshot {
@@ -33,15 +34,58 @@ type DiscordClient = {
 
 type TimeoutLike = ReturnType<typeof setTimeout>;
 
-const DISCORD_PRESENCE_STYLE = {
-  fallbackDetails: 'Mining and crafting (Anki cards)',
-  largeImageKey: 'subminer-logo',
-  largeImageText: 'SubMiner',
-  smallImageKey: 'study',
-  smallImageText: 'Sentence Mining',
-  buttonLabel: '',
-  buttonUrl: '',
-} as const;
+interface PresenceStyleDefinition {
+  fallbackDetails: string;
+  largeImageKey: string;
+  largeImageText: string;
+  smallImageKey: string;
+  smallImageText: string;
+  buttonLabel: string;
+  buttonUrl: string;
+}
+
+const PRESENCE_STYLES: Record<DiscordPresenceStylePreset, PresenceStyleDefinition> = {
+  default: {
+    fallbackDetails: 'Sentence Mining',
+    largeImageKey: 'subminer-logo',
+    largeImageText: 'SubMiner',
+    smallImageKey: 'study',
+    smallImageText: '日本語学習中',
+    buttonLabel: '',
+    buttonUrl: '',
+  },
+  meme: {
+    fallbackDetails: 'Mining and crafting (Anki cards)',
+    largeImageKey: 'subminer-logo',
+    largeImageText: 'SubMiner',
+    smallImageKey: 'study',
+    smallImageText: 'Sentence Mining',
+    buttonLabel: '',
+    buttonUrl: '',
+  },
+  japanese: {
+    fallbackDetails: '文の採掘中',
+    largeImageKey: 'subminer-logo',
+    largeImageText: 'SubMiner',
+    smallImageKey: 'study',
+    smallImageText: 'イマージョン学習',
+    buttonLabel: '',
+    buttonUrl: '',
+  },
+  minimal: {
+    fallbackDetails: 'SubMiner',
+    largeImageKey: 'subminer-logo',
+    largeImageText: 'SubMiner',
+    smallImageKey: '',
+    smallImageText: '',
+    buttonLabel: '',
+    buttonUrl: '',
+  },
+};
+
+function resolvePresenceStyle(preset: DiscordPresenceStylePreset | undefined): PresenceStyleDefinition {
+  return PRESENCE_STYLES[preset ?? 'default'] ?? PRESENCE_STYLES.default;
+}
 
 function trimField(value: string, maxLength = 128): string {
   if (value.length <= maxLength) return value;
@@ -79,15 +123,16 @@ function formatClock(totalSeconds: number | null | undefined): string {
 }
 
 export function buildDiscordPresenceActivity(
-  _config: DiscordPresenceConfig,
+  config: DiscordPresenceConfig,
   snapshot: DiscordPresenceSnapshot,
 ): DiscordActivityPayload {
+  const style = resolvePresenceStyle(config.presenceStyle);
   const status = buildStatus(snapshot);
   const title = sanitizeText(snapshot.mediaTitle, basename(snapshot.mediaPath) || 'Unknown media');
   const details =
     snapshot.connected && snapshot.mediaPath
       ? trimField(title)
-      : DISCORD_PRESENCE_STYLE.fallbackDetails;
+      : style.fallbackDetails;
   const timeline = `${formatClock(snapshot.currentTimeSec)} / ${formatClock(snapshot.mediaDurationSec)}`;
   const state =
     snapshot.connected && snapshot.mediaPath
@@ -100,26 +145,26 @@ export function buildDiscordPresenceActivity(
     startTimestamp: Math.floor(snapshot.sessionStartedAtMs / 1000),
   };
 
-  if (DISCORD_PRESENCE_STYLE.largeImageKey.trim().length > 0) {
-    activity.largeImageKey = DISCORD_PRESENCE_STYLE.largeImageKey.trim();
+  if (style.largeImageKey.trim().length > 0) {
+    activity.largeImageKey = style.largeImageKey.trim();
   }
-  if (DISCORD_PRESENCE_STYLE.largeImageText.trim().length > 0) {
-    activity.largeImageText = trimField(DISCORD_PRESENCE_STYLE.largeImageText.trim());
+  if (style.largeImageText.trim().length > 0) {
+    activity.largeImageText = trimField(style.largeImageText.trim());
   }
-  if (DISCORD_PRESENCE_STYLE.smallImageKey.trim().length > 0) {
-    activity.smallImageKey = DISCORD_PRESENCE_STYLE.smallImageKey.trim();
+  if (style.smallImageKey.trim().length > 0) {
+    activity.smallImageKey = style.smallImageKey.trim();
   }
-  if (DISCORD_PRESENCE_STYLE.smallImageText.trim().length > 0) {
-    activity.smallImageText = trimField(DISCORD_PRESENCE_STYLE.smallImageText.trim());
+  if (style.smallImageText.trim().length > 0) {
+    activity.smallImageText = trimField(style.smallImageText.trim());
   }
   if (
-    DISCORD_PRESENCE_STYLE.buttonLabel.trim().length > 0 &&
-    /^https?:\/\//.test(DISCORD_PRESENCE_STYLE.buttonUrl.trim())
+    style.buttonLabel.trim().length > 0 &&
+    /^https?:\/\//.test(style.buttonUrl.trim())
   ) {
     activity.buttons = [
       {
-        label: trimField(DISCORD_PRESENCE_STYLE.buttonLabel.trim(), 32),
-        url: DISCORD_PRESENCE_STYLE.buttonUrl.trim(),
+        label: trimField(style.buttonLabel.trim(), 32),
+        url: style.buttonUrl.trim(),
       },
     ];
   }

@@ -153,6 +153,9 @@ function M.create(ctx)
 
 	local function notify_auto_play_ready()
 		release_auto_play_ready_gate("tokenization-ready")
+		if state.suppress_ready_overlay_restore then
+			return
+		end
 		if state.overlay_running and resolve_visible_overlay_startup() then
 			run_control_command_async("show-visible-overlay", {
 				socket_path = opts.socket_path,
@@ -287,6 +290,9 @@ function M.create(ctx)
 
 	local function start_overlay(overrides)
 		overrides = overrides or {}
+		if overrides.auto_start_trigger == true then
+			state.suppress_ready_overlay_restore = false
+		end
 
 		if not binary.ensure_binary_available() then
 			subminer_log("error", "binary", "SubMiner binary not found")
@@ -433,6 +439,7 @@ function M.create(ctx)
 			subminer_log("error", "binary", "SubMiner binary not found")
 			return
 		end
+		state.suppress_ready_overlay_restore = true
 
 		run_control_command_async("hide-visible-overlay", nil, function(ok, result)
 			if ok then
@@ -456,8 +463,9 @@ function M.create(ctx)
 			show_osd("Error: binary not found")
 			return
 		end
+		state.suppress_ready_overlay_restore = true
 
-		run_control_command_async("toggle", nil, function(ok)
+		run_control_command_async("toggle-visible-overlay", nil, function(ok)
 			if not ok then
 				subminer_log("warn", "process", "Toggle command failed")
 				show_osd("Toggle failed")

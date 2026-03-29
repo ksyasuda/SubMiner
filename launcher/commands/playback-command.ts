@@ -14,6 +14,7 @@ import {
   waitForUnixSocketReady,
 } from '../mpv.js';
 import type { Args } from '../types.js';
+import { nowMs } from '../time.js';
 import type { LauncherCommandContext } from './context.js';
 import { ensureLauncherSetupReady } from '../setup-gate.js';
 import {
@@ -116,7 +117,7 @@ async function ensurePlaybackSetupReady(context: LauncherCommandContext): Promis
       child.unref();
     },
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-    now: () => Date.now(),
+    now: () => nowMs(),
     timeoutMs: SETUP_WAIT_TIMEOUT_MS,
     pollIntervalMs: SETUP_POLL_INTERVAL_MS,
   });
@@ -209,7 +210,11 @@ export async function runPlaybackCommandWithDeps(
     pluginRuntimeConfig.autoStartPauseUntilReady;
 
   if (shouldPauseUntilOverlayReady) {
-    deps.log('info', args.logLevel, 'Configured to pause mpv until overlay and tokenization are ready');
+    deps.log(
+      'info',
+      args.logLevel,
+      'Configured to pause mpv until overlay and tokenization are ready',
+    );
   }
 
   await deps.startMpv(
@@ -250,7 +255,11 @@ export async function runPlaybackCommandWithDeps(
     if (ready) {
       deps.log('info', args.logLevel, 'MPV IPC socket ready, relying on mpv plugin auto-start');
     } else {
-      deps.log('info', args.logLevel, 'MPV IPC socket not ready yet, relying on mpv plugin auto-start');
+      deps.log(
+        'info',
+        args.logLevel,
+        'MPV IPC socket not ready yet, relying on mpv plugin auto-start',
+      );
     }
   } else if (ready) {
     deps.log(

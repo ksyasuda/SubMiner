@@ -1,0 +1,59 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createResolveActiveSubtitleSidebarSourceHandler } from './subtitle-prefetch-runtime';
+
+test('subtitle prefetch runtime resolves direct external subtitle sources first', async () => {
+  const resolveSource = createResolveActiveSubtitleSidebarSourceHandler({
+    getFfmpegPath: () => 'ffmpeg',
+    extractInternalSubtitleTrack: async () => {
+      throw new Error('should not extract external tracks');
+    },
+  });
+
+  const resolved = await resolveSource({
+    currentExternalFilenameRaw: ' /tmp/current.ass ',
+    currentTrackRaw: null,
+    trackListRaw: null,
+    sidRaw: null,
+    videoPath: '/media/video.mkv',
+  });
+
+  assert.deepEqual(resolved, {
+    path: '/tmp/current.ass',
+    sourceKey: '/tmp/current.ass',
+  });
+});
+
+test('subtitle prefetch runtime extracts internal subtitle tracks into a stable source key', async () => {
+  const resolveSource = createResolveActiveSubtitleSidebarSourceHandler({
+    getFfmpegPath: () => 'ffmpeg-custom',
+    extractInternalSubtitleTrack: async (ffmpegPath, videoPath, track) => {
+      assert.equal(ffmpegPath, 'ffmpeg-custom');
+      assert.equal(videoPath, '/media/video.mkv');
+      assert.equal((track as Record<string, unknown>)['ff-index'], 7);
+      return {
+        path: '/tmp/subminer-sidebar-123/track_7.ass',
+        cleanup: async () => {},
+      };
+    },
+  });
+
+  const resolved = await resolveSource({
+    currentExternalFilenameRaw: null,
+    currentTrackRaw: {
+      type: 'sub',
+      id: 3,
+      'ff-index': 7,
+      codec: 'ass',
+    },
+    trackListRaw: [],
+    sidRaw: 3,
+    videoPath: '/media/video.mkv',
+  });
+
+  assert.deepEqual(resolved, {
+    path: '/tmp/subminer-sidebar-123/track_7.ass',
+    sourceKey: 'internal:/media/video.mkv:track:3:ff:7',
+    cleanup: resolved?.cleanup,
+  });
+});

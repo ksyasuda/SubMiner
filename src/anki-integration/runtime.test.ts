@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
-import type { AnkiConnectConfig } from '../types';
+import type { AnkiConnectConfig } from '../types/anki';
 import { AnkiIntegrationRuntime } from './runtime';
 
 function createRuntime(
