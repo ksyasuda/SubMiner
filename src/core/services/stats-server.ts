@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { serve } from '@hono/node-server';
 import type { ImmersionTrackerService } from './immersion-tracker-service.js';
 import { basename, extname, resolve, sep } from 'node:path';
 import { readFileSync, existsSync, statSync } from 'node:fs';
@@ -1006,27 +1007,35 @@ export function startStatsServer(config: StatsServerConfig): { close: () => void
     resolveAnkiNoteId: config.resolveAnkiNoteId,
   });
 
-  const bunServe = (
-    globalThis as typeof globalThis & {
-      Bun: {
-        serve: (options: {
-          fetch: (typeof app)['fetch'];
-          port: number;
-          hostname: string;
-        }) => { stop: () => void };
-      };
-    }
-  ).Bun.serve;
+  const bunRuntime = globalThis as typeof globalThis & {
+    Bun?: {
+      serve?: (options: {
+        fetch: (typeof app)['fetch'];
+        port: number;
+        hostname: string;
+      }) => { stop: () => void };
+    };
+  };
 
-  const server = bunServe({
-    fetch: app.fetch,
-    port: config.port,
-    hostname: '127.0.0.1',
-  });
+  const server = bunRuntime.Bun?.serve
+    ? bunRuntime.Bun.serve({
+        fetch: app.fetch,
+        port: config.port,
+        hostname: '127.0.0.1',
+      })
+    : serve({
+        fetch: app.fetch,
+        port: config.port,
+        hostname: '127.0.0.1',
+      });
 
   return {
     close: () => {
-      server.stop();
+      if ('stop' in server) {
+        server.stop();
+      } else {
+        server.close();
+      }
     },
   };
 }
