@@ -53,25 +53,27 @@ export function pruneRawRetention(
     sessionsRetentionMs: number;
   },
 ): RawRetentionResult {
-  const eventCutoff = currentMs - policy.eventsRetentionMs;
-  const telemetryCutoff = currentMs - policy.telemetryRetentionMs;
-  const sessionsCutoff = currentMs - policy.sessionsRetentionMs;
-
-  const deletedSessionEvents = (
-    db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(toDbMs(eventCutoff)) as {
-      changes: number;
-    }
-  ).changes;
-  const deletedTelemetryRows = (
-    db
-      .prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`)
-      .run(toDbMs(telemetryCutoff)) as { changes: number }
-  ).changes;
-  const deletedEndedSessions = (
-    db
-      .prepare(`DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`)
-      .run(toDbMs(sessionsCutoff)) as { changes: number }
-  ).changes;
+  const deletedSessionEvents = Number.isFinite(policy.eventsRetentionMs)
+    ? (
+        db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(
+          toDbMs(currentMs - policy.eventsRetentionMs),
+        ) as { changes: number }
+      ).changes
+    : 0;
+  const deletedTelemetryRows = Number.isFinite(policy.telemetryRetentionMs)
+    ? (
+        db
+          .prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`)
+          .run(toDbMs(currentMs - policy.telemetryRetentionMs)) as { changes: number }
+      ).changes
+    : 0;
+  const deletedEndedSessions = Number.isFinite(policy.sessionsRetentionMs)
+    ? (
+        db
+          .prepare(`DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`)
+          .run(toDbMs(currentMs - policy.sessionsRetentionMs)) as { changes: number }
+      ).changes
+    : 0;
 
   return {
     deletedSessionEvents,

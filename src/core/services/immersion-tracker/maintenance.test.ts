@@ -82,6 +82,65 @@ test('pruneRawRetention uses session retention separately from telemetry retenti
   }
 });
 
+test('pruneRawRetention skips disabled retention windows', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const nowMs = 1_000_000_000;
+
+    db.exec(`
+      INSERT INTO imm_videos (
+        video_id, video_key, canonical_title, source_type, duration_ms, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (
+        1, 'local:/tmp/video.mkv', 'Video', 1, 0, ${nowMs}, ${nowMs}
+      );
+      INSERT INTO imm_sessions (
+        session_id, session_uuid, video_id, started_at_ms, ended_at_ms, status, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (
+        1, 'session-1', 1, ${nowMs - 1_000}, ${nowMs - 500}, 2, ${nowMs}, ${nowMs}
+      );
+      INSERT INTO imm_session_telemetry (
+        session_id, sample_ms, total_watched_ms, active_watched_ms, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (
+        1, ${nowMs - 2_000}, 0, 0, ${nowMs}, ${nowMs}
+      );
+      INSERT INTO imm_session_events (
+        session_id, event_type, ts_ms, payload_json, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (
+        1, 1, ${nowMs - 3_000}, '{}', ${nowMs}, ${nowMs}
+      );
+    `);
+
+    const result = pruneRawRetention(db, nowMs, {
+      eventsRetentionMs: Number.POSITIVE_INFINITY,
+      telemetryRetentionMs: Number.POSITIVE_INFINITY,
+      sessionsRetentionMs: Number.POSITIVE_INFINITY,
+    });
+
+    const remainingSessionEvents = db
+      .prepare('SELECT COUNT(*) AS count FROM imm_session_events')
+      .get() as { count: number };
+    const remainingTelemetry = db
+      .prepare('SELECT COUNT(*) AS count FROM imm_session_telemetry')
+      .get() as { count: number };
+    const remainingSessions = db
+      .prepare('SELECT COUNT(*) AS count FROM imm_sessions')
+      .get() as { count: number };
+
+    assert.equal(result.deletedSessionEvents, 0);
+    assert.equal(result.deletedTelemetryRows, 0);
+    assert.equal(result.deletedEndedSessions, 0);
+    assert.equal(remainingSessionEvents.count, 1);
+    assert.equal(remainingTelemetry.count, 1);
+    assert.equal(remainingSessions.count, 1);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('toMonthKey floors negative timestamps into the prior UTC month', () => {
   assert.equal(toMonthKey(-1), 196912);
   assert.equal(toMonthKey(-86_400_000), 196912);
