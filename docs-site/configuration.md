@@ -390,6 +390,8 @@ The sidebar is only available when the active subtitle source has been parsed in
 
 `embedded` layout is intended to act like a split-pane view: it reserves player space with a right-side video margin and keeps interaction in both the player area and sidebar. If you see unexpected offset behavior in your environment, switch back to `overlay` to isolate sidebar placement.
 
+For full details on layout modes, behavior, and the keyboard shortcut, see the [Subtitle Sidebar](/subtitle-sidebar) page.
+
 `jlptColors` keys are:
 
 | Key  | Default   | Description             |

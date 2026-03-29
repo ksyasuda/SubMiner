@@ -34,6 +34,25 @@
     system-ui,
     sans-serif;
   --tui-transition: 180ms ease;
+
+  /* Theme-specific values — overridden in .dark below */
+  --tui-nav-bg: color-mix(in srgb, var(--vp-c-bg-alt) 88%, transparent);
+  --tui-table-hover-bg: color-mix(in srgb, var(--vp-c-bg-soft) 80%, transparent);
+  --tui-link-underline: color-mix(in srgb, var(--vp-c-brand-1) 40%, transparent);
+  --tui-selection-bg: hsla(267, 83%, 45%, 0.14);
+  --tui-hero-glow: hsla(267, 83%, 45%, 0.05);
+  --tui-step-hover-bg: var(--vp-c-bg-alt);
+  --tui-step-hover-glow: color-mix(in srgb, var(--vp-c-brand-1) 30%, transparent);
+}
+
+.dark {
+  --tui-nav-bg: hsla(232, 23%, 18%, 0.82);
+  --tui-table-hover-bg: hsla(232, 23%, 18%, 0.4);
+  --tui-link-underline: hsla(267, 83%, 80%, 0.3);
+  --tui-selection-bg: hsla(267, 83%, 80%, 0.22);
+  --tui-hero-glow: hsla(267, 83%, 80%, 0.06);
+  --tui-step-hover-bg: hsla(232, 23%, 18%, 0.6);
+  --tui-step-hover-glow: hsla(267, 83%, 80%, 0.3);
 }
 
 :root {
@@ -48,7 +67,7 @@
 
 /* === Selection === */
 ::selection {
-  background: hsla(267, 83%, 80%, 0.22);
+  background: var(--tui-selection-bg);
   color: var(--vp-c-text-1);
 }
 
@@ -102,7 +121,7 @@ button,
 }
 
 .VPNav .VPNavBar:not(.has-sidebar) {
-  background: hsla(232, 23%, 18%, 0.82);
+  background: var(--tui-nav-bg);
 }
 
 .VPNav .VPNavBar.has-sidebar .content {
@@ -245,13 +264,13 @@ button,
 }
 
 .vp-doc table tr:hover td {
-  background: hsla(232, 23%, 18%, 0.4);
+  background: var(--tui-table-hover-bg);
 }
 
 /* === Links === */
 .vp-doc a {
   text-decoration: none;
-  border-bottom: 1px solid hsla(267, 83%, 80%, 0.3);
+  border-bottom: 1px solid var(--tui-link-underline);
   transition: border-color var(--tui-transition), color var(--tui-transition);
 }
 
@@ -653,7 +672,7 @@ body {
   height: 400px;
   background: radial-gradient(
     ellipse at center,
-    hsla(267, 83%, 80%, 0.06) 0%,
+    var(--tui-hero-glow) 0%,
     transparent 70%
   );
   pointer-events: none;
