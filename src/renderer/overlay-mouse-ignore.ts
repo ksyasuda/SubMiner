@@ -2,9 +2,6 @@ import type { RendererContext } from './context';
 import type { RendererState } from './state';
 
 function isBlockingOverlayModalOpen(state: RendererState): boolean {
-  const embeddedSidebarOpen =
-    state.subtitleSidebarModalOpen && state.subtitleSidebarConfig?.layout === 'embedded';
-
   return Boolean(
     state.controllerSelectModalOpen ||
     state.controllerDebugModalOpen ||
@@ -13,8 +10,7 @@ function isBlockingOverlayModalOpen(state: RendererState): boolean {
     state.kikuModalOpen ||
     state.runtimeOptionsModalOpen ||
     state.subsyncModalOpen ||
-    state.sessionHelpModalOpen ||
-    (state.subtitleSidebarModalOpen && !embeddedSidebarOpen),
+    state.sessionHelpModalOpen,
   );
 }
 

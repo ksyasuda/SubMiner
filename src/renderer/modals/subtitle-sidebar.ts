@@ -143,9 +143,21 @@ export function createSubtitleSidebarModal(
   let lastAppliedVideoMarginRatio: number | null = null;
   let subtitleSidebarHoverRequestId = 0;
   let disposeDomEvents: (() => void) | null = null;
+  let subtitleSidebarHovered = false;
+  let subtitleSidebarFocusedWithin = false;
 
   function restoreEmbeddedSidebarPassthrough(): void {
     syncOverlayMouseIgnoreState(ctx);
+  }
+
+  function syncSidebarInteractionState(): void {
+    ctx.state.isOverSubtitleSidebar = subtitleSidebarHovered || subtitleSidebarFocusedWithin;
+  }
+
+  function clearSidebarInteractionState(): void {
+    subtitleSidebarHovered = false;
+    subtitleSidebarFocusedWithin = false;
+    syncSidebarInteractionState();
   }
 
   function setStatus(message: string): void {
@@ -379,6 +391,7 @@ export function createSubtitleSidebarModal(
     applyConfig(snapshot);
     if (!snapshot.config.enabled) {
       resumeSubtitleSidebarHoverPause();
+      clearSidebarInteractionState();
       ctx.state.subtitleSidebarCues = [];
       ctx.state.subtitleSidebarModalOpen = false;
       ctx.dom.subtitleSidebarModal.classList.add('hidden');
@@ -450,7 +463,7 @@ export function createSubtitleSidebarModal(
     }
 
     ctx.state.subtitleSidebarModalOpen = true;
-    ctx.state.isOverSubtitleSidebar = false;
+    clearSidebarInteractionState();
     ctx.dom.subtitleSidebarModal.classList.remove('hidden');
     ctx.dom.subtitleSidebarModal.setAttribute('aria-hidden', 'false');
     renderCueList();
@@ -478,7 +491,7 @@ export function createSubtitleSidebarModal(
       return;
     }
     resumeSubtitleSidebarHoverPause();
-    ctx.state.isOverSubtitleSidebar = false;
+    clearSidebarInteractionState();
     ctx.state.subtitleSidebarModalOpen = false;
     ctx.dom.subtitleSidebarModal.classList.add('hidden');
     ctx.dom.subtitleSidebarModal.setAttribute('aria-hidden', 'true');
@@ -536,8 +549,9 @@ export function createSubtitleSidebarModal(
     ctx.dom.subtitleSidebarList.addEventListener('wheel', () => {
       ctx.state.subtitleSidebarManualScrollUntilMs = Date.now() + MANUAL_SCROLL_HOLD_MS;
     });
-    ctx.dom.subtitleSidebarModal.addEventListener('mouseenter', async () => {
-      ctx.state.isOverSubtitleSidebar = true;
+    ctx.dom.subtitleSidebarContent.addEventListener('mouseenter', async () => {
+      subtitleSidebarHovered = true;
+      syncSidebarInteractionState();
       restoreEmbeddedSidebarPassthrough();
       if (!ctx.state.subtitleSidebarPauseVideoOnHover || ctx.state.subtitleSidebarPausedByHover) {
         return;
@@ -557,8 +571,36 @@ export function createSubtitleSidebarModal(
         ctx.state.subtitleSidebarPausedByHover = true;
       }
     });
-    ctx.dom.subtitleSidebarModal.addEventListener('mouseleave', () => {
-      ctx.state.isOverSubtitleSidebar = false;
+    ctx.dom.subtitleSidebarContent.addEventListener('mouseleave', () => {
+      subtitleSidebarHovered = false;
+      syncSidebarInteractionState();
+      if (ctx.state.isOverSubtitleSidebar) {
+        restoreEmbeddedSidebarPassthrough();
+        return;
+      }
+      resumeSubtitleSidebarHoverPause();
+    });
+    ctx.dom.subtitleSidebarContent.addEventListener('focusin', () => {
+      subtitleSidebarFocusedWithin = true;
+      syncSidebarInteractionState();
+      restoreEmbeddedSidebarPassthrough();
+    });
+    ctx.dom.subtitleSidebarContent.addEventListener('focusout', (event: FocusEvent) => {
+      const relatedTarget = event.relatedTarget;
+      if (
+        typeof Node !== 'undefined' &&
+        relatedTarget instanceof Node &&
+        ctx.dom.subtitleSidebarContent.contains(relatedTarget)
+      ) {
+        return;
+      }
+
+      subtitleSidebarFocusedWithin = false;
+      syncSidebarInteractionState();
+      if (ctx.state.isOverSubtitleSidebar) {
+        restoreEmbeddedSidebarPassthrough();
+        return;
+      }
       resumeSubtitleSidebarHoverPause();
     });
     const resizeHandler = () => {
