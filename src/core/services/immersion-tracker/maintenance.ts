@@ -46,16 +46,16 @@ export function toMonthKey(timestampMs: number): number {
 
 export function pruneRawRetention(
   db: DatabaseSync,
-  nowMs: number,
+  currentMs: number,
   policy: {
     eventsRetentionMs: number;
     telemetryRetentionMs: number;
     sessionsRetentionMs: number;
   },
 ): RawRetentionResult {
-  const eventCutoff = nowMs - policy.eventsRetentionMs;
-  const telemetryCutoff = nowMs - policy.telemetryRetentionMs;
-  const sessionsCutoff = nowMs - policy.sessionsRetentionMs;
+  const eventCutoff = currentMs - policy.eventsRetentionMs;
+  const telemetryCutoff = currentMs - policy.telemetryRetentionMs;
+  const sessionsCutoff = currentMs - policy.sessionsRetentionMs;
 
   const deletedSessionEvents = (
     db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(toDbMs(eventCutoff)) as {
@@ -82,7 +82,7 @@ export function pruneRawRetention(
 
 export function pruneRollupRetention(
   db: DatabaseSync,
-  nowMs: number,
+  currentMs: number,
   policy: {
     dailyRollupRetentionMs: number;
     monthlyRollupRetentionMs: number;
@@ -92,7 +92,7 @@ export function pruneRollupRetention(
     ? (
         db
           .prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day < ?`)
-          .run(Math.floor((nowMs - policy.dailyRollupRetentionMs) / DAILY_MS)) as {
+          .run(Math.floor((currentMs - policy.dailyRollupRetentionMs) / DAILY_MS)) as {
           changes: number;
         }
       ).changes
@@ -101,7 +101,7 @@ export function pruneRollupRetention(
     ? (
         db
           .prepare(`DELETE FROM imm_monthly_rollups WHERE rollup_month < ?`)
-          .run(toMonthKey(nowMs - policy.monthlyRollupRetentionMs)) as {
+          .run(toMonthKey(currentMs - policy.monthlyRollupRetentionMs)) as {
           changes: number;
         }
       ).changes

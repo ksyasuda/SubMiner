@@ -305,6 +305,7 @@ function runCoverageLane(): number {
   }
 }
 
-if (require.main === module) {
+// @ts-ignore Bun entrypoint detection; TS config for scripts still targets CommonJS.
+if (import.meta.main) {
   process.exit(runCoverageLane());
 }

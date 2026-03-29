@@ -68,6 +68,26 @@ function getDefaultPasswordStore(): string {
   return 'gnome-libsecret';
 }
 
+function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
+  shouldUseMinimalStartup: boolean;
+  shouldSkipHeavyStartup: boolean;
+} {
+  return {
+    shouldUseMinimalStartup: Boolean(
+      initialArgs?.texthooker ||
+        (initialArgs?.stats &&
+          (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
+    ),
+    shouldSkipHeavyStartup: Boolean(
+      initialArgs &&
+        (shouldRunSettingsOnlyStartup(initialArgs) ||
+          initialArgs.stats ||
+          initialArgs.dictionary ||
+          initialArgs.setup),
+    ),
+  };
+}
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'chrome-extension',
@@ -399,7 +419,7 @@ import {
 import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
-import { createMainBootServices } from './main/boot/services';
+import { createMainBootServices, type MainBootServicesResult } from './main/boot/services';
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
@@ -596,6 +616,28 @@ const getDefaultSocketPathHandler = createGetDefaultSocketPathHandler(getDefault
 function getDefaultSocketPath(): string {
   return getDefaultSocketPathHandler();
 }
+
+type BootServices = MainBootServicesResult<
+  ConfigService,
+  ReturnType<typeof createAnilistTokenStore>,
+  ReturnType<typeof createJellyfinTokenStore>,
+  ReturnType<typeof createAnilistUpdateQueue>,
+  SubtitleWebSocket,
+  ReturnType<typeof createLogger>,
+  ReturnType<typeof createMainRuntimeRegistry>,
+  ReturnType<typeof createOverlayManager>,
+  ReturnType<typeof createOverlayModalInputState>,
+  ReturnType<typeof createOverlayContentMeasurementStore>,
+  ReturnType<typeof createOverlayModalRuntimeService>,
+  ReturnType<typeof createAppState>,
+  {
+    requestSingleInstanceLock: () => boolean;
+    quit: () => void;
+    on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+    whenReady: () => Promise<void>;
+  }
+>;
+
 const bootServices = createMainBootServices({
   platform: process.platform,
   argv: process.argv,
@@ -675,31 +717,7 @@ const bootServices = createMainBootServices({
     });
   },
   createAppState,
-}) as {
-  configDir: string;
-  userDataPath: string;
-  defaultMpvLogPath: string;
-  defaultImmersionDbPath: string;
-  configService: ConfigService;
-  anilistTokenStore: ReturnType<typeof createAnilistTokenStore>;
-  jellyfinTokenStore: ReturnType<typeof createJellyfinTokenStore>;
-  anilistUpdateQueue: ReturnType<typeof createAnilistUpdateQueue>;
-  subtitleWsService: SubtitleWebSocket;
-  annotationSubtitleWsService: SubtitleWebSocket;
-  logger: ReturnType<typeof createLogger>;
-  runtimeRegistry: ReturnType<typeof createMainRuntimeRegistry>;
-  overlayManager: ReturnType<typeof createOverlayManager>;
-  overlayModalInputState: ReturnType<typeof createOverlayModalInputState>;
-  overlayContentMeasurementStore: ReturnType<typeof createOverlayContentMeasurementStore>;
-  overlayModalRuntime: ReturnType<typeof createOverlayModalRuntimeService>;
-  appState: ReturnType<typeof createAppState>;
-  appLifecycleApp: {
-    requestSingleInstanceLock: () => boolean;
-    quit: () => void;
-    on: (event: string, listener: (...args: unknown[]) => void) => unknown;
-    whenReady: () => Promise<void>;
-  };
-};
+}) as BootServices;
 const {
   configDir: CONFIG_DIR,
   userDataPath: USER_DATA_PATH,
@@ -3186,21 +3204,9 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     shouldRunHeadlessInitialCommand: () =>
       Boolean(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     shouldUseMinimalStartup: () =>
-      Boolean(
-        appState.initialArgs?.texthooker ||
-        (appState.initialArgs?.stats &&
-          (appState.initialArgs?.statsCleanup ||
-            appState.initialArgs?.statsBackground ||
-            appState.initialArgs?.statsStop)),
-      ),
+      getStartupModeFlags(appState.initialArgs).shouldUseMinimalStartup,
     shouldSkipHeavyStartup: () =>
-      Boolean(
-        appState.initialArgs &&
-        (shouldRunSettingsOnlyStartup(appState.initialArgs) ||
-          appState.initialArgs.stats ||
-          appState.initialArgs.dictionary ||
-          appState.initialArgs.setup),
-      ),
+      getStartupModeFlags(appState.initialArgs).shouldSkipHeavyStartup,
     createImmersionTracker: () => {
       ensureImmersionTrackerStarted();
     },
@@ -4221,16 +4227,16 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             };
           }
 
-          if (appState.activeParsedSubtitleSource === resolvedSource.sourceKey) {
-            return {
-              cues: appState.activeParsedSubtitleCues,
-              currentTimeSec,
-              currentSubtitle,
-              config,
-            };
-          }
-
           try {
+            if (appState.activeParsedSubtitleSource === resolvedSource.sourceKey) {
+              return {
+                cues: appState.activeParsedSubtitleCues,
+                currentTimeSec,
+                currentSubtitle,
+                config,
+              };
+            }
+
             const content = await loadSubtitleSourceText(resolvedSource.path);
             const cues = parseSubtitleCues(content, resolvedSource.path);
             appState.activeParsedSubtitleCues = cues;
@@ -4480,20 +4486,9 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
 });
 
 runAndApplyStartupState();
-const shouldUseMinimalStartup = Boolean(
-  appState.initialArgs?.texthooker ||
-    (appState.initialArgs?.stats &&
-      (appState.initialArgs?.statsCleanup ||
-        appState.initialArgs?.statsBackground ||
-        appState.initialArgs?.statsStop)),
-);
-const shouldSkipHeavyStartup = Boolean(
-  appState.initialArgs &&
-    (shouldRunSettingsOnlyStartup(appState.initialArgs) ||
-      appState.initialArgs.stats ||
-      appState.initialArgs.dictionary ||
-      appState.initialArgs.setup),
-);
+const startupModeFlags = getStartupModeFlags(appState.initialArgs);
+const shouldUseMinimalStartup = startupModeFlags.shouldUseMinimalStartup;
+const shouldSkipHeavyStartup = startupModeFlags.shouldSkipHeavyStartup;
 if (!appState.initialArgs || (!shouldUseMinimalStartup && !shouldSkipHeavyStartup)) {
   if (isAnilistTrackingEnabled(getResolvedConfig())) {
     void refreshAnilistClientSecretStateIfEnabled({ force: true }).catch((error) => {
