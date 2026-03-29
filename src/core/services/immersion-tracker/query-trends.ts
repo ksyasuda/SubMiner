@@ -168,7 +168,7 @@ function buildAggregatedTrendRows(rollups: ImmersionSessionRollupRow[]) {
       words: 0,
       sessions: 0,
     };
-    existing.activeMin += Math.round(rollup.totalActiveMin);
+    existing.activeMin += rollup.totalActiveMin;
     existing.cards += rollup.totalCards;
     existing.words += rollup.totalTokensSeen;
     existing.sessions += rollup.totalSessions;
@@ -179,7 +179,7 @@ function buildAggregatedTrendRows(rollups: ImmersionSessionRollupRow[]) {
     .sort(([left], [right]) => left - right)
     .map(([key, value]) => ({
       label: makeTrendLabel(key),
-      activeMin: value.activeMin,
+      activeMin: Math.round(value.activeMin),
       cards: value.cards,
       words: value.words,
       sessions: value.sessions,
@@ -243,22 +243,32 @@ function buildSessionSeriesByMonth(
     .map(([monthKey, value]) => ({ label: makeTrendLabel(monthKey), value }));
 }
 
-function buildLookupsPerHundredWords(sessions: TrendSessionMetricRow[]): TrendChartPoint[] {
-  const lookupsByDay = new Map<number, number>();
-  const wordsByDay = new Map<number, number>();
+function buildLookupsPerHundredWords(
+  sessions: TrendSessionMetricRow[],
+  groupBy: TrendGroupBy,
+): TrendChartPoint[] {
+  const lookupsByBucket = new Map<number, number>();
+  const wordsByBucket = new Map<number, number>();
 
   for (const session of sessions) {
-    const epochDay = getLocalEpochDay(session.startedAtMs);
-    lookupsByDay.set(epochDay, (lookupsByDay.get(epochDay) ?? 0) + session.yomitanLookupCount);
-    wordsByDay.set(epochDay, (wordsByDay.get(epochDay) ?? 0) + getTrendSessionWordCount(session));
+    const bucketKey =
+      groupBy === 'month' ? getLocalMonthKey(session.startedAtMs) : getLocalEpochDay(session.startedAtMs);
+    lookupsByBucket.set(
+      bucketKey,
+      (lookupsByBucket.get(bucketKey) ?? 0) + session.yomitanLookupCount,
+    );
+    wordsByBucket.set(
+      bucketKey,
+      (wordsByBucket.get(bucketKey) ?? 0) + getTrendSessionWordCount(session),
+    );
   }
 
-  return Array.from(lookupsByDay.entries())
+  return Array.from(lookupsByBucket.entries())
     .sort(([left], [right]) => left - right)
-    .map(([epochDay, lookups]) => {
-      const words = wordsByDay.get(epochDay) ?? 0;
+    .map(([bucketKey, lookups]) => {
+      const words = wordsByBucket.get(bucketKey) ?? 0;
       return {
-        label: dayLabel(epochDay),
+        label: groupBy === 'month' ? makeTrendLabel(bucketKey) : dayLabel(bucketKey),
         value: words > 0 ? +((lookups / words) * 100).toFixed(1) : 0,
       };
     });
@@ -595,7 +605,7 @@ export function getTrendsDashboard(
   const animePerDay = {
     episodes: buildEpisodesPerAnimeFromDailyRollups(dailyRollups, titlesByVideoId),
     watchTime: buildPerAnimeFromDailyRollups(dailyRollups, titlesByVideoId, (rollup) =>
-      Math.round(rollup.totalActiveMin),
+      rollup.totalActiveMin,
     ),
     cards: buildPerAnimeFromDailyRollups(
       dailyRollups,
@@ -633,7 +643,7 @@ export function getTrendsDashboard(
       ),
     },
     ratios: {
-      lookupsPerHundred: buildLookupsPerHundredWords(sessions),
+      lookupsPerHundred: buildLookupsPerHundredWords(sessions, groupBy),
     },
     animePerDay,
     animeCumulative: {

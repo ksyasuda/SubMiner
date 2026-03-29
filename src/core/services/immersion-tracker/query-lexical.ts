@@ -186,7 +186,7 @@ export function getSimilarWords(db: DatabaseSync, wordId: number, limit = 10): S
     headword: string;
     reading: string;
   } | null;
-  if (!word) return [];
+  if (!word || word.headword.trim() === '') return [];
   return db
     .prepare(
       `

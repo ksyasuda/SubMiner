@@ -205,7 +205,7 @@ export function getQueryHints(db: DatabaseSync): {
 
   const now = new Date();
   const todayLocal = Math.floor(
-    (now.getTime() / 1000 - now.getTimezoneOffset() * 60) / 86_400,
+    new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 86_400_000,
   );
 
   const episodesToday =

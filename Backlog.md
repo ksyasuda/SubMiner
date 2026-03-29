@@ -20,7 +20,7 @@ Priority keys:
 
 | ID     | Pri | Status | Area           | Title                                               |
 | ------ | --- | ------ | -------------- | --------------------------------------------------- |
-| SM-013 | P1  | doing  | review-followup | Address PR #36 CodeRabbit action items              |
+| SM-013 | P1  | done   | review-followup | Address PR #36 CodeRabbit action items              |
 
 ## Ready
 
@@ -241,7 +241,7 @@ Done:
 
 Title: Address PR #36 CodeRabbit action items
 Priority: P1
-Status: doing
+Status: done
 Scope:
 
 - `plugins/subminer-workflow/skills/subminer-change-verification/scripts/verify_subminer_change.sh`
@@ -251,7 +251,16 @@ Scope:
 - `src/core/services/immersion-tracker/maintenance.ts`
 - `src/main/boot/services.ts`
 - `src/main/character-dictionary-runtime/zip.test.ts`
-  Acceptance:
+Acceptance:
 - fix valid open CodeRabbit findings on PR #36
 - add focused regression coverage for behavior changes where practical
 - verify touched tests plus typecheck stay green
+
+Done:
+
+- hardened `--artifact-dir` validation in the verification script
+- fixed trend aggregation rounding and monthly ratio bucketing
+- preserved unwatched anime episodes in episode queries
+- restored seconds-based aggregate timestamps in shared maintenance
+- fixed the startup refactor compile break by making the predicates local at the call site
+- verified with `bun test src/core/services/immersion-tracker/__tests__/query.test.ts src/core/services/immersion-tracker/__tests__/query-split-modules.test.ts` and `bun run typecheck`

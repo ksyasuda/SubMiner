@@ -272,5 +272,11 @@ export function deleteSessionsByIds(db: DatabaseSync, sessionIds: number[]): voi
 }
 
 export function toDbMs(ms: number | bigint): bigint {
-  return BigInt(Math.trunc(Number(ms)));
+  if (typeof ms === 'bigint') {
+    return ms;
+  }
+  if (!Number.isFinite(ms)) {
+    throw new TypeError(`Invalid database timestamp: ${ms}`);
+  }
+  return BigInt(Math.trunc(ms));
 }

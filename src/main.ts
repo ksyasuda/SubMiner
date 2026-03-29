@@ -4480,11 +4480,31 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
 });
 
 runAndApplyStartupState();
-if (isAnilistTrackingEnabled(getResolvedConfig())) {
-  void refreshAnilistClientSecretStateIfEnabled({ force: true });
-  anilistStateRuntime.refreshRetryQueueState();
+const shouldUseMinimalStartup = Boolean(
+  appState.initialArgs?.texthooker ||
+    (appState.initialArgs?.stats &&
+      (appState.initialArgs?.statsCleanup ||
+        appState.initialArgs?.statsBackground ||
+        appState.initialArgs?.statsStop)),
+);
+const shouldSkipHeavyStartup = Boolean(
+  appState.initialArgs &&
+    (shouldRunSettingsOnlyStartup(appState.initialArgs) ||
+      appState.initialArgs.stats ||
+      appState.initialArgs.dictionary ||
+      appState.initialArgs.setup),
+);
+if (!appState.initialArgs || (!shouldUseMinimalStartup && !shouldSkipHeavyStartup)) {
+  if (isAnilistTrackingEnabled(getResolvedConfig())) {
+    void refreshAnilistClientSecretStateIfEnabled({ force: true }).catch((error) => {
+      logger.error('Failed to refresh AniList client secret state during startup', error);
+    });
+    anilistStateRuntime.refreshRetryQueueState();
+  }
+  void initializeDiscordPresenceService().catch((error) => {
+    logger.error('Failed to initialize Discord presence service during startup', error);
+  });
 }
-void initializeDiscordPresenceService();
 const { createMainWindow: createMainWindowHandler, createModalWindow: createModalWindowHandler } =
   createOverlayWindowRuntimeHandlers<BrowserWindow>({
     createOverlayWindowDeps: {
