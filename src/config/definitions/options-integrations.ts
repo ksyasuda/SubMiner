@@ -324,6 +324,13 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Enable optional Discord Rich Presence updates.',
     },
     {
+      path: 'discordPresence.presenceStyle',
+      kind: 'string',
+      defaultValue: defaultConfig.discordPresence.presenceStyle,
+      description:
+        'Presence card text preset: "default" (clean bilingual), "meme" (Mining and crafting), "japanese" (fully JP), or "minimal".',
+    },
+    {
       path: 'discordPresence.updateIntervalMs',
       kind: 'number',
       defaultValue: defaultConfig.discordPresence.updateIntervalMs,

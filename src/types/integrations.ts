@@ -101,8 +101,11 @@ export interface JellyfinConfig {
   transcodeVideoCodec?: string;
 }
 
+export type DiscordPresenceStylePreset = 'default' | 'meme' | 'japanese' | 'minimal';
+
 export interface DiscordPresenceConfig {
   enabled?: boolean;
+  presenceStyle?: DiscordPresenceStylePreset;
   updateIntervalMs?: number;
   debounceMs?: number;
 }

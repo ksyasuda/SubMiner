@@ -273,6 +273,7 @@ export interface ResolvedConfig {
   };
   discordPresence: {
     enabled: boolean;
+    presenceStyle: import('./integrations').DiscordPresenceStylePreset;
     updateIntervalMs: number;
     debounceMs: number;
   };

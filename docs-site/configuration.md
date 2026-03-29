@@ -1197,30 +1197,38 @@ Discord Rich Presence is optional and disabled by default. When enabled, SubMine
 {
   "discordPresence": {
     "enabled": true,
+    "presenceStyle": "default",
     "updateIntervalMs": 3000,
     "debounceMs": 750
   }
 }
 ```
 
-| Option             | Values          | Description                                                |
-| ------------------ | --------------- | ---------------------------------------------------------- |
-| `enabled`          | `true`, `false` | Enable Discord Rich Presence updates (default: `false`)    |
-| `updateIntervalMs` | number          | Minimum interval between activity updates in milliseconds  |
-| `debounceMs`       | number          | Debounce window for bursty playback events in milliseconds |
+| Option             | Values                                            | Description                                                |
+| ------------------ | ------------------------------------------------- | ---------------------------------------------------------- |
+| `enabled`          | `true`, `false`                                   | Enable Discord Rich Presence updates (default: `false`)    |
+| `presenceStyle`    | `"default"`, `"meme"`, `"japanese"`, `"minimal"`  | Card text preset (default: `"default"`)                    |
+| `updateIntervalMs` | number                                            | Minimum interval between activity updates in milliseconds  |
+| `debounceMs`       | number                                            | Debounce window for bursty playback events in milliseconds |
 
 Setup steps:
 
 1. Set `discordPresence.enabled` to `true`.
-2. Restart SubMiner.
+2. Optionally set `discordPresence.presenceStyle` to choose a card text preset.
+3. Restart SubMiner.
 
-SubMiner uses a fixed official activity card style for all users:
+#### Presence style presets
 
-- Details: current media title while playing (fallback: `Mining and crafting (Anki cards)` when idle/disconnected)
-- State: `Playing mm:ss / mm:ss` or `Paused mm:ss / mm:ss` (fallback: `Idle`)
-- Large image key/text: `subminer-logo` / `SubMiner`
-- Small image key/text: `study` / `Sentence Mining`
-- No activity button by default
+While playing media, the **Details** line always shows the current media title and **State** shows `Playing mm:ss / mm:ss` or `Paused mm:ss / mm:ss`. The preset controls what appears when idle and the tooltip text on images.
+
+| Preset       | Idle details                        | Small image text   | Vibe                                    |
+| ------------ | ----------------------------------- | ------------------ | --------------------------------------- |
+| **`default`**| `Sentence Mining`                   | `日本語学習中`      | Clean, bilingual flair                  |
+| `meme`       | `Mining and crafting (Anki cards)`  | `Sentence Mining`  | Minecraft-inspired joke                 |
+| `japanese`   | `文の採掘中`                         | `イマージョン学習`  | Fully Japanese                          |
+| `minimal`    | `SubMiner`                          | *(none)*           | Bare essentials, no small image overlay |
+
+All presets use the `subminer-logo` large image with `SubMiner` tooltip. No activity button is shown by default.
 
 Troubleshooting:
 
