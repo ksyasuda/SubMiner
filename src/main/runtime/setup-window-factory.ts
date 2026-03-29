@@ -18,9 +18,9 @@ function createSetupWindowHandler<TWindow>(
       title: config.title,
       show: true,
       autoHideMenuBar: true,
-      resizable: config.resizable,
-      minimizable: config.minimizable,
-      maximizable: config.maximizable,
+      ...(config.resizable === undefined ? {} : { resizable: config.resizable }),
+      ...(config.minimizable === undefined ? {} : { minimizable: config.minimizable }),
+      ...(config.maximizable === undefined ? {} : { maximizable: config.maximizable }),
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
