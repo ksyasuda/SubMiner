@@ -34,4 +34,5 @@ Notes:
 - Do not tag while `changes/*.md` fragments still exist.
 - If you need to repair a published release body (for example, a prior version’s section was omitted), regenerate notes from `CHANGELOG.md` and re-edit the release with `gh release edit --notes-file`.
 - Tagged release workflow now also attempts to update `subminer-bin` on the AUR after GitHub Release publication.
+- AUR publish is best-effort: the workflow retries transient SSH clone/push failures, then warns and leaves the GitHub Release green if AUR still fails. Follow up with a manual `git push aur master` from the AUR checkout when needed.
 - Required GitHub Actions secret: `AUR_SSH_PRIVATE_KEY`. Add the matching public key to your AUR account before relying on the automation.

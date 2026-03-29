@@ -409,33 +409,64 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
-      - name: Validate AUR SSH secret
+      - name: Check AUR publish prerequisites
+        id: aur_prereqs
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           if [ -z "${AUR_SSH_PRIVATE_KEY}" ]; then
-            echo "Missing required secret: AUR_SSH_PRIVATE_KEY"
-            exit 1
+            echo "::warning::Missing AUR_SSH_PRIVATE_KEY; skipping automated AUR publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Configure SSH for AUR
+        id: aur_ssh
+        if: steps.aur_prereqs.outputs.skip != 'true'
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
           set -euo pipefail
-          install -dm700 ~/.ssh
-          printf '%s\n' "${AUR_SSH_PRIVATE_KEY}" > ~/.ssh/aur
-          chmod 600 ~/.ssh/aur
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          if install -dm700 ~/.ssh \
+            && printf '%s\n' "${AUR_SSH_PRIVATE_KEY}" > ~/.ssh/aur \
+            && chmod 600 ~/.ssh/aur \
+            && ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts \
+            && chmod 644 ~/.ssh/known_hosts; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::warning::Unable to configure SSH for AUR; skipping automated AUR publish."
+          echo "skip=true" >> "$GITHUB_OUTPUT"
 
       - name: Clone AUR repo
+        id: aur_clone
+        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true'
         env:
           GIT_SSH_COMMAND: ssh -i ~/.ssh/aur -o IdentitiesOnly=yes
-        run: git clone ssh://aur@aur.archlinux.org/subminer-bin.git aur-subminer-bin
+        run: |
+          set -euo pipefail
+          attempts=3
+          for attempt in $(seq 1 "$attempts"); do
+            if git clone ssh://aur@aur.archlinux.org/subminer-bin.git aur-subminer-bin; then
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            rm -rf aur-subminer-bin
+
+            if [ "$attempt" -lt "$attempts" ]; then
+              sleep $((attempt * 15))
+            fi
+          done
+
+          echo "::warning::Unable to clone subminer-bin from AUR after ${attempts} attempts; skipping automated AUR publish."
+          echo "skip=true" >> "$GITHUB_OUTPUT"
 
       - name: Download release assets for AUR
+        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -449,6 +480,7 @@ jobs:
             --pattern "subminer-assets.tar.gz"
 
       - name: Update AUR packaging metadata
+        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
         run: |
           set -euo pipefail
           version_no_v="${{ steps.version.outputs.VERSION }}"
@@ -463,6 +495,7 @@ jobs:
             --assets ".tmp/aur-release-assets/subminer-assets.tar.gz"
 
       - name: Commit and push AUR update
+        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
         working-directory: aur-subminer-bin
         env:
           GIT_SSH_COMMAND: ssh -i ~/.ssh/aur -o IdentitiesOnly=yes
@@ -476,4 +509,16 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add PKGBUILD .SRCINFO
           git commit -m "Update to ${{ steps.version.outputs.VERSION }}"
-          git push origin HEAD:master
+
+          attempts=3
+          for attempt in $(seq 1 "$attempts"); do
+            if git push origin HEAD:master; then
+              exit 0
+            fi
+
+            if [ "$attempt" -lt "$attempts" ]; then
+              sleep $((attempt * 15))
+            fi
+          done
+
+          echo "::warning::Unable to push the AUR update after ${attempts} attempts; GitHub release is published, but subminer-bin needs manual follow-up."
