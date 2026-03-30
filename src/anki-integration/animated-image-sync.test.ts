@@ -19,6 +19,7 @@ test('resolveAnimatedImageLeadInSeconds sums configured word audio durations for
       media: {
         imageType: 'avif',
         syncAnimatedImageToWordAudio: true,
+        audioPadding: 0,
       },
     },
     noteInfo: {
@@ -47,6 +48,46 @@ test('resolveAnimatedImageLeadInSeconds sums configured word audio durations for
   });
 
   assert.equal(leadInSeconds, 1.25);
+});
+
+test('resolveAnimatedImageLeadInSeconds adds sentence audio padding to word audio duration', async () => {
+  const leadInSeconds = await resolveAnimatedImageLeadInSeconds({
+    config: {
+      fields: {
+        audio: 'ExpressionAudio',
+      },
+      media: {
+        imageType: 'avif',
+        syncAnimatedImageToWordAudio: true,
+        audioPadding: 0.5,
+      },
+    },
+    noteInfo: {
+      noteId: 42,
+      fields: {
+        ExpressionAudio: {
+          value: '[sound:word.mp3][sound:alt.ogg]',
+        },
+      },
+    },
+    resolveConfiguredFieldName: (noteInfo, ...preferredNames) => {
+      for (const preferredName of preferredNames) {
+        if (!preferredName) continue;
+        const resolved = Object.keys(noteInfo.fields).find(
+          (fieldName) => fieldName.toLowerCase() === preferredName.toLowerCase(),
+        );
+        if (resolved) return resolved;
+      }
+      return null;
+    },
+    retrieveMediaFileBase64: async (filename) =>
+      filename === 'word.mp3' ? 'd29yZA==' : filename === 'alt.ogg' ? 'YWx0' : '',
+    probeAudioDurationSeconds: async (_buffer, filename) =>
+      filename === 'word.mp3' ? 0.41 : filename === 'alt.ogg' ? 0.84 : null,
+    logWarn: () => undefined,
+  });
+
+  assert.equal(leadInSeconds, 1.75);
 });
 
 test('resolveAnimatedImageLeadInSeconds falls back to zero when sync is disabled', async () => {

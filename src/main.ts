@@ -2591,6 +2591,7 @@ const {
 
 function refreshAnilistClientSecretStateIfEnabled(options?: {
   force?: boolean;
+  allowSetupPrompt?: boolean;
 }): Promise<string | null> {
   if (!isAnilistTrackingEnabled(getResolvedConfig())) {
     return Promise.resolve(null);
@@ -4480,7 +4481,10 @@ const shouldUseMinimalStartup = startupModeFlags.shouldUseMinimalStartup;
 const shouldSkipHeavyStartup = startupModeFlags.shouldSkipHeavyStartup;
 if (!appState.initialArgs || (!shouldUseMinimalStartup && !shouldSkipHeavyStartup)) {
   if (isAnilistTrackingEnabled(getResolvedConfig())) {
-    void refreshAnilistClientSecretStateIfEnabled({ force: true }).catch((error) => {
+    void refreshAnilistClientSecretStateIfEnabled({
+      force: true,
+      allowSetupPrompt: false,
+    }).catch((error) => {
       logger.error('Failed to refresh AniList client secret state during startup', error);
     });
     anilistStateRuntime.refreshRetryQueueState();

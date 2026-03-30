@@ -27,7 +27,10 @@ export function createRefreshAnilistClientSecretStateHandler<
   openAnilistSetupWindow: () => void;
   now: () => number;
 }) {
-  return async (options?: { force?: boolean }): Promise<string | null> => {
+  return async (options?: {
+    force?: boolean;
+    allowSetupPrompt?: boolean;
+  }): Promise<string | null> => {
     const resolved = deps.getResolvedConfig();
     const now = deps.now();
     if (!deps.isAnilistTrackingEnabled(resolved)) {
@@ -87,7 +90,11 @@ export function createRefreshAnilistClientSecretStateHandler<
       resolvedAt: null,
       errorAt: now,
     });
-    if (deps.isAnilistTrackingEnabled(resolved) && !deps.getAnilistSetupPageOpened()) {
+    if (
+      options?.allowSetupPrompt !== false &&
+      deps.isAnilistTrackingEnabled(resolved) &&
+      !deps.getAnilistSetupPageOpened()
+    ) {
       deps.openAnilistSetupWindow();
     }
     return null;

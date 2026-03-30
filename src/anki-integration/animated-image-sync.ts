@@ -39,6 +39,14 @@ function shouldSyncAnimatedImageToWordAudio(config: Pick<AnkiConnectConfig, 'med
   return config.media?.imageType === 'avif' && config.media?.syncAnimatedImageToWordAudio !== false;
 }
 
+function resolveSentenceAudioStartOffsetSeconds(config: Pick<AnkiConnectConfig, 'media'>): number {
+  const configuredPadding = config.media?.audioPadding;
+  if (typeof configuredPadding === 'number' && Number.isFinite(configuredPadding)) {
+    return configuredPadding;
+  }
+  return DEFAULT_ANKI_CONNECT_CONFIG.media.audioPadding;
+}
+
 export async function probeAudioDurationSeconds(
   buffer: Buffer,
   filename: string,
@@ -127,5 +135,5 @@ export async function resolveAnimatedImageLeadInSeconds<TNoteInfo extends NoteIn
     totalLeadInSeconds += durationSeconds;
   }
 
-  return totalLeadInSeconds;
+  return totalLeadInSeconds + resolveSentenceAudioStartOffsetSeconds(config);
 }

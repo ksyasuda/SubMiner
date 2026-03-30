@@ -82,7 +82,42 @@ test('refresh handler prefers cached token when not forced', async () => {
   assert.equal(loadCalls, 0);
 });
 
-test('refresh handler falls back to stored token then opens setup when missing', async () => {
+test('refresh handler falls back to stored token without opening setup', async () => {
+  let cached: string | null = null;
+  let opened = false;
+  let openCalls = 0;
+  const states: Array<{ status: string; source: string }> = [];
+  const refresh = createRefreshAnilistClientSecretStateHandler({
+    getResolvedConfig: () => ({ anilist: { accessToken: '' } }),
+    isAnilistTrackingEnabled: () => true,
+    getCachedAccessToken: () => cached,
+    setCachedAccessToken: (token) => {
+      cached = token;
+    },
+    saveStoredToken: () => {},
+    loadStoredToken: () => '  stored-token  ',
+    setClientSecretState: (state) => {
+      states.push({ status: state.status, source: state.source });
+    },
+    getAnilistSetupPageOpened: () => opened,
+    setAnilistSetupPageOpened: (next) => {
+      opened = next;
+    },
+    openAnilistSetupWindow: () => {
+      openCalls += 1;
+    },
+    now: () => 400,
+  });
+
+  const token = await refresh({ force: true });
+  assert.equal(token, 'stored-token');
+  assert.equal(cached, 'stored-token');
+  assert.equal(opened, false);
+  assert.equal(openCalls, 0);
+  assert.deepEqual(states, [{ status: 'resolved', source: 'stored' }]);
+});
+
+test('refresh handler opens setup when missing token and prompting allowed', async () => {
   let cached: string | null = null;
   let opened = false;
   let openCalls = 0;
@@ -110,4 +145,45 @@ test('refresh handler falls back to stored token then opens setup when missing',
   assert.equal(token, null);
   assert.equal(cached, null);
   assert.equal(openCalls, 1);
+});
+
+test('refresh handler skips setup open when missing token and prompting disabled', async () => {
+  let cached: string | null = null;
+  let opened = false;
+  let openCalls = 0;
+  const states: Array<{ status: string; source: string; message: string | null }> = [];
+  const refresh = createRefreshAnilistClientSecretStateHandler({
+    getResolvedConfig: () => ({ anilist: { accessToken: '' } }),
+    isAnilistTrackingEnabled: () => true,
+    getCachedAccessToken: () => cached,
+    setCachedAccessToken: (token) => {
+      cached = token;
+    },
+    saveStoredToken: () => {},
+    loadStoredToken: () => '',
+    setClientSecretState: (state) => {
+      states.push({ status: state.status, source: state.source, message: state.message });
+    },
+    getAnilistSetupPageOpened: () => opened,
+    setAnilistSetupPageOpened: (next) => {
+      opened = next;
+    },
+    openAnilistSetupWindow: () => {
+      openCalls += 1;
+    },
+    now: () => 500,
+  });
+
+  const token = await refresh({ force: true, allowSetupPrompt: false });
+  assert.equal(token, null);
+  assert.equal(cached, null);
+  assert.equal(opened, false);
+  assert.equal(openCalls, 0);
+  assert.deepEqual(states, [
+    {
+      status: 'error',
+      source: 'none',
+      message: 'cannot authenticate without anilist.accessToken',
+    },
+  ]);
 });
