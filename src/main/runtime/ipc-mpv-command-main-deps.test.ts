@@ -10,6 +10,9 @@ test('ipc mpv command main deps builder maps callbacks', () => {
     openYoutubeTrackPicker: () => {
       calls.push('youtube-picker');
     },
+    openPlaylistBrowser: () => {
+      calls.push('playlist-browser');
+    },
     cycleRuntimeOption: () => ({ ok: false as const, error: 'x' }),
     showMpvOsd: (text) => calls.push(`osd:${text}`),
     replayCurrentSubtitle: () => calls.push('replay'),
@@ -26,6 +29,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
   deps.triggerSubsyncFromConfig();
   deps.openRuntimeOptionsPalette();
   void deps.openYoutubeTrackPicker();
+  void deps.openPlaylistBrowser();
   assert.deepEqual(deps.cycleRuntimeOption('anki.nPlusOneMatchMode', 1), { ok: false, error: 'x' });
   deps.showMpvOsd('hello');
   deps.replayCurrentSubtitle();
@@ -39,6 +43,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
     'subsync',
     'palette',
     'youtube-picker',
+    'playlist-browser',
     'osd:hello',
     'replay',
     'next',

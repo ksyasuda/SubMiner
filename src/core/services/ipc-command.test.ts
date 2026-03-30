@@ -16,6 +16,7 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
       SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START: '__sub-delay-next-line',
       SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START: '__sub-delay-prev-line',
       YOUTUBE_PICKER_OPEN: '__youtube-picker-open',
+      PLAYLIST_BROWSER_OPEN: '__playlist-browser-open',
     },
     triggerSubsyncFromConfig: () => {
       calls.push('subsync');
@@ -25,6 +26,9 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
     },
     openYoutubeTrackPicker: () => {
       calls.push('youtube-picker');
+    },
+    openPlaylistBrowser: () => {
+      calls.push('playlist-browser');
     },
     runtimeOptionsCycle: () => ({ ok: true }),
     showMpvOsd: (text) => {
@@ -106,6 +110,14 @@ test('handleMpvCommandFromIpc dispatches special youtube picker open command', (
   const { options, calls, sentCommands, osd } = createOptions();
   handleMpvCommandFromIpc(['__youtube-picker-open'], options);
   assert.deepEqual(calls, ['youtube-picker']);
+  assert.deepEqual(sentCommands, []);
+  assert.deepEqual(osd, []);
+});
+
+test('handleMpvCommandFromIpc dispatches special playlist browser open command', () => {
+  const { options, calls, sentCommands, osd } = createOptions();
+  handleMpvCommandFromIpc(['__playlist-browser-open'], options);
+  assert.deepEqual(calls, ['playlist-browser']);
   assert.deepEqual(sentCommands, []);
   assert.deepEqual(osd, []);
 });

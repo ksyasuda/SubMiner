@@ -11,6 +11,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
       triggerSubsyncFromConfig: async () => {},
       openRuntimeOptionsPalette: () => {},
       openYoutubeTrackPicker: () => {},
+      openPlaylistBrowser: () => {},
       cycleRuntimeOption: () => ({ ok: true }),
       showMpvOsd: () => {},
       replayCurrentSubtitle: () => {},
@@ -68,6 +69,20 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
         getAnilistQueueStatus: () => ({}) as never,
         retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
         appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+        getPlaylistBrowserSnapshot: async () =>
+          ({
+            directoryPath: null,
+            directoryAvailable: false,
+            directoryStatus: '',
+            directoryItems: [],
+            playlistItems: [],
+            playingIndex: null,
+            currentFilePath: null,
+          }) as never,
+        appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok' }),
+        playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+        removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+        movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
         onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
       },
       ankiJimakuDeps: {

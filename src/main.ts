@@ -427,6 +427,13 @@ import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
+import {
+  appendPlaylistBrowserFileRuntime,
+  getPlaylistBrowserSnapshotRuntime,
+  movePlaylistBrowserIndexRuntime,
+  playPlaylistBrowserIndexRuntime,
+  removePlaylistBrowserIndexRuntime,
+} from './main/runtime/playlist-browser-runtime';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
   createFrequencyDictionaryRuntimeService,
@@ -1927,6 +1934,19 @@ function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
 
 function openRuntimeOptionsPalette(): void {
   overlayVisibilityComposer.openRuntimeOptionsPalette();
+}
+
+function openPlaylistBrowser(): void {
+  if (!appState.mpvClient?.connected) {
+    showMpvOsd('Playlist browser requires active playback.');
+    return;
+  }
+  const opened = sendToActiveOverlayWindow(IPC_CHANNELS.event.playlistBrowserOpen, undefined, {
+    restoreOnModalClose: 'playlist-browser',
+  });
+  if (!opened) {
+    showMpvOsd('Playlist browser overlay unavailable.');
+  }
 }
 
 function getResolvedConfig() {
@@ -4109,11 +4129,16 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
+const playlistBrowserRuntimeDeps = {
+  getMpvClient: () => appState.mpvClient,
+};
+
 const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
+    openPlaylistBrowser: () => openPlaylistBrowser(),
     cycleRuntimeOption: (id, direction) => {
       if (!appState.runtimeOptionsManager) {
         return { ok: false, error: 'Runtime options manager unavailable' };
@@ -4290,6 +4315,16 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
       retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
       appendClipboardVideoToQueue: () => appendClipboardVideoToQueue(),
+      getPlaylistBrowserSnapshot: () =>
+        getPlaylistBrowserSnapshotRuntime(playlistBrowserRuntimeDeps),
+      appendPlaylistBrowserFile: (filePath) =>
+        appendPlaylistBrowserFileRuntime(playlistBrowserRuntimeDeps, filePath),
+      playPlaylistBrowserIndex: (index) =>
+        playPlaylistBrowserIndexRuntime(playlistBrowserRuntimeDeps, index),
+      removePlaylistBrowserIndex: (index) =>
+        removePlaylistBrowserIndexRuntime(playlistBrowserRuntimeDeps, index),
+      movePlaylistBrowserIndex: (index, direction) =>
+        movePlaylistBrowserIndexRuntime(playlistBrowserRuntimeDeps, index, direction),
       getImmersionTracker: () => appState.immersionTracker,
     },
     ankiJimakuDeps: createAnkiJimakuIpcRuntimeServiceDeps({

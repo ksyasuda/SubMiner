@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createIpcDepsRuntime, registerIpcHandlers, type IpcServiceDeps } from './ipc';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
-import type { SubtitleSidebarSnapshot } from '../../types';
+import type { PlaylistBrowserSnapshot, SubtitleSidebarSnapshot } from '../../types';
 
 interface FakeIpcRegistrar {
   on: Map<string, (event: unknown, ...args: unknown[]) => void>;
@@ -148,6 +148,19 @@ function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServ
     getAnilistQueueStatus: () => ({}),
     retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
     appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+    getPlaylistBrowserSnapshot: async () => ({
+      directoryPath: null,
+      directoryAvailable: false,
+      directoryStatus: '',
+      directoryItems: [],
+      playlistItems: [],
+      playingIndex: null,
+      currentFilePath: null,
+    }),
+    appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok' }),
+    playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+    removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+    movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
     onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
     immersionTracker: null,
     ...overrides,
@@ -241,6 +254,19 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
       return { ok: true, message: 'done' };
     },
     appendClipboardVideoToQueue: () => ({ ok: true, message: 'queued' }),
+    getPlaylistBrowserSnapshot: async () => ({
+      directoryPath: '/tmp',
+      directoryAvailable: true,
+      directoryStatus: '/tmp',
+      directoryItems: [],
+      playlistItems: [],
+      playingIndex: 0,
+      currentFilePath: '/tmp/current.mkv',
+    }),
+    appendPlaylistBrowserFile: async () => ({ ok: true, message: 'append' }),
+    playPlaylistBrowserIndex: async () => ({ ok: true, message: 'play' }),
+    removePlaylistBrowserIndex: async () => ({ ok: true, message: 'remove' }),
+    movePlaylistBrowserIndex: async () => ({ ok: true, message: 'move' }),
     onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
   });
 
@@ -256,8 +282,81 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     ok: true,
     message: 'done',
   });
+  assert.equal((await deps.getPlaylistBrowserSnapshot()).directoryAvailable, true);
+  assert.deepEqual(await deps.appendPlaylistBrowserFile('/tmp/new.mkv'), {
+    ok: true,
+    message: 'append',
+  });
+  assert.deepEqual(await deps.playPlaylistBrowserIndex(2), { ok: true, message: 'play' });
+  assert.deepEqual(await deps.removePlaylistBrowserIndex(2), { ok: true, message: 'remove' });
+  assert.deepEqual(await deps.movePlaylistBrowserIndex(2, -1), { ok: true, message: 'move' });
   assert.deepEqual(calls, ['clearAnilistToken', 'openAnilistSetup', 'retryAnilistQueueNow']);
   assert.equal(deps.getPlaybackPaused(), true);
+});
+
+test('registerIpcHandlers exposes playlist browser snapshot and mutations', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: Array<[string, unknown[]]> = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      getPlaylistBrowserSnapshot: async () => ({
+        directoryPath: '/tmp/videos',
+        directoryAvailable: true,
+        directoryStatus: '/tmp/videos',
+        directoryItems: [],
+        playlistItems: [],
+        playingIndex: 1,
+        currentFilePath: '/tmp/videos/ep2.mkv',
+      }),
+      appendPlaylistBrowserFile: async (filePath) => {
+        calls.push(['append', [filePath]]);
+        return { ok: true, message: 'append-ok' };
+      },
+      playPlaylistBrowserIndex: async (index) => {
+        calls.push(['play', [index]]);
+        return { ok: true, message: 'play-ok' };
+      },
+      removePlaylistBrowserIndex: async (index) => {
+        calls.push(['remove', [index]]);
+        return { ok: true, message: 'remove-ok' };
+      },
+      movePlaylistBrowserIndex: async (index, direction) => {
+        calls.push(['move', [index, direction]]);
+        return { ok: true, message: 'move-ok' };
+      },
+    }),
+    registrar,
+  );
+
+  const snapshot = (await handlers.handle.get(IPC_CHANNELS.request.getPlaylistBrowserSnapshot)?.(
+    {},
+  )) as PlaylistBrowserSnapshot | undefined;
+  const append = await handlers.handle.get(IPC_CHANNELS.request.appendPlaylistBrowserFile)?.(
+    {},
+    '/tmp/videos/ep3.mkv',
+  );
+  const play = await handlers.handle.get(IPC_CHANNELS.request.playPlaylistBrowserIndex)?.({}, 2);
+  const remove = await handlers.handle.get(IPC_CHANNELS.request.removePlaylistBrowserIndex)?.(
+    {},
+    2,
+  );
+  const move = await handlers.handle.get(IPC_CHANNELS.request.movePlaylistBrowserIndex)?.(
+    {},
+    2,
+    -1,
+  );
+
+  assert.equal(snapshot?.playingIndex, 1);
+  assert.deepEqual(append, { ok: true, message: 'append-ok' });
+  assert.deepEqual(play, { ok: true, message: 'play-ok' });
+  assert.deepEqual(remove, { ok: true, message: 'remove-ok' });
+  assert.deepEqual(move, { ok: true, message: 'move-ok' });
+  assert.deepEqual(calls, [
+    ['append', ['/tmp/videos/ep3.mkv']],
+    ['play', [2]],
+    ['remove', [2]],
+    ['move', [2, -1]],
+  ]);
 });
 
 test('registerIpcHandlers rejects malformed runtime-option payloads', async () => {
@@ -311,6 +410,19 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
       getAnilistQueueStatus: () => ({}),
       retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
       appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+      getPlaylistBrowserSnapshot: async () => ({
+        directoryPath: null,
+        directoryAvailable: false,
+        directoryStatus: '',
+        directoryItems: [],
+        playlistItems: [],
+        playingIndex: null,
+        currentFilePath: null,
+      }),
+      appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok' }),
+      playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+      removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+      movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
       onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
     },
     registrar,
@@ -618,6 +730,19 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       getAnilistQueueStatus: () => ({}),
       retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
       appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+      getPlaylistBrowserSnapshot: async () => ({
+        directoryPath: null,
+        directoryAvailable: false,
+        directoryStatus: '',
+        directoryItems: [],
+        playlistItems: [],
+        playingIndex: null,
+        currentFilePath: null,
+      }),
+      appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok' }),
+      playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+      removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+      movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
       onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
     },
     registrar,
@@ -685,6 +810,19 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
       getAnilistQueueStatus: () => ({}),
       retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
       appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+      getPlaylistBrowserSnapshot: async () => ({
+        directoryPath: null,
+        directoryAvailable: false,
+        directoryStatus: '',
+        directoryItems: [],
+        playlistItems: [],
+        playingIndex: null,
+        currentFilePath: null,
+      }),
+      appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok' }),
+      playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+      removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+      movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
       onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
     },
     registrar,
@@ -755,6 +893,19 @@ test('registerIpcHandlers rejects malformed controller preference payloads', asy
       getAnilistQueueStatus: () => ({}),
       retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
       appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+      getPlaylistBrowserSnapshot: async () => ({
+        directoryPath: null,
+        directoryAvailable: false,
+        directoryStatus: '',
+        directoryItems: [],
+        playlistItems: [],
+        playingIndex: null,
+        currentFilePath: null,
+      }),
+      appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok' }),
+      playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+      removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+      movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
       onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
     },
     registrar,

@@ -63,6 +63,12 @@ Local stats dashboard — watch time, anime library, vocabulary growth, mining t
 
 <br>
 
+### Playlist Browser
+
+Browse sibling episode files and the active mpv queue in one overlay modal. Open it with `Ctrl+Alt+P` to append episodes from the current directory, jump to queued items, remove entries, or reorder the playlist without leaving playback.
+
+<br>
+
 ### Integrations
 
 <table>

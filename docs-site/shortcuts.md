@@ -40,6 +40,7 @@ These control playback and subtitle display. They require overlay window focus.
 | `Space`              | Toggle mpv pause                                   |
 | `J`                  | Cycle primary subtitle track                       |
 | `Shift+J`            | Cycle secondary subtitle track                     |
+| `Ctrl+Alt+P`         | Open playlist browser for current directory + queue |
 | `ArrowRight`         | Seek forward 5 seconds                             |
 | `ArrowLeft`          | Seek backward 5 seconds                            |
 | `ArrowUp`            | Seek forward 60 seconds                            |
@@ -56,7 +57,7 @@ These control playback and subtitle display. They require overlay window focus.
 | `Right-click + drag` | Reposition subtitles (on subtitle area)            |
 | `Ctrl/Cmd+A`         | Append clipboard video path to mpv playlist        |
 
-These keybindings can be overridden or disabled via the `keybindings` config array.
+These keybindings can be overridden or disabled via the `keybindings` config array. The playlist browser opens a split overlay modal with sibling video files on the left and the live mpv playlist on the right.
 
 Mouse-hover playback behavior is configured separately from shortcuts: `subtitleStyle.autoPauseVideoOnHover` defaults to `true` (pause on subtitle hover, resume on leave).
 

@@ -76,6 +76,40 @@ export interface SubsyncResult {
   message: string;
 }
 
+export interface PlaylistBrowserDirectoryItem {
+  path: string;
+  basename: string;
+  episodeLabel?: string | null;
+  isCurrentFile: boolean;
+}
+
+export interface PlaylistBrowserQueueItem {
+  index: number;
+  id: number | null;
+  filename: string;
+  title: string | null;
+  displayLabel: string;
+  current: boolean;
+  playing: boolean;
+  path: string | null;
+}
+
+export interface PlaylistBrowserSnapshot {
+  directoryPath: string | null;
+  directoryAvailable: boolean;
+  directoryStatus: string;
+  directoryItems: PlaylistBrowserDirectoryItem[];
+  playlistItems: PlaylistBrowserQueueItem[];
+  playingIndex: number | null;
+  currentFilePath: string | null;
+}
+
+export interface PlaylistBrowserMutationResult {
+  ok: boolean;
+  message: string;
+  snapshot?: PlaylistBrowserSnapshot;
+}
+
 export type ControllerButtonBinding =
   | 'none'
   | 'select'
@@ -354,10 +388,19 @@ export interface ElectronAPI {
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
   onOpenYoutubeTrackPicker: (callback: (payload: YoutubePickerOpenPayload) => void) => void;
+  onOpenPlaylistBrowser: (callback: () => void) => void;
   onCancelYoutubeTrackPicker: (callback: () => void) => void;
   onKeyboardModeToggleRequested: (callback: () => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;
   appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;
+  getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
+  appendPlaylistBrowserFile: (path: string) => Promise<PlaylistBrowserMutationResult>;
+  playPlaylistBrowserIndex: (index: number) => Promise<PlaylistBrowserMutationResult>;
+  removePlaylistBrowserIndex: (index: number) => Promise<PlaylistBrowserMutationResult>;
+  movePlaylistBrowserIndex: (
+    index: number,
+    direction: 1 | -1,
+  ) => Promise<PlaylistBrowserMutationResult>;
   youtubePickerResolve: (
     request: YoutubePickerResolveRequest,
   ) => Promise<YoutubePickerResolveResult>;
@@ -367,6 +410,7 @@ export interface ElectronAPI {
       | 'subsync'
       | 'jimaku'
       | 'youtube-track-picker'
+      | 'playlist-browser'
       | 'kiku'
       | 'controller-select'
       | 'controller-debug'
@@ -378,6 +422,7 @@ export interface ElectronAPI {
       | 'subsync'
       | 'jimaku'
       | 'youtube-track-picker'
+      | 'playlist-browser'
       | 'kiku'
       | 'controller-select'
       | 'controller-debug'
