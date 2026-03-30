@@ -62,6 +62,7 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
   let mpvSocketPath = '/tmp/subminer.sock';
   let texthookerPort = 5174;
   const osd: string[] = [];
+  let texthookerWebsocketUrl: string | undefined;
 
   const deps: CliCommandServiceDeps = {
     getMpvSocketPath: () => mpvSocketPath,
@@ -82,9 +83,10 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
       calls.push(`setTexthookerPort:${port}`);
     },
     getTexthookerPort: () => texthookerPort,
+    getTexthookerWebsocketUrl: () => texthookerWebsocketUrl,
     shouldOpenTexthookerBrowser: () => true,
-    ensureTexthookerRunning: (port) => {
-      calls.push(`ensureTexthookerRunning:${port}`);
+    ensureTexthookerRunning: (port, websocketUrl) => {
+      calls.push(`ensureTexthookerRunning:${port}:${websocketUrl ?? ''}`);
     },
     openTexthookerInBrowser: (url) => {
       calls.push(`openTexthookerInBrowser:${url}`);
@@ -354,8 +356,18 @@ test('handleCliCommand runs texthooker flow with browser open', () => {
 
   handleCliCommand(args, 'initial', deps);
 
-  assert.ok(calls.includes('ensureTexthookerRunning:5174'));
+  assert.ok(calls.includes('ensureTexthookerRunning:5174:'));
   assert.ok(calls.includes('openTexthookerInBrowser:http://127.0.0.1:5174'));
+});
+
+test('handleCliCommand forwards resolved websocket url to texthooker startup', () => {
+  const { deps, calls } = createDeps({
+    getTexthookerWebsocketUrl: () => 'ws://127.0.0.1:6678',
+  });
+
+  handleCliCommand(makeArgs({ texthooker: true }), 'initial', deps);
+
+  assert.ok(calls.includes('ensureTexthookerRunning:5174:ws://127.0.0.1:6678'));
 });
 
 test('handleCliCommand reports async mine errors to OSD', async () => {

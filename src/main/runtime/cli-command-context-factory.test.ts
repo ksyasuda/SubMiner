@@ -14,7 +14,13 @@ test('cli command context factory composes main deps and context handlers', () =
   const createContext = createCliCommandContextFactory({
     appState,
     texthookerService: { isRunning: () => false, start: () => null },
-    getResolvedConfig: () => ({ texthooker: { openBrowser: true } }),
+    getResolvedConfig: () => ({
+      texthooker: { openBrowser: true },
+      annotationWebsocket: { enabled: true, port: 6678 },
+    }),
+    defaultWebsocketPort: 6677,
+    defaultAnnotationWebsocketPort: 6678,
+    hasMpvWebsocketPlugin: () => false,
     openExternal: async () => {},
     logBrowserOpenError: () => {},
     showMpvOsd: (text) => calls.push(`osd:${text}`),

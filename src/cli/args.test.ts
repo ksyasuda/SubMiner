@@ -5,6 +5,7 @@ import {
   commandNeedsOverlayRuntime,
   hasExplicitCommand,
   isHeadlessInitialCommand,
+  isStandaloneTexthookerCommand,
   parseArgs,
   shouldRunSettingsOnlyStartup,
   shouldStartApp,
@@ -77,6 +78,14 @@ test('youtube playback does not use generic overlay-runtime bootstrap classifica
 
   assert.equal(commandNeedsOverlayRuntime(args), false);
   assert.equal(commandNeedsOverlayStartupPrereqs(args), true);
+});
+
+test('standalone texthooker classification excludes integrated start flow', () => {
+  const standalone = parseArgs(['--texthooker']);
+  const integrated = parseArgs(['--start', '--texthooker']);
+
+  assert.equal(isStandaloneTexthookerCommand(standalone), true);
+  assert.equal(isStandaloneTexthookerCommand(integrated), false);
 });
 
 test('parseArgs handles jellyfin item listing controls', () => {

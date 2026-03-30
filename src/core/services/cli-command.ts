@@ -10,8 +10,9 @@ export interface CliCommandServiceDeps {
   isTexthookerRunning: () => boolean;
   setTexthookerPort: (port: number) => void;
   getTexthookerPort: () => number;
+  getTexthookerWebsocketUrl: () => string | undefined;
   shouldOpenTexthookerBrowser: () => boolean;
-  ensureTexthookerRunning: (port: number) => void;
+  ensureTexthookerRunning: (port: number, websocketUrl?: string) => void;
   openTexthookerInBrowser: (url: string) => void;
   stopApp: () => void;
   isOverlayRuntimeInitialized: () => boolean;
@@ -84,7 +85,7 @@ interface MpvClientLike {
 
 interface TexthookerServiceLike {
   isRunning: () => boolean;
-  start: (port: number) => void;
+  start: (port: number, websocketUrl?: string) => void;
 }
 
 interface MpvCliRuntime {
@@ -98,6 +99,7 @@ interface TexthookerCliRuntime {
   service: TexthookerServiceLike;
   getPort: () => number;
   setPort: (port: number) => void;
+  getWebsocketUrl: () => string | undefined;
   shouldOpenBrowser: () => boolean;
   openInBrowser: (url: string) => void;
 }
@@ -194,10 +196,11 @@ export function createCliCommandDepsRuntime(
     isTexthookerRunning: () => options.texthooker.service.isRunning(),
     setTexthookerPort: options.texthooker.setPort,
     getTexthookerPort: options.texthooker.getPort,
+    getTexthookerWebsocketUrl: options.texthooker.getWebsocketUrl,
     shouldOpenTexthookerBrowser: options.texthooker.shouldOpenBrowser,
-    ensureTexthookerRunning: (port) => {
+    ensureTexthookerRunning: (port, websocketUrl) => {
       if (!options.texthooker.service.isRunning()) {
-        options.texthooker.service.start(port);
+        options.texthooker.service.start(port, websocketUrl);
       }
     },
     openTexthookerInBrowser: options.texthooker.openInBrowser,
@@ -473,7 +476,7 @@ export function handleCliCommand(
     );
   } else if (args.texthooker) {
     const texthookerPort = deps.getTexthookerPort();
-    deps.ensureTexthookerRunning(texthookerPort);
+    deps.ensureTexthookerRunning(texthookerPort, deps.getTexthookerWebsocketUrl());
     if (deps.shouldOpenTexthookerBrowser()) {
       deps.openTexthookerInBrowser(`http://127.0.0.1:${texthookerPort}`);
     }

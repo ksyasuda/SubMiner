@@ -397,6 +397,54 @@ export function isHeadlessInitialCommand(args: CliArgs): boolean {
   return args.refreshKnownWords;
 }
 
+export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
+  return (
+    args.texthooker &&
+    !args.background &&
+    !args.start &&
+    !Boolean(args.youtubePlay) &&
+    !args.launchMpv &&
+    !args.stop &&
+    !args.toggle &&
+    !args.toggleVisibleOverlay &&
+    !args.settings &&
+    !args.setup &&
+    !args.show &&
+    !args.hide &&
+    !args.showVisibleOverlay &&
+    !args.hideVisibleOverlay &&
+    !args.copySubtitle &&
+    !args.copySubtitleMultiple &&
+    !args.mineSentence &&
+    !args.mineSentenceMultiple &&
+    !args.updateLastCardFromClipboard &&
+    !args.refreshKnownWords &&
+    !args.toggleSecondarySub &&
+    !args.triggerFieldGrouping &&
+    !args.triggerSubsync &&
+    !args.markAudioCard &&
+    !args.openRuntimeOptions &&
+    !args.anilistStatus &&
+    !args.anilistLogout &&
+    !args.anilistSetup &&
+    !args.anilistRetryQueue &&
+    !args.dictionary &&
+    !args.stats &&
+    !args.jellyfin &&
+    !args.jellyfinLogin &&
+    !args.jellyfinLogout &&
+    !args.jellyfinLibraries &&
+    !args.jellyfinItems &&
+    !args.jellyfinSubtitles &&
+    !args.jellyfinPlay &&
+    !args.jellyfinRemoteAnnounce &&
+    !args.jellyfinPreviewAuth &&
+    !args.help &&
+    !args.autoStartOverlay &&
+    !args.generateConfig
+  );
+}
+
 export function shouldStartApp(args: CliArgs): boolean {
   if (args.stop && !args.start) return false;
   if (

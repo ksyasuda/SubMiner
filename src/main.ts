@@ -75,7 +75,7 @@ function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
 } {
   return {
     shouldUseMinimalStartup: Boolean(
-      initialArgs?.texthooker ||
+      (initialArgs && isStandaloneTexthookerCommand(initialArgs)) ||
         (initialArgs?.stats &&
           (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
     ),
@@ -128,6 +128,7 @@ import {
   commandNeedsOverlayStartupPrereqs,
   commandNeedsOverlayRuntime,
   isHeadlessInitialCommand,
+  isStandaloneTexthookerCommand,
   parseArgs,
   shouldRunSettingsOnlyStartup,
   shouldStartApp,
@@ -4334,6 +4335,9 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     setLogLevel: (level) => setLogLevel(level, 'cli'),
     texthookerService,
     getResolvedConfig: () => getResolvedConfig(),
+    defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
+    defaultAnnotationWebsocketPort: DEFAULT_CONFIG.annotationWebsocket.port,
+    hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
     openExternal: (url: string) => shell.openExternal(url),
     logBrowserOpenError: (url: string, error: unknown) =>
       logger.error(`Failed to open browser for texthooker URL: ${url}`, error),

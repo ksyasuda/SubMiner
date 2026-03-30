@@ -132,6 +132,7 @@ export interface CliCommandRuntimeServiceDepsParams {
     service: CliCommandDepsRuntimeOptions['texthooker']['service'];
     getPort: CliCommandDepsRuntimeOptions['texthooker']['getPort'];
     setPort: CliCommandDepsRuntimeOptions['texthooker']['setPort'];
+    getWebsocketUrl: CliCommandDepsRuntimeOptions['texthooker']['getWebsocketUrl'];
     shouldOpenBrowser: CliCommandDepsRuntimeOptions['texthooker']['shouldOpenBrowser'];
     openInBrowser: CliCommandDepsRuntimeOptions['texthooker']['openInBrowser'];
   };
@@ -293,6 +294,7 @@ export function createCliCommandRuntimeServiceDeps(
       service: params.texthooker.service,
       getPort: params.texthooker.getPort,
       setPort: params.texthooker.setPort,
+      getWebsocketUrl: params.texthooker.getWebsocketUrl,
       shouldOpenBrowser: params.texthooker.shouldOpenBrowser,
       openInBrowser: params.texthooker.openInBrowser,
     },

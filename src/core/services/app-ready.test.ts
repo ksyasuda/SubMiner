@@ -176,7 +176,7 @@ test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns
   assert.ok(calls.indexOf('handleFirstRunSetup') < calls.indexOf('handleInitialArgs'));
 });
 
-test('runAppReadyRuntime uses minimal startup for texthooker-only mode', async () => {
+test('runAppReadyRuntime keeps websocket startup in texthooker-only mode but skips overlay window', async () => {
   const { deps, calls } = makeDeps({
     texthookerOnlyMode: true,
     reloadConfig: () => calls.push('reloadConfig'),
@@ -185,7 +185,16 @@ test('runAppReadyRuntime uses minimal startup for texthooker-only mode', async (
 
   await runAppReadyRuntime(deps);
 
-  assert.deepEqual(calls, ['ensureDefaultConfigBootstrap', 'reloadConfig', 'handleInitialArgs']);
+  assert.ok(calls.includes('reloadConfig'));
+  assert.ok(calls.includes('createMpvClient'));
+  assert.ok(calls.includes('startAnnotationWebsocket:6678'));
+  assert.ok(calls.includes('startTexthooker:5174:ws://127.0.0.1:6678'));
+  assert.ok(calls.includes('createSubtitleTimingTracker'));
+  assert.ok(calls.includes('handleFirstRunSetup'));
+  assert.ok(calls.includes('handleInitialArgs'));
+  assert.ok(calls.includes('log:Texthooker-only mode enabled; skipping overlay window.'));
+  assert.equal(calls.includes('initializeOverlayRuntime'), false);
+  assert.equal(calls.includes('setVisibleOverlayVisible:true'), false);
 });
 
 test('runAppReadyRuntime skips Jellyfin remote startup when dependency is not wired', async () => {

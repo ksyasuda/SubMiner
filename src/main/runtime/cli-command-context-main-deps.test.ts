@@ -14,7 +14,13 @@ test('cli command context main deps builder maps state and callbacks', async () 
   const build = createBuildCliCommandContextMainDepsHandler({
     appState,
     texthookerService: { isRunning: () => false, start: () => null },
-    getResolvedConfig: () => ({ texthooker: { openBrowser: true } }),
+    getResolvedConfig: () => ({
+      texthooker: { openBrowser: true },
+      annotationWebsocket: { enabled: true, port: 6678 },
+    }),
+    defaultWebsocketPort: 6677,
+    defaultAnnotationWebsocketPort: 6678,
+    hasMpvWebsocketPlugin: () => false,
     openExternal: async (url) => {
       calls.push(`open:${url}`);
     },
@@ -110,6 +116,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
   assert.equal(deps.getTexthookerPort(), 5174);
   deps.setTexthookerPort(5175);
   assert.equal(appState.texthookerPort, 5175);
+  assert.equal(deps.getTexthookerWebsocketUrl(), 'ws://127.0.0.1:6678');
   assert.equal(deps.shouldOpenBrowser(), true);
   deps.showOsd('hello');
   deps.initializeOverlay();

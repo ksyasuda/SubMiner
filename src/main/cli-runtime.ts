@@ -13,6 +13,7 @@ export interface CliCommandRuntimeServiceContext {
   showOsd: CliCommandRuntimeServiceDepsParams['mpv']['showOsd'];
   getTexthookerPort: () => number;
   setTexthookerPort: (port: number) => void;
+  getTexthookerWebsocketUrl: () => string | undefined;
   shouldOpenBrowser: () => boolean;
   openInBrowser: (url: string) => void;
   isOverlayInitialized: () => boolean;
@@ -71,6 +72,7 @@ function createCliCommandDepsFromContext(
       service: context.texthookerService,
       getPort: context.getTexthookerPort,
       setPort: context.setTexthookerPort,
+      getWebsocketUrl: context.getTexthookerWebsocketUrl,
       shouldOpenBrowser: context.shouldOpenBrowser,
       openInBrowser: context.openInBrowser,
     },

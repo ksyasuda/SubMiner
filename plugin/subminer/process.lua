@@ -191,6 +191,14 @@ function M.create(ctx)
 			else
 				table.insert(args, "--hide-visible-overlay")
 			end
+
+			local texthooker_enabled = overrides.texthooker_enabled
+			if texthooker_enabled == nil then
+				texthooker_enabled = opts.texthooker_enabled
+			end
+			if texthooker_enabled then
+				table.insert(args, "--texthooker")
+			end
 		end
 
 		return args
@@ -242,50 +250,10 @@ function M.create(ctx)
 		return overrides
 	end
 
-	local function build_texthooker_args()
-		local args = { state.binary_path, "--texthooker", "--port", tostring(opts.texthooker_port) }
-		local log_level = normalize_log_level(opts.log_level)
-		if log_level ~= "info" then
-			table.insert(args, "--log-level")
-			table.insert(args, log_level)
-		end
-		return args
-	end
-
 	local function ensure_texthooker_running(callback)
-		if not opts.texthooker_enabled then
+		if callback then
 			callback()
-			return
 		end
-
-		if state.texthooker_running then
-			callback()
-			return
-		end
-
-		local args = build_texthooker_args()
-		subminer_log("info", "texthooker", "Starting texthooker process: " .. table.concat(args, " "))
-		state.texthooker_running = true
-
-		mp.command_native_async({
-			name = "subprocess",
-			args = args,
-			playback_only = false,
-			capture_stdout = true,
-			capture_stderr = true,
-		}, function(success, result, error)
-			if not success or (result and result.status ~= 0) then
-				state.texthooker_running = false
-				subminer_log(
-					"warn",
-					"texthooker",
-					"Texthooker process exited unexpectedly: " .. (error or (result and result.stderr) or "unknown error")
-				)
-			end
-		end)
-
-		-- Start overlay immediately; overlay start path retries on readiness failures.
-		callback()
 	end
 
 	local function start_overlay(overrides)

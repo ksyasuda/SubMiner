@@ -98,6 +98,13 @@ interface AppReadyConfigLike {
   };
 }
 
+type TexthookerWebsocketConfigLike = Pick<AppReadyConfigLike, 'annotationWebsocket' | 'websocket'>;
+
+type TexthookerWebsocketDefaults = {
+  defaultWebsocketPort: number;
+  defaultAnnotationWebsocketPort: number;
+};
+
 export interface AppReadyRuntimeDeps {
   ensureDefaultConfigBootstrap: () => void;
   loadSubtitlePosition: () => void;
@@ -169,6 +176,29 @@ function getStartupCriticalConfigErrors(config: AppReadyConfigLike): string[] {
   return errors;
 }
 
+export function resolveTexthookerWebsocketUrl(
+  config: TexthookerWebsocketConfigLike,
+  defaults: TexthookerWebsocketDefaults,
+  hasMpvWebsocketPlugin: boolean,
+): string | undefined {
+  const wsConfig = config.websocket || {};
+  const wsEnabled = wsConfig.enabled ?? 'auto';
+  const wsPort = wsConfig.port || defaults.defaultWebsocketPort;
+  const annotationWsConfig = config.annotationWebsocket || {};
+  const annotationWsEnabled = annotationWsConfig.enabled !== false;
+  const annotationWsPort = annotationWsConfig.port || defaults.defaultAnnotationWebsocketPort;
+
+  if (annotationWsEnabled) {
+    return `ws://127.0.0.1:${annotationWsPort}`;
+  }
+
+  if (wsEnabled === true || (wsEnabled === 'auto' && !hasMpvWebsocketPlugin)) {
+    return `ws://127.0.0.1:${wsPort}`;
+  }
+
+  return undefined;
+}
+
 export function shouldAutoInitializeOverlayRuntimeFromConfig(config: RuntimeConfigLike): boolean {
   return config.auto_start_overlay === true;
 }
@@ -198,12 +228,6 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
       deps.initializeOverlayRuntime();
       deps.handleInitialArgs();
     }
-    return;
-  }
-
-  if (deps.texthookerOnlyMode) {
-    deps.reloadConfig();
-    deps.handleInitialArgs();
     return;
   }
 
@@ -262,7 +286,14 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   const annotationWsEnabled = annotationWsConfig.enabled !== false;
   const annotationWsPort = annotationWsConfig.port || deps.defaultAnnotationWebsocketPort;
   const texthookerPort = deps.defaultTexthookerPort;
-  let texthookerWebsocketUrl: string | undefined;
+  const texthookerWebsocketUrl = resolveTexthookerWebsocketUrl(
+    config,
+    {
+      defaultWebsocketPort: deps.defaultWebsocketPort,
+      defaultAnnotationWebsocketPort: deps.defaultAnnotationWebsocketPort,
+    },
+    deps.hasMpvWebsocketPlugin(),
+  );
 
   if (wsEnabled === true || (wsEnabled === 'auto' && !deps.hasMpvWebsocketPlugin())) {
     deps.startSubtitleWebsocket(wsPort);
@@ -272,9 +303,6 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
 
   if (annotationWsEnabled) {
     deps.startAnnotationWebsocket(annotationWsPort);
-    texthookerWebsocketUrl = `ws://127.0.0.1:${annotationWsPort}`;
-  } else if (wsEnabled === true || (wsEnabled === 'auto' && !deps.hasMpvWebsocketPlugin())) {
-    texthookerWebsocketUrl = `ws://127.0.0.1:${wsPort}`;
   }
 
   if (config.texthooker?.launchAtStartup !== false) {

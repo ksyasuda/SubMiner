@@ -1,4 +1,5 @@
 import type { CliArgs } from '../../cli/args';
+import { resolveTexthookerWebsocketUrl } from '../../core/services/startup';
 import type { CliCommandContextFactoryDeps } from './cli-command-context';
 
 type CliCommandContextMainState = {
@@ -12,7 +13,14 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   appState: CliCommandContextMainState;
   setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
   texthookerService: CliCommandContextFactoryDeps['texthookerService'];
-  getResolvedConfig: () => { texthooker?: { openBrowser?: boolean } };
+  getResolvedConfig: () => {
+    texthooker?: { openBrowser?: boolean };
+    websocket?: { enabled?: boolean | 'auto'; port?: number };
+    annotationWebsocket?: { enabled?: boolean; port?: number };
+  };
+  defaultWebsocketPort: number;
+  defaultAnnotationWebsocketPort: number;
+  hasMpvWebsocketPlugin: () => boolean;
   openExternal: (url: string) => Promise<unknown>;
   logBrowserOpenError: (url: string, error: unknown) => void;
   showMpvOsd: (text: string) => void;
@@ -68,6 +76,15 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     setTexthookerPort: (port: number) => {
       deps.appState.texthookerPort = port;
     },
+    getTexthookerWebsocketUrl: () =>
+      resolveTexthookerWebsocketUrl(
+        deps.getResolvedConfig(),
+        {
+          defaultWebsocketPort: deps.defaultWebsocketPort,
+          defaultAnnotationWebsocketPort: deps.defaultAnnotationWebsocketPort,
+        },
+        deps.hasMpvWebsocketPlugin(),
+      ),
     shouldOpenBrowser: () => deps.getResolvedConfig().texthooker?.openBrowser !== false,
     openExternal: (url: string) => deps.openExternal(url),
     logBrowserOpenError: (url: string, error: unknown) => deps.logBrowserOpenError(url, error),

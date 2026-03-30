@@ -15,6 +15,7 @@ export type CliCommandContextFactoryDeps = {
   texthookerService: CliCommandRuntimeServiceContextHandlers['texthookerService'];
   getTexthookerPort: () => number;
   setTexthookerPort: (port: number) => void;
+  getTexthookerWebsocketUrl: () => string | undefined;
   shouldOpenBrowser: () => boolean;
   openExternal: (url: string) => Promise<unknown>;
   logBrowserOpenError: (url: string, error: unknown) => void;
@@ -67,6 +68,7 @@ export function createCliCommandContext(
     texthookerService: deps.texthookerService,
     getTexthookerPort: deps.getTexthookerPort,
     setTexthookerPort: deps.setTexthookerPort,
+    getTexthookerWebsocketUrl: deps.getTexthookerWebsocketUrl,
     shouldOpenBrowser: deps.shouldOpenBrowser,
     openInBrowser: (url: string) => {
       void deps.openExternal(url).catch((error) => {

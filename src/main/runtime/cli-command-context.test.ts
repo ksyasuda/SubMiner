@@ -18,6 +18,7 @@ function createDeps() {
       texthookerService: {} as never,
       getTexthookerPort: () => 6677,
       setTexthookerPort: () => {},
+      getTexthookerWebsocketUrl: () => 'ws://127.0.0.1:6678',
       shouldOpenBrowser: () => true,
       openExternal: async () => {},
       logBrowserOpenError: (url: string) => browserErrors.push(url),

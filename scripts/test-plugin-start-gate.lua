@@ -664,8 +664,8 @@ do
 	fire_event(recorded, "file-loaded")
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
-	local texthooker_call = find_texthooker_call(recorded.async_calls)
-	assert_true(texthooker_call ~= nil, "auto-start should issue texthooker helper command when enabled")
+	assert_true(call_has_arg(start_call, "--texthooker"), "auto-start should include --texthooker on the main --start command when enabled")
+	assert_true(find_control_call(recorded.async_calls, "--texthooker") == nil, "auto-start should not issue a separate texthooker helper command")
 	assert_true(
 		call_has_arg(start_call, "--show-visible-overlay"),
 		"auto-start with visible overlay enabled should include --show-visible-overlay on --start"
@@ -677,10 +677,6 @@ do
 	assert_true(
 		find_control_call(recorded.async_calls, "--show-visible-overlay") ~= nil,
 		"auto-start with visible overlay enabled should issue a separate --show-visible-overlay command"
-	)
-	assert_true(
-		find_call_index(recorded.async_calls, start_call) < find_call_index(recorded.async_calls, texthooker_call),
-		"auto-start should launch --start before separate --texthooker helper startup"
 	)
 	assert_true(
 		not has_property_set(recorded.property_sets, "pause", true),

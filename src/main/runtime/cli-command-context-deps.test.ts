@@ -12,6 +12,7 @@ test('build cli command context deps maps handlers and values', () => {
     texthookerService: { start: () => null, status: () => ({ running: false }) } as never,
     getTexthookerPort: () => 5174,
     setTexthookerPort: (port) => calls.push(`port:${port}`),
+    getTexthookerWebsocketUrl: () => 'ws://127.0.0.1:6678',
     shouldOpenBrowser: () => true,
     openExternal: async (url) => calls.push(`open:${url}`),
     logBrowserOpenError: (url) => calls.push(`open-error:${url}`),
@@ -82,6 +83,7 @@ test('build cli command context deps maps handlers and values', () => {
   const deps = buildDeps();
   assert.equal(deps.getSocketPath(), '/tmp/mpv.sock');
   assert.equal(deps.getTexthookerPort(), 5174);
+  assert.equal(deps.getTexthookerWebsocketUrl(), 'ws://127.0.0.1:6678');
   assert.equal(deps.shouldOpenBrowser(), true);
   assert.equal(deps.isOverlayInitialized(), true);
   assert.equal(deps.hasMainWindow(), true);

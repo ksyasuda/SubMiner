@@ -10,6 +10,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   texthookerService: CliCommandContextFactoryDeps['texthookerService'];
   getTexthookerPort: () => number;
   setTexthookerPort: (port: number) => void;
+  getTexthookerWebsocketUrl: () => string | undefined;
   shouldOpenBrowser: () => boolean;
   openExternal: (url: string) => Promise<unknown>;
   logBrowserOpenError: (url: string, error: unknown) => void;
@@ -58,6 +59,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     texthookerService: deps.texthookerService,
     getTexthookerPort: deps.getTexthookerPort,
     setTexthookerPort: deps.setTexthookerPort,
+    getTexthookerWebsocketUrl: deps.getTexthookerWebsocketUrl,
     shouldOpenBrowser: deps.shouldOpenBrowser,
     openExternal: deps.openExternal,
     logBrowserOpenError: deps.logBrowserOpenError,
