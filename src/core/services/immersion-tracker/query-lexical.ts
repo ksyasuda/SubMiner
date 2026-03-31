@@ -12,6 +12,7 @@ import type {
   WordDetailRow,
   WordOccurrenceRow,
 } from './types';
+import { fromDbTimestamp } from './query-shared';
 
 export function getVocabularyStats(
   db: DatabaseSync,
@@ -134,7 +135,11 @@ export function getSessionEvents(
       SELECT event_type AS eventType, ts_ms AS tsMs, payload_json AS payload
       FROM imm_session_events WHERE session_id = ? ORDER BY ts_ms ASC LIMIT ?
     `);
-    return stmt.all(sessionId, limit) as SessionEventRow[];
+    const rows = stmt.all(sessionId, limit) as Array<SessionEventRow & { tsMs: number | string }>;
+    return rows.map((row) => ({
+      ...row,
+      tsMs: fromDbTimestamp(row.tsMs) ?? 0,
+    }));
   }
 
   const placeholders = eventTypes.map(() => '?').join(', ');
@@ -145,7 +150,13 @@ export function getSessionEvents(
     ORDER BY ts_ms ASC
     LIMIT ?
   `);
-  return stmt.all(sessionId, ...eventTypes, limit) as SessionEventRow[];
+  const rows = stmt.all(sessionId, ...eventTypes, limit) as Array<SessionEventRow & {
+    tsMs: number | string;
+  }>;
+  return rows.map((row) => ({
+    ...row,
+    tsMs: fromDbTimestamp(row.tsMs) ?? 0,
+  }));
 }
 
 export function getWordDetail(db: DatabaseSync, wordId: number): WordDetailRow | null {

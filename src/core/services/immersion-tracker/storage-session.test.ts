@@ -143,10 +143,10 @@ test('ensureSchema creates immersion core tables', () => {
     const rollupStateRow = db
       .prepare('SELECT state_value FROM imm_rollup_state WHERE state_key = ?')
       .get('last_rollup_sample_ms') as {
-      state_value: number;
+      state_value: string;
     } | null;
     assert.ok(rollupStateRow);
-    assert.equal(rollupStateRow?.state_value, 0);
+    assert.equal(Number(rollupStateRow?.state_value ?? 0), 0);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -965,12 +965,12 @@ test('start/finalize session updates ended_at and status', () => {
     const row = db
       .prepare('SELECT ended_at_ms, status FROM imm_sessions WHERE session_id = ?')
       .get(sessionId) as {
-      ended_at_ms: number | null;
+      ended_at_ms: string | null;
       status: number;
     } | null;
 
     assert.ok(row);
-    assert.equal(row?.ended_at_ms, endedAtMs);
+    assert.equal(Number(row?.ended_at_ms ?? 0), endedAtMs);
     assert.equal(row?.status, SESSION_STATUS_ENDED);
   } finally {
     db.close();

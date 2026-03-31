@@ -17,6 +17,7 @@ import {
   getAffectedWordIdsForVideo,
   refreshLexicalAggregates,
   toDbMs,
+  toDbTimestamp,
 } from './query-shared';
 
 type CleanupVocabularyRow = {
@@ -351,7 +352,7 @@ export function upsertCoverArt(
     )
     .get(videoId) as { coverBlobHash: string | null } | undefined;
   const sharedCoverBlobHash = findSharedCoverBlobHash(db, videoId, art.anilistId, art.coverUrl);
-  const fetchedAtMs = toDbMs(nowMs());
+  const fetchedAtMs = toDbTimestamp(nowMs());
   const coverBlob = normalizeCoverBlobBytes(art.coverBlob);
   const computedCoverBlobHash =
     coverBlob && coverBlob.length > 0
@@ -444,7 +445,7 @@ export function updateAnimeAnilistInfo(
     info.titleEnglish,
     info.titleNative,
     info.episodesTotal,
-    toDbMs(nowMs()),
+    toDbTimestamp(nowMs()),
     row.anime_id,
   );
 }
@@ -452,7 +453,7 @@ export function updateAnimeAnilistInfo(
 export function markVideoWatched(db: DatabaseSync, videoId: number, watched: boolean): void {
   db.prepare('UPDATE imm_videos SET watched = ?, LAST_UPDATE_DATE = ? WHERE video_id = ?').run(
     watched ? 1 : 0,
-    toDbMs(nowMs()),
+    toDbTimestamp(nowMs()),
     videoId,
   );
 }

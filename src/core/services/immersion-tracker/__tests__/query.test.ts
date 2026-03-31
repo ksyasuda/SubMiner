@@ -44,6 +44,7 @@ import {
   EVENT_SUBTITLE_LINE,
   EVENT_YOMITAN_LOOKUP,
 } from '../types.js';
+import { toDbTimestamp } from '../query-shared.js';
 
 function makeDbPath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-imm-query-test-'));
@@ -81,29 +82,13 @@ function cleanupDbPath(dbPath: string): void {
   }
 }
 
-function withMockDate<T>(fixedDate: Date, run: (realDate: typeof Date) => T): T {
-  const realDate = Date;
-  const fixedDateMs = fixedDate.getTime();
-
-  class MockDate extends Date {
-    constructor(...args: any[]) {
-      if (args.length === 0) {
-        super(fixedDateMs);
-      } else {
-        super(...(args as [any?, any?, any?, any?, any?, any?, any?]));
-      }
-    }
-
-    static override now(): number {
-      return fixedDateMs;
-    }
-  }
-
-  globalThis.Date = MockDate as DateConstructor;
+function withMockNowMs<T>(fixedDateMs: string | number, run: () => T): T {
+  const previousNowMs = globalThis.__subminerTestNowMs;
+  globalThis.__subminerTestNowMs = fixedDateMs;
   try {
-    return run(realDate);
+    return run();
   } finally {
-    globalThis.Date = realDate;
+    globalThis.__subminerTestNowMs = previousNowMs;
   }
 }
 
@@ -613,7 +598,7 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
     ] as const) {
       stmts.telemetryInsertStmt.run(
         sessionId,
-        startedAtMs + 60_000,
+        `${startedAtMs + 60_000}`,
         activeWatchedMs,
         activeWatchedMs,
         10,
@@ -626,8 +611,8 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
         0,
         0,
         0,
-        startedAtMs + 60_000,
-        startedAtMs + 60_000,
+        `${startedAtMs + 60_000}`,
+        `${startedAtMs + 60_000}`,
       );
 
       db.prepare(
@@ -644,7 +629,7 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
           WHERE session_id = ?
         `,
       ).run(
-        startedAtMs + activeWatchedMs,
+        `${startedAtMs + activeWatchedMs}`,
         activeWatchedMs,
         activeWatchedMs,
         10,
@@ -687,8 +672,8 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
       '名詞',
       null,
       null,
-      Math.floor(dayOneStart / 1000),
-      Math.floor(dayTwoStart / 1000),
+      String(Math.floor(dayOneStart / 1000)),
+      String(Math.floor(dayTwoStart / 1000)),
     );
 
     const dashboard = getTrendsDashboard(db, 'all', 'day');
@@ -743,18 +728,50 @@ test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
       parseMetadataJson: null,
     });
 
-    const beforeMidnight = new Date(2026, 2, 1, 23, 30).getTime();
-    const afterMidnight = new Date(2026, 2, 2, 0, 30).getTime();
-    const firstSessionId = startSessionRecord(db, videoId, beforeMidnight).sessionId;
-    const secondSessionId = startSessionRecord(db, videoId, afterMidnight).sessionId;
+    const beforeMidnight = '1772436600000';
+    const afterMidnight = '1772440200000';
+    const firstSessionId = 1;
+    const secondSessionId = 2;
+    const insertSession = db.prepare(
+      `
+        INSERT INTO imm_sessions (
+          session_id,
+          session_uuid,
+          video_id,
+          started_at_ms,
+          status,
+          CREATED_DATE,
+          LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    );
+    insertSession.run(
+      firstSessionId,
+      '11111111-1111-1111-1111-111111111111',
+      videoId,
+      beforeMidnight,
+      1,
+      beforeMidnight,
+      beforeMidnight,
+    );
+    insertSession.run(
+      secondSessionId,
+      '22222222-2222-2222-2222-222222222222',
+      videoId,
+      afterMidnight,
+      1,
+      afterMidnight,
+      afterMidnight,
+    );
 
     for (const [sessionId, startedAtMs, tokensSeen, lookupCount] of [
       [firstSessionId, beforeMidnight, 100, 4],
       [secondSessionId, afterMidnight, 120, 6],
     ] as const) {
+      const endedAtMs = (BigInt(startedAtMs) + 60_000n).toString();
       stmts.telemetryInsertStmt.run(
         sessionId,
-        startedAtMs + 60_000,
+        endedAtMs,
         60_000,
         60_000,
         1,
@@ -767,8 +784,8 @@ test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
         0,
         0,
         0,
-        startedAtMs + 60_000,
-        startedAtMs + 60_000,
+        endedAtMs,
+        endedAtMs,
       );
       db.prepare(
         `
@@ -787,7 +804,7 @@ test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
         WHERE session_id = ?
         `,
       ).run(
-        startedAtMs + 60_000,
+        endedAtMs,
         60_000,
         60_000,
         1,
@@ -795,7 +812,7 @@ test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
         lookupCount,
         lookupCount,
         lookupCount,
-        startedAtMs + 60_000,
+        endedAtMs,
         sessionId,
       );
     }
@@ -816,7 +833,7 @@ test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
 test('getTrendsDashboard month grouping spans every touched calendar month and keeps progress monthly', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
-  withMockDate(new Date(2026, 2, 1, 12, 0, 0), (RealDate) => {
+  withMockNowMs('1772395200000', () => {
     try {
       ensureSchema(db);
       const stmts = createTrackerPreparedStatements(db);
@@ -862,18 +879,50 @@ test('getTrendsDashboard month grouping spans every touched calendar month and k
         parseMetadataJson: null,
       });
 
-      const febStartedAtMs = new RealDate(2026, 1, 15, 20, 0, 0).getTime();
-      const marStartedAtMs = new RealDate(2026, 2, 1, 9, 0, 0).getTime();
-      const febSessionId = startSessionRecord(db, febVideoId, febStartedAtMs).sessionId;
-      const marSessionId = startSessionRecord(db, marVideoId, marStartedAtMs).sessionId;
+      const febStartedAtMs = '1771214400000';
+      const marStartedAtMs = '1772384400000';
+      const febSessionId = 1;
+      const marSessionId = 2;
+      const insertSession = db.prepare(
+        `
+          INSERT INTO imm_sessions (
+            session_id,
+            session_uuid,
+            video_id,
+            started_at_ms,
+            status,
+            CREATED_DATE,
+            LAST_UPDATE_DATE
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+      );
+      insertSession.run(
+        febSessionId,
+        '33333333-3333-3333-3333-333333333333',
+        febVideoId,
+        febStartedAtMs,
+        1,
+        febStartedAtMs,
+        febStartedAtMs,
+      );
+      insertSession.run(
+        marSessionId,
+        '44444444-4444-4444-4444-444444444444',
+        marVideoId,
+        marStartedAtMs,
+        1,
+        marStartedAtMs,
+        marStartedAtMs,
+      );
 
       for (const [sessionId, startedAtMs, tokensSeen, cardsMined, yomitanLookupCount] of [
         [febSessionId, febStartedAtMs, 100, 2, 3],
         [marSessionId, marStartedAtMs, 120, 4, 5],
       ] as const) {
+        const endedAtMs = (BigInt(startedAtMs) + 60_000n).toString();
         stmts.telemetryInsertStmt.run(
           sessionId,
-          startedAtMs + 60_000,
+          endedAtMs,
           30 * 60_000,
           30 * 60_000,
           4,
@@ -886,8 +935,8 @@ test('getTrendsDashboard month grouping spans every touched calendar month and k
           0,
           0,
           0,
-          startedAtMs + 60_000,
-          startedAtMs + 60_000,
+          endedAtMs,
+          endedAtMs,
         );
         db.prepare(
           `
@@ -907,7 +956,7 @@ test('getTrendsDashboard month grouping spans every touched calendar month and k
           WHERE session_id = ?
           `,
         ).run(
-          startedAtMs + 60_000,
+          endedAtMs,
           30 * 60_000,
           30 * 60_000,
           4,
@@ -916,7 +965,7 @@ test('getTrendsDashboard month grouping spans every touched calendar month and k
           yomitanLookupCount,
           yomitanLookupCount,
           yomitanLookupCount,
-          startedAtMs + 60_000,
+          endedAtMs,
           sessionId,
         );
       }
@@ -937,10 +986,8 @@ test('getTrendsDashboard month grouping spans every touched calendar month and k
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     );
-    const febEpochDay = Math.floor(febStartedAtMs / 86_400_000);
-    const marEpochDay = Math.floor(marStartedAtMs / 86_400_000);
-    insertDailyRollup.run(febEpochDay, febVideoId, 1, 30, 4, 100, 2, febStartedAtMs, febStartedAtMs);
-    insertDailyRollup.run(marEpochDay, marVideoId, 1, 30, 4, 120, 4, marStartedAtMs, marStartedAtMs);
+    insertDailyRollup.run(20500, febVideoId, 1, 30, 4, 100, 2, febStartedAtMs, febStartedAtMs);
+    insertDailyRollup.run(20513, marVideoId, 1, 30, 4, 120, 4, marStartedAtMs, marStartedAtMs);
     insertMonthlyRollup.run(202602, febVideoId, 1, 30, 4, 100, 2, febStartedAtMs, febStartedAtMs);
     insertMonthlyRollup.run(202603, marVideoId, 1, 30, 4, 120, 4, marStartedAtMs, marStartedAtMs);
 
@@ -958,8 +1005,8 @@ test('getTrendsDashboard month grouping spans every touched calendar month and k
       '名詞',
       '',
       '',
-      Math.floor(febStartedAtMs / 1000),
-      Math.floor(febStartedAtMs / 1000),
+      (BigInt(febStartedAtMs) / 1000n).toString(),
+      (BigInt(febStartedAtMs) / 1000n).toString(),
       1,
     );
     db.prepare(
@@ -976,8 +1023,8 @@ test('getTrendsDashboard month grouping spans every touched calendar month and k
       '名詞',
       '',
       '',
-      Math.floor(marStartedAtMs / 1000),
-      Math.floor(marStartedAtMs / 1000),
+      (BigInt(marStartedAtMs) / 1000n).toString(),
+      (BigInt(marStartedAtMs) / 1000n).toString(),
       1,
     );
 
@@ -1077,7 +1124,7 @@ test('getQueryHints computes weekly new-word cutoff from calendar midnights', ()
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
 
-  withMockDate(new Date(2026, 2, 15, 12, 0, 0), (RealDate) => {
+  withMockNowMs('1773601200000', () => {
     try {
       ensureSchema(db);
 
@@ -1088,12 +1135,8 @@ test('getQueryHints computes weekly new-word cutoff from calendar midnights', ()
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       );
-      const justBeforeWeekBoundary = Math.floor(
-        new RealDate(2026, 2, 7, 23, 30, 0).getTime() / 1000,
-      );
-      const justAfterWeekBoundary = Math.floor(
-        new RealDate(2026, 2, 8, 0, 30, 0).getTime() / 1000,
-      );
+      const justBeforeWeekBoundary = 1_772_955_000;
+      const justAfterWeekBoundary = 1_772_958_600;
       insertWord.run(
         '境界前',
         '境界前',
@@ -1102,8 +1145,8 @@ test('getQueryHints computes weekly new-word cutoff from calendar midnights', ()
         '名詞',
         '',
         '',
-        justBeforeWeekBoundary,
-        justBeforeWeekBoundary,
+        String(justBeforeWeekBoundary),
+        String(justBeforeWeekBoundary),
         1,
       );
       insertWord.run(
@@ -1114,8 +1157,8 @@ test('getQueryHints computes weekly new-word cutoff from calendar midnights', ()
         '名詞',
         '',
         '',
-        justAfterWeekBoundary,
-        justAfterWeekBoundary,
+        String(justAfterWeekBoundary),
+        String(justAfterWeekBoundary),
         1,
       );
 
@@ -1134,38 +1177,70 @@ test('getQueryHints counts new words by distinct headword first-seen time', () =
 
   try {
     ensureSchema(db);
+    withMockNowMs('1773601200000', () => {
+      const todayStartSec = 1_773_558_000;
+      const oneHourAgo = todayStartSec + 3_600;
+      const twoDaysAgo = todayStartSec - 2 * 86_400;
 
-    const now = new Date();
-    const todayStartSec =
-      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
-    const oneHourAgo = todayStartSec + 3_600;
-    const twoDaysAgo = todayStartSec - 2 * 86_400;
+      db.prepare(
+        `
+        INSERT INTO imm_words (
+          headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      ).run(
+        '知る',
+        '知った',
+        'しった',
+        'verb',
+        '動詞',
+        '',
+        '',
+        String(oneHourAgo),
+        String(oneHourAgo),
+        1,
+      );
+      db.prepare(
+        `
+        INSERT INTO imm_words (
+          headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      ).run(
+        '知る',
+        '知っている',
+        'しっている',
+        'verb',
+        '動詞',
+        '',
+        '',
+        String(oneHourAgo),
+        String(oneHourAgo),
+        1,
+      );
+      db.prepare(
+        `
+        INSERT INTO imm_words (
+          headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      ).run(
+        '猫',
+        '猫',
+        'ねこ',
+        'noun',
+        '名詞',
+        '',
+        '',
+        String(twoDaysAgo),
+        String(twoDaysAgo),
+        1,
+      );
 
-    db.prepare(
-      `
-      INSERT INTO imm_words (
-        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-    ).run('知る', '知った', 'しった', 'verb', '動詞', '', '', oneHourAgo, oneHourAgo, 1);
-    db.prepare(
-      `
-      INSERT INTO imm_words (
-        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-    ).run('知る', '知っている', 'しっている', 'verb', '動詞', '', '', oneHourAgo, oneHourAgo, 1);
-    db.prepare(
-      `
-      INSERT INTO imm_words (
-        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-    ).run('猫', '猫', 'ねこ', 'noun', '名詞', '', '', twoDaysAgo, twoDaysAgo, 1);
-
-    const hints = getQueryHints(db);
-    assert.equal(hints.newWordsToday, 1);
-    assert.equal(hints.newWordsThisWeek, 2);
+      const hints = getQueryHints(db);
+      assert.equal(hints.newWordsToday, 1);
+      assert.equal(hints.newWordsThisWeek, 2);
+    });
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -2020,7 +2095,7 @@ test('getSessionWordsByLine joins word occurrences through imm_words.id', () => 
   try {
     ensureSchema(db);
     const stmts = createTrackerPreparedStatements(db);
-    const startedAtMs = Date.UTC(2025, 0, 1, 12, 0, 0);
+    const startedAtMs = 1_735_732_800_000;
     const videoId = getOrCreateVideoRecord(db, '/tmp/session-words-by-line.mkv', {
       canonicalTitle: 'Episode',
       sourcePath: '/tmp/session-words-by-line.mkv',

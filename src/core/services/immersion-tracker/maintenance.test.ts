@@ -11,6 +11,7 @@ import {
   toMonthKey,
 } from './maintenance';
 import { ensureSchema } from './storage';
+import { toDbTimestamp } from './query-shared';
 
 function makeDbPath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-maintenance-test-'));
@@ -39,18 +40,18 @@ test('pruneRawRetention uses session retention separately from telemetry retenti
       INSERT INTO imm_videos (
         video_id, video_key, canonical_title, source_type, duration_ms, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        1, 'local:/tmp/video.mkv', 'Video', 1, 0, ${nowMs}, ${nowMs}
+        1, 'local:/tmp/video.mkv', 'Video', 1, 0, '${toDbTimestamp(nowMs)}', '${toDbTimestamp(nowMs)}'
       );
       INSERT INTO imm_sessions (
         session_id, session_uuid, video_id, started_at_ms, ended_at_ms, status, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES
-        (1, 'session-1', 1, ${staleEndedAtMs - 1_000}, ${staleEndedAtMs}, 2, ${staleEndedAtMs}, ${staleEndedAtMs}),
-        (2, 'session-2', 1, ${keptEndedAtMs - 1_000}, ${keptEndedAtMs}, 2, ${keptEndedAtMs}, ${keptEndedAtMs});
+        (1, 'session-1', 1, '${toDbTimestamp(staleEndedAtMs - 1_000)}', '${toDbTimestamp(staleEndedAtMs)}', 2, '${toDbTimestamp(staleEndedAtMs)}', '${toDbTimestamp(staleEndedAtMs)}'),
+        (2, 'session-2', 1, '${toDbTimestamp(keptEndedAtMs - 1_000)}', '${toDbTimestamp(keptEndedAtMs)}', 2, '${toDbTimestamp(keptEndedAtMs)}', '${toDbTimestamp(keptEndedAtMs)}');
       INSERT INTO imm_session_telemetry (
         session_id, sample_ms, total_watched_ms, active_watched_ms, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES
-        (1, ${nowMs - 200_000_000}, 0, 0, ${nowMs}, ${nowMs}),
-        (2, ${nowMs - 10_000_000}, 0, 0, ${nowMs}, ${nowMs});
+        (1, '${toDbTimestamp(nowMs - 200_000_000)}', 0, 0, '${toDbTimestamp(nowMs)}', '${toDbTimestamp(nowMs)}'),
+        (2, '${toDbTimestamp(nowMs - 10_000_000)}', 0, 0, '${toDbTimestamp(nowMs)}', '${toDbTimestamp(nowMs)}');
     `);
 
     const result = pruneRawRetention(db, nowMs, {
@@ -94,22 +95,22 @@ test('pruneRawRetention skips disabled retention windows', () => {
       INSERT INTO imm_videos (
         video_id, video_key, canonical_title, source_type, duration_ms, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        1, 'local:/tmp/video.mkv', 'Video', 1, 0, ${nowMs}, ${nowMs}
+        1, 'local:/tmp/video.mkv', 'Video', 1, 0, '${nowMs}', '${nowMs}'
       );
       INSERT INTO imm_sessions (
         session_id, session_uuid, video_id, started_at_ms, ended_at_ms, status, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        1, 'session-1', 1, ${nowMs - 1_000}, ${nowMs - 500}, 2, ${nowMs}, ${nowMs}
+        1, 'session-1', 1, '${nowMs - 1_000}', '${nowMs - 500}', 2, '${nowMs}', '${nowMs}'
       );
       INSERT INTO imm_session_telemetry (
         session_id, sample_ms, total_watched_ms, active_watched_ms, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        1, ${nowMs - 2_000}, 0, 0, ${nowMs}, ${nowMs}
+        1, '${nowMs - 2_000}', 0, 0, '${nowMs}', '${nowMs}'
       );
       INSERT INTO imm_session_events (
         session_id, event_type, ts_ms, payload_json, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        1, 1, ${nowMs - 3_000}, '{}', ${nowMs}, ${nowMs}
+        1, 1, '${nowMs - 3_000}', '{}', '${nowMs}', '${nowMs}'
       );
     `);
 
@@ -161,17 +162,17 @@ test('raw retention keeps rollups and rollup retention prunes them separately', 
       INSERT INTO imm_videos (
         video_id, video_key, canonical_title, source_type, duration_ms, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        1, 'local:/tmp/video.mkv', 'Video', 1, 0, ${nowMs}, ${nowMs}
+        1, 'local:/tmp/video.mkv', 'Video', 1, 0, '${nowMs}', '${nowMs}'
       );
       INSERT INTO imm_sessions (
         session_id, session_uuid, video_id, started_at_ms, ended_at_ms, status, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        1, 'session-1', 1, ${nowMs - 200_000_000}, ${nowMs - 199_999_000}, 2, ${nowMs}, ${nowMs}
+        1, 'session-1', 1, '${nowMs - 200_000_000}', '${nowMs - 199_999_000}', 2, '${nowMs}', '${nowMs}'
       );
       INSERT INTO imm_session_telemetry (
         session_id, sample_ms, total_watched_ms, active_watched_ms, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        1, ${nowMs - 200_000_000}, 0, 0, ${nowMs}, ${nowMs}
+        1, '${nowMs - 200_000_000}', 0, 0, '${nowMs}', '${nowMs}'
       );
       INSERT INTO imm_daily_rollups (
         rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
@@ -183,7 +184,7 @@ test('raw retention keeps rollups and rollup retention prunes them separately', 
         rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
         total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        ${oldMonth}, 1, 1, 10, 1, 1, 1, ${nowMs}, ${nowMs}
+        ${oldMonth}, 1, 1, 10, 1, 1, 1, '${nowMs}', '${nowMs}'
       );
     `);
 

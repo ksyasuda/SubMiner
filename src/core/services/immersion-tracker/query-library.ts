@@ -16,10 +16,10 @@ import type {
   StreakCalendarRow,
   WatchTimePerAnimeRow,
 } from './types';
-import { ACTIVE_SESSION_METRICS_CTE, resolvedCoverBlobExpr } from './query-shared';
+import { ACTIVE_SESSION_METRICS_CTE, fromDbTimestamp, resolvedCoverBlobExpr } from './query-shared';
 
 export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
-  return db
+  const rows = db
     .prepare(
       `
     SELECT
@@ -40,11 +40,15 @@ export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
     ORDER BY totalActiveMs DESC, lm.last_watched_ms DESC, canonicalTitle ASC
   `,
     )
-    .all() as unknown as AnimeLibraryRow[];
+    .all() as Array<AnimeLibraryRow & { lastWatchedMs: number | string }>;
+  return rows.map((row) => ({
+    ...row,
+    lastWatchedMs: fromDbTimestamp(row.lastWatchedMs) ?? 0,
+  }));
 }
 
 export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRow | null {
-  return db
+  const row = db
     .prepare(
       `
     ${ACTIVE_SESSION_METRICS_CTE}
@@ -75,7 +79,13 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
     GROUP BY a.anime_id
   `,
     )
-    .get(animeId) as unknown as AnimeDetailRow | null;
+    .get(animeId) as (AnimeDetailRow & { lastWatchedMs: number | string }) | null;
+  return row
+    ? {
+        ...row,
+        lastWatchedMs: fromDbTimestamp(row.lastWatchedMs) ?? 0,
+      }
+    : null;
 }
 
 export function getAnimeAnilistEntries(db: DatabaseSync, animeId: number): AnimeAnilistEntryRow[] {
@@ -98,7 +108,7 @@ export function getAnimeAnilistEntries(db: DatabaseSync, animeId: number): Anime
 }
 
 export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisodeRow[] {
-  return db
+  const rows = db
     .prepare(
       `
     ${ACTIVE_SESSION_METRICS_CTE}
@@ -168,11 +178,21 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
       v.video_id ASC
   `,
     )
-    .all(animeId) as unknown as AnimeEpisodeRow[];
+    .all(animeId) as Array<
+    AnimeEpisodeRow & {
+      endedMediaMs: number | string | null;
+      lastWatchedMs: number | string;
+    }
+  >;
+  return rows.map((row) => ({
+    ...row,
+    endedMediaMs: fromDbTimestamp(row.endedMediaMs),
+    lastWatchedMs: fromDbTimestamp(row.lastWatchedMs) ?? 0,
+  }));
 }
 
 export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
-  return db
+  const rows = db
     .prepare(
       `
     SELECT
@@ -205,7 +225,11 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
     ORDER BY lm.last_watched_ms DESC
   `,
     )
-    .all() as unknown as MediaLibraryRow[];
+    .all() as Array<MediaLibraryRow & { lastWatchedMs: number | string }>;
+  return rows.map((row) => ({
+    ...row,
+    lastWatchedMs: fromDbTimestamp(row.lastWatchedMs) ?? 0,
+  }));
 }
 
 export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRow | null {
@@ -253,7 +277,7 @@ export function getMediaSessions(
   videoId: number,
   limit = 100,
 ): SessionSummaryQueryRow[] {
-  return db
+  const rows = db
     .prepare(
       `
     ${ACTIVE_SESSION_METRICS_CTE}
@@ -279,7 +303,17 @@ export function getMediaSessions(
     LIMIT ?
   `,
     )
-    .all(videoId, limit) as unknown as SessionSummaryQueryRow[];
+    .all(videoId, limit) as Array<
+    SessionSummaryQueryRow & {
+      startedAtMs: number | string;
+      endedAtMs: number | string | null;
+    }
+  >;
+  return rows.map((row) => ({
+    ...row,
+    startedAtMs: fromDbTimestamp(row.startedAtMs) ?? 0,
+    endedAtMs: fromDbTimestamp(row.endedAtMs),
+  }));
 }
 
 export function getMediaDailyRollups(
@@ -351,7 +385,7 @@ export function getAnimeDailyRollups(
 
 export function getAnimeCoverArt(db: DatabaseSync, animeId: number): MediaArtRow | null {
   const resolvedCoverBlob = resolvedCoverBlobExpr('a', 'cab');
-  return db
+  const row = db
     .prepare(
       `
     SELECT
@@ -372,12 +406,18 @@ export function getAnimeCoverArt(db: DatabaseSync, animeId: number): MediaArtRow
     LIMIT 1
   `,
     )
-    .get(animeId) as unknown as MediaArtRow | null;
+    .get(animeId) as (MediaArtRow & { fetchedAtMs: number | string }) | null;
+  return row
+    ? {
+        ...row,
+        fetchedAtMs: fromDbTimestamp(row.fetchedAtMs) ?? 0,
+      }
+    : null;
 }
 
 export function getCoverArt(db: DatabaseSync, videoId: number): MediaArtRow | null {
   const resolvedCoverBlob = resolvedCoverBlobExpr('a', 'cab');
-  return db
+  const row = db
     .prepare(
       `
     SELECT
@@ -394,7 +434,13 @@ export function getCoverArt(db: DatabaseSync, videoId: number): MediaArtRow | nu
     WHERE a.video_id = ?
   `,
     )
-    .get(videoId) as unknown as MediaArtRow | null;
+    .get(videoId) as (MediaArtRow & { fetchedAtMs: number | string }) | null;
+  return row
+    ? {
+        ...row,
+        fetchedAtMs: fromDbTimestamp(row.fetchedAtMs) ?? 0,
+      }
+    : null;
 }
 
 export function getStreakCalendar(db: DatabaseSync, days = 90): StreakCalendarRow[] {
@@ -510,7 +556,7 @@ export function getEpisodeWords(db: DatabaseSync, videoId: number, limit = 50): 
 }
 
 export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSummaryQueryRow[] {
-  return db
+  const rows = db
     .prepare(
       `
     ${ACTIVE_SESSION_METRICS_CTE}
@@ -533,7 +579,17 @@ export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSu
     ORDER BY s.started_at_ms DESC
   `,
     )
-    .all(videoId) as SessionSummaryQueryRow[];
+    .all(videoId) as Array<
+    SessionSummaryQueryRow & {
+      startedAtMs: number | string;
+      endedAtMs: number | string | null;
+    }
+  >;
+  return rows.map((row) => ({
+    ...row,
+    startedAtMs: fromDbTimestamp(row.startedAtMs) ?? 0,
+    endedAtMs: fromDbTimestamp(row.endedAtMs),
+  }));
 }
 
 export function getEpisodeCardEvents(db: DatabaseSync, videoId: number): EpisodeCardEventRow[] {
@@ -552,7 +608,7 @@ export function getEpisodeCardEvents(db: DatabaseSync, videoId: number): Episode
     .all(videoId) as Array<{
     eventId: number;
     sessionId: number;
-    tsMs: number;
+    tsMs: number | string;
     cardsDelta: number;
     payloadJson: string | null;
   }>;
@@ -568,7 +624,7 @@ export function getEpisodeCardEvents(db: DatabaseSync, videoId: number): Episode
     return {
       eventId: row.eventId,
       sessionId: row.sessionId,
-      tsMs: row.tsMs,
+      tsMs: fromDbTimestamp(row.tsMs) ?? 0,
       cardsDelta: row.cardsDelta,
       noteIds,
     };

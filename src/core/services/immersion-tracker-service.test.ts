@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { toMonthKey } from './immersion-tracker/maintenance';
 import { enqueueWrite } from './immersion-tracker/queue';
+import { toDbTimestamp } from './immersion-tracker/query-shared';
 import { Database, type DatabaseSync } from './immersion-tracker/sqlite';
 import { nowMs as trackerNowMs } from './immersion-tracker/time';
 import {
@@ -185,7 +186,7 @@ test('destroy finalizes active session and persists final telemetry', async () =
 
     const db = new Database(dbPath);
     const sessionRow = db.prepare('SELECT ended_at_ms FROM imm_sessions LIMIT 1').get() as {
-      ended_at_ms: number | null;
+      ended_at_ms: string | number | null;
     } | null;
     const telemetryCountRow = db
       .prepare('SELECT COUNT(*) AS total FROM imm_session_telemetry')
@@ -193,7 +194,7 @@ test('destroy finalizes active session and persists final telemetry', async () =
     db.close();
 
     assert.ok(sessionRow);
-    assert.ok(Number(sessionRow?.ended_at_ms ?? 0) > 0);
+    assert.notEqual(sessionRow?.ended_at_ms, null);
     assert.ok(Number(telemetryCountRow.total) >= 2);
   } finally {
     tracker?.destroy();
@@ -504,7 +505,7 @@ test('rebuildLifetimeSummaries backfills retained ended sessions and resets stal
       episodes_started: number;
       episodes_completed: number;
       anime_completed: number;
-      last_rebuilt_ms: number | null;
+      last_rebuilt_ms: string | number | null;
     } | null;
     const appliedSessions = rebuildApi.db
       .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_applied_sessions')
@@ -518,7 +519,7 @@ test('rebuildLifetimeSummaries backfills retained ended sessions and resets stal
     assert.equal(globalRow?.episodes_started, 2);
     assert.equal(globalRow?.episodes_completed, 2);
     assert.equal(globalRow?.anime_completed, 1);
-    assert.equal(globalRow?.last_rebuilt_ms, rebuild.rebuiltAtMs);
+    assert.equal(globalRow?.last_rebuilt_ms, toDbTimestamp(rebuild.rebuiltAtMs));
     assert.equal(appliedSessions?.total, 2);
   } finally {
     tracker?.destroy();
@@ -629,97 +630,89 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
     const startedAtMs = trackerNowMs() - 10_000;
     const sampleMs = startedAtMs + 5_000;
 
-    db.exec(`
-      INSERT INTO imm_anime (
-        anime_id,
-        canonical_title,
-        normalized_title_key,
-        episodes_total,
-        CREATED_DATE,
-        LAST_UPDATE_DATE
-      ) VALUES (
-        1,
-        'KonoSuba',
-        'konosuba',
-        10,
-        ${startedAtMs},
-        ${startedAtMs}
-      );
+    db.prepare(
+      `
+        INSERT INTO imm_anime (
+          anime_id,
+          canonical_title,
+          normalized_title_key,
+          episodes_total,
+          CREATED_DATE,
+          LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `,
+    ).run(1, 'KonoSuba', 'konosuba', 10, toDbTimestamp(startedAtMs), toDbTimestamp(startedAtMs));
 
-      INSERT INTO imm_videos (
-        video_id,
-        video_key,
-        canonical_title,
-        anime_id,
-        watched,
-        source_type,
-        duration_ms,
-        CREATED_DATE,
-        LAST_UPDATE_DATE
-      ) VALUES (
-        1,
-        'local:/tmp/konosuba-s02e05.mkv',
-        'KonoSuba S02E05',
-        1,
-        1,
-        1,
-        0,
-        ${startedAtMs},
-        ${startedAtMs}
-      );
+    db.prepare(
+      `
+        INSERT INTO imm_videos (
+          video_id,
+          video_key,
+          canonical_title,
+          anime_id,
+          watched,
+          source_type,
+          duration_ms,
+          CREATED_DATE,
+          LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(
+      1,
+      'local:/tmp/konosuba-s02e05.mkv',
+      'KonoSuba S02E05',
+      1,
+      1,
+      1,
+      0,
+      toDbTimestamp(startedAtMs),
+      toDbTimestamp(startedAtMs),
+    );
 
-      INSERT INTO imm_sessions (
-        session_id,
-        session_uuid,
-        video_id,
-        started_at_ms,
-        status,
-        ended_media_ms,
-        CREATED_DATE,
-        LAST_UPDATE_DATE
-      ) VALUES (
-        1,
-        '11111111-1111-1111-1111-111111111111',
-        1,
-        ${startedAtMs},
-        1,
-        321000,
-        ${startedAtMs},
-        ${sampleMs}
-      );
+    db.prepare(
+      `
+        INSERT INTO imm_sessions (
+          session_id,
+          session_uuid,
+          video_id,
+          started_at_ms,
+          status,
+          ended_media_ms,
+          CREATED_DATE,
+          LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(
+      1,
+      '11111111-1111-1111-1111-111111111111',
+      1,
+      toDbTimestamp(startedAtMs),
+      1,
+      321000,
+      toDbTimestamp(startedAtMs),
+      toDbTimestamp(sampleMs),
+    );
 
-      INSERT INTO imm_session_telemetry (
-        session_id,
-        sample_ms,
-        total_watched_ms,
-        active_watched_ms,
-        lines_seen,
-        tokens_seen,
-        cards_mined,
-        lookup_count,
-        lookup_hits,
-        pause_count,
-        pause_ms,
-        seek_forward_count,
-        seek_backward_count,
-        media_buffer_events
-      ) VALUES (
-        1,
-        ${sampleMs},
-        5000,
-        4000,
-        12,
-        120,
-        2,
-        5,
-        3,
-        1,
-        250,
-        1,
-        0,
-        0
-      );
-    `);
+    db.prepare(
+      `
+        INSERT INTO imm_session_telemetry (
+          session_id,
+          sample_ms,
+          total_watched_ms,
+          active_watched_ms,
+          lines_seen,
+          tokens_seen,
+          cards_mined,
+          lookup_count,
+          lookup_hits,
+          pause_count,
+          pause_ms,
+          seek_forward_count,
+          seek_backward_count,
+          media_buffer_events
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(1, toDbTimestamp(sampleMs), 5000, 4000, 12, 120, 2, 5, 3, 1, 250, 1, 0, 0);
 
     tracker.destroy();
     tracker = new Ctor({ dbPath });
@@ -734,7 +727,7 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
         `,
       )
       .get() as {
-      ended_at_ms: number | null;
+      ended_at_ms: string | number | null;
       status: number;
       ended_media_ms: number | null;
       active_watched_ms: number;
@@ -769,7 +762,7 @@ test('startup finalizes stale active sessions and applies lifetime summaries', a
       .get() as { total: number } | null;
 
     assert.ok(sessionRow);
-    assert.ok(Number(sessionRow?.ended_at_ms ?? 0) >= sampleMs);
+    assert.equal(sessionRow?.ended_at_ms, toDbTimestamp(sampleMs));
     assert.equal(sessionRow?.status, 2);
     assert.equal(sessionRow?.ended_media_ms, 321_000);
     assert.equal(sessionRow?.active_watched_ms, 4000);

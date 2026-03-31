@@ -1,11 +1,17 @@
 import type { DatabaseSync } from './sqlite';
-import { nowMs } from './time';
 import type {
   ImmersionSessionRollupRow,
   SessionSummaryQueryRow,
   SessionTimelineRow,
 } from './types';
-import { ACTIVE_SESSION_METRICS_CTE } from './query-shared';
+import {
+  ACTIVE_SESSION_METRICS_CTE,
+  currentDbTimestamp,
+  fromDbTimestamp,
+  getLocalEpochDay,
+  getShiftedLocalDaySec,
+  toDbTimestamp,
+} from './query-shared';
 
 export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummaryQueryRow[] {
   const prepared = db.prepare(`
@@ -33,7 +39,15 @@ export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummar
     ORDER BY s.started_at_ms DESC
     LIMIT ?
   `);
-  return prepared.all(limit) as unknown as SessionSummaryQueryRow[];
+  const rows = prepared.all(limit) as Array<SessionSummaryQueryRow & {
+    startedAtMs: number | string;
+    endedAtMs: number | string | null;
+  }>;
+  return rows.map((row) => ({
+    ...row,
+    startedAtMs: fromDbTimestamp(row.startedAtMs) ?? 0,
+    endedAtMs: fromDbTimestamp(row.endedAtMs),
+  }));
 }
 
 export function getSessionTimeline(
@@ -55,11 +69,23 @@ export function getSessionTimeline(
   `;
 
   if (limit === undefined) {
-    return db.prepare(select).all(sessionId) as unknown as SessionTimelineRow[];
+    const rows = db.prepare(select).all(sessionId) as Array<SessionTimelineRow & {
+      sampleMs: number | string;
+    }>;
+    return rows.map((row) => ({
+      ...row,
+      sampleMs: fromDbTimestamp(row.sampleMs) ?? 0,
+    }));
   }
-  return db
+  const rows = db
     .prepare(`${select}\n    LIMIT ?`)
-    .all(sessionId, limit) as unknown as SessionTimelineRow[];
+    .all(sessionId, limit) as Array<SessionTimelineRow & {
+    sampleMs: number | string;
+  }>;
+  return rows.map((row) => ({
+    ...row,
+    sampleMs: fromDbTimestamp(row.sampleMs) ?? 0,
+  }));
 }
 
 /** Returns all distinct headwords in the vocabulary table (global). */
@@ -129,35 +155,50 @@ export function getSessionWordsByLine(
 }
 
 function getNewWordCounts(db: DatabaseSync): { newWordsToday: number; newWordsThisWeek: number } {
-  const now = new Date();
-  const todayStartSec = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
-  const weekAgoSec =
-    new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).getTime() / 1000;
+  const currentTimestamp = currentDbTimestamp();
+  const todayStartSec = getShiftedLocalDaySec(db, currentTimestamp, 0);
+  const weekAgoSec = getShiftedLocalDaySec(db, currentTimestamp, -7);
 
-  const row = db
+  const rows = db
     .prepare(
       `
-    WITH headword_first_seen AS (
-      SELECT
-        headword,
-        MIN(first_seen) AS first_seen
-      FROM imm_words
-      WHERE first_seen IS NOT NULL
-        AND headword IS NOT NULL
-        AND headword != ''
-      GROUP BY headword
-    )
     SELECT
-      COALESCE(SUM(CASE WHEN first_seen >= ? THEN 1 ELSE 0 END), 0) AS today,
-      COALESCE(SUM(CASE WHEN first_seen >= ? THEN 1 ELSE 0 END), 0) AS week
-    FROM headword_first_seen
+      headword,
+      first_seen AS firstSeen
+    FROM imm_words
+    WHERE first_seen IS NOT NULL
+      AND headword IS NOT NULL
+      AND headword != ''
   `,
     )
-    .get(todayStartSec, weekAgoSec) as { today: number; week: number } | null;
+    .all() as Array<{ headword: string; firstSeen: number | string }>;
+
+  const firstSeenByHeadword = new Map<string, number>();
+  for (const row of rows) {
+    const firstSeen = Number(row.firstSeen);
+    if (!Number.isFinite(firstSeen)) {
+      continue;
+    }
+    const previous = firstSeenByHeadword.get(row.headword);
+    if (previous === undefined || firstSeen < previous) {
+      firstSeenByHeadword.set(row.headword, firstSeen);
+    }
+  }
+
+  let today = 0;
+  let week = 0;
+  for (const firstSeen of firstSeenByHeadword.values()) {
+    if (firstSeen >= todayStartSec) {
+      today += 1;
+    }
+    if (firstSeen >= weekAgoSec) {
+      week += 1;
+    }
+  }
 
   return {
-    newWordsToday: Number(row?.today ?? 0),
-    newWordsThisWeek: Number(row?.week ?? 0),
+    newWordsToday: today,
+    newWordsThisWeek: week,
   };
 }
 
@@ -203,10 +244,8 @@ export function getQueryHints(db: DatabaseSync): {
     animeCompleted: number;
   } | null;
 
-  const now = new Date();
-  const todayLocal = Math.floor(
-    new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 86_400_000,
-  );
+  const currentTimestamp = currentDbTimestamp();
+  const todayLocal = getLocalEpochDay(db, currentTimestamp);
 
   const episodesToday =
     (
@@ -215,13 +254,16 @@ export function getQueryHints(db: DatabaseSync): {
           `
     SELECT COUNT(DISTINCT s.video_id) AS count
     FROM imm_sessions s
-    WHERE CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) = ?
+    WHERE CAST(
+      julianday(CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5
+      AS INTEGER
+    ) = ?
   `,
         )
         .get(todayLocal) as { count: number }
     )?.count ?? 0;
 
-  const thirtyDaysAgoMs = nowMs() - 30 * 86400000;
+  const thirtyDaysAgoMs = getShiftedLocalDaySec(db, currentTimestamp, -30).toString() + '000';
   const activeAnimeCount =
     (
       db

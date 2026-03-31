@@ -1,6 +1,7 @@
 import type { DatabaseSync } from './sqlite';
 import { finalizeSessionRecord } from './session';
 import { nowMs } from './time';
+import { toDbTimestamp } from './query-shared';
 import type { LifetimeRebuildSummary, SessionState } from './types';
 
 interface TelemetryRow {
@@ -41,8 +42,8 @@ interface LifetimeAnimeStateRow {
 interface RetainedSessionRow {
   sessionId: number;
   videoId: number;
-  startedAtMs: number;
-  endedAtMs: number;
+  startedAtMs: number | string;
+  endedAtMs: number | string;
   lastMediaMs: number | null;
   totalWatchedMs: number;
   activeWatchedMs: number;
@@ -65,25 +66,29 @@ function hasRetainedPriorSession(
   startedAtMs: number,
   currentSessionId: number,
 ): boolean {
-  return (
-    Number(
-      (
-        db
-          .prepare(
-            `
-            SELECT COUNT(*) AS count
-            FROM imm_sessions
-            WHERE video_id = ?
-              AND (
-                started_at_ms < ?
-                OR (started_at_ms = ? AND session_id < ?)
-              )
-            `,
+  const row = db
+    .prepare(
+      `
+      SELECT 1 AS found
+      FROM imm_sessions
+      WHERE video_id = ?
+        AND (
+          CAST(started_at_ms AS REAL) < CAST(? AS REAL)
+          OR (
+            CAST(started_at_ms AS REAL) = CAST(? AS REAL)
+            AND session_id < ?
           )
-          .get(videoId, startedAtMs, startedAtMs, currentSessionId) as ExistenceRow | null
-      )?.count ?? 0,
-    ) > 0
-  );
+        )
+      LIMIT 1
+    `,
+    )
+    .get(
+      videoId,
+      toDbTimestamp(startedAtMs),
+      toDbTimestamp(startedAtMs),
+      currentSessionId,
+    ) as { found: number } | null;
+  return Boolean(row);
 }
 
 function isFirstSessionForLocalDay(
@@ -91,23 +96,37 @@ function isFirstSessionForLocalDay(
   currentSessionId: number,
   startedAtMs: number,
 ): boolean {
-  return (
-    (
-      db
-        .prepare(
-          `
-      SELECT COUNT(*) AS count
+  const row = db
+    .prepare(
+      `
+      SELECT 1 AS found
       FROM imm_sessions
-      WHERE date(started_at_ms / 1000, 'unixepoch', 'localtime') = date(? / 1000, 'unixepoch', 'localtime')
+      WHERE session_id != ?
+        AND CAST(
+          julianday(CAST(started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5
+          AS INTEGER
+        ) = CAST(
+          julianday(CAST(? AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5
+          AS INTEGER
+        )
         AND (
-          started_at_ms < ?
-          OR (started_at_ms = ? AND session_id < ?)
+          CAST(started_at_ms AS REAL) < CAST(? AS REAL)
+          OR (
+            CAST(started_at_ms AS REAL) = CAST(? AS REAL)
+            AND session_id < ?
+          )
         )
-      `,
-        )
-        .get(startedAtMs, startedAtMs, startedAtMs, currentSessionId) as ExistenceRow | null
-    )?.count === 0
-  );
+      LIMIT 1
+    `,
+    )
+    .get(
+      currentSessionId,
+      toDbTimestamp(startedAtMs),
+      toDbTimestamp(startedAtMs),
+      toDbTimestamp(startedAtMs),
+      currentSessionId,
+    ) as { found: number } | null;
+  return !row;
 }
 
 function resetLifetimeSummaries(db: DatabaseSync, nowMs: number): void {
@@ -131,14 +150,14 @@ function resetLifetimeSummaries(db: DatabaseSync, nowMs: number): void {
       LAST_UPDATE_DATE = ?
     WHERE global_id = 1
     `,
-  ).run(nowMs, nowMs);
+    ).run(toDbTimestamp(nowMs), toDbTimestamp(nowMs));
 }
 
 function rebuildLifetimeSummariesInternal(
   db: DatabaseSync,
   rebuiltAtMs: number,
 ): LifetimeRebuildSummary {
-  const sessions = db
+  const rows = db
     .prepare(
       `
       SELECT
@@ -146,6 +165,7 @@ function rebuildLifetimeSummariesInternal(
         video_id AS videoId,
         started_at_ms AS startedAtMs,
         ended_at_ms AS endedAtMs,
+        ended_media_ms AS lastMediaMs,
         total_watched_ms AS totalWatchedMs,
         active_watched_ms AS activeWatchedMs,
         lines_seen AS linesSeen,
@@ -164,7 +184,19 @@ function rebuildLifetimeSummariesInternal(
       ORDER BY started_at_ms ASC, session_id ASC
       `,
     )
-    .all() as RetainedSessionRow[];
+    .all() as Array<
+    Omit<RetainedSessionRow, 'startedAtMs' | 'endedAtMs' | 'lastMediaMs'> & {
+      startedAtMs: number | string;
+      endedAtMs: number | string;
+      lastMediaMs: number | string | null;
+    }
+  >;
+  const sessions = rows.map((row) => ({
+    ...row,
+    startedAtMs: row.startedAtMs,
+    endedAtMs: row.endedAtMs,
+    lastMediaMs: row.lastMediaMs === null ? null : Number(row.lastMediaMs),
+  })) as RetainedSessionRow[];
 
   resetLifetimeSummaries(db, rebuiltAtMs);
   for (const session of sessions) {
@@ -181,9 +213,9 @@ function toRebuildSessionState(row: RetainedSessionRow): SessionState {
   return {
     sessionId: row.sessionId,
     videoId: row.videoId,
-    startedAtMs: row.startedAtMs,
+    startedAtMs: row.startedAtMs as number,
     currentLineIndex: 0,
-    lastWallClockMs: row.endedAtMs,
+    lastWallClockMs: row.endedAtMs as number,
     lastMediaMs: row.lastMediaMs,
     lastPauseStartMs: null,
     isPaused: false,
@@ -206,7 +238,7 @@ function toRebuildSessionState(row: RetainedSessionRow): SessionState {
 }
 
 function getRetainedStaleActiveSessions(db: DatabaseSync): RetainedSessionRow[] {
-  return db
+  const rows = db
     .prepare(
       `
       SELECT
@@ -241,20 +273,32 @@ function getRetainedStaleActiveSessions(db: DatabaseSync): RetainedSessionRow[] 
       ORDER BY s.started_at_ms ASC, s.session_id ASC
       `,
     )
-    .all() as RetainedSessionRow[];
+    .all() as Array<
+    Omit<RetainedSessionRow, 'startedAtMs' | 'endedAtMs' | 'lastMediaMs'> & {
+      startedAtMs: number | string;
+      endedAtMs: number | string;
+      lastMediaMs: number | string | null;
+    }
+  >;
+  return rows.map((row) => ({
+    ...row,
+    startedAtMs: row.startedAtMs,
+    endedAtMs: row.endedAtMs,
+    lastMediaMs: row.lastMediaMs === null ? null : Number(row.lastMediaMs),
+  })) as RetainedSessionRow[];
 }
 
 function upsertLifetimeMedia(
   db: DatabaseSync,
   videoId: number,
-  nowMs: number,
+  nowMs: number | string,
   activeMs: number,
   cardsMined: number,
   linesSeen: number,
   tokensSeen: number,
   completed: number,
-  startedAtMs: number,
-  endedAtMs: number,
+  startedAtMs: number | string,
+  endedAtMs: number | string,
 ): void {
   db.prepare(
     `
@@ -310,15 +354,15 @@ function upsertLifetimeMedia(
 function upsertLifetimeAnime(
   db: DatabaseSync,
   animeId: number,
-  nowMs: number,
+  nowMs: number | string,
   activeMs: number,
   cardsMined: number,
   linesSeen: number,
   tokensSeen: number,
   episodesStartedDelta: number,
   episodesCompletedDelta: number,
-  startedAtMs: number,
-  endedAtMs: number,
+  startedAtMs: number | string,
+  endedAtMs: number | string,
 ): void {
   db.prepare(
     `
@@ -377,8 +421,9 @@ function upsertLifetimeAnime(
 export function applySessionLifetimeSummary(
   db: DatabaseSync,
   session: SessionState,
-  endedAtMs: number,
+  endedAtMs: number | string,
 ): void {
+  const updatedAtMs = toDbTimestamp(nowMs());
   const applyResult = db
     .prepare(
       `
@@ -393,7 +438,7 @@ export function applySessionLifetimeSummary(
       ON CONFLICT(session_id) DO NOTHING
       `,
     )
-    .run(session.sessionId, endedAtMs, nowMs(), nowMs());
+    .run(session.sessionId, endedAtMs, updatedAtMs, updatedAtMs);
 
   if ((applyResult.changes ?? 0) <= 0) {
     return;
@@ -468,7 +513,6 @@ export function applySessionLifetimeSummary(
       ? 1
       : 0;
 
-  const updatedAtMs = nowMs();
   db.prepare(
     `
     UPDATE imm_lifetime_global
