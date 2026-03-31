@@ -31,6 +31,7 @@ import {
   screen,
 } from 'electron';
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
+import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { mergeAiConfig } from './ai/config';
 
@@ -1941,8 +1942,12 @@ function openPlaylistBrowser(): void {
     showMpvOsd('Playlist browser requires active playback.');
     return;
   }
-  const opened = sendToActiveOverlayWindow(IPC_CHANNELS.event.playlistBrowserOpen, undefined, {
-    restoreOnModalClose: 'playlist-browser',
+  const opened = openPlaylistBrowserRuntime({
+    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+    ensureOverlayWindowsReadyForVisibilityActions: () =>
+      ensureOverlayWindowsReadyForVisibilityActions(),
+    sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
+      sendToActiveOverlayWindow(channel, payload, runtimeOptions),
   });
   if (!opened) {
     showMpvOsd('Playlist browser overlay unavailable.');

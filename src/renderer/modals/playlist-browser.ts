@@ -49,6 +49,18 @@ export function createPlaylistBrowserModal(
     return ctx.state.playlistBrowserSnapshot;
   }
 
+  function resetSnapshotUi(): void {
+    ctx.state.playlistBrowserSnapshot = null;
+    ctx.state.playlistBrowserStatus = '';
+    ctx.state.playlistBrowserSelectedDirectoryIndex = 0;
+    ctx.state.playlistBrowserSelectedPlaylistIndex = 0;
+    ctx.dom.playlistBrowserTitle.textContent = 'Playlist Browser';
+    ctx.dom.playlistBrowserDirectoryList.replaceChildren();
+    ctx.dom.playlistBrowserPlaylistList.replaceChildren();
+    ctx.dom.playlistBrowserStatus.textContent = '';
+    ctx.dom.playlistBrowserStatus.classList.remove('error');
+  }
+
   function syncSelection(snapshot: PlaylistBrowserSnapshot): void {
     const directoryIndex = snapshot.directoryItems.findIndex((item) => item.isCurrentFile);
     const playlistIndex =
@@ -194,13 +206,18 @@ export function createPlaylistBrowserModal(
   }
 
   async function refreshSnapshot(): Promise<void> {
-    const snapshot = await window.electronAPI.getPlaylistBrowserSnapshot();
-    ctx.state.playlistBrowserStatus = '';
-    applySnapshot(snapshot);
-    setStatus(
-      buildDefaultStatus(snapshot),
-      !snapshot.directoryAvailable && snapshot.directoryStatus.length > 0,
-    );
+    try {
+      const snapshot = await window.electronAPI.getPlaylistBrowserSnapshot();
+      ctx.state.playlistBrowserStatus = '';
+      applySnapshot(snapshot);
+      setStatus(
+        buildDefaultStatus(snapshot),
+        !snapshot.directoryAvailable && snapshot.directoryStatus.length > 0,
+      );
+    } catch (error) {
+      resetSnapshotUi();
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
   }
 
   async function handleMutation(
@@ -249,6 +266,9 @@ export function createPlaylistBrowserModal(
       await refreshSnapshot();
       return;
     }
+    if (options.modalStateReader.isAnyModalOpen()) {
+      return;
+    }
 
     ctx.state.playlistBrowserModalOpen = true;
     ctx.state.playlistBrowserActivePane = 'playlist';
@@ -257,19 +277,13 @@ export function createPlaylistBrowserModal(
     ctx.dom.playlistBrowserModal.classList.remove('hidden');
     ctx.dom.playlistBrowserModal.setAttribute('aria-hidden', 'false');
     window.electronAPI.notifyOverlayModalOpened('playlist-browser');
-
-    try {
-      await refreshSnapshot();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error), true);
-    }
+    await refreshSnapshot();
   }
 
   function closePlaylistBrowserModal(): void {
     if (!ctx.state.playlistBrowserModalOpen) return;
     ctx.state.playlistBrowserModalOpen = false;
-    ctx.state.playlistBrowserSnapshot = null;
-    ctx.state.playlistBrowserStatus = '';
+    resetSnapshotUi();
     ctx.dom.playlistBrowserModal.classList.add('hidden');
     ctx.dom.playlistBrowserModal.setAttribute('aria-hidden', 'true');
     window.electronAPI.notifyOverlayModalClosed('playlist-browser');

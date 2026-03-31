@@ -30,6 +30,8 @@ export type PlaylistBrowserRuntimeDeps = {
   schedule?: (callback: () => void, delayMs: number) => void;
 };
 
+const pendingLocalSubtitleSelectionRearms = new WeakMap<MpvPlaylistBrowserClientLike, number>();
+
 function trimToNull(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -219,15 +221,26 @@ function prepareLocalSubtitleAutoload(client: MpvPlaylistBrowserClientLike): voi
   client.send({ command: ['set_property', 'sub-auto', 'fuzzy'] });
 }
 
-function isLocalPlaylistItem(item: PlaylistBrowserQueueItem | null | undefined): item is PlaylistBrowserQueueItem {
+function isLocalPlaylistItem(
+  item: PlaylistBrowserQueueItem | null | undefined,
+): item is PlaylistBrowserQueueItem & { path: string } {
   return Boolean(item?.path && !isRemoteMediaPath(item.path));
 }
 
 function scheduleLocalSubtitleSelectionRearm(
   deps: PlaylistBrowserRuntimeDeps,
   client: MpvPlaylistBrowserClientLike,
+  expectedPath: string,
 ): void {
+  const nextToken = (pendingLocalSubtitleSelectionRearms.get(client) ?? 0) + 1;
+  pendingLocalSubtitleSelectionRearms.set(client, nextToken);
   (deps.schedule ?? setTimeout)(() => {
+    if (pendingLocalSubtitleSelectionRearms.get(client) !== nextToken) return;
+    pendingLocalSubtitleSelectionRearms.delete(client);
+    const currentPath = trimToNull(client.currentVideoPath);
+    if (currentPath && path.resolve(currentPath) !== expectedPath) {
+      return;
+    }
     rearmLocalSubtitleSelection(client);
   }, 400);
 }
@@ -241,7 +254,16 @@ export async function appendPlaylistBrowserFileRuntime(
     return client;
   }
   const resolvedPath = path.resolve(filePath);
-  if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
+  let stats: fs.Stats;
+  try {
+    stats = fs.statSync(resolvedPath);
+  } catch {
+    return {
+      ok: false,
+      message: 'Playlist browser file is not readable.',
+    };
+  }
+  if (!stats.isFile()) {
     return {
       ok: false,
       message: 'Playlist browser file is not readable.',
@@ -267,7 +289,7 @@ export async function playPlaylistBrowserIndexRuntime(
   }
   result.client.send({ command: ['playlist-play-index', index] });
   if (isLocalPlaylistItem(targetItem)) {
-    scheduleLocalSubtitleSelectionRearm(deps, result.client);
+    scheduleLocalSubtitleSelectionRearm(deps, result.client, path.resolve(targetItem.path));
   }
   return buildMutationResult(`Playing playlist item ${index + 1}`, deps);
 }

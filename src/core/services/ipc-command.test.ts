@@ -114,12 +114,26 @@ test('handleMpvCommandFromIpc dispatches special youtube picker open command', (
   assert.deepEqual(osd, []);
 });
 
-test('handleMpvCommandFromIpc dispatches special playlist browser open command', () => {
+test('handleMpvCommandFromIpc dispatches special playlist browser open command', async () => {
   const { options, calls, sentCommands, osd } = createOptions();
   handleMpvCommandFromIpc(['__playlist-browser-open'], options);
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(calls, ['playlist-browser']);
   assert.deepEqual(sentCommands, []);
   assert.deepEqual(osd, []);
+});
+
+test('handleMpvCommandFromIpc surfaces playlist browser open rejections via mpv osd', async () => {
+  const { options, osd } = createOptions({
+    openPlaylistBrowser: async () => {
+      throw new Error('overlay failed');
+    },
+  });
+
+  handleMpvCommandFromIpc(['__playlist-browser-open'], options);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(osd, ['Playlist browser failed: overlay failed']);
 });
 
 test('handleMpvCommandFromIpc does not forward commands while disconnected', () => {

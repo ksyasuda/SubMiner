@@ -249,6 +249,41 @@ test('playlist-browser mutation runtimes mutate queue and return refreshed snaps
   );
 });
 
+test('appendPlaylistBrowserFileRuntime returns an error result when statSync throws', async () => {
+  const dir = createTempVideoDir();
+  const episode1 = path.join(dir, 'Show - S01E01.mkv');
+  fs.writeFileSync(episode1, '');
+
+  const mutableFs = fs as typeof fs & { statSync: typeof fs.statSync };
+  const originalStatSync = mutableFs.statSync;
+  mutableFs.statSync = ((targetPath: fs.PathLike) => {
+    if (path.resolve(String(targetPath)) === episode1) {
+      throw new Error('EACCES');
+    }
+    return originalStatSync(targetPath);
+  }) as typeof fs.statSync;
+
+  try {
+    const result = await appendPlaylistBrowserFileRuntime(
+      {
+        getMpvClient: () =>
+          createFakeMpvClient({
+            currentVideoPath: episode1,
+            playlist: [{ filename: episode1, current: true }],
+          }),
+      },
+      episode1,
+    );
+
+    assert.deepEqual(result, {
+      ok: false,
+      message: 'Playlist browser file is not readable.',
+    });
+  } finally {
+    mutableFs.statSync = originalStatSync;
+  }
+});
+
 test('movePlaylistBrowserIndexRuntime rejects top and bottom boundary moves', async () => {
   const dir = createTempVideoDir();
   const episode1 = path.join(dir, 'Show - S01E01.mkv');
@@ -323,4 +358,53 @@ test('playPlaylistBrowserIndexRuntime skips local subtitle reset for remote play
   assert.equal(result.ok, true);
   assert.deepEqual(mpvClient.getCommands().slice(-1), [['playlist-play-index', 1]]);
   assert.equal(scheduled.length, 0);
+});
+
+test('playPlaylistBrowserIndexRuntime ignores superseded local subtitle rearm callbacks', async () => {
+  const dir = createTempVideoDir();
+  const episode1 = path.join(dir, 'Show - S01E01.mkv');
+  const episode2 = path.join(dir, 'Show - S01E02.mkv');
+  const episode3 = path.join(dir, 'Show - S01E03.mkv');
+  fs.writeFileSync(episode1, '');
+  fs.writeFileSync(episode2, '');
+  fs.writeFileSync(episode3, '');
+
+  const scheduled: Array<() => void> = [];
+  const mpvClient = createFakeMpvClient({
+    currentVideoPath: episode1,
+    playlist: [
+      { filename: episode1, current: true, title: 'Episode 1' },
+      { filename: episode2, title: 'Episode 2' },
+      { filename: episode3, title: 'Episode 3' },
+    ],
+  });
+
+  const deps = {
+    getMpvClient: () => mpvClient,
+    schedule: (callback: () => void) => {
+      scheduled.push(callback);
+    },
+  };
+
+  const firstPlay = await playPlaylistBrowserIndexRuntime(deps, 1);
+  const secondPlay = await playPlaylistBrowserIndexRuntime(deps, 2);
+
+  assert.equal(firstPlay.ok, true);
+  assert.equal(secondPlay.ok, true);
+  assert.equal(scheduled.length, 2);
+
+  scheduled[0]?.();
+  scheduled[1]?.();
+
+  assert.deepEqual(
+    mpvClient.getCommands().slice(-6),
+    [
+      ['set_property', 'sub-auto', 'fuzzy'],
+      ['playlist-play-index', 1],
+      ['set_property', 'sub-auto', 'fuzzy'],
+      ['playlist-play-index', 2],
+      ['set_property', 'sid', 'auto'],
+      ['set_property', 'secondary-sid', 'auto'],
+    ],
+  );
 });

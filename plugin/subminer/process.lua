@@ -34,6 +34,17 @@ function M.create(ctx)
 		return options_helper.coerce_bool(raw_pause_until_ready, false)
 	end
 
+	local function resolve_texthooker_enabled(override_value)
+		if override_value ~= nil then
+			return options_helper.coerce_bool(override_value, false)
+		end
+		local raw_texthooker_enabled = opts.texthooker_enabled
+		if raw_texthooker_enabled == nil then
+			raw_texthooker_enabled = opts["texthooker-enabled"]
+		end
+		return options_helper.coerce_bool(raw_texthooker_enabled, false)
+	end
+
 	local function resolve_pause_until_ready_timeout_seconds()
 		local raw_timeout_seconds = opts.auto_start_pause_until_ready_timeout_seconds
 		if raw_timeout_seconds == nil then
@@ -192,10 +203,7 @@ function M.create(ctx)
 				table.insert(args, "--hide-visible-overlay")
 			end
 
-			local texthooker_enabled = overrides.texthooker_enabled
-			if texthooker_enabled == nil then
-				texthooker_enabled = opts.texthooker_enabled
-			end
+			local texthooker_enabled = resolve_texthooker_enabled(overrides.texthooker_enabled)
 			if texthooker_enabled then
 				table.insert(args, "--texthooker")
 			end
@@ -296,10 +304,7 @@ function M.create(ctx)
 			return
 		end
 
-		local texthooker_enabled = overrides.texthooker_enabled
-		if texthooker_enabled == nil then
-			texthooker_enabled = opts.texthooker_enabled
-		end
+		local texthooker_enabled = resolve_texthooker_enabled(overrides.texthooker_enabled)
 		local socket_path = overrides.socket_path or opts.socket_path
 		local should_pause_until_ready = (
 			overrides.auto_start_trigger == true
@@ -498,7 +503,7 @@ function M.create(ctx)
 				end
 			end)
 
-			if opts.texthooker_enabled then
+			if resolve_texthooker_enabled(nil) then
 				ensure_texthooker_running(function() end)
 			end
 		end)

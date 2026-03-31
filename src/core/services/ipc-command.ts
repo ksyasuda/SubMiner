@@ -100,7 +100,12 @@ export function handleMpvCommandFromIpc(
   }
 
   if (first === options.specialCommands.PLAYLIST_BROWSER_OPEN) {
-    void options.openPlaylistBrowser();
+    Promise.resolve()
+      .then(() => options.openPlaylistBrowser())
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        options.showMpvOsd(`Playlist browser failed: ${message}`);
+      });
     return;
   }
 
