@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - codex
 created_date: '2026-03-30 05:46'
-updated_date: '2026-03-31 01:42'
+updated_date: '2026-03-31 04:57'
 labels:
   - feature
   - overlay
@@ -26,8 +26,8 @@ Add an in-session overlay modal that opens from a keybinding during active playb
 - [ ] #2 The modal shows video files from the current media file's parent directory in best-effort episode order and highlights the current file when present.
 - [ ] #3 The modal shows the active mpv playlist/queue with enough metadata to identify the current item and queued order.
 - [ ] #4 The user can add a directory file to the mpv playlist, remove playlist items, and reorder playlist items from the modal using both mouse and keyboard interactions.
-- [ ] #5 Modal state stays in sync after playlist mutations so the rendered queue reflects mpv's current playlist order.
-- [ ] #6 Feature coverage includes automated tests for ordering/playlist behavior and docs or shortcut/help updates for the new modal.
+- [x] #5 Modal state stays in sync after playlist mutations so the rendered queue reflects mpv's current playlist order.
+- [x] #6 Feature coverage includes automated tests for ordering/playlist behavior and docs or shortcut/help updates for the new modal.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -42,6 +42,8 @@ Add an in-session overlay modal that opens from a keybinding during active playb
 7. Run targeted test lanes first, then the maintained verification gate relevant to the touched surfaces; update task notes/criteria as checks pass.
 
 2026-03-30 CodeRabbit follow-up: 1) add failing runtime coverage for unreadable playlist-browser file stat failures, 2) add failing renderer coverage for stale snapshot UI reset on refresh failure/close, 3) add failing renderer coverage to block playlist-browser open when another modal already owns the overlay, 4) implement minimal fixes, 5) rerun targeted tests plus typecheck for touched surfaces.
+
+2026-03-30 current CodeRabbit round: verify 4 unresolved threads, ignore already-fixed outdated dblclick thread if current code matches, add failing-first coverage for selection preservation / timestamp fixture consistency / string test-clock alignment, implement minimal fixes, rerun targeted tests plus typecheck.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -70,4 +72,8 @@ Addressed CodeRabbit follow-ups on the playlist browser PR: clamped stale playin
 Additional follow-up: moved playlist-browser keydown handling ahead of keyboard-driven lookup controls so KeyH/ArrowLeft/ArrowRight and related chords are routed to the modal first. Verification refreshed with `bun test src/main/runtime/playlist-browser-runtime.test.ts src/renderer/modals/playlist-browser.test.ts src/renderer/handlers/keyboard.test.ts`, `bun run typecheck`, and `bun run build`.
 
 Split playlist-browser UI row rendering into `src/renderer/modals/playlist-browser-renderer.ts` and left `src/renderer/modals/playlist-browser.ts` as the controller/wiring layer. Moved playlist-browser IPC/runtime wiring into `src/main/runtime/playlist-browser-ipc.ts` and collapsed the `src/main.ts` registration block to use that helper. Verification after refactor: `bun run typecheck`, `bun run build`, `bun test src/main/runtime/playlist-browser-runtime.test.ts src/renderer/modals/playlist-browser.test.ts src/renderer/handlers/keyboard.test.ts`.
+
+2026-03-30 PR #37 unresolved CodeRabbit threads currently reduce to three likely-actionable items plus one outdated renderer dblclick thread to verify against HEAD before touching code.
+
+2026-03-30 Addressed latest unresolved CodeRabbit items on PR #37: preserved playlist-browser selection across mutation snapshots, taught nowMs() to honor string-backed test clocks so it stays aligned with currentDbTimestamp(), and normalized maintenance test timestamp fixtures to toDbTimestamp(). The older playlist-browser dblclick thread remains unresolved in GitHub state but current HEAD already contains that fix in playlist-browser-renderer.ts.
 <!-- SECTION:NOTES:END -->

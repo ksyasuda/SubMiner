@@ -1,4 +1,5 @@
 import type {
+  PlaylistBrowserDirectoryItem,
   PlaylistBrowserMutationResult,
   PlaylistBrowserQueueItem,
   PlaylistBrowserSnapshot,
@@ -21,6 +22,68 @@ function buildDefaultStatus(snapshot: PlaylistBrowserSnapshot): string {
     return `${snapshot.directoryStatus} ${playlistCount > 0 ? `· ${playlistCount} queued` : ''}`.trim();
   }
   return `${directoryCount} sibling videos · ${playlistCount} queued`;
+}
+
+function getDefaultDirectorySelectionIndex(snapshot: PlaylistBrowserSnapshot): number {
+  const directoryIndex = snapshot.directoryItems.findIndex((item) => item.isCurrentFile);
+  return clampIndex(directoryIndex >= 0 ? directoryIndex : 0, snapshot.directoryItems.length);
+}
+
+function getDefaultPlaylistSelectionIndex(snapshot: PlaylistBrowserSnapshot): number {
+  const playlistIndex =
+    snapshot.playingIndex ?? snapshot.playlistItems.findIndex((item) => item.current || item.playing);
+  return clampIndex(playlistIndex >= 0 ? playlistIndex : 0, snapshot.playlistItems.length);
+}
+
+function resolvePreservedIndex<T>(
+  previousIndex: number,
+  previousItems: T[],
+  nextItems: T[],
+  matchIndex: (previousItem: T) => number,
+): number {
+  if (nextItems.length <= 0) return 0;
+  if (previousItems.length <= 0) return clampIndex(previousIndex, nextItems.length);
+
+  const normalizedPreviousIndex = clampIndex(previousIndex, previousItems.length);
+  const previousItem = previousItems[normalizedPreviousIndex];
+  const matchedIndex = previousItem ? matchIndex(previousItem) : -1;
+  return clampIndex(matchedIndex >= 0 ? matchedIndex : normalizedPreviousIndex, nextItems.length);
+}
+
+function resolveDirectorySelectionIndex(
+  snapshot: PlaylistBrowserSnapshot,
+  previousSnapshot: PlaylistBrowserSnapshot,
+  previousIndex: number,
+): number {
+  return resolvePreservedIndex(
+    previousIndex,
+    previousSnapshot.directoryItems,
+    snapshot.directoryItems,
+    (previousItem: PlaylistBrowserDirectoryItem) =>
+      snapshot.directoryItems.findIndex((item) => item.path === previousItem.path),
+  );
+}
+
+function resolvePlaylistSelectionIndex(
+  snapshot: PlaylistBrowserSnapshot,
+  previousSnapshot: PlaylistBrowserSnapshot,
+  previousIndex: number,
+): number {
+  return resolvePreservedIndex(
+    previousIndex,
+    previousSnapshot.playlistItems,
+    snapshot.playlistItems,
+    (previousItem: PlaylistBrowserQueueItem) => {
+      if (previousItem.id !== null) {
+        const byId = snapshot.playlistItems.findIndex((item) => item.id === previousItem.id);
+        if (byId >= 0) return byId;
+      }
+      if (previousItem.path) {
+        return snapshot.playlistItems.findIndex((item) => item.path === previousItem.path);
+      }
+      return -1;
+    },
+  );
 }
 
 export function createPlaylistBrowserModal(
@@ -52,17 +115,25 @@ export function createPlaylistBrowserModal(
     ctx.dom.playlistBrowserStatus.classList.remove('error');
   }
 
-  function syncSelection(snapshot: PlaylistBrowserSnapshot): void {
-    const directoryIndex = snapshot.directoryItems.findIndex((item) => item.isCurrentFile);
-    const playlistIndex =
-      snapshot.playingIndex ?? snapshot.playlistItems.findIndex((item) => item.current || item.playing);
-    ctx.state.playlistBrowserSelectedDirectoryIndex = clampIndex(
-      directoryIndex >= 0 ? directoryIndex : 0,
-      snapshot.directoryItems.length,
+  function syncSelection(
+    snapshot: PlaylistBrowserSnapshot,
+    previousSnapshot: PlaylistBrowserSnapshot | null,
+  ): void {
+    if (!previousSnapshot) {
+      ctx.state.playlistBrowserSelectedDirectoryIndex = getDefaultDirectorySelectionIndex(snapshot);
+      ctx.state.playlistBrowserSelectedPlaylistIndex = getDefaultPlaylistSelectionIndex(snapshot);
+      return;
+    }
+
+    ctx.state.playlistBrowserSelectedDirectoryIndex = resolveDirectorySelectionIndex(
+      snapshot,
+      previousSnapshot,
+      ctx.state.playlistBrowserSelectedDirectoryIndex,
     );
-    ctx.state.playlistBrowserSelectedPlaylistIndex = clampIndex(
-      playlistIndex >= 0 ? playlistIndex : 0,
-      snapshot.playlistItems.length,
+    ctx.state.playlistBrowserSelectedPlaylistIndex = resolvePlaylistSelectionIndex(
+      snapshot,
+      previousSnapshot,
+      ctx.state.playlistBrowserSelectedPlaylistIndex,
     );
   }
 
@@ -102,8 +173,9 @@ export function createPlaylistBrowserModal(
   }
 
   function applySnapshot(snapshot: PlaylistBrowserSnapshot): void {
+    const previousSnapshot = ctx.state.playlistBrowserSnapshot;
     ctx.state.playlistBrowserSnapshot = snapshot;
-    syncSelection(snapshot);
+    syncSelection(snapshot, previousSnapshot);
     render();
   }
 

@@ -141,6 +141,68 @@ function createSnapshot(): PlaylistBrowserSnapshot {
   };
 }
 
+function createMutationSnapshot(): PlaylistBrowserSnapshot {
+  return {
+    directoryPath: '/tmp/show',
+    directoryAvailable: true,
+    directoryStatus: '/tmp/show',
+    currentFilePath: '/tmp/show/Show - S01E02.mkv',
+    playingIndex: 0,
+    directoryItems: [
+      {
+        path: '/tmp/show/Show - S01E01.mkv',
+        basename: 'Show - S01E01.mkv',
+        episodeLabel: 'S1E1',
+        isCurrentFile: false,
+      },
+      {
+        path: '/tmp/show/Show - S01E02.mkv',
+        basename: 'Show - S01E02.mkv',
+        episodeLabel: 'S1E2',
+        isCurrentFile: true,
+      },
+      {
+        path: '/tmp/show/Show - S01E03.mkv',
+        basename: 'Show - S01E03.mkv',
+        episodeLabel: 'S1E3',
+        isCurrentFile: false,
+      },
+    ],
+    playlistItems: [
+      {
+        index: 1,
+        id: 2,
+        filename: '/tmp/show/Show - S01E02.mkv',
+        title: 'Episode 2',
+        displayLabel: 'Episode 2',
+        current: true,
+        playing: true,
+        path: '/tmp/show/Show - S01E02.mkv',
+      },
+      {
+        index: 2,
+        id: 3,
+        filename: '/tmp/show/Show - S01E03.mkv',
+        title: 'Episode 3',
+        displayLabel: 'Episode 3',
+        current: false,
+        playing: false,
+        path: '/tmp/show/Show - S01E03.mkv',
+      },
+      {
+        index: 0,
+        id: 1,
+        filename: '/tmp/show/Show - S01E01.mkv',
+        title: 'Episode 1',
+        displayLabel: 'Episode 1',
+        current: false,
+        playing: false,
+        path: '/tmp/show/Show - S01E01.mkv',
+      },
+    ],
+  };
+}
+
 test('playlist browser modal opens with playlist-focused current item selection', async () => {
   const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
   const previousWindow = globals.window;
@@ -292,6 +354,111 @@ test('playlist browser modal action buttons stop double-click propagation', asyn
     });
 
     assert.equal(stopped, true);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+});
+
+test('playlist browser preserves prior selection across mutation snapshots', async () => {
+  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+  const previousWindow = globals.window;
+  const previousDocument = globals.document;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getPlaylistBrowserSnapshot: async () => ({
+          ...createSnapshot(),
+          directoryItems: [
+            ...createSnapshot().directoryItems,
+            {
+              path: '/tmp/show/Show - S01E03.mkv',
+              basename: 'Show - S01E03.mkv',
+              episodeLabel: 'S1E3',
+              isCurrentFile: false,
+            },
+          ],
+          playlistItems: [
+            ...createSnapshot().playlistItems,
+            {
+              index: 2,
+              id: 3,
+              filename: '/tmp/show/Show - S01E03.mkv',
+              title: 'Episode 3',
+              displayLabel: 'Episode 3',
+              current: false,
+              playing: false,
+              path: '/tmp/show/Show - S01E03.mkv',
+            },
+          ],
+        }),
+        notifyOverlayModalOpened: () => {},
+        notifyOverlayModalClosed: () => {},
+        focusMainWindow: async () => {},
+        setIgnoreMouseEvents: () => {},
+        appendPlaylistBrowserFile: async () => ({
+          ok: true,
+          message: 'Queued file',
+          snapshot: createMutationSnapshot(),
+        }),
+        playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+        removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+        movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+      } as unknown as ElectronAPI,
+      focus: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createPlaylistRow(),
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const ctx = {
+      state,
+      platform: {
+        shouldToggleMouseIgnore: false,
+      },
+      dom: {
+        overlay: {
+          classList: createClassList(),
+          focus: () => {},
+        },
+        playlistBrowserModal: createFakeElement(),
+        playlistBrowserTitle: createFakeElement(),
+        playlistBrowserStatus: createFakeElement(),
+        playlistBrowserDirectoryList: createListStub(),
+        playlistBrowserPlaylistList: createListStub(),
+        playlistBrowserClose: createFakeElement(),
+      },
+    };
+
+    const modal = createPlaylistBrowserModal(ctx as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+    });
+
+    await modal.openPlaylistBrowserModal();
+    state.playlistBrowserActivePane = 'directory';
+    state.playlistBrowserSelectedDirectoryIndex = 2;
+    state.playlistBrowserSelectedPlaylistIndex = 0;
+
+    await modal.handlePlaylistBrowserKeydown({
+      key: 'Enter',
+      code: 'Enter',
+      preventDefault: () => {},
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+    } as never);
+
+    assert.equal(state.playlistBrowserSelectedDirectoryIndex, 2);
+    assert.equal(state.playlistBrowserSelectedPlaylistIndex, 2);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
