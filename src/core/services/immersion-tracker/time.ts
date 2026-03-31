@@ -4,7 +4,7 @@ declare global {
 
 function getMockNowMs(testNowMs: number | string | undefined): number | null {
   if (typeof testNowMs === 'number' && Number.isFinite(testNowMs)) {
-    return Math.floor(testNowMs);
+    return Math.trunc(testNowMs);
   }
   if (typeof testNowMs === 'string') {
     const parsed = Number(testNowMs.trim());

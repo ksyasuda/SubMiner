@@ -8,10 +8,21 @@ test('nowMs returns wall-clock epoch milliseconds', () => {
 
 test('nowMs honors string-backed test clock values', () => {
   const previousNowMs = globalThis.__subminerTestNowMs;
-  globalThis.__subminerTestNowMs = '1700000000123.9';
+  globalThis.__subminerTestNowMs = '123.9';
 
   try {
-    assert.equal(nowMs(), 1_700_000_000_123);
+    assert.equal(nowMs(), 123);
+  } finally {
+    globalThis.__subminerTestNowMs = previousNowMs;
+  }
+});
+
+test('nowMs truncates negative numeric test clock values', () => {
+  const previousNowMs = globalThis.__subminerTestNowMs;
+  globalThis.__subminerTestNowMs = -1.9;
+
+  try {
+    assert.equal(nowMs(), -1);
   } finally {
     globalThis.__subminerTestNowMs = previousNowMs;
   }

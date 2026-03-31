@@ -203,141 +203,153 @@ function createMutationSnapshot(): PlaylistBrowserSnapshot {
   };
 }
 
-test('playlist browser modal opens with playlist-focused current item selection', async () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
-  const notifications: string[] = [];
+function restoreGlobalDescriptor<K extends keyof typeof globalThis>(
+  key: K,
+  descriptor: PropertyDescriptor | undefined,
+) {
+  if (descriptor) {
+    Object.defineProperty(globalThis, key, descriptor);
+    return;
+  }
+  Reflect.deleteProperty(globalThis, key);
+}
+
+function createPlaylistBrowserDomFixture() {
+  return {
+    overlay: {
+      classList: createClassList(),
+      focus: () => {},
+    },
+    playlistBrowserModal: createFakeElement(),
+    playlistBrowserTitle: createFakeElement(),
+    playlistBrowserStatus: createFakeElement(),
+    playlistBrowserDirectoryList: createListStub(),
+    playlistBrowserPlaylistList: createListStub(),
+    playlistBrowserClose: createFakeElement(),
+  };
+}
+
+function createPlaylistBrowserElectronApi(overrides?: Partial<ElectronAPI>): ElectronAPI {
+  return {
+    getPlaylistBrowserSnapshot: async () => createSnapshot(),
+    notifyOverlayModalOpened: () => {},
+    notifyOverlayModalClosed: () => {},
+    focusMainWindow: async () => {},
+    setIgnoreMouseEvents: () => {},
+    appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+    playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+    removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+    movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+    ...overrides,
+  } as ElectronAPI;
+}
+
+function setupPlaylistBrowserModalTest(options?: {
+  electronApi?: Partial<ElectronAPI>;
+  shouldToggleMouseIgnore?: boolean;
+}) {
+  const previousWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const previousDocumentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const state = createRendererState();
+  const dom = createPlaylistBrowserDomFixture();
+  const ctx = {
+    state,
+    platform: {
+      shouldToggleMouseIgnore: options?.shouldToggleMouseIgnore ?? false,
+    },
+    dom,
+  };
 
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: {
-      electronAPI: {
-        getPlaylistBrowserSnapshot: async () => createSnapshot(),
-        notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
-        notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
-        focusMainWindow: async () => {},
-        setIgnoreMouseEvents: () => {},
-        appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-      } as unknown as ElectronAPI,
+      electronAPI: createPlaylistBrowserElectronApi(options?.electronApi),
       focus: () => {},
-    },
+    } satisfies { electronAPI: ElectronAPI; focus: () => void },
+    writable: true,
   });
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
     value: {
       createElement: () => createPlaylistRow(),
     },
+    writable: true,
+  });
+
+  return {
+    state,
+    dom,
+    createModal(overrides: Partial<Parameters<typeof createPlaylistBrowserModal>[1]> = {}) {
+      return createPlaylistBrowserModal(ctx as never, {
+        modalStateReader: { isAnyModalOpen: () => false },
+        syncSettingsModalSubtitleSuppression: () => {},
+        ...overrides,
+      });
+    },
+    restore() {
+      restoreGlobalDescriptor('window', previousWindowDescriptor);
+      restoreGlobalDescriptor('document', previousDocumentDescriptor);
+    },
+  };
+}
+
+test('playlist browser test cleanup must delete injected globals that were originally absent', () => {
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
+
+  const env = setupPlaylistBrowserModalTest();
+
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), true);
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), true);
+
+  env.restore();
+
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
+  assert.equal(typeof globalThis.window, 'undefined');
+  assert.equal(typeof globalThis.document, 'undefined');
+});
+
+test('playlist browser modal opens with playlist-focused current item selection', async () => {
+  const notifications: string[] = [];
+  const env = setupPlaylistBrowserModalTest({
+    electronApi: {
+      notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
+      notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
+    },
   });
 
   try {
-    const state = createRendererState();
-    const directoryList = createListStub();
-    const playlistList = createListStub();
-    const ctx = {
-      state,
-      platform: {
-        shouldToggleMouseIgnore: false,
-      },
-      dom: {
-        overlay: {
-          classList: createClassList(),
-          focus: () => {},
-        },
-        playlistBrowserModal: createFakeElement(),
-        playlistBrowserTitle: createFakeElement(),
-        playlistBrowserStatus: createFakeElement(),
-        playlistBrowserDirectoryList: directoryList,
-        playlistBrowserPlaylistList: playlistList,
-        playlistBrowserClose: createFakeElement(),
-      },
-    };
-
-    const modal = createPlaylistBrowserModal(ctx as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
-    });
+    const modal = env.createModal();
 
     await modal.openPlaylistBrowserModal();
 
-    assert.equal(state.playlistBrowserModalOpen, true);
-    assert.equal(state.playlistBrowserActivePane, 'playlist');
-    assert.equal(state.playlistBrowserSelectedPlaylistIndex, 1);
-    assert.equal(state.playlistBrowserSelectedDirectoryIndex, 1);
-    assert.equal(directoryList.children.length, 2);
-    assert.equal(playlistList.children.length, 2);
-    assert.equal(directoryList.children[0]?.children.length, 2);
-    assert.equal(playlistList.children[0]?.children.length, 2);
+    assert.equal(env.state.playlistBrowserModalOpen, true);
+    assert.equal(env.state.playlistBrowserActivePane, 'playlist');
+    assert.equal(env.state.playlistBrowserSelectedPlaylistIndex, 1);
+    assert.equal(env.state.playlistBrowserSelectedDirectoryIndex, 1);
+    assert.equal(env.dom.playlistBrowserDirectoryList.children.length, 2);
+    assert.equal(env.dom.playlistBrowserPlaylistList.children.length, 2);
+    assert.equal(env.dom.playlistBrowserDirectoryList.children[0]?.children.length, 2);
+    assert.equal(env.dom.playlistBrowserPlaylistList.children[0]?.children.length, 2);
     assert.deepEqual(notifications, ['open:playlist-browser']);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    env.restore();
   }
 });
 
 test('playlist browser modal action buttons stop double-click propagation', async () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      electronAPI: {
-        getPlaylistBrowserSnapshot: async () => createSnapshot(),
-        notifyOverlayModalOpened: () => {},
-        notifyOverlayModalClosed: () => {},
-        focusMainWindow: async () => {},
-        setIgnoreMouseEvents: () => {},
-        appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-      } as unknown as ElectronAPI,
-      focus: () => {},
-    },
-  });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createPlaylistRow(),
-    },
-  });
+  const env = setupPlaylistBrowserModalTest();
 
   try {
-    const state = createRendererState();
-    const directoryList = createListStub();
-    const playlistList = createListStub();
-    const ctx = {
-      state,
-      platform: {
-        shouldToggleMouseIgnore: false,
-      },
-      dom: {
-        overlay: {
-          classList: createClassList(),
-          focus: () => {},
-        },
-        playlistBrowserModal: createFakeElement(),
-        playlistBrowserTitle: createFakeElement(),
-        playlistBrowserStatus: createFakeElement(),
-        playlistBrowserDirectoryList: directoryList,
-        playlistBrowserPlaylistList: playlistList,
-        playlistBrowserClose: createFakeElement(),
-      },
-    };
-
-    const modal = createPlaylistBrowserModal(ctx as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
-    });
+    const modal = env.createModal();
 
     await modal.openPlaylistBrowserModal();
 
-    const row = directoryList.children[0] as ReturnType<typeof createPlaylistRow> | undefined;
+    const row =
+      env.dom.playlistBrowserDirectoryList.children[0] as
+        | ReturnType<typeof createPlaylistRow>
+        | undefined;
     const trailing = row?.children?.[1] as ReturnType<typeof createPlaylistRow> | undefined;
     const button =
       trailing?.children?.at(-1) as
@@ -355,98 +367,53 @@ test('playlist browser modal action buttons stop double-click propagation', asyn
 
     assert.equal(stopped, true);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    env.restore();
   }
 });
 
 test('playlist browser preserves prior selection across mutation snapshots', async () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      electronAPI: {
-        getPlaylistBrowserSnapshot: async () => ({
-          ...createSnapshot(),
-          directoryItems: [
-            ...createSnapshot().directoryItems,
-            {
-              path: '/tmp/show/Show - S01E03.mkv',
-              basename: 'Show - S01E03.mkv',
-              episodeLabel: 'S1E3',
-              isCurrentFile: false,
-            },
-          ],
-          playlistItems: [
-            ...createSnapshot().playlistItems,
-            {
-              index: 2,
-              id: 3,
-              filename: '/tmp/show/Show - S01E03.mkv',
-              title: 'Episode 3',
-              displayLabel: 'Episode 3',
-              current: false,
-              playing: false,
-              path: '/tmp/show/Show - S01E03.mkv',
-            },
-          ],
-        }),
-        notifyOverlayModalOpened: () => {},
-        notifyOverlayModalClosed: () => {},
-        focusMainWindow: async () => {},
-        setIgnoreMouseEvents: () => {},
-        appendPlaylistBrowserFile: async () => ({
-          ok: true,
-          message: 'Queued file',
-          snapshot: createMutationSnapshot(),
-        }),
-        playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-      } as unknown as ElectronAPI,
-      focus: () => {},
-    },
-  });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createPlaylistRow(),
+  const env = setupPlaylistBrowserModalTest({
+    electronApi: {
+      getPlaylistBrowserSnapshot: async () => ({
+        ...createSnapshot(),
+        directoryItems: [
+          ...createSnapshot().directoryItems,
+          {
+            path: '/tmp/show/Show - S01E03.mkv',
+            basename: 'Show - S01E03.mkv',
+            episodeLabel: 'S1E3',
+            isCurrentFile: false,
+          },
+        ],
+        playlistItems: [
+          ...createSnapshot().playlistItems,
+          {
+            index: 2,
+            id: 3,
+            filename: '/tmp/show/Show - S01E03.mkv',
+            title: 'Episode 3',
+            displayLabel: 'Episode 3',
+            current: false,
+            playing: false,
+            path: '/tmp/show/Show - S01E03.mkv',
+          },
+        ],
+      }),
+      appendPlaylistBrowserFile: async () => ({
+        ok: true,
+        message: 'Queued file',
+        snapshot: createMutationSnapshot(),
+      }),
     },
   });
 
   try {
-    const state = createRendererState();
-    const ctx = {
-      state,
-      platform: {
-        shouldToggleMouseIgnore: false,
-      },
-      dom: {
-        overlay: {
-          classList: createClassList(),
-          focus: () => {},
-        },
-        playlistBrowserModal: createFakeElement(),
-        playlistBrowserTitle: createFakeElement(),
-        playlistBrowserStatus: createFakeElement(),
-        playlistBrowserDirectoryList: createListStub(),
-        playlistBrowserPlaylistList: createListStub(),
-        playlistBrowserClose: createFakeElement(),
-      },
-    };
-
-    const modal = createPlaylistBrowserModal(ctx as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
-    });
+    const modal = env.createModal();
 
     await modal.openPlaylistBrowserModal();
-    state.playlistBrowserActivePane = 'directory';
-    state.playlistBrowserSelectedDirectoryIndex = 2;
-    state.playlistBrowserSelectedPlaylistIndex = 0;
+    env.state.playlistBrowserActivePane = 'directory';
+    env.state.playlistBrowserSelectedDirectoryIndex = 2;
+    env.state.playlistBrowserSelectedPlaylistIndex = 0;
 
     await modal.handlePlaylistBrowserKeydown({
       key: 'Enter',
@@ -457,88 +424,47 @@ test('playlist browser preserves prior selection across mutation snapshots', asy
       shiftKey: false,
     } as never);
 
-    assert.equal(state.playlistBrowserSelectedDirectoryIndex, 2);
-    assert.equal(state.playlistBrowserSelectedPlaylistIndex, 2);
+    assert.equal(env.state.playlistBrowserSelectedDirectoryIndex, 2);
+    assert.equal(env.state.playlistBrowserSelectedPlaylistIndex, 2);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    env.restore();
   }
 });
 
 test('playlist browser modal keydown routes append, remove, reorder, tab switch, and play', async () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
   const calls: Array<[string, unknown[]]> = [];
   const notifications: string[] = [];
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      electronAPI: {
-        getPlaylistBrowserSnapshot: async () => createSnapshot(),
-        notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
-        notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
-        focusMainWindow: async () => {},
-        setIgnoreMouseEvents: () => {},
-        appendPlaylistBrowserFile: async (filePath: string) => {
-          calls.push(['append', [filePath]]);
-          return { ok: true, message: 'append-ok', snapshot: createSnapshot() };
-        },
-        playPlaylistBrowserIndex: async (index: number) => {
-          calls.push(['play', [index]]);
-          return { ok: true, message: 'play-ok', snapshot: createSnapshot() };
-        },
-        removePlaylistBrowserIndex: async (index: number) => {
-          calls.push(['remove', [index]]);
-          return { ok: true, message: 'remove-ok', snapshot: createSnapshot() };
-        },
-        movePlaylistBrowserIndex: async (index: number, direction: -1 | 1) => {
-          calls.push(['move', [index, direction]]);
-          return { ok: true, message: 'move-ok', snapshot: createSnapshot() };
-        },
-      } as unknown as ElectronAPI,
-      focus: () => {},
-    },
-  });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createPlaylistRow(),
+  const env = setupPlaylistBrowserModalTest({
+    electronApi: {
+      notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
+      notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
+      appendPlaylistBrowserFile: async (filePath: string) => {
+        calls.push(['append', [filePath]]);
+        return { ok: true, message: 'append-ok', snapshot: createSnapshot() };
+      },
+      playPlaylistBrowserIndex: async (index: number) => {
+        calls.push(['play', [index]]);
+        return { ok: true, message: 'play-ok', snapshot: createSnapshot() };
+      },
+      removePlaylistBrowserIndex: async (index: number) => {
+        calls.push(['remove', [index]]);
+        return { ok: true, message: 'remove-ok', snapshot: createSnapshot() };
+      },
+      movePlaylistBrowserIndex: async (index: number, direction: -1 | 1) => {
+        calls.push(['move', [index, direction]]);
+        return { ok: true, message: 'move-ok', snapshot: createSnapshot() };
+      },
     },
   });
 
   try {
-    const state = createRendererState();
-    const ctx = {
-      state,
-      platform: {
-        shouldToggleMouseIgnore: false,
-      },
-      dom: {
-        overlay: {
-          classList: createClassList(),
-          focus: () => {},
-        },
-        playlistBrowserModal: createFakeElement(),
-        playlistBrowserTitle: createFakeElement(),
-        playlistBrowserStatus: createFakeElement(),
-        playlistBrowserDirectoryList: createListStub(),
-        playlistBrowserPlaylistList: createListStub(),
-        playlistBrowserClose: createFakeElement(),
-      },
-    };
-
-    const modal = createPlaylistBrowserModal(ctx as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
-    });
+    const modal = env.createModal();
 
     await modal.openPlaylistBrowserModal();
 
     const preventDefault = () => {};
-    state.playlistBrowserActivePane = 'directory';
-    state.playlistBrowserSelectedDirectoryIndex = 0;
+    env.state.playlistBrowserActivePane = 'directory';
+    env.state.playlistBrowserSelectedDirectoryIndex = 0;
     await modal.handlePlaylistBrowserKeydown({
       key: 'Enter',
       code: 'Enter',
@@ -556,7 +482,7 @@ test('playlist browser modal keydown routes append, remove, reorder, tab switch,
       metaKey: false,
       shiftKey: false,
     } as never);
-    assert.equal(state.playlistBrowserActivePane, 'playlist');
+    assert.equal(env.state.playlistBrowserActivePane, 'playlist');
 
     await modal.handlePlaylistBrowserKeydown({
       key: 'ArrowDown',
@@ -591,73 +517,28 @@ test('playlist browser modal keydown routes append, remove, reorder, tab switch,
       ['remove', [1]],
       ['play', [1]],
     ]);
-    assert.equal(state.playlistBrowserModalOpen, false);
+    assert.equal(env.state.playlistBrowserModalOpen, false);
     assert.deepEqual(notifications, ['open:playlist-browser', 'close:playlist-browser']);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    env.restore();
   }
 });
 
 test('playlist browser keeps modal open when playing selected queue item fails', async () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
   const notifications: string[] = [];
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      electronAPI: {
-        getPlaylistBrowserSnapshot: async () => createSnapshot(),
-        notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
-        notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
-        focusMainWindow: async () => {},
-        setIgnoreMouseEvents: () => {},
-        appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        playPlaylistBrowserIndex: async () => ({ ok: false, message: 'play failed' }),
-        removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-      } as unknown as ElectronAPI,
-      focus: () => {},
-    },
-  });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createPlaylistRow(),
+  const env = setupPlaylistBrowserModalTest({
+    electronApi: {
+      notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
+      notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
+      playPlaylistBrowserIndex: async () => ({ ok: false, message: 'play failed' }),
     },
   });
 
   try {
-    const state = createRendererState();
-    const playlistBrowserStatus = createFakeElement();
-    const ctx = {
-      state,
-      platform: {
-        shouldToggleMouseIgnore: false,
-      },
-      dom: {
-        overlay: {
-          classList: createClassList(),
-          focus: () => {},
-        },
-        playlistBrowserModal: createFakeElement(),
-        playlistBrowserTitle: createFakeElement(),
-        playlistBrowserStatus,
-        playlistBrowserDirectoryList: createListStub(),
-        playlistBrowserPlaylistList: createListStub(),
-        playlistBrowserClose: createFakeElement(),
-      },
-    };
-
-    const modal = createPlaylistBrowserModal(ctx as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
-    });
+    const modal = env.createModal();
 
     await modal.openPlaylistBrowserModal();
-    assert.equal(state.playlistBrowserModalOpen, true);
+    assert.equal(env.state.playlistBrowserModalOpen, true);
 
     await modal.handlePlaylistBrowserKeydown({
       key: 'Enter',
@@ -668,250 +549,109 @@ test('playlist browser keeps modal open when playing selected queue item fails',
       shiftKey: false,
     } as never);
 
-    assert.equal(state.playlistBrowserModalOpen, true);
-    assert.equal(playlistBrowserStatus.textContent, 'play failed');
-    assert.equal(playlistBrowserStatus.classList.contains('error'), true);
+    assert.equal(env.state.playlistBrowserModalOpen, true);
+    assert.equal(env.dom.playlistBrowserStatus.textContent, 'play failed');
+    assert.equal(env.dom.playlistBrowserStatus.classList.contains('error'), true);
     assert.deepEqual(notifications, ['open:playlist-browser']);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    env.restore();
   }
 });
 
 test('playlist browser refresh failure clears stale rendered rows and reports the error', async () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
   const notifications: string[] = [];
   let refreshShouldFail = false;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      electronAPI: {
-        getPlaylistBrowserSnapshot: async () => {
-          if (refreshShouldFail) {
-            throw new Error('snapshot failed');
-          }
-          return createSnapshot();
-        },
-        notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
-        notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
-        focusMainWindow: async () => {},
-        setIgnoreMouseEvents: () => {},
-        appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-      } as unknown as ElectronAPI,
-      focus: () => {},
-    },
-  });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createPlaylistRow(),
+  const env = setupPlaylistBrowserModalTest({
+    electronApi: {
+      getPlaylistBrowserSnapshot: async () => {
+        if (refreshShouldFail) {
+          throw new Error('snapshot failed');
+        }
+        return createSnapshot();
+      },
+      notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
+      notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
     },
   });
 
   try {
-    const state = createRendererState();
-    const playlistBrowserTitle = createFakeElement();
-    const playlistBrowserStatus = createFakeElement();
-    const directoryList = createListStub();
-    const playlistList = createListStub();
-    const ctx = {
-      state,
-      platform: {
-        shouldToggleMouseIgnore: false,
-      },
-      dom: {
-        overlay: {
-          classList: createClassList(),
-          focus: () => {},
-        },
-        playlistBrowserModal: createFakeElement(),
-        playlistBrowserTitle,
-        playlistBrowserStatus,
-        playlistBrowserDirectoryList: directoryList,
-        playlistBrowserPlaylistList: playlistList,
-        playlistBrowserClose: createFakeElement(),
-      },
-    };
-
-    const modal = createPlaylistBrowserModal(ctx as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
-    });
+    const modal = env.createModal();
 
     await modal.openPlaylistBrowserModal();
-    assert.equal(directoryList.children.length, 2);
-    assert.equal(playlistList.children.length, 2);
+    assert.equal(env.dom.playlistBrowserDirectoryList.children.length, 2);
+    assert.equal(env.dom.playlistBrowserPlaylistList.children.length, 2);
 
     refreshShouldFail = true;
     await modal.refreshSnapshot();
 
-    assert.equal(state.playlistBrowserSnapshot, null);
-    assert.equal(directoryList.children.length, 0);
-    assert.equal(playlistList.children.length, 0);
-    assert.equal(playlistBrowserTitle.textContent, 'Playlist Browser');
-    assert.equal(playlistBrowserStatus.textContent, 'snapshot failed');
-    assert.equal(playlistBrowserStatus.classList.contains('error'), true);
+    assert.equal(env.state.playlistBrowserSnapshot, null);
+    assert.equal(env.dom.playlistBrowserDirectoryList.children.length, 0);
+    assert.equal(env.dom.playlistBrowserPlaylistList.children.length, 0);
+    assert.equal(env.dom.playlistBrowserTitle.textContent, 'Playlist Browser');
+    assert.equal(env.dom.playlistBrowserStatus.textContent, 'snapshot failed');
+    assert.equal(env.dom.playlistBrowserStatus.classList.contains('error'), true);
     assert.deepEqual(notifications, ['open:playlist-browser']);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    env.restore();
   }
 });
 
 test('playlist browser close clears rendered snapshot ui', async () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
   const notifications: string[] = [];
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      electronAPI: {
-        getPlaylistBrowserSnapshot: async () => createSnapshot(),
-        notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
-        notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
-        focusMainWindow: async () => {},
-        setIgnoreMouseEvents: () => {},
-        appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-      } as unknown as ElectronAPI,
-      focus: () => {},
-    },
-  });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createPlaylistRow(),
+  const env = setupPlaylistBrowserModalTest({
+    electronApi: {
+      notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
+      notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
     },
   });
 
   try {
-    const state = createRendererState();
-    const playlistBrowserTitle = createFakeElement();
-    const playlistBrowserStatus = createFakeElement();
-    const directoryList = createListStub();
-    const playlistList = createListStub();
-    const ctx = {
-      state,
-      platform: {
-        shouldToggleMouseIgnore: false,
-      },
-      dom: {
-        overlay: {
-          classList: createClassList(),
-          focus: () => {},
-        },
-        playlistBrowserModal: createFakeElement(),
-        playlistBrowserTitle,
-        playlistBrowserStatus,
-        playlistBrowserDirectoryList: directoryList,
-        playlistBrowserPlaylistList: playlistList,
-        playlistBrowserClose: createFakeElement(),
-      },
-    };
-
-    const modal = createPlaylistBrowserModal(ctx as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
-    });
+    const modal = env.createModal();
 
     await modal.openPlaylistBrowserModal();
-    assert.equal(directoryList.children.length, 2);
-    assert.equal(playlistList.children.length, 2);
+    assert.equal(env.dom.playlistBrowserDirectoryList.children.length, 2);
+    assert.equal(env.dom.playlistBrowserPlaylistList.children.length, 2);
 
     modal.closePlaylistBrowserModal();
 
-    assert.equal(state.playlistBrowserSnapshot, null);
-    assert.equal(state.playlistBrowserStatus, '');
-    assert.equal(directoryList.children.length, 0);
-    assert.equal(playlistList.children.length, 0);
-    assert.equal(playlistBrowserTitle.textContent, 'Playlist Browser');
-    assert.equal(playlistBrowserStatus.textContent, '');
+    assert.equal(env.state.playlistBrowserSnapshot, null);
+    assert.equal(env.state.playlistBrowserStatus, '');
+    assert.equal(env.dom.playlistBrowserDirectoryList.children.length, 0);
+    assert.equal(env.dom.playlistBrowserPlaylistList.children.length, 0);
+    assert.equal(env.dom.playlistBrowserTitle.textContent, 'Playlist Browser');
+    assert.equal(env.dom.playlistBrowserStatus.textContent, '');
     assert.deepEqual(notifications, ['open:playlist-browser', 'close:playlist-browser']);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    env.restore();
   }
 });
 
 test('playlist browser open is ignored while another modal is already open', async () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
   const notifications: string[] = [];
   let snapshotCalls = 0;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      electronAPI: {
-        getPlaylistBrowserSnapshot: async () => {
-          snapshotCalls += 1;
-          return createSnapshot();
-        },
-        notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
-        notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
-        focusMainWindow: async () => {},
-        setIgnoreMouseEvents: () => {},
-        appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-        movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-      } as unknown as ElectronAPI,
-      focus: () => {},
-    },
-  });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => createPlaylistRow(),
+  const env = setupPlaylistBrowserModalTest({
+    electronApi: {
+      getPlaylistBrowserSnapshot: async () => {
+        snapshotCalls += 1;
+        return createSnapshot();
+      },
+      notifyOverlayModalOpened: (modal: string) => notifications.push(`open:${modal}`),
+      notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
     },
   });
 
   try {
-    const state = createRendererState();
-    const overlay = {
-      classList: createClassList(),
-      focus: () => {},
-    };
-    const ctx = {
-      state,
-      platform: {
-        shouldToggleMouseIgnore: false,
-      },
-      dom: {
-        overlay,
-        playlistBrowserModal: createFakeElement(),
-        playlistBrowserTitle: createFakeElement(),
-        playlistBrowserStatus: createFakeElement(),
-        playlistBrowserDirectoryList: createListStub(),
-        playlistBrowserPlaylistList: createListStub(),
-        playlistBrowserClose: createFakeElement(),
-      },
-    };
-
-    const modal = createPlaylistBrowserModal(ctx as never, {
+    const modal = env.createModal({
       modalStateReader: { isAnyModalOpen: () => true },
-      syncSettingsModalSubtitleSuppression: () => {},
     });
 
     await modal.openPlaylistBrowserModal();
 
-    assert.equal(state.playlistBrowserModalOpen, false);
+    assert.equal(env.state.playlistBrowserModalOpen, false);
     assert.equal(snapshotCalls, 0);
-    assert.equal(overlay.classList.contains('interactive'), false);
+    assert.equal(env.dom.overlay.classList.contains('interactive'), false);
     assert.deepEqual(notifications, []);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    env.restore();
   }
 });
