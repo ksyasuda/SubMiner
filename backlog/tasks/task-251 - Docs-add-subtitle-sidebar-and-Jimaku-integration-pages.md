@@ -4,11 +4,12 @@ title: 'Docs: add subtitle sidebar and Jimaku integration pages'
 status: Done
 assignee: []
 created_date: '2026-03-29 22:36'
-updated_date: '2026-03-29 22:38'
+updated_date: '2026-03-31 19:37'
 labels:
   - docs
 dependencies: []
 priority: medium
+ordinal: 164500
 ---
 
 ## Description

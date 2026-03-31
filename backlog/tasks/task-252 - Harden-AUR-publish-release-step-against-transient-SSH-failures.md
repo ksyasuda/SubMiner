@@ -4,13 +4,14 @@ title: Harden AUR publish release step against transient SSH failures
 status: Done
 assignee: []
 created_date: '2026-03-29 23:46'
-updated_date: '2026-03-29 23:49'
+updated_date: '2026-03-31 19:37'
 labels:
   - release
   - ci
   - aur
 dependencies: []
 priority: high
+ordinal: 163500
 ---
 
 ## Description

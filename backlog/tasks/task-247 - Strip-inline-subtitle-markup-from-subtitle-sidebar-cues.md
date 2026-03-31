@@ -5,13 +5,14 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-29 10:01'
-updated_date: '2026-03-29 10:10'
+updated_date: '2026-03-31 19:37'
 labels: []
 dependencies: []
 references:
   - src/core/services/subtitle-cue-parser.ts
   - src/renderer/modals/subtitle-sidebar.ts
   - src/core/services/subtitle-cue-parser.test.ts
+ordinal: 168500
 ---
 
 ## Description

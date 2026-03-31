@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-26 20:49'
-updated_date: '2026-03-27 00:00'
+updated_date: '2026-03-31 19:37'
 labels:
   - tech-debt
   - stats
@@ -20,6 +20,7 @@ references:
   - src/core/services/immersion-tracker-service.ts
 parent_task_id: TASK-238
 priority: medium
+ordinal: 175500
 ---
 
 ## Description
@@ -29,7 +30,6 @@ priority: medium
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
 - [x] #1 Query responsibilities are grouped into focused modules such as library/session detail, vocabulary/kanji detail, and maintenance/cleanup helpers.
 - [x] #2 The stats server and immersion tracker service depend on stable exported query surfaces instead of one monolithic file.

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-29 10:10'
-updated_date: '2026-03-29 10:23'
+updated_date: '2026-03-31 19:37'
 labels:
   - bug
   - macos
@@ -24,6 +24,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/src/renderer/overlay-mouse-ignore.test.ts
 priority: high
+ordinal: 167500
 ---
 
 ## Description

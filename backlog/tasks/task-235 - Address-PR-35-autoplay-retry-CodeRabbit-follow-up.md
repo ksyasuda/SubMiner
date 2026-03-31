@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-26 04:30'
-updated_date: '2026-03-26 04:31'
+updated_date: '2026-03-31 19:37'
 labels:
   - review-comments
   - coderabbit
@@ -13,6 +13,7 @@ dependencies: []
 references:
   - /Users/sudacode/projects/japanese/SubMiner/src/main.ts
 priority: medium
+ordinal: 176500
 ---
 
 ## Description

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-30 02:10'
-updated_date: '2026-03-30 02:20'
+updated_date: '2026-03-31 19:37'
 labels:
   - bug
   - anilist
@@ -17,6 +17,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/src/main/runtime/anilist-token-refresh.ts
 priority: high
+ordinal: 161500
 ---
 
 ## Description

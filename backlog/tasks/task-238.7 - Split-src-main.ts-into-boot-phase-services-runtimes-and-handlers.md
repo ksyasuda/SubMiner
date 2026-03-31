@@ -1,10 +1,10 @@
 ---
 id: TASK-238.7
-title: Split src/main.ts into boot-phase services, runtimes, and handlers
+title: 'Split src/main.ts into boot-phase services, runtimes, and handlers'
 status: Done
 assignee: []
 created_date: '2026-03-27 00:00'
-updated_date: '2026-03-27 22:45'
+updated_date: '2026-03-31 19:37'
 labels:
   - tech-debt
   - runtime
@@ -21,6 +21,7 @@ references:
   - src/main/runtime/composers
 parent_task_id: TASK-238
 priority: high
+ordinal: 171500
 ---
 
 ## Description
@@ -30,7 +31,6 @@ After the remaining inline runtime logic and composer gaps are extracted, `src/m
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
 - [x] #1 Service instantiation lives in a dedicated boot module instead of a large inline setup block in `src/main.ts`.
 - [x] #2 Domain runtime composition lives in a dedicated boot module, separate from lifecycle and handler dispatch.

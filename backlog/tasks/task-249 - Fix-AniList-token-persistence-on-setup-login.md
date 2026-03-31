@@ -4,7 +4,7 @@ title: Fix AniList token persistence on setup login
 status: Done
 assignee: []
 created_date: '2026-03-29 10:08'
-updated_date: '2026-03-29 19:42'
+updated_date: '2026-03-31 19:37'
 labels:
   - anilist
   - bug
@@ -15,6 +15,7 @@ documentation:
   - src/main/runtime/anilist-token-refresh.ts
   - docs-site/anilist-integration.md
 priority: high
+ordinal: 166500
 ---
 
 ## Description

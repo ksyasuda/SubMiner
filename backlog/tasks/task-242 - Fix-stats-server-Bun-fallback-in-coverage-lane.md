@@ -4,7 +4,7 @@ title: Fix stats server Bun fallback in coverage lane
 status: Done
 assignee: []
 created_date: '2026-03-29 07:31'
-updated_date: '2026-03-29 07:37'
+updated_date: '2026-03-31 19:37'
 labels:
   - ci
   - bug
@@ -13,6 +13,7 @@ dependencies: []
 references:
   - 'PR #36'
 priority: high
+ordinal: 170500
 ---
 
 ## Description

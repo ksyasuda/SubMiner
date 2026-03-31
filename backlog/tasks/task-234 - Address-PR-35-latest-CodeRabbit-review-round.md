@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-26 03:59'
-updated_date: '2026-03-26 04:01'
+updated_date: '2026-03-31 19:37'
 labels:
   - review-comments
   - coderabbit
@@ -18,6 +18,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/src/main/runtime/youtube-playback-launch.ts
 priority: medium
+ordinal: 177500
 ---
 
 ## Description

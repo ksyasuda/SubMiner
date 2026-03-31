@@ -4,7 +4,7 @@ title: Introduce domain type entrypoints and shrink src/types.ts import surface
 status: Done
 assignee: []
 created_date: '2026-03-26 20:49'
-updated_date: '2026-03-27 00:14'
+updated_date: '2026-03-31 19:37'
 labels:
   - tech-debt
   - types
@@ -18,6 +18,7 @@ references:
   - docs/architecture/README.md
 parent_task_id: TASK-238
 priority: medium
+ordinal: 174500
 ---
 
 ## Description
@@ -27,7 +28,6 @@ priority: medium
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
 - [x] #1 Domain-focused type modules exist for the main clusters currently mixed together in `src/types.ts` (for example Anki, config/runtime, subtitle/media, and integration/runtime-option types).
 - [x] #2 `src/types.ts` becomes a thinner compatibility layer or barrel instead of the sole source of truth for every shared type.

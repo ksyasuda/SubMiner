@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-22 21:25'
-updated_date: '2026-03-24 06:44'
+updated_date: '2026-03-31 19:37'
 labels:
   - stats
   - immersion-tracker
@@ -21,6 +21,7 @@ references:
   - >-
     /Users/sudacode/projects/japanese/SubMiner/src/core/services/immersion-tracker-service.test.ts
 priority: medium
+ordinal: 178500
 ---
 
 ## Description

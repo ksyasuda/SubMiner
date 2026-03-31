@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-31 00:58'
-updated_date: '2026-03-31 01:01'
+updated_date: '2026-03-31 19:37'
 labels:
   - bug
   - macos
@@ -27,6 +27,7 @@ references:
 documentation:
   - docs/workflow/verification.md
 priority: high
+ordinal: 156500
 ---
 
 ## Description

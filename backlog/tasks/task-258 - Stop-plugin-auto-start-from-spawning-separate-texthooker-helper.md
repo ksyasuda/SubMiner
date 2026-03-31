@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-30 06:25'
-updated_date: '2026-03-30 06:26'
+updated_date: '2026-03-31 19:37'
 labels:
   - bug
   - texthooker
@@ -14,6 +14,7 @@ labels:
   - startup
 dependencies: []
 priority: high
+ordinal: 158500
 ---
 
 ## Description

@@ -4,13 +4,14 @@ title: Migrate Discord Rich Presence to maintained RPC wrapper
 status: Done
 assignee: []
 created_date: '2026-03-29 08:17'
-updated_date: '2026-03-29 08:22'
+updated_date: '2026-03-31 19:37'
 labels:
   - dependency
   - discord
   - presence
 dependencies: []
 priority: medium
+ordinal: 169500
 ---
 
 ## Description

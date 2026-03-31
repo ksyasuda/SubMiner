@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-30 01:59'
-updated_date: '2026-03-30 02:03'
+updated_date: '2026-03-31 19:37'
 labels: []
 dependencies: []
 references:
@@ -14,6 +14,7 @@ references:
   - /Users/sudacode/projects/japanese/SubMiner/src/anki-integration.ts
   - /Users/sudacode/projects/japanese/SubMiner/src/core/services/stats-server.ts
   - /Users/sudacode/projects/japanese/SubMiner/src/media-generator.ts
+ordinal: 162500
 ---
 
 ## Description

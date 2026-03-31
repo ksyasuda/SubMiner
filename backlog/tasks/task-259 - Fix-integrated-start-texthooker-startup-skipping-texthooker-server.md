@@ -4,13 +4,14 @@ title: Fix integrated --start --texthooker startup skipping texthooker server
 status: Done
 assignee: []
 created_date: '2026-03-30 06:48'
-updated_date: '2026-03-30 06:56'
+updated_date: '2026-03-31 19:37'
 labels:
   - bug
   - texthooker
   - startup
 dependencies: []
 priority: high
+ordinal: 157500
 ---
 
 ## Description

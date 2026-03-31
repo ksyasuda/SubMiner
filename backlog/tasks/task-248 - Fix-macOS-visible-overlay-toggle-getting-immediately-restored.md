@@ -4,7 +4,7 @@ title: Fix macOS visible overlay toggle getting immediately restored
 status: Done
 assignee: []
 created_date: '2026-03-29 10:03'
-updated_date: '2026-03-29 22:14'
+updated_date: '2026-03-31 19:37'
 labels: []
 dependencies: []
 references:
@@ -13,6 +13,7 @@ references:
   - /Users/sudacode/projects/japanese/SubMiner/src/core/services/cli-command.ts
   - >-
     /Users/sudacode/projects/japanese/SubMiner/src/main/overlay-visibility-runtime.ts
+ordinal: 165500
 ---
 
 ## Description

@@ -5,11 +5,12 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-31 19:03'
-updated_date: '2026-03-31 19:05'
+updated_date: '2026-03-31 19:37'
 labels:
   - bug
   - anilist
 dependencies: []
+ordinal: 155500
 ---
 
 ## Description

@@ -1,17 +1,18 @@
 ---
 id: TASK-255
 title: Add overlay playlist browser modal for sibling video files and mpv queue
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-30 05:46'
-updated_date: '2026-03-31 05:59'
+updated_date: '2026-03-31 19:37'
 labels:
   - feature
   - overlay
   - mpv
   - launcher
 dependencies: []
+ordinal: 180500
 ---
 
 ## Description
@@ -22,10 +23,10 @@ Add an in-session overlay modal that opens from a keybinding during active playb
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 An overlay modal can be opened during active playback from a dedicated keybinding and closed without disrupting existing modal behavior.
-- [ ] #2 The modal shows video files from the current media file's parent directory in best-effort episode order and highlights the current file when present.
-- [ ] #3 The modal shows the active mpv playlist/queue with enough metadata to identify the current item and queued order.
-- [ ] #4 The user can add a directory file to the mpv playlist, remove playlist items, and reorder playlist items from the modal using both mouse and keyboard interactions.
+- [x] #1 An overlay modal can be opened during active playback from a dedicated keybinding and closed without disrupting existing modal behavior.
+- [x] #2 The modal shows video files from the current media file's parent directory in best-effort episode order and highlights the current file when present.
+- [x] #3 The modal shows the active mpv playlist/queue with enough metadata to identify the current item and queued order.
+- [x] #4 The user can add a directory file to the mpv playlist, remove playlist items, and reorder playlist items from the modal using both mouse and keyboard interactions.
 - [x] #5 Modal state stays in sync after playlist mutations so the rendered queue reflects mpv's current playlist order.
 - [x] #6 Feature coverage includes automated tests for ordering/playlist behavior and docs or shortcut/help updates for the new modal.
 <!-- AC:END -->
@@ -84,4 +85,8 @@ Split playlist-browser UI row rendering into `src/renderer/modals/playlist-brows
 2026-03-30 latest CodeRabbit remediation on PR #37: switched nowMs() numeric test-clock branch from Math.floor() to Math.trunc() so numeric and string-backed mock clocks agree for negative fractional values. Refactored playlist-browser modal tests onto a shared setup/teardown fixture that restores global window/document descriptors correctly, and added regression coverage that injected globals are deleted when originally absent. Verification: `bun test src/core/services/immersion-tracker/time.test.ts src/renderer/modals/playlist-browser.test.ts`, `bun run typecheck`.
 
 2026-03-30 CodeRabbit follow-up: wrapped the injected-globals cleanup regression in try/finally so restore always runs, and changed the keydown test append mock to return createMutationSnapshot() before exercising Ctrl+ArrowDown. Verified with `bun test src/renderer/modals/playlist-browser.test.ts` and `bun run typecheck`.
+
+2026-03-31 assessment: the playlist-browser feature is landed on `main` via `d51e7fe4 Add playlist browser overlay modal (#37)` with runtime, IPC, renderer, keybinding, and changelog/docs coverage present. Verified passes: `bun test src/main/runtime/playlist-browser-runtime.test.ts src/main/runtime/playlist-browser-open.test.ts src/main/runtime/playlist-browser-sort.test.ts src/renderer/handlers/keyboard.test.ts src/core/services/ipc.test.ts src/core/services/ipc-command.test.ts src/config/definitions/domain-registry.test.ts`.
+
+Remaining action item before close: fix `src/renderer/modals/playlist-browser.test.ts` so the cleanup regression does not assume `globalThis.window` / `globalThis.document` start absent under Bun, rerun the playlist-browser modal lane (and then typecheck/build if you want the full closeout proof), then finalize the task.
 <!-- SECTION:NOTES:END -->

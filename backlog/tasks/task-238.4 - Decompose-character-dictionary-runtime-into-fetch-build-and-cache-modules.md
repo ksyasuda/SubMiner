@@ -1,10 +1,10 @@
 ---
 id: TASK-238.4
-title: Decompose character dictionary runtime into fetch, build, and cache modules
+title: 'Decompose character dictionary runtime into fetch, build, and cache modules'
 status: Done
-updated_date: '2026-03-27 00:20'
 assignee: []
 created_date: '2026-03-26 20:49'
+updated_date: '2026-03-31 19:37'
 labels:
   - tech-debt
   - runtime
@@ -19,6 +19,7 @@ references:
   - docs/architecture/README.md
 parent_task_id: TASK-238
 priority: medium
+ordinal: 173500
 ---
 
 ## Description
@@ -28,7 +29,6 @@ priority: medium
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
 - [x] #1 AniList fetch/parsing logic, dictionary-entry building, and snapshot/cache/zip persistence no longer live in one giant file.
 - [x] #2 The public runtime API stays behavior-compatible for current callers.

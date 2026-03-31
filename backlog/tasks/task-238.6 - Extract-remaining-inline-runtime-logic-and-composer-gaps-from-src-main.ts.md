@@ -4,7 +4,7 @@ title: Extract remaining inline runtime logic and composer gaps from src/main.ts
 status: Done
 assignee: []
 created_date: '2026-03-27 00:00'
-updated_date: '2026-03-27 22:13'
+updated_date: '2026-03-31 19:37'
 labels:
   - tech-debt
   - runtime
@@ -24,6 +24,7 @@ references:
   - src/main/runtime/composers
 parent_task_id: TASK-238
 priority: high
+ordinal: 172500
 ---
 
 ## Description
@@ -33,7 +34,6 @@ priority: high
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
 - [x] #1 `runYoutubePlaybackFlow`, `maybeSignalPluginAutoplayReady`, `refreshSubtitlePrefetchFromActiveTrack`, `publishDiscordPresence`, and `handleModalInputStateChange` no longer live as substantial inline logic in `src/main.ts`.
 - [x] #2 The large subtitle/prefetch, stats startup, and overlay visibility dependency groupings are wrapped behind named composer helpers instead of remaining inline in `src/main.ts`.
