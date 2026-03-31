@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-03-30 05:46'
-updated_date: '2026-03-31 05:40'
+updated_date: '2026-03-31 05:59'
 labels:
   - feature
   - overlay
@@ -46,6 +46,8 @@ Add an in-session overlay modal that opens from a keybinding during active playb
 2026-03-30 current CodeRabbit round: verify 4 unresolved threads, ignore already-fixed outdated dblclick thread if current code matches, add failing-first coverage for selection preservation / timestamp fixture consistency / string test-clock alignment, implement minimal fixes, rerun targeted tests plus typecheck.
 
 2026-03-30 latest CodeRabbit round on PR #37: 1) add failing coverage for negative fractional numeric __subminerTestNowMs input so nowMs() matches the string-backed path, 2) add failing coverage that playlist-browser modal tests restore absent window/document globals without leaving undefined-valued properties behind, 3) refactor repeated playlist-browser modal test harness into a shared setup/teardown fixture while preserving assertions, 4) implement minimal fixes, 5) rerun touched tests plus typecheck.
+
+2026-03-30 latest CodeRabbit follow-up after ff760ea: tighten the new cleanup regression so env.restore() always runs under assertion failure, and make the keydown test's append mock return a post-append mutated snapshot before exercising Ctrl+ArrowDown. Re-run targeted playlist-browser tests plus typecheck.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -80,4 +82,6 @@ Split playlist-browser UI row rendering into `src/renderer/modals/playlist-brows
 2026-03-30 Addressed latest unresolved CodeRabbit items on PR #37: preserved playlist-browser selection across mutation snapshots, taught nowMs() to honor string-backed test clocks so it stays aligned with currentDbTimestamp(), and normalized maintenance test timestamp fixtures to toDbTimestamp(). The older playlist-browser dblclick thread remains unresolved in GitHub state but current HEAD already contains that fix in playlist-browser-renderer.ts.
 
 2026-03-30 latest CodeRabbit remediation on PR #37: switched nowMs() numeric test-clock branch from Math.floor() to Math.trunc() so numeric and string-backed mock clocks agree for negative fractional values. Refactored playlist-browser modal tests onto a shared setup/teardown fixture that restores global window/document descriptors correctly, and added regression coverage that injected globals are deleted when originally absent. Verification: `bun test src/core/services/immersion-tracker/time.test.ts src/renderer/modals/playlist-browser.test.ts`, `bun run typecheck`.
+
+2026-03-30 CodeRabbit follow-up: wrapped the injected-globals cleanup regression in try/finally so restore always runs, and changed the keydown test append mock to return createMutationSnapshot() before exercising Ctrl+ArrowDown. Verified with `bun test src/renderer/modals/playlist-browser.test.ts` and `bun run typecheck`.
 <!-- SECTION:NOTES:END -->

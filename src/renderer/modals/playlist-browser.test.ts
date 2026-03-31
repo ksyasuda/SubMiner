@@ -299,10 +299,12 @@ test('playlist browser test cleanup must delete injected globals that were origi
 
   const env = setupPlaylistBrowserModalTest();
 
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), true);
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), true);
-
-  env.restore();
+  try {
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), true);
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), true);
+  } finally {
+    env.restore();
+  }
 
   assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
@@ -440,7 +442,7 @@ test('playlist browser modal keydown routes append, remove, reorder, tab switch,
       notifyOverlayModalClosed: (modal: string) => notifications.push(`close:${modal}`),
       appendPlaylistBrowserFile: async (filePath: string) => {
         calls.push(['append', [filePath]]);
-        return { ok: true, message: 'append-ok', snapshot: createSnapshot() };
+        return { ok: true, message: 'append-ok', snapshot: createMutationSnapshot() };
       },
       playPlaylistBrowserIndex: async (index: number) => {
         calls.push(['play', [index]]);
