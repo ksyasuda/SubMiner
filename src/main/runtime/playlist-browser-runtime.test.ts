@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 
 import type { PlaylistBrowserQueueItem } from '../../types';
 import {
@@ -21,8 +21,12 @@ type FakePlaylistEntry = {
   id?: number;
 };
 
-function createTempVideoDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-playlist-browser-'));
+function createTempVideoDir(t: TestContext): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-playlist-browser-'));
+  t.after(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  return dir;
 }
 
 function createFakeMpvClient(options: {
@@ -121,8 +125,8 @@ function createFakeMpvClient(options: {
   };
 }
 
-test('getPlaylistBrowserSnapshotRuntime lists sibling videos in best-effort episode order', async () => {
-  const dir = createTempVideoDir();
+test('getPlaylistBrowserSnapshotRuntime lists sibling videos in best-effort episode order', async (t) => {
+  const dir = createTempVideoDir(t);
   const episode2 = path.join(dir, 'Show - S01E02.mkv');
   const episode1 = path.join(dir, 'Show - S01E01.mkv');
   const special = path.join(dir, 'Show - Special.mp4');
@@ -169,6 +173,35 @@ test('getPlaylistBrowserSnapshotRuntime lists sibling videos in best-effort epis
   );
 });
 
+test('getPlaylistBrowserSnapshotRuntime clamps stale playing index to the playlist bounds', async (t) => {
+  const dir = createTempVideoDir(t);
+  const episode1 = path.join(dir, 'Show - S01E01.mkv');
+  const episode2 = path.join(dir, 'Show - S01E02.mkv');
+  fs.writeFileSync(episode1, '');
+  fs.writeFileSync(episode2, '');
+
+  const mpvClient = createFakeMpvClient({
+    currentVideoPath: episode1,
+    playlist: [
+      { filename: episode1, current: true, playing: true, title: 'Episode 1' },
+      { filename: episode2, title: 'Episode 2' },
+    ],
+  });
+  const requestProperty = mpvClient.requestProperty.bind(mpvClient);
+  mpvClient.requestProperty = async (name: string): Promise<unknown> => {
+    if (name === 'playlist-playing-pos') {
+      return 99;
+    }
+    return requestProperty(name);
+  };
+
+  const snapshot = await getPlaylistBrowserSnapshotRuntime({
+    getMpvClient: () => mpvClient,
+  });
+
+  assert.equal(snapshot.playingIndex, 1);
+});
+
 test('getPlaylistBrowserSnapshotRuntime degrades directory pane for remote media', async () => {
   const mpvClient = createFakeMpvClient({
     currentVideoPath: 'https://example.com/video.m3u8',
@@ -185,8 +218,8 @@ test('getPlaylistBrowserSnapshotRuntime degrades directory pane for remote media
   assert.equal(snapshot.playlistItems.length, 1);
 });
 
-test('playlist-browser mutation runtimes mutate queue and return refreshed snapshots', async () => {
-  const dir = createTempVideoDir();
+test('playlist-browser mutation runtimes mutate queue and return refreshed snapshots', async (t) => {
+  const dir = createTempVideoDir(t);
   const episode1 = path.join(dir, 'Show - S01E01.mkv');
   const episode2 = path.join(dir, 'Show - S01E02.mkv');
   const episode3 = path.join(dir, 'Show - S01E03.mkv');
@@ -249,8 +282,52 @@ test('playlist-browser mutation runtimes mutate queue and return refreshed snaps
   );
 });
 
-test('appendPlaylistBrowserFileRuntime returns an error result when statSync throws', async () => {
-  const dir = createTempVideoDir();
+test('playlist-browser mutation runtimes report MPV send rejection', async (t) => {
+  const dir = createTempVideoDir(t);
+  const episode1 = path.join(dir, 'Show - S01E01.mkv');
+  const episode2 = path.join(dir, 'Show - S01E02.mkv');
+  const episode3 = path.join(dir, 'Show - S01E03.mkv');
+  fs.writeFileSync(episode1, '');
+  fs.writeFileSync(episode2, '');
+  fs.writeFileSync(episode3, '');
+
+  const mpvClient = createFakeMpvClient({
+    currentVideoPath: episode1,
+    playlist: [
+      { filename: episode1, current: true, title: 'Episode 1' },
+      { filename: episode2, title: 'Episode 2' },
+      { filename: episode3, title: 'Episode 3' },
+    ],
+  });
+  const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+  mpvClient.send = () => false;
+  const deps = {
+    getMpvClient: () => mpvClient,
+    schedule: (callback: () => void, delayMs: number) => {
+      scheduled.push({ callback, delayMs });
+    },
+  };
+
+  const appendResult = await appendPlaylistBrowserFileRuntime(deps, episode3);
+  assert.equal(appendResult.ok, false);
+  assert.equal(appendResult.snapshot, undefined);
+
+  const playResult = await playPlaylistBrowserIndexRuntime(deps, 1);
+  assert.equal(playResult.ok, false);
+  assert.equal(playResult.snapshot, undefined);
+  assert.deepEqual(scheduled, []);
+
+  const removeResult = await removePlaylistBrowserIndexRuntime(deps, 1);
+  assert.equal(removeResult.ok, false);
+  assert.equal(removeResult.snapshot, undefined);
+
+  const moveResult = await movePlaylistBrowserIndexRuntime(deps, 1, 1);
+  assert.equal(moveResult.ok, false);
+  assert.equal(moveResult.snapshot, undefined);
+});
+
+test('appendPlaylistBrowserFileRuntime returns an error result when statSync throws', async (t) => {
+  const dir = createTempVideoDir(t);
   const episode1 = path.join(dir, 'Show - S01E01.mkv');
   fs.writeFileSync(episode1, '');
 
@@ -284,8 +361,8 @@ test('appendPlaylistBrowserFileRuntime returns an error result when statSync thr
   }
 });
 
-test('movePlaylistBrowserIndexRuntime rejects top and bottom boundary moves', async () => {
-  const dir = createTempVideoDir();
+test('movePlaylistBrowserIndexRuntime rejects top and bottom boundary moves', async (t) => {
+  const dir = createTempVideoDir(t);
   const episode1 = path.join(dir, 'Show - S01E01.mkv');
   const episode2 = path.join(dir, 'Show - S01E02.mkv');
   fs.writeFileSync(episode1, '');
@@ -316,8 +393,8 @@ test('movePlaylistBrowserIndexRuntime rejects top and bottom boundary moves', as
   });
 });
 
-test('getPlaylistBrowserSnapshotRuntime normalizes playlist labels from title then filename', async () => {
-  const dir = createTempVideoDir();
+test('getPlaylistBrowserSnapshotRuntime normalizes playlist labels from title then filename', async (t) => {
+  const dir = createTempVideoDir(t);
   const episode1 = path.join(dir, 'Show - S01E01.mkv');
   fs.writeFileSync(episode1, '');
 
@@ -360,8 +437,8 @@ test('playPlaylistBrowserIndexRuntime skips local subtitle reset for remote play
   assert.equal(scheduled.length, 0);
 });
 
-test('playPlaylistBrowserIndexRuntime ignores superseded local subtitle rearm callbacks', async () => {
-  const dir = createTempVideoDir();
+test('playPlaylistBrowserIndexRuntime ignores superseded local subtitle rearm callbacks', async (t) => {
+  const dir = createTempVideoDir(t);
   const episode1 = path.join(dir, 'Show - S01E01.mkv');
   const episode2 = path.join(dir, 'Show - S01E02.mkv');
   const episode3 = path.join(dir, 'Show - S01E03.mkv');

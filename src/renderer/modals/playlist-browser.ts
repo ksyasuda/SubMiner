@@ -1,26 +1,17 @@
 import type {
-  PlaylistBrowserDirectoryItem,
   PlaylistBrowserMutationResult,
   PlaylistBrowserQueueItem,
   PlaylistBrowserSnapshot,
 } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+import {
+  renderPlaylistBrowserDirectoryRow,
+  renderPlaylistBrowserPlaylistRow,
+} from './playlist-browser-renderer.js';
 
 function clampIndex(index: number, length: number): number {
   if (length <= 0) return 0;
   return Math.min(Math.max(index, 0), length - 1);
-}
-
-function createActionButton(label: string, onClick: () => void): HTMLButtonElement {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.textContent = label;
-  button.className = 'playlist-browser-action';
-  button.addEventListener('click', (event) => {
-    event.stopPropagation();
-    onClick();
-  });
-  return button;
 }
 
 function buildDefaultStatus(snapshot: PlaylistBrowserSnapshot): string {
@@ -75,111 +66,6 @@ export function createPlaylistBrowserModal(
     );
   }
 
-  function renderDirectoryRow(item: PlaylistBrowserDirectoryItem, index: number): HTMLElement {
-    const row = document.createElement('li');
-    row.className = 'playlist-browser-row';
-    if (item.isCurrentFile) row.classList.add('current');
-    if (
-      ctx.state.playlistBrowserActivePane === 'directory' &&
-      ctx.state.playlistBrowserSelectedDirectoryIndex === index
-    ) {
-      row.classList.add('active');
-    }
-
-    const main = document.createElement('div');
-    main.className = 'playlist-browser-row-main';
-    const label = document.createElement('div');
-    label.className = 'playlist-browser-row-label';
-    label.textContent = item.basename;
-    const meta = document.createElement('div');
-    meta.className = 'playlist-browser-row-meta';
-    meta.textContent = item.isCurrentFile
-      ? item.episodeLabel
-        ? `${item.episodeLabel} · Current file`
-        : 'Current file'
-      : item.episodeLabel ?? 'Video file';
-    main.append(label, meta);
-
-    const trailing = document.createElement('div');
-    trailing.className = 'playlist-browser-row-trailing';
-    if (item.episodeLabel) {
-      const badge = document.createElement('div');
-      badge.className = 'playlist-browser-chip';
-      badge.textContent = item.episodeLabel;
-      trailing.appendChild(badge);
-    }
-    trailing.appendChild(
-      createActionButton('Add', () => {
-        void appendDirectoryItem(item.path);
-      }),
-    );
-
-    row.append(main, trailing);
-    row.addEventListener('click', () => {
-      ctx.state.playlistBrowserActivePane = 'directory';
-      ctx.state.playlistBrowserSelectedDirectoryIndex = index;
-      render();
-    });
-    row.addEventListener('dblclick', () => {
-      ctx.state.playlistBrowserSelectedDirectoryIndex = index;
-      void appendDirectoryItem(item.path);
-    });
-    return row;
-  }
-
-  function renderPlaylistRow(item: PlaylistBrowserQueueItem, index: number): HTMLElement {
-    const row = document.createElement('li');
-    row.className = 'playlist-browser-row';
-    if (item.current || item.playing) row.classList.add('current');
-    if (
-      ctx.state.playlistBrowserActivePane === 'playlist' &&
-      ctx.state.playlistBrowserSelectedPlaylistIndex === index
-    ) {
-      row.classList.add('active');
-    }
-
-    const main = document.createElement('div');
-    main.className = 'playlist-browser-row-main';
-    const label = document.createElement('div');
-    label.className = 'playlist-browser-row-label';
-    label.textContent = `${index + 1}. ${item.displayLabel}`;
-    const meta = document.createElement('div');
-    meta.className = 'playlist-browser-row-meta';
-    meta.textContent = item.current || item.playing ? 'Playing now' : 'Queued';
-    const submeta = document.createElement('div');
-    submeta.className = 'playlist-browser-row-submeta';
-    submeta.textContent = item.filename;
-    main.append(label, meta, submeta);
-
-    const trailing = document.createElement('div');
-    trailing.className = 'playlist-browser-row-actions';
-    trailing.append(
-      createActionButton('Play', () => {
-        void playPlaylistItem(item.index);
-      }),
-      createActionButton('Up', () => {
-        void movePlaylistItem(item.index, -1);
-      }),
-      createActionButton('Down', () => {
-        void movePlaylistItem(item.index, 1);
-      }),
-      createActionButton('Remove', () => {
-        void removePlaylistItem(item.index);
-      }),
-    );
-    row.append(main, trailing);
-    row.addEventListener('click', () => {
-      ctx.state.playlistBrowserActivePane = 'playlist';
-      ctx.state.playlistBrowserSelectedPlaylistIndex = index;
-      render();
-    });
-    row.addEventListener('dblclick', () => {
-      ctx.state.playlistBrowserSelectedPlaylistIndex = index;
-      void playPlaylistItem(item.index);
-    });
-    return row;
-  }
-
   function render(): void {
     const snapshot = getSnapshot();
     if (!snapshot) {
@@ -192,10 +78,26 @@ export function createPlaylistBrowserModal(
     ctx.dom.playlistBrowserStatus.textContent =
       ctx.state.playlistBrowserStatus || buildDefaultStatus(snapshot);
     ctx.dom.playlistBrowserDirectoryList.replaceChildren(
-      ...snapshot.directoryItems.map((item, index) => renderDirectoryRow(item, index)),
+      ...snapshot.directoryItems.map((item, index) =>
+        renderPlaylistBrowserDirectoryRow(ctx, item, index, {
+          appendDirectoryItem,
+          movePlaylistItem,
+          playPlaylistItem,
+          removePlaylistItem,
+          render,
+        }),
+      ),
     );
     ctx.dom.playlistBrowserPlaylistList.replaceChildren(
-      ...snapshot.playlistItems.map((item, index) => renderPlaylistRow(item, index)),
+      ...snapshot.playlistItems.map((item, index) =>
+        renderPlaylistBrowserPlaylistRow(ctx, item, index, {
+          appendDirectoryItem,
+          movePlaylistItem,
+          playPlaylistItem,
+          removePlaylistItem,
+          render,
+        }),
+      ),
     );
   }
 

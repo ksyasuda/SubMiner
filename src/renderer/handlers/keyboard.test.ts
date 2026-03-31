@@ -653,6 +653,25 @@ test('keyboard mode: playlist browser modal handles arrow keys before yomitan po
   }
 });
 
+test('keyboard mode: playlist browser modal handles h before lookup controls', async () => {
+  const { ctx, testGlobals, handlers, playlistBrowserKeydownCount } =
+    createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    ctx.state.playlistBrowserModalOpen = true;
+    ctx.state.keyboardSelectedWordIndex = 2;
+
+    testGlobals.dispatchKeydown({ key: 'h', code: 'KeyH' });
+
+    assert.equal(playlistBrowserKeydownCount(), 1);
+    assert.equal(ctx.state.keyboardSelectedWordIndex, 2);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: configured stats toggle works even while popup is open', async () => {
   const { handlers, testGlobals } = createKeyboardHandlerHarness();
 

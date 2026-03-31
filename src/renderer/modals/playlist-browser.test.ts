@@ -216,6 +216,88 @@ test('playlist browser modal opens with playlist-focused current item selection'
   }
 });
 
+test('playlist browser modal action buttons stop double-click propagation', async () => {
+  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+  const previousWindow = globals.window;
+  const previousDocument = globals.document;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getPlaylistBrowserSnapshot: async () => createSnapshot(),
+        notifyOverlayModalOpened: () => {},
+        notifyOverlayModalClosed: () => {},
+        focusMainWindow: async () => {},
+        setIgnoreMouseEvents: () => {},
+        appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+        playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+        removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+        movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+      } as unknown as ElectronAPI,
+      focus: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createPlaylistRow(),
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const directoryList = createListStub();
+    const playlistList = createListStub();
+    const ctx = {
+      state,
+      platform: {
+        shouldToggleMouseIgnore: false,
+      },
+      dom: {
+        overlay: {
+          classList: createClassList(),
+          focus: () => {},
+        },
+        playlistBrowserModal: createFakeElement(),
+        playlistBrowserTitle: createFakeElement(),
+        playlistBrowserStatus: createFakeElement(),
+        playlistBrowserDirectoryList: directoryList,
+        playlistBrowserPlaylistList: playlistList,
+        playlistBrowserClose: createFakeElement(),
+      },
+    };
+
+    const modal = createPlaylistBrowserModal(ctx as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+    });
+
+    await modal.openPlaylistBrowserModal();
+
+    const row = directoryList.children[0] as ReturnType<typeof createPlaylistRow> | undefined;
+    const trailing = row?.children?.[1] as ReturnType<typeof createPlaylistRow> | undefined;
+    const button =
+      trailing?.children?.at(-1) as
+        | { listeners?: Map<string, Array<(event?: unknown) => void>> }
+        | undefined;
+    const dblclickHandler = button?.listeners?.get('dblclick')?.[0];
+
+    assert.equal(typeof dblclickHandler, 'function');
+    let stopped = false;
+    dblclickHandler?.({
+      stopPropagation: () => {
+        stopped = true;
+      },
+    });
+
+    assert.equal(stopped, true);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+});
+
 test('playlist browser modal keydown routes append, remove, reorder, tab switch, and play', async () => {
   const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
   const previousWindow = globals.window;

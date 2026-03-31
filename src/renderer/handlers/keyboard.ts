@@ -816,6 +816,12 @@ export function createKeyboardHandlers(
         return;
       }
 
+      if (ctx.state.playlistBrowserModalOpen) {
+        if (options.handlePlaylistBrowserKeydown(e)) {
+          return;
+        }
+      }
+
       if (handleKeyboardDrivenModeLookupControls(e)) {
         e.preventDefault();
         return;
@@ -839,11 +845,6 @@ export function createKeyboardHandlers(
       }
       if (ctx.state.youtubePickerModalOpen) {
         if (options.handleYoutubePickerKeydown(e)) {
-          return;
-        }
-      }
-      if (ctx.state.playlistBrowserModalOpen) {
-        if (options.handlePlaylistBrowserKeydown(e)) {
           return;
         }
       }

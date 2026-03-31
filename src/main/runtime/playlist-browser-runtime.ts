@@ -148,10 +148,31 @@ function ensureConnectedClient(
   return client;
 }
 
+function buildRejectedCommandResult(): PlaylistBrowserMutationResult {
+  return {
+    ok: false,
+    message: 'Could not send command to MPV.',
+  };
+}
+
 async function getPlaylistItemsFromClient(
   client: MpvPlaylistBrowserClientLike | null,
 ): Promise<PlaylistBrowserQueueItem[]> {
   return normalizePlaylistItems(await readProperty(client, 'playlist'));
+}
+
+function resolvePlayingIndex(
+  playlistItems: PlaylistBrowserQueueItem[],
+  playingPosValue: unknown,
+): number | null {
+  if (playlistItems.length === 0) {
+    return null;
+  }
+  if (typeof playingPosValue === 'number' && Number.isInteger(playingPosValue)) {
+    return Math.min(Math.max(playingPosValue, 0), playlistItems.length - 1);
+  }
+  const playingIndex = playlistItems.findIndex((item) => item.current || item.playing);
+  return playingIndex >= 0 ? playingIndex : null;
 }
 
 export async function getPlaylistBrowserSnapshotRuntime(
@@ -163,15 +184,11 @@ export async function getPlaylistBrowserSnapshotRuntime(
     getPlaylistItemsFromClient(client),
     readProperty(client, 'playlist-playing-pos'),
   ]);
-  const playingIndex =
-    typeof playingPosValue === 'number' && Number.isInteger(playingPosValue)
-      ? playingPosValue
-      : playlistItems.findIndex((item) => item.current || item.playing);
 
   return {
     ...resolveDirectorySnapshot(currentFilePath),
     playlistItems,
-    playingIndex: playingIndex >= 0 ? playingIndex : null,
+    playingIndex: resolvePlayingIndex(playlistItems, playingPosValue),
     currentFilePath,
   };
 }
@@ -270,7 +287,9 @@ export async function appendPlaylistBrowserFileRuntime(
     };
   }
 
-  client.send({ command: ['loadfile', resolvedPath, 'append'] });
+  if (!client.send({ command: ['loadfile', resolvedPath, 'append'] })) {
+    return buildRejectedCommandResult();
+  }
   return buildMutationResult(`Queued ${path.basename(resolvedPath)}`, deps);
 }
 
@@ -287,7 +306,9 @@ export async function playPlaylistBrowserIndexRuntime(
   if (isLocalPlaylistItem(targetItem)) {
     prepareLocalSubtitleAutoload(result.client);
   }
-  result.client.send({ command: ['playlist-play-index', index] });
+  if (!result.client.send({ command: ['playlist-play-index', index] })) {
+    return buildRejectedCommandResult();
+  }
   if (isLocalPlaylistItem(targetItem)) {
     scheduleLocalSubtitleSelectionRearm(deps, result.client, path.resolve(targetItem.path));
   }
@@ -303,7 +324,9 @@ export async function removePlaylistBrowserIndexRuntime(
     return result;
   }
 
-  result.client.send({ command: ['playlist-remove', index] });
+  if (!result.client.send({ command: ['playlist-remove', index] })) {
+    return buildRejectedCommandResult();
+  }
   return buildMutationResult(`Removed playlist item ${index + 1}`, deps);
 }
 
@@ -331,6 +354,8 @@ export async function movePlaylistBrowserIndexRuntime(
     };
   }
 
-  result.client.send({ command: ['playlist-move', index, targetIndex] });
+  if (!result.client.send({ command: ['playlist-move', index, targetIndex] })) {
+    return buildRejectedCommandResult();
+  }
   return buildMutationResult(`Moved playlist item ${index + 1}`, deps);
 }

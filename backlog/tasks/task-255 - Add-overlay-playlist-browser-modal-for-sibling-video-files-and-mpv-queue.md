@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - codex
 created_date: '2026-03-30 05:46'
-updated_date: '2026-03-30 09:22'
+updated_date: '2026-03-31 01:42'
 labels:
   - feature
   - overlay
@@ -64,4 +64,10 @@ Repo gate blockers outside this feature: `bun run test:fast` hits existing Bun `
 2026-03-30: Pulled unresolved CodeRabbit review threads for PR #37. Actionable set is three items: unreadable-file stat error handling in playlist-browser runtime, stale playlist-browser DOM after failed refresh/close, and missing modal-ownership guard before opening the playlist-browser overlay. Proceeding test-first for each.
 
 2026-03-30: Addressed current CodeRabbit follow-up findings for PR #37. Fixed playlist-browser unreadable-file stat handling, stale playlist-browser DOM reset on refresh failure/close, modal-ownership guard before opening the playlist-browser overlay, async rejection surfacing for PLAYLIST_BROWSER_OPEN IPC commands, overlay bootstrap before playlist-browser open dispatch, texthooker option normalization in the mpv plugin, and superseded local subtitle-rearm suppression. Added targeted regressions plus new playlist-browser-open helper coverage. Verification: `bun test src/main/runtime/playlist-browser-runtime.test.ts src/main/runtime/playlist-browser-open.test.ts src/core/services/ipc-command.test.ts src/renderer/modals/playlist-browser.test.ts`, `lua scripts/test-plugin-start-gate.lua`, `bun run typecheck`, `bun run build`.
+
+Addressed CodeRabbit follow-ups on the playlist browser PR: clamped stale playingIndex values, failed mutation paths when MPV rejects send(), added temp-dir cleanup in runtime tests, and blocked action-button dblclick bubbling in the renderer. Verification: `bun run typecheck`, `bun run build`, `bun test src/main/runtime/playlist-browser-runtime.test.ts src/renderer/modals/playlist-browser.test.ts`.
+
+Additional follow-up: moved playlist-browser keydown handling ahead of keyboard-driven lookup controls so KeyH/ArrowLeft/ArrowRight and related chords are routed to the modal first. Verification refreshed with `bun test src/main/runtime/playlist-browser-runtime.test.ts src/renderer/modals/playlist-browser.test.ts src/renderer/handlers/keyboard.test.ts`, `bun run typecheck`, and `bun run build`.
+
+Split playlist-browser UI row rendering into `src/renderer/modals/playlist-browser-renderer.ts` and left `src/renderer/modals/playlist-browser.ts` as the controller/wiring layer. Moved playlist-browser IPC/runtime wiring into `src/main/runtime/playlist-browser-ipc.ts` and collapsed the `src/main.ts` registration block to use that helper. Verification after refactor: `bun run typecheck`, `bun run build`, `bun test src/main/runtime/playlist-browser-runtime.test.ts src/renderer/modals/playlist-browser.test.ts src/renderer/handlers/keyboard.test.ts`.
 <!-- SECTION:NOTES:END -->
