@@ -165,6 +165,9 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
     deps.setInFlight(true);
     try {
       await deps.processNextAnilistRetryUpdate();
+      if (deps.hasAttemptedUpdateKey(attemptKey)) {
+        return;
+      }
 
       const accessToken = await deps.refreshAnilistClientSecretState();
       if (!accessToken) {

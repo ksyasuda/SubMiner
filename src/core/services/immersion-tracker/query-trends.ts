@@ -1,6 +1,16 @@
 import type { DatabaseSync } from './sqlite';
 import type { ImmersionSessionRollupRow } from './types';
-import { ACTIVE_SESSION_METRICS_CTE, makePlaceholders } from './query-shared';
+import {
+  ACTIVE_SESSION_METRICS_CTE,
+  currentDbTimestamp,
+  getLocalDayOfWeek,
+  getLocalEpochDay,
+  getLocalHourOfDay,
+  getLocalMonthKey,
+  getShiftedLocalDayTimestamp,
+  makePlaceholders,
+  toDbTimestamp,
+} from './query-shared';
 import { getDailyRollups, getMonthlyRollups } from './query-sessions';
 
 type TrendRange = '7d' | '30d' | '90d' | 'all';
@@ -19,6 +29,10 @@ interface TrendPerAnimePoint {
 
 interface TrendSessionMetricRow {
   startedAtMs: number;
+  epochDay: number;
+  monthKey: number;
+  dayOfWeek: number;
+  hourOfDay: number;
   videoId: number | null;
   canonicalTitle: string | null;
   animeTitle: string | null;
@@ -73,64 +87,64 @@ const TREND_DAY_LIMITS: Record<Exclude<TrendRange, 'all'>, number> = {
   '90d': 90,
 };
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function getTrendDayLimit(range: TrendRange): number {
   return range === 'all' ? 365 : TREND_DAY_LIMITS[range];
 }
 
-function getTrendMonthlyLimit(range: TrendRange): number {
+function getTrendMonthlyLimit(db: DatabaseSync, range: TrendRange): number {
   if (range === 'all') {
     return 120;
   }
-  const now = new Date();
-  const cutoff = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() - (TREND_DAY_LIMITS[range] - 1),
-  );
-  return Math.max(1, (now.getFullYear() - cutoff.getFullYear()) * 12 + now.getMonth() - cutoff.getMonth() + 1);
+  const currentTimestamp = currentDbTimestamp();
+  const todayStartMs = getShiftedLocalDayTimestamp(db, currentTimestamp, 0);
+  const cutoffMs = getShiftedLocalDayTimestamp(db, currentTimestamp, -(TREND_DAY_LIMITS[range] - 1));
+  const currentMonthKey = getLocalMonthKey(db, todayStartMs);
+  const cutoffMonthKey = getLocalMonthKey(db, cutoffMs);
+  const currentYear = Math.floor(currentMonthKey / 100);
+  const currentMonth = currentMonthKey % 100;
+  const cutoffYear = Math.floor(cutoffMonthKey / 100);
+  const cutoffMonth = cutoffMonthKey % 100;
+  return Math.max(1, (currentYear - cutoffYear) * 12 + currentMonth - cutoffMonth + 1);
 }
 
-function getTrendCutoffMs(range: TrendRange): number | null {
+function getTrendCutoffMs(db: DatabaseSync, range: TrendRange): string | null {
   if (range === 'all') {
     return null;
   }
-  const dayLimit = getTrendDayLimit(range);
-  const now = new Date();
-  const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  return localMidnight - (dayLimit - 1) * 86_400_000;
+  return getShiftedLocalDayTimestamp(db, currentDbTimestamp(), -(getTrendDayLimit(range) - 1));
+}
+
+function dayPartsFromEpochDay(epochDay: number): { year: number; month: number; day: number } {
+  const z = epochDay + 719468;
+  const era = Math.floor(z / 146097);
+  const doe = z - era * 146097;
+  const yoe = Math.floor(
+    (doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365,
+  );
+  let year = yoe + era * 400;
+  const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
+  const mp = Math.floor((5 * doy + 2) / 153);
+  const day = doy - Math.floor((153 * mp + 2) / 5) + 1;
+  const month = mp < 10 ? mp + 3 : mp - 9;
+  if (month <= 2) {
+    year += 1;
+  }
+  return { year, month, day };
 }
 
 function makeTrendLabel(value: number): string {
   if (value > 100_000) {
     const year = Math.floor(value / 100);
     const month = value % 100;
-    return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString(undefined, {
-      month: 'short',
-      year: '2-digit',
-    });
+    return `${MONTH_NAMES[month - 1]} ${String(year).slice(-2)}`;
   }
 
-  return new Date(value * 86_400_000).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-function getLocalEpochDay(timestampMs: number): number {
-  const date = new Date(timestampMs);
-  return Math.floor((timestampMs - date.getTimezoneOffset() * 60_000) / 86_400_000);
-}
-
-function getLocalDateForEpochDay(epochDay: number): Date {
-  const utcDate = new Date(epochDay * 86_400_000);
-  return new Date(utcDate.getTime() + utcDate.getTimezoneOffset() * 60_000);
-}
-
-function getLocalMonthKey(timestampMs: number): number {
-  const date = new Date(timestampMs);
-  return date.getFullYear() * 100 + date.getMonth() + 1;
+  const { month, day } = dayPartsFromEpochDay(value);
+  return `${MONTH_NAMES[month - 1]} ${day}`;
 }
 
 function getTrendSessionWordCount(session: Pick<TrendSessionMetricRow, 'tokensSeen'>): number {
@@ -189,7 +203,7 @@ function buildAggregatedTrendRows(rollups: ImmersionSessionRollupRow[]) {
 function buildWatchTimeByDayOfWeek(sessions: TrendSessionMetricRow[]): TrendChartPoint[] {
   const totals = new Array(7).fill(0);
   for (const session of sessions) {
-    totals[new Date(session.startedAtMs).getDay()] += session.activeWatchedMs;
+    totals[session.dayOfWeek] += session.activeWatchedMs;
   }
   return DAY_NAMES.map((name, index) => ({
     label: name,
@@ -200,7 +214,7 @@ function buildWatchTimeByDayOfWeek(sessions: TrendSessionMetricRow[]): TrendChar
 function buildWatchTimeByHour(sessions: TrendSessionMetricRow[]): TrendChartPoint[] {
   const totals = new Array(24).fill(0);
   for (const session of sessions) {
-    totals[new Date(session.startedAtMs).getHours()] += session.activeWatchedMs;
+    totals[session.hourOfDay] += session.activeWatchedMs;
   }
   return totals.map((ms, index) => ({
     label: `${String(index).padStart(2, '0')}:00`,
@@ -209,10 +223,8 @@ function buildWatchTimeByHour(sessions: TrendSessionMetricRow[]): TrendChartPoin
 }
 
 function dayLabel(epochDay: number): string {
-  return getLocalDateForEpochDay(epochDay).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
+  const { month, day } = dayPartsFromEpochDay(epochDay);
+  return `${MONTH_NAMES[month - 1]} ${day}`;
 }
 
 function buildSessionSeriesByDay(
@@ -221,8 +233,7 @@ function buildSessionSeriesByDay(
 ): TrendChartPoint[] {
   const byDay = new Map<number, number>();
   for (const session of sessions) {
-    const epochDay = getLocalEpochDay(session.startedAtMs);
-    byDay.set(epochDay, (byDay.get(epochDay) ?? 0) + getValue(session));
+    byDay.set(session.epochDay, (byDay.get(session.epochDay) ?? 0) + getValue(session));
   }
   return Array.from(byDay.entries())
     .sort(([left], [right]) => left - right)
@@ -235,8 +246,7 @@ function buildSessionSeriesByMonth(
 ): TrendChartPoint[] {
   const byMonth = new Map<number, number>();
   for (const session of sessions) {
-    const monthKey = getLocalMonthKey(session.startedAtMs);
-    byMonth.set(monthKey, (byMonth.get(monthKey) ?? 0) + getValue(session));
+    byMonth.set(session.monthKey, (byMonth.get(session.monthKey) ?? 0) + getValue(session));
   }
   return Array.from(byMonth.entries())
     .sort(([left], [right]) => left - right)
@@ -251,8 +261,7 @@ function buildLookupsPerHundredWords(
   const wordsByBucket = new Map<number, number>();
 
   for (const session of sessions) {
-    const bucketKey =
-      groupBy === 'month' ? getLocalMonthKey(session.startedAtMs) : getLocalEpochDay(session.startedAtMs);
+    const bucketKey = groupBy === 'month' ? session.monthKey : session.epochDay;
     lookupsByBucket.set(
       bucketKey,
       (lookupsByBucket.get(bucketKey) ?? 0) + session.yomitanLookupCount,
@@ -282,7 +291,7 @@ function buildPerAnimeFromSessions(
 
   for (const session of sessions) {
     const animeTitle = resolveTrendAnimeTitle(session);
-    const epochDay = getLocalEpochDay(session.startedAtMs);
+    const epochDay = session.epochDay;
     const dayMap = byAnime.get(animeTitle) ?? new Map();
     dayMap.set(epochDay, (dayMap.get(epochDay) ?? 0) + getValue(session));
     byAnime.set(animeTitle, dayMap);
@@ -303,7 +312,7 @@ function buildLookupsPerHundredPerAnime(sessions: TrendSessionMetricRow[]): Tren
 
   for (const session of sessions) {
     const animeTitle = resolveTrendAnimeTitle(session);
-    const epochDay = getLocalEpochDay(session.startedAtMs);
+    const epochDay = session.epochDay;
 
     const lookupMap = lookups.get(animeTitle) ?? new Map();
     lookupMap.set(epochDay, (lookupMap.get(epochDay) ?? 0) + session.yomitanLookupCount);
@@ -498,9 +507,10 @@ function buildEpisodesPerMonthFromRollups(rollups: ImmersionSessionRollupRow[]):
 
 function getTrendSessionMetrics(
   db: DatabaseSync,
-  cutoffMs: number | null,
+  cutoffMs: string | null,
 ): TrendSessionMetricRow[] {
   const whereClause = cutoffMs === null ? '' : 'WHERE s.started_at_ms >= ?';
+  const cutoffValue = cutoffMs === null ? null : toDbTimestamp(cutoffMs);
   const prepared = db.prepare(`
     ${ACTIVE_SESSION_METRICS_CTE}
     SELECT
@@ -520,14 +530,27 @@ function getTrendSessionMetrics(
     ORDER BY s.started_at_ms ASC
   `);
 
-  return (cutoffMs === null ? prepared.all() : prepared.all(cutoffMs)) as TrendSessionMetricRow[];
+  const rows = (cutoffValue === null ? prepared.all() : prepared.all(cutoffValue)) as Array<
+    TrendSessionMetricRow & { startedAtMs: number | string }
+  >;
+  return rows.map((row) => ({
+    ...row,
+    startedAtMs: 0,
+    epochDay: getLocalEpochDay(db, row.startedAtMs),
+    monthKey: getLocalMonthKey(db, row.startedAtMs),
+    dayOfWeek: getLocalDayOfWeek(db, row.startedAtMs),
+    hourOfDay: getLocalHourOfDay(db, row.startedAtMs),
+  }));
 }
 
-function buildNewWordsPerDay(db: DatabaseSync, cutoffMs: number | null): TrendChartPoint[] {
+function buildNewWordsPerDay(db: DatabaseSync, cutoffMs: string | null): TrendChartPoint[] {
   const whereClause = cutoffMs === null ? '' : 'AND first_seen >= ?';
   const prepared = db.prepare(`
     SELECT
-      CAST(julianday(first_seen, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS epochDay,
+      CAST(
+        julianday(CAST(first_seen AS REAL), 'unixepoch', 'localtime') - 2440587.5
+        AS INTEGER
+      ) AS epochDay,
       COUNT(*) AS wordCount
     FROM imm_words
     WHERE first_seen IS NOT NULL
@@ -537,7 +560,7 @@ function buildNewWordsPerDay(db: DatabaseSync, cutoffMs: number | null): TrendCh
   `);
 
   const rows = (
-    cutoffMs === null ? prepared.all() : prepared.all(Math.floor(cutoffMs / 1000))
+    cutoffMs === null ? prepared.all() : prepared.all((BigInt(cutoffMs) / 1000n).toString())
   ) as Array<{
     epochDay: number;
     wordCount: number;
@@ -549,11 +572,14 @@ function buildNewWordsPerDay(db: DatabaseSync, cutoffMs: number | null): TrendCh
   }));
 }
 
-function buildNewWordsPerMonth(db: DatabaseSync, cutoffMs: number | null): TrendChartPoint[] {
+function buildNewWordsPerMonth(db: DatabaseSync, cutoffMs: string | null): TrendChartPoint[] {
   const whereClause = cutoffMs === null ? '' : 'AND first_seen >= ?';
   const prepared = db.prepare(`
     SELECT
-      CAST(strftime('%Y%m', first_seen, 'unixepoch', 'localtime') AS INTEGER) AS monthKey,
+      CAST(
+        strftime('%Y%m', CAST(first_seen AS REAL), 'unixepoch', 'localtime')
+        AS INTEGER
+      ) AS monthKey,
       COUNT(*) AS wordCount
     FROM imm_words
     WHERE first_seen IS NOT NULL
@@ -563,7 +589,7 @@ function buildNewWordsPerMonth(db: DatabaseSync, cutoffMs: number | null): Trend
   `);
 
   const rows = (
-    cutoffMs === null ? prepared.all() : prepared.all(Math.floor(cutoffMs / 1000))
+    cutoffMs === null ? prepared.all() : prepared.all((BigInt(cutoffMs) / 1000n).toString())
   ) as Array<{
     monthKey: number;
     wordCount: number;
@@ -581,8 +607,8 @@ export function getTrendsDashboard(
   groupBy: TrendGroupBy = 'day',
 ): TrendsDashboardQueryResult {
   const dayLimit = getTrendDayLimit(range);
-  const monthlyLimit = getTrendMonthlyLimit(range);
-  const cutoffMs = getTrendCutoffMs(range);
+  const monthlyLimit = getTrendMonthlyLimit(db, range);
+  const cutoffMs = getTrendCutoffMs(db, range);
   const useMonthlyBuckets = groupBy === 'month';
   const dailyRollups = getDailyRollups(db, dayLimit);
   const monthlyRollups = getMonthlyRollups(db, monthlyLimit);

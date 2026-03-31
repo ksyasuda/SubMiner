@@ -31,6 +31,7 @@ import {
   screen,
 } from 'electron';
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
+import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { mergeAiConfig } from './ai/config';
 
@@ -427,6 +428,7 @@ import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
+import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
   createFrequencyDictionaryRuntimeService,
@@ -1927,6 +1929,23 @@ function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
 
 function openRuntimeOptionsPalette(): void {
   overlayVisibilityComposer.openRuntimeOptionsPalette();
+}
+
+function openPlaylistBrowser(): void {
+  if (!appState.mpvClient?.connected) {
+    showMpvOsd('Playlist browser requires active playback.');
+    return;
+  }
+  const opened = openPlaylistBrowserRuntime({
+    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+    ensureOverlayWindowsReadyForVisibilityActions: () =>
+      ensureOverlayWindowsReadyForVisibilityActions(),
+    sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
+      sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+  });
+  if (!opened) {
+    showMpvOsd('Playlist browser overlay unavailable.');
+  }
 }
 
 function getResolvedConfig() {
@@ -4109,11 +4128,14 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
+const { playlistBrowserMainDeps } = createPlaylistBrowserIpcRuntime(() => appState.mpvClient);
+
 const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
+    openPlaylistBrowser: () => openPlaylistBrowser(),
     cycleRuntimeOption: (id, direction) => {
       if (!appState.runtimeOptionsManager) {
         return { ok: false, error: 'Runtime options manager unavailable' };
@@ -4290,6 +4312,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
       retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
       appendClipboardVideoToQueue: () => appendClipboardVideoToQueue(),
+      ...playlistBrowserMainDeps,
       getImmersionTracker: () => appState.immersionTracker,
     },
     ankiJimakuDeps: createAnkiJimakuIpcRuntimeServiceDeps({

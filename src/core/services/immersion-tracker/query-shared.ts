@@ -1,4 +1,5 @@
 import type { DatabaseSync } from './sqlite';
+import { nowMs } from './time';
 
 export const ACTIVE_SESSION_METRICS_CTE = `
   WITH active_session_metrics AS (
@@ -279,4 +280,214 @@ export function toDbMs(ms: number | bigint): bigint {
     throw new TypeError(`Invalid database timestamp: ${ms}`);
   }
   return BigInt(Math.trunc(ms));
+}
+
+function normalizeTimestampString(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new TypeError(`Invalid database timestamp: ${value}`);
+  }
+
+  const integerLike = /^(-?)(\d+)(?:\.0+)?$/.exec(trimmed);
+  if (integerLike) {
+    const sign = integerLike[1] ?? '';
+    const digits = (integerLike[2] ?? '0').replace(/^0+(?=\d)/, '');
+    return `${sign}${digits || '0'}`;
+  }
+
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    throw new TypeError(`Invalid database timestamp: ${value}`);
+  }
+  return JSON.stringify(Math.trunc(parsed));
+}
+
+export function toDbTimestamp(ms: number | bigint | string): string {
+  const normalizeParsed = (parsed: number): string => JSON.stringify(Math.trunc(parsed));
+
+  if (typeof ms === 'bigint') {
+    return ms.toString();
+  }
+  if (typeof ms === 'string') {
+    return normalizeTimestampString(ms);
+  }
+  if (!Number.isFinite(ms)) {
+    throw new TypeError(`Invalid database timestamp: ${ms}`);
+  }
+  return normalizeParsed(ms);
+}
+
+export function currentDbTimestamp(): string {
+  const testNowMs = globalThis.__subminerTestNowMs;
+  if (typeof testNowMs === 'string') {
+    return normalizeTimestampString(testNowMs);
+  }
+  if (typeof testNowMs === 'number' && Number.isFinite(testNowMs)) {
+    return toDbTimestamp(testNowMs);
+  }
+  return toDbTimestamp(nowMs());
+}
+
+export function subtractDbTimestamp(
+  timestampMs: number | bigint | string,
+  deltaMs: number | bigint,
+): string {
+  return (BigInt(toDbTimestamp(timestampMs)) - BigInt(deltaMs)).toString();
+}
+
+export function fromDbTimestamp(ms: number | bigint | string | null | undefined): number | null {
+  if (ms === null || ms === undefined) {
+    return null;
+  }
+  if (typeof ms === 'number') {
+    return ms;
+  }
+  if (typeof ms === 'bigint') {
+    return Number(ms);
+  }
+  return Number(ms);
+}
+
+function getNumericCalendarValue(
+  db: DatabaseSync,
+  sql: string,
+  timestampMs: number | bigint | string,
+): number {
+  const row = db.prepare(sql).get(toDbTimestamp(timestampMs)) as
+    | { value: number | string | null }
+    | undefined;
+  return Number(row?.value ?? 0);
+}
+
+export function getLocalEpochDay(
+  db: DatabaseSync,
+  timestampMs: number | bigint | string,
+): number {
+  return getNumericCalendarValue(
+    db,
+    `
+      SELECT CAST(
+        julianday(CAST(? AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5
+        AS INTEGER
+      ) AS value
+    `,
+    timestampMs,
+  );
+}
+
+export function getLocalMonthKey(
+  db: DatabaseSync,
+  timestampMs: number | bigint | string,
+): number {
+  return getNumericCalendarValue(
+    db,
+    `
+      SELECT CAST(
+        strftime('%Y%m', CAST(? AS REAL) / 1000, 'unixepoch', 'localtime')
+        AS INTEGER
+      ) AS value
+    `,
+    timestampMs,
+  );
+}
+
+export function getLocalDayOfWeek(
+  db: DatabaseSync,
+  timestampMs: number | bigint | string,
+): number {
+  return getNumericCalendarValue(
+    db,
+    `
+      SELECT CAST(
+        strftime('%w', CAST(? AS REAL) / 1000, 'unixepoch', 'localtime')
+        AS INTEGER
+      ) AS value
+    `,
+    timestampMs,
+  );
+}
+
+export function getLocalHourOfDay(
+  db: DatabaseSync,
+  timestampMs: number | bigint | string,
+): number {
+  return getNumericCalendarValue(
+    db,
+    `
+      SELECT CAST(
+        strftime('%H', CAST(? AS REAL) / 1000, 'unixepoch', 'localtime')
+        AS INTEGER
+      ) AS value
+    `,
+    timestampMs,
+  );
+}
+
+export function getStartOfLocalDaySec(
+  db: DatabaseSync,
+  timestampMs: number | bigint | string,
+): number {
+  return getNumericCalendarValue(
+    db,
+    `
+      SELECT CAST(
+        strftime(
+          '%s',
+          CAST(? AS REAL) / 1000,
+          'unixepoch',
+          'localtime',
+          'start of day',
+          'utc'
+        ) AS INTEGER
+      ) AS value
+    `,
+    timestampMs,
+  );
+}
+
+export function getStartOfLocalDayTimestamp(
+  db: DatabaseSync,
+  timestampMs: number | bigint | string,
+): string {
+  return `${getStartOfLocalDaySec(db, timestampMs)}000`;
+}
+
+export function getShiftedLocalDayTimestamp(
+  db: DatabaseSync,
+  timestampMs: number | bigint | string,
+  dayOffset: number,
+): string {
+  const normalizedDayOffset = Math.trunc(dayOffset);
+  const modifier = normalizedDayOffset >= 0 ? `+${normalizedDayOffset} days` : `${normalizedDayOffset} days`;
+  const row = db
+    .prepare(
+      `
+        SELECT strftime(
+          '%s',
+          CAST(? AS REAL) / 1000,
+          'unixepoch',
+          'localtime',
+          'start of day',
+          '${modifier}',
+          'utc'
+        ) AS value
+      `,
+    )
+    .get(toDbTimestamp(timestampMs)) as { value: string | number | null } | undefined;
+  return `${row?.value ?? '0'}000`;
+}
+
+export function getShiftedLocalDaySec(
+  db: DatabaseSync,
+  timestampMs: number | bigint | string,
+  dayOffset: number,
+): number {
+  return Number(BigInt(getShiftedLocalDayTimestamp(db, timestampMs, dayOffset)) / 1000n);
+}
+
+export function getStartOfLocalDayMs(
+  db: DatabaseSync,
+  timestampMs: number | bigint | string,
+): number {
+  return getStartOfLocalDaySec(db, timestampMs) * 1000;
 }

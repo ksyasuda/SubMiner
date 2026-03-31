@@ -295,6 +295,8 @@ See [Keyboard Shortcuts](/shortcuts) for the full reference, including mining sh
 `Alt+Shift+Y` is fixed and not configurable. All other shortcuts can be changed under `shortcuts` in your config.
 :::
 
+Useful overlay-local default keybinding: `Ctrl+Alt+P` opens the playlist browser for the current video's parent directory and the live mpv queue so you can append, reorder, remove, or jump between episodes without leaving playback.
+
 Hovering over subtitle text pauses mpv by default; leaving resumes it. Disable with `subtitleStyle.autoPauseVideoOnHover: false`. To also pause while the Yomitan popup is open, set `subtitleStyle.autoPauseVideoOnYomitanPopup: true`.
 
 ### Drag-and-Drop

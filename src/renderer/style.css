@@ -42,6 +42,34 @@ body {
 
 :root {
   --subtitle-sidebar-reserved-width: 0px;
+
+  /* Catppuccin Macchiato */
+  --ctp-rosewater: #f4dbd6;
+  --ctp-flamingo: #f0c6c6;
+  --ctp-pink: #f5bde6;
+  --ctp-mauve: #c6a0f6;
+  --ctp-red: #ed8796;
+  --ctp-maroon: #ee99a0;
+  --ctp-peach: #f5a97f;
+  --ctp-yellow: #eed49f;
+  --ctp-green: #a6da95;
+  --ctp-teal: #8bd5ca;
+  --ctp-sky: #91d7e3;
+  --ctp-sapphire: #7dc4e4;
+  --ctp-blue: #8aadf4;
+  --ctp-lavender: #b7bdf8;
+  --ctp-text: #cad3f5;
+  --ctp-subtext1: #b8c0e0;
+  --ctp-subtext0: #a5adcb;
+  --ctp-overlay2: #939ab7;
+  --ctp-overlay1: #8087a2;
+  --ctp-overlay0: #6e738d;
+  --ctp-surface2: #5b6078;
+  --ctp-surface1: #494d64;
+  --ctp-surface0: #363a4f;
+  --ctp-base: #24273a;
+  --ctp-mantle: #1e2030;
+  --ctp-crust: #181926;
 }
 
 #overlay {
@@ -146,7 +174,7 @@ body {
   border: 1px solid rgba(110, 115, 141, 0.18);
   border-radius: 12px;
   padding: 16px;
-  color: #cad3f5;
+  color: var(--ctp-text);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -166,7 +194,7 @@ body {
 
 .modal-close {
   background: rgba(73, 77, 100, 0.5);
-  color: #a5adcb;
+  color: var(--ctp-subtext0);
   border: 1px solid rgba(110, 115, 141, 0.2);
   border-radius: 6px;
   padding: 6px 10px;
@@ -175,7 +203,7 @@ body {
 
 .modal-close:hover {
   background: rgba(91, 96, 120, 0.6);
-  color: #cad3f5;
+  color: var(--ctp-text);
 }
 
 .modal-body {
@@ -197,14 +225,14 @@ body {
   flex-direction: column;
   gap: 6px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ctp-subtext0);
 }
 
 .jimaku-field input {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(24, 25, 38, 0.85);
+  border: 1px solid rgba(110, 115, 141, 0.2);
   border-radius: 6px;
-  color: #fff;
+  color: var(--ctp-text);
   padding: 6px 8px;
 }
 
@@ -212,20 +240,20 @@ body {
   height: 36px;
   padding: 0 14px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  border: 1px solid rgba(110, 115, 141, 0.35);
+  background: rgba(54, 58, 79, 0.6);
+  color: var(--ctp-text);
   cursor: pointer;
 }
 
 .jimaku-button:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(91, 96, 120, 0.7);
 }
 
 .jimaku-status {
   min-height: 20px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--ctp-subtext1);
 }
 
 .jimaku-section {
@@ -244,7 +272,7 @@ body {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--ctp-overlay2);
 }
 
 .jimaku-list {
@@ -252,14 +280,14 @@ body {
   padding: 0;
   margin: 0;
   overflow-y: auto;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(110, 115, 141, 0.14);
   border-radius: 8px;
   max-height: 180px;
 }
 
 .jimaku-list li {
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(110, 115, 141, 0.1);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -271,18 +299,18 @@ body {
 }
 
 .jimaku-list li.active {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(138, 173, 244, 0.15);
 }
 
 .jimaku-list .jimaku-subtext {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--ctp-overlay2);
 }
 
 .jimaku-link {
   align-self: flex-start;
   background: transparent;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--ctp-blue);
   border: none;
   padding: 0;
   cursor: pointer;
@@ -307,7 +335,7 @@ body {
 
 .youtube-picker-title {
   font-size: 13px;
-  color: #b8c0e0;
+  color: var(--ctp-subtext1);
 }
 
 .youtube-picker-grid {
@@ -321,7 +349,7 @@ body {
   flex-direction: column;
   gap: 6px;
   font-size: 12px;
-  color: #a5adcb;
+  color: var(--ctp-subtext0);
 }
 
 .youtube-picker-field select {
@@ -329,14 +357,14 @@ body {
   border-radius: 8px;
   border: 1px solid rgba(110, 115, 141, 0.28);
   background: rgba(24, 25, 38, 0.92);
-  color: #cad3f5;
+  color: var(--ctp-text);
   padding: 6px 10px;
 }
 
 .youtube-picker-status {
   min-height: 20px;
   font-size: 13px;
-  color: #a5adcb;
+  color: var(--ctp-subtext0);
 }
 
 .youtube-picker-tracks {
@@ -355,7 +383,7 @@ body {
   gap: 12px;
   padding: 10px 12px;
   border-bottom: 1px solid rgba(110, 115, 141, 0.08);
-  color: #cad3f5;
+  color: var(--ctp-text);
 }
 
 .youtube-picker-tracks li:last-child {
@@ -363,7 +391,7 @@ body {
 }
 
 .youtube-picker-track-meta {
-  color: #6e738d;
+  color: var(--ctp-overlay0);
   font-size: 12px;
 }
 
@@ -372,9 +400,213 @@ body {
   justify-content: flex-end;
 }
 
+.playlist-browser-content {
+  width: min(1480px, calc(100vw - 40px));
+  max-width: none;
+  min-height: min(760px, calc(100vh - 56px));
+  max-height: calc(100vh - 40px);
+  padding: 18px 18px 16px;
+  background:
+    radial-gradient(circle at top left, rgba(138, 173, 244, 0.13), transparent 28%),
+    linear-gradient(180deg, rgba(36, 39, 58, 0.985), rgba(30, 32, 48, 0.985));
+  border-color: rgba(138, 173, 244, 0.24);
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+}
+
+.playlist-browser-body {
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
+}
+
+.playlist-browser-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ctp-lavender);
+  overflow-wrap: anywhere;
+}
+
+.playlist-browser-status {
+  min-height: 20px;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ctp-overlay2);
+}
+
+.playlist-browser-grid {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1.15fr) minmax(420px, 0.85fr);
+  gap: 18px;
+}
+
+.playlist-browser-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(110, 115, 141, 0.16);
+  background:
+    linear-gradient(180deg, rgba(54, 58, 79, 0.55), rgba(36, 39, 58, 0.6));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.playlist-browser-pane-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ctp-blue);
+}
+
+.playlist-browser-list {
+  flex: 1;
+  min-height: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(110, 115, 141, 0.14);
+  background: rgba(30, 32, 48, 0.5);
+}
+
+.playlist-browser-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(110, 115, 141, 0.09);
+  color: var(--ctp-text);
+}
+
+.playlist-browser-row:last-child {
+  border-bottom: none;
+}
+
+.playlist-browser-row.active {
+  background: rgba(138, 173, 244, 0.14);
+}
+
+.playlist-browser-row.current {
+  background:
+    linear-gradient(90deg, rgba(138, 173, 244, 0.12), rgba(138, 173, 244, 0.03) 28%, transparent);
+  box-shadow: inset 3px 0 0 #8aadf4;
+}
+
+.playlist-browser-row-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.playlist-browser-row-label {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.playlist-browser-row-meta {
+  font-size: 12px;
+  color: var(--ctp-blue);
+  line-height: 1.35;
+}
+
+.playlist-browser-row-submeta {
+  font-size: 12px;
+  color: var(--ctp-subtext0);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.playlist-browser-row-trailing {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.playlist-browser-chip {
+  border: 1px solid rgba(138, 173, 244, 0.24);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: rgba(138, 173, 244, 0.1);
+  color: var(--ctp-lavender);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.playlist-browser-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  max-width: 240px;
+}
+
+.playlist-browser-action {
+  border: 1px solid rgba(138, 173, 244, 0.24);
+  background: rgba(49, 54, 83, 0.78);
+  color: var(--ctp-text);
+  border-radius: 9px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.playlist-browser-action:hover {
+  background: rgba(70, 78, 117, 0.88);
+  color: var(--ctp-lavender);
+}
+
+.playlist-browser-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 2px;
+  font-size: 12px;
+  color: var(--ctp-overlay0);
+}
+
 @media (max-width: 700px) {
   .youtube-picker-grid {
     grid-template-columns: 1fr;
+  }
+
+  .playlist-browser-content {
+    width: calc(100vw - 20px);
+    min-height: calc(100vh - 24px);
+    max-height: calc(100vh - 20px);
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .playlist-browser-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .playlist-browser-row,
+  .playlist-browser-row-trailing {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .playlist-browser-row-actions {
+    max-width: none;
+    justify-content: flex-start;
   }
 }
 
@@ -923,7 +1155,7 @@ iframe[id^='yomitan-popup'] {
 
 .kiku-info-text {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--ctp-subtext1);
   line-height: 1.5;
 }
 
@@ -934,8 +1166,8 @@ iframe[id^='yomitan-popup'] {
 }
 
 .kiku-card {
-  background: rgba(40, 40, 40, 0.8);
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  background: rgba(54, 58, 79, 0.85);
+  border: 2px solid rgba(110, 115, 141, 0.2);
   border-radius: 10px;
   padding: 14px;
   display: flex;
@@ -947,35 +1179,35 @@ iframe[id^='yomitan-popup'] {
 }
 
 .kiku-card:hover {
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(110, 115, 141, 0.45);
 }
 
 .kiku-card.active {
-  border-color: rgba(100, 180, 255, 0.8);
-  background: rgba(40, 60, 90, 0.5);
+  border-color: rgba(138, 173, 244, 0.85);
+  background: rgba(138, 173, 244, 0.12);
 }
 
 .kiku-card-label {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--ctp-overlay1);
   font-weight: 600;
 }
 
 .kiku-card.active .kiku-card-label {
-  color: rgba(100, 180, 255, 0.9);
+  color: var(--ctp-blue);
 }
 
 .kiku-card-expression {
   font-size: 22px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ctp-text);
 }
 
 .kiku-card-sentence {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--ctp-subtext0);
   max-height: 52px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -984,7 +1216,7 @@ iframe[id^='yomitan-popup'] {
 
 .kiku-card-meta {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--ctp-overlay1);
   display: flex;
   gap: 10px;
 }
@@ -996,7 +1228,7 @@ iframe[id^='yomitan-popup'] {
   align-items: center;
   gap: 10px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(110, 115, 141, 0.14);
 }
 
 .kiku-preview-header {
@@ -1010,7 +1242,7 @@ iframe[id^='yomitan-popup'] {
 .kiku-preview-title {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--ctp-text);
 }
 
 .kiku-preview-toggle {
@@ -1021,17 +1253,17 @@ iframe[id^='yomitan-popup'] {
 .kiku-preview-toggle button {
   padding: 5px 10px;
   border-radius: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(110, 115, 141, 0.2);
+  background: rgba(54, 58, 79, 0.4);
+  color: var(--ctp-subtext0);
   cursor: pointer;
   font-size: 12px;
 }
 
 .kiku-preview-toggle button.active {
-  border-color: rgba(100, 180, 255, 0.45);
-  background: rgba(100, 180, 255, 0.16);
-  color: rgba(100, 180, 255, 0.95);
+  border-color: rgba(138, 173, 244, 0.45);
+  background: rgba(138, 173, 244, 0.16);
+  color: var(--ctp-blue);
 }
 
 .kiku-preview-json {
@@ -1041,19 +1273,19 @@ iframe[id^='yomitan-popup'] {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(110, 115, 141, 0.2);
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.34);
+  background: rgba(24, 25, 38, 0.8);
   padding: 10px;
   font-size: 11px;
   line-height: 1.45;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--ctp-text);
 }
 
 .kiku-preview-error {
   margin: 0 0 10px;
   font-size: 12px;
-  color: #ff8f8f;
+  color: var(--ctp-red);
 }
 
 .kiku-delete-toggle {
@@ -1061,12 +1293,12 @@ iframe[id^='yomitan-popup'] {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--ctp-subtext1);
   user-select: none;
 }
 
 .kiku-delete-toggle input {
-  accent-color: rgba(100, 180, 255, 0.9);
+  accent-color: var(--ctp-blue);
 }
 
 .kiku-confirm-button {
@@ -1074,7 +1306,7 @@ iframe[id^='yomitan-popup'] {
   border-radius: 6px;
   border: 1px solid rgba(138, 173, 244, 0.4);
   background: rgba(138, 173, 244, 0.15);
-  color: #8aadf4;
+  color: var(--ctp-blue);
   font-weight: 600;
   cursor: pointer;
 }
@@ -1098,7 +1330,7 @@ iframe[id^='yomitan-popup'] {
   flex-direction: column;
   gap: 6px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--ctp-subtext1);
 }
 
 .subsync-radio {
@@ -1107,14 +1339,14 @@ iframe[id^='yomitan-popup'] {
   gap: 8px;
   margin-right: 14px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--ctp-subtext1);
 }
 
 .subsync-field select {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(24, 25, 38, 0.9);
+  border: 1px solid rgba(110, 115, 141, 0.2);
   border-radius: 6px;
-  color: #fff;
+  color: var(--ctp-text);
   padding: 8px 10px;
 }
 
@@ -1126,21 +1358,21 @@ iframe[id^='yomitan-popup'] {
 .kiku-cancel-button {
   padding: 8px 16px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(110, 115, 141, 0.25);
   background: transparent;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--ctp-overlay2);
   cursor: pointer;
 }
 
 .kiku-cancel-button:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: rgba(54, 58, 79, 0.5);
+  color: var(--ctp-text);
 }
 
 .kiku-hint {
   text-align: center;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--ctp-overlay0);
 }
 
 .runtime-modal-content {
@@ -1149,14 +1381,14 @@ iframe[id^='yomitan-popup'] {
 
 .runtime-options-hint {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--ctp-subtext0);
 }
 
 .runtime-options-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(110, 115, 141, 0.2);
   border-radius: 8px;
   max-height: 320px;
   overflow-y: auto;
@@ -1171,7 +1403,7 @@ iframe[id^='yomitan-popup'] {
   flex-direction: column;
   gap: 4px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(110, 115, 141, 0.1);
   cursor: pointer;
 }
 
@@ -1188,37 +1420,37 @@ iframe[id^='yomitan-popup'] {
 }
 
 .runtime-options-item.active {
-  background: rgba(100, 180, 255, 0.15);
+  background: rgba(138, 173, 244, 0.15);
 }
 
 .runtime-options-item-button:focus-visible {
-  outline: 2px solid rgba(100, 180, 255, 0.85);
+  outline: 2px solid rgba(138, 173, 244, 0.85);
   outline-offset: -2px;
 }
 
 .runtime-options-label {
   font-size: 14px;
-  color: #fff;
+  color: var(--ctp-text);
 }
 
 .runtime-options-value {
   font-size: 13px;
-  color: rgba(100, 180, 255, 0.9);
+  color: var(--ctp-blue);
 }
 
 .runtime-options-allowed {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--ctp-overlay1);
 }
 
 .runtime-options-status {
   min-height: 18px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--ctp-subtext0);
 }
 
 .runtime-options-status.error {
-  color: #ff8f8f;
+  color: var(--ctp-red);
 }
 
 .controller-select-field {
@@ -1227,22 +1459,22 @@ iframe[id^='yomitan-popup'] {
   gap: 6px;
   margin-bottom: 12px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--ctp-text);
 }
 
 .controller-select-field select {
   min-height: 38px;
   padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(110, 115, 141, 0.2);
   border-radius: 8px;
-  background: rgba(10, 14, 20, 0.9);
-  color: rgba(255, 255, 255, 0.94);
+  background: rgba(24, 25, 38, 0.9);
+  color: var(--ctp-text);
 }
 
 .controller-select-summary {
   margin-bottom: 12px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ctp-subtext0);
 }
 
 .controller-config-list {
@@ -1252,18 +1484,18 @@ iframe[id^='yomitan-popup'] {
   overflow-y: auto;
   margin-bottom: 12px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  scrollbar-color: rgba(110, 115, 141, 0.25) transparent;
 }
 
 .controller-config-group {
   margin-top: 14px;
   padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(110, 115, 141, 0.12);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(120, 190, 255, 0.9);
+  color: var(--ctp-blue);
 }
 
 .controller-config-group:first-child {
@@ -1274,7 +1506,7 @@ iframe[id^='yomitan-popup'] {
   display: flex;
   align-items: center;
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(110, 115, 141, 0.1);
   background: transparent;
   cursor: pointer;
   transition: background 120ms ease;
@@ -1285,19 +1517,19 @@ iframe[id^='yomitan-popup'] {
 }
 
 .controller-config-row:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(54, 58, 79, 0.4);
 }
 
 .controller-config-row.expanded {
-  background: rgba(100, 180, 255, 0.06);
-  border-color: rgba(100, 180, 255, 0.15);
+  background: rgba(138, 173, 244, 0.08);
+  border-color: rgba(138, 173, 244, 0.2);
 }
 
 .controller-config-label {
   flex: 1;
   min-width: 0;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--ctp-text);
 }
 
 .controller-config-right {
@@ -1314,31 +1546,31 @@ iframe[id^='yomitan-popup'] {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  background: rgba(100, 180, 255, 0.12);
-  color: rgba(100, 180, 255, 0.95);
+  background: rgba(138, 173, 244, 0.12);
+  color: var(--ctp-blue);
   white-space: nowrap;
 }
 
 .controller-config-badge.disabled {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.4);
+  background: rgba(110, 115, 141, 0.1);
+  color: var(--ctp-overlay0);
 }
 
 .controller-config-edit-icon {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ctp-overlay0);
   transition: color 120ms ease;
 }
 
 .controller-config-row:hover .controller-config-edit-icon {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--ctp-overlay2);
 }
 
 .controller-config-edit-panel {
   overflow: hidden;
   animation: configEditSlideIn 180ms ease-out;
-  border-bottom: 1px solid rgba(100, 180, 255, 0.12);
-  background: rgba(100, 180, 255, 0.04);
+  border-bottom: 1px solid rgba(138, 173, 244, 0.15);
+  background: rgba(138, 173, 244, 0.04);
 }
 
 @keyframes configEditSlideIn {
@@ -1362,11 +1594,11 @@ iframe[id^='yomitan-popup'] {
 
 .controller-config-edit-hint {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--ctp-overlay2);
 }
 
 .controller-config-edit-hint.learning {
-  color: rgba(100, 180, 255, 0.95);
+  color: var(--ctp-blue);
   animation: configLearnPulse 1.2s ease-in-out infinite;
 }
 
@@ -1391,7 +1623,7 @@ iframe[id^='yomitan-popup'] {
   border-radius: 5px;
   border: 1px solid rgba(138, 173, 244, 0.4);
   background: rgba(138, 173, 244, 0.15);
-  color: #8aadf4;
+  color: var(--ctp-blue);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -1412,7 +1644,7 @@ iframe[id^='yomitan-popup'] {
   border-radius: 5px;
   border: 1px solid rgba(110, 115, 141, 0.2);
   background: transparent;
-  color: #6e738d;
+  color: var(--ctp-overlay0);
   font-size: 12px;
   cursor: pointer;
   transition:
@@ -1422,7 +1654,7 @@ iframe[id^='yomitan-popup'] {
 
 .btn-secondary:hover {
   background: rgba(73, 77, 100, 0.4);
-  color: #a5adcb;
+  color: var(--ctp-subtext0);
 }
 
 .controller-debug-content {
@@ -1455,7 +1687,7 @@ iframe[id^='yomitan-popup'] {
 .controller-debug-summary {
   min-height: 18px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.86);
+  color: var(--ctp-text);
   line-height: 1.45;
 }
 
@@ -1482,9 +1714,9 @@ iframe[id^='yomitan-popup'] {
   margin: 0;
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.38);
-  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(110, 115, 141, 0.2);
+  background: rgba(24, 25, 38, 0.85);
+  color: var(--ctp-text);
   font-size: 12px;
   line-height: 1.5;
   overflow: auto;
@@ -1519,7 +1751,7 @@ body.subtitle-sidebar-embedded-open .subtitle-sidebar-modal {
   );
   font-size: var(--subtitle-sidebar-font-size, 16px);
   background: var(--subtitle-sidebar-background-color, rgba(73, 77, 100, 0.9));
-  color: var(--subtitle-sidebar-text-color, #cad3f5);
+  color: var(--subtitle-sidebar-text-color, var(--ctp-text));
   border: 1px solid rgba(110, 115, 141, 0.18);
   border-radius: 10px;
   box-shadow:
@@ -1542,7 +1774,7 @@ body.subtitle-sidebar-embedded-open .subtitle-sidebar-modal {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: #b8c0e0;
+  color: var(--ctp-subtext1);
   text-transform: uppercase;
 }
 
@@ -1552,13 +1784,13 @@ body.subtitle-sidebar-embedded-open .subtitle-sidebar-modal {
   border-radius: 6px;
   background: rgba(73, 77, 100, 0.5);
   border: 1px solid rgba(110, 115, 141, 0.2);
-  color: #a5adcb;
+  color: var(--ctp-subtext0);
   transition: all 140ms ease;
 }
 
 .subtitle-sidebar-content .modal-close:hover {
   background: rgba(91, 96, 120, 0.6);
-  color: #cad3f5;
+  color: var(--ctp-text);
   border-color: rgba(110, 115, 141, 0.35);
 }
 
@@ -1586,7 +1818,7 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
 .subtitle-sidebar-content .runtime-options-status {
   font-size: 11px;
   padding: 4px 14px;
-  color: #6e738d;
+  color: var(--ctp-overlay0);
   letter-spacing: 0.02em;
 }
 
@@ -1666,34 +1898,34 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.03em;
-  color: var(--subtitle-sidebar-timestamp-color, #6e738d);
+  color: var(--subtitle-sidebar-timestamp-color, var(--ctp-overlay0));
   padding-top: 2px;
 }
 
 .subtitle-sidebar-item:hover .subtitle-sidebar-timestamp {
-  color: var(--subtitle-sidebar-timestamp-color, #a5adcb);
+  color: var(--subtitle-sidebar-timestamp-color, var(--ctp-subtext0));
 }
 
 .subtitle-sidebar-item.active .subtitle-sidebar-timestamp {
-  color: var(--subtitle-sidebar-active-line-color, #f5bde6);
+  color: var(--subtitle-sidebar-active-line-color, var(--ctp-pink));
   opacity: 0.75;
 }
 
 .subtitle-sidebar-item.active .subtitle-sidebar-text {
-  color: var(--subtitle-sidebar-active-line-color, #f5bde6);
+  color: var(--subtitle-sidebar-active-line-color, var(--ctp-pink));
 }
 
 .subtitle-sidebar-text {
   white-space: pre-wrap;
   line-height: 1.5;
   font-size: 1em;
-  color: var(--subtitle-sidebar-text-color, #cad3f5);
+  color: var(--subtitle-sidebar-text-color, var(--ctp-text));
 }
 
 .session-help-content {
   width: min(760px, 92%);
   max-height: 84%;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--ctp-text);
 }
 
 @media (max-width: 720px) {
@@ -1707,17 +1939,17 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
 .session-help-status {
   min-height: 18px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--ctp-subtext1);
   line-height: 1.45;
 }
 
 .session-help-shortcut {
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.97);
+  color: var(--ctp-text);
 }
 
 .session-help-warning {
-  color: #f8a100;
+  color: var(--ctp-yellow);
 }
 
 .session-help-content-list {
@@ -1732,27 +1964,27 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
 .session-help-filter {
   width: 100%;
   min-height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(110, 115, 141, 0.3);
   border-radius: 8px;
   padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.45);
-  color: #fff;
+  background: rgba(24, 25, 38, 0.9);
+  color: var(--ctp-text);
   font-size: 13px;
   line-height: 1.2;
 }
 
 .session-help-filter::placeholder {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--ctp-overlay0);
 }
 
 .session-help-filter:focus {
   outline: none;
-  border-color: rgba(137, 180, 255, 0.6);
-  box-shadow: 0 0 0 2px rgba(137, 180, 255, 0.2);
+  border-color: rgba(138, 173, 244, 0.6);
+  box-shadow: 0 0 0 2px rgba(138, 173, 244, 0.2);
 }
 
 .session-help-content-no-results {
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--ctp-subtext0);
   padding: 12px;
   font-size: 13px;
 }
@@ -1762,9 +1994,9 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
   flex-direction: column;
   gap: 8px;
   padding: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(110, 115, 141, 0.15);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(54, 58, 79, 0.15);
   backdrop-filter: blur(1px);
 }
 
@@ -1773,7 +2005,7 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--ctp-overlay1);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1784,7 +2016,7 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
 .session-help-item-list {
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(110, 115, 141, 0.15);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -1799,9 +2031,9 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
   gap: 12px;
   text-align: left;
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(110, 115, 141, 0.1);
   background: transparent;
-  color: #fff;
+  color: var(--ctp-text);
   cursor: pointer;
 }
 
@@ -1812,12 +2044,12 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
 .session-help-item:hover,
 .session-help-item:focus-visible,
 .session-help-item.active {
-  background: rgba(137, 180, 255, 0.2);
+  background: rgba(138, 173, 244, 0.2);
   outline: none;
 }
 
 .session-help-item.active {
-  box-shadow: inset 3px 0 0 0 rgba(137, 180, 255, 0.9);
+  box-shadow: inset 3px 0 0 0 var(--ctp-blue);
 }
 
 .session-help-item-left {
@@ -1838,21 +2070,21 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
 .session-help-key {
   font-size: 12px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--ctp-text);
   white-space: nowrap;
   padding: 4px 9px;
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
   border-radius: 999px;
-  background: rgba(137, 180, 255, 0.16);
-  border: 1px solid rgba(137, 180, 255, 0.35);
+  background: rgba(138, 173, 244, 0.16);
+  border: 1px solid rgba(138, 173, 244, 0.35);
   letter-spacing: 0.01em;
 }
 
 .session-help-action {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.84);
+  color: var(--ctp-subtext1);
   white-space: normal;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1863,7 +2095,7 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(110, 115, 141, 0.4);
   flex: 0 0 auto;
 }
 

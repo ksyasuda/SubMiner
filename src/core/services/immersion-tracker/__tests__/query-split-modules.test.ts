@@ -50,6 +50,7 @@ import {
   updateAnimeAnilistInfo,
   upsertCoverArt,
 } from '../query-maintenance.js';
+import { getLocalEpochDay } from '../query-shared.js';
 import { EVENT_CARD_MINED, EVENT_SUBTITLE_LINE, SOURCE_TYPE_LOCAL } from '../types.js';
 
 function makeDbPath(): string {
@@ -360,9 +361,6 @@ test('split library helpers return anime/media session and analytics rows', () =
 
   try {
     const now = new Date();
-    const todayLocalDay = Math.floor(
-      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 86_400_000,
-    );
     const animeId = getOrCreateAnimeRecord(db, {
       parsedTitle: 'Library Anime',
       canonicalTitle: 'Library Anime',
@@ -398,6 +396,7 @@ test('split library helpers return anime/media session and analytics rows', () =
       0,
     ).getTime();
     const sessionId = startSessionRecord(db, videoId, startedAtMs).sessionId;
+    const todayLocalDay = getLocalEpochDay(db, startedAtMs);
     finalizeSessionMetrics(db, sessionId, startedAtMs, {
       endedAtMs: startedAtMs + 55_000,
       totalWatchedMs: 55_000,

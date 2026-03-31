@@ -309,6 +309,9 @@ export class ImmersionTrackerService {
   private readonly eventsRetentionMs: number;
   private readonly telemetryRetentionMs: number;
   private readonly sessionsRetentionMs: number;
+  private readonly eventsRetentionDays: number | null;
+  private readonly telemetryRetentionDays: number | null;
+  private readonly sessionsRetentionDays: number | null;
   private readonly dailyRollupRetentionMs: number;
   private readonly monthlyRollupRetentionMs: number;
   private readonly vacuumIntervalMs: number;
@@ -365,46 +368,54 @@ export class ImmersionTrackerService {
     );
 
     const retention = policy.retention ?? {};
-    const daysToRetentionMs = (
+    const daysToRetentionWindow = (
       value: number | undefined,
-      fallbackMs: number,
+      fallbackDays: number,
       maxDays: number,
-    ): number => {
-      const fallbackDays = Math.floor(fallbackMs / 86_400_000);
+    ): { ms: number; days: number | null } => {
       const resolvedDays = resolveBoundedInt(value, fallbackDays, 0, maxDays);
-      return resolvedDays === 0 ? Number.POSITIVE_INFINITY : resolvedDays * 86_400_000;
+      return {
+        ms: resolvedDays === 0 ? Number.POSITIVE_INFINITY : resolvedDays * 86_400_000,
+        days: resolvedDays === 0 ? null : resolvedDays,
+      };
     };
 
-    this.eventsRetentionMs = daysToRetentionMs(
+    const eventsRetention = daysToRetentionWindow(
       retention.eventsDays,
-      DEFAULT_EVENTS_RETENTION_MS,
+      7,
       3650,
     );
-    this.telemetryRetentionMs = daysToRetentionMs(
+    const telemetryRetention = daysToRetentionWindow(
       retention.telemetryDays,
-      DEFAULT_TELEMETRY_RETENTION_MS,
+      30,
       3650,
     );
-    this.sessionsRetentionMs = daysToRetentionMs(
+    const sessionsRetention = daysToRetentionWindow(
       retention.sessionsDays,
-      DEFAULT_SESSIONS_RETENTION_MS,
+      30,
       3650,
     );
-    this.dailyRollupRetentionMs = daysToRetentionMs(
+    this.eventsRetentionMs = eventsRetention.ms;
+    this.eventsRetentionDays = eventsRetention.days;
+    this.telemetryRetentionMs = telemetryRetention.ms;
+    this.telemetryRetentionDays = telemetryRetention.days;
+    this.sessionsRetentionMs = sessionsRetention.ms;
+    this.sessionsRetentionDays = sessionsRetention.days;
+    this.dailyRollupRetentionMs = daysToRetentionWindow(
       retention.dailyRollupsDays,
-      DEFAULT_DAILY_ROLLUP_RETENTION_MS,
+      365,
       36500,
-    );
-    this.monthlyRollupRetentionMs = daysToRetentionMs(
+    ).ms;
+    this.monthlyRollupRetentionMs = daysToRetentionWindow(
       retention.monthlyRollupsDays,
-      DEFAULT_MONTHLY_ROLLUP_RETENTION_MS,
+      5 * 365,
       36500,
-    );
-    this.vacuumIntervalMs = daysToRetentionMs(
+    ).ms;
+    this.vacuumIntervalMs = daysToRetentionWindow(
       retention.vacuumIntervalDays,
-      DEFAULT_VACUUM_INTERVAL_MS,
+      7,
       3650,
-    );
+    ).ms;
     this.db = new Database(this.dbPath);
     applyPragmas(this.db);
     ensureSchema(this.db);
@@ -1604,6 +1615,9 @@ export class ImmersionTrackerService {
           eventsRetentionMs: this.eventsRetentionMs,
           telemetryRetentionMs: this.telemetryRetentionMs,
           sessionsRetentionMs: this.sessionsRetentionMs,
+          eventsRetentionDays: this.eventsRetentionDays ?? undefined,
+          telemetryRetentionDays: this.telemetryRetentionDays ?? undefined,
+          sessionsRetentionDays: this.sessionsRetentionDays ?? undefined,
         });
       }
       if (

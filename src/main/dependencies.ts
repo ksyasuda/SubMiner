@@ -93,6 +93,11 @@ export interface MainIpcRuntimeServiceDepsParams {
   getAnilistQueueStatus: IpcDepsRuntimeOptions['getAnilistQueueStatus'];
   retryAnilistQueueNow: IpcDepsRuntimeOptions['retryAnilistQueueNow'];
   appendClipboardVideoToQueue: IpcDepsRuntimeOptions['appendClipboardVideoToQueue'];
+  getPlaylistBrowserSnapshot: IpcDepsRuntimeOptions['getPlaylistBrowserSnapshot'];
+  appendPlaylistBrowserFile: IpcDepsRuntimeOptions['appendPlaylistBrowserFile'];
+  playPlaylistBrowserIndex: IpcDepsRuntimeOptions['playPlaylistBrowserIndex'];
+  removePlaylistBrowserIndex: IpcDepsRuntimeOptions['removePlaylistBrowserIndex'];
+  movePlaylistBrowserIndex: IpcDepsRuntimeOptions['movePlaylistBrowserIndex'];
   getImmersionTracker?: IpcDepsRuntimeOptions['getImmersionTracker'];
 }
 
@@ -193,6 +198,7 @@ export interface MpvCommandRuntimeServiceDepsParams {
   triggerSubsyncFromConfig: HandleMpvCommandFromIpcOptions['triggerSubsyncFromConfig'];
   openRuntimeOptionsPalette: HandleMpvCommandFromIpcOptions['openRuntimeOptionsPalette'];
   openYoutubeTrackPicker: HandleMpvCommandFromIpcOptions['openYoutubeTrackPicker'];
+  openPlaylistBrowser: HandleMpvCommandFromIpcOptions['openPlaylistBrowser'];
   showMpvOsd: HandleMpvCommandFromIpcOptions['showMpvOsd'];
   mpvReplaySubtitle: HandleMpvCommandFromIpcOptions['mpvReplaySubtitle'];
   mpvPlayNextSubtitle: HandleMpvCommandFromIpcOptions['mpvPlayNextSubtitle'];
@@ -247,6 +253,11 @@ export function createMainIpcRuntimeServiceDeps(
     getAnilistQueueStatus: params.getAnilistQueueStatus,
     retryAnilistQueueNow: params.retryAnilistQueueNow,
     appendClipboardVideoToQueue: params.appendClipboardVideoToQueue,
+    getPlaylistBrowserSnapshot: params.getPlaylistBrowserSnapshot,
+    appendPlaylistBrowserFile: params.appendPlaylistBrowserFile,
+    playPlaylistBrowserIndex: params.playPlaylistBrowserIndex,
+    removePlaylistBrowserIndex: params.removePlaylistBrowserIndex,
+    movePlaylistBrowserIndex: params.movePlaylistBrowserIndex,
     getImmersionTracker: params.getImmersionTracker,
   };
 }
@@ -358,6 +369,7 @@ export function createMpvCommandRuntimeServiceDeps(
     triggerSubsyncFromConfig: params.triggerSubsyncFromConfig,
     openRuntimeOptionsPalette: params.openRuntimeOptionsPalette,
     openYoutubeTrackPicker: params.openYoutubeTrackPicker,
+    openPlaylistBrowser: params.openPlaylistBrowser,
     runtimeOptionsCycle: params.runtimeOptionsCycle,
     showMpvOsd: params.showMpvOsd,
     mpvReplaySubtitle: params.mpvReplaySubtitle,

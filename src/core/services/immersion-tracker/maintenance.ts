@@ -1,13 +1,13 @@
 import type { DatabaseSync } from './sqlite';
 import { nowMs } from './time';
-import { toDbMs } from './query-shared';
+import { subtractDbTimestamp, toDbTimestamp } from './query-shared';
 
 const ROLLUP_STATE_KEY = 'last_rollup_sample_ms';
 const DAILY_MS = 86_400_000;
 const ZERO_ID = 0;
 
 interface RollupStateRow {
-  state_value: number;
+  state_value: string;
 }
 
 interface RollupGroupRow {
@@ -51,12 +51,25 @@ export function pruneRawRetention(
     eventsRetentionMs: number;
     telemetryRetentionMs: number;
     sessionsRetentionMs: number;
+    eventsRetentionDays?: number;
+    telemetryRetentionDays?: number;
+    sessionsRetentionDays?: number;
   },
 ): RawRetentionResult {
+  const resolveCutoff = (
+    retentionMs: number,
+    retentionDays: number | undefined,
+  ): string => {
+    if (retentionDays !== undefined) {
+      return subtractDbTimestamp(currentMs, BigInt(retentionDays) * 86_400_000n);
+    }
+    return subtractDbTimestamp(currentMs, retentionMs);
+  };
+
   const deletedSessionEvents = Number.isFinite(policy.eventsRetentionMs)
     ? (
         db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(
-          toDbMs(currentMs - policy.eventsRetentionMs),
+          resolveCutoff(policy.eventsRetentionMs, policy.eventsRetentionDays),
         ) as { changes: number }
       ).changes
     : 0;
@@ -64,14 +77,18 @@ export function pruneRawRetention(
     ? (
         db
           .prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`)
-          .run(toDbMs(currentMs - policy.telemetryRetentionMs)) as { changes: number }
+          .run(resolveCutoff(policy.telemetryRetentionMs, policy.telemetryRetentionDays)) as {
+          changes: number;
+        }
       ).changes
     : 0;
   const deletedEndedSessions = Number.isFinite(policy.sessionsRetentionMs)
     ? (
         db
           .prepare(`DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`)
-          .run(toDbMs(currentMs - policy.sessionsRetentionMs)) as { changes: number }
+          .run(resolveCutoff(policy.sessionsRetentionMs, policy.sessionsRetentionDays)) as {
+          changes: number;
+        }
       ).changes
     : 0;
 
@@ -115,14 +132,14 @@ export function pruneRollupRetention(
   };
 }
 
-function getLastRollupSampleMs(db: DatabaseSync): number {
+function getLastRollupSampleMs(db: DatabaseSync): string {
   const row = db
     .prepare(`SELECT state_value FROM imm_rollup_state WHERE state_key = ? LIMIT 1`)
     .get(ROLLUP_STATE_KEY) as unknown as RollupStateRow | null;
-  return row ? Number(row.state_value) : ZERO_ID;
+  return row ? row.state_value : String(ZERO_ID);
 }
 
-function setLastRollupSampleMs(db: DatabaseSync, sampleMs: number | bigint): void {
+function setLastRollupSampleMs(db: DatabaseSync, sampleMs: number | bigint | string): void {
   db.prepare(
     `INSERT INTO imm_rollup_state (state_key, state_value)
        VALUES (?, ?)
@@ -141,7 +158,7 @@ function resetRollups(db: DatabaseSync): void {
 function upsertDailyRollupsForGroups(
   db: DatabaseSync,
   groups: Array<{ rollupDay: number; videoId: number }>,
-  rollupNowMs: bigint,
+  rollupNowMs: number | string,
 ): void {
   if (groups.length === 0) {
     return;
@@ -217,7 +234,7 @@ function upsertDailyRollupsForGroups(
 function upsertMonthlyRollupsForGroups(
   db: DatabaseSync,
   groups: Array<{ rollupMonth: number; videoId: number }>,
-  rollupNowMs: bigint,
+  rollupNowMs: number | string,
 ): void {
   if (groups.length === 0) {
     return;
@@ -268,7 +285,7 @@ function upsertMonthlyRollupsForGroups(
 
 function getAffectedRollupGroups(
   db: DatabaseSync,
-  lastRollupSampleMs: number,
+  lastRollupSampleMs: number | string,
 ): Array<{ rollupDay: number; rollupMonth: number; videoId: number }> {
   return (
     db
@@ -321,7 +338,7 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
     return;
   }
 
-  const rollupNowMs = toDbMs(nowMs());
+  const rollupNowMs = toDbTimestamp(nowMs());
   const lastRollupSampleMs = getLastRollupSampleMs(db);
 
   const maxSampleRow = db
@@ -356,7 +373,7 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
   try {
     upsertDailyRollupsForGroups(db, dailyGroups, rollupNowMs);
     upsertMonthlyRollupsForGroups(db, monthlyGroups, rollupNowMs);
-    setLastRollupSampleMs(db, toDbMs(maxSampleRow.maxSampleMs ?? ZERO_ID));
+    setLastRollupSampleMs(db, toDbTimestamp(maxSampleRow.maxSampleMs ?? ZERO_ID));
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -365,7 +382,7 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
 }
 
 export function rebuildRollupsInTransaction(db: DatabaseSync): void {
-  const rollupNowMs = toDbMs(nowMs());
+  const rollupNowMs = toDbTimestamp(nowMs());
   const maxSampleRow = db
     .prepare('SELECT MAX(sample_ms) AS maxSampleMs FROM imm_session_telemetry')
     .get() as unknown as RollupTelemetryResult | null;
@@ -377,7 +394,7 @@ export function rebuildRollupsInTransaction(db: DatabaseSync): void {
 
   const affectedGroups = getAffectedRollupGroups(db, ZERO_ID);
   if (affectedGroups.length === 0) {
-    setLastRollupSampleMs(db, toDbMs(maxSampleRow.maxSampleMs ?? ZERO_ID));
+    setLastRollupSampleMs(db, toDbTimestamp(maxSampleRow.maxSampleMs ?? ZERO_ID));
     return;
   }
 
@@ -396,7 +413,7 @@ export function rebuildRollupsInTransaction(db: DatabaseSync): void {
 
   upsertDailyRollupsForGroups(db, dailyGroups, rollupNowMs);
   upsertMonthlyRollupsForGroups(db, monthlyGroups, rollupNowMs);
-  setLastRollupSampleMs(db, toDbMs(maxSampleRow.maxSampleMs ?? ZERO_ID));
+  setLastRollupSampleMs(db, toDbTimestamp(maxSampleRow.maxSampleMs ?? ZERO_ID));
 }
 
 export function runOptimizeMaintenance(db: DatabaseSync): void {

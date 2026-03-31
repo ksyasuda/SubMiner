@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- AniList: Stopped post-watch tracking from sending a second progress update when the current episode was already satisfied by a ready retry item in the same watch-completion pass.
+
 ## v0.10.0 (2026-03-29)
 
 ### Changed

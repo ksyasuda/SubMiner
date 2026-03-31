@@ -80,6 +80,7 @@ test('default keybindings include primary and secondary subtitle track cycling o
   assert.deepEqual(keybindingMap.get('KeyJ'), ['cycle', 'sid']);
   assert.deepEqual(keybindingMap.get('Shift+KeyJ'), ['cycle', 'secondary-sid']);
   assert.deepEqual(keybindingMap.get('Ctrl+Alt+KeyC'), ['__youtube-picker-open']);
+  assert.deepEqual(keybindingMap.get('Ctrl+Alt+KeyP'), ['__playlist-browser-open']);
 });
 
 test('default keybindings include fullscreen on F', () => {

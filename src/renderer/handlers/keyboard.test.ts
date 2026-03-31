@@ -294,6 +294,7 @@ function createKeyboardHandlerHarness() {
   let controllerSelectOpenCount = 0;
   let controllerDebugOpenCount = 0;
   let controllerSelectKeydownCount = 0;
+  let playlistBrowserKeydownCount = 0;
 
   const createWordNode = (left: number) => ({
     classList: createClassList(),
@@ -333,6 +334,10 @@ function createKeyboardHandlerHarness() {
     },
     handleControllerDebugKeydown: () => false,
     handleYoutubePickerKeydown: () => false,
+    handlePlaylistBrowserKeydown: () => {
+      playlistBrowserKeydownCount += 1;
+      return true;
+    },
     handleSessionHelpKeydown: () => false,
     openSessionHelpModal: () => {},
     appendClipboardVideoToQueue: () => {},
@@ -352,6 +357,7 @@ function createKeyboardHandlerHarness() {
     controllerSelectOpenCount: () => controllerSelectOpenCount,
     controllerDebugOpenCount: () => controllerDebugOpenCount,
     controllerSelectKeydownCount: () => controllerSelectKeydownCount,
+    playlistBrowserKeydownCount: () => playlistBrowserKeydownCount,
     setWordCount: (count: number) => {
       wordNodes = Array.from({ length: count }, (_, index) => createWordNode(10 + index * 70));
     },
@@ -618,6 +624,49 @@ test('keyboard mode: controller select modal handles arrow keys before yomitan p
       ),
       false,
     );
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: playlist browser modal handles arrow keys before yomitan popup', async () => {
+  const { ctx, testGlobals, handlers, playlistBrowserKeydownCount } =
+    createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    ctx.state.playlistBrowserModalOpen = true;
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+
+    testGlobals.dispatchKeydown({ key: 'ArrowDown', code: 'ArrowDown' });
+
+    assert.equal(playlistBrowserKeydownCount(), 1);
+    assert.equal(
+      testGlobals.commandEvents.some(
+        (event) => event.type === 'forwardKeyDown' && event.code === 'ArrowDown',
+      ),
+      false,
+    );
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: playlist browser modal handles h before lookup controls', async () => {
+  const { ctx, testGlobals, handlers, playlistBrowserKeydownCount } =
+    createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    ctx.state.playlistBrowserModalOpen = true;
+    ctx.state.keyboardSelectedWordIndex = 2;
+
+    testGlobals.dispatchKeydown({ key: 'h', code: 'KeyH' });
+
+    assert.equal(playlistBrowserKeydownCount(), 1);
+    assert.equal(ctx.state.keyboardSelectedWordIndex, 2);
   } finally {
     testGlobals.restore();
   }

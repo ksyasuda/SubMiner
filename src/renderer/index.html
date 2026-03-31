@@ -320,6 +320,35 @@
           </div>
         </div>
       </div>
+      <div id="playlistBrowserModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content playlist-browser-content">
+          <div class="modal-header">
+            <div class="modal-title">Playlist Browser</div>
+            <button id="playlistBrowserClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body playlist-browser-body">
+            <div id="playlistBrowserTitle" class="playlist-browser-title"></div>
+            <div id="playlistBrowserStatus" class="playlist-browser-status"></div>
+            <div class="playlist-browser-grid">
+              <div class="playlist-browser-pane">
+                <div class="playlist-browser-pane-title">Directory</div>
+                <ul id="playlistBrowserDirectoryList" class="playlist-browser-list"></ul>
+              </div>
+              <div class="playlist-browser-pane">
+                <div class="playlist-browser-pane-title">Playlist</div>
+                <ul id="playlistBrowserPlaylistList" class="playlist-browser-list"></ul>
+              </div>
+            </div>
+            <div class="playlist-browser-footer">
+              <span>Tab switch pane</span>
+              <span>Enter activate</span>
+              <span>Delete remove</span>
+              <span>Ctrl/Cmd+Arrows reorder</span>
+              <span>Esc close</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <script type="module" src="renderer.js"></script>
   </body>

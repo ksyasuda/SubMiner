@@ -33,6 +33,7 @@ import { createControllerDebugModal } from './modals/controller-debug.js';
 import { createControllerSelectModal } from './modals/controller-select.js';
 import { createJimakuModal } from './modals/jimaku.js';
 import { createKikuModal } from './modals/kiku.js';
+import { createPlaylistBrowserModal } from './modals/playlist-browser.js';
 import { createSessionHelpModal } from './modals/session-help.js';
 import { createSubtitleSidebarModal } from './modals/subtitle-sidebar.js';
 import { isControllerInteractionBlocked } from './controller-interaction-blocking.js';
@@ -71,7 +72,8 @@ function isAnySettingsModalOpen(): boolean {
     ctx.state.kikuModalOpen ||
     ctx.state.jimakuModalOpen ||
     ctx.state.youtubePickerModalOpen ||
-    ctx.state.sessionHelpModalOpen
+    ctx.state.sessionHelpModalOpen ||
+    ctx.state.playlistBrowserModalOpen
   );
 }
 
@@ -85,6 +87,7 @@ function isAnyModalOpen(): boolean {
     ctx.state.subsyncModalOpen ||
     ctx.state.youtubePickerModalOpen ||
     ctx.state.sessionHelpModalOpen ||
+    ctx.state.playlistBrowserModalOpen ||
     ctx.state.subtitleSidebarModalOpen
   );
 }
@@ -153,12 +156,17 @@ const youtubePickerModal = createYoutubeTrackPickerModal(ctx, {
   restorePointerInteractionState: mouseHandlers.restorePointerInteractionState,
   syncSettingsModalSubtitleSuppression,
 });
+const playlistBrowserModal = createPlaylistBrowserModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
 const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
   handleSubsyncKeydown: subsyncModal.handleSubsyncKeydown,
   handleKikuKeydown: kikuModal.handleKikuKeydown,
   handleJimakuKeydown: jimakuModal.handleJimakuKeydown,
   handleYoutubePickerKeydown: youtubePickerModal.handleYoutubePickerKeydown,
+  handlePlaylistBrowserKeydown: playlistBrowserModal.handlePlaylistBrowserKeydown,
   handleControllerSelectKeydown: controllerSelectModal.handleControllerSelectKeydown,
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
@@ -209,6 +217,7 @@ function getActiveModal(): string | null {
   if (ctx.state.subtitleSidebarModalOpen) return 'subtitle-sidebar';
   if (ctx.state.jimakuModalOpen) return 'jimaku';
   if (ctx.state.youtubePickerModalOpen) return 'youtube-track-picker';
+  if (ctx.state.playlistBrowserModalOpen) return 'playlist-browser';
   if (ctx.state.kikuModalOpen) return 'kiku';
   if (ctx.state.runtimeOptionsModalOpen) return 'runtime-options';
   if (ctx.state.subsyncModalOpen) return 'subsync';
@@ -231,6 +240,9 @@ function dismissActiveUiAfterError(): void {
   }
   if (ctx.state.youtubePickerModalOpen) {
     youtubePickerModal.closeYoutubePickerModal();
+  }
+  if (ctx.state.playlistBrowserModalOpen) {
+    playlistBrowserModal.closePlaylistBrowserModal();
   }
   if (ctx.state.runtimeOptionsModalOpen) {
     runtimeOptionsModal.closeRuntimeOptionsModal();
@@ -439,6 +451,11 @@ function registerModalOpenHandlers(): void {
       youtubePickerModal.openYoutubePickerModal(payload);
     });
   });
+  window.electronAPI.onOpenPlaylistBrowser(() => {
+    runGuardedAsync('playlist-browser:open', async () => {
+      await playlistBrowserModal.openPlaylistBrowserModal();
+    });
+  });
   window.electronAPI.onCancelYoutubeTrackPicker(() => {
     runGuarded('youtube:picker-cancel', () => {
       youtubePickerModal.closeYoutubePickerModal();
@@ -518,6 +535,11 @@ async function init(): Promise<void> {
     runGuarded('subtitle-position:update', () => {
       positioning.applyStoredSubtitlePosition(position, 'media-change');
       measurementReporter.schedule();
+      if (ctx.state.playlistBrowserModalOpen) {
+        runGuardedAsync('playlist-browser:refresh-on-media-change', async () => {
+          await playlistBrowserModal.refreshSnapshot();
+        });
+      }
     });
   });
 
@@ -572,6 +594,7 @@ async function init(): Promise<void> {
 
   jimakuModal.wireDomEvents();
   youtubePickerModal.wireDomEvents();
+  playlistBrowserModal.wireDomEvents();
   kikuModal.wireDomEvents();
   runtimeOptionsModal.wireDomEvents();
   subsyncModal.wireDomEvents();

@@ -38,6 +38,8 @@ import type {
   SubsyncManualRunRequest,
   SubsyncResult,
   ClipboardAppendResult,
+  PlaylistBrowserMutationResult,
+  PlaylistBrowserSnapshot,
   KikuFieldGroupingRequestData,
   KikuFieldGroupingChoice,
   KikuMergePreviewRequest,
@@ -126,6 +128,7 @@ const onOpenYoutubeTrackPickerEvent = createQueuedIpcListenerWithPayload<Youtube
   IPC_CHANNELS.event.youtubePickerOpen,
   (payload) => payload as YoutubePickerOpenPayload,
 );
+const onOpenPlaylistBrowserEvent = createQueuedIpcListener(IPC_CHANNELS.event.playlistBrowserOpen);
 const onCancelYoutubeTrackPickerEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.youtubePickerCancel,
 );
@@ -322,11 +325,25 @@ const electronAPI: ElectronAPI = {
   onOpenRuntimeOptions: onOpenRuntimeOptionsEvent,
   onOpenJimaku: onOpenJimakuEvent,
   onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
+  onOpenPlaylistBrowser: onOpenPlaylistBrowserEvent,
   onCancelYoutubeTrackPicker: onCancelYoutubeTrackPickerEvent,
   onKeyboardModeToggleRequested: onKeyboardModeToggleRequestedEvent,
   onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,
   appendClipboardVideoToQueue: (): Promise<ClipboardAppendResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.appendClipboardVideoToQueue),
+  getPlaylistBrowserSnapshot: (): Promise<PlaylistBrowserSnapshot> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getPlaylistBrowserSnapshot),
+  appendPlaylistBrowserFile: (pathValue: string): Promise<PlaylistBrowserMutationResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.appendPlaylistBrowserFile, pathValue),
+  playPlaylistBrowserIndex: (index: number): Promise<PlaylistBrowserMutationResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.playPlaylistBrowserIndex, index),
+  removePlaylistBrowserIndex: (index: number): Promise<PlaylistBrowserMutationResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.removePlaylistBrowserIndex, index),
+  movePlaylistBrowserIndex: (
+    index: number,
+    direction: 1 | -1,
+  ): Promise<PlaylistBrowserMutationResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.movePlaylistBrowserIndex, index, direction),
   youtubePickerResolve: (
     request: YoutubePickerResolveRequest,
   ): Promise<YoutubePickerResolveResult> =>

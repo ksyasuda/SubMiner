@@ -16,6 +16,7 @@ export function createKeyboardHandlers(
     handleKikuKeydown: (e: KeyboardEvent) => boolean;
     handleJimakuKeydown: (e: KeyboardEvent) => boolean;
     handleYoutubePickerKeydown: (e: KeyboardEvent) => boolean;
+    handlePlaylistBrowserKeydown: (e: KeyboardEvent) => boolean;
     handleControllerSelectKeydown: (e: KeyboardEvent) => boolean;
     handleControllerDebugKeydown: (e: KeyboardEvent) => boolean;
     handleSessionHelpKeydown: (e: KeyboardEvent) => boolean;
@@ -813,6 +814,12 @@ export function createKeyboardHandlers(
         e.preventDefault();
         handleLookupWindowToggleRequested();
         return;
+      }
+
+      if (ctx.state.playlistBrowserModalOpen) {
+        if (options.handlePlaylistBrowserKeydown(e)) {
+          return;
+        }
       }
 
       if (handleKeyboardDrivenModeLookupControls(e)) {

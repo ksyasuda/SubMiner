@@ -1,4 +1,5 @@
 import type {
+  PlaylistBrowserSnapshot,
   ControllerButtonSnapshot,
   ControllerDeviceInfo,
   ResolvedControllerConfig,
@@ -78,6 +79,12 @@ export type RendererState = {
 
   sessionHelpModalOpen: boolean;
   sessionHelpSelectedIndex: number;
+  playlistBrowserModalOpen: boolean;
+  playlistBrowserSnapshot: PlaylistBrowserSnapshot | null;
+  playlistBrowserStatus: string;
+  playlistBrowserActivePane: 'directory' | 'playlist';
+  playlistBrowserSelectedDirectoryIndex: number;
+  playlistBrowserSelectedPlaylistIndex: number;
   subtitleSidebarCues: SubtitleCue[];
   subtitleSidebarActiveCueIndex: number;
   subtitleSidebarToggleKey: string;
@@ -175,6 +182,12 @@ export function createRendererState(): RendererState {
 
     sessionHelpModalOpen: false,
     sessionHelpSelectedIndex: 0,
+    playlistBrowserModalOpen: false,
+    playlistBrowserSnapshot: null,
+    playlistBrowserStatus: '',
+    playlistBrowserActivePane: 'playlist',
+    playlistBrowserSelectedDirectoryIndex: 0,
+    playlistBrowserSelectedPlaylistIndex: 0,
     subtitleSidebarCues: [],
     subtitleSidebarActiveCueIndex: -1,
     subtitleSidebarToggleKey: 'Backslash',

@@ -2,6 +2,8 @@ import electron from 'electron';
 import type { IpcMainEvent } from 'electron';
 import type {
   ControllerConfigUpdate,
+  PlaylistBrowserMutationResult,
+  PlaylistBrowserSnapshot,
   ControllerPreferenceUpdate,
   ResolvedControllerConfig,
   RuntimeOptionId,
@@ -78,6 +80,14 @@ export interface IpcServiceDeps {
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
+  getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
+  appendPlaylistBrowserFile: (filePath: string) => Promise<PlaylistBrowserMutationResult>;
+  playPlaylistBrowserIndex: (index: number) => Promise<PlaylistBrowserMutationResult>;
+  removePlaylistBrowserIndex: (index: number) => Promise<PlaylistBrowserMutationResult>;
+  movePlaylistBrowserIndex: (
+    index: number,
+    direction: 1 | -1,
+  ) => Promise<PlaylistBrowserMutationResult>;
   immersionTracker?: {
     recordYomitanLookup: () => void;
     getSessionSummaries: (limit?: number) => Promise<unknown>;
@@ -183,6 +193,14 @@ export interface IpcDepsRuntimeOptions {
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
+  getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
+  appendPlaylistBrowserFile: (filePath: string) => Promise<PlaylistBrowserMutationResult>;
+  playPlaylistBrowserIndex: (index: number) => Promise<PlaylistBrowserMutationResult>;
+  removePlaylistBrowserIndex: (index: number) => Promise<PlaylistBrowserMutationResult>;
+  movePlaylistBrowserIndex: (
+    index: number,
+    direction: 1 | -1,
+  ) => Promise<PlaylistBrowserMutationResult>;
   getImmersionTracker?: () => IpcServiceDeps['immersionTracker'];
 }
 
@@ -246,6 +264,11 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     getAnilistQueueStatus: options.getAnilistQueueStatus,
     retryAnilistQueueNow: options.retryAnilistQueueNow,
     appendClipboardVideoToQueue: options.appendClipboardVideoToQueue,
+    getPlaylistBrowserSnapshot: options.getPlaylistBrowserSnapshot,
+    appendPlaylistBrowserFile: options.appendPlaylistBrowserFile,
+    playPlaylistBrowserIndex: options.playPlaylistBrowserIndex,
+    removePlaylistBrowserIndex: options.removePlaylistBrowserIndex,
+    movePlaylistBrowserIndex: options.movePlaylistBrowserIndex,
     get immersionTracker() {
       return options.getImmersionTracker?.() ?? null;
     },
@@ -509,6 +532,44 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   ipc.handle(IPC_CHANNELS.request.appendClipboardVideoToQueue, () => {
     return deps.appendClipboardVideoToQueue();
   });
+
+  ipc.handle(IPC_CHANNELS.request.getPlaylistBrowserSnapshot, async () => {
+    return await deps.getPlaylistBrowserSnapshot();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.appendPlaylistBrowserFile, async (_event, filePath: unknown) => {
+    if (typeof filePath !== 'string' || filePath.trim().length === 0) {
+      return { ok: false, message: 'Invalid playlist browser file path.' };
+    }
+    return await deps.appendPlaylistBrowserFile(filePath);
+  });
+
+  ipc.handle(IPC_CHANNELS.request.playPlaylistBrowserIndex, async (_event, index: unknown) => {
+    if (!Number.isSafeInteger(index) || (index as number) < 0) {
+      return { ok: false, message: 'Invalid playlist browser index.' };
+    }
+    return await deps.playPlaylistBrowserIndex(index as number);
+  });
+
+  ipc.handle(IPC_CHANNELS.request.removePlaylistBrowserIndex, async (_event, index: unknown) => {
+    if (!Number.isSafeInteger(index) || (index as number) < 0) {
+      return { ok: false, message: 'Invalid playlist browser index.' };
+    }
+    return await deps.removePlaylistBrowserIndex(index as number);
+  });
+
+  ipc.handle(
+    IPC_CHANNELS.request.movePlaylistBrowserIndex,
+    async (_event, index: unknown, direction: unknown) => {
+      if (!Number.isSafeInteger(index) || (index as number) < 0) {
+        return { ok: false, message: 'Invalid playlist browser index.' };
+      }
+      if (direction !== 1 && direction !== -1) {
+        return { ok: false, message: 'Invalid playlist browser move direction.' };
+      }
+      return await deps.movePlaylistBrowserIndex(index as number, direction as 1 | -1);
+    },
+  );
 
   // Stats request handlers
   ipc.handle(IPC_CHANNELS.request.statsGetOverview, async () => {

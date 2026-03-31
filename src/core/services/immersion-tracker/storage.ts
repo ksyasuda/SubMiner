@@ -4,7 +4,7 @@ import type { DatabaseSync } from './sqlite';
 import { nowMs } from './time';
 import { SCHEMA_VERSION } from './types';
 import type { QueuedWrite, VideoMetadata, YoutubeVideoMetadata } from './types';
-import { toDbMs } from './query-shared';
+import { toDbMs, toDbTimestamp } from './query-shared';
 
 export interface TrackerPreparedStatements {
   telemetryInsertStmt: ReturnType<DatabaseSync['prepare']>;
@@ -130,7 +130,7 @@ function deduplicateExistingCoverArtRows(db: DatabaseSync): void {
     return;
   }
 
-  const nowMsValue = toDbMs(nowMs());
+  const nowMsValue = toDbTimestamp(nowMs());
   const upsertBlobStmt = db.prepare(`
     INSERT INTO imm_cover_art_blobs (blob_hash, cover_blob, CREATED_DATE, LAST_UPDATE_DATE)
     VALUES (?, ?, ?, ?)
@@ -275,7 +275,7 @@ function parseLegacyAnimeBackfillCandidate(
 }
 
 function ensureLifetimeSummaryTables(db: DatabaseSync): void {
-  const nowMsValue = toDbMs(nowMs());
+  const nowMsValue = toDbTimestamp(nowMs());
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_lifetime_global(
@@ -287,9 +287,9 @@ function ensureLifetimeSummaryTables(db: DatabaseSync): void {
       episodes_started INTEGER NOT NULL DEFAULT 0,
       episodes_completed INTEGER NOT NULL DEFAULT 0,
       anime_completed INTEGER NOT NULL DEFAULT 0,
-      last_rebuilt_ms INTEGER,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER
+      last_rebuilt_ms TEXT,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT
     )
   `);
 
@@ -332,10 +332,10 @@ function ensureLifetimeSummaryTables(db: DatabaseSync): void {
       total_tokens_seen INTEGER NOT NULL DEFAULT 0,
       episodes_started INTEGER NOT NULL DEFAULT 0,
       episodes_completed INTEGER NOT NULL DEFAULT 0,
-      first_watched_ms INTEGER,
-      last_watched_ms INTEGER,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER,
+      first_watched_ms TEXT,
+      last_watched_ms TEXT,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
       FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE CASCADE
     )
   `);
@@ -349,10 +349,10 @@ function ensureLifetimeSummaryTables(db: DatabaseSync): void {
       total_lines_seen INTEGER NOT NULL DEFAULT 0,
       total_tokens_seen INTEGER NOT NULL DEFAULT 0,
       completed INTEGER NOT NULL DEFAULT 0,
-      first_watched_ms INTEGER,
-      last_watched_ms INTEGER,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER,
+      first_watched_ms TEXT,
+      last_watched_ms TEXT,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
       FOREIGN KEY(video_id) REFERENCES imm_videos(video_id) ON DELETE CASCADE
     )
   `);
@@ -360,9 +360,9 @@ function ensureLifetimeSummaryTables(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_lifetime_applied_sessions(
       session_id INTEGER PRIMARY KEY,
-      applied_at_ms INTEGER NOT NULL,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER,
+      applied_at_ms TEXT NOT NULL,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
       FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE
     )
   `);
@@ -405,13 +405,13 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
       input.titleEnglish,
       input.titleNative,
       input.metadataJson,
-      toDbMs(nowMs()),
+      toDbTimestamp(nowMs()),
       existing.anime_id,
     );
     return existing.anime_id;
   }
 
-  const nowMsValue = toDbMs(nowMs());
+  const nowMsValue = toDbTimestamp(nowMs());
   const result = db
     .prepare(
       `
@@ -471,7 +471,7 @@ export function linkVideoToAnimeRecord(
     input.parserSource,
     input.parserConfidence,
     input.parseMetadataJson,
-    toDbMs(nowMs()),
+    toDbTimestamp(nowMs()),
     videoId,
   );
 }
@@ -562,13 +562,13 @@ export function ensureSchema(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_schema_version (
       schema_version INTEGER PRIMARY KEY,
-      applied_at_ms INTEGER NOT NULL
+      applied_at_ms TEXT NOT NULL
     );
   `);
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_rollup_state(
       state_key TEXT PRIMARY KEY,
-      state_value INTEGER NOT NULL
+      state_value TEXT NOT NULL
     );
   `);
   db.exec(`
@@ -597,8 +597,8 @@ export function ensureSchema(db: DatabaseSync): void {
       episodes_total INTEGER,
       description TEXT,
       metadata_json TEXT,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT
     );
   `);
   db.exec(`
@@ -625,8 +625,8 @@ export function ensureSchema(db: DatabaseSync): void {
       bitrate_kbps INTEGER, audio_codec_id INTEGER,
       hash_sha256 TEXT, screenshot_path TEXT,
       metadata_json TEXT,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
       FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE SET NULL
     );
   `);
@@ -635,7 +635,7 @@ export function ensureSchema(db: DatabaseSync): void {
       session_id INTEGER PRIMARY KEY AUTOINCREMENT,
       session_uuid TEXT NOT NULL UNIQUE,
       video_id INTEGER NOT NULL,
-      started_at_ms INTEGER NOT NULL, ended_at_ms INTEGER,
+      started_at_ms TEXT NOT NULL, ended_at_ms TEXT,
       status INTEGER NOT NULL,
       locale_id INTEGER, target_lang_id INTEGER,
       difficulty_tier INTEGER, subtitle_mode INTEGER,
@@ -653,8 +653,8 @@ export function ensureSchema(db: DatabaseSync): void {
       seek_forward_count INTEGER NOT NULL DEFAULT 0,
       seek_backward_count INTEGER NOT NULL DEFAULT 0,
       media_buffer_events INTEGER NOT NULL DEFAULT 0,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
       FOREIGN KEY(video_id) REFERENCES imm_videos(video_id)
     );
   `);
@@ -662,7 +662,7 @@ export function ensureSchema(db: DatabaseSync): void {
     CREATE TABLE IF NOT EXISTS imm_session_telemetry(
       telemetry_id INTEGER PRIMARY KEY AUTOINCREMENT,
       session_id INTEGER NOT NULL,
-      sample_ms INTEGER NOT NULL,
+      sample_ms TEXT NOT NULL,
       total_watched_ms INTEGER NOT NULL DEFAULT 0,
       active_watched_ms INTEGER NOT NULL DEFAULT 0,
       lines_seen INTEGER NOT NULL DEFAULT 0,
@@ -676,8 +676,8 @@ export function ensureSchema(db: DatabaseSync): void {
       seek_forward_count INTEGER NOT NULL DEFAULT 0,
       seek_backward_count INTEGER NOT NULL DEFAULT 0,
       media_buffer_events INTEGER NOT NULL DEFAULT 0,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
       FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE
     );
   `);
@@ -693,8 +693,8 @@ export function ensureSchema(db: DatabaseSync): void {
       tokens_delta INTEGER NOT NULL DEFAULT 0,
       cards_delta INTEGER NOT NULL DEFAULT 0,
       payload_json TEXT,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
       FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE
     );
   `);
@@ -710,8 +710,8 @@ export function ensureSchema(db: DatabaseSync): void {
       cards_per_hour REAL,
       tokens_per_min REAL,
       lookup_hit_rate REAL,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
       PRIMARY KEY (rollup_day, video_id)
     );
   `);
@@ -724,8 +724,8 @@ export function ensureSchema(db: DatabaseSync): void {
       total_lines_seen INTEGER NOT NULL DEFAULT 0,
       total_tokens_seen INTEGER NOT NULL DEFAULT 0,
       total_cards INTEGER NOT NULL DEFAULT 0,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
       PRIMARY KEY (rollup_month, video_id)
     );
   `);
@@ -806,9 +806,9 @@ export function ensureSchema(db: DatabaseSync): void {
       title_romaji TEXT,
       title_english TEXT,
       episodes_total INTEGER,
-      fetched_at_ms INTEGER NOT NULL,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER,
+      fetched_at_ms TEXT NOT NULL,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
       FOREIGN KEY(video_id) REFERENCES imm_videos(video_id) ON DELETE CASCADE
     );
   `);
@@ -827,9 +827,9 @@ export function ensureSchema(db: DatabaseSync): void {
       uploader_url TEXT,
       description TEXT,
       metadata_json TEXT,
-      fetched_at_ms INTEGER NOT NULL,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER,
+      fetched_at_ms TEXT NOT NULL,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
       FOREIGN KEY(video_id) REFERENCES imm_videos(video_id) ON DELETE CASCADE
     );
   `);
@@ -837,26 +837,26 @@ export function ensureSchema(db: DatabaseSync): void {
     CREATE TABLE IF NOT EXISTS imm_cover_art_blobs(
       blob_hash TEXT PRIMARY KEY,
       cover_blob BLOB NOT NULL,
-      CREATED_DATE INTEGER,
-      LAST_UPDATE_DATE INTEGER
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT
     );
   `);
 
   if (currentVersion?.schema_version === 1) {
-    addColumnIfMissing(db, 'imm_videos', 'CREATED_DATE');
-    addColumnIfMissing(db, 'imm_videos', 'LAST_UPDATE_DATE');
-    addColumnIfMissing(db, 'imm_sessions', 'CREATED_DATE');
-    addColumnIfMissing(db, 'imm_sessions', 'LAST_UPDATE_DATE');
-    addColumnIfMissing(db, 'imm_session_telemetry', 'CREATED_DATE');
-    addColumnIfMissing(db, 'imm_session_telemetry', 'LAST_UPDATE_DATE');
-    addColumnIfMissing(db, 'imm_session_events', 'CREATED_DATE');
-    addColumnIfMissing(db, 'imm_session_events', 'LAST_UPDATE_DATE');
-    addColumnIfMissing(db, 'imm_daily_rollups', 'CREATED_DATE');
-    addColumnIfMissing(db, 'imm_daily_rollups', 'LAST_UPDATE_DATE');
-    addColumnIfMissing(db, 'imm_monthly_rollups', 'CREATED_DATE');
-    addColumnIfMissing(db, 'imm_monthly_rollups', 'LAST_UPDATE_DATE');
+    addColumnIfMissing(db, 'imm_videos', 'CREATED_DATE', 'TEXT');
+    addColumnIfMissing(db, 'imm_videos', 'LAST_UPDATE_DATE', 'TEXT');
+    addColumnIfMissing(db, 'imm_sessions', 'CREATED_DATE', 'TEXT');
+    addColumnIfMissing(db, 'imm_sessions', 'LAST_UPDATE_DATE', 'TEXT');
+    addColumnIfMissing(db, 'imm_session_telemetry', 'CREATED_DATE', 'TEXT');
+    addColumnIfMissing(db, 'imm_session_telemetry', 'LAST_UPDATE_DATE', 'TEXT');
+    addColumnIfMissing(db, 'imm_session_events', 'CREATED_DATE', 'TEXT');
+    addColumnIfMissing(db, 'imm_session_events', 'LAST_UPDATE_DATE', 'TEXT');
+    addColumnIfMissing(db, 'imm_daily_rollups', 'CREATED_DATE', 'TEXT');
+    addColumnIfMissing(db, 'imm_daily_rollups', 'LAST_UPDATE_DATE', 'TEXT');
+    addColumnIfMissing(db, 'imm_monthly_rollups', 'CREATED_DATE', 'TEXT');
+    addColumnIfMissing(db, 'imm_monthly_rollups', 'LAST_UPDATE_DATE', 'TEXT');
 
-    const migratedAtMs = toDbMs(nowMs());
+    const migratedAtMs = toDbTimestamp(nowMs());
     db.prepare(
       `
         UPDATE imm_videos
@@ -1243,7 +1243,7 @@ export function ensureSchema(db: DatabaseSync): void {
 
   db.exec(`
     INSERT INTO imm_schema_version(schema_version, applied_at_ms)
-    VALUES (${SCHEMA_VERSION}, ${toDbMs(nowMs())})
+    VALUES (${SCHEMA_VERSION}, ${toDbTimestamp(nowMs())})
     ON CONFLICT DO NOTHING
   `);
 }
@@ -1401,7 +1401,7 @@ function incrementKanjiAggregate(
 }
 
 export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedStatements): void {
-  const currentMs = toDbMs(nowMs());
+  const currentMs = toDbTimestamp(nowMs());
   if (write.kind === 'telemetry') {
     if (
       write.totalWatchedMs === undefined ||
@@ -1420,7 +1420,7 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
     ) {
       throw new Error('Incomplete telemetry write');
     }
-    const telemetrySampleMs = toDbMs(write.sampleMs ?? Number(currentMs));
+    const telemetrySampleMs = toDbTimestamp(write.sampleMs ?? Number(currentMs));
     stmts.telemetryInsertStmt.run(
       write.sessionId,
       telemetrySampleMs,
@@ -1495,7 +1495,7 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
 
   stmts.eventInsertStmt.run(
     write.sessionId,
-    toDbMs(write.sampleMs ?? Number(currentMs)),
+    toDbTimestamp(write.sampleMs ?? Number(currentMs)),
     write.eventType ?? 0,
     write.lineIndex ?? null,
     write.segmentStartMs ?? null,
@@ -1530,11 +1530,11 @@ export function getOrCreateVideoRecord(
           LAST_UPDATE_DATE = ?
         WHERE video_id = ?
       `,
-    ).run(details.canonicalTitle || 'unknown', toDbMs(nowMs()), existing.video_id);
+    ).run(details.canonicalTitle || 'unknown', toDbTimestamp(nowMs()), existing.video_id);
     return existing.video_id;
   }
 
-  const currentMs = toDbMs(nowMs());
+  const currentMs = toDbTimestamp(nowMs());
   const insert = db.prepare(`
     INSERT INTO imm_videos (
       video_key, canonical_title, source_type, source_path, source_url,
@@ -1604,7 +1604,7 @@ export function updateVideoMetadataRecord(
     metadata.hashSha256,
     metadata.screenshotPath,
     metadata.metadataJson,
-    toDbMs(nowMs()),
+    toDbTimestamp(nowMs()),
     videoId,
   );
 }
@@ -1622,7 +1622,7 @@ export function updateVideoTitleRecord(
         LAST_UPDATE_DATE = ?
       WHERE video_id = ?
     `,
-  ).run(canonicalTitle, toDbMs(nowMs()), videoId);
+  ).run(canonicalTitle, toDbTimestamp(nowMs()), videoId);
 }
 
 export function upsertYoutubeVideoMetadata(
@@ -1630,7 +1630,7 @@ export function upsertYoutubeVideoMetadata(
   videoId: number,
   metadata: YoutubeVideoMetadata,
 ): void {
-  const currentMs = toDbMs(nowMs());
+  const currentMs = toDbTimestamp(nowMs());
   db.prepare(
     `
       INSERT INTO imm_youtube_videos (

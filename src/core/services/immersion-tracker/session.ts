@@ -4,7 +4,7 @@ import { createInitialSessionState } from './reducer';
 import { nowMs } from './time';
 import { SESSION_STATUS_ACTIVE, SESSION_STATUS_ENDED } from './types';
 import type { SessionState } from './types';
-import { toDbMs } from './query-shared';
+import { toDbMs, toDbTimestamp } from './query-shared';
 
 export function startSessionRecord(
   db: DatabaseSync,
@@ -25,10 +25,10 @@ export function startSessionRecord(
     .run(
       sessionUuid,
       videoId,
-      toDbMs(startedAtMs),
+      toDbTimestamp(startedAtMs),
       SESSION_STATUS_ACTIVE,
-      toDbMs(startedAtMs),
-      toDbMs(createdAtMs),
+      toDbTimestamp(startedAtMs),
+      toDbTimestamp(createdAtMs),
     );
   const sessionId = Number(result.lastInsertRowid);
   return {
@@ -40,7 +40,7 @@ export function startSessionRecord(
 export function finalizeSessionRecord(
   db: DatabaseSync,
   sessionState: SessionState,
-  endedAtMs = nowMs(),
+  endedAtMs: number | string = nowMs(),
 ): void {
   db.prepare(
     `
@@ -66,7 +66,7 @@ export function finalizeSessionRecord(
       WHERE session_id = ?
     `,
   ).run(
-    toDbMs(endedAtMs),
+    toDbTimestamp(endedAtMs),
     SESSION_STATUS_ENDED,
     sessionState.lastMediaMs === null ? null : toDbMs(sessionState.lastMediaMs),
     sessionState.totalWatchedMs,
@@ -82,7 +82,7 @@ export function finalizeSessionRecord(
     sessionState.seekForwardCount,
     sessionState.seekBackwardCount,
     sessionState.mediaBufferEvents,
-    toDbMs(nowMs()),
+    toDbTimestamp(nowMs()),
     sessionState.sessionId,
   );
 }

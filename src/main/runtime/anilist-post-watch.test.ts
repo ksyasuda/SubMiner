@@ -125,3 +125,54 @@ test('createMaybeRunAnilistPostWatchUpdateHandler skips youtube playback entirel
   await handler();
   assert.deepEqual(calls, []);
 });
+
+test('createMaybeRunAnilistPostWatchUpdateHandler does not live-update after retry already handled current attempt key', async () => {
+  const calls: string[] = [];
+  const attemptedKeys = new Set<string>();
+  const mediaKey = '/tmp/video.mkv';
+  const attemptKey = buildAnilistAttemptKey(mediaKey, 1);
+  const handler = createMaybeRunAnilistPostWatchUpdateHandler({
+    getInFlight: () => false,
+    setInFlight: (value) => calls.push(`inflight:${value}`),
+    getResolvedConfig: () => ({}),
+    isAnilistTrackingEnabled: () => true,
+    getCurrentMediaKey: () => mediaKey,
+    hasMpvClient: () => true,
+    getTrackedMediaKey: () => mediaKey,
+    resetTrackedMedia: () => {},
+    getWatchedSeconds: () => 1000,
+    maybeProbeAnilistDuration: async () => 1000,
+    ensureAnilistMediaGuess: async () => ({ title: 'Show', season: null, episode: 1 }),
+    hasAttemptedUpdateKey: (key) => attemptedKeys.has(key),
+    processNextAnilistRetryUpdate: async () => {
+      attemptedKeys.add(attemptKey);
+      calls.push('process-retry');
+      return { ok: true, message: 'retry ok' };
+    },
+    refreshAnilistClientSecretState: async () => 'token',
+    enqueueRetry: () => calls.push('enqueue'),
+    markRetryFailure: () => calls.push('mark-failure'),
+    markRetrySuccess: () => calls.push('mark-success'),
+    refreshRetryQueueState: () => calls.push('refresh'),
+    updateAnilistPostWatchProgress: async () => {
+      calls.push('update');
+      return { status: 'updated', message: 'updated ok' };
+    },
+    rememberAttemptedUpdateKey: (key) => {
+      attemptedKeys.add(key);
+      calls.push(`remember:${key}`);
+    },
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    logInfo: (message) => calls.push(`info:${message}`),
+    logWarn: (message) => calls.push(`warn:${message}`),
+    minWatchSeconds: 600,
+    minWatchRatio: 0.85,
+  });
+
+  await handler();
+
+  assert.equal(calls.includes('update'), false);
+  assert.equal(calls.includes('enqueue'), false);
+  assert.equal(calls.includes('mark-failure'), false);
+  assert.deepEqual(calls, ['inflight:true', 'process-retry', 'inflight:false']);
+});

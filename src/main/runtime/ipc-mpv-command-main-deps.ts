@@ -7,6 +7,7 @@ export function createBuildMpvCommandFromIpcRuntimeMainDepsHandler(
     triggerSubsyncFromConfig: () => deps.triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => deps.openRuntimeOptionsPalette(),
     openYoutubeTrackPicker: () => deps.openYoutubeTrackPicker(),
+    openPlaylistBrowser: () => deps.openPlaylistBrowser(),
     cycleRuntimeOption: (id, direction) => deps.cycleRuntimeOption(id, direction),
     showMpvOsd: (text: string) => deps.showMpvOsd(text),
     replayCurrentSubtitle: () => deps.replayCurrentSubtitle(),

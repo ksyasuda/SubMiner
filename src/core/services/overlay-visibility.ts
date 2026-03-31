@@ -37,7 +37,7 @@ export function updateVisibleOverlayVisibility(args: {
 
   const showPassiveVisibleOverlay = (): void => {
     const forceMousePassthrough = args.forceMousePassthrough === true;
-    if (args.isWindowsPlatform || forceMousePassthrough) {
+    if (args.isMacOSPlatform || args.isWindowsPlatform || forceMousePassthrough) {
       mainWindow.setIgnoreMouseEvents(true, { forward: true });
     } else {
       mainWindow.setIgnoreMouseEvents(false);

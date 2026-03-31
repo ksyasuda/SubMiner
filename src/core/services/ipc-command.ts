@@ -15,10 +15,12 @@ export interface HandleMpvCommandFromIpcOptions {
     SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START: string;
     SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START: string;
     YOUTUBE_PICKER_OPEN: string;
+    PLAYLIST_BROWSER_OPEN: string;
   };
   triggerSubsyncFromConfig: () => void;
   openRuntimeOptionsPalette: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
+  openPlaylistBrowser: () => void | Promise<void>;
   runtimeOptionsCycle: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   showMpvOsd: (text: string) => void;
   mpvReplaySubtitle: () => void;
@@ -94,6 +96,16 @@ export function handleMpvCommandFromIpc(
 
   if (first === options.specialCommands.YOUTUBE_PICKER_OPEN) {
     void options.openYoutubeTrackPicker();
+    return;
+  }
+
+  if (first === options.specialCommands.PLAYLIST_BROWSER_OPEN) {
+    Promise.resolve()
+      .then(() => options.openPlaylistBrowser())
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        options.showMpvOsd(`Playlist browser failed: ${message}`);
+      });
     return;
   }
 
