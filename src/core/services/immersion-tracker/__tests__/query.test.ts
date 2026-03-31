@@ -38,13 +38,17 @@ import {
   upsertCoverArt,
 } from '../query.js';
 import {
+  getShiftedLocalDaySec,
+  getStartOfLocalDayTimestamp,
+  toDbTimestamp,
+} from '../query-shared.js';
+import {
   SOURCE_TYPE_LOCAL,
   SOURCE_TYPE_REMOTE,
   EVENT_CARD_MINED,
   EVENT_SUBTITLE_LINE,
   EVENT_YOMITAN_LOOKUP,
 } from '../types.js';
-import { toDbTimestamp } from '../query-shared.js';
 
 function makeDbPath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-imm-query-test-'));
@@ -728,8 +732,9 @@ test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
       parseMetadataJson: null,
     });
 
-    const beforeMidnight = '1772436600000';
-    const afterMidnight = '1772440200000';
+    const boundaryMs = BigInt(getStartOfLocalDayTimestamp(db, '1772436600000'));
+    const beforeMidnight = (boundaryMs - 1n).toString();
+    const afterMidnight = (boundaryMs + 1n).toString();
     const firstSessionId = 1;
     const secondSessionId = 2;
     const insertSession = db.prepare(
@@ -1135,8 +1140,9 @@ test('getQueryHints computes weekly new-word cutoff from calendar midnights', ()
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       );
-      const justBeforeWeekBoundary = 1_772_955_000;
-      const justAfterWeekBoundary = 1_772_958_600;
+      const weekBoundarySec = getShiftedLocalDaySec(db, '1773601200000', -7);
+      const justBeforeWeekBoundary = weekBoundarySec - 1;
+      const justAfterWeekBoundary = weekBoundarySec + 1;
       insertWord.run(
         '境界前',
         '境界前',
