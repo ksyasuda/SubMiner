@@ -16,6 +16,7 @@ function createHarness(
     noteIds?: number[];
     notesInfo?: NoteInfo[][];
     duplicateNoteId?: number | null;
+    trackedDuplicateNoteIds?: number[] | null;
     hasAllConfiguredFields?: boolean;
     manualHandled?: boolean;
     expression?: string | null;
@@ -74,6 +75,7 @@ function createHarness(
       duplicateRequests.push({ expression, excludeNoteId });
       return options.duplicateNoteId ?? 99;
     },
+    getTrackedDuplicateNoteIds: () => options.trackedDuplicateNoteIds ?? null,
     hasAllConfiguredFields: () => options.hasAllConfiguredFields ?? true,
     processNewCard: async (noteId, processOptions) => {
       processCalls.push({ noteId, options: processOptions });
@@ -217,6 +219,46 @@ test('triggerFieldGroupingForLastAddedCard finds the newest note and hands off t
   assert.deepEqual(harness.autoCalls, [
     {
       originalNoteId: 42,
+      newNoteId: 7,
+      expression: 'word-7',
+    },
+  ]);
+});
+
+test('triggerFieldGroupingForLastAddedCard prefers tracked duplicate note ids before duplicate lookup', async () => {
+  const harness = createHarness({
+    noteIds: [7],
+    notesInfo: [
+      [
+        {
+          noteId: 7,
+          fields: {
+            Expression: { value: 'word-7' },
+            Sentence: { value: 'line-7' },
+          },
+        },
+      ],
+      [
+        {
+          noteId: 7,
+          fields: {
+            Expression: { value: 'word-7' },
+            Sentence: { value: 'line-7' },
+          },
+        },
+      ],
+    ],
+    trackedDuplicateNoteIds: [12, 40, 25],
+    duplicateNoteId: 99,
+    hasAllConfiguredFields: true,
+  });
+
+  await harness.service.triggerFieldGroupingForLastAddedCard();
+
+  assert.deepEqual(harness.duplicateRequests, []);
+  assert.deepEqual(harness.autoCalls, [
+    {
+      originalNoteId: 40,
       newNoteId: 7,
       expression: 'word-7',
     },

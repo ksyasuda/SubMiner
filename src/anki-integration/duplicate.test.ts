@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findDuplicateNote, type NoteInfo } from './duplicate';
+import { findDuplicateNote, findDuplicateNoteIds, type NoteInfo } from './duplicate';
 
 function createFieldResolver(noteInfo: NoteInfo, preferredName: string): string | null {
   const names = Object.keys(noteInfo.fields);
@@ -266,4 +266,63 @@ test('findDuplicateNote does not disable retries on findNotes calls', async () =
 
   assert.ok(seenOptions.length > 0);
   assert.ok(seenOptions.every((options) => options?.maxRetries !== 0));
+});
+
+test('findDuplicateNote stops after the first exact-match chunk', async () => {
+  const currentNote: NoteInfo = {
+    noteId: 100,
+    fields: {
+      Expression: { value: '貴様' },
+    },
+  };
+
+  let notesInfoCalls = 0;
+  const candidateIds = Array.from({ length: 51 }, (_, index) => 200 + index);
+  const duplicateId = await findDuplicateNote('貴様', 100, currentNote, {
+    findNotes: async () => candidateIds,
+    notesInfo: async (noteIds) => {
+      notesInfoCalls += 1;
+      return noteIds.map((noteId) => ({
+        noteId,
+        fields: {
+          Expression: { value: noteId === 200 ? '貴様' : `別単語-${noteId}` },
+        },
+      }));
+    },
+    getDeck: () => 'Japanese::Mining',
+    resolveFieldName: (noteInfo, preferredName) => createFieldResolver(noteInfo, preferredName),
+    logWarn: () => {},
+  });
+
+  assert.equal(duplicateId, 200);
+  assert.equal(notesInfoCalls, 1);
+});
+
+test('findDuplicateNoteIds returns no matches when maxMatches is zero', async () => {
+  const currentNote: NoteInfo = {
+    noteId: 100,
+    fields: {
+      Expression: { value: '貴様' },
+    },
+  };
+
+  let notesInfoCalls = 0;
+  const duplicateIds = await findDuplicateNoteIds('貴様', 100, currentNote, {
+    findNotes: async () => [200],
+    notesInfo: async (noteIds) => {
+      notesInfoCalls += 1;
+      return noteIds.map((noteId) => ({
+        noteId,
+        fields: {
+          Expression: { value: '貴様' },
+        },
+      }));
+    },
+    getDeck: () => 'Japanese::Mining',
+    resolveFieldName: (noteInfo, preferredName) => createFieldResolver(noteInfo, preferredName),
+    logWarn: () => {},
+  }, 0);
+
+  assert.deepEqual(duplicateIds, []);
+  assert.equal(notesInfoCalls, 0);
 });

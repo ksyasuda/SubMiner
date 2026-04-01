@@ -16,6 +16,7 @@ export interface AnkiConnectProxyServerDeps {
   shouldAutoUpdateNewCards: () => boolean;
   processNewCard: (noteId: number) => Promise<void>;
   recordCardsAdded?: (count: number, noteIds: number[]) => void;
+  trackAddedDuplicateNoteIds?: (noteId: number, duplicateNoteIds: number[]) => void;
   getDeck?: () => string | undefined;
   findNotes?: (
     query: string,
@@ -161,6 +162,7 @@ export class AnkiConnectProxyServer {
     }
 
     try {
+      const forwardedBody = req.method === 'POST' ? this.getForwardRequestBody(rawBody, requestJson) : rawBody;
       const targetUrl = new URL(req.url || '/', upstreamUrl).toString();
       const contentType =
         typeof req.headers['content-type'] === 'string'
@@ -169,7 +171,7 @@ export class AnkiConnectProxyServer {
       const upstreamResponse = await this.client.request<ArrayBuffer>({
         url: targetUrl,
         method: req.method,
-        data: req.method === 'POST' ? rawBody : undefined,
+        data: req.method === 'POST' ? forwardedBody : undefined,
         headers: {
           'content-type': contentType,
         },
@@ -219,6 +221,8 @@ export class AnkiConnectProxyServer {
       return;
     }
 
+    this.maybeTrackDuplicateNoteIds(requestJson, action, responseResult);
+
     const noteIds =
       action === 'multi'
         ? this.collectMultiResultIds(requestJson, responseResult)
@@ -229,6 +233,77 @@ export class AnkiConnectProxyServer {
     }
 
     this.enqueueNotes(noteIds);
+  }
+
+  private maybeTrackDuplicateNoteIds(
+    requestJson: Record<string, unknown>,
+    action: string,
+    responseResult: unknown,
+  ): void {
+    if (action !== 'addNote') {
+      return;
+    }
+    const duplicateNoteIds = this.getRequestDuplicateNoteIds(requestJson);
+    if (duplicateNoteIds.length === 0) {
+      return;
+    }
+    const noteId = this.collectSingleResultId(responseResult)[0];
+    if (!noteId) {
+      return;
+    }
+    this.deps.trackAddedDuplicateNoteIds?.(noteId, duplicateNoteIds);
+  }
+
+  private getForwardRequestBody(
+    rawBody: Buffer,
+    requestJson: Record<string, unknown> | null,
+  ): Buffer {
+    if (!requestJson) {
+      return rawBody;
+    }
+
+    const sanitized = this.sanitizeRequestJson(requestJson);
+    if (sanitized === requestJson) {
+      return rawBody;
+    }
+
+    return Buffer.from(JSON.stringify(sanitized), 'utf8');
+  }
+
+  private sanitizeRequestJson(requestJson: Record<string, unknown>): Record<string, unknown> {
+    const action =
+      typeof requestJson.action === 'string' ? requestJson.action : String(requestJson.action ?? '');
+    if (action !== 'addNote') {
+      return requestJson;
+    }
+
+    const params =
+      requestJson.params && typeof requestJson.params === 'object'
+        ? (requestJson.params as Record<string, unknown>)
+        : null;
+    if (!params || !Object.prototype.hasOwnProperty.call(params, 'subminerDuplicateNoteIds')) {
+      return requestJson;
+    }
+
+    const nextParams = { ...params };
+    delete nextParams.subminerDuplicateNoteIds;
+    return {
+      ...requestJson,
+      params: nextParams,
+    };
+  }
+
+  private getRequestDuplicateNoteIds(requestJson: Record<string, unknown>): number[] {
+    const params =
+      requestJson.params && typeof requestJson.params === 'object'
+        ? (requestJson.params as Record<string, unknown>)
+        : null;
+    const rawNoteIds = Array.isArray(params?.subminerDuplicateNoteIds)
+      ? params.subminerDuplicateNoteIds
+      : [];
+    return [...new Set(rawNoteIds.filter((entry): entry is number => {
+      return typeof entry === 'number' && Number.isInteger(entry) && entry > 0;
+    }))].sort((left, right) => left - right);
   }
 
   private requestIncludesAddAction(action: string, requestJson: Record<string, unknown>): boolean {

@@ -51,6 +51,7 @@ import { KnownWordCacheManager } from './anki-integration/known-word-cache';
 import { PollingRunner } from './anki-integration/polling';
 import type { AnkiConnectProxyServer } from './anki-integration/anki-connect-proxy';
 import { findDuplicateNote as findDuplicateNoteForAnkiIntegration } from './anki-integration/duplicate';
+import { findDuplicateNoteIds as findDuplicateNoteIdsForAnkiIntegration } from './anki-integration/duplicate';
 import { CardCreationService } from './anki-integration/card-creation';
 import { FieldGroupingService } from './anki-integration/field-grouping';
 import { FieldGroupingMergeCollaborator } from './anki-integration/field-grouping-merge';
@@ -148,6 +149,7 @@ export class AnkiIntegration {
   private aiConfig: AiConfig;
   private recordCardsMinedCallback: ((count: number, noteIds?: number[]) => void) | null = null;
   private noteIdRedirects = new Map<number, number>();
+  private trackedDuplicateNoteIds = new Map<number, number[]>();
 
   constructor(
     config: AnkiConnectConfig,
@@ -264,6 +266,9 @@ export class AnkiIntegration {
       recordCardsAdded: (count, noteIds) => {
         this.recordCardsMinedSafely(count, noteIds, 'proxy');
       },
+      trackAddedDuplicateNoteIds: (noteId, duplicateNoteIds) => {
+        this.trackDuplicateNoteIdsForNote(noteId, duplicateNoteIds);
+      },
       getDeck: () => this.config.deck,
       findNotes: async (query, options) =>
         (await this.client.findNotes(query, options)) as number[],
@@ -361,6 +366,10 @@ export class AnkiIntegration {
       trackLastAddedNoteId: (noteId) => {
         this.previousNoteIds.add(noteId);
       },
+      trackLastAddedDuplicateNoteIds: (noteId, duplicateNoteIds) => {
+        this.trackedDuplicateNoteIds.set(noteId, [...duplicateNoteIds]);
+      },
+      findDuplicateNoteIds: (expression, noteInfo) => this.findDuplicateNoteIds(expression, noteInfo),
       recordCardsMinedCallback: (count, noteIds) => {
         this.recordCardsMinedSafely(count, noteIds, 'card creation');
       },
@@ -382,6 +391,10 @@ export class AnkiIntegration {
       extractFields: (fields) => this.extractFields(fields),
       findDuplicateNote: (expression, noteId, noteInfo) =>
         this.findDuplicateNote(expression, noteId, noteInfo),
+      getTrackedDuplicateNoteIds: (noteId) =>
+        this.trackedDuplicateNoteIds.has(noteId)
+          ? [...(this.trackedDuplicateNoteIds.get(noteId) ?? [])]
+          : null,
       hasAllConfiguredFields: (noteInfo, configuredFieldNames) =>
         this.hasAllConfiguredFields(noteInfo, configuredFieldNames),
       processNewCard: (noteId, options) => this.processNewCard(noteId, options),
@@ -1042,12 +1055,38 @@ export class AnkiIntegration {
     );
   }
 
+  trackDuplicateNoteIdsForNote(noteId: number, duplicateNoteIds: number[]): void {
+    this.trackedDuplicateNoteIds.set(noteId, [...duplicateNoteIds]);
+  }
+
   private async findDuplicateNote(
     expression: string,
     excludeNoteId: number,
     noteInfo: NoteInfo,
   ): Promise<number | null> {
     return findDuplicateNoteForAnkiIntegration(expression, excludeNoteId, noteInfo, {
+      findNotes: async (query, options) => (await this.client.findNotes(query, options)) as unknown,
+      notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
+      getDeck: () => this.config.deck,
+      getWordFieldCandidates: () => this.getConfiguredWordFieldCandidates(),
+      resolveFieldName: (info, preferredName) => this.resolveNoteFieldName(info, preferredName),
+      logInfo: (message) => {
+        log.info(message);
+      },
+      logDebug: (message) => {
+        log.debug(message);
+      },
+      logWarn: (message, error) => {
+        log.warn(message, (error as Error).message);
+      },
+    });
+  }
+
+  private async findDuplicateNoteIds(
+    expression: string,
+    noteInfo: NoteInfo,
+  ): Promise<number[]> {
+    return findDuplicateNoteIdsForAnkiIntegration(expression, -1, noteInfo, {
       findNotes: async (query, options) => (await this.client.findNotes(query, options)) as unknown,
       notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
       getDeck: () => this.config.deck,
