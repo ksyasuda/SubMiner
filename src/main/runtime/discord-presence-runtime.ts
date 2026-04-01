@@ -1,3 +1,7 @@
+import { createDiscordPresenceService } from '../../core/services';
+import type { ResolvedConfig } from '../../types';
+import { createDiscordRpcClient } from './discord-rpc-client.js';
+
 type DiscordPresenceServiceLike = {
   publish: (snapshot: {
     mediaTitle: string | null;
@@ -70,5 +74,61 @@ export function createDiscordPresenceRuntime(deps: DiscordPresenceRuntimeDeps) {
   return {
     refreshDiscordPresenceMediaDuration,
     publishDiscordPresence,
+  };
+}
+
+export function createDiscordPresenceRuntimeFromMainState(input: {
+  appId: string;
+  appState: {
+    discordPresenceService: ReturnType<typeof createDiscordPresenceService> | null;
+    mpvClient: MpvClientLike | null;
+    currentMediaTitle: string | null;
+    currentMediaPath: string | null;
+    currentSubText: string;
+    playbackPaused: boolean | null;
+  };
+  getResolvedConfig: () => ResolvedConfig;
+  getFallbackMediaDurationSec: () => number | null;
+  logger: {
+    debug: (message: string, meta?: unknown) => void;
+  };
+}) {
+  const sessionStartedAtMs = Date.now();
+  let mediaDurationSec: number | null = null;
+
+  const discordPresenceRuntime = createDiscordPresenceRuntime({
+    getDiscordPresenceService: () => input.appState.discordPresenceService,
+    isDiscordPresenceEnabled: () => input.getResolvedConfig().discordPresence.enabled === true,
+    getMpvClient: () => input.appState.mpvClient,
+    getCurrentMediaTitle: () => input.appState.currentMediaTitle,
+    getCurrentMediaPath: () => input.appState.currentMediaPath,
+    getCurrentSubtitleText: () => input.appState.currentSubText,
+    getPlaybackPaused: () => input.appState.playbackPaused,
+    getFallbackMediaDurationSec: () => input.getFallbackMediaDurationSec(),
+    getSessionStartedAtMs: () => sessionStartedAtMs,
+    getMediaDurationSec: () => mediaDurationSec,
+    setMediaDurationSec: (next) => {
+      mediaDurationSec = next;
+    },
+  });
+
+  const initializeDiscordPresenceService = async (): Promise<void> => {
+    if (input.getResolvedConfig().discordPresence.enabled !== true) {
+      input.appState.discordPresenceService = null;
+      return;
+    }
+
+    input.appState.discordPresenceService = createDiscordPresenceService({
+      config: input.getResolvedConfig().discordPresence,
+      createClient: () => createDiscordRpcClient(input.appId),
+      logDebug: (message, meta) => input.logger.debug(message, meta),
+    });
+    await input.appState.discordPresenceService.start();
+    discordPresenceRuntime.publishDiscordPresence();
+  };
+
+  return {
+    discordPresenceRuntime,
+    initializeDiscordPresenceService,
   };
 }

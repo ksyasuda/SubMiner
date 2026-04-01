@@ -98,10 +98,62 @@ export function createRestoreOverlayMpvSubtitlesHandler(deps: {
       return;
     }
 
-    if (savedVisibility !== null) {
-      deps.setMpvSubVisibility(savedVisibility);
-    }
+    deps.setMpvSubVisibility(savedVisibility);
 
     deps.setSavedSubVisibility(null);
+  };
+}
+
+export function createOverlayMpvSubtitleSuppressionRuntime(deps: {
+  appState: {
+    mpvClient: MpvVisibilityClient | null;
+    overlaySavedMpvSubVisibility: boolean | null;
+    overlayMpvSubVisibilityRevision: number;
+  };
+  getVisibleOverlayVisible: () => boolean;
+  setMpvSubVisibility: (visible: boolean) => void;
+  logWarn: (message: string, error: unknown) => void;
+}) {
+  const ensureOverlayMpvSubtitlesHidden = createEnsureOverlayMpvSubtitlesHiddenHandler({
+    getMpvClient: () => deps.appState.mpvClient,
+    getSavedSubVisibility: () => deps.appState.overlaySavedMpvSubVisibility,
+    setSavedSubVisibility: (visible) => {
+      deps.appState.overlaySavedMpvSubVisibility = visible;
+    },
+    getRevision: () => deps.appState.overlayMpvSubVisibilityRevision,
+    setRevision: (revision) => {
+      deps.appState.overlayMpvSubVisibilityRevision = revision;
+    },
+    setMpvSubVisibility: (visible) => deps.setMpvSubVisibility(visible),
+    logWarn: (message, error) => deps.logWarn(message, error),
+  });
+
+  const restoreOverlayMpvSubtitles = createRestoreOverlayMpvSubtitlesHandler({
+    getSavedSubVisibility: () => deps.appState.overlaySavedMpvSubVisibility,
+    setSavedSubVisibility: (visible) => {
+      deps.appState.overlaySavedMpvSubVisibility = visible;
+    },
+    getRevision: () => deps.appState.overlayMpvSubVisibilityRevision,
+    setRevision: (revision) => {
+      deps.appState.overlayMpvSubVisibilityRevision = revision;
+    },
+    isMpvConnected: () => Boolean(deps.appState.mpvClient?.connected),
+    shouldKeepSuppressedFromVisibleOverlayBinding: () => deps.getVisibleOverlayVisible(),
+    setMpvSubVisibility: (visible) => deps.setMpvSubVisibility(visible),
+  });
+
+  const syncOverlayMpvSubtitleSuppression = (): void => {
+    if (deps.getVisibleOverlayVisible()) {
+      void ensureOverlayMpvSubtitlesHidden();
+      return;
+    }
+
+    restoreOverlayMpvSubtitles();
+  };
+
+  return {
+    ensureOverlayMpvSubtitlesHidden,
+    restoreOverlayMpvSubtitles,
+    syncOverlayMpvSubtitleSuppression,
   };
 }

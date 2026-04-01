@@ -1,4 +1,4 @@
-import { updateCurrentMediaPath } from '../core/services';
+import { updateCurrentMediaPath } from '../core/services/subtitle-position';
 
 import type { SubtitlePosition } from '../types';
 

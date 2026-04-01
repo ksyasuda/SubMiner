@@ -1,7 +1,7 @@
 import * as path from 'path';
 import type { JlptLevel } from '../types';
 
-import { createJlptVocabularyLookup } from '../core/services';
+import { createJlptVocabularyLookup } from '../core/services/jlpt-vocab';
 
 export interface JlptDictionarySearchPathDeps {
   getDictionaryRoots: () => string[];

@@ -1,6 +1,6 @@
 import * as path from 'path';
 import type { FrequencyDictionaryLookup } from '../types';
-import { createFrequencyDictionaryLookup } from '../core/services';
+import { createFrequencyDictionaryLookup } from '../core/services/frequency-dictionary';
 
 export interface FrequencyDictionarySearchPathDeps {
   getDictionaryRoots: () => string[];
