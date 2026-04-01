@@ -108,12 +108,12 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
 
 ## Requirements
 
-|                | Required                                | Optional                               |
-| -------------- | --------------------------------------- | -------------------------------------- |
-| **Player**     | [`mpv`](https://mpv.io) with IPC socket | —                                      |
+|                | Required                                | Optional                                                   |
+| -------------- | --------------------------------------- | ---------------------------------------------------------- |
+| **Player**     | [`mpv`](https://mpv.io) with IPC socket | —                                                          |
 | **Processing** | `ffmpeg`, `mecab` + `mecab-ipadic`      | `guessit` (AniSkip), `alass` / `ffsubsync` (subtitle sync) |
-| **Media**      | —                                       | `yt-dlp`, `chafa`, `ffmpegthumbnailer` |
-| **Selection**  | —                                       | `fzf` / `rofi`                         |
+| **Media**      | —                                       | `yt-dlp`, `chafa`, `ffmpegthumbnailer`                     |
+| **Selection**  | —                                       | `fzf` / `rofi`                                             |
 
 > [!NOTE]
 > [`bun`](https://bun.sh) is required if building from source or using the CLI wrapper: `subminer`. Pre-built releases (AppImage, DMG, installer) do not require it.
@@ -235,8 +235,6 @@ subminer stats              # open immersion dashboard
 subminer stats -b           # stats daemon in background
 subminer stats -s           # stop background stats daemon
 ```
-
----
 
 ## Documentation
 

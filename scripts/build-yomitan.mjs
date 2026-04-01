@@ -51,9 +51,16 @@ function ensureSubmodulePresent() {
 }
 
 function getSourceState() {
-  const revision = readCommand('git', ['rev-parse', 'HEAD'], submoduleDir);
-  const dirty = readCommand('git', ['status', '--short', '--untracked-files=no'], submoduleDir);
-  return { revision, dirty };
+  try {
+    const revision = readCommand('git', ['rev-parse', 'HEAD'], submoduleDir);
+    const dirty = readCommand('git', ['status', '--short', '--untracked-files=no'], submoduleDir);
+    return { revision, dirty };
+  } catch (error) {
+    if (process.env.SUBMINER_YOMITAN_ALLOW_MISSING_GIT === '1') {
+      return { revision: 'unknown', dirty: '' };
+    }
+    throw error;
+  }
 }
 
 function isBuildCurrent(force) {

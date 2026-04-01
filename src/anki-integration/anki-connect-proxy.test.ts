@@ -324,6 +324,123 @@ test('proxy fallback-enqueues latest note for addNote responses without note IDs
   assert.deepEqual(recordedCards, [1]);
 });
 
+test('proxy tracks duplicate note ids from addNote request metadata before enrichment', async () => {
+  const processed: number[] = [];
+  const tracked: Array<{ noteId: number; duplicateNoteIds: number[] }> = [];
+  const proxy = new AnkiConnectProxyServer({
+    shouldAutoUpdateNewCards: () => true,
+    processNewCard: async (noteId) => {
+      processed.push(noteId);
+    },
+    trackAddedDuplicateNoteIds: (noteId, duplicateNoteIds) => {
+      tracked.push({ noteId, duplicateNoteIds });
+    },
+    logInfo: () => undefined,
+    logWarn: () => undefined,
+    logError: () => undefined,
+  });
+
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest(
+    {
+      action: 'addNote',
+      params: {
+        note: {},
+        subminerDuplicateNoteIds: [11, -1, 40, 11, 25],
+      },
+    },
+    Buffer.from(JSON.stringify({ result: 42, error: null }), 'utf8'),
+  );
+
+  await waitForCondition(() => processed.length === 1);
+  assert.deepEqual(tracked, [{ noteId: 42, duplicateNoteIds: [11, 25, 40] }]);
+  assert.deepEqual(processed, [42]);
+});
+
+test('proxy strips SubMiner duplicate metadata before forwarding upstream addNote request', async () => {
+  let upstreamBody = '';
+  const upstream = http.createServer(async (req, res) => {
+    upstreamBody = await new Promise<string>((resolve) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    });
+    res.statusCode = 200;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ result: 42, error: null }));
+  });
+  upstream.listen(0, '127.0.0.1');
+  await once(upstream, 'listening');
+  const upstreamAddress = upstream.address();
+  assert.ok(upstreamAddress && typeof upstreamAddress === 'object');
+  const upstreamPort = upstreamAddress.port;
+
+  const tracked: Array<{ noteId: number; duplicateNoteIds: number[] }> = [];
+  const proxy = new AnkiConnectProxyServer({
+    shouldAutoUpdateNewCards: () => true,
+    processNewCard: async () => undefined,
+    trackAddedDuplicateNoteIds: (noteId, duplicateNoteIds) => {
+      tracked.push({ noteId, duplicateNoteIds });
+    },
+    logInfo: () => undefined,
+    logWarn: () => undefined,
+    logError: () => undefined,
+  });
+
+  try {
+    proxy.start({
+      host: '127.0.0.1',
+      port: 0,
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}`,
+    });
+
+    const proxyServer = (
+      proxy as unknown as {
+        server: http.Server | null;
+      }
+    ).server;
+    assert.ok(proxyServer);
+    if (!proxyServer.listening) {
+      await once(proxyServer, 'listening');
+    }
+    const proxyAddress = proxyServer.address();
+    assert.ok(proxyAddress && typeof proxyAddress === 'object');
+    const proxyPort = proxyAddress.port;
+
+    const response = await fetch(`http://127.0.0.1:${proxyPort}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'addNote',
+        version: 6,
+        params: {
+          note: {
+            deckName: 'Mining',
+            modelName: 'Sentence',
+            fields: { Expression: '食べる' },
+          },
+          subminerDuplicateNoteIds: [18, 7],
+        },
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { result: 42, error: null });
+    await waitForCondition(() => tracked.length === 1);
+    assert.equal(upstreamBody.includes('subminerDuplicateNoteIds'), false);
+    assert.deepEqual(tracked, [{ noteId: 42, duplicateNoteIds: [7, 18] }]);
+  } finally {
+    proxy.stop();
+    upstream.close();
+    await once(upstream, 'close');
+  }
+});
+
 test('proxy returns addNote response without waiting for background enrichment', async () => {
   const processed: number[] = [];
   let releaseProcessing: (() => void) | undefined;
