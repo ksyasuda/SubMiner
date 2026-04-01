@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findDuplicateNote, type NoteInfo } from './duplicate';
+import { findDuplicateNote, findDuplicateNoteIds, type NoteInfo } from './duplicate';
 
 function createFieldResolver(noteInfo: NoteInfo, preferredName: string): string | null {
   const names = Object.keys(noteInfo.fields);
@@ -296,4 +296,33 @@ test('findDuplicateNote stops after the first exact-match chunk', async () => {
 
   assert.equal(duplicateId, 200);
   assert.equal(notesInfoCalls, 1);
+});
+
+test('findDuplicateNoteIds returns no matches when maxMatches is zero', async () => {
+  const currentNote: NoteInfo = {
+    noteId: 100,
+    fields: {
+      Expression: { value: '貴様' },
+    },
+  };
+
+  let notesInfoCalls = 0;
+  const duplicateIds = await findDuplicateNoteIds('貴様', 100, currentNote, {
+    findNotes: async () => [200],
+    notesInfo: async (noteIds) => {
+      notesInfoCalls += 1;
+      return noteIds.map((noteId) => ({
+        noteId,
+        fields: {
+          Expression: { value: '貴様' },
+        },
+      }));
+    },
+    getDeck: () => 'Japanese::Mining',
+    resolveFieldName: (noteInfo, preferredName) => createFieldResolver(noteInfo, preferredName),
+    logWarn: () => {},
+  }, 0);
+
+  assert.deepEqual(duplicateIds, []);
+  assert.equal(notesInfoCalls, 0);
 });

@@ -122,6 +122,10 @@ function findExactDuplicateNoteIds(
   deps: DuplicateDetectionDeps,
   maxMatches?: number,
 ): Promise<number[]> {
+  if (maxMatches !== undefined && maxMatches <= 0) {
+    return Promise.resolve([]);
+  }
+
   const candidates = Array.from(candidateNoteIds).filter((id) => id !== excludeNoteId);
   deps.logDebug?.(`[duplicate] candidateIds=${candidates.length} exclude=${excludeNoteId}`);
   if (candidates.length === 0) {

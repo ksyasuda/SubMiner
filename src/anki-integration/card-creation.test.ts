@@ -474,7 +474,7 @@ test('CardCreationService tracks pre-add duplicate note ids for kiku sentence ca
     trackLastAddedNoteId: () => undefined,
     findDuplicateNoteIds: async (expression) => {
       duplicateLookupExpressions.push(expression);
-      return [18, 7, 30];
+      return [18, 7, 30, 7];
     },
     trackLastAddedDuplicateNoteIds: (noteId, duplicateNoteIds) => {
       trackedDuplicates.push({ noteId, duplicateNoteIds });
