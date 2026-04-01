@@ -1,9 +1,10 @@
 ---
 id: TASK-238.8
 title: Refactor src/main.ts composition root into domain runtimes
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-03-31 06:28'
+updated_date: '2026-04-01 07:07'
 labels:
   - tech-debt
   - runtime
@@ -34,3 +35,9 @@ Refactor `src/main.ts` so it becomes a thin composition root and the domain-spec
 - [ ] #5 Cross-domain coordination stays in `main.ts`; wrapper modules stay acyclic and communicate via injected callbacks.
 - [ ] #6 No user-facing behavior, config fields, or IPC channel names change.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+CI follow-up: typecheck failed after the runtime split because playlist-browser IPC deps were not threaded through the new bootstrap/composer surfaces. Wiring the missing open action and registration deps now.
+<!-- SECTION:NOTES:END -->

@@ -29,6 +29,7 @@ import type { OverlayModalRuntime } from './overlay-runtime';
 import type { OverlayUiRuntime } from './overlay-ui-runtime';
 import type { AppState } from './state';
 import type { SubtitleRuntime } from './subtitle-runtime';
+import type { PlaylistBrowserIpcRuntime } from './runtime/playlist-browser-ipc';
 import type { YoutubeRuntime } from './youtube-runtime';
 import { resolveSubtitleStyleForRenderer } from './runtime/domains/overlay';
 import type { ShortcutsRuntime } from './shortcuts-runtime';
@@ -82,6 +83,7 @@ export interface IpcRuntimeBootstrapInput {
   actions: {
     requestAppQuit: () => void;
     openYomitanSettings: () => boolean;
+    openPlaylistBrowser: () => void | Promise<void>;
     showDesktopNotification: (title: string, options: { body?: string }) => void;
     setAnkiIntegration: (integration: AnkiIntegration | null) => void;
   };
@@ -103,6 +105,7 @@ export interface IpcRuntimeBootstrapInput {
       | 'setFieldGroupingResolver'
       | 'resolveMediaPathForJimaku'
     >;
+    playlistBrowser: Pick<PlaylistBrowserIpcRuntime, 'playlistBrowserMainDeps'>;
     configDerived: ConfigDerivedRuntimeLike;
     subsync: SubsyncRuntimeLike;
   };
@@ -115,6 +118,7 @@ export function createIpcRuntimeBootstrap(input: IpcRuntimeBootstrapInput): IpcR
         triggerSubsyncFromConfig: () => input.runtimes.subsync.triggerFromConfig(),
         openRuntimeOptionsPalette: () => input.overlay.getOverlayUi()?.openRuntimeOptionsPalette(),
         openYoutubeTrackPicker: () => input.runtimes.youtube.openYoutubeTrackPickerFromPlayback(),
+        openPlaylistBrowser: () => input.actions.openPlaylistBrowser(),
         cycleRuntimeOption: (id, direction) => {
           if (!input.appState.runtimeOptionsManager) {
             return { ok: false, error: 'Runtime options manager unavailable' };
@@ -204,6 +208,7 @@ export function createIpcRuntimeBootstrap(input: IpcRuntimeBootstrapInput): IpcR
         },
         getImmersionTracker: () => input.appState.immersionTracker,
       },
+      playlistBrowser: input.runtimes.playlistBrowser.playlistBrowserMainDeps,
       anilist: {
         getStatus: () => input.runtimes.anilist.getStatusSnapshot(),
         clearToken: () => input.runtimes.anilist.clearTokenState(),

@@ -30,6 +30,14 @@ export interface IpcRuntimeMainInput {
     | 'quitApp'
     | 'toggleVisibleOverlay'
   >;
+  playlistBrowser: Pick<
+    RegisterIpcRuntimeServicesParams['mainDeps'],
+    | 'getPlaylistBrowserSnapshot'
+    | 'appendPlaylistBrowserFile'
+    | 'playPlaylistBrowserIndex'
+    | 'removePlaylistBrowserIndex'
+    | 'movePlaylistBrowserIndex'
+  >;
   subtitle: Pick<
     RegisterIpcRuntimeServicesParams['mainDeps'],
     | 'tokenizeCurrentSubtitle'
@@ -110,6 +118,7 @@ export function createIpcRuntime(input: IpcRuntimeInput): IpcRuntime {
       runtimeOptions: input.registration.runtimeOptions,
       mainDeps: {
         ...input.registration.main.window,
+        ...input.registration.main.playlistBrowser,
         ...input.registration.main.subtitle,
         ...input.registration.main.controller,
         ...input.registration.main.runtime,

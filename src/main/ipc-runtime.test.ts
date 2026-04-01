@@ -17,6 +17,21 @@ function createBaseRuntimeInput(capturedRegistration: { value: unknown | null })
       quitApp: () => {},
       toggleVisibleOverlay: () => {},
     },
+    playlistBrowser: {
+      getPlaylistBrowserSnapshot: async () => ({
+        directoryPath: null,
+        directoryAvailable: false,
+        directoryStatus: '',
+        directoryItems: [],
+        playlistItems: [],
+        playingIndex: null,
+        currentFilePath: null,
+      }),
+      appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok' }),
+      playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+      removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+      movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
+    },
     subtitle: {
       tokenizeCurrentSubtitle: async () => null,
       getCurrentSubtitleRaw: () => '',
@@ -86,6 +101,7 @@ function createBaseRuntimeInput(capturedRegistration: { value: unknown | null })
         triggerSubsyncFromConfig: () => {},
         openRuntimeOptionsPalette: () => {},
         openYoutubeTrackPicker: () => {},
+        openPlaylistBrowser: () => {},
         cycleRuntimeOption: () => ({ ok: true }),
         showMpvOsd: () => {},
         replayCurrentSubtitle: () => {},
@@ -134,11 +150,13 @@ test('ipc runtime registers composed IPC handlers from explicit registration inp
   const registration = capturedRegistration.value as {
     runtimeOptions: { showMpvOsd: unknown };
     mainDeps: {
+      getPlaylistBrowserSnapshot: unknown;
       handleMpvCommand: unknown;
       runSubsyncManual: (payload: unknown) => Promise<unknown>;
     };
   };
   assert.equal(registration.runtimeOptions.showMpvOsd !== undefined, true);
+  assert.equal(registration.mainDeps.getPlaylistBrowserSnapshot instanceof Function, true);
   assert.equal(registration.mainDeps.handleMpvCommand instanceof Function, true);
   assert.deepEqual(
     await registration.mainDeps.runSubsyncManual({ payload: null } as never),
@@ -163,11 +181,13 @@ test('ipc runtime builds grouped registration input from main state', async () =
   const registration = capturedRegistration.value as {
     runtimeOptions: { showMpvOsd: unknown };
     mainDeps: {
+      getPlaylistBrowserSnapshot: unknown;
       handleMpvCommand: unknown;
       runSubsyncManual: (payload: unknown) => Promise<unknown>;
     };
   };
   assert.equal(registration.runtimeOptions.showMpvOsd !== undefined, true);
+  assert.equal(registration.mainDeps.getPlaylistBrowserSnapshot instanceof Function, true);
   assert.equal(registration.mainDeps.handleMpvCommand instanceof Function, true);
   assert.deepEqual(
     await registration.mainDeps.runSubsyncManual({ payload: null } as never),

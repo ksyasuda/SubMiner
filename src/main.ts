@@ -131,6 +131,8 @@ import { shouldAutoOpenFirstRunSetup } from './main/first-run-runtime';
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
 import { shouldEnsureTrayOnStartupForInitialArgs } from './main/runtime/startup-tray-policy';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
+import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
+import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import {
   createRunStatsCliCommandHandler,
   writeStatsCliCommandResponse,
@@ -931,6 +933,7 @@ const { mpvRuntime, mining } = createMainPlaybackRuntime({
     },
   },
 });
+const playlistBrowserIpcRuntime = createPlaylistBrowserIpcRuntime(() => appState.mpvClient);
 
 function createMpvClientRuntimeService(): MpvIpcClient {
   return mpvRuntime.createMpvClientRuntimeService();
@@ -1101,6 +1104,15 @@ const { registerIpcRuntimeHandlers } = createIpcRuntimeBootstrap({
   actions: {
     requestAppQuit,
     openYomitanSettings: () => yomitan.openYomitanSettings(),
+    openPlaylistBrowser: () => {
+      void openPlaylistBrowserRuntime({
+        ensureOverlayStartupPrereqs: () => startupRuntime.appReady.ensureOverlayStartupPrereqs(),
+        ensureOverlayWindowsReadyForVisibilityActions: () =>
+          overlayUi?.ensureOverlayWindowsReadyForVisibilityActions(),
+        sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
+          overlayUi?.sendToActiveOverlayWindow(channel, payload, runtimeOptions) ?? false,
+      });
+    },
     showDesktopNotification,
     setAnkiIntegration: (integration: AnkiIntegration | null) => {
       appState.ankiIntegration = integration;
@@ -1112,6 +1124,9 @@ const { registerIpcRuntimeHandlers } = createIpcRuntimeBootstrap({
     anilist,
     mining,
     dictionarySupport,
+    playlistBrowser: {
+      playlistBrowserMainDeps: playlistBrowserIpcRuntime.playlistBrowserMainDeps,
+    },
     configDerived: configDerivedRuntime,
     subsync: subsyncRuntime,
   },
