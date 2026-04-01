@@ -33,6 +33,7 @@ import { createControllerDebugModal } from './modals/controller-debug.js';
 import { createControllerSelectModal } from './modals/controller-select.js';
 import { createJimakuModal } from './modals/jimaku.js';
 import { createKikuModal } from './modals/kiku.js';
+import { prepareForKikuFieldGroupingOpen } from './kiku-open.js';
 import { createPlaylistBrowserModal } from './modals/playlist-browser.js';
 import { createSessionHelpModal } from './modals/session-help.js';
 import { createSubtitleSidebarModal } from './modals/subtitle-sidebar.js';
@@ -470,6 +471,12 @@ function registerModalOpenHandlers(): void {
   window.electronAPI.onKikuFieldGroupingRequest(
     (data: { original: KikuDuplicateCardInfo; duplicate: KikuDuplicateCardInfo }) => {
       runGuarded('kiku:field-grouping-open', () => {
+        prepareForKikuFieldGroupingOpen({
+          closeLookupWindow: () => keyboardHandlers.closeLookupWindow(),
+          pausePlayback: () => {
+            window.electronAPI.sendMpvCommand(['set_property', 'pause', 'yes']);
+          },
+        });
         kikuModal.openKikuFieldGroupingModal(data);
         window.electronAPI.notifyOverlayModalOpened('kiku');
       });

@@ -2809,7 +2809,14 @@ const ensureStatsServerStarted = (): string => {
         await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
           forceOverride: true,
         });
-        return addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
+        const result = await addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
+        if (result.noteId && result.duplicateNoteIds.length > 0) {
+          appState.ankiIntegration?.trackDuplicateNoteIdsForNote(
+            result.noteId,
+            result.duplicateNoteIds,
+          );
+        }
+        return result.noteId;
       },
     });
     appState.statsServer = statsServer;

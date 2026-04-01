@@ -969,6 +969,7 @@ To refresh roughly once per day, set:
 | `disabled` | No field grouping; duplicate cards are left as-is                                                                          |
 
 `deleteDuplicateInAuto` controls whether `auto` mode deletes the duplicate after merge (default: `true`). In `manual` mode, the popup asks each time whether to delete the duplicate.
+When the manual merge popup opens, SubMiner pauses playback and closes any open Yomitan popup first so the merge flow can take focus.
 
 <video controls playsinline preload="metadata" poster="/assets/kiku-integration-poster.jpg" style="width: 100%; max-width: 960px;">
   <source :src="'/assets/kiku-integration.webm'" type="video/webm" />

@@ -524,6 +524,31 @@ test('popup-visible mpv keybindings still fire for bound keys', async () => {
   }
 });
 
+test('paused configured subtitle-jump keybinding re-applies pause after backward seek', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateKeybindings([
+      {
+        key: 'Shift+KeyH',
+        command: ['sub-seek', -1],
+      },
+    ] as never);
+    testGlobals.setPlaybackPausedResponse(true);
+
+    testGlobals.dispatchKeydown({ key: 'H', code: 'KeyH', shiftKey: true });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.mpvCommands.slice(-2), [
+      ['sub-seek', -1],
+      ['set_property', 'pause', 'yes'],
+    ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('visible-layer y-t dispatches mpv plugin toggle while overlay owns focus', async () => {
   const { handlers, testGlobals } = createKeyboardHandlerHarness();
 
@@ -1151,6 +1176,56 @@ test('keyboard mode: edge jump while paused re-applies paused state after subtit
 
     assert.deepEqual(testGlobals.mpvCommands.slice(-2), [
       ['sub-seek', 1],
+      ['set_property', 'pause', 'yes'],
+    ]);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: left edge jump while paused re-applies paused state after subtitle seek', async () => {
+  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    setWordCount(2);
+    ctx.state.keyboardSelectedWordIndex = 0;
+    handlers.syncKeyboardTokenSelection();
+    testGlobals.setPlaybackPausedResponse(true);
+
+    testGlobals.dispatchKeydown({ key: 'ArrowLeft', code: 'ArrowLeft' });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.mpvCommands.slice(-2), [
+      ['sub-seek', -1],
+      ['set_property', 'pause', 'yes'],
+    ]);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: h edge jump while paused re-applies paused state after subtitle seek', async () => {
+  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    setWordCount(2);
+    ctx.state.keyboardSelectedWordIndex = 0;
+    handlers.syncKeyboardTokenSelection();
+    testGlobals.setPlaybackPausedResponse(true);
+
+    testGlobals.dispatchKeydown({ key: 'h', code: 'KeyH' });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.mpvCommands.slice(-2), [
+      ['sub-seek', -1],
       ['set_property', 'pause', 'yes'],
     ]);
   } finally {

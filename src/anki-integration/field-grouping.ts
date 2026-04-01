@@ -41,6 +41,7 @@ interface FieldGroupingDeps {
     excludeNoteId: number,
     noteInfo: FieldGroupingNoteInfo,
   ) => Promise<number | null>;
+  getTrackedDuplicateNoteIds?: (noteId: number) => number[] | null;
   hasAllConfiguredFields: (
     noteInfo: FieldGroupingNoteInfo,
     configuredFieldNames: (string | undefined)[],
@@ -117,11 +118,11 @@ export class FieldGroupingService {
           return;
         }
 
-        const duplicateNoteId = await this.deps.findDuplicateNote(
-          expressionText,
-          noteId,
-          noteInfoBeforeUpdate,
-        );
+        const trackedDuplicateNoteIds = this.deps.getTrackedDuplicateNoteIds?.(noteId) ?? null;
+        const duplicateNoteId =
+          trackedDuplicateNoteIds !== null
+            ? pickMostRecentDuplicateNoteId(trackedDuplicateNoteIds, noteId)
+            : await this.deps.findDuplicateNote(expressionText, noteId, noteInfoBeforeUpdate);
         if (duplicateNoteId === null) {
           this.deps.showOsdNotification('No duplicate card found');
           return;
@@ -242,4 +243,18 @@ export class FieldGroupingService {
       };
     }
   }
+}
+
+function pickMostRecentDuplicateNoteId(
+  duplicateNoteIds: number[],
+  excludeNoteId: number,
+): number | null {
+  let bestNoteId: number | null = null;
+  for (const noteId of duplicateNoteIds) {
+    if (noteId === excludeNoteId) continue;
+    if (bestNoteId === null || noteId > bestNoteId) {
+      bestNoteId = noteId;
+    }
+  }
+  return bestNoteId;
 }

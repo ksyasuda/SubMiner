@@ -63,6 +63,11 @@ interface YomitanProfileMetadata {
   dictionaryFrequencyModeByName: Partial<Record<string, YomitanFrequencyMode>>;
 }
 
+export interface YomitanAddNoteResult {
+  noteId: number | null;
+  duplicateNoteIds: number[];
+}
+
 const DEFAULT_YOMITAN_SCAN_LENGTH = 40;
 const yomitanProfileMetadataByWindow = new WeakMap<BrowserWindow, YomitanProfileMetadata>();
 const yomitanFrequencyCacheByWindow = new WeakMap<
@@ -1984,11 +1989,11 @@ export async function addYomitanNoteViaSearch(
   word: string,
   deps: YomitanParserRuntimeDeps,
   logger: LoggerLike,
-): Promise<number | null> {
+): Promise<YomitanAddNoteResult> {
   const isReady = await ensureYomitanParserWindow(deps, logger);
   const parserWindow = deps.getYomitanParserWindow();
   if (!isReady || !parserWindow || parserWindow.isDestroyed()) {
-    return null;
+    return { noteId: null, duplicateNoteIds: [] };
   }
 
   const escapedWord = JSON.stringify(word);
@@ -2003,10 +2008,27 @@ export async function addYomitanNoteViaSearch(
   `;
 
   try {
-    const noteId = await parserWindow.webContents.executeJavaScript(script, true);
-    return typeof noteId === 'number' ? noteId : null;
+    const result = await parserWindow.webContents.executeJavaScript(script, true);
+    if (typeof result === 'number') {
+      return { noteId: result, duplicateNoteIds: [] };
+    }
+    if (result && typeof result === 'object' && !Array.isArray(result)) {
+      const envelope = result as {
+        noteId?: unknown;
+        duplicateNoteIds?: unknown;
+      };
+      return {
+        noteId: typeof envelope.noteId === 'number' ? envelope.noteId : null,
+        duplicateNoteIds: Array.isArray(envelope.duplicateNoteIds)
+          ? envelope.duplicateNoteIds.filter(
+              (entry): entry is number => typeof entry === 'number' && Number.isInteger(entry) && entry > 0,
+            )
+          : [],
+      };
+    }
+    return { noteId: null, duplicateNoteIds: [] };
   } catch (err) {
     logger.error('Yomitan addNoteFromWord failed:', (err as Error).message);
-    return null;
+    return { noteId: null, duplicateNoteIds: [] };
   }
 }

@@ -112,6 +112,11 @@ interface CardCreationDeps {
   isUpdateInProgress: () => boolean;
   setUpdateInProgress: (value: boolean) => void;
   trackLastAddedNoteId?: (noteId: number) => void;
+  trackLastAddedDuplicateNoteIds?: (noteId: number, duplicateNoteIds: number[]) => void;
+  findDuplicateNoteIds?: (
+    expression: string,
+    noteInfo: CardCreationNoteInfo,
+  ) => Promise<number[]>;
   recordCardsMinedCallback?: (count: number, noteIds?: number[]) => void;
 }
 
@@ -548,6 +553,33 @@ export class CardCreationService {
           fields[getConfiguredWordFieldName(this.deps.getConfig())] = sentence;
         }
 
+        const pendingNoteInfo = this.createPendingNoteInfo(fields);
+        const pendingNoteFields = Object.fromEntries(
+          Object.entries(fields).map(([name, value]) => [name.toLowerCase(), value]),
+        );
+        const pendingExpressionText = getPreferredWordValueFromExtractedFields(
+          pendingNoteFields,
+          this.deps.getConfig(),
+        ).trim();
+        let duplicateNoteIds: number[] = [];
+        if (
+          sentenceCardConfig.kikuEnabled &&
+          sentenceCardConfig.kikuFieldGrouping !== 'disabled' &&
+          pendingExpressionText &&
+          this.deps.findDuplicateNoteIds
+        ) {
+          try {
+            duplicateNoteIds = sortUniqueNoteIds(
+              await this.deps.findDuplicateNoteIds(pendingExpressionText, pendingNoteInfo),
+            );
+          } catch (error) {
+            log.warn(
+              'Failed to capture pre-add duplicate note ids:',
+              (error as Error).message,
+            );
+          }
+        }
+
         const deck = this.deps.getConfig().deck || 'Default';
         let noteId: number;
         try {
@@ -568,6 +600,12 @@ export class CardCreationService {
           this.deps.trackLastAddedNoteId?.(noteId);
         } catch (error) {
           log.warn('Failed to track last added note:', (error as Error).message);
+        }
+
+        try {
+          this.deps.trackLastAddedDuplicateNoteIds?.(noteId, duplicateNoteIds);
+        } catch (error) {
+          log.warn('Failed to track duplicate note ids:', (error as Error).message);
         }
 
         try {
@@ -685,6 +723,15 @@ export class CardCreationService {
     );
   }
 
+  private createPendingNoteInfo(fields: Record<string, string>): CardCreationNoteInfo {
+    return {
+      noteId: -1,
+      fields: Object.fromEntries(
+        Object.entries(fields).map(([name, value]) => [name, { value }]),
+      ),
+    };
+  }
+
   private async mediaGenerateAudio(
     videoPath: string,
     startTime: number,
@@ -763,4 +810,8 @@ export class CardCreationService {
         : this.deps.getConfig().media?.imageFormat;
     return `image_${timestamp}.${ext}`;
   }
+}
+
+function sortUniqueNoteIds(noteIds: number[]): number[] {
+  return [...new Set(noteIds)].sort((left, right) => left - right);
 }

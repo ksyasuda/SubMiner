@@ -358,6 +358,33 @@ export function createKeyboardHandlers(
       });
   }
 
+  function isSubtitleSeekCommand(command: (string | number)[] | undefined): command is [string, number] {
+    return (
+      Array.isArray(command) &&
+      command[0] === 'sub-seek' &&
+      typeof command[1] === 'number'
+    );
+  }
+
+  function dispatchConfiguredMpvCommand(command: (string | number)[]): void {
+    if (!isSubtitleSeekCommand(command)) {
+      window.electronAPI.sendMpvCommand(command);
+      return;
+    }
+
+    void options
+      .getPlaybackPaused()
+      .then((paused) => {
+        window.electronAPI.sendMpvCommand(command);
+        if (paused === true) {
+          window.electronAPI.sendMpvCommand(['set_property', 'pause', 'yes']);
+        }
+      })
+      .catch(() => {
+        window.electronAPI.sendMpvCommand(command);
+      });
+  }
+
   type ScanModifierState = {
     shiftKey?: boolean;
     ctrlKey?: boolean;
@@ -954,7 +981,7 @@ export function createKeyboardHandlers(
 
       if (command) {
         e.preventDefault();
-        window.electronAPI.sendMpvCommand(command);
+        dispatchConfiguredMpvCommand(command);
       }
     });
 

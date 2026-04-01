@@ -147,7 +147,7 @@ async function main(): Promise<void> {
       { forceOverride: true },
     );
 
-    const noteId = await addYomitanNoteViaSearch(
+    const addResult = await addYomitanNoteViaSearch(
       word!,
       {
         getYomitanExt: () => yomitanExt,
@@ -168,6 +168,7 @@ async function main(): Promise<void> {
       logger,
     );
 
+    const noteId = addResult.noteId;
     if (typeof noteId !== 'number') {
       throw new Error('Yomitan failed to create note.');
     }

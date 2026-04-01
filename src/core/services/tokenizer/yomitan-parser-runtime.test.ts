@@ -5,6 +5,7 @@ import * as path from 'path';
 import test from 'node:test';
 import * as vm from 'node:vm';
 import {
+  addYomitanNoteViaSearch,
   getYomitanDictionaryInfo,
   importYomitanDictionaryFromZip,
   deleteYomitanDictionaryByTitle,
@@ -1372,4 +1373,20 @@ test('deleteYomitanDictionaryByTitle uses settings automation bridge instead of 
     scripts.some((script) => script.includes('subminerDeleteDictionary')),
     false,
   );
+});
+
+test('addYomitanNoteViaSearch returns note and duplicate ids from the bridge payload', async () => {
+  const deps = createDeps(async (_script) => ({
+    noteId: 42,
+    duplicateNoteIds: [18, 7, 18],
+  }));
+
+  const result = await addYomitanNoteViaSearch('食べる', deps, {
+    error: () => undefined,
+  });
+
+  assert.deepEqual(result, {
+    noteId: 42,
+    duplicateNoteIds: [18, 7, 18],
+  });
 });
