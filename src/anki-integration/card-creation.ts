@@ -602,10 +602,12 @@ export class CardCreationService {
           log.warn('Failed to track last added note:', (error as Error).message);
         }
 
-        try {
-          this.deps.trackLastAddedDuplicateNoteIds?.(noteId, duplicateNoteIds);
-        } catch (error) {
-          log.warn('Failed to track duplicate note ids:', (error as Error).message);
+        if (duplicateNoteIds.length > 0) {
+          try {
+            this.deps.trackLastAddedDuplicateNoteIds?.(noteId, duplicateNoteIds);
+          } catch (error) {
+            log.warn('Failed to track duplicate note ids:', (error as Error).message);
+          }
         }
 
         try {

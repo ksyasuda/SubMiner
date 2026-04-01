@@ -2010,7 +2010,10 @@ export async function addYomitanNoteViaSearch(
   try {
     const result = await parserWindow.webContents.executeJavaScript(script, true);
     if (typeof result === 'number') {
-      return { noteId: result, duplicateNoteIds: [] };
+      return {
+        noteId: Number.isInteger(result) && result > 0 ? result : null,
+        duplicateNoteIds: [],
+      };
     }
     if (result && typeof result === 'object' && !Array.isArray(result)) {
       const envelope = result as {
@@ -2018,7 +2021,12 @@ export async function addYomitanNoteViaSearch(
         duplicateNoteIds?: unknown;
       };
       return {
-        noteId: typeof envelope.noteId === 'number' ? envelope.noteId : null,
+        noteId:
+          typeof envelope.noteId === 'number' &&
+          Number.isInteger(envelope.noteId) &&
+          envelope.noteId > 0
+            ? envelope.noteId
+            : null,
         duplicateNoteIds: Array.isArray(envelope.duplicateNoteIds)
           ? envelope.duplicateNoteIds.filter(
               (entry): entry is number => typeof entry === 'number' && Number.isInteger(entry) && entry > 0,

@@ -1390,3 +1390,32 @@ test('addYomitanNoteViaSearch returns note and duplicate ids from the bridge pay
     duplicateNoteIds: [18, 7, 18],
   });
 });
+
+test('addYomitanNoteViaSearch rejects invalid numeric note ids from the bridge shortcut', async () => {
+  const deps = createDeps(async () => NaN);
+
+  const result = await addYomitanNoteViaSearch('食べる', deps, {
+    error: () => undefined,
+  });
+
+  assert.deepEqual(result, {
+    noteId: null,
+    duplicateNoteIds: [],
+  });
+});
+
+test('addYomitanNoteViaSearch sanitizes invalid payload note ids while keeping valid duplicate ids', async () => {
+  const deps = createDeps(async (_script) => ({
+    noteId: -1,
+    duplicateNoteIds: [18, 0, 7.5, 7],
+  }));
+
+  const result = await addYomitanNoteViaSearch('食べる', deps, {
+    error: () => undefined,
+  });
+
+  assert.deepEqual(result, {
+    noteId: null,
+    duplicateNoteIds: [18, 7],
+  });
+});

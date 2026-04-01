@@ -376,7 +376,7 @@ export function createKeyboardHandlers(
       .getPlaybackPaused()
       .then((paused) => {
         window.electronAPI.sendMpvCommand(command);
-        if (paused === true) {
+        if (paused !== false) {
           window.electronAPI.sendMpvCommand(['set_property', 'pause', 'yes']);
         }
       })

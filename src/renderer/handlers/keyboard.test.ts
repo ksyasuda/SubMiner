@@ -549,6 +549,31 @@ test('paused configured subtitle-jump keybinding re-applies pause after backward
   }
 });
 
+test('configured subtitle-jump keybinding preserves pause when pause state is unknown', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateKeybindings([
+      {
+        key: 'Shift+KeyH',
+        command: ['sub-seek', -1],
+      },
+    ] as never);
+    testGlobals.setPlaybackPausedResponse(null);
+
+    testGlobals.dispatchKeydown({ key: 'H', code: 'KeyH', shiftKey: true });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.mpvCommands.slice(-2), [
+      ['sub-seek', -1],
+      ['set_property', 'pause', 'yes'],
+    ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('visible-layer y-t dispatches mpv plugin toggle while overlay owns focus', async () => {
   const { handlers, testGlobals } = createKeyboardHandlerHarness();
 

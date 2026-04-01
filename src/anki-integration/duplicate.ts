@@ -24,7 +24,13 @@ export async function findDuplicateNote(
   noteInfo: NoteInfo,
   deps: DuplicateDetectionDeps,
 ): Promise<number | null> {
-  const duplicateNoteIds = await findDuplicateNoteIds(expression, excludeNoteId, noteInfo, deps);
+  const duplicateNoteIds = await findDuplicateNoteIds(
+    expression,
+    excludeNoteId,
+    noteInfo,
+    deps,
+    1,
+  );
   return duplicateNoteIds[0] ?? null;
 }
 
@@ -33,6 +39,7 @@ export async function findDuplicateNoteIds(
   excludeNoteId: number,
   noteInfo: NoteInfo,
   deps: DuplicateDetectionDeps,
+  maxMatches?: number,
 ): Promise<number[]> {
   const configuredWordFieldCandidates = deps.getWordFieldCandidates?.() ?? ['Expression', 'Word'];
   const sourceCandidates = getDuplicateSourceCandidates(
@@ -99,6 +106,7 @@ export async function findDuplicateNoteIds(
       sourceCandidates.map((candidate) => candidate.value),
       configuredWordFieldCandidates,
       deps,
+      maxMatches,
     );
   } catch (error) {
     deps.logWarn('Duplicate search failed:', error);
@@ -112,6 +120,7 @@ function findExactDuplicateNoteIds(
   sourceValues: string[],
   candidateFieldNames: string[],
   deps: DuplicateDetectionDeps,
+  maxMatches?: number,
 ): Promise<number[]> {
   const candidates = Array.from(candidateNoteIds).filter((id) => id !== excludeNoteId);
   deps.logDebug?.(`[duplicate] candidateIds=${candidates.length} exclude=${excludeNoteId}`);
@@ -145,6 +154,9 @@ function findExactDuplicateNoteIds(
             );
             deps.logInfo?.(`[duplicate] matched noteId=${noteInfo.noteId} field=${resolvedField}`);
             matches.push(noteInfo.noteId);
+            if (maxMatches !== undefined && matches.length >= maxMatches) {
+              return matches;
+            }
             break;
           }
         }

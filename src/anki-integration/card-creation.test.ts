@@ -487,3 +487,88 @@ test('CardCreationService tracks pre-add duplicate note ids for kiku sentence ca
   assert.deepEqual(duplicateLookupExpressions, ['重複文']);
   assert.deepEqual(trackedDuplicates, [{ noteId: 42, duplicateNoteIds: [7, 18, 30] }]);
 });
+
+test('CardCreationService does not track duplicate ids when pre-add lookup returns none', async () => {
+  const trackedDuplicates: Array<{ noteId: number; duplicateNoteIds: number[] }> = [];
+
+  const service = new CardCreationService({
+    getConfig: () =>
+      ({
+        deck: 'Mining',
+        fields: {
+          word: 'Expression',
+          sentence: 'Sentence',
+          audio: 'SentenceAudio',
+        },
+        media: {
+          generateAudio: false,
+          generateImage: false,
+        },
+        behavior: {},
+        ai: false,
+      }) as AnkiConnectConfig,
+    getAiConfig: () => ({}),
+    getTimingTracker: () => ({}) as never,
+    getMpvClient: () =>
+      ({
+        currentVideoPath: '/video.mp4',
+        currentSubText: '字幕',
+        currentSubStart: 1,
+        currentSubEnd: 2,
+        currentTimePos: 1.5,
+        currentAudioStreamIndex: 0,
+      }) as never,
+    client: {
+      addNote: async () => 42,
+      addTags: async () => undefined,
+      notesInfo: async () => [],
+      updateNoteFields: async () => undefined,
+      storeMediaFile: async () => undefined,
+      findNotes: async () => [],
+      retrieveMediaFile: async () => '',
+    },
+    mediaGenerator: {
+      generateAudio: async () => null,
+      generateScreenshot: async () => null,
+      generateAnimatedImage: async () => null,
+    },
+    showOsdNotification: () => undefined,
+    showUpdateResult: () => undefined,
+    showStatusNotification: () => undefined,
+    showNotification: async () => undefined,
+    beginUpdateProgress: () => undefined,
+    endUpdateProgress: () => undefined,
+    withUpdateProgress: async (_message, action) => action(),
+    resolveConfiguredFieldName: () => null,
+    resolveNoteFieldName: () => null,
+    getAnimatedImageLeadInSeconds: async () => 0,
+    extractFields: () => ({}),
+    processSentence: (sentence) => sentence,
+    setCardTypeFields: () => undefined,
+    mergeFieldValue: (_existing, newValue) => newValue,
+    formatMiscInfoPattern: () => '',
+    getEffectiveSentenceCardConfig: () => ({
+      model: 'Sentence',
+      sentenceField: 'Sentence',
+      audioField: 'SentenceAudio',
+      lapisEnabled: false,
+      kikuEnabled: true,
+      kikuFieldGrouping: 'manual',
+      kikuDeleteDuplicateInAuto: false,
+    }),
+    getFallbackDurationSeconds: () => 10,
+    appendKnownWordsFromNoteInfo: () => undefined,
+    isUpdateInProgress: () => false,
+    setUpdateInProgress: () => undefined,
+    trackLastAddedNoteId: () => undefined,
+    findDuplicateNoteIds: async () => [],
+    trackLastAddedDuplicateNoteIds: (noteId, duplicateNoteIds) => {
+      trackedDuplicates.push({ noteId, duplicateNoteIds });
+    },
+  });
+
+  const created = await service.createSentenceCard('重複なし', 0, 1);
+
+  assert.equal(created, true);
+  assert.deepEqual(trackedDuplicates, []);
+});
