@@ -117,12 +117,12 @@ SubMiner.AppImage --help                  # Show all options
 
 ### Windows mpv Shortcut
 
-If you enabled the optional Windows shortcut during install, SubMiner creates a `SubMiner mpv` shortcut in the Start menu and/or on the desktop. It runs `SubMiner.exe --launch-mpv`, which starts `mpv.exe` with SubMiner's `subminer` profile.
+If you enabled the optional Windows shortcut during install, SubMiner creates a `SubMiner mpv` shortcut in the Start menu and/or on the desktop. It runs `SubMiner.exe --launch-mpv`, which starts `mpv.exe` with SubMiner's default launch args directly.
 
 You can use it three ways:
 
-- Double-click `SubMiner mpv` to open `mpv` with the SubMiner profile.
-- Drag a video file onto `SubMiner mpv` to launch that file with the same profile.
+- Double-click `SubMiner mpv` to open `mpv` with SubMiner's default socket/subtitle args.
+- Drag a video file onto `SubMiner mpv` to launch that file with the same defaults.
 - Run it directly from Command Prompt or PowerShell with `--launch-mpv`.
 
 ```powershell
@@ -130,7 +130,7 @@ You can use it three ways:
 & "C:\Program Files\SubMiner\SubMiner.exe" --launch-mpv "C:\Videos\episode 01.mkv"
 ```
 
-This flow requires `mpv.exe` to be on `PATH`. If it is installed elsewhere, set `SUBMINER_MPV_PATH` to the full `mpv.exe` path before launching.
+This flow requires `mpv.exe` to be on `PATH`. If it is installed elsewhere, set `SUBMINER_MPV_PATH` to the full `mpv.exe` path before launching. On Windows, `--launch-mpv` does not require an `mpv.conf` profile named `subminer`.
 
 ### Launcher Subcommands
 
@@ -189,7 +189,7 @@ Top-level launcher flags like `--jellyfin-*` are intentionally rejected.
 
 You can append additional MPV arguments with launcher `-a/--args`, for example `--args "--ao=alsa --volume=80"`.
 
-You can define a matching profile in `~/.config/mpv/mpv.conf` for consistency when launching `mpv` manually or from other tools. `subminer` launches with `--profile=subminer` by default (or override with `subminer -p <profile> ...`):
+You can define a matching profile in `~/.config/mpv/mpv.conf` for consistency when launching `mpv` manually or from other tools. The Windows `SubMiner.exe --launch-mpv` shortcut path uses equivalent args directly; the optional profile remains useful for manual mpv launches and the `subminer` wrapper defaults to `--profile=subminer` (or override with `subminer -p <profile> ...`):
 
 ```ini
 [subminer]

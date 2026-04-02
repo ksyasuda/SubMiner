@@ -34,7 +34,19 @@ export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps): string {
 }
 
 export function buildWindowsMpvLaunchArgs(targets: string[], extraArgs: string[] = []): string[] {
-  return ['--player-operation-mode=pseudo-gui', '--profile=subminer', ...extraArgs, ...targets];
+  return [
+    '--player-operation-mode=pseudo-gui',
+    '--input-ipc-server=\\\\.\\pipe\\subminer-socket',
+    '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+    '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+    '--sub-auto=fuzzy',
+    '--sub-file-paths=.;subs;subtitles',
+    '--sid=auto',
+    '--secondary-sid=auto',
+    '--secondary-sub-visibility=no',
+    ...extraArgs,
+    ...targets,
+  ];
 }
 
 export function launchWindowsMpv(

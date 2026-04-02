@@ -55,7 +55,7 @@ export function buildWindowsMpvShortcutDetails(exePath: string): WindowsShortcut
     target: exePath,
     args: '--launch-mpv',
     cwd: path.win32.dirname(exePath),
-    description: 'Launch mpv with the SubMiner profile',
+    description: 'Launch mpv with SubMiner defaults',
     icon: exePath,
     iconIndex: 0,
   };

@@ -40,10 +40,17 @@ test('resolveWindowsMpvPath falls back to where.exe output', () => {
   assert.equal(resolved, 'C:\\tools\\mpv.exe');
 });
 
-test('buildWindowsMpvLaunchArgs keeps pseudo-gui profile and targets', () => {
+test('buildWindowsMpvLaunchArgs uses explicit SubMiner defaults and targets', () => {
   assert.deepEqual(buildWindowsMpvLaunchArgs(['C:\\a.mkv', 'C:\\b.mkv']), [
     '--player-operation-mode=pseudo-gui',
-    '--profile=subminer',
+    '--input-ipc-server=\\\\.\\pipe\\subminer-socket',
+    '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+    '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+    '--sub-auto=fuzzy',
+    '--sub-file-paths=.;subs;subtitles',
+    '--sid=auto',
+    '--secondary-sid=auto',
+    '--secondary-sub-visibility=no',
     'C:\\a.mkv',
     'C:\\b.mkv',
   ]);
@@ -81,7 +88,7 @@ test('launchWindowsMpv spawns detached mpv with targets', () => {
   assert.equal(result.mpvPath, 'C:\\mpv\\mpv.exe');
   assert.deepEqual(calls, [
     'C:\\mpv\\mpv.exe',
-    '--player-operation-mode=pseudo-gui|--profile=subminer|C:\\video.mkv',
+    '--player-operation-mode=pseudo-gui|--input-ipc-server=\\\\.\\pipe\\subminer-socket|--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--sub-auto=fuzzy|--sub-file-paths=.;subs;subtitles|--sid=auto|--secondary-sid=auto|--secondary-sub-visibility=no|C:\\video.mkv',
   ]);
 });
 
