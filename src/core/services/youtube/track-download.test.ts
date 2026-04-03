@@ -99,7 +99,6 @@ process.exit(0);
 function makeFakeYtDlpShellScript(dir: string): string {
   const scriptPath = path.join(dir, 'yt-dlp');
   const script = `#!/bin/sh
-PATH=/usr/bin:/bin:/usr/local/bin
 has_auto_subs=0
 wants_auto_subs=0
 wants_manual_subs=0
@@ -136,11 +135,12 @@ if [ -n "$YTDLP_EXPECT_SUB_LANG" ] && [ "$sub_lang" != "$YTDLP_EXPECT_SUB_LANG" 
   exit 4
 fi
 
-prefix="$(printf '%s' "$output_template" | sed 's/\.%(ext)s$//')"
+prefix="\${output_template%.%(ext)s}"
 if [ -z "$prefix" ]; then
   exit 1
 fi
-mkdir -p "$(dirname \"$prefix\")"
+dir="\${prefix%/*}"
+[ -d "$dir" ] || /bin/mkdir -p "$dir"
 
 if [ "$YTDLP_FAKE_MODE" = "multi" ]; then
   OLD_IFS="$IFS"
@@ -152,18 +152,7 @@ if [ "$YTDLP_FAKE_MODE" = "multi" ]; then
   done
   IFS="$OLD_IFS"
 elif [ "$YTDLP_FAKE_MODE" = "rolling-auto" ]; then
-  cat <<'EOF' > "\${prefix}.vtt"
-WEBVTT
-
-00:00:01.000 --> 00:00:02.000
-今日は
-
-00:00:02.000 --> 00:00:03.000
-今日はいい天気ですね
-
-00:00:03.000 --> 00:00:04.000
-今日はいい天気ですね本当に
-EOF
+  printf 'WEBVTT\\n\\n00:00:01.000 --> 00:00:02.000\\n今日は\\n\\n00:00:02.000 --> 00:00:03.000\\n今日はいい天気ですね\\n\\n00:00:03.000 --> 00:00:04.000\\n今日はいい天気ですね本当に\\n' > "\${prefix}.vtt"
 elif [ "$YTDLP_FAKE_MODE" = "multi-primary-only-fail" ]; then
   primary_lang="\${sub_lang%%,*}"
   if [ -n "$primary_lang" ]; then
