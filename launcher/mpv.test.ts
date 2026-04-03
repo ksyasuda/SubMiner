@@ -460,6 +460,18 @@ function withAccessSyncStub(
   }
 }
 
+function withRealpathSyncStub(resolvePath: (filePath: string) => string, run: () => void): void {
+  const originalRealpathSync = fs.realpathSync;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).realpathSync = (filePath: string): string => resolvePath(filePath);
+    run();
+  } finally {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).realpathSync = originalRealpathSync;
+  }
+}
+
 test('findAppBinary resolves ~/.local/bin/SubMiner.AppImage when it exists', { concurrency: false }, () => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-home-'));
   const originalHomedir = os.homedir;
@@ -517,6 +529,44 @@ test('findAppBinary finds subminer on PATH when AppImage candidates do not exist
           // selfPath must differ from wrapperPath so the self-check does not exclude it
           const result = findAppBinary(path.join(baseDir, 'launcher', 'subminer'), pathModule);
           assert.equal(result, wrapperPath);
+        },
+      );
+    });
+  } finally {
+    os.homedir = originalHomedir;
+    process.env.PATH = originalPath;
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test('findAppBinary excludes PATH matches that canonicalize to the launcher path', { concurrency: false }, () => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-realpath-'));
+  const originalHomedir = os.homedir;
+  const originalPath = process.env.PATH;
+  try {
+    os.homedir = () => baseDir;
+    const binDir = path.join(baseDir, 'bin');
+    const wrapperPath = path.join(binDir, 'subminer');
+    const canonicalPath = path.join(baseDir, 'launch', 'subminer');
+    makeExecutable(wrapperPath);
+    process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ''}`;
+
+    withFindAppBinaryPlatformSandbox('linux', (pathModule) => {
+      withAccessSyncStub(
+        (filePath) => filePath === wrapperPath,
+        () => {
+          withRealpathSyncStub(
+            (filePath) => {
+              if (filePath === canonicalPath || filePath === wrapperPath) {
+                return canonicalPath;
+              }
+              return filePath;
+            },
+            () => {
+              const result = findAppBinary(canonicalPath, pathModule);
+              assert.equal(result, null);
+            },
+          );
         },
       );
     });

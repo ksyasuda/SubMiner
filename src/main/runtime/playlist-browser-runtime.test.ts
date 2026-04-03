@@ -125,6 +125,17 @@ function createFakeMpvClient(options: {
   };
 }
 
+function createDeferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 test('getPlaylistBrowserSnapshotRuntime lists sibling videos in best-effort episode order', async (t) => {
   const dir = createTempVideoDir(t);
   const episode2 = path.join(dir, 'Show - S01E02.mkv');
@@ -486,6 +497,73 @@ test('playPlaylistBrowserIndexRuntime ignores superseded local subtitle rearm ca
       ['set_property', 'secondary-sid', 'auto'],
     ],
   );
+});
+
+test('playPlaylistBrowserIndexRuntime aborts stale async subtitle rearm work', async (t) => {
+  const dir = createTempVideoDir(t);
+  const episode1 = path.join(dir, 'Show - S01E01.mkv');
+  const episode2 = path.join(dir, 'Show - S01E02.mkv');
+  fs.writeFileSync(episode1, '');
+  fs.writeFileSync(episode2, '');
+
+  const firstTrackList = createDeferred<unknown>();
+  const secondTrackList = createDeferred<unknown>();
+  let trackListRequestCount = 0;
+  const mpvClient = createFakeMpvClient({
+    currentVideoPath: episode1,
+    playlist: [
+      { filename: episode1, current: true, title: 'Episode 1' },
+      { filename: episode2, title: 'Episode 2' },
+    ],
+  });
+  const requestProperty = mpvClient.requestProperty.bind(mpvClient);
+  mpvClient.requestProperty = async (name: string): Promise<unknown> => {
+    if (name === 'track-list') {
+      trackListRequestCount += 1;
+      return trackListRequestCount === 1 ? firstTrackList.promise : secondTrackList.promise;
+    }
+    return requestProperty(name);
+  };
+
+  const scheduled: Array<() => void> = [];
+  const deps = {
+    getMpvClient: () => mpvClient,
+    schedule: (callback: () => void) => {
+      scheduled.push(callback);
+    },
+  };
+
+  const firstPlay = await playPlaylistBrowserIndexRuntime(deps, 1);
+  assert.equal(firstPlay.ok, true);
+  scheduled[0]?.();
+
+  const secondPlay = await playPlaylistBrowserIndexRuntime(deps, 1);
+  assert.equal(secondPlay.ok, true);
+  scheduled[1]?.();
+
+  secondTrackList.resolve([
+    { type: 'sub', id: 21, lang: 'ja', title: 'Japanese', external: false, selected: true },
+    { type: 'sub', id: 22, lang: 'en', title: 'English', external: false },
+  ]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  firstTrackList.resolve([
+    { type: 'sub', id: 11, lang: 'ja', title: 'Japanese', external: false, selected: true },
+    { type: 'sub', id: 12, lang: 'en', title: 'English', external: false },
+  ]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const subtitleCommands = mpvClient
+    .getCommands()
+    .filter(
+      (command) =>
+        command[0] === 'set_property' && (command[1] === 'sid' || command[1] === 'secondary-sid'),
+    );
+
+  assert.deepEqual(subtitleCommands, [
+    ['set_property', 'sid', 21],
+    ['set_property', 'secondary-sid', 22],
+  ]);
 });
 
 test('playlist-browser playback reapplies configured preferred subtitle tracks when track metadata is available', async (t) => {

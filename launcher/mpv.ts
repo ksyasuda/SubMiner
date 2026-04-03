@@ -18,6 +18,7 @@ import {
   uniqueNormalizedLangCodes,
   sleep,
   normalizeLangCode,
+  realpathMaybe,
 } from './util.js';
 
 export const state = {
@@ -380,8 +381,8 @@ export function findAppBinary(selfPath: string, pathModule: PathModule = path): 
   );
 
   if (fromPath) {
-    const resolvedSelf = pathModule.resolve(selfPath);
-    const resolvedCandidate = pathModule.resolve(fromPath);
+    const resolvedSelf = realpathMaybe(selfPath);
+    const resolvedCandidate = realpathMaybe(fromPath);
     if (resolvedSelf !== resolvedCandidate) return fromPath;
   }
 

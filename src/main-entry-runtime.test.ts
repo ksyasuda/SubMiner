@@ -114,6 +114,15 @@ test('launch-mpv entry helpers detect and normalize targets', () => {
     ['--input-ipc-server', '\\\\.\\pipe\\custom-subminer-socket', '--alang', 'ja,jpn'],
   );
   assert.deepEqual(
+    normalizeLaunchMpvExtraArgs([
+      'SubMiner.exe',
+      '--launch-mpv',
+      '--fullscreen',
+      'C:\\a.mkv',
+    ]),
+    ['--fullscreen'],
+  );
+  assert.deepEqual(
     normalizeLaunchMpvTargets([
       'SubMiner.exe',
       '--launch-mpv',
@@ -125,6 +134,20 @@ test('launch-mpv entry helpers detect and normalize targets', () => {
       'C:\\b.mkv',
     ]),
     ['C:\\a.mkv', 'C:\\b.mkv'],
+  );
+  assert.deepEqual(
+    normalizeLaunchMpvTargets(['SubMiner.exe', '--launch-mpv', '--fullscreen', 'C:\\a.mkv']),
+    ['C:\\a.mkv'],
+  );
+  assert.deepEqual(
+    normalizeLaunchMpvExtraArgs([
+      'SubMiner.exe',
+      '--launch-mpv',
+      '--msg-level',
+      'all=warn',
+      'C:\\a.mkv',
+    ]),
+    ['--msg-level', 'all=warn'],
   );
 });
 

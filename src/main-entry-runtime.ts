@@ -8,6 +8,23 @@ const START_ARG = '--start';
 const PASSWORD_STORE_ARG = '--password-store';
 const BACKGROUND_CHILD_ENV = 'SUBMINER_BACKGROUND_CHILD';
 const APP_NAME = 'SubMiner';
+const MPV_LONG_OPTIONS_WITH_SEPARATE_VALUES = new Set([
+  '--alang',
+  '--audio-file',
+  '--input-ipc-server',
+  '--log-file',
+  '--msg-level',
+  '--profile',
+  '--script',
+  '--script-opts',
+  '--scripts',
+  '--slang',
+  '--sub-file',
+  '--sub-file-paths',
+  '--title',
+  '--volume',
+  '--ytdl-format',
+]);
 
 type EarlyAppLike = {
   setName: (name: string) => void;
@@ -51,6 +68,15 @@ function removePassiveStartupArgs(argv: string[]): string[] {
   }
 
   return filtered;
+}
+
+function consumesLaunchMpvValue(token: string): boolean {
+  return (
+    token.startsWith('--') &&
+    token !== '--' &&
+    !token.includes('=') &&
+    MPV_LONG_OPTIONS_WITH_SEPARATE_VALUES.has(token)
+  );
 }
 
 function parseCliArgs(argv: string[]): CliArgs {
@@ -144,7 +170,7 @@ export function normalizeLaunchMpvTargets(argv: string[]): string[] {
     }
 
     if (token.startsWith('--')) {
-      if (!token.includes('=') && i + 1 < argv.length) {
+      if (consumesLaunchMpvValue(token) && i + 1 < argv.length) {
         const value = argv[i + 1];
         if (value && !value.startsWith('-')) {
           i += 1;
@@ -179,7 +205,7 @@ export function normalizeLaunchMpvExtraArgs(argv: string[]): string[] {
     }
     if (token.startsWith('--')) {
       extraArgs.push(token);
-      if (!token.includes('=') && i + 1 < argv.length) {
+      if (consumesLaunchMpvValue(token) && i + 1 < argv.length) {
         const value = argv[i + 1];
         if (value && !value.startsWith('-')) {
           extraArgs.push(value);

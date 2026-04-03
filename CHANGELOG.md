@@ -6,6 +6,8 @@
 - AniList: Stopped post-watch tracking from sending a second progress update when the current episode was already satisfied by a ready retry item in the same watch-completion pass.
 - Playback: Fixed managed local playback so duplicate startup-ready retries no longer unpause media after a later manual pause on the same file.
 - Playback: Fixed managed local subtitle auto-selection so local files reuse configured primary/secondary subtitle language priorities instead of staying on mpv's initial `sid=auto` guess.
+- Launcher: Hardened `--launch-mpv` parsing and Windows binary resolution so valueless flags do not swallow media targets and symlinked launcher installs do not short-circuit PATH lookup.
+- Playback: Prevented stale async playlist-browser subtitle rearm callbacks from overriding newer subtitle selections during rapid file changes.
 
 ## v0.10.0 (2026-03-29)
 

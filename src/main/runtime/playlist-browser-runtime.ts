@@ -235,8 +235,18 @@ async function buildMutationResult(
 async function rearmLocalSubtitleSelection(
   client: MpvPlaylistBrowserClientLike,
   deps: PlaylistBrowserRuntimeDeps,
+  expectedPath: string,
+  token: number,
 ): Promise<void> {
   const trackList = await readProperty(client, 'track-list');
+  if (pendingLocalSubtitleSelectionRearms.get(client) !== token) {
+    return;
+  }
+  const currentPath = trimToNull(client.currentVideoPath);
+  if (currentPath && path.resolve(currentPath) !== expectedPath) {
+    return;
+  }
+  pendingLocalSubtitleSelectionRearms.delete(client);
   const selection = resolveManagedLocalSubtitleSelection({
     trackList: Array.isArray(trackList) ? trackList : null,
     primaryLanguages: deps.getPrimarySubtitleLanguages?.() ?? [],
@@ -267,12 +277,7 @@ function scheduleLocalSubtitleSelectionRearm(
   pendingLocalSubtitleSelectionRearms.set(client, nextToken);
   (deps.schedule ?? setTimeout)(() => {
     if (pendingLocalSubtitleSelectionRearms.get(client) !== nextToken) return;
-    pendingLocalSubtitleSelectionRearms.delete(client);
-    const currentPath = trimToNull(client.currentVideoPath);
-    if (currentPath && path.resolve(currentPath) !== expectedPath) {
-      return;
-    }
-    void rearmLocalSubtitleSelection(client, deps);
+    void rearmLocalSubtitleSelection(client, deps, expectedPath, nextToken);
   }, 400);
 }
 
