@@ -158,7 +158,7 @@
         "nsis",
         "zip"
       ],
-      "icon": "assets/SubMiner.png"
+      "icon": "assets/SubMiner.ico"
     },
     "nsis": {
       "oneClick": false,
