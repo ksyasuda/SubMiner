@@ -16,7 +16,7 @@
     "build:launcher": "bun build ./launcher/main.ts --target=bun --packages=bundle --outfile=dist/launcher/subminer",
     "build:stats": "cd stats && bun run build",
     "dev:stats": "cd stats && bun run dev",
-    "build": "bun run build:yomitan && bun run build:stats && tsc -p tsconfig.json && bun run build:renderer && bun run build:assets",
+    "build": "bun run build:yomitan && bun run build:stats && tsc -p tsconfig.json && bun run build:renderer && bun run build:launcher && bun run build:assets",
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js --sourcemap",
     "changelog:build": "bun run scripts/build-changelog.ts build",
     "changelog:check": "bun run scripts/build-changelog.ts check",
