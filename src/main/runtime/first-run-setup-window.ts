@@ -396,7 +396,8 @@ export function createHandleFirstRunSetupNavigationHandler(deps: {
 }) {
   return (params: { url: string; preventDefault: () => void }): boolean => {
     if (!params.url.startsWith('subminer://first-run-setup')) {
-      return false;
+      params.preventDefault();
+      return true;
     }
     params.preventDefault();
     let submission: FirstRunSetupSubmission | null;

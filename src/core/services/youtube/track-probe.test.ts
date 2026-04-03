@@ -21,7 +21,7 @@ function makeFakeYtDlpScript(dir: string, payload: unknown, rawScript = false): 
     process.platform === 'win32'
       ? rawScript
         ? stdoutBody
-        : `#!/usr/bin/env node
+        : `#!/usr/bin/env bun
 process.stdout.write(${JSON.stringify(stdoutBody)});
 `
       : `#!/usr/bin/env sh

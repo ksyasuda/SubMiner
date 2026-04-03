@@ -16,7 +16,7 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 
 function makeFakeYtDlpScript(dir: string): string {
   const scriptPath = path.join(dir, 'yt-dlp');
-  const script = `#!/usr/bin/env node
+  const script = `#!/usr/bin/env bun
 const fs = require('node:fs');
 const path = require('node:path');
 

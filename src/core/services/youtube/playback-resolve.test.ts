@@ -17,7 +17,7 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 function makeFakeYtDlpScript(dir: string, payload: string): void {
   const scriptPath = path.join(dir, 'yt-dlp');
   const script = process.platform === 'win32'
-    ? `#!/usr/bin/env node
+    ? `#!/usr/bin/env bun
 process.stdout.write(${JSON.stringify(payload)});
 `
     : `#!/usr/bin/env sh
