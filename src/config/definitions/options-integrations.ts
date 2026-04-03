@@ -239,6 +239,13 @@ export function buildIntegrationConfigOptionRegistry(
         'Optional external Yomitan Electron profile path to use in read-only mode for shared dictionaries/settings. Example: ~/.config/gsm_overlay',
     },
     {
+      path: 'mpv.executablePath',
+      kind: 'string',
+      defaultValue: defaultConfig.mpv.executablePath,
+      description:
+        'Optional absolute path to mpv.exe for Windows launch flows. Leave empty to auto-discover from SUBMINER_MPV_PATH or PATH.',
+    },
+    {
       path: 'jellyfin.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.jellyfin.enabled,

@@ -29,6 +29,19 @@ test('resolveWindowsMpvPath prefers SUBMINER_MPV_PATH', () => {
   assert.equal(resolved, 'C:\\mpv\\mpv.exe');
 });
 
+test('resolveWindowsMpvPath prefers configured executable path before PATH', () => {
+  const resolved = resolveWindowsMpvPath(
+    createDeps({
+      getEnv: () => undefined,
+      runWhere: () => ({ status: 0, stdout: 'C:\\tools\\mpv.exe\r\n' }),
+      fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
+    }),
+    '  C:\\mpv\\mpv.exe  ',
+  );
+
+  assert.equal(resolved, 'C:\\mpv\\mpv.exe');
+});
+
 test('resolveWindowsMpvPath falls back to where.exe output', () => {
   const resolved = resolveWindowsMpvPath(
     createDeps({
@@ -132,7 +145,7 @@ test('launchWindowsMpv reports missing mpv path', () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.mpvPath, '');
-  assert.match(errors[0] ?? '', /Could not find mpv\.exe/i);
+  assert.match(errors[0] ?? '', /mpv\.executablePath/i);
 });
 
 test('launchWindowsMpv spawns detached mpv with targets', () => {

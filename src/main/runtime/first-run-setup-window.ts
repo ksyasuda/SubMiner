@@ -17,6 +17,7 @@ type FirstRunSetupWindowLike = FocusableWindowLike & {
 };
 
 export type FirstRunSetupAction =
+  | 'configure-mpv-executable-path'
   | 'install-plugin'
   | 'configure-windows-mpv-shortcuts'
   | 'open-yomitan-settings'
@@ -25,6 +26,7 @@ export type FirstRunSetupAction =
 
 export interface FirstRunSetupSubmission {
   action: FirstRunSetupAction;
+  mpvExecutablePath?: string;
   startMenuEnabled?: boolean;
   desktopEnabled?: boolean;
 }
@@ -36,6 +38,7 @@ export interface FirstRunSetupHtmlModel {
   externalYomitanConfigured: boolean;
   pluginStatus: 'installed' | 'required' | 'failed';
   pluginInstallPathSummary: string | null;
+  mpvExecutablePath: string;
   windowsMpvShortcuts: {
     supported: boolean;
     startMenuEnabled: boolean;
@@ -90,6 +93,34 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
         : model.windowsMpvShortcuts.status === 'skipped'
           ? 'muted'
           : 'warn';
+  const mpvExecutablePathLabel =
+    model.mpvExecutablePath.trim().length > 0 ? 'Configured' : 'Blank';
+  const mpvExecutablePathTone = model.mpvExecutablePath.trim().length > 0 ? 'ready' : 'muted';
+  const mpvExecutablePathCard = model.windowsMpvShortcuts.supported
+    ? `
+    <div class="card block">
+      <div class="card-head">
+        <div>
+          <strong>mpv executable path</strong>
+          <div class="meta">Leave blank to auto-discover mpv.exe from PATH.</div>
+          <div class="meta">Current: ${escapeHtml(model.mpvExecutablePath.trim().length > 0 ? model.mpvExecutablePath : 'blank (PATH discovery)')}</div>
+        </div>
+        ${renderStatusBadge(mpvExecutablePathLabel, mpvExecutablePathTone)}
+      </div>
+      <form
+        class="path-form"
+        onsubmit="event.preventDefault(); const params = new URLSearchParams({ action: 'configure-mpv-executable-path', mpvExecutablePath: document.getElementById('mpv-executable-path').value }); window.location.href = 'subminer://first-run-setup?' + params.toString();"
+      >
+        <input
+          id="mpv-executable-path"
+          type="text"
+          value="${escapeHtml(model.mpvExecutablePath)}"
+          placeholder="C:\\Program Files\\mpv\\mpv.exe"
+        />
+        <button type="submit">Save mpv executable path</button>
+      </form>
+    </div>`
+    : '';
   const windowsShortcutCard = model.windowsMpvShortcuts.supported
     ? `
     <div class="card block">
@@ -218,6 +249,24 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     .badge.warn { background: rgba(238, 212, 159, 0.18); color: var(--yellow); }
     .badge.muted { background: rgba(184, 192, 224, 0.12); color: var(--muted); }
     .badge.danger { background: rgba(237, 135, 150, 0.16); color: var(--red); }
+    .path-form {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .path-form input[type='text'] {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid rgba(202, 211, 245, 0.12);
+      border-radius: 10px;
+      padding: 9px 10px;
+      color: var(--text);
+      background: rgba(30, 32, 48, 0.72);
+      font: inherit;
+    }
+    .path-form input[type='text']::placeholder {
+      color: rgba(184, 192, 224, 0.65);
+    }
     .actions {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -282,6 +331,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       </div>
       ${renderStatusBadge(yomitanBadgeLabel, yomitanBadgeTone)}
     </div>
+    ${mpvExecutablePathCard}
     ${windowsShortcutCard}
     <div class="actions">
       <button onclick="window.location.href='subminer://first-run-setup?action=install-plugin'">${pluginActionLabel}</button>
@@ -303,6 +353,7 @@ export function parseFirstRunSetupSubmissionUrl(rawUrl: string): FirstRunSetupSu
   const parsed = new URL(rawUrl);
   const action = parsed.searchParams.get('action');
   if (
+    action !== 'configure-mpv-executable-path' &&
     action !== 'install-plugin' &&
     action !== 'configure-windows-mpv-shortcuts' &&
     action !== 'open-yomitan-settings' &&
@@ -310,6 +361,12 @@ export function parseFirstRunSetupSubmissionUrl(rawUrl: string): FirstRunSetupSu
     action !== 'finish'
   ) {
     return null;
+  }
+  if (action === 'configure-mpv-executable-path') {
+    return {
+      action,
+      mpvExecutablePath: parsed.searchParams.get('mpvExecutablePath') ?? '',
+    };
   }
   if (action === 'configure-windows-mpv-shortcuts') {
     return {

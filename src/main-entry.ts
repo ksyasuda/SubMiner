@@ -2,6 +2,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { app, dialog } from 'electron';
 import { printHelp } from './cli/help';
+import { loadRawConfigStrict } from './config/load';
 import {
   configureEarlyAppPaths,
   normalizeLaunchMpvExtraArgs,
@@ -35,6 +36,21 @@ function applySanitizedEnv(sanitizedEnv: NodeJS.ProcessEnv): void {
   }
 }
 
+function readConfiguredWindowsMpvExecutablePath(configDir: string): string {
+  const loadResult = loadRawConfigStrict({
+    configDir,
+    configFileJsonc: path.join(configDir, 'config.jsonc'),
+    configFileJson: path.join(configDir, 'config.json'),
+  });
+  if (!loadResult.ok) {
+    return '';
+  }
+
+  return typeof loadResult.config.mpv?.executablePath === 'string'
+    ? loadResult.config.mpv.executablePath.trim()
+    : '';
+}
+
 function resolveBundledWindowsMpvPluginEntrypoint(): string | undefined {
   const assets = resolvePackagedFirstRunPluginAssets({
     dirname: __dirname,
@@ -50,7 +66,7 @@ function resolveBundledWindowsMpvPluginEntrypoint(): string | undefined {
 
 process.argv = normalizeStartupArgv(process.argv, process.env);
 applySanitizedEnv(sanitizeStartupEnv(process.env));
-configureEarlyAppPaths(app);
+const userDataPath = configureEarlyAppPaths(app);
 
 if (shouldDetachBackgroundLaunch(process.argv, process.env)) {
   const child = spawn(process.execPath, process.argv.slice(1), {
@@ -87,6 +103,7 @@ if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
       normalizeLaunchMpvExtraArgs(process.argv),
       process.execPath,
       resolveBundledWindowsMpvPluginEntrypoint(),
+      readConfiguredWindowsMpvExecutablePath(userDataPath),
     );
     app.exit(result.ok ? 0 : 1);
   });

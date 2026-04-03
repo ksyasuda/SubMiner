@@ -23,7 +23,7 @@
 
 **macOS** — macOS 10.13 or later. Accessibility permission required for window tracking.
 
-**Windows** — Windows 10 or later. Install `mpv` and keep it available on `PATH`; SubMiner's packaged build handles window tracking directly.
+**Windows** — Windows 10 or later. Install `mpv`; keep it on `PATH` for auto-discovery or set `mpv.executablePath` in config if `mpv.exe` lives elsewhere. SubMiner's packaged build handles window tracking directly.
 
 ### Optional Tools
 
@@ -172,6 +172,7 @@ Install `mpv` separately and ensure `mpv.exe` is on `PATH`. `ffmpeg` is still re
 ### Windows Usage Notes
 
 - Launch `SubMiner.exe` once to let the first-run setup flow seed `%APPDATA%\\SubMiner\\config.jsonc`, require mpv plugin installation, and open bundled Yomitan settings. The optional `SubMiner mpv` Start Menu/Desktop shortcut can also be created during setup, and on Windows it is the recommended way to launch mpv playback with SubMiner defaults.
+- If `mpv.exe` is not on `PATH`, set `mpv.executablePath` in `config.jsonc` or use the first-run setup field to point at the executable. Leave it blank to keep PATH auto-discovery.
 - `SubMiner.exe --launch-mpv` and the optional `SubMiner mpv` shortcut pass SubMiner's default mpv socket/subtitle args directly and do not require an `mpv.conf` profile named `subminer`.
 - First-run mpv plugin installs pin `binary_path` to the current `SubMiner.exe` automatically. Manual plugin configs can leave `binary_path` empty unless SubMiner is installed in a non-standard location.
 - Windows plugin installs rewrite `socket_path` to `\\.\pipe\subminer-socket`; do not keep `/tmp/subminer-socket` on Windows.

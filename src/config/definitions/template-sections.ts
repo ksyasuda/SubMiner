@@ -154,6 +154,14 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'yomitan',
   },
   {
+    title: 'MPV Launcher',
+    description: [
+      'Optional mpv.exe override for Windows playback entry points.',
+      'Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.',
+    ],
+    key: 'mpv',
+  },
+  {
     title: 'Jellyfin',
     description: [
       'Optional Jellyfin integration for auth, browsing, and playback launch.',

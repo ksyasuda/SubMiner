@@ -133,7 +133,7 @@ You can use it three ways:
 & "C:\Program Files\SubMiner\SubMiner.exe" --launch-mpv "C:\Videos\episode 01.mkv"
 ```
 
-This flow requires `mpv.exe` to be on `PATH`. If it is installed elsewhere, set `SUBMINER_MPV_PATH` to the full `mpv.exe` path before launching. On Windows, `--launch-mpv` does not require an `mpv.conf` profile named `subminer`.
+This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blank to auto-discover from `PATH`, or set it to the full `mpv.exe` path if mpv is installed elsewhere. `SUBMINER_MPV_PATH` is still honored as a fallback. On Windows, `--launch-mpv` does not require an `mpv.conf` profile named `subminer`.
 
 ### Launcher Subcommands
 
@@ -164,6 +164,7 @@ Setup flow:
 - Yomitan shortcut: open bundled Yomitan settings directly from the setup window
 - dictionary check: ensure at least one bundled Yomitan dictionary is available, unless an external Yomitan profile is configured
 - Windows: optionally create or remove `SubMiner mpv` Start Menu/Desktop shortcuts (`SubMiner.exe --launch-mpv`)
+- Windows: optionally set `mpv.executablePath` if `mpv.exe` is not on `PATH`
 - refresh: re-check plugin + dictionary state without restarting
 - `Finish setup` stays disabled until the config, plugin, and dictionary gates are satisfied
 - finish action writes setup completion state and suppresses future auto-open prompts

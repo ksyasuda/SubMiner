@@ -5,6 +5,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   | 'ankiConnect'
   | 'jimaku'
   | 'anilist'
+  | 'mpv'
   | 'yomitan'
   | 'jellyfin'
   | 'discordPresence'
@@ -89,6 +90,9 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     apiBaseUrl: 'https://jimaku.cc',
     languagePreference: 'ja',
     maxEntryResults: 10,
+  },
+  mpv: {
+    executablePath: '',
   },
   anilist: {
     enabled: false,

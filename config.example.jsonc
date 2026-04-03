@@ -459,6 +459,15 @@
   }, // Optional external Yomitan profile integration.
 
   // ==========================================
+  // MPV Launcher
+  // Optional mpv.exe override for Windows playback entry points.
+  // Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.
+  // ==========================================
+  "mpv": {
+    "executablePath": "" // Optional absolute path to mpv.exe for Windows launch flows. Leave empty to auto-discover from SUBMINER_MPV_PATH or PATH.
+  }, // Optional mpv.exe override for Windows playback entry points.
+
+  // ==========================================
   // Jellyfin
   // Optional Jellyfin integration for auth, browsing, and playback launch.
   // Access token is stored in local encrypted token storage after login/setup.

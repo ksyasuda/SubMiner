@@ -1037,6 +1037,9 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
         showError: (title, content) => dialog.showErrorBox(title, content),
       }),
       [...args, `--log-file=${DEFAULT_MPV_LOG_PATH}`],
+      undefined,
+      undefined,
+      getResolvedConfig().mpv.executablePath,
     ),
   waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
   prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
@@ -2220,6 +2223,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       externalYomitanConfigured: snapshot.externalYomitanConfigured,
       pluginStatus: snapshot.pluginStatus,
       pluginInstallPathSummary: snapshot.pluginInstallPathSummary,
+      mpvExecutablePath: getResolvedConfig().mpv.executablePath,
       windowsMpvShortcuts: snapshot.windowsMpvShortcuts,
       message: firstRunSetupMessage,
     };
@@ -2230,6 +2234,18 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
     if (submission.action === 'install-plugin') {
       const snapshot = await firstRunSetupService.installMpvPlugin();
       firstRunSetupMessage = snapshot.message;
+      return;
+    }
+    if (submission.action === 'configure-mpv-executable-path') {
+      const mpvExecutablePath = submission.mpvExecutablePath?.trim() ?? '';
+      configService.patchRawConfig({
+        mpv: {
+          executablePath: mpvExecutablePath,
+        },
+      });
+      firstRunSetupMessage = mpvExecutablePath
+        ? `Saved mpv executable path: ${mpvExecutablePath}`
+        : 'Cleared mpv executable path. SubMiner will auto-discover mpv.exe from PATH.';
       return;
     }
     if (submission.action === 'configure-windows-mpv-shortcuts') {

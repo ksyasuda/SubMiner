@@ -13,7 +13,15 @@ function normalizeCandidate(candidate: string | undefined): string {
   return typeof candidate === 'string' ? candidate.trim() : '';
 }
 
-export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps): string {
+export function resolveWindowsMpvPath(
+  deps: WindowsMpvLaunchDeps,
+  configuredMpvPath = '',
+): string {
+  const configPath = normalizeCandidate(configuredMpvPath);
+  if (configPath && deps.fileExists(configPath)) {
+    return configPath;
+  }
+
   const envPath = normalizeCandidate(deps.getEnv('SUBMINER_MPV_PATH'));
   if (envPath && deps.fileExists(envPath)) {
     return envPath;
@@ -97,12 +105,13 @@ export function launchWindowsMpv(
   extraArgs: string[] = [],
   binaryPath?: string,
   pluginEntrypointPath?: string,
+  configuredMpvPath?: string,
 ): { ok: boolean; mpvPath: string } {
-  const mpvPath = resolveWindowsMpvPath(deps);
+  const mpvPath = resolveWindowsMpvPath(deps, configuredMpvPath);
   if (!mpvPath) {
     deps.showError(
       'SubMiner mpv launcher',
-      'Could not find mpv.exe. Install mpv and add it to PATH, or set SUBMINER_MPV_PATH.',
+      'Could not find mpv.exe. Set mpv.executablePath, set SUBMINER_MPV_PATH, or add mpv.exe to PATH.',
     );
     return { ok: false, mpvPath: '' };
   }

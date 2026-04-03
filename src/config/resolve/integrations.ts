@@ -228,6 +228,22 @@ export function applyIntegrationConfig(context: ResolveContext): void {
     warn('yomitan', src.yomitan, resolved.yomitan, 'Expected object.');
   }
 
+  if (isObject(src.mpv)) {
+    const executablePath = asString(src.mpv.executablePath);
+    if (executablePath !== undefined) {
+      resolved.mpv.executablePath = executablePath.trim();
+    } else if (src.mpv.executablePath !== undefined) {
+      warn(
+        'mpv.executablePath',
+        src.mpv.executablePath,
+        resolved.mpv.executablePath,
+        'Expected string.',
+      );
+    }
+  } else if (src.mpv !== undefined) {
+    warn('mpv', src.mpv, resolved.mpv, 'Expected object.');
+  }
+
   if (isObject(src.jellyfin)) {
     const enabled = asBoolean(src.jellyfin.enabled);
     if (enabled !== undefined) {

@@ -35,8 +35,17 @@ const {
   startupWarmups,
   auto_start_overlay,
 } = CORE_DEFAULT_CONFIG;
-const { ankiConnect, jimaku, anilist, yomitan, jellyfin, discordPresence, ai, youtubeSubgen } =
-  INTEGRATIONS_DEFAULT_CONFIG;
+const {
+  ankiConnect,
+  jimaku,
+  anilist,
+  mpv,
+  yomitan,
+  jellyfin,
+  discordPresence,
+  ai,
+  youtubeSubgen,
+} = INTEGRATIONS_DEFAULT_CONFIG;
 const { subtitleStyle, subtitleSidebar } = SUBTITLE_DEFAULT_CONFIG;
 const { immersionTracking } = IMMERSION_DEFAULT_CONFIG;
 const { stats } = STATS_DEFAULT_CONFIG;
@@ -60,6 +69,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   auto_start_overlay,
   jimaku,
   anilist,
+  mpv,
   yomitan,
   jellyfin,
   discordPresence,

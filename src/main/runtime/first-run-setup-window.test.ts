@@ -16,6 +16,7 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
     externalYomitanConfigured: false,
     pluginStatus: 'required',
     pluginInstallPathSummary: null,
+    mpvExecutablePath: '',
     windowsMpvShortcuts: {
       supported: false,
       startMenuEnabled: true,
@@ -43,6 +44,7 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
     externalYomitanConfigured: false,
     pluginStatus: 'installed',
     pluginInstallPathSummary: '/tmp/mpv',
+    mpvExecutablePath: 'C:\\Program Files\\mpv\\mpv.exe',
     windowsMpvShortcuts: {
       supported: true,
       startMenuEnabled: true,
@@ -55,6 +57,8 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
   });
 
   assert.match(html, /Reinstall mpv plugin/);
+  assert.match(html, /mpv executable path/);
+  assert.match(html, /Leave blank to auto-discover mpv\.exe from PATH\./);
   assert.match(
     html,
     /Finish stays unlocked once the mpv plugin is installed and Yomitan reports at least one installed dictionary\./,
@@ -69,6 +73,7 @@ test('buildFirstRunSetupHtml explains the config blocker when setup is missing c
     externalYomitanConfigured: false,
     pluginStatus: 'required',
     pluginInstallPathSummary: null,
+    mpvExecutablePath: '',
     windowsMpvShortcuts: {
       supported: false,
       startMenuEnabled: true,
@@ -91,6 +96,7 @@ test('buildFirstRunSetupHtml explains external yomitan mode and keeps finish ena
     externalYomitanConfigured: true,
     pluginStatus: 'installed',
     pluginInstallPathSummary: null,
+    mpvExecutablePath: '',
     windowsMpvShortcuts: {
       supported: false,
       startMenuEnabled: true,
@@ -107,6 +113,15 @@ test('buildFirstRunSetupHtml explains external yomitan mode and keeps finish ena
 });
 
 test('parseFirstRunSetupSubmissionUrl parses supported custom actions', () => {
+  assert.deepEqual(
+    parseFirstRunSetupSubmissionUrl(
+      'subminer://first-run-setup?action=configure-mpv-executable-path&mpvExecutablePath=C%3A%5CApps%5Cmpv%5Cmpv.exe',
+    ),
+    {
+      action: 'configure-mpv-executable-path',
+      mpvExecutablePath: 'C:\\Apps\\mpv\\mpv.exe',
+    },
+  );
   assert.deepEqual(parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=refresh'), {
     action: 'refresh',
   });
@@ -192,6 +207,7 @@ test('closing incomplete first-run setup quits app outside background mode', asy
       externalYomitanConfigured: false,
       pluginStatus: 'required',
       pluginInstallPathSummary: null,
+      mpvExecutablePath: '',
       windowsMpvShortcuts: {
         supported: false,
         startMenuEnabled: true,
