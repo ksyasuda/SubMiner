@@ -12,7 +12,7 @@ function createDeps(overrides: Partial<WindowsMpvLaunchDeps> = {}): WindowsMpvLa
     getEnv: () => undefined,
     runWhere: () => ({ status: 1, stdout: '' }),
     fileExists: () => false,
-    spawnDetached: () => undefined,
+    spawnDetached: async () => undefined,
     showError: () => undefined,
     ...overrides,
   };
@@ -134,9 +134,9 @@ test('buildWindowsMpvLaunchArgs mirrors a custom input-ipc-server into script op
   );
 });
 
-test('launchWindowsMpv reports missing mpv path', () => {
+test('launchWindowsMpv reports missing mpv path', async () => {
   const errors: string[] = [];
-  const result = launchWindowsMpv(
+  const result = await launchWindowsMpv(
     [],
     createDeps({
       showError: (_title, content) => errors.push(content),
@@ -148,14 +148,14 @@ test('launchWindowsMpv reports missing mpv path', () => {
   assert.match(errors[0] ?? '', /mpv\.executablePath/i);
 });
 
-test('launchWindowsMpv spawns detached mpv with targets', () => {
+test('launchWindowsMpv spawns detached mpv with targets', async () => {
   const calls: string[] = [];
-  const result = launchWindowsMpv(
+  const result = await launchWindowsMpv(
     ['C:\\video.mkv'],
     createDeps({
       getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
       fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
-      spawnDetached: (command, args) => {
+      spawnDetached: async (command, args) => {
         calls.push(command);
         calls.push(args.join('|'));
       },
@@ -173,14 +173,14 @@ test('launchWindowsMpv spawns detached mpv with targets', () => {
   ]);
 });
 
-test('launchWindowsMpv reports spawn failures with path context', () => {
+test('launchWindowsMpv reports spawn failures with path context', async () => {
   const errors: string[] = [];
-  const result = launchWindowsMpv(
+  const result = await launchWindowsMpv(
     [],
     createDeps({
       getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
       fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
-      spawnDetached: () => {
+      spawnDetached: async () => {
         throw new Error('spawn failed');
       },
       showError: (_title, content) => errors.push(content),
@@ -191,4 +191,22 @@ test('launchWindowsMpv reports spawn failures with path context', () => {
   assert.equal(result.mpvPath, 'C:\\mpv\\mpv.exe');
   assert.match(errors[0] ?? '', /Failed to launch mpv/i);
   assert.match(errors[0] ?? '', /C:\\mpv\\mpv\.exe/i);
+});
+
+test('launchWindowsMpv reports async spawn failures with path context', async () => {
+  const errors: string[] = [];
+  const result = await launchWindowsMpv(
+    [],
+    createDeps({
+      getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
+      fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
+      spawnDetached: () => Promise.reject(new Error('async spawn failed')),
+      showError: (_title, content) => errors.push(content),
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.mpvPath, 'C:\\mpv\\mpv.exe');
+  assert.match(errors[0] ?? '', /Failed to launch mpv/i);
+  assert.match(errors[0] ?? '', /async spawn failed/i);
 });

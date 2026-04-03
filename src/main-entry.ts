@@ -91,8 +91,8 @@ if (shouldHandleHelpOnlyAtEntry(process.argv, process.env)) {
 if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
   const sanitizedEnv = sanitizeLaunchMpvEnv(process.env);
   applySanitizedEnv(sanitizedEnv);
-  void app.whenReady().then(() => {
-    const result = launchWindowsMpv(
+  void app.whenReady().then(async () => {
+    const result = await launchWindowsMpv(
       normalizeLaunchMpvTargets(process.argv),
       createWindowsMpvLaunchDeps({
         getEnv: (name) => process.env[name],

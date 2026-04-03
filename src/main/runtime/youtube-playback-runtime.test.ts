@@ -29,7 +29,7 @@ test('youtube playback runtime resets flow ownership after a successful run', as
     resolveYoutubePlaybackUrl: async () => {
       throw new Error('linux path should not resolve direct playback url');
     },
-    launchWindowsMpv: () => ({ ok: false }),
+    launchWindowsMpv: async () => ({ ok: false }),
     waitForYoutubeMpvConnected: async (timeoutMs) => {
       calls.push(`wait-connected:${timeoutMs}`);
       return true;
@@ -105,7 +105,7 @@ test('youtube playback runtime resolves the socket path lazily for windows start
       calls.push(`resolve:${url}:${format}`);
       return 'https://example.com/direct';
     },
-    launchWindowsMpv: (_playbackUrl, args) => {
+    launchWindowsMpv: async (_playbackUrl, args) => {
       calls.push(`launch:${args.join(' ')}`);
       return { ok: true, mpvPath: '/usr/bin/mpv' };
     },

@@ -5,12 +5,33 @@ export interface WindowsMpvLaunchDeps {
   getEnv: (name: string) => string | undefined;
   runWhere: () => { status: number | null; stdout: string; error?: Error };
   fileExists: (candidate: string) => boolean;
-  spawnDetached: (command: string, args: string[]) => void;
+  spawnDetached: (command: string, args: string[]) => Promise<void>;
   showError: (title: string, content: string) => void;
 }
 
+export type ConfiguredWindowsMpvPathStatus = 'blank' | 'configured' | 'invalid';
+
 function normalizeCandidate(candidate: string | undefined): string {
   return typeof candidate === 'string' ? candidate.trim() : '';
+}
+
+function defaultWindowsMpvFileExists(candidate: string): boolean {
+  try {
+    return fs.statSync(candidate).isFile();
+  } catch {
+    return false;
+  }
+}
+
+export function getConfiguredWindowsMpvPathStatus(
+  configuredMpvPath = '',
+  fileExists: (candidate: string) => boolean = defaultWindowsMpvFileExists,
+): ConfiguredWindowsMpvPathStatus {
+  const configPath = normalizeCandidate(configuredMpvPath);
+  if (!configPath) {
+    return 'blank';
+  }
+  return fileExists(configPath) ? 'configured' : 'invalid';
 }
 
 export function resolveWindowsMpvPath(
@@ -18,10 +39,11 @@ export function resolveWindowsMpvPath(
   configuredMpvPath = '',
 ): string {
   const configPath = normalizeCandidate(configuredMpvPath);
-  if (configPath) {
-    if (deps.fileExists(configPath)) {
-      return configPath;
-    }
+  const configuredPathStatus = getConfiguredWindowsMpvPathStatus(configPath, deps.fileExists);
+  if (configuredPathStatus === 'configured') {
+    return configPath;
+  }
+  if (configuredPathStatus === 'invalid') {
     return '';
   }
 
@@ -102,14 +124,14 @@ export function buildWindowsMpvLaunchArgs(
   ];
 }
 
-export function launchWindowsMpv(
+export async function launchWindowsMpv(
   targets: string[],
   deps: WindowsMpvLaunchDeps,
   extraArgs: string[] = [],
   binaryPath?: string,
   pluginEntrypointPath?: string,
   configuredMpvPath?: string,
-): { ok: boolean; mpvPath: string } {
+): Promise<{ ok: boolean; mpvPath: string }> {
   const normalizedConfiguredPath = normalizeCandidate(configuredMpvPath);
   const mpvPath = resolveWindowsMpvPath(deps, normalizedConfiguredPath);
   if (!mpvPath) {
@@ -123,7 +145,7 @@ export function launchWindowsMpv(
   }
 
   try {
-    deps.spawnDetached(
+    await deps.spawnDetached(
       mpvPath,
       buildWindowsMpvLaunchArgs(targets, extraArgs, binaryPath, pluginEntrypointPath),
     );
@@ -155,21 +177,31 @@ export function createWindowsMpvLaunchDeps(options: {
     },
     fileExists:
       options.fileExists ??
-      ((candidate) => {
+      defaultWindowsMpvFileExists,
+    spawnDetached: (command, args) =>
+      new Promise((resolve, reject) => {
         try {
-          return fs.statSync(candidate).isFile();
-        } catch {
-          return false;
+          const child = spawn(command, args, {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true,
+          });
+          let settled = false;
+          child.once('error', (error) => {
+            if (settled) return;
+            settled = true;
+            reject(error);
+          });
+          child.once('spawn', () => {
+            if (settled) return;
+            settled = true;
+            child.unref();
+            resolve();
+          });
+        } catch (error) {
+          reject(error);
         }
       }),
-    spawnDetached: (command, args) => {
-      const child = spawn(command, args, {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true,
-      });
-      child.unref();
-    },
     showError: options.showError,
   };
 }

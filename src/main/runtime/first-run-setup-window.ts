@@ -39,6 +39,7 @@ export interface FirstRunSetupHtmlModel {
   pluginStatus: 'installed' | 'required' | 'failed';
   pluginInstallPathSummary: string | null;
   mpvExecutablePath: string;
+  mpvExecutablePathStatus: 'blank' | 'configured' | 'invalid';
   windowsMpvShortcuts: {
     supported: boolean;
     startMenuEnabled: boolean;
@@ -94,8 +95,23 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
           ? 'muted'
           : 'warn';
   const mpvExecutablePathLabel =
-    model.mpvExecutablePath.trim().length > 0 ? 'Configured' : 'Blank';
-  const mpvExecutablePathTone = model.mpvExecutablePath.trim().length > 0 ? 'ready' : 'muted';
+    model.mpvExecutablePathStatus === 'configured'
+      ? 'Configured'
+      : model.mpvExecutablePathStatus === 'invalid'
+        ? 'Invalid'
+        : 'Blank';
+  const mpvExecutablePathTone =
+    model.mpvExecutablePathStatus === 'configured'
+      ? 'ready'
+      : model.mpvExecutablePathStatus === 'invalid'
+        ? 'danger'
+        : 'muted';
+  const mpvExecutablePathCurrent =
+    model.mpvExecutablePathStatus === 'blank'
+      ? 'blank (PATH discovery)'
+      : model.mpvExecutablePathStatus === 'invalid'
+        ? `${model.mpvExecutablePath} (invalid; file not found)`
+        : model.mpvExecutablePath;
   const mpvExecutablePathCard = model.windowsMpvShortcuts.supported
     ? `
     <div class="card block">
@@ -103,7 +119,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
         <div>
           <strong>mpv executable path</strong>
           <div class="meta">Leave blank to auto-discover mpv.exe from PATH.</div>
-          <div class="meta">Current: ${escapeHtml(model.mpvExecutablePath.trim().length > 0 ? model.mpvExecutablePath : 'blank (PATH discovery)')}</div>
+          <div class="meta">Current: ${escapeHtml(mpvExecutablePathCurrent)}</div>
         </div>
         ${renderStatusBadge(mpvExecutablePathLabel, mpvExecutablePathTone)}
       </div>

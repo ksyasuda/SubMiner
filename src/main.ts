@@ -367,7 +367,11 @@ import {
   detectWindowsMpvShortcuts,
   resolveWindowsMpvShortcutPaths,
 } from './main/runtime/windows-mpv-shortcuts';
-import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
+import {
+  createWindowsMpvLaunchDeps,
+  getConfiguredWindowsMpvPathStatus,
+  launchWindowsMpv,
+} from './main/runtime/windows-mpv-launch';
 import { createWaitForMpvConnectedHandler } from './main/runtime/jellyfin-remote-connection';
 import { createPrepareYoutubePlaybackInMpvHandler } from './main/runtime/youtube-playback-launch';
 import { shouldEnsureTrayOnStartupForInitialArgs } from './main/runtime/startup-tray-policy';
@@ -2216,6 +2220,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
   }),
   getSetupSnapshot: async () => {
     const snapshot = await firstRunSetupService.getSetupStatus();
+    const mpvExecutablePath = getResolvedConfig().mpv.executablePath;
     return {
       configReady: snapshot.configReady,
       dictionaryCount: snapshot.dictionaryCount,
@@ -2223,7 +2228,8 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       externalYomitanConfigured: snapshot.externalYomitanConfigured,
       pluginStatus: snapshot.pluginStatus,
       pluginInstallPathSummary: snapshot.pluginInstallPathSummary,
-      mpvExecutablePath: getResolvedConfig().mpv.executablePath,
+      mpvExecutablePath,
+      mpvExecutablePathStatus: getConfiguredWindowsMpvPathStatus(mpvExecutablePath),
       windowsMpvShortcuts: snapshot.windowsMpvShortcuts,
       message: firstRunSetupMessage,
     };

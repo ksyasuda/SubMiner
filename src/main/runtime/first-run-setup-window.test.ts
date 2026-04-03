@@ -17,6 +17,7 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
     pluginStatus: 'required',
     pluginInstallPathSummary: null,
     mpvExecutablePath: '',
+    mpvExecutablePathStatus: 'blank',
     windowsMpvShortcuts: {
       supported: false,
       startMenuEnabled: true,
@@ -45,6 +46,7 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
     pluginStatus: 'installed',
     pluginInstallPathSummary: '/tmp/mpv',
     mpvExecutablePath: 'C:\\Program Files\\mpv\\mpv.exe',
+    mpvExecutablePathStatus: 'configured',
     windowsMpvShortcuts: {
       supported: true,
       startMenuEnabled: true,
@@ -65,6 +67,31 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
   );
 });
 
+test('buildFirstRunSetupHtml marks an invalid configured mpv path as invalid', () => {
+  const html = buildFirstRunSetupHtml({
+    configReady: true,
+    dictionaryCount: 1,
+    canFinish: true,
+    externalYomitanConfigured: false,
+    pluginStatus: 'installed',
+    pluginInstallPathSummary: '/tmp/mpv',
+    mpvExecutablePath: 'C:\\Broken\\mpv.exe',
+    mpvExecutablePathStatus: 'invalid',
+    windowsMpvShortcuts: {
+      supported: true,
+      startMenuEnabled: true,
+      desktopEnabled: true,
+      startMenuInstalled: false,
+      desktopInstalled: false,
+      status: 'optional',
+    },
+    message: null,
+  });
+
+  assert.match(html, />Invalid</);
+  assert.match(html, /Current: C:\\Broken\\mpv\.exe \(invalid; file not found\)/);
+});
+
 test('buildFirstRunSetupHtml explains the config blocker when setup is missing config', () => {
   const html = buildFirstRunSetupHtml({
     configReady: false,
@@ -74,6 +101,7 @@ test('buildFirstRunSetupHtml explains the config blocker when setup is missing c
     pluginStatus: 'required',
     pluginInstallPathSummary: null,
     mpvExecutablePath: '',
+    mpvExecutablePathStatus: 'blank',
     windowsMpvShortcuts: {
       supported: false,
       startMenuEnabled: true,
@@ -97,6 +125,7 @@ test('buildFirstRunSetupHtml explains external yomitan mode and keeps finish ena
     pluginStatus: 'installed',
     pluginInstallPathSummary: null,
     mpvExecutablePath: '',
+    mpvExecutablePathStatus: 'blank',
     windowsMpvShortcuts: {
       supported: false,
       startMenuEnabled: true,
@@ -208,6 +237,7 @@ test('closing incomplete first-run setup quits app outside background mode', asy
       pluginStatus: 'required',
       pluginInstallPathSummary: null,
       mpvExecutablePath: '',
+      mpvExecutablePathStatus: 'blank',
       windowsMpvShortcuts: {
         supported: false,
         startMenuEnabled: true,
