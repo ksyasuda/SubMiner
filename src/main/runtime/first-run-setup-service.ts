@@ -272,24 +272,20 @@ export function createFirstRunSetupService(deps: {
           getYomitanDictionaryCount: deps.getYomitanDictionaryCount,
           isExternalYomitanConfigured: deps.isExternalYomitanConfigured,
         });
-      const yomitanSetupSatisfied = isYomitanSetupSatisfied({
-        configReady,
-        dictionaryCount,
-        externalYomitanConfigured,
-      });
-      if (
-        isSetupCompleted(state) &&
-        !(
-          state.yomitanSetupMode === 'external' &&
-          !externalYomitanConfigured &&
-          !yomitanSetupSatisfied
-        )
-      ) {
+      const pluginInstalled = await deps.detectPluginInstalled();
+      const canFinish =
+        pluginInstalled &&
+        isYomitanSetupSatisfied({
+          configReady,
+          dictionaryCount,
+          externalYomitanConfigured,
+        });
+      if (isSetupCompleted(state) && canFinish) {
         completed = true;
         return refreshWithState(state);
       }
 
-      if (yomitanSetupSatisfied) {
+      if (canFinish) {
         const completedState = writeState({
           ...state,
           status: 'completed',

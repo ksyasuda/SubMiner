@@ -117,8 +117,10 @@ SubMiner.AppImage --help                  # Show all options
 
 ### Windows mpv Shortcut
 
+First-run setup requires the mpv plugin before it can finish.
+
 If you enabled the optional Windows shortcut during install, SubMiner creates a `SubMiner mpv` shortcut in the Start menu and/or on the desktop. On Windows, that shortcut is the recommended way to launch local files with SubMiner because it starts `mpv.exe` with the right defaults directly.
-First-run setup requires the mpv plugin before it can finish, so the shortcut is the normal Windows playback entry point after setup completes.
+After setup completes, the shortcut is the normal Windows playback entry point.
 
 You can use it three ways:
 
