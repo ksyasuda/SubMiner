@@ -8,6 +8,7 @@ import { EventEmitter } from 'node:events';
 import type { Args } from './types';
 import {
   cleanupPlaybackSession,
+  detectBackend,
   findAppBinary,
   launchAppCommandDetached,
   launchTexthookerOnly,
@@ -56,6 +57,22 @@ function createTempSocketPath(): { dir: string; socketPath: string } {
   return { dir, socketPath: path.join(dir, 'mpv.sock') };
 }
 
+function withPlatform<T>(platform: NodeJS.Platform, callback: () => T): T {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', {
+    configurable: true,
+    value: platform,
+  });
+
+  try {
+    return callback();
+  } finally {
+    if (originalDescriptor) {
+      Object.defineProperty(process, 'platform', originalDescriptor);
+    }
+  }
+}
+
 test('mpv module exposes only canonical socket readiness helper', () => {
   assert.equal('waitForSocket' in mpvModule, false);
 });
@@ -100,6 +117,12 @@ test('parseMpvArgString preserves empty quoted tokens', () => {
     '',
     '--pause',
   ]);
+});
+
+test('detectBackend resolves windows on win32 auto mode', () => {
+  withPlatform('win32', () => {
+    assert.equal(detectBackend('auto'), 'windows');
+  });
 });
 
 test('launchTexthookerOnly exits non-zero when app binary cannot be spawned', () => {

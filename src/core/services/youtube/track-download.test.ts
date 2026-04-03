@@ -114,6 +114,39 @@ async function withFakeYtDlp<T>(
   });
 }
 
+async function withFakeYtDlpCommand<T>(
+  mode: 'both' | 'webp-only' | 'multi' | 'multi-primary-only-fail' | 'rolling-auto',
+  fn: (dir: string, binDir: string) => Promise<T>,
+): Promise<T> {
+  return await withTempDir(async (root) => {
+    const binDir = path.join(root, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    makeFakeYtDlpScript(binDir);
+
+    const originalPath = process.env.PATH;
+    const originalCommand = process.env.SUBMINER_YTDLP_BIN;
+    process.env.PATH = '';
+    process.env.YTDLP_FAKE_MODE = mode;
+    process.env.SUBMINER_YTDLP_BIN =
+      process.platform === 'win32' ? path.join(binDir, 'yt-dlp.cmd') : path.join(binDir, 'yt-dlp');
+    try {
+      return await fn(root, binDir);
+    } finally {
+      if (originalPath === undefined) {
+        delete process.env.PATH;
+      } else {
+        process.env.PATH = originalPath;
+      }
+      delete process.env.YTDLP_FAKE_MODE;
+      if (originalCommand === undefined) {
+        delete process.env.SUBMINER_YTDLP_BIN;
+      } else {
+        process.env.SUBMINER_YTDLP_BIN = originalCommand;
+      }
+    }
+  });
+}
+
 async function withFakeYtDlpExpectations<T>(
   expectations: Partial<
     Record<'YTDLP_EXPECT_AUTO_SUBS' | 'YTDLP_EXPECT_MANUAL_SUBS' | 'YTDLP_EXPECT_SUB_LANG', string>
@@ -162,6 +195,29 @@ test('downloadYoutubeSubtitleTrack prefers subtitle files over later webp artifa
   }
 
   await withFakeYtDlp('both', async (root) => {
+    const result = await downloadYoutubeSubtitleTrack({
+      targetUrl: 'https://www.youtube.com/watch?v=abc123',
+      outputDir: path.join(root, 'out'),
+      track: {
+        id: 'auto:ja-orig',
+        language: 'ja',
+        sourceLanguage: 'ja-orig',
+        kind: 'auto',
+        label: 'Japanese (auto)',
+      },
+    });
+
+    assert.equal(path.extname(result.path), '.vtt');
+    assert.match(path.basename(result.path), /^auto-ja-orig\./);
+  });
+});
+
+test('downloadYoutubeSubtitleTrack honors SUBMINER_YTDLP_BIN when yt-dlp is not on PATH', async () => {
+  if (process.platform === 'win32') {
+    return;
+  }
+
+  await withFakeYtDlpCommand('both', async (root) => {
     const result = await downloadYoutubeSubtitleTrack({
       targetUrl: 'https://www.youtube.com/watch?v=abc123',
       outputDir: path.join(root, 'out'),

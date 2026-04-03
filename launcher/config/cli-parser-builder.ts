@@ -43,7 +43,7 @@ export interface CliInvocations {
 
 function applyRootOptions(program: Command): void {
   program
-    .option('-b, --backend <backend>', 'Display backend')
+    .option('-b, --backend <backend>', 'Display backend (auto, hyprland, sway, x11, macos, windows)')
     .option('-d, --directory <dir>', 'Directory to browse')
     .option('-a, --args <args>', 'Pass arguments to MPV')
     .option('-r, --recursive', 'Search directories recursively')

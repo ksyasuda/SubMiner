@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { YoutubeTrackOption } from './track-probe';
+import { getYoutubeYtDlpCommand } from './ytdlp-command';
 import {
   convertYoutubeTimedTextToVtt,
   isYoutubeTimedTextExtension,
@@ -237,7 +238,7 @@ export async function downloadYoutubeSubtitleTrack(input: {
     }),
   ];
 
-  await runCapture('yt-dlp', args);
+  await runCapture(getYoutubeYtDlpCommand(), args);
   const subtitlePath = pickLatestSubtitleFile(input.outputDir, prefix);
   if (!subtitlePath) {
     throw new Error(`No subtitle file was downloaded for ${input.track.sourceLanguage}`);
@@ -281,7 +282,7 @@ export async function downloadYoutubeSubtitleTracks(input: {
   const includeManualSubs = input.tracks.some((track) => track.kind === 'manual');
 
   const result = await runCaptureDetailed(
-    'yt-dlp',
+    getYoutubeYtDlpCommand(),
     buildDownloadArgs({
       targetUrl: input.targetUrl,
       outputTemplate,

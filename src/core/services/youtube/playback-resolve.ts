@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { getYoutubeYtDlpCommand } from './ytdlp-command';
 
 const YOUTUBE_PLAYBACK_RESOLVE_TIMEOUT_MS = 15_000;
 const DEFAULT_PLAYBACK_FORMAT = 'b';
@@ -88,8 +89,7 @@ export async function resolveYoutubePlaybackUrl(
   targetUrl: string,
   format = DEFAULT_PLAYBACK_FORMAT,
 ): Promise<string> {
-  const ytDlpCommand = process.env.SUBMINER_YTDLP_BIN?.trim() || 'yt-dlp';
-  const { stdout } = await runCapture(ytDlpCommand, [
+  const { stdout } = await runCapture(getYoutubeYtDlpCommand(), [
     '--get-url',
     '--no-warnings',
     '-f',

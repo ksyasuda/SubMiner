@@ -49,10 +49,17 @@ function parseLogLevel(value: string): LogLevel {
 }
 
 function parseBackend(value: string): Backend {
-  if (value === 'auto' || value === 'hyprland' || value === 'x11' || value === 'macos') {
+  if (
+    value === 'auto' ||
+    value === 'hyprland' ||
+    value === 'sway' ||
+    value === 'x11' ||
+    value === 'macos' ||
+    value === 'windows'
+  ) {
     return value as Backend;
   }
-  fail(`Invalid backend: ${value} (must be auto, hyprland, x11, or macos)`);
+  fail(`Invalid backend: ${value} (must be auto, hyprland, sway, x11, macos, or windows)`);
 }
 
 function parseDictionaryTarget(value: string): string {

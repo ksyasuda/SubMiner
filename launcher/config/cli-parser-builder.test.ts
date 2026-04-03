@@ -17,20 +17,20 @@ test('resolveTopLevelCommand respects the app alias after root options', () => {
 });
 
 test('parseCliPrograms keeps root options and target when no command is present', () => {
-  const result = parseCliPrograms(['--backend', 'x11', '/tmp/movie.mkv'], 'subminer');
+  const result = parseCliPrograms(['--backend', 'windows', '/tmp/movie.mkv'], 'subminer');
 
-  assert.equal(result.options.backend, 'x11');
+  assert.equal(result.options.backend, 'windows');
   assert.equal(result.rootTarget, '/tmp/movie.mkv');
   assert.equal(result.invocations.appInvocation, null);
 });
 
 test('parseCliPrograms routes app alias arguments through passthrough mode', () => {
   const result = parseCliPrograms(
-    ['--backend', 'macos', 'bin', '--anilist', '--log-level', 'debug'],
+    ['--backend', 'windows', 'bin', '--anilist', '--log-level', 'debug'],
     'subminer',
   );
 
-  assert.equal(result.options.backend, 'macos');
+  assert.equal(result.options.backend, 'windows');
   assert.deepEqual(result.invocations.appInvocation, {
     appArgs: ['--anilist', '--log-level', 'debug'],
   });

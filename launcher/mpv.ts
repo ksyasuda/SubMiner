@@ -227,6 +227,7 @@ export function makeTempDir(prefix: string): string {
 
 export function detectBackend(backend: Backend): Exclude<Backend, 'auto'> {
   if (backend !== 'auto') return backend;
+  if (process.platform === 'win32') return 'windows';
   if (process.platform === 'darwin') return 'macos';
   const xdgCurrentDesktop = (process.env.XDG_CURRENT_DESKTOP || '').toLowerCase();
   const xdgSessionDesktop = (process.env.XDG_SESSION_DESKTOP || '').toLowerCase();
