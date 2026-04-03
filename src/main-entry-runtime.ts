@@ -127,18 +127,6 @@ export function normalizeLaunchMpvTargets(argv: string[]): string[] {
   }
 
   const targets: string[] = [];
-  const flagValueArgs = new Set([
-    '--alang',
-    '--input-ipc-server',
-    '--log-file',
-    '--profile',
-    '--script',
-    '--script-opts',
-    '--scripts',
-    '--slang',
-    '--sub-file-paths',
-    '--ytdl-format',
-  ]);
 
   let parsingTargets = false;
   for (let i = launchMpvIndex + 1; i < argv.length; i += 1) {
@@ -155,10 +143,17 @@ export function normalizeLaunchMpvTargets(argv: string[]): string[] {
       continue;
     }
 
-    if (token.startsWith('-')) {
-      if (!token.includes('=') && flagValueArgs.has(token)) {
-        i += 1;
+    if (token.startsWith('--')) {
+      if (!token.includes('=') && i + 1 < argv.length) {
+        const value = argv[i + 1];
+        if (value && !value.startsWith('-')) {
+          i += 1;
+        }
       }
+      continue;
+    }
+
+    if (token.startsWith('-')) {
       continue;
     }
 
@@ -175,19 +170,6 @@ export function normalizeLaunchMpvExtraArgs(argv: string[]): string[] {
     return [];
   }
 
-  const flagValueArgs = new Set([
-    '--alang',
-    '--input-ipc-server',
-    '--log-file',
-    '--profile',
-    '--script',
-    '--script-opts',
-    '--scripts',
-    '--slang',
-    '--sub-file-paths',
-    '--ytdl-format',
-  ]);
-
   const extraArgs: string[] = [];
   for (let i = launchMpvIndex + 1; i < argv.length; i += 1) {
     const token = argv[i];
@@ -195,17 +177,23 @@ export function normalizeLaunchMpvExtraArgs(argv: string[]): string[] {
     if (token === '--') {
       break;
     }
+    if (token.startsWith('--')) {
+      extraArgs.push(token);
+      if (!token.includes('=') && i + 1 < argv.length) {
+        const value = argv[i + 1];
+        if (value && !value.startsWith('-')) {
+          extraArgs.push(value);
+          i += 1;
+        }
+      }
+      continue;
+    }
+    if (token.startsWith('-')) {
+      extraArgs.push(token);
+      continue;
+    }
     if (!token.startsWith('-')) {
       break;
-    }
-
-    extraArgs.push(token);
-    if (!token.includes('=') && flagValueArgs.has(token)) {
-      const value = argv[i + 1];
-      if (value && value !== '--') {
-        extraArgs.push(value);
-        i += 1;
-      }
     }
   }
   return extraArgs;

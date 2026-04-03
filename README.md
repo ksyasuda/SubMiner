@@ -228,7 +228,7 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 
 ### 2. First Launch
 
-Run the app. On first launch SubMiner starts in the system tray, creates a default config, and opens a setup popup to install the mpv plugin and configure Yomitan dictionaries.
+Run the app. On first launch SubMiner starts in the system tray, creates a default config, and opens a setup popup to finish config, install the mpv plugin, and configure Yomitan dictionaries.
 
 ### 3. Mine
 

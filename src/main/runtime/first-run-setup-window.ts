@@ -1,3 +1,5 @@
+import { getFirstRunSetupCompletionMessage } from './first-run-setup-service';
+
 type FocusableWindowLike = {
   focus: () => void;
 };
@@ -123,11 +125,14 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     : model.dictionaryCount >= 1
       ? 'ready'
       : 'warn';
-  const footerMessage = model.externalYomitanConfigured
-    ? model.pluginStatus === 'installed'
-      ? 'Finish stays unlocked while SubMiner is reusing an external Yomitan profile. If you later launch without yomitan.externalProfilePath, setup will require at least one internal dictionary.'
-      : 'Finish stays locked until the mpv plugin is installed. If you later launch without yomitan.externalProfilePath, setup will also require at least one internal dictionary.'
-    : 'Finish stays locked until the mpv plugin is installed and Yomitan reports at least one installed dictionary.';
+  const blockerMessage = getFirstRunSetupCompletionMessage(model);
+  const footerMessage = blockerMessage
+    ? blockerMessage
+    : model.canFinish
+      ? model.externalYomitanConfigured
+        ? 'Finish stays unlocked while SubMiner is reusing an external Yomitan profile. If you later launch without yomitan.externalProfilePath, setup will require at least one internal dictionary.'
+        : 'Finish stays unlocked once the mpv plugin is installed and Yomitan reports at least one installed dictionary.'
+      : 'Finish stays locked until the mpv plugin is installed and Yomitan reports at least one installed dictionary.';
 
   return `<!doctype html>
 <html>
@@ -333,9 +338,17 @@ export function createHandleFirstRunSetupNavigationHandler(deps: {
   logError: (message: string, error: unknown) => void;
 }) {
   return (params: { url: string; preventDefault: () => void }): boolean => {
-    const submission = deps.parseSubmissionUrl(params.url);
-    if (!submission) return false;
+    if (!params.url.startsWith('subminer://first-run-setup')) {
+      return false;
+    }
     params.preventDefault();
+    let submission: FirstRunSetupSubmission | null;
+    try {
+      submission = deps.parseSubmissionUrl(params.url);
+    } catch {
+      return true;
+    }
+    if (!submission) return true;
     void deps.handleAction(submission).catch((error) => {
       deps.logError('Failed handling first-run setup action', error);
     });

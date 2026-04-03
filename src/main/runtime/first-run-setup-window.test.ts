@@ -55,6 +55,32 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
   });
 
   assert.match(html, /Reinstall mpv plugin/);
+  assert.match(
+    html,
+    /Finish stays unlocked once the mpv plugin is installed and Yomitan reports at least one installed dictionary\./,
+  );
+});
+
+test('buildFirstRunSetupHtml explains the config blocker when setup is missing config', () => {
+  const html = buildFirstRunSetupHtml({
+    configReady: false,
+    dictionaryCount: 0,
+    canFinish: false,
+    externalYomitanConfigured: false,
+    pluginStatus: 'required',
+    pluginInstallPathSummary: null,
+    windowsMpvShortcuts: {
+      supported: false,
+      startMenuEnabled: true,
+      desktopEnabled: true,
+      startMenuInstalled: false,
+      desktopInstalled: false,
+      status: 'optional',
+    },
+    message: null,
+  });
+
+  assert.match(html, /Create or provide the config file before finishing setup\./);
 });
 
 test('buildFirstRunSetupHtml explains external yomitan mode and keeps finish enabled', () => {
@@ -118,6 +144,25 @@ test('first-run setup navigation handler prevents default and dispatches action'
   assert.equal(prevented, true);
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(calls, ['preventDefault', 'install-plugin']);
+});
+
+test('first-run setup navigation handler swallows stale custom-scheme actions', () => {
+  const calls: string[] = [];
+  const handleNavigation = createHandleFirstRunSetupNavigationHandler({
+    parseSubmissionUrl: (url) => parseFirstRunSetupSubmissionUrl(url),
+    handleAction: async (submission) => {
+      calls.push(submission.action);
+    },
+    logError: (message) => calls.push(message),
+  });
+
+  const prevented = handleNavigation({
+    url: 'subminer://first-run-setup?action=skip-plugin',
+    preventDefault: () => calls.push('preventDefault'),
+  });
+
+  assert.equal(prevented, true);
+  assert.deepEqual(calls, ['preventDefault']);
 });
 
 test('closing incomplete first-run setup quits app outside background mode', async () => {

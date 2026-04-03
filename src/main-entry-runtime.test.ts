@@ -75,6 +75,26 @@ test('launch-mpv entry helpers detect and normalize targets', () => {
     normalizeLaunchMpvExtraArgs([
       'SubMiner.exe',
       '--launch-mpv',
+      '--sub-file',
+      'track.srt',
+      'C:\\a.mkv',
+    ]),
+    ['--sub-file', 'track.srt'],
+  );
+  assert.deepEqual(
+    normalizeLaunchMpvTargets([
+      'SubMiner.exe',
+      '--launch-mpv',
+      '--sub-file',
+      'track.srt',
+      'C:\\a.mkv',
+    ]),
+    ['C:\\a.mkv'],
+  );
+  assert.deepEqual(
+    normalizeLaunchMpvExtraArgs([
+      'SubMiner.exe',
+      '--launch-mpv',
       '--profile=subminer',
       '--pause=yes',
       'C:\\a.mkv',

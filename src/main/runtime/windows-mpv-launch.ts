@@ -33,6 +33,27 @@ export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps): string {
   return '';
 }
 
+const DEFAULT_WINDOWS_MPV_SOCKET = '\\\\.\\pipe\\subminer-socket';
+
+function readExtraArgValue(extraArgs: string[], flag: string): string | undefined {
+  let value: string | undefined;
+  for (let i = 0; i < extraArgs.length; i += 1) {
+    const arg = extraArgs[i];
+    if (arg === flag) {
+      const next = extraArgs[i + 1];
+      if (next && !next.startsWith('-')) {
+        value = next;
+        i += 1;
+      }
+      continue;
+    }
+    if (arg?.startsWith(`${flag}=`)) {
+      value = arg.slice(flag.length + 1);
+    }
+  }
+  return value;
+}
+
 export function buildWindowsMpvLaunchArgs(
   targets: string[],
   extraArgs: string[] = [],
@@ -40,9 +61,11 @@ export function buildWindowsMpvLaunchArgs(
   pluginEntrypointPath?: string,
 ): string[] {
   const launchIdle = targets.length === 0;
+  const inputIpcServer =
+    readExtraArgValue(extraArgs, '--input-ipc-server') ?? DEFAULT_WINDOWS_MPV_SOCKET;
   const scriptOpts =
     typeof binaryPath === 'string' && binaryPath.trim().length > 0
-      ? `--script-opts=subminer-binary_path=${binaryPath.trim().replace(/,/g, '\\,')},subminer-socket_path=\\\\.\\pipe\\subminer-socket`
+      ? `--script-opts=subminer-binary_path=${binaryPath.trim().replace(/,/g, '\\,')},subminer-socket_path=${inputIpcServer.replace(/,/g, '\\,')}`
       : null;
   const scriptEntrypoint =
     typeof pluginEntrypointPath === 'string' && pluginEntrypointPath.trim().length > 0
@@ -54,7 +77,7 @@ export function buildWindowsMpvLaunchArgs(
     '--force-window=immediate',
     ...(launchIdle ? ['--idle=yes'] : []),
     ...(scriptEntrypoint ? [scriptEntrypoint] : []),
-    '--input-ipc-server=\\\\.\\pipe\\subminer-socket',
+    `--input-ipc-server=${inputIpcServer}`,
     '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
     '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
     '--sub-auto=fuzzy',

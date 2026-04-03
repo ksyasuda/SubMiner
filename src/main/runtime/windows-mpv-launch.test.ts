@@ -49,21 +49,22 @@ test('buildWindowsMpvLaunchArgs uses explicit SubMiner defaults and targets', ()
       'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
     ),
     [
-    '--player-operation-mode=pseudo-gui',
-    '--force-window=immediate',
-    '--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
-    '--input-ipc-server=\\\\.\\pipe\\subminer-socket',
-    '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-    '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-    '--sub-auto=fuzzy',
-    '--sub-file-paths=subs;subtitles',
-    '--sid=auto',
-    '--secondary-sid=auto',
-    '--secondary-sub-visibility=no',
-    '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket',
-    'C:\\a.mkv',
-    'C:\\b.mkv',
-  ]);
+      '--player-operation-mode=pseudo-gui',
+      '--force-window=immediate',
+      '--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+      '--input-ipc-server=\\\\.\\pipe\\subminer-socket',
+      '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--sub-auto=fuzzy',
+      '--sub-file-paths=subs;subtitles',
+      '--sid=auto',
+      '--secondary-sid=auto',
+      '--secondary-sub-visibility=no',
+      '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket',
+      'C:\\a.mkv',
+      'C:\\b.mkv',
+    ],
+  );
 });
 
 test('buildWindowsMpvLaunchArgs keeps shortcut-only launches in idle mode', () => {
@@ -88,6 +89,34 @@ test('buildWindowsMpvLaunchArgs keeps shortcut-only launches in idle mode', () =
       '--secondary-sid=auto',
       '--secondary-sub-visibility=no',
       '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket',
+    ],
+  );
+});
+
+test('buildWindowsMpvLaunchArgs mirrors a custom input-ipc-server into script opts', () => {
+  assert.deepEqual(
+    buildWindowsMpvLaunchArgs(
+      ['C:\\video.mkv'],
+      ['--input-ipc-server', '\\\\.\\pipe\\custom-subminer-socket'],
+      'C:\\SubMiner\\SubMiner.exe',
+      'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    ),
+    [
+      '--player-operation-mode=pseudo-gui',
+      '--force-window=immediate',
+      '--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+      '--input-ipc-server=\\\\.\\pipe\\custom-subminer-socket',
+      '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--sub-auto=fuzzy',
+      '--sub-file-paths=subs;subtitles',
+      '--sid=auto',
+      '--secondary-sid=auto',
+      '--secondary-sub-visibility=no',
+      '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\custom-subminer-socket',
+      '--input-ipc-server',
+      '\\\\.\\pipe\\custom-subminer-socket',
+      'C:\\video.mkv',
     ],
   );
 });

@@ -149,6 +149,24 @@ function isYomitanSetupSatisfied(options: {
   return options.externalYomitanConfigured || options.dictionaryCount >= 1;
 }
 
+export function getFirstRunSetupCompletionMessage(snapshot: {
+  configReady: boolean;
+  dictionaryCount: number;
+  externalYomitanConfigured: boolean;
+  pluginStatus: SetupStatusSnapshot['pluginStatus'];
+}): string | null {
+  if (!snapshot.configReady) {
+    return 'Create or provide the config file before finishing setup.';
+  }
+  if (snapshot.pluginStatus !== 'installed') {
+    return 'Install the mpv plugin before finishing setup.';
+  }
+  if (!snapshot.externalYomitanConfigured && snapshot.dictionaryCount < 1) {
+    return 'Install at least one Yomitan dictionary before finishing setup.';
+  }
+  return null;
+}
+
 async function resolveYomitanSetupStatus(deps: {
   configFilePaths: { jsoncPath: string; jsonPath: string };
   getYomitanDictionaryCount: () => Promise<number>;

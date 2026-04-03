@@ -117,7 +117,7 @@ SubMiner.AppImage --help                  # Show all options
 
 ### Windows mpv Shortcut
 
-First-run setup requires the mpv plugin before it can finish.
+First-run setup creates the config file, then requires the mpv plugin and Yomitan dictionaries before it can finish.
 
 If you enabled the optional Windows shortcut during install, SubMiner creates a `SubMiner mpv` shortcut in the Start menu and/or on the desktop. On Windows, that shortcut is the recommended way to launch local files with SubMiner because it starts `mpv.exe` with the right defaults directly.
 After setup completes, the shortcut is the normal Windows playback entry point.
@@ -162,10 +162,10 @@ Setup flow:
 - config file: create the default config directory and prefer `config.jsonc`
 - plugin status: install the bundled mpv plugin before finishing setup
 - Yomitan shortcut: open bundled Yomitan settings directly from the setup window
-- dictionary check: ensure at least one bundled Yomitan dictionary is available
+- dictionary check: ensure at least one bundled Yomitan dictionary is available, unless an external Yomitan profile is configured
 - Windows: optionally create or remove `SubMiner mpv` Start Menu/Desktop shortcuts (`SubMiner.exe --launch-mpv`)
 - refresh: re-check plugin + dictionary state without restarting
-- `Finish setup` stays disabled until the mpv plugin is installed and dictionary availability is detected
+- `Finish setup` stays disabled until the config, plugin, and dictionary gates are satisfied
 - finish action writes setup completion state and suppresses future auto-open prompts
 
 AniList character dictionary auto-sync (optional):
