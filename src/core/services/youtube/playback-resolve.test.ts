@@ -16,8 +16,14 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 
 function makeFakeYtDlpScript(dir: string, payload: string): void {
   const scriptPath = path.join(dir, 'yt-dlp');
-  const script = `#!/usr/bin/env node
+  const script = process.platform === 'win32'
+    ? `#!/usr/bin/env node
 process.stdout.write(${JSON.stringify(payload)});
+`
+    : `#!/usr/bin/env sh
+cat <<'EOF' | base64 -d
+${Buffer.from(payload).toString('base64')}
+EOF
 `;
   fs.writeFileSync(scriptPath, script, 'utf8');
   if (process.platform !== 'win32') {

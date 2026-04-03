@@ -93,6 +93,95 @@ process.exit(0);
   return scriptPath;
 }
 
+function makeFakeYtDlpShellScript(dir: string): string {
+  const scriptPath = path.join(dir, 'yt-dlp');
+  const script = `#!/usr/bin/env sh
+has_auto_subs=0
+wants_auto_subs=0
+wants_manual_subs=0
+sub_lang=''
+output_template=''
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --write-auto-subs)
+      wants_auto_subs=1
+      ;;
+    --write-subs)
+      wants_manual_subs=1
+      ;;
+    --sub-langs)
+      sub_lang="$2"
+      shift
+      ;;
+    -o)
+      output_template="$2"
+      shift
+      ;;
+  esac
+  shift
+done
+
+if [ "$YTDLP_EXPECT_AUTO_SUBS" = "1" ] && [ "$wants_auto_subs" != "1" ]; then
+  exit 2
+fi
+if [ "$YTDLP_EXPECT_MANUAL_SUBS" = "1" ] && [ "$wants_manual_subs" != "1" ]; then
+  exit 3
+fi
+if [ -n "$YTDLP_EXPECT_SUB_LANG" ] && [ "$sub_lang" != "$YTDLP_EXPECT_SUB_LANG" ]; then
+  exit 4
+fi
+
+prefix="$(printf '%s' "$output_template" | sed 's/%\.%(ext)s$//')"
+if [ -z "$prefix" ]; then
+  exit 1
+fi
+mkdir -p "$(dirname \"$prefix\")"
+
+if [ "$YTDLP_FAKE_MODE" = "multi" ]; then
+  OLD_IFS="$IFS"
+  IFS=","
+  for lang in $sub_lang; do
+    if [ -n "$lang" ]; then
+      printf 'WEBVTT\\n' > "${prefix}.${lang}.vtt"
+    fi
+  done
+  IFS="$OLD_IFS"
+elif [ "$YTDLP_FAKE_MODE" = "rolling-auto" ]; then
+  cat <<'EOF' > "${prefix}.vtt"
+WEBVTT
+
+00:00:01.000 --> 00:00:02.000
+今日は
+
+00:00:02.000 --> 00:00:03.000
+今日はいい天気ですね
+
+00:00:03.000 --> 00:00:04.000
+今日はいい天気ですね本当に
+
+EOF
+elif [ "$YTDLP_FAKE_MODE" = "multi-primary-only-fail" ]; then
+  primary_lang="${sub_lang%%,*}"
+  if [ -n "$primary_lang" ]; then
+    printf 'WEBVTT\\n' > "${prefix}.${primary_lang}.vtt"
+  fi
+  printf "ERROR: Unable to download video subtitles for 'en': HTTP Error 429: Too Many Requests\\n" 1>&2
+  exit 1
+elif [ "$YTDLP_FAKE_MODE" = "both" ]; then
+  printf 'WEBVTT\\n' > "${prefix}.vtt"
+  printf 'webp' > "${prefix}.orig.webp"
+elif [ "$YTDLP_FAKE_MODE" = "webp-only" ]; then
+  printf 'webp' > "${prefix}.orig.webp"
+else
+  printf 'WEBVTT\\n' > "${prefix}.vtt"
+fi
+`;
+  fs.writeFileSync(scriptPath, script, 'utf8');
+  fs.chmodSync(scriptPath, 0o755);
+  return scriptPath;
+}
+
 async function withFakeYtDlp<T>(
   mode: 'both' | 'webp-only' | 'multi' | 'multi-primary-only-fail' | 'rolling-auto',
   fn: (dir: string, binDir: string) => Promise<T>,
@@ -100,7 +189,11 @@ async function withFakeYtDlp<T>(
   return await withTempDir(async (root) => {
     const binDir = path.join(root, 'bin');
     fs.mkdirSync(binDir, { recursive: true });
-    makeFakeYtDlpScript(binDir);
+    if (process.platform === 'win32') {
+      makeFakeYtDlpScript(binDir);
+    } else {
+      makeFakeYtDlpShellScript(binDir);
+    }
 
     const originalPath = process.env.PATH ?? '';
     process.env.PATH = `${binDir}${path.delimiter}${originalPath}`;
@@ -129,6 +222,11 @@ async function withFakeYtDlpCommand<T>(
     process.env.YTDLP_FAKE_MODE = mode;
     process.env.SUBMINER_YTDLP_BIN =
       process.platform === 'win32' ? path.join(binDir, 'yt-dlp.cmd') : path.join(binDir, 'yt-dlp');
+    if (process.platform === 'win32') {
+      makeFakeYtDlpScript(binDir);
+    } else {
+      makeFakeYtDlpShellScript(binDir);
+    }
     try {
       return await fn(root, binDir);
     } finally {

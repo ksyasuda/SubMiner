@@ -17,10 +17,17 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 function makeFakeYtDlpScript(dir: string, payload: unknown, rawScript = false): void {
   const scriptPath = path.join(dir, 'yt-dlp');
   const stdoutBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
-  const script = rawScript
-    ? stdoutBody
-    : `#!/usr/bin/env node
+  const script =
+    process.platform === 'win32'
+      ? rawScript
+        ? stdoutBody
+        : `#!/usr/bin/env node
 process.stdout.write(${JSON.stringify(stdoutBody)});
+`
+      : `#!/usr/bin/env sh
+cat <<'EOF' | base64 -d
+${Buffer.from(rawScript ? stdoutBody : `${JSON.stringify(stdoutBody)}`).toString('base64')}
+EOF
 `;
   fs.writeFileSync(scriptPath, script, 'utf8');
   if (process.platform !== 'win32') {
