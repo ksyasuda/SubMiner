@@ -90,6 +90,9 @@ process.exit(0);
 `;
   fs.writeFileSync(scriptPath, script, 'utf8');
   fs.chmodSync(scriptPath, 0o755);
+  if (process.platform === 'win32') {
+    fs.writeFileSync(scriptPath + '.cmd', `@echo off\r\nbun "${scriptPath}" %*\r\n`, 'utf8');
+  }
   return scriptPath;
 }
 
@@ -132,7 +135,7 @@ if [ -n "$YTDLP_EXPECT_SUB_LANG" ] && [ "$sub_lang" != "$YTDLP_EXPECT_SUB_LANG" 
   exit 4
 fi
 
-prefix="$(printf '%s' "$output_template" | sed 's/%\.%(ext)s$//')"
+prefix="$(printf '%s' "$output_template" | sed 's/\.%(ext)s$//')"
 if [ -z "$prefix" ]; then
   exit 1
 fi
@@ -214,7 +217,6 @@ async function withFakeYtDlpCommand<T>(
   return await withTempDir(async (root) => {
     const binDir = path.join(root, 'bin');
     fs.mkdirSync(binDir, { recursive: true });
-    makeFakeYtDlpScript(binDir);
 
     const originalPath = process.env.PATH;
     const originalCommand = process.env.SUBMINER_YTDLP_BIN;
