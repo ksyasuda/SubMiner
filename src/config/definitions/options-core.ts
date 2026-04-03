@@ -87,7 +87,8 @@ export function buildCoreConfigOptionRegistry(
       path: 'youtube.primarySubLanguages',
       kind: 'string',
       defaultValue: defaultConfig.youtube.primarySubLanguages.join(','),
-      description: 'Comma-separated primary subtitle language priority for YouTube auto-loading.',
+      description:
+        'Comma-separated primary subtitle language priority for managed subtitle auto-selection.',
     },
     {
       path: 'controller.enabled',

@@ -2138,7 +2138,7 @@ test('template generator includes known keys', () => {
   );
   assert.match(
     output,
-    /"primarySubLanguages": \[\s*"ja",\s*"jpn"\s*\],? \/\/ Comma-separated primary subtitle language priority for YouTube auto-loading\./,
+    /"primarySubLanguages": \[\s*"ja",\s*"jpn"\s*\],? \/\/ Comma-separated primary subtitle language priority for managed subtitle auto-selection\./,
   );
   assert.doesNotMatch(output, /"mode": "automatic"/);
   assert.doesNotMatch(output, /"fixWithAi": false/);

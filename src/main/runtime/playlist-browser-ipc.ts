@@ -24,9 +24,15 @@ export type PlaylistBrowserIpcRuntime = {
 
 export function createPlaylistBrowserIpcRuntime(
   getMpvClient: PlaylistBrowserRuntimeDeps['getMpvClient'],
+  options?: Pick<
+    PlaylistBrowserRuntimeDeps,
+    'getPrimarySubtitleLanguages' | 'getSecondarySubtitleLanguages'
+  >,
 ): PlaylistBrowserIpcRuntime {
   const playlistBrowserRuntimeDeps: PlaylistBrowserRuntimeDeps = {
     getMpvClient,
+    getPrimarySubtitleLanguages: options?.getPrimarySubtitleLanguages,
+    getSecondarySubtitleLanguages: options?.getSecondarySubtitleLanguages,
   };
 
   return {

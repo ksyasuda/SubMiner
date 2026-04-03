@@ -69,6 +69,8 @@ Local stats dashboard — watch time, anime library, vocabulary growth, mining t
 
 Browse sibling episode files and the active mpv queue in one overlay modal. Open it with `Ctrl+Alt+P` to append episodes from the current directory, jump to queued items, remove entries, or reorder the playlist without leaving playback.
 
+Managed local playback now reapplies your configured subtitle language priorities after mpv loads track metadata, so mixed subtitle sets can settle onto the expected primary and secondary tracks instead of staying on mpv's initial `sid=auto` guess.
+
 <br>
 
 ### Integrations
@@ -76,7 +78,7 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
 <table>
   <tr>
     <td><b>YouTube</b></td>
-    <td>Auto-loaded yt-dlp subtitle tracks at startup with a manual overlay picker on demand (<code>Ctrl+Alt+C</code>)</td>
+    <td>Auto-loaded yt-dlp subtitle tracks at startup with config-driven primary/secondary language priorities and a manual overlay picker on demand (<code>Ctrl+Alt+C</code>)</td>
   </tr>
   <tr>
     <td><b>AniList</b></td>

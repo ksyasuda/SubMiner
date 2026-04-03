@@ -213,10 +213,6 @@ secondary-sid=auto
 secondary-sub-visibility=no
 ```
 
-::: warning
-`secondary-slang` is not a valid mpv option. Use `slang` with `sid=auto` / `secondary-sid=auto` to set subtitle language preferences.
-:::
-
 ### Yomitan setup
 
 SubMiner includes a bundled Yomitan extension for overlay word lookup. This bundled extension is separate from any Yomitan browser extension you may have installed.
@@ -240,6 +236,8 @@ Notes:
 - Primary subtitle target languages come from `youtube.primarySubLanguages` (defaults to `["ja","jpn"]`).
 - Secondary target languages come from `secondarySub.secondarySubLanguages` (defaults to English if unset).
 - Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtube` and `secondarySub`.
+
+For local video files, SubMiner now uses those same config-driven language priorities after mpv finishes reporting subtitle tracks. That means mixed internal/external subtitle sets can correct an initial `sid=auto` guess and settle onto the expected primary and secondary tracks without manual cycling.
 
 ## Controller Support
 
@@ -294,9 +292,7 @@ See [Keyboard Shortcuts](/shortcuts) for the full reference, including mining sh
 | `Alt+Shift+O` | Toggle visible overlay |
 | `Alt+Shift+Y` | Open Yomitan settings  |
 
-::: tip
 `Alt+Shift+Y` is fixed and not configurable. All other shortcuts can be changed under `shortcuts` in your config.
-:::
 
 Useful overlay-local default keybinding: `Ctrl+Alt+P` opens the playlist browser for the current video's parent directory and the live mpv queue so you can append, reorder, remove, or jump between episodes without leaving playback.
 

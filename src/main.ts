@@ -339,6 +339,7 @@ import { startStatsServer } from './core/services/stats-server';
 import { registerStatsOverlayToggle, destroyStatsWindow } from './core/services/stats-window.js';
 import {
   createFirstRunSetupService,
+  getFirstRunSetupCompletionMessage,
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
 import { createYoutubeFlowRuntime } from './main/runtime/youtube-flow';
@@ -348,6 +349,7 @@ import {
   createYoutubePrimarySubtitleNotificationRuntime,
 } from './main/runtime/youtube-primary-subtitle-notification';
 import { createAutoplayReadyGate } from './main/runtime/autoplay-ready-gate';
+import { createManagedLocalSubtitleSelectionRuntime } from './main/runtime/local-subtitle-selection';
 import {
   buildFirstRunSetupHtml,
   createMaybeFocusExistingFirstRunSetupWindowHandler,
@@ -999,6 +1001,17 @@ const autoplayReadyGate = createAutoplayReadyGate({
   },
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
   logDebug: (message) => logger.debug(message),
+});
+const managedLocalSubtitleSelectionRuntime = createManagedLocalSubtitleSelectionRuntime({
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getMpvClient: () => appState.mpvClient,
+  getPrimarySubtitleLanguages: () => getResolvedConfig().youtube.primarySubLanguages,
+  getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
+  sendMpvCommand: (command) => {
+    sendMpvCommandRuntime(appState.mpvClient, command);
+  },
+  schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearScheduled: (timer) => clearTimeout(timer),
 });
 const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   platform: process.platform,
@@ -2244,15 +2257,9 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       firstRunSetupMessage = null;
       return { closeWindow: true };
     }
-    if (snapshot.pluginStatus !== 'installed') {
-      firstRunSetupMessage = 'Install the mpv plugin before finishing setup.';
-      return;
-    }
-    if (!snapshot.externalYomitanConfigured && snapshot.dictionaryCount < 1) {
-      firstRunSetupMessage = 'Install at least one Yomitan dictionary before finishing setup.';
-      return;
-    }
-    firstRunSetupMessage = 'Finish setup requires the mpv plugin and Yomitan dictionaries.';
+    firstRunSetupMessage =
+      getFirstRunSetupCompletionMessage(snapshot) ??
+      'Finish setup requires the mpv plugin and Yomitan dictionaries.';
     return;
   },
   markSetupInProgress: async () => {
@@ -3331,6 +3338,7 @@ const {
     updateCurrentMediaPath: (path) => {
       autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks();
       currentMediaTokenizationGate.updateCurrentMediaPath(path);
+      managedLocalSubtitleSelectionRuntime.handleMediaPathChange(path);
       startupOsdSequencer.reset();
       subtitlePrefetchRuntime.clearScheduledSubtitlePrefetchRefresh();
       subtitlePrefetchRuntime.cancelPendingInit();
@@ -3397,6 +3405,7 @@ const {
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackChange(sid);
     },
     onSubtitleTrackListChange: (trackList) => {
+      managedLocalSubtitleSelectionRuntime.handleSubtitleTrackListChange(trackList);
       scheduleSubtitlePrefetchRefresh();
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackListChange(trackList);
     },
@@ -4138,7 +4147,10 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
-const { playlistBrowserMainDeps } = createPlaylistBrowserIpcRuntime(() => appState.mpvClient);
+const { playlistBrowserMainDeps } = createPlaylistBrowserIpcRuntime(() => appState.mpvClient, {
+  getPrimarySubtitleLanguages: () => getResolvedConfig().youtube.primarySubLanguages,
+  getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
+});
 
 const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {

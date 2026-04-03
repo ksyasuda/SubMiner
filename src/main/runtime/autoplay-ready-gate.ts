@@ -44,8 +44,6 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
       deps.getCurrentVideoPath()?.trim() ||
       '__unknown__';
     const duplicateMediaSignal = autoPlayReadySignalMediaPath === mediaPath;
-    const allowDuplicateWhilePaused =
-      options?.forceWhilePaused === true && deps.getPlaybackPaused() !== false;
     const releaseRetryDelayMs = 200;
     const maxReleaseAttempts = resolveAutoplayReadyMaxReleaseAttempts({
       forceWhilePaused: options?.forceWhilePaused === true,
@@ -104,19 +102,13 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
       })();
     };
 
-    if (duplicateMediaSignal && !allowDuplicateWhilePaused) {
+    if (duplicateMediaSignal) {
       return;
     }
 
-    if (!duplicateMediaSignal) {
-      autoPlayReadySignalMediaPath = mediaPath;
-      const playbackGeneration = ++autoPlayReadySignalGeneration;
-      deps.signalPluginAutoplayReady();
-      attemptRelease(playbackGeneration, 0);
-      return;
-    }
-
+    autoPlayReadySignalMediaPath = mediaPath;
     const playbackGeneration = ++autoPlayReadySignalGeneration;
+    deps.signalPluginAutoplayReady();
     attemptRelease(playbackGeneration, 0);
   };
 

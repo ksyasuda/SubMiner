@@ -187,7 +187,7 @@
   // ==========================================
   // Secondary Subtitles
   // Dual subtitle track options.
-  // Used by the YouTube subtitle loading flow as secondary language preferences.
+  // Used by managed subtitle loading as secondary language preferences for local and YouTube playback.
   // Hot-reload: defaultMode updates live while SubMiner is running.
   // ==========================================
   "secondarySub": {
@@ -415,14 +415,14 @@
 
   // ==========================================
   // YouTube Playback Settings
-  // Defaults for SubMiner YouTube subtitle loading and languages.
+  // Defaults for managed subtitle language preferences and YouTube subtitle loading.
   // ==========================================
   "youtube": {
     "primarySubLanguages": [
       "ja",
       "jpn"
-    ] // Comma-separated primary subtitle language priority for YouTube auto-loading.
-  }, // Defaults for SubMiner YouTube subtitle loading and languages.
+    ] // Comma-separated primary subtitle language priority for managed subtitle auto-selection.
+  }, // Defaults for managed subtitle language preferences and YouTube subtitle loading.
 
   // ==========================================
   // Anilist

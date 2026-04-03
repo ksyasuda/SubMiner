@@ -8,6 +8,7 @@ import type {
 } from '../../types';
 import { isRemoteMediaPath } from '../../jimaku/utils';
 import { hasVideoExtension } from '../../shared/video-extensions';
+import { resolveManagedLocalSubtitleSelection } from './local-subtitle-selection';
 import { sortPlaylistBrowserDirectoryItems } from './playlist-browser-sort';
 
 type PlaylistLike = {
@@ -28,6 +29,8 @@ type MpvPlaylistBrowserClientLike = {
 export type PlaylistBrowserRuntimeDeps = {
   getMpvClient: () => MpvPlaylistBrowserClientLike | null;
   schedule?: (callback: () => void, delayMs: number) => void;
+  getPrimarySubtitleLanguages?: () => string[];
+  getSecondarySubtitleLanguages?: () => string[];
 };
 
 const pendingLocalSubtitleSelectionRearms = new WeakMap<MpvPlaylistBrowserClientLike, number>();
@@ -229,9 +232,20 @@ async function buildMutationResult(
   };
 }
 
-function rearmLocalSubtitleSelection(client: MpvPlaylistBrowserClientLike): void {
-  client.send({ command: ['set_property', 'sid', 'auto'] });
-  client.send({ command: ['set_property', 'secondary-sid', 'auto'] });
+async function rearmLocalSubtitleSelection(
+  client: MpvPlaylistBrowserClientLike,
+  deps: PlaylistBrowserRuntimeDeps,
+): Promise<void> {
+  const trackList = await readProperty(client, 'track-list');
+  const selection = resolveManagedLocalSubtitleSelection({
+    trackList: Array.isArray(trackList) ? trackList : null,
+    primaryLanguages: deps.getPrimarySubtitleLanguages?.() ?? [],
+    secondaryLanguages: deps.getSecondarySubtitleLanguages?.() ?? [],
+  });
+  client.send({ command: ['set_property', 'sid', selection.primaryTrackId ?? 'auto'] });
+  client.send({
+    command: ['set_property', 'secondary-sid', selection.secondaryTrackId ?? 'auto'],
+  });
 }
 
 function prepareLocalSubtitleAutoload(client: MpvPlaylistBrowserClientLike): void {
@@ -258,7 +272,7 @@ function scheduleLocalSubtitleSelectionRearm(
     if (currentPath && path.resolve(currentPath) !== expectedPath) {
       return;
     }
-    rearmLocalSubtitleSelection(client);
+    void rearmLocalSubtitleSelection(client, deps);
   }, 400);
 }
 

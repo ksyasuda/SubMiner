@@ -4,6 +4,8 @@
 
 ### Fixed
 - AniList: Stopped post-watch tracking from sending a second progress update when the current episode was already satisfied by a ready retry item in the same watch-completion pass.
+- Playback: Fixed managed local playback so duplicate startup-ready retries no longer unpause media after a later manual pause on the same file.
+- Playback: Fixed managed local subtitle auto-selection so local files reuse configured primary/secondary subtitle language priorities instead of staying on mpv's initial `sid=auto` guess.
 
 ## v0.10.0 (2026-03-29)
 
