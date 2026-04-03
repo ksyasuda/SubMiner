@@ -99,6 +99,7 @@ process.exit(0);
 function makeFakeYtDlpShellScript(dir: string): string {
   const scriptPath = path.join(dir, 'yt-dlp');
   const script = `#!/bin/sh
+PATH=/usr/bin:/bin:/usr/local/bin
 has_auto_subs=0
 wants_auto_subs=0
 wants_manual_subs=0
