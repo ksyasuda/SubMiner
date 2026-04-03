@@ -68,6 +68,15 @@ export function resolveExternalYomitanExtensionPath(
     return null;
   }
 
-  const candidate = path.join(path.resolve(normalizedProfilePath), 'extensions', 'yomitan');
-  return existsSync(path.join(candidate, 'manifest.json')) ? candidate : null;
+  const candidate = path.join(normalizedProfilePath, 'extensions', 'yomitan');
+  const fallbackCandidate = path.join(path.resolve(normalizedProfilePath), 'extensions', 'yomitan');
+
+  const candidates = candidate === fallbackCandidate ? [candidate] : [candidate, fallbackCandidate];
+  for (const root of candidates) {
+    if (existsSync(path.join(root, 'manifest.json'))) {
+      return root;
+    }
+  }
+
+  return null;
 }

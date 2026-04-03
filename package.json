@@ -123,7 +123,7 @@
     "productName": "SubMiner",
     "executableName": "SubMiner",
     "artifactName": "SubMiner-${version}.${ext}",
-    "icon": "assets/SubMiner.png",
+    "icon": "assets/SubMiner-square.png",
     "directories": {
       "output": "release"
     },
@@ -142,7 +142,7 @@
         "zip"
       ],
       "category": "public.app-category.video",
-      "icon": "assets/SubMiner.png",
+      "icon": "assets/SubMiner-square.png",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",

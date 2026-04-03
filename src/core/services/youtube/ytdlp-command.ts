@@ -1,5 +1,44 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 const DEFAULT_YTDLP_COMMAND = 'yt-dlp';
+const WINDOWS_YTDLP_COMMANDS = ['yt-dlp.cmd', 'yt-dlp.exe', 'yt-dlp'];
+
+function resolveFromPath(commandName: string): string | null {
+  if (!process.env.PATH) {
+    return null;
+  }
+
+  const searchPaths = process.env.PATH.split(path.delimiter);
+  for (const searchPath of searchPaths) {
+    const candidate = path.join(searchPath, commandName);
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
 
 export function getYoutubeYtDlpCommand(): string {
-  return process.env.SUBMINER_YTDLP_BIN?.trim() || DEFAULT_YTDLP_COMMAND;
+  const explicitCommand = process.env.SUBMINER_YTDLP_BIN?.trim();
+  if (explicitCommand) {
+    return explicitCommand;
+  }
+
+  if (process.platform !== 'win32') {
+    return DEFAULT_YTDLP_COMMAND;
+  }
+
+  for (const commandName of WINDOWS_YTDLP_COMMANDS) {
+    const resolved = resolveFromPath(commandName);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  return DEFAULT_YTDLP_COMMAND;
 }
