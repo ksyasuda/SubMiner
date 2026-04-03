@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.11.0 (2026-04-03)
+- Added a playlist browser overlay modal for browsing sibling video files and the live mpv queue during playback, with a default `Ctrl+Alt+P` keybinding.
+- Made mpv plugin installation mandatory in first-run setup (removed skip path); Finish stays disabled until the plugin is installed.
+- Fixed the Windows `SubMiner mpv` shortcut to launch mpv with required default args directly instead of requiring an `mpv.conf` profile named `subminer`.
+- Fixed the Windows mpv idle launch so loading a video after opening the shortcut keeps mpv in the SubMiner-managed session and auto-starts the overlay.
+- Added a blank-by-default `mpv.executablePath` config override for Windows playback when mpv is not on `PATH`, exposed in first-run setup.
+- Fixed Kiku duplicate grouping to reuse duplicate note IDs from both sentence-card creation and Yomitan popup mining, with background card addition and proper merge-modal sequencing.
+- Fixed configured subtitle-jump keybindings to keep playback paused when invoked from a paused state.
+- Fixed managed local subtitle auto-selection to reuse configured language priorities instead of staying on mpv's initial `sid=auto` guess.
+- Kept tracked macOS visible overlays click-through by default so subtitle sidebar passthrough works immediately.
+- Stopped AniList post-watch from sending duplicate progress updates when already satisfied by a retry item.
+- Kept integrated `--start --texthooker` launches on the full app-ready startup path.
+- Honored `SUBMINER_YTDLP_BIN` consistently across all YouTube flows (playback URL resolution, track probing, subtitle downloads, metadata probing).
+- Added `windows` as a recognized launcher backend option and auto-detection target.
+- Added a dedicated Subtitle Sidebar guide to the docs site with links from homepage and configuration docs.
+
 ## v0.10.0 (2026-03-29)
 - Fixed stats startup so the immersion tracker can run when `Bun.serve` is unavailable.
 - Added a Node `http` fallback for Electron/runtime paths that do not expose Bun, so stats keeps working there too.
