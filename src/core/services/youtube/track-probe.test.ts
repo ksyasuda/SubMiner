@@ -24,10 +24,11 @@ function makeFakeYtDlpScript(dir: string, payload: unknown, rawScript = false): 
         : `#!/usr/bin/env bun
 process.stdout.write(${JSON.stringify(stdoutBody)});
 `
-      : `#!/usr/bin/env sh
-cat <<'EOF' | base64 -d
-${Buffer.from(rawScript ? stdoutBody : `${JSON.stringify(stdoutBody)}`).toString('base64')}
-EOF
+      : `#!/bin/sh
+PATH=/usr/bin:/bin:/usr/local/bin
+cat <<'SUBMINER_EOF' | base64 -d
+${Buffer.from(stdoutBody).toString('base64')}
+SUBMINER_EOF
 `;
   fs.writeFileSync(scriptPath, script, 'utf8');
   if (process.platform !== 'win32') {
