@@ -34,7 +34,12 @@ EOF
 
 function makeHangingFakeYtDlpScript(dir: string): void {
   const scriptPath = path.join(dir, 'yt-dlp');
-  const script = `#!/usr/bin/env sh
+  const script =
+    process.platform === 'win32'
+      ? `#!/usr/bin/env bun
+setInterval(() => {}, 1000);
+`
+      : `#!/usr/bin/env sh
 while :; do
   sleep 1;
 done
@@ -52,11 +57,19 @@ async function withFakeYtDlp<T>(payload: string, fn: () => Promise<T>): Promise<
     fs.mkdirSync(binDir, { recursive: true });
     makeFakeYtDlpScript(binDir, payload);
     const originalPath = process.env.PATH ?? '';
+    const originalCommand = process.env.SUBMINER_YTDLP_BIN;
     process.env.PATH = `${binDir}${path.delimiter}${originalPath}`;
+    process.env.SUBMINER_YTDLP_BIN =
+      process.platform === 'win32' ? path.join(binDir, 'yt-dlp.cmd') : path.join(binDir, 'yt-dlp');
     try {
       return await fn();
     } finally {
       process.env.PATH = originalPath;
+      if (originalCommand === undefined) {
+        delete process.env.SUBMINER_YTDLP_BIN;
+      } else {
+        process.env.SUBMINER_YTDLP_BIN = originalCommand;
+      }
     }
   });
 }
@@ -67,11 +80,19 @@ async function withHangingFakeYtDlp<T>(fn: () => Promise<T>): Promise<T> {
     fs.mkdirSync(binDir, { recursive: true });
     makeHangingFakeYtDlpScript(binDir);
     const originalPath = process.env.PATH ?? '';
+    const originalCommand = process.env.SUBMINER_YTDLP_BIN;
     process.env.PATH = `${binDir}${path.delimiter}${originalPath}`;
+    process.env.SUBMINER_YTDLP_BIN =
+      process.platform === 'win32' ? path.join(binDir, 'yt-dlp.cmd') : path.join(binDir, 'yt-dlp');
     try {
       return await fn();
     } finally {
       process.env.PATH = originalPath;
+      if (originalCommand === undefined) {
+        delete process.env.SUBMINER_YTDLP_BIN;
+      } else {
+        process.env.SUBMINER_YTDLP_BIN = originalCommand;
+      }
     }
   });
 }

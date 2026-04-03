@@ -46,11 +46,19 @@ async function withFakeYtDlp<T>(
     fs.mkdirSync(binDir, { recursive: true });
     makeFakeYtDlpScript(binDir, payload, options.rawScript === true);
     const originalPath = process.env.PATH ?? '';
+    const originalCommand = process.env.SUBMINER_YTDLP_BIN;
     process.env.PATH = `${binDir}${path.delimiter}${originalPath}`;
+    process.env.SUBMINER_YTDLP_BIN =
+      process.platform === 'win32' ? path.join(binDir, 'yt-dlp.cmd') : path.join(binDir, 'yt-dlp');
     try {
       return await fn();
     } finally {
       process.env.PATH = originalPath;
+      if (originalCommand === undefined) {
+        delete process.env.SUBMINER_YTDLP_BIN;
+      } else {
+        process.env.SUBMINER_YTDLP_BIN = originalCommand;
+      }
     }
   });
 }

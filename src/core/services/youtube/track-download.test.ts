@@ -143,12 +143,12 @@ if [ "$YTDLP_FAKE_MODE" = "multi" ]; then
   IFS=","
   for lang in $sub_lang; do
     if [ -n "$lang" ]; then
-      printf 'WEBVTT\\n' > "${prefix}.${lang}.vtt"
+      printf 'WEBVTT\\n' > "\${prefix}.\${lang}.vtt"
     fi
   done
   IFS="$OLD_IFS"
 elif [ "$YTDLP_FAKE_MODE" = "rolling-auto" ]; then
-  cat <<'EOF' > "${prefix}.vtt"
+  cat <<'EOF' > "\${prefix}.vtt"
 WEBVTT
 
 00:00:01.000 --> 00:00:02.000
@@ -162,19 +162,19 @@ WEBVTT
 
 EOF
 elif [ "$YTDLP_FAKE_MODE" = "multi-primary-only-fail" ]; then
-  primary_lang="${sub_lang%%,*}"
+  primary_lang="\${sub_lang%%,*}"
   if [ -n "$primary_lang" ]; then
-    printf 'WEBVTT\\n' > "${prefix}.${primary_lang}.vtt"
+    printf 'WEBVTT\\n' > "\${prefix}.\${primary_lang}.vtt"
   fi
   printf "ERROR: Unable to download video subtitles for 'en': HTTP Error 429: Too Many Requests\\n" 1>&2
   exit 1
 elif [ "$YTDLP_FAKE_MODE" = "both" ]; then
-  printf 'WEBVTT\\n' > "${prefix}.vtt"
-  printf 'webp' > "${prefix}.orig.webp"
+  printf 'WEBVTT\\n' > "\${prefix}.vtt"
+  printf 'webp' > "\${prefix}.orig.webp"
 elif [ "$YTDLP_FAKE_MODE" = "webp-only" ]; then
-  printf 'webp' > "${prefix}.orig.webp"
+  printf 'webp' > "\${prefix}.orig.webp"
 else
-  printf 'WEBVTT\\n' > "${prefix}.vtt"
+  printf 'WEBVTT\\n' > "\${prefix}.vtt"
 fi
 `;
   fs.writeFileSync(scriptPath, script, 'utf8');
