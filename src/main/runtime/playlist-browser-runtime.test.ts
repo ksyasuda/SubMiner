@@ -102,7 +102,8 @@ function createFakeMpvClient(options: {
         if (removingCurrent) {
           syncFlags();
           this.currentVideoPath =
-            playlist.find((item) => item.current || item.playing)?.filename ?? this.currentVideoPath;
+            playlist.find((item) => item.current || item.playing)?.filename ??
+            this.currentVideoPath;
         }
         return true;
       }
@@ -276,7 +277,10 @@ test('playlist-browser mutation runtimes mutate queue and return refreshed snaps
     ['set_property', 'sub-auto', 'fuzzy'],
     ['playlist-play-index', 1],
   ]);
-  assert.deepEqual(scheduled.map((entry) => entry.delayMs), [400]);
+  assert.deepEqual(
+    scheduled.map((entry) => entry.delayMs),
+    [400],
+  );
   scheduled[0]?.callback();
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(mpvClient.getCommands().slice(-2), [
@@ -382,10 +386,7 @@ test('movePlaylistBrowserIndexRuntime rejects top and bottom boundary moves', as
 
   const mpvClient = createFakeMpvClient({
     currentVideoPath: episode1,
-    playlist: [
-      { filename: episode1, current: true },
-      { filename: episode2 },
-    ],
+    playlist: [{ filename: episode1, current: true }, { filename: episode2 }],
   });
 
   const deps = {
@@ -486,17 +487,14 @@ test('playPlaylistBrowserIndexRuntime ignores superseded local subtitle rearm ca
   scheduled[1]?.();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.deepEqual(
-    mpvClient.getCommands().slice(-6),
-    [
-      ['set_property', 'sub-auto', 'fuzzy'],
-      ['playlist-play-index', 1],
-      ['set_property', 'sub-auto', 'fuzzy'],
-      ['playlist-play-index', 2],
-      ['set_property', 'sid', 'auto'],
-      ['set_property', 'secondary-sid', 'auto'],
-    ],
-  );
+  assert.deepEqual(mpvClient.getCommands().slice(-6), [
+    ['set_property', 'sub-auto', 'fuzzy'],
+    ['playlist-play-index', 1],
+    ['set_property', 'sub-auto', 'fuzzy'],
+    ['playlist-play-index', 2],
+    ['set_property', 'sid', 'auto'],
+    ['set_property', 'secondary-sid', 'auto'],
+  ]);
 });
 
 test('playPlaylistBrowserIndexRuntime aborts stale async subtitle rearm work', async (t) => {

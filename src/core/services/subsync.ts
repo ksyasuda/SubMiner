@@ -77,7 +77,11 @@ function normalizeTrackIds(tracks: unknown[]): MpvTrack[] {
 }
 
 function getSourceTrackIdentity(track: MpvTrack): string {
-  if (track.external && typeof track['external-filename'] === 'string' && track['external-filename'].length > 0) {
+  if (
+    track.external &&
+    typeof track['external-filename'] === 'string' &&
+    track['external-filename'].length > 0
+  ) {
     return `external:${track['external-filename'].toLowerCase()}`;
   }
   if (typeof track.id === 'number') {

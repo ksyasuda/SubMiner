@@ -37,13 +37,13 @@ test('autoplay ready gate suppresses duplicate media signals for the same media'
   firstScheduled?.();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.deepEqual(commands.filter((command) => command[0] === 'script-message'), [
-    ['script-message', 'subminer-autoplay-ready'],
-  ]);
+  assert.deepEqual(
+    commands.filter((command) => command[0] === 'script-message'),
+    [['script-message', 'subminer-autoplay-ready']],
+  );
   assert.ok(
     commands.some(
-      (command) =>
-        command[0] === 'set_property' && command[1] === 'pause' && command[2] === false,
+      (command) => command[0] === 'set_property' && command[1] === 'pause' && command[2] === false,
     ),
   );
   assert.equal(scheduled.length > 0, true);
@@ -84,13 +84,13 @@ test('autoplay ready gate retry loop does not re-signal plugin readiness', async
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
-  assert.deepEqual(commands.filter((command) => command[0] === 'script-message'), [
-    ['script-message', 'subminer-autoplay-ready'],
-  ]);
+  assert.deepEqual(
+    commands.filter((command) => command[0] === 'script-message'),
+    [['script-message', 'subminer-autoplay-ready']],
+  );
   assert.equal(
     commands.filter(
-      (command) =>
-        command[0] === 'set_property' && command[1] === 'pause' && command[2] === false,
+      (command) => command[0] === 'set_property' && command[1] === 'pause' && command[2] === false,
     ).length > 0,
     true,
   );
@@ -130,13 +130,15 @@ test('autoplay ready gate does not unpause again after a later manual pause on t
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   playbackPaused = true;
-  gate.maybeSignalPluginAutoplayReady({ text: '字幕その2', tokens: null }, { forceWhilePaused: true });
+  gate.maybeSignalPluginAutoplayReady(
+    { text: '字幕その2', tokens: null },
+    { forceWhilePaused: true },
+  );
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(
     commands.filter(
-      (command) =>
-        command[0] === 'set_property' && command[1] === 'pause' && command[2] === false,
+      (command) => command[0] === 'set_property' && command[1] === 'pause' && command[2] === false,
     ).length,
     1,
   );

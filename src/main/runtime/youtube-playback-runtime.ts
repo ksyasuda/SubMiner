@@ -92,7 +92,9 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
         ]);
         launchedWindowsMpv = launchResult.ok;
         if (launchResult.ok && launchResult.mpvPath) {
-          deps.logInfo(`Bootstrapping Windows mpv for YouTube playback via ${launchResult.mpvPath}`);
+          deps.logInfo(
+            `Bootstrapping Windows mpv for YouTube playback via ${launchResult.mpvPath}`,
+          );
         }
         if (!launchResult.ok) {
           deps.logWarn('Unable to bootstrap Windows mpv for YouTube playback.');

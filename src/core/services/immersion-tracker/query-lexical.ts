@@ -150,9 +150,11 @@ export function getSessionEvents(
     ORDER BY ts_ms ASC
     LIMIT ?
   `);
-  const rows = stmt.all(sessionId, ...eventTypes, limit) as Array<SessionEventRow & {
-    tsMs: number | string;
-  }>;
+  const rows = stmt.all(sessionId, ...eventTypes, limit) as Array<
+    SessionEventRow & {
+      tsMs: number | string;
+    }
+  >;
   return rows.map((row) => ({
     ...row,
     tsMs: fromDbTimestamp(row.tsMs) ?? 0,

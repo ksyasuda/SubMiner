@@ -358,12 +358,10 @@ export function createKeyboardHandlers(
       });
   }
 
-  function isSubtitleSeekCommand(command: (string | number)[] | undefined): command is [string, number] {
-    return (
-      Array.isArray(command) &&
-      command[0] === 'sub-seek' &&
-      typeof command[1] === 'number'
-    );
+  function isSubtitleSeekCommand(
+    command: (string | number)[] | undefined,
+  ): command is [string, number] {
+    return Array.isArray(command) && command[0] === 'sub-seek' && typeof command[1] === 'number';
   }
 
   function dispatchConfiguredMpvCommand(command: (string | number)[]): void {

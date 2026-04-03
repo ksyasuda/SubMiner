@@ -40,9 +40,7 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
     }
 
     const mediaPath =
-      deps.getCurrentMediaPath()?.trim() ||
-      deps.getCurrentVideoPath()?.trim() ||
-      '__unknown__';
+      deps.getCurrentMediaPath()?.trim() || deps.getCurrentVideoPath()?.trim() || '__unknown__';
     const duplicateMediaSignal = autoPlayReadySignalMediaPath === mediaPath;
     const releaseRetryDelayMs = 200;
     const maxReleaseAttempts = resolveAutoplayReadyMaxReleaseAttempts({
@@ -85,7 +83,10 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
         const mpvClient = deps.getMpvClient();
         if (!mpvClient?.connected) {
           if (attempt < maxReleaseAttempts) {
-            deps.schedule(() => attemptRelease(playbackGeneration, attempt + 1), releaseRetryDelayMs);
+            deps.schedule(
+              () => attemptRelease(playbackGeneration, attempt + 1),
+              releaseRetryDelayMs,
+            );
           }
           return;
         }

@@ -63,7 +63,10 @@ async function resolveCurrentFilePath(
 
 function resolveDirectorySnapshot(
   currentFilePath: string | null,
-): Pick<PlaylistBrowserSnapshot, 'directoryAvailable' | 'directoryItems' | 'directoryPath' | 'directoryStatus'> {
+): Pick<
+  PlaylistBrowserSnapshot,
+  'directoryAvailable' | 'directoryItems' | 'directoryPath' | 'directoryStatus'
+> {
   if (!currentFilePath) {
     return {
       directoryAvailable: false,

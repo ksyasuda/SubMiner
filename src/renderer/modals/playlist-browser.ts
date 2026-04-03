@@ -31,7 +31,8 @@ function getDefaultDirectorySelectionIndex(snapshot: PlaylistBrowserSnapshot): n
 
 function getDefaultPlaylistSelectionIndex(snapshot: PlaylistBrowserSnapshot): number {
   const playlistIndex =
-    snapshot.playingIndex ?? snapshot.playlistItems.findIndex((item) => item.current || item.playing);
+    snapshot.playingIndex ??
+    snapshot.playlistItems.findIndex((item) => item.current || item.playing);
   return clampIndex(playlistIndex >= 0 ? playlistIndex : 0, snapshot.playlistItems.length);
 }
 
@@ -225,7 +226,10 @@ export function createPlaylistBrowserModal(
   }
 
   async function removePlaylistItem(index: number): Promise<void> {
-    await handleMutation(window.electronAPI.removePlaylistBrowserIndex(index), 'Removed queue item');
+    await handleMutation(
+      window.electronAPI.removePlaylistBrowserIndex(index),
+      'Removed queue item',
+    );
   }
 
   async function movePlaylistItem(index: number, direction: 1 | -1): Promise<void> {

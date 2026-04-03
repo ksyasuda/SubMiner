@@ -102,7 +102,9 @@ type SubtitleTrackCandidate = {
   externalFilename: string | null;
 };
 
-function normalizeSubtitleTrackCandidate(track: Record<string, unknown>): SubtitleTrackCandidate | null {
+function normalizeSubtitleTrackCandidate(
+  track: Record<string, unknown>,
+): SubtitleTrackCandidate | null {
   const id =
     typeof track.id === 'number'
       ? track.id
@@ -122,8 +124,12 @@ function normalizeSubtitleTrackCandidate(track: Record<string, unknown>): Subtit
 
   return {
     id,
-    lang: String(track.lang || '').trim().toLowerCase(),
-    title: String(track.title || '').trim().toLowerCase(),
+    lang: String(track.lang || '')
+      .trim()
+      .toLowerCase(),
+    title: String(track.title || '')
+      .trim()
+      .toLowerCase(),
     selected: track.selected === true,
     external: track.external === true,
     externalFilename,
@@ -168,9 +174,7 @@ function pickSecondarySubtitleTrackId(
   const uniqueTracks = [...dedupedTracks.values()];
 
   for (const language of normalizedLanguages) {
-    const selectedMatch = uniqueTracks.find(
-      (track) => track.selected && track.lang === language,
-    );
+    const selectedMatch = uniqueTracks.find((track) => track.selected && track.lang === language);
     if (selectedMatch) {
       return selectedMatch.id;
     }

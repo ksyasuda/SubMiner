@@ -82,12 +82,9 @@ function hasRetainedPriorSession(
       LIMIT 1
     `,
     )
-    .get(
-      videoId,
-      toDbTimestamp(startedAtMs),
-      toDbTimestamp(startedAtMs),
-      currentSessionId,
-    ) as { found: number } | null;
+    .get(videoId, toDbTimestamp(startedAtMs), toDbTimestamp(startedAtMs), currentSessionId) as {
+    found: number;
+  } | null;
   return Boolean(row);
 }
 
@@ -150,7 +147,7 @@ function resetLifetimeSummaries(db: DatabaseSync, nowMs: number): void {
       LAST_UPDATE_DATE = ?
     WHERE global_id = 1
     `,
-    ).run(toDbTimestamp(nowMs), toDbTimestamp(nowMs));
+  ).run(toDbTimestamp(nowMs), toDbTimestamp(nowMs));
 }
 
 function rebuildLifetimeSummariesInternal(

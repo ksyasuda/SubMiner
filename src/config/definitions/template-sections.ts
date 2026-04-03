@@ -131,7 +131,9 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   },
   {
     title: 'YouTube Playback Settings',
-    description: ['Defaults for managed subtitle language preferences and YouTube subtitle loading.'],
+    description: [
+      'Defaults for managed subtitle language preferences and YouTube subtitle loading.',
+    ],
     key: 'youtube',
   },
   {

@@ -173,7 +173,10 @@ test('syncInstalledFirstRunPluginBinaryPath fills blank binary_path for existing
     const installPaths = resolveDefaultMpvInstallPaths('linux', homeDir, xdgConfigHome);
 
     fs.mkdirSync(path.dirname(installPaths.pluginConfigPath), { recursive: true });
-    fs.writeFileSync(installPaths.pluginConfigPath, 'binary_path=\nsocket_path=/tmp/subminer-socket\n');
+    fs.writeFileSync(
+      installPaths.pluginConfigPath,
+      'binary_path=\nsocket_path=/tmp/subminer-socket\n',
+    );
 
     const result = syncInstalledFirstRunPluginBinaryPath({
       platform: 'linux',

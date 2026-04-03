@@ -139,7 +139,10 @@ test('buildFirstRunSetupHtml explains external yomitan mode and keeps finish ena
   });
 
   assert.match(html, /External profile configured/);
-  assert.match(html, /Finish stays unlocked while SubMiner is reusing an external Yomitan profile\./);
+  assert.match(
+    html,
+    /Finish stays unlocked while SubMiner is reusing an external Yomitan profile\./,
+  );
 });
 
 test('parseFirstRunSetupSubmissionUrl parses supported custom actions', () => {
@@ -155,7 +158,10 @@ test('parseFirstRunSetupSubmissionUrl parses supported custom actions', () => {
   assert.deepEqual(parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=refresh'), {
     action: 'refresh',
   });
-  assert.equal(parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=skip-plugin'), null);
+  assert.equal(
+    parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=skip-plugin'),
+    null,
+  );
   assert.equal(parseFirstRunSetupSubmissionUrl('https://example.com'), null);
 });
 

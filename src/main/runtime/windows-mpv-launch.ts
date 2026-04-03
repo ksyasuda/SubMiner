@@ -34,10 +34,7 @@ export function getConfiguredWindowsMpvPathStatus(
   return fileExists(configPath) ? 'configured' : 'invalid';
 }
 
-export function resolveWindowsMpvPath(
-  deps: WindowsMpvLaunchDeps,
-  configuredMpvPath = '',
-): string {
+export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps, configuredMpvPath = ''): string {
   const configPath = normalizeCandidate(configuredMpvPath);
   const configuredPathStatus = getConfiguredWindowsMpvPathStatus(configPath, deps.fileExists);
   if (configuredPathStatus === 'configured') {
@@ -178,9 +175,7 @@ export function createWindowsMpvLaunchDeps(options: {
         error: result.error ?? undefined,
       };
     },
-    fileExists:
-      options.fileExists ??
-      defaultWindowsMpvFileExists,
+    fileExists: options.fileExists ?? defaultWindowsMpvFileExists,
     spawnDetached: (command, args) =>
       new Promise((resolve, reject) => {
         try {

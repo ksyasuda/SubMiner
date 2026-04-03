@@ -187,7 +187,10 @@ export function syncInstalledFirstRunPluginBinaryPath(options: {
     return { updated: false, configPath: installPaths.pluginConfigPath };
   }
 
-  const updated = rewriteInstalledPluginBinaryPath(installPaths.pluginConfigPath, options.binaryPath);
+  const updated = rewriteInstalledPluginBinaryPath(
+    installPaths.pluginConfigPath,
+    options.binaryPath,
+  );
   if (options.platform === 'win32') {
     rewriteInstalledWindowsPluginConfig(installPaths.pluginConfigPath);
   }

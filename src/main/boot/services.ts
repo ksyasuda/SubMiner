@@ -56,9 +56,7 @@ export interface MainBootServicesParams<
   };
   shouldBypassSingleInstanceLock: () => boolean;
   requestSingleInstanceLockEarly: () => boolean;
-  registerSecondInstanceHandlerEarly: (
-    listener: (_event: unknown, argv: string[]) => void,
-  ) => void;
+  registerSecondInstanceHandlerEarly: (listener: (_event: unknown, argv: string[]) => void) => void;
   onConfigStartupParseError: (error: ConfigStartupParseError) => void;
   createConfigService: (configDir: string) => TConfigService;
   createAnilistTokenStore: (targetPath: string) => TAnilistTokenStore;
@@ -87,10 +85,7 @@ export interface MainBootServicesParams<
     overlayModalInputState: TOverlayModalInputState;
     onModalStateChange: (isActive: boolean) => void;
   }) => TOverlayModalRuntime;
-  createAppState: (input: {
-    mpvSocketPath: string;
-    texthookerPort: number;
-  }) => TAppState;
+  createAppState: (input: { mpvSocketPath: string; texthookerPort: number }) => TAppState;
 }
 
 export interface MainBootServicesResult<
@@ -239,9 +234,7 @@ export function createMainBootServices<
 
   const appLifecycleApp = {
     requestSingleInstanceLock: () =>
-      params.shouldBypassSingleInstanceLock()
-        ? true
-        : params.requestSingleInstanceLockEarly(),
+      params.shouldBypassSingleInstanceLock() ? true : params.requestSingleInstanceLockEarly(),
     quit: () => params.app.quit(),
     on: (event: string, listener: (...args: unknown[]) => void) => {
       if (event === 'second-instance') {

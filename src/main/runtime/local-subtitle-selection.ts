@@ -109,7 +109,9 @@ function pickBestTrackId(
       if (left.track.external !== right.track.external) {
         return left.track.external ? -1 : 1;
       }
-      if (isLikelyHearingImpaired(left.track.title) !== isLikelyHearingImpaired(right.track.title)) {
+      if (
+        isLikelyHearingImpaired(left.track.title) !== isLikelyHearingImpaired(right.track.title)
+      ) {
         return isLikelyHearingImpaired(left.track.title) ? 1 : -1;
       }
       if (/\bdefault\b/i.test(left.track.title) !== /\bdefault\b/i.test(right.track.title)) {
@@ -130,7 +132,9 @@ export function resolveManagedLocalSubtitleSelection(input: {
   secondaryLanguages: string[];
 }): ManagedLocalSubtitleSelection {
   const tracks = Array.isArray(input.trackList)
-    ? input.trackList.map(normalizeTrack).filter((track): track is NormalizedSubtitleTrack => track !== null)
+    ? input.trackList
+        .map(normalizeTrack)
+        .filter((track): track is NormalizedSubtitleTrack => track !== null)
     : [];
   const preferredPrimaryLanguages = normalizeLanguageList(
     input.primaryLanguages,
@@ -165,12 +169,10 @@ function normalizeLocalMediaPath(mediaPath: string | null | undefined): string |
 
 export function createManagedLocalSubtitleSelectionRuntime(deps: {
   getCurrentMediaPath: () => string | null;
-  getMpvClient: () =>
-    | {
-        connected?: boolean;
-        requestProperty?: (name: string) => Promise<unknown>;
-      }
-    | null;
+  getMpvClient: () => {
+    connected?: boolean;
+    requestProperty?: (name: string) => Promise<unknown>;
+  } | null;
   getPrimarySubtitleLanguages: () => string[];
   getSecondarySubtitleLanguages: () => string[];
   sendMpvCommand: (command: ['set_property', 'sid' | 'secondary-sid', number]) => void;

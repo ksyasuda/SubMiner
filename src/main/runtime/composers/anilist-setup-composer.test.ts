@@ -50,6 +50,8 @@ test('composeAnilistSetupHandlers returns callable setup handlers', () => {
   assert.equal(handled, false);
 
   // handleAnilistSetupProtocolUrl returns true for subminer:// URLs
-  const handledProtocol = composed.handleAnilistSetupProtocolUrl('subminer://anilist-setup?code=abc');
+  const handledProtocol = composed.handleAnilistSetupProtocolUrl(
+    'subminer://anilist-setup?code=abc',
+  );
   assert.equal(handledProtocol, true);
 });

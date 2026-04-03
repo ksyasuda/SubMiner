@@ -364,8 +364,12 @@ export function findAppBinary(selfPath: string, pathModule: PathModule = path): 
   } else if (process.platform === 'darwin') {
     candidates.push('/Applications/SubMiner.app/Contents/MacOS/SubMiner');
     candidates.push('/Applications/SubMiner.app/Contents/MacOS/subminer');
-    candidates.push(pathModule.join(os.homedir(), 'Applications/SubMiner.app/Contents/MacOS/SubMiner'));
-    candidates.push(pathModule.join(os.homedir(), 'Applications/SubMiner.app/Contents/MacOS/subminer'));
+    candidates.push(
+      pathModule.join(os.homedir(), 'Applications/SubMiner.app/Contents/MacOS/SubMiner'),
+    );
+    candidates.push(
+      pathModule.join(os.homedir(), 'Applications/SubMiner.app/Contents/MacOS/subminer'),
+    );
   } else {
     candidates.push(pathModule.join(os.homedir(), '.local/bin/SubMiner.AppImage'));
     candidates.push('/opt/SubMiner/SubMiner.AppImage');

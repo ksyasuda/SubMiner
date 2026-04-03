@@ -24,13 +24,7 @@ export async function findDuplicateNote(
   noteInfo: NoteInfo,
   deps: DuplicateDetectionDeps,
 ): Promise<number | null> {
-  const duplicateNoteIds = await findDuplicateNoteIds(
-    expression,
-    excludeNoteId,
-    noteInfo,
-    deps,
-    1,
-  );
+  const duplicateNoteIds = await findDuplicateNoteIds(expression, excludeNoteId, noteInfo, deps, 1);
   return duplicateNoteIds[0] ?? null;
 }
 

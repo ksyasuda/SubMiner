@@ -2029,7 +2029,8 @@ export async function addYomitanNoteViaSearch(
             : null,
         duplicateNoteIds: Array.isArray(envelope.duplicateNoteIds)
           ? envelope.duplicateNoteIds.filter(
-              (entry): entry is number => typeof entry === 'number' && Number.isInteger(entry) && entry > 0,
+              (entry): entry is number =>
+                typeof entry === 'number' && Number.isInteger(entry) && entry > 0,
             )
           : [],
       };

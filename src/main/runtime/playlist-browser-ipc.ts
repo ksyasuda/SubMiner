@@ -38,7 +38,8 @@ export function createPlaylistBrowserIpcRuntime(
   return {
     playlistBrowserRuntimeDeps,
     playlistBrowserMainDeps: {
-      getPlaylistBrowserSnapshot: () => getPlaylistBrowserSnapshotRuntime(playlistBrowserRuntimeDeps),
+      getPlaylistBrowserSnapshot: () =>
+        getPlaylistBrowserSnapshotRuntime(playlistBrowserRuntimeDeps),
       appendPlaylistBrowserFile: (filePath: string) =>
         appendPlaylistBrowserFileRuntime(playlistBrowserRuntimeDeps, filePath),
       playPlaylistBrowserIndex: (index: number) =>

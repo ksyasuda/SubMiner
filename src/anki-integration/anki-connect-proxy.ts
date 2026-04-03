@@ -162,7 +162,8 @@ export class AnkiConnectProxyServer {
     }
 
     try {
-      const forwardedBody = req.method === 'POST' ? this.getForwardRequestBody(rawBody, requestJson) : rawBody;
+      const forwardedBody =
+        req.method === 'POST' ? this.getForwardRequestBody(rawBody, requestJson) : rawBody;
       const targetUrl = new URL(req.url || '/', upstreamUrl).toString();
       const contentType =
         typeof req.headers['content-type'] === 'string'
@@ -272,7 +273,9 @@ export class AnkiConnectProxyServer {
 
   private sanitizeRequestJson(requestJson: Record<string, unknown>): Record<string, unknown> {
     const action =
-      typeof requestJson.action === 'string' ? requestJson.action : String(requestJson.action ?? '');
+      typeof requestJson.action === 'string'
+        ? requestJson.action
+        : String(requestJson.action ?? '');
     if (action !== 'addNote') {
       return requestJson;
     }
@@ -301,9 +304,13 @@ export class AnkiConnectProxyServer {
     const rawNoteIds = Array.isArray(params?.subminerDuplicateNoteIds)
       ? params.subminerDuplicateNoteIds
       : [];
-    return [...new Set(rawNoteIds.filter((entry): entry is number => {
-      return typeof entry === 'number' && Number.isInteger(entry) && entry > 0;
-    }))].sort((left, right) => left - right);
+    return [
+      ...new Set(
+        rawNoteIds.filter((entry): entry is number => {
+          return typeof entry === 'number' && Number.isInteger(entry) && entry > 0;
+        }),
+      ),
+    ].sort((left, right) => left - right);
   }
 
   private requestIncludesAddAction(action: string, requestJson: Record<string, unknown>): boolean {

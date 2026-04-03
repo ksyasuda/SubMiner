@@ -39,10 +39,12 @@ export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummar
     ORDER BY s.started_at_ms DESC
     LIMIT ?
   `);
-  const rows = prepared.all(limit) as Array<SessionSummaryQueryRow & {
-    startedAtMs: number | string;
-    endedAtMs: number | string | null;
-  }>;
+  const rows = prepared.all(limit) as Array<
+    SessionSummaryQueryRow & {
+      startedAtMs: number | string;
+      endedAtMs: number | string | null;
+    }
+  >;
   return rows.map((row) => ({
     ...row,
     startedAtMs: fromDbTimestamp(row.startedAtMs) ?? 0,
@@ -69,19 +71,21 @@ export function getSessionTimeline(
   `;
 
   if (limit === undefined) {
-    const rows = db.prepare(select).all(sessionId) as Array<SessionTimelineRow & {
-      sampleMs: number | string;
-    }>;
+    const rows = db.prepare(select).all(sessionId) as Array<
+      SessionTimelineRow & {
+        sampleMs: number | string;
+      }
+    >;
     return rows.map((row) => ({
       ...row,
       sampleMs: fromDbTimestamp(row.sampleMs) ?? 0,
     }));
   }
-  const rows = db
-    .prepare(`${select}\n    LIMIT ?`)
-    .all(sessionId, limit) as Array<SessionTimelineRow & {
-    sampleMs: number | string;
-  }>;
+  const rows = db.prepare(`${select}\n    LIMIT ?`).all(sessionId, limit) as Array<
+    SessionTimelineRow & {
+      sampleMs: number | string;
+    }
+  >;
   return rows.map((row) => ({
     ...row,
     sampleMs: fromDbTimestamp(row.sampleMs) ?? 0,

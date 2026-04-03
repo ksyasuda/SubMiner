@@ -8,28 +8,22 @@ type StartupRuntimeHandlers<TCliArgs, TStartupState, TStartupBootstrapRuntimeDep
   typeof createStartupRuntimeHandlers<TCliArgs, TStartupState, TStartupBootstrapRuntimeDeps>
 >;
 
-export type HeadlessStartupComposerOptions<
-  TCliArgs,
-  TStartupState,
-  TStartupBootstrapRuntimeDeps,
-> = ComposerInputs<{
-  startupRuntimeHandlersDeps: StartupRuntimeHandlersDeps<
-    TCliArgs,
-    TStartupState,
-    TStartupBootstrapRuntimeDeps
-  >;
-}>;
+export type HeadlessStartupComposerOptions<TCliArgs, TStartupState, TStartupBootstrapRuntimeDeps> =
+  ComposerInputs<{
+    startupRuntimeHandlersDeps: StartupRuntimeHandlersDeps<
+      TCliArgs,
+      TStartupState,
+      TStartupBootstrapRuntimeDeps
+    >;
+  }>;
 
-export type HeadlessStartupComposerResult<
-  TCliArgs,
-  TStartupState,
-  TStartupBootstrapRuntimeDeps,
-> = ComposerOutputs<
-  Pick<
-    StartupRuntimeHandlers<TCliArgs, TStartupState, TStartupBootstrapRuntimeDeps>,
-    'appLifecycleRuntimeRunner' | 'runAndApplyStartupState'
-  >
->;
+export type HeadlessStartupComposerResult<TCliArgs, TStartupState, TStartupBootstrapRuntimeDeps> =
+  ComposerOutputs<
+    Pick<
+      StartupRuntimeHandlers<TCliArgs, TStartupState, TStartupBootstrapRuntimeDeps>,
+      'appLifecycleRuntimeRunner' | 'runAndApplyStartupState'
+    >
+  >;
 
 export function composeHeadlessStartupHandlers<
   TCliArgs,

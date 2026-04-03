@@ -47,13 +47,10 @@ test('RuntimeOptionsManager returns detached effective Anki config copies', () =
     },
   };
 
-  const manager = new RuntimeOptionsManager(
-    () => structuredClone(baseConfig),
-    {
-      applyAnkiPatch: () => undefined,
-      onOptionsChanged: () => undefined,
-    },
-  );
+  const manager = new RuntimeOptionsManager(() => structuredClone(baseConfig), {
+    applyAnkiPatch: () => undefined,
+    onOptionsChanged: () => undefined,
+  });
 
   const effective = manager.getEffectiveAnkiConnectConfig();
   effective.tags!.push('mutated');

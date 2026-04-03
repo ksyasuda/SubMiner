@@ -24,7 +24,11 @@ test('createMainBootServices builds boot-phase service bundle', () => {
     { scope: string; warn: () => void; info: () => void; error: () => void },
     { registry: boolean },
     { getModalWindow: () => null },
-    { inputState: boolean; getModalInputExclusive: () => boolean; handleModalInputStateChange: (isActive: boolean) => void },
+    {
+      inputState: boolean;
+      getModalInputExclusive: () => boolean;
+      handleModalInputStateChange: (isActive: boolean) => void;
+    },
     { measurementStore: boolean },
     { modalRuntime: boolean },
     { mpvSocketPath: string; texthookerPort: number },
@@ -80,7 +84,11 @@ test('createMainBootServices builds boot-phase service bundle', () => {
     createOverlayManager: () => ({
       getModalWindow: () => null,
     }),
-    createOverlayModalInputState: () => ({ inputState: true, getModalInputExclusive: () => false, handleModalInputStateChange: () => {} }),
+    createOverlayModalInputState: () => ({
+      inputState: true,
+      getModalInputExclusive: () => false,
+      handleModalInputStateChange: () => {},
+    }),
     createOverlayContentMeasurementStore: () => ({ measurementStore: true }),
     getSyncOverlayShortcutsForModal: () => () => {},
     getSyncOverlayVisibilityForModal: () => () => {},
@@ -106,8 +114,14 @@ test('createMainBootServices builds boot-phase service bundle', () => {
     mpvSocketPath: '/tmp/subminer.sock',
     texthookerPort: 5174,
   });
-  assert.equal(services.appLifecycleApp.on('ready', () => {}), services.appLifecycleApp);
-  assert.equal(services.appLifecycleApp.on('second-instance', () => {}), services.appLifecycleApp);
+  assert.equal(
+    services.appLifecycleApp.on('ready', () => {}),
+    services.appLifecycleApp,
+  );
+  assert.equal(
+    services.appLifecycleApp.on('second-instance', () => {}),
+    services.appLifecycleApp,
+  );
   assert.deepEqual(appOnCalls, ['ready']);
   assert.equal(secondInstanceHandlerRegistered, true);
   assert.deepEqual(calls, ['mkdir:/tmp/subminer-config']);

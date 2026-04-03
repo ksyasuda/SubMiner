@@ -77,15 +77,15 @@ function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
   return {
     shouldUseMinimalStartup: Boolean(
       (initialArgs && isStandaloneTexthookerCommand(initialArgs)) ||
-        (initialArgs?.stats &&
-          (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
+      (initialArgs?.stats &&
+        (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
     ),
     shouldSkipHeavyStartup: Boolean(
       initialArgs &&
-        (shouldRunSettingsOnlyStartup(initialArgs) ||
-          initialArgs.stats ||
-          initialArgs.dictionary ||
-          initialArgs.setup),
+      (shouldRunSettingsOnlyStartup(initialArgs) ||
+        initialArgs.stats ||
+        initialArgs.dictionary ||
+        initialArgs.setup),
     ),
   };
 }
@@ -123,7 +123,12 @@ import { AnkiIntegration } from './anki-integration';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { RuntimeOptionsManager } from './runtime-options';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
-import { createLogger, setLogLevel, resolveDefaultLogFilePath, type LogLevelSource } from './logger';
+import {
+  createLogger,
+  setLogLevel,
+  resolveDefaultLogFilePath,
+  type LogLevelSource,
+} from './logger';
 import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
 import {
   commandNeedsOverlayStartupPrereqs,
@@ -496,7 +501,10 @@ import {
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
 import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
-import { createSubtitlePrefetchService, type SubtitlePrefetchService } from './core/services/subtitle-prefetch';
+import {
+  createSubtitlePrefetchService,
+  type SubtitlePrefetchService,
+} from './core/services/subtitle-prefetch';
 import {
   buildSubtitleSidebarSourceKey,
   resolveSubtitleSourcePath,
@@ -1412,8 +1420,7 @@ const refreshSubtitlePrefetchFromActiveTrackHandler =
     getMpvClient: () => appState.mpvClient,
     getLastObservedTimePos: () => lastObservedTimePos,
     subtitlePrefetchInitController,
-    resolveActiveSubtitleSidebarSource: (input) =>
-      resolveActiveSubtitleSidebarSourceHandler(input),
+    resolveActiveSubtitleSidebarSource: (input) => resolveActiveSubtitleSidebarSourceHandler(input),
   });
 
 function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
@@ -1426,7 +1433,8 @@ function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
 const subtitlePrefetchRuntime = {
   cancelPendingInit: () => subtitlePrefetchInitController.cancelPendingInit(),
   initSubtitlePrefetch: subtitlePrefetchInitController.initSubtitlePrefetch,
-  refreshSubtitleSidebarFromSource: (sourcePath: string) => refreshSubtitleSidebarFromSource(sourcePath),
+  refreshSubtitleSidebarFromSource: (sourcePath: string) =>
+    refreshSubtitleSidebarFromSource(sourcePath),
   refreshSubtitlePrefetchFromActiveTrack: () => refreshSubtitlePrefetchFromActiveTrackHandler(),
   scheduleSubtitlePrefetchRefresh: (delayMs?: number) => scheduleSubtitlePrefetchRefresh(delayMs),
   clearScheduledSubtitlePrefetchRefresh: () => clearScheduledSubtitlePrefetchRefresh(),
@@ -1861,10 +1869,11 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     },
   })(),
 );
-const buildGetRuntimeOptionsStateMainDepsHandler =
-  createBuildGetRuntimeOptionsStateMainDepsHandler({
+const buildGetRuntimeOptionsStateMainDepsHandler = createBuildGetRuntimeOptionsStateMainDepsHandler(
+  {
     getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-  });
+  },
+);
 const getRuntimeOptionsStateMainDeps = buildGetRuntimeOptionsStateMainDepsHandler();
 const getRuntimeOptionsStateHandler = createGetRuntimeOptionsStateHandler(
   getRuntimeOptionsStateMainDeps,
@@ -3042,7 +3051,8 @@ const runStatsCliCommand = createRunStatsCliCommandHandler({
   },
   getImmersionTracker: () => appState.immersionTracker,
   ensureStatsServerStarted: () => statsStartupRuntime.ensureStatsServerStarted(),
-  ensureBackgroundStatsServerStarted: () => statsStartupRuntime.ensureBackgroundStatsServerStarted(),
+  ensureBackgroundStatsServerStarted: () =>
+    statsStartupRuntime.ensureBackgroundStatsServerStarted(),
   stopBackgroundStatsServer: () => statsStartupRuntime.stopBackgroundStatsServer(),
   openExternal: (url: string) => shell.openExternal(url),
   writeResponse: (responsePath, payload) => {
@@ -3258,8 +3268,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
       Boolean(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     shouldUseMinimalStartup: () =>
       getStartupModeFlags(appState.initialArgs).shouldUseMinimalStartup,
-    shouldSkipHeavyStartup: () =>
-      getStartupModeFlags(appState.initialArgs).shouldSkipHeavyStartup,
+    shouldSkipHeavyStartup: () => getStartupModeFlags(appState.initialArgs).shouldSkipHeavyStartup,
     createImmersionTracker: () => {
       ensureImmersionTrackerStarted();
     },

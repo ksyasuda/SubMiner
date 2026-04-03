@@ -113,10 +113,7 @@ interface CardCreationDeps {
   setUpdateInProgress: (value: boolean) => void;
   trackLastAddedNoteId?: (noteId: number) => void;
   trackLastAddedDuplicateNoteIds?: (noteId: number, duplicateNoteIds: number[]) => void;
-  findDuplicateNoteIds?: (
-    expression: string,
-    noteInfo: CardCreationNoteInfo,
-  ) => Promise<number[]>;
+  findDuplicateNoteIds?: (expression: string, noteInfo: CardCreationNoteInfo) => Promise<number[]>;
   recordCardsMinedCallback?: (count: number, noteIds?: number[]) => void;
 }
 
@@ -573,10 +570,7 @@ export class CardCreationService {
               await this.deps.findDuplicateNoteIds(pendingExpressionText, pendingNoteInfo),
             );
           } catch (error) {
-            log.warn(
-              'Failed to capture pre-add duplicate note ids:',
-              (error as Error).message,
-            );
+            log.warn('Failed to capture pre-add duplicate note ids:', (error as Error).message);
           }
         }
 
@@ -728,9 +722,7 @@ export class CardCreationService {
   private createPendingNoteInfo(fields: Record<string, string>): CardCreationNoteInfo {
     return {
       noteId: -1,
-      fields: Object.fromEntries(
-        Object.entries(fields).map(([name, value]) => [name, { value }]),
-      ),
+      fields: Object.fromEntries(Object.entries(fields).map(([name, value]) => [name, { value }])),
     };
   }
 

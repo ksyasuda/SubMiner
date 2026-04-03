@@ -975,79 +975,79 @@ test('getTrendsDashboard month grouping spans every touched calendar month and k
         );
       }
 
-    const insertDailyRollup = db.prepare(
-      `
+      const insertDailyRollup = db.prepare(
+        `
       INSERT INTO imm_daily_rollups (
         rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
         total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
-    );
-    const insertMonthlyRollup = db.prepare(
-      `
+      );
+      const insertMonthlyRollup = db.prepare(
+        `
       INSERT INTO imm_monthly_rollups (
         rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
         total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
-    );
-    insertDailyRollup.run(20500, febVideoId, 1, 30, 4, 100, 2, febStartedAtMs, febStartedAtMs);
-    insertDailyRollup.run(20513, marVideoId, 1, 30, 4, 120, 4, marStartedAtMs, marStartedAtMs);
-    insertMonthlyRollup.run(202602, febVideoId, 1, 30, 4, 100, 2, febStartedAtMs, febStartedAtMs);
-    insertMonthlyRollup.run(202603, marVideoId, 1, 30, 4, 120, 4, marStartedAtMs, marStartedAtMs);
+      );
+      insertDailyRollup.run(20500, febVideoId, 1, 30, 4, 100, 2, febStartedAtMs, febStartedAtMs);
+      insertDailyRollup.run(20513, marVideoId, 1, 30, 4, 120, 4, marStartedAtMs, marStartedAtMs);
+      insertMonthlyRollup.run(202602, febVideoId, 1, 30, 4, 100, 2, febStartedAtMs, febStartedAtMs);
+      insertMonthlyRollup.run(202603, marVideoId, 1, 30, 4, 120, 4, marStartedAtMs, marStartedAtMs);
 
-    db.prepare(
-      `
+      db.prepare(
+        `
       INSERT INTO imm_words (
         headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
-    ).run(
-      '二月',
-      '二月',
-      'にがつ',
-      'noun',
-      '名詞',
-      '',
-      '',
-      (BigInt(febStartedAtMs) / 1000n).toString(),
-      (BigInt(febStartedAtMs) / 1000n).toString(),
-      1,
-    );
-    db.prepare(
-      `
+      ).run(
+        '二月',
+        '二月',
+        'にがつ',
+        'noun',
+        '名詞',
+        '',
+        '',
+        (BigInt(febStartedAtMs) / 1000n).toString(),
+        (BigInt(febStartedAtMs) / 1000n).toString(),
+        1,
+      );
+      db.prepare(
+        `
       INSERT INTO imm_words (
         headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
-    ).run(
-      '三月',
-      '三月',
-      'さんがつ',
-      'noun',
-      '名詞',
-      '',
-      '',
-      (BigInt(marStartedAtMs) / 1000n).toString(),
-      (BigInt(marStartedAtMs) / 1000n).toString(),
-      1,
-    );
+      ).run(
+        '三月',
+        '三月',
+        'さんがつ',
+        'noun',
+        '名詞',
+        '',
+        '',
+        (BigInt(marStartedAtMs) / 1000n).toString(),
+        (BigInt(marStartedAtMs) / 1000n).toString(),
+        1,
+      );
 
-    const dashboard = getTrendsDashboard(db, '30d', 'month');
+      const dashboard = getTrendsDashboard(db, '30d', 'month');
 
-    assert.equal(dashboard.activity.watchTime.length, 2);
-    assert.deepEqual(
-      dashboard.progress.newWords.map((point) => point.label),
-      dashboard.activity.watchTime.map((point) => point.label),
-    );
-    assert.deepEqual(
-      dashboard.progress.episodes.map((point) => point.label),
-      dashboard.activity.watchTime.map((point) => point.label),
-    );
-    assert.deepEqual(
-      dashboard.progress.lookups.map((point) => point.label),
-      dashboard.activity.watchTime.map((point) => point.label),
-    );
+      assert.equal(dashboard.activity.watchTime.length, 2);
+      assert.deepEqual(
+        dashboard.progress.newWords.map((point) => point.label),
+        dashboard.activity.watchTime.map((point) => point.label),
+      );
+      assert.deepEqual(
+        dashboard.progress.episodes.map((point) => point.label),
+        dashboard.activity.watchTime.map((point) => point.label),
+      );
+      assert.deepEqual(
+        dashboard.progress.lookups.map((point) => point.label),
+        dashboard.activity.watchTime.map((point) => point.label),
+      );
     } finally {
       db.close();
       cleanupDbPath(dbPath);
@@ -1230,18 +1230,7 @@ test('getQueryHints counts new words by distinct headword first-seen time', () =
           headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
-      ).run(
-        '猫',
-        '猫',
-        'ねこ',
-        'noun',
-        '名詞',
-        '',
-        '',
-        String(twoDaysAgo),
-        String(twoDaysAgo),
-        1,
-      );
+      ).run('猫', '猫', 'ねこ', 'noun', '名詞', '', '', String(twoDaysAgo), String(twoDaysAgo), 1);
 
       const hints = getQueryHints(db);
       assert.equal(hints.newWordsToday, 1);
