@@ -27,7 +27,7 @@ export interface SetupStatusSnapshot {
   dictionaryCount: number;
   canFinish: boolean;
   externalYomitanConfigured: boolean;
-  pluginStatus: 'installed' | 'optional' | 'skipped' | 'failed';
+  pluginStatus: 'installed' | 'required' | 'failed';
   pluginInstallPathSummary: string | null;
   windowsMpvShortcuts: SetupWindowsMpvShortcutSnapshot;
   message: string | null;
@@ -48,7 +48,6 @@ export interface FirstRunSetupService {
   markSetupInProgress: () => Promise<SetupStatusSnapshot>;
   markSetupCancelled: () => Promise<SetupStatusSnapshot>;
   markSetupCompleted: () => Promise<SetupStatusSnapshot>;
-  skipPluginInstall: () => Promise<SetupStatusSnapshot>;
   installMpvPlugin: () => Promise<SetupStatusSnapshot>;
   configureWindowsMpvShortcuts: (preferences: {
     startMenuEnabled: boolean;
@@ -108,9 +107,8 @@ function getPluginStatus(
   pluginInstalled: boolean,
 ): SetupStatusSnapshot['pluginStatus'] {
   if (pluginInstalled) return 'installed';
-  if (state.pluginInstallStatus === 'skipped') return 'skipped';
   if (state.pluginInstallStatus === 'failed') return 'failed';
-  return 'optional';
+  return 'required';
 }
 
 function getWindowsMpvShortcutStatus(
@@ -230,11 +228,13 @@ export function createFirstRunSetupService(deps: {
     return {
       configReady,
       dictionaryCount,
-      canFinish: isYomitanSetupSatisfied({
-        configReady,
-        dictionaryCount,
-        externalYomitanConfigured,
-      }),
+      canFinish:
+        pluginInstalled &&
+        isYomitanSetupSatisfied({
+          configReady,
+          dictionaryCount,
+          externalYomitanConfigured,
+        }),
       externalYomitanConfigured,
       pluginStatus: getPluginStatus(state, pluginInstalled),
       pluginInstallPathSummary: state.pluginInstallPathSummary,
@@ -347,8 +347,6 @@ export function createFirstRunSetupService(deps: {
         }),
       );
     },
-    skipPluginInstall: async () =>
-      refreshWithState(writeState({ ...readState(), pluginInstallStatus: 'skipped' })),
     installMpvPlugin: async () => {
       const result = await deps.installPlugin();
       return refreshWithState(

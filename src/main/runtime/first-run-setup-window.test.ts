@@ -14,7 +14,7 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
     dictionaryCount: 0,
     canFinish: false,
     externalYomitanConfigured: false,
-    pluginStatus: 'optional',
+    pluginStatus: 'required',
     pluginInstallPathSummary: null,
     windowsMpvShortcuts: {
       supported: false,
@@ -29,6 +29,7 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
 
   assert.match(html, /SubMiner setup/);
   assert.match(html, /Install mpv plugin/);
+  assert.match(html, /Required before SubMiner setup can finish/);
   assert.match(html, /Open Yomitan Settings/);
   assert.match(html, /Finish setup/);
   assert.match(html, /disabled/);
@@ -62,7 +63,7 @@ test('buildFirstRunSetupHtml explains external yomitan mode and keeps finish ena
     dictionaryCount: 0,
     canFinish: true,
     externalYomitanConfigured: true,
-    pluginStatus: 'optional',
+    pluginStatus: 'installed',
     pluginInstallPathSummary: null,
     windowsMpvShortcuts: {
       supported: false,
@@ -76,16 +77,14 @@ test('buildFirstRunSetupHtml explains external yomitan mode and keeps finish ena
   });
 
   assert.match(html, /External profile configured/);
-  assert.match(
-    html,
-    /Finish stays unlocked while SubMiner is reusing an external Yomitan profile\./,
-  );
+  assert.match(html, /Finish stays unlocked while SubMiner is reusing an external Yomitan profile\./);
 });
 
 test('parseFirstRunSetupSubmissionUrl parses supported custom actions', () => {
   assert.deepEqual(parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=refresh'), {
     action: 'refresh',
   });
+  assert.equal(parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=skip-plugin'), null);
   assert.equal(parseFirstRunSetupSubmissionUrl('https://example.com'), null);
 });
 
@@ -146,7 +145,7 @@ test('closing incomplete first-run setup quits app outside background mode', asy
       dictionaryCount: 0,
       canFinish: false,
       externalYomitanConfigured: false,
-      pluginStatus: 'optional',
+      pluginStatus: 'required',
       pluginInstallPathSummary: null,
       windowsMpvShortcuts: {
         supported: false,

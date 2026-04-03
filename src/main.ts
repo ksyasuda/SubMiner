@@ -2238,18 +2238,21 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       firstRunSetupMessage = snapshot.message;
       return;
     }
-    if (submission.action === 'skip-plugin') {
-      await firstRunSetupService.skipPluginInstall();
-      firstRunSetupMessage = 'mpv plugin installation skipped.';
-      return;
-    }
 
     const snapshot = await firstRunSetupService.markSetupCompleted();
     if (snapshot.state.status === 'completed') {
       firstRunSetupMessage = null;
       return { closeWindow: true };
     }
-    firstRunSetupMessage = 'Install at least one Yomitan dictionary before finishing setup.';
+    if (snapshot.pluginStatus !== 'installed') {
+      firstRunSetupMessage = 'Install the mpv plugin before finishing setup.';
+      return;
+    }
+    if (!snapshot.externalYomitanConfigured && snapshot.dictionaryCount < 1) {
+      firstRunSetupMessage = 'Install at least one Yomitan dictionary before finishing setup.';
+      return;
+    }
+    firstRunSetupMessage = 'Finish setup requires the mpv plugin and Yomitan dictionaries.';
     return;
   },
   markSetupInProgress: async () => {

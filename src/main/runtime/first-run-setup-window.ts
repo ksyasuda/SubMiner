@@ -19,7 +19,6 @@ export type FirstRunSetupAction =
   | 'configure-windows-mpv-shortcuts'
   | 'open-yomitan-settings'
   | 'refresh'
-  | 'skip-plugin'
   | 'finish';
 
 export interface FirstRunSetupSubmission {
@@ -33,7 +32,7 @@ export interface FirstRunSetupHtmlModel {
   dictionaryCount: number;
   canFinish: boolean;
   externalYomitanConfigured: boolean;
-  pluginStatus: 'installed' | 'optional' | 'skipped' | 'failed';
+  pluginStatus: 'installed' | 'required' | 'failed';
   pluginInstallPathSummary: string | null;
   windowsMpvShortcuts: {
     supported: boolean;
@@ -64,19 +63,15 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
   const pluginLabel =
     model.pluginStatus === 'installed'
       ? 'Installed'
-      : model.pluginStatus === 'skipped'
-        ? 'Skipped'
-        : model.pluginStatus === 'failed'
-          ? 'Failed'
-          : 'Optional';
+      : model.pluginStatus === 'failed'
+        ? 'Failed'
+        : 'Required';
   const pluginTone =
     model.pluginStatus === 'installed'
       ? 'ready'
       : model.pluginStatus === 'failed'
         ? 'danger'
-        : model.pluginStatus === 'skipped'
-          ? 'muted'
-          : 'warn';
+        : 'warn';
   const windowsShortcutLabel =
     model.windowsMpvShortcuts.status === 'installed'
       ? 'Installed'
@@ -129,8 +124,10 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       ? 'ready'
       : 'warn';
   const footerMessage = model.externalYomitanConfigured
-    ? 'Finish stays unlocked while SubMiner is reusing an external Yomitan profile. If you later launch without yomitan.externalProfilePath, setup will require at least one internal dictionary.'
-    : 'Finish stays locked until Yomitan reports at least one installed dictionary.';
+    ? model.pluginStatus === 'installed'
+      ? 'Finish stays unlocked while SubMiner is reusing an external Yomitan profile. If you later launch without yomitan.externalProfilePath, setup will require at least one internal dictionary.'
+      : 'Finish stays locked until the mpv plugin is installed. If you later launch without yomitan.externalProfilePath, setup will also require at least one internal dictionary.'
+    : 'Finish stays locked until the mpv plugin is installed and Yomitan reports at least one installed dictionary.';
 
   return `<!doctype html>
 <html>
@@ -269,6 +266,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       <div>
         <strong>mpv plugin</strong>
         <div class="meta">${escapeHtml(model.pluginInstallPathSummary ?? 'Default mpv scripts location')}</div>
+        <div class="meta">Required before SubMiner setup can finish.</div>
       </div>
       ${renderStatusBadge(pluginLabel, pluginTone)}
     </div>
@@ -284,7 +282,6 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       <button onclick="window.location.href='subminer://first-run-setup?action=install-plugin'">${pluginActionLabel}</button>
       <button onclick="window.location.href='subminer://first-run-setup?action=open-yomitan-settings'">Open Yomitan Settings</button>
       <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh status</button>
-      <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=skip-plugin'">Skip plugin</button>
       <button class="primary" ${model.canFinish ? '' : 'disabled'} onclick="window.location.href='subminer://first-run-setup?action=finish'">Finish setup</button>
     </div>
     <div class="message">${model.message ? escapeHtml(model.message) : ''}</div>
@@ -305,7 +302,6 @@ export function parseFirstRunSetupSubmissionUrl(rawUrl: string): FirstRunSetupSu
     action !== 'configure-windows-mpv-shortcuts' &&
     action !== 'open-yomitan-settings' &&
     action !== 'refresh' &&
-    action !== 'skip-plugin' &&
     action !== 'finish'
   ) {
     return null;
