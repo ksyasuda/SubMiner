@@ -61,6 +61,7 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
   assert.match(html, /Reinstall mpv plugin/);
   assert.match(html, /mpv executable path/);
   assert.match(html, /Leave blank to auto-discover mpv\.exe from PATH\./);
+  assert.match(html, /aria-label="Path to mpv\.exe"/);
   assert.match(
     html,
     /Finish stays unlocked once the mpv plugin is installed and Yomitan reports at least one installed dictionary\./,

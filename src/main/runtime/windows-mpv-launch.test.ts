@@ -134,6 +134,34 @@ test('buildWindowsMpvLaunchArgs mirrors a custom input-ipc-server into script op
   );
 });
 
+test('buildWindowsMpvLaunchArgs includes socket script opts when plugin entrypoint is present without binary path', () => {
+  assert.deepEqual(
+    buildWindowsMpvLaunchArgs(
+      ['C:\\video.mkv'],
+      ['--input-ipc-server', '\\\\.\\pipe\\custom-subminer-socket'],
+      undefined,
+      'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    ),
+    [
+      '--player-operation-mode=pseudo-gui',
+      '--force-window=immediate',
+      '--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+      '--input-ipc-server=\\\\.\\pipe\\custom-subminer-socket',
+      '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--sub-auto=fuzzy',
+      '--sub-file-paths=subs;subtitles',
+      '--sid=auto',
+      '--secondary-sid=auto',
+      '--secondary-sub-visibility=no',
+      '--script-opts=subminer-socket_path=\\\\.\\pipe\\custom-subminer-socket',
+      '--input-ipc-server',
+      '\\\\.\\pipe\\custom-subminer-socket',
+      'C:\\video.mkv',
+    ],
+  );
+});
+
 test('launchWindowsMpv reports missing mpv path', async () => {
   const errors: string[] = [];
   const result = await launchWindowsMpv(

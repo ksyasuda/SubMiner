@@ -96,14 +96,17 @@ export function buildWindowsMpvLaunchArgs(
   const launchIdle = targets.length === 0;
   const inputIpcServer =
     readExtraArgValue(extraArgs, '--input-ipc-server') ?? DEFAULT_WINDOWS_MPV_SOCKET;
-  const scriptOpts =
-    typeof binaryPath === 'string' && binaryPath.trim().length > 0
-      ? `--script-opts=subminer-binary_path=${binaryPath.trim().replace(/,/g, '\\,')},subminer-socket_path=${inputIpcServer.replace(/,/g, '\\,')}`
-      : null;
   const scriptEntrypoint =
     typeof pluginEntrypointPath === 'string' && pluginEntrypointPath.trim().length > 0
       ? `--script=${pluginEntrypointPath.trim()}`
       : null;
+  const scriptOptPairs = scriptEntrypoint
+    ? [`subminer-socket_path=${inputIpcServer.replace(/,/g, '\\,')}`]
+    : [];
+  if (scriptEntrypoint && typeof binaryPath === 'string' && binaryPath.trim().length > 0) {
+    scriptOptPairs.unshift(`subminer-binary_path=${binaryPath.trim().replace(/,/g, '\\,')}`);
+  }
+  const scriptOpts = scriptOptPairs.length > 0 ? `--script-opts=${scriptOptPairs.join(',')}` : null;
 
   return [
     '--player-operation-mode=pseudo-gui',

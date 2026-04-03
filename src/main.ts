@@ -2244,14 +2244,18 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
     }
     if (submission.action === 'configure-mpv-executable-path') {
       const mpvExecutablePath = submission.mpvExecutablePath?.trim() ?? '';
+      const pathStatus = getConfiguredWindowsMpvPathStatus(mpvExecutablePath);
       configService.patchRawConfig({
         mpv: {
           executablePath: mpvExecutablePath,
         },
       });
-      firstRunSetupMessage = mpvExecutablePath
-        ? `Saved mpv executable path: ${mpvExecutablePath}`
-        : 'Cleared mpv executable path. SubMiner will auto-discover mpv.exe from PATH.';
+      firstRunSetupMessage =
+        pathStatus === 'invalid'
+          ? `Saved mpv executable path, but the file was not found: ${mpvExecutablePath}`
+          : mpvExecutablePath
+            ? `Saved mpv executable path: ${mpvExecutablePath}`
+            : 'Cleared mpv executable path. SubMiner will auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.';
       return;
     }
     if (submission.action === 'configure-windows-mpv-shortcuts') {

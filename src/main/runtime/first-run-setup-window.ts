@@ -130,6 +130,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
         <input
           id="mpv-executable-path"
           type="text"
+          aria-label="Path to mpv.exe"
           value="${escapeHtml(model.mpvExecutablePath)}"
           placeholder="C:\\Program Files\\mpv\\mpv.exe"
         />
