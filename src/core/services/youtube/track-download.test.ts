@@ -98,7 +98,7 @@ process.exit(0);
 
 function makeFakeYtDlpShellScript(dir: string): string {
   const scriptPath = path.join(dir, 'yt-dlp');
-  const script = `#!/usr/bin/env sh
+  const script = `#!/bin/sh
 has_auto_subs=0
 wants_auto_subs=0
 wants_manual_subs=0
@@ -162,7 +162,6 @@ WEBVTT
 
 00:00:03.000 --> 00:00:04.000
 今日はいい天気ですね本当に
-
 EOF
 elif [ "$YTDLP_FAKE_MODE" = "multi-primary-only-fail" ]; then
   primary_lang="\${sub_lang%%,*}"
