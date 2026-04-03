@@ -49,6 +49,10 @@ export function createDiscordPresenceLifecycleRuntime(
 ): DiscordPresenceLifecycleRuntime {
   let discordPresenceMediaDurationSec: number | null = null;
   const discordPresenceSessionStartedAtMs = input.now ? input.now() : Date.now();
+  const stopCurrentDiscordPresenceService = async (): Promise<void> => {
+    await input.getDiscordPresenceService()?.stop?.();
+    input.setDiscordPresenceService(null);
+  };
 
   const discordPresenceRuntime = (input.createDiscordRuntime ?? createDiscordPresenceRuntime)({
     getDiscordPresenceService: () => input.getDiscordPresenceService(),
@@ -72,19 +76,17 @@ export function createDiscordPresenceLifecycleRuntime(
     },
     initializeDiscordPresenceService: async () => {
       if (input.getResolvedConfig().discordPresence.enabled !== true) {
-        input.setDiscordPresenceService(null);
+        await stopCurrentDiscordPresenceService();
         return;
       }
 
+      await stopCurrentDiscordPresenceService();
       input.setDiscordPresenceService(
         input.createDiscordPresenceService(input.getResolvedConfig().discordPresence),
       );
       await input.getDiscordPresenceService()?.start();
       discordPresenceRuntime.publishDiscordPresence();
     },
-    stopDiscordPresenceService: async () => {
-      await input.getDiscordPresenceService()?.stop?.();
-      input.setDiscordPresenceService(null);
-    },
+    stopDiscordPresenceService: stopCurrentDiscordPresenceService,
   };
 }

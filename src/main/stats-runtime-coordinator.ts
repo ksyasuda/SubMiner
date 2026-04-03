@@ -112,7 +112,8 @@ export function createStatsRuntimeCoordinator(
       await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
         forceOverride: true,
       });
-      return addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
+      const result = await addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
+      return result.noteId;
     },
     openExternal: input.actions.openExternal,
     requestAppQuit: input.actions.requestAppQuit,

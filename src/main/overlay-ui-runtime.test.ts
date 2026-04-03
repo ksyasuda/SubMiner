@@ -308,6 +308,153 @@ test('overlay ui runtime initializes overlay runtime before visible action when 
   ]);
 });
 
+test('overlay ui runtime initializes overlay runtime before overlay visibility action when needed', async () => {
+  const calls: string[] = [];
+  let overlayRuntimeInitialized = false;
+
+  const overlayUi = createOverlayUiRuntime({
+    windowState: {
+      getMainWindow: () => null,
+      setMainWindow: () => {},
+      getModalWindow: () => null,
+      setModalWindow: () => {},
+      getVisibleOverlayVisible: () => false,
+      setVisibleOverlayVisible: () => {},
+      getOverlayDebugVisualizationEnabled: () => false,
+      setOverlayDebugVisualizationEnabled: () => {},
+    },
+    geometry: {
+      getCurrentOverlayGeometry: () => ({ x: 0, y: 0, width: 100, height: 100 }),
+    },
+    modal: {
+      onModalStateChange: () => {},
+    },
+    modalRuntime: {
+      handleOverlayModalClosed: () => {},
+      notifyOverlayModalOpened: () => {},
+      waitForModalOpen: async () => false,
+      getRestoreVisibleOverlayOnModalClose: () => new Set<OverlayHostedModal>(),
+      openRuntimeOptionsPalette: () => {},
+      sendToActiveOverlayWindow: () => false,
+    },
+    visibilityService: {
+      getModalActive: () => false,
+      getForceMousePassthrough: () => false,
+      getWindowTracker: () => null,
+      getTrackerNotReadyWarningShown: () => false,
+      setTrackerNotReadyWarningShown: () => {},
+      updateVisibleOverlayBounds: () => {},
+      ensureOverlayWindowLevel: () => {},
+      syncPrimaryOverlayWindowLayer: () => {},
+      enforceOverlayLayerOrder: () => {},
+      syncOverlayShortcuts: () => {},
+      isMacOSPlatform: () => false,
+      isWindowsPlatform: () => false,
+      showOverlayLoadingOsd: () => {},
+      resolveFallbackBounds: () => ({ x: 0, y: 0, width: 100, height: 100 }),
+    },
+    overlayWindows: {
+      createOverlayWindowCore: () => createWindow(),
+      isDev: false,
+      ensureOverlayWindowLevel: () => {},
+      onRuntimeOptionsChanged: () => {},
+      setOverlayDebugVisualizationEnabled: () => {},
+      isOverlayVisible: () => false,
+      getYomitanSession: () => null,
+      tryHandleOverlayShortcutLocalFallback: () => false,
+      forwardTabToMpv: () => {},
+      onWindowClosed: () => {},
+    },
+    visibilityActions: {
+      setVisibleOverlayVisibleCore: ({ visible }) => {
+        calls.push(`setVisible:${visible}`);
+      },
+    },
+    overlayActions: {
+      getRuntimeOptionsManager: () => null,
+      getMpvClient: () => null,
+      broadcastRuntimeOptionsChangedRuntime: () => {},
+      broadcastToOverlayWindows: () => {},
+      setOverlayDebugVisualizationEnabledRuntime: () => {},
+    },
+    tray: null,
+    bootstrap: {
+      initializeOverlayRuntimeMainDeps: {
+        appState: {
+          backendOverride: null,
+          windowTracker: null,
+          subtitleTimingTracker: null,
+          mpvClient: null,
+          mpvSocketPath: '/tmp/mpv.sock',
+          runtimeOptionsManager: null,
+          ankiIntegration: null,
+        },
+        overlayManager: {
+          getVisibleOverlayVisible: () => false,
+        },
+        overlayVisibilityRuntime: {
+          updateVisibleOverlayVisibility: () => {},
+        },
+        overlayShortcutsRuntime: {
+          syncOverlayShortcuts: () => {},
+        },
+        createMainWindow: () => {},
+        registerGlobalShortcuts: () => {},
+        updateVisibleOverlayBounds: () => {},
+        getOverlayWindows: () => [],
+        getResolvedConfig: () => ({ ankiConnect: {} }) as never,
+        showDesktopNotification: () => {},
+        createFieldGroupingCallback: () => () => Promise.resolve({} as never),
+        getKnownWordCacheStatePath: () => '/tmp/known.json',
+        shouldStartAnkiIntegration: () => false,
+      },
+      initializeOverlayRuntimeBootstrapDeps: {
+        isOverlayRuntimeInitialized: () => overlayRuntimeInitialized,
+        initializeOverlayRuntimeCore: () => {
+          calls.push('initializeOverlayRuntimeCore');
+        },
+        setOverlayRuntimeInitialized: (initialized) => {
+          overlayRuntimeInitialized = initialized;
+          calls.push(`setInitialized:${initialized}`);
+        },
+        startBackgroundWarmups: () => {
+          calls.push('startBackgroundWarmups');
+        },
+      },
+      onInitialized: () => {
+        calls.push('onInitialized');
+      },
+    },
+    runtimeState: {
+      isOverlayRuntimeInitialized: () => overlayRuntimeInitialized,
+      setOverlayRuntimeInitialized: (initialized) => {
+        overlayRuntimeInitialized = initialized;
+      },
+    },
+    mpvSubtitle: {
+      ensureOverlayMpvSubtitlesHidden: async () => {
+        calls.push('hideMpvSubs');
+      },
+      syncOverlayMpvSubtitleSuppression: () => {
+        calls.push('syncMpvSubs');
+      },
+    },
+  });
+
+  overlayUi.setOverlayVisible(true);
+
+  assert.deepEqual(calls, [
+    'setInitialized:true',
+    'initializeOverlayRuntimeCore',
+    'startBackgroundWarmups',
+    'onInitialized',
+    'syncMpvSubs',
+    'hideMpvSubs',
+    'setVisible:true',
+    'syncMpvSubs',
+  ]);
+});
+
 test('overlay ui runtime delegates modal actions to injected modal runtime', async () => {
   const calls: string[] = [];
   const restoreOnClose = new Set<OverlayHostedModal>();

@@ -129,3 +129,48 @@ test('headless startup runtime accepts grouped app lifecycle input', () => {
   assert.deepEqual(runtime.runAndApplyStartupState(), { mode: 'started' });
   assert.deepEqual(calls, ['lifecycle:start', 'lifecycle:start', 'apply:started']);
 });
+
+createHeadlessStartupRuntime<
+  { mode: string },
+  { startAppLifecycle: (args: CliArgs) => void; customFlag: boolean }
+>(
+  // @ts-expect-error custom bootstrap deps require an explicit factory
+  {
+  appLifecycleRuntimeRunnerMainDeps: {
+    app: { on: () => {} } as never,
+    platform: 'darwin',
+    shouldStartApp: () => true,
+    parseArgs: () => ({}) as never,
+    handleCliCommand: () => {},
+    printHelp: () => {},
+    logNoRunningInstance: () => {},
+    onReady: async () => {},
+    onWillQuitCleanup: () => {},
+    shouldRestoreWindowsOnActivate: () => false,
+    restoreWindowsOnActivate: () => {},
+    shouldQuitOnWindowAllClosed: () => false,
+  },
+  bootstrap: {
+    argv: ['node', 'main.js'],
+    parseArgs: () => ({ command: 'start' }) as never,
+    setLogLevel: (_level: string, _source: LogLevelSource) => {},
+    forceX11Backend: () => {},
+    enforceUnsupportedWaylandMode: () => {},
+    shouldStartApp: () => true,
+    getDefaultSocketPath: () => '/tmp/mpv.sock',
+    defaultTexthookerPort: 5174,
+    configDir: '/tmp/config',
+    defaultConfig: {} as never,
+    generateConfigTemplate: () => 'template',
+    generateDefaultConfigFile: async () => 0,
+    setExitCode: () => {},
+    quitApp: () => {},
+    logGenerateConfigError: () => {},
+    startAppLifecycle: () => {},
+  },
+  runStartupBootstrapRuntime: (deps) => {
+    assert.equal(deps.customFlag, true);
+    return { mode: 'started' };
+  },
+  applyStartupState: () => {},
+});

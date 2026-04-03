@@ -29,7 +29,11 @@ export function createMainStartupRuntime<TStartupState>(
 ): MainStartupRuntime<TStartupState> {
   const appReady = createAppReadyRuntime(input.appReady);
   const cliStartup = createCliStartupRuntime(input.cli);
-  const headlessStartup = createHeadlessStartupRuntime<TStartupState>(input.headless);
+  const headlessStartup =
+    'createStartupBootstrapRuntimeDeps' in input.headless &&
+    input.headless.createStartupBootstrapRuntimeDeps
+      ? createHeadlessStartupRuntime(input.headless)
+      : createHeadlessStartupRuntime(input.headless);
 
   return {
     appReady,

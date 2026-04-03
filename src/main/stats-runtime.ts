@@ -270,6 +270,15 @@ export function createStatsRuntime<
       removeBackgroundStatsServerState(input.statsDaemonStatePath);
       return { ok: true, stale: true };
     }
+    if (state.pid === getCurrentPid()) {
+      if (!statsServer) {
+        removeBackgroundStatsServerState(input.statsDaemonStatePath);
+        return { ok: true, stale: true };
+      }
+
+      stopStatsServer();
+      return { ok: true, stale: false };
+    }
     if (!isProcessAlive(state.pid)) {
       removeBackgroundStatsServerState(input.statsDaemonStatePath);
       return { ok: true, stale: true };

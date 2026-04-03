@@ -393,7 +393,7 @@ export function createMainStartupBootstrap<TStartupState>(
         defaultConfig: input.config.defaultConfig,
         getResolvedConfig: () => input.config.configService.getConfig(),
         setCliLogLevel: (level) => input.logging.setLogLevel(level, 'cli'),
-        hasMpvWebsocketPlugin: () => true,
+        hasMpvWebsocketPlugin: () => input.commands.hasMpvWebsocketPlugin(),
       },
       io: {
         texthookerService: input.runtime.texthookerService,

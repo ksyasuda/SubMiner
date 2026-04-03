@@ -260,15 +260,7 @@ export function createMpvRuntimeFromMainState(
       handleMpvConnectionChange: (connected) => {
         input.youtube.handleMpvConnectionChange(connected);
       },
-      handleMediaPathChange: (path) => {
-        input.youtube.invalidatePendingAutoplayReadyFallbacks();
-        input.currentMediaTokenizationGate.updateCurrentMediaPath(path);
-        input.startupOsdSequencer.reset();
-        input.youtube.handleMediaPathChange(path);
-        if (path) {
-          input.stats.ensureImmersionTrackerStarted();
-        }
-      },
+      handleMediaPathChange: (path) => input.youtube.handleMediaPathChange(path),
       handleSubtitleTrackChange: (sid) => {
         input.youtube.handleSubtitleTrackChange(sid);
       },

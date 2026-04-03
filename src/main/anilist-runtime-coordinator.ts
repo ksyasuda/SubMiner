@@ -74,7 +74,9 @@ export function createAnilistRuntimeCoordinator(input: AnilistRuntimeCoordinator
       const window = new BrowserWindow(options);
       input.appState.anilistSetupWindow = window;
       window.on('closed', () => {
-        input.appState.anilistSetupWindow = null;
+        if (input.appState.anilistSetupWindow === window) {
+          input.appState.anilistSetupWindow = null;
+        }
       });
       return window as unknown as AnilistSetupWindowLike;
     },

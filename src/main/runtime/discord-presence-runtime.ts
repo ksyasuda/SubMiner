@@ -1,4 +1,4 @@
-import { createDiscordPresenceService } from '../../core/services';
+import { createDiscordPresenceService } from '../../core/services/discord-presence';
 import type { ResolvedConfig } from '../../types';
 import { createDiscordRpcClient } from './discord-rpc-client.js';
 
@@ -95,6 +95,10 @@ export function createDiscordPresenceRuntimeFromMainState(input: {
 }) {
   const sessionStartedAtMs = Date.now();
   let mediaDurationSec: number | null = null;
+  const stopCurrentDiscordPresenceService = async (): Promise<void> => {
+    await input.appState.discordPresenceService?.stop?.();
+    input.appState.discordPresenceService = null;
+  };
 
   const discordPresenceRuntime = createDiscordPresenceRuntime({
     getDiscordPresenceService: () => input.appState.discordPresenceService,
@@ -114,10 +118,11 @@ export function createDiscordPresenceRuntimeFromMainState(input: {
 
   const initializeDiscordPresenceService = async (): Promise<void> => {
     if (input.getResolvedConfig().discordPresence.enabled !== true) {
-      input.appState.discordPresenceService = null;
+      await stopCurrentDiscordPresenceService();
       return;
     }
 
+    await stopCurrentDiscordPresenceService();
     input.appState.discordPresenceService = createDiscordPresenceService({
       config: input.getResolvedConfig().discordPresence,
       createClient: () => createDiscordRpcClient(input.appId),

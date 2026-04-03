@@ -129,3 +129,44 @@ test('stats runtime stops owned server and clears daemon state during quit clean
     assert.equal(runtime.getStatsServer(), null);
   });
 });
+
+test('stats runtime stops the in-process background server without signalling the current process', async () => {
+  await withTempDir(async (dir) => {
+    const statePath = path.join(dir, 'stats-daemon.json');
+    const calls: string[] = [];
+
+    const runtime = createStatsRuntime({
+      statsDaemonStatePath: statePath,
+      getResolvedConfig: () => ({
+        immersionTracking: { enabled: true },
+        stats: { serverPort: 6972 },
+      }),
+      getImmersionTracker: () => ({}) as never,
+      ensureImmersionTrackerStartedCore: () => {},
+      startStatsServer: () => ({
+        close: () => {
+          calls.push('close');
+        },
+      }),
+      openExternal: async () => {},
+      exitAppWithCode: () => {},
+      logInfo: () => {},
+      logWarn: () => {},
+      logError: () => {},
+      getCurrentPid: () => 321,
+      isProcessAlive: () => true,
+      killProcess: () => {
+        calls.push('kill');
+      },
+      now: () => 500,
+    });
+
+    runtime.ensureBackgroundStatsServerStarted();
+    const result = await runtime.stopBackgroundStatsServer();
+
+    assert.deepEqual(result, { ok: true, stale: false });
+    assert.deepEqual(calls, ['close']);
+    assert.equal(fs.existsSync(statePath), false);
+    assert.equal(runtime.getStatsServer(), null);
+  });
+});

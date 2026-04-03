@@ -53,3 +53,97 @@ test('discord presence lifecycle runtime starts service and publishes presence w
 
   assert.deepEqual(calls, ['start', 'Demo', 'publish']);
 });
+
+test('discord presence lifecycle runtime stops the existing service before replacement', async () => {
+  const calls: string[] = [];
+  let service: { start: () => Promise<void>; stop: () => Promise<void> } | null = {
+    start: async () => {
+      calls.push('old-start');
+    },
+    stop: async () => {
+      calls.push('old-stop');
+    },
+  };
+
+  const runtime = createDiscordPresenceLifecycleRuntime({
+    getResolvedConfig: () => ({ discordPresence: { enabled: true } }),
+    getDiscordPresenceService: () => service as never,
+    setDiscordPresenceService: (next) => {
+      service = next as typeof service;
+    },
+    getMpvClient: () => null,
+    getCurrentMediaTitle: () => 'Demo',
+    getCurrentMediaPath: () => '/tmp/demo.mkv',
+    getCurrentSubtitleText: () => 'subtitle',
+    getPlaybackPaused: () => false,
+    getFallbackMediaDurationSec: () => 12,
+    createDiscordPresenceService: () => ({
+      start: async () => {
+        calls.push('new-start');
+      },
+      stop: async () => {
+        calls.push('new-stop');
+      },
+      publish: () => {
+        calls.push('publish');
+      },
+    }),
+    createDiscordRuntime: () => ({
+      refreshDiscordPresenceMediaDuration: async () => {},
+      publishDiscordPresence: () => {
+        calls.push('runtime-publish');
+      },
+    }),
+    now: () => 123,
+  });
+
+  await runtime.initializeDiscordPresenceService();
+
+  assert.deepEqual(calls, ['old-stop', 'new-start', 'runtime-publish']);
+});
+
+test('discord presence lifecycle runtime stops the existing service when disabled', async () => {
+  const calls: string[] = [];
+  let service: { start: () => Promise<void>; stop: () => Promise<void> } | null = {
+    start: async () => {
+      calls.push('old-start');
+    },
+    stop: async () => {
+      calls.push('old-stop');
+    },
+  };
+
+  const runtime = createDiscordPresenceLifecycleRuntime({
+    getResolvedConfig: () => ({ discordPresence: { enabled: false } }),
+    getDiscordPresenceService: () => service as never,
+    setDiscordPresenceService: (next) => {
+      service = next as typeof service;
+    },
+    getMpvClient: () => null,
+    getCurrentMediaTitle: () => 'Demo',
+    getCurrentMediaPath: () => '/tmp/demo.mkv',
+    getCurrentSubtitleText: () => 'subtitle',
+    getPlaybackPaused: () => false,
+    getFallbackMediaDurationSec: () => 12,
+    createDiscordPresenceService: () => {
+      calls.push('create');
+      return {
+        start: async () => {},
+        stop: async () => {},
+        publish: () => {},
+      };
+    },
+    createDiscordRuntime: () => ({
+      refreshDiscordPresenceMediaDuration: async () => {},
+      publishDiscordPresence: () => {
+        calls.push('runtime-publish');
+      },
+    }),
+    now: () => 123,
+  });
+
+  await runtime.initializeDiscordPresenceService();
+
+  assert.equal(service, null);
+  assert.deepEqual(calls, ['old-stop']);
+});

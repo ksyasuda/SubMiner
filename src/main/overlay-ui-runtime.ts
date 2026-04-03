@@ -368,6 +368,7 @@ export function createOverlayUiRuntime<TWindow extends WindowLike>(
   }
 
   function setOverlayVisible(visible: boolean): void {
+    ensureOverlayWindowsReadyForVisibilityActions();
     if (visible) {
       void runtimeInput.mpvSubtitle.ensureOverlayMpvSubtitlesHidden();
     }

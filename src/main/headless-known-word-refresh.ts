@@ -17,16 +17,17 @@ export async function runHeadlessKnownWordRefresh(input: {
   };
   requestAppQuit: () => void;
 }): Promise<void> {
-  if (input.resolvedConfig.ankiConnect.enabled !== true) {
+  const effectiveAnkiConfig =
+    input.runtimeOptionsManager?.getEffectiveAnkiConnectConfig(input.resolvedConfig.ankiConnect) ??
+    input.resolvedConfig.ankiConnect;
+
+  if (effectiveAnkiConfig.enabled !== true) {
     input.logger.error('Headless known-word refresh failed: AnkiConnect integration not enabled');
     process.exitCode = 1;
     input.requestAppQuit();
     return;
   }
 
-  const effectiveAnkiConfig =
-    input.runtimeOptionsManager?.getEffectiveAnkiConnectConfig(input.resolvedConfig.ankiConnect) ??
-    input.resolvedConfig.ankiConnect;
   const integration = new AnkiIntegration(
     effectiveAnkiConfig,
     new SubtitleTimingTracker(),
@@ -40,7 +41,7 @@ export async function runHeadlessKnownWordRefresh(input: {
       cancelled: true,
     }),
     path.join(input.userDataPath, 'known-words-cache.json'),
-    mergeAiConfig(input.resolvedConfig.ai, input.resolvedConfig.ankiConnect?.ai),
+    mergeAiConfig(input.resolvedConfig.ai, effectiveAnkiConfig.ai),
   );
 
   try {

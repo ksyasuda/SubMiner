@@ -39,34 +39,48 @@ export interface HeadlessStartupBootstrapInput {
 
 export type HeadlessStartupAppLifecycleInput = AppLifecycleRuntimeRunnerParams;
 
-export interface HeadlessStartupRuntimeInput<
-  TStartupState,
-  TStartupBootstrapRuntimeDeps = StartupBootstrapRuntimeDeps,
-> {
+interface HeadlessStartupRuntimeSharedInput<TStartupState> {
   appLifecycleRuntimeRunnerMainDeps?: AppLifecycleDepsRuntimeOptions;
   appLifecycle?: HeadlessStartupAppLifecycleInput;
   bootstrap: HeadlessStartupBootstrapInput;
   createAppLifecycleRuntimeRunner?: (
     params: AppLifecycleDepsRuntimeOptions,
   ) => (args: CliArgs) => void;
-  createStartupBootstrapRuntimeDeps?: (
+  applyStartupState: (startupState: TStartupState) => void;
+}
+
+export interface HeadlessStartupRuntimeDefaultInput<TStartupState>
+  extends HeadlessStartupRuntimeSharedInput<TStartupState> {
+  createStartupBootstrapRuntimeDeps?: undefined;
+  runStartupBootstrapRuntime: (deps: StartupBootstrapRuntimeDeps) => TStartupState;
+}
+
+export interface HeadlessStartupRuntimeCustomInput<TStartupState, TStartupBootstrapRuntimeDeps>
+  extends HeadlessStartupRuntimeSharedInput<TStartupState> {
+  createStartupBootstrapRuntimeDeps: (
     deps: StartupBootstrapRuntimeFactoryDeps,
   ) => TStartupBootstrapRuntimeDeps;
   runStartupBootstrapRuntime: (deps: TStartupBootstrapRuntimeDeps) => TStartupState;
-  applyStartupState: (startupState: TStartupState) => void;
 }
+
+export type HeadlessStartupRuntimeInput<
+  TStartupState,
+  TStartupBootstrapRuntimeDeps = StartupBootstrapRuntimeDeps,
+> =
+  | HeadlessStartupRuntimeDefaultInput<TStartupState>
+  | HeadlessStartupRuntimeCustomInput<TStartupState, TStartupBootstrapRuntimeDeps>;
 
 export interface HeadlessStartupRuntime<TStartupState> {
   appLifecycleRuntimeRunner: (args: CliArgs) => void;
   runAndApplyStartupState: () => TStartupState;
 }
 
-export function createHeadlessStartupRuntime<
-  TStartupState,
-  TStartupBootstrapRuntimeDeps = StartupBootstrapRuntimeDeps,
->(
-  input: HeadlessStartupRuntimeInput<TStartupState, TStartupBootstrapRuntimeDeps>,
-): HeadlessStartupRuntime<TStartupState> {
+function resolveAppLifecycleRuntimeRunnerMainDeps(
+  input: Pick<
+    HeadlessStartupRuntimeSharedInput<unknown>,
+    'appLifecycleRuntimeRunnerMainDeps' | 'appLifecycle'
+  >,
+) {
   const appLifecycleRuntimeRunnerMainDeps =
     input.appLifecycleRuntimeRunnerMainDeps ?? input.appLifecycle;
 
@@ -74,30 +88,57 @@ export function createHeadlessStartupRuntime<
     throw new Error('Headless startup runtime needs app lifecycle runtime runner deps');
   }
 
-  const { appLifecycleRuntimeRunner, runAndApplyStartupState } = composeHeadlessStartupHandlers({
-    startupRuntimeHandlersDeps: {
-      appLifecycleRuntimeRunnerMainDeps: createBuildAppLifecycleRuntimeRunnerMainDepsHandler(
-        appLifecycleRuntimeRunnerMainDeps,
-      )(),
-      createAppLifecycleRuntimeRunner:
-        input.createAppLifecycleRuntimeRunner ??
-        ((params: AppLifecycleDepsRuntimeOptions) => (args: CliArgs) =>
-          startAppLifecycle(
-            args,
-            createAppLifecycleDepsRuntime(createAppLifecycleRuntimeDeps(params)),
-          )),
-      buildStartupBootstrapMainDeps: (startAppLifecycle: (args: CliArgs) => void) => ({
-        ...input.bootstrap,
-        startAppLifecycle,
-      }),
-      createStartupBootstrapRuntimeDeps: (deps: StartupBootstrapRuntimeFactoryDeps) =>
-        input.createStartupBootstrapRuntimeDeps
-          ? input.createStartupBootstrapRuntimeDeps(deps)
-          : (createStartupBootstrapRuntimeDeps(deps) as unknown as TStartupBootstrapRuntimeDeps),
-      runStartupBootstrapRuntime: input.runStartupBootstrapRuntime,
-      applyStartupState: input.applyStartupState,
-    },
-  });
+  return createBuildAppLifecycleRuntimeRunnerMainDepsHandler(appLifecycleRuntimeRunnerMainDeps)();
+}
+
+function buildHeadlessStartupHandlersDeps<TStartupState>(
+  input: HeadlessStartupRuntimeSharedInput<TStartupState>,
+) {
+  const appLifecycleRuntimeRunnerMainDeps =
+    resolveAppLifecycleRuntimeRunnerMainDeps(input);
+
+  return {
+    appLifecycleRuntimeRunnerMainDeps,
+    createAppLifecycleRuntimeRunner:
+      input.createAppLifecycleRuntimeRunner ??
+      ((params: AppLifecycleDepsRuntimeOptions) => (args: CliArgs) =>
+        startAppLifecycle(args, createAppLifecycleDepsRuntime(createAppLifecycleRuntimeDeps(params)))),
+    buildStartupBootstrapMainDeps: (startAppLifecycle: (args: CliArgs) => void) => ({
+      ...input.bootstrap,
+      startAppLifecycle,
+    }),
+    applyStartupState: input.applyStartupState,
+  };
+}
+
+export function createHeadlessStartupRuntime<TStartupState>(
+  input: HeadlessStartupRuntimeDefaultInput<TStartupState>,
+): HeadlessStartupRuntime<TStartupState>;
+export function createHeadlessStartupRuntime<TStartupState, TStartupBootstrapRuntimeDeps>(
+  input: HeadlessStartupRuntimeCustomInput<TStartupState, TStartupBootstrapRuntimeDeps>,
+): HeadlessStartupRuntime<TStartupState>;
+export function createHeadlessStartupRuntime<TStartupState, TStartupBootstrapRuntimeDeps>(
+  input: HeadlessStartupRuntimeInput<TStartupState, TStartupBootstrapRuntimeDeps>,
+): HeadlessStartupRuntime<TStartupState> {
+  const baseDeps = buildHeadlessStartupHandlersDeps(input);
+  const { appLifecycleRuntimeRunner, runAndApplyStartupState } =
+    'createStartupBootstrapRuntimeDeps' in input && input.createStartupBootstrapRuntimeDeps
+      ? composeHeadlessStartupHandlers<CliArgs, TStartupState, TStartupBootstrapRuntimeDeps>({
+          startupRuntimeHandlersDeps: {
+            ...baseDeps,
+            createStartupBootstrapRuntimeDeps: (deps: StartupBootstrapRuntimeFactoryDeps) =>
+              input.createStartupBootstrapRuntimeDeps(deps),
+            runStartupBootstrapRuntime: input.runStartupBootstrapRuntime,
+          },
+        })
+      : composeHeadlessStartupHandlers<CliArgs, TStartupState, StartupBootstrapRuntimeDeps>({
+          startupRuntimeHandlersDeps: {
+            ...baseDeps,
+            createStartupBootstrapRuntimeDeps: (deps: StartupBootstrapRuntimeFactoryDeps) =>
+              createStartupBootstrapRuntimeDeps(deps),
+            runStartupBootstrapRuntime: input.runStartupBootstrapRuntime,
+          },
+        });
 
   return {
     appLifecycleRuntimeRunner,
