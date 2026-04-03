@@ -121,7 +121,94 @@ export function shouldHandleStatsDaemonCommandAtEntry(
 }
 
 export function normalizeLaunchMpvTargets(argv: string[]): string[] {
-  return parseCliArgs(argv).launchMpvTargets;
+  const launchMpvIndex = argv.findIndex((arg) => arg === '--launch-mpv');
+  if (launchMpvIndex < 0) {
+    return [];
+  }
+
+  const targets: string[] = [];
+  const flagValueArgs = new Set([
+    '--alang',
+    '--input-ipc-server',
+    '--log-file',
+    '--profile',
+    '--script',
+    '--script-opts',
+    '--scripts',
+    '--slang',
+    '--sub-file-paths',
+    '--ytdl-format',
+  ]);
+
+  let parsingTargets = false;
+  for (let i = launchMpvIndex + 1; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (!token) continue;
+
+    if (parsingTargets) {
+      targets.push(token);
+      continue;
+    }
+
+    if (token === '--') {
+      parsingTargets = true;
+      continue;
+    }
+
+    if (token.startsWith('-')) {
+      if (!token.includes('=') && flagValueArgs.has(token)) {
+        i += 1;
+      }
+      continue;
+    }
+
+    parsingTargets = true;
+    targets.push(token);
+  }
+
+  return targets;
+}
+
+export function normalizeLaunchMpvExtraArgs(argv: string[]): string[] {
+  const launchMpvIndex = argv.findIndex((arg) => arg === '--launch-mpv');
+  if (launchMpvIndex < 0) {
+    return [];
+  }
+
+  const flagValueArgs = new Set([
+    '--alang',
+    '--input-ipc-server',
+    '--log-file',
+    '--profile',
+    '--script',
+    '--script-opts',
+    '--scripts',
+    '--slang',
+    '--sub-file-paths',
+    '--ytdl-format',
+  ]);
+
+  const extraArgs: string[] = [];
+  for (let i = launchMpvIndex + 1; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (!token) continue;
+    if (token === '--') {
+      break;
+    }
+    if (!token.startsWith('-')) {
+      break;
+    }
+
+    extraArgs.push(token);
+    if (!token.includes('=') && flagValueArgs.has(token)) {
+      const value = argv[i + 1];
+      if (value && value !== '--') {
+        extraArgs.push(value);
+        i += 1;
+      }
+    }
+  }
+  return extraArgs;
 }
 
 export function sanitizeStartupEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {

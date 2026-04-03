@@ -93,6 +93,97 @@ export interface MpvProtocolHandleMessageDeps {
   restorePreviousSecondarySubVisibility: () => void;
 }
 
+type SubtitleTrackCandidate = {
+  id: number;
+  lang: string;
+  title: string;
+  selected: boolean;
+  external: boolean;
+  externalFilename: string | null;
+};
+
+function normalizeSubtitleTrackCandidate(track: Record<string, unknown>): SubtitleTrackCandidate | null {
+  const id =
+    typeof track.id === 'number'
+      ? track.id
+      : typeof track.id === 'string'
+        ? Number(track.id.trim())
+        : Number.NaN;
+  if (!Number.isInteger(id)) {
+    return null;
+  }
+
+  const externalFilename =
+    typeof track['external-filename'] === 'string' && track['external-filename'].trim().length > 0
+      ? track['external-filename'].trim()
+      : typeof track.external_filename === 'string' && track.external_filename.trim().length > 0
+        ? track.external_filename.trim()
+        : null;
+
+  return {
+    id,
+    lang: String(track.lang || '').trim().toLowerCase(),
+    title: String(track.title || '').trim().toLowerCase(),
+    selected: track.selected === true,
+    external: track.external === true,
+    externalFilename,
+  };
+}
+
+function getSubtitleTrackIdentity(track: SubtitleTrackCandidate): string {
+  if (track.externalFilename) {
+    return `external:${track.externalFilename.toLowerCase()}`;
+  }
+  if (track.title.length > 0) {
+    return `title:${track.title}`;
+  }
+  return `id:${track.id}`;
+}
+
+function pickSecondarySubtitleTrackId(
+  tracks: Array<Record<string, unknown>>,
+  preferredLanguages: string[],
+): number | null {
+  const normalizedLanguages = preferredLanguages
+    .map((language) => language.trim().toLowerCase())
+    .filter((language) => language.length > 0);
+  if (normalizedLanguages.length === 0) {
+    return null;
+  }
+
+  const subtitleTracks = tracks
+    .filter((track) => track.type === 'sub')
+    .map(normalizeSubtitleTrackCandidate)
+    .filter((track): track is SubtitleTrackCandidate => track !== null);
+
+  const dedupedTracks = new Map<string, SubtitleTrackCandidate>();
+  for (const track of subtitleTracks) {
+    const identity = getSubtitleTrackIdentity(track);
+    const existing = dedupedTracks.get(identity);
+    if (!existing || (track.selected && !existing.selected)) {
+      dedupedTracks.set(identity, track);
+    }
+  }
+
+  const uniqueTracks = [...dedupedTracks.values()];
+
+  for (const language of normalizedLanguages) {
+    const selectedMatch = uniqueTracks.find(
+      (track) => track.selected && track.lang === language,
+    );
+    if (selectedMatch) {
+      return selectedMatch.id;
+    }
+
+    const match = uniqueTracks.find((track) => track.lang === language);
+    if (match) {
+      return match.id;
+    }
+  }
+
+  return null;
+}
+
 export function splitMpvMessagesFromBuffer(
   buffer: string,
   onMessage?: MpvMessageParser,
@@ -283,15 +374,11 @@ export async function dispatchMpvProtocolMessage(
       if (Array.isArray(tracks)) {
         const config = deps.getResolvedConfig();
         const languages = config.secondarySub?.secondarySubLanguages || [];
-        const subTracks = tracks.filter((track) => track.type === 'sub');
-        for (const language of languages) {
-          const match = subTracks.find((track) => track.lang === language);
-          if (match) {
-            deps.sendCommand({
-              command: ['set_property', 'secondary-sid', match.id],
-            });
-            break;
-          }
+        const secondaryTrackId = pickSecondarySubtitleTrackId(tracks, languages);
+        if (secondaryTrackId !== null) {
+          deps.sendCommand({
+            command: ['set_property', 'secondary-sid', secondaryTrackId],
+          });
         }
       }
     } else if (msg.request_id === MPV_REQUEST_ID_TRACK_LIST_AUDIO) {

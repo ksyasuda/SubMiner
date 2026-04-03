@@ -41,19 +41,55 @@ test('resolveWindowsMpvPath falls back to where.exe output', () => {
 });
 
 test('buildWindowsMpvLaunchArgs uses explicit SubMiner defaults and targets', () => {
-  assert.deepEqual(buildWindowsMpvLaunchArgs(['C:\\a.mkv', 'C:\\b.mkv']), [
+  assert.deepEqual(
+    buildWindowsMpvLaunchArgs(
+      ['C:\\a.mkv', 'C:\\b.mkv'],
+      [],
+      'C:\\SubMiner\\SubMiner.exe',
+      'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    ),
+    [
     '--player-operation-mode=pseudo-gui',
+    '--force-window=immediate',
+    '--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
     '--input-ipc-server=\\\\.\\pipe\\subminer-socket',
     '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
     '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
     '--sub-auto=fuzzy',
-    '--sub-file-paths=.;subs;subtitles',
+    '--sub-file-paths=subs;subtitles',
     '--sid=auto',
     '--secondary-sid=auto',
     '--secondary-sub-visibility=no',
+    '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket',
     'C:\\a.mkv',
     'C:\\b.mkv',
   ]);
+});
+
+test('buildWindowsMpvLaunchArgs keeps shortcut-only launches in idle mode', () => {
+  assert.deepEqual(
+    buildWindowsMpvLaunchArgs(
+      [],
+      [],
+      'C:\\SubMiner\\SubMiner.exe',
+      'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    ),
+    [
+      '--player-operation-mode=pseudo-gui',
+      '--force-window=immediate',
+      '--idle=yes',
+      '--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+      '--input-ipc-server=\\\\.\\pipe\\subminer-socket',
+      '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--sub-auto=fuzzy',
+      '--sub-file-paths=subs;subtitles',
+      '--sid=auto',
+      '--secondary-sid=auto',
+      '--secondary-sub-visibility=no',
+      '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket',
+    ],
+  );
 });
 
 test('launchWindowsMpv reports missing mpv path', () => {
@@ -82,13 +118,16 @@ test('launchWindowsMpv spawns detached mpv with targets', () => {
         calls.push(args.join('|'));
       },
     }),
+    [],
+    'C:\\SubMiner\\SubMiner.exe',
+    'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
   );
 
   assert.equal(result.ok, true);
   assert.equal(result.mpvPath, 'C:\\mpv\\mpv.exe');
   assert.deepEqual(calls, [
     'C:\\mpv\\mpv.exe',
-    '--player-operation-mode=pseudo-gui|--input-ipc-server=\\\\.\\pipe\\subminer-socket|--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--sub-auto=fuzzy|--sub-file-paths=.;subs;subtitles|--sid=auto|--secondary-sid=auto|--secondary-sub-visibility=no|C:\\video.mkv',
+    '--player-operation-mode=pseudo-gui|--force-window=immediate|--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua|--input-ipc-server=\\\\.\\pipe\\subminer-socket|--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--sub-auto=fuzzy|--sub-file-paths=subs;subtitles|--sid=auto|--secondary-sid=auto|--secondary-sub-visibility=no|--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket|C:\\video.mkv',
   ]);
 });
 

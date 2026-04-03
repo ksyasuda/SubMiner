@@ -184,6 +184,39 @@ test('dispatchMpvProtocolMessage sets secondary subtitle track based on track li
   assert.deepEqual(state.commands, [{ command: ['set_property', 'secondary-sid', 2] }]);
 });
 
+test('dispatchMpvProtocolMessage prefers the already selected matching secondary track', async () => {
+  const { deps, state } = createDeps();
+
+  await dispatchMpvProtocolMessage(
+    {
+      request_id: MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
+      data: [
+        {
+          type: 'sub',
+          id: 2,
+          lang: 'ja',
+          title: 'ja.srt',
+          selected: false,
+          external: true,
+          'external-filename': '/tmp/dupe.srt',
+        },
+        {
+          type: 'sub',
+          id: 3,
+          lang: 'ja',
+          title: 'ja.srt',
+          selected: true,
+          external: true,
+          'external-filename': '/tmp/dupe.srt',
+        },
+      ],
+    },
+    deps,
+  );
+
+  assert.deepEqual(state.commands, [{ command: ['set_property', 'secondary-sid', 3] }]);
+});
+
 test('dispatchMpvProtocolMessage restores secondary visibility on shutdown', async () => {
   const { deps, state } = createDeps();
 

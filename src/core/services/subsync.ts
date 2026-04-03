@@ -76,6 +76,31 @@ function normalizeTrackIds(tracks: unknown[]): MpvTrack[] {
   });
 }
 
+function getSourceTrackIdentity(track: MpvTrack): string {
+  if (track.external && typeof track['external-filename'] === 'string' && track['external-filename'].length > 0) {
+    return `external:${track['external-filename'].toLowerCase()}`;
+  }
+  if (typeof track.id === 'number') {
+    return `id:${track.id}`;
+  }
+  if (typeof track.title === 'string' && track.title.length > 0) {
+    return `title:${track.title.toLowerCase()}`;
+  }
+  return 'unknown';
+}
+
+function dedupeSourceTracks(tracks: MpvTrack[]): MpvTrack[] {
+  const deduped = new Map<string, MpvTrack>();
+  for (const track of tracks) {
+    const identity = getSourceTrackIdentity(track);
+    const existing = deduped.get(identity);
+    if (!existing || (track.selected && !existing.selected)) {
+      deduped.set(identity, track);
+    }
+  }
+  return [...deduped.values()];
+}
+
 export interface TriggerSubsyncFromConfigDeps extends SubsyncCoreDeps {
   isSubsyncInProgress: () => boolean;
   setSubsyncInProgress: (inProgress: boolean) => void;
@@ -123,12 +148,13 @@ async function gatherSubsyncContext(client: MpvClientLike): Promise<SubsyncConte
       const filename = track['external-filename'];
       return typeof filename === 'string' && filename.length > 0;
     });
+  const uniqueSourceTracks = dedupeSourceTracks(sourceTracks);
 
   return {
     videoPath,
     primaryTrack,
     secondaryTrack,
-    sourceTracks,
+    sourceTracks: uniqueSourceTracks,
     audioStreamIndex: client.currentAudioStreamIndex,
   };
 }

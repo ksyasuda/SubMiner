@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   configureEarlyAppPaths,
+  normalizeLaunchMpvExtraArgs,
   normalizeStartupArgv,
   normalizeLaunchMpvTargets,
   sanitizeHelpEnv,
@@ -70,6 +71,41 @@ test('launch-mpv entry helpers detect and normalize targets', () => {
   assert.deepEqual(normalizeLaunchMpvTargets(['SubMiner.exe', '--launch-mpv', 'C:\\a.mkv']), [
     'C:\\a.mkv',
   ]);
+  assert.deepEqual(
+    normalizeLaunchMpvExtraArgs([
+      'SubMiner.exe',
+      '--launch-mpv',
+      '--profile=subminer',
+      '--pause=yes',
+      'C:\\a.mkv',
+    ]),
+    ['--profile=subminer', '--pause=yes'],
+  );
+  assert.deepEqual(
+    normalizeLaunchMpvExtraArgs([
+      'SubMiner.exe',
+      '--launch-mpv',
+      '--input-ipc-server',
+      '\\\\.\\pipe\\custom-subminer-socket',
+      '--alang',
+      'ja,jpn',
+      'C:\\a.mkv',
+    ]),
+    ['--input-ipc-server', '\\\\.\\pipe\\custom-subminer-socket', '--alang', 'ja,jpn'],
+  );
+  assert.deepEqual(
+    normalizeLaunchMpvTargets([
+      'SubMiner.exe',
+      '--launch-mpv',
+      '--input-ipc-server',
+      '\\\\.\\pipe\\custom-subminer-socket',
+      '--alang',
+      'ja,jpn',
+      'C:\\a.mkv',
+      'C:\\b.mkv',
+    ]),
+    ['C:\\a.mkv', 'C:\\b.mkv'],
+  );
 });
 
 test('stats-daemon entry helper detects internal daemon commands', () => {

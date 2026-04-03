@@ -21,6 +21,8 @@ Look up words with Yomitan, export to Anki in one key, track your immersion — 
 
 SubMiner runs as an invisible Electron overlay on top of mpv. Subtitles render as an interactive layer. Move your cursor over any word and trigger a [Yomitan](https://github.com/yomidevs/yomitan) lookup. Press one key to snapshot the sentence, audio, and screenshot into Anki via AnkiConnect.
 
+On Windows, the recommended playback entry point is the optional `SubMiner mpv` shortcut created during setup. It launches `mpv` with SubMiner's defaults directly, so you do not need an `mpv.conf` profile just to use the shortcut.
+
 ## Features
 
 ### Dictionary Lookups

@@ -1,8 +1,10 @@
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { app, dialog } from 'electron';
 import { printHelp } from './cli/help';
 import {
   configureEarlyAppPaths,
+  normalizeLaunchMpvExtraArgs,
   normalizeLaunchMpvTargets,
   normalizeStartupArgv,
   sanitizeStartupEnv,
@@ -15,6 +17,7 @@ import {
   shouldHandleStatsDaemonCommandAtEntry,
 } from './main-entry-runtime';
 import { requestSingleInstanceLockEarly } from './main/early-single-instance';
+import { resolvePackagedFirstRunPluginAssets } from './main/runtime/first-run-setup-plugin';
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
 import { runStatsDaemonControlFromProcess } from './stats-daemon-entry';
 
@@ -30,6 +33,19 @@ function applySanitizedEnv(sanitizedEnv: NodeJS.ProcessEnv): void {
   } else {
     delete process.env.VK_INSTANCE_LAYERS;
   }
+}
+
+function resolveBundledWindowsMpvPluginEntrypoint(): string | undefined {
+  const assets = resolvePackagedFirstRunPluginAssets({
+    dirname: __dirname,
+    appPath: app.getAppPath(),
+    resourcesPath: process.resourcesPath,
+  });
+  if (!assets) {
+    return undefined;
+  }
+
+  return path.join(assets.pluginDirSource, 'main.lua');
 }
 
 process.argv = normalizeStartupArgv(process.argv, process.env);
@@ -68,6 +84,9 @@ if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
           dialog.showErrorBox(title, content);
         },
       }),
+      normalizeLaunchMpvExtraArgs(process.argv),
+      process.execPath,
+      resolveBundledWindowsMpvPluginEntrypoint(),
     );
     app.exit(result.ok ? 0 : 1);
   });

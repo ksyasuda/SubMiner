@@ -178,6 +178,12 @@ local function run_plugin_scenario(config)
 				value = value,
 			}
 		end
+		function mp.set_property(name, value)
+			recorded.property_sets[#recorded.property_sets + 1] = {
+				name = name,
+				value = value,
+			}
+		end
 		function mp.get_script_name()
 			return "subminer"
 		end
@@ -528,6 +534,38 @@ do
 	assert_true(
 		not has_sync_command(recorded.sync_calls, "ps"),
 		"expected cold-start start command to avoid synchronous process list scan"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "no",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for subtitle rearm scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		has_property_set(recorded.property_sets, "sub-auto", "fuzzy"),
+		"managed file-loaded should rearm sub-auto for idle mpv sessions"
+	)
+	assert_true(
+		has_property_set(recorded.property_sets, "sid", "auto"),
+		"managed file-loaded should rearm primary subtitle selection for idle mpv sessions"
+	)
+	assert_true(
+		has_property_set(recorded.property_sets, "secondary-sid", "auto"),
+		"managed file-loaded should rearm secondary subtitle selection for idle mpv sessions"
 	)
 end
 
@@ -1036,6 +1074,10 @@ do
 	assert_true(
 		start_call == nil,
 		"auto-start should be skipped when mpv input-ipc-server does not match configured socket_path"
+	)
+	assert_true(
+		not has_property_set(recorded.property_sets, "sid", "auto"),
+		"subtitle rearm should not run when mpv input-ipc-server does not match configured socket_path"
 	)
 	assert_true(
 		not has_property_set(recorded.property_sets, "pause", true),

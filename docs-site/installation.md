@@ -171,8 +171,8 @@ Install `mpv` separately and ensure `mpv.exe` is on `PATH`. `ffmpeg` is still re
 
 ### Windows Usage Notes
 
-- Launch `SubMiner.exe` once to let the first-run setup flow seed `%APPDATA%\\SubMiner\\config.jsonc`, offer mpv plugin installation, open bundled Yomitan settings, and optionally create `SubMiner mpv` Start Menu/Desktop shortcuts.
-- `SubMiner.exe --launch-mpv` and the optional `SubMiner mpv` shortcut pass SubMiner's default mpv socket/subtitle args directly; they do not require an `mpv.conf` profile named `subminer`.
+- Launch `SubMiner.exe` once to let the first-run setup flow seed `%APPDATA%\\SubMiner\\config.jsonc`, offer mpv plugin installation, open bundled Yomitan settings, and optionally create `SubMiner mpv` Start Menu/Desktop shortcuts. On Windows, that shortcut is the recommended way to launch mpv playback with SubMiner defaults.
+- `SubMiner.exe --launch-mpv` and the optional `SubMiner mpv` shortcut pass SubMiner's default mpv socket/subtitle args directly, including the Windows-safe subtitle search paths that skip the extra current-directory scan; they do not require an `mpv.conf` profile named `subminer`.
 - First-run mpv plugin installs pin `binary_path` to the current `SubMiner.exe` automatically. Manual plugin configs can leave `binary_path` empty unless SubMiner is installed in a non-standard location.
 - Windows plugin installs rewrite `socket_path` to `\\.\pipe\subminer-socket`; do not keep `/tmp/subminer-socket` on Windows.
 - Native window tracking is built in on Windows; no `xdotool`, `xwininfo`, or compositor-specific helper is required.

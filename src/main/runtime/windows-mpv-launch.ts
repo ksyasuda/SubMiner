@@ -33,17 +33,36 @@ export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps): string {
   return '';
 }
 
-export function buildWindowsMpvLaunchArgs(targets: string[], extraArgs: string[] = []): string[] {
+export function buildWindowsMpvLaunchArgs(
+  targets: string[],
+  extraArgs: string[] = [],
+  binaryPath?: string,
+  pluginEntrypointPath?: string,
+): string[] {
+  const launchIdle = targets.length === 0;
+  const scriptOpts =
+    typeof binaryPath === 'string' && binaryPath.trim().length > 0
+      ? `--script-opts=subminer-binary_path=${binaryPath.trim().replace(/,/g, '\\,')},subminer-socket_path=\\\\.\\pipe\\subminer-socket`
+      : null;
+  const scriptEntrypoint =
+    typeof pluginEntrypointPath === 'string' && pluginEntrypointPath.trim().length > 0
+      ? `--script=${pluginEntrypointPath.trim()}`
+      : null;
+
   return [
     '--player-operation-mode=pseudo-gui',
+    '--force-window=immediate',
+    ...(launchIdle ? ['--idle=yes'] : []),
+    ...(scriptEntrypoint ? [scriptEntrypoint] : []),
     '--input-ipc-server=\\\\.\\pipe\\subminer-socket',
     '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
     '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
     '--sub-auto=fuzzy',
-    '--sub-file-paths=.;subs;subtitles',
+    '--sub-file-paths=subs;subtitles',
     '--sid=auto',
     '--secondary-sid=auto',
     '--secondary-sub-visibility=no',
+    ...(scriptOpts ? [scriptOpts] : []),
     ...extraArgs,
     ...targets,
   ];
@@ -53,6 +72,8 @@ export function launchWindowsMpv(
   targets: string[],
   deps: WindowsMpvLaunchDeps,
   extraArgs: string[] = [],
+  binaryPath?: string,
+  pluginEntrypointPath?: string,
 ): { ok: boolean; mpvPath: string } {
   const mpvPath = resolveWindowsMpvPath(deps);
   if (!mpvPath) {
@@ -64,7 +85,10 @@ export function launchWindowsMpv(
   }
 
   try {
-    deps.spawnDetached(mpvPath, buildWindowsMpvLaunchArgs(targets, extraArgs));
+    deps.spawnDetached(
+      mpvPath,
+      buildWindowsMpvLaunchArgs(targets, extraArgs, binaryPath, pluginEntrypointPath),
+    );
     return { ok: true, mpvPath };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

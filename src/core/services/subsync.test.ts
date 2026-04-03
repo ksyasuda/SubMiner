@@ -92,6 +92,52 @@ test('triggerSubsyncFromConfig opens manual picker in manual mode', async () => 
   assert.equal(inProgressState, false);
 });
 
+test('triggerSubsyncFromConfig dedupes repeated subtitle source tracks', async () => {
+  let payloadTrackCount = 0;
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return '/tmp/video.mkv';
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'track-list') {
+            return [
+              { id: 1, type: 'sub', selected: true, lang: 'jpn' },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'eng',
+                'external-filename': '/tmp/ref.srt',
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: false,
+                external: true,
+                lang: 'eng',
+                'external-filename': '/tmp/ref.srt',
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      openManualPicker: (payload) => {
+        payloadTrackCount = payload.sourceTracks.length;
+      },
+    }),
+  );
+
+  assert.equal(payloadTrackCount, 1);
+});
+
 test('triggerSubsyncFromConfig reports failures to OSD', async () => {
   const osd: string[] = [];
   await triggerSubsyncFromConfig(
