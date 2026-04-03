@@ -38,6 +38,7 @@ export function createKeyboardHandlers(
   let pendingSelectionAnchorAfterSubtitleSeek: 'start' | 'end' | null = null;
   let pendingLookupRefreshAfterSubtitleSeek = false;
   let resetSelectionToStartOnNextSubtitleSync = false;
+  let lookupScanFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   const CHORD_MAP = new Map<
     string,
@@ -483,7 +484,9 @@ export function createKeyboardHandlers(
       });
     }
     // Fallback only if the explicit scan path did not open popup quickly.
-    setTimeout(() => {
+    if (lookupScanFallbackTimer !== null) clearTimeout(lookupScanFallbackTimer);
+    lookupScanFallbackTimer = setTimeout(() => {
+      lookupScanFallbackTimer = null;
       if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
         return;
       }
@@ -523,6 +526,10 @@ export function createKeyboardHandlers(
       return false;
     }
 
+    if (lookupScanFallbackTimer !== null) {
+      clearTimeout(lookupScanFallbackTimer);
+      lookupScanFallbackTimer = null;
+    }
     dispatchYomitanPopupVisibility(false);
     dispatchYomitanFrontendClearActiveTextSource();
     clearNativeSubtitleSelection();
