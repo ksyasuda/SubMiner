@@ -705,7 +705,9 @@ export async function startMpv(
   mpvArgs.push(`--input-ipc-server=${socketPath}`);
   mpvArgs.push(target);
 
-  const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);
+  const mpvTarget = resolveCommandInvocation('mpv', mpvArgs, {
+    normalizeWindowsShellArgs: false,
+  });
   state.mpvProc = spawn(mpvTarget.command, mpvTarget.args, { stdio: 'inherit' });
 }
 
@@ -1147,7 +1149,9 @@ export function launchMpvIdleDetached(
     );
     mpvArgs.push(`--log-file=${getMpvLogPath()}`);
     mpvArgs.push(`--input-ipc-server=${socketPath}`);
-    const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);
+    const mpvTarget = resolveCommandInvocation('mpv', mpvArgs, {
+      normalizeWindowsShellArgs: false,
+    });
     const proc = spawn(mpvTarget.command, mpvTarget.args, {
       stdio: 'ignore',
       detached: true,
