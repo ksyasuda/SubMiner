@@ -62,6 +62,7 @@ test('createDefaultArgs normalizes configured language codes and env thread over
     assert.deepEqual(parsed.youtubeAudioLangs, ['ja', 'jpn', 'en', 'eng']);
     assert.equal(parsed.whisperThreads, 7);
     assert.equal(parsed.youtubeWhisperSourceLanguage, 'ja');
+    assert.equal(parsed.profile, '');
   } finally {
     if (originalThreads === undefined) {
       delete process.env.SUBMINER_WHISPER_THREADS;

@@ -13,6 +13,7 @@
     "test-yomitan-parser:electron": "bun run build:yomitan && bun build scripts/test-yomitan-parser.ts --format=cjs --target=node --outfile dist/scripts/test-yomitan-parser.js --external electron && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/test-yomitan-parser.js",
     "build:yomitan": "bun scripts/build-yomitan.mjs",
     "build:assets": "bun scripts/prepare-build-assets.mjs",
+    "build:launcher": "bun build ./launcher/main.ts --target=bun --packages=bundle --outfile=dist/launcher/subminer",
     "build:stats": "cd stats && bun run build",
     "dev:stats": "cd stats && bun run dev",
     "build": "bun run build:yomitan && bun run build:stats && tsc -p tsconfig.json && bun run build:renderer && bun run build:assets",

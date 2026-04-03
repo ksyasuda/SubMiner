@@ -427,6 +427,16 @@ function withFindAppBinaryEnvSandbox(run: () => void): void {
   }
 }
 
+function withFindAppBinaryPlatformSandbox(platform: NodeJS.Platform, run: () => void): void {
+  const originalPlatform = process.platform;
+  try {
+    Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+    withFindAppBinaryEnvSandbox(run);
+  } finally {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+  }
+}
+
 function withAccessSyncStub(
   isExecutablePath: (filePath: string) => boolean,
   run: () => void,
@@ -455,7 +465,7 @@ test('findAppBinary resolves ~/.local/bin/SubMiner.AppImage when it exists', () 
     const appImage = path.join(baseDir, '.local/bin/SubMiner.AppImage');
     makeExecutable(appImage);
 
-    withFindAppBinaryEnvSandbox(() => {
+    withFindAppBinaryPlatformSandbox('linux', () => {
       const result = findAppBinary('/some/other/path/subminer');
       assert.equal(result, appImage);
     });
@@ -470,7 +480,7 @@ test('findAppBinary resolves /opt/SubMiner/SubMiner.AppImage when ~/.local/bin c
   const originalHomedir = os.homedir;
   try {
     os.homedir = () => baseDir;
-    withFindAppBinaryEnvSandbox(() => {
+    withFindAppBinaryPlatformSandbox('linux', () => {
       withAccessSyncStub(
         (filePath) => filePath === '/opt/SubMiner/SubMiner.AppImage',
         () => {
@@ -497,12 +507,68 @@ test('findAppBinary finds subminer on PATH when AppImage candidates do not exist
     makeExecutable(wrapperPath);
     process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ''}`;
 
-    withFindAppBinaryEnvSandbox(() => {
+    withFindAppBinaryPlatformSandbox('linux', () => {
       withAccessSyncStub(
         (filePath) => filePath === wrapperPath,
         () => {
           // selfPath must differ from wrapperPath so the self-check does not exclude it
           const result = findAppBinary(path.join(baseDir, 'launcher', 'subminer'));
+          assert.equal(result, wrapperPath);
+        },
+      );
+    });
+  } finally {
+    os.homedir = originalHomedir;
+    process.env.PATH = originalPath;
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test('findAppBinary resolves Windows install paths when present', () => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-win-'));
+  const originalHomedir = os.homedir;
+  const originalLocalAppData = process.env.LOCALAPPDATA;
+  try {
+    os.homedir = () => baseDir;
+    process.env.LOCALAPPDATA = path.join(baseDir, 'AppData', 'Local');
+    const appExe = path.join(baseDir, 'AppData', 'Local', 'Programs', 'SubMiner', 'SubMiner.exe');
+
+    withFindAppBinaryPlatformSandbox('win32', () => {
+      withAccessSyncStub(
+        (filePath) => filePath === appExe,
+        () => {
+          const result = findAppBinary(path.join(baseDir, 'launcher', 'SubMiner.exe'));
+          assert.equal(result, appExe);
+        },
+      );
+    });
+  } finally {
+    os.homedir = originalHomedir;
+    if (originalLocalAppData === undefined) {
+      delete process.env.LOCALAPPDATA;
+    } else {
+      process.env.LOCALAPPDATA = originalLocalAppData;
+    }
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test('findAppBinary resolves SubMiner.exe on PATH on Windows', () => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-win-path-'));
+  const originalHomedir = os.homedir;
+  const originalPath = process.env.PATH;
+  try {
+    os.homedir = () => baseDir;
+    const binDir = path.join(baseDir, 'bin');
+    const wrapperPath = path.join(binDir, 'SubMiner.exe');
+    makeExecutable(wrapperPath);
+    process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ''}`;
+
+    withFindAppBinaryPlatformSandbox('win32', () => {
+      withAccessSyncStub(
+        (filePath) => filePath === wrapperPath,
+        () => {
+          const result = findAppBinary(path.join(baseDir, 'launcher', 'SubMiner.exe'));
           assert.equal(result, wrapperPath);
         },
       );

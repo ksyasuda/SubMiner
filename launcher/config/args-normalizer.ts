@@ -97,7 +97,7 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     backend: 'auto',
     directory: '.',
     recursive: false,
-    profile: 'subminer',
+    profile: '',
     startOverlay: false,
     whisperBin: process.env.SUBMINER_WHISPER_BIN || launcherConfig.whisperBin || '',
     whisperModel: process.env.SUBMINER_WHISPER_MODEL || launcherConfig.whisperModel || '',
