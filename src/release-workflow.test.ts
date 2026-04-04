@@ -9,6 +9,8 @@ const makefilePath = resolve(__dirname, '../Makefile');
 const makefile = readFileSync(makefilePath, 'utf8');
 const packageJsonPath = resolve(__dirname, '../package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+  desktopName?: string;
+  productName?: string;
   scripts: Record<string, string>;
   build?: {
     files?: string[];
@@ -73,6 +75,11 @@ test('release package scripts disable implicit electron-builder publishing', () 
   assert.match(packageJson.scripts['build:mac'] ?? '', /--publish never/);
   assert.match(packageJson.scripts['build:win'] ?? '', /--publish never/);
   assert.match(packageJson.scripts['build:win:unsigned'] ?? '', /build-win-unsigned\.mjs/);
+});
+
+test('top-level package metadata keeps Linux Electron runtime app identity canonical', () => {
+  assert.equal(packageJson.productName, 'SubMiner');
+  assert.equal(packageJson.desktopName, 'SubMiner.desktop');
 });
 
 test('release packaging keeps default file inclusion and excludes large source-only trees explicitly', () => {
