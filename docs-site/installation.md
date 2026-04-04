@@ -57,21 +57,24 @@ makepkg -si
 
 ### AppImage (Recommended)
 
-Download the latest AppImage from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest):
+Download the latest AppImage and the `subminer` launcher from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest):
 
 ```bash
+mkdir -p ~/.local/bin
+
 # Download and install AppImage
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner.AppImage -O ~/.local/bin/SubMiner.AppImage
 chmod +x ~/.local/bin/SubMiner.AppImage
 
-# Download subminer wrapper script
+# Download and install the subminer launcher (recommended)
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer
 chmod +x ~/.local/bin/subminer
-
 ```
 
-::: warning Bun required for the wrapper
-The `subminer` wrapper uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`. If you see `/usr/bin/env: 'bun': No such file or directory` when running `subminer`, install Bun first: `curl -fsSL https://bun.sh/install | bash`. The AppImage itself does **not** need Bun — only the `subminer` convenience wrapper does.
+The `subminer` launcher is the recommended way to use SubMiner on Linux. It ensures mpv is launched with the correct IPC socket and SubMiner defaults so you don't need to configure `mpv.conf` manually.
+
+::: warning Bun required for the launcher
+The `subminer` launcher uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`. If you see `/usr/bin/env: 'bun': No such file or directory` when running `subminer`, install Bun first: `curl -fsSL https://bun.sh/install | bash`. The AppImage itself does **not** need Bun — only the `subminer` launcher does.
 :::
 
 ### From Source
@@ -110,6 +113,28 @@ brew install mpv ffmpeg
 brew install mecab mecab-ipadic
 ```
 
+#### Install the `subminer` launcher (recommended)
+
+The `subminer` launcher is the recommended way to use SubMiner on macOS. It launches mpv with the correct IPC socket and SubMiner defaults so you don't need to set up an `mpv.conf` profile manually.
+
+Download it from the same [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest) page:
+
+```bash
+sudo wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O /usr/local/bin/subminer
+sudo chmod +x /usr/local/bin/subminer
+```
+
+Or with curl:
+
+```bash
+sudo curl -fSL https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -o /usr/local/bin/subminer
+sudo chmod +x /usr/local/bin/subminer
+```
+
+::: warning Bun required for the launcher
+The `subminer` launcher uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`. Install Bun if you haven't already: `curl -fsSL https://bun.sh/install | bash`.
+:::
+
 ### From Source (macOS)
 
 ```bash
@@ -125,6 +150,18 @@ For unsigned local builds:
 
 ```bash
 bun run build:mac:unsigned
+```
+
+Build and install the launcher alongside the app:
+
+```bash
+make install-macos
+```
+
+This builds the `subminer` launcher into `dist/launcher/subminer` and installs it to `~/.local/bin/subminer` along with the app bundle and rofi theme. To install to `/usr/local/bin` instead (already on the default macOS `PATH`):
+
+```bash
+sudo make install-macos PREFIX=/usr/local
 ```
 
 ### Gatekeeper
@@ -146,7 +183,13 @@ Without this permission, window tracking will not work and the overlay won't fol
 
 ### macOS Usage Notes
 
-**Launching MPV with IPC:**
+**Launching with the `subminer` launcher (recommended):**
+
+```bash
+subminer video.mkv
+```
+
+The launcher handles the IPC socket and SubMiner defaults automatically. If you prefer to launch mpv manually:
 
 ```bash
 mpv --input-ipc-server=/tmp/subminer-socket video.mkv
@@ -171,6 +214,9 @@ binary_path=/Applications/SubMiner.app/Contents/MacOS/subminer
 
 ## Windows
 
+> [!WARNING]
+> **Windows support is experimental.** Core features — mining, annotations, and dictionary lookups — work, but some functionality may be missing or unstable. Bug reports welcome.
+
 ### Installer (Recommended)
 
 Download the latest Windows installer from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest):
@@ -181,6 +227,9 @@ Download the latest Windows installer from [GitHub Releases](https://github.com/
 Install `mpv` separately and ensure `mpv.exe` is on `PATH`. `ffmpeg` is recommended for audio/screenshot extraction (without it, media fields on Anki cards will be empty). MeCab is optional.
 
 ### Windows Usage Notes
+
+> [!TIP]
+> On Windows the `subminer` launcher script must be invoked with `bun run subminer` instead of running directly. The recommended alternative is the **SubMiner mpv** shortcut — double-click it, drag files onto it, or run `SubMiner.exe --launch-mpv` from a terminal.
 
 - Launch `SubMiner.exe` once to let the first-run setup flow seed `%APPDATA%\\SubMiner\\config.jsonc`, require mpv plugin installation, and open bundled Yomitan settings. The optional `SubMiner mpv` Start Menu/Desktop shortcut can also be created during setup, and on Windows it is the recommended way to launch mpv playback with SubMiner defaults.
 - If `mpv.exe` is not on `PATH`, set `mpv.executablePath` in `config.jsonc` or use the first-run setup field to point at the executable. Leave it blank to keep PATH auto-discovery.

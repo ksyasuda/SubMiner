@@ -4,24 +4,20 @@
 
 # SubMiner
 
-## Turn mpv into a sentence-mining workstation.
-
 Look up words with Yomitan, export to Anki in one key, track your immersion — all without leaving mpv.
 
-[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-1a1a2e?style=flat-square)](https://www.gnu.org/licenses/gpl-3.0)
-[![Platform](https://img.shields.io/badge/platform-Linux%20·%20macOS%20·%20Windows-1a1a2e?style=flat-square)](https://github.com/ksyasuda/SubMiner)
-[![Docs](https://img.shields.io/badge/docs-docs.subminer.moe-e6a817?style=flat-square)](https://docs.subminer.moe)
+[Installation](#quick-start) · [Requirements](#requirements) · [Usage](https://docs.subminer.moe/usage) · [Documentation](https://docs.subminer.moe)
+
+[![Downloads](https://img.shields.io/github/downloads/ksyasuda/SubMiner/total?style=flat-square&color=1a1a2e)](https://github.com/ksyasuda/SubMiner/releases)
+[![Release](https://img.shields.io/github/v/release/ksyasuda/SubMiner?style=flat-square&color=1a1a2e)](https://github.com/ksyasuda/SubMiner/releases/latest)
 [![AUR](https://img.shields.io/aur/version/subminer-bin?style=flat-square&color=1a1a2e)](https://aur.archlinux.org/packages/subminer-bin)
+[![Platform](https://img.shields.io/badge/platform-Linux%20·%20macOS%20·%20Windows-1a1a2e?style=flat-square)](https://github.com/ksyasuda/SubMiner)
+[![License](https://img.shields.io/github/license/ksyasuda/SubMiner?style=flat-square&color=1a1a2e)](https://www.gnu.org/licenses/gpl-3.0)
+[![TypeScript](https://img.shields.io/badge/TypeScript-1a1a2e?style=flat-square&logo=typescript&logoColor=3178c6)](https://www.typescriptlang.org)
 
 [![SubMiner demo](./assets/minecard.webp)](https://github.com/user-attachments/assets/89e61895-e2b7-4b47-8d50-a35afe4132b2)
 
 </div>
-
-## How It Works
-
-SubMiner runs as an invisible Electron overlay on top of mpv. Subtitles render as an interactive layer. Move your cursor over any word and trigger a [Yomitan](https://github.com/yomidevs/yomitan) lookup. Press one key to snapshot the sentence, audio, and screenshot into Anki via AnkiConnect.
-
-First-run setup requires the mpv plugin before it can finish. On Windows, the optional `SubMiner mpv` shortcut created during setup is the recommended playback entry point because it launches `mpv` with SubMiner's defaults directly, so you do not need an `mpv.conf` profile just to use it.
 
 ## Features
 
@@ -68,8 +64,6 @@ Local stats dashboard — watch time, anime library, vocabulary growth, mining t
 ### Playlist Browser
 
 Browse sibling episode files and the active mpv queue in one overlay modal. Open it with `Ctrl+Alt+P` to append episodes from the current directory, jump to queued items, remove entries, or reorder the playlist without leaving playback.
-
-Managed local playback now reapplies your configured subtitle language priorities after mpv loads track metadata, so mixed subtitle sets can settle onto the expected primary and secondary tracks instead of staying on mpv's initial `sid=auto` guess.
 
 <br>
 
@@ -213,12 +207,28 @@ wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~
 
 Download the latest DMG or ZIP from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest) and drag `SubMiner.app` into `/Applications`.
 
+Also download the `subminer` launcher (recommended):
+
+```bash
+sudo curl -fSL https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -o /usr/local/bin/subminer \
+	&& sudo chmod +x /usr/local/bin/subminer
+```
+
+> [!NOTE]
+> The `subminer` launcher uses a [Bun](https://bun.sh) shebang. Make sure `bun` is on your `PATH`.
+
 </details>
 
 <details>
 <summary><b>Windows</b></summary>
 
 Download the latest installer or portable `.zip` from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Make sure `mpv` is on your `PATH`.
+
+> [!WARNING]
+> **Windows support is experimental.** Core features such as mining, annotations, and dictionary lookups work, but some functionality may be missing or unstable. Bug reports welcome.
+
+> [!NOTE]
+> On Windows the `subminer` launcher requires [`bun`](https://bun.sh) and must be invoked with `bun run subminer` instead of running the script directly. The recommended alternative is the **SubMiner mpv** shortcut created during first-run setup — double-click it, drag files onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See the [Windows mpv Shortcut](https://docs.subminer.moe/usage#windows-mpv-shortcut) section for details.
 
 </details>
 
@@ -235,6 +245,9 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 subminer doctor                 # verify mpv, ffmpeg, config, and socket
 ```
 
+> [!NOTE]
+> On Windows, use `bun run subminer doctor` or run `SubMiner.exe` directly — first-run setup will guide you through dependency checks.
+
 ### 3. First Launch
 
 Run the app. On first launch SubMiner starts in the system tray, creates a default config, and opens a setup popup to finish config, install the mpv plugin, and configure Yomitan dictionaries.
@@ -248,6 +261,8 @@ subminer stats              # open immersion dashboard
 subminer stats -b           # stats daemon in background
 subminer stats -s           # stop background stats daemon
 ```
+
+On **Windows**, the `subminer` script must be run with `bun run subminer` (e.g. `bun run subminer video.mkv`). The recommended alternative is the **SubMiner mpv** shortcut (created during setup) or `SubMiner.exe --launch-mpv`.  Drag a video file onto the shortcut to play it, or double-click it to open mpv with SubMiner's defaults.
 
 ## Documentation
 

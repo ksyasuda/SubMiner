@@ -39,9 +39,10 @@ There are two ways to use SubMiner:
 | Approach | Use when | How |
 | -------- | -------- | --- |
 | **`subminer` script** | You want SubMiner to handle everything — launch mpv, set up the socket, start the overlay. The simplest path. | `subminer video.mkv` |
-| **MPV plugin** | You launch mpv yourself or from another tool (file manager, Jellyfin, etc.). Requires `--input-ipc-server=/tmp/subminer-socket` in your mpv config. | Use `y` chord keybindings inside mpv |
+| **SubMiner mpv shortcut** (Windows) | The recommended Windows entry point. Created during first-run setup, launches mpv with SubMiner's defaults directly. | Double-click, drag a file onto it, or run `SubMiner.exe --launch-mpv` |
+| **MPV plugin** (all platforms) | You launch mpv yourself or from another tool (file manager, Jellyfin, etc.). Requires `--input-ipc-server=/tmp/subminer-socket` in your mpv config. | Use `y` chord keybindings inside mpv |
 
-You can use both — the plugin provides in-player controls, while the `subminer` script is convenient for direct playback. The `subminer` script runs directly via shebang (no `bun run` needed).
+You can use both — the plugin provides in-player controls, while the `subminer` script (or the Windows shortcut) is convenient for direct playback. The `subminer` script runs directly via shebang on Linux and macOS (no `bun run` needed); on Windows it must be invoked with `bun run subminer` since the shebang is not supported.
 
 ## Live Config Reload
 
