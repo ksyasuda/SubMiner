@@ -9,6 +9,8 @@
 ### Changed
 - Setup: Made mpv plugin installation mandatory in the first-run setup flow, removed the skip path, and kept Finish disabled until the plugin is installed.
 - Setup: Clarified that the mpv plugin requirement applies to setup on every platform, while the optional `SubMiner mpv` shortcut remains the recommended Windows playback entry point.
+- Overlay: Changed fresh-install default config to keep texthooker and stats from auto-opening browser tabs.
+- Overlay: Changed fresh-install default config to enable AnkiConnect, Discord Rich Presence, subtitle-sidebar, and Yomitan-popup auto-pause by default, while disabling controller input by default.
 
 ### Fixed
 - Main: Resolve the YouTube playback socket path lazily so startup honors CLI and config overrides.
@@ -36,6 +38,8 @@
 - Launcher: Kept the first-run setup window from navigating away on unexpected URLs.
 - Launcher: Made Windows mpv honor an explicitly configured executable path instead of silently falling back to PATH.
 - Launcher: Hardened `--launch-mpv` parsing and Windows binary resolution so valueless flags do not swallow media targets and symlinked launcher installs do not short-circuit PATH lookup.
+- Launcher: Fixed first-run setup blocking playback on macOS when the SubMiner mpv plugin was already installed at the canonical `~/.config/mpv` path.
+- Launcher: Fixed setup gating so stale cancelled setup state no longer prevents playback when the canonical mpv plugin entrypoint already exists.
 - Playback: Prevented stale async playlist-browser subtitle rearm callbacks from overriding newer subtitle selections during rapid file changes.
 
 ### Docs
@@ -46,6 +50,7 @@
 ### Internal
 - Release: Retried AUR clone and push operations in the tagged release workflow.
 - Release: Kept GitHub Releases green when AUR publish flakes and needs manual follow-up.
+- Release: Updated Electron to 39.8.6 and pinned patched transitive build dependencies to clear the reported high-severity audit findings.
 
 ## v0.10.0 (2026-03-29)
 
