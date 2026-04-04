@@ -224,11 +224,9 @@ sudo curl -fSL https://github.com/ksyasuda/SubMiner/releases/latest/download/sub
 
 Download the latest installer or portable `.zip` from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Make sure `mpv` is on your `PATH`.
 
-> [!WARNING]
-> **Windows support is experimental.** Core features such as mining, annotations, and dictionary lookups work, but some functionality may be missing or unstable. Bug reports welcome.
+**Windows support is experimental.** Core features such as mining, annotations, and dictionary lookups work, but some functionality may be missing or unstable. Bug reports welcome.
 
-> [!NOTE]
-> On Windows the `subminer` launcher requires [`bun`](https://bun.sh) and must be invoked with `bun run subminer` instead of running the script directly. The recommended alternative is the **SubMiner mpv** shortcut created during first-run setup — double-click it, drag files onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See the [Windows mpv Shortcut](https://docs.subminer.moe/usage#windows-mpv-shortcut) section for details.
+**Note:** On Windows the `subminer` launcher requires [`bun`](https://bun.sh) and must be invoked with `bun run subminer` instead of running the script directly. The recommended alternative is the **SubMiner mpv** shortcut created during first-run setup — double-click it, drag files onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See the [Windows mpv Shortcut](https://docs.subminer.moe/usage#windows-mpv-shortcut) section for details.
 
 </details>
 
