@@ -162,7 +162,10 @@ test('ensureLauncherSetupReady fails on timeout/cancelled state', async () => {
     }),
     launchSetupApp: () => undefined,
     sleep: async () => undefined,
-    now: () => 0,
+    now: (() => {
+      let value = 0;
+      return () => (value += 100);
+    })(),
     timeoutMs: 5_000,
     pollIntervalMs: 100,
   });
