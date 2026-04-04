@@ -21,7 +21,9 @@ import {
   getDefaultConfigDir,
   getSetupStatePath,
   readSetupState,
+  resolveDefaultMpvInstallPaths,
 } from '../../src/shared/setup-state.js';
+import { detectInstalledFirstRunPlugin } from '../../src/main/runtime/first-run-setup-plugin.js';
 import { hasLauncherExternalYomitanProfileConfig } from '../config.js';
 
 const SETUP_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -105,6 +107,14 @@ async function ensurePlaybackSetupReady(context: LauncherCommandContext): Promis
   const ready = await ensureLauncherSetupReady({
     readSetupState: () => readSetupState(statePath),
     isExternalYomitanConfigured: () => hasLauncherExternalYomitanProfileConfig(),
+    isPluginInstalled: () => {
+      const installPaths = resolveDefaultMpvInstallPaths(
+        process.platform,
+        os.homedir(),
+        process.env.XDG_CONFIG_HOME,
+      );
+      return detectInstalledFirstRunPlugin(installPaths);
+    },
     launchSetupApp: () => {
       const setupArgs = ['--background', '--setup'];
       if (args.logLevel) {

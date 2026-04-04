@@ -116,6 +116,36 @@ test('ensureLauncherSetupReady bypasses setup gate when external yomitan is conf
   assert.deepEqual(calls, []);
 });
 
+test('ensureLauncherSetupReady bypasses setup gate when plugin is already installed', async () => {
+  const calls: string[] = [];
+
+  const ready = await ensureLauncherSetupReady({
+    readSetupState: () => ({
+      version: 3,
+      status: 'cancelled',
+      completedAt: null,
+      completionSource: null,
+      yomitanSetupMode: null,
+      lastSeenYomitanDictionaryCount: 0,
+      pluginInstallStatus: 'unknown',
+      pluginInstallPathSummary: null,
+      windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+      windowsMpvShortcutLastStatus: 'unknown',
+    }),
+    isPluginInstalled: () => true,
+    launchSetupApp: () => {
+      calls.push('launch');
+    },
+    sleep: async () => undefined,
+    now: () => 0,
+    timeoutMs: 5_000,
+    pollIntervalMs: 100,
+  });
+
+  assert.equal(ready, true);
+  assert.deepEqual(calls, []);
+});
+
 test('ensureLauncherSetupReady fails on timeout/cancelled state', async () => {
   const result = await ensureLauncherSetupReady({
     readSetupState: () => ({
@@ -138,4 +168,64 @@ test('ensureLauncherSetupReady fails on timeout/cancelled state', async () => {
   });
 
   assert.equal(result, false);
+});
+
+test('ensureLauncherSetupReady ignores stale cancelled state after launching setup app', async () => {
+  let reads = 0;
+
+  const result = await ensureLauncherSetupReady({
+    readSetupState: () => {
+      reads += 1;
+      if (reads <= 2) {
+        return {
+          version: 3,
+          status: 'cancelled',
+          completedAt: null,
+          completionSource: null,
+          yomitanSetupMode: null,
+          lastSeenYomitanDictionaryCount: 0,
+          pluginInstallStatus: 'unknown',
+          pluginInstallPathSummary: null,
+          windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+          windowsMpvShortcutLastStatus: 'unknown',
+        };
+      }
+      if (reads === 3) {
+        return {
+          version: 3,
+          status: 'in_progress',
+          completedAt: null,
+          completionSource: null,
+          yomitanSetupMode: null,
+          lastSeenYomitanDictionaryCount: 0,
+          pluginInstallStatus: 'unknown',
+          pluginInstallPathSummary: null,
+          windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+          windowsMpvShortcutLastStatus: 'unknown',
+        };
+      }
+      return {
+        version: 3,
+        status: 'completed',
+        completedAt: '2026-03-07T00:00:00.000Z',
+        completionSource: 'legacy_auto_detected',
+        yomitanSetupMode: 'internal',
+        lastSeenYomitanDictionaryCount: 1,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: '/tmp/mpv',
+        windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+        windowsMpvShortcutLastStatus: 'unknown',
+      };
+    },
+    launchSetupApp: () => undefined,
+    sleep: async () => undefined,
+    now: (() => {
+      let value = 0;
+      return () => (value += 100);
+    })(),
+    timeoutMs: 5_000,
+    pollIntervalMs: 100,
+  });
+
+  assert.equal(result, true);
 });

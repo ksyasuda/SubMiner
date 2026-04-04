@@ -225,3 +225,72 @@ test('syncInstalledFirstRunPluginBinaryPath preserves explicit binary_path overr
     );
   });
 });
+
+test('detectInstalledFirstRunPlugin detects plugin installed in canonical mpv config location on macOS', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const installPaths = resolveDefaultMpvInstallPaths('darwin', homeDir);
+    const pluginDir = path.join(homeDir, '.config', 'mpv', 'scripts', 'subminer');
+    const pluginEntrypointPath = path.join(pluginDir, 'main.lua');
+
+    fs.mkdirSync(pluginDir, { recursive: true });
+    fs.mkdirSync(path.dirname(pluginEntrypointPath), { recursive: true });
+    fs.writeFileSync(pluginEntrypointPath, '-- plugin');
+
+    assert.equal(
+      detectInstalledFirstRunPlugin(installPaths),
+      true,
+    );
+  });
+});
+
+test('detectInstalledFirstRunPlugin ignores scoped plugin layout path', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const installPaths = resolveDefaultMpvInstallPaths('darwin', homeDir, xdgConfigHome);
+    const pluginDir = path.join(xdgConfigHome, 'mpv', 'scripts', '@plugin', 'subminer');
+    const pluginEntrypointPath = path.join(pluginDir, 'main.lua');
+
+    fs.mkdirSync(pluginDir, { recursive: true });
+    fs.mkdirSync(path.dirname(pluginEntrypointPath), { recursive: true });
+    fs.writeFileSync(pluginEntrypointPath, '-- plugin');
+
+    assert.equal(
+      detectInstalledFirstRunPlugin(installPaths),
+      false,
+    );
+  });
+});
+
+test('detectInstalledFirstRunPlugin ignores legacy loader file', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const installPaths = resolveDefaultMpvInstallPaths('darwin', homeDir);
+    const legacyLoaderPath = path.join(installPaths.scriptsDir, 'subminer.lua');
+
+    fs.mkdirSync(path.dirname(legacyLoaderPath), { recursive: true });
+    fs.writeFileSync(legacyLoaderPath, '-- plugin');
+
+    assert.equal(
+      detectInstalledFirstRunPlugin(installPaths),
+      false,
+    );
+  });
+});
+
+test('detectInstalledFirstRunPlugin requires main.lua in subminer directory', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const installPaths = resolveDefaultMpvInstallPaths('darwin', homeDir);
+    const pluginDir = path.join(installPaths.scriptsDir, 'subminer');
+
+    fs.mkdirSync(pluginDir, { recursive: true });
+    fs.writeFileSync(path.join(pluginDir, 'not_main.lua'), '-- plugin');
+
+    assert.equal(
+      detectInstalledFirstRunPlugin(installPaths),
+      false,
+    );
+  });
+});
