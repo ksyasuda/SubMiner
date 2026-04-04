@@ -13,7 +13,7 @@ Look up words with Yomitan, export to Anki in one key, track your immersion — 
 [![Docs](https://img.shields.io/badge/docs-docs.subminer.moe-e6a817?style=flat-square)](https://docs.subminer.moe)
 [![AUR](https://img.shields.io/aur/version/subminer-bin?style=flat-square&color=1a1a2e)](https://aur.archlinux.org/packages/subminer-bin)
 
-[![SubMiner demo](./assets/minecard.webp)](./assets/minecard.mp4)
+[![SubMiner demo](./assets/minecard.webp)](https://github.com/user-attachments/assets/89e61895-e2b7-4b47-8d50-a35afe4132b2)
 
 </div>
 
