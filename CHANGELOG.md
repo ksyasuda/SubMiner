@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.11.1 (2026-04-04)
+
+### Fixed
+- Release: Linux packaged builds now expose the canonical `SubMiner` app identity to Electron's startup metadata so native Wayland compositors stop reporting the window class/app-id as lowercase `subminer`.
+- Linux: Linux now restores the runtime options, Jimaku, and Subsync shortcuts after the Electron 39 regression by routing those actions through the overlay's mpv/IPC shortcut path.
+
 ## v0.11.0 (2026-04-03)
 
 ### Added
