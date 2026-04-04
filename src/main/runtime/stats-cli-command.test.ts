@@ -236,7 +236,7 @@ test('stats cli command runs lifetime rebuild when cleanup lifetime mode is requ
     getImmersionTracker: () => ({
       rebuildLifetimeSummaries: async () => ({
         appliedSessions: 4,
-        rebuiltAtMs: 1_710_000_000_000,
+        rebuiltAtMs: 1_710_000_000,
       }),
     }),
   });
@@ -252,7 +252,7 @@ test('stats cli command runs lifetime rebuild when cleanup lifetime mode is requ
 
   assert.deepEqual(calls, [
     'ensureImmersionTrackerStarted',
-    'info:Stats lifetime rebuild complete: appliedSessions=4 rebuiltAtMs=1710000000000',
+    'info:Stats lifetime rebuild complete: appliedSessions=4 rebuiltAtMs=1710000000',
   ]);
   assert.deepEqual(responses, [
     {
@@ -285,6 +285,7 @@ async function waitForPendingAnimeMetadata(
 
 test('tracker rebuildLifetimeSummaries backfills retained sessions and is idempotent', async () => {
   const dbPath = makeDbPath();
+  const previousNowMs = globalThis.__subminerTestNowMs;
   let tracker:
     | import('../../core/services/immersion-tracker-service').ImmersionTrackerService
     | null = null;
@@ -298,19 +299,23 @@ test('tracker rebuildLifetimeSummaries backfills retained sessions and is idempo
   const { Database } = await import('../../core/services/immersion-tracker/sqlite');
 
   try {
+    globalThis.__subminerTestNowMs = 1_700_000_000;
     tracker = new ImmersionTrackerService({ dbPath });
     tracker.handleMediaChange('/tmp/Frieren S01E01.mkv', 'Episode 1');
     await waitForPendingAnimeMetadata(tracker);
     tracker.recordCardsMined(2);
     tracker.recordSubtitleLine('first line', 0, 1);
+    globalThis.__subminerTestNowMs = 1_700_001_000;
     tracker.destroy();
     tracker = null;
 
+    globalThis.__subminerTestNowMs = 1_700_002_000;
     tracker2 = new ImmersionTrackerService({ dbPath });
     tracker2.handleMediaChange('/tmp/Frieren S01E02.mkv', 'Episode 2');
     await waitForPendingAnimeMetadata(tracker2);
     tracker2.recordCardsMined(1);
     tracker2.recordSubtitleLine('second line', 0, 1);
+    globalThis.__subminerTestNowMs = 1_700_003_000;
     tracker2.destroy();
     tracker2 = null;
 
@@ -357,8 +362,10 @@ test('tracker rebuildLifetimeSummaries backfills retained sessions and is idempo
     `);
     beforeDb.close();
 
+    globalThis.__subminerTestNowMs = 1_700_004_000;
     tracker3 = new ImmersionTrackerService({ dbPath });
     const firstRebuild = await tracker3.rebuildLifetimeSummaries();
+    globalThis.__subminerTestNowMs = 1_700_005_000;
     const secondRebuild = await tracker3.rebuildLifetimeSummaries();
 
     const rebuiltDb = new Database(dbPath);
@@ -405,6 +412,7 @@ test('tracker rebuildLifetimeSummaries backfills retained sessions and is idempo
     assert.equal(secondRebuild.appliedSessions, firstRebuild.appliedSessions);
     assert.ok(secondRebuild.rebuiltAtMs >= firstRebuild.rebuiltAtMs);
   } finally {
+    globalThis.__subminerTestNowMs = previousNowMs;
     tracker?.destroy();
     tracker2?.destroy();
     tracker3?.destroy();
@@ -417,7 +425,7 @@ test('stats cli command runs lifetime rebuild when requested', async () => {
     getImmersionTracker: () => ({
       rebuildLifetimeSummaries: async () => ({
         appliedSessions: 4,
-        rebuiltAtMs: 1_710_000_000_000,
+        rebuiltAtMs: 1_710_000_000,
       }),
     }),
   });
@@ -433,7 +441,7 @@ test('stats cli command runs lifetime rebuild when requested', async () => {
 
   assert.deepEqual(calls, [
     'ensureImmersionTrackerStarted',
-    'info:Stats lifetime rebuild complete: appliedSessions=4 rebuiltAtMs=1710000000000',
+    'info:Stats lifetime rebuild complete: appliedSessions=4 rebuiltAtMs=1710000000',
   ]);
   assert.deepEqual(responses, [
     {

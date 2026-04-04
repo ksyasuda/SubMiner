@@ -32,6 +32,10 @@ type BackgroundStatsStopResult = {
   stale: boolean;
 };
 
+function formatLoggedNumber(value: number): string {
+  return Number.isFinite(value) ? value.toString() : String(value);
+}
+
 export function writeStatsCliCommandResponse(
   responsePath: string,
   payload: StatsCliCommandResponse,
@@ -143,7 +147,7 @@ export function createRunStatsCliCommandHandler(deps: {
         }
         const result = await tracker.rebuildLifetimeSummaries();
         deps.logInfo(
-          `Stats lifetime rebuild complete: appliedSessions=${result.appliedSessions} rebuiltAtMs=${result.rebuiltAtMs}`,
+          `Stats lifetime rebuild complete: appliedSessions=${formatLoggedNumber(result.appliedSessions)} rebuiltAtMs=${formatLoggedNumber(result.rebuiltAtMs)}`,
         );
         writeResponseSafe(args.statsResponsePath, { ok: true });
         return;

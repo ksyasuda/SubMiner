@@ -8,6 +8,14 @@ const CLICK_SEEK_OFFSET_SEC = 0.08;
 const SNAPSHOT_POLL_INTERVAL_MS = 80;
 const EMBEDDED_SIDEBAR_MIN_WIDTH_PX = 240;
 const EMBEDDED_SIDEBAR_MAX_RATIO = 0.45;
+
+function nowForUiTiming(): number {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now();
+  }
+  return Date.now();
+}
+
 function subtitleCueListsEqual(a: SubtitleCue[], b: SubtitleCue[]): boolean {
   if (a.length !== b.length) {
     return false;
@@ -294,7 +302,7 @@ export function createSubtitleSidebarModal(
       !ctx.state.subtitleSidebarAutoScroll ||
       ctx.state.subtitleSidebarActiveCueIndex < 0 ||
       (!force && ctx.state.subtitleSidebarActiveCueIndex === previousActiveCueIndex) ||
-      Date.now() < ctx.state.subtitleSidebarManualScrollUntilMs
+      nowForUiTiming() < ctx.state.subtitleSidebarManualScrollUntilMs
     ) {
       return;
     }
@@ -547,7 +555,7 @@ export function createSubtitleSidebarModal(
       seekToCue(cue);
     });
     ctx.dom.subtitleSidebarList.addEventListener('wheel', () => {
-      ctx.state.subtitleSidebarManualScrollUntilMs = Date.now() + MANUAL_SCROLL_HOLD_MS;
+      ctx.state.subtitleSidebarManualScrollUntilMs = nowForUiTiming() + MANUAL_SCROLL_HOLD_MS;
     });
     ctx.dom.subtitleSidebarContent.addEventListener('mouseenter', async () => {
       subtitleSidebarHovered = true;

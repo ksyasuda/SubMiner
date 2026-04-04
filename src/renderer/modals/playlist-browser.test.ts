@@ -302,22 +302,28 @@ function setupPlaylistBrowserModalTest(options?: {
 }
 
 test('playlist browser test cleanup must delete injected globals that were originally absent', () => {
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
-
-  const env = setupPlaylistBrowserModalTest();
-
+  const previousWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const previousDocumentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
   try {
+    Reflect.deleteProperty(globalThis, 'window');
+    Reflect.deleteProperty(globalThis, 'document');
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
+
+    const env = setupPlaylistBrowserModalTest();
+
     assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), true);
     assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), true);
-  } finally {
     env.restore();
-  }
 
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
-  assert.equal(typeof globalThis.window, 'undefined');
-  assert.equal(typeof globalThis.document, 'undefined');
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
+    assert.equal(typeof globalThis.window, 'undefined');
+    assert.equal(typeof globalThis.document, 'undefined');
+  } finally {
+    restoreGlobalDescriptor('window', previousWindowDescriptor);
+    restoreGlobalDescriptor('document', previousDocumentDescriptor);
+  }
 });
 
 test('playlist browser modal opens with playlist-focused current item selection', async () => {

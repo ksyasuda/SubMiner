@@ -74,6 +74,18 @@ function createListStub() {
   };
 }
 
+test.afterEach(() => {
+  if (Object.prototype.hasOwnProperty.call(globalThis, 'window') && globalThis.window === undefined) {
+    Reflect.deleteProperty(globalThis, 'window');
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(globalThis, 'document') &&
+    globalThis.document === undefined
+  ) {
+    Reflect.deleteProperty(globalThis, 'document');
+  }
+});
+
 test('findActiveSubtitleCueIndex prefers timing match before text fallback', () => {
   const cues = [
     { startTime: 1, endTime: 2, text: 'same' },

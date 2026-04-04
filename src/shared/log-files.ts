@@ -9,6 +9,36 @@ export const DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024;
 
 const TRUNCATED_MARKER = '[truncated older log content]\n';
 const prunedDirectories = new Set<string>();
+const NS_PER_MS = 1_000_000n;
+const MS_PER_DAY = 86_400_000n;
+
+function floorDiv(left: number, right: number): number {
+  return Math.floor(left / right);
+}
+
+function daysFromCivil(year: number, month: number, day: number): bigint {
+  const adjustedYear = year - (month <= 2 ? 1 : 0);
+  const era = floorDiv(adjustedYear >= 0 ? adjustedYear : adjustedYear - 399, 400);
+  const yearOfEra = adjustedYear - era * 400;
+  const monthIndex = month + (month > 2 ? -3 : 9);
+  const dayOfYear = floorDiv(153 * monthIndex + 2, 5) + day - 1;
+  const dayOfEra =
+    yearOfEra * 365 + floorDiv(yearOfEra, 4) - floorDiv(yearOfEra, 100) + dayOfYear;
+  return BigInt(era * 146097 + dayOfEra - 719468);
+}
+
+function dateToEpochMs(date: Date): bigint {
+  const dayCount = daysFromCivil(
+    date.getUTCFullYear(),
+    date.getUTCMonth() + 1,
+    date.getUTCDate(),
+  );
+  const timeOfDayMs = BigInt(
+    ((date.getUTCHours() * 60 + date.getUTCMinutes()) * 60 + date.getUTCSeconds()) * 1000 +
+      date.getUTCMilliseconds(),
+  );
+  return dayCount * MS_PER_DAY + timeOfDayMs;
+}
 
 export function resolveLogBaseDir(options?: {
   platform?: NodeJS.Platform;
@@ -52,16 +82,20 @@ export function pruneLogFiles(
     return;
   }
 
-  const cutoffMs = (options?.now ?? new Date()).getTime() - retentionDays * 24 * 60 * 60 * 1000;
+  const cutoffDate = new Date(options?.now ?? new Date());
+  cutoffDate.setUTCDate(cutoffDate.getUTCDate() - retentionDays);
+  const cutoffNs = dateToEpochMs(cutoffDate) * NS_PER_MS;
   for (const entry of entries) {
     const candidate = path.join(logsDir, entry);
-    let stats: fs.Stats;
+    let stats: fs.BigIntStats;
     try {
-      stats = fs.statSync(candidate);
+      stats = fs.statSync(candidate, { bigint: true });
     } catch {
       continue;
     }
-    if (!stats.isFile() || !entry.endsWith('.log') || stats.mtimeMs >= cutoffMs) continue;
+    if (!stats.isFile() || !entry.endsWith('.log') || stats.mtimeNs >= cutoffNs) {
+      continue;
+    }
     try {
       fs.rmSync(candidate, { force: true });
     } catch {

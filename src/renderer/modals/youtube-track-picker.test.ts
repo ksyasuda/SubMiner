@@ -92,6 +92,17 @@ function restoreGlobalProp<K extends keyof typeof globalThis>(
   Reflect.deleteProperty(globalThis, key);
 }
 
+function restoreGlobalDescriptor<K extends keyof typeof globalThis>(
+  key: K,
+  descriptor: PropertyDescriptor | undefined,
+) {
+  if (descriptor) {
+    Object.defineProperty(globalThis, key, descriptor);
+    return;
+  }
+  Reflect.deleteProperty(globalThis, key);
+}
+
 function setupYoutubePickerTestEnv(options?: {
   windowValue?: YoutubePickerTestWindow;
   customEventValue?: unknown;
@@ -153,20 +164,30 @@ function setupYoutubePickerTestEnv(options?: {
 }
 
 test('youtube picker test env restore deletes injected globals that were originally absent', () => {
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
+  const previousWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const previousDocumentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
 
-  const env = setupYoutubePickerTestEnv();
+  try {
+    Reflect.deleteProperty(globalThis, 'window');
+    Reflect.deleteProperty(globalThis, 'document');
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
 
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), true);
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), true);
+    const env = setupYoutubePickerTestEnv();
 
-  env.restore();
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), true);
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), true);
 
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
-  assert.equal(typeof globalThis.window, 'undefined');
-  assert.equal(typeof globalThis.document, 'undefined');
+    env.restore();
+
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
+    assert.equal(typeof globalThis.window, 'undefined');
+    assert.equal(typeof globalThis.document, 'undefined');
+  } finally {
+    restoreGlobalDescriptor('window', previousWindowDescriptor);
+    restoreGlobalDescriptor('document', previousDocumentDescriptor);
+  }
 });
 
 test('youtube track picker close restores focus and mouse-ignore state', () => {

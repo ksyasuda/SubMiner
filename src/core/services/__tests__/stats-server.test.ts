@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { createStatsApp, startStatsServer } from '../stats-server.js';
@@ -1172,7 +1173,23 @@ describe('stats server API routes', () => {
 
     const bun = globalThis as typeof globalThis & BunRuntime;
     const originalServe = bun.Bun.serve;
+    const originalCreateServer = http.createServer;
+    let listenedWith: { port: number; hostname: string } | null = null;
+    let closeCalls = 0;
     bun.Bun.serve = undefined;
+    (
+      http as typeof http & {
+        createServer: typeof http.createServer;
+      }
+    ).createServer = (() =>
+      ({
+        listen: (port: number, hostname: string) => {
+          listenedWith = { port, hostname };
+        },
+        close: () => {
+          closeCalls += 1;
+        },
+      }) as unknown as ReturnType<typeof http.createServer>) as typeof http.createServer;
 
     try {
       const server = startStatsServer({
@@ -1181,9 +1198,16 @@ describe('stats server API routes', () => {
         tracker: createMockTracker(),
       });
 
+      assert.deepEqual(listenedWith, { port: 0, hostname: '127.0.0.1' });
       server.close();
+      assert.equal(closeCalls, 1);
     } finally {
       bun.Bun.serve = originalServe;
+      (
+        http as typeof http & {
+          createServer: typeof http.createServer;
+        }
+      ).createServer = originalCreateServer;
     }
   });
 });

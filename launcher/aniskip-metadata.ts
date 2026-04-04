@@ -125,6 +125,12 @@ function titleOverlapScore(expectedTitle: string, candidateTitle: string): numbe
   if (!expected || !candidate) return 0;
 
   if (candidate.includes(expected)) return 120;
+  if (
+    candidate.split(' ').length >= 2 &&
+    ` ${expected} `.includes(` ${candidate} `)
+  ) {
+    return 90;
+  }
 
   const expectedTokens = tokenizeMatchWords(expectedTitle);
   if (expectedTokens.length === 0) return 0;
@@ -339,6 +345,12 @@ function isSeasonDirectoryName(value: string): boolean {
   return /^(?:season|s)[\s._-]*\d{1,2}$/i.test(value.trim());
 }
 
+function isEpisodeOnlyBaseName(value: string): boolean {
+  return /^(?:[Ss]\d{1,2}[Ee]\d{1,3}|[Ee][Pp]?[\s._-]*\d{1,3}|\d{1,3})(?:$|[\s._-])/.test(
+    value.trim(),
+  );
+}
+
 function inferTitleFromPath(mediaPath: string): string {
   const directory = path.dirname(mediaPath);
   const segments = directory.split(/[\\/]+/).filter((segment) => segment.length > 0);
@@ -445,8 +457,11 @@ export function inferAniSkipMetadataForFile(
   }
 
   const baseName = path.basename(mediaPath, path.extname(mediaPath));
+  const cleanedBaseName = cleanupTitle(baseName);
   const pathTitle = inferTitleFromPath(mediaPath);
-  const fallbackTitle = pathTitle || cleanupTitle(baseName) || baseName;
+  const fallbackTitle = isEpisodeOnlyBaseName(baseName)
+    ? pathTitle || cleanedBaseName || baseName
+    : cleanedBaseName || pathTitle || baseName;
   return {
     title: fallbackTitle,
     season: detectSeasonFromNameOrDir(mediaPath),
