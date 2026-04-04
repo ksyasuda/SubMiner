@@ -1,17 +1,30 @@
 # Installation
 
+## How the Pieces Fit Together
+
+SubMiner is an overlay that sits on top of mpv. It connects to mpv through an IPC socket, renders subtitles as interactive text using a bundled Yomitan dictionary engine, and optionally creates Anki flashcards via AnkiConnect.
+
+To get a working setup you need:
+
+1. **mpv** launched with an IPC socket so SubMiner can read subtitle data
+2. **SubMiner** (the Electron overlay app)
+3. **Dictionaries** imported into the bundled Yomitan instance (lookups won't work without at least one)
+4. **Anki + AnkiConnect** _(optional but recommended)_ for card creation and enrichment
+
+The `subminer` launcher script handles step 1 automatically. If you launch mpv yourself or from another tool, you must pass `--input-ipc-server=/tmp/subminer-socket` (or the equivalent named pipe on Windows) — without it the overlay will start but subtitles will never appear.
+
 ## Requirements
 
 ### System Dependencies
 
-| Dependency           | Required    | Notes                                                    |
-| -------------------- | ----------- | -------------------------------------------------------- |
-| mpv                  | Yes         | Must support IPC sockets (`--input-ipc-server`)          |
+| Dependency           | Required    | Notes                                                                                                                                                                          |
+| -------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| mpv                  | Yes         | Must support IPC sockets (`--input-ipc-server`)                                                                                                                                |
 | Bun                  | For wrapper | Required for `subminer` CLI wrapper and source builds. Pre-built releases (AppImage, DMG, installer) work without it — only the `subminer` wrapper script needs Bun on `PATH`. |
-| ffmpeg               | Recommended | Audio extraction and screenshot generation. Without it SubMiner still runs, but audio and image fields on Anki cards will be empty. |
-| MeCab + mecab-ipadic | No          | Adds part-of-speech data used to filter particles out of N+1, JLPT, and frequency annotations. Without it annotations still render, but POS-based filtering is less precise. |
-| fuse2                | Linux only  | Required for AppImage                                    |
-| yt-dlp               | No          | Recommended for YouTube playback and subtitle extraction |
+| ffmpeg               | Recommended | Audio extraction and screenshot generation. Without it SubMiner still runs, but audio and image fields on Anki cards will be empty.                                            |
+| MeCab + mecab-ipadic | No          | Adds part-of-speech data used to filter particles out of N+1, JLPT, and frequency annotations. Without it annotations still render, but POS-based filtering is less precise.   |
+| fuse2                | Linux only  | Required for AppImage                                                                                                                                                          |
+| yt-dlp               | No          | Recommended for YouTube playback and subtitle extraction                                                                                                                       |
 
 ### Platform-Specific
 
@@ -21,19 +34,77 @@
 - Sway (uses `swaymsg`)
 - X11 (uses `xdotool` and `xwininfo`)
 
+<details>
+<summary><b>Arch Linux</b></summary>
+
+```bash
+sudo pacman -S --needed mpv ffmpeg
+# Optional
+sudo pacman -S --needed mecab mecab-ipadic yt-dlp fzf rofi chafa ffmpegthumbnailer
+# Optional: subtitle sync (at least one needed for subtitle syncing)
+paru -S --needed alass python-ffsubsync
+# X11 / XWAYLAND
+sudo pacman -S --needed xdotool xorg-xwininfo
+```
+
+</details>
+
+<details>
+<summary><b>Ubuntu / Debian</b></summary>
+
+```bash
+sudo apt install mpv ffmpeg
+# Optional
+sudo apt install mecab libmecab-dev mecab-ipadic-utf8 fzf rofi chafa ffmpegthumbnailer yt-dlp
+# X11
+sudo apt install xdotool x11-utils
+# Optional: subtitle sync
+pip install ffsubsync
+# alass is not in apt — install via cargo: cargo install alass-cli
+```
+
+</details>
+
+<details>
+<summary><b>Fedora</b></summary>
+
+```bash
+sudo dnf install mpv ffmpeg
+# Optional
+sudo dnf install mecab mecab-ipadic fzf rofi chafa ffmpegthumbnailer yt-dlp
+# X11
+sudo dnf install xdotool xorg-x11-utils
+# Optional: subtitle sync
+pip install ffsubsync
+# alass: cargo install alass-cli
+```
+
+</details>
+
 **macOS** — macOS 10.13 or later. Accessibility permission required for window tracking.
 
-**Windows** — Windows 10 or later. Install `mpv`; keep it on `PATH` for auto-discovery or set `mpv.executablePath` in config if `mpv.exe` lives elsewhere. SubMiner's packaged build handles window tracking directly.
+```bash
+brew install mpv ffmpeg
+# Optional but recommended for annotations
+brew install mecab mecab-ipadic
+# Optional
+brew install yt-dlp fzf rofi chafa ffmpegthumbnailer
+# Optional: subtitle sync
+brew install alass
+pip install ffsubsync
+```
+
+**Windows** — Windows 10 or later. Install [`mpv`](https://mpv.io/installation/) and [`ffmpeg`](https://ffmpeg.org/download.html) and ensure both are on `PATH`. Keep `mpv.exe` on `PATH` for auto-discovery or set `mpv.executablePath` in config if it lives elsewhere. SubMiner's packaged build handles window tracking directly. Optionally install [MeCab for Windows](https://taku910.github.io/mecab/#download) with the UTF-8 dictionary.
 
 ### Optional Tools
 
-| Tool              | Purpose                                                       |
-| ----------------- | ------------------------------------------------------------- |
-| fzf               | Terminal-based video picker (default)                         |
-| rofi              | GUI-based video picker                                        |
-| chafa             | Thumbnail previews in fzf                                     |
-| ffmpegthumbnailer | Generate video thumbnails for picker                          |
-| guessit           | Better AniSkip title/season/episode parsing for file playback |
+| Tool              | Purpose                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| fzf               | Terminal-based video picker (default)                                                                                                            |
+| rofi              | GUI-based video picker                                                                                                                           |
+| chafa             | Thumbnail previews in fzf                                                                                                                        |
+| ffmpegthumbnailer | Generate video thumbnails for picker                                                                                                             |
+| guessit           | Better AniSkip title/season/episode parsing for file playback                                                                                    |
 | alass             | Subtitle sync engine (preferred) — must be on `PATH` or set `subsync.alass_path` in config; subtitle syncing is disabled without it or ffsubsync |
 | ffsubsync         | Subtitle sync engine (fallback) — must be on `PATH` or set `subsync.ffsubsync_path` in config; subtitle syncing is disabled without it or alass  |
 
@@ -57,7 +128,17 @@ makepkg -si
 
 ### AppImage (Recommended)
 
-Download the latest AppImage and the `subminer` launcher from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest):
+Download the latest AppImage and the `subminer` launcher from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest).
+
+**Step 1 — Install Bun** (required for the launcher):
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+The `subminer` launcher uses a Bun shebang. The AppImage itself does **not** need Bun — only the launcher does. If you skip the launcher and run the AppImage directly (for example `SubMiner.AppImage --start`), you can skip this step, but you will need to configure `mpv.conf` with `input-ipc-server=/tmp/subminer-socket` manually.
+
+**Step 2 — Download and install:**
 
 ```bash
 mkdir -p ~/.local/bin
@@ -72,10 +153,6 @@ chmod +x ~/.local/bin/subminer
 ```
 
 The `subminer` launcher is the recommended way to use SubMiner on Linux. It ensures mpv is launched with the correct IPC socket and SubMiner defaults so you don't need to configure `mpv.conf` manually.
-
-::: warning Bun required for the launcher
-The `subminer` launcher uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`. If you see `/usr/bin/env: 'bun': No such file or directory` when running `subminer`, install Bun first: `curl -fsSL https://bun.sh/install | bash`. The AppImage itself does **not** need Bun — only the `subminer` launcher does.
-:::
 
 ### From Source
 
@@ -217,6 +294,14 @@ binary_path=/Applications/SubMiner.app/Contents/MacOS/subminer
 > [!WARNING]
 > **Windows support is experimental.** Core features — mining, annotations, and dictionary lookups — work, but some functionality may be missing or unstable. Bug reports welcome.
 
+### Prerequisites
+
+1. Install [`mpv`](https://mpv.io/installation/) and ensure `mpv.exe` is on `PATH`. If mpv is installed elsewhere, you can set `mpv.executablePath` in `config.jsonc` or use the first-run setup field to point at the executable.
+2. Install [`ffmpeg`](https://ffmpeg.org/download.html) and add it to `PATH` — recommended for audio/screenshot extraction (without it, media fields on Anki cards will be empty).
+3. _(Optional)_ Install [MeCab for Windows](https://taku910.github.io/mecab/#download) with the UTF-8 dictionary for annotation POS filtering.
+
+No compositor tools or window helpers are needed — native window tracking is built in on Windows.
+
 ### Installer (Recommended)
 
 Download the latest Windows installer from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest):
@@ -224,19 +309,24 @@ Download the latest Windows installer from [GitHub Releases](https://github.com/
 - `SubMiner-<version>.exe` installs the app, Start menu shortcut, and default files under `Program Files`
 - `SubMiner-<version>.zip` is available as a portable fallback
 
-Install `mpv` separately and ensure `mpv.exe` is on `PATH`. `ffmpeg` is recommended for audio/screenshot extraction (without it, media fields on Anki cards will be empty). MeCab is optional.
+### Getting Started on Windows
 
-### Windows Usage Notes
+1. **Run `SubMiner.exe` once** — first-run setup creates `%APPDATA%\SubMiner\config.jsonc`, installs the mpv plugin, and opens Yomitan settings for dictionary import.
+2. **Create the SubMiner mpv shortcut** _(recommended)_ — the setup popup offers to create a `SubMiner mpv` Start Menu and/or Desktop shortcut. This is the recommended way to launch playback on Windows.
+3. **Play a video** — double-click the shortcut, drag a video file onto it, or run from a terminal:
 
-> [!TIP]
-> On Windows the `subminer` launcher script must be invoked with `bun run subminer` instead of running directly. The recommended alternative is the **SubMiner mpv** shortcut — double-click it, drag files onto it, or run `SubMiner.exe --launch-mpv` from a terminal.
+```powershell
+& "C:\Program Files\SubMiner\SubMiner.exe" --launch-mpv "C:\Videos\episode 01.mkv"
+```
 
-- Launch `SubMiner.exe` once to let the first-run setup flow seed `%APPDATA%\\SubMiner\\config.jsonc`, require mpv plugin installation, and open bundled Yomitan settings. The optional `SubMiner mpv` Start Menu/Desktop shortcut can also be created during setup, and on Windows it is the recommended way to launch mpv playback with SubMiner defaults.
-- If `mpv.exe` is not on `PATH`, set `mpv.executablePath` in `config.jsonc` or use the first-run setup field to point at the executable. Leave it blank to keep PATH auto-discovery.
-- `SubMiner.exe --launch-mpv` and the optional `SubMiner mpv` shortcut pass SubMiner's default mpv socket/subtitle args directly and do not require an `mpv.conf` profile named `subminer`.
-- First-run mpv plugin installs pin `binary_path` to the current `SubMiner.exe` automatically. Manual plugin configs can leave `binary_path` empty unless SubMiner is installed in a non-standard location.
-- Windows plugin installs rewrite `socket_path` to `\\.\pipe\subminer-socket`; do not keep `/tmp/subminer-socket` on Windows.
-- Native window tracking is built in on Windows; no `xdotool`, `xwininfo`, or compositor-specific helper is required.
+The shortcut and `--launch-mpv` pass SubMiner's default IPC socket and subtitle args directly — no `mpv.conf` profile is needed.
+
+### Windows-Specific Notes
+
+- The `subminer` launcher script requires [Bun](https://bun.sh) and must be invoked with `bun run subminer` on Windows since the shebang is not supported. The **SubMiner mpv** shortcut or `SubMiner.exe --launch-mpv` is the simpler alternative.
+- First-run plugin installs pin `binary_path` to the current `SubMiner.exe` automatically. Manual plugin configs can leave `binary_path` empty unless SubMiner is in a non-standard location.
+- Plugin installs rewrite `socket_path` to `\\.\pipe\subminer-socket` — do not keep `/tmp/subminer-socket` on Windows.
+- Config is stored at `%APPDATA%\SubMiner\config.jsonc`.
 
 ### From Source (Windows)
 
@@ -284,23 +374,19 @@ cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
 # make install-plugin
 ```
 
-## Rofi Theme (Linux Only)
-
-SubMiner ships a default rofi theme at `assets/themes/subminer.rasi`.
-
-Install path (default auto-detected by `subminer`):
-
-- Linux: `~/.local/share/SubMiner/themes/subminer.rasi`
-- macOS: `~/Library/Application Support/SubMiner/themes/subminer.rasi`
-
-```bash
-mkdir -p ~/.local/share/SubMiner/themes
-cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
-```
-
-Override with `SUBMINER_ROFI_THEME=/absolute/path/to/theme.rasi`.
-
 See [MPV Plugin](/mpv-plugin) for the full configuration reference, keybindings, script messages, and binary auto-detection details.
+
+## Anki Setup (Recommended)
+
+If you plan to mine Anki cards (the primary use case for most users):
+
+1. Install [Anki](https://apps.ankiweb.net/).
+2. Install the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on — open Anki, go to **Tools → Add-ons → Get Add-ons**, enter code `2055492159`.
+3. Restart Anki and keep it running while using SubMiner.
+
+AnkiConnect listens on `http://127.0.0.1:8765` by default. SubMiner will connect to it automatically with no extra config needed for basic card creation.
+
+For enrichment configuration (sentence, audio, screenshot fields), see [Anki Integration](/anki-integration).
 
 ## Verify Installation
 
@@ -312,7 +398,8 @@ subminer doctor
 
 This checks for the app binary, mpv, ffmpeg, config file, and socket path. Fix any failures before continuing.
 
-On Windows, replace `SubMiner.AppImage` with `SubMiner.exe` in the direct app commands below.
+> [!NOTE]
+> On Windows, use `bun run subminer doctor` or run `SubMiner.exe` directly. Replace `SubMiner.AppImage` with `SubMiner.exe` in the direct app commands below.
 
 ```bash
 # Play a file (default plugin config auto-starts visible overlay and waits for annotation readiness; first launch may open first-run setup popup)
@@ -333,5 +420,39 @@ SubMiner.AppImage --help    # Show all CLI options
 ```
 
 You should see the overlay appear over mpv. If subtitles are loaded in the video, they will appear as interactive text in the overlay.
+
+## First-Run Setup
+
+On first launch SubMiner creates a default config file automatically and opens a setup popup. You do **not** need to create the config manually — SubMiner handles it.
+
+The setup popup walks you through:
+
+- **Config file**: auto-created at `~/.config/SubMiner/config.jsonc` (Linux/macOS) or `%APPDATA%\SubMiner\config.jsonc` (Windows)
+- **mpv plugin**: install the bundled Lua plugin for in-player keybindings
+- **Yomitan dictionaries**: import at least one dictionary so lookups work
+- **Windows shortcut** _(Windows only)_: optionally create a `SubMiner mpv` Start Menu/Desktop shortcut
+
+The `Finish setup` button stays disabled until the plugin is installed and at least one dictionary is imported. Once you finish, SubMiner will not show the popup again.
+
+> [!TIP]
+> You can re-open the setup popup at any time with `subminer --setup` or `SubMiner.AppImage --setup`.
+
+## Optional Extras
+
+### Rofi Theme (Linux Only)
+
+SubMiner ships a default rofi theme at `assets/themes/subminer.rasi`.
+
+Install path (default auto-detected by `subminer`):
+
+- Linux: `~/.local/share/SubMiner/themes/subminer.rasi`
+- macOS: `~/Library/Application Support/SubMiner/themes/subminer.rasi`
+
+```bash
+mkdir -p ~/.local/share/SubMiner/themes
+cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
+```
+
+Override with `SUBMINER_ROFI_THEME=/absolute/path/to/theme.rasi`.
 
 Next: [Usage](/usage) — learn about the `subminer` wrapper, keybindings, and YouTube playback.

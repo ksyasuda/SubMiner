@@ -15,9 +15,9 @@ If you want Anki card enrichment (sentence, audio, screenshot), the only config 
     "fields": {
       "sentence": "Sentence",
       "audio": "SentenceAudio",
-      "image": "Picture"
-    }
-  }
+      "image": "Picture",
+    },
+  },
 }
 ```
 
@@ -34,13 +34,16 @@ Field names must match your Anki note type exactly (case-sensitive). See [Anki I
 6. Hover a word, then trigger Yomitan lookup with your configured lookup key/modifier to open the Yomitan popup
 7. Optional [subtitle annotations](/subtitle-annotations) (N+1, character-name, frequency, JLPT) highlight useful cues in real time
 
-There are two ways to use SubMiner:
+There are several ways to use SubMiner:
 
-| Approach | Use when | How |
-| -------- | -------- | --- |
-| **`subminer` script** | You want SubMiner to handle everything — launch mpv, set up the socket, start the overlay. The simplest path. | `subminer video.mkv` |
-| **SubMiner mpv shortcut** (Windows) | The recommended Windows entry point. Created during first-run setup, launches mpv with SubMiner's defaults directly. | Double-click, drag a file onto it, or run `SubMiner.exe --launch-mpv` |
-| **MPV plugin** (all platforms) | You launch mpv yourself or from another tool (file manager, Jellyfin, etc.). Requires `--input-ipc-server=/tmp/subminer-socket` in your mpv config. | Use `y` chord keybindings inside mpv |
+> [!TIP]
+> **New users: start with the `subminer` wrapper script** (or the **SubMiner mpv** shortcut on Windows). It handles mpv launch, IPC socket setup, and overlay lifecycle automatically so you don't need to configure anything in `mpv.conf`. You can add the mpv plugin later for in-player keybindings.
+
+| Approach                            | Use when                                                                                                                                            | How                                                                   |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **`subminer` script**               | You want SubMiner to handle everything — launch mpv, set up the socket, start the overlay. **The simplest path and recommended starting point.**    | `subminer video.mkv`                                                  |
+| **SubMiner mpv shortcut** (Windows) | The recommended Windows entry point. Created during first-run setup, launches mpv with SubMiner's defaults directly.                                | Double-click, drag a file onto it, or run `SubMiner.exe --launch-mpv` |
+| **MPV plugin** (all platforms)      | You launch mpv yourself or from another tool (file manager, Jellyfin, etc.). Requires `--input-ipc-server=/tmp/subminer-socket` in your mpv config. | Use `y` chord keybindings inside mpv                                  |
 
 You can use both — the plugin provides in-player controls, while the `subminer` script (or the Windows shortcut) is convenient for direct playback. The `subminer` script runs directly via shebang on Linux and macOS (no `bun run` needed); on Windows it must be invoked with `bun run subminer` since the shebang is not supported.
 
@@ -278,26 +281,26 @@ By default SubMiner uses the first connected controller. `Alt+C` opens the contr
 
 ### Default Button Mapping
 
-| Button | Action |
-| ------ | ------ |
-| `A` (South) | Toggle lookup |
-| `B` (East) | Close lookup |
-| `Y` (North) | Toggle keyboard-only mode |
-| `X` (West) | Mine card |
-| `L1` | Play current Yomitan audio |
-| `R1` | Next Yomitan audio track |
-| `L3` (left stick press) | Toggle mpv pause |
-| `Select` / `Minus` | Quit mpv |
-| `L2` / `R2` | Unbound (available for custom bindings) |
+| Button                  | Action                                  |
+| ----------------------- | --------------------------------------- |
+| `A` (South)             | Toggle lookup                           |
+| `B` (East)              | Close lookup                            |
+| `Y` (North)             | Toggle keyboard-only mode               |
+| `X` (West)              | Mine card                               |
+| `L1`                    | Play current Yomitan audio              |
+| `R1`                    | Next Yomitan audio track                |
+| `L3` (left stick press) | Toggle mpv pause                        |
+| `Select` / `Minus`      | Quit mpv                                |
+| `L2` / `R2`             | Unbound (available for custom bindings) |
 
 ### Analog Controls
 
-| Input | Action |
-| ----- | ------ |
-| Left stick horizontal | Move token selection left/right |
-| Left stick vertical | Scroll Yomitan popup |
-| Right stick vertical | Jump through Yomitan popup |
-| D-pad | Fallback for stick navigation when configured |
+| Input                 | Action                                        |
+| --------------------- | --------------------------------------------- |
+| Left stick horizontal | Move token selection left/right               |
+| Left stick vertical   | Scroll Yomitan popup                          |
+| Right stick vertical  | Jump through Yomitan popup                    |
+| D-pad                 | Fallback for stick navigation when configured |
 
 Learn mode ignores already-held inputs and waits for the next fresh button press or axis direction, which avoids accidental captures when you open the modal mid-input.
 
