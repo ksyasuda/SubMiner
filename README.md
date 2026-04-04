@@ -112,12 +112,15 @@ Managed local playback now reapplies your configured subtitle language prioritie
 
 ## Requirements
 
-|                | Required                                | Optional                                                   |
-| -------------- | --------------------------------------- | ---------------------------------------------------------- |
-| **Player**     | [`mpv`](https://mpv.io) with IPC socket | —                                                          |
-| **Processing** | `ffmpeg`, `mecab` + `mecab-ipadic`      | `guessit` (AniSkip), `alass` / `ffsubsync` (subtitle sync) |
-| **Media**      | —                                       | `yt-dlp`, `chafa`, `ffmpegthumbnailer`                     |
-| **Selection**  | —                                       | `fzf` / `rofi`                                             |
+|                | Required                                | Recommended                              | Optional                                                    |
+| -------------- | --------------------------------------- | ---------------------------------------- | ----------------------------------------------------------- |
+| **Player**     | [`mpv`](https://mpv.io) with IPC socket | —                                        | —                                                           |
+| **Processing** | —                                       | `ffmpeg` (audio clips & screenshots)     | `mecab` + `mecab-ipadic` (annotation POS filtering), `guessit` (AniSkip), `alass` / `ffsubsync` (subtitle sync) |
+| **Media**      | —                                       | —                                        | `yt-dlp`, `chafa`, `ffmpegthumbnailer`                      |
+| **Selection**  | —                                       | —                                        | `fzf` / `rofi`                                              |
+
+> [!TIP]
+> `ffmpeg` is not strictly required to run SubMiner, but without it audio clips and screenshots will not be attached to Anki cards. Most users will want it installed.
 
 > [!NOTE]
 > [`bun`](https://bun.sh) is required if building from source or using the CLI wrapper: `subminer`. Pre-built releases (AppImage, DMG, installer) do not require it.
@@ -132,9 +135,9 @@ Managed local playback now reapplies your configured subtitle language prioritie
 <summary><b>Arch Linux</b></summary>
 
 ```bash
-paru -S --needed mpv ffmpeg mecab-git mecab-ipadic
+paru -S --needed mpv ffmpeg
 # Optional
-paru -S --needed yt-dlp fzf rofi chafa ffmpegthumbnailer xdotool xorg-xwininfo
+paru -S --needed mecab-git mecab-ipadic yt-dlp fzf rofi chafa ffmpegthumbnailer xdotool xorg-xwininfo
 # Optional: subtitle sync (install at least one for subtitle syncing to work)
 paru -S --needed alass python-ffsubsync
 # X11 / XWAYLAND
@@ -147,9 +150,9 @@ paru -S --needed xdotool xorg-xwininfo
 <summary><b>macOS</b></summary>
 
 ```bash
-brew install mpv ffmpeg mecab mecab-ipadic
+brew install mpv ffmpeg
 # Optional
-brew install yt-dlp fzf rofi chafa ffmpegthumbnailer
+brew install mecab mecab-ipadic yt-dlp fzf rofi chafa ffmpegthumbnailer
 # Optional: subtitle sync (install at least one for subtitle syncing to work)
 brew install alass
 pip install ffsubsync
@@ -164,7 +167,7 @@ Grant Accessibility permission to SubMiner in **System Settings > Privacy & Secu
 
 Install [`mpv`](https://mpv.io/installation/) and [`ffmpeg`](https://ffmpeg.org/download.html) and ensure both are on your `PATH`.
 
-For MeCab, install [MeCab for Windows](https://taku910.github.io/mecab/#download) with the UTF-8 dictionary.
+Optionally install [MeCab for Windows](https://taku910.github.io/mecab/#download) with the UTF-8 dictionary for additional metadata enrichment.
 
 </details>
 
@@ -226,11 +229,17 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 
 </details>
 
-### 2. First Launch
+### 2. Check Dependencies
+
+```bash
+subminer doctor                 # verify mpv, ffmpeg, config, and socket
+```
+
+### 3. First Launch
 
 Run the app. On first launch SubMiner starts in the system tray, creates a default config, and opens a setup popup to finish config, install the mpv plugin, and configure Yomitan dictionaries.
 
-### 3. Mine
+### 4. Mine
 
 ```bash
 subminer video.mkv          # play video with overlay

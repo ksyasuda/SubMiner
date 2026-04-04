@@ -4,6 +4,26 @@
 > SubMiner requires the bundled Yomitan instance to have at least one dictionary imported for lookups to work.
 > See [Yomitan setup](#yomitan-setup) for details.
 
+::: tip Just finished first-run setup?
+If you want Anki card enrichment (sentence, audio, screenshot), the only config you need is `ankiConnect` with your deck name and field names. Here is a minimal working example:
+
+```jsonc
+{
+  "ankiConnect": {
+    "enabled": true,
+    "deck": "Mining",
+    "fields": {
+      "sentence": "Sentence",
+      "audio": "SentenceAudio",
+      "image": "Picture"
+    }
+  }
+}
+```
+
+Field names must match your Anki note type exactly (case-sensitive). See [Anki Integration](/anki-integration) for the full reference.
+:::
+
 ## How It Works
 
 1. SubMiner starts the overlay app in the background

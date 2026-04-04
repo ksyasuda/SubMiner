@@ -4,14 +4,14 @@
 
 ### System Dependencies
 
-| Dependency           | Required   | Notes                                                    |
-| -------------------- | ---------- | -------------------------------------------------------- |
-| Bun                  | Yes        | Required for `subminer` wrapper and source workflows     |
-| mpv                  | Yes        | Must support IPC sockets (`--input-ipc-server`)          |
-| ffmpeg               | For media  | Audio extraction and screenshot generation               |
-| MeCab + mecab-ipadic | No         | Optional Japanese metadata enrichment (not the primary tokenizer) |
-| fuse2                | Linux only | Required for AppImage                                    |
-| yt-dlp               | No         | Recommended for YouTube playback and subtitle extraction |
+| Dependency           | Required    | Notes                                                    |
+| -------------------- | ----------- | -------------------------------------------------------- |
+| mpv                  | Yes         | Must support IPC sockets (`--input-ipc-server`)          |
+| Bun                  | For wrapper | Required for `subminer` CLI wrapper and source builds. Pre-built releases (AppImage, DMG, installer) work without it — only the `subminer` wrapper script needs Bun on `PATH`. |
+| ffmpeg               | Recommended | Audio extraction and screenshot generation. Without it SubMiner still runs, but audio and image fields on Anki cards will be empty. |
+| MeCab + mecab-ipadic | No          | Adds part-of-speech data used to filter particles out of N+1, JLPT, and frequency annotations. Without it annotations still render, but POS-based filtering is less precise. |
+| fuse2                | Linux only  | Required for AppImage                                    |
+| yt-dlp               | No          | Recommended for YouTube playback and subtitle extraction |
 
 ### Platform-Specific
 
@@ -70,7 +70,9 @@ chmod +x ~/.local/bin/subminer
 
 ```
 
-The `subminer` wrapper uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`.
+::: warning Bun required for the wrapper
+The `subminer` wrapper uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`. If you see `/usr/bin/env: 'bun': No such file or directory` when running `subminer`, install Bun first: `curl -fsSL https://bun.sh/install | bash`. The AppImage itself does **not** need Bun — only the `subminer` convenience wrapper does.
+:::
 
 ### From Source
 
@@ -103,7 +105,9 @@ A **ZIP** artifact is also available as a fallback — unzip and drag `SubMiner.
 Install dependencies using Homebrew:
 
 ```bash
-brew install mpv mecab mecab-ipadic
+brew install mpv ffmpeg
+# Optional but recommended if you use N+1, JLPT, or frequency annotations
+brew install mecab mecab-ipadic
 ```
 
 ### From Source (macOS)
@@ -123,13 +127,20 @@ For unsigned local builds:
 bun run build:mac:unsigned
 ```
 
+### Gatekeeper
+
+If macOS blocks SubMiner on first launch, right-click the app and select **Open** to bypass the warning. Alternatively, remove the quarantine attribute:
+
+```bash
+xattr -d com.apple.quarantine /Applications/SubMiner.app
+```
+
 ### Accessibility Permission
 
 After launching SubMiner for the first time, grant accessibility permission:
 
-1. Open **System Preferences** → **Security & Privacy** → **Privacy** tab
-2. Select **Accessibility** from the left sidebar
-3. Add SubMiner to the list
+1. Open **System Settings** → **Privacy & Security** → **Accessibility**
+2. Enable SubMiner in the list (add it if it does not appear)
 
 Without this permission, window tracking will not work and the overlay won't follow the mpv window.
 
@@ -167,7 +178,7 @@ Download the latest Windows installer from [GitHub Releases](https://github.com/
 - `SubMiner-<version>.exe` installs the app, Start menu shortcut, and default files under `Program Files`
 - `SubMiner-<version>.zip` is available as a portable fallback
 
-Install `mpv` separately and ensure `mpv.exe` is on `PATH`. `ffmpeg` is still required for media extraction, and MeCab remains optional.
+Install `mpv` separately and ensure `mpv.exe` is on `PATH`. `ffmpeg` is recommended for audio/screenshot extraction (without it, media fields on Anki cards will be empty). MeCab is optional.
 
 ### Windows Usage Notes
 
@@ -184,10 +195,14 @@ Install `mpv` separately and ensure `mpv.exe` is on `PATH`. `ffmpeg` is still re
 git clone https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
 bun install
+
+# Windows requires building the texthooker-ui submodule manually before
+# the main build (Linux/macOS handle this automatically during `bun run build`).
 Set-Location vendor/texthooker-ui
 bun install --frozen-lockfile
 bun run build
 Set-Location ../..
+
 bun run build:win
 ```
 
@@ -240,7 +255,13 @@ See [MPV Plugin](/mpv-plugin) for the full configuration reference, keybindings,
 
 ## Verify Installation
 
-After installing, confirm SubMiner is working:
+After installing, run the built-in diagnostic to confirm dependencies are in place:
+
+```bash
+subminer doctor
+```
+
+This checks for the app binary, mpv, ffmpeg, config file, and socket path. Fix any failures before continuing.
 
 On Windows, replace `SubMiner.AppImage` with `SubMiner.exe` in the direct app commands below.
 
