@@ -16,7 +16,7 @@ export async function waitForSetupCompletion(deps: {
     if (isSetupCompleted(state)) {
       return 'completed';
     }
-    if (ignoringCancelled && state?.status !== 'cancelled') {
+    if (ignoringCancelled && state != null && state.status !== 'cancelled') {
       ignoringCancelled = false;
     }
     if (state?.status === 'cancelled') {
