@@ -81,9 +81,12 @@
     "build:win:unsigned": "bun run build && node scripts/build-win-unsigned.mjs"
   },
   "overrides": {
+    "@xmldom/xmldom": "0.8.12",
     "app-builder-lib": "26.8.2",
     "electron-builder-squirrel-windows": "26.8.2",
+    "lodash": "4.18.0",
     "minimatch": "10.2.3",
+    "picomatch": "4.0.4",
     "tar": "7.5.11"
   },
   "keywords": [
@@ -112,7 +115,7 @@
   "devDependencies": {
     "@types/node": "^25.3.0",
     "@types/ws": "^8.18.1",
-    "electron": "^37.10.3",
+    "electron": "39.8.6",
     "electron-builder": "26.8.2",
     "esbuild": "^0.25.12",
     "prettier": "^3.8.1",
