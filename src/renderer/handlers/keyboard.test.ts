@@ -53,6 +53,21 @@ function installKeyboardTestGlobals() {
   let playbackPausedResponse: boolean | null = false;
   let statsToggleKey = 'Backquote';
   let markWatchedKey = 'KeyW';
+  let configuredShortcuts = {
+    copySubtitle: '',
+    copySubtitleMultiple: '',
+    updateLastCardFromClipboard: '',
+    triggerFieldGrouping: '',
+    triggerSubsync: 'Ctrl+Alt+S',
+    mineSentence: '',
+    mineSentenceMultiple: '',
+    multiCopyTimeoutMs: 1000,
+    toggleSecondarySub: '',
+    markAudioCard: '',
+    openRuntimeOptions: 'CommandOrControl+Shift+O',
+    openJimaku: 'Ctrl+Shift+J',
+    toggleVisibleOverlayGlobal: '',
+  };
   let markActiveVideoWatchedResult = true;
   let markActiveVideoWatchedCalls = 0;
   let statsToggleOverlayCalls = 0;
@@ -138,6 +153,7 @@ function installKeyboardTestGlobals() {
       },
       electronAPI: {
         getKeybindings: async () => [],
+        getConfiguredShortcuts: async () => configuredShortcuts,
         sendMpvCommand: (command: Array<string | number>) => {
           mpvCommands.push(command);
         },
@@ -273,6 +289,9 @@ function installKeyboardTestGlobals() {
     setMarkWatchedKey: (value: string) => {
       markWatchedKey = value;
     },
+    setConfiguredShortcuts: (value: typeof configuredShortcuts) => {
+      configuredShortcuts = value;
+    },
     setMarkActiveVideoWatchedResult: (value: boolean) => {
       markActiveVideoWatchedResult = value;
     },
@@ -315,6 +334,7 @@ function createKeyboardHandlerHarness() {
       overlay: testGlobals.overlay,
     },
     platform: {
+      isLinuxPlatform: false,
       shouldToggleMouseIgnore: false,
       isMacOSPlatform: false,
       isModalLayer: false,
@@ -760,6 +780,51 @@ test('youtube picker: unhandled keys still dispatch mpv keybindings', async () =
     testGlobals.dispatchKeydown({ key: 'q', code: 'KeyQ' });
 
     assert.deepEqual(testGlobals.mpvCommands.slice(-2), [['cycle', 'pause'], ['quit']]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('linux overlay shortcut: Ctrl+Alt+S dispatches subsync special command locally', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    ctx.platform.isLinuxPlatform = true;
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchKeydown({ key: 's', code: 'KeyS', ctrlKey: true, altKey: true });
+
+    assert.deepEqual(testGlobals.mpvCommands, [['__subsync-trigger']]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('linux overlay shortcut: Ctrl+Shift+J dispatches jimaku special command locally', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    ctx.platform.isLinuxPlatform = true;
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchKeydown({ key: 'J', code: 'KeyJ', ctrlKey: true, shiftKey: true });
+
+    assert.deepEqual(testGlobals.mpvCommands, [['__jimaku-open']]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('linux overlay shortcut: CommandOrControl+Shift+O dispatches runtime options locally', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    ctx.platform.isLinuxPlatform = true;
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchKeydown({ key: 'O', code: 'KeyO', ctrlKey: true, shiftKey: true });
+
+    assert.deepEqual(testGlobals.mpvCommands, [['__runtime-options-open']]);
   } finally {
     testGlobals.restore();
   }

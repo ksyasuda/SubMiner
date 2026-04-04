@@ -12,6 +12,7 @@ type MpvPropertyClientLike = {
 export interface MpvCommandFromIpcRuntimeDeps {
   triggerSubsyncFromConfig: () => void;
   openRuntimeOptionsPalette: () => void;
+  openJimaku: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
   openPlaylistBrowser: () => void | Promise<void>;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
@@ -35,6 +36,7 @@ export function handleMpvCommandFromIpcRuntime(
       specialCommands: SPECIAL_COMMANDS,
       triggerSubsyncFromConfig: deps.triggerSubsyncFromConfig,
       openRuntimeOptionsPalette: deps.openRuntimeOptionsPalette,
+      openJimaku: deps.openJimaku,
       openYoutubeTrackPicker: deps.openYoutubeTrackPicker,
       openPlaylistBrowser: deps.openPlaylistBrowser,
       runtimeOptionsCycle: deps.cycleRuntimeOption,

@@ -22,6 +22,7 @@ export interface OverlayModalRuntime {
     },
   ) => boolean;
   openRuntimeOptionsPalette: () => void;
+  openJimaku: () => void;
   handleOverlayModalClosed: (modal: OverlayHostedModal) => void;
   notifyOverlayModalOpened: (modal: OverlayHostedModal) => void;
   waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
@@ -307,6 +308,12 @@ export function createOverlayModalRuntimeService(
     });
   };
 
+  const openJimaku = (): void => {
+    sendToActiveOverlayWindow('jimaku:open', undefined, {
+      restoreOnModalClose: 'jimaku',
+    });
+  };
+
   const handleOverlayModalClosed = (modal: OverlayHostedModal): void => {
     if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
     restoreVisibleOverlayOnModalClose.delete(modal);
@@ -379,6 +386,7 @@ export function createOverlayModalRuntimeService(
   return {
     sendToActiveOverlayWindow,
     openRuntimeOptionsPalette,
+    openJimaku,
     handleOverlayModalClosed,
     notifyOverlayModalOpened,
     waitForModalOpen,

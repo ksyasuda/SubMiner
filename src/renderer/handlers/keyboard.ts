@@ -1,4 +1,5 @@
-import type { Keybinding } from '../../types';
+import { SPECIAL_COMMANDS } from '../../config/definitions';
+import type { Keybinding, ShortcutsConfig } from '../../types';
 import type { RendererContext } from '../context';
 import {
   YOMITAN_POPUP_HIDDEN_EVENT,
@@ -35,6 +36,7 @@ export function createKeyboardHandlers(
   // Timeout for the modal chord capture window (e.g. Y followed by H/K).
   const CHORD_TIMEOUT_MS = 1000;
   const KEYBOARD_SELECTED_WORD_CLASS = 'keyboard-selected';
+  const linuxOverlayShortcutCommands = new Map<string, (string | number)[]>();
   let pendingSelectionAnchorAfterSubtitleSeek: 'start' | 'end' | null = null;
   let pendingLookupRefreshAfterSubtitleSeek = false;
   let resetSelectionToStartOnNextSubtitleSync = false;
@@ -72,6 +74,117 @@ export function createKeyboardHandlers(
     if (e.metaKey) parts.push('Meta');
     parts.push(e.code);
     return parts.join('+');
+  }
+
+  function acceleratorToKeyToken(token: string): string | null {
+    const normalized = token.trim();
+    if (!normalized) return null;
+    if (/^[a-z]$/i.test(normalized)) {
+      return `Key${normalized.toUpperCase()}`;
+    }
+    if (/^[0-9]$/.test(normalized)) {
+      return `Digit${normalized}`;
+    }
+    const exactMap: Record<string, string> = {
+      space: 'Space',
+      tab: 'Tab',
+      enter: 'Enter',
+      return: 'Enter',
+      esc: 'Escape',
+      escape: 'Escape',
+      up: 'ArrowUp',
+      down: 'ArrowDown',
+      left: 'ArrowLeft',
+      right: 'ArrowRight',
+      backspace: 'Backspace',
+      delete: 'Delete',
+      slash: 'Slash',
+      backslash: 'Backslash',
+      minus: 'Minus',
+      plus: 'Equal',
+      equal: 'Equal',
+      comma: 'Comma',
+      period: 'Period',
+      quote: 'Quote',
+      semicolon: 'Semicolon',
+      bracketleft: 'BracketLeft',
+      bracketright: 'BracketRight',
+      backquote: 'Backquote',
+    };
+    const lower = normalized.toLowerCase();
+    if (exactMap[lower]) return exactMap[lower];
+    if (/^key[a-z]$/i.test(normalized) || /^digit[0-9]$/i.test(normalized)) {
+      return normalized[0]!.toUpperCase() + normalized.slice(1);
+    }
+    if (/^arrow(?:up|down|left|right)$/i.test(normalized)) {
+      return normalized[0]!.toUpperCase() + normalized.slice(1);
+    }
+    if (/^f\d{1,2}$/i.test(normalized)) {
+      return normalized.toUpperCase();
+    }
+    return null;
+  }
+
+  function acceleratorToKeyString(accelerator: string): string | null {
+    const normalized = accelerator
+      .replace(/\s+/g, '')
+      .replace(/cmdorctrl/gi, 'CommandOrControl');
+    if (!normalized) return null;
+    const parts = normalized.split('+').filter(Boolean);
+    const keyToken = parts.pop();
+    if (!keyToken) return null;
+
+    const eventParts: string[] = [];
+    for (const modifier of parts) {
+      const lower = modifier.toLowerCase();
+      if (lower === 'ctrl' || lower === 'control') {
+        eventParts.push('Ctrl');
+        continue;
+      }
+      if (lower === 'alt' || lower === 'option') {
+        eventParts.push('Alt');
+        continue;
+      }
+      if (lower === 'shift') {
+        eventParts.push('Shift');
+        continue;
+      }
+      if (lower === 'meta' || lower === 'super' || lower === 'command' || lower === 'cmd') {
+        eventParts.push('Meta');
+        continue;
+      }
+      if (lower === 'commandorcontrol') {
+        eventParts.push(ctx.platform.isMacOSPlatform ? 'Meta' : 'Ctrl');
+        continue;
+      }
+      return null;
+    }
+
+    const normalizedKey = acceleratorToKeyToken(keyToken);
+    if (!normalizedKey) return null;
+    eventParts.push(normalizedKey);
+    return eventParts.join('+');
+  }
+
+  function updateConfiguredShortcuts(shortcuts: Required<ShortcutsConfig>): void {
+    linuxOverlayShortcutCommands.clear();
+    const bindings: Array<[string | null, (string | number)[]]> = [
+      [shortcuts.triggerSubsync, [SPECIAL_COMMANDS.SUBSYNC_TRIGGER]],
+      [shortcuts.openRuntimeOptions, [SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN]],
+      [shortcuts.openJimaku, [SPECIAL_COMMANDS.JIMAKU_OPEN]],
+    ];
+
+    for (const [accelerator, command] of bindings) {
+      if (!accelerator) continue;
+      const keyString = acceleratorToKeyString(accelerator);
+      if (keyString) {
+        linuxOverlayShortcutCommands.set(keyString, command);
+      }
+    }
+  }
+
+  async function refreshConfiguredShortcuts(): Promise<void> {
+    updateConfiguredShortcuts(await window.electronAPI.getConfiguredShortcuts());
   }
 
   function dispatchYomitanPopupKeydown(
@@ -779,12 +892,14 @@ export function createKeyboardHandlers(
   }
 
   async function setupMpvInputForwarding(): Promise<void> {
-    const [keybindings, statsToggleKey, markWatchedKey] = await Promise.all([
+    const [keybindings, shortcuts, statsToggleKey, markWatchedKey] = await Promise.all([
       window.electronAPI.getKeybindings(),
+      window.electronAPI.getConfiguredShortcuts(),
       window.electronAPI.getStatsToggleKey(),
       window.electronAPI.getMarkWatchedKey(),
     ]);
     updateKeybindings(keybindings);
+    updateConfiguredShortcuts(shortcuts);
     ctx.state.statsToggleKey = statsToggleKey;
     ctx.state.markWatchedKey = markWatchedKey;
     syncKeyboardTokenSelection();
@@ -982,6 +1097,14 @@ export function createKeyboardHandlers(
       }
 
       const keyString = keyEventToString(e);
+      const linuxOverlayCommand = ctx.platform.isLinuxPlatform
+        ? linuxOverlayShortcutCommands.get(keyString)
+        : undefined;
+      if (linuxOverlayCommand) {
+        e.preventDefault();
+        dispatchConfiguredMpvCommand(linuxOverlayCommand);
+        return;
+      }
       const command = ctx.state.keybindingsMap.get(keyString);
 
       if (command) {
@@ -1015,6 +1138,7 @@ export function createKeyboardHandlers(
 
   return {
     setupMpvInputForwarding,
+    refreshConfiguredShortcuts,
     updateKeybindings,
     syncKeyboardTokenSelection,
     handleSubtitleContentUpdated,

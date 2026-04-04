@@ -10,6 +10,7 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
     specialCommands: {
       SUBSYNC_TRIGGER: '__subsync-trigger',
       RUNTIME_OPTIONS_OPEN: '__runtime-options-open',
+      JIMAKU_OPEN: '__jimaku-open',
       RUNTIME_OPTION_CYCLE_PREFIX: '__runtime-option-cycle:',
       REPLAY_SUBTITLE: '__replay-subtitle',
       PLAY_NEXT_SUBTITLE: '__play-next-subtitle',
@@ -23,6 +24,9 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
     },
     openRuntimeOptionsPalette: () => {
       calls.push('runtime-options');
+    },
+    openJimaku: () => {
+      calls.push('jimaku');
     },
     openYoutubeTrackPicker: () => {
       calls.push('youtube-picker');
@@ -110,6 +114,14 @@ test('handleMpvCommandFromIpc dispatches special youtube picker open command', (
   const { options, calls, sentCommands, osd } = createOptions();
   handleMpvCommandFromIpc(['__youtube-picker-open'], options);
   assert.deepEqual(calls, ['youtube-picker']);
+  assert.deepEqual(sentCommands, []);
+  assert.deepEqual(osd, []);
+});
+
+test('handleMpvCommandFromIpc dispatches special jimaku open command', () => {
+  const { options, calls, sentCommands, osd } = createOptions();
+  handleMpvCommandFromIpc(['__jimaku-open'], options);
+  assert.deepEqual(calls, ['jimaku']);
   assert.deepEqual(sentCommands, []);
   assert.deepEqual(osd, []);
 });

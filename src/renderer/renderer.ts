@@ -621,6 +621,7 @@ async function init(): Promise<void> {
   window.electronAPI.onConfigHotReload((payload: ConfigHotReloadPayload) => {
     runGuarded('config:hot-reload', () => {
       keyboardHandlers.updateKeybindings(payload.keybindings);
+      void keyboardHandlers.refreshConfiguredShortcuts();
       subtitleRenderer.applySubtitleStyle(payload.subtitleStyle);
       subtitleRenderer.updateSecondarySubMode(payload.secondarySubMode);
       ctx.state.subtitleSidebarConfig = payload.subtitleSidebar;
