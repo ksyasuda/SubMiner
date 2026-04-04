@@ -55,7 +55,7 @@ test('discordPresence invalid values warn and keep defaults', () => {
 
   applyIntegrationConfig(context);
 
-  assert.equal(context.resolved.discordPresence.enabled, false);
+  assert.equal(context.resolved.discordPresence.enabled, true);
   assert.equal(context.resolved.discordPresence.updateIntervalMs, 3_000);
   assert.equal(context.resolved.discordPresence.debounceMs, 750);
 

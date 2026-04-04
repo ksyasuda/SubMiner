@@ -5,7 +5,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
     enableJlpt: false,
     preserveLineBreaks: false,
     autoPauseVideoOnHover: true,
-    autoPauseVideoOnYomitanPopup: false,
+    autoPauseVideoOnYomitanPopup: true,
     hoverTokenColor: '#f4dbd6',
     hoverTokenBackgroundColor: 'rgba(54, 58, 79, 0.84)',
     nameMatchEnabled: true,
@@ -58,7 +58,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
     },
   },
   subtitleSidebar: {
-    enabled: false,
+    enabled: true,
     autoOpen: false,
     layout: 'overlay',
     toggleKey: 'Backslash',

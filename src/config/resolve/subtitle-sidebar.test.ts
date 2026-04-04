@@ -71,7 +71,7 @@ test('subtitleSidebar falls back and warns on invalid values', () => {
 
   applySubtitleDomainConfig(context);
 
-  assert.equal(context.resolved.subtitleSidebar.enabled, false);
+  assert.equal(context.resolved.subtitleSidebar.enabled, true);
   assert.equal(context.resolved.subtitleSidebar.autoOpen, false);
   assert.equal(context.resolved.subtitleSidebar.layout, 'overlay');
   assert.equal(context.resolved.subtitleSidebar.maxWidth, 420);

@@ -51,7 +51,7 @@ The visible overlay renders subtitles as tokenized hoverable word spans. Each wo
 
 - Word-level hover targets for Yomitan lookup
 - Auto pause/resume on subtitle hover (enabled by default via `subtitleStyle.autoPauseVideoOnHover`)
-- Optional pause while the Yomitan popup is open (`subtitleStyle.autoPauseVideoOnYomitanPopup`)
+- Auto pause/resume while the Yomitan popup is open (enabled by default via `subtitleStyle.autoPauseVideoOnYomitanPopup`)
 - Right-click to pause/resume
 - Right-click + drag to reposition subtitles
 - Modal dialogs for Jimaku search, field grouping, subsync, and runtime options

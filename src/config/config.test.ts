@@ -37,6 +37,9 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
   assert.equal(config.ai.enabled, false);
   assert.equal(config.ai.apiKeyCommand, '');
+  assert.equal(config.texthooker.openBrowser, false);
+  assert.equal(config.controller.enabled, false);
+  assert.equal(config.ankiConnect.enabled, true);
   assert.deepEqual(config.ankiConnect.ai, {
     enabled: false,
     model: '',
@@ -47,12 +50,13 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.startupWarmups.yomitanExtension, true);
   assert.equal(config.startupWarmups.subtitleDictionaries, true);
   assert.equal(config.startupWarmups.jellyfinRemoteSession, true);
-  assert.equal(config.discordPresence.enabled, false);
+  assert.equal(config.discordPresence.enabled, true);
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
   assert.equal(config.subtitleStyle.preserveLineBreaks, false);
   assert.equal(config.subtitleStyle.autoPauseVideoOnHover, true);
-  assert.equal(config.subtitleStyle.autoPauseVideoOnYomitanPopup, false);
+  assert.equal(config.subtitleStyle.autoPauseVideoOnYomitanPopup, true);
+  assert.equal(config.subtitleSidebar.enabled, true);
   assert.equal(config.subtitleStyle.hoverTokenColor, '#f4dbd6');
   assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, 'rgba(54, 58, 79, 0.84)');
   assert.equal(
@@ -96,6 +100,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.immersionTracking.lifetimeSummaries?.global, true);
   assert.equal(config.immersionTracking.lifetimeSummaries?.anime, true);
   assert.equal(config.immersionTracking.lifetimeSummaries?.media, true);
+  assert.equal(config.stats.autoOpenBrowser, false);
 });
 
 test('throws actionable startup parse error for malformed config at construction time', () => {
@@ -2122,7 +2127,23 @@ test('template generator includes known keys', () => {
   assert.match(output, /"port": 6678,? \/\/ Annotated subtitle websocket server port\./);
   assert.match(
     output,
-    /"enabled": false,? \/\/ Enable AnkiConnect integration\. Values: true \| false/,
+    /"openBrowser": false,? \/\/ Open browser setting\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"enabled": false,? \/\/ Enable overlay controller support through the Chrome Gamepad API\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"autoPauseVideoOnYomitanPopup": true,? \/\/ Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"enabled": true,? \/\/ Enable the subtitle sidebar feature for parsed subtitle sources\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"enabled": true,? \/\/ Enable AnkiConnect integration\. Values: true \| false/,
   );
   assert.match(
     output,
@@ -2135,6 +2156,14 @@ test('template generator includes known keys', () => {
   assert.match(
     output,
     /"enabled": false,? \/\/ Enable shared OpenAI-compatible AI provider features\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"enabled": true,? \/\/ Enable optional Discord Rich Presence updates\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"autoOpenBrowser": false,? \/\/ Automatically open the stats dashboard in a browser when the server starts\. Values: true \| false/,
   );
   assert.match(
     output,

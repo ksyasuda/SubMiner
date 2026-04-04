@@ -18,7 +18,7 @@
   // ==========================================
   "texthooker": {
     "launchAtStartup": true, // Launch texthooker server automatically when SubMiner starts. Values: true | false
-    "openBrowser": true // Open browser setting. Values: true | false
+    "openBrowser": false // Open browser setting. Values: true | false
   }, // Configure texthooker startup launch and browser opening behavior.
 
   // ==========================================
@@ -58,7 +58,7 @@
   // Override controller.buttonIndices when your pad reports non-standard raw button numbers.
   // ==========================================
   "controller": {
-    "enabled": true, // Enable overlay controller support through the Chrome Gamepad API. Values: true | false
+    "enabled": false, // Enable overlay controller support through the Chrome Gamepad API. Values: true | false
     "preferredGamepadId": "", // Preferred controller id saved from the controller config modal.
     "preferredGamepadLabel": "", // Preferred controller display label saved for diagnostics.
     "smoothScroll": true, // Use smooth scrolling for controller-driven popup scroll input. Values: true | false
@@ -225,7 +225,7 @@
     "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
     "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false
-    "autoPauseVideoOnYomitanPopup": false, // Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes. Values: true | false
+    "autoPauseVideoOnYomitanPopup": true, // Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes. Values: true | false
     "hoverTokenColor": "#f4dbd6", // Hex color used for hovered subtitle token highlight in mpv.
     "hoverTokenBackgroundColor": "rgba(54, 58, 79, 0.84)", // CSS color used for hovered subtitle token background highlight in mpv.
     "nameMatchEnabled": true, // Enable subtitle token coloring for matches from the SubMiner character dictionary. Values: true | false
@@ -290,7 +290,7 @@
   // Hot-reload: subtitle sidebar changes apply live without restarting SubMiner.
   // ==========================================
   "subtitleSidebar": {
-    "enabled": false, // Enable the subtitle sidebar feature for parsed subtitle sources. Values: true | false
+    "enabled": true, // Enable the subtitle sidebar feature for parsed subtitle sources. Values: true | false
     "autoOpen": false, // Automatically open the subtitle sidebar once during overlay startup. Values: true | false
     "layout": "overlay", // Render the subtitle sidebar as a floating overlay or reserve space inside mpv. Values: overlay | embedded
     "toggleKey": "Backslash", // KeyboardEvent.code used to toggle the subtitle sidebar open and closed.
@@ -330,7 +330,7 @@
   // Most other AnkiConnect settings still require restart.
   // ==========================================
   "ankiConnect": {
-    "enabled": false, // Enable AnkiConnect integration. Values: true | false
+    "enabled": true, // Enable AnkiConnect integration. Values: true | false
     "url": "http://127.0.0.1:8765", // Url setting.
     "pollingRate": 3000, // Polling interval in milliseconds.
     "proxy": {
@@ -506,7 +506,7 @@
   // Uses official SubMiner Discord app assets for polished card visuals.
   // ==========================================
   "discordPresence": {
-    "enabled": false, // Enable optional Discord Rich Presence updates. Values: true | false
+    "enabled": true, // Enable optional Discord Rich Presence updates. Values: true | false
     "presenceStyle": "default", // Presence card text preset: "default" (clean bilingual), "meme" (Mining and crafting), "japanese" (fully JP), or "minimal".
     "updateIntervalMs": 3000, // Minimum interval between presence payload updates.
     "debounceMs": 750 // Debounce delay used to collapse bursty presence updates.
@@ -553,6 +553,6 @@
     "markWatchedKey": "KeyW", // Key code to mark the current video as watched and advance to the next playlist entry.
     "serverPort": 6969, // Port for the stats HTTP server.
     "autoStartServer": true, // Automatically start the stats server on launch. Values: true | false
-    "autoOpenBrowser": true // Automatically open the stats dashboard in a browser when the server starts. Values: true | false
+    "autoOpenBrowser": false // Automatically open the stats dashboard in a browser when the server starts. Values: true | false
   } // Local immersion stats dashboard served on localhost and available as an in-app overlay.
 }

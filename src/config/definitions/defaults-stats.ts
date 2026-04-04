@@ -6,6 +6,6 @@ export const STATS_DEFAULT_CONFIG: Pick<ResolvedConfig, 'stats'> = {
     markWatchedKey: 'KeyW',
     serverPort: 6969,
     autoStartServer: true,
-    autoOpenBrowser: true,
+    autoOpenBrowser: false,
   },
 };

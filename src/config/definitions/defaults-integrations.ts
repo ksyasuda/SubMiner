@@ -13,7 +13,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   | 'youtubeSubgen'
 > = {
   ankiConnect: {
-    enabled: false,
+    enabled: true,
     url: 'http://127.0.0.1:8765',
     pollingRate: 3000,
     proxy: {
@@ -132,7 +132,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     transcodeVideoCodec: 'h264',
   },
   discordPresence: {
-    enabled: false,
+    enabled: true,
     presenceStyle: 'default' as const,
     updateIntervalMs: 3_000,
     debounceMs: 750,

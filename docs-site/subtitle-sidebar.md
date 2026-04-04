@@ -2,7 +2,7 @@
 
 The subtitle sidebar displays the full parsed cue list for the active subtitle file as a scrollable panel alongside mpv. It lets you review past and upcoming lines, click any cue to seek directly to that moment, and follow along without depending on the transient overlay subtitles.
 
-The sidebar is opt-in and disabled by default. Enable it under `subtitleSidebar.enabled` in your config.
+The sidebar is enabled by default. Set `subtitleSidebar.enabled` to `false` if you want to turn it off.
 
 ## How It Works
 
@@ -29,7 +29,7 @@ Enable and configure the sidebar under `subtitleSidebar` in your config file:
 ```json
 {
   "subtitleSidebar": {
-    "enabled": false,
+    "enabled": true,
     "autoOpen": false,
     "layout": "overlay",
     "toggleKey": "Backslash",
@@ -43,7 +43,7 @@ Enable and configure the sidebar under `subtitleSidebar` in your config file:
 
 | Option                      | Type    | Default      | Description                                                                                        |
 | --------------------------- | ------- | ------------ | -------------------------------------------------------------------------------------------------- |
-| `enabled`                   | boolean | `false`      | Enable subtitle sidebar support                                                                    |
+| `enabled`                   | boolean | `true`       | Enable subtitle sidebar support                                                                    |
 | `autoOpen`                  | boolean | `false`      | Open the sidebar automatically on overlay startup                                                  |
 | `layout`                    | string  | `"overlay"`  | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space                        |
 | `toggleKey`                 | string  | `"Backslash"` | `KeyboardEvent.code` for the toggle shortcut                                                      |

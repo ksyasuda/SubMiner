@@ -252,7 +252,7 @@ See `config.example.jsonc` for detailed configuration options.
 {
   "texthooker": {
     "launchAtStartup": true,
-    "openBrowser": true
+    "openBrowser": false
   }
 }
 ```
@@ -260,7 +260,7 @@ See `config.example.jsonc` for detailed configuration options.
 | Option           | Values          | Description                                                                                      |
 | ---------------- | --------------- | ------------------------------------------------------------------------------------------------ |
 | `launchAtStartup`| `true`, `false` | Start texthooker automatically with SubMiner startup (default: `true`)                            |
-| `openBrowser`    | `true`, `false` | Open browser tab when texthooker starts (default: `true`)                                          |
+| `openBrowser`    | `true`, `false` | Open browser tab when texthooker starts (default: `false`)                                         |
 
 ## Subtitle Display
 
@@ -307,7 +307,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                                   |
 | `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.         |
 | `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                 |
-| `autoPauseVideoOnYomitanPopup`     | boolean     | Pause playback while the Yomitan popup is open, then resume when the popup closes (`false` by default).                    |
+| `autoPauseVideoOnYomitanPopup`     | boolean     | Pause playback while the Yomitan popup is open, then resume when the popup closes (`true` by default).                     |
 | `hoverTokenColor`                  | string      | Hex color used for hovered subtitle token highlight in mpv (default: catppuccin mauve)                                     |
 | `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight (default: semi-transparent dark)                            |
 | `nameMatchEnabled`                 | boolean     | Enable subtitle token coloring for matches from the SubMiner character dictionary (`true` by default)                      |
@@ -355,7 +355,7 @@ Configure the parsed-subtitle sidebar modal.
 ```json
 {
   "subtitleSidebar": {
-    "enabled": false,
+    "enabled": true,
     "autoOpen": false,
     "layout": "overlay",
     "toggleKey": "Backslash",
@@ -369,7 +369,7 @@ Configure the parsed-subtitle sidebar modal.
 
 | Option                      | Values           | Description                                                                      |
 | --------------------------- | ---------------- | -------------------------------------------------------------------------------- |
-| `enabled`                   | boolean          | Enable subtitle sidebar support (`false` by default)                             |
+| `enabled`                   | boolean          | Enable subtitle sidebar support (`true` by default)                              |
 | `autoOpen`                  | boolean          | Open sidebar automatically on overlay startup (`false` by default)                |
 | `layout`                    | string           | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space to mimic browser-like layout |
 | `toggleKey`                 | string           | `KeyboardEvent.code` used to open/close the sidebar (default: `"Backslash"`)     |
@@ -848,7 +848,7 @@ This example is intentionally compact. The option table below documents availabl
 
 | Option                                  | Values                                  | Description                                                                                                                                   |
 | --------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`                               | `true`, `false`                         | Enable AnkiConnect integration (default: `false`)                                                                                             |
+| `enabled`                               | `true`, `false`                         | Enable AnkiConnect integration (default: `true`)                                                                                              |
 | `url`                                   | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                                        |
 | `pollingRate`                           | number (ms)                             | How often to check for new cards in polling mode (default: `3000`; ignored for direct proxy `addNote`/`addNotes` updates)                     |
 | `proxy.enabled`                         | `true`, `false`                         | Enable local AnkiConnect-compatible proxy for push-based auto-enrichment (default: `true`)                                                    |
@@ -1197,7 +1197,7 @@ Jellyfin remote auto-connect runs only when all three are `true`: `jellyfin.enab
 
 ### Discord Rich Presence
 
-Discord Rich Presence is optional and disabled by default. When enabled, SubMiner publishes a polished activity card that reflects current media title, playback state, and session timer.
+Discord Rich Presence is enabled by default. SubMiner publishes a polished activity card that reflects current media title, playback state, and session timer unless you turn it off.
 
 ```json
 {
@@ -1212,14 +1212,14 @@ Discord Rich Presence is optional and disabled by default. When enabled, SubMine
 
 | Option             | Values                                            | Description                                                |
 | ------------------ | ------------------------------------------------- | ---------------------------------------------------------- |
-| `enabled`          | `true`, `false`                                   | Enable Discord Rich Presence updates (default: `false`)    |
+| `enabled`          | `true`, `false`                                   | Enable Discord Rich Presence updates (default: `true`)     |
 | `presenceStyle`    | `"default"`, `"meme"`, `"japanese"`, `"minimal"`  | Card text preset (default: `"default"`)                    |
 | `updateIntervalMs` | number                                            | Minimum interval between activity updates in milliseconds  |
 | `debounceMs`       | number                                            | Debounce window for bursty playback events in milliseconds |
 
 Setup steps:
 
-1. Set `discordPresence.enabled` to `true`.
+1. Leave `discordPresence.enabled` as `true` or set it explicitly if you previously disabled it.
 2. Optionally set `discordPresence.presenceStyle` to choose a card text preset.
 3. Restart SubMiner.
 
@@ -1323,7 +1323,7 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
     "toggleKey": "Backquote",
     "serverPort": 6969,
     "autoStartServer": true,
-    "autoOpenBrowser": true
+    "autoOpenBrowser": false
   }
 }
 ```
@@ -1333,7 +1333,7 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
 | `toggleKey`       | Electron key code | Overlay-local key code used to toggle the stats overlay. Default `Backquote`. |
 | `serverPort`      | integer           | Localhost port for the browser stats UI. Default `6969`.                    |
 | `autoStartServer` | `true`, `false`   | Start the local stats HTTP server automatically once immersion tracking is active. Default `true`. |
-| `autoOpenBrowser` | `true`, `false`   | When `subminer stats` starts the server on demand, also open the dashboard in your default browser. Default `true`. |
+| `autoOpenBrowser` | `true`, `false`   | When `subminer stats` starts the server on demand, also open the dashboard in your default browser. Default `false`. |
 
 Usage notes:
 

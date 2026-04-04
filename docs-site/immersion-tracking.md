@@ -72,7 +72,7 @@ Stats server config lives under `stats`:
     "toggleKey": "Backquote",
     "serverPort": 6969,
     "autoStartServer": true,
-    "autoOpenBrowser": true
+    "autoOpenBrowser": false
   }
 }
 ```

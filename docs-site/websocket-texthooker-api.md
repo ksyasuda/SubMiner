@@ -34,7 +34,7 @@ SubMiner's integration ports are configured in `config.jsonc`.
   },
   "texthooker": {
     "launchAtStartup": true,
-    "openBrowser": true
+    "openBrowser": false
   }
 }
 ```

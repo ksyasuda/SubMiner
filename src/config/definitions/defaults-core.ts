@@ -31,10 +31,10 @@ export const CORE_DEFAULT_CONFIG: Pick<
   },
   texthooker: {
     launchAtStartup: true,
-    openBrowser: true,
+    openBrowser: false,
   },
   controller: {
-    enabled: true,
+    enabled: false,
     preferredGamepadId: '',
     preferredGamepadLabel: '',
     smoothScroll: true,
