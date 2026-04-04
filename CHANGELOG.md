@@ -9,6 +9,7 @@
 ### Changed
 - Setup: Made mpv plugin installation mandatory in the first-run setup flow, removed the skip path, and kept Finish disabled until the plugin is installed.
 - Setup: Clarified that the mpv plugin requirement applies to setup on every platform, while the optional `SubMiner mpv` shortcut remains the recommended Windows playback entry point.
+- Launcher: Streamlined Windows setup and config by making the `SubMiner mpv` shortcut self-contained and keeping `mpv.executablePath` as the simple fallback when `mpv.exe` is not on `PATH`.
 - Overlay: Changed fresh-install default config to keep texthooker and stats from auto-opening browser tabs.
 - Overlay: Changed fresh-install default config to enable AnkiConnect, Discord Rich Presence, subtitle-sidebar, and Yomitan-popup auto-pause by default, while disabling controller input by default.
 
