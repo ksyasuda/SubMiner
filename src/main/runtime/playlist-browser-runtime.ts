@@ -8,6 +8,7 @@ import type {
 } from '../../types';
 import { isRemoteMediaPath } from '../../jimaku/utils';
 import { hasVideoExtension } from '../../shared/video-extensions';
+import { resolveManagedLocalSubtitleSelection } from './local-subtitle-selection';
 import { sortPlaylistBrowserDirectoryItems } from './playlist-browser-sort';
 
 type PlaylistLike = {
@@ -28,6 +29,8 @@ type MpvPlaylistBrowserClientLike = {
 export type PlaylistBrowserRuntimeDeps = {
   getMpvClient: () => MpvPlaylistBrowserClientLike | null;
   schedule?: (callback: () => void, delayMs: number) => void;
+  getPrimarySubtitleLanguages?: () => string[];
+  getSecondarySubtitleLanguages?: () => string[];
 };
 
 const pendingLocalSubtitleSelectionRearms = new WeakMap<MpvPlaylistBrowserClientLike, number>();
@@ -60,7 +63,10 @@ async function resolveCurrentFilePath(
 
 function resolveDirectorySnapshot(
   currentFilePath: string | null,
-): Pick<PlaylistBrowserSnapshot, 'directoryAvailable' | 'directoryItems' | 'directoryPath' | 'directoryStatus'> {
+): Pick<
+  PlaylistBrowserSnapshot,
+  'directoryAvailable' | 'directoryItems' | 'directoryPath' | 'directoryStatus'
+> {
   if (!currentFilePath) {
     return {
       directoryAvailable: false,
@@ -229,9 +235,30 @@ async function buildMutationResult(
   };
 }
 
-function rearmLocalSubtitleSelection(client: MpvPlaylistBrowserClientLike): void {
-  client.send({ command: ['set_property', 'sid', 'auto'] });
-  client.send({ command: ['set_property', 'secondary-sid', 'auto'] });
+async function rearmLocalSubtitleSelection(
+  client: MpvPlaylistBrowserClientLike,
+  deps: PlaylistBrowserRuntimeDeps,
+  expectedPath: string,
+  token: number,
+): Promise<void> {
+  const trackList = await readProperty(client, 'track-list');
+  if (pendingLocalSubtitleSelectionRearms.get(client) !== token) {
+    return;
+  }
+  const currentPath = trimToNull(client.currentVideoPath);
+  if (currentPath && path.resolve(currentPath) !== expectedPath) {
+    return;
+  }
+  pendingLocalSubtitleSelectionRearms.delete(client);
+  const selection = resolveManagedLocalSubtitleSelection({
+    trackList: Array.isArray(trackList) ? trackList : null,
+    primaryLanguages: deps.getPrimarySubtitleLanguages?.() ?? [],
+    secondaryLanguages: deps.getSecondarySubtitleLanguages?.() ?? [],
+  });
+  client.send({ command: ['set_property', 'sid', selection.primaryTrackId ?? 'auto'] });
+  client.send({
+    command: ['set_property', 'secondary-sid', selection.secondaryTrackId ?? 'auto'],
+  });
 }
 
 function prepareLocalSubtitleAutoload(client: MpvPlaylistBrowserClientLike): void {
@@ -253,12 +280,7 @@ function scheduleLocalSubtitleSelectionRearm(
   pendingLocalSubtitleSelectionRearms.set(client, nextToken);
   (deps.schedule ?? setTimeout)(() => {
     if (pendingLocalSubtitleSelectionRearms.get(client) !== nextToken) return;
-    pendingLocalSubtitleSelectionRearms.delete(client);
-    const currentPath = trimToNull(client.currentVideoPath);
-    if (currentPath && path.resolve(currentPath) !== expectedPath) {
-      return;
-    }
-    rearmLocalSubtitleSelection(client);
+    void rearmLocalSubtitleSelection(client, deps, expectedPath, nextToken);
   }, 400);
 }
 

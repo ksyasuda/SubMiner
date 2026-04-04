@@ -369,7 +369,8 @@ export class AnkiIntegration {
       trackLastAddedDuplicateNoteIds: (noteId, duplicateNoteIds) => {
         this.trackedDuplicateNoteIds.set(noteId, [...duplicateNoteIds]);
       },
-      findDuplicateNoteIds: (expression, noteInfo) => this.findDuplicateNoteIds(expression, noteInfo),
+      findDuplicateNoteIds: (expression, noteInfo) =>
+        this.findDuplicateNoteIds(expression, noteInfo),
       recordCardsMinedCallback: (count, noteIds) => {
         this.recordCardsMinedSafely(count, noteIds, 'card creation');
       },
@@ -1082,10 +1083,7 @@ export class AnkiIntegration {
     });
   }
 
-  private async findDuplicateNoteIds(
-    expression: string,
-    noteInfo: NoteInfo,
-  ): Promise<number[]> {
+  private async findDuplicateNoteIds(expression: string, noteInfo: NoteInfo): Promise<number[]> {
     return findDuplicateNoteIdsForAnkiIntegration(expression, -1, noteInfo, {
       findNotes: async (query, options) => (await this.client.findNotes(query, options)) as unknown,
       notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,

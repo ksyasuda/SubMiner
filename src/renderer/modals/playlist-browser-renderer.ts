@@ -1,7 +1,4 @@
-import type {
-  PlaylistBrowserDirectoryItem,
-  PlaylistBrowserQueueItem,
-} from '../../types';
+import type { PlaylistBrowserDirectoryItem, PlaylistBrowserQueueItem } from '../../types';
 import type { RendererContext } from '../context';
 
 type PlaylistBrowserRowRenderActions = {
@@ -55,7 +52,7 @@ export function renderPlaylistBrowserDirectoryRow(
     ? item.episodeLabel
       ? `${item.episodeLabel} · Current file`
       : 'Current file'
-    : item.episodeLabel ?? 'Video file';
+    : (item.episodeLabel ?? 'Video file');
   main.append(label, meta);
 
   const trailing = document.createElement('div');

@@ -448,6 +448,8 @@ See `config.example.jsonc` for detailed configuration options.
 | `autoLoadSecondarySub`  | `true`, `false`                    | Auto-detect and load matching secondary subtitle track |
 | `defaultMode`           | `"hidden"`, `"visible"`, `"hover"` | Initial display mode (default: `"hover"`)              |
 
+`secondarySub.secondarySubLanguages` also acts as the fallback secondary-language priority for managed startup subtitle selection on local playback and YouTube playback.
+
 **Display modes:**
 
 - **hidden** — Secondary subtitles not shown
@@ -1342,7 +1344,7 @@ Usage notes:
 
 ### YouTube Playback Settings
 
-Set defaults used by the `subminer` launcher for YouTube subtitle loading:
+Set defaults used by managed subtitle auto-selection and the `subminer` launcher YouTube flow:
 
 ```json
 {
@@ -1354,7 +1356,7 @@ Set defaults used by the `subminer` launcher for YouTube subtitle loading:
 
 | Option                | Values               | Description                                                                                    |
 | --------------------- | -------------------- | ---------------------------------------------------------------------------------------------- |
-| `primarySubLanguages` | string[]             | Primary subtitle language priority for YouTube auto-loading (default `["ja", "jpn"]`) |
+| `primarySubLanguages` | string[]             | Primary subtitle language priority for managed subtitle auto-selection (default `["ja", "jpn"]`) |
 
 Current launcher behavior:
 
@@ -1370,6 +1372,7 @@ Language targets are derived from subtitle config:
 
 - primary track: `youtube.primarySubLanguages` (falls back to `["ja","jpn"]`)
 - secondary track: `secondarySub.secondarySubLanguages` (falls back to English when empty)
+- Local playback uses the same priorities after mpv reports subtitle track metadata, so sidecar/internal mixed sets can override an incorrect initial `sid=auto` pick.
 - Tracks are resolved and loaded before mpv starts; the older launcher mode switch has been removed.
 
 Precedence for launcher defaults is: CLI flag > environment variable > `config.jsonc` > built-in default.

@@ -83,7 +83,9 @@ const PRESENCE_STYLES: Record<DiscordPresenceStylePreset, PresenceStyleDefinitio
   },
 };
 
-function resolvePresenceStyle(preset: DiscordPresenceStylePreset | undefined): PresenceStyleDefinition {
+function resolvePresenceStyle(
+  preset: DiscordPresenceStylePreset | undefined,
+): PresenceStyleDefinition {
   return PRESENCE_STYLES[preset ?? 'default'] ?? PRESENCE_STYLES.default;
 }
 
@@ -130,9 +132,7 @@ export function buildDiscordPresenceActivity(
   const status = buildStatus(snapshot);
   const title = sanitizeText(snapshot.mediaTitle, basename(snapshot.mediaPath) || 'Unknown media');
   const details =
-    snapshot.connected && snapshot.mediaPath
-      ? trimField(title)
-      : style.fallbackDetails;
+    snapshot.connected && snapshot.mediaPath ? trimField(title) : style.fallbackDetails;
   const timeline = `${formatClock(snapshot.currentTimeSec)} / ${formatClock(snapshot.mediaDurationSec)}`;
   const state =
     snapshot.connected && snapshot.mediaPath
@@ -157,10 +157,7 @@ export function buildDiscordPresenceActivity(
   if (style.smallImageText.trim().length > 0) {
     activity.smallImageText = trimField(style.smallImageText.trim());
   }
-  if (
-    style.buttonLabel.trim().length > 0 &&
-    /^https?:\/\//.test(style.buttonUrl.trim())
-  ) {
+  if (style.buttonLabel.trim().length > 0 && /^https?:\/\//.test(style.buttonUrl.trim())) {
     activity.buttons = [
       {
         label: trimField(style.buttonLabel.trim(), 32),

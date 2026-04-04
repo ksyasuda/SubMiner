@@ -102,10 +102,7 @@ async function writeFetchResponse(res: ServerResponse, response: Response): Prom
   res.end(Buffer.from(body));
 }
 
-function startNodeHttpServer(
-  app: Hono,
-  config: StatsServerConfig,
-): { close: () => void } {
+function startNodeHttpServer(app: Hono, config: StatsServerConfig): { close: () => void } {
   const server = http.createServer((req, res) => {
     void (async () => {
       try {
@@ -1075,11 +1072,9 @@ export function startStatsServer(config: StatsServerConfig): { close: () => void
 
   const bunRuntime = globalThis as typeof globalThis & {
     Bun?: {
-      serve?: (options: {
-        fetch: (typeof app)['fetch'];
-        port: number;
-        hostname: string;
-      }) => { stop: () => void };
+      serve?: (options: { fetch: (typeof app)['fetch']; port: number; hostname: string }) => {
+        stop: () => void;
+      };
     };
   };
 

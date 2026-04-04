@@ -222,8 +222,12 @@ export function resolveRendererDom(): RendererDom {
     playlistBrowserModal: getRequiredElement<HTMLDivElement>('playlistBrowserModal'),
     playlistBrowserTitle: getRequiredElement<HTMLDivElement>('playlistBrowserTitle'),
     playlistBrowserStatus: getRequiredElement<HTMLDivElement>('playlistBrowserStatus'),
-    playlistBrowserDirectoryList: getRequiredElement<HTMLUListElement>('playlistBrowserDirectoryList'),
-    playlistBrowserPlaylistList: getRequiredElement<HTMLUListElement>('playlistBrowserPlaylistList'),
+    playlistBrowserDirectoryList: getRequiredElement<HTMLUListElement>(
+      'playlistBrowserDirectoryList',
+    ),
+    playlistBrowserPlaylistList: getRequiredElement<HTMLUListElement>(
+      'playlistBrowserPlaylistList',
+    ),
     playlistBrowserClose: getRequiredElement<HTMLButtonElement>('playlistBrowserClose'),
   };
 }

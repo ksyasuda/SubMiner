@@ -1,9 +1,51 @@
 # Changelog
 
-## Unreleased
+## v0.11.0 (2026-04-03)
+
+### Added
+- Overlay: Added a playlist browser overlay modal for browsing sibling video files and the live mpv queue during playback.
+- Overlay: Added the default `Ctrl+Alt+P` keybinding to open the playlist browser and manage queue order without leaving playback.
+
+### Changed
+- Setup: Made mpv plugin installation mandatory in the first-run setup flow, removed the skip path, and kept Finish disabled until the plugin is installed.
+- Setup: Clarified that the mpv plugin requirement applies to setup on every platform, while the optional `SubMiner mpv` shortcut remains the recommended Windows playback entry point.
 
 ### Fixed
-- AniList: Stopped post-watch tracking from sending a second progress update when the current episode was already satisfied by a ready retry item in the same watch-completion pass.
+- Main: Resolve the YouTube playback socket path lazily so startup honors CLI and config overrides.
+- Main: Add regression coverage for the lazy socket-path lookup during Windows mpv startup.
+- Main: Keep integrated `--start --texthooker` launches on the full app-ready startup path so the texthooker page and websocket servers start together during normal playback startup.
+- Main: Stop the mpv/plugin auto-start flow from spawning a separate standalone texthooker helper during normal `subminer <video>` launches.
+- Overlay: Keep tracked macOS visible overlays click-through by default so subtitle sidebar passthrough works immediately without requiring a subtitle hover cycle first.
+- Overlay: Add regression coverage for the macOS visible-overlay passthrough default.
+- Anilist: Stop AniList post-watch from sending a second progress update when the current episode was already satisfied by a ready retry item in the same watch-completion pass.
+- Anilist: Add regression coverage for the retry-queue plus live-update duplicate path.
+- Overlay: Fixed Kiku duplicate grouping to reuse duplicate note IDs from both generic sentence-card creation and Yomitan popup mining instead of running extra duplicate scans after add.
+- Overlay: Fixed the Yomitan popup mining flow to add cards in the background while keeping the stock popup progress feedback, then pause playback and close the lookup popup before the Kiku merge modal opens.
+- Overlay: Fixed configured subtitle-jump keybindings so backward and forward subtitle seeks keep playback paused when invoked from a paused state.
+- Launcher: Fixed the Windows `SubMiner mpv` shortcut and `SubMiner.exe --launch-mpv` flow to launch mpv with SubMiner's required default args directly instead of requiring an `mpv.conf` profile named `subminer`.
+- Launcher: Clarified the Windows install and usage docs so the shortcut path is documented as self-contained, while the optional `subminer` mpv profile remains available for manual mpv launches.
+- Launcher: Hardened the first-run setup blocker copy and stale custom-scheme handling so setup messages stay aligned with config, plugin, and dictionary readiness.
+- Launcher: Fixed the Windows `SubMiner mpv` shortcut idle launch so loading a video after opening the shortcut keeps mpv in the expected SubMiner-managed session, auto-starts the overlay, and re-arms subtitle auto-selection for the newly opened file.
+- Launcher: Removed the redundant `.` subtitle search path from the Windows shortcut launch args and deduped repeated subtitle source tracks in the manual sync picker so duplicate external subtitle entries no longer appear from the shortcut path.
+- Playback: Fixed managed local playback so duplicate startup-ready retries no longer unpause media after a later manual pause on the same file.
+- Playback: Fixed managed local subtitle auto-selection so local files reuse configured primary and secondary subtitle language priorities instead of staying on mpv's initial `sid=auto` guess.
+- Launcher: Added a blank-by-default `mpv.executablePath` override for Windows playback so users can point SubMiner at `mpv.exe` when it is not on `PATH`.
+- Launcher: Kept the Windows shortcut and `--launch-mpv` flow simple by preserving PATH auto-discovery as the default and exposing the override in first-run setup.
+- Launcher: Added `windows` as a recognized launcher backend option and auto-detection target on Windows.
+- Launcher: Honored `SUBMINER_YTDLP_BIN` consistently across YouTube playback URL resolution, track probing, subtitle downloads, and metadata probing.
+- Launcher: Kept the first-run setup window from navigating away on unexpected URLs.
+- Launcher: Made Windows mpv honor an explicitly configured executable path instead of silently falling back to PATH.
+- Launcher: Hardened `--launch-mpv` parsing and Windows binary resolution so valueless flags do not swallow media targets and symlinked launcher installs do not short-circuit PATH lookup.
+- Playback: Prevented stale async playlist-browser subtitle rearm callbacks from overriding newer subtitle selections during rapid file changes.
+
+### Docs
+- Docs Site: Added a dedicated Subtitle Sidebar guide and linked it from the homepage and configuration docs.
+- Docs Site: Linked Jimaku integration from the homepage to its dedicated docs page.
+- Docs Site: Refreshed docs-site theme tokens and hover/selection styling for the updated pages.
+
+### Internal
+- Release: Retried AUR clone and push operations in the tagged release workflow.
+- Release: Kept GitHub Releases green when AUR publish flakes and needs manual follow-up.
 
 ## v0.10.0 (2026-03-29)
 

@@ -6,15 +6,24 @@ export async function waitForSetupCompletion(deps: {
   now: () => number;
   timeoutMs: number;
   pollIntervalMs: number;
+  ignoreInitialCancelledState?: boolean;
 }): Promise<'completed' | 'cancelled' | 'timeout'> {
   const deadline = deps.now() + deps.timeoutMs;
+  let ignoringCancelled = deps.ignoreInitialCancelledState === true;
 
   while (deps.now() <= deadline) {
     const state = deps.readSetupState();
     if (isSetupCompleted(state)) {
       return 'completed';
     }
+    if (ignoringCancelled && state != null && state.status !== 'cancelled') {
+      ignoringCancelled = false;
+    }
     if (state?.status === 'cancelled') {
+      if (ignoringCancelled) {
+        await deps.sleep(deps.pollIntervalMs);
+        continue;
+      }
       return 'cancelled';
     }
     await deps.sleep(deps.pollIntervalMs);
@@ -26,6 +35,7 @@ export async function waitForSetupCompletion(deps: {
 export async function ensureLauncherSetupReady(deps: {
   readSetupState: () => SetupState | null;
   isExternalYomitanConfigured?: () => boolean;
+  isPluginInstalled?: () => boolean;
   launchSetupApp: () => void;
   sleep: (ms: number) => Promise<void>;
   now: () => number;
@@ -35,11 +45,18 @@ export async function ensureLauncherSetupReady(deps: {
   if (deps.isExternalYomitanConfigured?.()) {
     return true;
   }
-  if (isSetupCompleted(deps.readSetupState())) {
+  if (deps.isPluginInstalled?.()) {
+    return true;
+  }
+  const initialState = deps.readSetupState();
+  if (isSetupCompleted(initialState)) {
     return true;
   }
 
   deps.launchSetupApp();
-  const result = await waitForSetupCompletion(deps);
+  const result = await waitForSetupCompletion({
+    ...deps,
+    ignoreInitialCancelledState: initialState?.status === 'cancelled',
+  });
   return result === 'completed';
 }

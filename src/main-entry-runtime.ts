@@ -8,6 +8,23 @@ const START_ARG = '--start';
 const PASSWORD_STORE_ARG = '--password-store';
 const BACKGROUND_CHILD_ENV = 'SUBMINER_BACKGROUND_CHILD';
 const APP_NAME = 'SubMiner';
+const MPV_LONG_OPTIONS_WITH_SEPARATE_VALUES = new Set([
+  '--alang',
+  '--audio-file',
+  '--input-ipc-server',
+  '--log-file',
+  '--msg-level',
+  '--profile',
+  '--script',
+  '--script-opts',
+  '--scripts',
+  '--slang',
+  '--sub-file',
+  '--sub-file-paths',
+  '--title',
+  '--volume',
+  '--ytdl-format',
+]);
 
 type EarlyAppLike = {
   setName: (name: string) => void;
@@ -51,6 +68,15 @@ function removePassiveStartupArgs(argv: string[]): string[] {
   }
 
   return filtered;
+}
+
+function consumesLaunchMpvValue(token: string): boolean {
+  return (
+    token.startsWith('--') &&
+    token !== '--' &&
+    !token.includes('=') &&
+    MPV_LONG_OPTIONS_WITH_SEPARATE_VALUES.has(token)
+  );
 }
 
 function parseCliArgs(argv: string[]): CliArgs {
@@ -121,7 +147,82 @@ export function shouldHandleStatsDaemonCommandAtEntry(
 }
 
 export function normalizeLaunchMpvTargets(argv: string[]): string[] {
-  return parseCliArgs(argv).launchMpvTargets;
+  const launchMpvIndex = argv.findIndex((arg) => arg === '--launch-mpv');
+  if (launchMpvIndex < 0) {
+    return [];
+  }
+
+  const targets: string[] = [];
+
+  let parsingTargets = false;
+  for (let i = launchMpvIndex + 1; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (!token) continue;
+
+    if (parsingTargets) {
+      targets.push(token);
+      continue;
+    }
+
+    if (token === '--') {
+      parsingTargets = true;
+      continue;
+    }
+
+    if (token.startsWith('--')) {
+      if (consumesLaunchMpvValue(token) && i + 1 < argv.length) {
+        const value = argv[i + 1];
+        if (value && !value.startsWith('-')) {
+          i += 1;
+        }
+      }
+      continue;
+    }
+
+    if (token.startsWith('-')) {
+      continue;
+    }
+
+    parsingTargets = true;
+    targets.push(token);
+  }
+
+  return targets;
+}
+
+export function normalizeLaunchMpvExtraArgs(argv: string[]): string[] {
+  const launchMpvIndex = argv.findIndex((arg) => arg === '--launch-mpv');
+  if (launchMpvIndex < 0) {
+    return [];
+  }
+
+  const extraArgs: string[] = [];
+  for (let i = launchMpvIndex + 1; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (!token) continue;
+    if (token === '--') {
+      break;
+    }
+    if (token.startsWith('--')) {
+      extraArgs.push(token);
+      if (consumesLaunchMpvValue(token) && i + 1 < argv.length) {
+        const value = argv[i + 1];
+        if (value && !value.startsWith('-')) {
+          extraArgs.push(value);
+          i += 1;
+        }
+      }
+      continue;
+    }
+    if (token.startsWith('-')) {
+      extraArgs.push(token);
+      continue;
+    }
+    if (!token.startsWith('-')) {
+      break;
+    }
+  }
+  return extraArgs;
 }
 
 export function sanitizeStartupEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {

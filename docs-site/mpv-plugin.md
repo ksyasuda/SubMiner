@@ -79,7 +79,7 @@ texthooker_enabled=yes
 # Port for the texthooker server.
 texthooker_port=5174
 
-# Window manager backend: auto, hyprland, sway, x11, macos.
+# Window manager backend: auto, hyprland, sway, x11, macos, windows.
 backend=auto
 
 # Start the overlay automatically when a file is loaded.

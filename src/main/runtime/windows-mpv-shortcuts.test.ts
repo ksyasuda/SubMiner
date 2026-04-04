@@ -33,7 +33,7 @@ test('buildWindowsMpvShortcutDetails targets SubMiner.exe with --launch-mpv', ()
     target: 'C:\\Apps\\SubMiner\\SubMiner.exe',
     args: '--launch-mpv',
     cwd: 'C:\\Apps\\SubMiner',
-    description: 'Launch mpv with the SubMiner profile',
+    description: 'Launch mpv with SubMiner defaults',
     icon: 'C:\\Apps\\SubMiner\\SubMiner.exe',
     iconIndex: 0,
   });

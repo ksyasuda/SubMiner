@@ -244,13 +244,19 @@ export function inferWhisperLanguage(langCodes: string[], fallback: string): str
   return fallback;
 }
 
+export interface CommandInvocationOptions {
+  normalizeWindowsShellArgs?: boolean;
+}
+
 export function resolveCommandInvocation(
   executable: string,
   args: string[],
+  options: CommandInvocationOptions = {},
 ): { command: string; args: string[] } {
   if (process.platform !== 'win32') {
     return { command: executable, args };
   }
+  const { normalizeWindowsShellArgs = true } = options;
 
   const resolvedExecutable = resolveExecutablePath(executable) ?? executable;
   const extension = path.extname(resolvedExecutable).toLowerCase();
@@ -267,7 +273,9 @@ export function resolveCommandInvocation(
       command: bashTarget.command,
       args: [
         normalizeWindowsShellArg(resolvedExecutable, bashTarget.flavor),
-        ...args.map((arg) => normalizeWindowsShellArg(arg, bashTarget.flavor)),
+        ...args.map((arg) =>
+          normalizeWindowsShellArgs ? normalizeWindowsShellArg(arg, bashTarget.flavor) : arg,
+        ),
       ],
     };
   }
@@ -280,7 +288,9 @@ export function resolveCommandInvocation(
         command: bashTarget.command,
         args: [
           normalizeWindowsShellArg(resolvedExecutable, bashTarget.flavor),
-          ...args.map((arg) => normalizeWindowsShellArg(arg, bashTarget.flavor)),
+          ...args.map((arg) =>
+            normalizeWindowsShellArgs ? normalizeWindowsShellArg(arg, bashTarget.flavor) : arg,
+          ),
         ],
       };
     }

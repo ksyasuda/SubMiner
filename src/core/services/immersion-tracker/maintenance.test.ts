@@ -126,9 +126,9 @@ test('pruneRawRetention skips disabled retention windows', () => {
     const remainingTelemetry = db
       .prepare('SELECT COUNT(*) AS count FROM imm_session_telemetry')
       .get() as { count: number };
-    const remainingSessions = db
-      .prepare('SELECT COUNT(*) AS count FROM imm_sessions')
-      .get() as { count: number };
+    const remainingSessions = db.prepare('SELECT COUNT(*) AS count FROM imm_sessions').get() as {
+      count: number;
+    };
 
     assert.equal(result.deletedSessionEvents, 0);
     assert.equal(result.deletedTelemetryRows, 0);

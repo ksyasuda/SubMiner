@@ -50,6 +50,10 @@ export interface TexthookerConfig {
   openBrowser?: boolean;
 }
 
+export interface MpvConfig {
+  executablePath?: string;
+}
+
 export type SubsyncMode = 'auto' | 'manual';
 
 export interface SubsyncConfig {
@@ -90,6 +94,7 @@ export interface Config {
   websocket?: WebSocketConfig;
   annotationWebsocket?: AnnotationWebSocketConfig;
   texthooker?: TexthookerConfig;
+  mpv?: MpvConfig;
   controller?: ControllerConfig;
   ankiConnect?: AnkiConnectConfig;
   shortcuts?: ShortcutsConfig;
@@ -122,6 +127,9 @@ export interface ResolvedConfig {
   websocket: Required<WebSocketConfig>;
   annotationWebsocket: Required<AnnotationWebSocketConfig>;
   texthooker: Required<TexthookerConfig>;
+  mpv: {
+    executablePath: string;
+  };
   controller: {
     enabled: boolean;
     preferredGamepadId: string;

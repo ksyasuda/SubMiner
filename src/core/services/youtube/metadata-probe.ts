@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { YoutubeVideoMetadata } from '../immersion-tracker/types';
+import { getYoutubeYtDlpCommand } from './ytdlp-command';
 
 const YOUTUBE_METADATA_PROBE_TIMEOUT_MS = 15_000;
 
@@ -87,7 +88,7 @@ function pickChannelThumbnail(thumbnails: YtDlpThumbnail[] | undefined): string 
 export async function probeYoutubeVideoMetadata(
   targetUrl: string,
 ): Promise<YoutubeVideoMetadata | null> {
-  const { stdout } = await runCapture('yt-dlp', [
+  const { stdout } = await runCapture(getYoutubeYtDlpCommand(), [
     '--dump-single-json',
     '--no-warnings',
     '--skip-download',

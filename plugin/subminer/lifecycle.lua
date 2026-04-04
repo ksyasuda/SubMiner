@@ -29,13 +29,25 @@ function M.create(ctx)
 		return options_helper.coerce_bool(raw_auto_start, false)
 	end
 
+	local function rearm_managed_subtitle_defaults()
+		if not process.has_matching_mpv_ipc_socket(opts.socket_path) then
+			return false
+		end
+
+		mp.set_property_native("sub-auto", "fuzzy")
+		mp.set_property_native("sid", "auto")
+		mp.set_property_native("secondary-sid", "auto")
+		return true
+	end
+
 	local function on_file_loaded()
 		aniskip.clear_aniskip_state()
 		process.disarm_auto_play_ready_gate()
+		local has_matching_socket = rearm_managed_subtitle_defaults()
 
 		local should_auto_start = resolve_auto_start_enabled()
 		if should_auto_start then
-			if not process.has_matching_mpv_ipc_socket(opts.socket_path) then
+			if not has_matching_socket then
 				subminer_log(
 					"info",
 					"lifecycle",

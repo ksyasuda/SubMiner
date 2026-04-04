@@ -28,6 +28,7 @@ test('config option registry includes critical paths and has unique entries', ()
     'ankiConnect.enabled',
     'anilist.characterDictionary.enabled',
     'anilist.characterDictionary.collapsibleSections.description',
+    'mpv.executablePath',
     'yomitan.externalProfilePath',
     'immersionTracking.enabled',
   ]) {
@@ -48,6 +49,7 @@ test('config template sections include expected domains and unique keys', () => 
     'subtitleStyle',
     'ankiConnect',
     'yomitan',
+    'mpv',
     'immersionTracking',
   ];
 

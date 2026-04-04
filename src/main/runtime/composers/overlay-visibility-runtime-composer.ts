@@ -58,7 +58,8 @@ export function composeOverlayVisibilityRuntime(
   options: OverlayVisibilityRuntimeComposerOptions,
 ): OverlayVisibilityRuntimeComposerResult {
   return {
-    updateVisibleOverlayVisibility: () => options.overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+    updateVisibleOverlayVisibility: () =>
+      options.overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
     restorePreviousSecondarySubVisibility: createRestorePreviousSecondarySubVisibilityHandler(
       createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler(
         options.restorePreviousSecondarySubVisibilityMainDeps,

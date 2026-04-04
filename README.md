@@ -21,6 +21,8 @@ Look up words with Yomitan, export to Anki in one key, track your immersion — 
 
 SubMiner runs as an invisible Electron overlay on top of mpv. Subtitles render as an interactive layer. Move your cursor over any word and trigger a [Yomitan](https://github.com/yomidevs/yomitan) lookup. Press one key to snapshot the sentence, audio, and screenshot into Anki via AnkiConnect.
 
+First-run setup requires the mpv plugin before it can finish. On Windows, the optional `SubMiner mpv` shortcut created during setup is the recommended playback entry point because it launches `mpv` with SubMiner's defaults directly, so you do not need an `mpv.conf` profile just to use it.
+
 ## Features
 
 ### Dictionary Lookups
@@ -67,6 +69,8 @@ Local stats dashboard — watch time, anime library, vocabulary growth, mining t
 
 Browse sibling episode files and the active mpv queue in one overlay modal. Open it with `Ctrl+Alt+P` to append episodes from the current directory, jump to queued items, remove entries, or reorder the playlist without leaving playback.
 
+Managed local playback now reapplies your configured subtitle language priorities after mpv loads track metadata, so mixed subtitle sets can settle onto the expected primary and secondary tracks instead of staying on mpv's initial `sid=auto` guess.
+
 <br>
 
 ### Integrations
@@ -74,7 +78,7 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
 <table>
   <tr>
     <td><b>YouTube</b></td>
-    <td>Auto-loaded yt-dlp subtitle tracks at startup with a manual overlay picker on demand (<code>Ctrl+Alt+C</code>)</td>
+    <td>Auto-loaded yt-dlp subtitle tracks at startup with config-driven primary/secondary language priorities and a manual overlay picker on demand (<code>Ctrl+Alt+C</code>)</td>
   </tr>
   <tr>
     <td><b>AniList</b></td>
@@ -224,7 +228,7 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 
 ### 2. First Launch
 
-Run the app. On first launch SubMiner starts in the system tray, creates a default config, and opens a setup popup to install the mpv plugin and configure Yomitan dictionaries.
+Run the app. On first launch SubMiner starts in the system tray, creates a default config, and opens a setup popup to finish config, install the mpv plugin, and configure Yomitan dictionaries.
 
 ### 3. Mine
 

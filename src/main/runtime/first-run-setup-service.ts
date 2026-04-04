@@ -27,7 +27,7 @@ export interface SetupStatusSnapshot {
   dictionaryCount: number;
   canFinish: boolean;
   externalYomitanConfigured: boolean;
-  pluginStatus: 'installed' | 'optional' | 'skipped' | 'failed';
+  pluginStatus: 'installed' | 'required' | 'failed';
   pluginInstallPathSummary: string | null;
   windowsMpvShortcuts: SetupWindowsMpvShortcutSnapshot;
   message: string | null;
@@ -48,7 +48,6 @@ export interface FirstRunSetupService {
   markSetupInProgress: () => Promise<SetupStatusSnapshot>;
   markSetupCancelled: () => Promise<SetupStatusSnapshot>;
   markSetupCompleted: () => Promise<SetupStatusSnapshot>;
-  skipPluginInstall: () => Promise<SetupStatusSnapshot>;
   installMpvPlugin: () => Promise<SetupStatusSnapshot>;
   configureWindowsMpvShortcuts: (preferences: {
     startMenuEnabled: boolean;
@@ -108,9 +107,8 @@ function getPluginStatus(
   pluginInstalled: boolean,
 ): SetupStatusSnapshot['pluginStatus'] {
   if (pluginInstalled) return 'installed';
-  if (state.pluginInstallStatus === 'skipped') return 'skipped';
   if (state.pluginInstallStatus === 'failed') return 'failed';
-  return 'optional';
+  return 'required';
 }
 
 function getWindowsMpvShortcutStatus(
@@ -149,6 +147,24 @@ function isYomitanSetupSatisfied(options: {
     return false;
   }
   return options.externalYomitanConfigured || options.dictionaryCount >= 1;
+}
+
+export function getFirstRunSetupCompletionMessage(snapshot: {
+  configReady: boolean;
+  dictionaryCount: number;
+  externalYomitanConfigured: boolean;
+  pluginStatus: SetupStatusSnapshot['pluginStatus'];
+}): string | null {
+  if (!snapshot.configReady) {
+    return 'Create or provide the config file before finishing setup.';
+  }
+  if (snapshot.pluginStatus !== 'installed') {
+    return 'Install the mpv plugin before finishing setup.';
+  }
+  if (!snapshot.externalYomitanConfigured && snapshot.dictionaryCount < 1) {
+    return 'Install at least one Yomitan dictionary before finishing setup.';
+  }
+  return null;
 }
 
 async function resolveYomitanSetupStatus(deps: {
@@ -230,11 +246,13 @@ export function createFirstRunSetupService(deps: {
     return {
       configReady,
       dictionaryCount,
-      canFinish: isYomitanSetupSatisfied({
-        configReady,
-        dictionaryCount,
-        externalYomitanConfigured,
-      }),
+      canFinish:
+        pluginInstalled &&
+        isYomitanSetupSatisfied({
+          configReady,
+          dictionaryCount,
+          externalYomitanConfigured,
+        }),
       externalYomitanConfigured,
       pluginStatus: getPluginStatus(state, pluginInstalled),
       pluginInstallPathSummary: state.pluginInstallPathSummary,
@@ -272,24 +290,20 @@ export function createFirstRunSetupService(deps: {
           getYomitanDictionaryCount: deps.getYomitanDictionaryCount,
           isExternalYomitanConfigured: deps.isExternalYomitanConfigured,
         });
-      const yomitanSetupSatisfied = isYomitanSetupSatisfied({
-        configReady,
-        dictionaryCount,
-        externalYomitanConfigured,
-      });
-      if (
-        isSetupCompleted(state) &&
-        !(
-          state.yomitanSetupMode === 'external' &&
-          !externalYomitanConfigured &&
-          !yomitanSetupSatisfied
-        )
-      ) {
+      const pluginInstalled = await deps.detectPluginInstalled();
+      const canFinish =
+        pluginInstalled &&
+        isYomitanSetupSatisfied({
+          configReady,
+          dictionaryCount,
+          externalYomitanConfigured,
+        });
+      if (isSetupCompleted(state) && canFinish) {
         completed = true;
         return refreshWithState(state);
       }
 
-      if (yomitanSetupSatisfied) {
+      if (canFinish) {
         const completedState = writeState({
           ...state,
           status: 'completed',
@@ -347,8 +361,6 @@ export function createFirstRunSetupService(deps: {
         }),
       );
     },
-    skipPluginInstall: async () =>
-      refreshWithState(writeState({ ...readState(), pluginInstallStatus: 'skipped' })),
     installMpvPlugin: async () => {
       const result = await deps.installPlugin();
       return refreshWithState(

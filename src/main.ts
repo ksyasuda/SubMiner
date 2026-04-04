@@ -77,15 +77,15 @@ function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
   return {
     shouldUseMinimalStartup: Boolean(
       (initialArgs && isStandaloneTexthookerCommand(initialArgs)) ||
-        (initialArgs?.stats &&
-          (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
+      (initialArgs?.stats &&
+        (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
     ),
     shouldSkipHeavyStartup: Boolean(
       initialArgs &&
-        (shouldRunSettingsOnlyStartup(initialArgs) ||
-          initialArgs.stats ||
-          initialArgs.dictionary ||
-          initialArgs.setup),
+      (shouldRunSettingsOnlyStartup(initialArgs) ||
+        initialArgs.stats ||
+        initialArgs.dictionary ||
+        initialArgs.setup),
     ),
   };
 }
@@ -123,7 +123,12 @@ import { AnkiIntegration } from './anki-integration';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { RuntimeOptionsManager } from './runtime-options';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
-import { createLogger, setLogLevel, resolveDefaultLogFilePath, type LogLevelSource } from './logger';
+import {
+  createLogger,
+  setLogLevel,
+  resolveDefaultLogFilePath,
+  type LogLevelSource,
+} from './logger';
 import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
 import {
   commandNeedsOverlayStartupPrereqs,
@@ -339,6 +344,7 @@ import { startStatsServer } from './core/services/stats-server';
 import { registerStatsOverlayToggle, destroyStatsWindow } from './core/services/stats-window.js';
 import {
   createFirstRunSetupService,
+  getFirstRunSetupCompletionMessage,
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
 import { createYoutubeFlowRuntime } from './main/runtime/youtube-flow';
@@ -348,6 +354,7 @@ import {
   createYoutubePrimarySubtitleNotificationRuntime,
 } from './main/runtime/youtube-primary-subtitle-notification';
 import { createAutoplayReadyGate } from './main/runtime/autoplay-ready-gate';
+import { createManagedLocalSubtitleSelectionRuntime } from './main/runtime/local-subtitle-selection';
 import {
   buildFirstRunSetupHtml,
   createMaybeFocusExistingFirstRunSetupWindowHandler,
@@ -365,7 +372,11 @@ import {
   detectWindowsMpvShortcuts,
   resolveWindowsMpvShortcutPaths,
 } from './main/runtime/windows-mpv-shortcuts';
-import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
+import {
+  createWindowsMpvLaunchDeps,
+  getConfiguredWindowsMpvPathStatus,
+  launchWindowsMpv,
+} from './main/runtime/windows-mpv-launch';
 import { createWaitForMpvConnectedHandler } from './main/runtime/jellyfin-remote-connection';
 import { createPrepareYoutubePlaybackInMpvHandler } from './main/runtime/youtube-playback-launch';
 import { shouldEnsureTrayOnStartupForInitialArgs } from './main/runtime/startup-tray-policy';
@@ -490,7 +501,10 @@ import {
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
 import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
-import { createSubtitlePrefetchService, type SubtitlePrefetchService } from './core/services/subtitle-prefetch';
+import {
+  createSubtitlePrefetchService,
+  type SubtitlePrefetchService,
+} from './core/services/subtitle-prefetch';
 import {
   buildSubtitleSidebarSourceKey,
   resolveSubtitleSourcePath,
@@ -1000,6 +1014,17 @@ const autoplayReadyGate = createAutoplayReadyGate({
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
   logDebug: (message) => logger.debug(message),
 });
+const managedLocalSubtitleSelectionRuntime = createManagedLocalSubtitleSelectionRuntime({
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getMpvClient: () => appState.mpvClient,
+  getPrimarySubtitleLanguages: () => getResolvedConfig().youtube.primarySubLanguages,
+  getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
+  sendMpvCommand: (command) => {
+    sendMpvCommandRuntime(appState.mpvClient, command);
+  },
+  schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearScheduled: (timer) => clearTimeout(timer),
+});
 const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   platform: process.platform,
   directPlaybackFormat: YOUTUBE_DIRECT_PLAYBACK_FORMAT,
@@ -1024,6 +1049,9 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
         showError: (title, content) => dialog.showErrorBox(title, content),
       }),
       [...args, `--log-file=${DEFAULT_MPV_LOG_PATH}`],
+      undefined,
+      undefined,
+      getResolvedConfig().mpv.executablePath,
     ),
   waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
   prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
@@ -1392,8 +1420,7 @@ const refreshSubtitlePrefetchFromActiveTrackHandler =
     getMpvClient: () => appState.mpvClient,
     getLastObservedTimePos: () => lastObservedTimePos,
     subtitlePrefetchInitController,
-    resolveActiveSubtitleSidebarSource: (input) =>
-      resolveActiveSubtitleSidebarSourceHandler(input),
+    resolveActiveSubtitleSidebarSource: (input) => resolveActiveSubtitleSidebarSourceHandler(input),
   });
 
 function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
@@ -1406,7 +1433,8 @@ function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
 const subtitlePrefetchRuntime = {
   cancelPendingInit: () => subtitlePrefetchInitController.cancelPendingInit(),
   initSubtitlePrefetch: subtitlePrefetchInitController.initSubtitlePrefetch,
-  refreshSubtitleSidebarFromSource: (sourcePath: string) => refreshSubtitleSidebarFromSource(sourcePath),
+  refreshSubtitleSidebarFromSource: (sourcePath: string) =>
+    refreshSubtitleSidebarFromSource(sourcePath),
   refreshSubtitlePrefetchFromActiveTrack: () => refreshSubtitlePrefetchFromActiveTrackHandler(),
   scheduleSubtitlePrefetchRefresh: (delayMs?: number) => scheduleSubtitlePrefetchRefresh(delayMs),
   clearScheduledSubtitlePrefetchRefresh: () => clearScheduledSubtitlePrefetchRefresh(),
@@ -1841,10 +1869,11 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     },
   })(),
 );
-const buildGetRuntimeOptionsStateMainDepsHandler =
-  createBuildGetRuntimeOptionsStateMainDepsHandler({
+const buildGetRuntimeOptionsStateMainDepsHandler = createBuildGetRuntimeOptionsStateMainDepsHandler(
+  {
     getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-  });
+  },
+);
 const getRuntimeOptionsStateMainDeps = buildGetRuntimeOptionsStateMainDepsHandler();
 const getRuntimeOptionsStateHandler = createGetRuntimeOptionsStateHandler(
   getRuntimeOptionsStateMainDeps,
@@ -2200,6 +2229,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
   }),
   getSetupSnapshot: async () => {
     const snapshot = await firstRunSetupService.getSetupStatus();
+    const mpvExecutablePath = getResolvedConfig().mpv.executablePath;
     return {
       configReady: snapshot.configReady,
       dictionaryCount: snapshot.dictionaryCount,
@@ -2207,6 +2237,8 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       externalYomitanConfigured: snapshot.externalYomitanConfigured,
       pluginStatus: snapshot.pluginStatus,
       pluginInstallPathSummary: snapshot.pluginInstallPathSummary,
+      mpvExecutablePath,
+      mpvExecutablePathStatus: getConfiguredWindowsMpvPathStatus(mpvExecutablePath),
       windowsMpvShortcuts: snapshot.windowsMpvShortcuts,
       message: firstRunSetupMessage,
     };
@@ -2217,6 +2249,22 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
     if (submission.action === 'install-plugin') {
       const snapshot = await firstRunSetupService.installMpvPlugin();
       firstRunSetupMessage = snapshot.message;
+      return;
+    }
+    if (submission.action === 'configure-mpv-executable-path') {
+      const mpvExecutablePath = submission.mpvExecutablePath?.trim() ?? '';
+      const pathStatus = getConfiguredWindowsMpvPathStatus(mpvExecutablePath);
+      configService.patchRawConfig({
+        mpv: {
+          executablePath: mpvExecutablePath,
+        },
+      });
+      firstRunSetupMessage =
+        pathStatus === 'invalid'
+          ? `Saved mpv executable path, but the file was not found: ${mpvExecutablePath}`
+          : mpvExecutablePath
+            ? `Saved mpv executable path: ${mpvExecutablePath}`
+            : 'Cleared mpv executable path. SubMiner will auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.';
       return;
     }
     if (submission.action === 'configure-windows-mpv-shortcuts') {
@@ -2238,18 +2286,15 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       firstRunSetupMessage = snapshot.message;
       return;
     }
-    if (submission.action === 'skip-plugin') {
-      await firstRunSetupService.skipPluginInstall();
-      firstRunSetupMessage = 'mpv plugin installation skipped.';
-      return;
-    }
 
     const snapshot = await firstRunSetupService.markSetupCompleted();
     if (snapshot.state.status === 'completed') {
       firstRunSetupMessage = null;
       return { closeWindow: true };
     }
-    firstRunSetupMessage = 'Install at least one Yomitan dictionary before finishing setup.';
+    firstRunSetupMessage =
+      getFirstRunSetupCompletionMessage(snapshot) ??
+      'Finish setup requires the mpv plugin and Yomitan dictionaries.';
     return;
   },
   markSetupInProgress: async () => {
@@ -3006,7 +3051,8 @@ const runStatsCliCommand = createRunStatsCliCommandHandler({
   },
   getImmersionTracker: () => appState.immersionTracker,
   ensureStatsServerStarted: () => statsStartupRuntime.ensureStatsServerStarted(),
-  ensureBackgroundStatsServerStarted: () => statsStartupRuntime.ensureBackgroundStatsServerStarted(),
+  ensureBackgroundStatsServerStarted: () =>
+    statsStartupRuntime.ensureBackgroundStatsServerStarted(),
   stopBackgroundStatsServer: () => statsStartupRuntime.stopBackgroundStatsServer(),
   openExternal: (url: string) => shell.openExternal(url),
   writeResponse: (responsePath, payload) => {
@@ -3222,8 +3268,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
       Boolean(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     shouldUseMinimalStartup: () =>
       getStartupModeFlags(appState.initialArgs).shouldUseMinimalStartup,
-    shouldSkipHeavyStartup: () =>
-      getStartupModeFlags(appState.initialArgs).shouldSkipHeavyStartup,
+    shouldSkipHeavyStartup: () => getStartupModeFlags(appState.initialArgs).shouldSkipHeavyStartup,
     createImmersionTracker: () => {
       ensureImmersionTrackerStarted();
     },
@@ -3328,6 +3373,7 @@ const {
     updateCurrentMediaPath: (path) => {
       autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks();
       currentMediaTokenizationGate.updateCurrentMediaPath(path);
+      managedLocalSubtitleSelectionRuntime.handleMediaPathChange(path);
       startupOsdSequencer.reset();
       subtitlePrefetchRuntime.clearScheduledSubtitlePrefetchRefresh();
       subtitlePrefetchRuntime.cancelPendingInit();
@@ -3394,6 +3440,7 @@ const {
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackChange(sid);
     },
     onSubtitleTrackListChange: (trackList) => {
+      managedLocalSubtitleSelectionRuntime.handleSubtitleTrackListChange(trackList);
       scheduleSubtitlePrefetchRefresh();
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackListChange(trackList);
     },
@@ -4135,7 +4182,10 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
-const { playlistBrowserMainDeps } = createPlaylistBrowserIpcRuntime(() => appState.mpvClient);
+const { playlistBrowserMainDeps } = createPlaylistBrowserIpcRuntime(() => appState.mpvClient, {
+  getPrimarySubtitleLanguages: () => getResolvedConfig().youtube.primarySubLanguages,
+  getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
+});
 
 const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {

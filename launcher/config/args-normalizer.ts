@@ -49,10 +49,17 @@ function parseLogLevel(value: string): LogLevel {
 }
 
 function parseBackend(value: string): Backend {
-  if (value === 'auto' || value === 'hyprland' || value === 'x11' || value === 'macos') {
+  if (
+    value === 'auto' ||
+    value === 'hyprland' ||
+    value === 'sway' ||
+    value === 'x11' ||
+    value === 'macos' ||
+    value === 'windows'
+  ) {
     return value as Backend;
   }
-  fail(`Invalid backend: ${value} (must be auto, hyprland, x11, or macos)`);
+  fail(`Invalid backend: ${value} (must be auto, hyprland, sway, x11, macos, or windows)`);
 }
 
 function parseDictionaryTarget(value: string): string {
@@ -97,7 +104,7 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     backend: 'auto',
     directory: '.',
     recursive: false,
-    profile: 'subminer',
+    profile: '',
     startOverlay: false,
     whisperBin: process.env.SUBMINER_WHISPER_BIN || launcherConfig.whisperBin || '',
     whisperModel: process.env.SUBMINER_WHISPER_MODEL || launcherConfig.whisperModel || '',

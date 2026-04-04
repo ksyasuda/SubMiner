@@ -12,7 +12,7 @@ function createDeps(overrides: Partial<WindowsMpvLaunchDeps> = {}): WindowsMpvLa
     getEnv: () => undefined,
     runWhere: () => ({ status: 1, stdout: '' }),
     fileExists: () => false,
-    spawnDetached: () => undefined,
+    spawnDetached: async () => undefined,
     showError: () => undefined,
     ...overrides,
   };
@@ -29,6 +29,19 @@ test('resolveWindowsMpvPath prefers SUBMINER_MPV_PATH', () => {
   assert.equal(resolved, 'C:\\mpv\\mpv.exe');
 });
 
+test('resolveWindowsMpvPath prefers configured executable path before PATH', () => {
+  const resolved = resolveWindowsMpvPath(
+    createDeps({
+      getEnv: () => undefined,
+      runWhere: () => ({ status: 0, stdout: 'C:\\tools\\mpv.exe\r\n' }),
+      fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
+    }),
+    '  C:\\mpv\\mpv.exe  ',
+  );
+
+  assert.equal(resolved, 'C:\\mpv\\mpv.exe');
+});
+
 test('resolveWindowsMpvPath falls back to where.exe output', () => {
   const resolved = resolveWindowsMpvPath(
     createDeps({
@@ -40,18 +53,118 @@ test('resolveWindowsMpvPath falls back to where.exe output', () => {
   assert.equal(resolved, 'C:\\tools\\mpv.exe');
 });
 
-test('buildWindowsMpvLaunchArgs keeps pseudo-gui profile and targets', () => {
-  assert.deepEqual(buildWindowsMpvLaunchArgs(['C:\\a.mkv', 'C:\\b.mkv']), [
-    '--player-operation-mode=pseudo-gui',
-    '--profile=subminer',
-    'C:\\a.mkv',
-    'C:\\b.mkv',
-  ]);
+test('buildWindowsMpvLaunchArgs uses explicit SubMiner defaults and targets', () => {
+  assert.deepEqual(
+    buildWindowsMpvLaunchArgs(
+      ['C:\\a.mkv', 'C:\\b.mkv'],
+      [],
+      'C:\\SubMiner\\SubMiner.exe',
+      'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    ),
+    [
+      '--player-operation-mode=pseudo-gui',
+      '--force-window=immediate',
+      '--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+      '--input-ipc-server=\\\\.\\pipe\\subminer-socket',
+      '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--sub-auto=fuzzy',
+      '--sub-file-paths=subs;subtitles',
+      '--sid=auto',
+      '--secondary-sid=auto',
+      '--secondary-sub-visibility=no',
+      '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket',
+      'C:\\a.mkv',
+      'C:\\b.mkv',
+    ],
+  );
 });
 
-test('launchWindowsMpv reports missing mpv path', () => {
+test('buildWindowsMpvLaunchArgs keeps shortcut-only launches in idle mode', () => {
+  assert.deepEqual(
+    buildWindowsMpvLaunchArgs(
+      [],
+      [],
+      'C:\\SubMiner\\SubMiner.exe',
+      'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    ),
+    [
+      '--player-operation-mode=pseudo-gui',
+      '--force-window=immediate',
+      '--idle=yes',
+      '--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+      '--input-ipc-server=\\\\.\\pipe\\subminer-socket',
+      '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--sub-auto=fuzzy',
+      '--sub-file-paths=subs;subtitles',
+      '--sid=auto',
+      '--secondary-sid=auto',
+      '--secondary-sub-visibility=no',
+      '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket',
+    ],
+  );
+});
+
+test('buildWindowsMpvLaunchArgs mirrors a custom input-ipc-server into script opts', () => {
+  assert.deepEqual(
+    buildWindowsMpvLaunchArgs(
+      ['C:\\video.mkv'],
+      ['--input-ipc-server', '\\\\.\\pipe\\custom-subminer-socket'],
+      'C:\\SubMiner\\SubMiner.exe',
+      'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    ),
+    [
+      '--player-operation-mode=pseudo-gui',
+      '--force-window=immediate',
+      '--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+      '--input-ipc-server=\\\\.\\pipe\\custom-subminer-socket',
+      '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--sub-auto=fuzzy',
+      '--sub-file-paths=subs;subtitles',
+      '--sid=auto',
+      '--secondary-sid=auto',
+      '--secondary-sub-visibility=no',
+      '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\custom-subminer-socket',
+      '--input-ipc-server',
+      '\\\\.\\pipe\\custom-subminer-socket',
+      'C:\\video.mkv',
+    ],
+  );
+});
+
+test('buildWindowsMpvLaunchArgs includes socket script opts when plugin entrypoint is present without binary path', () => {
+  assert.deepEqual(
+    buildWindowsMpvLaunchArgs(
+      ['C:\\video.mkv'],
+      ['--input-ipc-server', '\\\\.\\pipe\\custom-subminer-socket'],
+      undefined,
+      'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    ),
+    [
+      '--player-operation-mode=pseudo-gui',
+      '--force-window=immediate',
+      '--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+      '--input-ipc-server=\\\\.\\pipe\\custom-subminer-socket',
+      '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--sub-auto=fuzzy',
+      '--sub-file-paths=subs;subtitles',
+      '--sid=auto',
+      '--secondary-sid=auto',
+      '--secondary-sub-visibility=no',
+      '--script-opts=subminer-socket_path=\\\\.\\pipe\\custom-subminer-socket',
+      '--input-ipc-server',
+      '\\\\.\\pipe\\custom-subminer-socket',
+      'C:\\video.mkv',
+    ],
+  );
+});
+
+test('launchWindowsMpv reports missing mpv path', async () => {
   const errors: string[] = [];
-  const result = launchWindowsMpv(
+  const result = await launchWindowsMpv(
     [],
     createDeps({
       showError: (_title, content) => errors.push(content),
@@ -60,39 +173,42 @@ test('launchWindowsMpv reports missing mpv path', () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.mpvPath, '');
-  assert.match(errors[0] ?? '', /Could not find mpv\.exe/i);
+  assert.match(errors[0] ?? '', /mpv\.executablePath/i);
 });
 
-test('launchWindowsMpv spawns detached mpv with targets', () => {
+test('launchWindowsMpv spawns detached mpv with targets', async () => {
   const calls: string[] = [];
-  const result = launchWindowsMpv(
+  const result = await launchWindowsMpv(
     ['C:\\video.mkv'],
     createDeps({
       getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
       fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
-      spawnDetached: (command, args) => {
+      spawnDetached: async (command, args) => {
         calls.push(command);
         calls.push(args.join('|'));
       },
     }),
+    [],
+    'C:\\SubMiner\\SubMiner.exe',
+    'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
   );
 
   assert.equal(result.ok, true);
   assert.equal(result.mpvPath, 'C:\\mpv\\mpv.exe');
   assert.deepEqual(calls, [
     'C:\\mpv\\mpv.exe',
-    '--player-operation-mode=pseudo-gui|--profile=subminer|C:\\video.mkv',
+    '--player-operation-mode=pseudo-gui|--force-window=immediate|--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua|--input-ipc-server=\\\\.\\pipe\\subminer-socket|--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--sub-auto=fuzzy|--sub-file-paths=subs;subtitles|--sid=auto|--secondary-sid=auto|--secondary-sub-visibility=no|--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket|C:\\video.mkv',
   ]);
 });
 
-test('launchWindowsMpv reports spawn failures with path context', () => {
+test('launchWindowsMpv reports spawn failures with path context', async () => {
   const errors: string[] = [];
-  const result = launchWindowsMpv(
+  const result = await launchWindowsMpv(
     [],
     createDeps({
       getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
       fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
-      spawnDetached: () => {
+      spawnDetached: async () => {
         throw new Error('spawn failed');
       },
       showError: (_title, content) => errors.push(content),
@@ -103,4 +219,22 @@ test('launchWindowsMpv reports spawn failures with path context', () => {
   assert.equal(result.mpvPath, 'C:\\mpv\\mpv.exe');
   assert.match(errors[0] ?? '', /Failed to launch mpv/i);
   assert.match(errors[0] ?? '', /C:\\mpv\\mpv\.exe/i);
+});
+
+test('launchWindowsMpv reports async spawn failures with path context', async () => {
+  const errors: string[] = [];
+  const result = await launchWindowsMpv(
+    [],
+    createDeps({
+      getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
+      fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
+      spawnDetached: () => Promise.reject(new Error('async spawn failed')),
+      showError: (_title, content) => errors.push(content),
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.mpvPath, 'C:\\mpv\\mpv.exe');
+  assert.match(errors[0] ?? '', /Failed to launch mpv/i);
+  assert.match(errors[0] ?? '', /async spawn failed/i);
 });

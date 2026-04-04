@@ -359,10 +359,7 @@ function getNumericCalendarValue(
   return Number(row?.value ?? 0);
 }
 
-export function getLocalEpochDay(
-  db: DatabaseSync,
-  timestampMs: number | bigint | string,
-): number {
+export function getLocalEpochDay(db: DatabaseSync, timestampMs: number | bigint | string): number {
   return getNumericCalendarValue(
     db,
     `
@@ -375,10 +372,7 @@ export function getLocalEpochDay(
   );
 }
 
-export function getLocalMonthKey(
-  db: DatabaseSync,
-  timestampMs: number | bigint | string,
-): number {
+export function getLocalMonthKey(db: DatabaseSync, timestampMs: number | bigint | string): number {
   return getNumericCalendarValue(
     db,
     `
@@ -391,10 +385,7 @@ export function getLocalMonthKey(
   );
 }
 
-export function getLocalDayOfWeek(
-  db: DatabaseSync,
-  timestampMs: number | bigint | string,
-): number {
+export function getLocalDayOfWeek(db: DatabaseSync, timestampMs: number | bigint | string): number {
   return getNumericCalendarValue(
     db,
     `
@@ -407,10 +398,7 @@ export function getLocalDayOfWeek(
   );
 }
 
-export function getLocalHourOfDay(
-  db: DatabaseSync,
-  timestampMs: number | bigint | string,
-): number {
+export function getLocalHourOfDay(db: DatabaseSync, timestampMs: number | bigint | string): number {
   return getNumericCalendarValue(
     db,
     `
@@ -458,7 +446,8 @@ export function getShiftedLocalDayTimestamp(
   dayOffset: number,
 ): string {
   const normalizedDayOffset = Math.trunc(dayOffset);
-  const modifier = normalizedDayOffset >= 0 ? `+${normalizedDayOffset} days` : `${normalizedDayOffset} days`;
+  const modifier =
+    normalizedDayOffset >= 0 ? `+${normalizedDayOffset} days` : `${normalizedDayOffset} days`;
   const row = db
     .prepare(
       `

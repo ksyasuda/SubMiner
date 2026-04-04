@@ -12,14 +12,6 @@ function backupExistingPath(targetPath: string): void {
   fs.renameSync(targetPath, `${targetPath}.bak.${timestamp()}`);
 }
 
-function resolveLegacyPluginLoaderPath(installPaths: MpvInstallPaths): string {
-  return path.join(installPaths.scriptsDir, 'subminer.lua');
-}
-
-function resolveLegacyPluginDebugLoaderPath(installPaths: MpvInstallPaths): string {
-  return path.join(installPaths.scriptsDir, 'subminer-loader.lua');
-}
-
 function rewriteInstalledWindowsPluginConfig(configPath: string): void {
   const content = fs.readFileSync(configPath, 'utf8');
   const updated = content.replace(/^socket_path=.*$/m, 'socket_path=\\\\.\\pipe\\subminer-socket');
@@ -99,14 +91,13 @@ export function resolvePackagedFirstRunPluginAssets(deps: {
 
 export function detectInstalledFirstRunPlugin(
   installPaths: MpvInstallPaths,
-  deps?: { existsSync?: (candidate: string) => boolean },
+  deps?: {
+    existsSync?: (candidate: string) => boolean;
+  },
 ): boolean {
   const existsSync = deps?.existsSync ?? fs.existsSync;
-  return (
-    existsSync(installPaths.pluginEntrypointPath) &&
-    existsSync(installPaths.pluginDir) &&
-    existsSync(installPaths.pluginConfigPath)
-  );
+  const pluginEntrypointPath = path.join(installPaths.scriptsDir, 'subminer', 'main.lua');
+  return existsSync(pluginEntrypointPath);
 }
 
 export function installFirstRunPluginToDefaultLocation(options: {
@@ -148,8 +139,8 @@ export function installFirstRunPluginToDefaultLocation(options: {
 
   fs.mkdirSync(installPaths.scriptsDir, { recursive: true });
   fs.mkdirSync(installPaths.scriptOptsDir, { recursive: true });
-  backupExistingPath(resolveLegacyPluginLoaderPath(installPaths));
-  backupExistingPath(resolveLegacyPluginDebugLoaderPath(installPaths));
+  backupExistingPath(path.join(installPaths.scriptsDir, 'subminer.lua'));
+  backupExistingPath(path.join(installPaths.scriptsDir, 'subminer-loader.lua'));
   backupExistingPath(installPaths.pluginDir);
   backupExistingPath(installPaths.pluginConfigPath);
   fs.cpSync(assets.pluginDirSource, installPaths.pluginDir, { recursive: true });
@@ -187,7 +178,10 @@ export function syncInstalledFirstRunPluginBinaryPath(options: {
     return { updated: false, configPath: installPaths.pluginConfigPath };
   }
 
-  const updated = rewriteInstalledPluginBinaryPath(installPaths.pluginConfigPath, options.binaryPath);
+  const updated = rewriteInstalledPluginBinaryPath(
+    installPaths.pluginConfigPath,
+    options.binaryPath,
+  );
   if (options.platform === 'win32') {
     rewriteInstalledWindowsPluginConfig(installPaths.pluginConfigPath);
   }

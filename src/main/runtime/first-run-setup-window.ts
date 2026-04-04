@@ -1,3 +1,5 @@
+import { getFirstRunSetupCompletionMessage } from './first-run-setup-service';
+
 type FocusableWindowLike = {
   focus: () => void;
 };
@@ -15,15 +17,16 @@ type FirstRunSetupWindowLike = FocusableWindowLike & {
 };
 
 export type FirstRunSetupAction =
+  | 'configure-mpv-executable-path'
   | 'install-plugin'
   | 'configure-windows-mpv-shortcuts'
   | 'open-yomitan-settings'
   | 'refresh'
-  | 'skip-plugin'
   | 'finish';
 
 export interface FirstRunSetupSubmission {
   action: FirstRunSetupAction;
+  mpvExecutablePath?: string;
   startMenuEnabled?: boolean;
   desktopEnabled?: boolean;
 }
@@ -33,8 +36,10 @@ export interface FirstRunSetupHtmlModel {
   dictionaryCount: number;
   canFinish: boolean;
   externalYomitanConfigured: boolean;
-  pluginStatus: 'installed' | 'optional' | 'skipped' | 'failed';
+  pluginStatus: 'installed' | 'required' | 'failed';
   pluginInstallPathSummary: string | null;
+  mpvExecutablePath: string;
+  mpvExecutablePathStatus: 'blank' | 'configured' | 'invalid';
   windowsMpvShortcuts: {
     supported: boolean;
     startMenuEnabled: boolean;
@@ -64,19 +69,15 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
   const pluginLabel =
     model.pluginStatus === 'installed'
       ? 'Installed'
-      : model.pluginStatus === 'skipped'
-        ? 'Skipped'
-        : model.pluginStatus === 'failed'
-          ? 'Failed'
-          : 'Optional';
+      : model.pluginStatus === 'failed'
+        ? 'Failed'
+        : 'Required';
   const pluginTone =
     model.pluginStatus === 'installed'
       ? 'ready'
       : model.pluginStatus === 'failed'
         ? 'danger'
-        : model.pluginStatus === 'skipped'
-          ? 'muted'
-          : 'warn';
+        : 'warn';
   const windowsShortcutLabel =
     model.windowsMpvShortcuts.status === 'installed'
       ? 'Installed'
@@ -93,6 +94,50 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
         : model.windowsMpvShortcuts.status === 'skipped'
           ? 'muted'
           : 'warn';
+  const mpvExecutablePathLabel =
+    model.mpvExecutablePathStatus === 'configured'
+      ? 'Configured'
+      : model.mpvExecutablePathStatus === 'invalid'
+        ? 'Invalid'
+        : 'Blank';
+  const mpvExecutablePathTone =
+    model.mpvExecutablePathStatus === 'configured'
+      ? 'ready'
+      : model.mpvExecutablePathStatus === 'invalid'
+        ? 'danger'
+        : 'muted';
+  const mpvExecutablePathCurrent =
+    model.mpvExecutablePathStatus === 'blank'
+      ? 'blank (PATH discovery)'
+      : model.mpvExecutablePathStatus === 'invalid'
+        ? `${model.mpvExecutablePath} (invalid; file not found)`
+        : model.mpvExecutablePath;
+  const mpvExecutablePathCard = model.windowsMpvShortcuts.supported
+    ? `
+    <div class="card block">
+      <div class="card-head">
+        <div>
+          <strong>mpv executable path</strong>
+          <div class="meta">Leave blank to auto-discover mpv.exe from PATH.</div>
+          <div class="meta">Current: ${escapeHtml(mpvExecutablePathCurrent)}</div>
+        </div>
+        ${renderStatusBadge(mpvExecutablePathLabel, mpvExecutablePathTone)}
+      </div>
+      <form
+        class="path-form"
+        onsubmit="event.preventDefault(); const params = new URLSearchParams({ action: 'configure-mpv-executable-path', mpvExecutablePath: document.getElementById('mpv-executable-path').value }); window.location.href = 'subminer://first-run-setup?' + params.toString();"
+      >
+        <input
+          id="mpv-executable-path"
+          type="text"
+          aria-label="Path to mpv.exe"
+          value="${escapeHtml(model.mpvExecutablePath)}"
+          placeholder="C:\\Program Files\\mpv\\mpv.exe"
+        />
+        <button type="submit">Save mpv executable path</button>
+      </form>
+    </div>`
+    : '';
   const windowsShortcutCard = model.windowsMpvShortcuts.supported
     ? `
     <div class="card block">
@@ -128,9 +173,14 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     : model.dictionaryCount >= 1
       ? 'ready'
       : 'warn';
-  const footerMessage = model.externalYomitanConfigured
-    ? 'Finish stays unlocked while SubMiner is reusing an external Yomitan profile. If you later launch without yomitan.externalProfilePath, setup will require at least one internal dictionary.'
-    : 'Finish stays locked until Yomitan reports at least one installed dictionary.';
+  const blockerMessage = getFirstRunSetupCompletionMessage(model);
+  const footerMessage = blockerMessage
+    ? blockerMessage
+    : model.canFinish
+      ? model.externalYomitanConfigured
+        ? 'Finish stays unlocked while SubMiner is reusing an external Yomitan profile. If you later launch without yomitan.externalProfilePath, setup will require at least one internal dictionary.'
+        : 'Finish stays unlocked once the mpv plugin is installed and Yomitan reports at least one installed dictionary.'
+      : 'Finish stays locked until the mpv plugin is installed and Yomitan reports at least one installed dictionary.';
 
   return `<!doctype html>
 <html>
@@ -216,6 +266,24 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     .badge.warn { background: rgba(238, 212, 159, 0.18); color: var(--yellow); }
     .badge.muted { background: rgba(184, 192, 224, 0.12); color: var(--muted); }
     .badge.danger { background: rgba(237, 135, 150, 0.16); color: var(--red); }
+    .path-form {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .path-form input[type='text'] {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid rgba(202, 211, 245, 0.12);
+      border-radius: 10px;
+      padding: 9px 10px;
+      color: var(--text);
+      background: rgba(30, 32, 48, 0.72);
+      font: inherit;
+    }
+    .path-form input[type='text']::placeholder {
+      color: rgba(184, 192, 224, 0.65);
+    }
     .actions {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -269,6 +337,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       <div>
         <strong>mpv plugin</strong>
         <div class="meta">${escapeHtml(model.pluginInstallPathSummary ?? 'Default mpv scripts location')}</div>
+        <div class="meta">Required before SubMiner setup can finish.</div>
       </div>
       ${renderStatusBadge(pluginLabel, pluginTone)}
     </div>
@@ -279,12 +348,12 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       </div>
       ${renderStatusBadge(yomitanBadgeLabel, yomitanBadgeTone)}
     </div>
+    ${mpvExecutablePathCard}
     ${windowsShortcutCard}
     <div class="actions">
       <button onclick="window.location.href='subminer://first-run-setup?action=install-plugin'">${pluginActionLabel}</button>
       <button onclick="window.location.href='subminer://first-run-setup?action=open-yomitan-settings'">Open Yomitan Settings</button>
       <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh status</button>
-      <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=skip-plugin'">Skip plugin</button>
       <button class="primary" ${model.canFinish ? '' : 'disabled'} onclick="window.location.href='subminer://first-run-setup?action=finish'">Finish setup</button>
     </div>
     <div class="message">${model.message ? escapeHtml(model.message) : ''}</div>
@@ -301,14 +370,20 @@ export function parseFirstRunSetupSubmissionUrl(rawUrl: string): FirstRunSetupSu
   const parsed = new URL(rawUrl);
   const action = parsed.searchParams.get('action');
   if (
+    action !== 'configure-mpv-executable-path' &&
     action !== 'install-plugin' &&
     action !== 'configure-windows-mpv-shortcuts' &&
     action !== 'open-yomitan-settings' &&
     action !== 'refresh' &&
-    action !== 'skip-plugin' &&
     action !== 'finish'
   ) {
     return null;
+  }
+  if (action === 'configure-mpv-executable-path') {
+    return {
+      action,
+      mpvExecutablePath: parsed.searchParams.get('mpvExecutablePath') ?? '',
+    };
   }
   if (action === 'configure-windows-mpv-shortcuts') {
     return {
@@ -337,9 +412,18 @@ export function createHandleFirstRunSetupNavigationHandler(deps: {
   logError: (message: string, error: unknown) => void;
 }) {
   return (params: { url: string; preventDefault: () => void }): boolean => {
-    const submission = deps.parseSubmissionUrl(params.url);
-    if (!submission) return false;
+    if (!params.url.startsWith('subminer://first-run-setup')) {
+      params.preventDefault();
+      return true;
+    }
     params.preventDefault();
+    let submission: FirstRunSetupSubmission | null;
+    try {
+      submission = deps.parseSubmissionUrl(params.url);
+    } catch {
+      return true;
+    }
+    if (!submission) return true;
     void deps.handleAction(submission).catch((error) => {
       deps.logError('Failed handling first-run setup action', error);
     });

@@ -12,7 +12,7 @@ ${B}Usage:${R} subminer ${D}[command] [options]${R}
 ${B}Session${R}
   --background                   Start in tray/background mode
   --start                        Connect to mpv and launch overlay
-  --launch-mpv ${D}[targets...]${R}       Launch mpv with the SubMiner mpv profile and exit
+  --launch-mpv ${D}[targets...]${R}       Launch mpv with SubMiner defaults and exit
   --stop                         Stop the running instance
   --stats                        Open the stats dashboard in your browser
   --texthooker                   Start texthooker server only ${D}(no overlay)${R}

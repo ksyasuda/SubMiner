@@ -380,42 +380,22 @@ export class ImmersionTrackerService {
       };
     };
 
-    const eventsRetention = daysToRetentionWindow(
-      retention.eventsDays,
-      7,
-      3650,
-    );
-    const telemetryRetention = daysToRetentionWindow(
-      retention.telemetryDays,
-      30,
-      3650,
-    );
-    const sessionsRetention = daysToRetentionWindow(
-      retention.sessionsDays,
-      30,
-      3650,
-    );
+    const eventsRetention = daysToRetentionWindow(retention.eventsDays, 7, 3650);
+    const telemetryRetention = daysToRetentionWindow(retention.telemetryDays, 30, 3650);
+    const sessionsRetention = daysToRetentionWindow(retention.sessionsDays, 30, 3650);
     this.eventsRetentionMs = eventsRetention.ms;
     this.eventsRetentionDays = eventsRetention.days;
     this.telemetryRetentionMs = telemetryRetention.ms;
     this.telemetryRetentionDays = telemetryRetention.days;
     this.sessionsRetentionMs = sessionsRetention.ms;
     this.sessionsRetentionDays = sessionsRetention.days;
-    this.dailyRollupRetentionMs = daysToRetentionWindow(
-      retention.dailyRollupsDays,
-      365,
-      36500,
-    ).ms;
+    this.dailyRollupRetentionMs = daysToRetentionWindow(retention.dailyRollupsDays, 365, 36500).ms;
     this.monthlyRollupRetentionMs = daysToRetentionWindow(
       retention.monthlyRollupsDays,
       5 * 365,
       36500,
     ).ms;
-    this.vacuumIntervalMs = daysToRetentionWindow(
-      retention.vacuumIntervalDays,
-      7,
-      3650,
-    ).ms;
+    this.vacuumIntervalMs = daysToRetentionWindow(retention.vacuumIntervalDays, 7, 3650).ms;
     this.db = new Database(this.dbPath);
     applyPragmas(this.db);
     ensureSchema(this.db);

@@ -17,7 +17,7 @@ export type YoutubePlaybackRuntimeDeps = {
   setAppOwnedFlowInFlight: (next: boolean) => void;
   ensureYoutubePlaybackRuntimeReady: () => Promise<void>;
   resolveYoutubePlaybackUrl: (url: string, format: string) => Promise<string>;
-  launchWindowsMpv: (playbackUrl: string, args: string[]) => LaunchResult;
+  launchWindowsMpv: (playbackUrl: string, args: string[]) => Promise<LaunchResult>;
   waitForYoutubeMpvConnected: (timeoutMs: number) => Promise<boolean>;
   prepareYoutubePlaybackInMpv: (request: { url: string }) => Promise<boolean>;
   runYoutubePlaybackFlow: (request: {
@@ -77,7 +77,7 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
 
       if (deps.platform === 'win32' && !deps.getMpvConnected()) {
         const socketPath = deps.getSocketPath();
-        const launchResult = deps.launchWindowsMpv(playbackUrl, [
+        const launchResult = await deps.launchWindowsMpv(playbackUrl, [
           '--pause=yes',
           '--ytdl=yes',
           `--ytdl-format=${deps.mpvYtdlFormat}`,
@@ -92,7 +92,9 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
         ]);
         launchedWindowsMpv = launchResult.ok;
         if (launchResult.ok && launchResult.mpvPath) {
-          deps.logInfo(`Bootstrapping Windows mpv for YouTube playback via ${launchResult.mpvPath}`);
+          deps.logInfo(
+            `Bootstrapping Windows mpv for YouTube playback via ${launchResult.mpvPath}`,
+          );
         }
         if (!launchResult.ok) {
           deps.logWarn('Unable to bootstrap Windows mpv for YouTube playback.');

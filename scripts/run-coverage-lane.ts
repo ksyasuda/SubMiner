@@ -38,7 +38,11 @@ const lanes: Record<string, LaneConfig> = {
   },
 };
 
-function collectFiles(rootDir: string, includeSuffixes: string[], excludeSet: Set<string>): string[] {
+function collectFiles(
+  rootDir: string,
+  includeSuffixes: string[],
+  excludeSet: Set<string>,
+): string[] {
   const out: string[] = [];
   const visit = (currentDir: string) => {
     for (const entry of readdirSync(currentDir, { withFileTypes: true })) {
@@ -145,7 +149,12 @@ function parseLcovReport(report: string): LcovRecord[] {
     }
     if (line.startsWith('BRDA:')) {
       const [lineNumber, block, branch, hits] = line.slice(5).split(',');
-      if (lineNumber === undefined || block === undefined || branch === undefined || hits === undefined) {
+      if (
+        lineNumber === undefined ||
+        block === undefined ||
+        branch === undefined ||
+        hits === undefined
+      ) {
         continue;
       }
       ensureCurrent().branches.set(`${lineNumber}:${block}:${branch}`, {
@@ -224,7 +233,9 @@ export function mergeLcovReports(reports: string[]): string {
       chunks.push(`FNDA:${record.functionHits.get(name) ?? 0},${name}`);
     }
     chunks.push(`FNF:${functions.length}`);
-    chunks.push(`FNH:${functions.filter(([name]) => (record.functionHits.get(name) ?? 0) > 0).length}`);
+    chunks.push(
+      `FNH:${functions.filter(([name]) => (record.functionHits.get(name) ?? 0) > 0).length}`,
+    );
 
     const branches = [...record.branches.values()].sort((a, b) =>
       a.line === b.line
@@ -298,7 +309,9 @@ function runCoverageLane(): number {
     }
 
     writeFileSync(join(coverageDir, 'lcov.info'), mergeLcovReports(reports), 'utf8');
-    process.stdout.write(`Merged LCOV written to ${relative(repoRoot, join(coverageDir, 'lcov.info'))}\n`);
+    process.stdout.write(
+      `Merged LCOV written to ${relative(repoRoot, join(coverageDir, 'lcov.info'))}\n`,
+    );
     return 0;
   } finally {
     rmSync(shardRoot, { recursive: true, force: true });

@@ -74,7 +74,7 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     title: 'Secondary Subtitles',
     description: [
       'Dual subtitle track options.',
-      'Used by the YouTube subtitle loading flow as secondary language preferences.',
+      'Used by managed subtitle loading as secondary language preferences for local and YouTube playback.',
     ],
     notes: ['Hot-reload: defaultMode updates live while SubMiner is running.'],
     key: 'secondarySub',
@@ -131,7 +131,9 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   },
   {
     title: 'YouTube Playback Settings',
-    description: ['Defaults for SubMiner YouTube subtitle loading and languages.'],
+    description: [
+      'Defaults for managed subtitle language preferences and YouTube subtitle loading.',
+    ],
     key: 'youtube',
   },
   {
@@ -152,6 +154,14 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
       'In external-profile mode SubMiner will not import, delete, or modify Yomitan dictionaries/settings.',
     ],
     key: 'yomitan',
+  },
+  {
+    title: 'MPV Launcher',
+    description: [
+      'Optional mpv.exe override for Windows playback entry points.',
+      'Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.',
+    ],
+    key: 'mpv',
   },
   {
     title: 'Jellyfin',

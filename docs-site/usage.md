@@ -117,12 +117,15 @@ SubMiner.AppImage --help                  # Show all options
 
 ### Windows mpv Shortcut
 
-If you enabled the optional Windows shortcut during install, SubMiner creates a `SubMiner mpv` shortcut in the Start menu and/or on the desktop. It runs `SubMiner.exe --launch-mpv`, which starts `mpv.exe` with SubMiner's `subminer` profile.
+First-run setup creates the config file, then requires the mpv plugin and Yomitan dictionaries before it can finish.
+
+If you enabled the optional Windows shortcut during install, SubMiner creates a `SubMiner mpv` shortcut in the Start menu and/or on the desktop. On Windows, that shortcut is the recommended way to launch local files with SubMiner because it starts `mpv.exe` with the right defaults directly.
+After setup completes, the shortcut is the normal Windows playback entry point.
 
 You can use it three ways:
 
-- Double-click `SubMiner mpv` to open `mpv` with the SubMiner profile.
-- Drag a video file onto `SubMiner mpv` to launch that file with the same profile.
+- Double-click `SubMiner mpv` to open `mpv` with SubMiner's default socket/subtitle args.
+- Drag a video file onto `SubMiner mpv` to launch that file with the same defaults.
 - Run it directly from Command Prompt or PowerShell with `--launch-mpv`.
 
 ```powershell
@@ -130,7 +133,7 @@ You can use it three ways:
 & "C:\Program Files\SubMiner\SubMiner.exe" --launch-mpv "C:\Videos\episode 01.mkv"
 ```
 
-This flow requires `mpv.exe` to be on `PATH`. If it is installed elsewhere, set `SUBMINER_MPV_PATH` to the full `mpv.exe` path before launching.
+This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blank to auto-discover from `PATH`, or set it to the full `mpv.exe` path if mpv is installed elsewhere. `SUBMINER_MPV_PATH` is still honored as a fallback. On Windows, `--launch-mpv` does not require an `mpv.conf` profile named `subminer`.
 
 ### Launcher Subcommands
 
@@ -157,12 +160,13 @@ SubMiner.AppImage --setup
 Setup flow:
 
 - config file: create the default config directory and prefer `config.jsonc`
-- plugin status: install or skip the bundled mpv plugin
+- plugin status: install the bundled mpv plugin before finishing setup
 - Yomitan shortcut: open bundled Yomitan settings directly from the setup window
-- dictionary check: ensure at least one bundled Yomitan dictionary is available
+- dictionary check: ensure at least one bundled Yomitan dictionary is available, unless an external Yomitan profile is configured
 - Windows: optionally create or remove `SubMiner mpv` Start Menu/Desktop shortcuts (`SubMiner.exe --launch-mpv`)
+- Windows: optionally set `mpv.executablePath` if `mpv.exe` is not on `PATH`
 - refresh: re-check plugin + dictionary state without restarting
-- `Finish setup` stays disabled until dictionary availability is detected
+- `Finish setup` stays disabled until the config, plugin, and dictionary gates are satisfied
 - finish action writes setup completion state and suppresses future auto-open prompts
 
 AniList character dictionary auto-sync (optional):
@@ -189,7 +193,7 @@ Top-level launcher flags like `--jellyfin-*` are intentionally rejected.
 
 You can append additional MPV arguments with launcher `-a/--args`, for example `--args "--ao=alsa --volume=80"`.
 
-You can define a matching profile in `~/.config/mpv/mpv.conf` for consistency when launching `mpv` manually or from other tools. `subminer` launches with `--profile=subminer` by default (or override with `subminer -p <profile> ...`):
+You can define a matching profile in `~/.config/mpv/mpv.conf` for consistency when launching `mpv` manually or from other tools. The Windows `SubMiner.exe --launch-mpv` shortcut path uses equivalent args directly, but skips the extra current-directory subtitle scan to avoid duplicate sidecar detection when you drag a video onto the shortcut; the optional profile remains useful for manual mpv launches and the `subminer` wrapper defaults to `--profile=subminer` (or override with `subminer -p <profile> ...`):
 
 ```ini
 [subminer]
@@ -209,10 +213,6 @@ sid=auto
 secondary-sid=auto
 secondary-sub-visibility=no
 ```
-
-::: warning
-`secondary-slang` is not a valid mpv option. Use `slang` with `sid=auto` / `secondary-sid=auto` to set subtitle language preferences.
-:::
 
 ### Yomitan setup
 
@@ -237,6 +237,8 @@ Notes:
 - Primary subtitle target languages come from `youtube.primarySubLanguages` (defaults to `["ja","jpn"]`).
 - Secondary target languages come from `secondarySub.secondarySubLanguages` (defaults to English if unset).
 - Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtube` and `secondarySub`.
+
+For local video files, SubMiner now uses those same config-driven language priorities after mpv finishes reporting subtitle tracks. That means mixed internal/external subtitle sets can correct an initial `sid=auto` guess and settle onto the expected primary and secondary tracks without manual cycling.
 
 ## Controller Support
 
@@ -291,9 +293,7 @@ See [Keyboard Shortcuts](/shortcuts) for the full reference, including mining sh
 | `Alt+Shift+O` | Toggle visible overlay |
 | `Alt+Shift+Y` | Open Yomitan settings  |
 
-::: tip
 `Alt+Shift+Y` is fixed and not configurable. All other shortcuts can be changed under `shortcuts` in your config.
-:::
 
 Useful overlay-local default keybinding: `Ctrl+Alt+P` opens the playlist browser for the current video's parent directory and the live mpv queue so you can append, reorder, remove, or jump between episodes without leaving playback.
 

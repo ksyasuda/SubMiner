@@ -1,6 +1,6 @@
 {
   "name": "subminer",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "All-in-one sentence mining overlay with AnkiConnect and dictionary integration",
   "packageManager": "bun@1.3.5",
   "main": "dist/main-entry.js",
@@ -13,9 +13,10 @@
     "test-yomitan-parser:electron": "bun run build:yomitan && bun build scripts/test-yomitan-parser.ts --format=cjs --target=node --outfile dist/scripts/test-yomitan-parser.js --external electron && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/test-yomitan-parser.js",
     "build:yomitan": "bun scripts/build-yomitan.mjs",
     "build:assets": "bun scripts/prepare-build-assets.mjs",
+    "build:launcher": "bun build ./launcher/main.ts --target=bun --packages=bundle --outfile=dist/launcher/subminer",
     "build:stats": "cd stats && bun run build",
     "dev:stats": "cd stats && bun run dev",
-    "build": "bun run build:yomitan && bun run build:stats && tsc -p tsconfig.json && bun run build:renderer && bun run build:assets",
+    "build": "bun run build:yomitan && bun run build:stats && tsc -p tsconfig.json && bun run build:renderer && bun run build:launcher && bun run build:assets",
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js --sourcemap",
     "changelog:build": "bun run scripts/build-changelog.ts build",
     "changelog:check": "bun run scripts/build-changelog.ts check",
@@ -37,8 +38,8 @@
     "docs:preview": "bun run --cwd docs-site docs:preview",
     "docs:test": "bun run --cwd docs-site test",
     "test:docs:kb": "bun test scripts/docs-knowledge-base.test.ts",
-    "test:config:src": "bun test src/config/config.test.ts src/config/path-resolution.test.ts src/config/resolve/anki-connect.test.ts src/config/resolve/subtitle-style.test.ts src/config/resolve/jellyfin.test.ts src/config/definitions/domain-registry.test.ts src/generate-config-example.test.ts src/verify-config-example.test.ts",
-    "test:config:dist": "bun test dist/config/config.test.js dist/config/path-resolution.test.js dist/config/resolve/anki-connect.test.js dist/config/resolve/subtitle-style.test.js dist/config/resolve/jellyfin.test.js dist/config/definitions/domain-registry.test.js dist/generate-config-example.test.js dist/verify-config-example.test.js",
+    "test:config:src": "bun test src/config/config.test.ts src/config/path-resolution.test.ts src/config/resolve/anki-connect.test.ts src/config/resolve/integrations.test.ts src/config/resolve/subtitle-style.test.ts src/config/resolve/jellyfin.test.ts src/config/definitions/domain-registry.test.ts src/generate-config-example.test.ts src/verify-config-example.test.ts",
+    "test:config:dist": "bun test dist/config/config.test.js dist/config/path-resolution.test.js dist/config/resolve/anki-connect.test.js dist/config/resolve/integrations.test.js dist/config/resolve/subtitle-style.test.js dist/config/resolve/jellyfin.test.js dist/config/definitions/domain-registry.test.js dist/generate-config-example.test.js dist/verify-config-example.test.js",
     "test:config:smoke:dist": "bun test dist/config/path-resolution.test.js",
     "test:plugin:src": "lua scripts/test-plugin-start-gate.lua && lua scripts/test-plugin-binary-windows.lua",
     "test:launcher:smoke:src": "bun test launcher/smoke.e2e.test.ts",
@@ -122,7 +123,7 @@
     "productName": "SubMiner",
     "executableName": "SubMiner",
     "artifactName": "SubMiner-${version}.${ext}",
-    "icon": "assets/SubMiner.png",
+    "icon": "assets/SubMiner-square.png",
     "directories": {
       "output": "release"
     },
@@ -141,7 +142,7 @@
         "zip"
       ],
       "category": "public.app-category.video",
-      "icon": "assets/SubMiner.png",
+      "icon": "assets/SubMiner-square.png",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
@@ -157,7 +158,7 @@
         "nsis",
         "zip"
       ],
-      "icon": "assets/SubMiner.png"
+      "icon": "assets/SubMiner.ico"
     },
     "nsis": {
       "oneClick": false,

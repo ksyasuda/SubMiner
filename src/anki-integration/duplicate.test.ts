@@ -307,21 +307,27 @@ test('findDuplicateNoteIds returns no matches when maxMatches is zero', async ()
   };
 
   let notesInfoCalls = 0;
-  const duplicateIds = await findDuplicateNoteIds('貴様', 100, currentNote, {
-    findNotes: async () => [200],
-    notesInfo: async (noteIds) => {
-      notesInfoCalls += 1;
-      return noteIds.map((noteId) => ({
-        noteId,
-        fields: {
-          Expression: { value: '貴様' },
-        },
-      }));
+  const duplicateIds = await findDuplicateNoteIds(
+    '貴様',
+    100,
+    currentNote,
+    {
+      findNotes: async () => [200],
+      notesInfo: async (noteIds) => {
+        notesInfoCalls += 1;
+        return noteIds.map((noteId) => ({
+          noteId,
+          fields: {
+            Expression: { value: '貴様' },
+          },
+        }));
+      },
+      getDeck: () => 'Japanese::Mining',
+      resolveFieldName: (noteInfo, preferredName) => createFieldResolver(noteInfo, preferredName),
+      logWarn: () => {},
     },
-    getDeck: () => 'Japanese::Mining',
-    resolveFieldName: (noteInfo, preferredName) => createFieldResolver(noteInfo, preferredName),
-    logWarn: () => {},
-  }, 0);
+    0,
+  );
 
   assert.deepEqual(duplicateIds, []);
   assert.equal(notesInfoCalls, 0);

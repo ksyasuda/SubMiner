@@ -56,10 +56,7 @@ export function pruneRawRetention(
     sessionsRetentionDays?: number;
   },
 ): RawRetentionResult {
-  const resolveCutoff = (
-    retentionMs: number,
-    retentionDays: number | undefined,
-  ): string => {
+  const resolveCutoff = (retentionMs: number, retentionDays: number | undefined): string => {
     if (retentionDays !== undefined) {
       return subtractDbTimestamp(currentMs, BigInt(retentionDays) * 86_400_000n);
     }
@@ -68,9 +65,11 @@ export function pruneRawRetention(
 
   const deletedSessionEvents = Number.isFinite(policy.eventsRetentionMs)
     ? (
-        db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(
-          resolveCutoff(policy.eventsRetentionMs, policy.eventsRetentionDays),
-        ) as { changes: number }
+        db
+          .prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`)
+          .run(resolveCutoff(policy.eventsRetentionMs, policy.eventsRetentionDays)) as {
+          changes: number;
+        }
       ).changes
     : 0;
   const deletedTelemetryRows = Number.isFinite(policy.telemetryRetentionMs)

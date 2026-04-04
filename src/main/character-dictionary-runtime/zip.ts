@@ -138,7 +138,11 @@ function createCentralDirectoryHeader(entry: ZipEntry): Buffer {
   return central;
 }
 
-function createEndOfCentralDirectory(entriesLength: number, centralSize: number, centralStart: number): Buffer {
+function createEndOfCentralDirectory(
+  entriesLength: number,
+  centralSize: number,
+  centralStart: number,
+): Buffer {
   const end = Buffer.alloc(22);
   let cursor = 0;
   writeUint32LE(end, 0x06054b50, cursor);

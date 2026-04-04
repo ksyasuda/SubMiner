@@ -31,7 +31,10 @@ function requireUser(client: DiscordRpcRawClient): DiscordRpcClientUserLike {
 export function wrapDiscordRpcClient(client: DiscordRpcRawClient): DiscordRpcClient {
   return {
     login: () => client.login(),
-    setActivity: (activity) => requireUser(client).setActivity(activity).then(() => undefined),
+    setActivity: (activity) =>
+      requireUser(client)
+        .setActivity(activity)
+        .then(() => undefined),
     clearActivity: () => requireUser(client).clearActivity(),
     destroy: () => client.destroy(),
   };
@@ -39,7 +42,12 @@ export function wrapDiscordRpcClient(client: DiscordRpcRawClient): DiscordRpcCli
 
 export function createDiscordRpcClient(
   clientId: string,
-  deps?: { createClient?: (options: { clientId: string; transport: { type: 'ipc' } }) => DiscordRpcRawClient },
+  deps?: {
+    createClient?: (options: {
+      clientId: string;
+      transport: { type: 'ipc' };
+    }) => DiscordRpcRawClient;
+  },
 ): DiscordRpcClient {
   const client =
     deps?.createClient?.({ clientId, transport: { type: 'ipc' } }) ??

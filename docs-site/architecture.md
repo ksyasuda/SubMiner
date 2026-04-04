@@ -74,7 +74,7 @@ src/
     handlers/              # Keyboard/mouse interaction modules
     modals/                # Jimaku/Kiku/subsync/runtime-options/session-help modals
     positioning/           # Subtitle position controller (drag-to-reposition)
-  window-trackers/         # Backend-specific tracker implementations (Hyprland, Sway, X11, macOS)
+  window-trackers/         # Backend-specific tracker implementations (Hyprland, Sway, X11, macOS, Windows)
   jimaku/                  # Jimaku API integration helpers
   subsync/                 # Subtitle sync (alass/ffsubsync) helpers
   subtitle/                # Subtitle processing utilities

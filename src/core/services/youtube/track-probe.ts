@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import type { YoutubeTrackOption } from '../../../types';
 import { formatYoutubeTrackLabel, normalizeYoutubeLangCode, type YoutubeTrackKind } from './labels';
+import { getYoutubeYtDlpCommand } from './ytdlp-command';
 
 const YOUTUBE_TRACK_PROBE_TIMEOUT_MS = 15_000;
 
@@ -111,7 +112,11 @@ function toTracks(entries: Record<string, YtDlpSubtitleEntry> | undefined, kind:
 export type { YoutubeTrackOption };
 
 export async function probeYoutubeTracks(targetUrl: string): Promise<YoutubeTrackProbeResult> {
-  const { stdout } = await runCapture('yt-dlp', ['--dump-single-json', '--no-warnings', targetUrl]);
+  const { stdout } = await runCapture(getYoutubeYtDlpCommand(), [
+    '--dump-single-json',
+    '--no-warnings',
+    targetUrl,
+  ]);
   const trimmedStdout = stdout.trim();
   if (!trimmedStdout) {
     throw new Error('yt-dlp returned empty output while probing subtitle tracks');

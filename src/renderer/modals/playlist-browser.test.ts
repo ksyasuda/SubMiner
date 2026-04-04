@@ -236,9 +236,17 @@ function createPlaylistBrowserElectronApi(overrides?: Partial<ElectronAPI>): Ele
     notifyOverlayModalClosed: () => {},
     focusMainWindow: async () => {},
     setIgnoreMouseEvents: () => {},
-    appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+    appendPlaylistBrowserFile: async () => ({
+      ok: true,
+      message: 'ok',
+      snapshot: createSnapshot(),
+    }),
     playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
-    removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
+    removePlaylistBrowserIndex: async () => ({
+      ok: true,
+      message: 'ok',
+      snapshot: createSnapshot(),
+    }),
     movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok', snapshot: createSnapshot() }),
     ...overrides,
   } as ElectronAPI;
@@ -348,15 +356,13 @@ test('playlist browser modal action buttons stop double-click propagation', asyn
 
     await modal.openPlaylistBrowserModal();
 
-    const row =
-      env.dom.playlistBrowserDirectoryList.children[0] as
-        | ReturnType<typeof createPlaylistRow>
-        | undefined;
+    const row = env.dom.playlistBrowserDirectoryList.children[0] as
+      | ReturnType<typeof createPlaylistRow>
+      | undefined;
     const trailing = row?.children?.[1] as ReturnType<typeof createPlaylistRow> | undefined;
-    const button =
-      trailing?.children?.at(-1) as
-        | { listeners?: Map<string, Array<(event?: unknown) => void>> }
-        | undefined;
+    const button = trailing?.children?.at(-1) as
+      | { listeners?: Map<string, Array<(event?: unknown) => void>> }
+      | undefined;
     const dblclickHandler = button?.listeners?.get('dblclick')?.[0];
 
     assert.equal(typeof dblclickHandler, 'function');

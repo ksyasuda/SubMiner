@@ -14,11 +14,11 @@ import {
   isExecutable,
   resolveBinaryPathCandidate,
   resolveCommandInvocation,
-  realpathMaybe,
   isYoutubeTarget,
   uniqueNormalizedLangCodes,
   sleep,
   normalizeLangCode,
+  realpathMaybe,
 } from './util.js';
 
 export const state = {
@@ -34,6 +34,8 @@ type SpawnTarget = {
   command: string;
   args: string[];
 };
+
+type PathModule = Pick<typeof path, 'join' | 'extname' | 'delimiter' | 'sep' | 'resolve'>;
 
 const DETACHED_IDLE_MPV_PID_FILE = path.join(os.tmpdir(), 'subminer-idle-mpv.pid');
 const OVERLAY_START_SOCKET_READY_TIMEOUT_MS = 900;
@@ -225,6 +227,7 @@ export function makeTempDir(prefix: string): string {
 
 export function detectBackend(backend: Backend): Exclude<Backend, 'auto'> {
   if (backend !== 'auto') return backend;
+  if (process.platform === 'win32') return 'windows';
   if (process.platform === 'darwin') return 'macos';
   const xdgCurrentDesktop = (process.env.XDG_CURRENT_DESKTOP || '').toLowerCase();
   const xdgSessionDesktop = (process.env.XDG_SESSION_DESKTOP || '').toLowerCase();
@@ -243,16 +246,47 @@ export function detectBackend(backend: Backend): Exclude<Backend, 'auto'> {
   fail('Could not detect display backend');
 }
 
-function resolveMacAppBinaryCandidate(candidate: string): string {
+function resolveAppBinaryCandidate(candidate: string, pathModule: PathModule = path): string {
   const direct = resolveBinaryPathCandidate(candidate);
   if (!direct) return '';
 
-  if (process.platform !== 'darwin') {
-    return isExecutable(direct) ? direct : '';
+  if (process.platform === 'win32') {
+    try {
+      if (fs.existsSync(direct) && fs.statSync(direct).isDirectory()) {
+        for (const candidateBinary of ['SubMiner.exe', 'subminer.exe']) {
+          const nestedCandidate = pathModule.join(direct, candidateBinary);
+          if (isExecutable(nestedCandidate)) {
+            return nestedCandidate;
+          }
+        }
+        return '';
+      }
+    } catch {
+      // ignore
+    }
+
+    if (isExecutable(direct)) {
+      return direct;
+    }
+
+    if (!pathModule.extname(direct)) {
+      for (const extension of ['.exe', '.cmd', '.bat']) {
+        const withExtension = `${direct}${extension}`;
+        if (isExecutable(withExtension)) {
+          return withExtension;
+        }
+      }
+    }
+
+    return '';
   }
 
   if (isExecutable(direct)) {
     return direct;
+  }
+
+  if (process.platform !== 'darwin') {
+    return '';
   }
 
   const appIndex = direct.indexOf('.app/');
@@ -265,8 +299,8 @@ function resolveMacAppBinaryCandidate(candidate: string): string {
   if (!appPath) return '';
 
   const candidates = [
-    path.join(appPath, 'Contents', 'MacOS', 'SubMiner'),
-    path.join(appPath, 'Contents', 'MacOS', 'subminer'),
+    pathModule.join(appPath, 'Contents', 'MacOS', 'SubMiner'),
+    pathModule.join(appPath, 'Contents', 'MacOS', 'subminer'),
   ];
 
   for (const candidateBinary of candidates) {
@@ -278,37 +312,78 @@ function resolveMacAppBinaryCandidate(candidate: string): string {
   return '';
 }
 
-export function findAppBinary(selfPath: string): string | null {
+function findCommandOnPath(candidates: string[], pathModule: PathModule = path): string {
+  const pathDirs = getPathEnv().split(pathModule.delimiter);
+  for (const candidateName of candidates) {
+    for (const dir of pathDirs) {
+      if (!dir) continue;
+
+      const directCandidate = pathModule.join(dir, candidateName);
+      if (isExecutable(directCandidate)) {
+        return directCandidate;
+      }
+
+      if (process.platform === 'win32' && !pathModule.extname(candidateName)) {
+        for (const extension of ['.exe', '.cmd', '.bat']) {
+          const extendedCandidate = pathModule.join(dir, `${candidateName}${extension}`);
+          if (isExecutable(extendedCandidate)) {
+            return extendedCandidate;
+          }
+        }
+      }
+    }
+  }
+
+  return '';
+}
+
+export function findAppBinary(selfPath: string, pathModule: PathModule = path): string | null {
   const envPaths = [process.env.SUBMINER_APPIMAGE_PATH, process.env.SUBMINER_BINARY_PATH].filter(
     (candidate): candidate is string => Boolean(candidate),
   );
 
   for (const envPath of envPaths) {
-    const resolved = resolveMacAppBinaryCandidate(envPath);
+    const resolved = resolveAppBinaryCandidate(envPath, pathModule);
     if (resolved) {
       return resolved;
     }
   }
 
   const candidates: string[] = [];
-  if (process.platform === 'darwin') {
+  if (process.platform === 'win32') {
+    const localAppData =
+      process.env.LOCALAPPDATA?.trim() ||
+      (process.env.APPDATA?.trim() || '').replace(/[\\/]Roaming$/i, `${pathModule.sep}Local`) ||
+      pathModule.join(os.homedir(), 'AppData', 'Local');
+    const programFiles = process.env.ProgramFiles?.trim() || 'C:\\Program Files';
+    const programFilesX86 = process.env['ProgramFiles(x86)']?.trim() || 'C:\\Program Files (x86)';
+    candidates.push(pathModule.join(localAppData, 'Programs', 'SubMiner', 'SubMiner.exe'));
+    candidates.push(pathModule.join(programFiles, 'SubMiner', 'SubMiner.exe'));
+    candidates.push(pathModule.join(programFilesX86, 'SubMiner', 'SubMiner.exe'));
+    candidates.push('C:\\SubMiner\\SubMiner.exe');
+  } else if (process.platform === 'darwin') {
     candidates.push('/Applications/SubMiner.app/Contents/MacOS/SubMiner');
     candidates.push('/Applications/SubMiner.app/Contents/MacOS/subminer');
-    candidates.push(path.join(os.homedir(), 'Applications/SubMiner.app/Contents/MacOS/SubMiner'));
-    candidates.push(path.join(os.homedir(), 'Applications/SubMiner.app/Contents/MacOS/subminer'));
+    candidates.push(
+      pathModule.join(os.homedir(), 'Applications/SubMiner.app/Contents/MacOS/SubMiner'),
+    );
+    candidates.push(
+      pathModule.join(os.homedir(), 'Applications/SubMiner.app/Contents/MacOS/subminer'),
+    );
+  } else {
+    candidates.push(pathModule.join(os.homedir(), '.local/bin/SubMiner.AppImage'));
+    candidates.push('/opt/SubMiner/SubMiner.AppImage');
   }
-
-  candidates.push(path.join(os.homedir(), '.local/bin/SubMiner.AppImage'));
-  candidates.push('/opt/SubMiner/SubMiner.AppImage');
 
   for (const candidate of candidates) {
-    if (isExecutable(candidate)) return candidate;
+    const resolved = resolveAppBinaryCandidate(candidate, pathModule);
+    if (resolved) return resolved;
   }
 
-  const fromPath = getPathEnv()
-    .split(path.delimiter)
-    .map((dir) => path.join(dir, 'subminer'))
-    .find((candidate) => isExecutable(candidate));
+  const fromPath = findCommandOnPath(
+    process.platform === 'win32' ? ['SubMiner', 'subminer'] : ['subminer'],
+    pathModule,
+  );
 
   if (fromPath) {
     const resolvedSelf = realpathMaybe(selfPath);
@@ -634,7 +709,9 @@ export async function startMpv(
   mpvArgs.push(`--input-ipc-server=${socketPath}`);
   mpvArgs.push(target);
 
-  const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);
+  const mpvTarget = resolveCommandInvocation('mpv', mpvArgs, {
+    normalizeWindowsShellArgs: false,
+  });
   state.mpvProc = spawn(mpvTarget.command, mpvTarget.args, { stdio: 'inherit' });
 }
 
@@ -1076,7 +1153,9 @@ export function launchMpvIdleDetached(
     );
     mpvArgs.push(`--log-file=${getMpvLogPath()}`);
     mpvArgs.push(`--input-ipc-server=${socketPath}`);
-    const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);
+    const mpvTarget = resolveCommandInvocation('mpv', mpvArgs, {
+      normalizeWindowsShellArgs: false,
+    });
     const proc = spawn(mpvTarget.command, mpvTarget.args, {
       stdio: 'ignore',
       detached: true,

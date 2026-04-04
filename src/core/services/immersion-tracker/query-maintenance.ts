@@ -355,9 +355,7 @@ export function upsertCoverArt(
   const fetchedAtMs = toDbTimestamp(nowMs());
   const coverBlob = normalizeCoverBlobBytes(art.coverBlob);
   const computedCoverBlobHash =
-    coverBlob && coverBlob.length > 0
-      ? createHash('sha256').update(coverBlob).digest('hex')
-      : null;
+    coverBlob && coverBlob.length > 0 ? createHash('sha256').update(coverBlob).digest('hex') : null;
   let coverBlobHash = computedCoverBlobHash ?? sharedCoverBlobHash ?? null;
   if (!coverBlobHash && (!coverBlob || coverBlob.length === 0)) {
     coverBlobHash = existing?.coverBlobHash ?? null;

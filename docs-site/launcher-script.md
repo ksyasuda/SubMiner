@@ -98,7 +98,7 @@ Use `subminer <subcommand> -h` for command-specific help.
 | `-T, --no-texthooker` | Disable texthooker server                           |
 | `-p, --profile`       | mpv profile name (default: `subminer`)              |
 | `-a, --args`          | Pass additional mpv arguments as a quoted string      |
-| `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`)    |
+| `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`, `macos`, `windows`)    |
 | `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`) |
 | `--dev`, `--debug`    | Enable app dev-mode (not tied to log level)         |
 

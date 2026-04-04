@@ -5,15 +5,45 @@ export interface WindowsMpvLaunchDeps {
   getEnv: (name: string) => string | undefined;
   runWhere: () => { status: number | null; stdout: string; error?: Error };
   fileExists: (candidate: string) => boolean;
-  spawnDetached: (command: string, args: string[]) => void;
+  spawnDetached: (command: string, args: string[]) => Promise<void>;
   showError: (title: string, content: string) => void;
 }
+
+export type ConfiguredWindowsMpvPathStatus = 'blank' | 'configured' | 'invalid';
 
 function normalizeCandidate(candidate: string | undefined): string {
   return typeof candidate === 'string' ? candidate.trim() : '';
 }
 
-export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps): string {
+function defaultWindowsMpvFileExists(candidate: string): boolean {
+  try {
+    return fs.statSync(candidate).isFile();
+  } catch {
+    return false;
+  }
+}
+
+export function getConfiguredWindowsMpvPathStatus(
+  configuredMpvPath = '',
+  fileExists: (candidate: string) => boolean = defaultWindowsMpvFileExists,
+): ConfiguredWindowsMpvPathStatus {
+  const configPath = normalizeCandidate(configuredMpvPath);
+  if (!configPath) {
+    return 'blank';
+  }
+  return fileExists(configPath) ? 'configured' : 'invalid';
+}
+
+export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps, configuredMpvPath = ''): string {
+  const configPath = normalizeCandidate(configuredMpvPath);
+  const configuredPathStatus = getConfiguredWindowsMpvPathStatus(configPath, deps.fileExists);
+  if (configuredPathStatus === 'configured') {
+    return configPath;
+  }
+  if (configuredPathStatus === 'invalid') {
+    return '';
+  }
+
   const envPath = normalizeCandidate(deps.getEnv('SUBMINER_MPV_PATH'));
   if (envPath && deps.fileExists(envPath)) {
     return envPath;
@@ -33,26 +63,92 @@ export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps): string {
   return '';
 }
 
-export function buildWindowsMpvLaunchArgs(targets: string[], extraArgs: string[] = []): string[] {
-  return ['--player-operation-mode=pseudo-gui', '--profile=subminer', ...extraArgs, ...targets];
+const DEFAULT_WINDOWS_MPV_SOCKET = '\\\\.\\pipe\\subminer-socket';
+
+function readExtraArgValue(extraArgs: string[], flag: string): string | undefined {
+  let value: string | undefined;
+  for (let i = 0; i < extraArgs.length; i += 1) {
+    const arg = extraArgs[i];
+    if (arg === flag) {
+      const next = extraArgs[i + 1];
+      if (next && !next.startsWith('-')) {
+        value = next;
+        i += 1;
+      }
+      continue;
+    }
+    if (arg?.startsWith(`${flag}=`)) {
+      value = arg.slice(flag.length + 1);
+    }
+  }
+  return value;
 }
 
-export function launchWindowsMpv(
+export function buildWindowsMpvLaunchArgs(
+  targets: string[],
+  extraArgs: string[] = [],
+  binaryPath?: string,
+  pluginEntrypointPath?: string,
+): string[] {
+  const launchIdle = targets.length === 0;
+  const inputIpcServer =
+    readExtraArgValue(extraArgs, '--input-ipc-server') ?? DEFAULT_WINDOWS_MPV_SOCKET;
+  const scriptEntrypoint =
+    typeof pluginEntrypointPath === 'string' && pluginEntrypointPath.trim().length > 0
+      ? `--script=${pluginEntrypointPath.trim()}`
+      : null;
+  const scriptOptPairs = scriptEntrypoint
+    ? [`subminer-socket_path=${inputIpcServer.replace(/,/g, '\\,')}`]
+    : [];
+  if (scriptEntrypoint && typeof binaryPath === 'string' && binaryPath.trim().length > 0) {
+    scriptOptPairs.unshift(`subminer-binary_path=${binaryPath.trim().replace(/,/g, '\\,')}`);
+  }
+  const scriptOpts = scriptOptPairs.length > 0 ? `--script-opts=${scriptOptPairs.join(',')}` : null;
+
+  return [
+    '--player-operation-mode=pseudo-gui',
+    '--force-window=immediate',
+    ...(launchIdle ? ['--idle=yes'] : []),
+    ...(scriptEntrypoint ? [scriptEntrypoint] : []),
+    `--input-ipc-server=${inputIpcServer}`,
+    '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+    '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+    '--sub-auto=fuzzy',
+    '--sub-file-paths=subs;subtitles',
+    '--sid=auto',
+    '--secondary-sid=auto',
+    '--secondary-sub-visibility=no',
+    ...(scriptOpts ? [scriptOpts] : []),
+    ...extraArgs,
+    ...targets,
+  ];
+}
+
+export async function launchWindowsMpv(
   targets: string[],
   deps: WindowsMpvLaunchDeps,
   extraArgs: string[] = [],
-): { ok: boolean; mpvPath: string } {
-  const mpvPath = resolveWindowsMpvPath(deps);
+  binaryPath?: string,
+  pluginEntrypointPath?: string,
+  configuredMpvPath?: string,
+): Promise<{ ok: boolean; mpvPath: string }> {
+  const normalizedConfiguredPath = normalizeCandidate(configuredMpvPath);
+  const mpvPath = resolveWindowsMpvPath(deps, normalizedConfiguredPath);
   if (!mpvPath) {
     deps.showError(
       'SubMiner mpv launcher',
-      'Could not find mpv.exe. Install mpv and add it to PATH, or set SUBMINER_MPV_PATH.',
+      normalizedConfiguredPath
+        ? `Configured mpv.executablePath was not found: ${normalizedConfiguredPath}`
+        : 'Could not find mpv.exe. Set mpv.executablePath, set SUBMINER_MPV_PATH, or add mpv.exe to PATH.',
     );
     return { ok: false, mpvPath: '' };
   }
 
   try {
-    deps.spawnDetached(mpvPath, buildWindowsMpvLaunchArgs(targets, extraArgs));
+    await deps.spawnDetached(
+      mpvPath,
+      buildWindowsMpvLaunchArgs(targets, extraArgs, binaryPath, pluginEntrypointPath),
+    );
     return { ok: true, mpvPath };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -79,23 +175,31 @@ export function createWindowsMpvLaunchDeps(options: {
         error: result.error ?? undefined,
       };
     },
-    fileExists:
-      options.fileExists ??
-      ((candidate) => {
+    fileExists: options.fileExists ?? defaultWindowsMpvFileExists,
+    spawnDetached: (command, args) =>
+      new Promise((resolve, reject) => {
         try {
-          return fs.statSync(candidate).isFile();
-        } catch {
-          return false;
+          const child = spawn(command, args, {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true,
+          });
+          let settled = false;
+          child.once('error', (error) => {
+            if (settled) return;
+            settled = true;
+            reject(error);
+          });
+          child.once('spawn', () => {
+            if (settled) return;
+            settled = true;
+            child.unref();
+            resolve();
+          });
+        } catch (error) {
+          reject(error);
         }
       }),
-    spawnDetached: (command, args) => {
-      const child = spawn(command, args, {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true,
-      });
-      child.unref();
-    },
     showError: options.showError,
   };
 }

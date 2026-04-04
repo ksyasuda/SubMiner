@@ -85,7 +85,10 @@ function createDefaultMpvFixture() {
     updateMpvSubtitleRenderMetricsMainDeps: {
       getCurrentMetrics: () => BASE_METRICS,
       setCurrentMetrics: () => {},
-      applyPatch: (current: MpvSubtitleRenderMetrics, patch: Partial<MpvSubtitleRenderMetrics>) => ({
+      applyPatch: (
+        current: MpvSubtitleRenderMetrics,
+        patch: Partial<MpvSubtitleRenderMetrics>,
+      ) => ({
         next: { ...current, ...patch },
         changed: true,
       }),

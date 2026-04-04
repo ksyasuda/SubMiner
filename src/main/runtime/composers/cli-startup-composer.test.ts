@@ -36,8 +36,13 @@ test('composeCliStartupHandlers returns callable CLI startup handlers', () => {
       openJellyfinSetupWindow: () => {},
       getAnilistQueueStatus: () => ({}) as never,
       processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'done' }),
-      generateCharacterDictionary: async () =>
-        ({ zipPath: '/tmp/test.zip', fromCache: false, mediaId: 1, mediaTitle: 'Test', entryCount: 1 }),
+      generateCharacterDictionary: async () => ({
+        zipPath: '/tmp/test.zip',
+        fromCache: false,
+        mediaId: 1,
+        mediaTitle: 'Test',
+        entryCount: 1,
+      }),
       runJellyfinCommand: async () => {},
       runStatsCommand: async () => {},
       runYoutubePlaybackFlow: async () => {},

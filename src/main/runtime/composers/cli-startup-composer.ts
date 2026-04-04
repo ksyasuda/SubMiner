@@ -30,9 +30,7 @@ export type CliStartupComposerResult = ComposerOutputs<{
 export function composeCliStartupHandlers(
   options: CliStartupComposerOptions,
 ): CliStartupComposerResult {
-  const createCliCommandContext = createCliCommandContextFactory(
-    options.cliCommandContextMainDeps,
-  );
+  const createCliCommandContext = createCliCommandContextFactory(options.cliCommandContextMainDeps);
   const handleCliCommand = createCliCommandRuntimeHandler({
     ...options.cliCommandRuntimeHandlerMainDeps,
     createCliCommandContext: () => createCliCommandContext(),

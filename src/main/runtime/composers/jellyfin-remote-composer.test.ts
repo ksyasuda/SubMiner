@@ -4,7 +4,13 @@ import { composeJellyfinRemoteHandlers } from './jellyfin-remote-composer';
 
 test('composeJellyfinRemoteHandlers returns callable jellyfin remote handlers', async () => {
   let lastProgressAt = 0;
-  let activePlayback: unknown = { itemId: 'item-1', mediaSourceId: 'src-1', playMethod: 'DirectPlay', audioStreamIndex: null, subtitleStreamIndex: null };
+  let activePlayback: unknown = {
+    itemId: 'item-1',
+    mediaSourceId: 'src-1',
+    playMethod: 'DirectPlay',
+    audioStreamIndex: null,
+    subtitleStreamIndex: null,
+  };
   const calls: string[] = [];
 
   const composed = composeJellyfinRemoteHandlers({

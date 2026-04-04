@@ -88,7 +88,7 @@ test('setup service auto-completes legacy installs with config and dictionaries'
     const service = createFirstRunSetupService({
       configDir,
       getYomitanDictionaryCount: async () => 2,
-      detectPluginInstalled: () => false,
+      detectPluginInstalled: () => true,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',
@@ -106,17 +106,18 @@ test('setup service auto-completes legacy installs with config and dictionaries'
   });
 });
 
-test('setup service requires explicit finish for incomplete installs and supports plugin skip/install', async () => {
+test('setup service requires mpv plugin install before finish', async () => {
   await withTempDir(async (root) => {
     const configDir = path.join(root, 'SubMiner');
     fs.mkdirSync(configDir, { recursive: true });
     fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
     let dictionaryCount = 0;
+    let pluginInstalled = false;
 
     const service = createFirstRunSetupService({
       configDir,
       getYomitanDictionaryCount: async () => dictionaryCount,
-      detectPluginInstalled: () => false,
+      detectPluginInstalled: () => pluginInstalled,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',
@@ -130,13 +131,11 @@ test('setup service requires explicit finish for incomplete installs and support
     assert.equal(initial.state.status, 'incomplete');
     assert.equal(initial.canFinish, false);
 
-    const skipped = await service.skipPluginInstall();
-    assert.equal(skipped.state.pluginInstallStatus, 'skipped');
-
     const installed = await service.installMpvPlugin();
     assert.equal(installed.state.pluginInstallStatus, 'installed');
     assert.equal(installed.pluginInstallPathSummary, '/tmp/mpv');
 
+    pluginInstalled = true;
     dictionaryCount = 1;
     const refreshed = await service.refreshStatus();
     assert.equal(refreshed.canFinish, true);
@@ -158,7 +157,7 @@ test('setup service allows completion without internal dictionaries when externa
       configDir,
       getYomitanDictionaryCount: async () => 0,
       isExternalYomitanConfigured: () => true,
-      detectPluginInstalled: () => false,
+      detectPluginInstalled: () => true,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',
@@ -190,7 +189,7 @@ test('setup service does not probe internal dictionaries when external yomitan i
         throw new Error('should not probe internal dictionaries in external mode');
       },
       isExternalYomitanConfigured: () => true,
-      detectPluginInstalled: () => false,
+      detectPluginInstalled: () => true,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',
@@ -218,7 +217,7 @@ test('setup service reopens when external-yomitan completion later has no extern
       configDir,
       getYomitanDictionaryCount: async () => 0,
       isExternalYomitanConfigured: () => true,
-      detectPluginInstalled: () => false,
+      detectPluginInstalled: () => true,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',
@@ -235,7 +234,7 @@ test('setup service reopens when external-yomitan completion later has no extern
       configDir,
       getYomitanDictionaryCount: async () => 0,
       isExternalYomitanConfigured: () => false,
-      detectPluginInstalled: () => false,
+      detectPluginInstalled: () => true,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',
@@ -252,6 +251,48 @@ test('setup service reopens when external-yomitan completion later has no extern
   });
 });
 
+test('setup service reopens when a completed setup no longer has the mpv plugin installed', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+
+    const completedService = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 2,
+      detectPluginInstalled: () => true,
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: '/tmp/mpv',
+        message: 'ok',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    await completedService.ensureSetupStateInitialized();
+    await completedService.markSetupCompleted();
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 2,
+      detectPluginInstalled: () => false,
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+        message: 'ok',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    const snapshot = await service.ensureSetupStateInitialized();
+    assert.equal(snapshot.state.status, 'incomplete');
+    assert.equal(snapshot.canFinish, false);
+    assert.equal(snapshot.pluginStatus, 'required');
+  });
+});
+
 test('setup service keeps completed when external-yomitan completion later has internal dictionaries available', async () => {
   await withTempDir(async (root) => {
     const configDir = path.join(root, 'SubMiner');
@@ -262,7 +303,7 @@ test('setup service keeps completed when external-yomitan completion later has i
       configDir,
       getYomitanDictionaryCount: async () => 0,
       isExternalYomitanConfigured: () => true,
-      detectPluginInstalled: () => false,
+      detectPluginInstalled: () => true,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',
@@ -279,7 +320,7 @@ test('setup service keeps completed when external-yomitan completion later has i
       configDir,
       getYomitanDictionaryCount: async () => 2,
       isExternalYomitanConfigured: () => false,
-      detectPluginInstalled: () => false,
+      detectPluginInstalled: () => true,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',
@@ -304,7 +345,7 @@ test('setup service marks cancelled when popup closes before completion', async 
     const service = createFirstRunSetupService({
       configDir,
       getYomitanDictionaryCount: async () => 0,
-      detectPluginInstalled: () => false,
+      detectPluginInstalled: () => true,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',
@@ -331,7 +372,7 @@ test('setup service reflects detected Windows mpv shortcuts before preferences a
       platform: 'win32',
       configDir,
       getYomitanDictionaryCount: async () => 0,
-      detectPluginInstalled: () => false,
+      detectPluginInstalled: () => true,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',
@@ -364,7 +405,7 @@ test('setup service persists Windows mpv shortcut preferences and status with on
       platform: 'win32',
       configDir,
       getYomitanDictionaryCount: async () => 0,
-      detectPluginInstalled: () => false,
+      detectPluginInstalled: () => true,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',

@@ -31,9 +31,9 @@ function readStoredZipEntries(zipPath: string): Map<string, Buffer> {
     const extraLength = archive.readUInt16LE(cursor + 28);
     const fileNameStart = cursor + 30;
     const dataStart = fileNameStart + fileNameLength + extraLength;
-    const fileName = archive.subarray(fileNameStart, fileNameStart + fileNameLength).toString(
-      'utf8',
-    );
+    const fileName = archive
+      .subarray(fileNameStart, fileNameStart + fileNameLength)
+      .toString('utf8');
     const data = archive.subarray(dataStart, dataStart + compressedSize);
     entries.set(fileName, Buffer.from(data));
     cursor = dataStart + compressedSize;
@@ -57,7 +57,9 @@ test('buildDictionaryZip writes a valid stored zip without fs.writeFileSync', ()
     }) as typeof fs.writeFileSync;
 
     Buffer.concat = ((...args: Parameters<typeof Buffer.concat>) => {
-      throw new Error(`buildDictionaryZip should not Buffer.concat the full archive (${args[0].length} chunks)`);
+      throw new Error(
+        `buildDictionaryZip should not Buffer.concat the full archive (${args[0].length} chunks)`,
+      );
     }) as typeof Buffer.concat;
 
     const result = buildDictionaryZip(
@@ -91,8 +93,9 @@ test('buildDictionaryZip writes a valid stored zip without fs.writeFileSync', ()
     assert.equal(indexJson.revision, '2026-03-27');
     assert.equal(indexJson.format, 3);
 
-    const termBank = JSON.parse(entries.get('term_bank_1.json')!.toString('utf8')) as
-      CharacterDictionaryTermEntry[];
+    const termBank = JSON.parse(
+      entries.get('term_bank_1.json')!.toString('utf8'),
+    ) as CharacterDictionaryTermEntry[];
     assert.equal(termBank.length, 1);
     assert.equal(termBank[0]?.[0], 'アルファ');
     assert.deepEqual(entries.get('images/alpha.bin'), Buffer.from([1, 2, 3]));

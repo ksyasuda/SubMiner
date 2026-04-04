@@ -87,7 +87,20 @@ const TREND_DAY_LIMITS: Record<Exclude<TrendRange, 'all'>, number> = {
   '90d': 90,
 };
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -101,7 +114,11 @@ function getTrendMonthlyLimit(db: DatabaseSync, range: TrendRange): number {
   }
   const currentTimestamp = currentDbTimestamp();
   const todayStartMs = getShiftedLocalDayTimestamp(db, currentTimestamp, 0);
-  const cutoffMs = getShiftedLocalDayTimestamp(db, currentTimestamp, -(TREND_DAY_LIMITS[range] - 1));
+  const cutoffMs = getShiftedLocalDayTimestamp(
+    db,
+    currentTimestamp,
+    -(TREND_DAY_LIMITS[range] - 1),
+  );
   const currentMonthKey = getLocalMonthKey(db, todayStartMs);
   const cutoffMonthKey = getLocalMonthKey(db, cutoffMs);
   const currentYear = Math.floor(currentMonthKey / 100);
@@ -630,8 +647,10 @@ export function getTrendsDashboard(
 
   const animePerDay = {
     episodes: buildEpisodesPerAnimeFromDailyRollups(dailyRollups, titlesByVideoId),
-    watchTime: buildPerAnimeFromDailyRollups(dailyRollups, titlesByVideoId, (rollup) =>
-      rollup.totalActiveMin,
+    watchTime: buildPerAnimeFromDailyRollups(
+      dailyRollups,
+      titlesByVideoId,
+      (rollup) => rollup.totalActiveMin,
     ),
     cards: buildPerAnimeFromDailyRollups(
       dailyRollups,
