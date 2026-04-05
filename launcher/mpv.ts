@@ -225,25 +225,63 @@ export function makeTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
-export function detectBackend(backend: Backend): Exclude<Backend, 'auto'> {
+export function detectBackend(
+  backend: Backend,
+  env: NodeJS.ProcessEnv = process.env,
+): Exclude<Backend, 'auto'> {
   if (backend !== 'auto') return backend;
   if (process.platform === 'win32') return 'windows';
   if (process.platform === 'darwin') return 'macos';
-  const xdgCurrentDesktop = (process.env.XDG_CURRENT_DESKTOP || '').toLowerCase();
-  const xdgSessionDesktop = (process.env.XDG_SESSION_DESKTOP || '').toLowerCase();
-  const xdgSessionType = (process.env.XDG_SESSION_TYPE || '').toLowerCase();
-  const hasWayland = Boolean(process.env.WAYLAND_DISPLAY) || xdgSessionType === 'wayland';
+  const linuxDesktopEnv = getLinuxDesktopEnv(env);
 
   if (
-    process.env.HYPRLAND_INSTANCE_SIGNATURE ||
-    xdgCurrentDesktop.includes('hyprland') ||
-    xdgSessionDesktop.includes('hyprland')
+    env.HYPRLAND_INSTANCE_SIGNATURE ||
+    linuxDesktopEnv.xdgCurrentDesktop.includes('hyprland') ||
+    linuxDesktopEnv.xdgSessionDesktop.includes('hyprland')
   ) {
     return 'hyprland';
   }
-  if (hasWayland && commandExists('hyprctl')) return 'hyprland';
-  if (process.env.DISPLAY) return 'x11';
+  if (linuxDesktopEnv.hasWayland && commandExists('hyprctl')) return 'hyprland';
+  if (env.DISPLAY) return 'x11';
   fail('Could not detect display backend');
+}
+
+type LinuxDesktopEnv = {
+  xdgCurrentDesktop: string;
+  xdgSessionDesktop: string;
+  hasWayland: boolean;
+};
+
+function getLinuxDesktopEnv(env: NodeJS.ProcessEnv): LinuxDesktopEnv {
+  const xdgCurrentDesktop = (env.XDG_CURRENT_DESKTOP || '').toLowerCase();
+  const xdgSessionDesktop = (env.XDG_SESSION_DESKTOP || '').toLowerCase();
+  const xdgSessionType = (env.XDG_SESSION_TYPE || '').toLowerCase();
+  return {
+    xdgCurrentDesktop,
+    xdgSessionDesktop,
+    hasWayland: Boolean(env.WAYLAND_DISPLAY) || xdgSessionType === 'wayland',
+  };
+}
+
+function shouldForceX11MpvBackend(
+  args: Pick<Args, 'backend'>,
+  env: NodeJS.ProcessEnv,
+): boolean {
+  if (process.platform !== 'linux' || !env.DISPLAY?.trim()) {
+    return false;
+  }
+
+  const linuxDesktopEnv = getLinuxDesktopEnv(env);
+  const supportedWaylandBackend =
+    Boolean(env.HYPRLAND_INSTANCE_SIGNATURE || env.SWAYSOCK) ||
+    linuxDesktopEnv.xdgCurrentDesktop.includes('hyprland') ||
+    linuxDesktopEnv.xdgCurrentDesktop.includes('sway') ||
+    linuxDesktopEnv.xdgSessionDesktop.includes('hyprland') ||
+    linuxDesktopEnv.xdgSessionDesktop.includes('sway');
+  return (
+    args.backend === 'x11' ||
+    (args.backend === 'auto' && linuxDesktopEnv.hasWayland && !supportedWaylandBackend)
+  );
 }
 
 function resolveAppBinaryCandidate(candidate: string, pathModule: PathModule = path): string {
@@ -637,6 +675,7 @@ export async function startMpv(
   const mpvArgs: string[] = [];
   if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
   mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
+  mpvArgs.push(...buildMpvBackendArgs(args));
   if (targetKind === 'url' && isYoutubeTarget(target)) {
     log('info', args.logLevel, 'Applying URL playback options');
     mpvArgs.push('--ytdl=yes');
@@ -712,7 +751,10 @@ export async function startMpv(
   const mpvTarget = resolveCommandInvocation('mpv', mpvArgs, {
     normalizeWindowsShellArgs: false,
   });
-  state.mpvProc = spawn(mpvTarget.command, mpvTarget.args, { stdio: 'inherit' });
+  state.mpvProc = spawn(mpvTarget.command, mpvTarget.args, {
+    stdio: 'inherit',
+    env: buildMpvEnv(args),
+  });
 }
 
 async function waitForOverlayStartCommandSettled(
@@ -889,9 +931,9 @@ function stopManagedOverlayApp(args: Args): void {
   }
 }
 
-function buildAppEnv(): NodeJS.ProcessEnv {
+function buildAppEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env: Record<string, string | undefined> = {
-    ...process.env,
+    ...baseEnv,
     SUBMINER_APP_LOG: getAppLogPath(),
     SUBMINER_MPV_LOG: getMpvLogPath(),
   };
@@ -909,6 +951,32 @@ function buildAppEnv(): NodeJS.ProcessEnv {
     }
   }
   return env;
+}
+
+export function buildMpvEnv(
+  args: Pick<Args, 'backend'>,
+  baseEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env = buildAppEnv(baseEnv);
+  if (!shouldForceX11MpvBackend(args, env)) {
+    return env;
+  }
+
+  delete env.WAYLAND_DISPLAY;
+  delete env.HYPRLAND_INSTANCE_SIGNATURE;
+  delete env.SWAYSOCK;
+  env.XDG_SESSION_TYPE = 'x11';
+  return env;
+}
+
+export function buildMpvBackendArgs(
+  args: Pick<Args, 'backend'>,
+  baseEnv: NodeJS.ProcessEnv = process.env,
+): string[] {
+  if (!shouldForceX11MpvBackend(args, baseEnv)) {
+    return [];
+  }
+  return ['--vo=gpu', '--gpu-api=opengl', '--gpu-context=x11egl,x11'];
 }
 
 function appendCapturedAppOutput(kind: 'STDOUT' | 'STDERR', chunk: string): void {
@@ -1144,6 +1212,7 @@ export function launchMpvIdleDetached(
     const mpvArgs: string[] = [];
     if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
     mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
+    mpvArgs.push(...buildMpvBackendArgs(args));
     if (args.mpvArgs) {
       mpvArgs.push(...parseMpvArgString(args.mpvArgs));
     }
@@ -1159,6 +1228,7 @@ export function launchMpvIdleDetached(
     const proc = spawn(mpvTarget.command, mpvTarget.args, {
       stdio: 'ignore',
       detached: true,
+      env: buildMpvEnv(args),
     });
     if (typeof proc.pid === 'number' && proc.pid > 0) {
       trackDetachedMpvPid(proc.pid);
