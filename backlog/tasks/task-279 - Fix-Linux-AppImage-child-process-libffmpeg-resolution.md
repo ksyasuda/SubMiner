@@ -1,11 +1,11 @@
 ---
 id: TASK-279
 title: Fix Linux AppImage child-process libffmpeg resolution
-status: Done
+status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-05 17:17'
-updated_date: '2026-04-05 17:21'
+updated_date: '2026-04-05 17:55'
 labels: []
 dependencies: []
 references:
@@ -45,6 +45,8 @@ Chose a repo-local electron-builder `afterPack` hook instead of patching/forking
 Added regression coverage for both config wiring (`src/release-workflow.test.ts`) and the hook behavior (`scripts/electron-builder-after-pack.test.ts`), then wired the new script test into `test:fast` so the maintained lane keeps exercising the fix.
 
 Verification passed: `bun test scripts/electron-builder-after-pack.test.ts src/release-workflow.test.ts`, `bun run typecheck`, `bun run test:fast`, `bun run test:env`, `bun run build`, `bun run test:smoke:dist`.
+
+Addressed PR #45 CodeRabbit review thread: Linux `afterPack` staging now hard-fails when `libffmpeg.so` is missing instead of silently no-oping. Updated focused hook tests to assert the new failure contract and that `afterPack` propagates Linux staging errors.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

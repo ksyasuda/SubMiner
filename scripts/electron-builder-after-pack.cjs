@@ -17,8 +17,13 @@ async function stageLinuxAppImageSharedLibrary(
 
   try {
     await deps.access(sourceLibraryPath);
-  } catch {
-    return false;
+  } catch (error) {
+    if (error && typeof error === 'object' && error.code === 'ENOENT') {
+      throw new Error(
+        `Linux packaging requires ${LINUX_FFMPEG_LIBRARY} at ${sourceLibraryPath} so AppImage child processes can resolve it.`,
+      );
+    }
+    throw error;
   }
 
   const targetLibraryDir = path.join(context.appOutDir, 'usr', 'lib');
