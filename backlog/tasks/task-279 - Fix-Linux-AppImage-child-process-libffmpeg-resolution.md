@@ -1,11 +1,11 @@
 ---
 id: TASK-279
 title: Fix Linux AppImage child-process libffmpeg resolution
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-05 17:17'
-updated_date: '2026-04-05 17:55'
+updated_date: '2026-04-05 17:56'
 labels: []
 dependencies: []
 references:
@@ -57,4 +57,6 @@ Added a shared electron-builder `afterPack` hook at `scripts/electron-builder-af
 Regression coverage now checks both the packaging config and the hook behavior: `src/release-workflow.test.ts` asserts the hook stays wired into release config, and `scripts/electron-builder-after-pack.test.ts` verifies Linux copies `libffmpeg.so` into `usr/lib` while non-Linux and missing-library cases no-op safely. The new script test is included in `test:fast`, and a changelog fragment was added under `changes/fix-appimage-libffmpeg-path.md`.
 
 Verification passed with `bun test scripts/electron-builder-after-pack.test.ts src/release-workflow.test.ts`, `bun run typecheck`, `bun run test:fast`, `bun run test:env`, `bun run build`, and `bun run test:smoke:dist`.
+
+Follow-up review fix on PR #45: Linux packaging now throws when `libffmpeg.so` is missing from the packaged app root, preventing silent shipment of a broken AppImage. Focused regression coverage was updated so the missing-library case rejects and `afterPack` propagates the failure.
 <!-- SECTION:FINAL_SUMMARY:END -->
