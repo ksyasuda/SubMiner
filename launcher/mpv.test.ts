@@ -7,6 +7,8 @@ import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
 import {
+  buildMpvBackendArgs,
+  buildMpvEnv,
   cleanupPlaybackSession,
   detectBackend,
   findAppBinary,
@@ -122,6 +124,113 @@ test('parseMpvArgString preserves empty quoted tokens', () => {
 test('detectBackend resolves windows on win32 auto mode', () => {
   withPlatform('win32', () => {
     assert.equal(detectBackend('auto'), 'windows');
+  });
+});
+
+test('buildMpvEnv forces X11 by dropping Wayland hints when backend resolves to x11', () => {
+  withPlatform('linux', () => {
+    const env = buildMpvEnv(makeArgs({ backend: 'x11' }), {
+      DISPLAY: ':1',
+      WAYLAND_DISPLAY: 'wayland-0',
+      XDG_SESSION_TYPE: 'wayland',
+      HYPRLAND_INSTANCE_SIGNATURE: 'hypr',
+      SWAYSOCK: '/tmp/sway.sock',
+    });
+
+    assert.equal(env.DISPLAY, ':1');
+    assert.equal(env.WAYLAND_DISPLAY, undefined);
+    assert.equal(env.XDG_SESSION_TYPE, 'x11');
+    assert.equal(env.HYPRLAND_INSTANCE_SIGNATURE, undefined);
+    assert.equal(env.SWAYSOCK, undefined);
+  });
+});
+
+test('buildMpvEnv auto mode falls back to X11 when no supported Wayland tracker backend is detected', () => {
+  withPlatform('linux', () => {
+    const env = buildMpvEnv(makeArgs({ backend: 'auto' }), {
+      DISPLAY: ':1',
+      WAYLAND_DISPLAY: 'wayland-0',
+      XDG_SESSION_TYPE: 'wayland',
+      XDG_CURRENT_DESKTOP: 'KDE',
+      XDG_SESSION_DESKTOP: 'plasma',
+    });
+
+    assert.equal(env.DISPLAY, ':1');
+    assert.equal(env.WAYLAND_DISPLAY, undefined);
+    assert.equal(env.XDG_SESSION_TYPE, 'x11');
+  });
+});
+
+test('buildMpvEnv preserves native Wayland env for supported Hyprland and Sway auto backends', () => {
+  withPlatform('linux', () => {
+    const hyprEnv = buildMpvEnv(makeArgs({ backend: 'auto' }), {
+      DISPLAY: ':1',
+      WAYLAND_DISPLAY: 'wayland-0',
+      XDG_SESSION_TYPE: 'wayland',
+      HYPRLAND_INSTANCE_SIGNATURE: 'hypr',
+    });
+    assert.equal(hyprEnv.WAYLAND_DISPLAY, 'wayland-0');
+    assert.equal(hyprEnv.XDG_SESSION_TYPE, 'wayland');
+
+    const swayEnv = buildMpvEnv(makeArgs({ backend: 'auto' }), {
+      DISPLAY: ':1',
+      WAYLAND_DISPLAY: 'wayland-0',
+      XDG_SESSION_TYPE: 'wayland',
+      SWAYSOCK: '/tmp/sway.sock',
+    });
+    assert.equal(swayEnv.WAYLAND_DISPLAY, 'wayland-0');
+    assert.equal(swayEnv.XDG_SESSION_TYPE, 'wayland');
+  });
+});
+
+test('buildMpvBackendArgs forces an explicit X11 renderer stack when backend resolves to x11', () => {
+  withPlatform('linux', () => {
+    assert.deepEqual(
+      buildMpvBackendArgs(makeArgs({ backend: 'x11' }), {
+        DISPLAY: ':1',
+        WAYLAND_DISPLAY: 'wayland-0',
+        XDG_SESSION_TYPE: 'wayland',
+      }),
+      ['--vo=gpu', '--gpu-api=opengl', '--gpu-context=x11egl,x11'],
+    );
+  });
+});
+
+test('buildMpvBackendArgs forces the same X11 renderer stack for unsupported Wayland auto fallback', () => {
+  withPlatform('linux', () => {
+    assert.deepEqual(
+      buildMpvBackendArgs(makeArgs({ backend: 'auto' }), {
+        DISPLAY: ':1',
+        WAYLAND_DISPLAY: 'wayland-0',
+        XDG_SESSION_TYPE: 'wayland',
+        XDG_CURRENT_DESKTOP: 'KDE',
+        XDG_SESSION_DESKTOP: 'plasma',
+      }),
+      ['--vo=gpu', '--gpu-api=opengl', '--gpu-context=x11egl,x11'],
+    );
+  });
+});
+
+test('buildMpvBackendArgs keeps supported Hyprland and Sway auto backends unchanged', () => {
+  withPlatform('linux', () => {
+    assert.deepEqual(
+      buildMpvBackendArgs(makeArgs({ backend: 'auto' }), {
+        DISPLAY: ':1',
+        WAYLAND_DISPLAY: 'wayland-0',
+        XDG_SESSION_TYPE: 'wayland',
+        HYPRLAND_INSTANCE_SIGNATURE: 'hypr',
+      }),
+      [],
+    );
+    assert.deepEqual(
+      buildMpvBackendArgs(makeArgs({ backend: 'auto' }), {
+        DISPLAY: ':1',
+        WAYLAND_DISPLAY: 'wayland-0',
+        XDG_SESSION_TYPE: 'wayland',
+        SWAYSOCK: '/tmp/sway.sock',
+      }),
+      [],
+    );
   });
 });
 
@@ -485,6 +594,40 @@ function withAccessSyncStub(
   }
 }
 
+function withExistsAndStatSyncStubs(
+  options: {
+    existingPaths?: string[];
+    directoryPaths?: string[];
+  },
+  run: () => void,
+): void {
+  const existingPaths = new Set(options.existingPaths ?? []);
+  const directoryPaths = new Set(options.directoryPaths ?? []);
+  const originalExistsSync = fs.existsSync;
+  const originalStatSync = fs.statSync;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).existsSync = (filePath: string): boolean =>
+      existingPaths.has(filePath) || directoryPaths.has(filePath);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).statSync = (filePath: string) => {
+      if (directoryPaths.has(filePath)) {
+        return { isDirectory: () => true };
+      }
+      if (existingPaths.has(filePath)) {
+        return { isDirectory: () => false };
+      }
+      throw Object.assign(new Error(`ENOENT: ${filePath}`), { code: 'ENOENT' });
+    };
+    run();
+  } finally {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).existsSync = originalExistsSync;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).statSync = originalStatSync;
+  }
+}
+
 function withRealpathSyncStub(resolvePath: (filePath: string) => string, run: () => void): void {
   const originalRealpathSync = fs.realpathSync;
   try {
@@ -494,6 +637,75 @@ function withRealpathSyncStub(resolvePath: (filePath: string) => string, run: ()
   } finally {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (fs as any).realpathSync = originalRealpathSync;
+  }
+}
+
+function listRepoRootWindowsTempArtifacts(): string[] {
+  return fs
+    .readdirSync(process.cwd())
+    .filter((entry) => /^\\tmp\\subminer-test-win-/.test(entry))
+    .sort();
+}
+
+function runFindAppBinaryWindowsPathCase(): void {
+  const baseDir = 'C:\\Users\\tester\\subminer-test-win-path';
+  const originalHomedir = os.homedir;
+  const originalPath = process.env.PATH;
+  try {
+    os.homedir = () => baseDir;
+    const binDir = path.win32.join(baseDir, 'bin');
+    const wrapperPath = path.win32.join(binDir, 'SubMiner.exe');
+    process.env.PATH = `${binDir}${path.win32.delimiter}${originalPath ?? ''}`;
+
+    withFindAppBinaryPlatformSandbox('win32', (pathModule) => {
+      withAccessSyncStub(
+        (filePath) => filePath === wrapperPath,
+        () => {
+          const result = findAppBinary(
+            pathModule.join(baseDir, 'launcher', 'SubMiner.exe'),
+            pathModule,
+          );
+          assert.equal(result, wrapperPath);
+        },
+      );
+    });
+  } finally {
+    os.homedir = originalHomedir;
+    process.env.PATH = originalPath;
+  }
+}
+
+function runFindAppBinaryWindowsInstallDirCase(): void {
+  const baseDir = 'C:\\Users\\tester\\subminer-test-win-dir';
+  const originalHomedir = os.homedir;
+  const originalSubminerBinaryPath = process.env.SUBMINER_BINARY_PATH;
+  try {
+    os.homedir = () => baseDir;
+    const installDir = path.win32.join(baseDir, 'Programs', 'SubMiner');
+    const appExe = path.win32.join(installDir, 'SubMiner.exe');
+    process.env.SUBMINER_BINARY_PATH = installDir;
+
+    withPlatform('win32', () => {
+      withExistsAndStatSyncStubs(
+        { existingPaths: [appExe], directoryPaths: [installDir] },
+        () => {
+          withAccessSyncStub(
+            (filePath) => filePath === appExe,
+            () => {
+              const result = findAppBinary(path.win32.join(baseDir, 'launcher', 'SubMiner.exe'), path.win32);
+              assert.equal(result, appExe);
+            },
+          );
+        },
+      );
+    });
+  } finally {
+    os.homedir = originalHomedir;
+    if (originalSubminerBinaryPath === undefined) {
+      delete process.env.SUBMINER_BINARY_PATH;
+    } else {
+      process.env.SUBMINER_BINARY_PATH = originalSubminerBinaryPath;
+    }
   }
 }
 
@@ -657,71 +869,31 @@ test('findAppBinary resolves Windows install paths when present', { concurrency:
   }
 });
 
-test('findAppBinary resolves SubMiner.exe on PATH on Windows', { concurrency: false }, () => {
-  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-win-path-'));
-  const originalHomedir = os.homedir;
-  const originalPath = process.env.PATH;
-  try {
-    os.homedir = () => baseDir;
-    const binDir = path.win32.join(baseDir, 'bin');
-    const wrapperPath = path.win32.join(binDir, 'SubMiner.exe');
-    makeExecutable(wrapperPath);
-    process.env.PATH = `${binDir}${path.win32.delimiter}${originalPath ?? ''}`;
+test(
+  'findAppBinary Windows cases do not leak backslash temp artifacts on POSIX',
+  { concurrency: false },
+  () => {
+    if (path.sep === '\\') {
+      return;
+    }
 
-    withFindAppBinaryPlatformSandbox('win32', (pathModule) => {
-      withAccessSyncStub(
-        (filePath) => filePath === wrapperPath,
-        () => {
-          const result = findAppBinary(
-            pathModule.join(baseDir, 'launcher', 'SubMiner.exe'),
-            pathModule,
-          );
-          assert.equal(result, wrapperPath);
-        },
-      );
-    });
-  } finally {
-    os.homedir = originalHomedir;
-    process.env.PATH = originalPath;
-    fs.rmSync(baseDir, { recursive: true, force: true });
-  }
+    const before = listRepoRootWindowsTempArtifacts();
+    runFindAppBinaryWindowsPathCase();
+    runFindAppBinaryWindowsInstallDirCase();
+    const after = listRepoRootWindowsTempArtifacts();
+
+    assert.deepEqual(after, before);
+  },
+);
+
+test('findAppBinary resolves SubMiner.exe on PATH on Windows', { concurrency: false }, () => {
+  runFindAppBinaryWindowsPathCase();
 });
 
 test(
   'findAppBinary resolves a Windows install directory to SubMiner.exe',
   { concurrency: false },
   () => {
-    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-win-dir-'));
-    const originalHomedir = os.homedir;
-    const originalSubminerBinaryPath = process.env.SUBMINER_BINARY_PATH;
-    try {
-      os.homedir = () => baseDir;
-      const installDir = path.win32.join(baseDir, 'Programs', 'SubMiner');
-      const appExe = path.win32.join(installDir, 'SubMiner.exe');
-      process.env.SUBMINER_BINARY_PATH = installDir;
-      fs.mkdirSync(installDir, { recursive: true });
-      fs.writeFileSync(appExe, '#!/bin/sh\nexit 0\n');
-      fs.chmodSync(appExe, 0o755);
-
-      const originalPlatform = process.platform;
-      try {
-        Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-        const result = findAppBinary(
-          path.win32.join(baseDir, 'launcher', 'SubMiner.exe'),
-          path.win32,
-        );
-        assert.equal(result, appExe);
-      } finally {
-        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
-      }
-    } finally {
-      os.homedir = originalHomedir;
-      if (originalSubminerBinaryPath === undefined) {
-        delete process.env.SUBMINER_BINARY_PATH;
-      } else {
-        process.env.SUBMINER_BINARY_PATH = originalSubminerBinaryPath;
-      }
-      fs.rmSync(baseDir, { recursive: true, force: true });
-    }
+    runFindAppBinaryWindowsInstallDirCase();
   },
 );
