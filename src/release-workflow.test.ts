@@ -13,6 +13,7 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
   productName?: string;
   scripts: Record<string, string>;
   build?: {
+    afterPack?: string;
     files?: string[];
   };
 };
@@ -75,6 +76,10 @@ test('release package scripts disable implicit electron-builder publishing', () 
   assert.match(packageJson.scripts['build:mac'] ?? '', /--publish never/);
   assert.match(packageJson.scripts['build:win'] ?? '', /--publish never/);
   assert.match(packageJson.scripts['build:win:unsigned'] ?? '', /build-win-unsigned\.mjs/);
+});
+
+test('release packaging wires a shared afterPack hook for Linux AppImage library staging', () => {
+  assert.equal(packageJson.build?.afterPack, 'scripts/electron-builder-after-pack.cjs');
 });
 
 test('top-level package metadata keeps Linux Electron runtime app identity canonical', () => {
