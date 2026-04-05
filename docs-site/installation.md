@@ -388,21 +388,12 @@ AnkiConnect listens on `http://127.0.0.1:8765` by default. SubMiner will connect
 
 For enrichment configuration (sentence, audio, screenshot fields), see [Anki Integration](/anki-integration).
 
-## Verify Installation
+## First-Run Setup
 
-After installing, run the built-in diagnostic to confirm dependencies are in place:
-
-```bash
-subminer doctor
-```
-
-This checks for the app binary, mpv, ffmpeg, config file, and socket path. Fix any failures before continuing.
-
-> [!NOTE]
-> On Windows, use `bun run subminer doctor` or run `SubMiner.exe` directly. Replace `SubMiner.AppImage` with `SubMiner.exe` in the direct app commands below.
+On first launch SubMiner creates a default config file automatically and opens a setup popup. You do **not** need to create the config manually — SubMiner handles it.
 
 ```bash
-# Play a file (default plugin config auto-starts visible overlay and waits for annotation readiness; first launch may open first-run setup popup)
+# Play a file (default plugin config auto-starts visible overlay and waits for annotation readiness; first launch opens first-run setup popup)
 subminer video.mkv
 
 # Optional explicit overlay start for setups with plugin auto_start=no
@@ -419,12 +410,6 @@ SubMiner.AppImage --start --dev
 SubMiner.AppImage --help    # Show all CLI options
 ```
 
-You should see the overlay appear over mpv. If subtitles are loaded in the video, they will appear as interactive text in the overlay.
-
-## First-Run Setup
-
-On first launch SubMiner creates a default config file automatically and opens a setup popup. You do **not** need to create the config manually — SubMiner handles it.
-
 The setup popup walks you through:
 
 - **Config file**: auto-created at `~/.config/SubMiner/config.jsonc` (Linux/macOS) or `%APPDATA%\SubMiner\config.jsonc` (Windows)
@@ -436,6 +421,21 @@ The `Finish setup` button stays disabled until the plugin is installed and at le
 
 > [!TIP]
 > You can re-open the setup popup at any time with `subminer --setup` or `SubMiner.AppImage --setup`.
+
+You should see the overlay appear over mpv. If subtitles are loaded in the video, they will appear as interactive text in the overlay.
+
+## Verify Setup
+
+After completing first-run setup, run the built-in diagnostic to confirm everything is in place:
+
+```bash
+subminer doctor
+```
+
+This checks for the app binary, mpv, ffmpeg, config file, and socket path. Fix any failures before continuing.
+
+> [!NOTE]
+> On Windows, use `bun run subminer doctor` or run `SubMiner.exe` directly. Replace `SubMiner.AppImage` with `SubMiner.exe` in the direct app commands below.
 
 ## Optional Extras
 

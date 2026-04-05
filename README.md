@@ -241,7 +241,11 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 
 </details>
 
-### 2. Check Dependencies
+### 2. First Launch
+
+Run the app. On first launch SubMiner starts in the system tray, creates a default config, and opens a setup popup to finish config, install the mpv plugin, and configure Yomitan dictionaries.
+
+### 3. Verify Setup
 
 ```bash
 subminer doctor                 # verify mpv, ffmpeg, config, and socket
@@ -249,10 +253,6 @@ subminer doctor                 # verify mpv, ffmpeg, config, and socket
 
 > [!NOTE]
 > On Windows, use `bun run subminer doctor` or run `SubMiner.exe` directly — first-run setup will guide you through dependency checks.
-
-### 3. First Launch
-
-Run the app. On first launch SubMiner starts in the system tray, creates a default config, and opens a setup popup to finish config, install the mpv plugin, and configure Yomitan dictionaries.
 
 ### 4. Mine
 
