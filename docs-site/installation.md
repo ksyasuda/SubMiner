@@ -390,12 +390,39 @@ For enrichment configuration (sentence, audio, screenshot fields), see [Anki Int
 
 ## First-Run Setup
 
-On first launch SubMiner creates a default config file automatically and opens a setup popup. You do **not** need to create the config manually — SubMiner handles it.
+Run the setup wizard to create a default config and finish initial configuration. You do **not** need to create the config manually — SubMiner handles it.
 
 ```bash
-# Play a file (default plugin config auto-starts visible overlay and waits for annotation readiness; first launch opens first-run setup popup)
-subminer video.mkv
+subminer app --setup
+```
 
+> [!NOTE]
+> On Windows, run `SubMiner.exe` directly — it opens the setup wizard automatically on first launch.
+
+The setup popup walks you through:
+
+- **Config file**: auto-created at `~/.config/SubMiner/config.jsonc` (Linux/macOS) or `%APPDATA%\SubMiner\config.jsonc` (Windows)
+- **mpv plugin**: install the bundled Lua plugin for in-player keybindings
+- **Yomitan dictionaries**: import at least one dictionary so lookups work
+- **Windows shortcut** _(Windows only)_: optionally create a `SubMiner mpv` Start Menu/Desktop shortcut
+
+The `Finish setup` button stays disabled until the plugin is installed and at least one dictionary is imported. Once you finish, SubMiner will not show the popup again.
+
+> [!TIP]
+> You can re-open the setup popup at any time with `subminer app --setup` or `SubMiner.AppImage --setup`.
+
+Once setup is complete, play a video to verify everything works:
+
+```bash
+subminer video.mkv
+```
+
+You should see the overlay appear over mpv. If subtitles are loaded in the video, they will appear as interactive text in the overlay.
+
+<details>
+<summary><b>More launch examples</b></summary>
+
+```bash
 # Optional explicit overlay start for setups with plugin auto_start=no
 subminer --start video.mkv
 
@@ -410,19 +437,7 @@ SubMiner.AppImage --start --dev
 SubMiner.AppImage --help    # Show all CLI options
 ```
 
-The setup popup walks you through:
-
-- **Config file**: auto-created at `~/.config/SubMiner/config.jsonc` (Linux/macOS) or `%APPDATA%\SubMiner\config.jsonc` (Windows)
-- **mpv plugin**: install the bundled Lua plugin for in-player keybindings
-- **Yomitan dictionaries**: import at least one dictionary so lookups work
-- **Windows shortcut** _(Windows only)_: optionally create a `SubMiner mpv` Start Menu/Desktop shortcut
-
-The `Finish setup` button stays disabled until the plugin is installed and at least one dictionary is imported. Once you finish, SubMiner will not show the popup again.
-
-> [!TIP]
-> You can re-open the setup popup at any time with `subminer --setup` or `SubMiner.AppImage --setup`.
-
-You should see the overlay appear over mpv. If subtitles are loaded in the video, they will appear as interactive text in the overlay.
+</details>
 
 ## Verify Setup
 

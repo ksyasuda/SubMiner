@@ -243,7 +243,14 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 
 ### 2. First Launch
 
-Run the app. On first launch SubMiner starts in the system tray, creates a default config, and opens a setup popup to finish config, install the mpv plugin, and configure Yomitan dictionaries.
+```bash
+subminer app --setup            # launch the first-run setup wizard
+```
+
+SubMiner creates a default config, starts in the system tray, and opens a setup popup that walks you through installing the mpv plugin and configuring Yomitan dictionaries. Follow the on-screen steps to complete setup.
+
+> [!NOTE]
+> On Windows, run `SubMiner.exe` directly — it opens the setup wizard automatically on first launch.
 
 ### 3. Verify Setup
 

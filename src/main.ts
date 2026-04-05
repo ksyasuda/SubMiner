@@ -2318,8 +2318,8 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
   logError: (message, error) => logger.error(message, error),
 });
 
-function openFirstRunSetupWindow(): void {
-  if (firstRunSetupService.isSetupCompleted()) {
+function openFirstRunSetupWindow(force = false): void {
+  if (!force && firstRunSetupService.isSetupCompleted()) {
     return;
   }
   openFirstRunSetupWindowHandler();
@@ -3238,12 +3238,12 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     handleFirstRunSetup: async () => {
       const snapshot = await firstRunSetupService.ensureSetupStateInitialized();
       appState.firstRunSetupCompleted = snapshot.state.status === 'completed';
-      if (
-        appState.initialArgs &&
-        shouldAutoOpenFirstRunSetup(appState.initialArgs) &&
-        snapshot.state.status !== 'completed'
-      ) {
-        openFirstRunSetupWindow();
+      const args = appState.initialArgs;
+      if (args && shouldAutoOpenFirstRunSetup(args)) {
+        const force = Boolean(args.setup);
+        if (force || snapshot.state.status !== 'completed') {
+          openFirstRunSetupWindow(force);
+        }
       }
     },
     startJellyfinRemoteSession: async () => {
