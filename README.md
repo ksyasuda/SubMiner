@@ -65,6 +65,10 @@ Local stats dashboard — watch time, anime library, vocabulary growth, mining t
 
 Browse sibling episode files and the active mpv queue in one overlay modal. Open it with `Ctrl+Alt+P` to append episodes from the current directory, jump to queued items, remove entries, or reorder the playlist without leaving playback.
 
+<div align="center">
+  <img src="docs-site/public/screenshots/playlist-browser.png" width="800" alt="Stats dashboard showing watch time, cards mined, streaks, and tracking data">
+</div>
+
 <br>
 
 ### Integrations
@@ -106,12 +110,12 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
 
 ## Requirements
 
-|                | Required                                | Recommended                              | Optional                                                    |
-| -------------- | --------------------------------------- | ---------------------------------------- | ----------------------------------------------------------- |
-| **Player**     | [`mpv`](https://mpv.io) with IPC socket | —                                        | —                                                           |
-| **Processing** | —                                       | `ffmpeg` (audio clips & screenshots)     | `mecab` + `mecab-ipadic` (annotation POS filtering), `guessit` (AniSkip), `alass` / `ffsubsync` (subtitle sync) |
-| **Media**      | —                                       | —                                        | `yt-dlp`, `chafa`, `ffmpegthumbnailer`                      |
-| **Selection**  | —                                       | —                                        | `fzf` / `rofi`                                              |
+|                | Required                                | Recommended                          | Optional                                                                                                        |
+| -------------- | --------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| **Player**     | [`mpv`](https://mpv.io) with IPC socket | —                                    | —                                                                                                               |
+| **Processing** | —                                       | `ffmpeg` (audio clips & screenshots) | `mecab` + `mecab-ipadic` (annotation POS filtering), `guessit` (AniSkip), `alass` / `ffsubsync` (subtitle sync) |
+| **Media**      | —                                       | —                                    | `yt-dlp`, `chafa`, `ffmpegthumbnailer`                                                                          |
+| **Selection**  | —                                       | —                                    | `fzf` / `rofi`                                                                                                  |
 
 > [!TIP]
 > `ffmpeg` is not strictly required to run SubMiner, but without it audio clips and screenshots will not be attached to Anki cards. Most users will want it installed.
@@ -260,7 +264,7 @@ subminer stats -b           # stats daemon in background
 subminer stats -s           # stop background stats daemon
 ```
 
-On **Windows**, the `subminer` script must be run with `bun run subminer` (e.g. `bun run subminer video.mkv`). The recommended alternative is the **SubMiner mpv** shortcut (created during setup) or `SubMiner.exe --launch-mpv`.  Drag a video file onto the shortcut to play it, or double-click it to open mpv with SubMiner's defaults.
+On **Windows**, the `subminer` script must be run with `bun run subminer` (e.g. `bun run subminer video.mkv`). The recommended alternative is the **SubMiner mpv** shortcut (created during setup) or `SubMiner.exe --launch-mpv`. Drag a video file onto the shortcut to play it, or double-click it to open mpv with SubMiner's defaults.
 
 ## Documentation
 
