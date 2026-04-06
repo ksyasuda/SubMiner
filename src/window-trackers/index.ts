@@ -18,29 +18,27 @@
 
 import { BaseWindowTracker } from './base-tracker';
 import { HyprlandWindowTracker } from './hyprland-tracker';
+import { KWinWindowTracker } from './kwin-tracker';
 import { SwayWindowTracker } from './sway-tracker';
 import { X11WindowTracker } from './x11-tracker';
 import { MacOSWindowTracker } from './macos-tracker';
 import { WindowsWindowTracker } from './windows-tracker';
+import { detectSessionBackend, type SessionBackend } from '../shared/backend-detection';
 import { createLogger } from '../logger';
 
 const log = createLogger('tracker');
 
-export type Compositor = 'hyprland' | 'sway' | 'x11' | 'macos' | 'windows' | null;
+export type Compositor = SessionBackend;
 export type Backend = 'auto' | Exclude<Compositor, null>;
 
 export function detectCompositor(): Compositor {
-  if (process.platform === 'win32') return 'windows';
-  if (process.platform === 'darwin') return 'macos';
-  if (process.env.HYPRLAND_INSTANCE_SIGNATURE) return 'hyprland';
-  if (process.env.SWAYSOCK) return 'sway';
-  if (process.platform === 'linux') return 'x11';
-  return null;
+  return detectSessionBackend();
 }
 
 function normalizeCompositor(value: string): Compositor | null {
   const normalized = value.trim().toLowerCase();
   if (normalized === 'hyprland') return 'hyprland';
+  if (normalized === 'kwin') return 'kwin';
   if (normalized === 'sway') return 'sway';
   if (normalized === 'x11') return 'x11';
   if (normalized === 'macos') return 'macos';
@@ -67,6 +65,8 @@ export function createWindowTracker(
   switch (compositor) {
     case 'hyprland':
       return new HyprlandWindowTracker(targetMpvSocketPath?.trim() || undefined);
+    case 'kwin':
+      return new KWinWindowTracker(targetMpvSocketPath?.trim() || undefined);
     case 'sway':
       return new SwayWindowTracker(targetMpvSocketPath?.trim() || undefined);
     case 'x11':
@@ -84,6 +84,7 @@ export function createWindowTracker(
 export {
   BaseWindowTracker,
   HyprlandWindowTracker,
+  KWinWindowTracker,
   SwayWindowTracker,
   X11WindowTracker,
   MacOSWindowTracker,

@@ -6,6 +6,7 @@ import {
   OverlayShortcutRuntimeDeps,
   runOverlayShortcutLocalFallback,
 } from './overlay-shortcut-handler';
+import { shortcutMatchesInputForLocalFallback } from './shortcut-fallback';
 import { shouldActivateOverlayShortcuts } from './overlay-shortcut';
 
 function makeShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): ConfiguredShortcuts {
@@ -279,6 +280,85 @@ test('runOverlayShortcutLocalFallback returns false when no action matches', () 
 
   assert.equal(result, false);
   assert.equal(called, false);
+});
+
+test('shortcutMatchesInputForLocalFallback matches Ctrl shortcuts by input code', () => {
+  assert.equal(
+    shortcutMatchesInputForLocalFallback(
+      {
+        type: 'keyDown',
+        key: '\u0003',
+        code: 'KeyC',
+        control: true,
+      } as Electron.Input,
+      'Ctrl+C',
+      true,
+    ),
+    true,
+  );
+
+  assert.equal(
+    shortcutMatchesInputForLocalFallback(
+      {
+        type: 'keyDown',
+        key: '\u0013',
+        code: 'KeyS',
+        control: true,
+        alt: true,
+      } as Electron.Input,
+      'Ctrl+Alt+S',
+      true,
+    ),
+    true,
+  );
+});
+
+test('shortcutMatchesInputForLocalFallback respects modifiers when matching by code', () => {
+  assert.equal(
+    shortcutMatchesInputForLocalFallback(
+      {
+        type: 'keyDown',
+        key: '\u000f',
+        code: 'KeyO',
+        control: true,
+        shift: true,
+      } as Electron.Input,
+      'CommandOrControl+Shift+O',
+      true,
+    ),
+    true,
+  );
+
+  assert.equal(
+    shortcutMatchesInputForLocalFallback(
+      {
+        type: 'keyDown',
+        key: '\u000f',
+        code: 'KeyO',
+        control: true,
+      } as Electron.Input,
+      'CommandOrControl+Shift+O',
+      true,
+    ),
+    false,
+  );
+});
+
+test('shortcutMatchesInputForLocalFallback ignores raw keydown events', () => {
+  assert.equal(
+    shortcutMatchesInputForLocalFallback(
+      {
+        type: 'rawKeyDown',
+        key: '\u0013',
+        code: 'KeyS',
+        control: true,
+        alt: true,
+      } as Electron.Input,
+      'Ctrl+Alt+S',
+      true,
+    ),
+    false,
+  );
 });
 
 test('shouldActivateOverlayShortcuts disables macOS overlay shortcuts when tracked mpv is unfocused', () => {

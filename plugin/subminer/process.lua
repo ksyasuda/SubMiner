@@ -239,7 +239,7 @@ function M.create(ctx)
 					local normalized_key = key:lower()
 					if normalized_key == "backend" then
 						local backend = value:lower()
-						if backend == "auto" or backend == "hyprland" or backend == "sway" or backend == "x11" or backend == "macos" then
+						if backend == "auto" or backend == "hyprland" or backend == "kwin" or backend == "sway" or backend == "x11" or backend == "macos" or backend == "windows" then
 							overrides.backend = backend
 						end
 					elseif normalized_key == "socket" or normalized_key == "socket_path" then

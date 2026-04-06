@@ -7,9 +7,9 @@ import type { LogLevel, Backend, Args, MpvTrack } from './types.js';
 import { DEFAULT_MPV_SUBMINER_ARGS, DEFAULT_YOUTUBE_YTDL_FORMAT } from './types.js';
 import { appendToAppLog, getAppLogPath, log, fail, getMpvLogPath } from './log.js';
 import { buildSubminerScriptOpts, resolveAniSkipMetadataForFile } from './aniskip-metadata.js';
+import { detectSessionBackend } from '../src/shared/backend-detection.js';
 import { nowMs } from './time.js';
 import {
-  commandExists,
   getPathEnv,
   isExecutable,
   resolveBinaryPathCandidate,
@@ -230,37 +230,33 @@ export function detectBackend(
   env: NodeJS.ProcessEnv = process.env,
 ): Exclude<Backend, 'auto'> {
   if (backend !== 'auto') return backend;
-  if (process.platform === 'win32') return 'windows';
-  if (process.platform === 'darwin') return 'macos';
-  const linuxDesktopEnv = getLinuxDesktopEnv(env);
-
-  if (
-    env.HYPRLAND_INSTANCE_SIGNATURE ||
-    linuxDesktopEnv.xdgCurrentDesktop.includes('hyprland') ||
-    linuxDesktopEnv.xdgSessionDesktop.includes('hyprland')
-  ) {
-    return 'hyprland';
-  }
-  if (linuxDesktopEnv.hasWayland && commandExists('hyprctl')) return 'hyprland';
-  if (env.DISPLAY) return 'x11';
+  const detectedBackend = detectSessionBackend(process.platform, env);
+  if (detectedBackend) return detectedBackend;
   fail('Could not detect display backend');
 }
 
-type LinuxDesktopEnv = {
-  xdgCurrentDesktop: string;
-  xdgSessionDesktop: string;
-  hasWayland: boolean;
-};
+export function buildLauncherScriptOptOverrides(
+  backend: Backend,
+  options?: {
+    target?: string;
+    targetKind?: '' | 'file' | 'url';
+    disableYoutubeSubtitleAutoLoad?: boolean;
+  },
+): string[] {
+  const extraScriptOpts = backend === 'auto' ? [] : [`subminer-backend=${backend}`];
+  if (
+    options?.target &&
+    options.targetKind === 'url' &&
+    isYoutubeTarget(options.target) &&
+    options.disableYoutubeSubtitleAutoLoad === true
+  ) {
+    extraScriptOpts.push('subminer-auto_start_pause_until_ready=no');
+  }
+  return extraScriptOpts;
+}
 
-function getLinuxDesktopEnv(env: NodeJS.ProcessEnv): LinuxDesktopEnv {
-  const xdgCurrentDesktop = (env.XDG_CURRENT_DESKTOP || '').toLowerCase();
-  const xdgSessionDesktop = (env.XDG_SESSION_DESKTOP || '').toLowerCase();
-  const xdgSessionType = (env.XDG_SESSION_TYPE || '').toLowerCase();
-  return {
-    xdgCurrentDesktop,
-    xdgSessionDesktop,
-    hasWayland: Boolean(env.WAYLAND_DISPLAY) || xdgSessionType === 'wayland',
-  };
+function hasWaylandSession(env: NodeJS.ProcessEnv): boolean {
+  return Boolean(env.WAYLAND_DISPLAY) || (env.XDG_SESSION_TYPE || '').toLowerCase() === 'wayland';
 }
 
 function shouldForceX11MpvBackend(
@@ -270,18 +266,13 @@ function shouldForceX11MpvBackend(
   if (process.platform !== 'linux' || !env.DISPLAY?.trim()) {
     return false;
   }
-
-  const linuxDesktopEnv = getLinuxDesktopEnv(env);
-  const supportedWaylandBackend =
-    Boolean(env.HYPRLAND_INSTANCE_SIGNATURE || env.SWAYSOCK) ||
-    linuxDesktopEnv.xdgCurrentDesktop.includes('hyprland') ||
-    linuxDesktopEnv.xdgCurrentDesktop.includes('sway') ||
-    linuxDesktopEnv.xdgSessionDesktop.includes('hyprland') ||
-    linuxDesktopEnv.xdgSessionDesktop.includes('sway');
-  return (
-    args.backend === 'x11' ||
-    (args.backend === 'auto' && linuxDesktopEnv.hasWayland && !supportedWaylandBackend)
-  );
+  if (args.backend === 'x11') {
+    return true;
+  }
+  if (args.backend !== 'auto' || !hasWaylandSession(env)) {
+    return false;
+  }
+  return detectSessionBackend(process.platform, env) === 'x11';
 }
 
 function resolveAppBinaryCandidate(candidate: string, pathModule: PathModule = path): string {
@@ -716,12 +707,11 @@ export async function startMpv(
   const aniSkipMetadata = shouldResolveAniSkipMetadata(target, targetKind, preloadedSubtitles)
     ? await resolveAniSkipMetadataForFile(target)
     : null;
-  const extraScriptOpts =
-    targetKind === 'url' &&
-    isYoutubeTarget(target) &&
-    options?.disableYoutubeSubtitleAutoLoad === true
-      ? ['subminer-auto_start_pause_until_ready=no']
-      : [];
+  const extraScriptOpts = buildLauncherScriptOptOverrides(args.backend, {
+    target,
+    targetKind,
+    disableYoutubeSubtitleAutoLoad: options?.disableYoutubeSubtitleAutoLoad,
+  });
   const scriptOpts = buildSubminerScriptOpts(
     appPath,
     socketPath,
@@ -1218,7 +1208,13 @@ export function launchMpvIdleDetached(
     }
     mpvArgs.push('--idle=yes');
     mpvArgs.push(
-      `--script-opts=${buildSubminerScriptOpts(appPath, socketPath, null, args.logLevel)}`,
+      `--script-opts=${buildSubminerScriptOpts(
+        appPath,
+        socketPath,
+        null,
+        args.logLevel,
+        buildLauncherScriptOptOverrides(args.backend),
+      )}`,
     );
     mpvArgs.push(`--log-file=${getMpvLogPath()}`);
     mpvArgs.push(`--input-ipc-server=${socketPath}`);

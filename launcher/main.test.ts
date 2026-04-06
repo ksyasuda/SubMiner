@@ -349,13 +349,21 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
       ...makeTestEnv(homeDir, xdgConfigHome),
       PATH: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
       Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      HYPRLAND_INSTANCE_SIGNATURE: '',
+      SWAYSOCK: '',
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_MPV_ARGS: mpvArgsPath,
+      WAYLAND_DISPLAY: 'wayland-0',
+      XDG_CURRENT_DESKTOP: 'KDE',
+      XDG_SESSION_DESKTOP: 'KDE',
+      XDG_SESSION_TYPE: 'wayland',
+      DISPLAY: ':0',
     };
     const result = runLauncher(['--log-level', 'debug', videoPath], env);
 
     assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
     assert.match(fs.readFileSync(mpvArgsPath, 'utf8'), /--script-opts=.*subminer-log_level=debug/);
+    assert.doesNotMatch(fs.readFileSync(mpvArgsPath, 'utf8'), /--script-opts=.*subminer-backend=/);
   });
 });
 

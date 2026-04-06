@@ -68,7 +68,7 @@ export const DEFAULT_MPV_SUBMINER_ARGS = [
 ] as const;
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-export type Backend = 'auto' | 'hyprland' | 'sway' | 'x11' | 'macos' | 'windows';
+export type Backend = 'auto' | 'hyprland' | 'kwin' | 'sway' | 'x11' | 'macos' | 'windows';
 export type JimakuLanguagePreference = 'ja' | 'en' | 'none';
 
 export interface LauncherAiConfig {

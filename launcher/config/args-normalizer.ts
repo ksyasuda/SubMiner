@@ -52,6 +52,7 @@ function parseBackend(value: string): Backend {
   if (
     value === 'auto' ||
     value === 'hyprland' ||
+    value === 'kwin' ||
     value === 'sway' ||
     value === 'x11' ||
     value === 'macos' ||
@@ -59,7 +60,7 @@ function parseBackend(value: string): Backend {
   ) {
     return value as Backend;
   }
-  fail(`Invalid backend: ${value} (must be auto, hyprland, sway, x11, macos, or windows)`);
+  fail(`Invalid backend: ${value} (must be auto, hyprland, kwin, sway, x11, macos, or windows)`);
 }
 
 function parseDictionaryTarget(value: string): string {

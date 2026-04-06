@@ -7,6 +7,7 @@ import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
 import {
+  buildLauncherScriptOptOverrides,
   buildMpvBackendArgs,
   buildMpvEnv,
   cleanupPlaybackSession,
@@ -75,6 +76,31 @@ function withPlatform<T>(platform: NodeJS.Platform, callback: () => T): T {
   }
 }
 
+function withEnv<T>(overrides: Record<string, string | undefined>, callback: () => T): T {
+  const originalValues = new Map<string, string | undefined>();
+  for (const key of Object.keys(overrides)) {
+    originalValues.set(key, process.env[key]);
+    const value = overrides[key];
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  try {
+    return callback();
+  } finally {
+    for (const [key, value] of originalValues) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
 test('mpv module exposes only canonical socket readiness helper', () => {
   assert.equal('waitForSocket' in mpvModule, false);
 });
@@ -127,6 +153,100 @@ test('detectBackend resolves windows on win32 auto mode', () => {
   });
 });
 
+test('detectBackend resolves kwin on KDE Plasma Wayland auto mode', () => {
+  withPlatform('linux', () => {
+    withEnv(
+      {
+        HYPRLAND_INSTANCE_SIGNATURE: undefined,
+        WAYLAND_DISPLAY: 'wayland-0',
+        XDG_SESSION_TYPE: 'wayland',
+        XDG_CURRENT_DESKTOP: 'KDE',
+        XDG_SESSION_DESKTOP: 'KDE',
+        DISPLAY: ':0',
+      },
+      () => {
+        assert.equal(detectBackend('auto'), 'kwin');
+      },
+    );
+  });
+});
+
+test('detectBackend resolves sway when SWAYSOCK is present', () => {
+  withPlatform('linux', () => {
+    withEnv(
+      {
+        HYPRLAND_INSTANCE_SIGNATURE: undefined,
+        SWAYSOCK: '/tmp/sway.sock',
+        WAYLAND_DISPLAY: 'wayland-0',
+        XDG_SESSION_TYPE: 'wayland',
+        XDG_CURRENT_DESKTOP: undefined,
+        XDG_SESSION_DESKTOP: undefined,
+        DISPLAY: undefined,
+      },
+      () => {
+        assert.equal(detectBackend('auto'), 'sway');
+      },
+    );
+  });
+});
+
+test('detectBackend does not infer hyprland from hyprctl on PATH alone', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-hyprctl-test-'));
+  const binDir = path.join(dir, 'bin');
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.writeFileSync(path.join(binDir, 'hyprctl'), '#!/bin/sh\nexit 0\n', 'utf8');
+  fs.chmodSync(path.join(binDir, 'hyprctl'), 0o755);
+
+  try {
+    withPlatform('linux', () => {
+      withEnv(
+        {
+          HYPRLAND_INSTANCE_SIGNATURE: undefined,
+          SWAYSOCK: undefined,
+          WAYLAND_DISPLAY: 'wayland-0',
+          XDG_SESSION_TYPE: 'wayland',
+          XDG_CURRENT_DESKTOP: undefined,
+          XDG_SESSION_DESKTOP: undefined,
+          DISPLAY: ':0',
+          PATH: `${binDir}${path.delimiter}${process.env.PATH || ''}`,
+          Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+        },
+        () => {
+          assert.equal(detectBackend('auto'), 'x11');
+        },
+      );
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('buildLauncherScriptOptOverrides leaves auto backend detection to the mpv plugin', () => {
+  withPlatform('linux', () => {
+    withEnv(
+      {
+        HYPRLAND_INSTANCE_SIGNATURE: undefined,
+        SWAYSOCK: undefined,
+        WAYLAND_DISPLAY: 'wayland-0',
+        XDG_SESSION_TYPE: 'wayland',
+        XDG_CURRENT_DESKTOP: 'KDE',
+        XDG_SESSION_DESKTOP: 'KDE',
+        DISPLAY: ':0',
+      },
+      () => {
+        assert.deepEqual(
+          buildLauncherScriptOptOverrides('auto', {
+            target: 'https://www.youtube.com/watch?v=test',
+            targetKind: 'url',
+            disableYoutubeSubtitleAutoLoad: true,
+          }),
+          ['subminer-auto_start_pause_until_ready=no'],
+        );
+      },
+    );
+  });
+});
+
 test('buildMpvEnv forces X11 by dropping Wayland hints when backend resolves to x11', () => {
   withPlatform('linux', () => {
     const env = buildMpvEnv(makeArgs({ backend: 'x11' }), {
@@ -151,8 +271,8 @@ test('buildMpvEnv auto mode falls back to X11 when no supported Wayland tracker 
       DISPLAY: ':1',
       WAYLAND_DISPLAY: 'wayland-0',
       XDG_SESSION_TYPE: 'wayland',
-      XDG_CURRENT_DESKTOP: 'KDE',
-      XDG_SESSION_DESKTOP: 'plasma',
+      XDG_CURRENT_DESKTOP: 'GNOME',
+      XDG_SESSION_DESKTOP: 'gnome',
     });
 
     assert.equal(env.DISPLAY, ':1');
@@ -161,7 +281,7 @@ test('buildMpvEnv auto mode falls back to X11 when no supported Wayland tracker 
   });
 });
 
-test('buildMpvEnv preserves native Wayland env for supported Hyprland and Sway auto backends', () => {
+test('buildMpvEnv preserves native Wayland env for supported Hyprland, Sway, and KWin auto backends', () => {
   withPlatform('linux', () => {
     const hyprEnv = buildMpvEnv(makeArgs({ backend: 'auto' }), {
       DISPLAY: ':1',
@@ -180,6 +300,16 @@ test('buildMpvEnv preserves native Wayland env for supported Hyprland and Sway a
     });
     assert.equal(swayEnv.WAYLAND_DISPLAY, 'wayland-0');
     assert.equal(swayEnv.XDG_SESSION_TYPE, 'wayland');
+
+    const kwinEnv = buildMpvEnv(makeArgs({ backend: 'auto' }), {
+      DISPLAY: ':1',
+      WAYLAND_DISPLAY: 'wayland-0',
+      XDG_SESSION_TYPE: 'wayland',
+      XDG_CURRENT_DESKTOP: 'KDE',
+      XDG_SESSION_DESKTOP: 'plasma',
+    });
+    assert.equal(kwinEnv.WAYLAND_DISPLAY, 'wayland-0');
+    assert.equal(kwinEnv.XDG_SESSION_TYPE, 'wayland');
   });
 });
 
@@ -196,6 +326,10 @@ test('buildMpvBackendArgs forces an explicit X11 renderer stack when backend res
   });
 });
 
+test('buildLauncherScriptOptOverrides forwards explicit backend overrides to mpv script-opts', () => {
+  assert.deepEqual(buildLauncherScriptOptOverrides('kwin'), ['subminer-backend=kwin']);
+});
+
 test('buildMpvBackendArgs forces the same X11 renderer stack for unsupported Wayland auto fallback', () => {
   withPlatform('linux', () => {
     assert.deepEqual(
@@ -203,15 +337,15 @@ test('buildMpvBackendArgs forces the same X11 renderer stack for unsupported Way
         DISPLAY: ':1',
         WAYLAND_DISPLAY: 'wayland-0',
         XDG_SESSION_TYPE: 'wayland',
-        XDG_CURRENT_DESKTOP: 'KDE',
-        XDG_SESSION_DESKTOP: 'plasma',
+        XDG_CURRENT_DESKTOP: 'GNOME',
+        XDG_SESSION_DESKTOP: 'gnome',
       }),
       ['--vo=gpu', '--gpu-api=opengl', '--gpu-context=x11egl,x11'],
     );
   });
 });
 
-test('buildMpvBackendArgs keeps supported Hyprland and Sway auto backends unchanged', () => {
+test('buildMpvBackendArgs keeps supported Hyprland, Sway, and KWin auto backends unchanged', () => {
   withPlatform('linux', () => {
     assert.deepEqual(
       buildMpvBackendArgs(makeArgs({ backend: 'auto' }), {
@@ -228,6 +362,16 @@ test('buildMpvBackendArgs keeps supported Hyprland and Sway auto backends unchan
         WAYLAND_DISPLAY: 'wayland-0',
         XDG_SESSION_TYPE: 'wayland',
         SWAYSOCK: '/tmp/sway.sock',
+      }),
+      [],
+    );
+    assert.deepEqual(
+      buildMpvBackendArgs(makeArgs({ backend: 'auto' }), {
+        DISPLAY: ':1',
+        WAYLAND_DISPLAY: 'wayland-0',
+        XDG_SESSION_TYPE: 'wayland',
+        XDG_CURRENT_DESKTOP: 'KDE',
+        XDG_SESSION_DESKTOP: 'plasma',
       }),
       [],
     );

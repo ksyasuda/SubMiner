@@ -69,7 +69,7 @@ ${B}Jellyfin${R}
 
 ${B}Options${R}
   --socket ${D}PATH${R}                  mpv IPC socket path
-  --backend ${D}BACKEND${R}              Window tracker ${D}(auto, hyprland, sway, x11, macos, windows)${R}
+  --backend ${D}BACKEND${R}              Window tracker ${D}(auto, hyprland, kwin, sway, x11, macos, windows)${R}
   --port ${D}PORT${R}                    Texthooker server port ${D}(default: ${defaultTexthookerPort})${R}
   --log-level ${D}LEVEL${R}              ${D}debug | info | warn | error${R}
   --debug                        Enable debug mode ${D}(alias: --dev)${R}

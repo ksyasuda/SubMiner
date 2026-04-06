@@ -178,6 +178,14 @@ function M.create(ctx)
 			backend = "hyprland"
 		elseif os.getenv("SWAYSOCK") then
 			backend = "sway"
+		elseif (os.getenv("WAYLAND_DISPLAY") or os.getenv("XDG_SESSION_TYPE") == "wayland")
+			and (
+				string.find(string.lower(os.getenv("XDG_CURRENT_DESKTOP") or ""), "kde", 1, true)
+				or string.find(string.lower(os.getenv("XDG_CURRENT_DESKTOP") or ""), "plasma", 1, true)
+				or string.find(string.lower(os.getenv("XDG_SESSION_DESKTOP") or ""), "kde", 1, true)
+				or string.find(string.lower(os.getenv("XDG_SESSION_DESKTOP") or ""), "plasma", 1, true)
+			) then
+			backend = "kwin"
 		elseif os.getenv("XDG_SESSION_TYPE") == "x11" or os.getenv("DISPLAY") then
 			backend = "x11"
 		else
