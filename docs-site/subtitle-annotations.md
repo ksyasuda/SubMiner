@@ -113,10 +113,6 @@ All colors are customizable via the `subtitleStyle.jlptColors` object.
 | `subtitleStyle.enableJlpt` | `false` | Enable JLPT underline styling |
 | `subtitleStyle.jlptColors.N1`–`N5` | see above | Per-level underline colors |
 
-::: tip
-JLPT tagging requires the offline vocabulary bundle. See [JLPT Vocabulary Bundle](jlpt-vocab-bundle) for setup instructions and file locations.
-:::
-
 ## Runtime Toggles
 
 All annotation layers can be toggled at runtime via the mpv command menu without restarting:

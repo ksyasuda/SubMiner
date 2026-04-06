@@ -250,6 +250,10 @@ The built-in translation request asks for English output by default. Customize t
 
 SubMiner can create standalone sentence cards (without a word/expression) using a separate note type. This is designed for use with [Lapis](https://github.com/donkuri/Lapis) and similar sentence-focused note types.
 
+::: warning Required config
+Sentence card creation and audio card marking both require `ankiConnect.isLapis.enabled: true` and a valid `sentenceCardModel` pointing to your Lapis/Kiku note type. Without this, the `Ctrl/Cmd+S` and `Ctrl/Cmd+Shift+A` shortcuts will not create cards.
+:::
+
 ```jsonc
 "ankiConnect": {
   "isLapis": {

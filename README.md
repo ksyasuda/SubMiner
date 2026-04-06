@@ -125,9 +125,12 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
 
 **Platform-specific:**
 
-| Linux                               | macOS                    | Windows       |
-| ----------------------------------- | ------------------------ | ------------- |
-| `hyprctl` or `xdotool` + `xwininfo` | Accessibility permission | No extra deps |
+| Linux                                                        | macOS                    | Windows       |
+| ------------------------------------------------------------ | ------------------------ | ------------- |
+| Hyprland (`hyprctl`) · X11/Xwayland (`xdotool` + `xwininfo`) | Accessibility permission | No extra deps |
+
+> [!NOTE]
+> **Wayland support is compositor-specific.** Wayland has no universal API for window positioning and each compositor exposes its own IPC, so SubMiner needs a dedicated backend per compositor. Hyprland is the only native Wayland backend supported currenlty. All other Linux compositors require both mpv and SubMiner to run under X11 or Xwayland.
 
 <details>
 <summary><b>Arch Linux</b></summary>
@@ -138,7 +141,7 @@ paru -S --needed mpv ffmpeg
 paru -S --needed mecab-git mecab-ipadic yt-dlp fzf rofi chafa ffmpegthumbnailer xdotool xorg-xwininfo
 # Optional: subtitle sync (install at least one for subtitle syncing to work)
 paru -S --needed alass python-ffsubsync
-# X11 / XWAYLAND
+# X11 / Xwayland (required for non-Hyprland compositors)
 paru -S --needed xdotool xorg-xwininfo
 ```
 

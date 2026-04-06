@@ -76,7 +76,6 @@ export default {
           { text: 'Subtitle Annotations', link: '/subtitle-annotations' },
           { text: 'Subtitle Sidebar', link: '/subtitle-sidebar' },
           { text: 'Immersion Tracking', link: '/immersion-tracking' },
-          { text: 'JLPT Vocabulary Bundle', link: '/jlpt-vocab-bundle' },
           { text: 'Troubleshooting', link: '/troubleshooting' },
         ],
       },

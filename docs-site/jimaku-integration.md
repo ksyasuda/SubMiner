@@ -26,31 +26,6 @@ If no files match the current episode filter, a "Show all files" button lets you
 | `Arrow Up` / `Arrow Down` | Navigate entries or files |
 | `Escape` | Close modal |
 
-### Flow
-
-```mermaid
-flowchart TD
-  classDef step fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef action fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef result fill:#a6da95,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef enrich fill:#8bd5ca,stroke:#494d64,color:#24273a,stroke-width:1.5px
-
-  Open["Open Jimaku modal (Ctrl+Shift+J)"]:::step
-  Parse["Auto-fill title, season, episode from filename"]:::enrich
-  Search["Search Jimaku API"]:::action
-  Entries["Browse matching entries"]:::action
-  Files["Browse subtitle files"]:::action
-  Download["Download selected file"]:::action
-  Load["Load subtitle into mpv"]:::result
-
-  Open --> Parse
-  Parse --> Search
-  Search --> Entries
-  Entries --> Files
-  Files --> Download
-  Download --> Load
-```
-
 ## Configuration
 
 Add a `jimaku` section to your `config.jsonc`:

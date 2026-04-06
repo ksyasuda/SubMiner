@@ -41,28 +41,6 @@ The update flow:
 3. **Progress check** -- SubMiner fetches your current list entry for the matched media. If your recorded progress already meets or exceeds the detected episode, the update is skipped.
 4. **Mutation** -- A `SaveMediaListEntry` mutation sets the new progress and marks the entry as `CURRENT`.
 
-```mermaid
-flowchart TB
-  classDef step fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef action fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef result fill:#a6da95,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef enrich fill:#8bd5ca,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef ext fill:#eed49f,stroke:#494d64,color:#24273a,stroke-width:1.5px
-
-  Play["Media Plays"]:::step
-  Detect["Episode Detected"]:::action
-  Queue["Update Queue"]:::action
-  Rate["Rate Limiter"]:::enrich
-  GQL["GraphQL Mutation"]:::ext
-  Done["Progress Updated"]:::result
-
-  Play --> Detect
-  Detect --> Queue
-  Queue --> Rate
-  Rate --> GQL
-  GQL --> Done
-```
-
 ## Update Queue and Retry
 
 Failed AniList updates are persisted to a retry queue on disk and retried with exponential backoff.

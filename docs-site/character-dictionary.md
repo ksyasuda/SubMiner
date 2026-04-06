@@ -4,23 +4,6 @@ SubMiner can build a Yomitan-compatible character dictionary from AniList metada
 
 The dictionary is generated per-media, merged across your recently-watched titles, and auto-imported into Yomitan. When a character name appears in a subtitle line, it gets highlighted and becomes available for hover-driven Yomitan profile lookup.
 
-## Stats Dashboard
-
-The character dictionary and stats dashboard both read from the same local immersion data.
-
-- Open the dashboard from overlay: press your configured `stats.toggleKey` (default: `` ` `` / `Backquote`).
-- Open from launcher/CLI: run `subminer stats`.
-- Open directly: visit `http://127.0.0.1:<stats.serverPort>` when the local server is running.
-
-Useful config keys:
-
-- `stats.autoStartServer` — start the local stats server automatically once immersion tracking starts.
-- `stats.serverPort` — local HTTP port for dashboard and API.
-- `stats.toggleKey` — key binding for overlay dashboard toggle.
-- `stats.autoOpenBrowser` — auto-open dashboard browser for `subminer stats`.
-
-The dashboard gives quick visibility into episode summaries, watch-time rollups, session timelines, and vocabulary/kanji drill-down from the same DB used by character matching.
-
 ## How It Works
 
 The feature has three stages: **snapshot**, **merge**, and **match**.
@@ -30,30 +13,6 @@ The feature has three stages: **snapshot**, **merge**, and **match**.
 2. **Merge** — SubMiner maintains a most-recently-used list of media IDs (default: 3). Snapshots from those titles are merged into a single Yomitan ZIP — `character-dictionaries/merged.zip` — which is always named "SubMiner Character Dictionary" so Yomitan treats it as a single stable dictionary across rebuilds.
 
 3. **Match** — During subtitle rendering, Yomitan scans subtitle text against all loaded dictionaries including the character dictionary. Tokens that match a character entry are flagged with `isNameMatch` and highlighted in the overlay with a distinct color.
-
-```mermaid
-flowchart TB
-  classDef api fill:#a6da95,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef store fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef build fill:#b7bdf8,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef dict fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef render fill:#8bd5ca,stroke:#494d64,color:#24273a,stroke-width:1.5px
-
-  AL["AniList API"]:::api
-  Snap["Snapshot JSON"]:::store
-  Merge["Merge"]:::build
-  ZIP["Yomitan ZIP"]:::dict
-  Yomi["Yomitan Import"]:::dict
-  Sub["Subtitle Scan"]:::render
-  HL["Name Highlight"]:::render
-
-  AL -->|"GraphQL"| Snap
-  Snap --> Merge
-  Merge --> ZIP
-  ZIP --> Yomi
-  Yomi --> Sub
-  Sub --> HL
-```
 
 ## Enabling the Feature
 

@@ -136,7 +136,7 @@ Shown when SubMiner tries to update a card that no longer exists, or when AnkiCo
 **Overlay does not appear**
 
 - Confirm SubMiner is running: `SubMiner.AppImage --start` or check for the process.
-- On Linux, the overlay requires a compositor. Hyprland and Sway are supported natively; X11 requires `xdotool` and `xwininfo`.
+- On Linux, the overlay requires a supported window backend. Hyprland and Sway have native Wayland support; all other compositors require both mpv and SubMiner to run under X11 or Xwayland (`xdotool` and `xwininfo` must be installed).
 - On macOS, grant Accessibility permission to SubMiner in System Settings > Privacy & Security > Accessibility.
 
 **Overlay appears but clicks pass through / cannot interact**
@@ -232,7 +232,7 @@ Global shortcuts (`Alt+Shift+O`, `Alt+Shift+Y`) may conflict with other applicat
 
 - Check your DE/WM keybinding settings for conflicts.
 - Change the shortcut in your config under `shortcuts.toggleVisibleOverlayGlobal`.
-- On Wayland, global shortcut registration has limitations depending on the compositor.
+- On Wayland, global shortcut registration has limitations depending on the compositor. Only Hyprland and Sway are supported natively — see the [Hyprland](#hyprland) section below for shortcut passthrough rules. Other Wayland compositors require X11/Xwayland.
 
 **Overlay keybindings not working**
 
@@ -289,8 +289,8 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
 
 ### Linux
 
-- **Wayland (Hyprland/Sway)**: Window tracking uses compositor-specific commands. If `hyprctl` or `swaymsg` are not on `PATH`, tracking will fail silently.
-- **X11**: Requires `xdotool` and `xwininfo`. If missing, the overlay cannot track the mpv window position.
+- **Wayland (Hyprland/Sway only)**: Native Wayland support is limited to Hyprland and Sway. Window tracking uses compositor-specific commands (`hyprctl` / `swaymsg`). If these are not on `PATH`, tracking will fail silently. Other Wayland compositors are not supported — both mpv and SubMiner must run under X11 or Xwayland instead.
+- **X11 / Xwayland**: Requires `xdotool` and `xwininfo`. If missing, the overlay cannot track the mpv window position. This is the required backend for any Wayland compositor other than Hyprland or Sway — both mpv and SubMiner must be running under X11/Xwayland for window tracking to work.
 - **Mouse passthrough**: On Linux, Electron's mouse passthrough is unreliable. SubMiner keeps pointer events enabled, meaning you may need to toggle the overlay off to interact with mpv controls underneath.
 
 ### Hyprland
@@ -329,5 +329,4 @@ For more details, see the Hyprland docs on [global keybinds](https://wiki.hypr.l
 ### macOS
 
 - **Accessibility permission**: Required for window tracking. Grant it in System Settings > Privacy & Security > Accessibility.
-- **Font rendering**: macOS uses a 0.87x font compensation factor for subtitle alignment between mpv and the overlay. If text alignment looks off, adjust subtitle offset by right-click dragging subtitle text.
 - **Gatekeeper**: If macOS blocks SubMiner, right-click the app and select "Open" to bypass the warning, or remove the quarantine attribute: `xattr -d com.apple.quarantine /path/to/SubMiner.app`

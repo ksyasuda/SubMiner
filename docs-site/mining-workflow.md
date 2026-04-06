@@ -6,30 +6,6 @@ This guide walks through the sentence mining loop — from watching a video to c
 
 SubMiner runs as a transparent overlay on top of mpv. As subtitles play, the overlay displays them as interactive text. You hover a word, trigger Yomitan lookup with your configured lookup key/modifier, then create an Anki card with a single action. SubMiner automatically attaches the sentence, audio clip, and screenshot.
 
-```mermaid
-flowchart TB
-  classDef step fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef action fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef result fill:#a6da95,stroke:#494d64,color:#24273a,stroke-width:1.5px
-  classDef enrich fill:#8bd5ca,stroke:#494d64,color:#24273a,stroke-width:1.5px
-
-  Watch["Watch Video"]:::step
-  Sub["Subtitle Appears"]:::step
-  Hover["Hover Word"]:::action
-  Lookup["Trigger Lookup"]:::action
-  Yomi["Yomitan Popup"]:::result
-  Add["Add to Anki"]:::result
-
-  Watch --> Sub --> Hover --> Lookup --> Yomi --> Add
-
-  Add --> Enrich["SubMiner Enriches"]:::enrich
-
-  Enrich --> S["Sentence"]:::enrich
-  Enrich --> A["Audio Clip"]:::enrich
-  Enrich --> I["Screenshot"]:::enrich
-  Enrich --> T["Translation"]:::enrich
-```
-
 ## Subtitle Delivery Path (Startup + Runtime)
 
 SubMiner prioritizes subtitle responsiveness over heavy initialization:
@@ -141,9 +117,17 @@ Create a standalone sentence card without going through Yomitan:
 
 The sentence card uses the note type configured in `isLapis.sentenceCardModel` and always maps sentence/audio to `Sentence` and `SentenceAudio`.
 
+::: warning Requires Lapis/Kiku note type
+Sentence card creation requires a [Lapis](https://github.com/donkuri/lapis) or [Kiku](https://github.com/youyoumu/kiku) compatible note type and `ankiConnect.isLapis.enabled: true` in your config. See [Anki Integration — Sentence Cards](/anki-integration#sentence-cards-lapis) for setup.
+:::
+
 ### 4. Mark as Audio Card
 
 After adding a word via Yomitan, press the audio card shortcut to overwrite the audio with a longer clip spanning the full subtitle timing.
+
+::: warning Requires Lapis/Kiku note type
+Audio card marking requires a [Lapis](https://github.com/donkuri/lapis) or [Kiku](https://github.com/youyoumu/kiku) compatible note type and `ankiConnect.isLapis.enabled: true` in your config. See [Anki Integration — Sentence Cards](/anki-integration#sentence-cards-lapis) for setup.
+:::
 
 ## Secondary Subtitles
 

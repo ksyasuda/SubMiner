@@ -220,6 +220,7 @@ button,
   color: var(--vp-c-brand-1);
   font-family: var(--tui-font-mono), 'M PLUS 1', 'Noto Sans CJK JP', 'Noto Sans JP',
     monospace;
+  font-variant-ligatures: none;
 }
 
 /* === Code blocks === */
@@ -229,6 +230,7 @@ button,
   background: var(--vp-c-bg-alt) !important;
   font-family: var(--tui-font-mono), 'M PLUS 1', 'Noto Sans CJK JP', 'Noto Sans JP',
     monospace;
+  font-variant-ligatures: none;
 }
 
 .vp-doc div[class*='language-']::before {

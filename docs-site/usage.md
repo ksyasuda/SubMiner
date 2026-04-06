@@ -37,7 +37,7 @@ Field names must match your Anki note type exactly (case-sensitive). See [Anki I
 There are several ways to use SubMiner:
 
 > [!TIP]
-> **New users: start with the `subminer` wrapper script** (or the **SubMiner mpv** shortcut on Windows). It handles mpv launch, IPC socket setup, and overlay lifecycle automatically so you don't need to configure anything in `mpv.conf`. You can add the mpv plugin later for in-player keybindings.
+> **New users: start with the `subminer` wrapper script** (or the **SubMiner mpv** shortcut on Windows). It handles mpv launch, IPC socket setup, and overlay lifecycle automatically so you don't need to configure anything in `mpv.conf`.
 
 | Approach                            | Use when                                                                                                                                            | How                                                                   |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
@@ -85,8 +85,8 @@ subminer --args '--fs=opengl-hq --ytdl-format=bestvideo*+bestaudio/best' video.m
 # Options
 subminer -T video.mkv             # Disable texthooker server
 subminer -b x11 video.mkv         # Force X11 backend
-subminer video.mkv                # Uses mpv profile "subminer" by default
-subminer -p gpu-hq video.mkv      # Override mpv profile
+subminer video.mkv                # No mpv profile passed by default
+subminer -p gpu-hq video.mkv      # Use a specific mpv profile
 subminer jellyfin                 # Open Jellyfin setup window (subcommand form)
 subminer jellyfin -l --server http://127.0.0.1:8096 --username me --password 'secret'
 subminer jellyfin --logout        # Clear stored Jellyfin token/session data
@@ -157,7 +157,7 @@ You can use it three ways:
 & "C:\Program Files\SubMiner\SubMiner.exe" --launch-mpv "C:\Videos\episode 01.mkv"
 ```
 
-This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blank to auto-discover from `PATH`, or set it to the full `mpv.exe` path if mpv is installed elsewhere. `SUBMINER_MPV_PATH` is still honored as a fallback. On Windows, `--launch-mpv` does not require an `mpv.conf` profile named `subminer`.
+This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blank to auto-discover from `PATH`, or set it to the full `mpv.exe` path if mpv is installed elsewhere. `SUBMINER_MPV_PATH` is still honored as a fallback.
 
 ### Launcher Subcommands
 
@@ -172,7 +172,7 @@ This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blan
 
 ### First-Run Setup
 
-SubMiner auto-opens the setup popup on fresh installs when launched with `--start` or `--background` and setup is incomplete.
+Setup popup appears on first launch, or when setup has not been completed.
 
 You can also open it manually:
 
@@ -262,7 +262,7 @@ Notes:
 - Secondary target languages come from `secondarySub.secondarySubLanguages` (defaults to English if unset).
 - Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtube` and `secondarySub`.
 
-For local video files, SubMiner now uses those same config-driven language priorities after mpv finishes reporting subtitle tracks. That means mixed internal/external subtitle sets can correct an initial `sid=auto` guess and settle onto the expected primary and secondary tracks without manual cycling.
+For local video files, SubMiner uses the same config-driven language priorities to auto-select the primary and secondary subtitle tracks from internal and external subtitle sources.
 
 ## Controller Support
 

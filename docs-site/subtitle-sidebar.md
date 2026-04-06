@@ -60,8 +60,6 @@ Enable and configure the sidebar under `subtitleSidebar` in your config file:
 | `activeLineBackgroundColor` | string  | —            | Active cue background color                                                                        |
 | `hoverLineBackgroundColor`  | string  | —            | Hovered cue background color                                                                       |
 
-Default colors use Catppuccin Macchiato with a semi-transparent shell so the panel stays readable without feeling like a solid overlay.
-
 ## Keyboard Shortcut
 
 | Key | Action                  | Config key                     |

@@ -28,11 +28,15 @@ The `subminer` launcher script handles step 1 automatically. If you launch mpv y
 
 ### Platform-Specific
 
-**Linux** — one of the following compositors:
+**Linux** — one of the following window backends:
 
-- Hyprland (uses `hyprctl`)
-- Sway (uses `swaymsg`)
-- X11 (uses `xdotool` and `xwininfo`)
+- **Hyprland** — native Wayland support (uses `hyprctl`)
+- **Sway** — native Wayland support (uses `swaymsg`)
+- **X11 / Xwayland** — for X11 sessions or any other Wayland compositor (uses `xdotool` and `xwininfo`)
+
+::: warning Wayland support is compositor-specific
+Wayland has no universal API for window positioning — each compositor exposes its own IPC, so SubMiner needs a dedicated backend per compositor. Only Hyprland and Sway have native Wayland backends. If you run a different Wayland compositor (GNOME, KDE Plasma, river, etc.), both mpv **and** SubMiner must run under X11 or Xwayland. The `subminer` launcher handles this automatically when `--backend x11` is set or the X11 backend is auto-detected.
+:::
 
 <details>
 <summary><b>Arch Linux</b></summary>
@@ -43,7 +47,7 @@ sudo pacman -S --needed mpv ffmpeg
 sudo pacman -S --needed mecab mecab-ipadic yt-dlp fzf rofi chafa ffmpegthumbnailer
 # Optional: subtitle sync (at least one needed for subtitle syncing)
 paru -S --needed alass python-ffsubsync
-# X11 / XWAYLAND
+# X11 / Xwayland (required for non-Hyprland/Sway compositors)
 sudo pacman -S --needed xdotool xorg-xwininfo
 ```
 
@@ -56,7 +60,7 @@ sudo pacman -S --needed xdotool xorg-xwininfo
 sudo apt install mpv ffmpeg
 # Optional
 sudo apt install mecab libmecab-dev mecab-ipadic-utf8 fzf rofi chafa ffmpegthumbnailer yt-dlp
-# X11
+# X11 / Xwayland (required for non-Hyprland/Sway compositors)
 sudo apt install xdotool x11-utils
 # Optional: subtitle sync
 pip install ffsubsync
@@ -72,7 +76,7 @@ pip install ffsubsync
 sudo dnf install mpv ffmpeg
 # Optional
 sudo dnf install mecab mecab-ipadic fzf rofi chafa ffmpegthumbnailer yt-dlp
-# X11
+# X11 / Xwayland (required for non-Hyprland/Sway compositors)
 sudo dnf install xdotool xorg-x11-utils
 # Optional: subtitle sync
 pip install ffsubsync
@@ -456,7 +460,7 @@ This checks for the app binary, mpv, ffmpeg, config file, and socket path. Fix a
 
 ### Rofi Theme (Linux Only)
 
-SubMiner ships a default rofi theme at `assets/themes/subminer.rasi`.
+SubMiner ships a custom rofi theme bundled in the release assets tarball.
 
 Install path (default auto-detected by `subminer`):
 
@@ -464,6 +468,8 @@ Install path (default auto-detected by `subminer`):
 - macOS: `~/Library/Application Support/SubMiner/themes/subminer.rasi`
 
 ```bash
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
+tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 mkdir -p ~/.local/share/SubMiner/themes
 cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
 ```

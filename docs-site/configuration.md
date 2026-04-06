@@ -324,8 +324,6 @@ See `config.example.jsonc` for detailed configuration options.
 | `jlptColors`                       | object      | JLPT level underline colors object (`N1`..`N5`)                                                                            |
 | `secondary`                        | object      | Override any of the above for secondary subtitles (optional)                                                               |
 
-JLPT underlining is powered by offline term-meta bank files at runtime. See [`docs/jlpt-vocab-bundle.md`](jlpt-vocab-bundle.md) for required files, source/version refresh steps, and deterministic fallback behavior.
-
 Frequency dictionary highlighting uses the same dictionary file format as JLPT bundle lookups (`term_meta_bank_*.json` under discovered dictionary directories). A token is highlighted when it has a positive integer `frequencyRank` (lower is more common) and the rank is within `topX`.
 
 Lookup behavior:

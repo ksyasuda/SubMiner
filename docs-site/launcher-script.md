@@ -13,9 +13,9 @@ When you run `subminer` without specifying a file, it opens an interactive video
 ### fzf (default)
 
 ```bash
-subminer                        # pick from current directory
-subminer -d ~/Videos            # pick from a specific directory
-subminer -r -d ~/Anime          # recursive search
+subminer                               # pick from current directory
+subminer -d ~/Videos                   # pick from a specific directory
+subminer -r -d ~/Anime                 # recursive search
 ```
 
 fzf shows video files in a fuzzy-searchable list. If `chafa` is installed, you get thumbnail previews in the right pane. Thumbnails are sourced from the freedesktop thumbnail cache first, then generated on the fly with `ffmpegthumbnailer` or `ffmpeg` as fallback.
@@ -28,14 +28,17 @@ fzf shows video files in a fuzzy-searchable list. If `chafa` is installed, you g
 ### rofi
 
 ```bash
-subminer -R                     # rofi picker, current directory
-subminer -R -d ~/Videos         # rofi picker, specific directory
-subminer -R -r -d ~/Anime       # rofi picker, recursive
+subminer -R                            # rofi picker, current directory
+subminer -R -d ~/Videos                # rofi picker, specific directory
+subminer -R -r -d ~/Anime              # rofi picker, recursive
+subminer -R /directory                 # rofi picker, directory shortcut
 ```
 
-rofi shows a GUI menu with icon thumbnails when available. SubMiner ships a custom rofi theme that can be installed from the release assets:
+rofi shows a GUI menu with icon thumbnails when available. SubMiner ships a custom rofi theme bundled in the release assets tarball:
 
 ```bash
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
+tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 mkdir -p ~/.local/share/SubMiner/themes
 cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
 ```
@@ -57,15 +60,11 @@ SUBMINER_ROFI_THEME=/path/to/custom-theme.rasi subminer -R
 ## Common Commands
 
 ```bash
-subminer video.mkv              # play a specific file (default plugin config auto-starts visible overlay)
-subminer --start video.mkv      # optional explicit overlay start when plugin auto_start=no
-subminer -S video.mkv           # same as above via --start-overlay
-subminer https://youtu.be/...   # YouTube playback (requires yt-dlp)
-subminer ytsearch:"jp news"     # YouTube search
-subminer stats                  # open immersion dashboard
-subminer stats -b               # start background stats daemon
-subminer stats -s               # stop background stats daemon
-subminer --setup                # Open first-run setup popup
+subminer video.mkv                      # play a specific file (default plugin config auto-starts visible overlay)
+subminer https://youtu.be/...           # YouTube playback (requires yt-dlp)
+subminer --backend x11 video.mkv        # Force x11 backend for a specific file
+subminer stats                          # open immersion dashboard
+subminer stats -b                       # start background stats daemon
 ```
 
 ## Subcommands
@@ -75,7 +74,6 @@ subminer --setup                # Open first-run setup popup
 | `subminer jellyfin` / `jf`   | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login) |
 | `subminer stats`             | Start stats server and open immersion dashboard in browser |
 | `subminer stats -b`          | Start or reuse background stats daemon (non-blocking)      |
-| `subminer stats -s`          | Stop the background stats daemon                           |
 | `subminer stats cleanup`     | Backfill vocabulary metadata and prune stale rows          |
 | `subminer doctor`            | Dependency + config + socket diagnostics                   |
 | `subminer config path`       | Print active config file path                              |
@@ -100,7 +98,7 @@ Use `subminer <subcommand> -h` for command-specific help.
 | `--start`             | Explicitly start overlay after mpv launches         |
 | `-S, --start-overlay` | Explicitly start overlay after mpv launches         |
 | `-T, --no-texthooker` | Disable texthooker server                           |
-| `-p, --profile`       | mpv profile name (default: `subminer`)              |
+| `-p, --profile`       | mpv profile name (no default; omitted unless set)   |
 | `-a, --args`          | Pass additional mpv arguments as a quoted string      |
 | `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`, `macos`, `windows`)    |
 | `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`) |

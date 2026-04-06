@@ -183,6 +183,10 @@ When `backend=auto`, the plugin detects the window manager:
 4. **X11** — detected via `XDG_SESSION_TYPE=x11` or `DISPLAY`.
 5. **Fallback** — defaults to X11 with a warning.
 
+::: tip Wayland is compositor-specific
+Native Wayland support is only available for Hyprland and Sway. If you use a different Wayland compositor, auto-detection will fall back to X11 — both mpv and SubMiner must be running under Xwayland, and `xdotool` and `xwininfo` must be installed.
+:::
+
 ## Script Messages
 
 The plugin can be controlled from other mpv scripts or the mpv command line using script messages:
