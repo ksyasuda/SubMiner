@@ -90,6 +90,10 @@ function isLikelyHearingImpaired(title: string): boolean {
   return HEARING_IMPAIRED_PATTERN.test(title);
 }
 
+function isUnlabeledExternalTrack(track: NormalizedSubtitleTrack): boolean {
+  return track.external && normalizeYoutubeLangCode(track.lang).length === 0;
+}
+
 function pickBestTrackId(
   tracks: NormalizedSubtitleTrack[],
   preferredLanguages: string[],
@@ -126,6 +130,19 @@ function pickBestTrackId(
   };
 }
 
+function pickSingleUnlabeledExternalTrackId(
+  tracks: NormalizedSubtitleTrack[],
+  excludeId: number | null = null,
+): number | null {
+  const fallbackCandidates = tracks.filter(
+    (track) => track.id !== excludeId && isUnlabeledExternalTrack(track),
+  );
+  if (fallbackCandidates.length !== 1) {
+    return null;
+  }
+  return fallbackCandidates[0]?.id ?? null;
+}
+
 export function resolveManagedLocalSubtitleSelection(input: {
   trackList: unknown[] | null;
   primaryLanguages: string[];
@@ -146,12 +163,13 @@ export function resolveManagedLocalSubtitleSelection(input: {
   );
 
   const primary = pickBestTrackId(tracks, preferredPrimaryLanguages);
-  const secondary = pickBestTrackId(tracks, preferredSecondaryLanguages, primary.trackId);
+  const primaryTrackId = primary.trackId ?? pickSingleUnlabeledExternalTrackId(tracks);
+  const secondary = pickBestTrackId(tracks, preferredSecondaryLanguages, primaryTrackId);
 
   return {
-    primaryTrackId: primary.trackId,
+    primaryTrackId,
     secondaryTrackId: secondary.trackId,
-    hasPrimaryMatch: primary.hasMatch,
+    hasPrimaryMatch: primary.hasMatch || primaryTrackId !== null,
     hasSecondaryMatch: secondary.hasMatch,
   };
 }
