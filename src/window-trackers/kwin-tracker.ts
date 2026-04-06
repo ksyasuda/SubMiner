@@ -55,6 +55,8 @@ export interface KWinWindow {
 }
 
 interface KWinUpdatePayload {
+  degraded?: boolean;
+  window?: KWinWindow | null;
   windows?: KWinWindow[];
 }
 
@@ -183,20 +185,30 @@ KWinTrackerBridgeInterface.configureMembers({
   },
 });
 
-export function buildKWinBridgeScript(serviceName: string): string {
+export function buildKWinBridgeScript(
+  serviceName: string,
+  targetMpvPid: number | null = null,
+): string {
   return `
 const SERVICE_NAME = ${JSON.stringify(serviceName)};
 const OBJECT_PATH = ${JSON.stringify(BRIDGE_OBJECT_PATH)};
 const INTERFACE_NAME = ${JSON.stringify(BRIDGE_INTERFACE_NAME)};
 const OVERLAY_OWNER_PID = ${JSON.stringify(process.pid)};
+const TARGET_MPV_PID = ${JSON.stringify(targetMpvPid)};
 const OVERLAY_WINDOW_CAPTION = "SubMiner";
 const trackedWindows = new WeakSet();
 const overlayKeepAboveState = [];
 const overlayHiddenByScript = [];
-let syncingPairState = false;
-let pendingPairSync = false;
-let pendingSyncTriggerWindow = null;
-let pendingSyncTriggerEvent = "";
+const eventSuppressions = [];
+const MAX_SYNC_PASSES_PER_DRAIN = 32;
+const MAX_BRIDGE_PAYLOAD_BYTES = 32768;
+let bridgeDisabled = false;
+let bridgeDegradedStateEmitted = false;
+let lastEmittedPayload = "";
+let queuedPairSync = false;
+let queuedSyncTriggerWindow = null;
+let queuedSyncTriggerEvent = "";
+let drainingPairSync = false;
 
 function isWatchableWindow(window) {
   try {
@@ -257,10 +269,10 @@ function getWindowGeometry(window) {
   return window.clientGeometry || window.frameGeometry || {};
 }
 
-function serializeWindow(window) {
+function serializeWindow(window, activeOverride) {
   const geometry = getWindowGeometry(window);
   return {
-    active: window.active === true,
+    active: activeOverride === undefined ? window.active === true : activeOverride === true,
     caption: String(window.caption || ""),
     minimized: window.minimized === true,
     normalWindow: window.normalWindow === true,
@@ -328,6 +340,16 @@ function pruneOverlayStateEntries(entries, windows) {
   }
 }
 
+function countOwnProperties(value) {
+  let count = 0;
+  for (const key in value) {
+    if (Object.prototype.hasOwnProperty.call(value, key)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 function hasUsableGeometry(window) {
   const geometry = getWindowGeometry(window);
   return (
@@ -356,6 +378,38 @@ function isWindowActive(window) {
   return window && (window.active === true || workspace.activeWindow === window);
 }
 
+function getEventPriority(eventName) {
+  switch (eventName) {
+    case "windowShown":
+    case "activeChanged":
+    case "workspace-windowActivated":
+      return 4;
+    case "windowHidden":
+    case "closed":
+    case "windowAdded":
+    case "windowRemoved":
+    case "windowClassChanged":
+      return 3;
+    case "clientGeometryChanged":
+    case "frameGeometryChanged":
+    case "outputChanged":
+    case "screensChanged":
+      return 2;
+    default:
+      return 1;
+  }
+}
+
+function preferActiveScriptWindow(windows) {
+  for (const window of windows) {
+    if (isWindowActive(window)) {
+      return window;
+    }
+  }
+
+  return windows[0] || null;
+}
+
 function selectTargetMpvWindow() {
   const visibleMpvWindows = [];
   const hiddenMpvWindows = [];
@@ -368,6 +422,23 @@ function selectTargetMpvWindow() {
       visibleMpvWindows.push(window);
     } else {
       hiddenMpvWindows.push(window);
+    }
+  }
+
+  const targetMpvPid = Number(TARGET_MPV_PID || 0);
+  if (targetMpvPid > 0) {
+    const matchingVisibleWindows = visibleMpvWindows.filter(function (window) {
+      return Number(window.pid || 0) === targetMpvPid;
+    });
+    if (matchingVisibleWindows.length > 0) {
+      return preferActiveScriptWindow(matchingVisibleWindows);
+    }
+
+    const matchingHiddenWindows = hiddenMpvWindows.filter(function (window) {
+      return Number(window.pid || 0) === targetMpvPid;
+    });
+    if (matchingHiddenWindows.length > 0) {
+      return preferActiveScriptWindow(matchingHiddenWindows);
     }
   }
 
@@ -409,6 +480,82 @@ function getOverlayWindows() {
   return windows;
 }
 
+function suppressWindowEvent(window, eventName) {
+  if (!window || !eventName) {
+    return;
+  }
+
+  const entry = ensureOverlayStateEntry(eventSuppressions, window, {});
+  entry.value[eventName] = Number(entry.value[eventName] || 0) + 1;
+}
+
+function shouldIgnoreWindowEvent(window, eventName) {
+  if (!window || !eventName) {
+    return false;
+  }
+
+  const entry = readOverlayStateEntry(eventSuppressions, window);
+  if (!entry || !entry.value) {
+    return false;
+  }
+
+  const currentCount = Number(entry.value[eventName] || 0);
+  if (currentCount <= 0) {
+    return false;
+  }
+
+  entry.value[eventName] = currentCount - 1;
+  if (entry.value[eventName] <= 0) {
+    delete entry.value[eventName];
+  }
+
+  if (countOwnProperties(entry.value) === 0) {
+    removeOverlayStateEntry(eventSuppressions, window);
+  }
+
+  return true;
+}
+
+function releaseSuppressedWindowEvent(window, eventName) {
+  if (!window || !eventName) {
+    return;
+  }
+
+  const entry = readOverlayStateEntry(eventSuppressions, window);
+  if (!entry || !entry.value) {
+    return;
+  }
+
+  const currentCount = Number(entry.value[eventName] || 0);
+  if (currentCount <= 0) {
+    return;
+  }
+
+  entry.value[eventName] = currentCount - 1;
+  if (entry.value[eventName] <= 0) {
+    delete entry.value[eventName];
+  }
+
+  if (countOwnProperties(entry.value) === 0) {
+    removeOverlayStateEntry(eventSuppressions, window);
+  }
+}
+
+function applyWindowMutationWithSuppressedEvents(window, eventNames, mutate) {
+  for (const eventName of eventNames) {
+    suppressWindowEvent(window, eventName);
+  }
+
+  try {
+    mutate();
+  } catch (error) {
+    for (const eventName of eventNames) {
+      releaseSuppressedWindowEvent(window, eventName);
+    }
+    throw error;
+  }
+}
+
 function rememberOverlayKeepAbove(window) {
   ensureOverlayStateEntry(overlayKeepAboveState, window, window.keepAbove === true);
 }
@@ -439,6 +586,24 @@ function markOverlayHiddenByScript(window, hidden) {
   removeOverlayStateEntry(overlayHiddenByScript, window);
 }
 
+function setWindowMinimized(window, minimized) {
+  if (!window || window.minimized === (minimized === true)) {
+    return;
+  }
+
+  try {
+    applyWindowMutationWithSuppressedEvents(
+      window,
+      [minimized === true ? "windowHidden" : "windowShown"],
+      function () {
+        window.minimized = minimized === true;
+      }
+    );
+  } catch (_error) {
+    // ignore
+  }
+}
+
 function applyOverlayGeometry(overlayWindow, mpvWindow) {
   const targetGeometry = getWindowGeometry(mpvWindow);
   const currentGeometry = overlayWindow.frameGeometry || {};
@@ -452,7 +617,13 @@ function applyOverlayGeometry(overlayWindow, mpvWindow) {
   }
 
   try {
-    overlayWindow.frameGeometry = targetGeometry;
+    applyWindowMutationWithSuppressedEvents(
+      overlayWindow,
+      ["frameGeometryChanged"],
+      function () {
+        overlayWindow.frameGeometry = targetGeometry;
+      }
+    );
   } catch (_error) {
     // ignore
   }
@@ -479,12 +650,7 @@ function restoreVisibleOverlayWindow(window) {
     return;
   }
 
-  try {
-    window.minimized = false;
-  } catch (_error) {
-    // ignore
-  }
-
+  setWindowMinimized(window, false);
   markOverlayHiddenByScript(window, false);
 }
 
@@ -493,12 +659,8 @@ function hideVisibleOverlayWindow(window) {
     return;
   }
 
-  try {
-    window.minimized = true;
-    markOverlayHiddenByScript(window, true);
-  } catch (_error) {
-    // ignore
-  }
+  setWindowMinimized(window, true);
+  markOverlayHiddenByScript(window, true);
 }
 
 function raiseWindow(window) {
@@ -514,12 +676,18 @@ function raiseWindow(window) {
 }
 
 function activateWindow(window) {
-  if (!window) {
+  if (!window || workspace.activeWindow === window) {
     return;
   }
 
   try {
-    workspace.activeWindow = window;
+    applyWindowMutationWithSuppressedEvents(
+      window,
+      ["workspace-windowActivated", "activeChanged"],
+      function () {
+        workspace.activeWindow = window;
+      }
+    );
   } catch (_error) {
     // ignore
   }
@@ -543,16 +711,86 @@ function raiseWindowPair(mpvWindow, overlayWindows) {
   }
 }
 
-function releaseOverlayPair(overlays) {
-  for (const overlayWindow of overlays) {
-    setOverlayKeepAbove(overlayWindow, false);
+function disableBridge() {
+  if (bridgeDisabled) {
+    return;
   }
+
+  bridgeDisabled = true;
+  queuedPairSync = false;
+  queuedSyncTriggerWindow = null;
+  queuedSyncTriggerEvent = "";
+  if (bridgeDegradedStateEmitted) {
+    return;
+  }
+
+  bridgeDegradedStateEmitted = true;
+  const payload = JSON.stringify({ window: null, degraded: true });
+  lastEmittedPayload = payload;
+
+  try {
+    callDBus(
+      SERVICE_NAME,
+      OBJECT_PATH,
+      INTERFACE_NAME,
+      "Update",
+      payload
+    );
+  } catch (_error) {
+    // ignore
+  }
+}
+
+function shouldRestoreMpvWindowFromOverlayTrigger(triggerWindow, triggerEvent) {
+  if (!isTrackableOverlayWindow(triggerWindow)) {
+    return false;
+  }
+
+  return (
+    (
+      triggerEvent === "windowShown" ||
+      triggerEvent === "activeChanged" ||
+      triggerEvent === "workspace-windowActivated" ||
+      triggerEvent === "windowAdded"
+    ) &&
+    (isWindowVisible(triggerWindow) || isWindowActive(triggerWindow))
+  );
+}
+
+function shouldRaisePair(triggerWindow, triggerEvent, pairActive) {
+  if (
+    triggerEvent === "clientGeometryChanged" ||
+    triggerEvent === "frameGeometryChanged" ||
+    triggerEvent === "outputChanged" ||
+    triggerEvent === "screensChanged"
+  ) {
+    return false;
+  }
+
+  if (!triggerEvent) {
+    return pairActive;
+  }
+
+  if (
+    triggerEvent !== "windowShown" &&
+    triggerEvent !== "activeChanged" &&
+    triggerEvent !== "workspace-windowActivated" &&
+    triggerEvent !== "windowAdded"
+  ) {
+    return false;
+  }
+
+  return (
+    (isMpvWindow(triggerWindow) || isTrackableOverlayWindow(triggerWindow)) &&
+    (pairActive || isWindowVisible(triggerWindow) || isWindowActive(triggerWindow))
+  );
 }
 
 function syncOverlayPairState(triggerWindow, triggerEvent) {
   const currentWindows = workspace.windowList();
   pruneOverlayStateEntries(overlayKeepAboveState, currentWindows);
   pruneOverlayStateEntries(overlayHiddenByScript, currentWindows);
+  pruneOverlayStateEntries(eventSuppressions, currentWindows);
 
   const mpvWindow = selectTargetMpvWindow();
   const overlayWindows = getOverlayWindows();
@@ -562,29 +800,13 @@ function syncOverlayPairState(triggerWindow, triggerEvent) {
       hideVisibleOverlayWindow(overlayWindow);
       setOverlayKeepAbove(overlayWindow, false);
     }
-    return;
+    return null;
   }
 
-  if (!isWindowVisible(mpvWindow)) {
-    const overlayRequestedRestore =
-      isTrackableOverlayWindow(triggerWindow) &&
-      (
-        triggerEvent === "windowShown" ||
-        triggerEvent === "activeChanged" ||
-        triggerEvent === "workspace-windowActivated" ||
-        triggerEvent === "windowAdded"
-      ) &&
-      (isWindowVisible(triggerWindow) || isWindowActive(triggerWindow));
-
-    if (overlayRequestedRestore) {
-      try {
-        mpvWindow.minimized = false;
-      } catch (_error) {
-        // ignore
-      }
-      raiseWindow(mpvWindow);
-      activateWindow(mpvWindow);
-    }
+  if (!isWindowVisible(mpvWindow) && shouldRestoreMpvWindowFromOverlayTrigger(triggerWindow, triggerEvent)) {
+    setWindowMinimized(mpvWindow, false);
+    raiseWindow(mpvWindow);
+    activateWindow(mpvWindow);
   }
 
   if (!isWindowVisible(mpvWindow)) {
@@ -592,7 +814,7 @@ function syncOverlayPairState(triggerWindow, triggerEvent) {
       hideVisibleOverlayWindow(overlayWindow);
       setOverlayKeepAbove(overlayWindow, false);
     }
-    return;
+    return null;
   }
 
   let pairActive = isWindowActive(mpvWindow);
@@ -608,121 +830,189 @@ function syncOverlayPairState(triggerWindow, triggerEvent) {
     setOverlayKeepAbove(overlayWindow, pairActive && isWindowVisible(overlayWindow));
   }
 
-  if (pairActive) {
+  if (shouldRaisePair(triggerWindow, triggerEvent, pairActive)) {
     raiseWindowPair(mpvWindow, overlayWindows);
   }
+
+  return {
+    pairActive: pairActive === true,
+    window: mpvWindow,
+  };
 }
 
-function runStateSync(triggerWindow, triggerEvent) {
-  if (syncingPairState) {
-    pendingPairSync = true;
-    pendingSyncTriggerWindow = triggerWindow || pendingSyncTriggerWindow;
-    pendingSyncTriggerEvent = triggerEvent || pendingSyncTriggerEvent;
+function emitState(state) {
+  if (bridgeDisabled) {
     return;
   }
 
-  const nextTriggerWindow = triggerWindow || pendingSyncTriggerWindow;
-  const nextTriggerEvent = triggerEvent || pendingSyncTriggerEvent;
-  pendingSyncTriggerWindow = null;
-  pendingSyncTriggerEvent = "";
-  syncingPairState = true;
   try {
-    syncOverlayPairState(nextTriggerWindow, nextTriggerEvent);
-    emitState();
-  } finally {
-    syncingPairState = false;
-  }
+    const selectedWindow = state && state.window ? state.window : null;
+    const selectedWindowPairActive = state && state.pairActive === true;
+    const windows = [];
+    for (const window of workspace.windowList()) {
+      if (!isMpvWindow(window)) {
+        continue;
+      }
+      windows.push(
+        serializeWindow(
+          window,
+          window === selectedWindow ? selectedWindowPairActive : undefined
+        )
+      );
+    }
 
-  if (pendingPairSync) {
-    pendingPairSync = false;
-    runStateSync(pendingSyncTriggerWindow, pendingSyncTriggerEvent);
+    const payload = JSON.stringify({
+      window:
+        selectedWindow && isWindowVisible(selectedWindow) && hasUsableGeometry(selectedWindow)
+          ? serializeWindow(selectedWindow, selectedWindowPairActive)
+          : null,
+      windows: windows,
+    });
+
+    if (payload.length > MAX_BRIDGE_PAYLOAD_BYTES) {
+      disableBridge();
+      return;
+    }
+
+    if (payload === lastEmittedPayload) {
+      return;
+    }
+
+    lastEmittedPayload = payload;
+    callDBus(
+      SERVICE_NAME,
+      OBJECT_PATH,
+      INTERFACE_NAME,
+      "Update",
+      payload
+    );
+  } catch (_error) {
+    disableBridge();
   }
 }
 
-function emitState() {
-  const windows = [];
-  for (const window of workspace.windowList()) {
-    if (isMpvWindow(window)) {
-      windows.push(serializeWindow(window));
-    }
+function drainStateSyncQueue() {
+  if (bridgeDisabled || drainingPairSync || !queuedPairSync) {
+    return;
   }
-  callDBus(
-    SERVICE_NAME,
-    OBJECT_PATH,
-    INTERFACE_NAME,
-    "Update",
-    JSON.stringify({ windows })
-  );
+
+  drainingPairSync = true;
+  let passes = 0;
+  try {
+    while (queuedPairSync && !bridgeDisabled) {
+      passes += 1;
+      if (passes > MAX_SYNC_PASSES_PER_DRAIN) {
+        disableBridge();
+        break;
+      }
+
+      const triggerWindow = queuedSyncTriggerWindow;
+      const triggerEvent = queuedSyncTriggerEvent;
+      queuedPairSync = false;
+      queuedSyncTriggerWindow = null;
+      queuedSyncTriggerEvent = "";
+      emitState(syncOverlayPairState(triggerWindow, triggerEvent));
+    }
+  } catch (_error) {
+    disableBridge();
+  } finally {
+    drainingPairSync = false;
+  }
+}
+
+function queueStateSync(triggerWindow, triggerEvent) {
+  if (bridgeDisabled) {
+    return;
+  }
+
+  if (triggerEvent && shouldIgnoreWindowEvent(triggerWindow, triggerEvent)) {
+    return;
+  }
+
+  if (
+    !queuedPairSync ||
+    getEventPriority(triggerEvent) >= getEventPriority(queuedSyncTriggerEvent)
+  ) {
+    queuedSyncTriggerWindow = triggerWindow || queuedSyncTriggerWindow;
+    queuedSyncTriggerEvent = triggerEvent || queuedSyncTriggerEvent;
+  }
+
+  queuedPairSync = true;
+  drainStateSyncQueue();
 }
 
 function watchWindow(window) {
-  if (!isTrackableWindow(window) || trackedWindows.has(window)) {
+  if (bridgeDisabled || !isTrackableWindow(window) || trackedWindows.has(window)) {
     return;
   }
 
   trackedWindows.add(window);
   if (window.closed) {
     window.closed.connect(function () {
-      runStateSync(window, "closed");
+      queueStateSync(window, "closed");
     });
   }
   if (window.frameGeometryChanged) {
     window.frameGeometryChanged.connect(function () {
-      runStateSync(window, "frameGeometryChanged");
+      queueStateSync(window, "frameGeometryChanged");
     });
   }
   if (window.clientGeometryChanged) {
     window.clientGeometryChanged.connect(function () {
-      runStateSync(window, "clientGeometryChanged");
+      queueStateSync(window, "clientGeometryChanged");
     });
   }
   if (window.outputChanged) {
     window.outputChanged.connect(function () {
-      runStateSync(window, "outputChanged");
+      queueStateSync(window, "outputChanged");
     });
   }
   if (window.windowClassChanged) {
     window.windowClassChanged.connect(function () {
-      runStateSync(window, "windowClassChanged");
+      queueStateSync(window, "windowClassChanged");
     });
   }
   if (window.windowShown) {
     window.windowShown.connect(function () {
-      runStateSync(window, "windowShown");
+      queueStateSync(window, "windowShown");
     });
   }
   if (window.windowHidden) {
     window.windowHidden.connect(function () {
-      runStateSync(window, "windowHidden");
+      queueStateSync(window, "windowHidden");
     });
   }
   if (window.activeChanged) {
     window.activeChanged.connect(function () {
-      runStateSync(window, "activeChanged");
+      queueStateSync(window, "activeChanged");
     });
   }
 }
 
 function refresh() {
+  if (bridgeDisabled) {
+    return;
+  }
+
   for (const window of workspace.windowList()) {
     watchWindow(window);
   }
-  runStateSync();
+  queueStateSync(null, "");
 }
 
 workspace.windowAdded.connect(function (window) {
   watchWindow(window);
-  runStateSync(window, "windowAdded");
+  queueStateSync(window, "windowAdded");
 });
 workspace.windowRemoved.connect(function () {
-  runStateSync(null, "windowRemoved");
+  queueStateSync(null, "windowRemoved");
 });
 workspace.windowActivated.connect(function (window) {
   watchWindow(window);
-  runStateSync(window, "workspace-windowActivated");
+  queueStateSync(window, "workspace-windowActivated");
 });
 workspace.screensChanged.connect(function () {
-  runStateSync(null, "screensChanged");
+  queueStateSync(null, "screensChanged");
 });
 
 refresh();
@@ -764,7 +1054,12 @@ export class KWinWindowTracker extends BaseWindowTracker {
   private async startAsync(): Promise<void> {
     try {
       const scriptPath = this.ensureScriptWorkspace();
-      fs.writeFileSync(scriptPath, buildKWinBridgeScript(this.serviceName), 'utf-8');
+      const targetMpvPid = this.resolveTargetMpvPid();
+      fs.writeFileSync(
+        scriptPath,
+        buildKWinBridgeScript(this.serviceName, targetMpvPid),
+        'utf-8',
+      );
       const bus = dbus.sessionBus();
       bus.on('error', (error) => {
         log.error('KWin session bus error:', (error as Error).message);
@@ -849,12 +1144,22 @@ export class KWinWindowTracker extends BaseWindowTracker {
     }
 
     const windows = Array.isArray(parsed.windows) ? parsed.windows.filter(isKWinWindowCandidate) : [];
-    const targetWindow = selectKWinMpvWindow(windows, {
-      targetMpvSocketPath: this.targetMpvSocketPath,
-      getWindowCommandLine: (pid) => this.getWindowCommandLine(pid),
-    });
+    let targetWindow: KWinWindow | null = null;
+    if (windows.length > 0) {
+      targetWindow = selectKWinMpvWindow(windows, {
+        targetMpvSocketPath: this.targetMpvSocketPath,
+        getWindowCommandLine: (pid) => this.getWindowCommandLine(pid),
+      });
+    } else if (isKWinWindowCandidate(parsed.window)) {
+      targetWindow = parsed.window;
+    }
 
-    if (!targetWindow) {
+    if (
+      !targetWindow ||
+      targetWindow.normalWindow === false ||
+      targetWindow.minimized === true ||
+      !hasValidGeometry(targetWindow)
+    ) {
       this.updateGeometry(null);
       return;
     }
@@ -893,6 +1198,39 @@ export class KWinWindowTracker extends BaseWindowTracker {
       value: commandLine,
     });
     return commandLine;
+  }
+
+  private resolveTargetMpvPid(): number | null {
+    if (!this.targetMpvSocketPath) {
+      return null;
+    }
+
+    try {
+      const output = execFileSync('ps', ['-eo', 'pid=,args='], {
+        encoding: 'utf-8',
+      });
+      for (const rawLine of output.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line) {
+          continue;
+        }
+
+        const match = line.match(/^(\d+)\s+(.*)$/);
+        if (!match) {
+          continue;
+        }
+
+        const pid = Number.parseInt(match[1]!, 10);
+        const commandLine = match[2]!;
+        if (Number.isInteger(pid) && matchesTargetSocket(commandLine, this.targetMpvSocketPath)) {
+          return pid;
+        }
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
   }
 
   private readProcessCommandLine(pid: number): string | null {

@@ -20,6 +20,6 @@ export function detectSessionBackend(
     xdgSessionDesktop.includes('plasma');
 
   if (hasWayland && isKWinDesktop) return 'kwin';
-  if (env.DISPLAY || platform === 'linux') return 'x11';
+  if (env.DISPLAY) return 'x11';
   return null;
 }
