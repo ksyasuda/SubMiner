@@ -92,21 +92,10 @@ test('parseLauncherMpvConfig reads launch mode preference', () => {
   assert.equal(parsed.launchMode, 'maximized');
 });
 
-test('parseLauncherMpvConfig falls back to deprecated fullscreen alias when launchMode is absent', () => {
-  const parsed = parseLauncherMpvConfig({
-    mpv: {
-      startFullscreen: true,
-    },
-  });
-
-  assert.equal(parsed.launchMode, 'fullscreen');
-});
-
-test('parseLauncherMpvConfig ignores deprecated fullscreen alias when launchMode is invalid but present', () => {
+test('parseLauncherMpvConfig ignores invalid launch mode values', () => {
   const parsed = parseLauncherMpvConfig({
     mpv: {
       launchMode: 'wide',
-      startFullscreen: true,
     },
   });
 

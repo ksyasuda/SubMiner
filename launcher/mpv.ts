@@ -674,7 +674,7 @@ export async function startMpv(
   }
 
   const mpvArgs: string[] = [];
-  mpvArgs.push(...buildConfiguredMpvArgs(args));
+  mpvArgs.push(...buildConfiguredMpvDefaultArgs(args));
   if (targetKind === 'url' && isYoutubeTarget(target)) {
     log('info', args.logLevel, 'Applying URL playback options');
     mpvArgs.push('--ytdl=yes');
@@ -698,6 +698,9 @@ export async function startMpv(
     } else {
       mpvArgs.push('--sub-auto=no');
     }
+  }
+  if (args.mpvArgs) {
+    mpvArgs.push(...parseMpvArgString(args.mpvArgs));
   }
   if (preloadedSubtitles?.primaryPath) {
     mpvArgs.push(`--sub-file=${preloadedSubtitles.primaryPath}`);
@@ -986,17 +989,6 @@ export function buildConfiguredMpvDefaultArgs(
   return mpvArgs;
 }
 
-export function buildConfiguredMpvArgs(
-  args: Pick<Args, 'profile' | 'backend' | 'launchMode' | 'mpvArgs'>,
-  baseEnv: NodeJS.ProcessEnv = process.env,
-): string[] {
-  const mpvArgs = buildConfiguredMpvDefaultArgs(args, baseEnv);
-  if (args.mpvArgs) {
-    mpvArgs.push(...parseMpvArgString(args.mpvArgs));
-  }
-  return mpvArgs;
-}
-
 function appendCapturedAppOutput(kind: 'STDOUT' | 'STDERR', chunk: string): void {
   const normalized = chunk.replace(/\r\n/g, '\n');
   for (const line of normalized.split('\n')) {
@@ -1227,7 +1219,10 @@ export function launchMpvIdleDetached(
       // ignore
     }
 
-    const mpvArgs: string[] = buildConfiguredMpvArgs(args);
+    const mpvArgs: string[] = buildConfiguredMpvDefaultArgs(args);
+    if (args.mpvArgs) {
+      mpvArgs.push(...parseMpvArgString(args.mpvArgs));
+    }
     mpvArgs.push('--idle=yes');
     mpvArgs.push(
       `--script-opts=${buildSubminerScriptOpts(appPath, socketPath, null, args.logLevel)}`,

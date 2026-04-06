@@ -41,28 +41,10 @@ test('resolveConfig warns for invalid mpv executable path type', () => {
   });
 });
 
-test('resolveConfig maps deprecated mpv fullscreen alias when launchMode is absent', () => {
-  const { resolved, warnings } = resolveConfig({
-    mpv: {
-      startFullscreen: true,
-    },
-  });
-
-  assert.equal(resolved.mpv.launchMode, 'fullscreen');
-  assert.equal(warnings.length, 1);
-  assert.deepEqual(warnings[0], {
-    path: 'mpv.startFullscreen',
-    value: true,
-    fallback: 'fullscreen',
-    message: 'Legacy key is deprecated; use mpv.launchMode',
-  });
-});
-
-test('resolveConfig warns for invalid mpv launch mode and ignores deprecated alias fallback', () => {
+test('resolveConfig warns for invalid mpv launch mode', () => {
   const { resolved, warnings } = resolveConfig({
     mpv: {
       launchMode: 'cinema' as never,
-      startFullscreen: true,
     },
   });
 
@@ -74,33 +56,4 @@ test('resolveConfig warns for invalid mpv launch mode and ignores deprecated ali
     fallback: 'normal',
     message: "Expected one of: 'normal', 'maximized', 'fullscreen'.",
   });
-});
-
-test('resolveConfig warns for invalid deprecated mpv fullscreen alias type', () => {
-  const { resolved, warnings } = resolveConfig({
-    mpv: {
-      startFullscreen: 'yes' as never,
-    },
-  });
-
-  assert.equal(resolved.mpv.launchMode, 'normal');
-  assert.equal(warnings.length, 1);
-  assert.deepEqual(warnings[0], {
-    path: 'mpv.startFullscreen',
-    value: 'yes',
-    fallback: 'normal',
-    message: 'Expected boolean.',
-  });
-});
-
-test('resolveConfig prefers launchMode over deprecated mpv fullscreen alias', () => {
-  const { resolved, warnings } = resolveConfig({
-    mpv: {
-      launchMode: 'maximized',
-      startFullscreen: true,
-    },
-  });
-
-  assert.equal(resolved.mpv.launchMode, 'maximized');
-  assert.deepEqual(warnings, []);
 });

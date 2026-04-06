@@ -7,7 +7,6 @@ import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
 import {
-  buildConfiguredMpvArgs,
   buildConfiguredMpvDefaultArgs,
   buildMpvBackendArgs,
   buildMpvEnv,
@@ -251,34 +250,6 @@ test('buildConfiguredMpvDefaultArgs appends maximized launch mode to configured 
       '--gpu-context=x11egl,x11',
       '--window-maximized=yes',
     ]);
-  });
-});
-
-test('buildConfiguredMpvArgs keeps configured launch mode before explicit user overrides', () => {
-  withPlatform('linux', () => {
-    assert.deepEqual(
-      buildConfiguredMpvArgs(
-        makeArgs({
-          launchMode: 'maximized',
-          mpvArgs: '--window-maximized=no --fullscreen=no',
-        }),
-      ),
-      [
-        '--sub-auto=fuzzy',
-        '--sub-file-paths=.;subs;subtitles',
-        '--sid=auto',
-        '--secondary-sid=auto',
-        '--secondary-sub-visibility=no',
-        '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-        '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-        '--vo=gpu',
-        '--gpu-api=opengl',
-        '--gpu-context=x11egl,x11',
-        '--window-maximized=yes',
-        '--window-maximized=no',
-        '--fullscreen=no',
-      ],
-    );
   });
 });
 

@@ -252,24 +252,6 @@ export function applyIntegrationConfig(context: ResolveContext): void {
         resolved.mpv.launchMode,
         `Expected one of: ${MPV_LAUNCH_MODE_VALUES.map((value) => `'${value}'`).join(', ')}.`,
       );
-    } else {
-      const startFullscreen = asBoolean(src.mpv.startFullscreen);
-      if (startFullscreen !== undefined) {
-        resolved.mpv.launchMode = startFullscreen ? 'fullscreen' : 'normal';
-        warn(
-          'mpv.startFullscreen',
-          src.mpv.startFullscreen,
-          resolved.mpv.launchMode,
-          'Legacy key is deprecated; use mpv.launchMode',
-        );
-      } else if (src.mpv.startFullscreen !== undefined) {
-        warn(
-          'mpv.startFullscreen',
-          src.mpv.startFullscreen,
-          resolved.mpv.launchMode,
-          'Expected boolean.',
-        );
-      }
     }
   } else if (src.mpv !== undefined) {
     warn('mpv', src.mpv, resolved.mpv, 'Expected object.');

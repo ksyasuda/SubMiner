@@ -1,4 +1,4 @@
-import { resolveRawMpvLaunchMode } from '../../src/shared/mpv-launch-mode.js';
+import { parseMpvLaunchMode } from '../../src/shared/mpv-launch-mode.js';
 import type { LauncherMpvConfig } from '../types.js';
 
 export function parseLauncherMpvConfig(root: Record<string, unknown>): LauncherMpvConfig {
@@ -7,6 +7,6 @@ export function parseLauncherMpvConfig(root: Record<string, unknown>): LauncherM
   const mpv = mpvRaw as Record<string, unknown>;
 
   return {
-    launchMode: resolveRawMpvLaunchMode(mpv),
+    launchMode: parseMpvLaunchMode(mpv.launchMode),
   };
 }

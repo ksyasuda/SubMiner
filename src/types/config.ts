@@ -55,7 +55,6 @@ export type MpvLaunchMode = 'normal' | 'maximized' | 'fullscreen';
 export interface MpvConfig {
   executablePath?: string;
   launchMode?: MpvLaunchMode;
-  startFullscreen?: boolean;
 }
 
 export type SubsyncMode = 'auto' | 'manual';
