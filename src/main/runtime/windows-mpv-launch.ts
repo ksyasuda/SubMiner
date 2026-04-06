@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
+import { buildMpvLaunchModeArgs } from '../../shared/mpv-launch-mode';
+import type { MpvLaunchMode } from '../../types/config';
 
 export interface WindowsMpvLaunchDeps {
   getEnv: (name: string) => string | undefined;
@@ -89,6 +91,7 @@ export function buildWindowsMpvLaunchArgs(
   extraArgs: string[] = [],
   binaryPath?: string,
   pluginEntrypointPath?: string,
+  launchMode: MpvLaunchMode = 'normal',
 ): string[] {
   const launchIdle = targets.length === 0;
   const inputIpcServer =
@@ -119,6 +122,7 @@ export function buildWindowsMpvLaunchArgs(
     '--secondary-sid=auto',
     '--secondary-sub-visibility=no',
     ...(scriptOpts ? [scriptOpts] : []),
+    ...buildMpvLaunchModeArgs(launchMode),
     ...extraArgs,
     ...targets,
   ];
@@ -131,6 +135,7 @@ export async function launchWindowsMpv(
   binaryPath?: string,
   pluginEntrypointPath?: string,
   configuredMpvPath?: string,
+  launchMode: MpvLaunchMode = 'normal',
 ): Promise<{ ok: boolean; mpvPath: string }> {
   const normalizedConfiguredPath = normalizeCandidate(configuredMpvPath);
   const mpvPath = resolveWindowsMpvPath(deps, normalizedConfiguredPath);
@@ -147,7 +152,13 @@ export async function launchWindowsMpv(
   try {
     await deps.spawnDetached(
       mpvPath,
-      buildWindowsMpvLaunchArgs(targets, extraArgs, binaryPath, pluginEntrypointPath),
+      buildWindowsMpvLaunchArgs(
+        targets,
+        extraArgs,
+        binaryPath,
+        pluginEntrypointPath,
+        launchMode,
+      ),
     );
     return { ok: true, mpvPath };
   } catch (error) {

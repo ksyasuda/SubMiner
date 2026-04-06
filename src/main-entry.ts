@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { app, dialog } from 'electron';
 import { printHelp } from './cli/help';
 import { loadRawConfigStrict } from './config/load';
+import { resolveRawMpvLaunchMode } from './shared/mpv-launch-mode';
 import {
   configureEarlyAppPaths,
   normalizeLaunchMpvExtraArgs,
@@ -21,6 +22,7 @@ import { requestSingleInstanceLockEarly } from './main/early-single-instance';
 import { resolvePackagedFirstRunPluginAssets } from './main/runtime/first-run-setup-plugin';
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
 import { runStatsDaemonControlFromProcess } from './stats-daemon-entry';
+import type { MpvLaunchMode } from './types/config';
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
 
@@ -36,19 +38,29 @@ function applySanitizedEnv(sanitizedEnv: NodeJS.ProcessEnv): void {
   }
 }
 
-function readConfiguredWindowsMpvExecutablePath(configDir: string): string {
+function readConfiguredWindowsMpvLaunchConfig(configDir: string): {
+  executablePath: string;
+  launchMode: MpvLaunchMode;
+} {
   const loadResult = loadRawConfigStrict({
     configDir,
     configFileJsonc: path.join(configDir, 'config.jsonc'),
     configFileJson: path.join(configDir, 'config.json'),
   });
   if (!loadResult.ok) {
-    return '';
+    return {
+      executablePath: '',
+      launchMode: 'normal',
+    };
   }
 
-  return typeof loadResult.config.mpv?.executablePath === 'string'
-    ? loadResult.config.mpv.executablePath.trim()
-    : '';
+  return {
+    executablePath:
+      typeof loadResult.config.mpv?.executablePath === 'string'
+        ? loadResult.config.mpv.executablePath.trim()
+        : '',
+    launchMode: resolveRawMpvLaunchMode(loadResult.config.mpv) ?? 'normal',
+  };
 }
 
 function resolveBundledWindowsMpvPluginEntrypoint(): string | undefined {
@@ -92,6 +104,7 @@ if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
   const sanitizedEnv = sanitizeLaunchMpvEnv(process.env);
   applySanitizedEnv(sanitizedEnv);
   void app.whenReady().then(async () => {
+    const configuredMpvLaunch = readConfiguredWindowsMpvLaunchConfig(userDataPath);
     const result = await launchWindowsMpv(
       normalizeLaunchMpvTargets(process.argv),
       createWindowsMpvLaunchDeps({
@@ -103,7 +116,8 @@ if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
       normalizeLaunchMpvExtraArgs(process.argv),
       process.execPath,
       resolveBundledWindowsMpvPluginEntrypoint(),
-      readConfiguredWindowsMpvExecutablePath(userDataPath),
+      configuredMpvLaunch.executablePath,
+      configuredMpvLaunch.launchMode,
     );
     app.exit(result.ok ? 0 : 1);
   });

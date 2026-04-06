@@ -1,4 +1,5 @@
 import { ResolvedConfig } from '../../types/config';
+import { MPV_LAUNCH_MODE_VALUES } from '../../shared/mpv-launch-mode';
 import { ConfigOptionRegistryEntry, RuntimeOptionRegistryEntry } from './shared';
 
 export function buildIntegrationConfigOptionRegistry(
@@ -244,6 +245,14 @@ export function buildIntegrationConfigOptionRegistry(
       defaultValue: defaultConfig.mpv.executablePath,
       description:
         'Optional absolute path to mpv.exe for Windows launch flows. Leave empty to auto-discover from SUBMINER_MPV_PATH or PATH.',
+    },
+    {
+      path: 'mpv.launchMode',
+      kind: 'enum',
+      enumValues: MPV_LAUNCH_MODE_VALUES,
+      defaultValue: defaultConfig.mpv.launchMode,
+      description:
+        'Default window state for SubMiner-managed mpv launches.',
     },
     {
       path: 'jellyfin.enabled',

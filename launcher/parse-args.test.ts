@@ -85,6 +85,12 @@ test('parseArgs maps mpv idle action', () => {
   assert.equal(parsed.mpvStatus, false);
 });
 
+test('parseArgs applies configured mpv launch mode default', () => {
+  const parsed = parseArgs([], 'subminer', {}, { launchMode: 'maximized' });
+
+  assert.equal(parsed.launchMode, 'maximized');
+});
+
 test('parseArgs maps dictionary command and log-level override', () => {
   const parsed = parseArgs(['dictionary', '.', '--log-level', 'debug'], 'subminer', {});
 

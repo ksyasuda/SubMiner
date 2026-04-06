@@ -1052,6 +1052,7 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
       undefined,
       undefined,
       getResolvedConfig().mpv.executablePath,
+      getResolvedConfig().mpv.launchMode,
     ),
   waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
   prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
@@ -2031,6 +2032,7 @@ const {
   },
   launchMpvIdleForJellyfinPlaybackMainDeps: {
     getSocketPath: () => appState.mpvSocketPath,
+    getLaunchMode: () => getResolvedConfig().mpv.launchMode,
     platform: process.platform,
     execPath: process.execPath,
     defaultMpvLogPath: DEFAULT_MPV_LOG_PATH,

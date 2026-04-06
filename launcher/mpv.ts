@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
+import { buildMpvLaunchModeArgs } from '../src/shared/mpv-launch-mode.js';
 import type { LogLevel, Backend, Args, MpvTrack } from './types.js';
 import { DEFAULT_MPV_SUBMINER_ARGS, DEFAULT_YOUTUBE_YTDL_FORMAT } from './types.js';
 import { appendToAppLog, getAppLogPath, log, fail, getMpvLogPath } from './log.js';
@@ -673,9 +674,7 @@ export async function startMpv(
   }
 
   const mpvArgs: string[] = [];
-  if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
-  mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
-  mpvArgs.push(...buildMpvBackendArgs(args));
+  mpvArgs.push(...buildConfiguredMpvDefaultArgs(args));
   if (targetKind === 'url' && isYoutubeTarget(target)) {
     log('info', args.logLevel, 'Applying URL playback options');
     mpvArgs.push('--ytdl=yes');
@@ -979,6 +978,18 @@ export function buildMpvBackendArgs(
   return ['--vo=gpu', '--gpu-api=opengl', '--gpu-context=x11egl,x11'];
 }
 
+export function buildConfiguredMpvDefaultArgs(
+  args: Pick<Args, 'profile' | 'backend' | 'launchMode'>,
+  baseEnv: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const mpvArgs: string[] = [];
+  if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
+  mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
+  mpvArgs.push(...buildMpvBackendArgs(args, baseEnv));
+  mpvArgs.push(...buildMpvLaunchModeArgs(args.launchMode));
+  return mpvArgs;
+}
+
 function appendCapturedAppOutput(kind: 'STDOUT' | 'STDERR', chunk: string): void {
   const normalized = chunk.replace(/\r\n/g, '\n');
   for (const line of normalized.split('\n')) {
@@ -1209,10 +1220,7 @@ export function launchMpvIdleDetached(
       // ignore
     }
 
-    const mpvArgs: string[] = [];
-    if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
-    mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
-    mpvArgs.push(...buildMpvBackendArgs(args));
+    const mpvArgs: string[] = buildConfiguredMpvDefaultArgs(args);
     if (args.mpvArgs) {
       mpvArgs.push(...parseMpvArgString(args.mpvArgs));
     }

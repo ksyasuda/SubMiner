@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLauncherYoutubeSubgenConfig } from './config/youtube-subgen-config.js';
 import { parseLauncherJellyfinConfig } from './config/jellyfin-config.js';
+import { parseLauncherMpvConfig } from './config/mpv-config.js';
 import { readExternalYomitanProfilePath } from './config.js';
 import {
   getPluginConfigCandidates,
@@ -78,6 +79,38 @@ test('parseLauncherJellyfinConfig omits legacy token and user id fields', () => 
   assert.equal(parsed.pullPictures, true);
   assert.equal('accessToken' in parsed, false);
   assert.equal('userId' in parsed, false);
+});
+
+test('parseLauncherMpvConfig reads launch mode preference', () => {
+  const parsed = parseLauncherMpvConfig({
+    mpv: {
+      launchMode: ' maximized ',
+      executablePath: 'ignored-here',
+    },
+  });
+
+  assert.equal(parsed.launchMode, 'maximized');
+});
+
+test('parseLauncherMpvConfig falls back to deprecated fullscreen alias when launchMode is absent', () => {
+  const parsed = parseLauncherMpvConfig({
+    mpv: {
+      startFullscreen: true,
+    },
+  });
+
+  assert.equal(parsed.launchMode, 'fullscreen');
+});
+
+test('parseLauncherMpvConfig ignores deprecated fullscreen alias when launchMode is invalid but present', () => {
+  const parsed = parseLauncherMpvConfig({
+    mpv: {
+      launchMode: 'wide',
+      startFullscreen: true,
+    },
+  });
+
+  assert.equal(parsed.launchMode, undefined);
 });
 
 test('parsePluginRuntimeConfigContent reads socket path and startup gate options', () => {

@@ -29,6 +29,7 @@ test('config option registry includes critical paths and has unique entries', ()
     'anilist.characterDictionary.enabled',
     'anilist.characterDictionary.collapsibleSections.description',
     'mpv.executablePath',
+    'mpv.launchMode',
     'yomitan.externalProfilePath',
     'immersionTracking.enabled',
   ]) {

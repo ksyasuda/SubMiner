@@ -80,6 +80,35 @@ test('buildWindowsMpvLaunchArgs uses explicit SubMiner defaults and targets', ()
   );
 });
 
+test('buildWindowsMpvLaunchArgs inserts maximized launch mode before explicit extra args when configured', () => {
+  assert.deepEqual(
+    buildWindowsMpvLaunchArgs(
+      ['C:\\video.mkv'],
+      ['--window-maximized=no'],
+      'C:\\SubMiner\\SubMiner.exe',
+      'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+      'maximized',
+    ),
+    [
+      '--player-operation-mode=pseudo-gui',
+      '--force-window=immediate',
+      '--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+      '--input-ipc-server=\\\\.\\pipe\\subminer-socket',
+      '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+      '--sub-auto=fuzzy',
+      '--sub-file-paths=subs;subtitles',
+      '--sid=auto',
+      '--secondary-sid=auto',
+      '--secondary-sub-visibility=no',
+      '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket',
+      '--window-maximized=yes',
+      '--window-maximized=no',
+      'C:\\video.mkv',
+    ],
+  );
+});
+
 test('buildWindowsMpvLaunchArgs keeps shortcut-only launches in idle mode', () => {
   assert.deepEqual(
     buildWindowsMpvLaunchArgs(

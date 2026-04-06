@@ -461,10 +461,12 @@
   // ==========================================
   // MPV Launcher
   // Optional mpv.exe override for Windows playback entry points.
+  // Set mpv.launchMode to choose normal, maximized, or fullscreen SubMiner-managed mpv playback.
   // Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.
   // ==========================================
   "mpv": {
-    "executablePath": "" // Optional absolute path to mpv.exe for Windows launch flows. Leave empty to auto-discover from SUBMINER_MPV_PATH or PATH.
+    "executablePath": "", // Optional absolute path to mpv.exe for Windows launch flows. Leave empty to auto-discover from SUBMINER_MPV_PATH or PATH.
+    "launchMode": "normal" // Default window state for SubMiner-managed mpv launches. Values: normal | maximized | fullscreen
   }, // Optional mpv.exe override for Windows playback entry points.
 
   // ==========================================

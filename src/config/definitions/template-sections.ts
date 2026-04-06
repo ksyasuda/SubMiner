@@ -159,6 +159,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     title: 'MPV Launcher',
     description: [
       'Optional mpv.exe override for Windows playback entry points.',
+      'Set mpv.launchMode to choose normal, maximized, or fullscreen SubMiner-managed mpv playback.',
       'Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.',
     ],
     key: 'mpv',
