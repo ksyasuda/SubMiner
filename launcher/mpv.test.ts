@@ -237,19 +237,28 @@ test('buildMpvBackendArgs keeps supported Hyprland and Sway auto backends unchan
 
 test('buildConfiguredMpvDefaultArgs appends maximized launch mode to configured defaults', () => {
   withPlatform('linux', () => {
-    assert.deepEqual(buildConfiguredMpvDefaultArgs(makeArgs({ launchMode: 'maximized' })), [
-      '--sub-auto=fuzzy',
-      '--sub-file-paths=.;subs;subtitles',
-      '--sid=auto',
-      '--secondary-sid=auto',
-      '--secondary-sub-visibility=no',
-      '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-      '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-      '--vo=gpu',
-      '--gpu-api=opengl',
-      '--gpu-context=x11egl,x11',
-      '--window-maximized=yes',
-    ]);
+    assert.deepEqual(
+      buildConfiguredMpvDefaultArgs(makeArgs({ launchMode: 'maximized' }), {
+        DISPLAY: ':1',
+        WAYLAND_DISPLAY: 'wayland-0',
+        XDG_SESSION_TYPE: 'wayland',
+        XDG_CURRENT_DESKTOP: 'KDE',
+        XDG_SESSION_DESKTOP: 'plasma',
+      }),
+      [
+        '--sub-auto=fuzzy',
+        '--sub-file-paths=.;subs;subtitles',
+        '--sid=auto',
+        '--secondary-sid=auto',
+        '--secondary-sub-visibility=no',
+        '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+        '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+        '--vo=gpu',
+        '--gpu-api=opengl',
+        '--gpu-context=x11egl,x11',
+        '--window-maximized=yes',
+      ],
+    );
   });
 });
 
