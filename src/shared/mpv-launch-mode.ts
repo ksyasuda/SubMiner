@@ -1,7 +1,10 @@
 import type { MpvLaunchMode } from '../types/config';
 
-export const MPV_LAUNCH_MODE_VALUES = ['normal', 'maximized', 'fullscreen'] as const satisfies
-  readonly MpvLaunchMode[];
+export const MPV_LAUNCH_MODE_VALUES = [
+  'normal',
+  'maximized',
+  'fullscreen',
+] as const satisfies readonly MpvLaunchMode[];
 
 export function parseMpvLaunchMode(value: unknown): MpvLaunchMode | undefined {
   if (typeof value !== 'string') {

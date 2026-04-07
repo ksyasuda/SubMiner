@@ -251,8 +251,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'enum',
       enumValues: MPV_LAUNCH_MODE_VALUES,
       defaultValue: defaultConfig.mpv.launchMode,
-      description:
-        'Default window state for SubMiner-managed mpv launches.',
+      description: 'Default window state for SubMiner-managed mpv launches.',
     },
     {
       path: 'jellyfin.enabled',

@@ -127,6 +127,7 @@ The configuration file includes several main sections:
 - [**Discord Rich Presence**](#discord-rich-presence) - Optional Discord activity card updates
 - [**Immersion Tracking**](#immersion-tracking) - Track subtitle sessions and mining activity in SQLite
 - [**Stats Dashboard**](#stats-dashboard) - Local dashboard and overlay for immersion progress
+- [**MPV Launcher**](#mpv-launcher) - mpv executable path and window launch mode
 - [**YouTube Playback Settings**](#youtube-playback-settings) - Defaults for YouTube subtitle loading
 
 ## Core Settings
@@ -237,10 +238,10 @@ This stream includes subtitle text plus token metadata (N+1, known-word, frequen
 }
 ```
 
-| Option    | Values             | Description                                              |
-| --------- | ------------------ | -------------------------------------------------------- |
-| `enabled` | `true`, `false`    | Toggle annotated websocket stream (independent of `websocket`) |
-| `port`    | number             | Annotation websocket port (default: 6678)                 |
+| Option    | Values          | Description                                                    |
+| --------- | --------------- | -------------------------------------------------------------- |
+| `enabled` | `true`, `false` | Toggle annotated websocket stream (independent of `websocket`) |
+| `port`    | number          | Annotation websocket port (default: 6678)                      |
 
 ### Texthooker
 
@@ -257,10 +258,10 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option           | Values          | Description                                                                                      |
-| ---------------- | --------------- | ------------------------------------------------------------------------------------------------ |
-| `launchAtStartup`| `true`, `false` | Start texthooker automatically with SubMiner startup (default: `true`)                            |
-| `openBrowser`    | `true`, `false` | Open browser tab when texthooker starts (default: `false`)                                         |
+| Option            | Values          | Description                                                            |
+| ----------------- | --------------- | ---------------------------------------------------------------------- |
+| `launchAtStartup` | `true`, `false` | Start texthooker automatically with SubMiner startup (default: `true`) |
+| `openBrowser`     | `true`, `false` | Open browser tab when texthooker starts (default: `false`)             |
 
 ## Subtitle Display
 
@@ -365,24 +366,24 @@ Configure the parsed-subtitle sidebar modal.
 }
 ```
 
-| Option                      | Values           | Description                                                                      |
-| --------------------------- | ---------------- | -------------------------------------------------------------------------------- |
-| `enabled`                   | boolean          | Enable subtitle sidebar support (`true` by default)                              |
-| `autoOpen`                  | boolean          | Open sidebar automatically on overlay startup (`false` by default)                |
-| `layout`                    | string           | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space to mimic browser-like layout |
-| `toggleKey`                 | string           | `KeyboardEvent.code` used to open/close the sidebar (default: `"Backslash"`)     |
-| `pauseVideoOnHover`         | boolean          | Pause playback while hovering the sidebar cue list                               |
-| `autoScroll`                | boolean          | Keep the active cue in view while playback advances                              |
-| `maxWidth`                  | number           | Maximum sidebar width in CSS pixels (default: `420`)                             |
-| `opacity`                   | number           | Sidebar opacity between `0` and `1` (default: `0.95`)                            |
-| `backgroundColor`           | string           | Sidebar shell background color                                                   |
-| `textColor`                 | hex color        | Default cue text color                                                           |
-| `fontFamily`                | string           | CSS `font-family` value applied to sidebar cue text                             |
-| `fontSize`                  | number           | Base sidebar cue font size in CSS pixels (default: `16`)                        |
-| `timestampColor`            | hex color        | Cue timestamp color                                                              |
-| `activeLineColor`           | hex color        | Active cue text color                                                            |
-| `activeLineBackgroundColor` | string           | Active cue background color                                                      |
-| `hoverLineBackgroundColor`  | string           | Hovered cue background color                                                     |
+| Option                      | Values    | Description                                                                                             |
+| --------------------------- | --------- | ------------------------------------------------------------------------------------------------------- |
+| `enabled`                   | boolean   | Enable subtitle sidebar support (`true` by default)                                                     |
+| `autoOpen`                  | boolean   | Open sidebar automatically on overlay startup (`false` by default)                                      |
+| `layout`                    | string    | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space to mimic browser-like layout |
+| `toggleKey`                 | string    | `KeyboardEvent.code` used to open/close the sidebar (default: `"Backslash"`)                            |
+| `pauseVideoOnHover`         | boolean   | Pause playback while hovering the sidebar cue list                                                      |
+| `autoScroll`                | boolean   | Keep the active cue in view while playback advances                                                     |
+| `maxWidth`                  | number    | Maximum sidebar width in CSS pixels (default: `420`)                                                    |
+| `opacity`                   | number    | Sidebar opacity between `0` and `1` (default: `0.95`)                                                   |
+| `backgroundColor`           | string    | Sidebar shell background color                                                                          |
+| `textColor`                 | hex color | Default cue text color                                                                                  |
+| `fontFamily`                | string    | CSS `font-family` value applied to sidebar cue text                                                     |
+| `fontSize`                  | number    | Base sidebar cue font size in CSS pixels (default: `16`)                                                |
+| `timestampColor`            | hex color | Cue timestamp color                                                                                     |
+| `activeLineColor`           | hex color | Active cue text color                                                                                   |
+| `activeLineBackgroundColor` | string    | Active cue background color                                                                             |
+| `hoverLineBackgroundColor`  | string    | Hovered cue background color                                                                            |
 
 The sidebar is only available when the active subtitle source has been parsed into a cue list. Default colors use Catppuccin Macchiato with a semi-transparent shell so the panel stays readable without feeling like an opaque settings dialog.
 
@@ -466,25 +467,25 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 
 **Default keybindings:**
 
-| Key                  | Command                      | Description                           |
-| -------------------- | ---------------------------- | ------------------------------------- |
-| `Space`              | `["cycle", "pause"]`         | Toggle pause                          |
-| `KeyJ`               | `["cycle", "sid"]`           | Cycle primary subtitle track          |
-| `Shift+KeyJ`         | `["cycle", "secondary-sid"]` | Cycle secondary subtitle track        |
-| `Ctrl+Alt+KeyP`      | `["__playlist-browser-open"]` | Open playlist browser                 |
-| `Ctrl+Alt+KeyC`    | `["__youtube-picker-open"]`     | Open the manual YouTube subtitle picker |
-| `ArrowRight`         | `["seek", 5]`                | Seek forward 5 seconds                |
-| `ArrowLeft`          | `["seek", -5]`               | Seek backward 5 seconds               |
-| `ArrowUp`            | `["seek", 60]`               | Seek forward 60 seconds               |
-| `ArrowDown`          | `["seek", -60]`              | Seek backward 60 seconds              |
-| `Shift+KeyH`         | `["sub-seek", -1]`           | Jump to previous subtitle             |
-| `Shift+KeyL`         | `["sub-seek", 1]`            | Jump to next subtitle                 |
-| `Shift+BracketLeft`  | `["__sub-delay-prev-line"]`  | Shift subtitle delay to previous cue  |
-| `Shift+BracketRight` | `["__sub-delay-next-line"]`  | Shift subtitle delay to next cue      |
-| `Ctrl+Shift+KeyH`    | `["__replay-subtitle"]`      | Replay current subtitle, pause at end |
-| `Ctrl+Shift+KeyL`    | `["__play-next-subtitle"]`   | Play next subtitle, pause at end      |
-| `KeyQ`               | `["quit"]`                   | Quit mpv                              |
-| `Ctrl+KeyW`          | `["quit"]`                   | Quit mpv                              |
+| Key                  | Command                       | Description                             |
+| -------------------- | ----------------------------- | --------------------------------------- |
+| `Space`              | `["cycle", "pause"]`          | Toggle pause                            |
+| `KeyJ`               | `["cycle", "sid"]`            | Cycle primary subtitle track            |
+| `Shift+KeyJ`         | `["cycle", "secondary-sid"]`  | Cycle secondary subtitle track          |
+| `Ctrl+Alt+KeyP`      | `["__playlist-browser-open"]` | Open playlist browser                   |
+| `Ctrl+Alt+KeyC`      | `["__youtube-picker-open"]`   | Open the manual YouTube subtitle picker |
+| `ArrowRight`         | `["seek", 5]`                 | Seek forward 5 seconds                  |
+| `ArrowLeft`          | `["seek", -5]`                | Seek backward 5 seconds                 |
+| `ArrowUp`            | `["seek", 60]`                | Seek forward 60 seconds                 |
+| `ArrowDown`          | `["seek", -60]`               | Seek backward 60 seconds                |
+| `Shift+KeyH`         | `["sub-seek", -1]`            | Jump to previous subtitle               |
+| `Shift+KeyL`         | `["sub-seek", 1]`             | Jump to next subtitle                   |
+| `Shift+BracketLeft`  | `["__sub-delay-prev-line"]`   | Shift subtitle delay to previous cue    |
+| `Shift+BracketRight` | `["__sub-delay-next-line"]`   | Shift subtitle delay to next cue        |
+| `Ctrl+Shift+KeyH`    | `["__replay-subtitle"]`       | Replay current subtitle, pause at end   |
+| `Ctrl+Shift+KeyL`    | `["__play-next-subtitle"]`    | Play next subtitle, pause at end        |
+| `KeyQ`               | `["quit"]`                    | Quit mpv                                |
+| `Ctrl+KeyW`          | `["quit"]`                    | Quit mpv                                |
 
 **Custom keybindings example:**
 
@@ -604,7 +605,7 @@ Important behavior:
       "leftStickPress": 9,
       "rightStickPress": 10,
       "leftTrigger": 6,
-      "rightTrigger": 7
+      "rightTrigger": 7,
     },
     "bindings": {
       "toggleLookup": { "kind": "button", "buttonIndex": 0 },
@@ -619,9 +620,9 @@ Important behavior:
       "leftStickHorizontal": { "kind": "axis", "axisIndex": 0, "dpadFallback": "horizontal" },
       "leftStickVertical": { "kind": "axis", "axisIndex": 1, "dpadFallback": "vertical" },
       "rightStickHorizontal": { "kind": "axis", "axisIndex": 3, "dpadFallback": "none" },
-      "rightStickVertical": { "kind": "axis", "axisIndex": 4, "dpadFallback": "none" }
-    }
-  }
+      "rightStickVertical": { "kind": "axis", "axisIndex": 4, "dpadFallback": "none" },
+    },
+  },
 }
 ```
 
@@ -649,9 +650,9 @@ If you bind a discrete action to an axis manually, include `direction`:
 {
   "controller": {
     "bindings": {
-      "toggleLookup": { "kind": "axis", "axisIndex": 5, "direction": "positive" }
-    }
-  }
+      "toggleLookup": { "kind": "axis", "axisIndex": 5, "direction": "positive" },
+    },
+  },
 }
 ```
 
@@ -758,15 +759,15 @@ Anki reads this provider directly. Legacy subtitle fallback keeps the same provi
 }
 ```
 
-| Option             | Values                | Description                                          |
-| ------------------ | --------------------- | ---------------------------------------------------- |
-| `enabled`          | `true`, `false`       | Enable shared AI provider features                   |
-| `apiKey`           | string                | Static API key for the shared provider               |
-| `apiKeyCommand`    | string                | Shell command used to resolve the API key            |
-| `baseUrl`          | string (URL)          | OpenAI-compatible base URL                           |
-| `model`            | string                | Optional model override for shared provider workflows   |
-| `systemPrompt`     | string                | Optional system prompt override for shared provider workflows |
-| `requestTimeoutMs` | integer milliseconds  | Shared request timeout (default: `15000`)            |
+| Option             | Values               | Description                                                   |
+| ------------------ | -------------------- | ------------------------------------------------------------- |
+| `enabled`          | `true`, `false`      | Enable shared AI provider features                            |
+| `apiKey`           | string               | Static API key for the shared provider                        |
+| `apiKeyCommand`    | string               | Shell command used to resolve the API key                     |
+| `baseUrl`          | string (URL)         | OpenAI-compatible base URL                                    |
+| `model`            | string               | Optional model override for shared provider workflows         |
+| `systemPrompt`     | string               | Optional system prompt override for shared provider workflows |
+| `requestTimeoutMs` | integer milliseconds | Shared request timeout (default: `15000`)                     |
 
 SubMiner uses the shared provider for:
 
@@ -844,59 +845,59 @@ This example is intentionally compact. The option table below documents availabl
 
 **Requirements:** [AnkiConnect](https://github.com/FooSoft/anki-connect) plugin must be installed and running in Anki. ffmpeg must be installed for media generation.
 
-| Option                                  | Values                                  | Description                                                                                                                                   |
-| --------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`                               | `true`, `false`                         | Enable AnkiConnect integration (default: `true`)                                                                                              |
-| `url`                                   | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                                        |
-| `pollingRate`                           | number (ms)                             | How often to check for new cards in polling mode (default: `3000`; ignored for direct proxy `addNote`/`addNotes` updates)                     |
-| `proxy.enabled`                         | `true`, `false`                         | Enable local AnkiConnect-compatible proxy for push-based auto-enrichment (default: `true`)                                                    |
-| `proxy.host`                            | string                                  | Bind host for local AnkiConnect proxy (default: `127.0.0.1`)                                                                                  |
-| `proxy.port`                            | number                                  | Bind port for local AnkiConnect proxy (default: `8766`)                                                                                       |
-| `proxy.upstreamUrl`                     | string (URL)                            | Upstream AnkiConnect URL that proxy forwards to (default: `http://127.0.0.1:8765`)                                                            |
-| `tags`                                  | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                 |
-| `ankiConnect.deck`                      | string                                  | Legacy Anki polling/compatibility scope. Newer known-word cache scoping should use `ankiConnect.knownWords.decks`.                               |
-| `ankiConnect.knownWords.decks`          | object                                  | Deck→fields mapping for known-word cache queries (for example `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                                  |
-| `fields.word`                           | string                                  | Card field for mined word / expression text (default: `Expression`)                                                                            |
-| `fields.audio`                          | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                       |
-| `fields.image`                          | string                                  | Card field for images (default: `Picture`)                                                                                                    |
-| `fields.sentence`                       | string                                  | Card field for sentences (default: `Sentence`)                                                                                                |
-| `fields.miscInfo`                       | string                                  | Card field for metadata (default: `"MiscInfo"`, set to `null` to disable)                                                                     |
-| `fields.translation`                    | string                                  | Card field for sentence-card translation/back text (default: `SelectionText`)                                                                 |
-| `ankiConnect.ai.enabled`                | `true`, `false`                         | Use AI translation for sentence cards. Also auto-attempted when secondary subtitle is missing.                                                |
-| `ankiConnect.ai.model`                  | string                                  | Optional model override for Anki AI translation/enrichment flows.                                                                              |
-| `ankiConnect.ai.systemPrompt`           | string                                  | Optional system prompt override for Anki AI translation/enrichment flows.                                                                      |
-| `media.generateAudio`                   | `true`, `false`                         | Generate audio clips from video (default: `true`)                                                                                             |
-| `media.generateImage`                   | `true`, `false`                         | Generate image/animation screenshots (default: `true`)                                                                                        |
-| `media.imageType`                       | `"static"`, `"avif"`                    | Image type: static screenshot or animated AVIF (default: `"static"`)                                                                          |
-| `media.imageFormat`                     | `"jpg"`, `"png"`, `"webp"`              | Image format (default: `"jpg"`)                                                                                                               |
-| `media.imageQuality`                    | number (1-100)                          | Image quality for JPG/WebP; PNG ignores this (default: `92`)                                                                                  |
-| `media.imageMaxWidth`                   | number (px)                             | Optional max width for static screenshots. Unset keeps source width.                                                                          |
-| `media.imageMaxHeight`                  | number (px)                             | Optional max height for static screenshots. Unset keeps source height.                                                                        |
-| `media.animatedFps`                     | number (1-60)                           | FPS for animated AVIF (default: `10`)                                                                                                         |
-| `media.animatedMaxWidth`                | number (px)                             | Max width for animated AVIF (default: `640`)                                                                                                  |
-| `media.animatedMaxHeight`               | number (px)                             | Optional max height for animated AVIF. Unset keeps source aspect-constrained height.                                                          |
-| `media.animatedCrf`                     | number (0-63)                           | CRF quality for AVIF; lower = higher quality (default: `35`)                                                                                  |
-| `media.syncAnimatedImageToWordAudio`    | `true`, `false`                         | Whether animated AVIF includes an opening frame synced to sentence word-audio timing (default: `true`). |
-| `media.audioPadding`                    | number (seconds)                        | Padding around audio clip timing (default: `0.5`)                                                                                             |
-| `media.fallbackDuration`                | number (seconds)                        | Default duration if timing unavailable (default: `3.0`)                                                                                       |
-| `media.maxMediaDuration`                | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                                         |
-| `behavior.overwriteAudio`               | `true`, `false`                         | Replace existing audio on updates; when `false`, new audio is appended/prepended per `behavior.mediaInsertMode` (default: `true`)             |
-| `behavior.overwriteImage`               | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `behavior.mediaInsertMode` (default: `true`)          |
-| `behavior.mediaInsertMode`              | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                         |
-| `behavior.highlightWord`                | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                      |
-| `ankiConnect.knownWords.highlightEnabled` | `true`, `false`                       | Enable fast local highlighting for words already known in Anki (default: `false`)                                                             |
-| `ankiConnect.knownWords.addMinedWordsImmediately` | `true`, `false`                         | Add words from successful mines into the local known-word cache immediately (default: `true`)                                                   |
-| `ankiConnect.knownWords.color`          | hex color string                        | Text color for tokens already found in the local known-word cache (default: `"#a6da95"`).                                                     |
-| `ankiConnect.knownWords.matchMode`      | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
-| `ankiConnect.knownWords.refreshMinutes` | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                  |
-| `ankiConnect.knownWords.decks`          | object                                  | Deck→fields mapping used for known-word cache query scope (e.g. `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                              |
-| `ankiConnect.nPlusOne.nPlusOne`         | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`).               |
-| `ankiConnect.nPlusOne.minSentenceWords` | number                                  | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                        |
-| `behavior.notificationType`             | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                           |
-| `behavior.autoUpdateNewCards`           | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                      |
-| `metadata.pattern`                      | string                                  | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                                      |
-| `isLapis`                               | object                                  | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel }`. Sentence/audio field names are fixed to `Sentence` and `SentenceAudio`.  |
-| `isKiku`                                | object                                  | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`)     |
+| Option                                            | Values                                  | Description                                                                                                                                   |
+| ------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                                         | `true`, `false`                         | Enable AnkiConnect integration (default: `true`)                                                                                              |
+| `url`                                             | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                                        |
+| `pollingRate`                                     | number (ms)                             | How often to check for new cards in polling mode (default: `3000`; ignored for direct proxy `addNote`/`addNotes` updates)                     |
+| `proxy.enabled`                                   | `true`, `false`                         | Enable local AnkiConnect-compatible proxy for push-based auto-enrichment (default: `true`)                                                    |
+| `proxy.host`                                      | string                                  | Bind host for local AnkiConnect proxy (default: `127.0.0.1`)                                                                                  |
+| `proxy.port`                                      | number                                  | Bind port for local AnkiConnect proxy (default: `8766`)                                                                                       |
+| `proxy.upstreamUrl`                               | string (URL)                            | Upstream AnkiConnect URL that proxy forwards to (default: `http://127.0.0.1:8765`)                                                            |
+| `tags`                                            | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                 |
+| `ankiConnect.deck`                                | string                                  | Legacy Anki polling/compatibility scope. Newer known-word cache scoping should use `ankiConnect.knownWords.decks`.                            |
+| `ankiConnect.knownWords.decks`                    | object                                  | Deck→fields mapping for known-word cache queries (for example `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                                 |
+| `fields.word`                                     | string                                  | Card field for mined word / expression text (default: `Expression`)                                                                           |
+| `fields.audio`                                    | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                       |
+| `fields.image`                                    | string                                  | Card field for images (default: `Picture`)                                                                                                    |
+| `fields.sentence`                                 | string                                  | Card field for sentences (default: `Sentence`)                                                                                                |
+| `fields.miscInfo`                                 | string                                  | Card field for metadata (default: `"MiscInfo"`, set to `null` to disable)                                                                     |
+| `fields.translation`                              | string                                  | Card field for sentence-card translation/back text (default: `SelectionText`)                                                                 |
+| `ankiConnect.ai.enabled`                          | `true`, `false`                         | Use AI translation for sentence cards. Also auto-attempted when secondary subtitle is missing.                                                |
+| `ankiConnect.ai.model`                            | string                                  | Optional model override for Anki AI translation/enrichment flows.                                                                             |
+| `ankiConnect.ai.systemPrompt`                     | string                                  | Optional system prompt override for Anki AI translation/enrichment flows.                                                                     |
+| `media.generateAudio`                             | `true`, `false`                         | Generate audio clips from video (default: `true`)                                                                                             |
+| `media.generateImage`                             | `true`, `false`                         | Generate image/animation screenshots (default: `true`)                                                                                        |
+| `media.imageType`                                 | `"static"`, `"avif"`                    | Image type: static screenshot or animated AVIF (default: `"static"`)                                                                          |
+| `media.imageFormat`                               | `"jpg"`, `"png"`, `"webp"`              | Image format (default: `"jpg"`)                                                                                                               |
+| `media.imageQuality`                              | number (1-100)                          | Image quality for JPG/WebP; PNG ignores this (default: `92`)                                                                                  |
+| `media.imageMaxWidth`                             | number (px)                             | Optional max width for static screenshots. Unset keeps source width.                                                                          |
+| `media.imageMaxHeight`                            | number (px)                             | Optional max height for static screenshots. Unset keeps source height.                                                                        |
+| `media.animatedFps`                               | number (1-60)                           | FPS for animated AVIF (default: `10`)                                                                                                         |
+| `media.animatedMaxWidth`                          | number (px)                             | Max width for animated AVIF (default: `640`)                                                                                                  |
+| `media.animatedMaxHeight`                         | number (px)                             | Optional max height for animated AVIF. Unset keeps source aspect-constrained height.                                                          |
+| `media.animatedCrf`                               | number (0-63)                           | CRF quality for AVIF; lower = higher quality (default: `35`)                                                                                  |
+| `media.syncAnimatedImageToWordAudio`              | `true`, `false`                         | Whether animated AVIF includes an opening frame synced to sentence word-audio timing (default: `true`).                                       |
+| `media.audioPadding`                              | number (seconds)                        | Padding around audio clip timing (default: `0.5`)                                                                                             |
+| `media.fallbackDuration`                          | number (seconds)                        | Default duration if timing unavailable (default: `3.0`)                                                                                       |
+| `media.maxMediaDuration`                          | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                                         |
+| `behavior.overwriteAudio`                         | `true`, `false`                         | Replace existing audio on updates; when `false`, new audio is appended/prepended per `behavior.mediaInsertMode` (default: `true`)             |
+| `behavior.overwriteImage`                         | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `behavior.mediaInsertMode` (default: `true`)          |
+| `behavior.mediaInsertMode`                        | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                         |
+| `behavior.highlightWord`                          | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                      |
+| `ankiConnect.knownWords.highlightEnabled`         | `true`, `false`                         | Enable fast local highlighting for words already known in Anki (default: `false`)                                                             |
+| `ankiConnect.knownWords.addMinedWordsImmediately` | `true`, `false`                         | Add words from successful mines into the local known-word cache immediately (default: `true`)                                                 |
+| `ankiConnect.knownWords.color`                    | hex color string                        | Text color for tokens already found in the local known-word cache (default: `"#a6da95"`).                                                     |
+| `ankiConnect.knownWords.matchMode`                | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
+| `ankiConnect.knownWords.refreshMinutes`           | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                  |
+| `ankiConnect.knownWords.decks`                    | object                                  | Deck→fields mapping used for known-word cache query scope (e.g. `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                               |
+| `ankiConnect.nPlusOne.nPlusOne`                   | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`).               |
+| `ankiConnect.nPlusOne.minSentenceWords`           | number                                  | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                        |
+| `behavior.notificationType`                       | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                           |
+| `behavior.autoUpdateNewCards`                     | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                      |
+| `metadata.pattern`                                | string                                  | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                                      |
+| `isLapis`                                         | object                                  | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel }`. Sentence/audio field names are fixed to `Sentence` and `SentenceAudio`.  |
+| `isKiku`                                          | object                                  | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`)     |
 
 `ankiConnect.ai` only controls feature-local enablement plus optional `model` / `systemPrompt` overrides.
 API key resolution, base URL, and timeout live under the shared top-level [`ai`](#shared-ai-provider) config.
@@ -1022,8 +1023,8 @@ Sync the active subtitle track using `alass` (preferred) or `ffsubsync`. Both ar
 | Option           | Values               | Description                                                                                                               |
 | ---------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `defaultMode`    | `"auto"`, `"manual"` | `auto`: try `alass` against secondary subtitle, then fallback to `ffsubsync`; `manual`: open overlay picker               |
-| `alass_path`     | string path          | Path to `alass` executable. Empty or `null` resolves from `PATH`. `alass` must be installed separately.                  |
-| `ffsubsync_path` | string path          | Path to `ffsubsync` executable. Empty or `null` resolves from `PATH`. `ffsubsync` must be installed separately.          |
+| `alass_path`     | string path          | Path to `alass` executable. Empty or `null` resolves from `PATH`. `alass` must be installed separately.                   |
+| `ffsubsync_path` | string path          | Path to `ffsubsync` executable. Empty or `null` resolves from `PATH`. `ffsubsync` must be installed separately.           |
 | `ffmpeg_path`    | string path          | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.                |
 | `replace`        | `true`, `false`      | When `true` (default), overwrite the active subtitle file on successful sync. When `false`, write `<name>_retimed.<ext>`. |
 
@@ -1055,18 +1056,18 @@ AniList integration is opt-in and disabled by default. Enable it to allow SubMin
 }
 ```
 
-| Option                                | Values                  | Description                                                                                      |
-| ------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `enabled`                             | `true`, `false`         | Enable AniList post-watch progress updates (default: `false`)                                    |
-| `accessToken`                         | string                  | Optional explicit AniList access token override (default: empty string)                          |
-| `characterDictionary.enabled`         | `true`, `false`         | Enable automatic import/update of the merged SubMiner character dictionary for recent AniList media |
-| `characterDictionary.refreshTtlHours` | number                  | Legacy compatibility setting. Parsed and preserved, but merged dictionary retention is now usage-based |
-| `characterDictionary.maxLoaded`       | number                  | Maximum number of most-recently-used AniList media snapshots included in the merged dictionary (default: `3`) |
-| `characterDictionary.evictionPolicy`  | `"delete"`, `"disable"` | Legacy compatibility setting. Parsed and preserved, but merged dictionary eviction is now usage-based |
-| `characterDictionary.collapsibleSections.description` | `true`, `false` | Open the Description section by default in generated dictionary entries |
-| `characterDictionary.collapsibleSections.characterInformation` | `true`, `false` | Open the Character Information section by default in generated dictionary entries |
-| `characterDictionary.collapsibleSections.voicedBy` | `true`, `false` | Open the Voiced by section by default in generated dictionary entries |
-| `characterDictionary.profileScope`    | `"all"`, `"active"`     | Apply dictionary settings updates to all Yomitan profiles or only active profile                 |
+| Option                                                         | Values                  | Description                                                                                                   |
+| -------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `enabled`                                                      | `true`, `false`         | Enable AniList post-watch progress updates (default: `false`)                                                 |
+| `accessToken`                                                  | string                  | Optional explicit AniList access token override (default: empty string)                                       |
+| `characterDictionary.enabled`                                  | `true`, `false`         | Enable automatic import/update of the merged SubMiner character dictionary for recent AniList media           |
+| `characterDictionary.refreshTtlHours`                          | number                  | Legacy compatibility setting. Parsed and preserved, but merged dictionary retention is now usage-based        |
+| `characterDictionary.maxLoaded`                                | number                  | Maximum number of most-recently-used AniList media snapshots included in the merged dictionary (default: `3`) |
+| `characterDictionary.evictionPolicy`                           | `"delete"`, `"disable"` | Legacy compatibility setting. Parsed and preserved, but merged dictionary eviction is now usage-based         |
+| `characterDictionary.collapsibleSections.description`          | `true`, `false`         | Open the Description section by default in generated dictionary entries                                       |
+| `characterDictionary.collapsibleSections.characterInformation` | `true`, `false`         | Open the Character Information section by default in generated dictionary entries                             |
+| `characterDictionary.collapsibleSections.voicedBy`             | `true`, `false`         | Open the Voiced by section by default in generated dictionary entries                                         |
+| `characterDictionary.profileScope`                             | `"all"`, `"active"`     | Apply dictionary settings updates to all Yomitan profiles or only active profile                              |
 
 When `enabled` is `true` and `accessToken` is empty, SubMiner opens an AniList setup helper window. Keep `enabled` as `false` to disable all AniList setup/update behavior.
 
@@ -1122,8 +1123,8 @@ For GameSentenceMiner on Linux, the default overlay profile path is typically `~
 }
 ```
 
-| Option                | Values      | Description                                                                                                                           |
-| --------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Option                | Values      | Description                                                                                                                                                                                                    |
+| --------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `externalProfilePath` | string path | Optional absolute path, or a path beginning with `~` (expanded to your home directory), to another app's Yomitan Electron profile. SubMiner loads that profile read-only and reuses its dictionaries/settings. |
 
 External-profile mode behavior:
@@ -1208,12 +1209,12 @@ Discord Rich Presence is enabled by default. SubMiner publishes a polished activ
 }
 ```
 
-| Option             | Values                                            | Description                                                |
-| ------------------ | ------------------------------------------------- | ---------------------------------------------------------- |
-| `enabled`          | `true`, `false`                                   | Enable Discord Rich Presence updates (default: `true`)     |
-| `presenceStyle`    | `"default"`, `"meme"`, `"japanese"`, `"minimal"`  | Card text preset (default: `"default"`)                    |
-| `updateIntervalMs` | number                                            | Minimum interval between activity updates in milliseconds  |
-| `debounceMs`       | number                                            | Debounce window for bursty playback events in milliseconds |
+| Option             | Values                                           | Description                                                |
+| ------------------ | ------------------------------------------------ | ---------------------------------------------------------- |
+| `enabled`          | `true`, `false`                                  | Enable Discord Rich Presence updates (default: `true`)     |
+| `presenceStyle`    | `"default"`, `"meme"`, `"japanese"`, `"minimal"` | Card text preset (default: `"default"`)                    |
+| `updateIntervalMs` | number                                           | Minimum interval between activity updates in milliseconds  |
+| `debounceMs`       | number                                           | Debounce window for bursty playback events in milliseconds |
 
 Setup steps:
 
@@ -1225,12 +1226,12 @@ Setup steps:
 
 While playing media, the **Details** line always shows the current media title and **State** shows `Playing mm:ss / mm:ss` or `Paused mm:ss / mm:ss`. The preset controls what appears when idle and the tooltip text on images.
 
-| Preset       | Idle details                        | Small image text   | Vibe                                    |
-| ------------ | ----------------------------------- | ------------------ | --------------------------------------- |
-| **`default`**| `Sentence Mining`                   | `日本語学習中`      | Clean, bilingual flair                  |
-| `meme`       | `Mining and crafting (Anki cards)`  | `Sentence Mining`  | Minecraft-inspired joke                 |
-| `japanese`   | `文の採掘中`                         | `イマージョン学習`  | Fully Japanese                          |
-| `minimal`    | `SubMiner`                          | *(none)*           | Bare essentials, no small image overlay |
+| Preset        | Idle details                       | Small image text   | Vibe                                    |
+| ------------- | ---------------------------------- | ------------------ | --------------------------------------- |
+| **`default`** | `Sentence Mining`                  | `日本語学習中`     | Clean, bilingual flair                  |
+| `meme`        | `Mining and crafting (Anki cards)` | `Sentence Mining`  | Minecraft-inspired joke                 |
+| `japanese`    | `文の採掘中`                       | `イマージョン学習` | Fully Japanese                          |
+| `minimal`     | `SubMiner`                         | _(none)_           | Bare essentials, no small image overlay |
 
 All presets use the `subminer-logo` large image with `SubMiner` tooltip. No activity button is shown by default.
 
@@ -1273,23 +1274,23 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
 }
 ```
 
-| Option                         | Values                        | Description                                                                                                 |
-| ------------------------------ | ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `enabled`                      | `true`, `false`               | Enable immersion tracking. Defaults to `true`.                                                              |
-| `dbPath`                       | string                        | Optional SQLite database path. Leave empty to use default app-data path at `<config dir>/immersion.sqlite`. |
-| `batchSize`                    | integer (`1`-`10000`)         | Buffered writes per transaction. Default `25`.                                                              |
-| `flushIntervalMs`              | integer (`50`-`60000`)        | Maximum queue delay before flush. Default `500ms`.                                                          |
-| `queueCap`                     | integer (`100`-`100000`)      | In-memory queue cap. Overflow drops oldest writes. Default `1000`.                                          |
-| `payloadCapBytes`              | integer (`64`-`8192`)         | Event payload byte cap before truncation marker. Default `256`.                                             |
-| `maintenanceIntervalMs`        | integer (`60000`-`604800000`) | Prune + rollup maintenance cadence. Default `86400000` (24h).                                               |
-| `retentionMode`                | `preset`,`advanced`           | Retention mode. `preset` applies `retentionPreset`, `advanced` uses explicit values only. Default `preset`. |
-| `retentionPreset`              | `minimal`,`balanced`,`deep-history` | Retention preset used when `retentionMode = "preset"`. Default `balanced`.                              |
-| `retention.eventsDays`         | integer (`0`-`3650`)          | Raw event retention window in days. Default `0` (keep all).                                                  |
-| `retention.telemetryDays`      | integer (`0`-`3650`)          | Telemetry retention window in days. Default `0` (keep all).                                                  |
-| `retention.sessionsDays`       | integer (`0`-`3650`)          | Session retention window in days. Default `0` (keep all).                                                    |
-| `retention.dailyRollupsDays`   | integer (`0`-`36500`)         | Daily rollup retention window. Default `0` (keep all).                                                      |
-| `retention.monthlyRollupsDays` | integer (`0`-`36500`)         | Monthly rollup retention window. Default `0` (keep all).                                                    |
-| `retention.vacuumIntervalDays` | integer (`0`-`3650`)          | Minimum spacing between `VACUUM` passes. `0` disables vacuum. Default `0` (disabled).                         |
+| Option                         | Values                              | Description                                                                                                 |
+| ------------------------------ | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `enabled`                      | `true`, `false`                     | Enable immersion tracking. Defaults to `true`.                                                              |
+| `dbPath`                       | string                              | Optional SQLite database path. Leave empty to use default app-data path at `<config dir>/immersion.sqlite`. |
+| `batchSize`                    | integer (`1`-`10000`)               | Buffered writes per transaction. Default `25`.                                                              |
+| `flushIntervalMs`              | integer (`50`-`60000`)              | Maximum queue delay before flush. Default `500ms`.                                                          |
+| `queueCap`                     | integer (`100`-`100000`)            | In-memory queue cap. Overflow drops oldest writes. Default `1000`.                                          |
+| `payloadCapBytes`              | integer (`64`-`8192`)               | Event payload byte cap before truncation marker. Default `256`.                                             |
+| `maintenanceIntervalMs`        | integer (`60000`-`604800000`)       | Prune + rollup maintenance cadence. Default `86400000` (24h).                                               |
+| `retentionMode`                | `preset`,`advanced`                 | Retention mode. `preset` applies `retentionPreset`, `advanced` uses explicit values only. Default `preset`. |
+| `retentionPreset`              | `minimal`,`balanced`,`deep-history` | Retention preset used when `retentionMode = "preset"`. Default `balanced`.                                  |
+| `retention.eventsDays`         | integer (`0`-`3650`)                | Raw event retention window in days. Default `0` (keep all).                                                 |
+| `retention.telemetryDays`      | integer (`0`-`3650`)                | Telemetry retention window in days. Default `0` (keep all).                                                 |
+| `retention.sessionsDays`       | integer (`0`-`3650`)                | Session retention window in days. Default `0` (keep all).                                                   |
+| `retention.dailyRollupsDays`   | integer (`0`-`36500`)               | Daily rollup retention window. Default `0` (keep all).                                                      |
+| `retention.monthlyRollupsDays` | integer (`0`-`36500`)               | Monthly rollup retention window. Default `0` (keep all).                                                    |
+| `retention.vacuumIntervalDays` | integer (`0`-`3650`)                | Minimum spacing between `VACUUM` passes. `0` disables vacuum. Default `0` (disabled).                       |
 
 You can also disable immersion tracking for a single session using:
 
@@ -1326,11 +1327,11 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
 }
 ```
 
-| Option            | Values            | Description                                                                 |
-| ----------------- | ----------------- | --------------------------------------------------------------------------- |
-| `toggleKey`       | Electron key code | Overlay-local key code used to toggle the stats overlay. Default `Backquote`. |
-| `serverPort`      | integer           | Localhost port for the browser stats UI. Default `6969`.                    |
-| `autoStartServer` | `true`, `false`   | Start the local stats HTTP server automatically once immersion tracking is active. Default `true`. |
+| Option            | Values            | Description                                                                                                          |
+| ----------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `toggleKey`       | Electron key code | Overlay-local key code used to toggle the stats overlay. Default `Backquote`.                                        |
+| `serverPort`      | integer           | Localhost port for the browser stats UI. Default `6969`.                                                             |
+| `autoStartServer` | `true`, `false`   | Start the local stats HTTP server automatically once immersion tracking is active. Default `true`.                   |
 | `autoOpenBrowser` | `true`, `false`   | When `subminer stats` starts the server on demand, also open the dashboard in your default browser. Default `false`. |
 
 Usage notes:
@@ -1339,6 +1340,30 @@ Usage notes:
 - The overlay toggle is local to the focused visible overlay window; it is not registered as a global OS shortcut.
 - The dashboard reads from the same immersion-tracking database, so keep `immersionTracking.enabled` on if you want data to appear.
 - The UI includes Overview, Library, Trends, Vocabulary, and Sessions tabs.
+
+### MPV Launcher
+
+Configure the mpv executable and window state for SubMiner-managed mpv launches (launcher playback, Windows `--launch-mpv`, and Jellyfin idle mpv startup):
+
+```json
+{
+  "mpv": {
+    "executablePath": "",
+    "launchMode": "normal"
+  }
+}
+```
+
+| Option           | Values                                        | Description                                                                                                                         |
+| ---------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `executablePath` | string                                        | Absolute path to `mpv.exe` for Windows launch flows. Leave empty to auto-discover from `SUBMINER_MPV_PATH` or `PATH` (default `""`) |
+| `launchMode`     | `"normal"` \| `"maximized"` \| `"fullscreen"` | Window state when SubMiner spawns mpv (default `"normal"`)                                                                          |
+
+Launch mode behavior:
+
+- **`normal`** — mpv opens at its default window size with no extra flags.
+- **`maximized`** — mpv starts maximized via `--window-maximized=yes`, keeping taskbar access.
+- **`fullscreen`** — mpv starts in true fullscreen via `--fullscreen`.
 
 ### YouTube Playback Settings
 
@@ -1352,9 +1377,9 @@ Set defaults used by managed subtitle auto-selection and the `subminer` launcher
 }
 ```
 
-| Option                | Values               | Description                                                                                    |
-| --------------------- | -------------------- | ---------------------------------------------------------------------------------------------- |
-| `primarySubLanguages` | string[]             | Primary subtitle language priority for managed subtitle auto-selection (default `["ja", "jpn"]`) |
+| Option                | Values   | Description                                                                                      |
+| --------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `primarySubLanguages` | string[] | Primary subtitle language priority for managed subtitle auto-selection (default `["ja", "jpn"]`) |
 
 Current launcher behavior:
 

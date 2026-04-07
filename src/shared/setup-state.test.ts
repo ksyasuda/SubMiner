@@ -203,13 +203,7 @@ test('resolveDefaultMpvInstallPaths resolves linux, macOS, and Windows defaults'
       'main.lua',
     ),
     pluginDir: path.posix.join(macHomeDir, '.config', 'mpv', 'scripts', 'subminer'),
-    pluginConfigPath: path.posix.join(
-      macHomeDir,
-      '.config',
-      'mpv',
-      'script-opts',
-      'subminer.conf',
-    ),
+    pluginConfigPath: path.posix.join(macHomeDir, '.config', 'mpv', 'script-opts', 'subminer.conf'),
   });
 
   assert.deepEqual(resolveDefaultMpvInstallPaths('win32', 'C:\\Users\\tester', undefined), {

@@ -22,17 +22,12 @@ function daysFromCivil(year: number, month: number, day: number): bigint {
   const yearOfEra = adjustedYear - era * 400;
   const monthIndex = month + (month > 2 ? -3 : 9);
   const dayOfYear = floorDiv(153 * monthIndex + 2, 5) + day - 1;
-  const dayOfEra =
-    yearOfEra * 365 + floorDiv(yearOfEra, 4) - floorDiv(yearOfEra, 100) + dayOfYear;
+  const dayOfEra = yearOfEra * 365 + floorDiv(yearOfEra, 4) - floorDiv(yearOfEra, 100) + dayOfYear;
   return BigInt(era * 146097 + dayOfEra - 719468);
 }
 
 function dateToEpochMs(date: Date): bigint {
-  const dayCount = daysFromCivil(
-    date.getUTCFullYear(),
-    date.getUTCMonth() + 1,
-    date.getUTCDate(),
-  );
+  const dayCount = daysFromCivil(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
   const timeOfDayMs = BigInt(
     ((date.getUTCHours() * 60 + date.getUTCMinutes()) * 60 + date.getUTCSeconds()) * 1000 +
       date.getUTCMilliseconds(),

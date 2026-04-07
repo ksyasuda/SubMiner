@@ -264,10 +264,7 @@ function getLinuxDesktopEnv(env: NodeJS.ProcessEnv): LinuxDesktopEnv {
   };
 }
 
-function shouldForceX11MpvBackend(
-  args: Pick<Args, 'backend'>,
-  env: NodeJS.ProcessEnv,
-): boolean {
+function shouldForceX11MpvBackend(args: Pick<Args, 'backend'>, env: NodeJS.ProcessEnv): boolean {
   if (process.platform !== 'linux' || !env.DISPLAY?.trim()) {
     return false;
   }

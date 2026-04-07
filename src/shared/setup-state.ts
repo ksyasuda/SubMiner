@@ -242,8 +242,8 @@ export function resolveDefaultMpvInstallPaths(
   const platformPath = getPlatformPath(platform);
   const mpvConfigDir =
     platform === 'linux' || platform === 'darwin'
-        ? platformPath.join(xdgConfigHome?.trim() || platformPath.join(homeDir, '.config'), 'mpv')
-        : platformPath.join(homeDir, 'AppData', 'Roaming', 'mpv');
+      ? platformPath.join(xdgConfigHome?.trim() || platformPath.join(homeDir, '.config'), 'mpv')
+      : platformPath.join(homeDir, 'AppData', 'Roaming', 'mpv');
 
   return {
     supported: platform === 'linux' || platform === 'darwin' || platform === 'win32',

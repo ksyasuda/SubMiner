@@ -23,6 +23,7 @@ type FragmentType = 'added' | 'changed' | 'fixed' | 'docs' | 'internal';
 
 type ChangeFragment = {
   area: string;
+  breaking: boolean;
   bullets: string[];
   path: string;
   type: FragmentType;
@@ -144,6 +145,7 @@ function parseFragmentMetadata(
 ): {
   area: string;
   body: string;
+  breaking: boolean;
   type: FragmentType;
 } {
   const lines = content.split(/\r?\n/);
@@ -186,9 +188,12 @@ function parseFragmentMetadata(
     throw new Error(`${fragmentPath} must include at least one changelog bullet.`);
   }
 
+  const breaking = metadata.get('breaking')?.toLowerCase() === 'true';
+
   return {
     area,
     body,
+    breaking,
     type: type as FragmentType,
   };
 }
@@ -199,6 +204,7 @@ function readChangeFragments(cwd: string, deps?: ChangelogFsDeps): ChangeFragmen
     const parsed = parseFragmentMetadata(readFileSync(fragmentPath, 'utf8'), fragmentPath);
     return {
       area: parsed.area,
+      breaking: parsed.breaking,
       bullets: normalizeFragmentBullets(parsed.body),
       path: fragmentPath,
       type: parsed.type,
@@ -219,10 +225,22 @@ function renderFragmentBullet(fragment: ChangeFragment, bullet: string): string 
 }
 
 function renderGroupedChanges(fragments: ChangeFragment[]): string {
-  const sections = CHANGE_TYPES.flatMap((type) => {
+  const sections: string[] = [];
+
+  const breakingFragments = fragments.filter((fragment) => fragment.breaking);
+  if (breakingFragments.length > 0) {
+    const bullets = breakingFragments
+      .flatMap((fragment) =>
+        fragment.bullets.map((bullet) => renderFragmentBullet(fragment, bullet)),
+      )
+      .join('\n');
+    sections.push(`### Breaking Changes\n${bullets}`);
+  }
+
+  for (const type of CHANGE_TYPES) {
     const typeFragments = fragments.filter((fragment) => fragment.type === type);
     if (typeFragments.length === 0) {
-      return [];
+      continue;
     }
 
     const bullets = typeFragments
@@ -230,8 +248,8 @@ function renderGroupedChanges(fragments: ChangeFragment[]): string {
         fragment.bullets.map((bullet) => renderFragmentBullet(fragment, bullet)),
       )
       .join('\n');
-    return [`### ${CHANGE_TYPE_HEADINGS[type]}\n${bullets}`];
-  });
+    sections.push(`### ${CHANGE_TYPE_HEADINGS[type]}\n${bullets}`);
+  }
 
   return sections.join('\n\n');
 }
@@ -487,6 +505,99 @@ function resolveChangedPathsFromGit(
     .filter((entry) => entry.path);
 }
 
+const DOCS_CHANGELOG_PATH = path.join('docs-site', 'changelog.md');
+
+type VersionSection = {
+  version: string;
+  date: string;
+  minor: string;
+  body: string;
+};
+
+function parseVersionSections(changelog: string): VersionSection[] {
+  const sectionPattern = /^## v(\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)$/gm;
+  const sections: VersionSection[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = sectionPattern.exec(changelog)) !== null) {
+    const version = match[1]!;
+    const date = match[2]!;
+    const minor = version.replace(/\.\d+$/, '');
+    const headingEnd = match.index + match[0].length;
+    sections.push({ version, date, minor, body: '' });
+
+    if (sections.length > 1) {
+      const prev = sections[sections.length - 2]!;
+      prev.body = changelog.slice(prev.body as unknown as number, match.index).trim();
+    }
+    (sections[sections.length - 1] as { body: unknown }).body = headingEnd;
+  }
+
+  if (sections.length > 0) {
+    const last = sections[sections.length - 1]!;
+    last.body = changelog.slice(last.body as unknown as number).trim();
+  }
+
+  return sections;
+}
+
+export function generateDocsChangelog(options?: Pick<ChangelogOptions, 'cwd' | 'deps'>): string {
+  const cwd = options?.cwd ?? process.cwd();
+  const readFileSync = options?.deps?.readFileSync ?? fs.readFileSync;
+  const writeFileSync = options?.deps?.writeFileSync ?? fs.writeFileSync;
+  const log = options?.deps?.log ?? console.log;
+
+  const changelogPath = path.join(cwd, 'CHANGELOG.md');
+  const changelog = readFileSync(changelogPath, 'utf8');
+  const sections = parseVersionSections(changelog);
+
+  if (sections.length === 0) {
+    throw new Error('No version sections found in CHANGELOG.md');
+  }
+
+  const currentMinor = sections[0]!.minor;
+  const currentSections = sections.filter((s) => s.minor === currentMinor);
+  const olderSections = sections.filter((s) => s.minor !== currentMinor);
+
+  const lines: string[] = ['# Changelog', ''];
+
+  for (const section of currentSections) {
+    const body = section.body.replace(/^### (.+)$/gm, '**$1**');
+    lines.push(`## v${section.version} (${section.date})`, '', body, '');
+  }
+
+  if (olderSections.length > 0) {
+    lines.push('## Previous Versions', '');
+
+    const minorGroups = new Map<string, VersionSection[]>();
+    for (const section of olderSections) {
+      const group = minorGroups.get(section.minor) ?? [];
+      group.push(section);
+      minorGroups.set(section.minor, group);
+    }
+
+    for (const [minor, group] of minorGroups) {
+      lines.push('<details>', `<summary>v${minor}.x</summary>`, '');
+      for (const section of group) {
+        const htmlBody = section.body.replace(/^### (.+)$/gm, '**$1**');
+        lines.push(`<h2>v${section.version} (${section.date})</h2>`, '', htmlBody, '');
+      }
+      lines.push('</details>', '');
+    }
+  }
+
+  const output =
+    lines
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd() + '\n';
+  const outputPath = path.join(cwd, DOCS_CHANGELOG_PATH);
+  writeFileSync(outputPath, output, 'utf8');
+  log(`Generated ${outputPath}`);
+
+  return outputPath;
+}
+
 export function writeReleaseNotesForVersion(options?: ChangelogOptions): string {
   const cwd = options?.cwd ?? process.cwd();
   const readFileSync = options?.deps?.readFileSync ?? fs.readFileSync;
@@ -596,6 +707,11 @@ function main(): void {
 
   if (command === 'release-notes') {
     writeReleaseNotesForVersion(options);
+    return;
+  }
+
+  if (command === 'docs') {
+    generateDocsChangelog(options);
     return;
   }
 

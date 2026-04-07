@@ -125,10 +125,7 @@ function titleOverlapScore(expectedTitle: string, candidateTitle: string): numbe
   if (!expected || !candidate) return 0;
 
   if (candidate.includes(expected)) return 120;
-  if (
-    candidate.split(' ').length >= 2 &&
-    ` ${expected} `.includes(` ${candidate} `)
-  ) {
+  if (candidate.split(' ').length >= 2 && ` ${expected} `.includes(` ${candidate} `)) {
     return 90;
   }
 

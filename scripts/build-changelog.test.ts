@@ -197,6 +197,49 @@ test('verifyChangelogReadyForRelease rejects explicit release versions that do n
   }
 });
 
+test('writeChangelogArtifacts renders breaking changes section above type sections', async () => {
+  const { writeChangelogArtifacts } = await loadModule();
+  const workspace = createWorkspace('breaking-changes');
+  const projectRoot = path.join(workspace, 'SubMiner');
+
+  fs.mkdirSync(projectRoot, { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'CHANGELOG.md'), '# Changelog\n', 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: changed', 'area: config', 'breaking: true', '', '- Renamed `foo` to `bar`.'].join('\n'),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '002.md'),
+    ['type: fixed', 'area: overlay', '', '- Fixed subtitle rendering.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    writeChangelogArtifacts({
+      cwd: projectRoot,
+      version: '0.5.0',
+      date: '2026-04-06',
+    });
+
+    const changelog = fs.readFileSync(path.join(projectRoot, 'CHANGELOG.md'), 'utf8');
+    const breakingIndex = changelog.indexOf('### Breaking Changes');
+    const changedIndex = changelog.indexOf('### Changed');
+    const fixedIndex = changelog.indexOf('### Fixed');
+
+    assert.notEqual(breakingIndex, -1, 'Breaking Changes section should exist');
+    assert.notEqual(changedIndex, -1, 'Changed section should exist');
+    assert.notEqual(fixedIndex, -1, 'Fixed section should exist');
+    assert.ok(breakingIndex < changedIndex, 'Breaking Changes should appear before Changed');
+    assert.ok(changedIndex < fixedIndex, 'Changed should appear before Fixed');
+    assert.match(changelog, /### Breaking Changes\n- Config: Renamed `foo` to `bar`\./);
+    assert.match(changelog, /### Changed\n- Config: Renamed `foo` to `bar`\./);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test('verifyChangelogFragments rejects invalid metadata', async () => {
   const { verifyChangelogFragments } = await loadModule();
   const workspace = createWorkspace('lint-invalid');

@@ -75,7 +75,10 @@ function createListStub() {
 }
 
 test.afterEach(() => {
-  if (Object.prototype.hasOwnProperty.call(globalThis, 'window') && globalThis.window === undefined) {
+  if (
+    Object.prototype.hasOwnProperty.call(globalThis, 'window') &&
+    globalThis.window === undefined
+  ) {
     Reflect.deleteProperty(globalThis, 'window');
   }
   if (

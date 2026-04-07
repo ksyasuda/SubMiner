@@ -126,9 +126,7 @@ export function createKeyboardHandlers(
   }
 
   function acceleratorToKeyString(accelerator: string): string | null {
-    const normalized = accelerator
-      .replace(/\s+/g, '')
-      .replace(/cmdorctrl/gi, 'CommandOrControl');
+    const normalized = accelerator.replace(/\s+/g, '').replace(/cmdorctrl/gi, 'CommandOrControl');
     if (!normalized) return null;
     const parts = normalized.split('+').filter(Boolean);
     const keyToken = parts.pop();

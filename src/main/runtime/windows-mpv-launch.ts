@@ -152,13 +152,7 @@ export async function launchWindowsMpv(
   try {
     await deps.spawnDetached(
       mpvPath,
-      buildWindowsMpvLaunchArgs(
-        targets,
-        extraArgs,
-        binaryPath,
-        pluginEntrypointPath,
-        launchMode,
-      ),
+      buildWindowsMpvLaunchArgs(targets, extraArgs, binaryPath, pluginEntrypointPath, launchMode),
     );
     return { ok: true, mpvPath };
   } catch (error) {

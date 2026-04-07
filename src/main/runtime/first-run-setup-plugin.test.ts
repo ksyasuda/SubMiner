@@ -237,10 +237,7 @@ test('detectInstalledFirstRunPlugin detects plugin installed in canonical mpv co
     fs.mkdirSync(path.dirname(pluginEntrypointPath), { recursive: true });
     fs.writeFileSync(pluginEntrypointPath, '-- plugin');
 
-    assert.equal(
-      detectInstalledFirstRunPlugin(installPaths),
-      true,
-    );
+    assert.equal(detectInstalledFirstRunPlugin(installPaths), true);
   });
 });
 
@@ -256,10 +253,7 @@ test('detectInstalledFirstRunPlugin ignores scoped plugin layout path', () => {
     fs.mkdirSync(path.dirname(pluginEntrypointPath), { recursive: true });
     fs.writeFileSync(pluginEntrypointPath, '-- plugin');
 
-    assert.equal(
-      detectInstalledFirstRunPlugin(installPaths),
-      false,
-    );
+    assert.equal(detectInstalledFirstRunPlugin(installPaths), false);
   });
 });
 
@@ -272,10 +266,7 @@ test('detectInstalledFirstRunPlugin ignores legacy loader file', () => {
     fs.mkdirSync(path.dirname(legacyLoaderPath), { recursive: true });
     fs.writeFileSync(legacyLoaderPath, '-- plugin');
 
-    assert.equal(
-      detectInstalledFirstRunPlugin(installPaths),
-      false,
-    );
+    assert.equal(detectInstalledFirstRunPlugin(installPaths), false);
   });
 });
 
@@ -288,9 +279,6 @@ test('detectInstalledFirstRunPlugin requires main.lua in subminer directory', ()
     fs.mkdirSync(pluginDir, { recursive: true });
     fs.writeFileSync(path.join(pluginDir, 'not_main.lua'), '-- plugin');
 
-    assert.equal(
-      detectInstalledFirstRunPlugin(installPaths),
-      false,
-    );
+    assert.equal(detectInstalledFirstRunPlugin(installPaths), false);
   });
 });

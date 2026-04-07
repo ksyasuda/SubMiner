@@ -715,18 +715,18 @@ function runFindAppBinaryWindowsInstallDirCase(): void {
     process.env.SUBMINER_BINARY_PATH = installDir;
 
     withPlatform('win32', () => {
-      withExistsAndStatSyncStubs(
-        { existingPaths: [appExe], directoryPaths: [installDir] },
-        () => {
-          withAccessSyncStub(
-            (filePath) => filePath === appExe,
-            () => {
-              const result = findAppBinary(path.win32.join(baseDir, 'launcher', 'SubMiner.exe'), path.win32);
-              assert.equal(result, appExe);
-            },
-          );
-        },
-      );
+      withExistsAndStatSyncStubs({ existingPaths: [appExe], directoryPaths: [installDir] }, () => {
+        withAccessSyncStub(
+          (filePath) => filePath === appExe,
+          () => {
+            const result = findAppBinary(
+              path.win32.join(baseDir, 'launcher', 'SubMiner.exe'),
+              path.win32,
+            );
+            assert.equal(result, appExe);
+          },
+        );
+      });
     });
   } finally {
     os.homedir = originalHomedir;
