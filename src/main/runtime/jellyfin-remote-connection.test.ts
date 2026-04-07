@@ -31,6 +31,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
   const logs: string[] = [];
   const launch = createLaunchMpvIdleForJellyfinPlaybackHandler({
     getSocketPath: () => '/tmp/subminer.sock',
+    getLaunchMode: () => 'maximized',
     platform: 'darwin',
     execPath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
     defaultMpvLogPath: '/tmp/mp.log',
@@ -49,6 +50,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
 
   launch();
   assert.equal(spawnedArgs.length, 1);
+  assert.ok(spawnedArgs[0]!.includes('--window-maximized=yes'));
   assert.ok(spawnedArgs[0]!.includes('--idle=yes'));
   assert.ok(spawnedArgs[0]!.some((arg) => arg.includes('--input-ipc-server=/tmp/subminer.sock')));
   assert.ok(logs.some((entry) => entry.includes('Launched mpv for Jellyfin playback')));

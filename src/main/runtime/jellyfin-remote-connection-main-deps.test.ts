@@ -33,6 +33,7 @@ test('launch mpv for jellyfin main deps builder maps callbacks', () => {
   };
   const deps = createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler({
     getSocketPath: () => '/tmp/mpv.sock',
+    getLaunchMode: () => 'fullscreen',
     platform: 'darwin',
     execPath: '/tmp/subminer',
     defaultMpvLogPath: '/tmp/mpv.log',
@@ -47,6 +48,7 @@ test('launch mpv for jellyfin main deps builder maps callbacks', () => {
   })();
 
   assert.equal(deps.getSocketPath(), '/tmp/mpv.sock');
+  assert.equal(deps.getLaunchMode(), 'fullscreen');
   assert.equal(deps.platform, 'darwin');
   assert.equal(deps.execPath, '/tmp/subminer');
   assert.equal(deps.defaultMpvLogPath, '/tmp/mpv.log');

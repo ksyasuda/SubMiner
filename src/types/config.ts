@@ -50,8 +50,11 @@ export interface TexthookerConfig {
   openBrowser?: boolean;
 }
 
+export type MpvLaunchMode = 'normal' | 'maximized' | 'fullscreen';
+
 export interface MpvConfig {
   executablePath?: string;
+  launchMode?: MpvLaunchMode;
 }
 
 export type SubsyncMode = 'auto' | 'manual';
@@ -129,6 +132,7 @@ export interface ResolvedConfig {
   texthooker: Required<TexthookerConfig>;
   mpv: {
     executablePath: string;
+    launchMode: MpvLaunchMode;
   };
   controller: {
     enabled: boolean;

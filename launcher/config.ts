@@ -2,6 +2,7 @@ import { fail } from './log.js';
 import type {
   Args,
   LauncherJellyfinConfig,
+  LauncherMpvConfig,
   LauncherYoutubeSubgenConfig,
   LogLevel,
   PluginRuntimeConfig,
@@ -13,6 +14,7 @@ import {
 } from './config/args-normalizer.js';
 import { parseCliPrograms, resolveTopLevelCommand } from './config/cli-parser-builder.js';
 import { parseLauncherJellyfinConfig } from './config/jellyfin-config.js';
+import { parseLauncherMpvConfig } from './config/mpv-config.js';
 import { readPluginRuntimeConfig as readPluginRuntimeConfigValue } from './config/plugin-runtime-config.js';
 import { readLauncherMainConfigObject } from './config/shared-config-reader.js';
 import { parseLauncherYoutubeSubgenConfig } from './config/youtube-subgen-config.js';
@@ -44,6 +46,12 @@ export function loadLauncherJellyfinConfig(): LauncherJellyfinConfig {
   return parseLauncherJellyfinConfig(root);
 }
 
+export function loadLauncherMpvConfig(): LauncherMpvConfig {
+  const root = readLauncherMainConfigObject();
+  if (!root) return {};
+  return parseLauncherMpvConfig(root);
+}
+
 export function hasLauncherExternalYomitanProfileConfig(): boolean {
   return readExternalYomitanProfilePath(readLauncherMainConfigObject()) !== null;
 }
@@ -56,9 +64,10 @@ export function parseArgs(
   argv: string[],
   scriptName: string,
   launcherConfig: LauncherYoutubeSubgenConfig,
+  launcherMpvConfig: LauncherMpvConfig = {},
 ): Args {
   const topLevelCommand = resolveTopLevelCommand(argv);
-  const parsed = createDefaultArgs(launcherConfig);
+  const parsed = createDefaultArgs(launcherConfig, launcherMpvConfig);
 
   if (topLevelCommand && (topLevelCommand.name === 'app' || topLevelCommand.name === 'bin')) {
     parsed.appPassthrough = true;

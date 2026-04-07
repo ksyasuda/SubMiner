@@ -1,6 +1,7 @@
 import path from 'node:path';
 import {
   loadLauncherJellyfinConfig,
+  loadLauncherMpvConfig,
   loadLauncherYoutubeSubgenConfig,
   parseArgs,
   readPluginRuntimeConfig,
@@ -52,7 +53,8 @@ async function main(): Promise<void> {
   const scriptPath = process.argv[1] || 'subminer';
   const scriptName = path.basename(scriptPath);
   const launcherConfig = loadLauncherYoutubeSubgenConfig();
-  const args = parseArgs(process.argv.slice(2), scriptName, launcherConfig);
+  const launcherMpvConfig = loadLauncherMpvConfig();
+  const args = parseArgs(process.argv.slice(2), scriptName, launcherConfig, launcherMpvConfig);
   const pluginRuntimeConfig = readPluginRuntimeConfig(args.logLevel);
   const appPath = findAppBinary(scriptPath);
 

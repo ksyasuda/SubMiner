@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fail } from '../log.js';
-import type { Args, Backend, LauncherYoutubeSubgenConfig, LogLevel } from '../types.js';
+import type {
+  Args,
+  Backend,
+  LauncherMpvConfig,
+  LauncherYoutubeSubgenConfig,
+  LogLevel,
+} from '../types.js';
 import {
   DEFAULT_JIMAKU_API_BASE_URL,
   DEFAULT_YOUTUBE_PRIMARY_SUB_LANGS,
@@ -83,7 +89,10 @@ function parseDictionaryTarget(value: string): string {
   return resolved;
 }
 
-export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): Args {
+export function createDefaultArgs(
+  launcherConfig: LauncherYoutubeSubgenConfig,
+  mpvConfig: LauncherMpvConfig = {},
+): Args {
   const configuredSecondaryLangs = uniqueNormalizedLangCodes(
     launcherConfig.secondarySubLanguages ?? [],
   );
@@ -148,6 +157,7 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     jellyfinServer: '',
     jellyfinUsername: '',
     jellyfinPassword: '',
+    launchMode: mpvConfig.launchMode ?? 'normal',
     youtubePrimarySubLangs: primarySubLangs,
     youtubeSecondarySubLangs: secondarySubLangs,
     youtubeAudioLangs,

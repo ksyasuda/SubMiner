@@ -7,6 +7,7 @@ import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
 import {
+  buildConfiguredMpvDefaultArgs,
   buildMpvBackendArgs,
   buildMpvEnv,
   cleanupPlaybackSession,
@@ -234,6 +235,33 @@ test('buildMpvBackendArgs keeps supported Hyprland and Sway auto backends unchan
   });
 });
 
+test('buildConfiguredMpvDefaultArgs appends maximized launch mode to configured defaults', () => {
+  withPlatform('linux', () => {
+    assert.deepEqual(
+      buildConfiguredMpvDefaultArgs(makeArgs({ launchMode: 'maximized' }), {
+        DISPLAY: ':1',
+        WAYLAND_DISPLAY: 'wayland-0',
+        XDG_SESSION_TYPE: 'wayland',
+        XDG_CURRENT_DESKTOP: 'KDE',
+        XDG_SESSION_DESKTOP: 'plasma',
+      }),
+      [
+        '--sub-auto=fuzzy',
+        '--sub-file-paths=.;subs;subtitles',
+        '--sid=auto',
+        '--secondary-sid=auto',
+        '--secondary-sub-visibility=no',
+        '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+        '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+        '--vo=gpu',
+        '--gpu-api=opengl',
+        '--gpu-context=x11egl,x11',
+        '--window-maximized=yes',
+      ],
+    );
+  });
+});
+
 test('launchTexthookerOnly exits non-zero when app binary cannot be spawned', () => {
   const error = withProcessExitIntercept(() => {
     launchTexthookerOnly('/definitely-missing-subminer-binary', makeArgs());
@@ -401,6 +429,7 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     jellyfinServer: '',
     jellyfinUsername: '',
     jellyfinPassword: '',
+    launchMode: 'normal',
     ...overrides,
   };
 }

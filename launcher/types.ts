@@ -1,5 +1,6 @@
 import path from 'node:path';
 import os from 'node:os';
+import type { MpvLaunchMode } from '../src/types/config.js';
 import { resolveDefaultLogFilePath } from '../src/shared/log-files.js';
 export { VIDEO_EXTENSIONS } from '../src/shared/video-extensions.js';
 
@@ -140,6 +141,7 @@ export interface Args {
   jellyfinServer: string;
   jellyfinUsername: string;
   jellyfinPassword: string;
+  launchMode: MpvLaunchMode;
 }
 
 export interface LauncherYoutubeSubgenConfig {
@@ -165,6 +167,10 @@ export interface LauncherJellyfinConfig {
   defaultLibraryId?: string;
   pullPictures?: boolean;
   iconCacheDir?: string;
+}
+
+export interface LauncherMpvConfig {
+  launchMode?: MpvLaunchMode;
 }
 
 export interface PluginRuntimeConfig {

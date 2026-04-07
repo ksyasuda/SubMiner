@@ -58,6 +58,7 @@ function createContext(): LauncherCommandContext {
       jellyfinServer: '',
       jellyfinUsername: '',
       jellyfinPassword: '',
+      launchMode: 'normal',
     },
     scriptPath: '/tmp/subminer',
     scriptName: 'subminer',

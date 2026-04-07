@@ -1,3 +1,6 @@
+import { buildMpvLaunchModeArgs } from '../../shared/mpv-launch-mode';
+import type { MpvLaunchMode } from '../../types/config';
+
 type MpvClientLike = {
   connected: boolean;
   connect: () => void;
@@ -34,6 +37,7 @@ export function createWaitForMpvConnectedHandler(deps: WaitForMpvConnectedDeps) 
 
 export type LaunchMpvForJellyfinDeps = {
   getSocketPath: () => string;
+  getLaunchMode: () => MpvLaunchMode;
   platform: NodeJS.Platform;
   execPath: string;
   defaultMpvLogPath: string;
@@ -58,6 +62,7 @@ export function createLaunchMpvIdleForJellyfinPlaybackHandler(deps: LaunchMpvFor
     const scriptOpts = `--script-opts=subminer-binary_path=${deps.execPath},subminer-socket_path=${socketPath}`;
     const mpvArgs = [
       ...deps.defaultMpvArgs,
+      ...buildMpvLaunchModeArgs(deps.getLaunchMode()),
       '--idle=yes',
       scriptOpts,
       `--log-file=${deps.defaultMpvLogPath}`,

@@ -93,6 +93,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   },
   mpv: {
     executablePath: '',
+    launchMode: 'normal',
   },
   anilist: {
     enabled: false,

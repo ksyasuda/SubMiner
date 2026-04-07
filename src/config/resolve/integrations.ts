@@ -1,5 +1,6 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { MPV_LAUNCH_MODE_VALUES, parseMpvLaunchMode } from '../../shared/mpv-launch-mode';
 import { ResolveContext } from './context';
 import { asBoolean, asNumber, asString, isObject } from './shared';
 
@@ -238,6 +239,18 @@ export function applyIntegrationConfig(context: ResolveContext): void {
         src.mpv.executablePath,
         resolved.mpv.executablePath,
         'Expected string.',
+      );
+    }
+
+    const launchMode = parseMpvLaunchMode(src.mpv.launchMode);
+    if (launchMode !== undefined) {
+      resolved.mpv.launchMode = launchMode;
+    } else if (src.mpv.launchMode !== undefined) {
+      warn(
+        'mpv.launchMode',
+        src.mpv.launchMode,
+        resolved.mpv.launchMode,
+        `Expected one of: ${MPV_LAUNCH_MODE_VALUES.map((value) => `'${value}'`).join(', ')}.`,
       );
     }
   } else if (src.mpv !== undefined) {

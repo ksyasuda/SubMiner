@@ -13,6 +13,17 @@ test('resolveConfig trims configured mpv executable path', () => {
   assert.deepEqual(warnings, []);
 });
 
+test('resolveConfig parses configured mpv launch mode', () => {
+  const { resolved, warnings } = resolveConfig({
+    mpv: {
+      launchMode: 'maximized',
+    },
+  });
+
+  assert.equal(resolved.mpv.launchMode, 'maximized');
+  assert.deepEqual(warnings, []);
+});
+
 test('resolveConfig warns for invalid mpv executable path type', () => {
   const { resolved, warnings } = resolveConfig({
     mpv: {
@@ -27,5 +38,22 @@ test('resolveConfig warns for invalid mpv executable path type', () => {
     value: 42,
     fallback: '',
     message: 'Expected string.',
+  });
+});
+
+test('resolveConfig warns for invalid mpv launch mode', () => {
+  const { resolved, warnings } = resolveConfig({
+    mpv: {
+      launchMode: 'cinema' as never,
+    },
+  });
+
+  assert.equal(resolved.mpv.launchMode, 'normal');
+  assert.equal(warnings.length, 1);
+  assert.deepEqual(warnings[0], {
+    path: 'mpv.launchMode',
+    value: 'cinema',
+    fallback: 'normal',
+    message: "Expected one of: 'normal', 'maximized', 'fullscreen'.",
   });
 });
