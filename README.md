@@ -130,7 +130,7 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
 | Hyprland (`hyprctl`) · X11/Xwayland (`xdotool` + `xwininfo`) | Accessibility permission | No extra deps |
 
 > [!NOTE]
-> **Wayland support is compositor-specific.** Wayland has no universal API for window positioning and each compositor exposes its own IPC, so SubMiner needs a dedicated backend per compositor. Hyprland is the only native Wayland backend supported currenlty. All other Linux compositors require both mpv and SubMiner to run under X11 or Xwayland.
+> **Wayland support is compositor-specific.** Wayland has no universal API for window positioning and each compositor exposes its own IPC, so SubMiner needs a dedicated backend per compositor. Hyprland is the only native Wayland backend supported currenlty. All other Linux compositors require both mpv and SubMiner to run under X11 or Xwayland. The launcher detects your compositor and configures this automatically.
 
 <details>
 <summary><b>Arch Linux</b></summary>
