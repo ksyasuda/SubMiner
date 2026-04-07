@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.11.2 (2026-04-07)
+
+### Changed
+- Launcher: Replaced the launcher-only fullscreen toggle with `mpv.launchMode` so SubMiner-managed mpv playback can start in normal, maximized, or fullscreen mode.
+
+### Fixed
+- Launcher: Fixed launcher-managed mpv spawning to force an explicit X11 GPU path when Wayland trackers are unavailable.
+- Launcher: Local playback now promotes a single unlabeled external subtitle sidecar to the primary slot instead of leaving mpv's embedded English auto-selection in place.
+- Release: Fixed Linux AppImage startup packaging so Chromium child relaunches can resolve the bundled `libffmpeg.so` instead of crash-looping on startup.
+
 ## v0.11.1 (2026-04-04)
 
 ### Fixed
