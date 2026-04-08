@@ -37,13 +37,21 @@ export function updateVisibleOverlayVisibility(args: {
 
   const showPassiveVisibleOverlay = (): void => {
     const forceMousePassthrough = args.forceMousePassthrough === true;
-    if (args.isMacOSPlatform || args.isWindowsPlatform || forceMousePassthrough) {
-      mainWindow.setIgnoreMouseEvents(true, { forward: true });
-    } else {
-      mainWindow.setIgnoreMouseEvents(false);
+    const shouldDefaultToPassthrough =
+      args.isMacOSPlatform || args.isWindowsPlatform || forceMousePassthrough;
+    const wasVisible = mainWindow.isVisible();
+
+    if (!wasVisible || forceMousePassthrough) {
+      if (shouldDefaultToPassthrough) {
+        mainWindow.setIgnoreMouseEvents(true, { forward: true });
+      } else {
+        mainWindow.setIgnoreMouseEvents(false);
+      }
     }
     args.ensureOverlayWindowLevel(mainWindow);
-    mainWindow.show();
+    if (!wasVisible) {
+      mainWindow.show();
+    }
     if (!args.isWindowsPlatform && !args.isMacOSPlatform && !forceMousePassthrough) {
       mainWindow.focus();
     }

@@ -3,7 +3,12 @@ import test from 'node:test';
 
 import type { SubtitleSidebarConfig } from '../../types';
 import { createMouseHandlers } from './mouse.js';
-import { YOMITAN_POPUP_HIDDEN_EVENT, YOMITAN_POPUP_SHOWN_EVENT } from '../yomitan-popup.js';
+import {
+  YOMITAN_POPUP_HIDDEN_EVENT,
+  YOMITAN_POPUP_HOST_SELECTOR,
+  YOMITAN_POPUP_SHOWN_EVENT,
+  YOMITAN_POPUP_VISIBLE_HOST_SELECTOR,
+} from '../yomitan-popup.js';
 
 function createClassList() {
   const classes = new Set<string>();
@@ -78,11 +83,13 @@ function createMouseTestContext() {
     },
     platform: {
       shouldToggleMouseIgnore: false,
+      isLinuxPlatform: false,
       isMacOSPlatform: false,
     },
     state: {
       isOverSubtitle: false,
       isOverSubtitleSidebar: false,
+      yomitanPopupVisible: false,
       subtitleSidebarModalOpen: false,
       subtitleSidebarConfig: null as SubtitleSidebarConfig | null,
       isDragging: false,
@@ -701,6 +708,129 @@ test('popup open pauses and popup close resumes when yomitan popup auto-pause is
       ['set_property', 'pause', 'yes'],
       ['set_property', 'pause', 'no'],
     ]);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    Object.defineProperty(globalThis, 'MutationObserver', {
+      configurable: true,
+      value: previousMutationObserver,
+    });
+    Object.defineProperty(globalThis, 'Node', { configurable: true, value: previousNode });
+  }
+});
+
+test('nested popup close reasserts interactive state and focus when another popup remains visible on Windows', async () => {
+  const ctx = createMouseTestContext();
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousDocument = (globalThis as { document?: unknown }).document;
+  const previousMutationObserver = (globalThis as { MutationObserver?: unknown }).MutationObserver;
+  const previousNode = (globalThis as { Node?: unknown }).Node;
+  const windowListeners = new Map<string, Array<() => void>>();
+  const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
+  let focusMainWindowCalls = 0;
+  let windowFocusCalls = 0;
+  let overlayFocusCalls = 0;
+
+  ctx.platform.shouldToggleMouseIgnore = true;
+  (ctx.dom.overlay as { focus?: (options?: { preventScroll?: boolean }) => void }).focus = () => {
+    overlayFocusCalls += 1;
+  };
+
+  const visiblePopupHost = {
+    tagName: 'DIV',
+    getAttribute: (name: string) =>
+      name === 'data-subminer-yomitan-popup-visible' ? 'true' : null,
+  };
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: () => void) => {
+        const bucket = windowListeners.get(type) ?? [];
+        bucket.push(listener);
+        windowListeners.set(type, bucket);
+      },
+      electronAPI: {
+        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+          ignoreCalls.push({ ignore, forward: options?.forward });
+        },
+        focusMainWindow: () => {
+          focusMainWindowCalls += 1;
+        },
+      },
+      focus: () => {
+        windowFocusCalls += 1;
+      },
+      getComputedStyle: () => ({
+        visibility: 'visible',
+        display: 'block',
+        opacity: '1',
+      }),
+      innerHeight: 1000,
+      getSelection: () => null,
+      setTimeout,
+      clearTimeout,
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      querySelector: () => null,
+      querySelectorAll: (selector: string) => {
+        if (
+          selector === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR ||
+          selector === YOMITAN_POPUP_HOST_SELECTOR
+        ) {
+          return [visiblePopupHost];
+        }
+        return [];
+      },
+      body: {},
+      elementFromPoint: () => null,
+      addEventListener: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'MutationObserver', {
+    configurable: true,
+    value: class {
+      observe() {}
+    },
+  });
+  Object.defineProperty(globalThis, 'Node', {
+    configurable: true,
+    value: {
+      ELEMENT_NODE: 1,
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => false,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => false,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: () => {},
+    });
+
+    handlers.setupYomitanObserver();
+    ignoreCalls.length = 0;
+
+    for (const listener of windowListeners.get(YOMITAN_POPUP_HIDDEN_EVENT) ?? []) {
+      listener();
+    }
+
+    assert.equal(ctx.state.yomitanPopupVisible, true);
+    assert.equal(ctx.dom.overlay.classList.contains('interactive'), true);
+    assert.deepEqual(ignoreCalls, [{ ignore: false, forward: undefined }]);
+    assert.equal(focusMainWindowCalls, 1);
+    assert.equal(windowFocusCalls, 1);
+    assert.equal(overlayFocusCalls, 1);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });

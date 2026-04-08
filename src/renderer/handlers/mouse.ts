@@ -34,6 +34,29 @@ export function createMouseHandlers(
   let lastPointerPosition: { clientX: number; clientY: number } | null = null;
   let pendingPointerResync = false;
 
+  function reclaimOverlayWindowFocusForPopup(): void {
+    if (!ctx.platform.shouldToggleMouseIgnore) {
+      return;
+    }
+    if (ctx.platform.isMacOSPlatform || ctx.platform.isLinuxPlatform) {
+      return;
+    }
+
+    if (typeof window.electronAPI.focusMainWindow === 'function') {
+      void window.electronAPI.focusMainWindow();
+    }
+    window.focus();
+    if (typeof ctx.dom.overlay.focus === 'function') {
+      ctx.dom.overlay.focus({ preventScroll: true });
+    }
+  }
+
+  function sustainPopupInteraction(): void {
+    yomitanPopupVisible = true;
+    ctx.state.yomitanPopupVisible = true;
+    syncOverlayMouseIgnoreState(ctx);
+  }
+
   function isElementWithinContainer(element: Element | null, container: HTMLElement): boolean {
     if (!element) {
       return false;
@@ -205,9 +228,7 @@ export function createMouseHandlers(
   }
 
   function enablePopupInteraction(): void {
-    yomitanPopupVisible = true;
-    ctx.state.yomitanPopupVisible = true;
-    syncOverlayMouseIgnoreState(ctx);
+    sustainPopupInteraction();
     if (ctx.platform.isMacOSPlatform) {
       window.focus();
     }
@@ -215,8 +236,8 @@ export function createMouseHandlers(
 
   function disablePopupInteractionIfIdle(): void {
     if (typeof document !== 'undefined' && isYomitanPopupVisible(document)) {
-      yomitanPopupVisible = true;
-      ctx.state.yomitanPopupVisible = true;
+      sustainPopupInteraction();
+      reclaimOverlayWindowFocusForPopup();
       return;
     }
 
