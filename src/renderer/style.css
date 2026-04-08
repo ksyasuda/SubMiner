@@ -684,7 +684,8 @@ body.settings-modal-open #subtitleContainer {
 }
 
 body.settings-modal-open iframe.yomitan-popup,
-body.settings-modal-open iframe[id^='yomitan-popup'] {
+body.settings-modal-open iframe[id^='yomitan-popup'],
+body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
   display: none !important;
   pointer-events: none !important;
 }
@@ -1151,7 +1152,8 @@ body.subtitle-sidebar-embedded-open #secondarySubContainer.secondary-sub-hover {
 }
 
 iframe.yomitan-popup,
-iframe[id^='yomitan-popup'] {
+iframe[id^='yomitan-popup'],
+[data-subminer-yomitan-popup-host='true'] {
   pointer-events: auto !important;
   z-index: 2147483647 !important;
 }

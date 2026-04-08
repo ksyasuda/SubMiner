@@ -2,6 +2,7 @@ import { SPECIAL_COMMANDS } from '../../config/definitions';
 import type { Keybinding, ShortcutsConfig } from '../../types';
 import type { RendererContext } from '../context';
 import {
+  YOMITAN_POPUP_HOST_SELECTOR,
   YOMITAN_POPUP_HIDDEN_EVENT,
   YOMITAN_POPUP_SHOWN_EVENT,
   YOMITAN_POPUP_COMMAND_EVENT,
@@ -61,6 +62,9 @@ export function createKeyboardHandlers(
     if (target.closest('.modal')) return true;
     if (ctx.dom.subtitleContainer.contains(target)) return true;
     if (isYomitanPopupIframe(target)) return true;
+    if (target.closest && target.closest(YOMITAN_POPUP_HOST_SELECTOR)) {
+      return true;
+    }
     if (target.closest && target.closest('iframe.yomitan-popup, iframe[id^="yomitan-popup"]'))
       return true;
     return false;
