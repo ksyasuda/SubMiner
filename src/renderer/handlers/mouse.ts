@@ -2,6 +2,8 @@ import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 import {
   YOMITAN_POPUP_HIDDEN_EVENT,
+  YOMITAN_POPUP_MOUSE_ENTER_EVENT,
+  YOMITAN_POPUP_MOUSE_LEAVE_EVENT,
   YOMITAN_POPUP_SHOWN_EVENT,
   isYomitanPopupVisible,
   isYomitanPopupIframe,
@@ -34,6 +36,17 @@ export function createMouseHandlers(
   let lastPointerPosition: { clientX: number; clientY: number } | null = null;
   let pendingPointerResync = false;
 
+  function getPopupVisibilityFromDom(): boolean {
+    return typeof document !== 'undefined' && isYomitanPopupVisible(document);
+  }
+
+  function syncPopupVisibilityState(assumeVisible = false): boolean {
+    const popupVisible = assumeVisible || getPopupVisibilityFromDom();
+    yomitanPopupVisible = popupVisible;
+    ctx.state.yomitanPopupVisible = popupVisible;
+    return popupVisible;
+  }
+
   function reclaimOverlayWindowFocusForPopup(): void {
     if (!ctx.platform.shouldToggleMouseIgnore) {
       return;
@@ -52,9 +65,29 @@ export function createMouseHandlers(
   }
 
   function sustainPopupInteraction(): void {
-    yomitanPopupVisible = true;
-    ctx.state.yomitanPopupVisible = true;
+    syncPopupVisibilityState(true);
     syncOverlayMouseIgnoreState(ctx);
+  }
+
+  function reconcilePopupInteraction(args: {
+    assumeVisible?: boolean;
+    reclaimFocus?: boolean;
+    allowPause?: boolean;
+  } = {}): boolean {
+    const popupVisible = syncPopupVisibilityState(args.assumeVisible === true);
+    if (!popupVisible) {
+      syncOverlayMouseIgnoreState(ctx);
+      return false;
+    }
+
+    syncOverlayMouseIgnoreState(ctx);
+    if (args.reclaimFocus === true) {
+      reclaimOverlayWindowFocusForPopup();
+    }
+    if (args.allowPause === true) {
+      void maybePauseForYomitanPopup();
+    }
+    return true;
   }
 
   function isElementWithinContainer(element: Element | null, container: HTMLElement): boolean {
@@ -235,9 +268,7 @@ export function createMouseHandlers(
   }
 
   function disablePopupInteractionIfIdle(): void {
-    if (typeof document !== 'undefined' && isYomitanPopupVisible(document)) {
-      sustainPopupInteraction();
-      reclaimOverlayWindowFocusForPopup();
+    if (reconcilePopupInteraction({ reclaimFocus: true })) {
       return;
     }
 
@@ -377,17 +408,36 @@ export function createMouseHandlers(
   }
 
   function setupYomitanObserver(): void {
-    yomitanPopupVisible = isYomitanPopupVisible(document);
-    ctx.state.yomitanPopupVisible = yomitanPopupVisible;
+    syncPopupVisibilityState();
     void maybePauseForYomitanPopup();
 
     window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {
-      enablePopupInteraction();
-      void maybePauseForYomitanPopup();
+      reconcilePopupInteraction({ assumeVisible: true, allowPause: true });
     });
 
     window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, () => {
       disablePopupInteractionIfIdle();
+    });
+
+    window.addEventListener(YOMITAN_POPUP_MOUSE_ENTER_EVENT, () => {
+      reconcilePopupInteraction({ assumeVisible: true, reclaimFocus: true });
+    });
+
+    window.addEventListener(YOMITAN_POPUP_MOUSE_LEAVE_EVENT, () => {
+      reconcilePopupInteraction({ assumeVisible: true });
+    });
+
+    window.addEventListener('focus', () => {
+      reconcilePopupInteraction();
+    });
+
+    window.addEventListener('blur', () => {
+      queueMicrotask(() => {
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+          return;
+        }
+        reconcilePopupInteraction({ reclaimFocus: true });
+      });
     });
 
     const observer = new MutationObserver((mutations: MutationRecord[]) => {

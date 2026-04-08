@@ -34,8 +34,9 @@ export function isYomitanPopupIframe(element: Element | null): boolean {
 
 export function hasYomitanPopupIframe(root: ParentNode = document): boolean {
   return (
-    root.querySelector(YOMITAN_POPUP_IFRAME_SELECTOR) !== null ||
-    root.querySelector(YOMITAN_POPUP_HOST_SELECTOR) !== null
+    typeof root.querySelector === 'function' &&
+    (root.querySelector(YOMITAN_POPUP_IFRAME_SELECTOR) !== null ||
+      root.querySelector(YOMITAN_POPUP_HOST_SELECTOR) !== null)
   );
 }
 
@@ -57,20 +58,27 @@ function isMarkedVisiblePopupHost(element: Element): boolean {
   return element.getAttribute(YOMITAN_POPUP_VISIBLE_ATTRIBUTE) === 'true';
 }
 
+function queryPopupElements<T extends Element>(root: ParentNode, selector: string): T[] {
+  if (typeof root.querySelectorAll !== 'function') {
+    return [];
+  }
+  return Array.from(root.querySelectorAll<T>(selector));
+}
+
 export function isYomitanPopupVisible(root: ParentNode = document): boolean {
-  const visiblePopupHosts = root.querySelectorAll<HTMLElement>(YOMITAN_POPUP_VISIBLE_HOST_SELECTOR);
+  const visiblePopupHosts = queryPopupElements<HTMLElement>(root, YOMITAN_POPUP_VISIBLE_HOST_SELECTOR);
   if (visiblePopupHosts.length > 0) {
     return true;
   }
 
-  const popupIframes = root.querySelectorAll<HTMLIFrameElement>(YOMITAN_POPUP_IFRAME_SELECTOR);
+  const popupIframes = queryPopupElements<HTMLIFrameElement>(root, YOMITAN_POPUP_IFRAME_SELECTOR);
   for (const iframe of popupIframes) {
     if (isVisiblePopupElement(iframe)) {
       return true;
     }
   }
 
-  const popupHosts = root.querySelectorAll<HTMLElement>(YOMITAN_POPUP_HOST_SELECTOR);
+  const popupHosts = queryPopupElements<HTMLElement>(root, YOMITAN_POPUP_HOST_SELECTOR);
   for (const host of popupHosts) {
     if (isMarkedVisiblePopupHost(host)) {
       return true;
