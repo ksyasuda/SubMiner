@@ -22,6 +22,8 @@ const VIDEO_EXTENSIONS = new Set([
   '.wmv',
 ]);
 
+const SUBTITLE_EXTENSIONS = new Set(['.ass', '.srt', '.ssa', '.sub', '.vtt']);
+
 function getPathExtension(pathValue: string): string {
   const normalized = pathValue.split(/[?#]/, 1)[0] ?? '';
   const dot = normalized.lastIndexOf('.');
@@ -32,7 +34,11 @@ function isSupportedVideoPath(pathValue: string): boolean {
   return VIDEO_EXTENSIONS.has(getPathExtension(pathValue));
 }
 
-function parseUriList(data: string): string[] {
+function isSupportedSubtitlePath(pathValue: string): boolean {
+  return SUBTITLE_EXTENSIONS.has(getPathExtension(pathValue));
+}
+
+function parseUriList(data: string, isSupportedPath: (pathValue: string) => boolean): string[] {
   if (!data.trim()) return [];
   const out: string[] = [];
 
@@ -47,7 +53,7 @@ function parseUriList(data: string): string[] {
       if (/^\/[A-Za-z]:\//.test(filePath)) {
         filePath = filePath.slice(1);
       }
-      if (filePath && isSupportedVideoPath(filePath)) {
+      if (filePath && isSupportedPath(filePath)) {
         out.push(filePath);
       }
     } catch {
@@ -88,6 +94,19 @@ export function parseClipboardVideoPath(text: string): string | null {
 export function collectDroppedVideoPaths(
   dataTransfer: DropDataTransferLike | null | undefined,
 ): string[] {
+  return collectDroppedPaths(dataTransfer, isSupportedVideoPath);
+}
+
+export function collectDroppedSubtitlePaths(
+  dataTransfer: DropDataTransferLike | null | undefined,
+): string[] {
+  return collectDroppedPaths(dataTransfer, isSupportedSubtitlePath);
+}
+
+function collectDroppedPaths(
+  dataTransfer: DropDataTransferLike | null | undefined,
+  isSupportedPath: (pathValue: string) => boolean,
+): string[] {
   if (!dataTransfer) return [];
 
   const out: string[] = [];
@@ -96,7 +115,7 @@ export function collectDroppedVideoPaths(
   const addPath = (candidate: string | null | undefined): void => {
     if (!candidate) return;
     const trimmed = candidate.trim();
-    if (!trimmed || !isSupportedVideoPath(trimmed) || seen.has(trimmed)) return;
+    if (!trimmed || !isSupportedPath(trimmed) || seen.has(trimmed)) return;
     seen.add(trimmed);
     out.push(trimmed);
   };
@@ -109,7 +128,7 @@ export function collectDroppedVideoPaths(
   }
 
   if (typeof dataTransfer.getData === 'function') {
-    for (const pathValue of parseUriList(dataTransfer.getData('text/uri-list'))) {
+    for (const pathValue of parseUriList(dataTransfer.getData('text/uri-list'), isSupportedPath)) {
       addPath(pathValue);
     }
   }
@@ -129,4 +148,10 @@ export function buildMpvLoadfileCommands(
     pathValue,
     index === 0 ? 'replace' : 'append',
   ]);
+}
+
+export function buildMpvSubtitleAddCommands(paths: string[]): Array<(string | number)[]> {
+  return paths.map((pathValue, index) =>
+    index === 0 ? ['sub-add', pathValue, 'select'] : ['sub-add', pathValue],
+  );
 }

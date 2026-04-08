@@ -55,6 +55,8 @@ import { resolveRendererDom } from './utils/dom.js';
 import { resolvePlatformInfo } from './utils/platform.js';
 import {
   buildMpvLoadfileCommands,
+  buildMpvSubtitleAddCommands,
+  collectDroppedSubtitlePaths,
   collectDroppedVideoPaths,
 } from '../core/services/overlay-drop.js';
 
@@ -706,18 +708,28 @@ function setupDragDropToMpvQueue(): void {
     if (!event.dataTransfer) return;
     event.preventDefault();
 
-    const droppedPaths = collectDroppedVideoPaths(event.dataTransfer);
-    const loadCommands = buildMpvLoadfileCommands(droppedPaths, event.shiftKey);
+    const droppedVideoPaths = collectDroppedVideoPaths(event.dataTransfer);
+    const droppedSubtitlePaths = collectDroppedSubtitlePaths(event.dataTransfer);
+    const loadCommands = buildMpvLoadfileCommands(droppedVideoPaths, event.shiftKey);
+    const subtitleCommands = buildMpvSubtitleAddCommands(droppedSubtitlePaths);
     for (const command of loadCommands) {
       window.electronAPI.sendMpvCommand(command);
     }
+    for (const command of subtitleCommands) {
+      window.electronAPI.sendMpvCommand(command);
+    }
+    const osdParts: string[] = [];
     if (loadCommands.length > 0) {
       const action = event.shiftKey ? 'Queued' : 'Loaded';
-      window.electronAPI.sendMpvCommand([
-        'show-text',
-        `${action} ${loadCommands.length} file${loadCommands.length === 1 ? '' : 's'}`,
-        '1500',
-      ]);
+      osdParts.push(`${action} ${loadCommands.length} file${loadCommands.length === 1 ? '' : 's'}`);
+    }
+    if (subtitleCommands.length > 0) {
+      osdParts.push(
+        `Loaded ${subtitleCommands.length} subtitle file${subtitleCommands.length === 1 ? '' : 's'}`,
+      );
+    }
+    if (osdParts.length > 0) {
+      window.electronAPI.sendMpvCommand(['show-text', osdParts.join(' | '), '1500']);
     }
 
     clearDropInteractive();
