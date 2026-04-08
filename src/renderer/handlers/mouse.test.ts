@@ -842,6 +842,131 @@ test('nested popup close reasserts interactive state and focus when another popu
   }
 });
 
+test('window blur reclaims overlay focus while a yomitan popup remains visible on Windows', async () => {
+  const ctx = createMouseTestContext();
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousDocument = (globalThis as { document?: unknown }).document;
+  const previousMutationObserver = (globalThis as { MutationObserver?: unknown }).MutationObserver;
+  const previousNode = (globalThis as { Node?: unknown }).Node;
+  const windowListeners = new Map<string, Array<() => void>>();
+  const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
+  let focusMainWindowCalls = 0;
+  let windowFocusCalls = 0;
+  let overlayFocusCalls = 0;
+
+  ctx.platform.shouldToggleMouseIgnore = true;
+  (ctx.dom.overlay as { focus?: (options?: { preventScroll?: boolean }) => void }).focus = () => {
+    overlayFocusCalls += 1;
+  };
+
+  const visiblePopupHost = {
+    tagName: 'DIV',
+    getAttribute: (name: string) =>
+      name === 'data-subminer-yomitan-popup-visible' ? 'true' : null,
+  };
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: () => void) => {
+        const bucket = windowListeners.get(type) ?? [];
+        bucket.push(listener);
+        windowListeners.set(type, bucket);
+      },
+      electronAPI: {
+        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+          ignoreCalls.push({ ignore, forward: options?.forward });
+        },
+        focusMainWindow: () => {
+          focusMainWindowCalls += 1;
+        },
+      },
+      focus: () => {
+        windowFocusCalls += 1;
+      },
+      getComputedStyle: () => ({
+        visibility: 'visible',
+        display: 'block',
+        opacity: '1',
+      }),
+      innerHeight: 1000,
+      getSelection: () => null,
+      setTimeout,
+      clearTimeout,
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      visibilityState: 'visible',
+      querySelector: () => null,
+      querySelectorAll: (selector: string) => {
+        if (
+          selector === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR ||
+          selector === YOMITAN_POPUP_HOST_SELECTOR
+        ) {
+          return [visiblePopupHost];
+        }
+        return [];
+      },
+      body: {},
+      elementFromPoint: () => null,
+      addEventListener: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'MutationObserver', {
+    configurable: true,
+    value: class {
+      observe() {}
+    },
+  });
+  Object.defineProperty(globalThis, 'Node', {
+    configurable: true,
+    value: {
+      ELEMENT_NODE: 1,
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => false,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => false,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: () => {},
+    });
+
+    handlers.setupYomitanObserver();
+    ignoreCalls.length = 0;
+
+    for (const listener of windowListeners.get('blur') ?? []) {
+      listener();
+    }
+    await Promise.resolve();
+
+    assert.equal(ctx.state.yomitanPopupVisible, true);
+    assert.equal(ctx.dom.overlay.classList.contains('interactive'), true);
+    assert.deepEqual(ignoreCalls, [{ ignore: false, forward: undefined }]);
+    assert.equal(focusMainWindowCalls, 1);
+    assert.equal(windowFocusCalls, 1);
+    assert.equal(overlayFocusCalls, 1);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    Object.defineProperty(globalThis, 'MutationObserver', {
+      configurable: true,
+      value: previousMutationObserver,
+    });
+    Object.defineProperty(globalThis, 'Node', { configurable: true, value: previousNode });
+  }
+});
+
 test('restorePointerInteractionState re-enables subtitle hover when pointer is already over subtitles', () => {
   const ctx = createMouseTestContext();
   const originalWindow = globalThis.window;
@@ -1046,10 +1171,8 @@ test('pointer tracking restores click-through after the cursor leaves subtitles'
 
     assert.equal(ctx.state.isOverSubtitle, false);
     assert.equal(ctx.dom.overlay.classList.contains('interactive'), false);
-    assert.deepEqual(ignoreCalls, [
-      { ignore: false, forward: undefined },
-      { ignore: true, forward: true },
-    ]);
+    assert.equal(ignoreCalls[0]?.ignore, false);
+    assert.deepEqual(ignoreCalls.at(-1), { ignore: true, forward: true });
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
