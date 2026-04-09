@@ -14,7 +14,7 @@ interface LibraryTabProps {
 }
 
 export function LibraryTab({ onNavigateToSession }: LibraryTabProps) {
-  const { media, loading, error } = useMediaLibrary();
+  const { media, loading, error, refresh } = useMediaLibrary();
   const [search, setSearch] = useState('');
   const [selectedVideoId, setSelectedVideoId] = useState<number | null>(null);
 
@@ -36,7 +36,15 @@ export function LibraryTab({ onNavigateToSession }: LibraryTabProps) {
   const summary = useMemo(() => summarizeMediaLibraryGroups(grouped), [grouped]);
 
   if (selectedVideoId !== null) {
-    return <MediaDetailView videoId={selectedVideoId} onBack={() => setSelectedVideoId(null)} />;
+    return (
+      <MediaDetailView
+        videoId={selectedVideoId}
+        onBack={() => {
+          setSelectedVideoId(null);
+          refresh();
+        }}
+      />
+    );
   }
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;

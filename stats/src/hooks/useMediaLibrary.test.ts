@@ -55,3 +55,11 @@ test('shouldRefreshMediaLibraryRows ignores non-youtube rows', () => {
     false,
   );
 });
+
+test('useMediaLibrary is a function export', async () => {
+  // Verify the hook is exported as a function. The `refresh` return value
+  // is exercised at the component level; reactive re-fetch via version bump
+  // cannot be tested without a full React test environment (no @testing-library).
+  const mod = await import('./useMediaLibrary');
+  assert.equal(typeof mod.useMediaLibrary, 'function');
+});

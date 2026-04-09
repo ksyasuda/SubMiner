@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getStatsClient } from './useStatsApi';
 import type { MediaLibraryItem } from '../types/stats';
 
@@ -18,6 +18,9 @@ export function useMediaLibrary() {
   const [media, setMedia] = useState<MediaLibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +62,7 @@ export function useMediaLibrary() {
         clearTimeout(retryTimer);
       }
     };
-  }, []);
+  }, [version]);
 
-  return { media, loading, error };
+  return { media, loading, error, refresh };
 }

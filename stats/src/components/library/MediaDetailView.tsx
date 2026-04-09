@@ -1,11 +1,33 @@
 import { useEffect, useState } from 'react';
 import { useMediaDetail } from '../../hooks/useMediaDetail';
 import { apiClient } from '../../lib/api-client';
-import { confirmSessionDelete } from '../../lib/delete-confirm';
+import { confirmSessionDelete, confirmEpisodeDelete } from '../../lib/delete-confirm';
 import { getSessionDisplayWordCount } from '../../lib/session-word-count';
 import { MediaHeader } from './MediaHeader';
 import { MediaSessionList } from './MediaSessionList';
 import type { MediaDetailData, SessionSummary } from '../../types/stats';
+
+interface DeleteEpisodeHandlerOptions {
+  videoId: number;
+  title: string;
+  apiClient: { deleteVideo: (id: number) => Promise<void> };
+  confirmFn: (title: string) => boolean;
+  onBack: () => void;
+  setDeleteError: (msg: string | null) => void;
+}
+
+export function buildDeleteEpisodeHandler(opts: DeleteEpisodeHandlerOptions): () => Promise<void> {
+  return async () => {
+    if (!opts.confirmFn(opts.title)) return;
+    opts.setDeleteError(null);
+    try {
+      await opts.apiClient.deleteVideo(opts.videoId);
+      opts.onBack();
+    } catch (err) {
+      opts.setDeleteError(err instanceof Error ? err.message : 'Failed to delete episode.');
+    }
+  };
+}
 
 export function getRelatedCollectionLabel(detail: MediaDetailData['detail']): string {
   if (detail?.channelName?.trim()) {
@@ -79,6 +101,15 @@ export function MediaDetailView({
     }
   };
 
+  const handleDeleteEpisode = buildDeleteEpisodeHandler({
+    videoId,
+    title: detail.canonicalTitle,
+    apiClient,
+    confirmFn: confirmEpisodeDelete,
+    onBack,
+    setDeleteError,
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -99,7 +130,7 @@ export function MediaDetailView({
           </button>
         ) : null}
       </div>
-      <MediaHeader detail={detail} />
+      <MediaHeader detail={detail} onDeleteEpisode={handleDeleteEpisode} />
       {deleteError ? <div className="text-sm text-ctp-red">{deleteError}</div> : null}
       <MediaSessionList
         sessions={sessions}
