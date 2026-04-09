@@ -432,7 +432,7 @@ export function createMouseHandlers(
 
     window.addEventListener('blur', () => {
       queueMicrotask(() => {
-        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        if (typeof document === 'undefined' || document.visibilityState !== 'visible') {
           return;
         }
         reconcilePopupInteraction({ reclaimFocus: true });
