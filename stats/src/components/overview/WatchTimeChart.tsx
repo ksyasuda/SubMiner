@@ -1,7 +1,15 @@
 import { useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  BarChart,
+  Bar,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import { epochDayToDate } from '../../lib/formatters';
-import { CHART_THEME } from '../../lib/chart-theme';
+import { CHART_DEFAULTS, CHART_THEME, TOOLTIP_CONTENT_STYLE } from '../../lib/chart-theme';
 import type { DailyRollup } from '../../types/stats';
 
 interface WatchTimeChartProps {
@@ -52,28 +60,23 @@ export function WatchTimeChart({ rollups }: WatchTimeChartProps) {
           ))}
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={160}>
-        <BarChart data={chartData}>
+      <ResponsiveContainer width="100%" height={CHART_DEFAULTS.height}>
+        <BarChart data={chartData} margin={CHART_DEFAULTS.margin}>
+          <CartesianGrid stroke={CHART_THEME.grid} {...CHART_DEFAULTS.grid} />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 10, fill: CHART_THEME.tick }}
-            axisLine={false}
+            tick={{ fontSize: CHART_DEFAULTS.tickFontSize, fill: CHART_THEME.tick }}
+            axisLine={{ stroke: CHART_THEME.axisLine }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 10, fill: CHART_THEME.tick }}
-            axisLine={false}
+            tick={{ fontSize: CHART_DEFAULTS.tickFontSize, fill: CHART_THEME.tick }}
+            axisLine={{ stroke: CHART_THEME.axisLine }}
             tickLine={false}
-            width={30}
+            width={32}
           />
           <Tooltip
-            contentStyle={{
-              background: CHART_THEME.tooltipBg,
-              border: `1px solid ${CHART_THEME.tooltipBorder}`,
-              borderRadius: 6,
-              color: CHART_THEME.tooltipText,
-              fontSize: 12,
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
             labelStyle={{ color: CHART_THEME.tooltipLabel }}
             formatter={formatActiveMinutes}
           />
