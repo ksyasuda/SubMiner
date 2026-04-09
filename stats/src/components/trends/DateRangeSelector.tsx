@@ -53,7 +53,7 @@ export function DateRangeSelector({
     <div className="flex items-center gap-4 text-sm">
       <SegmentedControl
         label="Range"
-        options={['7d', '30d', '90d', 'all'] as TimeRange[]}
+        options={['7d', '30d', '90d', '365d', 'all'] as TimeRange[]}
         value={range}
         onChange={onRangeChange}
         formatLabel={(r) => (r === 'all' ? 'All' : r)}
