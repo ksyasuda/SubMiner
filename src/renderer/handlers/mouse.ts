@@ -408,8 +408,7 @@ export function createMouseHandlers(
   }
 
   function setupYomitanObserver(): void {
-    syncPopupVisibilityState();
-    void maybePauseForYomitanPopup();
+    reconcilePopupInteraction({ allowPause: true });
 
     window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {
       reconcilePopupInteraction({ assumeVisible: true, allowPause: true });
