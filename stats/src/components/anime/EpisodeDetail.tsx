@@ -16,10 +16,32 @@ interface NoteInfo {
   expression: string;
 }
 
+export function filterCardEvents(
+  cardEvents: EpisodeDetailData['cardEvents'],
+  noteInfos: Map<number, NoteInfo>,
+  noteInfosLoaded: boolean,
+): EpisodeDetailData['cardEvents'] {
+  if (!noteInfosLoaded) return cardEvents;
+  return cardEvents
+    .map((ev) => {
+      // Legacy rollup events: no noteIds, just a cardsDelta count — keep as-is.
+      if (ev.noteIds.length === 0) return ev;
+      const survivingNoteIds = ev.noteIds.filter((id) => noteInfos.has(id));
+      return { ...ev, noteIds: survivingNoteIds };
+    })
+    .filter((ev, i) => {
+      // If the event originally had noteIds, only keep it if some survived.
+      if ((cardEvents[i]?.noteIds.length ?? 0) > 0) return ev.noteIds.length > 0;
+      // Legacy rollup event (originally no noteIds): keep if it has a positive delta.
+      return ev.cardsDelta > 0;
+    });
+}
+
 export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps) {
   const [data, setData] = useState<EpisodeDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [noteInfos, setNoteInfos] = useState<Map<number, NoteInfo>>(new Map());
+  const [noteInfosLoaded, setNoteInfosLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,8 +63,14 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
                 map.set(note.noteId, { noteId: note.noteId, expression: expr });
               }
               setNoteInfos(map);
+              setNoteInfosLoaded(true);
             })
-            .catch((err) => console.warn('Failed to fetch Anki note info:', err));
+            .catch((err) => {
+              console.warn('Failed to fetch Anki note info:', err);
+              if (!cancelled) setNoteInfosLoaded(true);
+            });
+        } else {
+          if (!cancelled) setNoteInfosLoaded(true);
         }
       })
       .catch(() => {
@@ -71,6 +99,16 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
     return <div className="text-ctp-overlay2 text-xs p-3">Failed to load episode details.</div>;
 
   const { sessions, cardEvents } = data;
+
+  const filteredCardEvents = filterCardEvents(cardEvents, noteInfos, noteInfosLoaded);
+
+  const hiddenCardCount = noteInfosLoaded
+    ? cardEvents.reduce((sum, ev) => {
+        if (ev.noteIds.length === 0) return sum;
+        const surviving = ev.noteIds.filter((id) => noteInfos.has(id));
+        return sum + (ev.noteIds.length - surviving.length);
+      }, 0)
+    : 0;
 
   return (
     <div className="bg-ctp-mantle border border-ctp-surface1 rounded-lg">
@@ -106,11 +144,11 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
         </div>
       )}
 
-      {cardEvents.length > 0 && (
+      {filteredCardEvents.length > 0 && (
         <div className="p-3 border-b border-ctp-surface1">
           <h4 className="text-xs font-semibold text-ctp-subtext0 mb-2">Cards Mined</h4>
           <div className="space-y-1.5">
-            {cardEvents.map((ev) => (
+            {filteredCardEvents.map((ev) => (
               <div key={ev.eventId} className="flex items-center gap-2 text-xs">
                 <span className="text-ctp-overlay2 shrink-0">{formatRelativeDate(ev.tsMs)}</span>
                 {ev.noteIds.length > 0 ? (
@@ -144,6 +182,11 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
               </div>
             ))}
           </div>
+          {hiddenCardCount > 0 && (
+            <div className="px-3 pb-3 -mt-1 text-[10px] text-ctp-overlay2 italic">
+              {hiddenCardCount} {hiddenCardCount === 1 ? 'card' : 'cards'} hidden (deleted from Anki)
+            </div>
+          )}
         </div>
       )}
 
