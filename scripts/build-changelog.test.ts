@@ -310,3 +310,186 @@ test('verifyPullRequestChangelog requires fragments for user-facing changes and 
     }),
   );
 });
+
+test('writePrereleaseNotesForVersion writes cumulative beta notes without mutating stable changelog artifacts', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-beta-notes');
+  const projectRoot = path.join(workspace, 'SubMiner');
+  const changelogPath = path.join(projectRoot, 'CHANGELOG.md');
+  const docsChangelogPath = path.join(projectRoot, 'docs-site', 'changelog.md');
+  const existingChangelog = '# Changelog\n\n## v0.11.2 (2026-04-07)\n- Stable release.\n';
+  const existingDocsChangelog = '# Changelog\n\n## v0.11.2 (2026-04-07)\n- Stable docs release.\n';
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'docs-site'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.11.3-beta.1' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(changelogPath, existingChangelog, 'utf8');
+  fs.writeFileSync(docsChangelogPath, existingDocsChangelog, 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: added', 'area: overlay', '', '- Added prerelease coverage.'].join('\n'),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '002.md'),
+    ['type: fixed', 'area: launcher', '', '- Fixed prerelease packaging checks.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const outputPath = writePrereleaseNotesForVersion({
+      cwd: projectRoot,
+      version: '0.11.3-beta.1',
+    });
+
+    assert.equal(outputPath, path.join(projectRoot, 'release', 'prerelease-notes.md'));
+    assert.equal(
+      fs.readFileSync(changelogPath, 'utf8'),
+      existingChangelog,
+      'stable CHANGELOG.md should remain unchanged',
+    );
+    assert.equal(
+      fs.readFileSync(docsChangelogPath, 'utf8'),
+      existingDocsChangelog,
+      'docs-site changelog should remain unchanged',
+    );
+    assert.equal(fs.existsSync(path.join(projectRoot, 'changes', '001.md')), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'changes', '002.md')), true);
+
+    const prereleaseNotes = fs.readFileSync(outputPath, 'utf8');
+    assert.match(prereleaseNotes, /^> This is a prerelease build for testing\./m);
+    assert.match(prereleaseNotes, /## Highlights\n### Added\n- Overlay: Added prerelease coverage\./);
+    assert.match(
+      prereleaseNotes,
+      /### Fixed\n- Launcher: Fixed prerelease packaging checks\./,
+    );
+    assert.match(prereleaseNotes, /## Installation\n\nSee the README and docs\/installation guide/);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('writePrereleaseNotesForVersion supports rc prereleases', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-rc-notes');
+  const projectRoot = path.join(workspace, 'SubMiner');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.11.3-rc.1' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: changed', 'area: release', '', '- Prepared release candidate notes.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const outputPath = writePrereleaseNotesForVersion({
+      cwd: projectRoot,
+      version: '0.11.3-rc.1',
+    });
+
+    const prereleaseNotes = fs.readFileSync(outputPath, 'utf8');
+    assert.match(
+      prereleaseNotes,
+      /## Highlights\n### Changed\n- Release: Prepared release candidate notes\./,
+    );
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('writePrereleaseNotesForVersion rejects unsupported prerelease identifiers', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-alpha-reject');
+  const projectRoot = path.join(workspace, 'SubMiner');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.11.3-alpha.1' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: added', 'area: overlay', '', '- Unsupported alpha prerelease.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    assert.throws(
+      () =>
+        writePrereleaseNotesForVersion({
+          cwd: projectRoot,
+          version: '0.11.3-alpha.1',
+        }),
+      /Unsupported prerelease version \(0\.11\.3-alpha\.1\)/,
+    );
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('writePrereleaseNotesForVersion rejects mismatched package versions', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-version-mismatch');
+  const projectRoot = path.join(workspace, 'SubMiner');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.11.3-beta.1' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: added', 'area: overlay', '', '- Mismatched prerelease.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    assert.throws(
+      () =>
+        writePrereleaseNotesForVersion({
+          cwd: projectRoot,
+          version: '0.11.3-beta.2',
+        }),
+      /package\.json version \(0\.11\.3-beta\.1\) does not match requested release version \(0\.11\.3-beta\.2\)/,
+    );
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('writePrereleaseNotesForVersion rejects empty prerelease note generation when no fragments exist', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-no-fragments');
+  const projectRoot = path.join(workspace, 'SubMiner');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.11.3-beta.1' }, null, 2),
+    'utf8',
+  );
+
+  try {
+    assert.throws(
+      () =>
+        writePrereleaseNotesForVersion({
+          cwd: projectRoot,
+          version: '0.11.3-beta.1',
+        }),
+      /No changelog fragments found in changes\//,
+    );
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
