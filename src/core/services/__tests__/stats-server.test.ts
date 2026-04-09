@@ -601,6 +601,22 @@ describe('stats server API routes', () => {
     assert.deepEqual(body.animePerDay.watchTime, TRENDS_DASHBOARD.animePerDay.watchTime);
   });
 
+  it('GET /api/stats/trends/dashboard accepts 365d range', async () => {
+    let seenArgs: unknown[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getTrendsDashboard: async (...args: unknown[]) => {
+          seenArgs = args;
+          return TRENDS_DASHBOARD;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/trends/dashboard?range=365d&groupBy=month');
+    assert.equal(res.status, 200);
+    assert.deepEqual(seenArgs, ['365d', 'month']);
+  });
+
   it('GET /api/stats/trends/dashboard falls back to safe defaults for invalid params', async () => {
     let seenArgs: unknown[] = [];
     const app = createStatsApp(

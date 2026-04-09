@@ -30,8 +30,10 @@ function parseIntQuery(raw: string | undefined, fallback: number, maxLimit?: num
   return maxLimit === undefined ? parsed : Math.min(parsed, maxLimit);
 }
 
-function parseTrendRange(raw: string | undefined): '7d' | '30d' | '90d' | 'all' {
-  return raw === '7d' || raw === '30d' || raw === '90d' || raw === 'all' ? raw : '30d';
+function parseTrendRange(raw: string | undefined): '7d' | '30d' | '90d' | '365d' | 'all' {
+  return raw === '7d' || raw === '30d' || raw === '90d' || raw === '365d' || raw === 'all'
+    ? raw
+    : '30d';
 }
 
 function parseTrendGroupBy(raw: string | undefined): 'day' | 'month' {

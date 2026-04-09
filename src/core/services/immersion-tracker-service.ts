@@ -488,7 +488,7 @@ export class ImmersionTrackerService {
   }
 
   async getTrendsDashboard(
-    range: '7d' | '30d' | '90d' | 'all' = '30d',
+    range: '7d' | '30d' | '90d' | '365d' | 'all' = '30d',
     groupBy: 'day' | 'month' = 'day',
   ): Promise<unknown> {
     return getTrendsDashboard(this.db, range, groupBy);
