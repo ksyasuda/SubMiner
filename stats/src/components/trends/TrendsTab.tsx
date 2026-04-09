@@ -221,7 +221,7 @@ export function TrendsTab() {
           type="line"
         />
 
-        <SectionHeader>Anime — Per Day</SectionHeader>
+        <SectionHeader>Library — Per Day</SectionHeader>
         <AnimeVisibilityFilter
           animeTitles={animeTitles}
           hiddenAnime={activeHiddenAnime}
@@ -239,21 +239,21 @@ export function TrendsTab() {
             })
           }
         />
-        <StackedTrendChart title="Episodes per Anime" data={filteredEpisodesPerAnime} />
-        <StackedTrendChart title="Watch Time per Anime (min)" data={filteredWatchTimePerAnime} />
+        <StackedTrendChart title="Videos per Title" data={filteredEpisodesPerAnime} />
+        <StackedTrendChart title="Watch Time per Title (min)" data={filteredWatchTimePerAnime} />
         <StackedTrendChart
-          title="Cards Mined per Anime"
+          title="Cards Mined per Title"
           data={filteredCardsPerAnime}
           colorPalette={cardsMinedStackedColors}
         />
-        <StackedTrendChart title="Words Seen per Anime" data={filteredWordsPerAnime} />
-        <StackedTrendChart title="Lookups per Anime" data={filteredLookupsPerAnime} />
+        <StackedTrendChart title="Words Seen per Title" data={filteredWordsPerAnime} />
+        <StackedTrendChart title="Lookups per Title" data={filteredLookupsPerAnime} />
         <StackedTrendChart
-          title="Lookups/100w per Anime"
+          title="Lookups/100w per Title"
           data={filteredLookupsPerHundredPerAnime}
         />
 
-        <SectionHeader>Anime — Cumulative</SectionHeader>
+        <SectionHeader>Library — Cumulative</SectionHeader>
         <StackedTrendChart title="Watch Time Progress (min)" data={filteredWatchTimeProgress} />
         <StackedTrendChart title="Episodes Progress" data={filteredAnimeProgress} />
         <StackedTrendChart

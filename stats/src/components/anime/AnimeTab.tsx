@@ -93,7 +93,7 @@ export function AnimeTab({
       <div className="flex items-center gap-3">
         <input
           type="text"
-          placeholder="Search anime..."
+          placeholder="Search library..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay2 focus:outline-none focus:border-ctp-blue"
@@ -125,12 +125,12 @@ export function AnimeTab({
           ))}
         </div>
         <div className="text-xs text-ctp-overlay2 shrink-0">
-          {filtered.length} anime · {formatDuration(totalMs)}
+          {filtered.length} titles · {formatDuration(totalMs)}
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-sm text-ctp-overlay2 p-4">No anime found</div>
+        <div className="text-sm text-ctp-overlay2 p-4">No titles found</div>
       ) : (
         <div className={`grid ${GRID_CLASSES[cardSize]} gap-4`}>
           {filtered.map((item) => (

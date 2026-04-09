@@ -36,7 +36,7 @@ export function HeroStats({ summary, sessions }: HeroStatsProps) {
       />
       <StatCard label="Current Streak" value={`${summary.streakDays}d`} color="text-ctp-peach" />
       <StatCard
-        label="Active Anime"
+        label="Active Titles"
         value={formatNumber(summary.activeAnimeCount)}
         color="text-ctp-mauve"
       />
