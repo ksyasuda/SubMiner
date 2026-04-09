@@ -4,9 +4,8 @@ on:
   push:
     tags:
       - 'v*'
-    tags-ignore:
-      - 'v*-beta.*'
-      - 'v*-rc.*'
+      - '!v*-beta.*'
+      - '!v*-rc.*'
 
 concurrency:
   group: release-${{ github.ref }}
