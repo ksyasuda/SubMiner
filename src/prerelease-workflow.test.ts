@@ -1,0 +1,61 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const prereleaseWorkflowPath = resolve(__dirname, '../.github/workflows/prerelease.yml');
+const prereleaseWorkflow = readFileSync(prereleaseWorkflowPath, 'utf8');
+const packageJsonPath = resolve(__dirname, '../package.json');
+const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+  scripts: Record<string, string>;
+};
+
+test('prerelease workflow triggers on beta and rc tags only', () => {
+  assert.match(prereleaseWorkflow, /name: Prerelease/);
+  assert.match(prereleaseWorkflow, /tags:\s*\n\s*-\s*'v\*-beta\.\*'/);
+  assert.match(prereleaseWorkflow, /tags:\s*\n(?:.*\n)*\s*-\s*'v\*-rc\.\*'/);
+});
+
+test('package scripts expose prerelease notes generation separately from stable changelog build', () => {
+  assert.equal(
+    packageJson.scripts['changelog:prerelease-notes'],
+    'bun run scripts/build-changelog.ts prerelease-notes',
+  );
+});
+
+test('prerelease workflow generates prerelease notes from pending fragments', () => {
+  assert.match(prereleaseWorkflow, /bun run changelog:prerelease-notes --version/);
+  assert.doesNotMatch(prereleaseWorkflow, /bun run changelog:build --version/);
+});
+
+test('prerelease workflow publishes GitHub prereleases and keeps them off latest', () => {
+  assert.match(prereleaseWorkflow, /gh release edit[\s\S]*--prerelease/);
+  assert.match(prereleaseWorkflow, /gh release create[\s\S]*--prerelease/);
+  assert.match(prereleaseWorkflow, /gh release create[\s\S]*--latest=false/);
+});
+
+test('prerelease workflow builds and uploads all release platforms', () => {
+  assert.match(prereleaseWorkflow, /build-linux:/);
+  assert.match(prereleaseWorkflow, /build-macos:/);
+  assert.match(prereleaseWorkflow, /build-windows:/);
+  assert.match(prereleaseWorkflow, /name: appimage/);
+  assert.match(prereleaseWorkflow, /name: macos/);
+  assert.match(prereleaseWorkflow, /name: windows/);
+});
+
+test('prerelease workflow publishes the same release assets as the stable workflow', () => {
+  assert.match(
+    prereleaseWorkflow,
+    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz dist\/launcher\/subminer\)/,
+  );
+  assert.match(
+    prereleaseWorkflow,
+    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
+  );
+});
+
+test('prerelease workflow does not publish to AUR', () => {
+  assert.doesNotMatch(prereleaseWorkflow, /aur-publish:/);
+  assert.doesNotMatch(prereleaseWorkflow, /AUR_SSH_PRIVATE_KEY/);
+  assert.doesNotMatch(prereleaseWorkflow, /scripts\/update-aur-package\.sh/);
+});

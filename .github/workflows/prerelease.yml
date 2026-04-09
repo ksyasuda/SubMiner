@@ -1,15 +1,13 @@
-name: Release
+name: Prerelease
 
 on:
   push:
     tags:
-      - 'v*'
-    tags-ignore:
       - 'v*-beta.*'
       - 'v*-rc.*'
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: prerelease-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -347,36 +345,27 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
-      - name: Build changelog artifacts for release
-        run: |
-          if find changes -maxdepth 1 -name '*.md' -not -name README.md -print -quit | grep -q .; then
-            bun run changelog:build --version "${{ steps.version.outputs.VERSION }}"
-          else
-            echo "No pending changelog fragments found."
-          fi
+      - name: Generate prerelease notes from pending fragments
+        run: bun run changelog:prerelease-notes --version "${{ steps.version.outputs.VERSION }}"
 
-      - name: Verify changelog is ready for tagged release
-        run: bun run changelog:check --version "${{ steps.version.outputs.VERSION }}"
-
-      - name: Generate release notes from changelog
-        run: bun run changelog:release-notes --version "${{ steps.version.outputs.VERSION }}"
-
-      - name: Publish Release
+      - name: Publish Prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
           if gh release view "${{ steps.version.outputs.VERSION }}" >/dev/null 2>&1; then
-            # Do not pass the prerelease flag here; gh defaults to a normal release.
             gh release edit "${{ steps.version.outputs.VERSION }}" \
               --draft=false \
+              --prerelease \
               --title "${{ steps.version.outputs.VERSION }}" \
-              --notes-file release/release-notes.md
+              --notes-file release/prerelease-notes.md
           else
             gh release create "${{ steps.version.outputs.VERSION }}" \
+              --latest=false \
+              --prerelease \
               --title "${{ steps.version.outputs.VERSION }}" \
-              --notes-file release/release-notes.md
+              --notes-file release/prerelease-notes.md
           fi
 
           shopt -s nullglob
@@ -398,130 +387,3 @@ jobs:
           for asset in "${artifacts[@]}"; do
             gh release upload "${{ steps.version.outputs.VERSION }}" "$asset" --clobber
           done
-
-  aur-publish:
-    needs: [release]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-
-      - name: Check AUR publish prerequisites
-        id: aur_prereqs
-        env:
-          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          if [ -z "${AUR_SSH_PRIVATE_KEY}" ]; then
-            echo "::warning::Missing AUR_SSH_PRIVATE_KEY; skipping automated AUR publish."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-
-      - name: Configure SSH for AUR
-        id: aur_ssh
-        if: steps.aur_prereqs.outputs.skip != 'true'
-        env:
-          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          if install -dm700 ~/.ssh \
-            && printf '%s\n' "${AUR_SSH_PRIVATE_KEY}" > ~/.ssh/aur \
-            && chmod 600 ~/.ssh/aur \
-            && ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts \
-            && chmod 644 ~/.ssh/known_hosts; then
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "::warning::Unable to configure SSH for AUR; skipping automated AUR publish."
-          echo "skip=true" >> "$GITHUB_OUTPUT"
-
-      - name: Clone AUR repo
-        id: aur_clone
-        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true'
-        env:
-          GIT_SSH_COMMAND: ssh -i ~/.ssh/aur -o IdentitiesOnly=yes
-        run: |
-          set -euo pipefail
-          attempts=3
-          for attempt in $(seq 1 "$attempts"); do
-            if git clone ssh://aur@aur.archlinux.org/subminer-bin.git aur-subminer-bin; then
-              echo "skip=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-
-            rm -rf aur-subminer-bin
-
-            if [ "$attempt" -lt "$attempts" ]; then
-              sleep $((attempt * 15))
-            fi
-          done
-
-          echo "::warning::Unable to clone subminer-bin from AUR after ${attempts} attempts; skipping automated AUR publish."
-          echo "skip=true" >> "$GITHUB_OUTPUT"
-
-      - name: Download release assets for AUR
-        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          version="${{ steps.version.outputs.VERSION }}"
-          install -dm755 .tmp/aur-release-assets
-          gh release download "$version" \
-            --dir .tmp/aur-release-assets \
-            --pattern "SubMiner-${version#v}.AppImage" \
-            --pattern "subminer" \
-            --pattern "subminer-assets.tar.gz"
-
-      - name: Update AUR packaging metadata
-        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
-        run: |
-          set -euo pipefail
-          version_no_v="${{ steps.version.outputs.VERSION }}"
-          version_no_v="${version_no_v#v}"
-          cp packaging/aur/subminer-bin/PKGBUILD aur-subminer-bin/PKGBUILD
-          cp packaging/aur/subminer-bin/.SRCINFO aur-subminer-bin/.SRCINFO
-          bash scripts/update-aur-package.sh \
-            --pkg-dir aur-subminer-bin \
-            --version "${{ steps.version.outputs.VERSION }}" \
-            --appimage ".tmp/aur-release-assets/SubMiner-${version_no_v}.AppImage" \
-            --wrapper ".tmp/aur-release-assets/subminer" \
-            --assets ".tmp/aur-release-assets/subminer-assets.tar.gz"
-
-      - name: Commit and push AUR update
-        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
-        working-directory: aur-subminer-bin
-        env:
-          GIT_SSH_COMMAND: ssh -i ~/.ssh/aur -o IdentitiesOnly=yes
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- PKGBUILD .SRCINFO; then
-            echo "AUR packaging already up to date."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PKGBUILD .SRCINFO
-          git commit -m "Update to ${{ steps.version.outputs.VERSION }}"
-
-          attempts=3
-          for attempt in $(seq 1 "$attempts"); do
-            if git push origin HEAD:master; then
-              exit 0
-            fi
-
-            if [ "$attempt" -lt "$attempts" ]; then
-              sleep $((attempt * 15))
-            fi
-          done
-
-          echo "::warning::Unable to push the AUR update after ${attempts} attempts; GitHub release is published, but subminer-bin needs manual follow-up."

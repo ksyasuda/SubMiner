@@ -22,6 +22,11 @@ test('publish release leaves prerelease unset so gh creates a normal release', (
   assert.ok(!releaseWorkflow.includes('--prerelease'));
 });
 
+test('stable release workflow excludes prerelease beta and rc tags', () => {
+  assert.match(releaseWorkflow, /tags-ignore:\s*\n\s*-\s*'v\*-beta\.\*'/);
+  assert.match(releaseWorkflow, /tags-ignore:\s*\n(?:.*\n)*\s*-\s*'v\*-rc\.\*'/);
+});
+
 test('publish release forces an existing draft tag release to become public', () => {
   assert.ok(releaseWorkflow.includes('--draft=false'));
 });
