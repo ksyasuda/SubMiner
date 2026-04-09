@@ -13,7 +13,7 @@ import {
 } from './query-shared';
 import { getDailyRollups, getMonthlyRollups } from './query-sessions';
 
-type TrendRange = '7d' | '30d' | '90d' | 'all';
+type TrendRange = '7d' | '30d' | '90d' | '365d' | 'all';
 type TrendGroupBy = 'day' | 'month';
 
 interface TrendChartPoint {
@@ -85,6 +85,7 @@ const TREND_DAY_LIMITS: Record<Exclude<TrendRange, 'all'>, number> = {
   '7d': 7,
   '30d': 30,
   '90d': 90,
+  '365d': 365,
 };
 
 const MONTH_NAMES = [
