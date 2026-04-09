@@ -3,8 +3,9 @@ import { useSessions } from '../../hooks/useSessions';
 import { SessionRow } from './SessionRow';
 import { SessionDetail } from './SessionDetail';
 import { apiClient } from '../../lib/api-client';
-import { confirmSessionDelete } from '../../lib/delete-confirm';
-import { formatSessionDayLabel } from '../../lib/formatters';
+import { confirmBucketDelete, confirmSessionDelete } from '../../lib/delete-confirm';
+import { formatDuration, formatNumber, formatSessionDayLabel } from '../../lib/formatters';
+import { groupSessionsByVideo, type SessionBucket } from '../../lib/session-grouping';
 import type { SessionSummary } from '../../types/stats';
 
 function groupSessionsByDay(sessions: SessionSummary[]): Map<string, SessionSummary[]> {
@@ -23,6 +24,35 @@ function groupSessionsByDay(sessions: SessionSummary[]): Map<string, SessionSumm
   return groups;
 }
 
+export interface BucketDeleteDeps {
+  bucket: SessionBucket;
+  apiClient: { deleteSessions: (ids: number[]) => Promise<void> };
+  confirm: (title: string, count: number) => boolean;
+  onSuccess: (deletedIds: number[]) => void;
+  onError: (message: string) => void;
+}
+
+/**
+ * Build a handler that deletes every session in a bucket after confirmation.
+ *
+ * Extracted as a pure factory so the deletion flow can be unit-tested without
+ * rendering the full SessionsTab or mocking React state.
+ */
+export function buildBucketDeleteHandler(deps: BucketDeleteDeps): () => Promise<void> {
+  const { bucket, apiClient: client, confirm, onSuccess, onError } = deps;
+  return async () => {
+    const title = bucket.representativeSession.canonicalTitle ?? 'this episode';
+    const ids = bucket.sessions.map((s) => s.sessionId);
+    if (!confirm(title, ids.length)) return;
+    try {
+      await client.deleteSessions(ids);
+      onSuccess(ids);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Failed to delete sessions.');
+    }
+  };
+}
+
 interface SessionsTabProps {
   initialSessionId?: number | null;
   onClearInitialSession?: () => void;
@@ -36,10 +66,12 @@ export function SessionsTab({
 }: SessionsTabProps = {}) {
   const { sessions, loading, error } = useSessions();
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedBuckets, setExpandedBuckets] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState('');
   const [visibleSessions, setVisibleSessions] = useState<SessionSummary[]>([]);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
+  const [deletingBucketKey, setDeletingBucketKey] = useState<string | null>(null);
 
   useEffect(() => {
     setVisibleSessions(sessions);
@@ -76,7 +108,16 @@ export function SessionsTab({
     return visibleSessions.filter((s) => s.canonicalTitle?.toLowerCase().includes(q));
   }, [visibleSessions, search]);
 
-  const groups = useMemo(() => groupSessionsByDay(filtered), [filtered]);
+  const dayGroups = useMemo(() => groupSessionsByDay(filtered), [filtered]);
+
+  const toggleBucket = (key: string) => {
+    setExpandedBuckets((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const handleDeleteSession = async (session: SessionSummary) => {
     if (!confirmSessionDelete()) return;
@@ -91,6 +132,33 @@ export function SessionsTab({
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete session.');
     } finally {
       setDeletingSessionId(null);
+    }
+  };
+
+  const handleDeleteBucket = async (bucket: SessionBucket) => {
+    setDeleteError(null);
+    setDeletingBucketKey(bucket.key);
+    const handler = buildBucketDeleteHandler({
+      bucket,
+      apiClient,
+      confirm: confirmBucketDelete,
+      onSuccess: (ids) => {
+        const deleted = new Set(ids);
+        setVisibleSessions((prev) => prev.filter((s) => !deleted.has(s.sessionId)));
+        setExpandedId((prev) => (prev != null && deleted.has(prev) ? null : prev));
+        setExpandedBuckets((prev) => {
+          if (!prev.has(bucket.key)) return prev;
+          const next = new Set(prev);
+          next.delete(bucket.key);
+          return next;
+        });
+      },
+      onError: (message) => setDeleteError(message),
+    });
+    try {
+      await handler();
+    } finally {
+      setDeletingBucketKey(null);
     }
   };
 
@@ -110,39 +178,122 @@ export function SessionsTab({
 
       {deleteError ? <div className="text-sm text-ctp-red">{deleteError}</div> : null}
 
-      {Array.from(groups.entries()).map(([dayLabel, daySessions]) => (
-        <div key={dayLabel}>
-          <div className="flex items-center gap-3 mb-2">
-            <h3 className="text-xs font-semibold text-ctp-overlay2 uppercase tracking-widest shrink-0">
-              {dayLabel}
-            </h3>
-            <div className="flex-1 h-px bg-gradient-to-r from-ctp-surface1 to-transparent" />
-          </div>
-          <div className="space-y-2">
-            {daySessions.map((s) => {
-              const detailsId = `session-details-${s.sessionId}`;
-              return (
-                <div key={s.sessionId}>
-                  <SessionRow
-                    session={s}
-                    isExpanded={expandedId === s.sessionId}
-                    detailsId={detailsId}
-                    onToggle={() => setExpandedId(expandedId === s.sessionId ? null : s.sessionId)}
-                    onDelete={() => void handleDeleteSession(s)}
-                    deleteDisabled={deletingSessionId === s.sessionId}
-                    onNavigateToMediaDetail={onNavigateToMediaDetail}
-                  />
-                  {expandedId === s.sessionId && (
-                    <div id={detailsId}>
-                      <SessionDetail session={s} />
+      {Array.from(dayGroups.entries()).map(([dayLabel, daySessions]) => {
+        const buckets = groupSessionsByVideo(daySessions);
+        return (
+          <div key={dayLabel}>
+            <div className="flex items-center gap-3 mb-2">
+              <h3 className="text-xs font-semibold text-ctp-overlay2 uppercase tracking-widest shrink-0">
+                {dayLabel}
+              </h3>
+              <div className="flex-1 h-px bg-gradient-to-r from-ctp-surface1 to-transparent" />
+            </div>
+            <div className="space-y-2">
+              {buckets.map((bucket) => {
+                if (bucket.sessions.length === 1) {
+                  const s = bucket.sessions[0]!;
+                  const detailsId = `session-details-${s.sessionId}`;
+                  return (
+                    <div key={bucket.key}>
+                      <SessionRow
+                        session={s}
+                        isExpanded={expandedId === s.sessionId}
+                        detailsId={detailsId}
+                        onToggle={() =>
+                          setExpandedId(expandedId === s.sessionId ? null : s.sessionId)
+                        }
+                        onDelete={() => void handleDeleteSession(s)}
+                        deleteDisabled={deletingSessionId === s.sessionId}
+                        onNavigateToMediaDetail={onNavigateToMediaDetail}
+                      />
+                      {expandedId === s.sessionId && (
+                        <div id={detailsId}>
+                          <SessionDetail session={s} />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                }
+
+                const bucketBodyId = `session-bucket-${bucket.key}`;
+                const isExpanded = expandedBuckets.has(bucket.key);
+                const title = bucket.representativeSession.canonicalTitle ?? 'Unknown Media';
+                const deleteDisabled = deletingBucketKey === bucket.key;
+                return (
+                  <div key={bucket.key}>
+                    <div className="relative group flex items-stretch gap-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleBucket(bucket.key)}
+                        aria-expanded={isExpanded}
+                        aria-controls={bucketBodyId}
+                        className="flex-1 bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-3 flex items-center gap-3 hover:border-ctp-surface2 transition-colors text-left"
+                      >
+                        <div
+                          aria-hidden="true"
+                          className={`text-ctp-overlay2 text-xs shrink-0 transition-transform ${
+                            isExpanded ? 'rotate-90' : ''
+                          }`}
+                        >
+                          {'\u25B6'}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-ctp-text truncate">{title}</div>
+                          <div className="text-xs text-ctp-overlay2">
+                            {bucket.sessions.length} session
+                            {bucket.sessions.length === 1 ? '' : 's'} ·{' '}
+                            {formatDuration(bucket.totalActiveMs)} active ·{' '}
+                            {formatNumber(bucket.totalCardsMined)} cards
+                          </div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteBucket(bucket)}
+                        disabled={deleteDisabled}
+                        aria-label={`Delete all ${bucket.sessions.length} sessions of ${title}`}
+                        title="Delete all sessions in this group"
+                        className="shrink-0 w-8 rounded-lg border border-ctp-surface1 bg-ctp-surface0 text-ctp-overlay2 hover:border-ctp-red/50 hover:text-ctp-red hover:bg-ctp-red/10 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      >
+                        {'\u2715'}
+                      </button>
+                    </div>
+                    {isExpanded && (
+                      <div id={bucketBodyId} className="mt-2 ml-6 space-y-2">
+                        {bucket.sessions.map((s) => {
+                          const detailsId = `session-details-${s.sessionId}`;
+                          return (
+                            <div key={s.sessionId}>
+                              <SessionRow
+                                session={s}
+                                isExpanded={expandedId === s.sessionId}
+                                detailsId={detailsId}
+                                onToggle={() =>
+                                  setExpandedId(
+                                    expandedId === s.sessionId ? null : s.sessionId,
+                                  )
+                                }
+                                onDelete={() => void handleDeleteSession(s)}
+                                deleteDisabled={deletingSessionId === s.sessionId}
+                                onNavigateToMediaDetail={onNavigateToMediaDetail}
+                              />
+                              {expandedId === s.sessionId && (
+                                <div id={detailsId}>
+                                  <SessionDetail session={s} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {filtered.length === 0 && (
         <div className="text-ctp-overlay2 text-sm">
