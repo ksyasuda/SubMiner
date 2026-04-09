@@ -943,6 +943,9 @@ test('window blur reclaims overlay focus while a yomitan popup remains visible o
     });
 
     handlers.setupYomitanObserver();
+    assert.equal(ctx.state.yomitanPopupVisible, true);
+    assert.equal(ctx.dom.overlay.classList.contains('interactive'), true);
+    assert.deepEqual(ignoreCalls, [{ ignore: false, forward: undefined }]);
     ignoreCalls.length = 0;
 
     for (const listener of windowListeners.get('blur') ?? []) {
