@@ -8,6 +8,7 @@ import {
   filterHiddenAnimeData,
   pruneHiddenAnime,
 } from './anime-visibility';
+import { LibrarySummarySection } from './LibrarySummarySection';
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -113,12 +114,14 @@ export function TrendsTab() {
   if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
   if (!data) return null;
 
+  const librarySummaryAsPoints = data.librarySummary.map((row) => ({
+    epochDay: 0,
+    animeTitle: row.title,
+    value: row.watchTimeMin,
+  }));
+
   const animeTitles = buildAnimeVisibilityOptions([
-    data.animePerDay.episodes,
-    data.animePerDay.watchTime,
-    data.animePerDay.cards,
-    data.animePerDay.words,
-    data.animePerDay.lookups,
+    librarySummaryAsPoints,
     data.animeCumulative.episodes,
     data.animeCumulative.cards,
     data.animeCumulative.words,
@@ -126,24 +129,6 @@ export function TrendsTab() {
   ]);
   const activeHiddenAnime = pruneHiddenAnime(hiddenAnime, animeTitles);
 
-  const filteredEpisodesPerAnime = filterHiddenAnimeData(
-    data.animePerDay.episodes,
-    activeHiddenAnime,
-  );
-  const filteredWatchTimePerAnime = filterHiddenAnimeData(
-    data.animePerDay.watchTime,
-    activeHiddenAnime,
-  );
-  const filteredCardsPerAnime = filterHiddenAnimeData(data.animePerDay.cards, activeHiddenAnime);
-  const filteredWordsPerAnime = filterHiddenAnimeData(data.animePerDay.words, activeHiddenAnime);
-  const filteredLookupsPerAnime = filterHiddenAnimeData(
-    data.animePerDay.lookups,
-    activeHiddenAnime,
-  );
-  const filteredLookupsPerHundredPerAnime = filterHiddenAnimeData(
-    data.animePerDay.lookupsPerHundred,
-    activeHiddenAnime,
-  );
   const filteredAnimeProgress = filterHiddenAnimeData(
     data.animeCumulative.episodes,
     activeHiddenAnime,
@@ -221,7 +206,7 @@ export function TrendsTab() {
           type="line"
         />
 
-        <SectionHeader>Library — Per Day</SectionHeader>
+        <SectionHeader>Library — Summary</SectionHeader>
         <AnimeVisibilityFilter
           animeTitles={animeTitles}
           hiddenAnime={activeHiddenAnime}
@@ -239,19 +224,7 @@ export function TrendsTab() {
             })
           }
         />
-        <StackedTrendChart title="Videos per Title" data={filteredEpisodesPerAnime} />
-        <StackedTrendChart title="Watch Time per Title (min)" data={filteredWatchTimePerAnime} />
-        <StackedTrendChart
-          title="Cards Mined per Title"
-          data={filteredCardsPerAnime}
-          colorPalette={cardsMinedStackedColors}
-        />
-        <StackedTrendChart title="Words Seen per Title" data={filteredWordsPerAnime} />
-        <StackedTrendChart title="Lookups per Title" data={filteredLookupsPerAnime} />
-        <StackedTrendChart
-          title="Lookups/100w per Title"
-          data={filteredLookupsPerHundredPerAnime}
-        />
+        <LibrarySummarySection rows={data.librarySummary} hiddenTitles={activeHiddenAnime} />
 
         <SectionHeader>Library — Cumulative</SectionHeader>
         <StackedTrendChart title="Watch Time Progress (min)" data={filteredWatchTimeProgress} />
