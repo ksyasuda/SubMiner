@@ -11,11 +11,17 @@ export function createBuildOverlayVisibilityRuntimeMainDepsHandler(
     getVisibleOverlayVisible: () => deps.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => deps.getForceMousePassthrough(),
     getWindowTracker: () => deps.getWindowTracker(),
+    getLastKnownWindowsForegroundProcessName: () =>
+      deps.getLastKnownWindowsForegroundProcessName?.() ?? null,
+    getWindowsOverlayProcessName: () => deps.getWindowsOverlayProcessName?.() ?? null,
+    getWindowsFocusHandoffGraceActive: () => deps.getWindowsFocusHandoffGraceActive?.() ?? false,
     getTrackerNotReadyWarningShown: () => deps.getTrackerNotReadyWarningShown(),
     setTrackerNotReadyWarningShown: (shown: boolean) => deps.setTrackerNotReadyWarningShown(shown),
     updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
       deps.updateVisibleOverlayBounds(geometry),
     ensureOverlayWindowLevel: (window: BrowserWindow) => deps.ensureOverlayWindowLevel(window),
+    syncWindowsOverlayToMpvZOrder: (window: BrowserWindow) =>
+      deps.syncWindowsOverlayToMpvZOrder?.(window),
     syncPrimaryOverlayWindowLayer: (layer: 'visible') => deps.syncPrimaryOverlayWindowLayer(layer),
     enforceOverlayLayerOrder: () => deps.enforceOverlayLayerOrder(),
     syncOverlayShortcuts: () => deps.syncOverlayShortcuts(),

@@ -72,6 +72,7 @@ export {
   createOverlayWindow,
   enforceOverlayLayerOrder,
   ensureOverlayWindowLevel,
+  isOverlayWindowContentReady,
   syncOverlayWindowLayer,
   updateOverlayWindowBounds,
 } from './overlay-window';

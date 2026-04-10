@@ -131,6 +131,14 @@ import {
 } from './logger';
 import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
 import {
+  clearWindowsOverlayOwnerNative,
+  ensureWindowsOverlayTransparencyNative,
+  getWindowsForegroundProcessNameNative,
+  queryWindowsForegroundProcessName,
+  setWindowsOverlayOwnerNative,
+  syncWindowsOverlayToMpvZOrder,
+} from './window-trackers/windows-helper';
+import {
   commandNeedsOverlayStartupPrereqs,
   commandNeedsOverlayRuntime,
   isHeadlessInitialCommand,
@@ -1835,6 +1843,9 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => appState.statsOverlayVisible,
     getWindowTracker: () => appState.windowTracker,
+    getLastKnownWindowsForegroundProcessName: () => lastWindowsVisibleOverlayForegroundProcessName,
+    getWindowsOverlayProcessName: () => path.parse(process.execPath).name.toLowerCase(),
+    getWindowsFocusHandoffGraceActive: () => hasWindowsVisibleOverlayFocusHandoffGrace(),
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown: boolean) => {
       appState.trackerNotReadyWarningShown = shown;
@@ -1842,6 +1853,9 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     updateVisibleOverlayBounds: (geometry: WindowGeometry) => updateVisibleOverlayBounds(geometry),
     ensureOverlayWindowLevel: (window) => {
       ensureOverlayWindowLevel(window);
+    },
+    syncWindowsOverlayToMpvZOrder: (_window) => {
+      requestWindowsVisibleOverlayZOrderSync();
     },
     syncPrimaryOverlayWindowLayer: (layer) => {
       syncPrimaryOverlayWindowLayer(layer);
@@ -1870,6 +1884,187 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     },
   })(),
 );
+
+const WINDOWS_VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
+const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
+const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
+let windowsVisibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
+let windowsVisibleOverlayZOrderSyncInFlight = false;
+let windowsVisibleOverlayZOrderSyncQueued = false;
+let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
+let windowsVisibleOverlayForegroundPollInFlight = false;
+let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
+let lastWindowsVisibleOverlayBlurredAtMs = 0;
+
+function clearWindowsVisibleOverlayBlurRefreshTimeouts(): void {
+  for (const timeout of windowsVisibleOverlayBlurRefreshTimeouts) {
+    clearTimeout(timeout);
+  }
+  windowsVisibleOverlayBlurRefreshTimeouts = [];
+}
+
+function getWindowsNativeWindowHandle(window: BrowserWindow): string {
+  const handle = window.getNativeWindowHandle();
+  return handle.length >= 8
+    ? handle.readBigUInt64LE(0).toString()
+    : BigInt(handle.readUInt32LE(0)).toString();
+}
+
+function getWindowsNativeWindowHandleNumber(window: BrowserWindow): number {
+  const handle = window.getNativeWindowHandle();
+  return handle.length >= 8
+    ? Number(handle.readBigUInt64LE(0))
+    : handle.readUInt32LE(0);
+}
+
+async function syncWindowsVisibleOverlayToMpvZOrder(): Promise<boolean> {
+  if (process.platform !== 'win32') {
+    return false;
+  }
+
+  const mainWindow = overlayManager.getMainWindow();
+  if (
+    !mainWindow ||
+    mainWindow.isDestroyed() ||
+    !mainWindow.isVisible() ||
+    !overlayManager.getVisibleOverlayVisible()
+  ) {
+    return false;
+  }
+
+  const windowTracker = appState.windowTracker;
+  if (!windowTracker) {
+    return false;
+  }
+
+  if (
+    typeof windowTracker.isTargetWindowMinimized === 'function' &&
+    windowTracker.isTargetWindowMinimized()
+  ) {
+    return false;
+  }
+
+  if (!windowTracker.isTracking() && windowTracker.getGeometry() === null) {
+    return false;
+  }
+
+  return await syncWindowsOverlayToMpvZOrder({
+    overlayWindowHandle: getWindowsNativeWindowHandle(mainWindow),
+    targetMpvSocketPath: appState.mpvSocketPath,
+  });
+}
+
+function requestWindowsVisibleOverlayZOrderSync(): void {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  if (windowsVisibleOverlayZOrderSyncInFlight) {
+    windowsVisibleOverlayZOrderSyncQueued = true;
+    return;
+  }
+
+  windowsVisibleOverlayZOrderSyncInFlight = true;
+  void syncWindowsVisibleOverlayToMpvZOrder()
+    .catch((error) => {
+      logger.warn('Failed to bind Windows overlay z-order to mpv', error);
+    })
+    .finally(() => {
+      windowsVisibleOverlayZOrderSyncInFlight = false;
+      if (!windowsVisibleOverlayZOrderSyncQueued) {
+        return;
+      }
+
+      windowsVisibleOverlayZOrderSyncQueued = false;
+      requestWindowsVisibleOverlayZOrderSync();
+    });
+}
+
+function hasWindowsVisibleOverlayFocusHandoffGrace(): boolean {
+  return (
+    process.platform === 'win32' &&
+    lastWindowsVisibleOverlayBlurredAtMs > 0 &&
+    Date.now() - lastWindowsVisibleOverlayBlurredAtMs <=
+      WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS
+  );
+}
+
+function shouldPollWindowsVisibleOverlayForegroundProcess(): boolean {
+  if (process.platform !== 'win32' || !overlayManager.getVisibleOverlayVisible()) {
+    return false;
+  }
+
+  const mainWindow = overlayManager.getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  const windowTracker = appState.windowTracker;
+  if (!windowTracker) {
+    return false;
+  }
+
+  if (
+    typeof windowTracker.isTargetWindowMinimized === 'function' &&
+    windowTracker.isTargetWindowMinimized()
+  ) {
+    return false;
+  }
+
+  const overlayFocused = mainWindow.isFocused();
+  const trackerFocused = windowTracker.isTargetWindowFocused?.() ?? false;
+  return !overlayFocused && !trackerFocused;
+}
+
+function maybePollWindowsVisibleOverlayForegroundProcess(): void {
+  if (!shouldPollWindowsVisibleOverlayForegroundProcess()) {
+    lastWindowsVisibleOverlayForegroundProcessName = null;
+    return;
+  }
+
+  const processName = getWindowsForegroundProcessNameNative();
+  const normalizedProcessName = processName?.trim().toLowerCase() ?? null;
+  const previousProcessName = lastWindowsVisibleOverlayForegroundProcessName;
+  lastWindowsVisibleOverlayForegroundProcessName = normalizedProcessName;
+
+  if (normalizedProcessName !== previousProcessName) {
+    overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+  }
+  if (normalizedProcessName === 'mpv' && previousProcessName !== 'mpv') {
+    requestWindowsVisibleOverlayZOrderSync();
+  }
+}
+
+function ensureWindowsVisibleOverlayForegroundPollLoop(): void {
+  if (process.platform !== 'win32' || windowsVisibleOverlayForegroundPollInterval !== null) {
+    return;
+  }
+
+  windowsVisibleOverlayForegroundPollInterval = setInterval(() => {
+    maybePollWindowsVisibleOverlayForegroundProcess();
+  }, WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS);
+}
+
+function scheduleVisibleOverlayBlurRefresh(): void {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  lastWindowsVisibleOverlayBlurredAtMs = Date.now();
+  clearWindowsVisibleOverlayBlurRefreshTimeouts();
+  for (const delayMs of WINDOWS_VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS) {
+    const refreshTimeout = setTimeout(() => {
+      windowsVisibleOverlayBlurRefreshTimeouts = windowsVisibleOverlayBlurRefreshTimeouts.filter(
+        (timeout) => timeout !== refreshTimeout,
+      );
+      overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+    }, delayMs);
+    windowsVisibleOverlayBlurRefreshTimeouts.push(refreshTimeout);
+  }
+}
+
+ensureWindowsVisibleOverlayForegroundPollLoop();
+
 const buildGetRuntimeOptionsStateMainDepsHandler = createBuildGetRuntimeOptionsStateMainDepsHandler(
   {
     getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
@@ -3796,7 +3991,14 @@ function createModalWindow(): BrowserWindow {
 }
 
 function createMainWindow(): BrowserWindow {
-  return createMainWindowHandler();
+  const window = createMainWindowHandler();
+  if (process.platform === 'win32') {
+    const overlayHwnd = getWindowsNativeWindowHandleNumber(window);
+    if (!ensureWindowsOverlayTransparencyNative(overlayHwnd)) {
+      logger.warn('Failed to eagerly extend Windows overlay transparency via koffi');
+    }
+  }
+  return window;
 }
 
 function ensureTray(): void {
@@ -4595,6 +4797,8 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
       tryHandleOverlayShortcutLocalFallback: (input) =>
         overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
       forwardTabToMpv: () => sendMpvCommandRuntime(appState.mpvClient, ['keypress', 'TAB']),
+      onVisibleWindowBlurred: () => scheduleVisibleOverlayBlurRefresh(),
+      onWindowContentReady: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
       onWindowClosed: (windowKind) => {
         if (windowKind === 'visible') {
           overlayManager.setMainWindow(null);
@@ -4696,6 +4900,9 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
         updateVisibleOverlayVisibility: () =>
           overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
       },
+      refreshCurrentSubtitle: () => {
+        subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+      },
       overlayShortcutsRuntime: {
         syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
       },
@@ -4719,6 +4926,36 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       },
       updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
         updateVisibleOverlayBounds(geometry),
+      bindOverlayOwner: () => {
+        const mainWindow = overlayManager.getMainWindow();
+        if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
+        const tracker = appState.windowTracker;
+        const mpvResult = tracker
+          ? (() => {
+              try {
+                const win32 = require('./window-trackers/win32') as typeof import('./window-trackers/win32');
+                const poll = win32.findMpvWindows();
+                const focused = poll.matches.find((m) => m.isForeground);
+                return focused ?? poll.matches.sort((a, b) => b.area - a.area)[0] ?? null;
+              } catch {
+                return null;
+              }
+            })()
+          : null;
+        if (!mpvResult) return;
+        const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
+        if (!setWindowsOverlayOwnerNative(overlayHwnd, mpvResult.hwnd)) {
+          logger.warn('Failed to set overlay owner via koffi');
+        }
+      },
+      releaseOverlayOwner: () => {
+        const mainWindow = overlayManager.getMainWindow();
+        if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
+        const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
+        if (!clearWindowsOverlayOwnerNative(overlayHwnd)) {
+          logger.warn('Failed to clear overlay owner via koffi');
+        }
+      },
       getOverlayWindows: () => getOverlayWindows(),
       getResolvedConfig: () => getResolvedConfig(),
       showDesktopNotification,

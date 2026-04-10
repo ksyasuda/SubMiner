@@ -11,6 +11,8 @@ export function createBuildCreateOverlayWindowMainDepsHandler<TWindow>(deps: {
       isOverlayVisible: (windowKind: 'visible' | 'modal') => boolean;
       tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
       forwardTabToMpv: () => void;
+      onVisibleWindowBlurred?: () => void;
+      onWindowContentReady?: () => void;
       onWindowClosed: (windowKind: 'visible' | 'modal') => void;
       yomitanSession?: Session | null;
     },
@@ -22,6 +24,8 @@ export function createBuildCreateOverlayWindowMainDepsHandler<TWindow>(deps: {
   isOverlayVisible: (windowKind: 'visible' | 'modal') => boolean;
   tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
   forwardTabToMpv: () => void;
+  onVisibleWindowBlurred?: () => void;
+  onWindowContentReady?: () => void;
   onWindowClosed: (windowKind: 'visible' | 'modal') => void;
   getYomitanSession?: () => Session | null;
 }) {
@@ -34,6 +38,8 @@ export function createBuildCreateOverlayWindowMainDepsHandler<TWindow>(deps: {
     isOverlayVisible: deps.isOverlayVisible,
     tryHandleOverlayShortcutLocalFallback: deps.tryHandleOverlayShortcutLocalFallback,
     forwardTabToMpv: deps.forwardTabToMpv,
+    onVisibleWindowBlurred: deps.onVisibleWindowBlurred,
+    onWindowContentReady: deps.onWindowContentReady,
     onWindowClosed: deps.onWindowClosed,
     getYomitanSession: () => deps.getYomitanSession?.() ?? null,
   });

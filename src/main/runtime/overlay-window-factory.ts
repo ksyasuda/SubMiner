@@ -13,6 +13,8 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
       isOverlayVisible: (windowKind: OverlayWindowKind) => boolean;
       tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
       forwardTabToMpv: () => void;
+      onVisibleWindowBlurred?: () => void;
+      onWindowContentReady?: () => void;
       onWindowClosed: (windowKind: OverlayWindowKind) => void;
       yomitanSession?: Session | null;
     },
@@ -24,6 +26,8 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
   isOverlayVisible: (windowKind: OverlayWindowKind) => boolean;
   tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
   forwardTabToMpv: () => void;
+  onVisibleWindowBlurred?: () => void;
+  onWindowContentReady?: () => void;
   onWindowClosed: (windowKind: OverlayWindowKind) => void;
   getYomitanSession?: () => Session | null;
 }) {
@@ -36,6 +40,8 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
       isOverlayVisible: deps.isOverlayVisible,
       tryHandleOverlayShortcutLocalFallback: deps.tryHandleOverlayShortcutLocalFallback,
       forwardTabToMpv: deps.forwardTabToMpv,
+      onVisibleWindowBlurred: deps.onVisibleWindowBlurred,
+      onWindowContentReady: deps.onWindowContentReady,
       onWindowClosed: deps.onWindowClosed,
       yomitanSession: deps.getYomitanSession?.() ?? null,
     });

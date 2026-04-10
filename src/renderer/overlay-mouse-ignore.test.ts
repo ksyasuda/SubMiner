@@ -15,6 +15,53 @@ function createClassList() {
   };
 }
 
+test('idle visible overlay starts click-through on platforms that toggle mouse ignore', () => {
+  const classList = createClassList();
+  const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
+  const originalWindow = globalThis.window;
+
+  Object.assign(globalThis, {
+    window: {
+      electronAPI: {
+        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+          ignoreCalls.push({ ignore, forward: options?.forward });
+        },
+      },
+    },
+  });
+
+  try {
+    syncOverlayMouseIgnoreState({
+      dom: {
+        overlay: { classList },
+      },
+      platform: {
+        shouldToggleMouseIgnore: true,
+      },
+      state: {
+        isOverSubtitle: false,
+        isOverSubtitleSidebar: false,
+        yomitanPopupVisible: false,
+        controllerSelectModalOpen: false,
+        controllerDebugModalOpen: false,
+        jimakuModalOpen: false,
+        youtubePickerModalOpen: false,
+        kikuModalOpen: false,
+        runtimeOptionsModalOpen: false,
+        subsyncModalOpen: false,
+        sessionHelpModalOpen: false,
+        subtitleSidebarModalOpen: false,
+        subtitleSidebarConfig: null,
+      },
+    } as never);
+
+    assert.equal(classList.contains('interactive'), false);
+    assert.deepEqual(ignoreCalls, [{ ignore: true, forward: true }]);
+  } finally {
+    Object.assign(globalThis, { window: originalWindow });
+  }
+});
+
 test('youtube picker keeps overlay interactive even when subtitle hover is inactive', () => {
   const classList = createClassList();
   const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];

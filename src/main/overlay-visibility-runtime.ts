@@ -12,10 +12,14 @@ export interface OverlayVisibilityRuntimeDeps {
   getVisibleOverlayVisible: () => boolean;
   getForceMousePassthrough: () => boolean;
   getWindowTracker: () => BaseWindowTracker | null;
+  getLastKnownWindowsForegroundProcessName?: () => string | null;
+  getWindowsOverlayProcessName?: () => string | null;
+  getWindowsFocusHandoffGraceActive?: () => boolean;
   getTrackerNotReadyWarningShown: () => boolean;
   setTrackerNotReadyWarningShown: (shown: boolean) => void;
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
   ensureOverlayWindowLevel: (window: BrowserWindow) => void;
+  syncWindowsOverlayToMpvZOrder?: (window: BrowserWindow) => void;
   syncPrimaryOverlayWindowLayer: (layer: 'visible') => void;
   enforceOverlayLayerOrder: () => void;
   syncOverlayShortcuts: () => void;
@@ -36,12 +40,20 @@ export function createOverlayVisibilityRuntimeService(
 
   return {
     updateVisibleOverlayVisibility(): void {
+      const visibleOverlayVisible = deps.getVisibleOverlayVisible();
+      const forceMousePassthrough = deps.getForceMousePassthrough();
+      const windowTracker = deps.getWindowTracker();
+      const mainWindow = deps.getMainWindow();
+
       updateVisibleOverlayVisibility({
-        visibleOverlayVisible: deps.getVisibleOverlayVisible(),
+        visibleOverlayVisible,
         modalActive: deps.getModalActive(),
-        forceMousePassthrough: deps.getForceMousePassthrough(),
-        mainWindow: deps.getMainWindow(),
-        windowTracker: deps.getWindowTracker(),
+        forceMousePassthrough,
+        mainWindow,
+        windowTracker,
+        lastKnownWindowsForegroundProcessName: deps.getLastKnownWindowsForegroundProcessName?.(),
+        windowsOverlayProcessName: deps.getWindowsOverlayProcessName?.() ?? null,
+        windowsFocusHandoffGraceActive: deps.getWindowsFocusHandoffGraceActive?.() ?? false,
         trackerNotReadyWarningShown: deps.getTrackerNotReadyWarningShown(),
         setTrackerNotReadyWarningShown: (shown: boolean) => {
           deps.setTrackerNotReadyWarningShown(shown);
@@ -49,6 +61,8 @@ export function createOverlayVisibilityRuntimeService(
         updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
           deps.updateVisibleOverlayBounds(geometry),
         ensureOverlayWindowLevel: (window: BrowserWindow) => deps.ensureOverlayWindowLevel(window),
+        syncWindowsOverlayToMpvZOrder: (window: BrowserWindow) =>
+          deps.syncWindowsOverlayToMpvZOrder?.(window),
         syncPrimaryOverlayWindowLayer: (layer: 'visible') =>
           deps.syncPrimaryOverlayWindowLayer(layer),
         enforceOverlayLayerOrder: () => deps.enforceOverlayLayerOrder(),
