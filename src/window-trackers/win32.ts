@@ -216,6 +216,7 @@ export function clearOverlayOwner(overlayHwnd: number): void {
 }
 
 export function bindOverlayAboveMpv(overlayHwnd: number, mpvHwnd: number): void {
+  SetWindowLongPtrW(overlayHwnd, GWLP_HWNDPARENT, mpvHwnd);
   const mpvExStyle = GetWindowLongW(mpvHwnd, GWL_EXSTYLE);
   const mpvIsTopmost = (mpvExStyle & WS_EX_TOPMOST) !== 0;
 

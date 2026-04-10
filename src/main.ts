@@ -131,6 +131,7 @@ import {
 } from './logger';
 import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
 import {
+  bindWindowsOverlayAboveMpvNative,
   clearWindowsOverlayOwnerNative,
   ensureWindowsOverlayTransparencyNative,
   getWindowsForegroundProcessNameNative,
@@ -1886,9 +1887,11 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
 );
 
 const WINDOWS_VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
+const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] as const;
 const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
 const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
 let windowsVisibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
+let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderSyncInFlight = false;
 let windowsVisibleOverlayZOrderSyncQueued = false;
 let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
@@ -1901,6 +1904,13 @@ function clearWindowsVisibleOverlayBlurRefreshTimeouts(): void {
     clearTimeout(timeout);
   }
   windowsVisibleOverlayBlurRefreshTimeouts = [];
+}
+
+function clearWindowsVisibleOverlayZOrderRetryTimeouts(): void {
+  for (const timeout of windowsVisibleOverlayZOrderRetryTimeouts) {
+    clearTimeout(timeout);
+  }
+  windowsVisibleOverlayZOrderRetryTimeouts = [];
 }
 
 function getWindowsNativeWindowHandle(window: BrowserWindow): string {
@@ -1948,10 +1958,20 @@ async function syncWindowsVisibleOverlayToMpvZOrder(): Promise<boolean> {
     return false;
   }
 
-  return await syncWindowsOverlayToMpvZOrder({
+  const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
+  if (bindWindowsOverlayAboveMpvNative(overlayHwnd)) {
+    (mainWindow as BrowserWindow & { setOpacity?: (opacity: number) => void }).setOpacity?.(1);
+    return true;
+  }
+
+  const synced = await syncWindowsOverlayToMpvZOrder({
     overlayWindowHandle: getWindowsNativeWindowHandle(mainWindow),
     targetMpvSocketPath: appState.mpvSocketPath,
   });
+  if (synced) {
+    (mainWindow as BrowserWindow & { setOpacity?: (opacity: number) => void }).setOpacity?.(1);
+  }
+  return synced;
 }
 
 function requestWindowsVisibleOverlayZOrderSync(): void {
@@ -1978,6 +1998,23 @@ function requestWindowsVisibleOverlayZOrderSync(): void {
       windowsVisibleOverlayZOrderSyncQueued = false;
       requestWindowsVisibleOverlayZOrderSync();
     });
+}
+
+function scheduleWindowsVisibleOverlayZOrderSyncBurst(): void {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  clearWindowsVisibleOverlayZOrderRetryTimeouts();
+  for (const delayMs of WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS) {
+    const retryTimeout = setTimeout(() => {
+      windowsVisibleOverlayZOrderRetryTimeouts = windowsVisibleOverlayZOrderRetryTimeouts.filter(
+        (timeout) => timeout !== retryTimeout,
+      );
+      requestWindowsVisibleOverlayZOrderSync();
+    }, delayMs);
+    windowsVisibleOverlayZOrderRetryTimeouts.push(retryTimeout);
+  }
 }
 
 function hasWindowsVisibleOverlayFocusHandoffGrace(): boolean {
@@ -3869,6 +3906,12 @@ function applyOverlayRegions(geometry: WindowGeometry): void {
 const buildUpdateVisibleOverlayBoundsMainDepsHandler =
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
     setOverlayWindowBounds: (geometry) => applyOverlayRegions(geometry),
+    afterSetOverlayWindowBounds: () => {
+      if (process.platform !== 'win32' || !overlayManager.getVisibleOverlayVisible()) {
+        return;
+      }
+      scheduleWindowsVisibleOverlayZOrderSyncBurst();
+    },
   });
 const updateVisibleOverlayBoundsMainDeps = buildUpdateVisibleOverlayBoundsMainDepsHandler();
 const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
@@ -4929,6 +4972,10 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       bindOverlayOwner: () => {
         const mainWindow = overlayManager.getMainWindow();
         if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
+        const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
+        if (bindWindowsOverlayAboveMpvNative(overlayHwnd)) {
+          return;
+        }
         const tracker = appState.windowTracker;
         const mpvResult = tracker
           ? (() => {
@@ -4943,7 +4990,6 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
             })()
           : null;
         if (!mpvResult) return;
-        const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
         if (!setWindowsOverlayOwnerNative(overlayHwnd, mpvResult.hwnd)) {
           logger.warn('Failed to set overlay owner via koffi');
         }

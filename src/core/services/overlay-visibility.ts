@@ -25,7 +25,10 @@ function clearPendingWindowsOverlayReveal(window: BrowserWindow): void {
   pendingWindowsOverlayRevealTimeoutByWindow.delete(window);
 }
 
-function scheduleWindowsOverlayReveal(window: BrowserWindow): void {
+function scheduleWindowsOverlayReveal(
+  window: BrowserWindow,
+  onReveal?: (window: BrowserWindow) => void,
+): void {
   clearPendingWindowsOverlayReveal(window);
   const timeout = setTimeout(() => {
     pendingWindowsOverlayRevealTimeoutByWindow.delete(window);
@@ -33,6 +36,7 @@ function scheduleWindowsOverlayReveal(window: BrowserWindow): void {
       return;
     }
     setOverlayWindowOpacity(window, 1);
+    onReveal?.(window);
   }, WINDOWS_OVERLAY_REVEAL_DELAY_MS);
   pendingWindowsOverlayRevealTimeoutByWindow.set(window, timeout);
 }
@@ -154,14 +158,18 @@ export function updateVisibleOverlayVisibility(args: {
         setOverlayWindowOpacity(mainWindow, 0);
         mainWindow.showInactive();
         mainWindow.setIgnoreMouseEvents(true, { forward: true });
-        scheduleWindowsOverlayReveal(mainWindow);
+        scheduleWindowsOverlayReveal(mainWindow, shouldBindTrackedWindowsOverlay
+          ? (window) => args.syncWindowsOverlayToMpvZOrder?.(window)
+          : undefined);
       } else {
         if (args.isWindowsPlatform) {
           setOverlayWindowOpacity(mainWindow, 0);
         }
         mainWindow.show();
         if (args.isWindowsPlatform) {
-          scheduleWindowsOverlayReveal(mainWindow);
+          scheduleWindowsOverlayReveal(mainWindow, shouldBindTrackedWindowsOverlay
+            ? (window) => args.syncWindowsOverlayToMpvZOrder?.(window)
+            : undefined);
         }
       }
     }
@@ -199,6 +207,17 @@ export function updateVisibleOverlayVisibility(args: {
   }
 
   if (args.windowTracker && args.windowTracker.isTracking()) {
+    if (
+      args.isWindowsPlatform &&
+      typeof args.windowTracker.isTargetWindowMinimized === 'function' &&
+      args.windowTracker.isTargetWindowMinimized()
+    ) {
+      clearPendingWindowsOverlayReveal(mainWindow);
+      setOverlayWindowOpacity(mainWindow, 0);
+      mainWindow.hide();
+      args.syncOverlayShortcuts();
+      return;
+    }
     args.setTrackerNotReadyWarningShown(false);
     const geometry = args.windowTracker.getGeometry();
     if (geometry) {

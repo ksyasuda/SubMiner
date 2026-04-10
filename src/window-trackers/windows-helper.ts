@@ -384,6 +384,21 @@ export function ensureWindowsOverlayTransparencyNative(overlayHwnd: number): boo
   }
 }
 
+export function bindWindowsOverlayAboveMpvNative(overlayHwnd: number): boolean {
+  try {
+    const win32 = require('./win32') as typeof import('./win32');
+    const poll = win32.findMpvWindows();
+    const focused = poll.matches.find((m) => m.isForeground);
+    const best = focused ?? poll.matches.sort((a, b) => b.area - a.area)[0];
+    if (!best) return false;
+    win32.bindOverlayAboveMpv(overlayHwnd, best.hwnd);
+    win32.ensureOverlayTransparency(overlayHwnd);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function clearWindowsOverlayOwnerNative(overlayHwnd: number): boolean {
   try {
     const win32 = require('./win32') as typeof import('./win32');

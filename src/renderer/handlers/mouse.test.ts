@@ -1122,6 +1122,199 @@ test('visibility recovery re-enables subtitle hover without needing a fresh poin
   }
 });
 
+test('visibility recovery ignores synthetic subtitle enter until the pointer moves again', async () => {
+  const ctx = createMouseTestContext();
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
+  const mpvCommands: Array<(string | number)[]> = [];
+  const documentListeners = new Map<string, Array<(event: unknown) => void>>();
+  let hoveredElement: unknown = ctx.dom.subtitleContainer;
+  let visibilityState: 'hidden' | 'visible' = 'visible';
+  let subtitleHoverAutoPauseEnabled = false;
+  ctx.platform.shouldToggleMouseIgnore = true;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+          ignoreCalls.push({ ignore, forward: options?.forward });
+        },
+      },
+      getComputedStyle: () => ({
+        visibility: 'hidden',
+        display: 'none',
+        opacity: '0',
+      }),
+      focus: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: (event: unknown) => void) => {
+        const bucket = documentListeners.get(type) ?? [];
+        bucket.push(listener);
+        documentListeners.set(type, bucket);
+      },
+      get visibilityState() {
+        return visibilityState;
+      },
+      elementFromPoint: () => hoveredElement,
+      querySelectorAll: () => [],
+      body: {},
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => false,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => subtitleHoverAutoPauseEnabled,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: (command) => {
+        mpvCommands.push(command);
+      },
+    });
+
+    handlers.setupPointerTracking();
+    for (const listener of documentListeners.get('mousemove') ?? []) {
+      listener({ clientX: 120, clientY: 240 });
+    }
+    await waitForNextTick();
+
+    ignoreCalls.length = 0;
+    visibilityState = 'hidden';
+    visibilityState = 'visible';
+    subtitleHoverAutoPauseEnabled = true;
+    for (const listener of documentListeners.get('visibilitychange') ?? []) {
+      listener({});
+    }
+
+    await handlers.handlePrimaryMouseEnter();
+    assert.deepEqual(mpvCommands, []);
+
+    hoveredElement = null;
+    for (const listener of documentListeners.get('mousemove') ?? []) {
+      listener({ clientX: 32, clientY: 48 });
+    }
+
+    hoveredElement = ctx.dom.subtitleContainer;
+    for (const listener of documentListeners.get('mousemove') ?? []) {
+      listener({ clientX: 120, clientY: 240 });
+    }
+    await waitForNextTick();
+
+    assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});
+
+test('window resize ignores synthetic subtitle enter until the pointer moves again', async () => {
+  const ctx = createMouseTestContext();
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const mpvCommands: Array<(string | number)[]> = [];
+  const windowListeners = new Map<string, Array<() => void>>();
+  const documentListeners = new Map<string, Array<(event: unknown) => void>>();
+  let hoveredElement: unknown = ctx.dom.subtitleContainer;
+  let subtitleHoverAutoPauseEnabled = false;
+  ctx.platform.shouldToggleMouseIgnore = true;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        setIgnoreMouseEvents: () => {},
+      },
+      addEventListener: (type: string, listener: () => void) => {
+        const bucket = windowListeners.get(type) ?? [];
+        bucket.push(listener);
+        windowListeners.set(type, bucket);
+      },
+      getComputedStyle: () => ({
+        visibility: 'hidden',
+        display: 'none',
+        opacity: '0',
+      }),
+      focus: () => {},
+      innerHeight: 1000,
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: (event: unknown) => void) => {
+        const bucket = documentListeners.get(type) ?? [];
+        bucket.push(listener);
+        documentListeners.set(type, bucket);
+      },
+      elementFromPoint: () => hoveredElement,
+      querySelectorAll: () => [],
+      body: {},
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => false,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => subtitleHoverAutoPauseEnabled,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: (command) => {
+        mpvCommands.push(command);
+      },
+    });
+
+    handlers.setupPointerTracking();
+    handlers.setupResizeHandler();
+
+    for (const listener of documentListeners.get('mousemove') ?? []) {
+      listener({ clientX: 120, clientY: 240 });
+    }
+    await waitForNextTick();
+
+    subtitleHoverAutoPauseEnabled = true;
+    for (const listener of windowListeners.get('resize') ?? []) {
+      listener();
+    }
+
+    await handlers.handlePrimaryMouseEnter();
+    assert.deepEqual(mpvCommands, []);
+
+    hoveredElement = null;
+    for (const listener of documentListeners.get('mousemove') ?? []) {
+      listener({ clientX: 32, clientY: 48 });
+    }
+
+    hoveredElement = ctx.dom.subtitleContainer;
+    for (const listener of documentListeners.get('mousemove') ?? []) {
+      listener({ clientX: 120, clientY: 240 });
+    }
+    await waitForNextTick();
+
+    assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});
+
 test('visibility recovery keeps overlay click-through when pointer is not over subtitles', () => {
   const ctx = createMouseTestContext();
   const originalWindow = globalThis.window;
