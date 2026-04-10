@@ -19,6 +19,7 @@
 import { BaseWindowTracker } from './base-tracker';
 import type { WindowGeometry } from '../types';
 import type { MpvPollResult } from './win32';
+import { queryWindowsTrackerMpvWindows } from './windows-helper';
 import { createLogger } from '../logger';
 
 const log = createLogger('tracker').child('windows');
@@ -31,7 +32,16 @@ type WindowsTrackerDeps = {
   now?: () => number;
 };
 
-function defaultPollMpvWindows(): MpvPollResult {
+function defaultPollMpvWindows(targetMpvSocketPath?: string | null): MpvPollResult {
+  if (targetMpvSocketPath) {
+    const helperResult = queryWindowsTrackerMpvWindows({
+      targetMpvSocketPath,
+    });
+    if (helperResult) {
+      return helperResult;
+    }
+  }
+
   const win32 = require('./win32') as typeof import('./win32');
   return win32.findMpvWindows();
 }
@@ -49,10 +59,12 @@ export class WindowsWindowTracker extends BaseWindowTracker {
   private consecutiveMisses = 0;
   private trackingLossStartedAtMs: number | null = null;
   private targetWindowMinimized = false;
+  private readonly targetMpvSocketPath: string | null;
 
   constructor(_targetMpvSocketPath?: string, deps: WindowsTrackerDeps = {}) {
     super();
-    this.pollMpvWindows = deps.pollMpvWindows ?? defaultPollMpvWindows;
+    this.targetMpvSocketPath = _targetMpvSocketPath?.trim() || null;
+    this.pollMpvWindows = deps.pollMpvWindows ?? (() => defaultPollMpvWindows(this.targetMpvSocketPath));
     this.maxConsecutiveMisses = Math.max(1, Math.floor(deps.maxConsecutiveMisses ?? 2));
     this.trackingLossGraceMs = Math.max(0, Math.floor(deps.trackingLossGraceMs ?? 1_500));
     this.minimizedTrackingLossGraceMs = Math.max(

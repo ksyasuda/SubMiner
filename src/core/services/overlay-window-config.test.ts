@@ -14,7 +14,7 @@ test('overlay window config explicitly disables renderer sandbox for preload com
 });
 
 test('Windows visible overlay window config does not start as always-on-top', () => {
-  const originalPlatform = process.platform;
+  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
 
   Object.defineProperty(process, 'platform', {
     configurable: true,
@@ -29,10 +29,9 @@ test('Windows visible overlay window config does not start as always-on-top', ()
 
     assert.equal(options.alwaysOnTop, false);
   } finally {
-    Object.defineProperty(process, 'platform', {
-      configurable: true,
-      value: originalPlatform,
-    });
+    if (originalPlatformDescriptor) {
+      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+    }
   }
 });
 

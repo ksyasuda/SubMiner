@@ -7,6 +7,8 @@ import {
   parseWindowTrackerHelperOutput,
   parseWindowTrackerHelperState,
   queryWindowsForegroundProcessName,
+  queryWindowsTargetWindowHandle,
+  queryWindowsTrackerMpvWindows,
   resolveWindowsTrackerHelper,
   syncWindowsOverlayToMpvZOrder,
 } from './windows-helper';
@@ -129,7 +131,77 @@ test('lowerWindowsOverlayInZOrder forwards overlay handle to powershell helper',
 
   assert.equal(lowered, true);
   assert.equal(capturedMode, 'lower-overlay');
-  assert.deepEqual(capturedArgs, ['67890']);
+  assert.deepEqual(capturedArgs, ['', '67890']);
+});
+
+test('queryWindowsTrackerMpvWindows resolves geometry from the powershell helper', () => {
+  let capturedMode: string | null = null;
+  let capturedArgs: string[] | null = null;
+
+  const result = queryWindowsTrackerMpvWindows({
+    targetMpvSocketPath: '\\\\.\\pipe\\subminer-socket',
+    resolveHelper: () => ({
+      kind: 'powershell',
+      command: 'powershell.exe',
+      args: ['-File', 'helper.ps1'],
+      helperPath: 'helper.ps1',
+    }),
+    runHelperSync: (_spec, mode, extraArgs = []) => {
+      capturedMode = mode;
+      capturedArgs = extraArgs;
+      return {
+        stdout: '120,240,1280,720',
+        stderr: 'focus=focused\nstate=visible',
+      };
+    },
+  });
+
+  assert.deepEqual(result, {
+    matches: [
+      {
+        hwnd: 0,
+        bounds: {
+          x: 120,
+          y: 240,
+          width: 1280,
+          height: 720,
+        },
+        area: 1280 * 720,
+        isForeground: true,
+      },
+    ],
+    focusState: true,
+    windowState: 'visible',
+  });
+  assert.equal(capturedMode, 'geometry');
+  assert.deepEqual(capturedArgs, ['\\\\.\\pipe\\subminer-socket']);
+});
+
+test('queryWindowsTargetWindowHandle resolves the selected hwnd from the powershell helper', () => {
+  let capturedMode: string | null = null;
+  let capturedArgs: string[] | null = null;
+
+  const hwnd = queryWindowsTargetWindowHandle({
+    targetMpvSocketPath: '\\\\.\\pipe\\subminer-socket',
+    resolveHelper: () => ({
+      kind: 'powershell',
+      command: 'powershell.exe',
+      args: ['-File', 'helper.ps1'],
+      helperPath: 'helper.ps1',
+    }),
+    runHelperSync: (_spec, mode, extraArgs = []) => {
+      capturedMode = mode;
+      capturedArgs = extraArgs;
+      return {
+        stdout: '12345',
+        stderr: '',
+      };
+    },
+  });
+
+  assert.equal(hwnd, 12345);
+  assert.equal(capturedMode, 'target-hwnd');
+  assert.deepEqual(capturedArgs, ['\\\\.\\pipe\\subminer-socket']);
 });
 
 test('resolveWindowsTrackerHelper auto mode prefers native helper when present', () => {

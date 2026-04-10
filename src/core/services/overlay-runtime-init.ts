@@ -105,15 +105,6 @@ export function initializeOverlayRuntime(options: {
     };
     windowTracker.onWindowLost = () => {
       options.releaseOverlayOwner?.();
-      if (
-        process.platform === 'win32' &&
-        typeof windowTracker.isTargetWindowMinimized === 'function' &&
-        !windowTracker.isTargetWindowMinimized()
-      ) {
-        options.syncOverlayShortcuts();
-        return;
-      }
-
       for (const window of options.getOverlayWindows()) {
         window.hide();
       }
