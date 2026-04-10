@@ -166,14 +166,20 @@ const TRENDS_DASHBOARD = {
   ratios: {
     lookupsPerHundred: [{ label: 'Mar 1', value: 5 }],
   },
-  animePerDay: {
-    episodes: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 1 }],
-    watchTime: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 25 }],
-    cards: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 5 }],
-    words: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 300 }],
-    lookups: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 15 }],
-    lookupsPerHundred: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 5 }],
-  },
+  librarySummary: [
+    {
+      title: 'Little Witch Academia',
+      watchTimeMin: 25,
+      videos: 1,
+      sessions: 1,
+      cards: 5,
+      words: 300,
+      lookups: 15,
+      lookupsPerHundred: 5,
+      firstWatched: 20_000,
+      lastWatched: 20_000,
+    },
+  ],
   animeCumulative: {
     watchTime: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 25 }],
     episodes: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 1 }],
@@ -598,7 +604,7 @@ describe('stats server API routes', () => {
     const body = await res.json();
     assert.deepEqual(seenArgs, ['90d', 'month']);
     assert.deepEqual(body.activity.watchTime, TRENDS_DASHBOARD.activity.watchTime);
-    assert.deepEqual(body.animePerDay.watchTime, TRENDS_DASHBOARD.animePerDay.watchTime);
+    assert.deepEqual(body.librarySummary, TRENDS_DASHBOARD.librarySummary);
   });
 
   it('GET /api/stats/trends/dashboard accepts 365d range', async () => {

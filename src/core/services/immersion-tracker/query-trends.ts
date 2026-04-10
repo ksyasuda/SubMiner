@@ -74,14 +74,6 @@ export interface TrendsDashboardQueryResult {
   ratios: {
     lookupsPerHundred: TrendChartPoint[];
   };
-  animePerDay: {
-    episodes: TrendPerAnimePoint[];
-    watchTime: TrendPerAnimePoint[];
-    cards: TrendPerAnimePoint[];
-    words: TrendPerAnimePoint[];
-    lookups: TrendPerAnimePoint[];
-    lookupsPerHundred: TrendPerAnimePoint[];
-  };
   animeCumulative: {
     watchTime: TrendPerAnimePoint[];
     episodes: TrendPerAnimePoint[];
@@ -313,61 +305,6 @@ function buildLookupsPerHundredWords(
         value: words > 0 ? +((lookups / words) * 100).toFixed(1) : 0,
       };
     });
-}
-
-function buildPerAnimeFromSessions(
-  sessions: TrendSessionMetricRow[],
-  getValue: (session: TrendSessionMetricRow) => number,
-): TrendPerAnimePoint[] {
-  const byAnime = new Map<string, Map<number, number>>();
-
-  for (const session of sessions) {
-    const animeTitle = resolveTrendAnimeTitle(session);
-    const epochDay = session.epochDay;
-    const dayMap = byAnime.get(animeTitle) ?? new Map();
-    dayMap.set(epochDay, (dayMap.get(epochDay) ?? 0) + getValue(session));
-    byAnime.set(animeTitle, dayMap);
-  }
-
-  const result: TrendPerAnimePoint[] = [];
-  for (const [animeTitle, dayMap] of byAnime) {
-    for (const [epochDay, value] of dayMap) {
-      result.push({ epochDay, animeTitle, value });
-    }
-  }
-  return result;
-}
-
-function buildLookupsPerHundredPerAnime(sessions: TrendSessionMetricRow[]): TrendPerAnimePoint[] {
-  const lookups = new Map<string, Map<number, number>>();
-  const words = new Map<string, Map<number, number>>();
-
-  for (const session of sessions) {
-    const animeTitle = resolveTrendAnimeTitle(session);
-    const epochDay = session.epochDay;
-
-    const lookupMap = lookups.get(animeTitle) ?? new Map();
-    lookupMap.set(epochDay, (lookupMap.get(epochDay) ?? 0) + session.yomitanLookupCount);
-    lookups.set(animeTitle, lookupMap);
-
-    const wordMap = words.get(animeTitle) ?? new Map();
-    wordMap.set(epochDay, (wordMap.get(epochDay) ?? 0) + getTrendSessionWordCount(session));
-    words.set(animeTitle, wordMap);
-  }
-
-  const result: TrendPerAnimePoint[] = [];
-  for (const [animeTitle, dayMap] of lookups) {
-    const wordMap = words.get(animeTitle) ?? new Map();
-    for (const [epochDay, lookupCount] of dayMap) {
-      const wordCount = wordMap.get(epochDay) ?? 0;
-      result.push({
-        epochDay,
-        animeTitle,
-        value: wordCount > 0 ? +((lookupCount / wordCount) * 100).toFixed(1) : 0,
-      });
-    }
-  }
-  return result;
 }
 
 function buildCumulativePerAnime(points: TrendPerAnimePoint[]): TrendPerAnimePoint[] {
@@ -760,8 +697,6 @@ export function getTrendsDashboard(
       titlesByVideoId,
       (rollup) => rollup.totalTokensSeen,
     ),
-    lookups: buildPerAnimeFromSessions(sessions, (session) => session.yomitanLookupCount),
-    lookupsPerHundred: buildLookupsPerHundredPerAnime(sessions),
   };
 
   return {
@@ -788,7 +723,6 @@ export function getTrendsDashboard(
     ratios: {
       lookupsPerHundred: buildLookupsPerHundredWords(sessions, groupBy),
     },
-    animePerDay,
     animeCumulative: {
       watchTime: buildCumulativePerAnime(animePerDay.watchTime),
       episodes: buildCumulativePerAnime(animePerDay.episodes),
