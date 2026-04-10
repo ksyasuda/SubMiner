@@ -21,6 +21,27 @@ export interface OverlayShortcutLifecycleDeps {
   cancelPendingMineSentenceMultiple: () => void;
 }
 
+const OVERLAY_SHORTCUT_KEYS: Array<keyof Omit<ConfiguredShortcuts, 'multiCopyTimeoutMs'>> = [
+  'copySubtitle',
+  'copySubtitleMultiple',
+  'updateLastCardFromClipboard',
+  'triggerFieldGrouping',
+  'triggerSubsync',
+  'mineSentence',
+  'mineSentenceMultiple',
+  'toggleSecondarySub',
+  'markAudioCard',
+  'openRuntimeOptions',
+  'openJimaku',
+];
+
+function hasConfiguredOverlayShortcuts(shortcuts: ConfiguredShortcuts): boolean {
+  return OVERLAY_SHORTCUT_KEYS.some((key) => {
+    const shortcut = shortcuts[key];
+    return typeof shortcut === 'string' && shortcut.trim().length > 0;
+  });
+}
+
 export function shouldActivateOverlayShortcuts(args: {
   overlayRuntimeInitialized: boolean;
   isMacOSPlatform: boolean;
@@ -36,10 +57,10 @@ export function shouldActivateOverlayShortcuts(args: {
 }
 
 export function registerOverlayShortcuts(
-  _shortcuts: ConfiguredShortcuts,
+  shortcuts: ConfiguredShortcuts,
   _handlers: OverlayShortcutHandlers,
 ): boolean {
-  return false;
+  return hasConfiguredOverlayShortcuts(shortcuts);
 }
 
 export function unregisterOverlayShortcuts(_shortcuts: ConfiguredShortcuts): void {}

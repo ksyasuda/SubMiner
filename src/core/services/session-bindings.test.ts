@@ -101,6 +101,55 @@ test('compileSessionBindings resolves CommandOrControl per platform', () => {
   assert.deepEqual(mac.bindings[0]?.key.modifiers, ['shift', 'meta']);
 });
 
+test('compileSessionBindings resolves CommandOrControl in DOM key strings per platform', () => {
+  const input = {
+    shortcuts: createShortcuts(),
+    keybindings: [createKeybinding('CommandOrControl+Shift+J', ['cycle', 'fullscreen'])],
+    statsToggleKey: 'CommandOrControl+Backquote',
+  };
+
+  const windows = compileSessionBindings({ ...input, platform: 'win32' });
+  const mac = compileSessionBindings({ ...input, platform: 'darwin' });
+
+  assert.deepEqual(
+    windows.bindings
+      .map((binding) => ({
+        sourcePath: binding.sourcePath,
+        modifiers: binding.key.modifiers,
+      }))
+      .sort((left, right) => left.sourcePath.localeCompare(right.sourcePath)),
+    [
+      {
+        sourcePath: 'keybindings[0].key',
+        modifiers: ['ctrl', 'shift'],
+      },
+      {
+        sourcePath: 'stats.toggleKey',
+        modifiers: ['ctrl'],
+      },
+    ],
+  );
+
+  assert.deepEqual(
+    mac.bindings
+      .map((binding) => ({
+        sourcePath: binding.sourcePath,
+        modifiers: binding.key.modifiers,
+      }))
+      .sort((left, right) => left.sourcePath.localeCompare(right.sourcePath)),
+    [
+      {
+        sourcePath: 'keybindings[0].key',
+        modifiers: ['shift', 'meta'],
+      },
+      {
+        sourcePath: 'stats.toggleKey',
+        modifiers: ['meta'],
+      },
+    ],
+  );
+});
+
 test('compileSessionBindings drops conflicting bindings that canonicalize to the same key', () => {
   const result = compileSessionBindings({
     shortcuts: createShortcuts({
@@ -170,6 +219,29 @@ test('compileSessionBindings warns on deprecated toggleVisibleOverlayGlobal conf
       path: 'shortcuts.toggleVisibleOverlayGlobal',
       value: 'Alt+Shift+O',
       message: 'Rename shortcuts.toggleVisibleOverlayGlobal to shortcuts.toggleVisibleOverlay.',
+    },
+  ]);
+});
+
+test('compileSessionBindings includes stats toggle in the shared session binding artifact', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts(),
+    keybindings: [],
+    statsToggleKey: 'Backquote',
+    platform: 'win32',
+  });
+
+  assert.equal(result.warnings.length, 0);
+  assert.deepEqual(result.bindings, [
+    {
+      sourcePath: 'stats.toggleKey',
+      originalKey: 'Backquote',
+      key: {
+        code: 'Backquote',
+        modifiers: [],
+      },
+      actionType: 'session-action',
+      actionId: 'toggleStatsOverlay',
     },
   ]);
 });

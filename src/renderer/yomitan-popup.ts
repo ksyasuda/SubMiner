@@ -62,10 +62,14 @@ function queryPopupElements<T extends Element>(
   root: ParentNode | null | undefined,
   selector: string,
 ): T[] {
-  if (typeof root?.querySelectorAll !== 'function') {
-    return [];
+  if (typeof root?.querySelectorAll === 'function') {
+    return Array.from(root.querySelectorAll<T>(selector));
   }
-  return Array.from(root.querySelectorAll<T>(selector));
+  if (typeof root?.querySelector === 'function') {
+    const first = root.querySelector(selector) as T | null;
+    return first ? [first] : [];
+  }
+  return [];
 }
 
 export function isYomitanPopupVisible(root: ParentNode | null | undefined = document): boolean {

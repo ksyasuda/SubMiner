@@ -162,7 +162,10 @@ function parseAccelerator(
   };
 }
 
-function parseDomKeyString(key: string): { key: SessionKeySpec | null; message?: string } {
+function parseDomKeyString(
+  key: string,
+  platform: PlatformKeyModel,
+): { key: SessionKeySpec | null; message?: string } {
   const parts = key
     .split('+')
     .map((part) => part.trim())
@@ -194,7 +197,9 @@ function parseDomKeyString(key: string): { key: SessionKeySpec | null; message?:
       lower === 'cmd' ||
       lower === 'commandorcontrol'
     ) {
-      modifiers.push(lower === 'commandorcontrol' ? 'ctrl' : 'meta');
+      modifiers.push(
+        lower === 'commandorcontrol' ? (platform === 'darwin' ? 'meta' : 'ctrl') : 'meta',
+      );
       continue;
     }
     return {
@@ -335,7 +340,7 @@ export function compileSessionBindings(
   }
 
   if (statsToggleKey) {
-    const parsed = parseDomKeyString(statsToggleKey);
+    const parsed = parseDomKeyString(statsToggleKey, input.platform);
     if (!parsed.key) {
       warnings.push({
         kind: 'unsupported',
@@ -363,7 +368,7 @@ export function compileSessionBindings(
 
   input.keybindings.forEach((binding, index) => {
     if (!binding.command) return;
-    const parsed = parseDomKeyString(binding.key);
+    const parsed = parseDomKeyString(binding.key, input.platform);
     if (!parsed.key) {
       warnings.push({
         kind: 'unsupported',

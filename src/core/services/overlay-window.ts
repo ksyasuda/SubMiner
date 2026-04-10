@@ -17,6 +17,9 @@ const overlayWindowContentReady = new WeakSet<BrowserWindow>();
 const OVERLAY_WINDOW_CONTENT_READY_FLAG = '__subminerOverlayContentReady';
 
 export function isOverlayWindowContentReady(window: BrowserWindow): boolean {
+  if (window.isDestroyed()) {
+    return false;
+  }
   return (
     overlayWindowContentReady.has(window) ||
     (window as BrowserWindow & { [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean })[

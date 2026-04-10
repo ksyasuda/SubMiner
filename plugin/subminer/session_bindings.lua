@@ -262,20 +262,24 @@ function M.create(ctx)
 	end
 
 	local function register_bindings()
-		clear_bindings()
-
 		local artifact, load_error = load_artifact()
 		if not artifact then
 			subminer_log("warn", "session-bindings", load_error)
 			return false
 		end
 
+		clear_numeric_selection(false)
+
+		local previous_binding_names = state.session_binding_names
+		local next_binding_names = {}
+		state.session_binding_names = next_binding_names
+
 		local timeout_ms = tonumber(artifact.numericSelectionTimeoutMs) or 3000
 		for index, binding in ipairs(artifact.bindings) do
 			local key_name = key_spec_to_mpv_binding(binding.key)
 			if key_name then
 				local name = "subminer-session-binding-" .. tostring(index)
-				state.session_binding_names[#state.session_binding_names + 1] = name
+				next_binding_names[#next_binding_names + 1] = name
 				mp.add_forced_key_binding(key_name, name, function()
 					handle_binding(binding, timeout_ms)
 				end)
@@ -288,10 +292,12 @@ function M.create(ctx)
 			end
 		end
 
+		remove_binding_names(previous_binding_names)
+
 		subminer_log(
 			"info",
 			"session-bindings",
-			"Registered " .. tostring(#state.session_binding_names) .. " shared session bindings"
+			"Registered " .. tostring(#next_binding_names) .. " shared session bindings"
 		)
 		return true
 	end
