@@ -16,6 +16,9 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
     getVisibleOverlayVisible: () => true,
     getForceMousePassthrough: () => true,
     getWindowTracker: () => tracker,
+    getLastKnownWindowsForegroundProcessName: () => 'mpv',
+    getWindowsOverlayProcessName: () => 'subminer',
+    getWindowsFocusHandoffGraceActive: () => true,
     getTrackerNotReadyWarningShown: () => trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown) => {
       trackerNotReadyWarningShown = shown;
@@ -23,6 +26,7 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
     },
     updateVisibleOverlayBounds: () => calls.push('visible-bounds'),
     ensureOverlayWindowLevel: () => calls.push('ensure-level'),
+    syncWindowsOverlayToMpvZOrder: () => calls.push('sync-windows-z-order'),
     syncPrimaryOverlayWindowLayer: (layer) => calls.push(`primary-layer:${layer}`),
     enforceOverlayLayerOrder: () => calls.push('enforce-order'),
     syncOverlayShortcuts: () => calls.push('sync-shortcuts'),
@@ -36,10 +40,14 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
   assert.equal(deps.getModalActive(), true);
   assert.equal(deps.getVisibleOverlayVisible(), true);
   assert.equal(deps.getForceMousePassthrough(), true);
+  assert.equal(deps.getLastKnownWindowsForegroundProcessName?.(), 'mpv');
+  assert.equal(deps.getWindowsOverlayProcessName?.(), 'subminer');
+  assert.equal(deps.getWindowsFocusHandoffGraceActive?.(), true);
   assert.equal(deps.getTrackerNotReadyWarningShown(), false);
   deps.setTrackerNotReadyWarningShown(true);
   deps.updateVisibleOverlayBounds({ x: 0, y: 0, width: 10, height: 10 });
   deps.ensureOverlayWindowLevel(mainWindow);
+  deps.syncWindowsOverlayToMpvZOrder?.(mainWindow);
   deps.syncPrimaryOverlayWindowLayer('visible');
   deps.enforceOverlayLayerOrder();
   deps.syncOverlayShortcuts();
@@ -52,6 +60,7 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
     'tracker-warning:true',
     'visible-bounds',
     'ensure-level',
+    'sync-windows-z-order',
     'primary-layer:visible',
     'enforce-order',
     'sync-shortcuts',

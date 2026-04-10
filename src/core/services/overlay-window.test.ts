@@ -103,6 +103,49 @@ test('handleOverlayWindowBlurred skips visible overlay restacking after manual h
   assert.deepEqual(calls, []);
 });
 
+test('handleOverlayWindowBlurred skips Windows visible overlay restacking after focus loss', () => {
+  const calls: string[] = [];
+
+  const handled = handleOverlayWindowBlurred({
+    kind: 'visible',
+    windowVisible: true,
+    isOverlayVisible: () => true,
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    moveWindowTop: () => {
+      calls.push('move-top');
+    },
+    platform: 'win32',
+  });
+
+  assert.equal(handled, false);
+  assert.deepEqual(calls, []);
+});
+
+test('handleOverlayWindowBlurred notifies Windows visible overlay blur callback without restacking', () => {
+  const calls: string[] = [];
+
+  const handled = handleOverlayWindowBlurred({
+    kind: 'visible',
+    windowVisible: true,
+    isOverlayVisible: () => true,
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    moveWindowTop: () => {
+      calls.push('move-top');
+    },
+    onWindowsVisibleOverlayBlur: () => {
+      calls.push('windows-visible-blur');
+    },
+    platform: 'win32',
+  });
+
+  assert.equal(handled, false);
+  assert.deepEqual(calls, ['windows-visible-blur']);
+});
+
 test('handleOverlayWindowBlurred preserves active visible/modal window stacking', () => {
   const calls: string[] = [];
 
@@ -117,6 +160,7 @@ test('handleOverlayWindowBlurred preserves active visible/modal window stacking'
       moveWindowTop: () => {
         calls.push('move-visible');
       },
+      platform: 'linux',
     }),
     true,
   );

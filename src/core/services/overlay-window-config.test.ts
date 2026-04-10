@@ -8,7 +8,32 @@ test('overlay window config explicitly disables renderer sandbox for preload com
     yomitanSession: null,
   });
 
+  assert.equal(options.backgroundColor, '#00000000');
   assert.equal(options.webPreferences?.sandbox, false);
+  assert.equal(options.webPreferences?.backgroundThrottling, false);
+});
+
+test('Windows visible overlay window config does not start as always-on-top', () => {
+  const originalPlatform = process.platform;
+
+  Object.defineProperty(process, 'platform', {
+    configurable: true,
+    value: 'win32',
+  });
+
+  try {
+    const options = buildOverlayWindowOptions('visible', {
+      isDev: false,
+      yomitanSession: null,
+    });
+
+    assert.equal(options.alwaysOnTop, false);
+  } finally {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: originalPlatform,
+    });
+  }
 });
 
 test('overlay window config uses the provided Yomitan session when available', () => {

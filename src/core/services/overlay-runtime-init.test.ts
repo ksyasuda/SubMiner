@@ -443,3 +443,214 @@ test('initializeOverlayRuntime refreshes visible overlay when tracker focus chan
 
   assert.equal(visibilityRefreshCalls, 2);
 });
+
+test('initializeOverlayRuntime refreshes the current subtitle when tracker finds the target window again', () => {
+  let subtitleRefreshCalls = 0;
+  const tracker = {
+    onGeometryChange: null as ((...args: unknown[]) => void) | null,
+    onWindowFound: null as ((...args: unknown[]) => void) | null,
+    onWindowLost: null as (() => void) | null,
+    onWindowFocusChange: null as ((focused: boolean) => void) | null,
+    start: () => {},
+  };
+
+  initializeOverlayRuntime({
+    backendOverride: null,
+    createMainWindow: () => {},
+    registerGlobalShortcuts: () => {},
+    updateVisibleOverlayBounds: () => {},
+    isVisibleOverlayVisible: () => true,
+    updateVisibleOverlayVisibility: () => {},
+    refreshCurrentSubtitle: () => {
+      subtitleRefreshCalls += 1;
+    },
+    getOverlayWindows: () => [],
+    syncOverlayShortcuts: () => {},
+    setWindowTracker: () => {},
+    getMpvSocketPath: () => '/tmp/mpv.sock',
+    createWindowTracker: () => tracker as never,
+    getResolvedConfig: () => ({
+      ankiConnect: { enabled: false } as never,
+    }),
+    getSubtitleTimingTracker: () => null,
+    getMpvClient: () => null,
+    getRuntimeOptionsManager: () => null,
+    setAnkiIntegration: () => {},
+    showDesktopNotification: () => {},
+    createFieldGroupingCallback: () => async () => ({
+      keepNoteId: 1,
+      deleteNoteId: 2,
+      deleteDuplicate: false,
+      cancelled: false,
+    }),
+    getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+  });
+
+  tracker.onWindowFound?.({ x: 100, y: 200, width: 1280, height: 720 });
+
+  assert.equal(subtitleRefreshCalls, 1);
+});
+
+test('initializeOverlayRuntime hides overlay windows when tracker loses the target window', () => {
+  const calls: string[] = [];
+  const tracker = {
+    onGeometryChange: null as ((...args: unknown[]) => void) | null,
+    onWindowFound: null as ((...args: unknown[]) => void) | null,
+    onWindowLost: null as (() => void) | null,
+    onWindowFocusChange: null as ((focused: boolean) => void) | null,
+    isTargetWindowMinimized: () => true,
+    start: () => {},
+  };
+  const overlayWindows = [
+    {
+      hide: () => calls.push('hide-visible'),
+    },
+    {
+      hide: () => calls.push('hide-modal'),
+    },
+  ];
+
+  initializeOverlayRuntime({
+    backendOverride: null,
+    createMainWindow: () => {},
+    registerGlobalShortcuts: () => {},
+    updateVisibleOverlayBounds: () => {},
+    isVisibleOverlayVisible: () => true,
+    updateVisibleOverlayVisibility: () => {},
+    refreshCurrentSubtitle: () => {},
+    getOverlayWindows: () => overlayWindows as never,
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    setWindowTracker: () => {},
+    getMpvSocketPath: () => '/tmp/mpv.sock',
+    createWindowTracker: () => tracker as never,
+    getResolvedConfig: () => ({
+      ankiConnect: { enabled: false } as never,
+    }),
+    getSubtitleTimingTracker: () => null,
+    getMpvClient: () => null,
+    getRuntimeOptionsManager: () => null,
+    setAnkiIntegration: () => {},
+    showDesktopNotification: () => {},
+    createFieldGroupingCallback: () => async () => ({
+      keepNoteId: 1,
+      deleteNoteId: 2,
+      deleteDuplicate: false,
+      cancelled: false,
+    }),
+    getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+  });
+
+  tracker.onWindowLost?.();
+
+  assert.deepEqual(calls, ['hide-visible', 'hide-modal', 'sync-shortcuts']);
+});
+
+test('initializeOverlayRuntime preserves visible overlay on Windows tracker loss when target is not minimized', () => {
+  const calls: string[] = [];
+  const tracker = {
+    onGeometryChange: null as ((...args: unknown[]) => void) | null,
+    onWindowFound: null as ((...args: unknown[]) => void) | null,
+    onWindowLost: null as (() => void) | null,
+    onWindowFocusChange: null as ((focused: boolean) => void) | null,
+    isTargetWindowMinimized: () => false,
+    start: () => {},
+  };
+  const overlayWindows = [
+    {
+      hide: () => calls.push('hide-visible'),
+    },
+  ];
+
+  initializeOverlayRuntime({
+    backendOverride: null,
+    createMainWindow: () => {},
+    registerGlobalShortcuts: () => {},
+    updateVisibleOverlayBounds: () => {},
+    isVisibleOverlayVisible: () => true,
+    updateVisibleOverlayVisibility: () => {
+      calls.push('update-visible');
+    },
+    refreshCurrentSubtitle: () => {},
+    getOverlayWindows: () => overlayWindows as never,
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    setWindowTracker: () => {},
+    getMpvSocketPath: () => '/tmp/mpv.sock',
+    createWindowTracker: () => tracker as never,
+    getResolvedConfig: () => ({
+      ankiConnect: { enabled: false } as never,
+    }),
+    getSubtitleTimingTracker: () => null,
+    getMpvClient: () => null,
+    getRuntimeOptionsManager: () => null,
+    setAnkiIntegration: () => {},
+    showDesktopNotification: () => {},
+    createFieldGroupingCallback: () => async () => ({
+      keepNoteId: 1,
+      deleteNoteId: 2,
+      deleteDuplicate: false,
+      cancelled: false,
+    }),
+    getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+  });
+
+  calls.length = 0;
+  tracker.onWindowLost?.();
+
+  assert.deepEqual(calls, ['sync-shortcuts']);
+});
+
+test('initializeOverlayRuntime restores overlay bounds and visibility when tracker finds the target window again', () => {
+  const bounds: Array<{ x: number; y: number; width: number; height: number }> = [];
+  let visibilityRefreshCalls = 0;
+  const tracker = {
+    onGeometryChange: null as ((...args: unknown[]) => void) | null,
+    onWindowFound: null as ((...args: unknown[]) => void) | null,
+    onWindowLost: null as (() => void) | null,
+    onWindowFocusChange: null as ((focused: boolean) => void) | null,
+    start: () => {},
+  };
+
+  initializeOverlayRuntime({
+    backendOverride: null,
+    createMainWindow: () => {},
+    registerGlobalShortcuts: () => {},
+    updateVisibleOverlayBounds: (geometry) => {
+      bounds.push(geometry);
+    },
+    isVisibleOverlayVisible: () => true,
+    updateVisibleOverlayVisibility: () => {
+      visibilityRefreshCalls += 1;
+    },
+    refreshCurrentSubtitle: () => {},
+    getOverlayWindows: () => [],
+    syncOverlayShortcuts: () => {},
+    setWindowTracker: () => {},
+    getMpvSocketPath: () => '/tmp/mpv.sock',
+    createWindowTracker: () => tracker as never,
+    getResolvedConfig: () => ({
+      ankiConnect: { enabled: false } as never,
+    }),
+    getSubtitleTimingTracker: () => null,
+    getMpvClient: () => null,
+    getRuntimeOptionsManager: () => null,
+    setAnkiIntegration: () => {},
+    showDesktopNotification: () => {},
+    createFieldGroupingCallback: () => async () => ({
+      keepNoteId: 1,
+      deleteNoteId: 2,
+      deleteDuplicate: false,
+      cancelled: false,
+    }),
+    getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+  });
+
+  const restoredGeometry = { x: 100, y: 200, width: 1280, height: 720 };
+  tracker.onWindowFound?.(restoredGeometry);
+
+  assert.deepEqual(bounds, [restoredGeometry]);
+  assert.equal(visibilityRefreshCalls, 2);
+});

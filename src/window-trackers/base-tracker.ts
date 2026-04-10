@@ -62,6 +62,10 @@ export abstract class BaseWindowTracker {
     return this.targetWindowFocused;
   }
 
+  isTargetWindowMinimized(): boolean {
+    return false;
+  }
+
   protected updateTargetWindowFocused(focused: boolean): void {
     if (this.targetWindowFocused === focused) {
       return;

@@ -19,6 +19,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { execFile, type ExecFileException } from 'child_process';
 import type { WindowGeometry } from '../types';
 import { createLogger } from '../logger';
 
@@ -26,6 +27,13 @@ const log = createLogger('tracker').child('windows-helper');
 
 export type WindowsTrackerHelperKind = 'powershell' | 'native';
 export type WindowsTrackerHelperMode = 'auto' | 'powershell' | 'native';
+export type WindowsTrackerHelperRunMode =
+  | 'geometry'
+  | 'foreground-process'
+  | 'bind-overlay'
+  | 'lower-overlay'
+  | 'set-owner'
+  | 'clear-owner';
 
 export type WindowsTrackerHelperLaunchSpec = {
   kind: WindowsTrackerHelperKind;
@@ -217,6 +225,182 @@ export function parseWindowTrackerHelperFocusState(output: string): boolean | nu
   }
 
   return null;
+}
+
+export function parseWindowTrackerHelperState(output: string): 'visible' | 'minimized' | null {
+  const stateLine = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith('state='));
+
+  if (!stateLine) {
+    return null;
+  }
+
+  const value = stateLine.slice('state='.length).trim().toLowerCase();
+  if (value === 'visible') {
+    return 'visible';
+  }
+  if (value === 'minimized') {
+    return 'minimized';
+  }
+
+  return null;
+}
+
+export function parseWindowTrackerHelperForegroundProcess(output: string): string | null {
+  const processLine = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith('process='));
+
+  if (!processLine) {
+    return null;
+  }
+
+  const value = processLine.slice('process='.length).trim();
+  return value.length > 0 ? value : null;
+}
+
+type WindowsTrackerHelperRunnerResult = {
+  stdout: string;
+  stderr: string;
+};
+
+function runWindowsTrackerHelperWithExecFile(
+  spec: WindowsTrackerHelperLaunchSpec,
+  mode: WindowsTrackerHelperRunMode,
+  extraArgs: string[] = [],
+): Promise<WindowsTrackerHelperRunnerResult> {
+  return new Promise((resolve, reject) => {
+    const modeArgs = spec.kind === 'native' ? ['--mode', mode] : ['-Mode', mode];
+    execFile(
+      spec.command,
+      [...spec.args, ...modeArgs, ...extraArgs],
+      {
+        encoding: 'utf-8',
+        timeout: 1000,
+        maxBuffer: 1024 * 1024,
+        windowsHide: true,
+      },
+      (error: ExecFileException | null, stdout: string, stderr: string) => {
+        if (error) {
+          reject(Object.assign(error, { stderr }));
+          return;
+        }
+        resolve({ stdout, stderr });
+      },
+    );
+  });
+}
+
+export async function queryWindowsForegroundProcessName(deps: {
+  resolveHelper?: () => WindowsTrackerHelperLaunchSpec | null;
+  runHelper?: (
+    spec: WindowsTrackerHelperLaunchSpec,
+    mode: WindowsTrackerHelperRunMode,
+    extraArgs?: string[],
+  ) => Promise<WindowsTrackerHelperRunnerResult>;
+} = {}): Promise<string | null> {
+  const spec =
+    deps.resolveHelper?.() ??
+    resolveWindowsTrackerHelper({
+      helperModeEnv: 'powershell',
+    });
+  if (!spec || spec.kind !== 'powershell') {
+    return null;
+  }
+
+  const runHelper = deps.runHelper ?? runWindowsTrackerHelperWithExecFile;
+  const { stdout } = await runHelper(spec, 'foreground-process');
+  return parseWindowTrackerHelperForegroundProcess(stdout);
+}
+
+export async function syncWindowsOverlayToMpvZOrder(deps: {
+  overlayWindowHandle: string;
+  targetMpvSocketPath?: string | null;
+  resolveHelper?: () => WindowsTrackerHelperLaunchSpec | null;
+  runHelper?: (
+    spec: WindowsTrackerHelperLaunchSpec,
+    mode: WindowsTrackerHelperRunMode,
+    extraArgs?: string[],
+  ) => Promise<WindowsTrackerHelperRunnerResult>;
+}): Promise<boolean> {
+  const spec =
+    deps.resolveHelper?.() ??
+    resolveWindowsTrackerHelper({
+      helperModeEnv: 'powershell',
+    });
+  if (!spec || spec.kind !== 'powershell') {
+    return false;
+  }
+
+  const runHelper = deps.runHelper ?? runWindowsTrackerHelperWithExecFile;
+  const extraArgs = [deps.targetMpvSocketPath ?? '', deps.overlayWindowHandle];
+  const { stdout } = await runHelper(spec, 'bind-overlay', extraArgs);
+  return stdout.trim() === 'ok';
+}
+
+export async function lowerWindowsOverlayInZOrder(deps: {
+  overlayWindowHandle: string;
+  resolveHelper?: () => WindowsTrackerHelperLaunchSpec | null;
+  runHelper?: (
+    spec: WindowsTrackerHelperLaunchSpec,
+    mode: WindowsTrackerHelperRunMode,
+    extraArgs?: string[],
+  ) => Promise<WindowsTrackerHelperRunnerResult>;
+}): Promise<boolean> {
+  const spec =
+    deps.resolveHelper?.() ??
+    resolveWindowsTrackerHelper({
+      helperModeEnv: 'powershell',
+    });
+  if (!spec || spec.kind !== 'powershell') {
+    return false;
+  }
+
+  const runHelper = deps.runHelper ?? runWindowsTrackerHelperWithExecFile;
+  const { stdout } = await runHelper(spec, 'lower-overlay', [deps.overlayWindowHandle]);
+  return stdout.trim() === 'ok';
+}
+
+export function setWindowsOverlayOwnerNative(overlayHwnd: number, mpvHwnd: number): boolean {
+  try {
+    const win32 = require('./win32') as typeof import('./win32');
+    win32.setOverlayOwner(overlayHwnd, mpvHwnd);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function ensureWindowsOverlayTransparencyNative(overlayHwnd: number): boolean {
+  try {
+    const win32 = require('./win32') as typeof import('./win32');
+    win32.ensureOverlayTransparency(overlayHwnd);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function clearWindowsOverlayOwnerNative(overlayHwnd: number): boolean {
+  try {
+    const win32 = require('./win32') as typeof import('./win32');
+    win32.clearOverlayOwner(overlayHwnd);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getWindowsForegroundProcessNameNative(): string | null {
+  try {
+    const win32 = require('./win32') as typeof import('./win32');
+    return win32.getForegroundProcessName();
+  } catch {
+    return null;
+  }
 }
 
 export function resolveWindowsTrackerHelper(

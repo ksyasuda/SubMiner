@@ -1,9 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  lowerWindowsOverlayInZOrder,
+  parseWindowTrackerHelperForegroundProcess,
   parseWindowTrackerHelperFocusState,
   parseWindowTrackerHelperOutput,
+  parseWindowTrackerHelperState,
+  queryWindowsForegroundProcessName,
   resolveWindowsTrackerHelper,
+  syncWindowsOverlayToMpvZOrder,
 } from './windows-helper';
 
 test('parseWindowTrackerHelperOutput parses helper geometry output', () => {
@@ -26,6 +31,105 @@ test('parseWindowTrackerHelperFocusState parses helper stderr metadata', () => {
   assert.equal(parseWindowTrackerHelperFocusState('focus=not-focused'), false);
   assert.equal(parseWindowTrackerHelperFocusState('warning\nfocus=focused\nnote'), true);
   assert.equal(parseWindowTrackerHelperFocusState(''), null);
+});
+
+test('parseWindowTrackerHelperState parses helper stderr metadata', () => {
+  assert.equal(parseWindowTrackerHelperState('state=visible'), 'visible');
+  assert.equal(parseWindowTrackerHelperState('focus=not-focused\nstate=minimized'), 'minimized');
+  assert.equal(parseWindowTrackerHelperState('state=unknown'), null);
+  assert.equal(parseWindowTrackerHelperState(''), null);
+});
+
+test('parseWindowTrackerHelperForegroundProcess parses helper stdout metadata', () => {
+  assert.equal(parseWindowTrackerHelperForegroundProcess('process=mpv'), 'mpv');
+  assert.equal(parseWindowTrackerHelperForegroundProcess('process=chrome'), 'chrome');
+  assert.equal(parseWindowTrackerHelperForegroundProcess('not-found'), null);
+  assert.equal(parseWindowTrackerHelperForegroundProcess(''), null);
+});
+
+test('queryWindowsForegroundProcessName reads foreground process from powershell helper', async () => {
+  const processName = await queryWindowsForegroundProcessName({
+    resolveHelper: () => ({
+      kind: 'powershell',
+      command: 'powershell.exe',
+      args: ['-File', 'helper.ps1'],
+      helperPath: 'helper.ps1',
+    }),
+    runHelper: async () => ({
+      stdout: 'process=mpv',
+      stderr: '',
+    }),
+  });
+
+  assert.equal(processName, 'mpv');
+});
+
+test('queryWindowsForegroundProcessName returns null when no powershell helper is available', async () => {
+  const processName = await queryWindowsForegroundProcessName({
+    resolveHelper: () => ({
+      kind: 'native',
+      command: 'helper.exe',
+      args: [],
+      helperPath: 'helper.exe',
+    }),
+  });
+
+  assert.equal(processName, null);
+});
+
+test('syncWindowsOverlayToMpvZOrder forwards socket path and overlay handle to powershell helper', async () => {
+  let capturedMode: string | null = null;
+  let capturedArgs: string[] | null = null;
+
+  const synced = await syncWindowsOverlayToMpvZOrder({
+    overlayWindowHandle: '12345',
+    targetMpvSocketPath: '\\\\.\\pipe\\subminer-socket',
+    resolveHelper: () => ({
+      kind: 'powershell',
+      command: 'powershell.exe',
+      args: ['-File', 'helper.ps1'],
+      helperPath: 'helper.ps1',
+    }),
+    runHelper: async (_spec, mode, extraArgs = []) => {
+      capturedMode = mode;
+      capturedArgs = extraArgs;
+      return {
+        stdout: 'ok',
+        stderr: '',
+      };
+    },
+  });
+
+  assert.equal(synced, true);
+  assert.equal(capturedMode, 'bind-overlay');
+  assert.deepEqual(capturedArgs, ['\\\\.\\pipe\\subminer-socket', '12345']);
+});
+
+test('lowerWindowsOverlayInZOrder forwards overlay handle to powershell helper', async () => {
+  let capturedMode: string | null = null;
+  let capturedArgs: string[] | null = null;
+
+  const lowered = await lowerWindowsOverlayInZOrder({
+    overlayWindowHandle: '67890',
+    resolveHelper: () => ({
+      kind: 'powershell',
+      command: 'powershell.exe',
+      args: ['-File', 'helper.ps1'],
+      helperPath: 'helper.ps1',
+    }),
+    runHelper: async (_spec, mode, extraArgs = []) => {
+      capturedMode = mode;
+      capturedArgs = extraArgs;
+      return {
+        stdout: 'ok',
+        stderr: '',
+      };
+    },
+  });
+
+  assert.equal(lowered, true);
+  assert.equal(capturedMode, 'lower-overlay');
+  assert.deepEqual(capturedArgs, ['67890']);
 });
 
 test('resolveWindowsTrackerHelper auto mode prefers native helper when present', () => {

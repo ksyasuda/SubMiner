@@ -529,6 +529,9 @@ async function init(): Promise<void> {
   if (ctx.platform.isMacOSPlatform) {
     document.body.classList.add('platform-macos');
   }
+  if (ctx.platform.shouldToggleMouseIgnore) {
+    syncOverlayMouseIgnoreState(ctx);
+  }
 
   window.electronAPI.onSubtitle((data: SubtitleData) => {
     runGuarded('subtitle:update', () => {
@@ -655,10 +658,6 @@ async function init(): Promise<void> {
     'startup',
   );
   measurementReporter.schedule();
-
-  if (ctx.platform.shouldToggleMouseIgnore) {
-    syncOverlayMouseIgnoreState(ctx);
-  }
 
   measurementReporter.emitNow();
 }

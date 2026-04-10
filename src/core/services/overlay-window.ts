@@ -13,6 +13,17 @@ import { normalizeOverlayWindowBoundsForPlatform } from './overlay-window-bounds
 
 const logger = createLogger('main:overlay-window');
 const overlayWindowLayerByInstance = new WeakMap<BrowserWindow, OverlayWindowKind>();
+const overlayWindowContentReady = new WeakSet<BrowserWindow>();
+const OVERLAY_WINDOW_CONTENT_READY_FLAG = '__subminerOverlayContentReady';
+
+export function isOverlayWindowContentReady(window: BrowserWindow): boolean {
+  return (
+    overlayWindowContentReady.has(window) ||
+    (window as BrowserWindow & { [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean })[
+      OVERLAY_WINDOW_CONTENT_READY_FLAG
+    ] === true
+  );
+}
 
 function getOverlayWindowHtmlPath(): string {
   return path.join(__dirname, '..', '..', 'renderer', 'index.html');
@@ -76,13 +87,17 @@ export function createOverlayWindow(
     isOverlayVisible: (kind: OverlayWindowKind) => boolean;
     tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
     forwardTabToMpv: () => void;
+    onVisibleWindowBlurred?: () => void;
+    onWindowContentReady?: () => void;
     onWindowClosed: (kind: OverlayWindowKind) => void;
     yomitanSession?: Session | null;
   },
 ): BrowserWindow {
   const window = new BrowserWindow(buildOverlayWindowOptions(kind, options));
 
-  options.ensureOverlayWindowLevel(window);
+  if (!(process.platform === 'win32' && kind === 'visible')) {
+    options.ensureOverlayWindowLevel(window);
+  }
   loadOverlayWindowLayer(window, kind);
 
   window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
@@ -91,6 +106,14 @@ export function createOverlayWindow(
 
   window.webContents.on('did-finish-load', () => {
     options.onRuntimeOptionsChanged();
+  });
+
+  window.once('ready-to-show', () => {
+    overlayWindowContentReady.add(window);
+    (window as BrowserWindow & { [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean })[
+      OVERLAY_WINDOW_CONTENT_READY_FLAG
+    ] = true;
+    options.onWindowContentReady?.();
   });
 
   if (kind === 'visible') {
@@ -136,6 +159,8 @@ export function createOverlayWindow(
       moveWindowTop: () => {
         window.moveTop();
       },
+      onWindowsVisibleOverlayBlur:
+        kind === 'visible' ? () => options.onVisibleWindowBlurred?.() : undefined,
     });
   });
 

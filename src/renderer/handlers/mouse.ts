@@ -166,7 +166,7 @@ export function createMouseHandlers(
     }
   }
 
-  function restorePointerInteractionState(): void {
+  function resyncPointerInteractionState(options: { allowInteractiveFallback: boolean }): void {
     const pointerPosition = lastPointerPosition;
     pendingPointerResync = false;
     if (pointerPosition) {
@@ -177,13 +177,21 @@ export function createMouseHandlers(
     }
     syncOverlayMouseIgnoreState(ctx);
 
-    if (!ctx.platform.shouldToggleMouseIgnore || ctx.state.isOverSubtitle) {
+    if (
+      !options.allowInteractiveFallback ||
+      !ctx.platform.shouldToggleMouseIgnore ||
+      ctx.state.isOverSubtitle
+    ) {
       return;
     }
 
     pendingPointerResync = true;
     ctx.dom.overlay.classList.add('interactive');
     window.electronAPI.setIgnoreMouseEvents(false);
+  }
+
+  function restorePointerInteractionState(): void {
+    resyncPointerInteractionState({ allowInteractiveFallback: true });
   }
 
   function maybeResyncPointerHoverState(event: MouseEvent | PointerEvent): void {
@@ -391,6 +399,12 @@ export function createMouseHandlers(
       updatePointerPosition(event);
       syncHoverStateFromTrackedPointer(event);
       maybeResyncPointerHoverState(event);
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      resyncPointerInteractionState({ allowInteractiveFallback: false });
     });
   }
 

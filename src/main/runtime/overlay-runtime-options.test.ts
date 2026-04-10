@@ -11,6 +11,7 @@ test('build initialize overlay runtime options maps dependencies', () => {
     updateVisibleOverlayBounds: () => calls.push('update-visible-bounds'),
     isVisibleOverlayVisible: () => true,
     updateVisibleOverlayVisibility: () => calls.push('update-visible'),
+    refreshCurrentSubtitle: () => calls.push('refresh-subtitle'),
     getOverlayWindows: () => [],
     syncOverlayShortcuts: () => calls.push('sync-shortcuts'),
     setWindowTracker: () => calls.push('set-tracker'),
@@ -41,6 +42,7 @@ test('build initialize overlay runtime options maps dependencies', () => {
   options.registerGlobalShortcuts();
   options.updateVisibleOverlayBounds({ x: 0, y: 0, width: 10, height: 10 });
   options.updateVisibleOverlayVisibility();
+  options.refreshCurrentSubtitle?.();
   options.syncOverlayShortcuts();
   options.setWindowTracker(null);
   options.setAnkiIntegration(null);
@@ -51,6 +53,7 @@ test('build initialize overlay runtime options maps dependencies', () => {
     'register-shortcuts',
     'update-visible-bounds',
     'update-visible',
+    'refresh-subtitle',
     'sync-shortcuts',
     'set-tracker',
     'set-anki',

@@ -21,6 +21,7 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
   overlayVisibilityRuntime: {
     updateVisibleOverlayVisibility: () => void;
   };
+  refreshCurrentSubtitle?: () => void;
   overlayShortcutsRuntime: {
     syncOverlayShortcuts: () => void;
   };
@@ -39,6 +40,8 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
   createFieldGroupingCallback: OverlayRuntimeOptionsMainDeps['createFieldGroupingCallback'];
   getKnownWordCacheStatePath: () => string;
   shouldStartAnkiIntegration: () => boolean;
+  bindOverlayOwner?: () => void;
+  releaseOverlayOwner?: () => void;
 }) {
   return (): OverlayRuntimeOptionsMainDeps => ({
     getBackendOverride: () => deps.appState.backendOverride,
@@ -53,6 +56,7 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
     isVisibleOverlayVisible: () => deps.overlayManager.getVisibleOverlayVisible(),
     updateVisibleOverlayVisibility: () =>
       deps.overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+    refreshCurrentSubtitle: () => deps.refreshCurrentSubtitle?.(),
     getOverlayWindows: () => deps.getOverlayWindows(),
     syncOverlayShortcuts: () => deps.overlayShortcutsRuntime.syncOverlayShortcuts(),
     setWindowTracker: (tracker) => {
@@ -71,5 +75,7 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
     createFieldGroupingCallback: () => deps.createFieldGroupingCallback(),
     getKnownWordCacheStatePath: () => deps.getKnownWordCacheStatePath(),
     shouldStartAnkiIntegration: () => deps.shouldStartAnkiIntegration(),
+    bindOverlayOwner: deps.bindOverlayOwner,
+    releaseOverlayOwner: deps.releaseOverlayOwner,
   });
 }

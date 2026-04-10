@@ -66,7 +66,14 @@ export function handleOverlayWindowBlurred(options: {
   isOverlayVisible: (kind: OverlayWindowKind) => boolean;
   ensureOverlayWindowLevel: () => void;
   moveWindowTop: () => void;
+  onWindowsVisibleOverlayBlur?: () => void;
+  platform?: NodeJS.Platform;
 }): boolean {
+  if ((options.platform ?? process.platform) === 'win32' && options.kind === 'visible') {
+    options.onWindowsVisibleOverlayBlur?.();
+    return false;
+  }
+
   if (options.kind === 'visible' && !options.isOverlayVisible(options.kind)) {
     return false;
   }
