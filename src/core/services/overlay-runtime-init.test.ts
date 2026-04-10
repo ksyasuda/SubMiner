@@ -2,6 +2,23 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { initializeOverlayAnkiIntegration, initializeOverlayRuntime } from './overlay-runtime-init';
 
+function withPlatform(platform: NodeJS.Platform, run: () => void): void {
+  const originalPlatform = process.platform;
+  Object.defineProperty(process, 'platform', {
+    value: platform,
+    configurable: true,
+  });
+
+  try {
+    run();
+  } finally {
+    Object.defineProperty(process, 'platform', {
+      value: originalPlatform,
+      configurable: true,
+    });
+  }
+}
+
 test('initializeOverlayRuntime skips Anki integration when ankiConnect.enabled is false', () => {
   let createdIntegrations = 0;
   let startedIntegrations = 0;
@@ -548,59 +565,61 @@ test('initializeOverlayRuntime hides overlay windows when tracker loses the targ
 });
 
 test('initializeOverlayRuntime preserves visible overlay on Windows tracker loss when target is not minimized', () => {
-  const calls: string[] = [];
-  const tracker = {
-    onGeometryChange: null as ((...args: unknown[]) => void) | null,
-    onWindowFound: null as ((...args: unknown[]) => void) | null,
-    onWindowLost: null as (() => void) | null,
-    onWindowFocusChange: null as ((focused: boolean) => void) | null,
-    isTargetWindowMinimized: () => false,
-    start: () => {},
-  };
-  const overlayWindows = [
-    {
-      hide: () => calls.push('hide-visible'),
-    },
-  ];
+  withPlatform('win32', () => {
+    const calls: string[] = [];
+    const tracker = {
+      onGeometryChange: null as ((...args: unknown[]) => void) | null,
+      onWindowFound: null as ((...args: unknown[]) => void) | null,
+      onWindowLost: null as (() => void) | null,
+      onWindowFocusChange: null as ((focused: boolean) => void) | null,
+      isTargetWindowMinimized: () => false,
+      start: () => {},
+    };
+    const overlayWindows = [
+      {
+        hide: () => calls.push('hide-visible'),
+      },
+    ];
 
-  initializeOverlayRuntime({
-    backendOverride: null,
-    createMainWindow: () => {},
-    registerGlobalShortcuts: () => {},
-    updateVisibleOverlayBounds: () => {},
-    isVisibleOverlayVisible: () => true,
-    updateVisibleOverlayVisibility: () => {
-      calls.push('update-visible');
-    },
-    refreshCurrentSubtitle: () => {},
-    getOverlayWindows: () => overlayWindows as never,
-    syncOverlayShortcuts: () => {
-      calls.push('sync-shortcuts');
-    },
-    setWindowTracker: () => {},
-    getMpvSocketPath: () => '/tmp/mpv.sock',
-    createWindowTracker: () => tracker as never,
-    getResolvedConfig: () => ({
-      ankiConnect: { enabled: false } as never,
-    }),
-    getSubtitleTimingTracker: () => null,
-    getMpvClient: () => null,
-    getRuntimeOptionsManager: () => null,
-    setAnkiIntegration: () => {},
-    showDesktopNotification: () => {},
-    createFieldGroupingCallback: () => async () => ({
-      keepNoteId: 1,
-      deleteNoteId: 2,
-      deleteDuplicate: false,
-      cancelled: false,
-    }),
-    getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+    initializeOverlayRuntime({
+      backendOverride: null,
+      createMainWindow: () => {},
+      registerGlobalShortcuts: () => {},
+      updateVisibleOverlayBounds: () => {},
+      isVisibleOverlayVisible: () => true,
+      updateVisibleOverlayVisibility: () => {
+        calls.push('update-visible');
+      },
+      refreshCurrentSubtitle: () => {},
+      getOverlayWindows: () => overlayWindows as never,
+      syncOverlayShortcuts: () => {
+        calls.push('sync-shortcuts');
+      },
+      setWindowTracker: () => {},
+      getMpvSocketPath: () => '/tmp/mpv.sock',
+      createWindowTracker: () => tracker as never,
+      getResolvedConfig: () => ({
+        ankiConnect: { enabled: false } as never,
+      }),
+      getSubtitleTimingTracker: () => null,
+      getMpvClient: () => null,
+      getRuntimeOptionsManager: () => null,
+      setAnkiIntegration: () => {},
+      showDesktopNotification: () => {},
+      createFieldGroupingCallback: () => async () => ({
+        keepNoteId: 1,
+        deleteNoteId: 2,
+        deleteDuplicate: false,
+        cancelled: false,
+      }),
+      getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+    });
+
+    calls.length = 0;
+    tracker.onWindowLost?.();
+
+    assert.deepEqual(calls, ['sync-shortcuts']);
   });
-
-  calls.length = 0;
-  tracker.onWindowLost?.();
-
-  assert.deepEqual(calls, ['sync-shortcuts']);
 });
 
 test('initializeOverlayRuntime restores overlay bounds and visibility when tracker finds the target window again', () => {
