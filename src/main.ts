@@ -109,11 +109,13 @@ import * as os from 'os';
 import * as path from 'path';
 import { MecabTokenizer } from './mecab-tokenizer';
 import type {
+  CompiledSessionBinding,
   JimakuApiResponse,
   KikuFieldGroupingChoice,
   MpvSubtitleRenderMetrics,
   ResolvedConfig,
   RuntimeOptionState,
+  SessionActionDispatchRequest,
   SecondarySubMode,
   SubtitleData,
   SubtitlePosition,
@@ -136,6 +138,7 @@ import {
   ensureWindowsOverlayTransparencyNative,
   getWindowsForegroundProcessNameNative,
   queryWindowsForegroundProcessName,
+  queryWindowsTargetWindowHandle,
   setWindowsOverlayOwnerNative,
   syncWindowsOverlayToMpvZOrder,
 } from './window-trackers/windows-helper';
@@ -413,6 +416,8 @@ import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
+import { buildPluginSessionBindingsArtifact, compileSessionBindings } from './core/services/session-bindings';
+import { dispatchSessionAction as dispatchSessionActionCore } from './core/services/session-actions';
 import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/domains/shortcuts';
 import { createMainRuntimeRegistry } from './main/runtime/registry';
 import {
@@ -449,6 +454,7 @@ import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
+import { writeSessionBindingsArtifact } from './main/runtime/session-bindings-artifact';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
   createFrequencyDictionaryRuntimeService,
@@ -1535,6 +1541,9 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
     setKeybindings: (keybindings) => {
       appState.keybindings = keybindings;
     },
+    setSessionBindings: (sessionBindings) => {
+      persistSessionBindings(sessionBindings);
+    },
     refreshGlobalAndOverlayShortcuts: () => {
       refreshGlobalAndOverlayShortcuts();
     },
@@ -1927,6 +1936,27 @@ function getWindowsNativeWindowHandleNumber(window: BrowserWindow): number {
     : handle.readUInt32LE(0);
 }
 
+function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | null): number | null {
+  if (process.platform !== 'win32') {
+    return null;
+  }
+
+  if (targetMpvSocketPath) {
+    return queryWindowsTargetWindowHandle({
+      targetMpvSocketPath,
+    });
+  }
+
+  try {
+    const win32 = require('./window-trackers/win32') as typeof import('./window-trackers/win32');
+    const poll = win32.findMpvWindows();
+    const focused = poll.matches.find((m) => m.isForeground);
+    return focused?.hwnd ?? poll.matches.sort((a, b) => b.area - a.area)[0]?.hwnd ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function syncWindowsVisibleOverlayToMpvZOrder(): Promise<boolean> {
   if (process.platform !== 'win32') {
     return false;
@@ -1959,7 +1989,8 @@ async function syncWindowsVisibleOverlayToMpvZOrder(): Promise<boolean> {
   }
 
   const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
-  if (bindWindowsOverlayAboveMpvNative(overlayHwnd)) {
+  const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(appState.mpvSocketPath);
+  if (targetWindowHwnd !== null && bindWindowsOverlayAboveMpvNative(overlayHwnd, targetWindowHwnd)) {
     (mainWindow as BrowserWindow & { setOpacity?: (opacity: number) => void }).setOpacity?.(1);
     return true;
   }
@@ -3378,6 +3409,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     loadSubtitlePosition: () => loadSubtitlePosition(),
     resolveKeybindings: () => {
       appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+      refreshCurrentSessionBindings();
     },
     createMpvClient: () => {
       appState.mpvClient = createMpvClientRuntimeService();
@@ -3520,6 +3552,9 @@ function ensureOverlayStartupPrereqs(): void {
   }
   if (appState.keybindings.length === 0) {
     appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+    refreshCurrentSessionBindings();
+  } else if (appState.sessionBindings.length === 0) {
+    refreshCurrentSessionBindings();
   }
   if (!appState.mpvClient) {
     appState.mpvClient = createMpvClientRuntimeService();
@@ -4118,6 +4153,53 @@ const {
   },
 });
 
+function resolveSessionBindingPlatform(): 'darwin' | 'win32' | 'linux' {
+  if (process.platform === 'darwin') return 'darwin';
+  if (process.platform === 'win32') return 'win32';
+  return 'linux';
+}
+
+function compileCurrentSessionBindings(): {
+  bindings: CompiledSessionBinding[];
+  warnings: ReturnType<typeof compileSessionBindings>['warnings'];
+} {
+  return compileSessionBindings({
+    keybindings: appState.keybindings,
+    shortcuts: getConfiguredShortcuts(),
+    platform: resolveSessionBindingPlatform(),
+    rawConfig: getResolvedConfig(),
+  });
+}
+
+function persistSessionBindings(
+  bindings: CompiledSessionBinding[],
+  warnings: ReturnType<typeof compileSessionBindings>['warnings'] = [],
+): void {
+  appState.sessionBindings = bindings;
+  writeSessionBindingsArtifact(
+    CONFIG_DIR,
+    buildPluginSessionBindingsArtifact({
+      bindings,
+      warnings,
+      numericSelectionTimeoutMs: getConfiguredShortcuts().multiCopyTimeoutMs,
+    }),
+  );
+  if (appState.mpvClient?.connected) {
+    sendMpvCommandRuntime(appState.mpvClient, [
+      'script-message',
+      'subminer-reload-session-bindings',
+    ]);
+  }
+}
+
+function refreshCurrentSessionBindings(): void {
+  const compiled = compileCurrentSessionBindings();
+  for (const warning of compiled.warnings) {
+    logger.warn(`[session-bindings] ${warning.message}`);
+  }
+  persistSessionBindings(compiled.bindings, compiled.warnings);
+}
+
 const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
     logPath: DEFAULT_MPV_LOG_PATH,
@@ -4429,6 +4511,39 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
+async function dispatchSessionAction(request: SessionActionDispatchRequest): Promise<void> {
+  await dispatchSessionActionCore(request, {
+    toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    copyCurrentSubtitle: () => copyCurrentSubtitle(),
+    copySubtitleCount: (count) => handleMultiCopyDigit(count),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+    triggerFieldGrouping: () => triggerFieldGrouping(),
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    mineSentenceCard: () => mineSentenceCard(),
+    mineSentenceCount: (count) => handleMineSentenceDigit(count),
+    toggleSecondarySub: () => handleCycleSecondarySubMode(),
+    markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    openJimaku: () => overlayModalRuntime.openJimaku(),
+    openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
+    openPlaylistBrowser: () => openPlaylistBrowser(),
+    replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
+    playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
+    shiftSubDelayToAdjacentSubtitle: (direction) =>
+      shiftSubtitleDelayToAdjacentCueHandler(direction),
+    cycleRuntimeOption: (id, direction) => {
+      if (!appState.runtimeOptionsManager) {
+        return { ok: false, error: 'Runtime options manager unavailable' };
+      }
+      return applyRuntimeOptionResultRuntime(
+        appState.runtimeOptionsManager.cycleOption(id, direction),
+        (text) => showMpvOsd(text),
+      );
+    },
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
+}
+
 const { playlistBrowserMainDeps } = createPlaylistBrowserIpcRuntime(() => appState.mpvClient, {
   getPrimarySubtitleLanguages: () => getResolvedConfig().youtube.primarySubLanguages,
   getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
@@ -4586,7 +4701,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       saveSubtitlePosition: (position) => saveSubtitlePosition(position),
       getMecabTokenizer: () => appState.mecabTokenizer,
       getKeybindings: () => appState.keybindings,
+      getSessionBindings: () => appState.sessionBindings,
       getConfiguredShortcuts: () => getConfiguredShortcuts(),
+      dispatchSessionAction: (request) => dispatchSessionAction(request),
       getStatsToggleKey: () => getResolvedConfig().stats.toggleKey,
       getMarkWatchedKey: () => getResolvedConfig().stats.markWatchedKey,
       getControllerConfig: () => getResolvedConfig().controller,
@@ -4707,6 +4824,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
     stopApp: () => requestAppQuit(),
     hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
+    dispatchSessionAction: (request: SessionActionDispatchRequest) => dispatchSessionAction(request),
     getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
     schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
     logInfo: (message: string) => logger.info(message),
@@ -4973,7 +5091,17 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
         const mainWindow = overlayManager.getMainWindow();
         if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
         const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
-        if (bindWindowsOverlayAboveMpvNative(overlayHwnd)) {
+        const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(appState.mpvSocketPath);
+        if (targetWindowHwnd !== null && bindWindowsOverlayAboveMpvNative(overlayHwnd, targetWindowHwnd)) {
+          return;
+        }
+        if (appState.mpvSocketPath) {
+          void syncWindowsOverlayToMpvZOrder({
+            overlayWindowHandle: getWindowsNativeWindowHandle(mainWindow),
+            targetMpvSocketPath: appState.mpvSocketPath,
+          }).catch((error) => {
+            logger.warn('Failed to bind Windows overlay owner to mpv', error);
+          });
           return;
         }
         const tracker = appState.windowTracker;

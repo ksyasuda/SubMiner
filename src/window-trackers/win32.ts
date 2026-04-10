@@ -48,6 +48,8 @@ const OpenProcess = kernel32.func(
   'intptr __stdcall OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId)',
 );
 const CloseHandle = kernel32.func('bool __stdcall CloseHandle(intptr hObject)');
+const GetLastError = kernel32.func('uint __stdcall GetLastError()');
+const SetLastError = kernel32.func('void __stdcall SetLastError(uint dwErrCode)');
 const QueryFullProcessImageNameW = kernel32.func(
   'bool __stdcall QueryFullProcessImageNameW(intptr hProcess, uint dwFlags, _Out_ uint16 *lpExeName, _Inout_ uint *lpdwSize)',
 );
@@ -69,12 +71,47 @@ const HWND_TOPMOST = -1;
 const HWND_NOTOPMOST = -2;
 
 function extendOverlayFrameIntoClientArea(overlayHwnd: number): void {
-  DwmExtendFrameIntoClientArea(overlayHwnd, {
+  const hr = DwmExtendFrameIntoClientArea(overlayHwnd, {
     cxLeftWidth: -1,
     cxRightWidth: -1,
     cyTopHeight: -1,
     cyBottomHeight: -1,
   });
+  if (hr !== 0) {
+    throw new Error(`DwmExtendFrameIntoClientArea failed (${hr})`);
+  }
+}
+
+function resetLastError(): void {
+  SetLastError(0);
+}
+
+function assertSetWindowLongPtrSucceeded(operation: string, result: number): void {
+  if (result !== 0) {
+    return;
+  }
+
+  if (GetLastError() === 0) {
+    return;
+  }
+
+  throw new Error(`${operation} failed (${GetLastError()})`);
+}
+
+function assertSetWindowPosSucceeded(operation: string, result: boolean): void {
+  if (result) {
+    return;
+  }
+
+  throw new Error(`${operation} failed (${GetLastError()})`);
+}
+
+function assertGetWindowLongSucceeded(operation: string, result: number): number {
+  if (result !== 0 || GetLastError() === 0) {
+    return result;
+  }
+
+  throw new Error(`${operation} failed (${GetLastError()})`);
 }
 
 export interface WindowBounds {
@@ -203,7 +240,9 @@ export function getForegroundProcessName(): string | null {
 }
 
 export function setOverlayOwner(overlayHwnd: number, mpvHwnd: number): void {
-  SetWindowLongPtrW(overlayHwnd, GWLP_HWNDPARENT, mpvHwnd);
+  resetLastError();
+  const result = SetWindowLongPtrW(overlayHwnd, GWLP_HWNDPARENT, mpvHwnd);
+  assertSetWindowLongPtrSucceeded('setOverlayOwner', result);
   extendOverlayFrameIntoClientArea(overlayHwnd);
 }
 
@@ -212,21 +251,38 @@ export function ensureOverlayTransparency(overlayHwnd: number): void {
 }
 
 export function clearOverlayOwner(overlayHwnd: number): void {
-  SetWindowLongPtrW(overlayHwnd, GWLP_HWNDPARENT, 0);
+  resetLastError();
+  const result = SetWindowLongPtrW(overlayHwnd, GWLP_HWNDPARENT, 0);
+  assertSetWindowLongPtrSucceeded('clearOverlayOwner', result);
 }
 
 export function bindOverlayAboveMpv(overlayHwnd: number, mpvHwnd: number): void {
-  SetWindowLongPtrW(overlayHwnd, GWLP_HWNDPARENT, mpvHwnd);
-  const mpvExStyle = GetWindowLongW(mpvHwnd, GWL_EXSTYLE);
+  resetLastError();
+  const ownerResult = SetWindowLongPtrW(overlayHwnd, GWLP_HWNDPARENT, mpvHwnd);
+  assertSetWindowLongPtrSucceeded('bindOverlayAboveMpv owner assignment', ownerResult);
+
+  resetLastError();
+  const mpvExStyle = assertGetWindowLongSucceeded(
+    'bindOverlayAboveMpv target window style',
+    GetWindowLongW(mpvHwnd, GWL_EXSTYLE),
+  );
   const mpvIsTopmost = (mpvExStyle & WS_EX_TOPMOST) !== 0;
 
-  const overlayExStyle = GetWindowLongW(overlayHwnd, GWL_EXSTYLE);
+  resetLastError();
+  const overlayExStyle = assertGetWindowLongSucceeded(
+    'bindOverlayAboveMpv overlay window style',
+    GetWindowLongW(overlayHwnd, GWL_EXSTYLE),
+  );
   const overlayIsTopmost = (overlayExStyle & WS_EX_TOPMOST) !== 0;
 
   if (mpvIsTopmost && !overlayIsTopmost) {
-    SetWindowPos(overlayHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_FLAGS);
+    resetLastError();
+    const topmostResult = SetWindowPos(overlayHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_FLAGS);
+    assertSetWindowPosSucceeded('bindOverlayAboveMpv topmost adjustment', topmostResult);
   } else if (!mpvIsTopmost && overlayIsTopmost) {
-    SetWindowPos(overlayHwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_FLAGS);
+    resetLastError();
+    const notTopmostResult = SetWindowPos(overlayHwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_FLAGS);
+    assertSetWindowPosSucceeded('bindOverlayAboveMpv notopmost adjustment', notTopmostResult);
   }
 
   const windowAboveMpv = GetWindowFn(mpvHwnd, GW_HWNDPREV);
@@ -241,10 +297,17 @@ export function bindOverlayAboveMpv(overlayHwnd: number, mpvHwnd: number): void 
     }
   }
 
-  SetWindowPos(overlayHwnd, insertAfter, 0, 0, 0, 0, SWP_FLAGS);
+  resetLastError();
+  const positionResult = SetWindowPos(overlayHwnd, insertAfter, 0, 0, 0, 0, SWP_FLAGS);
+  assertSetWindowPosSucceeded('bindOverlayAboveMpv z-order adjustment', positionResult);
 }
 
 export function lowerOverlay(overlayHwnd: number): void {
-  SetWindowPos(overlayHwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_FLAGS);
-  SetWindowPos(overlayHwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_FLAGS);
+  resetLastError();
+  const notTopmostResult = SetWindowPos(overlayHwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_FLAGS);
+  assertSetWindowPosSucceeded('lowerOverlay notopmost adjustment', notTopmostResult);
+
+  resetLastError();
+  const bottomResult = SetWindowPos(overlayHwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_FLAGS);
+  assertSetWindowPosSucceeded('lowerOverlay bottom adjustment', bottomResult);
 }

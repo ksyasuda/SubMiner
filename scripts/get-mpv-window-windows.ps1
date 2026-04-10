@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('geometry', 'foreground-process', 'bind-overlay', 'lower-overlay', 'set-owner', 'clear-owner')]
+  [ValidateSet('geometry', 'foreground-process', 'bind-overlay', 'lower-overlay', 'set-owner', 'clear-owner', 'target-hwnd')]
   [string]$Mode = 'geometry',
   [string]$SocketPath,
   [string]$OverlayWindowHandle
@@ -64,6 +64,9 @@ public static class SubMinerWindowsHelper {
   [DllImport("user32.dll", SetLastError = true)]
   public static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
+  [DllImport("kernel32.dll")]
+  public static extern void SetLastError(uint dwErrCode);
+
   [DllImport("dwmapi.dll")]
   public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
 }
@@ -82,6 +85,38 @@ public static class SubMinerWindowsHelper {
   $HWND_BOTTOM = [IntPtr]::One
   $HWND_TOPMOST = [IntPtr](-1)
   $HWND_NOTOPMOST = [IntPtr](-2)
+
+  function Assert-SetWindowLongPtrSucceeded {
+    param(
+      [IntPtr]$Result,
+      [string]$Operation
+    )
+
+    if ($Result -ne [IntPtr]::Zero) {
+      return
+    }
+
+    if ([Runtime.InteropServices.Marshal]::GetLastWin32Error() -eq 0) {
+      return
+    }
+
+    $lastError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+    throw "$Operation failed ($lastError)"
+  }
+
+  function Assert-SetWindowPosSucceeded {
+    param(
+      [bool]$Result,
+      [string]$Operation
+    )
+
+    if ($Result) {
+      return
+    }
+
+    $lastError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+    throw "$Operation failed ($lastError)"
+  }
 
   if ($Mode -eq 'foreground-process') {
     $foregroundWindow = [SubMinerWindowsHelper]::GetForegroundWindow()
@@ -115,7 +150,9 @@ public static class SubMinerWindowsHelper {
     }
 
     [IntPtr]$overlayWindow = [IntPtr]([int64]$OverlayWindowHandle)
-    [void][SubMinerWindowsHelper]::SetWindowLongPtr($overlayWindow, $GWLP_HWNDPARENT, [IntPtr]::Zero)
+    [SubMinerWindowsHelper]::SetLastError(0)
+    $result = [SubMinerWindowsHelper]::SetWindowLongPtr($overlayWindow, $GWLP_HWNDPARENT, [IntPtr]::Zero)
+    Assert-SetWindowLongPtrSucceeded -Result $result -Operation 'clear-owner'
     Write-Output 'ok'
     exit 0
   }
@@ -281,6 +318,11 @@ public static class SubMinerWindowsHelper {
     $mpvMatches | Sort-Object -Property Area, Width, Height -Descending | Select-Object -First 1
   }
 
+  if ($Mode -eq 'target-hwnd') {
+    Write-Output "$($bestMatch.HWnd)"
+    exit 0
+  }
+
   if ($Mode -eq 'set-owner') {
     if ([string]::IsNullOrWhiteSpace($OverlayWindowHandle)) {
       [Console]::Error.WriteLine('overlay-window-handle-required')
@@ -289,7 +331,9 @@ public static class SubMinerWindowsHelper {
 
     [IntPtr]$overlayWindow = [IntPtr]([int64]$OverlayWindowHandle)
     $targetWindow = [IntPtr]$bestMatch.HWnd
-    [void][SubMinerWindowsHelper]::SetWindowLongPtr($overlayWindow, $GWLP_HWNDPARENT, $targetWindow)
+    [SubMinerWindowsHelper]::SetLastError(0)
+    $result = [SubMinerWindowsHelper]::SetWindowLongPtr($overlayWindow, $GWLP_HWNDPARENT, $targetWindow)
+    Assert-SetWindowLongPtrSucceeded -Result $result -Operation 'set-owner'
     Write-Output 'ok'
     exit 0
   }
@@ -302,20 +346,26 @@ public static class SubMinerWindowsHelper {
 
     [IntPtr]$overlayWindow = [IntPtr]([int64]$OverlayWindowHandle)
     $targetWindow = [IntPtr]$bestMatch.HWnd
-    [void][SubMinerWindowsHelper]::SetWindowLongPtr($overlayWindow, $GWLP_HWNDPARENT, $targetWindow)
+    [SubMinerWindowsHelper]::SetLastError(0)
+    $result = [SubMinerWindowsHelper]::SetWindowLongPtr($overlayWindow, $GWLP_HWNDPARENT, $targetWindow)
+    Assert-SetWindowLongPtrSucceeded -Result $result -Operation 'bind-overlay owner assignment'
     $targetWindowExStyle = [SubMinerWindowsHelper]::GetWindowLong($targetWindow, $GWL_EXSTYLE)
     $targetWindowIsTopmost = ($targetWindowExStyle -band $WS_EX_TOPMOST) -ne 0
 
     $overlayExStyle = [SubMinerWindowsHelper]::GetWindowLong($overlayWindow, $GWL_EXSTYLE)
     $overlayIsTopmost = ($overlayExStyle -band $WS_EX_TOPMOST) -ne 0
     if ($targetWindowIsTopmost -and -not $overlayIsTopmost) {
-      [void][SubMinerWindowsHelper]::SetWindowPos(
+      [SubMinerWindowsHelper]::SetLastError(0)
+      $result = [SubMinerWindowsHelper]::SetWindowPos(
         $overlayWindow, $HWND_TOPMOST, 0, 0, 0, 0, $SWP_FLAGS
       )
+      Assert-SetWindowPosSucceeded -Result $result -Operation 'bind-overlay topmost adjustment'
     } elseif (-not $targetWindowIsTopmost -and $overlayIsTopmost) {
-      [void][SubMinerWindowsHelper]::SetWindowPos(
+      [SubMinerWindowsHelper]::SetLastError(0)
+      $result = [SubMinerWindowsHelper]::SetWindowPos(
         $overlayWindow, $HWND_NOTOPMOST, 0, 0, 0, 0, $SWP_FLAGS
       )
+      Assert-SetWindowPosSucceeded -Result $result -Operation 'bind-overlay notopmost adjustment'
     }
 
     $GW_HWNDPREV = 3
@@ -335,9 +385,11 @@ public static class SubMinerWindowsHelper {
       }
     }
 
-    [void][SubMinerWindowsHelper]::SetWindowPos(
+    [SubMinerWindowsHelper]::SetLastError(0)
+    $result = [SubMinerWindowsHelper]::SetWindowPos(
       $overlayWindow, $insertAfter, 0, 0, 0, 0, $SWP_FLAGS
     )
+    Assert-SetWindowPosSucceeded -Result $result -Operation 'bind-overlay z-order adjustment'
     Write-Output 'ok'
     exit 0
   }

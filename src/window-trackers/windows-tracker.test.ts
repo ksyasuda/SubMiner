@@ -39,16 +39,19 @@ const mpvMinimized: MpvPollResult = {
 
 test('WindowsWindowTracker skips overlapping polls while poll is in flight', () => {
   let pollCalls = 0;
-  const tracker = new WindowsWindowTracker(undefined, {
+  let tracker: WindowsWindowTracker;
+  tracker = new WindowsWindowTracker(undefined, {
     pollMpvWindows: () => {
       pollCalls += 1;
+      if (pollCalls === 1) {
+        (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+      }
       return mpvVisible();
     },
   });
 
   (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  assert.equal(pollCalls, 2);
+  assert.equal(pollCalls, 1);
 });
 
 test('WindowsWindowTracker updates geometry from poll output', () => {
