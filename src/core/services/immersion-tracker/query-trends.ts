@@ -27,6 +27,19 @@ interface TrendPerAnimePoint {
   value: number;
 }
 
+export interface LibrarySummaryRow {
+  title: string;
+  watchTimeMin: number;
+  videos: number;
+  sessions: number;
+  cards: number;
+  words: number;
+  lookups: number;
+  lookupsPerHundred: number | null;
+  firstWatched: number;
+  lastWatched: number;
+}
+
 interface TrendSessionMetricRow {
   startedAtMs: number;
   epochDay: number;
@@ -79,6 +92,7 @@ export interface TrendsDashboardQueryResult {
     watchTimeByDayOfWeek: TrendChartPoint[];
     watchTimeByHour: TrendChartPoint[];
   };
+  librarySummary: LibrarySummaryRow[];
 }
 
 const TREND_DAY_LIMITS: Record<Exclude<TrendRange, 'all'>, number> = {
@@ -702,5 +716,6 @@ export function getTrendsDashboard(
       watchTimeByDayOfWeek: buildWatchTimeByDayOfWeek(sessions),
       watchTimeByHour: buildWatchTimeByHour(sessions),
     },
+    librarySummary: [],
   };
 }
