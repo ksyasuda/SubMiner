@@ -294,7 +294,7 @@ export function compileSessionBindings(
   const legacyToggleVisibleOverlayGlobal = (
     input.rawConfig?.shortcuts as Record<string, unknown> | undefined
   )?.toggleVisibleOverlayGlobal;
-  const statsToggleKey = input.statsToggleKey ?? input.rawConfig?.stats.toggleKey ?? null;
+  const statsToggleKey = input.statsToggleKey ?? input.rawConfig?.stats?.toggleKey ?? null;
 
   if (legacyToggleVisibleOverlayGlobal !== undefined) {
     warnings.push({
