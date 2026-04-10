@@ -8,3 +8,4 @@ area: stats
 - Episode detail hides card events whose Anki notes have been deleted, instead of showing phantom mining activity.
 - Trend and watch-time charts share a unified theme with horizontal gridlines and larger ticks for legibility.
 - Overview, Library, Trends, Sessions, and Vocabulary now use generic "title" wording so YouTube videos and anime live comfortably side by side in the dashboard.
+- Session timeline no longer plots seek-forward/seek-backward markers — they were too noisy on sessions with lots of rewinds.

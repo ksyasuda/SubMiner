@@ -33,8 +33,6 @@ function markerLabel(marker: SessionChartMarker): string {
   switch (marker.kind) {
     case 'pause':
       return '||';
-    case 'seek':
-      return marker.direction === 'backward' ? '<<' : '>>';
     case 'card':
       return '\u26CF';
   }
@@ -44,10 +42,6 @@ function markerColors(marker: SessionChartMarker): { border: string; bg: string;
   switch (marker.kind) {
     case 'pause':
       return { border: '#f5a97f', bg: 'rgba(245,169,127,0.16)', text: '#f5a97f' };
-    case 'seek':
-      return marker.direction === 'backward'
-        ? { border: '#f5bde6', bg: 'rgba(245,189,230,0.16)', text: '#f5bde6' }
-        : { border: '#8bd5ca', bg: 'rgba(139,213,202,0.16)', text: '#8bd5ca' };
     case 'card':
       return { border: '#a6da95', bg: 'rgba(166,218,149,0.16)', text: '#a6da95' };
   }

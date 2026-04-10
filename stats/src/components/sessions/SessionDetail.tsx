@@ -125,14 +125,13 @@ export function SessionDetail({ session }: SessionDetailProps) {
   const knownWordsMap = buildKnownWordsLookup(knownWordsTimeline);
   const hasKnownWords = knownWordsMap.size > 0;
 
-  const { cardEvents, seekEvents, yomitanLookupEvents, pauseRegions, markers } =
+  const { cardEvents, yomitanLookupEvents, pauseRegions, markers } =
     buildSessionChartEvents(events);
   const lookupRate = buildLookupRateDisplay(
     session.yomitanLookupCount,
     getSessionDisplayWordCount(session),
   );
   const pauseCount = events.filter((e) => e.eventType === EventType.PAUSE_START).length;
-  const seekCount = seekEvents.length;
   const cardEventCount = cardEvents.length;
   const activeMarkerKey = resolveActiveSessionMarkerKey(hoveredMarkerKey, pinnedMarkerKey);
   const activeMarker = useMemo<SessionChartMarker | null>(
@@ -230,7 +229,6 @@ export function SessionDetail({ session }: SessionDetailProps) {
         sorted={sorted}
         knownWordsMap={knownWordsMap}
         cardEvents={cardEvents}
-        seekEvents={seekEvents}
         yomitanLookupEvents={yomitanLookupEvents}
         pauseRegions={pauseRegions}
         markers={markers}
@@ -242,7 +240,6 @@ export function SessionDetail({ session }: SessionDetailProps) {
         loadingNoteIds={loadingNoteIds}
         onOpenNote={handleOpenNote}
         pauseCount={pauseCount}
-        seekCount={seekCount}
         cardEventCount={cardEventCount}
         lookupRate={lookupRate}
         session={session}
@@ -254,7 +251,6 @@ export function SessionDetail({ session }: SessionDetailProps) {
     <FallbackView
       sorted={sorted}
       cardEvents={cardEvents}
-      seekEvents={seekEvents}
       yomitanLookupEvents={yomitanLookupEvents}
       pauseRegions={pauseRegions}
       markers={markers}
@@ -266,7 +262,6 @@ export function SessionDetail({ session }: SessionDetailProps) {
       loadingNoteIds={loadingNoteIds}
       onOpenNote={handleOpenNote}
       pauseCount={pauseCount}
-      seekCount={seekCount}
       cardEventCount={cardEventCount}
       lookupRate={lookupRate}
       session={session}
@@ -280,7 +275,6 @@ function RatioView({
   sorted,
   knownWordsMap,
   cardEvents,
-  seekEvents,
   yomitanLookupEvents,
   pauseRegions,
   markers,
@@ -292,7 +286,6 @@ function RatioView({
   loadingNoteIds,
   onOpenNote,
   pauseCount,
-  seekCount,
   cardEventCount,
   lookupRate,
   session,
@@ -300,7 +293,6 @@ function RatioView({
   sorted: TimelineEntry[];
   knownWordsMap: Map<number, number>;
   cardEvents: SessionEvent[];
-  seekEvents: SessionEvent[];
   yomitanLookupEvents: SessionEvent[];
   pauseRegions: Array<{ startMs: number; endMs: number }>;
   markers: SessionChartMarker[];
@@ -312,7 +304,6 @@ function RatioView({
   loadingNoteIds: Set<number>;
   onOpenNote: (noteId: number) => void;
   pauseCount: number;
-  seekCount: number;
   cardEventCount: number;
   lookupRate: ReturnType<typeof buildLookupRateDisplay>;
   session: SessionSummary;
@@ -450,22 +441,6 @@ function RatioView({
               />
             ))}
 
-            {seekEvents.map((e, i) => {
-              const isBackward = e.eventType === EventType.SEEK_BACKWARD;
-              const stroke = isBackward ? '#f5bde6' : '#8bd5ca';
-              return (
-                <ReferenceLine
-                  key={`seek-${i}`}
-                  yAxisId="pct"
-                  x={e.tsMs}
-                  stroke={stroke}
-                  strokeWidth={1.5}
-                  strokeOpacity={0.75}
-                  strokeDasharray="4 3"
-                />
-              );
-            })}
-
             {/* Yomitan lookup markers */}
             {yomitanLookupEvents.map((e, i) => (
               <ReferenceLine
@@ -549,7 +524,6 @@ function RatioView({
       <StatsBar
         hasKnownWords
         pauseCount={pauseCount}
-        seekCount={seekCount}
         cardEventCount={cardEventCount}
         session={session}
         lookupRate={lookupRate}
@@ -563,7 +537,6 @@ function RatioView({
 function FallbackView({
   sorted,
   cardEvents,
-  seekEvents,
   yomitanLookupEvents,
   pauseRegions,
   markers,
@@ -575,14 +548,12 @@ function FallbackView({
   loadingNoteIds,
   onOpenNote,
   pauseCount,
-  seekCount,
   cardEventCount,
   lookupRate,
   session,
 }: {
   sorted: TimelineEntry[];
   cardEvents: SessionEvent[];
-  seekEvents: SessionEvent[];
   yomitanLookupEvents: SessionEvent[];
   pauseRegions: Array<{ startMs: number; endMs: number }>;
   markers: SessionChartMarker[];
@@ -594,7 +565,6 @@ function FallbackView({
   loadingNoteIds: Set<number>;
   onOpenNote: (noteId: number) => void;
   pauseCount: number;
-  seekCount: number;
   cardEventCount: number;
   lookupRate: ReturnType<typeof buildLookupRateDisplay>;
   session: SessionSummary;
@@ -680,20 +650,6 @@ function FallbackView({
                 strokeOpacity={0.8}
               />
             ))}
-            {seekEvents.map((e, i) => {
-              const isBackward = e.eventType === EventType.SEEK_BACKWARD;
-              const stroke = isBackward ? '#f5bde6' : '#8bd5ca';
-              return (
-                <ReferenceLine
-                  key={`seek-${i}`}
-                  x={e.tsMs}
-                  stroke={stroke}
-                  strokeWidth={1.5}
-                  strokeOpacity={0.75}
-                  strokeDasharray="4 3"
-                />
-              );
-            })}
             {yomitanLookupEvents.map((e, i) => (
               <ReferenceLine
                 key={`yomitan-${i}`}
@@ -735,7 +691,6 @@ function FallbackView({
       <StatsBar
         hasKnownWords={false}
         pauseCount={pauseCount}
-        seekCount={seekCount}
         cardEventCount={cardEventCount}
         session={session}
         lookupRate={lookupRate}
@@ -749,14 +704,12 @@ function FallbackView({
 function StatsBar({
   hasKnownWords,
   pauseCount,
-  seekCount,
   cardEventCount,
   session,
   lookupRate,
 }: {
   hasKnownWords: boolean;
   pauseCount: number;
-  seekCount: number;
   cardEventCount: number;
   session: SessionSummary;
   lookupRate: ReturnType<typeof buildLookupRateDisplay>;
@@ -791,12 +744,7 @@ function StatsBar({
           {pauseCount !== 1 ? 's' : ''}
         </span>
       )}
-      {seekCount > 0 && (
-        <span className="text-ctp-overlay2">
-          <span className="text-ctp-teal">{seekCount}</span> seek{seekCount !== 1 ? 's' : ''}
-        </span>
-      )}
-      {(pauseCount > 0 || seekCount > 0) && <span className="text-ctp-surface2">|</span>}
+      {pauseCount > 0 && <span className="text-ctp-surface2">|</span>}
 
       {/* Group 3: Learning events */}
       <span className="flex items-center gap-1.5">

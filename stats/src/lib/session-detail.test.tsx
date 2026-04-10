@@ -46,9 +46,10 @@ test('buildSessionChartEvents keeps only chart-relevant events and pairs pause r
     { eventType: EventType.LOOKUP, tsMs: 8_000, payload: '{"hit":true}' },
   ]);
 
+  // Seek events are intentionally dropped from the chart — they were too noisy.
   assert.deepEqual(
-    chartEvents.seekEvents.map((event) => event.eventType),
-    [EventType.SEEK_FORWARD, EventType.SEEK_BACKWARD],
+    chartEvents.markers.filter((marker) => marker.kind !== 'pause' && marker.kind !== 'card'),
+    [],
   );
   assert.deepEqual(
     chartEvents.cardEvents.map((event) => event.tsMs),

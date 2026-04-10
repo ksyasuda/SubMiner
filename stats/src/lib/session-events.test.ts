@@ -29,25 +29,20 @@ test('buildSessionChartEvents produces typed hover markers with parsed payload m
     { eventType: EventType.YOMITAN_LOOKUP, tsMs: 7_000, payload: null },
   ]);
 
+  // Seek events are intentionally dropped — too noisy on the session chart.
   assert.deepEqual(
     chartEvents.markers.map((marker) => marker.kind),
-    ['seek', 'pause', 'card'],
+    ['pause', 'card'],
   );
 
-  const seekMarker = chartEvents.markers[0]!;
-  assert.equal(seekMarker.kind, 'seek');
-  assert.equal(seekMarker.direction, 'forward');
-  assert.equal(seekMarker.fromMs, 1_000);
-  assert.equal(seekMarker.toMs, 5_500);
-
-  const pauseMarker = chartEvents.markers[1]!;
+  const pauseMarker = chartEvents.markers[0]!;
   assert.equal(pauseMarker.kind, 'pause');
   assert.equal(pauseMarker.startMs, 2_000);
   assert.equal(pauseMarker.endMs, 5_000);
   assert.equal(pauseMarker.durationMs, 3_000);
   assert.equal(pauseMarker.anchorTsMs, 3_500);
 
-  const cardMarker = chartEvents.markers[2]!;
+  const cardMarker = chartEvents.markers[1]!;
   assert.equal(cardMarker.kind, 'card');
   assert.deepEqual(cardMarker.noteIds, [11, 22]);
   assert.equal(cardMarker.cardsDelta, 2);

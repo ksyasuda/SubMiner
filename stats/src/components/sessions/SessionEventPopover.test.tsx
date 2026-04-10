@@ -41,35 +41,6 @@ test('SessionEventPopover renders formatted card-mine details with fetched note 
   assert.match(markup, /Open in Anki/);
 });
 
-test('SessionEventPopover renders seek metadata compactly', () => {
-  const marker: SessionChartMarker = {
-    key: 'seek-3000',
-    kind: 'seek',
-    anchorTsMs: 3_000,
-    eventTsMs: 3_000,
-    direction: 'backward',
-    fromMs: 5_000,
-    toMs: 1_500,
-  };
-
-  const markup = renderToStaticMarkup(
-    <SessionEventPopover
-      marker={marker}
-      noteInfos={new Map()}
-      loading={false}
-      pinned={false}
-      onTogglePinned={() => {}}
-      onClose={() => {}}
-      onOpenNote={() => {}}
-    />,
-  );
-
-  assert.match(markup, /Seek backward/);
-  assert.match(markup, /5\.0s/);
-  assert.match(markup, /1\.5s/);
-  assert.match(markup, /3\.5s/);
-});
-
 test('SessionEventPopover renders a cleaner fallback when AnkiConnect provides no preview fields', () => {
   const marker: SessionChartMarker = {
     key: 'card-9000',
