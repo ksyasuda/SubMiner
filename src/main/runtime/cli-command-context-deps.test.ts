@@ -42,6 +42,7 @@ test('build cli command context deps maps handlers and values', () => {
     markLastCardAsAudioCard: async () => {
       calls.push('mark');
     },
+    dispatchSessionAction: async () => {},
     getAnilistStatus: () => ({}) as never,
     clearAnilistToken: () => calls.push('clear-token'),
     openAnilistSetup: () => calls.push('anilist'),

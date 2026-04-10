@@ -33,6 +33,9 @@ function M.new()
 		auto_play_ready_timeout = nil,
 		auto_play_ready_osd_timer = nil,
 		suppress_ready_overlay_restore = false,
+		session_binding_names = {},
+		session_numeric_binding_names = {},
+		session_numeric_selection = nil,
 	}
 end
 

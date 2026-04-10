@@ -1,6 +1,7 @@
 import electron from 'electron';
-import type { IpcMainEvent } from 'electron';
+import type { BrowserWindow as ElectronBrowserWindow, IpcMainEvent } from 'electron';
 import type {
+  CompiledSessionBinding,
   ControllerConfigUpdate,
   PlaylistBrowserMutationResult,
   PlaylistBrowserSnapshot,
@@ -12,6 +13,7 @@ import type {
   SubtitlePosition,
   SubsyncManualRunRequest,
   SubsyncResult,
+  SessionActionDispatchRequest,
   YoutubePickerResolveRequest,
   YoutubePickerResolveResult,
 } from '../../types';
@@ -30,11 +32,14 @@ import {
   parseYoutubePickerResolveRequest,
 } from '../../shared/ipc/validators';
 
-const { BrowserWindow, ipcMain } = electron;
+const { ipcMain } = electron;
 
 export interface IpcServiceDeps {
   onOverlayModalClosed: (modal: OverlayHostedModal) => void;
-  onOverlayModalOpened?: (modal: OverlayHostedModal) => void;
+  onOverlayModalOpened?: (
+    modal: OverlayHostedModal,
+    senderWindow: ElectronBrowserWindow | null,
+  ) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleDevTools: () => void;
@@ -56,7 +61,9 @@ export interface IpcServiceDeps {
   setMecabEnabled: (enabled: boolean) => void;
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
+  getSessionBindings?: () => CompiledSessionBinding[];
   getConfiguredShortcuts: () => unknown;
+  dispatchSessionAction?: (request: SessionActionDispatchRequest) => void | Promise<void>;
   getStatsToggleKey: () => string;
   getMarkWatchedKey: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
@@ -154,7 +161,10 @@ export interface IpcDepsRuntimeOptions {
   getMainWindow: () => WindowLike | null;
   getVisibleOverlayVisibility: () => boolean;
   onOverlayModalClosed: (modal: OverlayHostedModal) => void;
-  onOverlayModalOpened?: (modal: OverlayHostedModal) => void;
+  onOverlayModalOpened?: (
+    modal: OverlayHostedModal,
+    senderWindow: ElectronBrowserWindow | null,
+  ) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleVisibleOverlay: () => void;
@@ -169,7 +179,9 @@ export interface IpcDepsRuntimeOptions {
   getMecabTokenizer: () => MecabTokenizerLike | null;
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
+  getSessionBindings?: () => CompiledSessionBinding[];
   getConfiguredShortcuts: () => unknown;
+  dispatchSessionAction?: (request: SessionActionDispatchRequest) => void | Promise<void>;
   getStatsToggleKey: () => string;
   getMarkWatchedKey: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
@@ -238,7 +250,9 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     },
     handleMpvCommand: options.handleMpvCommand,
     getKeybindings: options.getKeybindings,
+    getSessionBindings: options.getSessionBindings ?? (() => []),
     getConfiguredShortcuts: options.getConfiguredShortcuts,
+    dispatchSessionAction: options.dispatchSessionAction ?? (async () => {}),
     getStatsToggleKey: options.getStatsToggleKey,
     getMarkWatchedKey: options.getMarkWatchedKey,
     getControllerConfig: options.getControllerConfig,
@@ -299,7 +313,8 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     (event: unknown, ignore: unknown, options: unknown = {}) => {
       if (typeof ignore !== 'boolean') return;
       const parsedOptions = parseOptionalForwardingOptions(options);
-      const senderWindow = BrowserWindow.fromWebContents((event as IpcMainEvent).sender);
+      const senderWindow =
+        electron.BrowserWindow?.fromWebContents((event as IpcMainEvent).sender) ?? null;
       if (senderWindow && !senderWindow.isDestroyed()) {
         senderWindow.setIgnoreMouseEvents(ignore, parsedOptions);
       }
@@ -311,11 +326,13 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     if (!parsedModal) return;
     deps.onOverlayModalClosed(parsedModal);
   });
-  ipc.on(IPC_CHANNELS.command.overlayModalOpened, (_event: unknown, modal: unknown) => {
+  ipc.on(IPC_CHANNELS.command.overlayModalOpened, (event: unknown, modal: unknown) => {
     const parsedModal = parseOverlayHostedModal(modal);
     if (!parsedModal) return;
     if (!deps.onOverlayModalOpened) return;
-    deps.onOverlayModalOpened(parsedModal);
+    const senderWindow =
+      electron.BrowserWindow?.fromWebContents((event as IpcMainEvent).sender) ?? null;
+    deps.onOverlayModalOpened(parsedModal, senderWindow);
   });
 
   ipc.handle(
@@ -431,8 +448,34 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     deps.handleMpvCommand(parsedCommand);
   });
 
+  ipc.handle(
+    IPC_CHANNELS.command.dispatchSessionAction,
+    async (_event: unknown, request: unknown) => {
+      if (!request || typeof request !== 'object') {
+        throw new Error('Invalid session action payload');
+      }
+      const actionId =
+        typeof (request as Record<string, unknown>).actionId === 'string'
+          ? ((request as Record<string, unknown>).actionId as SessionActionDispatchRequest['actionId'])
+          : null;
+      if (!actionId) {
+        throw new Error('Invalid session action id');
+      }
+      const payload =
+        (request as Record<string, unknown>).payload &&
+        typeof (request as Record<string, unknown>).payload === 'object'
+          ? ((request as Record<string, unknown>).payload as SessionActionDispatchRequest['payload'])
+          : undefined;
+      await deps.dispatchSessionAction?.({ actionId, payload });
+    },
+  );
+
   ipc.handle(IPC_CHANNELS.request.getKeybindings, () => {
     return deps.getKeybindings();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.getSessionBindings, () => {
+    return deps.getSessionBindings?.() ?? [];
   });
 
   ipc.handle(IPC_CHANNELS.request.getConfigShortcuts, () => {

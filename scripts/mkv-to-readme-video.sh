@@ -28,6 +28,27 @@ USAGE
 force=0
 generate_webp=0
 input=""
+ffmpeg_bin="${FFMPEG_BIN:-ffmpeg}"
+
+normalize_path() {
+	local value="$1"
+	if command -v cygpath > /dev/null 2>&1; then
+		case "$value" in
+			[A-Za-z]:\\* | [A-Za-z]:/*)
+				cygpath -u "$value"
+				return 0
+				;;
+		esac
+	fi
+	if [[ "$value" =~ ^([A-Za-z]):[\\/](.*)$ ]]; then
+		local drive="${BASH_REMATCH[1],,}"
+		local rest="${BASH_REMATCH[2]}"
+		rest="${rest//\\//}"
+		printf '/mnt/%s/%s\n' "$drive" "$rest"
+		return 0
+	fi
+	printf '%s\n' "$value"
+}
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -63,9 +84,19 @@ if [[ -z "$input" ]]; then
 	exit 1
 fi
 
-if ! command -v ffmpeg > /dev/null 2>&1; then
-	echo "Error: ffmpeg is not installed or not in PATH." >&2
-	exit 1
+input="$(normalize_path "$input")"
+ffmpeg_bin="$(normalize_path "$ffmpeg_bin")"
+
+if [[ "$ffmpeg_bin" == */* ]]; then
+	if [[ ! -x "$ffmpeg_bin" ]]; then
+		echo "Error: ffmpeg binary is not executable: $ffmpeg_bin" >&2
+		exit 1
+	fi
+else
+	if ! command -v "$ffmpeg_bin" > /dev/null 2>&1; then
+		echo "Error: ffmpeg is not installed or not in PATH." >&2
+		exit 1
+	fi
 fi
 
 if [[ ! -f "$input" ]]; then
@@ -102,7 +133,7 @@ fi
 
 has_encoder() {
 	local encoder="$1"
-	ffmpeg -hide_banner -encoders 2> /dev/null | awk -v encoder="$encoder" '$2 == encoder { found = 1 } END { exit(found ? 0 : 1) }'
+	"$ffmpeg_bin" -hide_banner -encoders 2> /dev/null | awk -v encoder="$encoder" '$2 == encoder { found = 1 } END { exit(found ? 0 : 1) }'
 }
 
 pick_webp_encoder() {
@@ -123,7 +154,7 @@ webm_vf="${crop_vf},fps=30"
 echo "Generating MP4: $mp4_out"
 if has_encoder "h264_nvenc"; then
 	echo "Trying GPU encoder for MP4: h264_nvenc"
-	if ffmpeg "$overwrite_flag" -i "$input" \
+	if "$ffmpeg_bin" "$overwrite_flag" -i "$input" \
 		-vf "$crop_vf" \
 		-c:v h264_nvenc -preset p6 -rc:v vbr -cq:v 20 -b:v 0 \
 		-pix_fmt yuv420p -movflags +faststart \
@@ -132,7 +163,7 @@ if has_encoder "h264_nvenc"; then
 		:
 	else
 		echo "GPU MP4 encode failed; retrying with CPU encoder: libx264"
-		ffmpeg "$overwrite_flag" -i "$input" \
+		"$ffmpeg_bin" "$overwrite_flag" -i "$input" \
 			-vf "$crop_vf" \
 			-c:v libx264 -preset slow -crf 20 \
 			-profile:v high -level 4.1 -pix_fmt yuv420p \
@@ -142,7 +173,7 @@ if has_encoder "h264_nvenc"; then
 	fi
 else
 	echo "Using CPU encoder for MP4: libx264"
-	ffmpeg "$overwrite_flag" -i "$input" \
+	"$ffmpeg_bin" "$overwrite_flag" -i "$input" \
 		-vf "$crop_vf" \
 		-c:v libx264 -preset slow -crf 20 \
 		-profile:v high -level 4.1 -pix_fmt yuv420p \
@@ -154,7 +185,7 @@ fi
 echo "Generating WebM: $webm_out"
 if has_encoder "av1_nvenc"; then
 	echo "Trying GPU encoder for WebM: av1_nvenc"
-	if ffmpeg "$overwrite_flag" -i "$input" \
+	if "$ffmpeg_bin" "$overwrite_flag" -i "$input" \
 		-vf "$webm_vf" \
 		-c:v av1_nvenc -preset p6 -cq:v 34 -b:v 0 \
 		-c:a libopus -b:a 96k \
@@ -162,7 +193,7 @@ if has_encoder "av1_nvenc"; then
 		:
 	else
 		echo "GPU WebM encode failed; retrying with CPU encoder: libvpx-vp9"
-		ffmpeg "$overwrite_flag" -i "$input" \
+		"$ffmpeg_bin" "$overwrite_flag" -i "$input" \
 			-vf "$webm_vf" \
 			-c:v libvpx-vp9 -crf 34 -b:v 0 \
 			-row-mt 1 -threads 8 \
@@ -171,7 +202,7 @@ if has_encoder "av1_nvenc"; then
 	fi
 else
 	echo "Using CPU encoder for WebM: libvpx-vp9"
-	ffmpeg "$overwrite_flag" -i "$input" \
+	"$ffmpeg_bin" "$overwrite_flag" -i "$input" \
 		-vf "$webm_vf" \
 		-c:v libvpx-vp9 -crf 34 -b:v 0 \
 		-row-mt 1 -threads 8 \
@@ -185,7 +216,7 @@ if [[ "$generate_webp" -eq 1 ]]; then
 		exit 1
 	fi
 	echo "Generating animated WebP with $webp_encoder: $webp_out"
-	ffmpeg "$overwrite_flag" -i "$input" \
+	"$ffmpeg_bin" "$overwrite_flag" -i "$input" \
 		-vf "${crop_vf},fps=24,scale=960:-1:flags=lanczos" \
 		-c:v "$webp_encoder" \
 		-q:v 80 \
@@ -195,7 +226,7 @@ if [[ "$generate_webp" -eq 1 ]]; then
 fi
 
 echo "Generating poster: $poster_out"
-ffmpeg "$overwrite_flag" -ss 00:00:05 -i "$input" \
+"$ffmpeg_bin" "$overwrite_flag" -ss 00:00:05 -i "$input" \
 	-vf "$crop_vf" \
 	-vframes 1 \
 	-q:v 2 \

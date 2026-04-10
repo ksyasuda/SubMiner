@@ -14,6 +14,7 @@ test('createConfigHotReloadAppliedHandler runs all hot-reload effects', () => {
 
   const applyHotReload = createConfigHotReloadAppliedHandler({
     setKeybindings: () => calls.push('set:keybindings'),
+    setSessionBindings: () => calls.push('set:session-bindings'),
     refreshGlobalAndOverlayShortcuts: () => calls.push('refresh:shortcuts'),
     setSecondarySubMode: (mode) => calls.push(`set:secondary:${mode}`),
     broadcastToOverlayWindows: (channel, payload) =>
@@ -37,6 +38,7 @@ test('createConfigHotReloadAppliedHandler runs all hot-reload effects', () => {
   );
 
   assert.ok(calls.includes('set:keybindings'));
+  assert.ok(calls.includes('set:session-bindings'));
   assert.ok(calls.includes('refresh:shortcuts'));
   assert.ok(calls.includes(`set:secondary:${config.secondarySub.defaultMode}`));
   assert.ok(calls.some((entry) => entry.startsWith('broadcast:secondary-subtitle:mode:')));
@@ -50,6 +52,7 @@ test('createConfigHotReloadAppliedHandler skips optional effects when no hot fie
 
   const applyHotReload = createConfigHotReloadAppliedHandler({
     setKeybindings: () => calls.push('set:keybindings'),
+    setSessionBindings: () => calls.push('set:session-bindings'),
     refreshGlobalAndOverlayShortcuts: () => calls.push('refresh:shortcuts'),
     setSecondarySubMode: () => calls.push('set:secondary'),
     broadcastToOverlayWindows: (channel) => calls.push(`broadcast:${channel}`),
@@ -64,7 +67,7 @@ test('createConfigHotReloadAppliedHandler skips optional effects when no hot fie
     config,
   );
 
-  assert.deepEqual(calls, ['set:keybindings']);
+  assert.deepEqual(calls, ['set:keybindings', 'set:session-bindings']);
 });
 
 test('createConfigHotReloadMessageHandler mirrors message to OSD and desktop notification', () => {

@@ -53,6 +53,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
     markLastCardAsAudioCard: async () => {
       calls.push('mark-audio');
     },
+    dispatchSessionAction: async () => {},
 
     getAnilistStatus: () => ({
       tokenStatus: 'resolved',

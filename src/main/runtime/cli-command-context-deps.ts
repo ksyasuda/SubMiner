@@ -28,6 +28,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   triggerFieldGrouping: () => Promise<void>;
   triggerSubsyncFromConfig: () => Promise<void>;
   markLastCardAsAudioCard: () => Promise<void>;
+  dispatchSessionAction: CliCommandContextFactoryDeps['dispatchSessionAction'];
   getAnilistStatus: CliCommandContextFactoryDeps['getAnilistStatus'];
   clearAnilistToken: CliCommandContextFactoryDeps['clearAnilistToken'];
   openAnilistSetup: CliCommandContextFactoryDeps['openAnilistSetup'];
@@ -77,6 +78,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     triggerFieldGrouping: deps.triggerFieldGrouping,
     triggerSubsyncFromConfig: deps.triggerSubsyncFromConfig,
     markLastCardAsAudioCard: deps.markLastCardAsAudioCard,
+    dispatchSessionAction: deps.dispatchSessionAction,
     getAnilistStatus: deps.getAnilistStatus,
     clearAnilistToken: deps.clearAnilistToken,
     openAnilistSetup: deps.openAnilistSetup,

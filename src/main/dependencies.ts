@@ -73,7 +73,9 @@ export interface MainIpcRuntimeServiceDepsParams {
   getMecabTokenizer: IpcDepsRuntimeOptions['getMecabTokenizer'];
   handleMpvCommand: IpcDepsRuntimeOptions['handleMpvCommand'];
   getKeybindings: IpcDepsRuntimeOptions['getKeybindings'];
+  getSessionBindings: IpcDepsRuntimeOptions['getSessionBindings'];
   getConfiguredShortcuts: IpcDepsRuntimeOptions['getConfiguredShortcuts'];
+  dispatchSessionAction: IpcDepsRuntimeOptions['dispatchSessionAction'];
   getStatsToggleKey: IpcDepsRuntimeOptions['getStatsToggleKey'];
   getMarkWatchedKey: IpcDepsRuntimeOptions['getMarkWatchedKey'];
   getControllerConfig: IpcDepsRuntimeOptions['getControllerConfig'];
@@ -178,6 +180,7 @@ export interface CliCommandRuntimeServiceDepsParams {
     hasMainWindow: CliCommandDepsRuntimeOptions['app']['hasMainWindow'];
     runYoutubePlaybackFlow: CliCommandDepsRuntimeOptions['app']['runYoutubePlaybackFlow'];
   };
+  dispatchSessionAction: CliCommandDepsRuntimeOptions['dispatchSessionAction'];
   ui: {
     openFirstRunSetup: CliCommandDepsRuntimeOptions['ui']['openFirstRunSetup'];
     openYomitanSettings: CliCommandDepsRuntimeOptions['ui']['openYomitanSettings'];
@@ -233,7 +236,9 @@ export function createMainIpcRuntimeServiceDeps(
     getMecabTokenizer: params.getMecabTokenizer,
     handleMpvCommand: params.handleMpvCommand,
     getKeybindings: params.getKeybindings,
+    getSessionBindings: params.getSessionBindings,
     getConfiguredShortcuts: params.getConfiguredShortcuts,
+    dispatchSessionAction: params.dispatchSessionAction,
     getStatsToggleKey: params.getStatsToggleKey,
     getMarkWatchedKey: params.getMarkWatchedKey,
     getControllerConfig: params.getControllerConfig,
@@ -347,6 +352,7 @@ export function createCliCommandRuntimeServiceDeps(
       hasMainWindow: params.app.hasMainWindow,
       runYoutubePlaybackFlow: params.app.runYoutubePlaybackFlow,
     },
+    dispatchSessionAction: params.dispatchSessionAction,
     ui: {
       openFirstRunSetup: params.ui.openFirstRunSetup,
       openYomitanSettings: params.ui.openYomitanSettings,

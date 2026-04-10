@@ -1,4 +1,5 @@
 import { CliArgs, CliCommandSource, commandNeedsOverlayRuntime } from '../../cli/args';
+import type { SessionActionDispatchRequest } from '../../types/runtime';
 
 export interface CliCommandServiceDeps {
   setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
@@ -32,6 +33,7 @@ export interface CliCommandServiceDeps {
   triggerSubsyncFromConfig: () => Promise<void>;
   markLastCardAsAudioCard: () => Promise<void>;
   openRuntimeOptionsPalette: () => void;
+  dispatchSessionAction: (request: SessionActionDispatchRequest) => Promise<void>;
   getAnilistStatus: () => {
     tokenStatus: 'not_checked' | 'resolved' | 'error';
     tokenSource: 'none' | 'literal' | 'stored';
@@ -168,6 +170,7 @@ export interface CliCommandDepsRuntimeOptions {
   };
   ui: UiCliRuntime;
   app: AppCliRuntime;
+  dispatchSessionAction: (request: SessionActionDispatchRequest) => Promise<void>;
   getMultiCopyTimeoutMs: () => number;
   schedule: (fn: () => void, delayMs: number) => unknown;
   log: (message: string) => void;
@@ -226,6 +229,7 @@ export function createCliCommandDepsRuntime(
     triggerSubsyncFromConfig: options.mining.triggerSubsyncFromConfig,
     markLastCardAsAudioCard: options.mining.markLastCardAsAudioCard,
     openRuntimeOptionsPalette: options.ui.openRuntimeOptionsPalette,
+    dispatchSessionAction: options.dispatchSessionAction,
     getAnilistStatus: options.anilist.getStatus,
     clearAnilistToken: options.anilist.clearToken,
     openAnilistSetup: options.anilist.openSetup,
@@ -268,6 +272,19 @@ export function handleCliCommand(
   source: CliCommandSource = 'initial',
   deps: CliCommandServiceDeps,
 ): void {
+  const dispatchCliSessionAction = (
+    request: SessionActionDispatchRequest,
+    logLabel: string,
+    osdLabel: string,
+  ): void => {
+    runAsyncWithOsd(
+      () => deps.dispatchSessionAction?.(request) ?? Promise.resolve(),
+      deps,
+      logLabel,
+      osdLabel,
+    );
+  };
+
   if (args.logLevel) {
     deps.setLogLevel?.(args.logLevel);
   }
@@ -381,6 +398,56 @@ export function handleCliCommand(
     );
   } else if (args.openRuntimeOptions) {
     deps.openRuntimeOptionsPalette();
+  } else if (args.openJimaku) {
+    dispatchCliSessionAction({ actionId: 'openJimaku' }, 'openJimaku', 'Open jimaku failed');
+  } else if (args.openYoutubePicker) {
+    dispatchCliSessionAction(
+      { actionId: 'openYoutubePicker' },
+      'openYoutubePicker',
+      'Open YouTube picker failed',
+    );
+  } else if (args.openPlaylistBrowser) {
+    dispatchCliSessionAction(
+      { actionId: 'openPlaylistBrowser' },
+      'openPlaylistBrowser',
+      'Open playlist browser failed',
+    );
+  } else if (args.replayCurrentSubtitle) {
+    dispatchCliSessionAction(
+      { actionId: 'replayCurrentSubtitle' },
+      'replayCurrentSubtitle',
+      'Replay subtitle failed',
+    );
+  } else if (args.playNextSubtitle) {
+    dispatchCliSessionAction(
+      { actionId: 'playNextSubtitle' },
+      'playNextSubtitle',
+      'Play next subtitle failed',
+    );
+  } else if (args.shiftSubDelayPrevLine) {
+    dispatchCliSessionAction(
+      { actionId: 'shiftSubDelayPrevLine' },
+      'shiftSubDelayPrevLine',
+      'Shift subtitle delay failed',
+    );
+  } else if (args.shiftSubDelayNextLine) {
+    dispatchCliSessionAction(
+      { actionId: 'shiftSubDelayNextLine' },
+      'shiftSubDelayNextLine',
+      'Shift subtitle delay failed',
+    );
+  } else if (args.copySubtitleCount !== undefined) {
+    dispatchCliSessionAction(
+      { actionId: 'copySubtitleMultiple', payload: { count: args.copySubtitleCount } },
+      'copySubtitleMultiple',
+      'Copy failed',
+    );
+  } else if (args.mineSentenceCount !== undefined) {
+    dispatchCliSessionAction(
+      { actionId: 'mineSentenceMultiple', payload: { count: args.mineSentenceCount } },
+      'mineSentenceMultiple',
+      'Mine sentence failed',
+    );
   } else if (args.anilistStatus) {
     const status = deps.getAnilistStatus();
     deps.log(`AniList token status: ${status.tokenStatus} (source=${status.tokenSource})`);

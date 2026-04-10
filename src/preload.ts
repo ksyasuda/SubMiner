@@ -223,8 +223,11 @@ const electronAPI: ElectronAPI = {
 
   getKeybindings: (): Promise<Keybinding[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getKeybindings),
+  getSessionBindings: () => ipcRenderer.invoke(IPC_CHANNELS.request.getSessionBindings),
   getConfiguredShortcuts: (): Promise<Required<ShortcutsConfig>> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getConfigShortcuts),
+  dispatchSessionAction: (actionId, payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.command.dispatchSessionAction, { actionId, payload }),
   getStatsToggleKey: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getStatsToggleKey),
   getMarkWatchedKey: (): Promise<string> =>
