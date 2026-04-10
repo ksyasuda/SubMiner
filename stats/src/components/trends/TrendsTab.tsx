@@ -114,14 +114,7 @@ export function TrendsTab() {
   if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
   if (!data) return null;
 
-  const librarySummaryAsPoints = data.librarySummary.map((row) => ({
-    epochDay: 0,
-    animeTitle: row.title,
-    value: row.watchTimeMin,
-  }));
-
   const animeTitles = buildAnimeVisibilityOptions([
-    librarySummaryAsPoints,
     data.animeCumulative.episodes,
     data.animeCumulative.cards,
     data.animeCumulative.words,
@@ -170,6 +163,18 @@ export function TrendsTab() {
         />
         <TrendChart title="Words Seen" data={data.activity.words} color="#8bd5ca" type="bar" />
         <TrendChart title="Sessions" data={data.activity.sessions} color="#b7bdf8" type="bar" />
+        <TrendChart
+          title="Watch Time by Day of Week (min)"
+          data={data.patterns.watchTimeByDayOfWeek}
+          color="#8aadf4"
+          type="bar"
+        />
+        <TrendChart
+          title="Watch Time by Hour (min)"
+          data={data.patterns.watchTimeByHour}
+          color="#c6a0f6"
+          type="bar"
+        />
 
         <SectionHeader>Period Trends</SectionHeader>
         <TrendChart
@@ -206,7 +211,7 @@ export function TrendsTab() {
           type="line"
         />
 
-        <SectionHeader>Library — Summary</SectionHeader>
+        <SectionHeader>Library — Cumulative</SectionHeader>
         <AnimeVisibilityFilter
           animeTitles={animeTitles}
           hiddenAnime={activeHiddenAnime}
@@ -224,9 +229,6 @@ export function TrendsTab() {
             })
           }
         />
-        <LibrarySummarySection rows={data.librarySummary} hiddenTitles={activeHiddenAnime} />
-
-        <SectionHeader>Library — Cumulative</SectionHeader>
         <StackedTrendChart title="Watch Time Progress (min)" data={filteredWatchTimeProgress} />
         <StackedTrendChart title="Episodes Progress" data={filteredAnimeProgress} />
         <StackedTrendChart
@@ -236,19 +238,8 @@ export function TrendsTab() {
         />
         <StackedTrendChart title="Words Seen Progress" data={filteredWordsProgress} />
 
-        <SectionHeader>Patterns</SectionHeader>
-        <TrendChart
-          title="Watch Time by Day of Week (min)"
-          data={data.patterns.watchTimeByDayOfWeek}
-          color="#8aadf4"
-          type="bar"
-        />
-        <TrendChart
-          title="Watch Time by Hour (min)"
-          data={data.patterns.watchTimeByHour}
-          color="#c6a0f6"
-          type="bar"
-        />
+        <SectionHeader>Library — Summary</SectionHeader>
+        <LibrarySummarySection rows={data.librarySummary} hiddenTitles={activeHiddenAnime} />
       </div>
     </div>
   );
