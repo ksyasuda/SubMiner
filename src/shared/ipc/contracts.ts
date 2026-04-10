@@ -37,6 +37,7 @@ export const IPC_CHANNELS = {
     overlayModalOpened: 'overlay:modal-opened',
     toggleStatsOverlay: 'stats:toggle-overlay',
     markActiveVideoWatched: 'immersion:mark-active-video-watched',
+    dispatchSessionAction: 'session-action:dispatch',
   },
   request: {
     getVisibleOverlayVisibility: 'get-visible-overlay-visibility',
@@ -49,6 +50,7 @@ export const IPC_CHANNELS = {
     getSubtitleStyle: 'get-subtitle-style',
     getMecabStatus: 'get-mecab-status',
     getKeybindings: 'get-keybindings',
+    getSessionBindings: 'get-session-bindings',
     getConfigShortcuts: 'get-config-shortcuts',
     getStatsToggleKey: 'get-stats-toggle-key',
     getMarkWatchedKey: 'get-mark-watched-key',

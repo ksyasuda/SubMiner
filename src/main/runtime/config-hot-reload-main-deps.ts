@@ -62,6 +62,7 @@ export function createBuildConfigHotReloadMessageMainDepsHandler(
 
 export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
   setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) => void;
+  setSessionBindings: (sessionBindings: ConfigHotReloadPayload['sessionBindings']) => void;
   refreshGlobalAndOverlayShortcuts: () => void;
   setSecondarySubMode: (mode: SecondarySubMode) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
@@ -72,6 +73,8 @@ export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
   return () => ({
     setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) =>
       deps.setKeybindings(keybindings),
+    setSessionBindings: (sessionBindings: ConfigHotReloadPayload['sessionBindings']) =>
+      deps.setSessionBindings(sessionBindings),
     refreshGlobalAndOverlayShortcuts: () => deps.refreshGlobalAndOverlayShortcuts(),
     setSecondarySubMode: (mode: SecondarySubMode) => deps.setSecondarySubMode(mode),
     broadcastToOverlayWindows: (channel: string, payload: unknown) =>

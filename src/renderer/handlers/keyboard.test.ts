@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { createKeyboardHandlers } from './keyboard.js';
 import { createRendererState } from '../state.js';
+import type { CompiledSessionBinding } from '../../types';
 import { YOMITAN_POPUP_COMMAND_EVENT, YOMITAN_POPUP_HIDDEN_EVENT } from '../yomitan-popup.js';
 
 type CommandEventDetail = {
@@ -50,6 +51,8 @@ function installKeyboardTestGlobals() {
   const windowListeners = new Map<string, Array<(event: unknown) => void>>();
   const commandEvents: CommandEventDetail[] = [];
   const mpvCommands: Array<Array<string | number>> = [];
+  const sessionActions: Array<{ actionId: string; payload?: unknown }> = [];
+  let sessionBindings: CompiledSessionBinding[] = [];
   let playbackPausedResponse: boolean | null = false;
   let statsToggleKey = 'Backquote';
   let markWatchedKey = 'KeyW';
@@ -153,9 +156,13 @@ function installKeyboardTestGlobals() {
       },
       electronAPI: {
         getKeybindings: async () => [],
+        getSessionBindings: async () => sessionBindings,
         getConfiguredShortcuts: async () => configuredShortcuts,
         sendMpvCommand: (command: Array<string | number>) => {
           mpvCommands.push(command);
+        },
+        dispatchSessionAction: async (actionId: string, payload?: unknown) => {
+          sessionActions.push({ actionId, payload });
         },
         getPlaybackPaused: async () => playbackPausedResponse,
         getStatsToggleKey: async () => statsToggleKey,
@@ -273,6 +280,7 @@ function installKeyboardTestGlobals() {
   return {
     commandEvents,
     mpvCommands,
+    sessionActions,
     overlay,
     overlayFocusCalls,
     focusMainWindowCalls: () => focusMainWindowCalls,
@@ -291,6 +299,9 @@ function installKeyboardTestGlobals() {
     },
     setConfiguredShortcuts: (value: typeof configuredShortcuts) => {
       configuredShortcuts = value;
+    },
+    setSessionBindings: (value: CompiledSessionBinding[]) => {
+      sessionBindings = value;
     },
     setMarkActiveVideoWatchedResult: (value: boolean) => {
       markActiveVideoWatchedResult = value;
@@ -521,13 +532,19 @@ test('popup-visible mpv keybindings still fire for bound keys', async () => {
 
   try {
     await handlers.setupMpvInputForwarding();
-    handlers.updateKeybindings([
+    handlers.updateSessionBindings([
       {
-        key: 'Space',
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'Space',
+        key: { code: 'Space', modifiers: [] },
+        actionType: 'mpv-command',
         command: ['cycle', 'pause'],
       },
       {
-        key: 'KeyQ',
+        sourcePath: 'keybindings[1].key',
+        originalKey: 'KeyQ',
+        key: { code: 'KeyQ', modifiers: [] },
+        actionType: 'mpv-command',
         command: ['quit'],
       },
     ] as never);
@@ -549,9 +566,12 @@ test('paused configured subtitle-jump keybinding re-applies pause after backward
 
   try {
     await handlers.setupMpvInputForwarding();
-    handlers.updateKeybindings([
+    handlers.updateSessionBindings([
       {
-        key: 'Shift+KeyH',
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'Shift+KeyH',
+        key: { code: 'KeyH', modifiers: ['shift'] },
+        actionType: 'mpv-command',
         command: ['sub-seek', -1],
       },
     ] as never);
@@ -574,9 +594,12 @@ test('configured subtitle-jump keybinding preserves pause when pause state is un
 
   try {
     await handlers.setupMpvInputForwarding();
-    handlers.updateKeybindings([
+    handlers.updateSessionBindings([
       {
-        key: 'Shift+KeyH',
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'Shift+KeyH',
+        key: { code: 'KeyH', modifiers: ['shift'] },
+        actionType: 'mpv-command',
         command: ['sub-seek', -1],
       },
     ] as never);
@@ -763,13 +786,19 @@ test('youtube picker: unhandled keys still dispatch mpv keybindings', async () =
 
   try {
     await handlers.setupMpvInputForwarding();
-    handlers.updateKeybindings([
+    handlers.updateSessionBindings([
       {
-        key: 'Space',
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'Space',
+        key: { code: 'Space', modifiers: [] },
+        actionType: 'mpv-command',
         command: ['cycle', 'pause'],
       },
       {
-        key: 'KeyQ',
+        sourcePath: 'keybindings[1].key',
+        originalKey: 'KeyQ',
+        key: { code: 'KeyQ', modifiers: [] },
+        actionType: 'mpv-command',
         command: ['quit'],
       },
     ] as never);
@@ -785,46 +814,72 @@ test('youtube picker: unhandled keys still dispatch mpv keybindings', async () =
   }
 });
 
-test('linux overlay shortcut: Ctrl+Alt+S dispatches subsync special command locally', async () => {
-  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+test('session binding: Ctrl+Alt+S dispatches subsync action locally', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
 
   try {
-    ctx.platform.isLinuxPlatform = true;
     await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.triggerSubsync',
+        originalKey: 'Ctrl+Alt+S',
+        key: { code: 'KeyS', modifiers: ['ctrl', 'alt'] },
+        actionType: 'session-action',
+        actionId: 'triggerSubsync',
+      },
+    ] as never);
 
     testGlobals.dispatchKeydown({ key: 's', code: 'KeyS', ctrlKey: true, altKey: true });
 
-    assert.deepEqual(testGlobals.mpvCommands, [['__subsync-trigger']]);
+    assert.deepEqual(testGlobals.sessionActions, [{ actionId: 'triggerSubsync', payload: undefined }]);
   } finally {
     testGlobals.restore();
   }
 });
 
-test('linux overlay shortcut: Ctrl+Shift+J dispatches jimaku special command locally', async () => {
-  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+test('session binding: Ctrl+Shift+J dispatches jimaku action locally', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
 
   try {
-    ctx.platform.isLinuxPlatform = true;
     await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.openJimaku',
+        originalKey: 'Ctrl+Shift+J',
+        key: { code: 'KeyJ', modifiers: ['ctrl', 'shift'] },
+        actionType: 'session-action',
+        actionId: 'openJimaku',
+      },
+    ] as never);
 
     testGlobals.dispatchKeydown({ key: 'J', code: 'KeyJ', ctrlKey: true, shiftKey: true });
 
-    assert.deepEqual(testGlobals.mpvCommands, [['__jimaku-open']]);
+    assert.deepEqual(testGlobals.sessionActions, [{ actionId: 'openJimaku', payload: undefined }]);
   } finally {
     testGlobals.restore();
   }
 });
 
-test('linux overlay shortcut: CommandOrControl+Shift+O dispatches runtime options locally', async () => {
-  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+test('session binding: Ctrl+Shift+O dispatches runtime options locally', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
 
   try {
-    ctx.platform.isLinuxPlatform = true;
     await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.openRuntimeOptions',
+        originalKey: 'CommandOrControl+Shift+O',
+        key: { code: 'KeyO', modifiers: ['ctrl', 'shift'] },
+        actionType: 'session-action',
+        actionId: 'openRuntimeOptions',
+      },
+    ] as never);
 
     testGlobals.dispatchKeydown({ key: 'O', code: 'KeyO', ctrlKey: true, shiftKey: true });
 
-    assert.deepEqual(testGlobals.mpvCommands, [['__runtime-options-open']]);
+    assert.deepEqual(testGlobals.sessionActions, [
+      { actionId: 'openRuntimeOptions', payload: undefined },
+    ]);
   } finally {
     testGlobals.restore();
   }

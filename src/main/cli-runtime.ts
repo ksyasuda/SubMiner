@@ -30,6 +30,7 @@ export interface CliCommandRuntimeServiceContext {
   triggerFieldGrouping: () => Promise<void>;
   triggerSubsyncFromConfig: () => Promise<void>;
   markLastCardAsAudioCard: () => Promise<void>;
+  dispatchSessionAction: CliCommandRuntimeServiceDepsParams['dispatchSessionAction'];
   getAnilistStatus: CliCommandRuntimeServiceDepsParams['anilist']['getStatus'];
   clearAnilistToken: CliCommandRuntimeServiceDepsParams['anilist']['clearToken'];
   openAnilistSetup: CliCommandRuntimeServiceDepsParams['anilist']['openSetup'];
@@ -113,6 +114,7 @@ function createCliCommandDepsFromContext(
       hasMainWindow: context.hasMainWindow,
       runYoutubePlaybackFlow: context.runYoutubePlaybackFlow,
     },
+    dispatchSessionAction: context.dispatchSessionAction,
     ui: {
       openFirstRunSetup: context.openFirstRunSetup,
       openYomitanSettings: context.openYomitanSettings,

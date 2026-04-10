@@ -32,8 +32,18 @@ type WindowsTrackerDeps = {
   now?: () => number;
 };
 
+function shouldUsePowershellTrackerFallback(): boolean {
+  const helperMode = process.env.SUBMINER_WINDOWS_TRACKER_HELPER?.trim().toLowerCase();
+  if (helperMode === 'powershell') {
+    return true;
+  }
+
+  const helperPath = process.env.SUBMINER_WINDOWS_TRACKER_HELPER_PATH?.trim().toLowerCase();
+  return helperPath?.endsWith('.ps1') ?? false;
+}
+
 function defaultPollMpvWindows(targetMpvSocketPath?: string | null): MpvPollResult {
-  if (targetMpvSocketPath) {
+  if (targetMpvSocketPath && shouldUsePowershellTrackerFallback()) {
     const helperResult = queryWindowsTrackerMpvWindows({
       targetMpvSocketPath,
     });

@@ -37,6 +37,7 @@ test('cli command context factory composes main deps and context handlers', () =
     triggerFieldGrouping: async () => {},
     triggerSubsyncFromConfig: async () => {},
     markLastCardAsAudioCard: async () => {},
+    dispatchSessionAction: async () => {},
     getAnilistStatus: () => ({
       tokenStatus: 'resolved',
       tokenSource: 'literal',

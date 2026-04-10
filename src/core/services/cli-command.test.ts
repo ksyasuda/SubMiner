@@ -31,6 +31,13 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     markAudioCard: false,
     refreshKnownWords: false,
     openRuntimeOptions: false,
+    openJimaku: false,
+    openYoutubePicker: false,
+    openPlaylistBrowser: false,
+    replayCurrentSubtitle: false,
+    playNextSubtitle: false,
+    shiftSubDelayPrevLine: false,
+    shiftSubDelayNextLine: false,
     anilistStatus: false,
     anilistLogout: false,
     anilistSetup: false,
@@ -142,6 +149,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     openRuntimeOptionsPalette: () => {
       calls.push('openRuntimeOptionsPalette');
+    },
+    dispatchSessionAction: async () => {
+      calls.push('dispatchSessionAction');
     },
     getAnilistStatus: () => ({
       tokenStatus: 'resolved',

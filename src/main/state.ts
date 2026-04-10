@@ -1,6 +1,7 @@
 import type { BrowserWindow, Extension, Session } from 'electron';
 
 import type {
+  CompiledSessionBinding,
   Keybinding,
   MpvSubtitleRenderMetrics,
   SecondarySubMode,
@@ -170,6 +171,7 @@ export interface AppState {
   anilistClientSecretState: AnilistSecretResolutionState;
   mecabTokenizer: MecabTokenizer | null;
   keybindings: Keybinding[];
+  sessionBindings: CompiledSessionBinding[];
   subtitleTimingTracker: SubtitleTimingTracker | null;
   immersionTracker: ImmersionTrackerService | null;
   ankiIntegration: AnkiIntegration | null;
@@ -252,6 +254,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     anilistClientSecretState: createInitialAnilistSecretResolutionState(),
     mecabTokenizer: null,
     keybindings: [],
+    sessionBindings: [],
     subtitleTimingTracker: null,
     immersionTracker: null,
     ankiIntegration: null,

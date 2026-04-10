@@ -1,8 +1,6 @@
-import { SPECIAL_COMMANDS } from '../../config/definitions';
-import type { Keybinding, ShortcutsConfig } from '../../types';
+import type { CompiledSessionBinding, ShortcutsConfig } from '../../types';
 import type { RendererContext } from '../context';
 import {
-  YOMITAN_POPUP_HOST_SELECTOR,
   YOMITAN_POPUP_HIDDEN_EVENT,
   YOMITAN_POPUP_SHOWN_EVENT,
   YOMITAN_POPUP_COMMAND_EVENT,
@@ -37,11 +35,16 @@ export function createKeyboardHandlers(
   // Timeout for the modal chord capture window (e.g. Y followed by H/K).
   const CHORD_TIMEOUT_MS = 1000;
   const KEYBOARD_SELECTED_WORD_CLASS = 'keyboard-selected';
-  const linuxOverlayShortcutCommands = new Map<string, (string | number)[]>();
   let pendingSelectionAnchorAfterSubtitleSeek: 'start' | 'end' | null = null;
   let pendingLookupRefreshAfterSubtitleSeek = false;
   let resetSelectionToStartOnNextSubtitleSync = false;
   let lookupScanFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingNumericSelection:
+    | {
+        actionId: 'copySubtitleMultiple' | 'mineSentenceMultiple';
+        timeout: ReturnType<typeof setTimeout> | null;
+      }
+    | null = null;
 
   const CHORD_MAP = new Map<
     string,
@@ -62,9 +65,6 @@ export function createKeyboardHandlers(
     if (target.closest('.modal')) return true;
     if (ctx.dom.subtitleContainer.contains(target)) return true;
     if (isYomitanPopupIframe(target)) return true;
-    if (target.closest && target.closest(YOMITAN_POPUP_HOST_SELECTOR)) {
-      return true;
-    }
     if (target.closest && target.closest('iframe.yomitan-popup, iframe[id^="yomitan-popup"]'))
       return true;
     return false;
@@ -80,113 +80,115 @@ export function createKeyboardHandlers(
     return parts.join('+');
   }
 
-  function acceleratorToKeyToken(token: string): string | null {
-    const normalized = token.trim();
-    if (!normalized) return null;
-    if (/^[a-z]$/i.test(normalized)) {
-      return `Key${normalized.toUpperCase()}`;
-    }
-    if (/^[0-9]$/.test(normalized)) {
-      return `Digit${normalized}`;
-    }
-    const exactMap: Record<string, string> = {
-      space: 'Space',
-      tab: 'Tab',
-      enter: 'Enter',
-      return: 'Enter',
-      esc: 'Escape',
-      escape: 'Escape',
-      up: 'ArrowUp',
-      down: 'ArrowDown',
-      left: 'ArrowLeft',
-      right: 'ArrowRight',
-      backspace: 'Backspace',
-      delete: 'Delete',
-      slash: 'Slash',
-      backslash: 'Backslash',
-      minus: 'Minus',
-      plus: 'Equal',
-      equal: 'Equal',
-      comma: 'Comma',
-      period: 'Period',
-      quote: 'Quote',
-      semicolon: 'Semicolon',
-      bracketleft: 'BracketLeft',
-      bracketright: 'BracketRight',
-      backquote: 'Backquote',
-    };
-    const lower = normalized.toLowerCase();
-    if (exactMap[lower]) return exactMap[lower];
-    if (/^key[a-z]$/i.test(normalized) || /^digit[0-9]$/i.test(normalized)) {
-      return normalized[0]!.toUpperCase() + normalized.slice(1);
-    }
-    if (/^arrow(?:up|down|left|right)$/i.test(normalized)) {
-      return normalized[0]!.toUpperCase() + normalized.slice(1);
-    }
-    if (/^f\d{1,2}$/i.test(normalized)) {
-      return normalized.toUpperCase();
-    }
-    return null;
-  }
-
-  function acceleratorToKeyString(accelerator: string): string | null {
-    const normalized = accelerator.replace(/\s+/g, '').replace(/cmdorctrl/gi, 'CommandOrControl');
-    if (!normalized) return null;
-    const parts = normalized.split('+').filter(Boolean);
-    const keyToken = parts.pop();
-    if (!keyToken) return null;
-
-    const eventParts: string[] = [];
-    for (const modifier of parts) {
-      const lower = modifier.toLowerCase();
-      if (lower === 'ctrl' || lower === 'control') {
-        eventParts.push('Ctrl');
-        continue;
-      }
-      if (lower === 'alt' || lower === 'option') {
-        eventParts.push('Alt');
-        continue;
-      }
-      if (lower === 'shift') {
-        eventParts.push('Shift');
-        continue;
-      }
-      if (lower === 'meta' || lower === 'super' || lower === 'command' || lower === 'cmd') {
-        eventParts.push('Meta');
-        continue;
-      }
-      if (lower === 'commandorcontrol') {
-        eventParts.push(ctx.platform.isMacOSPlatform ? 'Meta' : 'Ctrl');
-        continue;
-      }
-      return null;
-    }
-
-    const normalizedKey = acceleratorToKeyToken(keyToken);
-    if (!normalizedKey) return null;
-    eventParts.push(normalizedKey);
-    return eventParts.join('+');
-  }
-
   function updateConfiguredShortcuts(shortcuts: Required<ShortcutsConfig>): void {
-    linuxOverlayShortcutCommands.clear();
-    const bindings: Array<[string | null, (string | number)[]]> = [
-      [shortcuts.triggerSubsync, [SPECIAL_COMMANDS.SUBSYNC_TRIGGER]],
-      [shortcuts.openRuntimeOptions, [SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN]],
-      [shortcuts.openJimaku, [SPECIAL_COMMANDS.JIMAKU_OPEN]],
-    ];
-
-    for (const [accelerator, command] of bindings) {
-      if (!accelerator) continue;
-      const keyString = acceleratorToKeyString(accelerator);
-      if (keyString) {
-        linuxOverlayShortcutCommands.set(keyString, command);
-      }
-    }
+    ctx.state.sessionActionTimeoutMs = shortcuts.multiCopyTimeoutMs;
   }
 
   async function refreshConfiguredShortcuts(): Promise<void> {
     updateConfiguredShortcuts(await window.electronAPI.getConfiguredShortcuts());
+  }
+
+  function updateSessionBindings(bindings: CompiledSessionBinding[]): void {
+    ctx.state.sessionBindings = bindings;
+    ctx.state.sessionBindingMap = new Map(
+      bindings.map((binding) => [keyEventToStringFromBinding(binding), binding]),
+    );
+  }
+
+  function keyEventToStringFromBinding(binding: CompiledSessionBinding): string {
+    const parts: string[] = [];
+    for (const modifier of binding.key.modifiers) {
+      if (modifier === 'ctrl') parts.push('Ctrl');
+      else if (modifier === 'alt') parts.push('Alt');
+      else if (modifier === 'shift') parts.push('Shift');
+      else if (modifier === 'meta') parts.push('Meta');
+    }
+    parts.push(binding.key.code);
+    return parts.join('+');
+  }
+
+  function isTextEntryTarget(target: EventTarget | null): boolean {
+    if (!target || typeof target !== 'object' || !('closest' in target)) return false;
+    const element = target as { closest: (selector: string) => unknown };
+    if (element.closest('[contenteditable="true"]')) return true;
+    return Boolean(element.closest('input, textarea, select'));
+  }
+
+  function showSessionSelectionMessage(message: string): void {
+    window.electronAPI.sendMpvCommand(['show-text', message, '3000']);
+  }
+
+  function cancelPendingNumericSelection(showCancelled: boolean): void {
+    if (!pendingNumericSelection) return;
+    if (pendingNumericSelection.timeout !== null) {
+      clearTimeout(pendingNumericSelection.timeout);
+    }
+    pendingNumericSelection = null;
+    if (showCancelled) {
+      showSessionSelectionMessage('Cancelled');
+    }
+  }
+
+  function startPendingNumericSelection(
+    actionId: 'copySubtitleMultiple' | 'mineSentenceMultiple',
+  ): void {
+    cancelPendingNumericSelection(false);
+    const timeoutMessage = actionId === 'copySubtitleMultiple' ? 'Copy timeout' : 'Mine timeout';
+    const promptMessage =
+      actionId === 'copySubtitleMultiple'
+        ? 'Copy how many lines? Press 1-9 (Esc to cancel)'
+        : 'Mine how many lines? Press 1-9 (Esc to cancel)';
+    pendingNumericSelection = {
+      actionId,
+      timeout: setTimeout(() => {
+        pendingNumericSelection = null;
+        showSessionSelectionMessage(timeoutMessage);
+      }, ctx.state.sessionActionTimeoutMs),
+    };
+    showSessionSelectionMessage(promptMessage);
+  }
+
+  function beginSessionNumericSelection(
+    actionId: 'copySubtitleMultiple' | 'mineSentenceMultiple',
+  ): void {
+    startPendingNumericSelection(actionId);
+  }
+
+  function handlePendingNumericSelection(e: KeyboardEvent): boolean {
+    if (!pendingNumericSelection) return false;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelPendingNumericSelection(true);
+      return true;
+    }
+
+    if (!/^[1-9]$/.test(e.key) || e.ctrlKey || e.metaKey || e.altKey) {
+      return false;
+    }
+
+    e.preventDefault();
+    const count = Number(e.key);
+    const actionId = pendingNumericSelection.actionId;
+    cancelPendingNumericSelection(false);
+    void window.electronAPI.dispatchSessionAction(actionId, { count });
+    return true;
+  }
+
+  function dispatchSessionBinding(binding: CompiledSessionBinding): void {
+    if (
+      binding.actionType === 'session-action' &&
+      (binding.actionId === 'copySubtitleMultiple' || binding.actionId === 'mineSentenceMultiple')
+    ) {
+      startPendingNumericSelection(binding.actionId);
+      return;
+    }
+
+    if (binding.actionType === 'mpv-command') {
+      dispatchConfiguredMpvCommand(binding.command);
+      return;
+    }
+
+    void window.electronAPI.dispatchSessionAction(binding.actionId, binding.payload);
   }
 
   function dispatchYomitanPopupKeydown(
@@ -512,7 +514,7 @@ export function createKeyboardHandlers(
     clientY: number,
     modifiers: ScanModifierState = {},
   ): void {
-    if (typeof PointerEvent !== 'undefined') {
+    if (typeof PointerEvent === 'function') {
       const pointerEventInit = {
         bubbles: true,
         cancelable: true,
@@ -535,23 +537,25 @@ export function createKeyboardHandlers(
       target.dispatchEvent(new PointerEvent('pointerup', pointerEventInit));
     }
 
-    const mouseEventInit = {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      clientX,
-      clientY,
-      button: 0,
-      buttons: 0,
-      shiftKey: modifiers.shiftKey ?? false,
-      ctrlKey: modifiers.ctrlKey ?? false,
-      altKey: modifiers.altKey ?? false,
-      metaKey: modifiers.metaKey ?? false,
-    } satisfies MouseEventInit;
-    target.dispatchEvent(new MouseEvent('mousemove', mouseEventInit));
-    target.dispatchEvent(new MouseEvent('mousedown', { ...mouseEventInit, buttons: 1 }));
-    target.dispatchEvent(new MouseEvent('mouseup', mouseEventInit));
-    target.dispatchEvent(new MouseEvent('click', mouseEventInit));
+    if (typeof MouseEvent === 'function') {
+      const mouseEventInit = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        clientX,
+        clientY,
+        button: 0,
+        buttons: 0,
+        shiftKey: modifiers.shiftKey ?? false,
+        ctrlKey: modifiers.ctrlKey ?? false,
+        altKey: modifiers.altKey ?? false,
+        metaKey: modifiers.metaKey ?? false,
+      } satisfies MouseEventInit;
+      target.dispatchEvent(new MouseEvent('mousemove', mouseEventInit));
+      target.dispatchEvent(new MouseEvent('mousedown', { ...mouseEventInit, buttons: 1 }));
+      target.dispatchEvent(new MouseEvent('mouseup', mouseEventInit));
+      target.dispatchEvent(new MouseEvent('click', mouseEventInit));
+    }
   }
 
   function emitLookupScanFallback(target: Element, clientX: number, clientY: number): void {
@@ -824,7 +828,7 @@ export function createKeyboardHandlers(
     if (modifierOnlyCodes.has(e.code)) return false;
 
     const keyString = keyEventToString(e);
-    if (ctx.state.keybindingsMap.has(keyString)) {
+    if (ctx.state.sessionBindingMap.has(keyString)) {
       return false;
     }
 
@@ -850,7 +854,7 @@ export function createKeyboardHandlers(
     fallbackUnavailable: boolean;
   } {
     const firstChoice = 'KeyH';
-    if (!ctx.state.keybindingsMap.has('KeyH')) {
+    if (!ctx.state.sessionBindingMap.has('KeyH')) {
       return {
         bindingKey: firstChoice,
         fallbackUsed: false,
@@ -858,18 +862,18 @@ export function createKeyboardHandlers(
       };
     }
 
-    if (ctx.state.keybindingsMap.has('KeyK')) {
+    if (!ctx.state.sessionBindingMap.has('KeyK')) {
       return {
         bindingKey: 'KeyK',
         fallbackUsed: true,
-        fallbackUnavailable: true,
+        fallbackUnavailable: false,
       };
     }
 
     return {
       bindingKey: 'KeyK',
       fallbackUsed: true,
-      fallbackUnavailable: false,
+      fallbackUnavailable: true,
     };
   }
 
@@ -894,13 +898,13 @@ export function createKeyboardHandlers(
   }
 
   async function setupMpvInputForwarding(): Promise<void> {
-    const [keybindings, shortcuts, statsToggleKey, markWatchedKey] = await Promise.all([
-      window.electronAPI.getKeybindings(),
+    const [sessionBindings, shortcuts, statsToggleKey, markWatchedKey] = await Promise.all([
+      window.electronAPI.getSessionBindings(),
       window.electronAPI.getConfiguredShortcuts(),
       window.electronAPI.getStatsToggleKey(),
       window.electronAPI.getMarkWatchedKey(),
     ]);
-    updateKeybindings(keybindings);
+    updateSessionBindings(sessionBindings);
     updateConfiguredShortcuts(shortcuts);
     ctx.state.statsToggleKey = statsToggleKey;
     ctx.state.markWatchedKey = markWatchedKey;
@@ -1010,6 +1014,14 @@ export function createKeyboardHandlers(
         return;
       }
 
+      if (isTextEntryTarget(e.target)) {
+        return;
+      }
+
+      if (handlePendingNumericSelection(e)) {
+        return;
+      }
+
       if (isStatsOverlayToggle(e)) {
         e.preventDefault();
         window.electronAPI.toggleStatsOverlay();
@@ -1099,19 +1111,10 @@ export function createKeyboardHandlers(
       }
 
       const keyString = keyEventToString(e);
-      const linuxOverlayCommand = ctx.platform.isLinuxPlatform
-        ? linuxOverlayShortcutCommands.get(keyString)
-        : undefined;
-      if (linuxOverlayCommand) {
+      const binding = ctx.state.sessionBindingMap.get(keyString);
+      if (binding) {
         e.preventDefault();
-        dispatchConfiguredMpvCommand(linuxOverlayCommand);
-        return;
-      }
-      const command = ctx.state.keybindingsMap.get(keyString);
-
-      if (command) {
-        e.preventDefault();
-        dispatchConfiguredMpvCommand(command);
+        dispatchSessionBinding(binding);
       }
     });
 
@@ -1129,19 +1132,11 @@ export function createKeyboardHandlers(
     });
   }
 
-  function updateKeybindings(keybindings: Keybinding[]): void {
-    ctx.state.keybindingsMap = new Map();
-    for (const binding of keybindings) {
-      if (binding.command) {
-        ctx.state.keybindingsMap.set(binding.key, binding.command);
-      }
-    }
-  }
-
   return {
+    beginSessionNumericSelection,
     setupMpvInputForwarding,
     refreshConfiguredShortcuts,
-    updateKeybindings,
+    updateSessionBindings,
     syncKeyboardTokenSelection,
     handleSubtitleContentUpdated,
     handleKeyboardModeToggleRequested,

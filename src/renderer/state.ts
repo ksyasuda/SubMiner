@@ -1,4 +1,5 @@
 import type {
+  CompiledSessionBinding,
   PlaylistBrowserSnapshot,
   ControllerButtonSnapshot,
   ControllerDeviceInfo,
@@ -116,7 +117,9 @@ export type RendererState = {
   frequencyDictionaryBand4Color: string;
   frequencyDictionaryBand5Color: string;
 
-  keybindingsMap: Map<string, (string | number)[]>;
+  sessionBindings: CompiledSessionBinding[];
+  sessionBindingMap: Map<string, CompiledSessionBinding>;
+  sessionActionTimeoutMs: number;
   statsToggleKey: string;
   markWatchedKey: string;
   chordPending: boolean;
@@ -219,7 +222,9 @@ export function createRendererState(): RendererState {
     frequencyDictionaryBand4Color: '#8bd5ca',
     frequencyDictionaryBand5Color: '#8aadf4',
 
-    keybindingsMap: new Map(),
+    sessionBindings: [],
+    sessionBindingMap: new Map(),
+    sessionActionTimeoutMs: 3000,
     statsToggleKey: 'Backquote',
     markWatchedKey: 'KeyW',
     chordPending: false,

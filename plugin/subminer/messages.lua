@@ -47,6 +47,9 @@ function M.create(ctx)
 		mp.register_script_message("subminer-stats-toggle", function()
 			mp.osd_message("Stats: press ` (backtick) in overlay", 3)
 		end)
+		mp.register_script_message("subminer-reload-session-bindings", function()
+			ctx.session_bindings.reload_bindings()
+		end)
 	end
 
 	return {

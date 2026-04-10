@@ -73,6 +73,33 @@ test('parseArgs captures youtube startup forwarding flags', () => {
   assert.equal(shouldStartApp(args), true);
 });
 
+test('parseArgs captures session action forwarding flags', () => {
+  const args = parseArgs([
+    '--open-jimaku',
+    '--open-youtube-picker',
+    '--open-playlist-browser',
+    '--replay-current-subtitle',
+    '--play-next-subtitle',
+    '--shift-sub-delay-prev-line',
+    '--shift-sub-delay-next-line',
+    '--copy-subtitle-count',
+    '3',
+    '--mine-sentence-count=2',
+  ]);
+
+  assert.equal(args.openJimaku, true);
+  assert.equal(args.openYoutubePicker, true);
+  assert.equal(args.openPlaylistBrowser, true);
+  assert.equal(args.replayCurrentSubtitle, true);
+  assert.equal(args.playNextSubtitle, true);
+  assert.equal(args.shiftSubDelayPrevLine, true);
+  assert.equal(args.shiftSubDelayNextLine, true);
+  assert.equal(args.copySubtitleCount, 3);
+  assert.equal(args.mineSentenceCount, 2);
+  assert.equal(hasExplicitCommand(args), true);
+  assert.equal(shouldStartApp(args), true);
+});
+
 test('youtube playback does not use generic overlay-runtime bootstrap classification', () => {
   const args = parseArgs(['--youtube-play', 'https://youtube.com/watch?v=abc']);
 

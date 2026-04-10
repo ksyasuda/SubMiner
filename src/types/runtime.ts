@@ -6,6 +6,11 @@ import type {
 } from './anki';
 import type { ResolvedConfig, ShortcutsConfig } from './config';
 import type {
+  CompiledSessionBinding,
+  SessionActionId,
+  SessionActionPayload,
+} from './session-bindings';
+import type {
   JimakuApiResponse,
   JimakuDownloadQuery,
   JimakuDownloadResult,
@@ -321,9 +326,15 @@ export interface ClipboardAppendResult {
 
 export interface ConfigHotReloadPayload {
   keybindings: Keybinding[];
+  sessionBindings: CompiledSessionBinding[];
   subtitleStyle: SubtitleStyleConfig | null;
   subtitleSidebar: Required<SubtitleSidebarConfig>;
   secondarySubMode: SecondarySubMode;
+}
+
+export interface SessionActionDispatchRequest {
+  actionId: SessionActionId;
+  payload?: SessionActionPayload;
 }
 
 export type ResolvedControllerConfig = ResolvedConfig['controller'];
@@ -349,7 +360,9 @@ export interface ElectronAPI {
   setMecabEnabled: (enabled: boolean) => void;
   sendMpvCommand: (command: (string | number)[]) => void;
   getKeybindings: () => Promise<Keybinding[]>;
+  getSessionBindings: () => Promise<CompiledSessionBinding[]>;
   getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
+  dispatchSessionAction: (actionId: SessionActionId, payload?: SessionActionPayload) => Promise<void>;
   getStatsToggleKey: () => Promise<string>;
   getMarkWatchedKey: () => Promise<string>;
   markActiveVideoWatched: () => Promise<boolean>;

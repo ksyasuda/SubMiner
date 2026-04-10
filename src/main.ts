@@ -138,9 +138,7 @@ import {
   ensureWindowsOverlayTransparencyNative,
   getWindowsForegroundProcessNameNative,
   queryWindowsForegroundProcessName,
-  queryWindowsTargetWindowHandle,
   setWindowsOverlayOwnerNative,
-  syncWindowsOverlayToMpvZOrder,
 } from './window-trackers/windows-helper';
 import {
   commandNeedsOverlayStartupPrereqs,
@@ -354,6 +352,7 @@ import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-reso
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import { startStatsServer } from './core/services/stats-server';
 import { registerStatsOverlayToggle, destroyStatsWindow } from './core/services/stats-window.js';
+import { toggleStatsOverlay as toggleStatsOverlayWindow } from './core/services/stats-window.js';
 import {
   createFirstRunSetupService,
   getFirstRunSetupCompletionMessage,
@@ -1941,12 +1940,6 @@ function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | nu
     return null;
   }
 
-  if (targetMpvSocketPath) {
-    return queryWindowsTargetWindowHandle({
-      targetMpvSocketPath,
-    });
-  }
-
   try {
     const win32 = require('./window-trackers/win32') as typeof import('./window-trackers/win32');
     const poll = win32.findMpvWindows();
@@ -1994,15 +1987,7 @@ async function syncWindowsVisibleOverlayToMpvZOrder(): Promise<boolean> {
     (mainWindow as BrowserWindow & { setOpacity?: (opacity: number) => void }).setOpacity?.(1);
     return true;
   }
-
-  const synced = await syncWindowsOverlayToMpvZOrder({
-    overlayWindowHandle: getWindowsNativeWindowHandle(mainWindow),
-    targetMpvSocketPath: appState.mpvSocketPath,
-  });
-  if (synced) {
-    (mainWindow as BrowserWindow & { setOpacity?: (opacity: number) => void }).setOpacity?.(1);
-  }
-  return synced;
+  return false;
 }
 
 function requestWindowsVisibleOverlayZOrderSync(): void {
@@ -4166,6 +4151,7 @@ function compileCurrentSessionBindings(): {
   return compileSessionBindings({
     keybindings: appState.keybindings,
     shortcuts: getConfiguredShortcuts(),
+    statsToggleKey: getResolvedConfig().stats.toggleKey,
     platform: resolveSessionBindingPlatform(),
     rawConfig: getResolvedConfig(),
   });
@@ -4513,6 +4499,18 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
 
 async function dispatchSessionAction(request: SessionActionDispatchRequest): Promise<void> {
   await dispatchSessionActionCore(request, {
+    toggleStatsOverlay: () =>
+      toggleStatsOverlayWindow({
+        staticDir: statsDistPath,
+        preloadPath: statsPreloadPath,
+        getApiBaseUrl: () => ensureStatsServerStarted(),
+        getToggleKey: () => getResolvedConfig().stats.toggleKey,
+        resolveBounds: () => getCurrentOverlayGeometry(),
+        onVisibilityChanged: (visible) => {
+          appState.statsOverlayVisible = visible;
+          overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+        },
+      }),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
     copyCurrentSubtitle: () => copyCurrentSubtitle(),
     copySubtitleCount: (count) => handleMultiCopyDigit(count),
@@ -5093,15 +5091,6 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
         const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
         const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(appState.mpvSocketPath);
         if (targetWindowHwnd !== null && bindWindowsOverlayAboveMpvNative(overlayHwnd, targetWindowHwnd)) {
-          return;
-        }
-        if (appState.mpvSocketPath) {
-          void syncWindowsOverlayToMpvZOrder({
-            overlayWindowHandle: getWindowsNativeWindowHandle(mainWindow),
-            targetMpvSocketPath: appState.mpvSocketPath,
-          }).catch((error) => {
-            logger.warn('Failed to bind Windows overlay owner to mpv', error);
-          });
           return;
         }
         const tracker = appState.windowTracker;

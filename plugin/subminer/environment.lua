@@ -1,7 +1,9 @@
 local M = {}
+local unpack_fn = table.unpack or unpack
 
 function M.create(ctx)
 	local mp = ctx.mp
+	local utils = ctx.utils
 
 	local detected_backend = nil
 	local app_running_cache_value = nil
@@ -28,6 +30,57 @@ function M.create(ctx)
 			return "\\\\.\\pipe\\subminer-socket"
 		end
 		return "/tmp/subminer-socket"
+	end
+
+	local function path_separator()
+		return is_windows() and "\\" or "/"
+	end
+
+	local function join_path(...)
+		local parts = { ... }
+		if utils and type(utils.join_path) == "function" then
+			return utils.join_path(unpack_fn(parts))
+		end
+		return table.concat(parts, path_separator())
+	end
+
+	local function file_exists(path)
+		if not utils or type(utils.file_info) ~= "function" then
+			return false
+		end
+		return utils.file_info(path) ~= nil
+	end
+
+	local function resolve_subminer_config_dir()
+		local home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
+		local candidates = {}
+		if is_windows() then
+			local app_data = os.getenv("APPDATA") or join_path(home, "AppData", "Roaming")
+			candidates = {
+				join_path(app_data, "SubMiner"),
+			}
+		else
+			local xdg_config_home = os.getenv("XDG_CONFIG_HOME")
+			local primary_base = (type(xdg_config_home) == "string" and xdg_config_home ~= "")
+					and xdg_config_home
+				or join_path(home, ".config")
+			candidates = {
+				join_path(primary_base, "SubMiner"),
+				join_path(home, ".config", "SubMiner"),
+			}
+		end
+
+		for _, dir in ipairs(candidates) do
+			if file_exists(join_path(dir, "config.jsonc")) or file_exists(join_path(dir, "config.json")) or file_exists(dir) then
+				return dir
+			end
+		end
+
+		return candidates[1]
+	end
+
+	local function resolve_session_bindings_artifact_path()
+		return join_path(resolve_subminer_config_dir(), "session-bindings.json")
 	end
 
 	local function is_linux()
@@ -198,7 +251,10 @@ function M.create(ctx)
 		is_windows = is_windows,
 		is_macos = is_macos,
 		is_linux = is_linux,
+		join_path = join_path,
 		default_socket_path = default_socket_path,
+		resolve_subminer_config_dir = resolve_subminer_config_dir,
+		resolve_session_bindings_artifact_path = resolve_session_bindings_artifact_path,
 		is_subminer_process_running = is_subminer_process_running,
 		is_subminer_app_running = is_subminer_app_running,
 		is_subminer_app_running_async = is_subminer_app_running_async,

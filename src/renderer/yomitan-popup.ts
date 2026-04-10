@@ -32,9 +32,9 @@ export function isYomitanPopupIframe(element: Element | null): boolean {
   return hasModernPopupClass || hasLegacyPopupId;
 }
 
-export function hasYomitanPopupIframe(root: ParentNode = document): boolean {
+export function hasYomitanPopupIframe(root: ParentNode | null | undefined = document): boolean {
   return (
-    typeof root.querySelector === 'function' &&
+    typeof root?.querySelector === 'function' &&
     (root.querySelector(YOMITAN_POPUP_IFRAME_SELECTOR) !== null ||
       root.querySelector(YOMITAN_POPUP_HOST_SELECTOR) !== null)
   );
@@ -58,14 +58,17 @@ function isMarkedVisiblePopupHost(element: Element): boolean {
   return element.getAttribute(YOMITAN_POPUP_VISIBLE_ATTRIBUTE) === 'true';
 }
 
-function queryPopupElements<T extends Element>(root: ParentNode, selector: string): T[] {
-  if (typeof root.querySelectorAll !== 'function') {
+function queryPopupElements<T extends Element>(
+  root: ParentNode | null | undefined,
+  selector: string,
+): T[] {
+  if (typeof root?.querySelectorAll !== 'function') {
     return [];
   }
   return Array.from(root.querySelectorAll<T>(selector));
 }
 
-export function isYomitanPopupVisible(root: ParentNode = document): boolean {
+export function isYomitanPopupVisible(root: ParentNode | null | undefined = document): boolean {
   const visiblePopupHosts = queryPopupElements<HTMLElement>(root, YOMITAN_POPUP_VISIBLE_HOST_SELECTOR);
   if (visiblePopupHosts.length > 0) {
     return true;
