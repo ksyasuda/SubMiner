@@ -6,7 +6,11 @@ import {
   OverlayShortcutRuntimeDeps,
   runOverlayShortcutLocalFallback,
 } from './overlay-shortcut-handler';
-import { shouldActivateOverlayShortcuts } from './overlay-shortcut';
+import {
+  registerOverlayShortcutsRuntime,
+  shouldActivateOverlayShortcuts,
+  unregisterOverlayShortcutsRuntime,
+} from './overlay-shortcut';
 
 function makeShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): ConfiguredShortcuts {
   return {
@@ -312,4 +316,86 @@ test('shouldActivateOverlayShortcuts preserves non-macOS behavior', () => {
     }),
     true,
   );
+});
+
+test('registerOverlayShortcutsRuntime reports active shortcuts when configured', () => {
+  const result = registerOverlayShortcutsRuntime({
+    getConfiguredShortcuts: () =>
+      ({
+        toggleVisibleOverlayGlobal: null,
+        copySubtitle: null,
+        copySubtitleMultiple: null,
+        updateLastCardFromClipboard: null,
+        triggerFieldGrouping: null,
+        triggerSubsync: null,
+        mineSentence: null,
+        mineSentenceMultiple: null,
+        multiCopyTimeoutMs: 2500,
+        toggleSecondarySub: null,
+        markAudioCard: null,
+        openRuntimeOptions: null,
+        openJimaku: 'Ctrl+J',
+      }) as never,
+    getOverlayHandlers: () => ({
+      copySubtitle: () => {},
+      copySubtitleMultiple: () => {},
+      updateLastCardFromClipboard: () => {},
+      triggerFieldGrouping: () => {},
+      triggerSubsync: () => {},
+      mineSentence: () => {},
+      mineSentenceMultiple: () => {},
+      toggleSecondarySub: () => {},
+      markAudioCard: () => {},
+      openRuntimeOptions: () => {},
+      openJimaku: () => {},
+    }),
+    cancelPendingMultiCopy: () => {},
+    cancelPendingMineSentenceMultiple: () => {},
+  });
+
+  assert.equal(result, true);
+});
+
+test('unregisterOverlayShortcutsRuntime clears pending shortcut work when active', () => {
+  const calls: string[] = [];
+  const result = unregisterOverlayShortcutsRuntime(true, {
+    getConfiguredShortcuts: () =>
+      ({
+        toggleVisibleOverlayGlobal: null,
+        copySubtitle: null,
+        copySubtitleMultiple: null,
+        updateLastCardFromClipboard: null,
+        triggerFieldGrouping: null,
+        triggerSubsync: null,
+        mineSentence: null,
+        mineSentenceMultiple: null,
+        multiCopyTimeoutMs: 2500,
+        toggleSecondarySub: null,
+        markAudioCard: null,
+        openRuntimeOptions: null,
+        openJimaku: null,
+      }) as never,
+    getOverlayHandlers: () => ({
+      copySubtitle: () => {},
+      copySubtitleMultiple: () => {},
+      updateLastCardFromClipboard: () => {},
+      triggerFieldGrouping: () => {},
+      triggerSubsync: () => {},
+      mineSentence: () => {},
+      mineSentenceMultiple: () => {},
+      toggleSecondarySub: () => {},
+      markAudioCard: () => {},
+      openRuntimeOptions: () => {},
+      openJimaku: () => {},
+    }),
+    cancelPendingMultiCopy: () => {
+      calls.push('cancel-multi-copy');
+    },
+    cancelPendingMineSentenceMultiple: () => {
+      calls.push('cancel-mine-sentence-multiple');
+    },
+  });
+
+  assert.equal(result, false);
+  assert.deepEqual(calls, ['cancel-multi-copy', 'cancel-mine-sentence-multiple']);
 });
