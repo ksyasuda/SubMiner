@@ -529,6 +529,9 @@ async function init(): Promise<void> {
   if (ctx.platform.isMacOSPlatform) {
     document.body.classList.add('platform-macos');
   }
+  if (ctx.platform.isWindowsPlatform) {
+    document.body.classList.add('platform-windows');
+  }
   if (ctx.platform.shouldToggleMouseIgnore) {
     syncOverlayMouseIgnoreState(ctx);
   }

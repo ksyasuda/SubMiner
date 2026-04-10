@@ -989,6 +989,13 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
     /transform:\s*translateX\(calc\(var\(--subtitle-sidebar-reserved-width\)\s*\*\s*-0\.5\)\);/,
   );
 
+  const secondaryHoverWindowsBlock = extractClassBlock(
+    cssText,
+    'body.platform-windows #secondarySubContainer.secondary-sub-hover',
+  );
+  assert.match(secondaryHoverWindowsBlock, /top:\s*40px;/);
+  assert.match(secondaryHoverWindowsBlock, /padding-top:\s*0;/);
+
   const subtitleSidebarListBlock = extractClassBlock(cssText, '.subtitle-sidebar-list');
   assert.doesNotMatch(subtitleSidebarListBlock, /scroll-behavior:\s*smooth;/);
 
