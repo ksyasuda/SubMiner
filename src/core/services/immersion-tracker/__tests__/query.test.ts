@@ -3841,3 +3841,108 @@ test('getTrendsDashboard builds librarySummary with per-title aggregates', () =>
     cleanupDbPath(dbPath);
   }
 });
+
+test('getTrendsDashboard librarySummary returns null lookupsPerHundred when words is zero', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/lib-summary-null.mkv', {
+      canonicalTitle: 'Null Lookups Title',
+      sourcePath: '/tmp/lib-summary-null.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Null Lookups Anime',
+      canonicalTitle: 'Null Lookups Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'lib-summary-null.mkv',
+      parsedTitle: 'Null Lookups Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    const startMs = 1_700_000_000_000;
+    const session = startSessionRecord(db, videoId, startMs);
+    stmts.telemetryInsertStmt.run(
+      session.sessionId,
+      `${startMs + 60_000}`,
+      20 * 60_000,
+      20 * 60_000,
+      5,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      `${startMs + 60_000}`,
+      `${startMs + 60_000}`,
+    );
+    db.prepare(
+      `
+        UPDATE imm_sessions
+        SET ended_at_ms = ?, total_watched_ms = ?, active_watched_ms = ?,
+            lines_seen = ?, tokens_seen = ?, cards_mined = ?, yomitan_lookup_count = ?
+        WHERE session_id = ?
+      `,
+    ).run(
+      `${startMs + 20 * 60_000}`,
+      20 * 60_000,
+      20 * 60_000,
+      5,
+      0,
+      0,
+      0,
+      session.sessionId,
+    );
+
+    db.prepare(
+      `
+        INSERT INTO imm_daily_rollups (
+          rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+          total_tokens_seen, total_cards
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(Math.floor(startMs / 86_400_000), videoId, 1, 20, 5, 0, 0);
+
+    const dashboard = getTrendsDashboard(db, 'all', 'day');
+    assert.equal(dashboard.librarySummary.length, 1);
+    assert.equal(dashboard.librarySummary[0]!.lookupsPerHundred, null);
+    assert.equal(dashboard.librarySummary[0]!.words, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getTrendsDashboard librarySummary is empty when no rollups exist', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const dashboard = getTrendsDashboard(db, 'all', 'day');
+    assert.deepEqual(dashboard.librarySummary, []);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
