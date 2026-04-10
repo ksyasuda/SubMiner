@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getStatsClient } from './useStatsApi';
 import type { TrendsDashboardData } from '../types/stats';
 
-export type TimeRange = '7d' | '30d' | '90d' | 'all';
+export type TimeRange = '7d' | '30d' | '90d' | '365d' | 'all';
 export type GroupBy = 'day' | 'month';
 
 export function useTrends(range: TimeRange, groupBy: GroupBy) {

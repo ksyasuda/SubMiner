@@ -31,18 +31,12 @@ export function SessionEventPopover({
   onClose,
   onOpenNote,
 }: SessionEventPopoverProps) {
-  const seekDurationLabel =
-    marker.kind === 'seek' && marker.fromMs !== null && marker.toMs !== null
-      ? formatEventSeconds(Math.abs(marker.toMs - marker.fromMs))?.replace(/\.0s$/, 's')
-      : null;
-
   return (
     <div className="relative z-50 w-64 rounded-xl border border-ctp-surface2 bg-ctp-surface0/95 p-3 shadow-2xl shadow-black/30 backdrop-blur-sm">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-semibold text-ctp-text">
             {marker.kind === 'pause' && 'Paused'}
-            {marker.kind === 'seek' && `Seek ${marker.direction}`}
             {marker.kind === 'card' && 'Card mined'}
           </div>
           <div className="text-[10px] text-ctp-overlay1">{formatEventTime(marker.eventTsMs)}</div>
@@ -72,7 +66,6 @@ export function SessionEventPopover({
           ) : null}
           <div className="text-sm">
             {marker.kind === 'pause' && '||'}
-            {marker.kind === 'seek' && (marker.direction === 'backward' ? '<<' : '>>')}
             {marker.kind === 'card' && '\u26CF'}
           </div>
         </div>
@@ -81,19 +74,6 @@ export function SessionEventPopover({
       {marker.kind === 'pause' && (
         <div className="text-xs text-ctp-subtext0">
           Duration: <span className="text-ctp-peach">{formatEventSeconds(marker.durationMs)}</span>
-        </div>
-      )}
-
-      {marker.kind === 'seek' && (
-        <div className="space-y-1 text-xs text-ctp-subtext0">
-          <div>
-            From{' '}
-            <span className="text-ctp-teal">{formatEventSeconds(marker.fromMs) ?? '\u2014'}</span>{' '}
-            to <span className="text-ctp-teal">{formatEventSeconds(marker.toMs) ?? '\u2014'}</span>
-          </div>
-          <div>
-            Length <span className="text-ctp-peach">{seekDurationLabel ?? '\u2014'}</span>
-          </div>
         </div>
       )}
 

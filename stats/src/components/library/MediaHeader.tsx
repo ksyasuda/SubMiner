@@ -12,9 +12,16 @@ interface MediaHeaderProps {
     totalUniqueWords: number;
     knownWordCount: number;
   } | null;
+  onDeleteEpisode?: () => void;
+  isDeletingEpisode?: boolean;
 }
 
-export function MediaHeader({ detail, initialKnownWordsSummary = null }: MediaHeaderProps) {
+export function MediaHeader({
+  detail,
+  initialKnownWordsSummary = null,
+  onDeleteEpisode,
+  isDeletingEpisode = false,
+}: MediaHeaderProps) {
   const knownTokenRate =
     detail.totalLookupCount > 0 ? detail.totalLookupHits / detail.totalLookupCount : null;
   const avgSessionMs =
@@ -50,7 +57,21 @@ export function MediaHeader({ detail, initialKnownWordsSummary = null }: MediaHe
         className="w-32 h-44 rounded-lg shrink-0"
       />
       <div className="flex-1 min-w-0">
-        <h2 className="text-lg font-bold text-ctp-text truncate">{detail.canonicalTitle}</h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="min-w-0 flex-1 text-lg font-bold text-ctp-text truncate">
+            {detail.canonicalTitle}
+          </h2>
+          {onDeleteEpisode != null ? (
+            <button
+              type="button"
+              onClick={onDeleteEpisode}
+              disabled={isDeletingEpisode}
+              className="shrink-0 text-xs text-ctp-red hover:opacity-75 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDeletingEpisode ? 'Deleting...' : 'Delete Episode'}
+            </button>
+          ) : null}
+        </div>
         {detail.channelName ? (
           <div className="mt-1 text-sm text-ctp-subtext1 truncate">
             {detail.channelUrl ? (

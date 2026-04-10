@@ -288,6 +288,19 @@ export interface TrendPerAnimePoint {
   value: number;
 }
 
+export interface LibrarySummaryRow {
+  title: string;
+  watchTimeMin: number;
+  videos: number;
+  sessions: number;
+  cards: number;
+  words: number;
+  lookups: number;
+  lookupsPerHundred: number | null;
+  firstWatched: number;
+  lastWatched: number;
+}
+
 export interface TrendsDashboardData {
   activity: {
     watchTime: TrendChartPoint[];
@@ -307,14 +320,7 @@ export interface TrendsDashboardData {
   ratios: {
     lookupsPerHundred: TrendChartPoint[];
   };
-  animePerDay: {
-    episodes: TrendPerAnimePoint[];
-    watchTime: TrendPerAnimePoint[];
-    cards: TrendPerAnimePoint[];
-    words: TrendPerAnimePoint[];
-    lookups: TrendPerAnimePoint[];
-    lookupsPerHundred: TrendPerAnimePoint[];
-  };
+  librarySummary: LibrarySummaryRow[];
   animeCumulative: {
     watchTime: TrendPerAnimePoint[];
     episodes: TrendPerAnimePoint[];

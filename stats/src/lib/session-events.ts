@@ -2,8 +2,6 @@ import { EventType, type SessionEvent } from '../types/stats';
 
 export const SESSION_CHART_EVENT_TYPES = [
   EventType.CARD_MINED,
-  EventType.SEEK_FORWARD,
-  EventType.SEEK_BACKWARD,
   EventType.PAUSE_START,
   EventType.PAUSE_END,
   EventType.YOMITAN_LOOKUP,
@@ -16,7 +14,6 @@ export interface PauseRegion {
 
 export interface SessionChartEvents {
   cardEvents: SessionEvent[];
-  seekEvents: SessionEvent[];
   yomitanLookupEvents: SessionEvent[];
   pauseRegions: PauseRegion[];
   markers: SessionChartMarker[];
@@ -57,15 +54,6 @@ export type SessionChartMarker =
       startMs: number;
       endMs: number;
       durationMs: number;
-    }
-  | {
-      key: string;
-      kind: 'seek';
-      anchorTsMs: number;
-      eventTsMs: number;
-      direction: 'forward' | 'backward';
-      fromMs: number | null;
-      toMs: number | null;
     }
   | {
       key: string;
@@ -295,7 +283,6 @@ export function projectSessionMarkerLeftPx({
 
 export function buildSessionChartEvents(events: SessionEvent[]): SessionChartEvents {
   const cardEvents: SessionEvent[] = [];
-  const seekEvents: SessionEvent[] = [];
   const yomitanLookupEvents: SessionEvent[] = [];
   const pauseRegions: PauseRegion[] = [];
   const markers: SessionChartMarker[] = [];
@@ -314,22 +301,6 @@ export function buildSessionChartEvents(events: SessionEvent[]): SessionChartEve
             eventTsMs: event.tsMs,
             noteIds: readNoteIds(payload?.noteIds),
             cardsDelta: readNumberField(payload?.cardsMined) ?? 1,
-          });
-        }
-        break;
-      case EventType.SEEK_FORWARD:
-      case EventType.SEEK_BACKWARD:
-        seekEvents.push(event);
-        {
-          const payload = parsePayload(event.payload);
-          markers.push({
-            key: `seek-${event.tsMs}-${event.eventType}`,
-            kind: 'seek',
-            anchorTsMs: event.tsMs,
-            eventTsMs: event.tsMs,
-            direction: event.eventType === EventType.SEEK_BACKWARD ? 'backward' : 'forward',
-            fromMs: readNumberField(payload?.fromMs),
-            toMs: readNumberField(payload?.toMs),
           });
         }
         break;
@@ -376,7 +347,6 @@ export function buildSessionChartEvents(events: SessionEvent[]): SessionChartEve
 
   return {
     cardEvents,
-    seekEvents,
     yomitanLookupEvents,
     pauseRegions,
     markers,

@@ -687,7 +687,7 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
     assert.equal(dashboard.progress.watchTime[1]?.value, 75);
     assert.equal(dashboard.progress.lookups[1]?.value, 18);
     assert.equal(dashboard.ratios.lookupsPerHundred[0]?.value, +((8 / 120) * 100).toFixed(1));
-    assert.equal(dashboard.animePerDay.watchTime[0]?.animeTitle, 'Trend Dashboard Anime');
+    assert.equal(dashboard.librarySummary[0]?.title, 'Trend Dashboard Anime');
     assert.equal(dashboard.animeCumulative.watchTime[1]?.value, 75);
     assert.equal(
       dashboard.patterns.watchTimeByDayOfWeek.reduce((sum, point) => sum + point.value, 0),
@@ -833,6 +833,65 @@ test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
     db.close();
     cleanupDbPath(dbPath);
   }
+});
+
+test('getTrendsDashboard supports 365d range and caps day buckets at 365', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  withMockNowMs('1772395200000', () => {
+    try {
+      ensureSchema(db);
+
+      const videoId = getOrCreateVideoRecord(db, 'local:/tmp/365d-trends.mkv', {
+        canonicalTitle: '365d Trends',
+        sourcePath: '/tmp/365d-trends.mkv',
+        sourceUrl: null,
+        sourceType: SOURCE_TYPE_LOCAL,
+      });
+      const animeId = getOrCreateAnimeRecord(db, {
+        parsedTitle: '365d Trends',
+        canonicalTitle: '365d Trends',
+        anilistId: null,
+        titleRomaji: null,
+        titleEnglish: null,
+        titleNative: null,
+        metadataJson: null,
+      });
+      linkVideoToAnimeRecord(db, videoId, {
+        animeId,
+        parsedBasename: '365d-trends.mkv',
+        parsedTitle: '365d Trends',
+        parsedSeason: 1,
+        parsedEpisode: 1,
+        parserSource: 'test',
+        parserConfidence: 1,
+        parseMetadataJson: null,
+      });
+
+      const insertDailyRollup = db.prepare(
+        `
+          INSERT INTO imm_daily_rollups (
+            rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+            total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      );
+      // Seed 400 distinct rollup days so we can prove the 365d range caps at 365.
+      const latestRollupDay = 20513;
+      const createdAtMs = '1772395200000';
+      for (let offset = 0; offset < 400; offset += 1) {
+        const rollupDay = latestRollupDay - offset;
+        insertDailyRollup.run(rollupDay, videoId, 1, 30, 4, 100, 2, createdAtMs, createdAtMs);
+      }
+
+      const dashboard = getTrendsDashboard(db, '365d', 'day');
+
+      assert.equal(dashboard.activity.watchTime.length, 365);
+    } finally {
+      db.close();
+      cleanupDbPath(dbPath);
+    }
+  });
 });
 
 test('getTrendsDashboard month grouping spans every touched calendar month and keeps progress monthly', () => {
@@ -3661,6 +3720,227 @@ test('deleteSession removes zero-session media from library and trends', () => {
     assert.equal(lifetimeMediaCount, 0);
     assert.equal(lifetimeAnimeCount, 0);
     assert.equal(appliedSessionCount, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getTrendsDashboard builds librarySummary with per-title aggregates', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/library-summary-test.mkv', {
+      canonicalTitle: 'Library Summary Test',
+      sourcePath: '/tmp/library-summary-test.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Summary Anime',
+      canonicalTitle: 'Summary Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'library-summary-test.mkv',
+      parsedTitle: 'Summary Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    const dayOneStart = 1_700_000_000_000;
+    const dayTwoStart = dayOneStart + 86_400_000;
+
+    const sessionOne = startSessionRecord(db, videoId, dayOneStart);
+    const sessionTwo = startSessionRecord(db, videoId, dayTwoStart);
+
+    for (const [sessionId, startedAtMs, activeMs, cards, tokens, lookups] of [
+      [sessionOne.sessionId, dayOneStart, 30 * 60_000, 2, 120, 8],
+      [sessionTwo.sessionId, dayTwoStart, 45 * 60_000, 3, 140, 10],
+    ] as const) {
+      stmts.telemetryInsertStmt.run(
+        sessionId,
+        `${startedAtMs + 60_000}`,
+        activeMs,
+        activeMs,
+        10,
+        tokens,
+        cards,
+        0,
+        0,
+        lookups,
+        0,
+        0,
+        0,
+        0,
+        `${startedAtMs + 60_000}`,
+        `${startedAtMs + 60_000}`,
+      );
+
+      db.prepare(
+        `
+          UPDATE imm_sessions
+          SET ended_at_ms = ?, total_watched_ms = ?, active_watched_ms = ?,
+              lines_seen = ?, tokens_seen = ?, cards_mined = ?, yomitan_lookup_count = ?
+          WHERE session_id = ?
+        `,
+      ).run(
+        `${startedAtMs + activeMs}`,
+        activeMs,
+        activeMs,
+        10,
+        tokens,
+        cards,
+        lookups,
+        sessionId,
+      );
+    }
+
+    for (const [day, active, tokens, cards] of [
+      [Math.floor(dayOneStart / 86_400_000), 30, 120, 2],
+      [Math.floor(dayTwoStart / 86_400_000), 45, 140, 3],
+    ] as const) {
+      db.prepare(
+        `
+          INSERT INTO imm_daily_rollups (
+            rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+            total_tokens_seen, total_cards
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+      ).run(day, videoId, 1, active, 10, tokens, cards);
+    }
+
+    const dashboard = getTrendsDashboard(db, 'all', 'day');
+
+    assert.equal(dashboard.librarySummary.length, 1);
+    const row = dashboard.librarySummary[0]!;
+    assert.equal(row.title, 'Summary Anime');
+    assert.equal(row.watchTimeMin, 75);
+    assert.equal(row.videos, 1);
+    assert.equal(row.sessions, 2);
+    assert.equal(row.cards, 5);
+    assert.equal(row.words, 260);
+    assert.equal(row.lookups, 18);
+    assert.equal(row.lookupsPerHundred, +((18 / 260) * 100).toFixed(1));
+    assert.equal(row.firstWatched, Math.floor(dayOneStart / 86_400_000));
+    assert.equal(row.lastWatched, Math.floor(dayTwoStart / 86_400_000));
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getTrendsDashboard librarySummary returns null lookupsPerHundred when words is zero', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/lib-summary-null.mkv', {
+      canonicalTitle: 'Null Lookups Title',
+      sourcePath: '/tmp/lib-summary-null.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Null Lookups Anime',
+      canonicalTitle: 'Null Lookups Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'lib-summary-null.mkv',
+      parsedTitle: 'Null Lookups Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    const startMs = 1_700_000_000_000;
+    const session = startSessionRecord(db, videoId, startMs);
+    stmts.telemetryInsertStmt.run(
+      session.sessionId,
+      `${startMs + 60_000}`,
+      20 * 60_000,
+      20 * 60_000,
+      5,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      `${startMs + 60_000}`,
+      `${startMs + 60_000}`,
+    );
+    db.prepare(
+      `
+        UPDATE imm_sessions
+        SET ended_at_ms = ?, total_watched_ms = ?, active_watched_ms = ?,
+            lines_seen = ?, tokens_seen = ?, cards_mined = ?, yomitan_lookup_count = ?
+        WHERE session_id = ?
+      `,
+    ).run(
+      `${startMs + 20 * 60_000}`,
+      20 * 60_000,
+      20 * 60_000,
+      5,
+      0,
+      0,
+      0,
+      session.sessionId,
+    );
+
+    db.prepare(
+      `
+        INSERT INTO imm_daily_rollups (
+          rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+          total_tokens_seen, total_cards
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(Math.floor(startMs / 86_400_000), videoId, 1, 20, 5, 0, 0);
+
+    const dashboard = getTrendsDashboard(db, 'all', 'day');
+    assert.equal(dashboard.librarySummary.length, 1);
+    assert.equal(dashboard.librarySummary[0]!.lookupsPerHundred, null);
+    assert.equal(dashboard.librarySummary[0]!.words, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getTrendsDashboard librarySummary is empty when no rollups exist', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const dashboard = getTrendsDashboard(db, 'all', 'day');
+    assert.deepEqual(dashboard.librarySummary, []);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

@@ -6,8 +6,10 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  CartesianGrid,
   ResponsiveContainer,
 } from 'recharts';
+import { CHART_DEFAULTS, CHART_THEME, TOOLTIP_CONTENT_STYLE } from '../../lib/chart-theme';
 
 interface TrendChartProps {
   title: string;
@@ -19,35 +21,29 @@ interface TrendChartProps {
 }
 
 export function TrendChart({ title, data, color, type, formatter, onBarClick }: TrendChartProps) {
-  const tooltipStyle = {
-    background: '#363a4f',
-    border: '1px solid #494d64',
-    borderRadius: 6,
-    color: '#cad3f5',
-    fontSize: 12,
-  };
-
   const formatValue = (v: number) => (formatter ? [formatter(v), title] : [String(v), title]);
 
   return (
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
       <h3 className="text-xs font-semibold text-ctp-text mb-2">{title}</h3>
-      <ResponsiveContainer width="100%" height={120}>
+      <ResponsiveContainer width="100%" height={CHART_DEFAULTS.height}>
         {type === 'bar' ? (
-          <BarChart data={data}>
+          <BarChart data={data} margin={CHART_DEFAULTS.margin}>
+            <CartesianGrid stroke={CHART_THEME.grid} {...CHART_DEFAULTS.grid} />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 9, fill: '#a5adcb' }}
-              axisLine={false}
+              tick={{ fontSize: CHART_DEFAULTS.tickFontSize, fill: CHART_THEME.tick }}
+              axisLine={{ stroke: CHART_THEME.axisLine }}
               tickLine={false}
             />
             <YAxis
-              tick={{ fontSize: 9, fill: '#a5adcb' }}
-              axisLine={false}
+              tick={{ fontSize: CHART_DEFAULTS.tickFontSize, fill: CHART_THEME.tick }}
+              axisLine={{ stroke: CHART_THEME.axisLine }}
               tickLine={false}
-              width={28}
+              width={32}
+              tickFormatter={formatter}
             />
-            <Tooltip contentStyle={tooltipStyle} formatter={formatValue} />
+            <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} formatter={formatValue} />
             <Bar
               dataKey="value"
               fill={color}
@@ -59,20 +55,22 @@ export function TrendChart({ title, data, color, type, formatter, onBarClick }: 
             />
           </BarChart>
         ) : (
-          <LineChart data={data}>
+          <LineChart data={data} margin={CHART_DEFAULTS.margin}>
+            <CartesianGrid stroke={CHART_THEME.grid} {...CHART_DEFAULTS.grid} />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 9, fill: '#a5adcb' }}
-              axisLine={false}
+              tick={{ fontSize: CHART_DEFAULTS.tickFontSize, fill: CHART_THEME.tick }}
+              axisLine={{ stroke: CHART_THEME.axisLine }}
               tickLine={false}
             />
             <YAxis
-              tick={{ fontSize: 9, fill: '#a5adcb' }}
-              axisLine={false}
+              tick={{ fontSize: CHART_DEFAULTS.tickFontSize, fill: CHART_THEME.tick }}
+              axisLine={{ stroke: CHART_THEME.axisLine }}
               tickLine={false}
-              width={28}
+              width={32}
+              tickFormatter={formatter}
             />
-            <Tooltip contentStyle={tooltipStyle} formatter={formatValue} />
+            <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} formatter={formatValue} />
             <Line dataKey="value" stroke={color} strokeWidth={2} dot={false} />
           </LineChart>
         )}

@@ -17,3 +17,14 @@ export function confirmAnimeGroupDelete(title: string, count: number): boolean {
 export function confirmEpisodeDelete(title: string): boolean {
   return globalThis.confirm(`Delete "${title}" and all its sessions?`);
 }
+
+export function confirmBucketDelete(title: string, count: number): boolean {
+  if (count === 1) {
+    return globalThis.confirm(
+      `Delete this session of "${title}" from this day and all associated data?`,
+    );
+  }
+  return globalThis.confirm(
+    `Delete all ${count} sessions of "${title}" from this day and all associated data?`,
+  );
+}

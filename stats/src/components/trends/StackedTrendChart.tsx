@@ -1,4 +1,13 @@
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  AreaChart,
+  Area,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import { CHART_DEFAULTS, CHART_THEME, TOOLTIP_CONTENT_STYLE } from '../../lib/chart-theme';
 import { epochDayToDate } from '../../lib/formatters';
 
 export interface PerAnimeDataPoint {
@@ -64,14 +73,6 @@ export function StackedTrendChart({ title, data, colorPalette }: StackedTrendCha
   const { points, seriesKeys } = buildLineData(data);
   const colors = colorPalette ?? DEFAULT_LINE_COLORS;
 
-  const tooltipStyle = {
-    background: '#363a4f',
-    border: '1px solid #494d64',
-    borderRadius: 6,
-    color: '#cad3f5',
-    fontSize: 12,
-  };
-
   if (points.length === 0) {
     return (
       <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
@@ -84,21 +85,22 @@ export function StackedTrendChart({ title, data, colorPalette }: StackedTrendCha
   return (
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
       <h3 className="text-xs font-semibold text-ctp-text mb-2">{title}</h3>
-      <ResponsiveContainer width="100%" height={120}>
-        <AreaChart data={points}>
+      <ResponsiveContainer width="100%" height={CHART_DEFAULTS.height}>
+        <AreaChart data={points} margin={CHART_DEFAULTS.margin}>
+          <CartesianGrid stroke={CHART_THEME.grid} {...CHART_DEFAULTS.grid} />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 9, fill: '#a5adcb' }}
-            axisLine={false}
+            tick={{ fontSize: CHART_DEFAULTS.tickFontSize, fill: CHART_THEME.tick }}
+            axisLine={{ stroke: CHART_THEME.axisLine }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 9, fill: '#a5adcb' }}
-            axisLine={false}
+            tick={{ fontSize: CHART_DEFAULTS.tickFontSize, fill: CHART_THEME.tick }}
+            axisLine={{ stroke: CHART_THEME.axisLine }}
             tickLine={false}
-            width={28}
+            width={32}
           />
-          <Tooltip contentStyle={tooltipStyle} />
+          <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} />
           {seriesKeys.map((key, i) => (
             <Area
               key={key}

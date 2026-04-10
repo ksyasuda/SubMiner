@@ -120,7 +120,7 @@ export function SessionRow({
           }}
           aria-label={`View overview for ${session.canonicalTitle ?? 'Unknown Media'}`}
           className="absolute right-10 top-1/2 -translate-y-1/2 w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-blue/50 hover:text-ctp-blue hover:bg-ctp-blue/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center justify-center"
-          title="View anime overview"
+          title="View in Library"
         >
           {'\u2197'}
         </button>

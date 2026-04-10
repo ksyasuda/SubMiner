@@ -113,7 +113,6 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
                 <tr className="text-xs text-ctp-overlay2 border-b border-ctp-surface1">
                   <th className="text-left py-2 pr-3 font-medium w-16">Rank</th>
                   <th className="text-left py-2 pr-3 font-medium">Word</th>
-                  <th className="text-left py-2 pr-3 font-medium">Reading</th>
                   <th className="text-left py-2 pr-3 font-medium w-20">POS</th>
                   <th className="text-right py-2 font-medium w-20">Seen</th>
                 </tr>
@@ -128,9 +127,19 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
                     <td className="py-1.5 pr-3 font-mono tabular-nums text-ctp-peach text-xs">
                       #{w.frequencyRank!.toLocaleString()}
                     </td>
-                    <td className="py-1.5 pr-3 text-ctp-text font-medium">{w.headword}</td>
-                    <td className="py-1.5 pr-3 text-ctp-subtext0">
-                      {fullReading(w.headword, w.reading) || w.headword}
+                    <td className="py-1.5 pr-3">
+                      <span className="text-ctp-text font-medium">{w.headword}</span>
+                      {(() => {
+                        const reading = fullReading(w.headword, w.reading);
+                        // `fullReading` normalizes katakana to hiragana, so we normalize the
+                        // headword the same way before comparing — otherwise katakana-only
+                        // entries like `カレー` would render `【かれー】`.
+                        const normalizedHeadword = fullReading(w.headword, w.headword);
+                        if (!reading || reading === normalizedHeadword) return null;
+                        return (
+                          <span className="text-ctp-subtext0 text-xs ml-1.5">【{reading}】</span>
+                        );
+                      })()}
                     </td>
                     <td className="py-1.5 pr-3">
                       {w.partOfSpeech && <PosBadge pos={w.partOfSpeech} />}

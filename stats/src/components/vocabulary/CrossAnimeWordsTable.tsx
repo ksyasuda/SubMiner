@@ -72,7 +72,7 @@ export function CrossAnimeWordsTable({
           >
             {'\u25B6'}
           </span>
-          Words In Multiple Anime
+          Words Across Multiple Titles
         </button>
         <div className="flex items-center gap-3">
           {hasKnownData && (
@@ -97,8 +97,8 @@ export function CrossAnimeWordsTable({
       {collapsed ? null : ranked.length === 0 ? (
         <div className="text-xs text-ctp-overlay2 mt-3">
           {hideKnown
-            ? 'All multi-anime words are already known!'
-            : 'No words found across multiple anime.'}
+            ? 'All words that span multiple titles are already known!'
+            : 'No words found across multiple titles.'}
         </div>
       ) : (
         <>
@@ -109,7 +109,7 @@ export function CrossAnimeWordsTable({
                   <th className="text-left py-2 pr-3 font-medium">Word</th>
                   <th className="text-left py-2 pr-3 font-medium">Reading</th>
                   <th className="text-left py-2 pr-3 font-medium w-20">POS</th>
-                  <th className="text-right py-2 pr-3 font-medium w-16">Anime</th>
+                  <th className="text-right py-2 pr-3 font-medium w-16">Titles</th>
                   <th className="text-right py-2 font-medium w-16">Seen</th>
                 </tr>
               </thead>

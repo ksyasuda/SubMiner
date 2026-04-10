@@ -84,14 +84,7 @@ test('getTrendsDashboard requests the chart-ready trends endpoint with range and
           lookups: [],
         },
         ratios: { lookupsPerHundred: [] },
-        animePerDay: {
-          episodes: [],
-          watchTime: [],
-          cards: [],
-          words: [],
-          lookups: [],
-          lookupsPerHundred: [],
-        },
+        librarySummary: [],
         animeCumulative: {
           watchTime: [],
           episodes: [],
@@ -110,6 +103,48 @@ test('getTrendsDashboard requests the chart-ready trends endpoint with range and
   try {
     await apiClient.getTrendsDashboard('90d', 'month');
     assert.equal(seenUrl, `${BASE_URL}/api/stats/trends/dashboard?range=90d&groupBy=month`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('getTrendsDashboard accepts 365d range and builds correct URL', async () => {
+  const originalFetch = globalThis.fetch;
+  let seenUrl = '';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    seenUrl = String(input);
+    return new Response(
+      JSON.stringify({
+        activity: { watchTime: [], cards: [], words: [], sessions: [] },
+        progress: {
+          watchTime: [],
+          sessions: [],
+          words: [],
+          newWords: [],
+          cards: [],
+          episodes: [],
+          lookups: [],
+        },
+        ratios: { lookupsPerHundred: [] },
+        librarySummary: [],
+        animeCumulative: {
+          watchTime: [],
+          episodes: [],
+          cards: [],
+          words: [],
+        },
+        patterns: {
+          watchTimeByDayOfWeek: [],
+          watchTimeByHour: [],
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof globalThis.fetch;
+
+  try {
+    await apiClient.getTrendsDashboard('365d', 'day');
+    assert.equal(seenUrl, `${BASE_URL}/api/stats/trends/dashboard?range=365d&groupBy=day`);
   } finally {
     globalThis.fetch = originalFetch;
   }

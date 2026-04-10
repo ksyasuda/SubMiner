@@ -71,7 +71,7 @@ export function TrackingSnapshot({
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Total unique episodes (videos) watched across all anime">
+        <Tooltip text="Total unique videos watched across all titles in your library">
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Episodes</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-blue">
@@ -79,9 +79,9 @@ export function TrackingSnapshot({
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Number of anime series fully completed">
+        <Tooltip text="Number of titles fully completed">
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Anime</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Titles</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-sapphire">
               {formatNumber(summary.totalAnimeCompleted)}
             </div>
