@@ -3725,3 +3725,119 @@ test('deleteSession removes zero-session media from library and trends', () => {
     cleanupDbPath(dbPath);
   }
 });
+
+test('getTrendsDashboard builds librarySummary with per-title aggregates', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/library-summary-test.mkv', {
+      canonicalTitle: 'Library Summary Test',
+      sourcePath: '/tmp/library-summary-test.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Summary Anime',
+      canonicalTitle: 'Summary Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'library-summary-test.mkv',
+      parsedTitle: 'Summary Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    const dayOneStart = 1_700_000_000_000;
+    const dayTwoStart = dayOneStart + 86_400_000;
+
+    const sessionOne = startSessionRecord(db, videoId, dayOneStart);
+    const sessionTwo = startSessionRecord(db, videoId, dayTwoStart);
+
+    for (const [sessionId, startedAtMs, activeMs, cards, tokens, lookups] of [
+      [sessionOne.sessionId, dayOneStart, 30 * 60_000, 2, 120, 8],
+      [sessionTwo.sessionId, dayTwoStart, 45 * 60_000, 3, 140, 10],
+    ] as const) {
+      stmts.telemetryInsertStmt.run(
+        sessionId,
+        `${startedAtMs + 60_000}`,
+        activeMs,
+        activeMs,
+        10,
+        tokens,
+        cards,
+        0,
+        0,
+        lookups,
+        0,
+        0,
+        0,
+        0,
+        `${startedAtMs + 60_000}`,
+        `${startedAtMs + 60_000}`,
+      );
+
+      db.prepare(
+        `
+          UPDATE imm_sessions
+          SET ended_at_ms = ?, total_watched_ms = ?, active_watched_ms = ?,
+              lines_seen = ?, tokens_seen = ?, cards_mined = ?, yomitan_lookup_count = ?
+          WHERE session_id = ?
+        `,
+      ).run(
+        `${startedAtMs + activeMs}`,
+        activeMs,
+        activeMs,
+        10,
+        tokens,
+        cards,
+        lookups,
+        sessionId,
+      );
+    }
+
+    for (const [day, active, tokens, cards] of [
+      [Math.floor(dayOneStart / 86_400_000), 30, 120, 2],
+      [Math.floor(dayTwoStart / 86_400_000), 45, 140, 3],
+    ] as const) {
+      db.prepare(
+        `
+          INSERT INTO imm_daily_rollups (
+            rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+            total_tokens_seen, total_cards
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+      ).run(day, videoId, 1, active, 10, tokens, cards);
+    }
+
+    const dashboard = getTrendsDashboard(db, 'all', 'day');
+
+    assert.equal(dashboard.librarySummary.length, 1);
+    const row = dashboard.librarySummary[0]!;
+    assert.equal(row.title, 'Summary Anime');
+    assert.equal(row.watchTimeMin, 75);
+    assert.equal(row.videos, 1);
+    assert.equal(row.sessions, 2);
+    assert.equal(row.cards, 5);
+    assert.equal(row.words, 260);
+    assert.equal(row.lookups, 18);
+    assert.equal(row.lookupsPerHundred, +((18 / 260) * 100).toFixed(1));
+    assert.equal(row.firstWatched, Math.floor(dayOneStart / 86_400_000));
+    assert.equal(row.lastWatched, Math.floor(dayTwoStart / 86_400_000));
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});

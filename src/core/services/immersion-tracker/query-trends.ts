@@ -405,6 +405,89 @@ function buildCumulativePerAnime(points: TrendPerAnimePoint[]): TrendPerAnimePoi
   return result;
 }
 
+function buildLibrarySummary(
+  rollups: ImmersionSessionRollupRow[],
+  sessions: TrendSessionMetricRow[],
+  titlesByVideoId: Map<number, string>,
+): LibrarySummaryRow[] {
+  type Accum = {
+    watchTimeMin: number;
+    videos: Set<number>;
+    cards: number;
+    words: number;
+    firstWatched: number;
+    lastWatched: number;
+    sessions: number;
+    lookups: number;
+  };
+
+  const byTitle = new Map<string, Accum>();
+
+  const ensure = (title: string): Accum => {
+    const existing = byTitle.get(title);
+    if (existing) return existing;
+    const created: Accum = {
+      watchTimeMin: 0,
+      videos: new Set<number>(),
+      cards: 0,
+      words: 0,
+      firstWatched: Number.POSITIVE_INFINITY,
+      lastWatched: Number.NEGATIVE_INFINITY,
+      sessions: 0,
+      lookups: 0,
+    };
+    byTitle.set(title, created);
+    return created;
+  };
+
+  for (const rollup of rollups) {
+    if (rollup.videoId === null) continue;
+    const title = resolveVideoAnimeTitle(rollup.videoId, titlesByVideoId);
+    const acc = ensure(title);
+    acc.watchTimeMin += rollup.totalActiveMin;
+    acc.cards += rollup.totalCards;
+    acc.words += rollup.totalTokensSeen;
+    acc.videos.add(rollup.videoId);
+    if (rollup.rollupDayOrMonth < acc.firstWatched) {
+      acc.firstWatched = rollup.rollupDayOrMonth;
+    }
+    if (rollup.rollupDayOrMonth > acc.lastWatched) {
+      acc.lastWatched = rollup.rollupDayOrMonth;
+    }
+  }
+
+  for (const session of sessions) {
+    const title = resolveTrendAnimeTitle(session);
+    if (!byTitle.has(title)) continue;
+    const acc = byTitle.get(title)!;
+    acc.sessions += 1;
+    acc.lookups += session.yomitanLookupCount;
+  }
+
+  const rows: LibrarySummaryRow[] = [];
+  for (const [title, acc] of byTitle) {
+    if (!Number.isFinite(acc.firstWatched) || !Number.isFinite(acc.lastWatched)) {
+      continue;
+    }
+    rows.push({
+      title,
+      watchTimeMin: Math.round(acc.watchTimeMin),
+      videos: acc.videos.size,
+      sessions: acc.sessions,
+      cards: acc.cards,
+      words: acc.words,
+      lookups: acc.lookups,
+      lookupsPerHundred:
+        acc.words > 0 ? +((acc.lookups / acc.words) * 100).toFixed(1) : null,
+      firstWatched: acc.firstWatched,
+      lastWatched: acc.lastWatched,
+    });
+  }
+
+  rows.sort((a, b) => b.watchTimeMin - a.watchTimeMin || a.title.localeCompare(b.title));
+  return rows;
+}
+
 function getVideoAnimeTitleMap(
   db: DatabaseSync,
   videoIds: Array<number | null>,
@@ -716,6 +799,6 @@ export function getTrendsDashboard(
       watchTimeByDayOfWeek: buildWatchTimeByDayOfWeek(sessions),
       watchTimeByHour: buildWatchTimeByHour(sessions),
     },
-    librarySummary: [],
+    librarySummary: buildLibrarySummary(dailyRollups, sessions, titlesByVideoId),
   };
 }
