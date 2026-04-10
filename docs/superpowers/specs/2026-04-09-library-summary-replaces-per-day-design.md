@@ -69,14 +69,11 @@ type LibrarySummaryRow = {
 
 ### Removed from API response
 
-- `animePerDay.lookups`
-- `animePerDay.lookupsPerHundred`
-- `animePerDay.episodes` (if no other consumer — verify during implementation)
-- `animePerDay.watchTime` (if no other consumer — verify during implementation)
-- `animePerDay.cards` (if no other consumer — verify during implementation)
-- `animePerDay.words` (if no other consumer — verify during implementation)
+Drop the entire `animePerDay` field from `TrendsDashboardQueryResult` (both backend in `src/core/services/immersion-tracker/query-trends.ts` and frontend in `stats/src/types/stats.ts`).
 
-If all four "if no other consumer" fields can be dropped, remove the `animePerDay` object from the response entirely along with the helpers that produce it. Check every use site in `stats/` before deleting.
+Internally, the existing helpers (`buildPerAnimeFromDailyRollups`, `buildEpisodesPerAnimeFromDailyRollups`) are still used as intermediates to build `animeCumulative.*` via `buildCumulativePerAnime`. Keep those helpers — just scope their output to local variables inside `getTrendsDashboard` instead of exposing them on the response. The `buildPerAnimeFromSessions` call for lookups and the `buildLookupsPerHundredPerAnime` helper become unused and can be deleted.
+
+Before removing `animePerDay` from the frontend type, verify no other file under `stats/src/` references it. Based on current inspection, only `TrendsTab.tsx` and `stats/src/types/stats.ts` touch it.
 
 ## Frontend
 
@@ -101,11 +98,13 @@ Both cards use the existing chart/card wrapper styling.
 
 ### Leaderboard chart
 
-- ECharts horizontal bar chart (matches the rest of the page).
+- Recharts horizontal bar chart (matches the rest of the page — existing charts use `recharts`, not ECharts).
 - Top 10 titles by watch time. If fewer titles have activity, render what's there.
-- Y-axis: title, truncated with ellipsis at container width; full title on hover via ECharts tooltip.
-- X-axis: minutes.
+- Y-axis: title (category), truncated with ellipsis at container width; full title visible in the Recharts tooltip.
+- X-axis: minutes (number).
+- Use `layout="vertical"` with `YAxis dataKey="title" type="category"` and `XAxis type="number"`.
 - Single series color: `#8aadf4` (matching the existing Watch Time color).
+- Reuse `CHART_DEFAULTS`, `CHART_THEME`, `TOOLTIP_CONTENT_STYLE` from `stats/src/lib/chart-theme.ts` so theming matches the rest of the dashboard.
 - Chart order is fixed at watch-time desc regardless of table sort — the leaderboard's meaning is fixed.
 
 ### Table
