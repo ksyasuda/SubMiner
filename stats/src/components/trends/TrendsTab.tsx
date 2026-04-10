@@ -29,7 +29,7 @@ interface AnimeVisibilityFilterProps {
   onToggleAnime: (title: string) => void;
 }
 
-function AnimeVisibilityFilter({
+export function AnimeVisibilityFilter({
   animeTitles,
   hiddenAnime,
   onShowAll,
@@ -45,7 +45,7 @@ function AnimeVisibilityFilter({
       <div className="mb-2 flex items-center justify-between gap-3">
         <div>
           <h4 className="text-xs font-semibold uppercase tracking-widest text-ctp-subtext0">
-            Anime Visibility
+            Title Visibility
           </h4>
           <p className="mt-1 text-xs text-ctp-overlay1">
             Shared across all anime trend charts. Default: show everything.
