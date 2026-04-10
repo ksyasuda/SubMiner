@@ -230,6 +230,42 @@ test('resolvePlatformInfo supports modal layer and disables mouse-ignore toggles
   }
 });
 
+test('resolvePlatformInfo flags Windows platforms', () => {
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousNavigator = (globalThis as { navigator?: unknown }).navigator;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getOverlayLayer: () => 'visible',
+      },
+      location: { search: '' },
+    },
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      platform: 'Win32',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    },
+  });
+
+  try {
+    const info = resolvePlatformInfo();
+    assert.equal(info.isWindowsPlatform, true);
+    assert.equal(info.isMacOSPlatform, false);
+    assert.equal(info.isLinuxPlatform, false);
+    assert.equal(info.shouldToggleMouseIgnore, true);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: previousNavigator,
+    });
+  }
+});
+
 test('isYomitanPopupIframe matches modern popup class and legacy id prefix', () => {
   const createElement = (options: {
     tagName: string;

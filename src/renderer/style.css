@@ -1131,6 +1131,11 @@ body.subtitle-sidebar-embedded-open #secondarySubContainer.secondary-sub-hover {
   justify-content: center;
 }
 
+body.platform-windows #secondarySubContainer.secondary-sub-hover {
+  top: 40px;
+  padding-top: 0;
+}
+
 #secondarySubContainer.secondary-sub-hover #secondarySubRoot {
   background: transparent;
   backdrop-filter: none;
