@@ -1,13 +1,5 @@
 import { useMemo, useState } from 'react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { LibrarySummaryRow } from '../../types/stats';
 import { CHART_DEFAULTS, CHART_THEME, TOOLTIP_CONTENT_STYLE } from '../../lib/chart-theme';
 import { epochDayToDate, formatDuration, formatNumber } from '../../lib/formatters';
@@ -132,9 +124,7 @@ export function LibrarySummarySection({ rows, hiddenTitles }: LibrarySummarySect
   if (visibleRows.length === 0) {
     return (
       <div className="col-span-full rounded-lg border border-ctp-surface1 bg-ctp-surface0 p-4">
-        <div className="text-xs text-ctp-overlay2">
-          No library activity in the selected window.
-        </div>
+        <div className="text-xs text-ctp-overlay2">No library activity in the selected window.</div>
       </div>
     );
   }
@@ -151,9 +141,7 @@ export function LibrarySummarySection({ rows, hiddenTitles }: LibrarySummarySect
   return (
     <>
       <div className="col-span-full rounded-lg border border-ctp-surface1 bg-ctp-surface0 p-4">
-        <h3 className="text-xs font-semibold text-ctp-text mb-2">
-          Top Titles by Watch Time (min)
-        </h3>
+        <h3 className="text-xs font-semibold text-ctp-text mb-2">Top Titles by Watch Time (min)</h3>
         <ResponsiveContainer width="100%" height={LEADERBOARD_HEIGHT}>
           <BarChart
             data={leaderboard}
@@ -190,10 +178,7 @@ export function LibrarySummarySection({ rows, hiddenTitles }: LibrarySummarySect
       </div>
       <div className="col-span-full rounded-lg border border-ctp-surface1 bg-ctp-surface0 p-4">
         <h3 className="text-xs font-semibold text-ctp-text mb-2">Per-Title Summary</h3>
-        <div
-          className="overflow-auto"
-          style={{ maxHeight: TABLE_MAX_HEIGHT }}
-        >
+        <div className="overflow-auto" style={{ maxHeight: TABLE_MAX_HEIGHT }}>
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-ctp-surface0">
               <tr className="border-b border-ctp-surface1 text-ctp-subtext0">
@@ -247,9 +232,7 @@ export function LibrarySummarySection({ rows, hiddenTitles }: LibrarySummarySect
                     {formatNumber(row.lookups)}
                   </td>
                   <td className="px-2 py-2 text-right text-ctp-text tabular-nums">
-                    {row.lookupsPerHundred === null
-                      ? '—'
-                      : row.lookupsPerHundred.toFixed(1)}
+                    {row.lookupsPerHundred === null ? '—' : row.lookupsPerHundred.toFixed(1)}
                   </td>
                   <td className="px-2 py-2 text-right text-ctp-subtext0 tabular-nums">
                     {formatDateRange(row.firstWatched, row.lastWatched)}
