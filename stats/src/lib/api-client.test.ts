@@ -84,14 +84,7 @@ test('getTrendsDashboard requests the chart-ready trends endpoint with range and
           lookups: [],
         },
         ratios: { lookupsPerHundred: [] },
-        animePerDay: {
-          episodes: [],
-          watchTime: [],
-          cards: [],
-          words: [],
-          lookups: [],
-          lookupsPerHundred: [],
-        },
+        librarySummary: [],
         animeCumulative: {
           watchTime: [],
           episodes: [],
@@ -133,14 +126,7 @@ test('getTrendsDashboard accepts 365d range and builds correct URL', async () =>
           lookups: [],
         },
         ratios: { lookupsPerHundred: [] },
-        animePerDay: {
-          episodes: [],
-          watchTime: [],
-          cards: [],
-          words: [],
-          lookups: [],
-          lookupsPerHundred: [],
-        },
+        librarySummary: [],
         animeCumulative: {
           watchTime: [],
           episodes: [],
