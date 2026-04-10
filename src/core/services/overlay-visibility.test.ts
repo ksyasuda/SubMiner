@@ -242,6 +242,7 @@ test('Windows visible overlay stays click-through and binds to mpv while tracked
 
 test('Windows visible overlay restores opacity after the deferred reveal delay', async () => {
   const { window, calls, getOpacity } = createMainWindowRecorder();
+  let syncWindowsZOrderCalls = 0;
   const tracker: WindowTrackerStub = {
     isTracking: () => true,
     getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
@@ -260,6 +261,7 @@ test('Windows visible overlay restores opacity after the deferred reveal delay',
       calls.push('ensure-level');
     },
     syncWindowsOverlayToMpvZOrder: () => {
+      syncWindowsZOrderCalls += 1;
       calls.push('sync-windows-z-order');
     },
     syncPrimaryOverlayWindowLayer: () => {
@@ -276,8 +278,10 @@ test('Windows visible overlay restores opacity after the deferred reveal delay',
   } as never);
 
   assert.equal(getOpacity(), 0);
+  assert.equal(syncWindowsZOrderCalls, 1);
   await new Promise<void>((resolve) => setTimeout(resolve, 60));
   assert.equal(getOpacity(), 1);
+  assert.equal(syncWindowsZOrderCalls, 2);
   assert.ok(calls.includes('opacity:1'));
 });
 

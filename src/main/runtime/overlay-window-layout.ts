@@ -2,9 +2,11 @@ import type { WindowGeometry } from '../../types';
 
 export function createUpdateVisibleOverlayBoundsHandler(deps: {
   setOverlayWindowBounds: (geometry: WindowGeometry) => void;
+  afterSetOverlayWindowBounds?: (geometry: WindowGeometry) => void;
 }) {
   return (geometry: WindowGeometry): void => {
     deps.setOverlayWindowBounds(geometry);
+    deps.afterSetOverlayWindowBounds?.(geometry);
   };
 }
 

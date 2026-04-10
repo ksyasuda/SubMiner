@@ -9,6 +9,9 @@ import {
   isYomitanPopupIframe,
 } from '../yomitan-popup.js';
 
+const VISIBILITY_RECOVERY_HOVER_SUPPRESSION_SOURCE = 'visibility-recovery';
+const WINDOW_RESIZE_HOVER_SUPPRESSION_SOURCE = 'window-resize';
+
 export function createMouseHandlers(
   ctx: RendererContext,
   options: {
@@ -35,6 +38,7 @@ export function createMouseHandlers(
   let pausedByYomitanPopup = false;
   let lastPointerPosition: { clientX: number; clientY: number } | null = null;
   let pendingPointerResync = false;
+  let suppressDirectHoverEnterSource: string | null = null;
 
   function getPopupVisibilityFromDom(): boolean {
     return typeof document !== 'undefined' && isYomitanPopupVisible(document);
@@ -142,6 +146,7 @@ export function createMouseHandlers(
       return;
     }
 
+    suppressDirectHoverEnterSource = null;
     const wasOverSubtitle = ctx.state.isOverSubtitle;
     const wasOverSecondarySubtitle = ctx.dom.secondarySubContainer.classList.contains(
       'secondary-sub-hover-active',
@@ -149,7 +154,7 @@ export function createMouseHandlers(
     const hoverState = syncHoverStateFromPoint(event.clientX, event.clientY);
 
     if (!wasOverSubtitle && hoverState.isOverSubtitle) {
-      void handleMouseEnter(undefined, hoverState.overSecondarySubtitle);
+      void handleMouseEnter(undefined, hoverState.overSecondarySubtitle, 'tracked-pointer');
       return;
     }
 
@@ -166,9 +171,13 @@ export function createMouseHandlers(
     }
   }
 
-  function resyncPointerInteractionState(options: { allowInteractiveFallback: boolean }): void {
+  function resyncPointerInteractionState(options: {
+    allowInteractiveFallback: boolean;
+    suppressDirectHoverEnterSource?: string | null;
+  }): void {
     const pointerPosition = lastPointerPosition;
     pendingPointerResync = false;
+    suppressDirectHoverEnterSource = options.suppressDirectHoverEnterSource ?? null;
     if (pointerPosition) {
       syncHoverStateFromPoint(pointerPosition.clientX, pointerPosition.clientY);
     } else {
@@ -288,7 +297,15 @@ export function createMouseHandlers(
     syncOverlayMouseIgnoreState(ctx);
   }
 
-  async function handleMouseEnter(_event?: MouseEvent, showSecondaryHover = false): Promise<void> {
+  async function handleMouseEnter(
+    _event?: MouseEvent,
+    showSecondaryHover = false,
+    source: 'direct' | 'tracked-pointer' = 'direct',
+  ): Promise<void> {
+    if (source === 'direct' && suppressDirectHoverEnterSource !== null) {
+      return;
+    }
+
     ctx.state.isOverSubtitle = true;
     if (showSecondaryHover) {
       ctx.dom.secondarySubContainer.classList.add('secondary-sub-hover-active');
@@ -386,6 +403,10 @@ export function createMouseHandlers(
   function setupResizeHandler(): void {
     window.addEventListener('resize', () => {
       options.applyYPercent(options.getCurrentYPercent());
+      resyncPointerInteractionState({
+        allowInteractiveFallback: false,
+        suppressDirectHoverEnterSource: WINDOW_RESIZE_HOVER_SUPPRESSION_SOURCE,
+      });
     });
   }
 
@@ -404,7 +425,10 @@ export function createMouseHandlers(
       if (document.visibilityState !== 'visible') {
         return;
       }
-      resyncPointerInteractionState({ allowInteractiveFallback: false });
+      resyncPointerInteractionState({
+        allowInteractiveFallback: false,
+        suppressDirectHoverEnterSource: VISIBILITY_RECOVERY_HOVER_SUPPRESSION_SOURCE,
+      });
     });
   }
 

@@ -302,6 +302,7 @@ public static class SubMinerWindowsHelper {
 
     [IntPtr]$overlayWindow = [IntPtr]([int64]$OverlayWindowHandle)
     $targetWindow = [IntPtr]$bestMatch.HWnd
+    [void][SubMinerWindowsHelper]::SetWindowLongPtr($overlayWindow, $GWLP_HWNDPARENT, $targetWindow)
     $targetWindowExStyle = [SubMinerWindowsHelper]::GetWindowLong($targetWindow, $GWL_EXSTYLE)
     $targetWindowIsTopmost = ($targetWindowExStyle -band $WS_EX_TOPMOST) -ne 0
 

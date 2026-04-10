@@ -16,6 +16,22 @@ test('visible bounds handler writes visible layer geometry', () => {
   assert.deepEqual(calls, [geometry]);
 });
 
+test('visible bounds handler runs follow-up callback after applying geometry', () => {
+  const calls: string[] = [];
+  const geometry = { x: 0, y: 0, width: 100, height: 50 };
+  const handleVisible = createUpdateVisibleOverlayBoundsHandler({
+    setOverlayWindowBounds: () => calls.push('set-bounds'),
+    afterSetOverlayWindowBounds: (nextGeometry) => {
+      assert.deepEqual(nextGeometry, geometry);
+      calls.push('after-bounds');
+    },
+  });
+
+  handleVisible(geometry);
+
+  assert.deepEqual(calls, ['set-bounds', 'after-bounds']);
+});
+
 test('ensure overlay window level handler delegates to core', () => {
   const calls: string[] = [];
   const ensureLevel = createEnsureOverlayWindowLevelHandler({
