@@ -32,8 +32,20 @@ test('empty input returns empty array', () => {
 
 test('two unique videoIds produce 2 singleton buckets', () => {
   const sessions = [
-    makeSession({ sessionId: 1, videoId: 10, startedAtMs: 1000, activeWatchedMs: 100, cardsMined: 2 }),
-    makeSession({ sessionId: 2, videoId: 20, startedAtMs: 2000, activeWatchedMs: 200, cardsMined: 3 }),
+    makeSession({
+      sessionId: 1,
+      videoId: 10,
+      startedAtMs: 1000,
+      activeWatchedMs: 100,
+      cardsMined: 2,
+    }),
+    makeSession({
+      sessionId: 2,
+      videoId: 20,
+      startedAtMs: 2000,
+      activeWatchedMs: 200,
+      cardsMined: 3,
+    }),
   ];
   const buckets = groupSessionsByVideo(sessions);
   assert.equal(buckets.length, 2);
@@ -45,8 +57,20 @@ test('two unique videoIds produce 2 singleton buckets', () => {
 });
 
 test('two sessions sharing a videoId collapse into 1 bucket with summed totals and most-recent representative', () => {
-  const older = makeSession({ sessionId: 1, videoId: 42, startedAtMs: 1000, activeWatchedMs: 300, cardsMined: 5 });
-  const newer = makeSession({ sessionId: 2, videoId: 42, startedAtMs: 9000, activeWatchedMs: 500, cardsMined: 7 });
+  const older = makeSession({
+    sessionId: 1,
+    videoId: 42,
+    startedAtMs: 1000,
+    activeWatchedMs: 300,
+    cardsMined: 5,
+  });
+  const newer = makeSession({
+    sessionId: 2,
+    videoId: 42,
+    startedAtMs: 9000,
+    activeWatchedMs: 500,
+    cardsMined: 7,
+  });
   const buckets = groupSessionsByVideo([older, newer]);
   assert.equal(buckets.length, 1);
   const [bucket] = buckets;

@@ -19,7 +19,12 @@ export function confirmEpisodeDelete(title: string): boolean {
 }
 
 export function confirmBucketDelete(title: string, count: number): boolean {
+  if (count === 1) {
+    return globalThis.confirm(
+      `Delete this session of "${title}" from this day and all associated data?`,
+    );
+  }
   return globalThis.confirm(
-    `Delete all ${count} session${count === 1 ? '' : 's'} of "${title}" from this day?`,
+    `Delete all ${count} sessions of "${title}" from this day and all associated data?`,
   );
 }

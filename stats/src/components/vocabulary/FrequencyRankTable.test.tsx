@@ -36,5 +36,8 @@ test('omits reading when reading equals headword', () => {
     <FrequencyRankTable words={[entry]} knownWords={new Set()} />,
   );
   assert.ok(markup.includes('カレー'), 'should include the headword');
-  assert.ok(!markup.includes('【カレー】'), 'should not render reading in brackets when equal to headword');
+  assert.ok(
+    !markup.includes('【'),
+    'should not render any bracketed reading when equal to headword',
+  );
 });

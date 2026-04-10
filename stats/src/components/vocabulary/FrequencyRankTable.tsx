@@ -131,11 +131,13 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
                       <span className="text-ctp-text font-medium">{w.headword}</span>
                       {(() => {
                         const reading = fullReading(w.headword, w.reading);
-                        if (!reading || reading === w.headword) return null;
+                        // `fullReading` normalizes katakana to hiragana, so we normalize the
+                        // headword the same way before comparing — otherwise katakana-only
+                        // entries like `カレー` would render `【かれー】`.
+                        const normalizedHeadword = fullReading(w.headword, w.headword);
+                        if (!reading || reading === normalizedHeadword) return null;
                         return (
-                          <span className="text-ctp-subtext0 text-xs ml-1.5">
-                            【{reading}】
-                          </span>
+                          <span className="text-ctp-subtext0 text-xs ml-1.5">【{reading}】</span>
                         );
                       })()}
                     </td>

@@ -65,16 +65,15 @@ test('confirmBucketDelete asks about merging multiple sessions of the same episo
 
   try {
     assert.equal(confirmBucketDelete('My Episode', 3), true);
-    assert.equal(calls.length, 1);
-    assert.match(calls[0]!, /3/);
-    assert.match(calls[0]!, /My Episode/);
-    assert.match(calls[0]!, /sessions/);
+    assert.deepEqual(calls, [
+      'Delete all 3 sessions of "My Episode" from this day and all associated data?',
+    ]);
   } finally {
     globalThis.confirm = originalConfirm;
   }
 });
 
-test('confirmBucketDelete uses singular for one session', () => {
+test('confirmBucketDelete uses a clean singular form for one session', () => {
   const calls: string[] = [];
   const originalConfirm = globalThis.confirm;
   globalThis.confirm = ((message?: string) => {
@@ -84,7 +83,9 @@ test('confirmBucketDelete uses singular for one session', () => {
 
   try {
     assert.equal(confirmBucketDelete('Solo Episode', 1), false);
-    assert.match(calls[0]!, /1 session of/);
+    assert.deepEqual(calls, [
+      'Delete this session of "Solo Episode" from this day and all associated data?',
+    ]);
   } finally {
     globalThis.confirm = originalConfirm;
   }

@@ -184,7 +184,8 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
           </div>
           {hiddenCardCount > 0 && (
             <div className="px-3 pb-3 -mt-1 text-[10px] text-ctp-overlay2 italic">
-              {hiddenCardCount} {hiddenCardCount === 1 ? 'card' : 'cards'} hidden (deleted from Anki)
+              {hiddenCardCount} {hiddenCardCount === 1 ? 'card' : 'cards'} hidden (deleted from
+              Anki)
             </div>
           )}
         </div>

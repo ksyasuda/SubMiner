@@ -75,10 +75,7 @@ test('buildBucketDeleteHandler is a no-op when confirm returns false', async () 
   let deleteCalled = false;
   let successCalled = false;
 
-  const bucket = makeBucket([
-    makeSession({ sessionId: 1 }),
-    makeSession({ sessionId: 2 }),
-  ]);
+  const bucket = makeBucket([makeSession({ sessionId: 1 }), makeSession({ sessionId: 2 })]);
 
   const handler = buildBucketDeleteHandler({
     bucket,
@@ -104,10 +101,7 @@ test('buildBucketDeleteHandler reports errors via onError without calling onSucc
   let errorMessage: string | null = null;
   let successCalled = false;
 
-  const bucket = makeBucket([
-    makeSession({ sessionId: 1 }),
-    makeSession({ sessionId: 2 }),
-  ]);
+  const bucket = makeBucket([makeSession({ sessionId: 1 }), makeSession({ sessionId: 2 })]);
 
   const handler = buildBucketDeleteHandler({
     bucket,

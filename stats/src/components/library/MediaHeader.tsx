@@ -13,12 +13,14 @@ interface MediaHeaderProps {
     knownWordCount: number;
   } | null;
   onDeleteEpisode?: () => void;
+  isDeletingEpisode?: boolean;
 }
 
 export function MediaHeader({
   detail,
   initialKnownWordsSummary = null,
   onDeleteEpisode,
+  isDeletingEpisode = false,
 }: MediaHeaderProps) {
   const knownTokenRate =
     detail.totalLookupCount > 0 ? detail.totalLookupHits / detail.totalLookupCount : null;
@@ -56,14 +58,17 @@ export function MediaHeader({
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <h2 className="text-lg font-bold text-ctp-text truncate">{detail.canonicalTitle}</h2>
+          <h2 className="min-w-0 flex-1 text-lg font-bold text-ctp-text truncate">
+            {detail.canonicalTitle}
+          </h2>
           {onDeleteEpisode != null ? (
             <button
               type="button"
               onClick={onDeleteEpisode}
-              className="shrink-0 text-xs text-ctp-red hover:opacity-75 transition-opacity"
+              disabled={isDeletingEpisode}
+              className="shrink-0 text-xs text-ctp-red hover:opacity-75 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Delete Episode
+              {isDeletingEpisode ? 'Deleting...' : 'Delete Episode'}
             </button>
           ) : null}
         </div>

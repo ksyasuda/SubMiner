@@ -269,9 +269,7 @@ export function SessionsTab({
                                 isExpanded={expandedId === s.sessionId}
                                 detailsId={detailsId}
                                 onToggle={() =>
-                                  setExpandedId(
-                                    expandedId === s.sessionId ? null : s.sessionId,
-                                  )
+                                  setExpandedId(expandedId === s.sessionId ? null : s.sessionId)
                                 }
                                 onDelete={() => void handleDeleteSession(s)}
                                 deleteDisabled={deletingSessionId === s.sessionId}
