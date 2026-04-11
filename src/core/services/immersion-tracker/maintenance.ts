@@ -66,7 +66,7 @@ export function pruneRawRetention(
   const deletedSessionEvents = Number.isFinite(policy.eventsRetentionMs)
     ? (
         db
-          .prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`)
+          .prepare(`DELETE FROM imm_session_events WHERE CAST(ts_ms AS REAL) < CAST(? AS REAL)`)
           .run(resolveCutoff(policy.eventsRetentionMs, policy.eventsRetentionDays)) as {
           changes: number;
         }

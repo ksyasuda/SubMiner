@@ -345,7 +345,11 @@ export function fromDbTimestamp(ms: number | bigint | string | null | undefined)
   if (typeof ms === 'bigint') {
     return Number(ms);
   }
-  return Number(ms);
+  const normalized = normalizeTimestampString(ms);
+  if (/^-?\d+$/.test(normalized)) {
+    return Number(BigInt(normalized));
+  }
+  return Math.trunc(Number.parseFloat(normalized));
 }
 
 function getNumericCalendarValue(

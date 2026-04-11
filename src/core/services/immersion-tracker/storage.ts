@@ -170,6 +170,14 @@ function hasColumn(db: DatabaseSync, tableName: string, columnName: string): boo
     .some((row: unknown) => (row as { name: string }).name === columnName);
 }
 
+function getColumnType(db: DatabaseSync, tableName: string, columnName: string): string | null {
+  const row = (db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{
+    name: string;
+    type: string;
+  }>).find((entry) => entry.name === columnName);
+  return row?.type ?? null;
+}
+
 function addColumnIfMissing(
   db: DatabaseSync,
   tableName: string,
@@ -185,6 +193,92 @@ function dropColumnIfExists(db: DatabaseSync, tableName: string, columnName: str
   if (hasColumn(db, tableName, columnName)) {
     db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${columnName}`);
   }
+}
+
+function migrateSessionEventTimestampsToText(db: DatabaseSync): void {
+  if (getColumnType(db, 'imm_session_events', 'ts_ms') === 'TEXT') {
+    return;
+  }
+
+  const lineIndexExpr = hasColumn(db, 'imm_session_events', 'line_index') ? 'line_index' : 'NULL';
+  const segmentStartExpr = hasColumn(db, 'imm_session_events', 'segment_start_ms')
+    ? 'segment_start_ms'
+    : 'NULL';
+  const segmentEndExpr = hasColumn(db, 'imm_session_events', 'segment_end_ms')
+    ? 'segment_end_ms'
+    : 'NULL';
+  const tokensDeltaExpr = hasColumn(db, 'imm_session_events', 'tokens_delta')
+    ? 'tokens_delta'
+    : '0';
+  const cardsDeltaExpr = hasColumn(db, 'imm_session_events', 'cards_delta') ? 'cards_delta' : '0';
+  const payloadExpr = hasColumn(db, 'imm_session_events', 'payload_json') ? 'payload_json' : 'NULL';
+  const createdDateExpr = hasColumn(db, 'imm_session_events', 'CREATED_DATE')
+    ? 'CAST(CREATED_DATE AS TEXT)'
+    : 'NULL';
+  const lastUpdateExpr = hasColumn(db, 'imm_session_events', 'LAST_UPDATE_DATE')
+    ? 'CAST(LAST_UPDATE_DATE AS TEXT)'
+    : 'NULL';
+  const repairedTimestampExpr =
+    hasColumn(db, 'imm_session_events', 'CREATED_DATE') ||
+    hasColumn(db, 'imm_session_events', 'LAST_UPDATE_DATE')
+      ? `CASE
+        WHEN ts_ms < 0 AND COALESCE(CREATED_DATE, LAST_UPDATE_DATE) IS NOT NULL
+          THEN CAST(COALESCE(CREATED_DATE, LAST_UPDATE_DATE) AS TEXT)
+        ELSE CAST(ts_ms AS TEXT)
+      END`
+      : 'CAST(ts_ms AS TEXT)';
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE imm_session_events_new(
+      event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL,
+      ts_ms TEXT NOT NULL,
+      event_type INTEGER NOT NULL,
+      line_index INTEGER,
+      segment_start_ms INTEGER,
+      segment_end_ms INTEGER,
+      tokens_delta INTEGER NOT NULL DEFAULT 0,
+      cards_delta INTEGER NOT NULL DEFAULT 0,
+      payload_json TEXT,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
+      FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE
+    );
+  `);
+  db.exec(`
+    INSERT INTO imm_session_events_new(
+      event_id,
+      session_id,
+      ts_ms,
+      event_type,
+      line_index,
+      segment_start_ms,
+      segment_end_ms,
+      tokens_delta,
+      cards_delta,
+      payload_json,
+      CREATED_DATE,
+      LAST_UPDATE_DATE
+    )
+    SELECT
+      event_id,
+      session_id,
+      ${repairedTimestampExpr},
+      event_type,
+      ${lineIndexExpr},
+      ${segmentStartExpr},
+      ${segmentEndExpr},
+      ${tokensDeltaExpr},
+      ${cardsDeltaExpr},
+      ${payloadExpr},
+      ${createdDateExpr},
+      ${lastUpdateExpr}
+    FROM imm_session_events
+  `);
+  db.exec('DROP TABLE imm_session_events');
+  db.exec('ALTER TABLE imm_session_events_new RENAME TO imm_session_events');
+  db.exec('PRAGMA foreign_keys = ON');
 }
 
 export function applyPragmas(db: DatabaseSync): void {
@@ -685,7 +779,7 @@ export function ensureSchema(db: DatabaseSync): void {
     CREATE TABLE IF NOT EXISTS imm_session_events(
       event_id INTEGER PRIMARY KEY AUTOINCREMENT,
       session_id INTEGER NOT NULL,
-      ts_ms INTEGER NOT NULL,
+      ts_ms TEXT NOT NULL,
       event_type INTEGER NOT NULL,
       line_index INTEGER,
       segment_start_ms INTEGER,
@@ -1122,6 +1216,8 @@ export function ensureSchema(db: DatabaseSync): void {
     addColumnIfMissing(db, 'imm_sessions', 'ended_media_ms', 'INTEGER');
   }
 
+  migrateSessionEventTimestampsToText(db);
+
   ensureLifetimeSummaryTables(db);
 
   db.exec(`
@@ -1420,7 +1516,8 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
     ) {
       throw new Error('Incomplete telemetry write');
     }
-    const telemetrySampleMs = toDbTimestamp(write.sampleMs ?? Number(currentMs));
+    const telemetrySampleMs =
+      write.sampleMs === undefined ? currentMs : toDbTimestamp(write.sampleMs);
     stmts.telemetryInsertStmt.run(
       write.sessionId,
       telemetrySampleMs,
@@ -1495,7 +1592,7 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
 
   stmts.eventInsertStmt.run(
     write.sessionId,
-    toDbTimestamp(write.sampleMs ?? Number(currentMs)),
+    write.sampleMs === undefined ? currentMs : toDbTimestamp(write.sampleMs),
     write.eventType ?? 0,
     write.lineIndex ?? null,
     write.segmentStartMs ?? null,

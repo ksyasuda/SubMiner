@@ -263,6 +263,370 @@ test('ensureSchema adds youtube metadata table to existing schema version 15 dat
   }
 });
 
+test('ensureSchema migrates session event timestamps to text and repairs libsql-truncated wall-clock values', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    db.exec(`
+      CREATE TABLE imm_schema_version (
+        schema_version INTEGER PRIMARY KEY,
+        applied_at_ms INTEGER NOT NULL
+      );
+      INSERT INTO imm_schema_version(schema_version, applied_at_ms) VALUES (16, 1000);
+
+      CREATE TABLE imm_rollup_state(
+        state_key TEXT PRIMARY KEY,
+        state_value INTEGER NOT NULL
+      );
+      INSERT INTO imm_rollup_state(state_key, state_value) VALUES ('last_rollup_sample_ms', 0);
+
+      CREATE TABLE imm_anime(
+        anime_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        normalized_title_key TEXT NOT NULL UNIQUE,
+        canonical_title TEXT NOT NULL,
+        anilist_id INTEGER UNIQUE,
+        title_romaji TEXT,
+        title_english TEXT,
+        title_native TEXT,
+        episodes_total INTEGER,
+        description TEXT,
+        metadata_json TEXT,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT
+      );
+
+      CREATE TABLE imm_videos(
+        video_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        video_key TEXT NOT NULL UNIQUE,
+        anime_id INTEGER,
+        canonical_title TEXT NOT NULL,
+        source_type INTEGER NOT NULL,
+        source_path TEXT,
+        source_url TEXT,
+        parsed_basename TEXT,
+        parsed_title TEXT,
+        parsed_season INTEGER,
+        parsed_episode INTEGER,
+        parser_source TEXT,
+        parser_confidence REAL,
+        parse_metadata_json TEXT,
+        watched INTEGER NOT NULL DEFAULT 0,
+        duration_ms INTEGER NOT NULL CHECK(duration_ms>=0),
+        file_size_bytes INTEGER CHECK(file_size_bytes>=0),
+        codec_id INTEGER, container_id INTEGER,
+        width_px INTEGER, height_px INTEGER, fps_x100 INTEGER,
+        bitrate_kbps INTEGER, audio_codec_id INTEGER,
+        hash_sha256 TEXT, screenshot_path TEXT,
+        metadata_json TEXT,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT,
+        FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE imm_sessions(
+        session_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_uuid TEXT NOT NULL UNIQUE,
+        video_id INTEGER NOT NULL,
+        started_at_ms TEXT NOT NULL,
+        ended_at_ms TEXT,
+        status INTEGER NOT NULL,
+        locale_id INTEGER,
+        target_lang_id INTEGER,
+        difficulty_tier INTEGER,
+        subtitle_mode INTEGER,
+        ended_media_ms INTEGER,
+        total_watched_ms INTEGER NOT NULL DEFAULT 0,
+        active_watched_ms INTEGER NOT NULL DEFAULT 0,
+        lines_seen INTEGER NOT NULL DEFAULT 0,
+        tokens_seen INTEGER NOT NULL DEFAULT 0,
+        cards_mined INTEGER NOT NULL DEFAULT 0,
+        lookup_count INTEGER NOT NULL DEFAULT 0,
+        lookup_hits INTEGER NOT NULL DEFAULT 0,
+        yomitan_lookup_count INTEGER NOT NULL DEFAULT 0,
+        pause_count INTEGER NOT NULL DEFAULT 0,
+        pause_ms INTEGER NOT NULL DEFAULT 0,
+        seek_forward_count INTEGER NOT NULL DEFAULT 0,
+        seek_backward_count INTEGER NOT NULL DEFAULT 0,
+        media_buffer_events INTEGER NOT NULL DEFAULT 0,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT,
+        FOREIGN KEY(video_id) REFERENCES imm_videos(video_id)
+      );
+
+      CREATE TABLE imm_session_telemetry(
+        telemetry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL,
+        sample_ms TEXT NOT NULL,
+        total_watched_ms INTEGER NOT NULL DEFAULT 0,
+        active_watched_ms INTEGER NOT NULL DEFAULT 0,
+        lines_seen INTEGER NOT NULL DEFAULT 0,
+        tokens_seen INTEGER NOT NULL DEFAULT 0,
+        cards_mined INTEGER NOT NULL DEFAULT 0,
+        lookup_count INTEGER NOT NULL DEFAULT 0,
+        lookup_hits INTEGER NOT NULL DEFAULT 0,
+        yomitan_lookup_count INTEGER NOT NULL DEFAULT 0,
+        pause_count INTEGER NOT NULL DEFAULT 0,
+        pause_ms INTEGER NOT NULL DEFAULT 0,
+        seek_forward_count INTEGER NOT NULL DEFAULT 0,
+        seek_backward_count INTEGER NOT NULL DEFAULT 0,
+        media_buffer_events INTEGER NOT NULL DEFAULT 0,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT,
+        FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE imm_session_events(
+        event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL,
+        ts_ms INTEGER NOT NULL,
+        event_type INTEGER NOT NULL,
+        line_index INTEGER,
+        segment_start_ms INTEGER,
+        segment_end_ms INTEGER,
+        tokens_delta INTEGER NOT NULL DEFAULT 0,
+        cards_delta INTEGER NOT NULL DEFAULT 0,
+        payload_json TEXT,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT,
+        FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE imm_daily_rollups(
+        rollup_day INTEGER NOT NULL,
+        video_id INTEGER,
+        total_sessions INTEGER NOT NULL DEFAULT 0,
+        total_active_min REAL NOT NULL DEFAULT 0,
+        total_lines_seen INTEGER NOT NULL DEFAULT 0,
+        total_tokens_seen INTEGER NOT NULL DEFAULT 0,
+        total_cards INTEGER NOT NULL DEFAULT 0,
+        cards_per_hour REAL,
+        tokens_per_min REAL,
+        lookup_hit_rate REAL,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT,
+        PRIMARY KEY (rollup_day, video_id)
+      );
+
+      CREATE TABLE imm_monthly_rollups(
+        rollup_month INTEGER NOT NULL,
+        video_id INTEGER,
+        total_sessions INTEGER NOT NULL DEFAULT 0,
+        total_active_min REAL NOT NULL DEFAULT 0,
+        total_lines_seen INTEGER NOT NULL DEFAULT 0,
+        total_tokens_seen INTEGER NOT NULL DEFAULT 0,
+        total_cards INTEGER NOT NULL DEFAULT 0,
+        cards_per_hour REAL,
+        tokens_per_min REAL,
+        lookup_hit_rate REAL,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT,
+        PRIMARY KEY (rollup_month, video_id)
+      );
+
+      CREATE TABLE imm_words(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        headword TEXT NOT NULL,
+        word TEXT NOT NULL,
+        reading TEXT NOT NULL,
+        part_of_speech TEXT,
+        pos1 TEXT,
+        pos2 TEXT,
+        pos3 TEXT,
+        first_seen INTEGER NOT NULL,
+        last_seen INTEGER NOT NULL,
+        frequency INTEGER NOT NULL DEFAULT 0,
+        frequency_rank INTEGER,
+        UNIQUE(headword, word, reading)
+      );
+
+      CREATE TABLE imm_kanji(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kanji TEXT NOT NULL UNIQUE,
+        first_seen INTEGER NOT NULL,
+        last_seen INTEGER NOT NULL,
+        frequency INTEGER NOT NULL DEFAULT 0
+      );
+
+      CREATE TABLE imm_subtitle_lines(
+        line_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL,
+        event_id INTEGER,
+        video_id INTEGER NOT NULL,
+        anime_id INTEGER,
+        line_index INTEGER NOT NULL,
+        segment_start_ms INTEGER,
+        segment_end_ms INTEGER,
+        text TEXT NOT NULL,
+        secondary_text TEXT,
+        CREATED_DATE INTEGER,
+        LAST_UPDATE_DATE INTEGER,
+        FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE,
+        FOREIGN KEY(event_id) REFERENCES imm_session_events(event_id) ON DELETE SET NULL,
+        FOREIGN KEY(video_id) REFERENCES imm_videos(video_id) ON DELETE CASCADE,
+        FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE imm_word_line_occurrences(
+        line_id INTEGER NOT NULL,
+        word_id INTEGER NOT NULL,
+        occurrence_count INTEGER NOT NULL,
+        PRIMARY KEY(line_id, word_id),
+        FOREIGN KEY(line_id) REFERENCES imm_subtitle_lines(line_id) ON DELETE CASCADE,
+        FOREIGN KEY(word_id) REFERENCES imm_words(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE imm_kanji_line_occurrences(
+        line_id INTEGER NOT NULL,
+        kanji_id INTEGER NOT NULL,
+        occurrence_count INTEGER NOT NULL,
+        PRIMARY KEY(line_id, kanji_id),
+        FOREIGN KEY(line_id) REFERENCES imm_subtitle_lines(line_id) ON DELETE CASCADE,
+        FOREIGN KEY(kanji_id) REFERENCES imm_kanji(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE imm_lifetime_global(
+        global_id INTEGER PRIMARY KEY CHECK(global_id = 1),
+        total_sessions INTEGER NOT NULL DEFAULT 0,
+        total_active_ms INTEGER NOT NULL DEFAULT 0,
+        total_cards INTEGER NOT NULL DEFAULT 0,
+        active_days INTEGER NOT NULL DEFAULT 0,
+        episodes_started INTEGER NOT NULL DEFAULT 0,
+        episodes_completed INTEGER NOT NULL DEFAULT 0,
+        anime_completed INTEGER NOT NULL DEFAULT 0,
+        last_rebuilt_ms TEXT,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT
+      );
+
+      CREATE TABLE imm_lifetime_anime(
+        anime_id INTEGER PRIMARY KEY,
+        total_sessions INTEGER NOT NULL DEFAULT 0,
+        total_active_ms INTEGER NOT NULL DEFAULT 0,
+        total_cards INTEGER NOT NULL DEFAULT 0,
+        total_lines_seen INTEGER NOT NULL DEFAULT 0,
+        total_tokens_seen INTEGER NOT NULL DEFAULT 0,
+        episodes_started INTEGER NOT NULL DEFAULT 0,
+        episodes_completed INTEGER NOT NULL DEFAULT 0,
+        first_watched_ms TEXT,
+        last_watched_ms TEXT,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT,
+        FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE imm_lifetime_media(
+        video_id INTEGER PRIMARY KEY,
+        total_sessions INTEGER NOT NULL DEFAULT 0,
+        total_active_ms INTEGER NOT NULL DEFAULT 0,
+        total_cards INTEGER NOT NULL DEFAULT 0,
+        total_lines_seen INTEGER NOT NULL DEFAULT 0,
+        total_tokens_seen INTEGER NOT NULL DEFAULT 0,
+        completed INTEGER NOT NULL DEFAULT 0,
+        first_watched_ms TEXT,
+        last_watched_ms TEXT,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT,
+        FOREIGN KEY(video_id) REFERENCES imm_videos(video_id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE imm_lifetime_applied_sessions(
+        session_id INTEGER PRIMARY KEY,
+        applied_at_ms TEXT NOT NULL,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT,
+        FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE imm_media_art(
+        video_id INTEGER PRIMARY KEY,
+        anilist_id INTEGER,
+        cover_url TEXT,
+        cover_blob BLOB,
+        cover_blob_hash TEXT,
+        fetched_at_ms TEXT,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT,
+        FOREIGN KEY(video_id) REFERENCES imm_videos(video_id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE imm_cover_art_blobs(
+        blob_hash TEXT PRIMARY KEY,
+        cover_blob BLOB NOT NULL,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT
+      );
+
+      CREATE TABLE imm_youtube_videos(
+        video_id INTEGER PRIMARY KEY,
+        youtube_video_id TEXT,
+        video_url TEXT,
+        video_title TEXT,
+        video_thumbnail_url TEXT,
+        channel_id TEXT,
+        channel_name TEXT,
+        channel_url TEXT,
+        channel_thumbnail_url TEXT,
+        uploader_id TEXT,
+        uploader_url TEXT,
+        description TEXT,
+        metadata_json TEXT,
+        fetched_at_ms TEXT NOT NULL,
+        CREATED_DATE TEXT,
+        LAST_UPDATE_DATE TEXT,
+        FOREIGN KEY(video_id) REFERENCES imm_videos(video_id) ON DELETE CASCADE
+      );
+
+      INSERT INTO imm_videos (
+        video_id, video_key, canonical_title, source_type, source_path, source_url, watched, duration_ms,
+        CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (
+        1, 'local:/tmp/repaired-event.mkv', 'Repaired Event', 1, '/tmp/repaired-event.mkv', NULL, 0, 0, '1000', '1000'
+      );
+
+      INSERT INTO imm_sessions (
+        session_id, session_uuid, video_id, started_at_ms, status, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (
+        1, 'session-1', 1, '1775940000000', 1, '1775940000000', '1775940000000'
+      );
+
+      INSERT INTO imm_session_events (
+        event_id, session_id, ts_ms, event_type, line_index, segment_start_ms, segment_end_ms,
+        tokens_delta, cards_delta, payload_json, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (
+        1, 1, -2147483648, 4, NULL, NULL, NULL, 0, 1, '{\"noteIds\":[1]}', '1775943304128', '1775943304128'
+      );
+    `);
+
+    ensureSchema(db);
+
+    const column = db.prepare(`PRAGMA table_info(imm_session_events)`).all() as Array<{
+      name: string;
+      type: string;
+    }>;
+    assert.equal(column.find((entry) => entry.name === 'ts_ms')?.type, 'TEXT');
+
+    const row = db.prepare(
+      `
+        SELECT ts_ms AS tsMs, typeof(ts_ms) AS tsType, CREATED_DATE AS createdDate
+        FROM imm_session_events
+        WHERE event_id = 1
+      `,
+    ).get() as {
+      tsMs: string;
+      tsType: string;
+      createdDate: string;
+    };
+
+    assert.equal(row.tsType, 'text');
+    assert.equal(row.tsMs, '1775943304128');
+    assert.equal(row.createdDate, '1775943304128');
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('ensureSchema creates large-history performance indexes', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

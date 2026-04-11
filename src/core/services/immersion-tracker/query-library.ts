@@ -602,7 +602,7 @@ export function getEpisodeCardEvents(db: DatabaseSync, videoId: number): Episode
     FROM imm_session_events e
     JOIN imm_sessions s ON s.session_id = e.session_id
     WHERE s.video_id = ? AND e.event_type = 4
-    ORDER BY e.ts_ms DESC
+    ORDER BY CAST(e.ts_ms AS REAL) DESC
   `,
     )
     .all(videoId) as Array<{

@@ -1938,6 +1938,50 @@ test('getSessionEvents returns events ordered by ts_ms ascending', () => {
   }
 });
 
+test('getSessionEvents round-trips wall-clock timestamps written through event inserts', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/events-wall-clock.mkv', {
+      canonicalTitle: 'Events Wall Clock',
+      sourcePath: '/tmp/events-wall-clock.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const startedAtMs = Date.now() - 10_000;
+    const eventTsMs = startedAtMs + 5_000;
+    const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
+
+    stmts.eventInsertStmt.run(
+      sessionId,
+      toDbTimestamp(eventTsMs),
+      EVENT_SUBTITLE_LINE,
+      0,
+      0,
+      500,
+      1,
+      0,
+      '{"line":"wall-clock"}',
+      toDbTimestamp(eventTsMs),
+      toDbTimestamp(eventTsMs),
+    );
+
+    const events = getSessionEvents(db, sessionId, 10);
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]?.tsMs, eventTsMs);
+    assert.equal(events[0]?.payload, '{"line":"wall-clock"}');
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getSessionEvents returns empty array for session with no events', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

@@ -133,7 +133,7 @@ export function getSessionEvents(
   if (!eventTypes || eventTypes.length === 0) {
     const stmt = db.prepare(`
       SELECT event_type AS eventType, ts_ms AS tsMs, payload_json AS payload
-      FROM imm_session_events WHERE session_id = ? ORDER BY ts_ms ASC LIMIT ?
+      FROM imm_session_events WHERE session_id = ? ORDER BY CAST(ts_ms AS REAL) ASC LIMIT ?
     `);
     const rows = stmt.all(sessionId, limit) as Array<SessionEventRow & { tsMs: number | string }>;
     return rows.map((row) => ({
@@ -147,7 +147,7 @@ export function getSessionEvents(
     SELECT event_type AS eventType, ts_ms AS tsMs, payload_json AS payload
     FROM imm_session_events
     WHERE session_id = ? AND event_type IN (${placeholders})
-    ORDER BY ts_ms ASC
+    ORDER BY CAST(ts_ms AS REAL) ASC
     LIMIT ?
   `);
   const rows = stmt.all(sessionId, ...eventTypes, limit) as Array<
