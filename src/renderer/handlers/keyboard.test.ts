@@ -326,6 +326,8 @@ function createKeyboardHandlerHarness() {
   const testGlobals = installKeyboardTestGlobals();
   const subtitleRootClassList = createClassList();
   let controllerSelectKeydownCount = 0;
+  let openControllerSelectCount = 0;
+  let openControllerDebugCount = 0;
   let playlistBrowserKeydownCount = 0;
 
   const createWordNode = (left: number) => ({
@@ -373,6 +375,12 @@ function createKeyboardHandlerHarness() {
     },
     handleSessionHelpKeydown: () => false,
     openSessionHelpModal: () => {},
+    openControllerSelectModal: () => {
+      openControllerSelectCount += 1;
+    },
+    openControllerDebugModal: () => {
+      openControllerDebugCount += 1;
+    },
     appendClipboardVideoToQueue: () => {},
     getPlaybackPaused: () => testGlobals.getPlaybackPaused(),
   });
@@ -382,6 +390,8 @@ function createKeyboardHandlerHarness() {
     handlers,
     testGlobals,
     controllerSelectKeydownCount: () => controllerSelectKeydownCount,
+    openControllerSelectCount: () => openControllerSelectCount,
+    openControllerDebugCount: () => openControllerDebugCount,
     playlistBrowserKeydownCount: () => playlistBrowserKeydownCount,
     setWordCount: (count: number) => {
       wordNodes = Array.from({ length: count }, (_, index) => createWordNode(10 + index * 70));
@@ -735,8 +745,36 @@ test('keyboard mode: controller helpers dispatch popup audio play/cycle and scro
   }
 });
 
-test('keyboard mode: configured controller debug binding dispatches session action', async () => {
-  const { testGlobals, handlers } = createKeyboardHandlerHarness();
+test('keyboard mode: configured controller select binding opens locally without dispatching a session action', async () => {
+  const { testGlobals, handlers, openControllerSelectCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.openControllerSelect',
+        originalKey: 'Alt+D',
+        key: { code: 'KeyD', modifiers: ['alt'] },
+        actionType: 'session-action',
+        actionId: 'openControllerSelect',
+      },
+    ] as never);
+
+    testGlobals.dispatchKeydown({
+      key: 'd',
+      code: 'KeyD',
+      altKey: true,
+    });
+
+    assert.equal(openControllerSelectCount(), 1);
+    assert.deepEqual(testGlobals.sessionActions, []);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: configured controller debug binding opens locally without dispatching a session action', async () => {
+  const { testGlobals, handlers, openControllerDebugCount } = createKeyboardHandlerHarness();
 
   try {
     await handlers.setupMpvInputForwarding();
@@ -757,14 +795,15 @@ test('keyboard mode: configured controller debug binding dispatches session acti
       shiftKey: true,
     });
 
-    assert.deepEqual(testGlobals.sessionActions, [{ actionId: 'openControllerDebug', payload: undefined }]);
+    assert.equal(openControllerDebugCount(), 1);
+    assert.deepEqual(testGlobals.sessionActions, []);
   } finally {
     testGlobals.restore();
   }
 });
 
 test('keyboard mode: configured controller debug binding is not swallowed while popup is visible', async () => {
-  const { ctx, testGlobals, handlers } = createKeyboardHandlerHarness();
+  const { ctx, testGlobals, handlers, openControllerDebugCount } = createKeyboardHandlerHarness();
 
   try {
     await handlers.setupMpvInputForwarding();
@@ -787,7 +826,8 @@ test('keyboard mode: configured controller debug binding is not swallowed while 
       shiftKey: true,
     });
 
-    assert.deepEqual(testGlobals.sessionActions, [{ actionId: 'openControllerDebug', payload: undefined }]);
+    assert.equal(openControllerDebugCount(), 1);
+    assert.deepEqual(testGlobals.sessionActions, []);
   } finally {
     testGlobals.restore();
   }

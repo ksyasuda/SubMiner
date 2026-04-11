@@ -174,6 +174,12 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
   openSessionHelpModal: sessionHelpModal.openSessionHelpModal,
+  openControllerSelectModal: () => {
+    controllerSelectModal.openControllerSelectModal();
+  },
+  openControllerDebugModal: () => {
+    controllerDebugModal.openControllerDebugModal();
+  },
   appendClipboardVideoToQueue: () => {
     void window.electronAPI.appendClipboardVideoToQueue();
   },

@@ -25,6 +25,8 @@ export function createKeyboardHandlers(
       fallbackUsed: boolean;
       fallbackUnavailable: boolean;
     }) => void;
+    openControllerSelectModal?: () => void;
+    openControllerDebugModal?: () => void;
     appendClipboardVideoToQueue: () => void;
     getPlaybackPaused: () => Promise<boolean | null>;
     toggleSubtitleSidebarModal?: () => void;
@@ -179,6 +181,16 @@ export function createKeyboardHandlers(
       (binding.actionId === 'copySubtitleMultiple' || binding.actionId === 'mineSentenceMultiple')
     ) {
       startPendingNumericSelection(binding.actionId);
+      return;
+    }
+
+    if (binding.actionType === 'session-action' && binding.actionId === 'openControllerSelect') {
+      options.openControllerSelectModal?.();
+      return;
+    }
+
+    if (binding.actionType === 'session-action' && binding.actionId === 'openControllerDebug') {
+      options.openControllerDebugModal?.();
       return;
     }
 
