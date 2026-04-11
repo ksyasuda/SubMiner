@@ -137,9 +137,9 @@ import {
   clearWindowsOverlayOwnerNative,
   ensureWindowsOverlayTransparencyNative,
   getWindowsForegroundProcessNameNative,
-  queryWindowsForegroundProcessName,
   queryWindowsTargetWindowHandle,
   setWindowsOverlayOwnerNative,
+  shouldUseWindowsTrackerPowershellFallback,
 } from './window-trackers/windows-helper';
 import {
   commandNeedsOverlayStartupPrereqs,
@@ -453,6 +453,7 @@ import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
+import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
 import { writeSessionBindingsArtifact } from './main/runtime/session-bindings-artifact';
 import { openOverlayHostedModal } from './main/runtime/overlay-hosted-modal-open';
@@ -1903,7 +1904,6 @@ let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout
 let windowsVisibleOverlayZOrderSyncInFlight = false;
 let windowsVisibleOverlayZOrderSyncQueued = false;
 let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
-let windowsVisibleOverlayForegroundPollInFlight = false;
 let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
 let lastWindowsVisibleOverlayBlurredAtMs = 0;
 
@@ -1940,9 +1940,11 @@ function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | nu
     return null;
   }
 
-  const helperTargetHwnd = queryWindowsTargetWindowHandle({ targetMpvSocketPath });
-  if (helperTargetHwnd !== null) {
-    return helperTargetHwnd;
+  if (shouldUseWindowsTrackerPowershellFallback()) {
+    const helperTargetHwnd = queryWindowsTargetWindowHandle({ targetMpvSocketPath });
+    if (helperTargetHwnd !== null) {
+      return helperTargetHwnd;
+    }
   }
 
   try {
@@ -2103,6 +2105,15 @@ function ensureWindowsVisibleOverlayForegroundPollLoop(): void {
   }, WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS);
 }
 
+function clearWindowsVisibleOverlayForegroundPollLoop(): void {
+  if (windowsVisibleOverlayForegroundPollInterval === null) {
+    return;
+  }
+
+  clearInterval(windowsVisibleOverlayForegroundPollInterval);
+  windowsVisibleOverlayForegroundPollInterval = null;
+}
+
 function scheduleVisibleOverlayBlurRefresh(): void {
   if (process.platform !== 'win32') {
     return;
@@ -2211,23 +2222,19 @@ function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
 }
 
 function openRuntimeOptionsPalette(): void {
-  const opened = openOverlayHostedModal(
-    {
-      ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
-      ensureOverlayWindowsReadyForVisibilityActions: () =>
-        ensureOverlayWindowsReadyForVisibilityActions(),
-      sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
-        sendToActiveOverlayWindow(channel, payload, runtimeOptions),
-    },
-    {
-      channel: IPC_CHANNELS.event.runtimeOptionsOpen,
-      modal: 'runtime-options',
-      preferModalWindow: true,
-    },
-  );
-  if (!opened) {
-    showMpvOsd('Runtime options overlay unavailable.');
-  }
+  void openRuntimeOptionsModalRuntime({
+    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+    ensureOverlayWindowsReadyForVisibilityActions: () =>
+      ensureOverlayWindowsReadyForVisibilityActions(),
+    sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
+      sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+    waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
+    logWarn: (message) => logger.warn(message),
+  }).then((opened) => {
+    if (!opened) {
+      showMpvOsd('Runtime options overlay unavailable.');
+    }
+  });
 }
 
 function openJimakuOverlay(): void {
@@ -3034,6 +3041,8 @@ const {
       annotationSubtitleWsService.stop();
     },
     stopTexthookerService: () => texthookerService.stop(),
+    clearWindowsVisibleOverlayForegroundPollLoop: () =>
+      clearWindowsVisibleOverlayForegroundPollLoop(),
     getMainOverlayWindow: () => overlayManager.getMainWindow(),
     clearMainOverlayWindow: () => overlayManager.setMainWindow(null),
     getModalOverlayWindow: () => overlayManager.getModalWindow(),

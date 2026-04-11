@@ -492,7 +492,7 @@ test('notifyOverlayModalOpened enables input on visible main overlay window when
   assert.equal(mainWindow.webContentsFocused, true);
 });
 
-test('handleOverlayModalClosed resets modal state even when modal window does not exist', () => {
+test('handleOverlayModalClosed is a no-op when no modal window can be targeted', () => {
   const state: boolean[] = [];
   const runtime = createOverlayModalRuntimeService(
     {
@@ -509,13 +509,14 @@ test('handleOverlayModalClosed resets modal state even when modal window does no
     },
   );
 
-  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
+  assert.equal(sent, false);
   runtime.notifyOverlayModalOpened('runtime-options');
   runtime.handleOverlayModalClosed('runtime-options');
 
-  assert.deepEqual(state, [true, false]);
+  assert.deepEqual(state, []);
 });
 
 test('handleOverlayModalClosed hides modal window for single kiku modal', () => {
@@ -637,10 +638,11 @@ test('warm modal window reopen becomes interactive immediately on the second ope
 });
 
 test('waitForModalOpen resolves true after modal acknowledgement', async () => {
+  const modalWindow = createMockWindow();
   const runtime = createOverlayModalRuntimeService({
     getMainWindow: () => null,
-    getModalWindow: () => null,
-    createModalWindow: () => null,
+    getModalWindow: () => modalWindow as never,
+    createModalWindow: () => modalWindow as never,
     getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
     setModalWindowBounds: () => {},
   });

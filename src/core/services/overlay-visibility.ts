@@ -1,14 +1,13 @@
 import type { BrowserWindow } from 'electron';
 import { BaseWindowTracker } from '../../window-trackers';
 import { WindowGeometry } from '../../types';
+import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
 
 const WINDOWS_OVERLAY_REVEAL_DELAY_MS = 48;
 const pendingWindowsOverlayRevealTimeoutByWindow = new WeakMap<
   BrowserWindow,
   ReturnType<typeof setTimeout>
 >();
-const OVERLAY_WINDOW_CONTENT_READY_FLAG = '__subminerOverlayContentReady';
-
 function setOverlayWindowOpacity(window: BrowserWindow, opacity: number): void {
   const opacityCapableWindow = window as BrowserWindow & {
     setOpacity?: (opacity: number) => void;

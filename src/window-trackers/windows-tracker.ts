@@ -19,7 +19,10 @@
 import { BaseWindowTracker } from './base-tracker';
 import type { WindowGeometry } from '../types';
 import type { MpvPollResult } from './win32';
-import { queryWindowsTrackerMpvWindows } from './windows-helper';
+import {
+  queryWindowsTrackerMpvWindows,
+  shouldUseWindowsTrackerPowershellFallback,
+} from './windows-helper';
 import { createLogger } from '../logger';
 
 const log = createLogger('tracker').child('windows');
@@ -32,18 +35,8 @@ type WindowsTrackerDeps = {
   now?: () => number;
 };
 
-function shouldUsePowershellTrackerFallback(): boolean {
-  const helperMode = process.env.SUBMINER_WINDOWS_TRACKER_HELPER?.trim().toLowerCase();
-  if (helperMode === 'powershell') {
-    return true;
-  }
-
-  const helperPath = process.env.SUBMINER_WINDOWS_TRACKER_HELPER_PATH?.trim().toLowerCase();
-  return helperPath?.endsWith('.ps1') ?? false;
-}
-
 function defaultPollMpvWindows(targetMpvSocketPath?: string | null): MpvPollResult {
-  if (targetMpvSocketPath && shouldUsePowershellTrackerFallback()) {
+  if (targetMpvSocketPath && shouldUseWindowsTrackerPowershellFallback()) {
     const helperResult = queryWindowsTrackerMpvWindows({
       targetMpvSocketPath,
     });

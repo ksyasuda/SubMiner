@@ -64,6 +64,21 @@ function normalizeHelperMode(value: string | undefined): WindowsTrackerHelperMod
   return 'auto';
 }
 
+export function shouldUseWindowsTrackerPowershellFallback(options: {
+  helperModeEnv?: string | undefined;
+  helperPathEnv?: string | undefined;
+} = {}): boolean {
+  const mode = normalizeHelperMode(
+    options.helperModeEnv ?? process.env.SUBMINER_WINDOWS_TRACKER_HELPER,
+  );
+  if (mode === 'powershell') {
+    return true;
+  }
+
+  const helperPath = options.helperPathEnv ?? process.env.SUBMINER_WINDOWS_TRACKER_HELPER_PATH;
+  return helperPath?.trim().toLowerCase().endsWith('.ps1') ?? false;
+}
+
 function inferHelperKindFromPath(helperPath: string): WindowsTrackerHelperKind | null {
   const normalized = helperPath.trim().toLowerCase();
   if (normalized.endsWith('.exe')) return 'native';
