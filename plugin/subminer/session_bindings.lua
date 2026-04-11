@@ -108,6 +108,8 @@ function M.create(ctx)
 	local function build_cli_args(action_id, payload)
 		if action_id == "toggleVisibleOverlay" then
 			return { "--toggle-visible-overlay" }
+		elseif action_id == "toggleStatsOverlay" then
+			return { "--toggle-stats-overlay" }
 		elseif action_id == "copySubtitle" then
 			return { "--copy-subtitle" }
 		elseif action_id == "copySubtitleMultiple" then
@@ -142,6 +144,13 @@ function M.create(ctx)
 			return { "--shift-sub-delay-prev-line" }
 		elseif action_id == "shiftSubDelayNextLine" then
 			return { "--shift-sub-delay-next-line" }
+		elseif action_id == "cycleRuntimeOption" then
+			local runtime_option_id = payload and payload.runtimeOptionId or nil
+			if type(runtime_option_id) ~= "string" or runtime_option_id == "" then
+				return nil
+			end
+			local direction = payload and payload.direction == -1 and "prev" or "next"
+			return { "--cycle-runtime-option", runtime_option_id .. ":" .. direction }
 		end
 
 		return nil
@@ -163,7 +172,24 @@ function M.create(ctx)
 		for _, arg in ipairs(cli_args) do
 			args[#args + 1] = arg
 		end
-		process.run_binary_command_async(args, function(ok, result, error)
+		local runner = process.run_binary_command_async
+		if type(runner) ~= "function" then
+			runner = function(binary_args, callback)
+				mp.command_native_async({
+					name = "subprocess",
+					args = binary_args,
+					playback_only = false,
+					capture_stdout = true,
+					capture_stderr = true,
+				}, function(success, result, error)
+					local ok = success and (result == nil or result.status == 0)
+					if callback then
+						callback(ok, result, error)
+					end
+				end)
+			end
+		end
+		runner(args, function(ok, result, error)
 			if ok then
 				return
 			end

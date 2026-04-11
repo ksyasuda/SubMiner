@@ -102,7 +102,11 @@ export function createImmersionTrackerStartupHandler(
       const mpvClient = deps.getMpvClient();
       if ((deps.shouldAutoConnectMpv?.() ?? true) && mpvClient && !mpvClient.connected) {
         deps.logInfo('Auto-connecting MPV client for immersion tracking');
-        mpvClient.connect();
+        try {
+          mpvClient.connect();
+        } catch (error) {
+          deps.logWarn('MPV auto-connect failed during immersion tracker startup; continuing.', error);
+        }
       }
       deps.seedTrackerFromCurrentMedia();
     } catch (error) {

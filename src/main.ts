@@ -454,6 +454,7 @@ import { createOverlayModalInputState } from './main/runtime/overlay-modal-input
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
 import { writeSessionBindingsArtifact } from './main/runtime/session-bindings-artifact';
+import { openOverlayHostedModal } from './main/runtime/overlay-hosted-modal-open';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
   createFrequencyDictionaryRuntimeService,
@@ -1484,9 +1485,7 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
       openRuntimeOptionsPalette();
     },
     openJimaku: () => {
-      sendToActiveOverlayWindow('jimaku:open', undefined, {
-        restoreOnModalClose: 'jimaku',
-      });
+      openJimakuOverlay();
     },
     markAudioCard: () => markLastCardAsAudioCard(),
     copySubtitleMultiple: (timeoutMs: number) => {
@@ -2206,7 +2205,42 @@ function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
 }
 
 function openRuntimeOptionsPalette(): void {
-  overlayVisibilityComposer.openRuntimeOptionsPalette();
+  const opened = openOverlayHostedModal(
+    {
+      ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+      ensureOverlayWindowsReadyForVisibilityActions: () =>
+        ensureOverlayWindowsReadyForVisibilityActions(),
+      sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
+        sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+    },
+    {
+      channel: IPC_CHANNELS.event.runtimeOptionsOpen,
+      modal: 'runtime-options',
+      preferModalWindow: true,
+    },
+  );
+  if (!opened) {
+    showMpvOsd('Runtime options overlay unavailable.');
+  }
+}
+
+function openJimakuOverlay(): void {
+  const opened = openOverlayHostedModal(
+    {
+      ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+      ensureOverlayWindowsReadyForVisibilityActions: () =>
+        ensureOverlayWindowsReadyForVisibilityActions(),
+      sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
+        sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+    },
+    {
+      channel: IPC_CHANNELS.event.jimakuOpen,
+      modal: 'jimaku',
+    },
+  );
+  if (!opened) {
+    showMpvOsd('Jimaku overlay unavailable.');
+  }
 }
 
 function openPlaylistBrowser(): void {
@@ -4522,7 +4556,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     toggleSecondarySub: () => handleCycleSecondarySubMode(),
     markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-    openJimaku: () => overlayModalRuntime.openJimaku(),
+    openJimaku: () => openJimakuOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
@@ -4551,7 +4585,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-    openJimaku: () => overlayModalRuntime.openJimaku(),
+    openJimaku: () => openJimakuOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
     cycleRuntimeOption: (id, direction) => {
@@ -4591,7 +4625,17 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           mainWindow.focus();
         }
       },
-      onOverlayModalClosed: (modal) => {
+      onOverlayModalClosed: (modal, senderWindow) => {
+        const modalWindow = overlayManager.getModalWindow();
+        if (
+          senderWindow &&
+          modalWindow &&
+          senderWindow === modalWindow &&
+          !senderWindow.isDestroyed()
+        ) {
+          senderWindow.setIgnoreMouseEvents(true, { forward: true });
+          senderWindow.hide();
+        }
         handleOverlayModalClosed(modal);
       },
       onOverlayModalOpened: (modal) => {

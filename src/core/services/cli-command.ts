@@ -396,6 +396,12 @@ export function handleCliCommand(
       'markLastCardAsAudioCard',
       'Audio card failed',
     );
+  } else if (args.toggleStatsOverlay) {
+    dispatchCliSessionAction(
+      { actionId: 'toggleStatsOverlay' },
+      'toggleStatsOverlay',
+      'Stats toggle failed',
+    );
   } else if (args.openRuntimeOptions) {
     deps.openRuntimeOptionsPalette();
   } else if (args.openJimaku) {
@@ -435,6 +441,18 @@ export function handleCliCommand(
       { actionId: 'shiftSubDelayNextLine' },
       'shiftSubDelayNextLine',
       'Shift subtitle delay failed',
+    );
+  } else if (args.cycleRuntimeOptionId !== undefined) {
+    dispatchCliSessionAction(
+      {
+        actionId: 'cycleRuntimeOption',
+        payload: {
+          runtimeOptionId: args.cycleRuntimeOptionId,
+          direction: args.cycleRuntimeOptionDirection ?? 1,
+        },
+      },
+      'cycleRuntimeOption',
+      'Runtime option change failed',
     );
   } else if (args.copySubtitleCount !== undefined) {
     dispatchCliSessionAction(

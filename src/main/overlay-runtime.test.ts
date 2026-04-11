@@ -7,13 +7,16 @@ type MockWindow = {
   visible: boolean;
   focused: boolean;
   ignoreMouseEvents: boolean;
+  forwardedIgnoreMouseEvents: boolean;
   webContentsFocused: boolean;
   showCount: number;
   hideCount: number;
   sent: unknown[][];
   loading: boolean;
   url: string;
+  contentReady: boolean;
   loadCallbacks: Array<() => void>;
+  readyToShowCallbacks: Array<() => void>;
 };
 
 function createMockWindow(): MockWindow & {
@@ -29,6 +32,7 @@ function createMockWindow(): MockWindow & {
   show: () => void;
   hide: () => void;
   focus: () => void;
+  once: (event: 'ready-to-show', cb: () => void) => void;
   webContents: {
     focused: boolean;
     isLoading: () => boolean;
@@ -44,13 +48,16 @@ function createMockWindow(): MockWindow & {
     visible: false,
     focused: false,
     ignoreMouseEvents: false,
+    forwardedIgnoreMouseEvents: false,
     webContentsFocused: false,
     showCount: 0,
     hideCount: 0,
     sent: [],
     loading: false,
     url: 'file:///overlay/index.html?layer=modal',
+    contentReady: true,
     loadCallbacks: [],
+    readyToShowCallbacks: [],
   };
   const window = {
     ...state,
@@ -58,8 +65,9 @@ function createMockWindow(): MockWindow & {
     isVisible: () => state.visible,
     isFocused: () => state.focused,
     getURL: () => state.url,
-    setIgnoreMouseEvents: (ignore: boolean, _options?: { forward?: boolean }) => {
+    setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
       state.ignoreMouseEvents = ignore;
+      state.forwardedIgnoreMouseEvents = options?.forward === true;
     },
     setAlwaysOnTop: (_flag: boolean, _level?: string, _relativeLevel?: number) => {},
     moveTop: () => {},
@@ -75,6 +83,9 @@ function createMockWindow(): MockWindow & {
     },
     focus: () => {
       state.focused = true;
+    },
+    once: (_event: 'ready-to-show', cb: () => void) => {
+      state.readyToShowCallbacks.push(cb);
     },
     webContents: {
       isLoading: () => state.loading,
@@ -139,6 +150,25 @@ function createMockWindow(): MockWindow & {
     },
   });
 
+  Object.defineProperty(window, 'forwardedIgnoreMouseEvents', {
+    get: () => state.forwardedIgnoreMouseEvents,
+    set: (value: boolean) => {
+      state.forwardedIgnoreMouseEvents = value;
+    },
+  });
+
+  Object.defineProperty(window, 'contentReady', {
+    get: () => state.contentReady,
+    set: (value: boolean) => {
+      state.contentReady = value;
+      (window as typeof window & { __subminerOverlayContentReady?: boolean }).__subminerOverlayContentReady =
+        value;
+    },
+  });
+
+  (window as typeof window & { __subminerOverlayContentReady?: boolean }).__subminerOverlayContentReady =
+    state.contentReady;
+
   return window;
 }
 
@@ -199,6 +229,7 @@ test('sendToActiveOverlayWindow waits for blank modal URL before sending open co
   const window = createMockWindow();
   window.url = '';
   window.loading = true;
+  window.contentReady = false;
   const runtime = createOverlayModalRuntimeService({
     getMainWindow: () => null,
     getModalWindow: () => window as never,
@@ -217,9 +248,14 @@ test('sendToActiveOverlayWindow waits for blank modal URL before sending open co
   assert.deepEqual(window.sent, []);
 
   assert.equal(window.loadCallbacks.length, 1);
+  assert.equal(window.readyToShowCallbacks.length, 1);
   window.loading = false;
   window.url = 'file:///overlay/index.html?layer=modal';
   window.loadCallbacks[0]!();
+  assert.deepEqual(window.sent, []);
+
+  window.contentReady = true;
+  window.readyToShowCallbacks[0]!();
 
   runtime.notifyOverlayModalOpened('runtime-options');
   assert.deepEqual(window.sent, [['runtime-options:open']]);
@@ -325,11 +361,12 @@ test('modal window path makes visible main overlay click-through until modal clo
 
   assert.equal(sent, true);
   assert.equal(mainWindow.ignoreMouseEvents, true);
+  assert.equal(mainWindow.forwardedIgnoreMouseEvents, true);
   assert.equal(modalWindow.ignoreMouseEvents, false);
 
   runtime.handleOverlayModalClosed('youtube-track-picker');
 
-  assert.equal(mainWindow.ignoreMouseEvents, false);
+  assert.equal(mainWindow.ignoreMouseEvents, true);
 });
 
 test('modal window path hides visible main overlay until modal closes', () => {
@@ -359,8 +396,8 @@ test('modal window path hides visible main overlay until modal closes', () => {
 
   runtime.handleOverlayModalClosed('youtube-track-picker');
 
-  assert.equal(mainWindow.getShowCount(), 1);
-  assert.equal(mainWindow.isVisible(), true);
+  assert.equal(mainWindow.getShowCount(), 0);
+  assert.equal(mainWindow.isVisible(), false);
 });
 
 test('modal runtime notifies callers when modal input state becomes active/inactive', () => {
@@ -500,6 +537,7 @@ test('modal fallback reveal keeps mouse events ignored until modal confirms open
 
   window.loading = true;
   window.url = '';
+  window.contentReady = false;
 
   const sent = runtime.sendToActiveOverlayWindow('jimaku:open', undefined, {
     restoreOnModalClose: 'jimaku',
@@ -517,6 +555,36 @@ test('modal fallback reveal keeps mouse events ignored until modal confirms open
 
   runtime.notifyOverlayModalOpened('jimaku');
   assert.equal(window.ignoreMouseEvents, false);
+});
+
+test('sendToActiveOverlayWindow waits for modal ready-to-show before delivering open event', () => {
+  const window = createMockWindow();
+  window.contentReady = false;
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => null,
+    getModalWindow: () => window as never,
+    createModalWindow: () => {
+      throw new Error('modal window should not be created when already present');
+    },
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+    restoreOnModalClose: 'runtime-options',
+  });
+
+  assert.equal(sent, true);
+  assert.deepEqual(window.sent, []);
+  assert.equal(window.loadCallbacks.length, 1);
+  assert.equal(window.readyToShowCallbacks.length, 1);
+
+  window.loadCallbacks[0]!();
+  assert.deepEqual(window.sent, []);
+
+  window.contentReady = true;
+  window.readyToShowCallbacks[0]!();
+  assert.deepEqual(window.sent, [['runtime-options:open']]);
 });
 
 test('waitForModalOpen resolves true after modal acknowledgement', async () => {

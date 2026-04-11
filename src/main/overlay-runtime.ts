@@ -3,6 +3,7 @@ import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import type { WindowGeometry } from '../types';
 
 const MODAL_REVEAL_FALLBACK_DELAY_MS = 250;
+const OVERLAY_WINDOW_CONTENT_READY_FLAG = '__subminerOverlayContentReady';
 
 export interface OverlayWindowResolver {
   getMainWindow: () => BrowserWindow | null;
@@ -90,6 +91,15 @@ export function createOverlayModalRuntimeService(
     if (window.webContents.isLoading()) {
       return false;
     }
+    const overlayWindow = window as BrowserWindow & {
+      [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean;
+    };
+    if (
+      typeof overlayWindow[OVERLAY_WINDOW_CONTENT_READY_FLAG] === 'boolean' &&
+      overlayWindow[OVERLAY_WINDOW_CONTENT_READY_FLAG] !== true
+    ) {
+      return false;
+    }
     const currentURL = window.webContents.getURL();
     return currentURL !== '' && currentURL !== 'about:blank';
   };
@@ -109,11 +119,17 @@ export function createOverlayModalRuntimeService(
       return;
     }
 
-    window.webContents.once('did-finish-load', () => {
-      if (!window.isDestroyed() && !window.webContents.isLoading()) {
-        sendNow(window);
+    let delivered = false;
+    const deliverWhenReady = (): void => {
+      if (delivered || window.isDestroyed() || !isWindowReadyForIpc(window)) {
+        return;
       }
-    });
+      delivered = true;
+      sendNow(window);
+    };
+
+    window.webContents.once('did-finish-load', deliverWhenReady);
+    window.once('ready-to-show', deliverWhenReady);
   };
 
   const showModalWindow = (
@@ -320,12 +336,12 @@ export function createOverlayModalRuntimeService(
     const modalWindow = deps.getModalWindow();
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
-      notifyModalStateChange(false);
-      setMainWindowMousePassthroughForModal(false);
-      setMainWindowVisibilityForModal(false);
       if (modalWindow && !modalWindow.isDestroyed()) {
         modalWindow.hide();
       }
+      mainWindowMousePassthroughForcedByModal = false;
+      mainWindowHiddenByModal = false;
+      notifyModalStateChange(false);
     }
   };
 

@@ -97,6 +97,9 @@ export function createOverlayWindow(
   },
 ): BrowserWindow {
   const window = new BrowserWindow(buildOverlayWindowOptions(kind, options));
+  (window as BrowserWindow & { [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean })[
+    OVERLAY_WINDOW_CONTENT_READY_FLAG
+  ] = false;
 
   if (!(process.platform === 'win32' && kind === 'visible')) {
     options.ensureOverlayWindowLevel(window);
