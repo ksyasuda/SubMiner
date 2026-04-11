@@ -231,6 +231,9 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(shouldStartApp(cycleRuntimeOption), true);
   assert.equal(commandNeedsOverlayRuntime(cycleRuntimeOption), true);
 
+  const toggleStatsOverlayRuntime = parseArgs(['--toggle-stats-overlay']);
+  assert.equal(commandNeedsOverlayRuntime(toggleStatsOverlayRuntime), true);
+
   const dictionary = parseArgs(['--dictionary']);
   assert.equal(dictionary.dictionary, true);
   assert.equal(hasExplicitCommand(dictionary), true);

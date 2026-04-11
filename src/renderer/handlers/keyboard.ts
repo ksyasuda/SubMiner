@@ -160,8 +160,9 @@ export function createKeyboardHandlers(
       return true;
     }
 
-    if (!/^[1-9]$/.test(e.key) || e.ctrlKey || e.metaKey || e.altKey) {
-      return false;
+    if (!/^[1-9]$/.test(e.key) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) {
+      e.preventDefault();
+      return true;
     }
 
     e.preventDefault();
@@ -1115,6 +1116,7 @@ export function createKeyboardHandlers(
 
   return {
     beginSessionNumericSelection,
+    getSessionHelpOpeningInfo: resolveSessionHelpChordBinding,
     setupMpvInputForwarding,
     refreshConfiguredShortcuts,
     updateSessionBindings,

@@ -230,6 +230,23 @@ test('compileSessionBindings rejects malformed command arrays', () => {
   ]);
 });
 
+test('compileSessionBindings rejects non-string command heads and extra args on special commands', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts(),
+    keybindings: [
+      createKeybinding('Ctrl+J', [42] as never),
+      createKeybinding('Ctrl+K', [SPECIAL_COMMANDS.JIMAKU_OPEN, 'extra'] as never),
+    ],
+    platform: 'linux',
+  });
+
+  assert.deepEqual(result.bindings, []);
+  assert.deepEqual(result.warnings.map((warning) => `${warning.kind}:${warning.path}`), [
+    'unsupported:keybindings[0].key',
+    'unsupported:keybindings[1].key',
+  ]);
+});
+
 test('compileSessionBindings warns on deprecated toggleVisibleOverlayGlobal config', () => {
   const result = compileSessionBindings({
     shortcuts: createShortcuts(),

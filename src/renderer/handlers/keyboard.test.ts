@@ -389,6 +389,88 @@ function createKeyboardHandlerHarness() {
   };
 }
 
+test('session help chord resolver follows remapped session bindings', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+
+    assert.deepEqual(handlers.getSessionHelpOpeningInfo(), {
+      bindingKey: 'KeyH',
+      fallbackUsed: false,
+      fallbackUnavailable: false,
+    });
+
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'KeyH',
+        key: { code: 'KeyH', modifiers: [] },
+        actionType: 'session-action',
+        actionId: 'openJimaku',
+      },
+      {
+        sourcePath: 'keybindings[1].key',
+        originalKey: 'KeyJ',
+        key: { code: 'KeyJ', modifiers: [] },
+        actionType: 'mpv-command',
+        command: ['cycle', 'pause'],
+      },
+    ] as never);
+
+    assert.deepEqual(handlers.getSessionHelpOpeningInfo(), {
+      bindingKey: 'KeyK',
+      fallbackUsed: true,
+      fallbackUnavailable: false,
+    });
+
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'KeyH',
+        key: { code: 'KeyH', modifiers: [] },
+        actionType: 'session-action',
+        actionId: 'openSessionHelp',
+      },
+      {
+        sourcePath: 'keybindings[1].key',
+        originalKey: 'KeyK',
+        key: { code: 'KeyK', modifiers: [] },
+        actionType: 'session-action',
+        actionId: 'openControllerSelect',
+      },
+    ] as never);
+
+    assert.deepEqual(handlers.getSessionHelpOpeningInfo(), {
+      bindingKey: 'KeyK',
+      fallbackUsed: true,
+      fallbackUnavailable: true,
+    });
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('numeric selection ignores non-digit keys instead of falling through to other shortcuts', async () => {
+  const { handlers, testGlobals, ctx } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.beginSessionNumericSelection('copySubtitleMultiple');
+
+    testGlobals.dispatchKeydown({ key: 'y', code: 'KeyY' });
+
+    assert.equal(ctx.state.chordPending, false);
+    assert.deepEqual(testGlobals.sessionActions, []);
+    assert.equal(
+      testGlobals.commandEvents.some((event) => event.type === 'forwardKeyDown'),
+      false,
+    );
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: left and right move token selection while popup remains open', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 

@@ -96,6 +96,10 @@ const OVERLAY_SHORTCUTS: Array<{
   { key: 'markAudioCard', label: 'Mark audio card' },
   { key: 'openRuntimeOptions', label: 'Open runtime options' },
   { key: 'openJimaku', label: 'Open jimaku' },
+  { key: 'openSessionHelp', label: 'Open session help' },
+  { key: 'openControllerSelect', label: 'Open controller select' },
+  { key: 'openControllerDebug', label: 'Open controller debug' },
+  { key: 'toggleSubtitleSidebar', label: 'Toggle subtitle sidebar' },
   { key: 'toggleVisibleOverlayGlobal', label: 'Show/hide visible overlay' },
 ];
 
@@ -104,11 +108,12 @@ function buildOverlayShortcutSections(shortcuts: RuntimeShortcutConfig): Session
 
   for (const shortcut of OVERLAY_SHORTCUTS) {
     const keybind = shortcuts[shortcut.key];
-    if (typeof keybind !== 'string') continue;
-    if (keybind.trim().length === 0) continue;
 
     rows.push({
-      shortcut: formatKeybinding(keybind),
+      shortcut:
+        typeof keybind === 'string' && keybind.trim().length > 0
+          ? formatKeybinding(keybind)
+          : 'Unbound',
       action: shortcut.label,
     });
   }
@@ -591,13 +596,17 @@ export function createSessionHelpModal(
     priorFocus = document.activeElement;
 
     ctx.state.sessionHelpModalOpen = true;
+    helpSections = [];
+    helpFilterValue = '';
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.overlay.classList.add('interactive');
     ctx.dom.sessionHelpModal.classList.remove('hidden');
     ctx.dom.sessionHelpModal.setAttribute('aria-hidden', 'false');
     ctx.dom.sessionHelpModal.setAttribute('tabindex', '-1');
     ctx.dom.sessionHelpFilter.value = '';
-    helpFilterValue = '';
+    ctx.state.sessionHelpSelectedIndex = 0;
+    ctx.dom.sessionHelpContent.innerHTML = '';
+    ctx.dom.sessionHelpContent.classList.remove('session-help-content-no-results');
     if (ctx.platform.shouldToggleMouseIgnore) {
       window.electronAPI.setIgnoreMouseEvents(false);
     }

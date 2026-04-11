@@ -686,6 +686,7 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.mineSentenceMultiple ||
     args.updateLastCardFromClipboard ||
     args.toggleSecondarySub ||
+    args.toggleStatsOverlay ||
     args.toggleSubtitleSidebar ||
     args.triggerFieldGrouping ||
     args.triggerSubsync ||

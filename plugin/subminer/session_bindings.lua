@@ -313,12 +313,14 @@ function M.create(ctx)
 
 		local previous_binding_names = state.session_binding_names
 		local next_binding_names = {}
+		state.session_binding_generation = (state.session_binding_generation or 0) + 1
+		local generation = state.session_binding_generation
 
 		local timeout_ms = tonumber(artifact.numericSelectionTimeoutMs) or 3000
 		for index, binding in ipairs(artifact.bindings) do
 			local key_name = key_spec_to_mpv_binding(binding.key)
 			if key_name then
-				local name = "subminer-session-binding-" .. tostring(index)
+				local name = "subminer-session-binding-" .. tostring(generation) .. "-" .. tostring(index)
 				next_binding_names[#next_binding_names + 1] = name
 				mp.add_forced_key_binding(key_name, name, function()
 					handle_binding(binding, timeout_ms)

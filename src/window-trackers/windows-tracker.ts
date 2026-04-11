@@ -51,6 +51,7 @@ export class WindowsWindowTracker extends BaseWindowTracker {
   private trackingLossStartedAtMs: number | null = null;
   private targetWindowMinimized = false;
   private readonly targetMpvSocketPath: string | null;
+  private currentTargetWindowHwnd: number | null = null;
 
   constructor(_targetMpvSocketPath?: string, deps: WindowsTrackerDeps = {}) {
     super();
@@ -79,6 +80,10 @@ export class WindowsWindowTracker extends BaseWindowTracker {
 
   override isTargetWindowMinimized(): boolean {
     return this.targetWindowMinimized;
+  }
+
+  getTargetWindowHandle(): number | null {
+    return this.currentTargetWindowHwnd;
   }
 
   private maybeLogPollError(error: Error): void {
@@ -122,7 +127,7 @@ export class WindowsWindowTracker extends BaseWindowTracker {
 
   private selectBestMatch(
     result: MpvPollResult,
-  ): { geometry: WindowGeometry; focused: boolean } | null {
+  ): { geometry: WindowGeometry; focused: boolean; hwnd: number } | null {
     if (result.matches.length === 0) return null;
 
     const focusedMatch = result.matches.find((m) => m.isForeground);
@@ -133,6 +138,7 @@ export class WindowsWindowTracker extends BaseWindowTracker {
     return {
       geometry: best.bounds,
       focused: best.isForeground,
+      hwnd: best.hwnd,
     };
   }
 
@@ -147,6 +153,7 @@ export class WindowsWindowTracker extends BaseWindowTracker {
       if (best) {
         this.resetTrackingLossState();
         this.targetWindowMinimized = false;
+        this.currentTargetWindowHwnd = best.hwnd;
         this.updateTargetWindowFocused(best.focused);
         this.updateGeometry(best.geometry);
         return;
@@ -154,18 +161,21 @@ export class WindowsWindowTracker extends BaseWindowTracker {
 
       if (result.windowState === 'minimized') {
         this.targetWindowMinimized = true;
+        this.currentTargetWindowHwnd = null;
         this.updateTargetWindowFocused(false);
         this.registerTrackingMiss(this.minimizedTrackingLossGraceMs);
         return;
       }
 
       this.targetWindowMinimized = false;
+      this.currentTargetWindowHwnd = null;
       this.updateTargetWindowFocused(false);
       this.registerTrackingMiss();
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
       this.maybeLogPollError(err);
       this.targetWindowMinimized = false;
+      this.currentTargetWindowHwnd = null;
       this.updateTargetWindowFocused(false);
       this.registerTrackingMiss();
     } finally {

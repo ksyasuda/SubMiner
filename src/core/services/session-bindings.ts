@@ -268,40 +268,49 @@ function resolveCommandBinding(
 
   const first = command[0];
   if (typeof first !== 'string') {
-    return {
-      actionType: 'mpv-command',
-      command,
-    };
+    return null;
   }
 
   if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) {
+    if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'triggerSubsync' };
   }
   if (first === SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN) {
+    if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'openRuntimeOptions' };
   }
   if (first === SPECIAL_COMMANDS.JIMAKU_OPEN) {
+    if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'openJimaku' };
   }
   if (first === SPECIAL_COMMANDS.YOUTUBE_PICKER_OPEN) {
+    if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'openYoutubePicker' };
   }
   if (first === SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN) {
+    if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'openPlaylistBrowser' };
   }
   if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE) {
+    if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'replayCurrentSubtitle' };
   }
   if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE) {
+    if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'playNextSubtitle' };
   }
   if (first === SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START) {
+    if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'shiftSubDelayPrevLine' };
   }
   if (first === SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START) {
+    if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'shiftSubDelayNextLine' };
   }
   if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
+    if (command.length !== 1) {
+      return null;
+    }
     const parts = first.split(':');
     if (parts.length !== 3) {
       return null;

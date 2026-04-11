@@ -431,11 +431,7 @@ function registerModalOpenHandlers(): void {
   });
   window.electronAPI.onOpenSessionHelp(() => {
     runGuarded('session-help:open', () => {
-      sessionHelpModal.openSessionHelpModal({
-        bindingKey: 'KeyH',
-        fallbackUsed: false,
-        fallbackUnavailable: false,
-      });
+      sessionHelpModal.openSessionHelpModal(keyboardHandlers.getSessionHelpOpeningInfo());
       window.electronAPI.notifyOverlayModalOpened('session-help');
     });
   });

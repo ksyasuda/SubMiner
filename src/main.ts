@@ -1944,7 +1944,17 @@ function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | nu
   }
 
   try {
-    void targetMpvSocketPath;
+    if (targetMpvSocketPath) {
+      const windowTracker = appState.windowTracker as
+        | {
+            getTargetWindowHandle?: () => number | null;
+          }
+        | null;
+      const trackedHandle = windowTracker?.getTargetWindowHandle?.();
+      if (typeof trackedHandle === 'number' && Number.isFinite(trackedHandle)) {
+        return trackedHandle;
+      }
+    }
     return findWindowsMpvTargetWindowHandle();
   } catch {
     return null;
@@ -4244,15 +4254,13 @@ function persistSessionBindings(
   bindings: CompiledSessionBinding[],
   warnings: ReturnType<typeof compileSessionBindings>['warnings'] = [],
 ): void {
+  const artifact = buildPluginSessionBindingsArtifact({
+    bindings,
+    warnings,
+    numericSelectionTimeoutMs: getConfiguredShortcuts().multiCopyTimeoutMs,
+  });
+  writeSessionBindingsArtifact(CONFIG_DIR, artifact);
   appState.sessionBindings = bindings;
-  writeSessionBindingsArtifact(
-    CONFIG_DIR,
-    buildPluginSessionBindingsArtifact({
-      bindings,
-      warnings,
-      numericSelectionTimeoutMs: getConfiguredShortcuts().multiCopyTimeoutMs,
-    }),
-  );
   if (appState.mpvClient?.connected) {
     sendMpvCommandRuntime(appState.mpvClient, [
       'script-message',
