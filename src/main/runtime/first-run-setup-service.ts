@@ -68,8 +68,10 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.hideVisibleOverlay ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
+    args.copySubtitleCount !== undefined ||
     args.mineSentence ||
     args.mineSentenceMultiple ||
+    args.mineSentenceCount !== undefined ||
     args.updateLastCardFromClipboard ||
     args.refreshKnownWords ||
     args.toggleSecondarySub ||

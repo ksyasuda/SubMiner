@@ -43,6 +43,7 @@ export function createOverlayModalRuntimeService(
   let modalActive = false;
   let mainWindowMousePassthroughForcedByModal = false;
   let mainWindowHiddenByModal = false;
+  let modalWindowPrimedForImmediateShow = false;
   let pendingModalWindowReveal: BrowserWindow | null = null;
   let pendingModalWindowRevealTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -272,9 +273,9 @@ export function createOverlayModalRuntimeService(
     };
 
     if (restoreOnModalClose) {
-      restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
       const mainWindow = getTargetOverlayWindow();
       if (!preferModalWindow && mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+        restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
         sendOrQueueForWindow(mainWindow, (window) => {
           if (payload === undefined) {
             window.webContents.send(channel);
@@ -288,10 +289,15 @@ export function createOverlayModalRuntimeService(
       const modalWindow = resolveModalWindow();
       if (!modalWindow) return false;
 
+      restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
       deps.setModalWindowBounds(deps.getModalGeometry());
       const wasVisible = modalWindow.isVisible();
       if (!wasVisible) {
-        scheduleModalWindowReveal(modalWindow);
+        if (modalWindowPrimedForImmediateShow && isWindowReadyForIpc(modalWindow)) {
+          showModalWindow(modalWindow);
+        } else {
+          scheduleModalWindowReveal(modalWindow);
+        }
       } else if (!modalWindow.isFocused()) {
         showModalWindow(modalWindow);
       }
@@ -339,6 +345,7 @@ export function createOverlayModalRuntimeService(
       if (modalWindow && !modalWindow.isDestroyed()) {
         modalWindow.hide();
       }
+      modalWindowPrimedForImmediateShow = true;
       mainWindowMousePassthroughForcedByModal = false;
       mainWindowHiddenByModal = false;
       notifyModalStateChange(false);

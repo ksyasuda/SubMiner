@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 
 import { createIpcDepsRuntime, registerIpcHandlers, type IpcServiceDeps } from './ipc';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
-import type { PlaylistBrowserSnapshot, SubtitleSidebarSnapshot } from '../../types';
+import type {
+  PlaylistBrowserSnapshot,
+  SessionActionDispatchRequest,
+  SubtitleSidebarSnapshot,
+} from '../../types';
 
 interface FakeIpcRegistrar {
   on: Map<string, (event: unknown, ...args: unknown[]) => void>;
@@ -856,6 +860,55 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
     {
       preferredGamepadId: 'pad-1',
       preferredGamepadLabel: 'Pad 1',
+    },
+  ]);
+});
+
+test('registerIpcHandlers validates dispatchSessionAction payloads', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const dispatched: SessionActionDispatchRequest[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      dispatchSessionAction: async (request) => {
+        dispatched.push(request);
+      },
+    }),
+    registrar,
+  );
+
+  const dispatchHandler = handlers.handle.get(IPC_CHANNELS.command.dispatchSessionAction);
+  assert.ok(dispatchHandler);
+
+  await assert.rejects(async () => {
+    await dispatchHandler!({}, { actionId: 'cycleRuntimeOption', payload: { direction: 1 } });
+  }, /Invalid session action payload/);
+  await assert.rejects(async () => {
+    await dispatchHandler!({}, { actionId: 'unknown-action' });
+  }, /Invalid session action payload/);
+
+  await dispatchHandler!({}, {
+    actionId: 'copySubtitleMultiple',
+    payload: { count: 3 },
+  });
+  await dispatchHandler!({}, {
+    actionId: 'cycleRuntimeOption',
+    payload: {
+      runtimeOptionId: 'anki.autoUpdateNewCards',
+      direction: -1,
+    },
+  });
+
+  assert.deepEqual(dispatched, [
+    {
+      actionId: 'copySubtitleMultiple',
+      payload: { count: 3 },
+    },
+    {
+      actionId: 'cycleRuntimeOption',
+      payload: {
+        runtimeOptionId: 'anki.autoUpdateNewCards',
+        direction: -1,
+      },
     },
   ]);
 });

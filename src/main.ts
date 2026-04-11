@@ -138,6 +138,7 @@ import {
   ensureWindowsOverlayTransparencyNative,
   getWindowsForegroundProcessNameNative,
   queryWindowsForegroundProcessName,
+  queryWindowsTargetWindowHandle,
   setWindowsOverlayOwnerNative,
 } from './window-trackers/windows-helper';
 import {
@@ -1939,11 +1940,16 @@ function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | nu
     return null;
   }
 
+  const helperTargetHwnd = queryWindowsTargetWindowHandle({ targetMpvSocketPath });
+  if (helperTargetHwnd !== null) {
+    return helperTargetHwnd;
+  }
+
   try {
     const win32 = require('./window-trackers/win32') as typeof import('./window-trackers/win32');
     const poll = win32.findMpvWindows();
     const focused = poll.matches.find((m) => m.isForeground);
-    return focused?.hwnd ?? poll.matches.sort((a, b) => b.area - a.area)[0]?.hwnd ?? null;
+    return focused?.hwnd ?? [...poll.matches].sort((a, b) => b.area - a.area)[0]?.hwnd ?? null;
   } catch {
     return null;
   }
@@ -5144,7 +5150,7 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
                 const win32 = require('./window-trackers/win32') as typeof import('./window-trackers/win32');
                 const poll = win32.findMpvWindows();
                 const focused = poll.matches.find((m) => m.isForeground);
-                return focused ?? poll.matches.sort((a, b) => b.area - a.area)[0] ?? null;
+                return focused ?? [...poll.matches].sort((a, b) => b.area - a.area)[0] ?? null;
               } catch {
                 return null;
               }

@@ -225,6 +225,24 @@ test('sendToActiveOverlayWindow creates modal window lazily when absent', () => 
   assert.deepEqual(window.sent, [['jimaku:open']]);
 });
 
+test('sendToActiveOverlayWindow does not retain restore state when modal creation fails', () => {
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => null,
+    getModalWindow: () => null,
+    createModalWindow: () => null,
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  assert.equal(
+    runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+      restoreOnModalClose: 'runtime-options',
+    }),
+    false,
+  );
+  assert.equal(runtime.getRestoreVisibleOverlayOnModalClose().has('runtime-options'), false);
+});
+
 test('sendToActiveOverlayWindow waits for blank modal URL before sending open command', () => {
   const window = createMockWindow();
   window.url = '';
@@ -585,6 +603,37 @@ test('sendToActiveOverlayWindow waits for modal ready-to-show before delivering 
   window.contentReady = true;
   window.readyToShowCallbacks[0]!();
   assert.deepEqual(window.sent, [['runtime-options:open']]);
+});
+
+test('warm modal window reopen becomes interactive immediately on the second open', () => {
+  const window = createMockWindow();
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => null,
+    getModalWindow: () => window as never,
+    createModalWindow: () => window as never,
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+    restoreOnModalClose: 'runtime-options',
+  });
+  runtime.notifyOverlayModalOpened('runtime-options');
+  runtime.handleOverlayModalClosed('runtime-options');
+
+  window.ignoreMouseEvents = true;
+  window.focused = false;
+  window.webContentsFocused = false;
+
+  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+    restoreOnModalClose: 'runtime-options',
+  });
+
+  assert.equal(window.isVisible(), true);
+  assert.equal(window.ignoreMouseEvents, false);
+  assert.equal(window.isFocused(), true);
+  assert.equal(window.webContentsFocused, true);
+  assert.equal(window.getShowCount(), 2);
 });
 
 test('waitForModalOpen resolves true after modal acknowledgement', async () => {
