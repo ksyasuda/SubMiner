@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as windowsHelper from './windows-helper';
 import {
   lowerWindowsOverlayInZOrder,
   parseWindowTrackerHelperForegroundProcess,
@@ -202,6 +203,41 @@ test('queryWindowsTargetWindowHandle resolves the selected hwnd from the powersh
   assert.equal(hwnd, 12345);
   assert.equal(capturedMode, 'target-hwnd');
   assert.deepEqual(capturedArgs, ['\\\\.\\pipe\\subminer-socket']);
+});
+
+test('shouldUseWindowsTrackerPowershellFallback returns true for explicit powershell mode', () => {
+  assert.equal(
+    windowsHelper.shouldUseWindowsTrackerPowershellFallback({
+      helperModeEnv: 'powershell',
+    }),
+    true,
+  );
+});
+
+test('shouldUseWindowsTrackerPowershellFallback returns true for ps1 helper path override', () => {
+  assert.equal(
+    windowsHelper.shouldUseWindowsTrackerPowershellFallback({
+      helperPathEnv: 'C:\\custom\\tracker.ps1',
+    }),
+    true,
+  );
+});
+
+test('shouldUseWindowsTrackerPowershellFallback returns false for default and native modes', () => {
+  assert.equal(
+    windowsHelper.shouldUseWindowsTrackerPowershellFallback({
+      helperModeEnv: 'auto',
+      helperPathEnv: undefined,
+    }),
+    false,
+  );
+  assert.equal(
+    windowsHelper.shouldUseWindowsTrackerPowershellFallback({
+      helperModeEnv: 'native',
+      helperPathEnv: 'C:\\custom\\tracker.exe',
+    }),
+    false,
+  );
 });
 
 test('resolveWindowsTrackerHelper auto mode prefers native helper when present', () => {

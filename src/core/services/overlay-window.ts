@@ -10,11 +10,12 @@ import {
 } from './overlay-window-input';
 import { buildOverlayWindowOptions } from './overlay-window-options';
 import { normalizeOverlayWindowBoundsForPlatform } from './overlay-window-bounds';
+import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
+export { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
 
 const logger = createLogger('main:overlay-window');
 const overlayWindowLayerByInstance = new WeakMap<BrowserWindow, OverlayWindowKind>();
 const overlayWindowContentReady = new WeakSet<BrowserWindow>();
-const OVERLAY_WINDOW_CONTENT_READY_FLAG = '__subminerOverlayContentReady';
 
 export function isOverlayWindowContentReady(window: BrowserWindow): boolean {
   if (window.isDestroyed()) {

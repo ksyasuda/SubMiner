@@ -1,9 +1,9 @@
 import type { BrowserWindow } from 'electron';
 import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import type { WindowGeometry } from '../types';
+import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from '../core/services/overlay-window-flags';
 
 const MODAL_REVEAL_FALLBACK_DELAY_MS = 250;
-const OVERLAY_WINDOW_CONTENT_READY_FLAG = '__subminerOverlayContentReady';
 
 export interface OverlayWindowResolver {
   getMainWindow: () => BrowserWindow | null;
