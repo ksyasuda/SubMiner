@@ -319,7 +319,7 @@ test('shouldActivateOverlayShortcuts preserves non-macOS behavior', () => {
 });
 
 test('registerOverlayShortcutsRuntime reports active shortcuts when configured', () => {
-  const result = registerOverlayShortcutsRuntime({
+  const deps = {
     getConfiguredShortcuts: () => makeShortcuts({ openJimaku: 'Ctrl+J' }),
     getOverlayHandlers: () => ({
       copySubtitle: () => {},
@@ -336,15 +336,17 @@ test('registerOverlayShortcutsRuntime reports active shortcuts when configured',
     }),
     cancelPendingMultiCopy: () => {},
     cancelPendingMineSentenceMultiple: () => {},
-  });
+  };
 
+  const result = registerOverlayShortcutsRuntime(deps);
   assert.equal(result, true);
+  assert.equal(unregisterOverlayShortcutsRuntime(result, deps), false);
 });
 
 test('unregisterOverlayShortcutsRuntime clears pending shortcut work when active', () => {
   const calls: string[] = [];
-  const result = unregisterOverlayShortcutsRuntime(true, {
-    getConfiguredShortcuts: () => makeShortcuts(),
+  const deps = {
+    getConfiguredShortcuts: () => makeShortcuts({ openJimaku: 'Ctrl+J' }),
     getOverlayHandlers: () => ({
       copySubtitle: () => {},
       copySubtitleMultiple: () => {},
@@ -364,8 +366,10 @@ test('unregisterOverlayShortcutsRuntime clears pending shortcut work when active
     cancelPendingMineSentenceMultiple: () => {
       calls.push('cancel-mine-sentence-multiple');
     },
-  });
+  };
 
+  assert.equal(registerOverlayShortcutsRuntime(deps), true);
+  const result = unregisterOverlayShortcutsRuntime(true, deps);
   assert.equal(result, false);
   assert.deepEqual(calls, ['cancel-multi-copy', 'cancel-mine-sentence-multiple']);
 });

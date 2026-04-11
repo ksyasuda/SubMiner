@@ -8,11 +8,36 @@ import type {
 import type {
   ControllerConfigUpdate,
   ControllerPreferenceUpdate,
+  SessionActionDispatchRequest,
   SubsyncManualRunRequest,
 } from '../../types/runtime';
 import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-options';
+import type { SessionActionId, SessionActionPayload } from '../../types/session-bindings';
 import type { SubtitlePosition } from '../../types/subtitle';
 import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
+
+const SESSION_ACTION_IDS: SessionActionId[] = [
+  'toggleStatsOverlay',
+  'toggleVisibleOverlay',
+  'copySubtitle',
+  'copySubtitleMultiple',
+  'updateLastCardFromClipboard',
+  'triggerFieldGrouping',
+  'triggerSubsync',
+  'mineSentence',
+  'mineSentenceMultiple',
+  'toggleSecondarySub',
+  'markAudioCard',
+  'openRuntimeOptions',
+  'openJimaku',
+  'openYoutubePicker',
+  'openPlaylistBrowser',
+  'replayCurrentSubtitle',
+  'playNextSubtitle',
+  'shiftSubDelayPrevLine',
+  'shiftSubDelayNextLine',
+  'cycleRuntimeOption',
+];
 
 const RUNTIME_OPTION_IDS: RuntimeOptionId[] = [
   'anki.autoUpdateNewCards',
@@ -33,6 +58,43 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value);
+}
+
+function isSessionActionId(value: unknown): value is SessionActionId {
+  return typeof value === 'string' && SESSION_ACTION_IDS.includes(value as SessionActionId);
+}
+
+function parseSessionActionPayload(
+  actionId: SessionActionId,
+  value: unknown,
+): SessionActionPayload | undefined | null {
+  if (actionId === 'copySubtitleMultiple' || actionId === 'mineSentenceMultiple') {
+    if (value === undefined) return undefined;
+    if (!isObject(value)) return null;
+    const keys = Object.keys(value);
+    if (keys.some((key) => key !== 'count')) return null;
+    if (value.count === undefined) return null;
+    if (!isInteger(value.count) || value.count < 1) return null;
+    return { count: value.count };
+  }
+
+  if (actionId === 'cycleRuntimeOption') {
+    if (!isObject(value)) return null;
+    const keys = Object.keys(value);
+    if (keys.some((key) => key !== 'runtimeOptionId' && key !== 'direction')) return null;
+    if (typeof value.runtimeOptionId !== 'string' || value.runtimeOptionId.trim().length === 0) {
+      return null;
+    }
+    if (value.direction !== 1 && value.direction !== -1) {
+      return null;
+    }
+    return {
+      runtimeOptionId: value.runtimeOptionId,
+      direction: value.direction,
+    };
+  }
+
+  return value === undefined ? undefined : null;
 }
 
 export function parseOverlayHostedModal(value: unknown): OverlayHostedModal | null {
@@ -180,6 +242,17 @@ export function parseRuntimeOptionValue(value: unknown): RuntimeOptionValue | nu
   return typeof value === 'boolean' || typeof value === 'string'
     ? (value as RuntimeOptionValue)
     : null;
+}
+
+export function parseSessionActionDispatchRequest(
+  value: unknown,
+): SessionActionDispatchRequest | null {
+  if (!isObject(value)) return null;
+  if (!isSessionActionId(value.actionId)) return null;
+
+  const payload = parseSessionActionPayload(value.actionId, value.payload);
+  if (payload === null) return null;
+  return payload === undefined ? { actionId: value.actionId } : { actionId: value.actionId, payload };
 }
 
 export function parseMpvCommand(value: unknown): Array<string | number> | null {

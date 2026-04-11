@@ -238,21 +238,19 @@ export function parseArgs(argv: string[]): CliArgs {
         args.cycleRuntimeOptionId = parsed.id;
         args.cycleRuntimeOptionDirection = parsed.direction;
       }
-    }
-    else if (arg.startsWith('--copy-subtitle-count=')) {
+    } else if (arg.startsWith('--copy-subtitle-count=')) {
       const value = Number(arg.split('=', 2)[1]);
-      if (Number.isInteger(value)) args.copySubtitleCount = value;
+      if (Number.isInteger(value) && value > 0) args.copySubtitleCount = value;
     } else if (arg === '--copy-subtitle-count') {
       const value = Number(readValue(argv[i + 1]));
-      if (Number.isInteger(value)) args.copySubtitleCount = value;
+      if (Number.isInteger(value) && value > 0) args.copySubtitleCount = value;
     } else if (arg.startsWith('--mine-sentence-count=')) {
       const value = Number(arg.split('=', 2)[1]);
-      if (Number.isInteger(value)) args.mineSentenceCount = value;
+      if (Number.isInteger(value) && value > 0) args.mineSentenceCount = value;
     } else if (arg === '--mine-sentence-count') {
       const value = Number(readValue(argv[i + 1]));
-      if (Number.isInteger(value)) args.mineSentenceCount = value;
-    }
-    else if (arg === '--anilist-status') args.anilistStatus = true;
+      if (Number.isInteger(value) && value > 0) args.mineSentenceCount = value;
+    } else if (arg === '--anilist-status') args.anilistStatus = true;
     else if (arg === '--anilist-logout') args.anilistLogout = true;
     else if (arg === '--anilist-setup') args.anilistSetup = true;
     else if (arg === '--anilist-retry-queue') args.anilistRetryQueue = true;

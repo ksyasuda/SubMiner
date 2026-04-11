@@ -53,6 +53,10 @@ function normalizeModifiers(modifiers: SessionKeyModifier[]): SessionKeyModifier
   );
 }
 
+function isValidCommandEntry(value: unknown): value is string | number {
+  return typeof value === 'string' || typeof value === 'number';
+}
+
 function normalizeCodeToken(token: string): string | null {
   const normalized = token.trim();
   if (!normalized) return null;
@@ -253,8 +257,19 @@ function resolveCommandBinding(
   | Omit<CompiledMpvCommandBinding, 'key' | 'sourcePath' | 'originalKey'>
   | Omit<CompiledSessionActionBinding, 'key' | 'sourcePath' | 'originalKey'>
   | null {
-  const command = binding.command ?? [];
-  const first = typeof command[0] === 'string' ? command[0] : '';
+  const command = binding.command;
+  if (!Array.isArray(command) || command.length === 0 || !command.every(isValidCommandEntry)) {
+    return null;
+  }
+
+  const first = command[0];
+  if (typeof first !== 'string') {
+    return {
+      actionType: 'mpv-command',
+      command,
+    };
+  }
+
   if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) {
     return { actionType: 'session-action', actionId: 'triggerSubsync' };
   }
@@ -283,7 +298,14 @@ function resolveCommandBinding(
     return { actionType: 'session-action', actionId: 'shiftSubDelayNextLine' };
   }
   if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
-    const [, runtimeOptionId, rawDirection] = first.split(':');
+    const parts = first.split(':');
+    if (parts.length !== 3) {
+      return null;
+    }
+    const [, runtimeOptionId, rawDirection] = parts;
+    if (!runtimeOptionId || (rawDirection !== 'prev' && rawDirection !== 'next')) {
+      return null;
+    }
     return {
       actionType: 'session-action',
       actionId: 'cycleRuntimeOption',
@@ -398,7 +420,15 @@ export function compileSessionBindings(
       return;
     }
     const resolved = resolveCommandBinding(binding);
-    if (!resolved) return;
+    if (!resolved) {
+      warnings.push({
+        kind: 'unsupported',
+        path: `keybindings[${index}].key`,
+        value: binding.command,
+        message: 'Unsupported keybinding command syntax.',
+      });
+      return;
+    }
     const compiled: CompiledSessionBinding = {
       sourcePath: `keybindings[${index}].key`,
       originalKey: binding.key,

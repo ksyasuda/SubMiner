@@ -95,6 +95,7 @@ function withRuntimeOptionsModal(
 
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
+    writable: true,
     value: {
       electronAPI: {
         getRuntimeOptions,
@@ -109,6 +110,7 @@ function withRuntimeOptionsModal(
 
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
+    writable: true,
     value: {
       createElement: () => createElementStub(),
     },
@@ -152,10 +154,12 @@ function withRuntimeOptionsModal(
     .finally(() => {
       Object.defineProperty(globalThis, 'window', {
         configurable: true,
+        writable: true,
         value: previousWindow,
       });
       Object.defineProperty(globalThis, 'document', {
         configurable: true,
+        writable: true,
         value: previousDocument,
       });
     });

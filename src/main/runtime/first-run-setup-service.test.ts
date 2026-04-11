@@ -89,6 +89,17 @@ test('shouldAutoOpenFirstRunSetup only for startup/setup intents', () => {
   assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ settings: true })), false);
 });
 
+test('shouldAutoOpenFirstRunSetup treats numeric startup counts as explicit commands', () => {
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ start: true, copySubtitleCount: 2 })),
+    false,
+  );
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ background: true, mineSentenceCount: 1 })),
+    false,
+  );
+});
+
 test('setup service auto-completes legacy installs with config and dictionaries', async () => {
   await withTempDir(async (root) => {
     const configDir = path.join(root, 'SubMiner');

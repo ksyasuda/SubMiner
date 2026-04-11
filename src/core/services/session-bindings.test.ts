@@ -200,6 +200,24 @@ test('compileSessionBindings warns on unsupported shortcut and keybinding syntax
   );
 });
 
+test('compileSessionBindings rejects malformed command arrays', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts(),
+    keybindings: [
+      createKeybinding('Ctrl+J', ['show-text', 3000]),
+      createKeybinding('Ctrl+K', ['show-text', { bad: true } as never] as never),
+    ],
+    platform: 'linux',
+  });
+
+  assert.deepEqual(result.bindings.map((binding) => binding.sourcePath), ['keybindings[0].key']);
+  assert.equal(result.bindings[0]?.actionType, 'mpv-command');
+  assert.deepEqual(result.bindings[0]?.command, ['show-text', 3000]);
+  assert.deepEqual(result.warnings.map((warning) => `${warning.kind}:${warning.path}`), [
+    'unsupported:keybindings[1].key',
+  ]);
+});
+
 test('compileSessionBindings warns on deprecated toggleVisibleOverlayGlobal config', () => {
   const result = compileSessionBindings({
     shortcuts: createShortcuts(),

@@ -89,13 +89,20 @@ function M.create(ctx)
 			return nil
 		end
 
+		if type(key.code) ~= "string" then
+			return nil
+		end
+		if type(key.modifiers) ~= "table" then
+			return nil
+		end
+
 		local key_name = key_code_to_mpv_name(key.code)
 		if not key_name then
 			return nil
 		end
 
 		local parts = {}
-		for _, modifier in ipairs(key.modifiers or {}) do
+		for _, modifier in ipairs(key.modifiers) do
 			local mapped = MODIFIER_MAP[modifier]
 			if mapped then
 				parts[#parts + 1] = mapped
@@ -298,7 +305,6 @@ function M.create(ctx)
 
 		local previous_binding_names = state.session_binding_names
 		local next_binding_names = {}
-		state.session_binding_names = next_binding_names
 
 		local timeout_ms = tonumber(artifact.numericSelectionTimeoutMs) or 3000
 		for index, binding in ipairs(artifact.bindings) do
@@ -319,6 +325,7 @@ function M.create(ctx)
 		end
 
 		remove_binding_names(previous_binding_names)
+		state.session_binding_names = next_binding_names
 
 		subminer_log(
 			"info",

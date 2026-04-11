@@ -106,6 +106,17 @@ test('parseArgs captures session action forwarding flags', () => {
   assert.equal(shouldStartApp(args), true);
 });
 
+test('parseArgs ignores non-positive numeric session action counts', () => {
+  const args = parseArgs([
+    '--copy-subtitle-count=0',
+    '--mine-sentence-count',
+    '-1',
+  ]);
+
+  assert.equal(args.copySubtitleCount, undefined);
+  assert.equal(args.mineSentenceCount, undefined);
+});
+
 test('youtube playback does not use generic overlay-runtime bootstrap classification', () => {
   const args = parseArgs(['--youtube-play', 'https://youtube.com/watch?v=abc']);
 

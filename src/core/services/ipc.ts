@@ -27,6 +27,7 @@ import {
   parseRuntimeOptionDirection,
   parseRuntimeOptionId,
   parseRuntimeOptionValue,
+  parseSessionActionDispatchRequest,
   parseSubtitlePosition,
   parseSubsyncManualRunRequest,
   parseYoutubePickerResolveRequest,
@@ -459,22 +460,11 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   ipc.handle(
     IPC_CHANNELS.command.dispatchSessionAction,
     async (_event: unknown, request: unknown) => {
-      if (!request || typeof request !== 'object') {
+      const parsedRequest = parseSessionActionDispatchRequest(request);
+      if (!parsedRequest) {
         throw new Error('Invalid session action payload');
       }
-      const actionId =
-        typeof (request as Record<string, unknown>).actionId === 'string'
-          ? ((request as Record<string, unknown>).actionId as SessionActionDispatchRequest['actionId'])
-          : null;
-      if (!actionId) {
-        throw new Error('Invalid session action id');
-      }
-      const payload =
-        (request as Record<string, unknown>).payload &&
-        typeof (request as Record<string, unknown>).payload === 'object'
-          ? ((request as Record<string, unknown>).payload as SessionActionDispatchRequest['payload'])
-          : undefined;
-      await deps.dispatchSessionAction?.({ actionId, payload });
+      await deps.dispatchSessionAction?.(parsedRequest);
     },
   );
 

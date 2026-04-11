@@ -193,7 +193,10 @@ test('createImmersionTrackerStartupHandler keeps tracker startup alive when mpv 
       'warn:MPV auto-connect failed during immersion tracker startup; continuing.:socket not ready',
     ),
   );
-  assert.equal(calls.includes('warn:Immersion tracker startup failed; disabling tracking.'), false);
+  assert.equal(
+    calls.some((entry) => entry.startsWith('warn:Immersion tracker startup failed; disabling tracking.')),
+    false,
+  );
 });
 
 test('createImmersionTrackerStartupHandler disables tracker on failure', () => {
