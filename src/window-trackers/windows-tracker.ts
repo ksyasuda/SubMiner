@@ -32,9 +32,8 @@ type WindowsTrackerDeps = {
 };
 
 function defaultPollMpvWindows(_targetMpvSocketPath?: string | null): MpvPollResult {
-  void _targetMpvSocketPath;
   const win32 = require('./win32') as typeof import('./win32');
-  return win32.findMpvWindows();
+  return win32.findMpvWindows(_targetMpvSocketPath);
 }
 
 export class WindowsWindowTracker extends BaseWindowTracker {

@@ -1,4 +1,6 @@
+import { execFileSync } from 'node:child_process';
 import koffi from 'koffi';
+import { matchesMpvSocketPathInCommandLine } from './mpv-socket-match';
 
 const user32 = koffi.load('user32.dll');
 const dwmapi = koffi.load('dwmapi.dll');
@@ -126,6 +128,7 @@ export interface MpvWindowMatch {
   bounds: WindowBounds;
   area: number;
   isForeground: boolean;
+  commandLine?: string | null;
 }
 
 export interface MpvPollResult {
@@ -170,12 +173,48 @@ function getProcessNameByPid(pid: number): string | null {
   }
 }
 
-export function findMpvWindows(): MpvPollResult {
+const processCommandLineCache = new Map<number, string | null>();
+
+function getProcessCommandLineByPid(pid: number): string | null {
+  if (processCommandLineCache.has(pid)) {
+    return processCommandLineCache.get(pid) ?? null;
+  }
+
+  let commandLine: string | null = null;
+  try {
+    const output = execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        `$process = Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}"; if ($process -and $process.CommandLine) { [Console]::Out.Write($process.CommandLine) }`,
+      ],
+      {
+        encoding: 'utf8',
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 1500,
+      },
+    ).trim();
+    commandLine = output.length > 0 ? output : null;
+  } catch {
+    commandLine = null;
+  }
+
+  processCommandLineCache.set(pid, commandLine);
+  return commandLine;
+}
+
+export function findMpvWindows(targetSocketPath?: string | null): MpvPollResult {
   const foregroundHwnd = GetForegroundWindow();
   const matches: MpvWindowMatch[] = [];
   let hasMinimized = false;
   let hasFocused = false;
   const processNameCache = new Map<number, string | null>();
+  const processCommandLineLookupCache = new Map<number, string | null>();
 
   const cb = koffi.register((hwnd: number, _lParam: number) => {
     if (!IsWindowVisible(hwnd)) return true;
@@ -193,6 +232,18 @@ export function findMpvWindows(): MpvPollResult {
 
     if (!processName || processName.toLowerCase() !== 'mpv') return true;
 
+    let commandLine: string | null = null;
+    if (targetSocketPath) {
+      commandLine = processCommandLineLookupCache.get(pidValue) ?? null;
+      if (!processCommandLineLookupCache.has(pidValue)) {
+        commandLine = getProcessCommandLineByPid(pidValue);
+        processCommandLineLookupCache.set(pidValue, commandLine);
+      }
+      if (!commandLine || !matchesMpvSocketPathInCommandLine(commandLine, targetSocketPath)) {
+        return true;
+      }
+    }
+
     if (IsIconic(hwnd)) {
       hasMinimized = true;
       return true;
@@ -209,6 +260,7 @@ export function findMpvWindows(): MpvPollResult {
       bounds,
       area: bounds.width * bounds.height,
       isForeground,
+      commandLine,
     });
 
     return true;
@@ -290,10 +342,18 @@ export function bindOverlayAboveMpv(overlayHwnd: number, mpvHwnd: number): void 
 
   let insertAfter = HWND_TOP;
   if (windowAboveMpv !== 0) {
-    const aboveExStyle = GetWindowLongW(windowAboveMpv, GWL_EXSTYLE);
-    const aboveIsTopmost = (aboveExStyle & WS_EX_TOPMOST) !== 0;
-    if (aboveIsTopmost === mpvIsTopmost) {
-      insertAfter = windowAboveMpv;
+    try {
+      resetLastError();
+      const aboveExStyle = assertGetWindowLongSucceeded(
+        'bindOverlayAboveMpv window above style',
+        GetWindowLongW(windowAboveMpv, GWL_EXSTYLE),
+      );
+      const aboveIsTopmost = (aboveExStyle & WS_EX_TOPMOST) !== 0;
+      if (aboveIsTopmost === mpvIsTopmost) {
+        insertAfter = windowAboveMpv;
+      }
+    } catch {
+      insertAfter = HWND_TOP;
     }
   }
 

@@ -104,6 +104,30 @@ test('shouldAutoOpenFirstRunSetup treats numeric startup counts as explicit comm
   );
 });
 
+test('shouldAutoOpenFirstRunSetup treats session and stats startup commands as explicit commands', () => {
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ start: true, toggleSubtitleSidebar: true })),
+    false,
+  );
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ background: true, openSessionHelp: true })),
+    false,
+  );
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ start: true, openControllerSelect: true })),
+    false,
+  );
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ background: true, openControllerDebug: true })),
+    false,
+  );
+  assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, stats: true })), false);
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ background: true, jellyfinSubtitleUrlsOnly: true })),
+    false,
+  );
+});
+
 test('setup service auto-completes legacy installs with config and dictionaries', async () => {
   await withTempDir(async (root) => {
     const configDir = path.join(root, 'SubMiner');

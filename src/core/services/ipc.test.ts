@@ -897,6 +897,18 @@ test('registerIpcHandlers validates dispatchSessionAction payloads', async () =>
       direction: -1,
     },
   });
+  await dispatchHandler!({}, {
+    actionId: 'toggleSubtitleSidebar',
+  });
+  await dispatchHandler!({}, {
+    actionId: 'openSessionHelp',
+  });
+  await dispatchHandler!({}, {
+    actionId: 'openControllerSelect',
+  });
+  await dispatchHandler!({}, {
+    actionId: 'openControllerDebug',
+  });
 
   assert.deepEqual(dispatched, [
     {
@@ -909,6 +921,18 @@ test('registerIpcHandlers validates dispatchSessionAction payloads', async () =>
         runtimeOptionId: 'anki.autoUpdateNewCards',
         direction: -1,
       },
+    },
+    {
+      actionId: 'toggleSubtitleSidebar',
+    },
+    {
+      actionId: 'openSessionHelp',
+    },
+    {
+      actionId: 'openControllerSelect',
+    },
+    {
+      actionId: 'openControllerDebug',
     },
   ]);
 });

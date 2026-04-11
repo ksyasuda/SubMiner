@@ -108,8 +108,8 @@ test('runAppReadyRuntime creates immersion tracker during heavy startup', async 
 
   await runAppReadyRuntime(deps);
 
-  assert.ok(calls.includes('createImmersionTracker'));
-  assert.ok(calls.indexOf('createImmersionTracker') < calls.indexOf('handleInitialArgs'));
+  assert.equal(calls.includes('createImmersionTracker'), false);
+  assert.ok(calls.includes('log:Runtime ready: immersion tracker startup requested.'));
 });
 
 test('runAppReadyRuntime keeps annotation websocket enabled when regular websocket auto-skips', async () => {

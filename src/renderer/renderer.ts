@@ -510,8 +510,8 @@ function registerKeyboardCommandHandlers(): void {
   });
 
   window.electronAPI.onSubtitleSidebarToggle(() => {
-    runGuarded('subtitle-sidebar:toggle', () => {
-      void subtitleSidebarModal.toggleSubtitleSidebarModal();
+    runGuardedAsync('subtitle-sidebar:toggle', async () => {
+      await subtitleSidebarModal.toggleSubtitleSidebarModal();
     });
   });
 }

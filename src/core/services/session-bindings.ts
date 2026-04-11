@@ -436,7 +436,7 @@ export function compileSessionBindings(
     if (!resolved) {
       warnings.push({
         kind: 'unsupported',
-        path: `keybindings[${index}].key`,
+        path: `keybindings[${index}].command`,
         value: binding.command,
         message: 'Unsupported keybinding command syntax.',
       });

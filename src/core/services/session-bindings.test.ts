@@ -226,7 +226,7 @@ test('compileSessionBindings rejects malformed command arrays', () => {
   assert.equal(result.bindings[0]?.actionType, 'mpv-command');
   assert.deepEqual(result.bindings[0]?.command, ['show-text', 3000]);
   assert.deepEqual(result.warnings.map((warning) => `${warning.kind}:${warning.path}`), [
-    'unsupported:keybindings[1].key',
+    'unsupported:keybindings[1].command',
   ]);
 });
 
@@ -242,8 +242,21 @@ test('compileSessionBindings rejects non-string command heads and extra args on 
 
   assert.deepEqual(result.bindings, []);
   assert.deepEqual(result.warnings.map((warning) => `${warning.kind}:${warning.path}`), [
-    'unsupported:keybindings[0].key',
-    'unsupported:keybindings[1].key',
+    'unsupported:keybindings[0].command',
+    'unsupported:keybindings[1].command',
+  ]);
+});
+
+test('compileSessionBindings points unsupported command warnings at the command field', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts(),
+    keybindings: [createKeybinding('Ctrl+K', [SPECIAL_COMMANDS.JIMAKU_OPEN, 'extra'] as never)],
+    platform: 'linux',
+  });
+
+  assert.deepEqual(result.bindings, []);
+  assert.deepEqual(result.warnings.map((warning) => `${warning.kind}:${warning.path}`), [
+    'unsupported:keybindings[0].command',
   ]);
 });
 

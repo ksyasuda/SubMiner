@@ -137,6 +137,7 @@ jobs:
         with:
           name: appimage
           path: release/*.AppImage
+          if-no-files-found: error
 
   build-macos:
     needs: [quality-gate]
@@ -212,6 +213,7 @@ jobs:
           path: |
             release/*.dmg
             release/*.zip
+          if-no-files-found: error
 
   build-windows:
     needs: [quality-gate]

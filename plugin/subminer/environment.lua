@@ -71,7 +71,13 @@ function M.create(ctx)
 		end
 
 		for _, dir in ipairs(candidates) do
-			if file_exists(join_path(dir, "config.jsonc")) or file_exists(join_path(dir, "config.json")) or file_exists(dir) then
+			if file_exists(join_path(dir, "config.jsonc")) or file_exists(join_path(dir, "config.json")) then
+				return dir
+			end
+		end
+
+		for _, dir in ipairs(candidates) do
+			if file_exists(dir) then
 				return dir
 			end
 		end

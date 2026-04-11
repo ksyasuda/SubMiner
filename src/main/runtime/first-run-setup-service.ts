@@ -79,7 +79,11 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.toggleStatsOverlay ||
+    args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
+    args.openSessionHelp ||
+    args.openControllerSelect ||
+    args.openControllerDebug ||
     args.openJimaku ||
     args.openYoutubePicker ||
     args.openPlaylistBrowser ||
@@ -93,12 +97,14 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.anilistSetup ||
     args.anilistRetryQueue ||
     args.dictionary ||
+    args.stats ||
     args.jellyfin ||
     args.jellyfinLogin ||
     args.jellyfinLogout ||
     args.jellyfinLibraries ||
     args.jellyfinItems ||
     args.jellyfinSubtitles ||
+    args.jellyfinSubtitleUrlsOnly ||
     args.jellyfinPlay ||
     args.jellyfinRemoteAnnounce ||
     args.jellyfinPreviewAuth ||

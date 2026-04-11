@@ -92,12 +92,16 @@ function createMockWindow(): MockWindow & {
       state.focused = true;
     },
     emitDidFinishLoad: () => {
-      const callback = state.loadCallbacks.shift();
-      callback?.();
+      const callbacks = state.loadCallbacks.splice(0);
+      for (const callback of callbacks) {
+        callback();
+      }
     },
     emitReadyToShow: () => {
-      const callback = state.readyToShowCallbacks.shift();
-      callback?.();
+      const callbacks = state.readyToShowCallbacks.splice(0);
+      for (const callback of callbacks) {
+        callback();
+      }
     },
     once: (_event: 'ready-to-show', cb: () => void) => {
       state.readyToShowCallbacks.push(cb);
@@ -622,6 +626,41 @@ test('sendToActiveOverlayWindow waits for modal ready-to-show before delivering 
   window.contentReady = true;
   window.emitReadyToShow();
   assert.deepEqual(window.sent, [['runtime-options:open']]);
+});
+
+test('sendToActiveOverlayWindow flushes every queued load and ready listener before sending', () => {
+  const window = createMockWindow();
+  window.contentReady = false;
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => null,
+    getModalWindow: () => window as never,
+    createModalWindow: () => {
+      throw new Error('modal window should not be created when already present');
+    },
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  assert.equal(
+    runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+      restoreOnModalClose: 'runtime-options',
+    }),
+    true,
+  );
+  assert.equal(
+    runtime.sendToActiveOverlayWindow('session-help:open', undefined, {
+      restoreOnModalClose: 'session-help',
+    }),
+    true,
+  );
+  assert.deepEqual(window.sent, []);
+
+  window.emitDidFinishLoad();
+  assert.deepEqual(window.sent, []);
+
+  window.contentReady = true;
+  window.emitReadyToShow();
+  assert.deepEqual(window.sent, [['runtime-options:open'], ['session-help:open']]);
 });
 
 test('modal reopen creates a fresh window after close destroys the previous one', () => {
