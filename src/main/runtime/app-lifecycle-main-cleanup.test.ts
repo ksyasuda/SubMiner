@@ -87,6 +87,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
   assert.ok(calls.includes('destroy-yomitan-settings-window'));
   assert.ok(calls.includes('stop-jellyfin-remote'));
   assert.ok(calls.includes('stop-discord-presence'));
+  assert.ok(calls.includes('clear-windows-visible-overlay-foreground-poll-loop'));
   assert.equal(reconnectTimer, null);
   assert.equal(immersionTracker, null);
 });

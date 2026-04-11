@@ -89,6 +89,9 @@ export function createOverlayModalRuntimeService(
   };
 
   const isWindowReadyForIpc = (window: BrowserWindow): boolean => {
+    if (window.isDestroyed()) {
+      return false;
+    }
     if (window.webContents.isLoading()) {
       return false;
     }
