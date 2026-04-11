@@ -55,33 +55,26 @@ function M.create(ctx)
 				if not image then
 					image = line:match('^"([^"]+)"')
 				end
-				if not image then
-					goto continue
-				end
-				if image == "subminer" or image == "subminer.exe" or image == "subminer.appimage" or image == "subminer.app" then
-					return true
-				end
-				if image:find("subminer", 1, true) and not image:find(".lua", 1, true) then
-					return true
+				if image then
+					if image == "subminer" or image == "subminer.exe" or image == "subminer.appimage" or image == "subminer.app" then
+						return true
+					end
+					if image:find("subminer", 1, true) and not image:find(".lua", 1, true) then
+						return true
+					end
 				end
 			else
 				local argv0 = line:match('^"([^"]+)"') or line:match("^%s*([^%s]+)")
-				if not argv0 then
-					goto continue
-				end
-				if argv0:find("subminer.lua", 1, true) or argv0:find("subminer.conf", 1, true) then
-					goto continue
-				end
-				local exe = argv0:match("([^/\\]+)$") or argv0
-				if exe == "SubMiner" or exe == "SubMiner.AppImage" or exe == "SubMiner.exe" or exe == "subminer" or exe == "subminer.appimage" or exe == "subminer.exe" then
-					return true
-				end
-				if exe:find("subminer", 1, true) and exe:find("%.lua", 1, true) == nil and exe:find("%.app", 1, true) == nil then
-					return true
+				if argv0 and not argv0:find("subminer.lua", 1, true) and not argv0:find("subminer.conf", 1, true) then
+					local exe = argv0:match("([^/\\]+)$") or argv0
+					if exe == "SubMiner" or exe == "SubMiner.AppImage" or exe == "SubMiner.exe" or exe == "subminer" or exe == "subminer.appimage" or exe == "subminer.exe" then
+						return true
+					end
+					if exe:find("subminer", 1, true) and exe:find("%.lua", 1, true) == nil and exe:find("%.app", 1, true) == nil then
+						return true
+					end
 				end
 			end
-
-			::continue::
 		end
 		return false
 	end

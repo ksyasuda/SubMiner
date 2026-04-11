@@ -189,41 +189,37 @@ function M.create(ctx)
 		local source_len = #plain
 		local cursor = 1
 		for _, token in ipairs(payload.tokens or {}) do
-			if type(token) ~= "table" or type(token.text) ~= "string" or token.text == "" then
-				goto continue
-			end
+			if type(token) == "table" and type(token.text) == "string" and token.text ~= "" then
+				local token_text = token.text
+				local start_pos = nil
+				local end_pos = nil
 
-			local token_text = token.text
-			local start_pos = nil
-			local end_pos = nil
-
-			if type(token.startPos) == "number" and type(token.endPos) == "number" then
-				if token.startPos >= 0 and token.endPos >= token.startPos then
-					local candidate_start = token.startPos + 1
-					local candidate_stop = token.endPos
-					if candidate_start >= 1 and candidate_stop <= source_len and candidate_stop >= candidate_start and plain:sub(candidate_start, candidate_stop) == token_text then
-						start_pos = candidate_start
-						end_pos = candidate_stop
+				if type(token.startPos) == "number" and type(token.endPos) == "number" then
+					if token.startPos >= 0 and token.endPos >= token.startPos then
+						local candidate_start = token.startPos + 1
+						local candidate_stop = token.endPos
+						if candidate_start >= 1 and candidate_stop <= source_len and candidate_stop >= candidate_start and plain:sub(candidate_start, candidate_stop) == token_text then
+							start_pos = candidate_start
+							end_pos = candidate_stop
+						end
 					end
 				end
-			end
 
-			if not start_pos or not end_pos then
-				local fallback_start, fallback_stop = plain:find(token_text, cursor, true)
-				if not fallback_start then
-					fallback_start, fallback_stop = plain:find(token_text, 1, true)
+				if not start_pos or not end_pos then
+					local fallback_start, fallback_stop = plain:find(token_text, cursor, true)
+					if not fallback_start then
+						fallback_start, fallback_stop = plain:find(token_text, 1, true)
+					end
+					start_pos, end_pos = fallback_start, fallback_stop
 				end
-				start_pos, end_pos = fallback_start, fallback_stop
-			end
 
-			if start_pos and end_pos then
-				if token.index == payload.hoveredTokenIndex then
-					return start_pos, end_pos
+				if start_pos and end_pos then
+					if token.index == payload.hoveredTokenIndex then
+						return start_pos, end_pos
+					end
+					cursor = end_pos + 1
 				end
-				cursor = end_pos + 1
 			end
-
-			::continue::
 		end
 
 		return nil
