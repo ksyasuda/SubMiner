@@ -21,7 +21,11 @@ test('runtime options open prefers dedicated modal window on first attempt', asy
       });
       return true;
     },
-    waitForModalOpen: async () => true,
+    waitForModalOpen: async (modal, timeoutMs) => {
+      assert.equal(modal, 'runtime-options');
+      assert.equal(timeoutMs, 1500);
+      return true;
+    },
     logWarn: () => {
       throw new Error('should not warn on first-attempt success');
     },
@@ -52,7 +56,9 @@ test('runtime options open retries after an open timeout', async () => {
       });
       return true;
     },
-    waitForModalOpen: async () => {
+    waitForModalOpen: async (modal, timeoutMs) => {
+      assert.equal(modal, 'runtime-options');
+      assert.equal(timeoutMs, 1500);
       waitCalls += 1;
       return waitCalls === 2;
     },
@@ -76,13 +82,18 @@ test('runtime options open retries after an open timeout', async () => {
 });
 
 test('runtime options open fails when no overlay window can be targeted', async () => {
+  let waitCalls = 0;
   const opened = await openRuntimeOptionsModal({
     ensureOverlayStartupPrereqs: () => {},
     ensureOverlayWindowsReadyForVisibilityActions: () => {},
     sendToActiveOverlayWindow: () => false,
-    waitForModalOpen: async () => true,
+    waitForModalOpen: async () => {
+      waitCalls += 1;
+      return true;
+    },
     logWarn: () => {},
   });
 
   assert.equal(opened, false);
+  assert.equal(waitCalls, 0);
 });

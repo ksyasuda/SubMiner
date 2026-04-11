@@ -1,4 +1,5 @@
 import type { OverlayHostedModal } from '../../shared/ipc/contracts';
+import { openOverlayHostedModal } from './overlay-hosted-modal-open';
 
 const RUNTIME_OPTIONS_MODAL: OverlayHostedModal = 'runtime-options';
 const RUNTIME_OPTIONS_OPEN_TIMEOUT_MS = 1500;
@@ -18,12 +19,19 @@ export async function openRuntimeOptionsModal(deps: {
   logWarn: (message: string) => void;
 }): Promise<boolean> {
   const sendOpen = (): boolean => {
-    deps.ensureOverlayStartupPrereqs();
-    deps.ensureOverlayWindowsReadyForVisibilityActions();
-    return deps.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-      restoreOnModalClose: RUNTIME_OPTIONS_MODAL,
-      preferModalWindow: true,
-    });
+    return openOverlayHostedModal(
+      {
+        ensureOverlayStartupPrereqs: deps.ensureOverlayStartupPrereqs,
+        ensureOverlayWindowsReadyForVisibilityActions:
+          deps.ensureOverlayWindowsReadyForVisibilityActions,
+        sendToActiveOverlayWindow: deps.sendToActiveOverlayWindow,
+      },
+      {
+        channel: 'runtime-options:open',
+        modal: RUNTIME_OPTIONS_MODAL,
+        preferModalWindow: true,
+      },
+    );
   };
 
   if (!sendOpen()) {
