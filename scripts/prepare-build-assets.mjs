@@ -8,8 +8,6 @@ const repoRoot = path.resolve(scriptDir, '..');
 const rendererSourceDir = path.join(repoRoot, 'src', 'renderer');
 const rendererOutputDir = path.join(repoRoot, 'dist', 'renderer');
 const scriptsOutputDir = path.join(repoRoot, 'dist', 'scripts');
-const windowsHelperSourcePath = path.join(scriptDir, 'get-mpv-window-windows.ps1');
-const windowsHelperOutputPath = path.join(scriptsOutputDir, 'get-mpv-window-windows.ps1');
 const macosHelperSourcePath = path.join(scriptDir, 'get-mpv-window-macos.swift');
 const macosHelperBinaryPath = path.join(scriptsOutputDir, 'get-mpv-window-macos');
 const macosHelperSourceCopyPath = path.join(scriptsOutputDir, 'get-mpv-window-macos.swift');
@@ -31,11 +29,6 @@ function copyRendererAssets() {
     force: true,
   });
   process.stdout.write(`Staged renderer assets in ${rendererOutputDir}\n`);
-}
-
-function stageWindowsHelper() {
-  copyFile(windowsHelperSourcePath, windowsHelperOutputPath);
-  process.stdout.write(`Staged Windows helper: ${windowsHelperOutputPath}\n`);
 }
 
 function fallbackToMacosSource() {
@@ -77,7 +70,6 @@ function buildMacosHelper() {
 
 function main() {
   copyRendererAssets();
-  stageWindowsHelper();
   buildMacosHelper();
 }
 
