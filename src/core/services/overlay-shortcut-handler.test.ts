@@ -27,6 +27,10 @@ function makeShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configured
     markAudioCard: null,
     openRuntimeOptions: null,
     openJimaku: null,
+    openSessionHelp: null,
+    openControllerSelect: null,
+    openControllerDebug: null,
+    toggleSubtitleSidebar: null,
     ...overrides,
   };
 }

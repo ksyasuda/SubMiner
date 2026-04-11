@@ -69,6 +69,10 @@ function installKeyboardTestGlobals() {
     markAudioCard: '',
     openRuntimeOptions: 'CommandOrControl+Shift+O',
     openJimaku: 'Ctrl+Shift+J',
+    openSessionHelp: 'CommandOrControl+Shift+H',
+    openControllerSelect: 'Alt+C',
+    openControllerDebug: 'Alt+Shift+C',
+    toggleSubtitleSidebar: '',
     toggleVisibleOverlayGlobal: '',
   };
   let markActiveVideoWatchedResult = true;
@@ -321,8 +325,6 @@ function installKeyboardTestGlobals() {
 function createKeyboardHandlerHarness() {
   const testGlobals = installKeyboardTestGlobals();
   const subtitleRootClassList = createClassList();
-  let controllerSelectOpenCount = 0;
-  let controllerDebugOpenCount = 0;
   let controllerSelectKeydownCount = 0;
   let playlistBrowserKeydownCount = 0;
 
@@ -373,20 +375,12 @@ function createKeyboardHandlerHarness() {
     openSessionHelpModal: () => {},
     appendClipboardVideoToQueue: () => {},
     getPlaybackPaused: () => testGlobals.getPlaybackPaused(),
-    openControllerSelectModal: () => {
-      controllerSelectOpenCount += 1;
-    },
-    openControllerDebugModal: () => {
-      controllerDebugOpenCount += 1;
-    },
   });
 
   return {
     ctx,
     handlers,
     testGlobals,
-    controllerSelectOpenCount: () => controllerSelectOpenCount,
-    controllerDebugOpenCount: () => controllerDebugOpenCount,
     controllerSelectKeydownCount: () => controllerSelectKeydownCount,
     playlistBrowserKeydownCount: () => playlistBrowserKeydownCount,
     setWordCount: (count: number) => {
@@ -659,31 +653,78 @@ test('keyboard mode: controller helpers dispatch popup audio play/cycle and scro
   }
 });
 
-test('keyboard mode: Alt+Shift+C opens controller debug modal', async () => {
-  const { testGlobals, handlers, controllerDebugOpenCount } = createKeyboardHandlerHarness();
+test('keyboard mode: configured controller debug binding dispatches session action', async () => {
+  const { testGlobals, handlers } = createKeyboardHandlerHarness();
 
   try {
     await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.openControllerDebug',
+        originalKey: 'Alt+Shift+D',
+        key: { code: 'KeyD', modifiers: ['alt', 'shift'] },
+        actionType: 'session-action',
+        actionId: 'openControllerDebug',
+      },
+    ] as never);
 
     testGlobals.dispatchKeydown({
-      key: 'C',
-      code: 'KeyC',
+      key: 'D',
+      code: 'KeyD',
       altKey: true,
       shiftKey: true,
     });
 
-    assert.equal(controllerDebugOpenCount(), 1);
+    assert.deepEqual(testGlobals.sessionActions, [{ actionId: 'openControllerDebug', payload: undefined }]);
   } finally {
     testGlobals.restore();
   }
 });
 
-test('keyboard mode: Alt+Shift+C opens controller debug modal even while popup is visible', async () => {
-  const { ctx, testGlobals, handlers, controllerDebugOpenCount } = createKeyboardHandlerHarness();
+test('keyboard mode: configured controller debug binding is not swallowed while popup is visible', async () => {
+  const { ctx, testGlobals, handlers } = createKeyboardHandlerHarness();
 
   try {
     await handlers.setupMpvInputForwarding();
     ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.openControllerDebug',
+        originalKey: 'Alt+Shift+D',
+        key: { code: 'KeyD', modifiers: ['alt', 'shift'] },
+        actionType: 'session-action',
+        actionId: 'openControllerDebug',
+      },
+    ] as never);
+
+    testGlobals.dispatchKeydown({
+      key: 'D',
+      code: 'KeyD',
+      altKey: true,
+      shiftKey: true,
+    });
+
+    assert.deepEqual(testGlobals.sessionActions, [{ actionId: 'openControllerDebug', payload: undefined }]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: former fixed Alt+Shift+C does nothing when controller debug is remapped', async () => {
+  const { testGlobals, handlers } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.openControllerDebug',
+        originalKey: 'Alt+Shift+D',
+        key: { code: 'KeyD', modifiers: ['alt', 'shift'] },
+        actionType: 'session-action',
+        actionId: 'openControllerDebug',
+      },
+    ] as never);
 
     testGlobals.dispatchKeydown({
       key: 'C',
@@ -692,7 +733,7 @@ test('keyboard mode: Alt+Shift+C opens controller debug modal even while popup i
       shiftKey: true,
     });
 
-    assert.equal(controllerDebugOpenCount(), 1);
+    assert.deepEqual(testGlobals.sessionActions, []);
   } finally {
     testGlobals.restore();
   }

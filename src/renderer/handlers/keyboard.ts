@@ -27,8 +27,6 @@ export function createKeyboardHandlers(
     }) => void;
     appendClipboardVideoToQueue: () => void;
     getPlaybackPaused: () => Promise<boolean | null>;
-    openControllerSelectModal: () => void;
-    openControllerDebugModal: () => void;
     toggleSubtitleSidebarModal?: () => void;
   },
 ) {
@@ -296,10 +294,6 @@ export function createKeyboardHandlers(
   function isLookupWindowToggle(e: KeyboardEvent): boolean {
     const isYKey = e.code === 'KeyY' || e.key.toLowerCase() === 'y';
     return isPrimaryModifierPressed(e) && !e.altKey && !e.shiftKey && isYKey && !e.repeat;
-  }
-
-  function isControllerModalShortcut(e: KeyboardEvent): boolean {
-    return !e.ctrlKey && !e.metaKey && e.altKey && !e.repeat && e.code === 'KeyC';
   }
 
   function isSubtitleSidebarToggle(e: KeyboardEvent): boolean {
@@ -1040,10 +1034,7 @@ export function createKeyboardHandlers(
         return;
       }
 
-      if (
-        (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) &&
-        !isControllerModalShortcut(e)
-      ) {
+      if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
         if (handleYomitanPopupKeybind(e)) {
           e.preventDefault();
           return;
@@ -1097,16 +1088,6 @@ export function createKeyboardHandlers(
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'KeyA' && !e.repeat) {
         e.preventDefault();
         options.appendClipboardVideoToQueue();
-        return;
-      }
-
-      if (isControllerModalShortcut(e)) {
-        e.preventDefault();
-        if (e.shiftKey) {
-          options.openControllerDebugModal();
-        } else {
-          options.openControllerSelectModal();
-        }
         return;
       }
 

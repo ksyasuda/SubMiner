@@ -13,8 +13,12 @@ export interface SessionActionExecutorDeps {
   mineSentenceCard: () => Promise<void>;
   mineSentenceCount: (count: number) => void;
   toggleSecondarySub: () => void;
+  toggleSubtitleSidebar: () => void;
   markLastCardAsAudioCard: () => Promise<void>;
   openRuntimeOptionsPalette: () => void;
+  openSessionHelp: () => void;
+  openControllerSelect: () => void;
+  openControllerDebug: () => void;
   openJimaku: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
   openPlaylistBrowser: () => boolean | void | Promise<boolean | void>;
@@ -65,11 +69,23 @@ export async function dispatchSessionAction(
     case 'toggleSecondarySub':
       deps.toggleSecondarySub();
       return;
+    case 'toggleSubtitleSidebar':
+      deps.toggleSubtitleSidebar();
+      return;
     case 'markAudioCard':
       await deps.markLastCardAsAudioCard();
       return;
     case 'openRuntimeOptions':
       deps.openRuntimeOptionsPalette();
+      return;
+    case 'openSessionHelp':
+      deps.openSessionHelp();
+      return;
+    case 'openControllerSelect':
+      deps.openControllerSelect();
+      return;
+    case 'openControllerDebug':
+      deps.openControllerDebug();
       return;
     case 'openJimaku':
       deps.openJimaku();

@@ -1,9 +1,30 @@
 import type { BrowserWindow } from 'electron';
 
+function requestOverlayApplicationFocus(): void {
+  try {
+    const electron = require('electron') as {
+      app?: {
+        focus?: (options?: { steal?: boolean }) => void;
+      };
+    };
+    electron.app?.focus?.({ steal: true });
+  } catch {
+    // Ignore focus-steal failures in non-Electron test environments.
+  }
+}
+
+function setWindowFocusable(window: BrowserWindow): void {
+  const maybeFocusableWindow = window as BrowserWindow & {
+    setFocusable?: (focusable: boolean) => void;
+  };
+  maybeFocusableWindow.setFocusable?.(true);
+}
+
 export type OverlayModalInputStateDeps = {
   getModalWindow: () => BrowserWindow | null;
   syncOverlayShortcutsForModal: (isActive: boolean) => void;
   syncOverlayVisibilityForModal: () => void;
+  restoreMainWindowFocus?: () => void;
 };
 
 export function createOverlayModalInputState(deps: OverlayModalInputStateDeps) {
@@ -18,6 +39,8 @@ export function createOverlayModalInputState(deps: OverlayModalInputStateDeps) {
     if (isActive) {
       const modalWindow = deps.getModalWindow();
       if (modalWindow && !modalWindow.isDestroyed()) {
+        setWindowFocusable(modalWindow);
+        requestOverlayApplicationFocus();
         modalWindow.setIgnoreMouseEvents(false);
         modalWindow.setAlwaysOnTop(true, 'screen-saver', 1);
         modalWindow.focus();
@@ -29,6 +52,9 @@ export function createOverlayModalInputState(deps: OverlayModalInputStateDeps) {
 
     deps.syncOverlayShortcutsForModal(isActive);
     deps.syncOverlayVisibilityForModal();
+    if (!isActive) {
+      deps.restoreMainWindowFocus?.();
+    }
   };
 
   return {

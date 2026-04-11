@@ -1,10 +1,11 @@
 import type { OverlayHostedModal } from '../../shared/ipc/contracts';
+import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import { openOverlayHostedModal, retryOverlayModalOpen } from './overlay-hosted-modal-open';
 
-const RUNTIME_OPTIONS_MODAL: OverlayHostedModal = 'runtime-options';
-const RUNTIME_OPTIONS_OPEN_TIMEOUT_MS = 1500;
+const CONTROLLER_DEBUG_MODAL: OverlayHostedModal = 'controller-debug';
+const CONTROLLER_DEBUG_OPEN_TIMEOUT_MS = 1500;
 
-export async function openRuntimeOptionsModal(deps: {
+export async function openControllerDebugModal(deps: {
   ensureOverlayStartupPrereqs: () => void;
   ensureOverlayWindowsReadyForVisibilityActions: () => void;
   sendToActiveOverlayWindow: (
@@ -24,10 +25,10 @@ export async function openRuntimeOptionsModal(deps: {
       logWarn: deps.logWarn,
     },
     {
-      modal: RUNTIME_OPTIONS_MODAL,
-      timeoutMs: RUNTIME_OPTIONS_OPEN_TIMEOUT_MS,
+      modal: CONTROLLER_DEBUG_MODAL,
+      timeoutMs: CONTROLLER_DEBUG_OPEN_TIMEOUT_MS,
       retryWarning:
-        'Runtime options modal did not acknowledge modal open on first attempt; retrying dedicated modal window.',
+        'Controller debug modal did not acknowledge modal open on first attempt; retrying dedicated modal window.',
       sendOpen: () =>
         openOverlayHostedModal(
           {
@@ -37,8 +38,8 @@ export async function openRuntimeOptionsModal(deps: {
             sendToActiveOverlayWindow: deps.sendToActiveOverlayWindow,
           },
           {
-            channel: 'runtime-options:open',
-            modal: RUNTIME_OPTIONS_MODAL,
+            channel: IPC_CHANNELS.event.controllerDebugOpen,
+            modal: CONTROLLER_DEBUG_MODAL,
             preferModalWindow: true,
           },
         ),

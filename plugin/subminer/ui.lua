@@ -90,6 +90,12 @@ function M.create(ctx)
 		mp.add_key_binding("y-c", "subminer-status", function()
 			process.check_status()
 		end)
+		mp.add_key_binding("y-h", "subminer-session-help", function()
+			if not ensure_binary_for_menu() then
+				return
+			end
+			process.run_control_command_async("open-session-help")
+		end)
 		if type(opts.aniskip_button_key) == "string" and opts.aniskip_button_key ~= "" then
 			mp.add_key_binding(opts.aniskip_button_key, "subminer-skip-intro", function()
 				aniskip.skip_intro_now()

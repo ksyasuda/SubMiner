@@ -25,7 +25,11 @@ export interface CliArgs {
   triggerSubsync: boolean;
   markAudioCard: boolean;
   toggleStatsOverlay: boolean;
+  toggleSubtitleSidebar: boolean;
   openRuntimeOptions: boolean;
+  openSessionHelp: boolean;
+  openControllerSelect: boolean;
+  openControllerDebug: boolean;
   openJimaku: boolean;
   openYoutubePicker: boolean;
   openPlaylistBrowser: boolean;
@@ -115,7 +119,11 @@ export function parseArgs(argv: string[]): CliArgs {
     triggerSubsync: false,
     markAudioCard: false,
     toggleStatsOverlay: false,
+    toggleSubtitleSidebar: false,
     openRuntimeOptions: false,
+    openSessionHelp: false,
+    openControllerSelect: false,
+    openControllerDebug: false,
     openJimaku: false,
     openYoutubePicker: false,
     openPlaylistBrowser: false,
@@ -218,7 +226,11 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--trigger-subsync') args.triggerSubsync = true;
     else if (arg === '--mark-audio-card') args.markAudioCard = true;
     else if (arg === '--toggle-stats-overlay') args.toggleStatsOverlay = true;
+    else if (arg === '--toggle-subtitle-sidebar') args.toggleSubtitleSidebar = true;
     else if (arg === '--open-runtime-options') args.openRuntimeOptions = true;
+    else if (arg === '--open-session-help') args.openSessionHelp = true;
+    else if (arg === '--open-controller-select') args.openControllerSelect = true;
+    else if (arg === '--open-controller-debug') args.openControllerDebug = true;
     else if (arg === '--open-jimaku') args.openJimaku = true;
     else if (arg === '--open-youtube-picker') args.openYoutubePicker = true;
     else if (arg === '--open-playlist-browser') args.openPlaylistBrowser = true;
@@ -442,7 +454,11 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.toggleStatsOverlay ||
+    args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
+    args.openSessionHelp ||
+    args.openControllerSelect ||
+    args.openControllerDebug ||
     args.openJimaku ||
     args.openYoutubePicker ||
     args.openPlaylistBrowser ||
@@ -505,7 +521,11 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.triggerSubsync &&
     !args.markAudioCard &&
     !args.toggleStatsOverlay &&
+    !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
+    !args.openSessionHelp &&
+    !args.openControllerSelect &&
+    !args.openControllerDebug &&
     !args.openJimaku &&
     !args.openYoutubePicker &&
     !args.openPlaylistBrowser &&
@@ -559,7 +579,11 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.toggleStatsOverlay ||
+    args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
+    args.openSessionHelp ||
+    args.openControllerSelect ||
+    args.openControllerDebug ||
     args.openJimaku ||
     args.openYoutubePicker ||
     args.openPlaylistBrowser ||
@@ -608,7 +632,11 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.triggerSubsync &&
     !args.markAudioCard &&
     !args.toggleStatsOverlay &&
+    !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
+    !args.openSessionHelp &&
+    !args.openControllerSelect &&
+    !args.openControllerDebug &&
     !args.openJimaku &&
     !args.openYoutubePicker &&
     !args.openPlaylistBrowser &&
@@ -658,10 +686,14 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.mineSentenceMultiple ||
     args.updateLastCardFromClipboard ||
     args.toggleSecondarySub ||
+    args.toggleSubtitleSidebar ||
     args.triggerFieldGrouping ||
     args.triggerSubsync ||
     args.markAudioCard ||
     args.openRuntimeOptions ||
+    args.openSessionHelp ||
+    args.openControllerSelect ||
+    args.openControllerDebug ||
     args.openJimaku ||
     args.openYoutubePicker ||
     args.openPlaylistBrowser ||

@@ -402,8 +402,32 @@ export function handleCliCommand(
       'toggleStatsOverlay',
       'Stats toggle failed',
     );
+  } else if (args.toggleSubtitleSidebar) {
+    dispatchCliSessionAction(
+      { actionId: 'toggleSubtitleSidebar' },
+      'toggleSubtitleSidebar',
+      'Subtitle sidebar toggle failed',
+    );
   } else if (args.openRuntimeOptions) {
     deps.openRuntimeOptionsPalette();
+  } else if (args.openSessionHelp) {
+    dispatchCliSessionAction(
+      { actionId: 'openSessionHelp' },
+      'openSessionHelp',
+      'Open session help failed',
+    );
+  } else if (args.openControllerSelect) {
+    dispatchCliSessionAction(
+      { actionId: 'openControllerSelect' },
+      'openControllerSelect',
+      'Open controller select failed',
+    );
+  } else if (args.openControllerDebug) {
+    dispatchCliSessionAction(
+      { actionId: 'openControllerDebug' },
+      'openControllerDebug',
+      'Open controller debug failed',
+    );
   } else if (args.openJimaku) {
     dispatchCliSessionAction({ actionId: 'openJimaku' }, 'openJimaku', 'Open jimaku failed');
   } else if (args.openYoutubePicker) {

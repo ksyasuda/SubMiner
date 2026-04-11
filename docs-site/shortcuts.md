@@ -67,6 +67,7 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | ------------------ | -------------------------------------------------------- | ------------------------------ |
 | `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub` |
 | `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions` |
+| `Ctrl/Cmd+Shift+H` | Open session help modal                                  | `shortcuts.openSessionHelp`    |
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`         |
 | `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                  |
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`     |
@@ -79,12 +80,12 @@ The subtitle sidebar toggle is overlay-local and only opens when SubMiner has a 
 
 ## Controller Shortcuts
 
-These overlay-local shortcuts are fixed and open controller utilities for the Chrome Gamepad API integration.
+These overlay-local shortcuts open controller utilities for the Chrome Gamepad API integration.
 
-| Shortcut      | Action                         | Configurable |
-| ------------- | ------------------------------ | ------------ |
-| `Alt+C`       | Open controller config + remap modal | Fixed        |
-| `Alt+Shift+C` | Open controller debug modal          | Fixed        |
+| Shortcut      | Action                               | Configurable                     |
+| ------------- | ------------------------------------ | -------------------------------- |
+| `Alt+C`       | Open controller config + remap modal | `shortcuts.openControllerSelect` |
+| `Alt+Shift+C` | Open controller debug modal          | `shortcuts.openControllerDebug`  |
 
 Controller input only drives the overlay while keyboard-only mode is enabled. The controller mapping and tuning live under the top-level `controller` config block; keyboard-only mode still works normally without a controller.
 
@@ -101,6 +102,7 @@ When the mpv plugin is installed, all commands use a `y` chord prefix — press 
 | `y-o` | Open Yomitan settings    |
 | `y-r` | Restart overlay          |
 | `y-c` | Check overlay status     |
+| `y-h` | Open session help        |
 
 When the overlay has focus, press `y` then `d` to toggle DevTools (debugging helper).
 

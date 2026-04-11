@@ -5,6 +5,26 @@ import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from '../core/services/overlay-wind
 
 const MODAL_REVEAL_FALLBACK_DELAY_MS = 250;
 
+function requestOverlayApplicationFocus(): void {
+  try {
+    const electron = require('electron') as {
+      app?: {
+        focus?: (options?: { steal?: boolean }) => void;
+      };
+    };
+    electron.app?.focus?.({ steal: true });
+  } catch {
+    // Ignore focus-steal failures in non-Electron test environments.
+  }
+}
+
+function setWindowFocusable(window: BrowserWindow): void {
+  const maybeFocusableWindow = window as BrowserWindow & {
+    setFocusable?: (focusable: boolean) => void;
+  };
+  maybeFocusableWindow.setFocusable?.(true);
+}
+
 export interface OverlayWindowResolver {
   getMainWindow: () => BrowserWindow | null;
   getModalWindow: () => BrowserWindow | null;
@@ -142,6 +162,8 @@ export function createOverlayModalRuntimeService(
       passThroughMouseEvents: boolean;
     } = { passThroughMouseEvents: false },
   ): void => {
+    setWindowFocusable(window);
+    requestOverlayApplicationFocus();
     if (!window.isVisible()) {
       window.show();
     }
@@ -158,15 +180,14 @@ export function createOverlayModalRuntimeService(
   };
 
   const ensureModalWindowInteractive = (window: BrowserWindow): void => {
+    setWindowFocusable(window);
+    requestOverlayApplicationFocus();
+    window.setIgnoreMouseEvents(false);
+    elevateModalWindow(window);
+
     if (window.isVisible()) {
-      window.setIgnoreMouseEvents(false);
-      if (!window.isFocused()) {
-        window.focus();
-      }
-      if (!window.webContents.isFocused()) {
-        window.webContents.focus();
-      }
-      elevateModalWindow(window);
+      window.focus();
+      window.webContents.focus();
       return;
     }
 
@@ -251,6 +272,9 @@ export function createOverlayModalRuntimeService(
       if (!targetWindow || targetWindow.isDestroyed() || targetWindow.isVisible()) {
         return;
       }
+      if (!isWindowReadyForIpc(targetWindow)) {
+        return;
+      }
       showModalWindow(targetWindow, { passThroughMouseEvents: false });
     }, MODAL_REVEAL_FALLBACK_DELAY_MS);
   };
@@ -306,6 +330,9 @@ export function createOverlayModalRuntimeService(
       }
 
       sendOrQueueForWindow(modalWindow, (window) => {
+        if (window.isVisible()) {
+          ensureModalWindowInteractive(window);
+        }
         if (payload === undefined) {
           window.webContents.send(channel);
         } else {
@@ -346,9 +373,9 @@ export function createOverlayModalRuntimeService(
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
       if (modalWindow && !modalWindow.isDestroyed()) {
-        modalWindow.hide();
+        modalWindow.destroy();
       }
-      modalWindowPrimedForImmediateShow = true;
+      modalWindowPrimedForImmediateShow = false;
       mainWindowMousePassthroughForcedByModal = false;
       mainWindowHiddenByModal = false;
       notifyModalStateChange(false);
@@ -376,14 +403,7 @@ export function createOverlayModalRuntimeService(
     }
 
     if (targetWindow.isVisible()) {
-      targetWindow.setIgnoreMouseEvents(false);
-      elevateModalWindow(targetWindow);
-      if (!targetWindow.isFocused()) {
-        targetWindow.focus();
-      }
-      if (!targetWindow.webContents.isFocused()) {
-        targetWindow.webContents.focus();
-      }
+      ensureModalWindowInteractive(targetWindow);
       return;
     }
 

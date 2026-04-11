@@ -27,3 +27,31 @@ export function openOverlayHostedModal(
     preferModalWindow: input.preferModalWindow,
   });
 }
+
+export async function retryOverlayModalOpen(
+  deps: {
+    waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
+    logWarn: (message: string) => void;
+  },
+  input: {
+    modal: OverlayHostedModal;
+    timeoutMs: number;
+    retryWarning: string;
+    sendOpen: () => boolean;
+  },
+): Promise<boolean> {
+  if (!input.sendOpen()) {
+    return false;
+  }
+
+  if (await deps.waitForModalOpen(input.modal, input.timeoutMs)) {
+    return true;
+  }
+
+  deps.logWarn(input.retryWarning);
+  if (!input.sendOpen()) {
+    return false;
+  }
+
+  return await deps.waitForModalOpen(input.modal, input.timeoutMs);
+}

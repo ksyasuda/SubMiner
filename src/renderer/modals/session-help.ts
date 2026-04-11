@@ -586,30 +586,9 @@ export function createSessionHelpModal(
     }
   }
 
-  async function openSessionHelpModal(opening: SessionHelpBindingInfo): Promise<void> {
+  function openSessionHelpModal(opening: SessionHelpBindingInfo): void {
     openBinding = opening;
     priorFocus = document.activeElement;
-
-    const dataLoaded = await render();
-
-    ctx.dom.sessionHelpShortcut.textContent = `Session help opened with ${formatBindingHint(openBinding)}`;
-    if (openBinding.fallbackUnavailable) {
-      ctx.dom.sessionHelpWarning.textContent =
-        'Both Y-H and Y-K are bound; Y-K remains the fallback for this session.';
-    } else if (openBinding.fallbackUsed) {
-      ctx.dom.sessionHelpWarning.textContent = 'Y-H is already bound; using Y-K as fallback.';
-    } else {
-      ctx.dom.sessionHelpWarning.textContent = '';
-    }
-    if (dataLoaded) {
-      ctx.dom.sessionHelpStatus.textContent =
-        'Use Arrow keys, J/K/H/L, mouse, click, or / then type to filter. Esc closes.';
-    } else {
-      ctx.dom.sessionHelpStatus.textContent =
-        'Session help data is unavailable right now. Press Esc to close.';
-      ctx.dom.sessionHelpWarning.textContent =
-        'Unable to load latest shortcut settings from the runtime.';
-    }
 
     ctx.state.sessionHelpModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
@@ -622,6 +601,17 @@ export function createSessionHelpModal(
     if (ctx.platform.shouldToggleMouseIgnore) {
       window.electronAPI.setIgnoreMouseEvents(false);
     }
+
+    ctx.dom.sessionHelpShortcut.textContent = `Session help opened with ${formatBindingHint(openBinding)}`;
+    if (openBinding.fallbackUnavailable) {
+      ctx.dom.sessionHelpWarning.textContent =
+        'Both Y-H and Y-K are bound; Y-K remains the fallback for this session.';
+    } else if (openBinding.fallbackUsed) {
+      ctx.dom.sessionHelpWarning.textContent = 'Y-H is already bound; using Y-K as fallback.';
+    } else {
+      ctx.dom.sessionHelpWarning.textContent = '';
+    }
+    ctx.dom.sessionHelpStatus.textContent = 'Loading session help data...';
 
     if (focusGuard === null) {
       focusGuard = (event: FocusEvent) => {
@@ -639,6 +629,19 @@ export function createSessionHelpModal(
     requestOverlayFocus();
     window.focus();
     enforceModalFocus();
+
+    void render().then((dataLoaded) => {
+      if (!ctx.state.sessionHelpModalOpen) return;
+      if (dataLoaded) {
+        ctx.dom.sessionHelpStatus.textContent =
+          'Use Arrow keys, J/K/H/L, mouse, click, or / then type to filter. Esc closes.';
+      } else {
+        ctx.dom.sessionHelpStatus.textContent =
+          'Session help data is unavailable right now. Press Esc to close.';
+        ctx.dom.sessionHelpWarning.textContent =
+          'Unable to load latest shortcut settings from the runtime.';
+      }
+    });
   }
 
   function closeSessionHelpModal(): void {
@@ -648,6 +651,7 @@ export function createSessionHelpModal(
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.sessionHelpModal.classList.add('hidden');
     ctx.dom.sessionHelpModal.setAttribute('aria-hidden', 'true');
+    window.electronAPI.notifyOverlayModalClosed('session-help');
     if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
       ctx.dom.overlay.classList.remove('interactive');
     }

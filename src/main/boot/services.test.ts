@@ -23,7 +23,7 @@ test('createMainBootServices builds boot-phase service bundle', () => {
     { kind: string },
     { scope: string; warn: () => void; info: () => void; error: () => void },
     { registry: boolean },
-    { getModalWindow: () => null },
+    { getMainWindow: () => null; getModalWindow: () => null },
     {
       inputState: boolean;
       getModalInputExclusive: () => boolean;
@@ -82,6 +82,7 @@ test('createMainBootServices builds boot-phase service bundle', () => {
       }) as const,
     createMainRuntimeRegistry: () => ({ registry: true }),
     createOverlayManager: () => ({
+      getMainWindow: () => null,
       getModalWindow: () => null,
     }),
     createOverlayModalInputState: () => ({

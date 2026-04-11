@@ -45,6 +45,10 @@ const SESSION_SHORTCUT_ACTIONS: Array<{
   { key: 'markAudioCard', actionId: 'markAudioCard' },
   { key: 'openRuntimeOptions', actionId: 'openRuntimeOptions' },
   { key: 'openJimaku', actionId: 'openJimaku' },
+  { key: 'openSessionHelp', actionId: 'openSessionHelp' },
+  { key: 'openControllerSelect', actionId: 'openControllerSelect' },
+  { key: 'openControllerDebug', actionId: 'openControllerDebug' },
+  { key: 'toggleSubtitleSidebar', actionId: 'toggleSubtitleSidebar' },
 ];
 
 function normalizeModifiers(modifiers: SessionKeyModifier[]): SessionKeyModifier[] {
