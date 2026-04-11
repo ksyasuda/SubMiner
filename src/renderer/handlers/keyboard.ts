@@ -80,12 +80,27 @@ export function createKeyboardHandlers(
     return parts.join('+');
   }
 
-  function updateConfiguredShortcuts(shortcuts: Required<ShortcutsConfig>): void {
+  function updateConfiguredShortcuts(
+    shortcuts: Required<ShortcutsConfig>,
+    statsToggleKey?: string,
+    markWatchedKey?: string,
+  ): void {
     ctx.state.sessionActionTimeoutMs = shortcuts.multiCopyTimeoutMs;
+    if (typeof statsToggleKey === 'string' && statsToggleKey.length > 0) {
+      ctx.state.statsToggleKey = statsToggleKey;
+    }
+    if (typeof markWatchedKey === 'string' && markWatchedKey.length > 0) {
+      ctx.state.markWatchedKey = markWatchedKey;
+    }
   }
 
   async function refreshConfiguredShortcuts(): Promise<void> {
-    updateConfiguredShortcuts(await window.electronAPI.getConfiguredShortcuts());
+    const [shortcuts, statsToggleKey, markWatchedKey] = await Promise.all([
+      window.electronAPI.getConfiguredShortcuts(),
+      window.electronAPI.getStatsToggleKey(),
+      window.electronAPI.getMarkWatchedKey(),
+    ]);
+    updateConfiguredShortcuts(shortcuts, statsToggleKey, markWatchedKey);
   }
 
   function updateSessionBindings(bindings: CompiledSessionBinding[]): void {
@@ -912,9 +927,7 @@ export function createKeyboardHandlers(
       window.electronAPI.getMarkWatchedKey(),
     ]);
     updateSessionBindings(sessionBindings);
-    updateConfiguredShortcuts(shortcuts);
-    ctx.state.statsToggleKey = statsToggleKey;
-    ctx.state.markWatchedKey = markWatchedKey;
+    updateConfiguredShortcuts(shortcuts, statsToggleKey, markWatchedKey);
     syncKeyboardTokenSelection();
 
     const subtitleMutationObserver = new MutationObserver(() => {

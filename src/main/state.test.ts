@@ -113,3 +113,12 @@ test('applyStartupState preserves cleared startup-only runtime flags', () => {
 
   assert.equal(appState.initialArgs?.settings, true);
 });
+
+test('createAppState starts with session bindings marked uninitialized', () => {
+  const appState = createAppState({
+    mpvSocketPath: '/tmp/mpv.sock',
+    texthookerPort: 4000,
+  });
+
+  assert.equal(appState.sessionBindingsInitialized, false);
+});

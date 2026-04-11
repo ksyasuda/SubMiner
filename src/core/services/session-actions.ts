@@ -34,6 +34,10 @@ function resolveCount(count: number | undefined): number {
   return Math.min(9, Math.max(1, normalized));
 }
 
+function assertUnreachableSessionAction(actionId: never): never {
+  throw new Error(`Unhandled session action: ${String(actionId)}`);
+}
+
 export async function dispatchSessionAction(
   request: SessionActionDispatchRequest,
   deps: SessionActionExecutorDeps,
@@ -121,5 +125,7 @@ export async function dispatchSessionAction(
       }
       return;
     }
+    default:
+      return assertUnreachableSessionAction(request.actionId);
   }
 }

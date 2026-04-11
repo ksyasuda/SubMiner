@@ -79,11 +79,11 @@ export abstract class BaseWindowTracker {
     this.updateTargetWindowFocused(focused);
   }
 
-  protected updateGeometry(newGeometry: WindowGeometry | null): void {
+  protected updateGeometry(newGeometry: WindowGeometry | null, initialFocused = true): void {
     if (newGeometry) {
       if (!this.windowFound) {
         this.windowFound = true;
-        this.updateTargetWindowFocused(true);
+        this.updateTargetWindowFocused(initialFocused);
         if (this.onWindowFound) this.onWindowFound(newGeometry);
       }
 

@@ -50,8 +50,15 @@ export interface OverlayModalRuntime {
   getRestoreVisibleOverlayOnModalClose: () => Set<OverlayHostedModal>;
 }
 
+type RevealFallbackHandle = NonNullable<Parameters<typeof globalThis.clearTimeout>[0]>;
+
 export interface OverlayModalRuntimeOptions {
   onModalStateChange?: (isActive: boolean) => void;
+  scheduleRevealFallback?: (
+    callback: () => void,
+    delayMs: number,
+  ) => RevealFallbackHandle;
+  clearRevealFallback?: (timeout: RevealFallbackHandle) => void;
 }
 
 export function createOverlayModalRuntimeService(
@@ -65,7 +72,14 @@ export function createOverlayModalRuntimeService(
   let mainWindowHiddenByModal = false;
   let modalWindowPrimedForImmediateShow = false;
   let pendingModalWindowReveal: BrowserWindow | null = null;
-  let pendingModalWindowRevealTimeout: ReturnType<typeof setTimeout> | null = null;
+  let pendingModalWindowRevealTimeout: RevealFallbackHandle | null = null;
+  const scheduleRevealFallback = (
+    callback: () => void,
+    delayMs: number,
+  ): RevealFallbackHandle =>
+    (options.scheduleRevealFallback ?? globalThis.setTimeout)(callback, delayMs);
+  const clearRevealFallback = (timeout: RevealFallbackHandle): void =>
+    (options.clearRevealFallback ?? globalThis.clearTimeout)(timeout);
 
   const notifyModalStateChange = (nextState: boolean): void => {
     if (modalActive === nextState) return;
@@ -207,7 +221,7 @@ export function createOverlayModalRuntimeService(
       return;
     }
 
-    clearTimeout(pendingModalWindowRevealTimeout);
+    clearRevealFallback(pendingModalWindowRevealTimeout);
     pendingModalWindowRevealTimeout = null;
     pendingModalWindowReveal = null;
   };
@@ -266,7 +280,7 @@ export function createOverlayModalRuntimeService(
       return;
     }
 
-    pendingModalWindowRevealTimeout = setTimeout(() => {
+    pendingModalWindowRevealTimeout = scheduleRevealFallback(() => {
       const targetWindow = pendingModalWindowReveal;
       clearPendingModalWindowReveal();
       if (!targetWindow || targetWindow.isDestroyed() || targetWindow.isVisible()) {

@@ -944,6 +944,29 @@ test('keyboard mode: configured stats toggle works even while popup is open', as
   }
 });
 
+test('refreshConfiguredShortcuts updates refreshed stats and mark-watched keys', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.setStatsToggleKey('KeyG');
+    testGlobals.setMarkWatchedKey('KeyM');
+    await handlers.refreshConfiguredShortcuts();
+
+    const beforeMarkWatchedCalls = testGlobals.markActiveVideoWatchedCalls();
+
+    testGlobals.dispatchKeydown({ key: 'g', code: 'KeyG' });
+    testGlobals.dispatchKeydown({ key: 'm', code: 'KeyM' });
+    await wait(10);
+
+    assert.equal(testGlobals.statsToggleOverlayCalls(), 1);
+    assert.equal(testGlobals.markActiveVideoWatchedCalls(), beforeMarkWatchedCalls + 1);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('youtube picker: unhandled keys still dispatch mpv keybindings', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 

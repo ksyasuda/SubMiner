@@ -1544,8 +1544,8 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
     setKeybindings: (keybindings) => {
       appState.keybindings = keybindings;
     },
-    setSessionBindings: (sessionBindings) => {
-      persistSessionBindings(sessionBindings);
+    setSessionBindings: (sessionBindings, sessionBindingWarnings) => {
+      persistSessionBindings(sessionBindings, sessionBindingWarnings);
     },
     refreshGlobalAndOverlayShortcuts: () => {
       refreshGlobalAndOverlayShortcuts();
@@ -3631,7 +3631,7 @@ function ensureOverlayStartupPrereqs(): void {
   if (appState.keybindings.length === 0) {
     appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
     refreshCurrentSessionBindings();
-  } else if (appState.sessionBindings.length === 0) {
+  } else if (!appState.sessionBindingsInitialized) {
     refreshCurrentSessionBindings();
   }
   if (!appState.mpvClient) {
@@ -4261,6 +4261,7 @@ function persistSessionBindings(
   });
   writeSessionBindingsArtifact(CONFIG_DIR, artifact);
   appState.sessionBindings = bindings;
+  appState.sessionBindingsInitialized = true;
   if (appState.mpvClient?.connected) {
     sendMpvCommandRuntime(appState.mpvClient, [
       'script-message',

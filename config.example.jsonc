@@ -177,7 +177,7 @@
     "openSessionHelp": "CommandOrControl+Shift+H", // Open session help setting.
     "openControllerSelect": "Alt+C", // Open controller select setting.
     "openControllerDebug": "Alt+Shift+C", // Open controller debug setting.
-    "toggleSubtitleSidebar": "\\" // Toggle subtitle sidebar setting.
+    "toggleSubtitleSidebar": "Backslash" // Toggle subtitle sidebar setting.
   }, // Overlay keyboard shortcuts. Set a shortcut to null to disable.
 
   // ==========================================

@@ -91,7 +91,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
     openSessionHelp: 'CommandOrControl+Shift+H',
     openControllerSelect: 'Alt+C',
     openControllerDebug: 'Alt+Shift+C',
-    toggleSubtitleSidebar: '\\',
+    toggleSubtitleSidebar: 'Backslash',
   },
   secondarySub: {
     secondarySubLanguages: [],

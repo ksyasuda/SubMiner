@@ -86,9 +86,13 @@ test('config hot reload message main deps builder maps notifications', () => {
 
 test('config hot reload applied main deps builder maps callbacks', () => {
   const calls: string[] = [];
+  const warningCounts: number[] = [];
   const buildDeps = createBuildConfigHotReloadAppliedMainDepsHandler({
     setKeybindings: () => calls.push('keybindings'),
-    setSessionBindings: () => calls.push('session-bindings'),
+    setSessionBindings: (_sessionBindings, warnings) => {
+      calls.push('session-bindings');
+      warningCounts.push(warnings.length);
+    },
     refreshGlobalAndOverlayShortcuts: () => calls.push('refresh-shortcuts'),
     setSecondarySubMode: () => calls.push('set-secondary'),
     broadcastToOverlayWindows: (channel) => calls.push(`broadcast:${channel}`),
@@ -97,7 +101,7 @@ test('config hot reload applied main deps builder maps callbacks', () => {
 
   const deps = buildDeps();
   deps.setKeybindings([]);
-  deps.setSessionBindings([]);
+  deps.setSessionBindings([], []);
   deps.refreshGlobalAndOverlayShortcuts();
   deps.setSecondarySubMode('hover');
   deps.broadcastToOverlayWindows('config:hot-reload', {});
@@ -110,6 +114,7 @@ test('config hot reload applied main deps builder maps callbacks', () => {
     'broadcast:config:hot-reload',
     'apply-anki',
   ]);
+  assert.deepEqual(warningCounts, [0]);
 });
 
 test('config hot reload runtime main deps builder maps runtime callbacks', () => {

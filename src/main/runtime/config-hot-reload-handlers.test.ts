@@ -11,10 +11,14 @@ test('createConfigHotReloadAppliedHandler runs all hot-reload effects', () => {
   const config = deepCloneConfig(DEFAULT_CONFIG);
   const calls: string[] = [];
   const ankiPatches: Array<{ enabled: boolean }> = [];
+  const sessionBindingWarnings: string[][] = [];
 
   const applyHotReload = createConfigHotReloadAppliedHandler({
     setKeybindings: () => calls.push('set:keybindings'),
-    setSessionBindings: () => calls.push('set:session-bindings'),
+    setSessionBindings: (_sessionBindings, warnings) => {
+      calls.push('set:session-bindings');
+      sessionBindingWarnings.push(warnings.map((warning) => warning.message));
+    },
     refreshGlobalAndOverlayShortcuts: () => calls.push('refresh:shortcuts'),
     setSecondarySubMode: (mode) => calls.push(`set:secondary:${mode}`),
     broadcastToOverlayWindows: (channel, payload) =>
@@ -44,6 +48,12 @@ test('createConfigHotReloadAppliedHandler runs all hot-reload effects', () => {
   assert.ok(calls.some((entry) => entry.startsWith('broadcast:secondary-subtitle:mode:')));
   assert.ok(calls.includes('broadcast:config:hot-reload:object'));
   assert.deepEqual(ankiPatches, [{ enabled: config.ankiConnect.ai.enabled }]);
+  assert.equal(sessionBindingWarnings.length, 1);
+  assert.ok(
+    sessionBindingWarnings[0]?.some((message) =>
+      message.includes('Rename shortcuts.toggleVisibleOverlayGlobal'),
+    ),
+  );
 });
 
 test('createConfigHotReloadAppliedHandler skips optional effects when no hot fields', () => {
@@ -68,6 +78,34 @@ test('createConfigHotReloadAppliedHandler skips optional effects when no hot fie
   );
 
   assert.deepEqual(calls, ['set:keybindings', 'set:session-bindings']);
+});
+
+test('createConfigHotReloadAppliedHandler forwards compiled session-binding warnings', () => {
+  const config = deepCloneConfig(DEFAULT_CONFIG);
+  config.shortcuts.openSessionHelp = 'Ctrl+?';
+  const warnings: string[][] = [];
+
+  const applyHotReload = createConfigHotReloadAppliedHandler({
+    setKeybindings: () => {},
+    setSessionBindings: (_sessionBindings, sessionBindingWarnings) => {
+      warnings.push(sessionBindingWarnings.map((warning) => warning.message));
+    },
+    refreshGlobalAndOverlayShortcuts: () => {},
+    setSecondarySubMode: () => {},
+    broadcastToOverlayWindows: () => {},
+    applyAnkiRuntimeConfigPatch: () => {},
+  });
+
+  applyHotReload(
+    {
+      hotReloadFields: ['shortcuts'],
+      restartRequiredFields: [],
+    },
+    config,
+  );
+
+  assert.equal(warnings.length, 1);
+  assert.ok(warnings[0]?.some((message) => message.includes('Unsupported accelerator key token')));
 });
 
 test('createConfigHotReloadMessageHandler mirrors message to OSD and desktop notification', () => {

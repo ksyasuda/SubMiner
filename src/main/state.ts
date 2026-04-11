@@ -172,6 +172,7 @@ export interface AppState {
   mecabTokenizer: MecabTokenizer | null;
   keybindings: Keybinding[];
   sessionBindings: CompiledSessionBinding[];
+  sessionBindingsInitialized: boolean;
   subtitleTimingTracker: SubtitleTimingTracker | null;
   immersionTracker: ImmersionTrackerService | null;
   ankiIntegration: AnkiIntegration | null;
@@ -255,6 +256,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     mecabTokenizer: null,
     keybindings: [],
     sessionBindings: [],
+    sessionBindingsInitialized: false,
     subtitleTimingTracker: null,
     immersionTracker: null,
     ankiIntegration: null,

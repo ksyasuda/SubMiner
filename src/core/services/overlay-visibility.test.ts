@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
 import { setVisibleOverlayVisible, updateVisibleOverlayVisibility } from './overlay-visibility';
 
 type WindowTrackerStub = {
@@ -15,7 +16,9 @@ function createMainWindowRecorder() {
   let visible = false;
   let focused = false;
   let opacity = 1;
+  let contentReady = true;
   const window = {
+    webContents: {},
     isDestroyed: () => false,
     isVisible: () => visible,
     isFocused: () => focused,
@@ -50,11 +53,24 @@ function createMainWindowRecorder() {
       calls.push('move-top');
     },
   };
+  (
+    window as {
+      [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean;
+    }
+  )[OVERLAY_WINDOW_CONTENT_READY_FLAG] = contentReady;
 
   return {
     window,
     calls,
     getOpacity: () => opacity,
+    setContentReady: (nextContentReady: boolean) => {
+      contentReady = nextContentReady;
+      (
+        window as {
+          [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean;
+        }
+      )[OVERLAY_WINDOW_CONTENT_READY_FLAG] = contentReady;
+    },
     setFocused: (nextFocused: boolean) => {
       focused = nextFocused;
     },
@@ -283,6 +299,54 @@ test('Windows visible overlay restores opacity after the deferred reveal delay',
   assert.equal(getOpacity(), 1);
   assert.equal(syncWindowsZOrderCalls, 2);
   assert.ok(calls.includes('opacity:1'));
+});
+
+test('Windows visible overlay waits for content-ready before first reveal', () => {
+  const { window, calls, setContentReady } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+  };
+  setContentReady(false);
+
+  const run = () =>
+    updateVisibleOverlayVisibility({
+      visibleOverlayVisible: true,
+      mainWindow: window as never,
+      windowTracker: tracker as never,
+      trackerNotReadyWarningShown: false,
+      setTrackerNotReadyWarningShown: () => {},
+      updateVisibleOverlayBounds: () => {
+        calls.push('update-bounds');
+      },
+      ensureOverlayWindowLevel: () => {
+        calls.push('ensure-level');
+      },
+      syncWindowsOverlayToMpvZOrder: () => {
+        calls.push('sync-windows-z-order');
+      },
+      syncPrimaryOverlayWindowLayer: () => {
+        calls.push('sync-layer');
+      },
+      enforceOverlayLayerOrder: () => {
+        calls.push('enforce-order');
+      },
+      syncOverlayShortcuts: () => {
+        calls.push('sync-shortcuts');
+      },
+      isMacOSPlatform: false,
+      isWindowsPlatform: true,
+    } as never);
+
+  run();
+
+  assert.ok(!calls.includes('show-inactive'));
+  assert.ok(!calls.includes('show'));
+
+  setContentReady(true);
+  run();
+
+  assert.ok(calls.includes('show-inactive'));
 });
 
 test('tracked Windows overlay refresh rebinds while already visible', () => {

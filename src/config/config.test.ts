@@ -50,6 +50,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.startupWarmups.yomitanExtension, true);
   assert.equal(config.startupWarmups.subtitleDictionaries, true);
   assert.equal(config.startupWarmups.jellyfinRemoteSession, true);
+  assert.equal(config.shortcuts.toggleSubtitleSidebar, 'Backslash');
   assert.equal(config.discordPresence.enabled, true);
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');

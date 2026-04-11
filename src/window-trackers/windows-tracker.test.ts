@@ -70,6 +70,22 @@ test('WindowsWindowTracker updates geometry from poll output', () => {
   assert.equal(tracker.isTargetWindowFocused(), true);
 });
 
+test('WindowsWindowTracker preserves an unfocused initial match', () => {
+  const tracker = new WindowsWindowTracker(undefined, {
+    pollMpvWindows: () => mpvVisible({ x: 10, y: 20, width: 1280, height: 720, focused: false }),
+  });
+
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+
+  assert.deepEqual(tracker.getGeometry(), {
+    x: 10,
+    y: 20,
+    width: 1280,
+    height: 720,
+  });
+  assert.equal(tracker.isTargetWindowFocused(), false);
+});
+
 test('WindowsWindowTracker clears geometry for poll misses', () => {
   const tracker = new WindowsWindowTracker(undefined, {
     pollMpvWindows: () => mpvNotFound,

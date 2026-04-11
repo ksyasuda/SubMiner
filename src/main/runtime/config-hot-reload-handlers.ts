@@ -7,7 +7,10 @@ import type { ConfigHotReloadPayload, ResolvedConfig, SecondarySubMode } from '.
 
 type ConfigHotReloadAppliedDeps = {
   setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) => void;
-  setSessionBindings: (sessionBindings: ConfigHotReloadPayload['sessionBindings']) => void;
+  setSessionBindings: (
+    sessionBindings: ConfigHotReloadPayload['sessionBindings'],
+    sessionBindingWarnings: ConfigHotReloadPayload['sessionBindingWarnings'],
+  ) => void;
   refreshGlobalAndOverlayShortcuts: () => void;
   setSecondarySubMode: (mode: SecondarySubMode) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
@@ -37,7 +40,7 @@ export function resolveSubtitleStyleForRenderer(config: ResolvedConfig) {
 
 export function buildConfigHotReloadPayload(config: ResolvedConfig): ConfigHotReloadPayload {
   const keybindings = resolveKeybindings(config, DEFAULT_KEYBINDINGS);
-  const { bindings: sessionBindings } = compileSessionBindings({
+  const { bindings: sessionBindings, warnings: sessionBindingWarnings } = compileSessionBindings({
     keybindings,
     shortcuts: resolveConfiguredShortcuts(config, DEFAULT_CONFIG),
     platform:
@@ -51,6 +54,7 @@ export function buildConfigHotReloadPayload(config: ResolvedConfig): ConfigHotRe
   return {
     keybindings,
     sessionBindings,
+    sessionBindingWarnings,
     subtitleStyle: resolveSubtitleStyleForRenderer(config),
     subtitleSidebar: config.subtitleSidebar,
     secondarySubMode: config.secondarySub.defaultMode,
@@ -61,7 +65,7 @@ export function createConfigHotReloadAppliedHandler(deps: ConfigHotReloadApplied
   return (diff: ConfigHotReloadDiff, config: ResolvedConfig): void => {
     const payload = buildConfigHotReloadPayload(config);
     deps.setKeybindings(payload.keybindings);
-    deps.setSessionBindings(payload.sessionBindings);
+    deps.setSessionBindings(payload.sessionBindings, payload.sessionBindingWarnings);
 
     if (diff.hotReloadFields.includes('shortcuts')) {
       deps.refreshGlobalAndOverlayShortcuts();

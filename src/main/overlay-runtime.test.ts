@@ -33,6 +33,8 @@ function createMockWindow(): MockWindow & {
   hide: () => void;
   destroy: () => void;
   focus: () => void;
+  emitDidFinishLoad: () => void;
+  emitReadyToShow: () => void;
   once: (event: 'ready-to-show', cb: () => void) => void;
   webContents: {
     focused: boolean;
@@ -88,6 +90,14 @@ function createMockWindow(): MockWindow & {
     },
     focus: () => {
       state.focused = true;
+    },
+    emitDidFinishLoad: () => {
+      const callback = state.loadCallbacks.shift();
+      callback?.();
+    },
+    emitReadyToShow: () => {
+      const callback = state.readyToShowCallbacks.shift();
+      callback?.();
     },
     once: (_event: 'ready-to-show', cb: () => void) => {
       state.readyToShowCallbacks.push(cb);
@@ -269,16 +279,13 @@ test('sendToActiveOverlayWindow waits for blank modal URL before sending open co
 
   assert.equal(sent, true);
   assert.deepEqual(window.sent, []);
-
-  assert.equal(window.loadCallbacks.length, 1);
-  assert.equal(window.readyToShowCallbacks.length, 1);
   window.loading = false;
   window.url = 'file:///overlay/index.html?layer=modal';
-  window.loadCallbacks[0]!();
+  window.emitDidFinishLoad();
   assert.deepEqual(window.sent, []);
 
   window.contentReady = true;
-  window.readyToShowCallbacks[0]!();
+  window.emitReadyToShow();
 
   runtime.notifyOverlayModalOpened('runtime-options');
   assert.deepEqual(window.sent, [['runtime-options:open']]);
@@ -549,6 +556,7 @@ test('handleOverlayModalClosed destroys modal window for single kiku modal', () 
 
 test('modal fallback reveal skips showing window when content is not ready', async () => {
   const window = createMockWindow();
+  let scheduledReveal: (() => void) | null = null;
   const runtime = createOverlayModalRuntimeService({
     getMainWindow: () => null,
     getModalWindow: () => window as never,
@@ -557,6 +565,14 @@ test('modal fallback reveal skips showing window when content is not ready', asy
     },
     getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
     setModalWindowBounds: () => {},
+  }, {
+    scheduleRevealFallback: (callback) => {
+      scheduledReveal = callback;
+      return { scheduled: true } as never;
+    },
+    clearRevealFallback: () => {
+      scheduledReveal = null;
+    },
   });
 
   window.loading = true;
@@ -568,10 +584,11 @@ test('modal fallback reveal skips showing window when content is not ready', asy
   });
 
   assert.equal(sent, true);
-
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, 260);
-  });
+  if (scheduledReveal === null) {
+    throw new Error('expected reveal callback');
+  }
+  const runScheduledReveal: () => void = scheduledReveal;
+  runScheduledReveal();
 
   assert.equal(window.getShowCount(), 0);
 
@@ -599,14 +616,11 @@ test('sendToActiveOverlayWindow waits for modal ready-to-show before delivering 
 
   assert.equal(sent, true);
   assert.deepEqual(window.sent, []);
-  assert.equal(window.loadCallbacks.length, 1);
-  assert.equal(window.readyToShowCallbacks.length, 1);
-
-  window.loadCallbacks[0]!();
+  window.emitDidFinishLoad();
   assert.deepEqual(window.sent, []);
 
   window.contentReady = true;
-  window.readyToShowCallbacks[0]!();
+  window.emitReadyToShow();
   assert.deepEqual(window.sent, [['runtime-options:open']]);
 });
 
@@ -617,8 +631,7 @@ test('modal reopen creates a fresh window after close destroys the previous one'
 
   const runtime = createOverlayModalRuntimeService({
     getMainWindow: () => null,
-    getModalWindow: () =>
-      currentModal && !currentModal.isDestroyed() ? (currentModal as never) : null,
+    getModalWindow: () => currentModal as never,
     createModalWindow: () => {
       currentModal = secondWindow;
       return secondWindow as never;
@@ -653,8 +666,7 @@ test('modal reopen after close-destroy notifies state change on fresh window lif
   const runtime = createOverlayModalRuntimeService(
     {
       getMainWindow: () => null,
-      getModalWindow: () =>
-        currentModal && !currentModal.isDestroyed() ? (currentModal as never) : null,
+      getModalWindow: () => currentModal as never,
       createModalWindow: () => {
         currentModal = secondWindow;
         return secondWindow as never;

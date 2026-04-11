@@ -278,7 +278,7 @@ export function handleCliCommand(
     osdLabel: string,
   ): void => {
     runAsyncWithOsd(
-      () => deps.dispatchSessionAction?.(request) ?? Promise.resolve(),
+      () => deps.dispatchSessionAction(request),
       deps,
       logLabel,
       osdLabel,

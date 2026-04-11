@@ -540,7 +540,7 @@ See `config.example.jsonc` for detailed configuration options.
     "openControllerSelect": "Alt+C",
     "openControllerDebug": "Alt+Shift+C",
     "openJimaku": "Ctrl+Shift+J",
-    "toggleSubtitleSidebar": "\\",
+    "toggleSubtitleSidebar": "Backslash",
     "multiCopyTimeoutMs": 3000
   }
 }
@@ -564,7 +564,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `openControllerSelect`        | string \| `null` | Opens the controller config/remap modal (default: `"Alt+C"`)                                                                                   |
 | `openControllerDebug`         | string \| `null` | Opens the controller debug modal (default: `"Alt+Shift+C"`)                                                                                    |
 | `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                     |
-| `toggleSubtitleSidebar`       | string \| `null` | Dispatches the subtitle sidebar toggle action (default: `"\\"`). `subtitleSidebar.toggleKey` remains the primary bare-key setting.            |
+| `toggleSubtitleSidebar`       | string \| `null` | Dispatches the subtitle sidebar toggle action (default: `"Backslash"`). `subtitleSidebar.toggleKey` remains the primary bare-key setting.     |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 

@@ -9,6 +9,7 @@ import type {
   CompiledSessionBinding,
   SessionActionId,
   SessionActionPayload,
+  SessionBindingWarning,
 } from './session-bindings';
 import type {
   JimakuApiResponse,
@@ -327,6 +328,7 @@ export interface ClipboardAppendResult {
 export interface ConfigHotReloadPayload {
   keybindings: Keybinding[];
   sessionBindings: CompiledSessionBinding[];
+  sessionBindingWarnings: SessionBindingWarning[];
   subtitleStyle: SubtitleStyleConfig | null;
   subtitleSidebar: Required<SubtitleSidebarConfig>;
   secondarySubMode: SecondarySubMode;

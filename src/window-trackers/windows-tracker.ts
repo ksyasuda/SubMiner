@@ -154,8 +154,8 @@ export class WindowsWindowTracker extends BaseWindowTracker {
         this.resetTrackingLossState();
         this.targetWindowMinimized = false;
         this.currentTargetWindowHwnd = best.hwnd;
+        this.updateGeometry(best.geometry, best.focused);
         this.updateTargetWindowFocused(best.focused);
-        this.updateGeometry(best.geometry);
         return;
       }
 
