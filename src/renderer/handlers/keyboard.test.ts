@@ -723,6 +723,44 @@ test('visible-layer y-t dispatches mpv plugin toggle while overlay owns focus', 
   }
 });
 
+test('refreshConfiguredShortcuts updates hot-reloaded stats and watched keys', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.setConfiguredShortcuts({
+      copySubtitle: '',
+      copySubtitleMultiple: '',
+      updateLastCardFromClipboard: '',
+      triggerFieldGrouping: '',
+      triggerSubsync: 'Ctrl+Alt+S',
+      mineSentence: '',
+      mineSentenceMultiple: '',
+      multiCopyTimeoutMs: 3333,
+      toggleSecondarySub: '',
+      markAudioCard: '',
+      openRuntimeOptions: 'CommandOrControl+Shift+O',
+      openJimaku: 'Ctrl+Shift+J',
+      openSessionHelp: 'CommandOrControl+Shift+H',
+      openControllerSelect: 'Alt+C',
+      openControllerDebug: 'Alt+Shift+C',
+      toggleSubtitleSidebar: '',
+      toggleVisibleOverlayGlobal: '',
+    });
+    testGlobals.setStatsToggleKey('');
+    testGlobals.setMarkWatchedKey('');
+
+    await handlers.refreshConfiguredShortcuts();
+
+    assert.equal(ctx.state.sessionActionTimeoutMs, 3333);
+    assert.equal(ctx.state.statsToggleKey, '');
+    assert.equal(ctx.state.markWatchedKey, '');
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: controller helpers dispatch popup audio play/cycle and scroll bridge commands', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 

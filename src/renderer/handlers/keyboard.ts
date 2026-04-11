@@ -86,10 +86,10 @@ export function createKeyboardHandlers(
     markWatchedKey?: string,
   ): void {
     ctx.state.sessionActionTimeoutMs = shortcuts.multiCopyTimeoutMs;
-    if (typeof statsToggleKey === 'string' && statsToggleKey.length > 0) {
+    if (typeof statsToggleKey === 'string') {
       ctx.state.statsToggleKey = statsToggleKey;
     }
-    if (typeof markWatchedKey === 'string' && markWatchedKey.length > 0) {
+    if (typeof markWatchedKey === 'string') {
       ctx.state.markWatchedKey = markWatchedKey;
     }
   }

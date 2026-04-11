@@ -43,6 +43,7 @@ export function buildConfigHotReloadPayload(config: ResolvedConfig): ConfigHotRe
   const { bindings: sessionBindings, warnings: sessionBindingWarnings } = compileSessionBindings({
     keybindings,
     shortcuts: resolveConfiguredShortcuts(config, DEFAULT_CONFIG),
+    statsToggleKey: config.stats.toggleKey,
     platform:
       process.platform === 'darwin'
         ? 'darwin'
