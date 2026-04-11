@@ -22,6 +22,10 @@ function createShortcuts(): ConfiguredShortcuts {
     markAudioCard: null,
     openRuntimeOptions: null,
     openJimaku: null,
+    openSessionHelp: null,
+    openControllerSelect: null,
+    openControllerDebug: null,
+    toggleSubtitleSidebar: null,
   };
 }
 

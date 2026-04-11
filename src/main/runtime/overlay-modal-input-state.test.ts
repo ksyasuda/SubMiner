@@ -23,6 +23,9 @@ function createModalWindow() {
     setIgnoreMouseEvents: (ignore: boolean) => {
       calls.push(`ignore:${ignore}`);
     },
+    setFocusable: (focusable: boolean) => {
+      calls.push(`focusable:${focusable}`);
+    },
     setAlwaysOnTop: (flag: boolean, level?: string, relativeLevel?: number) => {
       calls.push(`top:${flag}:${level ?? ''}:${relativeLevel ?? ''}`);
     },
@@ -58,12 +61,32 @@ test('overlay modal input state activates modal window interactivity and syncs d
 
   assert.equal(state.getModalInputExclusive(), true);
   assert.deepEqual(modalWindow.calls, [
+    'focusable:true',
     'ignore:false',
     'top:true:screen-saver:1',
     'focus',
     'web-focus',
   ]);
   assert.deepEqual(calls, ['shortcuts:true', 'visibility']);
+});
+
+test('overlay modal input state restores main window focus on deactivation', () => {
+  const modalWindow = createModalWindow();
+  const calls: string[] = [];
+  const state = createOverlayModalInputState({
+    getModalWindow: () => modalWindow as never,
+    syncOverlayShortcutsForModal: () => {},
+    syncOverlayVisibilityForModal: () => {},
+    restoreMainWindowFocus: () => {
+      calls.push('restore-focus');
+    },
+  });
+
+  state.handleModalInputStateChange(true);
+  assert.deepEqual(calls, []);
+
+  state.handleModalInputStateChange(false);
+  assert.deepEqual(calls, ['restore-focus']);
 });
 
 test('overlay modal input state is idempotent for unchanged state', () => {

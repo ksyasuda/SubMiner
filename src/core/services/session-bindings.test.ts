@@ -20,6 +20,10 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
     markAudioCard: null,
     openRuntimeOptions: null,
     openJimaku: null,
+    openSessionHelp: null,
+    openControllerSelect: null,
+    openControllerDebug: null,
+    toggleSubtitleSidebar: null,
     ...overrides,
   };
 }
@@ -33,6 +37,7 @@ test('compileSessionBindings merges shortcuts and keybindings into one canonical
     shortcuts: createShortcuts({
       toggleVisibleOverlayGlobal: 'Alt+Shift+O',
       openJimaku: 'Ctrl+Shift+J',
+      openControllerSelect: 'Alt+C',
     }),
     keybindings: [
       createKeybinding('KeyF', ['cycle', 'fullscreen']),
@@ -67,6 +72,13 @@ test('compileSessionBindings merges shortcuts and keybindings into one canonical
         code: 'KeyY',
         modifiers: ['ctrl', 'shift'],
         target: 'openYoutubePicker',
+      },
+      {
+        actionType: 'session-action',
+        sourcePath: 'shortcuts.openControllerSelect',
+        code: 'KeyC',
+        modifiers: ['alt'],
+        target: 'openControllerSelect',
       },
       {
         actionType: 'session-action',

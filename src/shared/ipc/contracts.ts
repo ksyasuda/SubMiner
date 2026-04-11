@@ -11,6 +11,7 @@ export const OVERLAY_HOSTED_MODALS = [
   'controller-select',
   'controller-debug',
   'subtitle-sidebar',
+  'session-help',
 ] as const;
 export type OverlayHostedModal = (typeof OVERLAY_HOSTED_MODALS)[number];
 
@@ -111,6 +112,10 @@ export const IPC_CHANNELS = {
     playlistBrowserOpen: 'playlist-browser:open',
     keyboardModeToggleRequested: 'keyboard-mode-toggle:requested',
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
+    sessionHelpOpen: 'session-help:open',
+    controllerSelectOpen: 'controller-select:open',
+    controllerDebugOpen: 'controller-debug:open',
+    subtitleSidebarToggle: 'subtitle-sidebar:toggle',
     configHotReload: 'config:hot-reload',
   },
 } as const;

@@ -536,7 +536,11 @@ See `config.example.jsonc` for detailed configuration options.
     "mineSentenceMultiple": "CommandOrControl+Shift+S",
     "markAudioCard": "CommandOrControl+Shift+A",
     "openRuntimeOptions": "CommandOrControl+Shift+O",
+    "openSessionHelp": "CommandOrControl+Shift+H",
+    "openControllerSelect": "Alt+C",
+    "openControllerDebug": "Alt+Shift+C",
     "openJimaku": "Ctrl+Shift+J",
+    "toggleSubtitleSidebar": "\\",
     "multiCopyTimeoutMs": 3000
   }
 }
@@ -556,7 +560,11 @@ See `config.example.jsonc` for detailed configuration options.
 | `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                                       |
 | `markAudioCard`               | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                                       |
 | `openRuntimeOptions`          | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                           |
+| `openSessionHelp`             | string \| `null` | Opens the in-overlay session help modal (default: `"CommandOrControl+Shift+H"`)                                                               |
+| `openControllerSelect`        | string \| `null` | Opens the controller config/remap modal (default: `"Alt+C"`)                                                                                   |
+| `openControllerDebug`         | string \| `null` | Opens the controller debug modal (default: `"Alt+Shift+C"`)                                                                                    |
 | `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                     |
+| `toggleSubtitleSidebar`       | string \| `null` | Dispatches the subtitle sidebar toggle action (default: `"\\"`). `subtitleSidebar.toggleKey` remains the primary bare-key setting.            |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 
@@ -573,9 +581,10 @@ Important behavior:
 - Controller input is only active while keyboard-only mode is enabled.
 - Keyboard-only mode continues to work normally without a controller.
 - By default SubMiner uses the first connected controller.
-- `Alt+C` opens the controller config modal, where you can save the selected controller and remap actions inline.
+- `Alt+C` opens the controller config modal by default, and you can remap that shortcut through `shortcuts.openControllerSelect`.
 - Click `Learn`, then press the next fresh button, trigger, or stick direction you want to bind for that overlay action.
-- `Alt+Shift+C` opens a live debug modal showing raw axes/button values plus a ready-to-copy `buttonIndices` config block.
+- `Alt+Shift+C` opens the debug modal by default, and you can remap that shortcut through `shortcuts.openControllerDebug`.
+- The debug modal shows raw axes/button values plus a ready-to-copy `buttonIndices` config block.
 - `controller.buttonIndices` is a semantic reference/legacy mapping. Changing it does not rewrite the raw numeric descriptor values already stored under `controller.bindings`.
 - Turning keyboard-only mode off clears the keyboard-only token highlight state.
 - Closing the Yomitan popup clears the temporary native text-selection fill, but keeps controller token selection active.
@@ -694,7 +703,7 @@ These shortcuts are only active when the overlay window is visible and automatic
 
 ### Session Help Modal
 
-The session help modal is opened with `Y-H` by default (falls back to `Y-K` if needed) and shows the current session keybindings and color legend.
+The session help modal opens from the overlay with `Ctrl/Cmd+Shift+H` by default. The mpv plugin also exposes it through the `Y-H` chord (falling back to `Y-K` if needed). It shows the current session keybindings and color legend.
 
 You can filter the modal quickly with `/`:
 

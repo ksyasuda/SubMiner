@@ -88,6 +88,10 @@ export const CORE_DEFAULT_CONFIG: Pick<
     markAudioCard: 'CommandOrControl+Shift+A',
     openRuntimeOptions: 'CommandOrControl+Shift+O',
     openJimaku: 'Ctrl+Shift+J',
+    openSessionHelp: 'CommandOrControl+Shift+H',
+    openControllerSelect: 'Alt+C',
+    openControllerDebug: 'Alt+Shift+C',
+    toggleSubtitleSidebar: '\\',
   },
   secondarySub: {
     secondarySubLanguages: [],

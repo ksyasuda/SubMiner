@@ -133,6 +133,8 @@ function M.create(ctx)
 			return { "--mine-sentence-count", tostring(payload and payload.count or 1) }
 		elseif action_id == "toggleSecondarySub" then
 			return { "--toggle-secondary-sub" }
+		elseif action_id == "toggleSubtitleSidebar" then
+			return { "--toggle-subtitle-sidebar" }
 		elseif action_id == "markAudioCard" then
 			return { "--mark-audio-card" }
 		elseif action_id == "openRuntimeOptions" then
@@ -141,6 +143,12 @@ function M.create(ctx)
 			return { "--open-jimaku" }
 		elseif action_id == "openYoutubePicker" then
 			return { "--open-youtube-picker" }
+		elseif action_id == "openSessionHelp" then
+			return { "--open-session-help" }
+		elseif action_id == "openControllerSelect" then
+			return { "--open-controller-select" }
+		elseif action_id == "openControllerDebug" then
+			return { "--open-controller-debug" }
 		elseif action_id == "openPlaylistBrowser" then
 			return { "--open-playlist-browser" }
 		elseif action_id == "replayCurrentSubtitle" then

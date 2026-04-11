@@ -178,14 +178,6 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
     void window.electronAPI.appendClipboardVideoToQueue();
   },
   getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
-  openControllerSelectModal: () => {
-    controllerSelectModal.openControllerSelectModal();
-    window.electronAPI.notifyOverlayModalOpened('controller-select');
-  },
-  openControllerDebugModal: () => {
-    controllerDebugModal.openControllerDebugModal();
-    window.electronAPI.notifyOverlayModalOpened('controller-debug');
-  },
   toggleSubtitleSidebarModal: () => {
     void subtitleSidebarModal.toggleSubtitleSidebarModal();
   },
@@ -437,6 +429,28 @@ function registerModalOpenHandlers(): void {
       window.electronAPI.notifyOverlayModalOpened('runtime-options');
     });
   });
+  window.electronAPI.onOpenSessionHelp(() => {
+    runGuarded('session-help:open', () => {
+      sessionHelpModal.openSessionHelpModal({
+        bindingKey: 'KeyH',
+        fallbackUsed: false,
+        fallbackUnavailable: false,
+      });
+      window.electronAPI.notifyOverlayModalOpened('session-help');
+    });
+  });
+  window.electronAPI.onOpenControllerSelect(() => {
+    runGuarded('controller-select:open', () => {
+      controllerSelectModal.openControllerSelectModal();
+      window.electronAPI.notifyOverlayModalOpened('controller-select');
+    });
+  });
+  window.electronAPI.onOpenControllerDebug(() => {
+    runGuarded('controller-debug:open', () => {
+      controllerDebugModal.openControllerDebugModal();
+      window.electronAPI.notifyOverlayModalOpened('controller-debug');
+    });
+  });
   window.electronAPI.onOpenJimaku(() => {
     runGuarded('jimaku:open', () => {
       jimakuModal.openJimakuModal();
@@ -490,6 +504,12 @@ function registerKeyboardCommandHandlers(): void {
   window.electronAPI.onLookupWindowToggleRequested(() => {
     runGuarded('lookup-window-toggle:requested', () => {
       keyboardHandlers.handleLookupWindowToggleRequested();
+    });
+  });
+
+  window.electronAPI.onSubtitleSidebarToggle(() => {
+    runGuarded('subtitle-sidebar:toggle', () => {
+      void subtitleSidebarModal.toggleSubtitleSidebarModal();
     });
   });
 }

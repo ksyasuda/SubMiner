@@ -453,6 +453,10 @@ import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
+import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
+import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
+import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
+import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
 import { writeSessionBindingsArtifact } from './main/runtime/session-bindings-artifact';
 import { openOverlayHostedModal } from './main/runtime/overlay-hosted-modal-open';
@@ -2211,8 +2215,21 @@ function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
   overlayVisibilityComposer.setOverlayDebugVisualizationEnabled(enabled);
 }
 
-function openRuntimeOptionsPalette(): void {
-  void openRuntimeOptionsModalRuntime({
+function createOverlayHostedModalOpenDeps(): {
+  ensureOverlayStartupPrereqs: () => void;
+  ensureOverlayWindowsReadyForVisibilityActions: () => void;
+  sendToActiveOverlayWindow: (
+    channel: string,
+    payload?: unknown,
+    runtimeOptions?: {
+      restoreOnModalClose?: OverlayHostedModal;
+      preferModalWindow?: boolean;
+    },
+  ) => boolean;
+  waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
+  logWarn: (message: string) => void;
+} {
+  return {
     ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
     ensureOverlayWindowsReadyForVisibilityActions: () =>
       ensureOverlayWindowsReadyForVisibilityActions(),
@@ -2220,33 +2237,62 @@ function openRuntimeOptionsPalette(): void {
       sendToActiveOverlayWindow(channel, payload, runtimeOptions),
     waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
     logWarn: (message) => logger.warn(message),
-  }).then((opened) => {
+  };
+}
+
+function openOverlayHostedModalWithOsd(
+  openModal: (deps: ReturnType<typeof createOverlayHostedModalOpenDeps>) => Promise<boolean>,
+  unavailableMessage: string,
+  failureLogMessage: string,
+): void {
+  void openModal(createOverlayHostedModalOpenDeps()).then((opened) => {
     if (!opened) {
-      showMpvOsd('Runtime options overlay unavailable.');
+      showMpvOsd(unavailableMessage);
     }
   }).catch((error) => {
-    logger.error('Failed to open runtime options overlay.', error);
-    showMpvOsd('Runtime options overlay unavailable.');
+    logger.error(failureLogMessage, error);
+    showMpvOsd(unavailableMessage);
   });
 }
 
-function openJimakuOverlay(): void {
-  const opened = openOverlayHostedModal(
-    {
-      ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
-      ensureOverlayWindowsReadyForVisibilityActions: () =>
-        ensureOverlayWindowsReadyForVisibilityActions(),
-      sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
-        sendToActiveOverlayWindow(channel, payload, runtimeOptions),
-    },
-    {
-      channel: IPC_CHANNELS.event.jimakuOpen,
-      modal: 'jimaku',
-    },
+function openRuntimeOptionsPalette(): void {
+  openOverlayHostedModalWithOsd(
+    openRuntimeOptionsModalRuntime,
+    'Runtime options overlay unavailable.',
+    'Failed to open runtime options overlay.',
   );
-  if (!opened) {
-    showMpvOsd('Jimaku overlay unavailable.');
-  }
+}
+
+function openJimakuOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openJimakuModalRuntime,
+    'Jimaku overlay unavailable.',
+    'Failed to open Jimaku overlay.',
+  );
+}
+
+function openSessionHelpOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openSessionHelpModalRuntime,
+    'Session help overlay unavailable.',
+    'Failed to open session help overlay.',
+  );
+}
+
+function openControllerSelectOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openControllerSelectModalRuntime,
+    'Controller select overlay unavailable.',
+    'Failed to open controller select overlay.',
+  );
+}
+
+function openControllerDebugOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openControllerDebugModalRuntime,
+    'Controller debug overlay unavailable.',
+    'Failed to open controller debug overlay.',
+  );
 }
 
 function openPlaylistBrowser(): void {
@@ -2254,16 +2300,11 @@ function openPlaylistBrowser(): void {
     showMpvOsd('Playlist browser requires active playback.');
     return;
   }
-  const opened = openPlaylistBrowserRuntime({
-    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
-    ensureOverlayWindowsReadyForVisibilityActions: () =>
-      ensureOverlayWindowsReadyForVisibilityActions(),
-    sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
-      sendToActiveOverlayWindow(channel, payload, runtimeOptions),
-  });
-  if (!opened) {
-    showMpvOsd('Playlist browser overlay unavailable.');
-  }
+  openOverlayHostedModalWithOsd(
+    openPlaylistBrowserRuntime,
+    'Playlist browser overlay unavailable.',
+    'Failed to open playlist browser overlay.',
+  );
 }
 
 function getResolvedConfig() {
@@ -4278,6 +4319,10 @@ function handleCycleSecondarySubMode(): void {
   cycleSecondarySubMode();
 }
 
+function toggleSubtitleSidebar(): void {
+  broadcastToOverlayWindows(IPC_CHANNELS.event.subtitleSidebarToggle);
+}
+
 async function triggerSubsyncFromConfig(): Promise<void> {
   await subsyncRuntime.triggerFromConfig();
 }
@@ -4562,9 +4607,13 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     mineSentenceCard: () => mineSentenceCard(),
     mineSentenceCount: (count) => handleMineSentenceDigit(count),
     toggleSecondarySub: () => handleCycleSecondarySubMode(),
+    toggleSubtitleSidebar: () => toggleSubtitleSidebar(),
     markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJimaku: () => openJimakuOverlay(),
+    openSessionHelp: () => openSessionHelpOverlay(),
+    openControllerSelect: () => openControllerSelectOverlay(),
+    openControllerDebug: () => openControllerDebugOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
