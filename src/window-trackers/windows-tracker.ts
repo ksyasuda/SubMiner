@@ -19,10 +19,6 @@
 import { BaseWindowTracker } from './base-tracker';
 import type { WindowGeometry } from '../types';
 import type { MpvPollResult } from './win32';
-import {
-  queryWindowsTrackerMpvWindows,
-  shouldUseWindowsTrackerPowershellFallback,
-} from './windows-helper';
 import { createLogger } from '../logger';
 
 const log = createLogger('tracker').child('windows');
@@ -35,16 +31,8 @@ type WindowsTrackerDeps = {
   now?: () => number;
 };
 
-function defaultPollMpvWindows(targetMpvSocketPath?: string | null): MpvPollResult {
-  if (targetMpvSocketPath && shouldUseWindowsTrackerPowershellFallback()) {
-    const helperResult = queryWindowsTrackerMpvWindows({
-      targetMpvSocketPath,
-    });
-    if (helperResult) {
-      return helperResult;
-    }
-  }
-
+function defaultPollMpvWindows(_targetMpvSocketPath?: string | null): MpvPollResult {
+  void _targetMpvSocketPath;
   const win32 = require('./win32') as typeof import('./win32');
   return win32.findMpvWindows();
 }
