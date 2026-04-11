@@ -173,7 +173,7 @@ function getProcessNameByPid(pid: number): string | null {
   }
 }
 
-const processCommandLineCache = new Map<number, string | null>();
+const processCommandLineCache = new Map<number, string>();
 
 function getProcessCommandLineByPid(pid: number): string | null {
   if (processCommandLineCache.has(pid)) {
@@ -204,7 +204,11 @@ function getProcessCommandLineByPid(pid: number): string | null {
     commandLine = null;
   }
 
-  processCommandLineCache.set(pid, commandLine);
+  if (commandLine !== null) {
+    processCommandLineCache.set(pid, commandLine);
+  } else {
+    processCommandLineCache.delete(pid);
+  }
   return commandLine;
 }
 

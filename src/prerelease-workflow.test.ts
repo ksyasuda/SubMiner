@@ -34,6 +34,17 @@ test('prerelease workflow publishes GitHub prereleases and keeps them off latest
   assert.match(prereleaseWorkflow, /gh release create[\s\S]*--latest=false/);
 });
 
+test('prerelease workflow scopes dependency caches by runner architecture', () => {
+  const archScopedCacheKeyMatches = prereleaseWorkflow.match(
+    /key:\s*\${{\s*runner\.os\s*}}-\${{\s*runner\.arch\s*}}-bun-/g,
+  );
+  const archScopedRestoreKeyMatches = prereleaseWorkflow.match(
+    /\${{\s*runner\.os\s*}}-\${{\s*runner\.arch\s*}}-bun-/g,
+  );
+  assert.equal(archScopedCacheKeyMatches?.length, 5);
+  assert.ok((archScopedRestoreKeyMatches?.length ?? 0) >= 10);
+});
+
 test('prerelease workflow builds and uploads all release platforms', () => {
   assert.match(prereleaseWorkflow, /build-linux:/);
   assert.match(prereleaseWorkflow, /build-macos:/);
@@ -52,6 +63,21 @@ test('prerelease workflow publishes the same release assets as the stable workfl
     prereleaseWorkflow,
     /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
   );
+});
+
+test('prerelease workflow validates artifacts before publishing the release and only undrafts after upload', () => {
+  const artifactsIndex = prereleaseWorkflow.indexOf('artifacts=(');
+  const createIndex = prereleaseWorkflow.indexOf('gh release create');
+  const uploadIndex = prereleaseWorkflow.indexOf('gh release upload');
+  const undraftIndex = prereleaseWorkflow.indexOf('--draft=false');
+
+  assert.notEqual(artifactsIndex, -1);
+  assert.notEqual(createIndex, -1);
+  assert.notEqual(uploadIndex, -1);
+  assert.notEqual(undraftIndex, -1);
+  assert.ok(artifactsIndex < createIndex);
+  assert.ok(uploadIndex < undraftIndex);
+  assert.match(prereleaseWorkflow, /gh release create[\s\S]*--draft[\s\S]*--prerelease/);
 });
 
 test('prerelease workflow does not publish to AUR', () => {

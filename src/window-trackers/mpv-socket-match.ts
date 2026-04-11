@@ -13,9 +13,10 @@ export function matchesMpvSocketPathInCommandLine(
   }
 
   const escapedSocketPath = escapeRegex(targetSocketPath);
-  return new RegExp(`--input-ipc-server(?:=|\\s+)("?${escapedSocketPath}"?)`, 'i').test(
-    commandLine,
-  );
+  return new RegExp(
+    `(?:^|\\s)--input-ipc-server(?:=|\\s+)(?:"${escapedSocketPath}"|${escapedSocketPath})(?=\\s|$)`,
+    'i',
+  ).test(commandLine);
 }
 
 export function filterMpvPollResultBySocketPath(

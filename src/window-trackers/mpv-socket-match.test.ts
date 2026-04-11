@@ -54,3 +54,13 @@ test('filterMpvPollResultBySocketPath keeps only matches for the requested socke
   assert.deepEqual(result.matches.map((match) => match.hwnd), [2]);
   assert.equal(result.windowState, 'visible');
 });
+
+test('matchesMpvSocketPathInCommandLine rejects socket-path prefix matches', () => {
+  assert.equal(
+    matchesMpvSocketPathInCommandLine(
+      'mpv.exe --input-ipc-server=\\\\.\\pipe\\subminer-10 video.mkv',
+      '\\\\.\\pipe\\subminer-1',
+    ),
+    false,
+  );
+});
