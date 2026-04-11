@@ -76,9 +76,7 @@ test('runAppReadyRuntime starts websocket in auto mode when plugin missing', asy
   );
   assert.ok(calls.includes('startBackgroundWarmups'));
   assert.ok(
-    calls.includes(
-      'log:Runtime ready: immersion tracker startup deferred until first media activity.',
-    ),
+    calls.includes('log:Runtime ready: immersion tracker startup requested.'),
   );
 });
 
@@ -101,6 +99,17 @@ test('runAppReadyRuntime starts texthooker on startup when enabled in config', a
   assert.ok(
     calls.indexOf('startTexthooker:5174:ws://127.0.0.1:6678') < calls.indexOf('handleInitialArgs'),
   );
+});
+
+test('runAppReadyRuntime creates immersion tracker during heavy startup', async () => {
+  const { deps, calls } = makeDeps({
+    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
+  });
+
+  await runAppReadyRuntime(deps);
+
+  assert.ok(calls.includes('createImmersionTracker'));
+  assert.ok(calls.indexOf('createImmersionTracker') < calls.indexOf('handleInitialArgs'));
 });
 
 test('runAppReadyRuntime keeps annotation websocket enabled when regular websocket auto-skips', async () => {

@@ -29,6 +29,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     triggerFieldGrouping: false,
     triggerSubsync: false,
     markAudioCard: false,
+    toggleStatsOverlay: false,
     refreshKnownWords: false,
     openRuntimeOptions: false,
     openJimaku: false,
@@ -38,6 +39,8 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     playNextSubtitle: false,
     shiftSubDelayPrevLine: false,
     shiftSubDelayNextLine: false,
+    cycleRuntimeOptionId: undefined,
+    cycleRuntimeOptionDirection: undefined,
     anilistStatus: false,
     anilistLogout: false,
     anilistSetup: false,
@@ -509,6 +512,7 @@ test('handleCliCommand handles visibility and utility command dispatches', () =>
       expected: 'startPendingMineSentenceMultiple:2500',
     },
     { args: { toggleSecondarySub: true }, expected: 'cycleSecondarySubMode' },
+    { args: { toggleStatsOverlay: true }, expected: 'dispatchSessionAction' },
     {
       args: { openRuntimeOptions: true },
       expected: 'openRuntimeOptionsPalette',
@@ -526,6 +530,33 @@ test('handleCliCommand handles visibility and utility command dispatches', () =>
       `expected call missing for args ${JSON.stringify(entry.args)}: ${entry.expected}`,
     );
   }
+});
+
+test('handleCliCommand dispatches cycle-runtime-option session action', async () => {
+  let request: unknown = null;
+  const { deps } = createDeps({
+    dispatchSessionAction: async (nextRequest) => {
+      request = nextRequest;
+    },
+  });
+
+  handleCliCommand(
+    makeArgs({
+      cycleRuntimeOptionId: 'anki.autoUpdateNewCards',
+      cycleRuntimeOptionDirection: -1,
+    }),
+    'initial',
+    deps,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(request, {
+    actionId: 'cycleRuntimeOption',
+    payload: {
+      runtimeOptionId: 'anki.autoUpdateNewCards',
+      direction: -1,
+    },
+  });
 });
 
 test('handleCliCommand logs AniList status details', () => {

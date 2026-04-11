@@ -161,6 +161,41 @@ test('createImmersionTrackerStartupHandler creates tracker and auto-connects mpv
   assert.ok(calls.includes('info:Auto-connecting MPV client for immersion tracking'));
 });
 
+test('createImmersionTrackerStartupHandler keeps tracker startup alive when mpv auto-connect throws', () => {
+  const calls: string[] = [];
+  const trackerInstance = { kind: 'tracker' };
+  let assignedTracker: unknown = null;
+  const handler = createImmersionTrackerStartupHandler({
+    getResolvedConfig: () => makeConfig(),
+    getConfiguredDbPath: () => '/tmp/subminer.db',
+    createTrackerService: () => trackerInstance,
+    setTracker: (nextTracker) => {
+      assignedTracker = nextTracker;
+    },
+    getMpvClient: () => ({
+      connected: false,
+      connect: () => {
+        throw new Error('socket not ready');
+      },
+    }),
+    seedTrackerFromCurrentMedia: () => calls.push('seedTracker'),
+    logInfo: (message) => calls.push(`info:${message}`),
+    logDebug: (message) => calls.push(`debug:${message}`),
+    logWarn: (message, details) => calls.push(`warn:${message}:${(details as Error).message}`),
+  });
+
+  handler();
+
+  assert.equal(assignedTracker, trackerInstance);
+  assert.ok(calls.includes('seedTracker'));
+  assert.ok(
+    calls.includes(
+      'warn:MPV auto-connect failed during immersion tracker startup; continuing.:socket not ready',
+    ),
+  );
+  assert.equal(calls.includes('warn:Immersion tracker startup failed; disabling tracking.'), false);
+});
+
 test('createImmersionTrackerStartupHandler disables tracker on failure', () => {
   const calls: string[] = [];
   let assignedTracker: unknown = 'initial';

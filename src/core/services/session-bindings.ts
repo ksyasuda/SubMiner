@@ -97,7 +97,26 @@ function normalizeCodeToken(token: string): string | null {
     /^arrow(?:up|down|left|right)$/i.test(normalized) ||
     /^f\d{1,2}$/i.test(normalized)
   ) {
-    return normalized[0]!.toUpperCase() + normalized.slice(1);
+    const keyMatch = normalized.match(/^key([a-z])$/i);
+    if (keyMatch) {
+      return `Key${keyMatch[1]!.toUpperCase()}`;
+    }
+
+    const digitMatch = normalized.match(/^digit([0-9])$/i);
+    if (digitMatch) {
+      return `Digit${digitMatch[1]}`;
+    }
+
+    const arrowMatch = normalized.match(/^arrow(up|down|left|right)$/i);
+    if (arrowMatch) {
+      const direction = arrowMatch[1]!;
+      return `Arrow${direction[0]!.toUpperCase()}${direction.slice(1).toLowerCase()}`;
+    }
+
+    const functionKeyMatch = normalized.match(/^f(\d{1,2})$/i);
+    if (functionKeyMatch) {
+      return `F${functionKeyMatch[1]}`;
+    }
   }
   return null;
 }

@@ -76,7 +76,16 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.triggerFieldGrouping ||
     args.triggerSubsync ||
     args.markAudioCard ||
+    args.toggleStatsOverlay ||
     args.openRuntimeOptions ||
+    args.openJimaku ||
+    args.openYoutubePicker ||
+    args.openPlaylistBrowser ||
+    args.replayCurrentSubtitle ||
+    args.playNextSubtitle ||
+    args.shiftSubDelayPrevLine ||
+    args.shiftSubDelayNextLine ||
+    args.cycleRuntimeOptionId !== undefined ||
     args.anilistStatus ||
     args.anilistLogout ||
     args.anilistSetup ||

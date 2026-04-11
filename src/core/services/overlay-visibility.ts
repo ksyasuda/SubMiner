@@ -92,6 +92,7 @@ export function updateVisibleOverlayVisibility(args: {
 
   const showPassiveVisibleOverlay = (): void => {
     const forceMousePassthrough = args.forceMousePassthrough === true;
+    const wasVisible = mainWindow.isVisible();
     const shouldDefaultToPassthrough =
       args.isMacOSPlatform || args.isWindowsPlatform || forceMousePassthrough;
     const isVisibleOverlayFocused =
@@ -116,8 +117,10 @@ export function updateVisibleOverlayVisibility(args: {
           windowsForegroundProcessName === windowsOverlayProcessName)) &&
       !isTrackedWindowsTargetMinimized &&
       (args.windowTracker.isTracking() || args.windowTracker.getGeometry() !== null);
+    const shouldForcePassiveReshow = args.isWindowsPlatform && !wasVisible;
     const shouldIgnoreMouseEvents =
-      forceMousePassthrough || (shouldDefaultToPassthrough && !isVisibleOverlayFocused);
+      forceMousePassthrough ||
+      (shouldDefaultToPassthrough && (!isVisibleOverlayFocused || shouldForcePassiveReshow));
     const shouldBindTrackedWindowsOverlay = args.isWindowsPlatform && !!args.windowTracker;
     const shouldKeepTrackedWindowsOverlayTopmost =
       !args.isWindowsPlatform ||
@@ -126,8 +129,6 @@ export function updateVisibleOverlayVisibility(args: {
       isTrackedWindowsTargetFocused ||
       shouldPreserveWindowsOverlayDuringFocusHandoff ||
       (hasWindowsForegroundProcessSignal && windowsForegroundProcessName === 'mpv');
-    const wasVisible = mainWindow.isVisible();
-
     if (shouldIgnoreMouseEvents) {
       mainWindow.setIgnoreMouseEvents(true, { forward: true });
     } else {

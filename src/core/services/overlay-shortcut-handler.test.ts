@@ -320,22 +320,7 @@ test('shouldActivateOverlayShortcuts preserves non-macOS behavior', () => {
 
 test('registerOverlayShortcutsRuntime reports active shortcuts when configured', () => {
   const result = registerOverlayShortcutsRuntime({
-    getConfiguredShortcuts: () =>
-      ({
-        toggleVisibleOverlayGlobal: null,
-        copySubtitle: null,
-        copySubtitleMultiple: null,
-        updateLastCardFromClipboard: null,
-        triggerFieldGrouping: null,
-        triggerSubsync: null,
-        mineSentence: null,
-        mineSentenceMultiple: null,
-        multiCopyTimeoutMs: 2500,
-        toggleSecondarySub: null,
-        markAudioCard: null,
-        openRuntimeOptions: null,
-        openJimaku: 'Ctrl+J',
-      }) as never,
+    getConfiguredShortcuts: () => makeShortcuts({ openJimaku: 'Ctrl+J' }),
     getOverlayHandlers: () => ({
       copySubtitle: () => {},
       copySubtitleMultiple: () => {},
@@ -359,22 +344,7 @@ test('registerOverlayShortcutsRuntime reports active shortcuts when configured',
 test('unregisterOverlayShortcutsRuntime clears pending shortcut work when active', () => {
   const calls: string[] = [];
   const result = unregisterOverlayShortcutsRuntime(true, {
-    getConfiguredShortcuts: () =>
-      ({
-        toggleVisibleOverlayGlobal: null,
-        copySubtitle: null,
-        copySubtitleMultiple: null,
-        updateLastCardFromClipboard: null,
-        triggerFieldGrouping: null,
-        triggerSubsync: null,
-        mineSentence: null,
-        mineSentenceMultiple: null,
-        multiCopyTimeoutMs: 2500,
-        toggleSecondarySub: null,
-        markAudioCard: null,
-        openRuntimeOptions: null,
-        openJimaku: null,
-      }) as never,
+    getConfiguredShortcuts: () => makeShortcuts(),
     getOverlayHandlers: () => ({
       copySubtitle: () => {},
       copySubtitleMultiple: () => {},

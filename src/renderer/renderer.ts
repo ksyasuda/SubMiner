@@ -432,15 +432,9 @@ registerRendererGlobalErrorHandlers(window, recovery);
 
 function registerModalOpenHandlers(): void {
   window.electronAPI.onOpenRuntimeOptions(() => {
-    runGuardedAsync('runtime-options:open', async () => {
-      try {
-        await runtimeOptionsModal.openRuntimeOptionsModal();
-        window.electronAPI.notifyOverlayModalOpened('runtime-options');
-      } catch {
-        runtimeOptionsModal.setRuntimeOptionsStatus('Failed to load runtime options', true);
-        window.electronAPI.notifyOverlayModalClosed('runtime-options');
-        syncSettingsModalSubtitleSuppression();
-      }
+    runGuarded('runtime-options:open', () => {
+      runtimeOptionsModal.openRuntimeOptionsModal();
+      window.electronAPI.notifyOverlayModalOpened('runtime-options');
     });
   });
   window.electronAPI.onOpenJimaku(() => {

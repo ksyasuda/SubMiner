@@ -24,6 +24,7 @@ export interface CliArgs {
   triggerFieldGrouping: boolean;
   triggerSubsync: boolean;
   markAudioCard: boolean;
+  toggleStatsOverlay: boolean;
   openRuntimeOptions: boolean;
   openJimaku: boolean;
   openYoutubePicker: boolean;
@@ -32,6 +33,8 @@ export interface CliArgs {
   playNextSubtitle: boolean;
   shiftSubDelayPrevLine: boolean;
   shiftSubDelayNextLine: boolean;
+  cycleRuntimeOptionId?: string;
+  cycleRuntimeOptionDirection?: 1 | -1;
   copySubtitleCount?: number;
   mineSentenceCount?: number;
   anilistStatus: boolean;
@@ -111,6 +114,7 @@ export function parseArgs(argv: string[]): CliArgs {
     triggerFieldGrouping: false,
     triggerSubsync: false,
     markAudioCard: false,
+    toggleStatsOverlay: false,
     openRuntimeOptions: false,
     openJimaku: false,
     openYoutubePicker: false,
@@ -154,6 +158,24 @@ export function parseArgs(argv: string[]): CliArgs {
     return value;
   };
 
+  const parseCycleRuntimeOption = (
+    value: string | undefined,
+  ): { id: string; direction: 1 | -1 } | null => {
+    if (!value) return null;
+    const separatorIndex = value.lastIndexOf(':');
+    if (separatorIndex <= 0 || separatorIndex === value.length - 1) return null;
+    const id = value.slice(0, separatorIndex).trim();
+    const rawDirection = value.slice(separatorIndex + 1).trim().toLowerCase();
+    if (!id) return null;
+    if (rawDirection === 'next' || rawDirection === '1') {
+      return { id, direction: 1 };
+    }
+    if (rawDirection === 'prev' || rawDirection === '-1') {
+      return { id, direction: -1 };
+    }
+    return null;
+  };
+
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (!arg || !arg.startsWith('--')) continue;
@@ -195,6 +217,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--trigger-field-grouping') args.triggerFieldGrouping = true;
     else if (arg === '--trigger-subsync') args.triggerSubsync = true;
     else if (arg === '--mark-audio-card') args.markAudioCard = true;
+    else if (arg === '--toggle-stats-overlay') args.toggleStatsOverlay = true;
     else if (arg === '--open-runtime-options') args.openRuntimeOptions = true;
     else if (arg === '--open-jimaku') args.openJimaku = true;
     else if (arg === '--open-youtube-picker') args.openYoutubePicker = true;
@@ -203,6 +226,19 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--play-next-subtitle') args.playNextSubtitle = true;
     else if (arg === '--shift-sub-delay-prev-line') args.shiftSubDelayPrevLine = true;
     else if (arg === '--shift-sub-delay-next-line') args.shiftSubDelayNextLine = true;
+    else if (arg.startsWith('--cycle-runtime-option=')) {
+      const parsed = parseCycleRuntimeOption(arg.split('=', 2)[1]);
+      if (parsed) {
+        args.cycleRuntimeOptionId = parsed.id;
+        args.cycleRuntimeOptionDirection = parsed.direction;
+      }
+    } else if (arg === '--cycle-runtime-option') {
+      const parsed = parseCycleRuntimeOption(readValue(argv[i + 1]));
+      if (parsed) {
+        args.cycleRuntimeOptionId = parsed.id;
+        args.cycleRuntimeOptionDirection = parsed.direction;
+      }
+    }
     else if (arg.startsWith('--copy-subtitle-count=')) {
       const value = Number(arg.split('=', 2)[1]);
       if (Number.isInteger(value)) args.copySubtitleCount = value;
@@ -407,6 +443,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.triggerFieldGrouping ||
     args.triggerSubsync ||
     args.markAudioCard ||
+    args.toggleStatsOverlay ||
     args.openRuntimeOptions ||
     args.openJimaku ||
     args.openYoutubePicker ||
@@ -415,6 +452,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.playNextSubtitle ||
     args.shiftSubDelayPrevLine ||
     args.shiftSubDelayNextLine ||
+    args.cycleRuntimeOptionId !== undefined ||
     args.copySubtitleCount !== undefined ||
     args.mineSentenceCount !== undefined ||
     args.anilistStatus ||
@@ -468,6 +506,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.triggerFieldGrouping &&
     !args.triggerSubsync &&
     !args.markAudioCard &&
+    !args.toggleStatsOverlay &&
     !args.openRuntimeOptions &&
     !args.openJimaku &&
     !args.openYoutubePicker &&
@@ -476,6 +515,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.playNextSubtitle &&
     !args.shiftSubDelayPrevLine &&
     !args.shiftSubDelayNextLine &&
+    args.cycleRuntimeOptionId === undefined &&
     args.copySubtitleCount === undefined &&
     args.mineSentenceCount === undefined &&
     !args.anilistStatus &&
@@ -520,6 +560,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.triggerFieldGrouping ||
     args.triggerSubsync ||
     args.markAudioCard ||
+    args.toggleStatsOverlay ||
     args.openRuntimeOptions ||
     args.openJimaku ||
     args.openYoutubePicker ||
@@ -528,6 +569,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.playNextSubtitle ||
     args.shiftSubDelayPrevLine ||
     args.shiftSubDelayNextLine ||
+    args.cycleRuntimeOptionId !== undefined ||
     args.copySubtitleCount !== undefined ||
     args.mineSentenceCount !== undefined ||
     args.dictionary ||
@@ -567,6 +609,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.triggerFieldGrouping &&
     !args.triggerSubsync &&
     !args.markAudioCard &&
+    !args.toggleStatsOverlay &&
     !args.openRuntimeOptions &&
     !args.openJimaku &&
     !args.openYoutubePicker &&
@@ -575,6 +618,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.playNextSubtitle &&
     !args.shiftSubDelayPrevLine &&
     !args.shiftSubDelayNextLine &&
+    args.cycleRuntimeOptionId === undefined &&
     args.copySubtitleCount === undefined &&
     args.mineSentenceCount === undefined &&
     !args.anilistStatus &&
@@ -627,6 +671,7 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.playNextSubtitle ||
     args.shiftSubDelayPrevLine ||
     args.shiftSubDelayNextLine ||
+    args.cycleRuntimeOptionId !== undefined ||
     args.copySubtitleCount !== undefined ||
     args.mineSentenceCount !== undefined
   );

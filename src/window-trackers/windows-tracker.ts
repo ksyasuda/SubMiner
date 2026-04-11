@@ -147,7 +147,7 @@ export class WindowsWindowTracker extends BaseWindowTracker {
     const focusedMatch = result.matches.find((m) => m.isForeground);
     const best =
       focusedMatch ??
-      result.matches.sort((a, b) => b.area - a.area || b.bounds.width - a.bounds.width)[0]!;
+      [...result.matches].sort((a, b) => b.area - a.area || b.bounds.width - a.bounds.width)[0]!;
 
     return {
       geometry: best.bounds,
