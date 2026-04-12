@@ -415,7 +415,10 @@ import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
-import { buildPluginSessionBindingsArtifact, compileSessionBindings } from './core/services/session-bindings';
+import {
+  buildPluginSessionBindingsArtifact,
+  compileSessionBindings,
+} from './core/services/session-bindings';
 import { dispatchSessionAction as dispatchSessionActionCore } from './core/services/session-actions';
 import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/domains/shortcuts';
 import { createMainRuntimeRegistry } from './main/runtime/registry';
@@ -1933,9 +1936,7 @@ function getWindowsNativeWindowHandle(window: BrowserWindow): string {
 
 function getWindowsNativeWindowHandleNumber(window: BrowserWindow): number {
   const handle = window.getNativeWindowHandle();
-  return handle.length >= 8
-    ? Number(handle.readBigUInt64LE(0))
-    : handle.readUInt32LE(0);
+  return handle.length >= 8 ? Number(handle.readBigUInt64LE(0)) : handle.readUInt32LE(0);
 }
 
 function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | null): number | null {
@@ -1945,11 +1946,9 @@ function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | nu
 
   try {
     if (targetMpvSocketPath) {
-      const windowTracker = appState.windowTracker as
-        | {
-            getTargetWindowHandle?: () => number | null;
-          }
-        | null;
+      const windowTracker = appState.windowTracker as {
+        getTargetWindowHandle?: () => number | null;
+      } | null;
       const trackedHandle = windowTracker?.getTargetWindowHandle?.();
       if (typeof trackedHandle === 'number' && Number.isFinite(trackedHandle)) {
         return trackedHandle;
@@ -2255,14 +2254,16 @@ function openOverlayHostedModalWithOsd(
   unavailableMessage: string,
   failureLogMessage: string,
 ): void {
-  void openModal(createOverlayHostedModalOpenDeps()).then((opened) => {
-    if (!opened) {
+  void openModal(createOverlayHostedModalOpenDeps())
+    .then((opened) => {
+      if (!opened) {
+        showMpvOsd(unavailableMessage);
+      }
+    })
+    .catch((error) => {
+      logger.error(failureLogMessage, error);
       showMpvOsd(unavailableMessage);
-    }
-  }).catch((error) => {
-    logger.error(failureLogMessage, error);
-    showMpvOsd(unavailableMessage);
-  });
+    });
 }
 
 function openRuntimeOptionsPalette(): void {
@@ -4932,7 +4933,8 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
     stopApp: () => requestAppQuit(),
     hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
-    dispatchSessionAction: (request: SessionActionDispatchRequest) => dispatchSessionAction(request),
+    dispatchSessionAction: (request: SessionActionDispatchRequest) =>
+      dispatchSessionAction(request),
     getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
     schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
     logInfo: (message: string) => logger.info(message),
@@ -5200,14 +5202,18 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
         if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
         const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
         const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(appState.mpvSocketPath);
-        if (targetWindowHwnd !== null && bindWindowsOverlayAboveMpv(overlayHwnd, targetWindowHwnd)) {
+        if (
+          targetWindowHwnd !== null &&
+          bindWindowsOverlayAboveMpv(overlayHwnd, targetWindowHwnd)
+        ) {
           return;
         }
         const tracker = appState.windowTracker;
         const mpvResult = tracker
           ? (() => {
               try {
-                const win32 = require('./window-trackers/win32') as typeof import('./window-trackers/win32');
+                const win32 =
+                  require('./window-trackers/win32') as typeof import('./window-trackers/win32');
                 const poll = win32.findMpvWindows();
                 const focused = poll.matches.find((m) => m.isForeground);
                 return focused ?? [...poll.matches].sort((a, b) => b.area - a.area)[0] ?? null;

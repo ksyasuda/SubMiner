@@ -430,6 +430,21 @@ export function writeChangelogArtifacts(options?: ChangelogOptions): {
   };
 }
 
+export function writeStableReleaseArtifacts(options?: ChangelogOptions): {
+  deletedFragmentPaths: string[];
+  docsChangelogPath: string;
+  outputPaths: string[];
+  releaseNotesPath: string;
+} {
+  const changelogResult = writeChangelogArtifacts(options);
+  const docsChangelogPath = generateDocsChangelog(options);
+
+  return {
+    ...changelogResult,
+    docsChangelogPath,
+  };
+}
+
 export function verifyChangelogFragments(options?: ChangelogOptions): void {
   readChangeFragments(options?.cwd ?? process.cwd(), options?.deps);
 }
@@ -723,6 +738,11 @@ function main(): void {
 
   if (command === 'build') {
     writeChangelogArtifacts(options);
+    return;
+  }
+
+  if (command === 'build-release') {
+    writeStableReleaseArtifacts(options);
     return;
   }
 

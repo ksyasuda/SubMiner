@@ -16,7 +16,8 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     unregisterAllGlobalShortcuts: () => calls.push('unregister-shortcuts'),
     stopSubtitleWebsocket: () => calls.push('stop-ws'),
     stopTexthookerService: () => calls.push('stop-texthooker'),
-    clearWindowsVisibleOverlayForegroundPollLoop: () => calls.push('clear-windows-visible-overlay-poll'),
+    clearWindowsVisibleOverlayForegroundPollLoop: () =>
+      calls.push('clear-windows-visible-overlay-poll'),
     destroyMainOverlayWindow: () => calls.push('destroy-main-overlay-window'),
     destroyModalOverlayWindow: () => calls.push('destroy-modal-overlay-window'),
     destroyYomitanParserWindow: () => calls.push('destroy-yomitan-window'),

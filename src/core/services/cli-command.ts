@@ -277,12 +277,7 @@ export function handleCliCommand(
     logLabel: string,
     osdLabel: string,
   ): void => {
-    runAsyncWithOsd(
-      () => deps.dispatchSessionAction(request),
-      deps,
-      logLabel,
-      osdLabel,
-    );
+    runAsyncWithOsd(() => deps.dispatchSessionAction(request), deps, logLabel, osdLabel);
   };
 
   if (args.logLevel) {

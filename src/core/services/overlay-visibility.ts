@@ -158,18 +158,24 @@ export function updateVisibleOverlayVisibility(args: {
         setOverlayWindowOpacity(mainWindow, 0);
         mainWindow.showInactive();
         mainWindow.setIgnoreMouseEvents(true, { forward: true });
-        scheduleWindowsOverlayReveal(mainWindow, shouldBindTrackedWindowsOverlay
-          ? (window) => args.syncWindowsOverlayToMpvZOrder?.(window)
-          : undefined);
+        scheduleWindowsOverlayReveal(
+          mainWindow,
+          shouldBindTrackedWindowsOverlay
+            ? (window) => args.syncWindowsOverlayToMpvZOrder?.(window)
+            : undefined,
+        );
       } else {
         if (args.isWindowsPlatform) {
           setOverlayWindowOpacity(mainWindow, 0);
         }
         mainWindow.show();
         if (args.isWindowsPlatform) {
-          scheduleWindowsOverlayReveal(mainWindow, shouldBindTrackedWindowsOverlay
-            ? (window) => args.syncWindowsOverlayToMpvZOrder?.(window)
-            : undefined);
+          scheduleWindowsOverlayReveal(
+            mainWindow,
+            shouldBindTrackedWindowsOverlay
+              ? (window) => args.syncWindowsOverlayToMpvZOrder?.(window)
+              : undefined,
+          );
         }
       }
     }

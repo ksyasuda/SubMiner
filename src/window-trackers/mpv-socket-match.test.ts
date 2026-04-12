@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterMpvPollResultBySocketPath, matchesMpvSocketPathInCommandLine } from './mpv-socket-match';
+import {
+  filterMpvPollResultBySocketPath,
+  matchesMpvSocketPathInCommandLine,
+} from './mpv-socket-match';
 import type { MpvPollResult } from './win32';
 
 function createPollResult(commandLines: Array<string | null>): MpvPollResult {
@@ -51,7 +54,10 @@ test('filterMpvPollResultBySocketPath keeps only matches for the requested socke
     '\\\\.\\pipe\\subminer-b',
   );
 
-  assert.deepEqual(result.matches.map((match) => match.hwnd), [2]);
+  assert.deepEqual(
+    result.matches.map((match) => match.hwnd),
+    [2],
+  );
   assert.equal(result.windowState, 'visible');
 });
 

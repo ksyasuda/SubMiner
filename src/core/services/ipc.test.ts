@@ -886,29 +886,47 @@ test('registerIpcHandlers validates dispatchSessionAction payloads', async () =>
     await dispatchHandler!({}, { actionId: 'unknown-action' });
   }, /Invalid session action payload/);
 
-  await dispatchHandler!({}, {
-    actionId: 'copySubtitleMultiple',
-    payload: { count: 3 },
-  });
-  await dispatchHandler!({}, {
-    actionId: 'cycleRuntimeOption',
-    payload: {
-      runtimeOptionId: 'anki.autoUpdateNewCards',
-      direction: -1,
+  await dispatchHandler!(
+    {},
+    {
+      actionId: 'copySubtitleMultiple',
+      payload: { count: 3 },
     },
-  });
-  await dispatchHandler!({}, {
-    actionId: 'toggleSubtitleSidebar',
-  });
-  await dispatchHandler!({}, {
-    actionId: 'openSessionHelp',
-  });
-  await dispatchHandler!({}, {
-    actionId: 'openControllerSelect',
-  });
-  await dispatchHandler!({}, {
-    actionId: 'openControllerDebug',
-  });
+  );
+  await dispatchHandler!(
+    {},
+    {
+      actionId: 'cycleRuntimeOption',
+      payload: {
+        runtimeOptionId: 'anki.autoUpdateNewCards',
+        direction: -1,
+      },
+    },
+  );
+  await dispatchHandler!(
+    {},
+    {
+      actionId: 'toggleSubtitleSidebar',
+    },
+  );
+  await dispatchHandler!(
+    {},
+    {
+      actionId: 'openSessionHelp',
+    },
+  );
+  await dispatchHandler!(
+    {},
+    {
+      actionId: 'openControllerSelect',
+    },
+  );
+  await dispatchHandler!(
+    {},
+    {
+      actionId: 'openControllerDebug',
+    },
+  );
 
   assert.deepEqual(dispatched, [
     {

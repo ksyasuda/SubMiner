@@ -45,11 +45,7 @@ export function buildConfigHotReloadPayload(config: ResolvedConfig): ConfigHotRe
     shortcuts: resolveConfiguredShortcuts(config, DEFAULT_CONFIG),
     statsToggleKey: config.stats.toggleKey,
     platform:
-      process.platform === 'darwin'
-        ? 'darwin'
-        : process.platform === 'win32'
-          ? 'win32'
-          : 'linux',
+      process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux',
     rawConfig: config,
   });
   return {

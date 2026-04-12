@@ -75,9 +75,7 @@ test('runAppReadyRuntime starts websocket in auto mode when plugin missing', asy
     calls.indexOf('setVisibleOverlayVisible:true') < calls.indexOf('initializeOverlayRuntime'),
   );
   assert.ok(calls.includes('startBackgroundWarmups'));
-  assert.ok(
-    calls.includes('log:Runtime ready: immersion tracker startup requested.'),
-  );
+  assert.ok(calls.includes('log:Runtime ready: immersion tracker startup requested.'));
 });
 
 test('runAppReadyRuntime starts texthooker on startup when enabled in config', async () => {

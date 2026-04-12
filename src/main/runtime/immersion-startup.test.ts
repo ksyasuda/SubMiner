@@ -194,7 +194,9 @@ test('createImmersionTrackerStartupHandler keeps tracker startup alive when mpv 
     ),
   );
   assert.equal(
-    calls.some((entry) => entry.startsWith('warn:Immersion tracker startup failed; disabling tracking.')),
+    calls.some((entry) =>
+      entry.startsWith('warn:Immersion tracker startup failed; disabling tracking.'),
+    ),
     false,
   );
 });

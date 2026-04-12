@@ -39,12 +39,10 @@ export function createKeyboardHandlers(
   let pendingLookupRefreshAfterSubtitleSeek = false;
   let resetSelectionToStartOnNextSubtitleSync = false;
   let lookupScanFallbackTimer: ReturnType<typeof setTimeout> | null = null;
-  let pendingNumericSelection:
-    | {
-        actionId: 'copySubtitleMultiple' | 'mineSentenceMultiple';
-        timeout: ReturnType<typeof setTimeout> | null;
-      }
-    | null = null;
+  let pendingNumericSelection: {
+    actionId: 'copySubtitleMultiple' | 'mineSentenceMultiple';
+    timeout: ReturnType<typeof setTimeout> | null;
+  } | null = null;
 
   const CHORD_MAP = new Map<
     string,

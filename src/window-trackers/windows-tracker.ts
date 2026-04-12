@@ -55,7 +55,8 @@ export class WindowsWindowTracker extends BaseWindowTracker {
   constructor(_targetMpvSocketPath?: string, deps: WindowsTrackerDeps = {}) {
     super();
     this.targetMpvSocketPath = _targetMpvSocketPath?.trim() || null;
-    this.pollMpvWindows = deps.pollMpvWindows ?? (() => defaultPollMpvWindows(this.targetMpvSocketPath));
+    this.pollMpvWindows =
+      deps.pollMpvWindows ?? (() => defaultPollMpvWindows(this.targetMpvSocketPath));
     this.maxConsecutiveMisses = Math.max(1, Math.floor(deps.maxConsecutiveMisses ?? 2));
     this.trackingLossGraceMs = Math.max(0, Math.floor(deps.trackingLossGraceMs ?? 1_500));
     this.minimizedTrackingLossGraceMs = Math.max(

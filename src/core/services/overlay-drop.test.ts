@@ -45,11 +45,7 @@ test('collectDroppedVideoPaths parses text/uri-list entries and de-duplicates', 
 
 test('collectDroppedSubtitlePaths keeps supported dropped subtitle paths in order', () => {
   const transfer = makeTransfer({
-    files: [
-      { path: '/subs/ep02.ass' },
-      { path: '/subs/readme.txt' },
-      { path: '/subs/ep03.SRT' },
-    ],
+    files: [{ path: '/subs/ep02.ass' }, { path: '/subs/readme.txt' }, { path: '/subs/ep03.SRT' }],
   });
 
   const result = collectDroppedSubtitlePaths(transfer);

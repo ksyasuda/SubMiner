@@ -105,7 +105,10 @@ export function createImmersionTrackerStartupHandler(
         try {
           mpvClient.connect();
         } catch (error) {
-          deps.logWarn('MPV auto-connect failed during immersion tracker startup; continuing.', error);
+          deps.logWarn(
+            'MPV auto-connect failed during immersion tracker startup; continuing.',
+            error,
+          );
         }
       }
       deps.seedTrackerFromCurrentMedia();

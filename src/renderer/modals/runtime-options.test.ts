@@ -168,48 +168,54 @@ function withRuntimeOptionsModal(
 test('openRuntimeOptionsModal shows loading shell before runtime options resolve', async () => {
   const deferred = createDeferred<RuntimeOptionState[]>();
 
-  await withRuntimeOptionsModal(() => deferred.promise, async (input) => {
-    input.modal.openRuntimeOptionsModal();
+  await withRuntimeOptionsModal(
+    () => deferred.promise,
+    async (input) => {
+      input.modal.openRuntimeOptionsModal();
 
-    assert.equal(input.state.runtimeOptionsModalOpen, true);
-    assert.equal(input.overlayClassList.contains('interactive'), true);
-    assert.equal(input.modalClassList.contains('hidden'), false);
-    assert.equal(input.statusNode.textContent, 'Loading runtime options...');
-    assert.deepEqual(input.syncCalls, ['sync']);
+      assert.equal(input.state.runtimeOptionsModalOpen, true);
+      assert.equal(input.overlayClassList.contains('interactive'), true);
+      assert.equal(input.modalClassList.contains('hidden'), false);
+      assert.equal(input.statusNode.textContent, 'Loading runtime options...');
+      assert.deepEqual(input.syncCalls, ['sync']);
 
-    deferred.resolve([
-      {
-        id: 'anki.autoUpdateNewCards',
-        label: 'Auto-update new cards',
-        scope: 'ankiConnect',
-        valueType: 'boolean',
-        value: true,
-        allowedValues: [true, false],
-        requiresRestart: false,
-      },
-    ]);
-    await flushAsyncWork();
+      deferred.resolve([
+        {
+          id: 'anki.autoUpdateNewCards',
+          label: 'Auto-update new cards',
+          scope: 'ankiConnect',
+          valueType: 'boolean',
+          value: true,
+          allowedValues: [true, false],
+          requiresRestart: false,
+        },
+      ]);
+      await flushAsyncWork();
 
-    assert.equal(
-      input.statusNode.textContent,
-      'Use arrow keys. Click value to cycle. Enter or double-click to apply.',
-    );
-    assert.equal(input.statusNode.classList.contains('error'), false);
-  });
+      assert.equal(
+        input.statusNode.textContent,
+        'Use arrow keys. Click value to cycle. Enter or double-click to apply.',
+      );
+      assert.equal(input.statusNode.classList.contains('error'), false);
+    },
+  );
 });
 
 test('openRuntimeOptionsModal keeps modal visible when loading fails', async () => {
   const deferred = createDeferred<RuntimeOptionState[]>();
 
-  await withRuntimeOptionsModal(() => deferred.promise, async (input) => {
-    input.modal.openRuntimeOptionsModal();
-    deferred.reject(new Error('boom'));
-    await flushAsyncWork();
+  await withRuntimeOptionsModal(
+    () => deferred.promise,
+    async (input) => {
+      input.modal.openRuntimeOptionsModal();
+      deferred.reject(new Error('boom'));
+      await flushAsyncWork();
 
-    assert.equal(input.state.runtimeOptionsModalOpen, true);
-    assert.equal(input.overlayClassList.contains('interactive'), true);
-    assert.equal(input.modalClassList.contains('hidden'), false);
-    assert.equal(input.statusNode.textContent, 'Failed to load runtime options');
-    assert.equal(input.statusNode.classList.contains('error'), true);
-  });
+      assert.equal(input.state.runtimeOptionsModalOpen, true);
+      assert.equal(input.overlayClassList.contains('interactive'), true);
+      assert.equal(input.modalClassList.contains('hidden'), false);
+      assert.equal(input.statusNode.textContent, 'Failed to load runtime options');
+      assert.equal(input.statusNode.classList.contains('error'), true);
+    },
+  );
 });

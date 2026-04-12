@@ -54,9 +54,7 @@ test('compileSessionBindings merges shortcuts and keybindings into one canonical
       code: binding.key.code,
       modifiers: binding.key.modifiers,
       target:
-        binding.actionType === 'session-action'
-          ? binding.actionId
-          : binding.command.join(' '),
+        binding.actionType === 'session-action' ? binding.actionId : binding.command.join(' '),
     })),
     [
       {
@@ -191,9 +189,10 @@ test('compileSessionBindings omits disabled bindings', () => {
   });
 
   assert.equal(result.warnings.length, 0);
-  assert.deepEqual(result.bindings.map((binding) => binding.sourcePath), [
-    'shortcuts.toggleVisibleOverlayGlobal',
-  ]);
+  assert.deepEqual(
+    result.bindings.map((binding) => binding.sourcePath),
+    ['shortcuts.toggleVisibleOverlayGlobal'],
+  );
 });
 
 test('compileSessionBindings warns on unsupported shortcut and keybinding syntax', () => {
@@ -222,12 +221,16 @@ test('compileSessionBindings rejects malformed command arrays', () => {
     platform: 'linux',
   });
 
-  assert.deepEqual(result.bindings.map((binding) => binding.sourcePath), ['keybindings[0].key']);
+  assert.deepEqual(
+    result.bindings.map((binding) => binding.sourcePath),
+    ['keybindings[0].key'],
+  );
   assert.equal(result.bindings[0]?.actionType, 'mpv-command');
   assert.deepEqual(result.bindings[0]?.command, ['show-text', 3000]);
-  assert.deepEqual(result.warnings.map((warning) => `${warning.kind}:${warning.path}`), [
-    'unsupported:keybindings[1].command',
-  ]);
+  assert.deepEqual(
+    result.warnings.map((warning) => `${warning.kind}:${warning.path}`),
+    ['unsupported:keybindings[1].command'],
+  );
 });
 
 test('compileSessionBindings rejects non-string command heads and extra args on special commands', () => {
@@ -241,10 +244,10 @@ test('compileSessionBindings rejects non-string command heads and extra args on 
   });
 
   assert.deepEqual(result.bindings, []);
-  assert.deepEqual(result.warnings.map((warning) => `${warning.kind}:${warning.path}`), [
-    'unsupported:keybindings[0].command',
-    'unsupported:keybindings[1].command',
-  ]);
+  assert.deepEqual(
+    result.warnings.map((warning) => `${warning.kind}:${warning.path}`),
+    ['unsupported:keybindings[0].command', 'unsupported:keybindings[1].command'],
+  );
 });
 
 test('compileSessionBindings points unsupported command warnings at the command field', () => {
@@ -255,9 +258,10 @@ test('compileSessionBindings points unsupported command warnings at the command 
   });
 
   assert.deepEqual(result.bindings, []);
-  assert.deepEqual(result.warnings.map((warning) => `${warning.kind}:${warning.path}`), [
-    'unsupported:keybindings[0].command',
-  ]);
+  assert.deepEqual(
+    result.warnings.map((warning) => `${warning.kind}:${warning.path}`),
+    ['unsupported:keybindings[0].command'],
+  );
 });
 
 test('compileSessionBindings warns on deprecated toggleVisibleOverlayGlobal config', () => {

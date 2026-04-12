@@ -414,8 +414,7 @@ function buildLibrarySummary(
       cards: acc.cards,
       words: acc.words,
       lookups: acc.lookups,
-      lookupsPerHundred:
-        acc.words > 0 ? +((acc.lookups / acc.words) * 100).toFixed(1) : null,
+      lookupsPerHundred: acc.words > 0 ? +((acc.lookups / acc.words) * 100).toFixed(1) : null,
       firstWatched: acc.firstWatched,
       lastWatched: acc.lastWatched,
     });

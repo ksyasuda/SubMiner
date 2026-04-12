@@ -132,7 +132,10 @@ export function createMainBootServices<
   TSubtitleWebSocket,
   TLogger,
   TRuntimeRegistry,
-  TOverlayManager extends { getMainWindow: () => BrowserWindow | null; getModalWindow: () => BrowserWindow | null },
+  TOverlayManager extends {
+    getMainWindow: () => BrowserWindow | null;
+    getModalWindow: () => BrowserWindow | null;
+  },
   TOverlayModalInputState extends OverlayModalInputStateShape,
   TOverlayContentMeasurementStore,
   TOverlayModalRuntime,

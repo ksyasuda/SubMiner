@@ -130,7 +130,8 @@ test('visible yomitan popup host keeps overlay interactive even when cached popu
     },
     document: {
       querySelectorAll: (selector: string) =>
-        selector === '[data-subminer-yomitan-popup-host="true"][data-subminer-yomitan-popup-visible="true"]'
+        selector ===
+        '[data-subminer-yomitan-popup-host="true"][data-subminer-yomitan-popup-visible="true"]'
           ? [{ getAttribute: () => 'true' }]
           : [],
     },

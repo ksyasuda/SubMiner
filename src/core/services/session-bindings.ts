@@ -342,9 +342,7 @@ function getBindingFingerprint(binding: CompiledSessionBinding): string {
   return `session:${binding.actionId}:${JSON.stringify(binding.payload ?? null)}`;
 }
 
-export function compileSessionBindings(
-  input: CompileSessionBindingsInput,
-): {
+export function compileSessionBindings(input: CompileSessionBindingsInput): {
   bindings: CompiledSessionBinding[];
   warnings: SessionBindingWarning[];
 } {

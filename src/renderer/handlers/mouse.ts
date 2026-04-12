@@ -73,11 +73,13 @@ export function createMouseHandlers(
     syncOverlayMouseIgnoreState(ctx);
   }
 
-  function reconcilePopupInteraction(args: {
-    assumeVisible?: boolean;
-    reclaimFocus?: boolean;
-    allowPause?: boolean;
-  } = {}): boolean {
+  function reconcilePopupInteraction(
+    args: {
+      assumeVisible?: boolean;
+      reclaimFocus?: boolean;
+      allowPause?: boolean;
+    } = {},
+  ): boolean {
     const popupVisible = syncPopupVisibilityState(args.assumeVisible === true);
     if (!popupVisible) {
       syncOverlayMouseIgnoreState(ctx);

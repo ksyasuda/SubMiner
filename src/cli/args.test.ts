@@ -107,11 +107,7 @@ test('parseArgs captures session action forwarding flags', () => {
 });
 
 test('parseArgs ignores non-positive numeric session action counts', () => {
-  const args = parseArgs([
-    '--copy-subtitle-count=0',
-    '--mine-sentence-count',
-    '-1',
-  ]);
+  const args = parseArgs(['--copy-subtitle-count=0', '--mine-sentence-count', '-1']);
 
   assert.equal(args.copySubtitleCount, undefined);
   assert.equal(args.mineSentenceCount, undefined);
@@ -221,10 +217,7 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(hasExplicitCommand(toggleStatsOverlay), true);
   assert.equal(shouldStartApp(toggleStatsOverlay), true);
 
-  const cycleRuntimeOption = parseArgs([
-    '--cycle-runtime-option',
-    'anki.autoUpdateNewCards:next',
-  ]);
+  const cycleRuntimeOption = parseArgs(['--cycle-runtime-option', 'anki.autoUpdateNewCards:next']);
   assert.equal(cycleRuntimeOption.cycleRuntimeOptionId, 'anki.autoUpdateNewCards');
   assert.equal(cycleRuntimeOption.cycleRuntimeOptionDirection, 1);
   assert.equal(hasExplicitCommand(cycleRuntimeOption), true);

@@ -1063,7 +1063,9 @@ test('session binding: Ctrl+Alt+S dispatches subsync action locally', async () =
 
     testGlobals.dispatchKeydown({ key: 's', code: 'KeyS', ctrlKey: true, altKey: true });
 
-    assert.deepEqual(testGlobals.sessionActions, [{ actionId: 'triggerSubsync', payload: undefined }]);
+    assert.deepEqual(testGlobals.sessionActions, [
+      { actionId: 'triggerSubsync', payload: undefined },
+    ]);
   } finally {
     testGlobals.restore();
   }

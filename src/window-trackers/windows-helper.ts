@@ -26,7 +26,8 @@ export function findWindowsMpvTargetWindowHandle(result?: MpvPollResult): number
   const poll = result ?? loadWin32().findMpvWindows();
   const focused = poll.matches.find((match) => match.isForeground);
   const best =
-    focused ?? [...poll.matches].sort((a, b) => b.area - a.area || b.bounds.width - a.bounds.width)[0];
+    focused ??
+    [...poll.matches].sort((a, b) => b.area - a.area || b.bounds.width - a.bounds.width)[0];
   return best?.hwnd ?? null;
 }
 

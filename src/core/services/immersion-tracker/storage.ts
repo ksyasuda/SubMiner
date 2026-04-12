@@ -171,10 +171,12 @@ function hasColumn(db: DatabaseSync, tableName: string, columnName: string): boo
 }
 
 function getColumnType(db: DatabaseSync, tableName: string, columnName: string): string | null {
-  const row = (db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{
-    name: string;
-    type: string;
-  }>).find((entry) => entry.name === columnName);
+  const row = (
+    db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{
+      name: string;
+      type: string;
+    }>
+  ).find((entry) => entry.name === columnName);
   return row?.type ?? null;
 }
 

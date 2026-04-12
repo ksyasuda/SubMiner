@@ -94,10 +94,7 @@ test('shouldAutoOpenFirstRunSetup only for startup/setup intents', () => {
 });
 
 test('shouldAutoOpenFirstRunSetup treats numeric startup counts as explicit commands', () => {
-  assert.equal(
-    shouldAutoOpenFirstRunSetup(makeArgs({ start: true, copySubtitleCount: 2 })),
-    false,
-  );
+  assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, copySubtitleCount: 2 })), false);
   assert.equal(
     shouldAutoOpenFirstRunSetup(makeArgs({ background: true, mineSentenceCount: 1 })),
     false,

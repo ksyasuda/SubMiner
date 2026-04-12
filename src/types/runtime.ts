@@ -364,7 +364,10 @@ export interface ElectronAPI {
   getKeybindings: () => Promise<Keybinding[]>;
   getSessionBindings: () => Promise<CompiledSessionBinding[]>;
   getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
-  dispatchSessionAction: (actionId: SessionActionId, payload?: SessionActionPayload) => Promise<void>;
+  dispatchSessionAction: (
+    actionId: SessionActionId,
+    payload?: SessionActionPayload,
+  ) => Promise<void>;
   getStatsToggleKey: () => Promise<string>;
   getMarkWatchedKey: () => Promise<string>;
   markActiveVideoWatched: () => Promise<boolean>;

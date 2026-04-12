@@ -256,7 +256,9 @@ export function parseSessionActionDispatchRequest(
 
   const payload = parseSessionActionPayload(value.actionId, value.payload);
   if (payload === null) return null;
-  return payload === undefined ? { actionId: value.actionId } : { actionId: value.actionId, payload };
+  return payload === undefined
+    ? { actionId: value.actionId }
+    : { actionId: value.actionId, payload };
 }
 
 export function parseMpvCommand(value: unknown): Array<string | number> | null {

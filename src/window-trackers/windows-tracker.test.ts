@@ -4,7 +4,9 @@ import { WindowsWindowTracker } from './windows-tracker';
 import type { MpvPollResult } from './win32';
 
 function mpvVisible(
-  overrides: Partial<MpvPollResult & { x?: number; y?: number; width?: number; height?: number; focused?: boolean }> = {},
+  overrides: Partial<
+    MpvPollResult & { x?: number; y?: number; width?: number; height?: number; focused?: boolean }
+  > = {},
 ): MpvPollResult {
   return {
     matches: [

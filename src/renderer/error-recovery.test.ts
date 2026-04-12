@@ -364,7 +364,10 @@ test('isYomitanPopupVisible requires visible iframe geometry', () => {
     const root = {
       querySelectorAll: (value: string) => {
         selectors.push(value);
-        if (value === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR || value === YOMITAN_POPUP_HOST_SELECTOR) {
+        if (
+          value === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR ||
+          value === YOMITAN_POPUP_HOST_SELECTOR
+        ) {
           return [];
         }
         return [hiddenFrame, visibleFrame];

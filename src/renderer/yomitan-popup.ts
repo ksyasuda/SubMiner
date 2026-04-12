@@ -73,7 +73,10 @@ function queryPopupElements<T extends Element>(
 }
 
 export function isYomitanPopupVisible(root: ParentNode | null | undefined = document): boolean {
-  const visiblePopupHosts = queryPopupElements<HTMLElement>(root, YOMITAN_POPUP_VISIBLE_HOST_SELECTOR);
+  const visiblePopupHosts = queryPopupElements<HTMLElement>(
+    root,
+    YOMITAN_POPUP_VISIBLE_HOST_SELECTOR,
+  );
   if (visiblePopupHosts.length > 0) {
     return true;
   }

@@ -1,6 +1,49 @@
 # Changelog
 
-## v0.11.2 (2026-04-07)
+## v0.12.0 (2026-04-11)
+
+**Changed**
+- Overlay: Added configurable overlay shortcuts for session help, controller select, and controller debug actions.
+- Overlay: Added mpv/plugin and CLI routing for session help, controller utilities, and subtitle sidebar toggling through the shared session-action path.
+- Overlay: Improved dedicated overlay modal retry and focus handling for runtime options, Jimaku, session help, controller tools, and the playlist browser.
+- Overlay: Fixed controller configuration and controller debug shortcut opens so configured bindings bring up their modals again instead of tripping renderer recovery.
+- Stats: Sessions are rolled up per episode within each day, with a bulk delete that wipes every session in the group.
+- Stats: Trends add a 365-day range next to the existing 7d/30d/90d/all options.
+- Stats: Library detail view gets a delete-episode action that removes the video and all its sessions.
+- Stats: Vocabulary Top 50 tightens the word/reading column so katakana entries no longer push the scores off screen.
+- Stats: Episode detail hides card events whose Anki notes have been deleted, instead of showing phantom mining activity.
+- Stats: Trend and watch-time charts share a unified theme with horizontal gridlines and larger ticks for legibility.
+- Stats: Overview, Library, Trends, Sessions, and Vocabulary now use generic "title" wording so YouTube videos and anime live comfortably side by side in the dashboard.
+- Stats: Session timeline no longer plots seek-forward/seek-backward markers — they were too noisy on sessions with lots of rewinds.
+- Stats: Replaced the "Library — Per Day" section on the Stats → Trends page with a "Library — Summary" section. The new section shows a top-10 watch-time leaderboard chart and a sortable per-title table (watch time, videos, sessions, cards, words, lookups, lookups/100w, date range), all scoped to the current date range selector.
+
+**Fixed**
+- Overlay: Fixed overlay drag-and-drop routing so dropping external subtitle files like `.ass` onto mpv still loads them when the overlay is visible.
+- Overlay: Addressed the latest CodeRabbit follow-ups on PR #49, including generation-scoped Lua session binding names, stricter session command validation, session-help shortcut visibility, the numeric-selection key guard, stats-overlay startup classification, and safer session-binding persistence.
+- Overlay: Addressed the latest CodeRabbit follow-ups on the Windows overlay flow, including exact mpv target resolution, lower-overlay helper arguments, Win32 failure detection, and overlay cleanup on tracker loss.
+- Overlay: Fixed Windows overlay z-order so the visible subtitle overlay stops staying above unrelated apps after mpv loses focus.
+- Overlay: Fixed Windows overlay tracking to use native window polling and owner/z-order binding, which keeps the subtitle overlay aligned to the active mpv window more reliably.
+- Overlay: Fixed Windows overlay hide/restore behavior so minimizing mpv immediately hides the overlay and restoring mpv brings it back on top of the mpv window without requiring a click.
+- Overlay: Fixed stats overlay layering so the in-player stats page now stays above mpv and the subtitle overlay while it is open.
+- Overlay: Fixed Windows subtitle overlay stability so transient tracker misses and restore events keep the current subtitle visible instead of waiting for the next subtitle line.
+- Overlay: Fixed Windows focus handoff from the interactive subtitle overlay back to mpv so the overlay no longer drops behind mpv and briefly disappears.
+- Overlay: Fixed Windows visible-overlay startup so it no longer briefly opens as an interactive or opaque surface before the tracked transparent overlay state settles.
+- Overlay: Fixed spurious auto-pause after overlay visibility recovery and window resize so the overlay no longer pauses mpv until the pointer genuinely re-enters the subtitle area.
+- Overlay: Fixed Windows secondary subtitle hover mode so the expanded hover hit area no longer blocks the native minimize, maximize, and close buttons.
+- Overlay: Fixed Windows Yomitan popup focus loss after closing nested lookups so the original popup stays interactive instead of falling through to mpv.
+- Stats: Fixed immersion-tracker timestamp handling under Bun/libsql so library rows, session timelines, and lifetime summaries keep real wall-clock millisecond values instead of truncating to invalid negative timestamps.
+- Mpv Plugin: Fixed the mpv Lua plugin so hover and environment modules no longer use the `goto continue` pattern that can fail to parse on some user Lua runtimes.
+
+**Internal**
+- Release: Added a dedicated beta/rc prerelease GitHub Actions workflow that publishes GitHub prereleases without consuming pending changelog fragments or updating AUR.
+- Release: Added prerelease note generation so beta and release-candidate tags can reuse the current pending `changes/*.md` fragments while leaving stable changelog publication for the final release cut.
+
+## Previous Versions
+
+<details>
+<summary>v0.11.x</summary>
+
+<h2>v0.11.2 (2026-04-07)</h2>
 
 **Changed**
 - Launcher: Replaced the launcher-only fullscreen toggle with `mpv.launchMode` so SubMiner-managed mpv playback can start in normal, maximized, or fullscreen mode.
@@ -10,13 +53,13 @@
 - Launcher: Local playback now promotes a single unlabeled external subtitle sidecar to the primary slot instead of leaving mpv's embedded English auto-selection in place.
 - Release: Fixed Linux AppImage startup packaging so Chromium child relaunches can resolve the bundled `libffmpeg.so` instead of crash-looping on startup.
 
-## v0.11.1 (2026-04-04)
+<h2>v0.11.1 (2026-04-04)</h2>
 
 **Fixed**
 - Release: Linux packaged builds now expose the canonical `SubMiner` app identity to Electron's startup metadata so native Wayland compositors stop reporting the window class/app-id as lowercase `subminer`.
 - Linux: Linux now restores the runtime options, Jimaku, and Subsync shortcuts after the Electron 39 regression by routing those actions through the overlay's mpv/IPC shortcut path.
 
-## v0.11.0 (2026-04-03)
+<h2>v0.11.0 (2026-04-03)</h2>
 
 **Added**
 - Overlay: Added a playlist browser overlay modal for browsing sibling video files and the live mpv queue during playback.
@@ -69,7 +112,7 @@
 - Release: Kept GitHub Releases green when AUR publish flakes and needs manual follow-up.
 - Release: Updated Electron to 39.8.6 and pinned patched transitive build dependencies to clear the reported high-severity audit findings.
 
-## Previous Versions
+</details>
 
 <details>
 <summary>v0.10.x</summary>

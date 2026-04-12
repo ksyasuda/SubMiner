@@ -180,13 +180,15 @@ function createMockWindow(): MockWindow & {
     get: () => state.contentReady,
     set: (value: boolean) => {
       state.contentReady = value;
-      (window as typeof window & { __subminerOverlayContentReady?: boolean }).__subminerOverlayContentReady =
-        value;
+      (
+        window as typeof window & { __subminerOverlayContentReady?: boolean }
+      ).__subminerOverlayContentReady = value;
     },
   });
 
-  (window as typeof window & { __subminerOverlayContentReady?: boolean }).__subminerOverlayContentReady =
-    state.contentReady;
+  (
+    window as typeof window & { __subminerOverlayContentReady?: boolean }
+  ).__subminerOverlayContentReady = state.contentReady;
 
   return window;
 }
@@ -561,23 +563,26 @@ test('handleOverlayModalClosed destroys modal window for single kiku modal', () 
 test('modal fallback reveal skips showing window when content is not ready', async () => {
   const window = createMockWindow();
   let scheduledReveal: (() => void) | null = null;
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => window as never,
-    createModalWindow: () => {
-      throw new Error('modal window should not be created when already present');
+  const runtime = createOverlayModalRuntimeService(
+    {
+      getMainWindow: () => null,
+      getModalWindow: () => window as never,
+      createModalWindow: () => {
+        throw new Error('modal window should not be created when already present');
+      },
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => {},
     },
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  }, {
-    scheduleRevealFallback: (callback) => {
-      scheduledReveal = callback;
-      return { scheduled: true } as never;
+    {
+      scheduleRevealFallback: (callback) => {
+        scheduledReveal = callback;
+        return { scheduled: true } as never;
+      },
+      clearRevealFallback: () => {
+        scheduledReveal = null;
+      },
     },
-    clearRevealFallback: () => {
-      scheduledReveal = null;
-    },
-  });
+  );
 
   window.loading = true;
   window.url = '';

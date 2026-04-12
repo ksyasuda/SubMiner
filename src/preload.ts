@@ -124,7 +124,9 @@ function createQueuedIpcListenerWithPayload<T>(
 
 const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
 const onOpenSessionHelpEvent = createQueuedIpcListener(IPC_CHANNELS.event.sessionHelpOpen);
-const onOpenControllerSelectEvent = createQueuedIpcListener(IPC_CHANNELS.event.controllerSelectOpen);
+const onOpenControllerSelectEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.controllerSelectOpen,
+);
 const onOpenControllerDebugEvent = createQueuedIpcListener(IPC_CHANNELS.event.controllerDebugOpen);
 const onOpenJimakuEvent = createQueuedIpcListener(IPC_CHANNELS.event.jimakuOpen);
 const onOpenYoutubeTrackPickerEvent = createQueuedIpcListenerWithPayload<YoutubePickerOpenPayload>(

@@ -173,7 +173,10 @@ export function parseArgs(argv: string[]): CliArgs {
     const separatorIndex = value.lastIndexOf(':');
     if (separatorIndex <= 0 || separatorIndex === value.length - 1) return null;
     const id = value.slice(0, separatorIndex).trim();
-    const rawDirection = value.slice(separatorIndex + 1).trim().toLowerCase();
+    const rawDirection = value
+      .slice(separatorIndex + 1)
+      .trim()
+      .toLowerCase();
     if (!id) return null;
     if (rawDirection === 'next' || rawDirection === '1') {
       return { id, direction: 1 };

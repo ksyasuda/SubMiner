@@ -3840,16 +3840,7 @@ test('getTrendsDashboard builds librarySummary with per-title aggregates', () =>
               lines_seen = ?, tokens_seen = ?, cards_mined = ?, yomitan_lookup_count = ?
           WHERE session_id = ?
         `,
-      ).run(
-        `${startedAtMs + activeMs}`,
-        activeMs,
-        activeMs,
-        10,
-        tokens,
-        cards,
-        lookups,
-        sessionId,
-      );
+      ).run(`${startedAtMs + activeMs}`, activeMs, activeMs, 10, tokens, cards, lookups, sessionId);
     }
 
     for (const [day, active, tokens, cards] of [
@@ -3947,16 +3938,7 @@ test('getTrendsDashboard librarySummary returns null lookupsPerHundred when word
             lines_seen = ?, tokens_seen = ?, cards_mined = ?, yomitan_lookup_count = ?
         WHERE session_id = ?
       `,
-    ).run(
-      `${startMs + 20 * 60_000}`,
-      20 * 60_000,
-      20 * 60_000,
-      5,
-      0,
-      0,
-      0,
-      session.sessionId,
-    );
+    ).run(`${startMs + 20 * 60_000}`, 20 * 60_000, 20 * 60_000, 5, 0, 0, 0, session.sessionId);
 
     db.prepare(
       `

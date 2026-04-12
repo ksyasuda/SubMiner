@@ -606,13 +606,15 @@ test('ensureSchema migrates session event timestamps to text and repairs libsql-
     }>;
     assert.equal(column.find((entry) => entry.name === 'ts_ms')?.type, 'TEXT');
 
-    const row = db.prepare(
-      `
+    const row = db
+      .prepare(
+        `
         SELECT ts_ms AS tsMs, typeof(ts_ms) AS tsType, CREATED_DATE AS createdDate
         FROM imm_session_events
         WHERE event_id = 1
       `,
-    ).get() as {
+      )
+      .get() as {
       tsMs: string;
       tsType: string;
       createdDate: string;

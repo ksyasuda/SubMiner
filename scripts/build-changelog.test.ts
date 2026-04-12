@@ -139,6 +139,49 @@ test('writeChangelogArtifacts skips changelog prepend when release section alrea
   }
 });
 
+test('writeStableReleaseArtifacts reuses the requested version and date for changelog, release notes, and docs-site output', async () => {
+  const { writeStableReleaseArtifacts } = await loadModule();
+  const workspace = createWorkspace('write-stable-release-artifacts');
+  const projectRoot = path.join(workspace, 'SubMiner');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'docs-site'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.4.1' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(path.join(projectRoot, 'CHANGELOG.md'), '# Changelog\n', 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: fixed', 'area: release', '', '- Reused explicit stable release date.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const result = writeStableReleaseArtifacts({
+      cwd: projectRoot,
+      version: '0.4.1',
+      date: '2026-03-07',
+    });
+
+    assert.deepEqual(result.outputPaths, [path.join(projectRoot, 'CHANGELOG.md')]);
+    assert.equal(result.releaseNotesPath, path.join(projectRoot, 'release', 'release-notes.md'));
+    assert.equal(result.docsChangelogPath, path.join(projectRoot, 'docs-site', 'changelog.md'));
+
+    const changelog = fs.readFileSync(path.join(projectRoot, 'CHANGELOG.md'), 'utf8');
+    const docsChangelog = fs.readFileSync(
+      path.join(projectRoot, 'docs-site', 'changelog.md'),
+      'utf8',
+    );
+
+    assert.match(changelog, /## v0\.4\.1 \(2026-03-07\)/);
+    assert.match(docsChangelog, /## v0\.4\.1 \(2026-03-07\)/);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test('verifyChangelogReadyForRelease ignores README but rejects pending fragments and missing version sections', async () => {
   const { verifyChangelogReadyForRelease } = await loadModule();
   const workspace = createWorkspace('verify-release');
@@ -362,11 +405,11 @@ test('writePrereleaseNotesForVersion writes cumulative beta notes without mutati
 
     const prereleaseNotes = fs.readFileSync(outputPath, 'utf8');
     assert.match(prereleaseNotes, /^> This is a prerelease build for testing\./m);
-    assert.match(prereleaseNotes, /## Highlights\n### Added\n- Overlay: Added prerelease coverage\./);
     assert.match(
       prereleaseNotes,
-      /### Fixed\n- Launcher: Fixed prerelease packaging checks\./,
+      /## Highlights\n### Added\n- Overlay: Added prerelease coverage\./,
     );
+    assert.match(prereleaseNotes, /### Fixed\n- Launcher: Fixed prerelease packaging checks\./);
     assert.match(prereleaseNotes, /## Installation\n\nSee the README and docs\/installation guide/);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });

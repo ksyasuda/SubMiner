@@ -54,10 +54,7 @@ type RevealFallbackHandle = NonNullable<Parameters<typeof globalThis.clearTimeou
 
 export interface OverlayModalRuntimeOptions {
   onModalStateChange?: (isActive: boolean) => void;
-  scheduleRevealFallback?: (
-    callback: () => void,
-    delayMs: number,
-  ) => RevealFallbackHandle;
+  scheduleRevealFallback?: (callback: () => void, delayMs: number) => RevealFallbackHandle;
   clearRevealFallback?: (timeout: RevealFallbackHandle) => void;
 }
 
@@ -73,10 +70,7 @@ export function createOverlayModalRuntimeService(
   let modalWindowPrimedForImmediateShow = false;
   let pendingModalWindowReveal: BrowserWindow | null = null;
   let pendingModalWindowRevealTimeout: RevealFallbackHandle | null = null;
-  const scheduleRevealFallback = (
-    callback: () => void,
-    delayMs: number,
-  ): RevealFallbackHandle =>
+  const scheduleRevealFallback = (callback: () => void, delayMs: number): RevealFallbackHandle =>
     (options.scheduleRevealFallback ?? globalThis.setTimeout)(callback, delayMs);
   const clearRevealFallback = (timeout: RevealFallbackHandle): void =>
     (options.clearRevealFallback ?? globalThis.clearTimeout)(timeout);

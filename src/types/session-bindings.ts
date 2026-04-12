@@ -62,9 +62,7 @@ export interface CompiledSessionActionBinding extends CompiledSessionBindingBase
   payload?: SessionActionPayload;
 }
 
-export type CompiledSessionBinding =
-  | CompiledMpvCommandBinding
-  | CompiledSessionActionBinding;
+export type CompiledSessionBinding = CompiledMpvCommandBinding | CompiledSessionActionBinding;
 
 export interface PluginSessionBindingsArtifact {
   version: 1;
