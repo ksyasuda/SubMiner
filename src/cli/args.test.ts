@@ -73,6 +73,50 @@ test('parseArgs captures youtube startup forwarding flags', () => {
   assert.equal(shouldStartApp(args), true);
 });
 
+test('parseArgs captures session action forwarding flags', () => {
+  const args = parseArgs([
+    '--toggle-stats-overlay',
+    '--open-jimaku',
+    '--open-youtube-picker',
+    '--open-playlist-browser',
+    '--replay-current-subtitle',
+    '--play-next-subtitle',
+    '--shift-sub-delay-prev-line',
+    '--shift-sub-delay-next-line',
+    '--cycle-runtime-option',
+    'anki.autoUpdateNewCards:prev',
+    '--copy-subtitle-count',
+    '3',
+    '--mine-sentence-count=2',
+  ]);
+
+  assert.equal(args.toggleStatsOverlay, true);
+  assert.equal(args.openJimaku, true);
+  assert.equal(args.openYoutubePicker, true);
+  assert.equal(args.openPlaylistBrowser, true);
+  assert.equal(args.replayCurrentSubtitle, true);
+  assert.equal(args.playNextSubtitle, true);
+  assert.equal(args.shiftSubDelayPrevLine, true);
+  assert.equal(args.shiftSubDelayNextLine, true);
+  assert.equal(args.cycleRuntimeOptionId, 'anki.autoUpdateNewCards');
+  assert.equal(args.cycleRuntimeOptionDirection, -1);
+  assert.equal(args.copySubtitleCount, 3);
+  assert.equal(args.mineSentenceCount, 2);
+  assert.equal(hasExplicitCommand(args), true);
+  assert.equal(shouldStartApp(args), true);
+});
+
+test('parseArgs ignores non-positive numeric session action counts', () => {
+  const args = parseArgs([
+    '--copy-subtitle-count=0',
+    '--mine-sentence-count',
+    '-1',
+  ]);
+
+  assert.equal(args.copySubtitleCount, undefined);
+  assert.equal(args.mineSentenceCount, undefined);
+});
+
 test('youtube playback does not use generic overlay-runtime bootstrap classification', () => {
   const args = parseArgs(['--youtube-play', 'https://youtube.com/watch?v=abc']);
 
@@ -171,6 +215,24 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(anilistRetryQueue.anilistRetryQueue, true);
   assert.equal(hasExplicitCommand(anilistRetryQueue), true);
   assert.equal(shouldStartApp(anilistRetryQueue), false);
+
+  const toggleStatsOverlay = parseArgs(['--toggle-stats-overlay']);
+  assert.equal(toggleStatsOverlay.toggleStatsOverlay, true);
+  assert.equal(hasExplicitCommand(toggleStatsOverlay), true);
+  assert.equal(shouldStartApp(toggleStatsOverlay), true);
+
+  const cycleRuntimeOption = parseArgs([
+    '--cycle-runtime-option',
+    'anki.autoUpdateNewCards:next',
+  ]);
+  assert.equal(cycleRuntimeOption.cycleRuntimeOptionId, 'anki.autoUpdateNewCards');
+  assert.equal(cycleRuntimeOption.cycleRuntimeOptionDirection, 1);
+  assert.equal(hasExplicitCommand(cycleRuntimeOption), true);
+  assert.equal(shouldStartApp(cycleRuntimeOption), true);
+  assert.equal(commandNeedsOverlayRuntime(cycleRuntimeOption), true);
+
+  const toggleStatsOverlayRuntime = parseArgs(['--toggle-stats-overlay']);
+  assert.equal(commandNeedsOverlayRuntime(toggleStatsOverlayRuntime), true);
 
   const dictionary = parseArgs(['--dictionary']);
   assert.equal(dictionary.dictionary, true);

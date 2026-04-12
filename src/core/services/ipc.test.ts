@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 
 import { createIpcDepsRuntime, registerIpcHandlers, type IpcServiceDeps } from './ipc';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
-import type { PlaylistBrowserSnapshot, SubtitleSidebarSnapshot } from '../../types';
+import type {
+  PlaylistBrowserSnapshot,
+  SessionActionDispatchRequest,
+  SubtitleSidebarSnapshot,
+} from '../../types';
 
 interface FakeIpcRegistrar {
   on: Map<string, (event: unknown, ...args: unknown[]) => void>;
@@ -127,7 +131,9 @@ function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServ
     setMecabEnabled: () => {},
     handleMpvCommand: () => {},
     getKeybindings: () => [],
+    getSessionBindings: () => [],
     getConfiguredShortcuts: () => ({}),
+    dispatchSessionAction: async () => {},
     getStatsToggleKey: () => 'Backquote',
     getMarkWatchedKey: () => 'KeyW',
     getControllerConfig: () => createControllerConfigFixture(),
@@ -226,7 +232,9 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     getMecabTokenizer: () => null,
     handleMpvCommand: () => {},
     getKeybindings: () => [],
+    getSessionBindings: () => [],
     getConfiguredShortcuts: () => ({}),
+    dispatchSessionAction: async () => {},
     getStatsToggleKey: () => 'Backquote',
     getMarkWatchedKey: () => 'KeyW',
     getControllerConfig: () => createControllerConfigFixture(),
@@ -382,7 +390,9 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
       setMecabEnabled: () => {},
       handleMpvCommand: () => {},
       getKeybindings: () => [],
+      getSessionBindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      dispatchSessionAction: async () => {},
       getStatsToggleKey: () => 'Backquote',
       getMarkWatchedKey: () => 'KeyW',
       getControllerConfig: () => createControllerConfigFixture(),
@@ -707,7 +717,9 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       setMecabEnabled: () => {},
       handleMpvCommand: () => {},
       getKeybindings: () => [],
+      getSessionBindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      dispatchSessionAction: async () => {},
       getStatsToggleKey: () => 'Backquote',
       getMarkWatchedKey: () => 'KeyW',
       getControllerConfig: () => createControllerConfigFixture(),
@@ -786,7 +798,9 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
       setMecabEnabled: () => {},
       handleMpvCommand: () => {},
       getKeybindings: () => [],
+      getSessionBindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      dispatchSessionAction: async () => {},
       getStatsToggleKey: () => 'Backquote',
       getMarkWatchedKey: () => 'KeyW',
       getControllerConfig: () => createControllerConfigFixture(),
@@ -850,6 +864,79 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
   ]);
 });
 
+test('registerIpcHandlers validates dispatchSessionAction payloads', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const dispatched: SessionActionDispatchRequest[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      dispatchSessionAction: async (request) => {
+        dispatched.push(request);
+      },
+    }),
+    registrar,
+  );
+
+  const dispatchHandler = handlers.handle.get(IPC_CHANNELS.command.dispatchSessionAction);
+  assert.ok(dispatchHandler);
+
+  await assert.rejects(async () => {
+    await dispatchHandler!({}, { actionId: 'cycleRuntimeOption', payload: { direction: 1 } });
+  }, /Invalid session action payload/);
+  await assert.rejects(async () => {
+    await dispatchHandler!({}, { actionId: 'unknown-action' });
+  }, /Invalid session action payload/);
+
+  await dispatchHandler!({}, {
+    actionId: 'copySubtitleMultiple',
+    payload: { count: 3 },
+  });
+  await dispatchHandler!({}, {
+    actionId: 'cycleRuntimeOption',
+    payload: {
+      runtimeOptionId: 'anki.autoUpdateNewCards',
+      direction: -1,
+    },
+  });
+  await dispatchHandler!({}, {
+    actionId: 'toggleSubtitleSidebar',
+  });
+  await dispatchHandler!({}, {
+    actionId: 'openSessionHelp',
+  });
+  await dispatchHandler!({}, {
+    actionId: 'openControllerSelect',
+  });
+  await dispatchHandler!({}, {
+    actionId: 'openControllerDebug',
+  });
+
+  assert.deepEqual(dispatched, [
+    {
+      actionId: 'copySubtitleMultiple',
+      payload: { count: 3 },
+    },
+    {
+      actionId: 'cycleRuntimeOption',
+      payload: {
+        runtimeOptionId: 'anki.autoUpdateNewCards',
+        direction: -1,
+      },
+    },
+    {
+      actionId: 'toggleSubtitleSidebar',
+    },
+    {
+      actionId: 'openSessionHelp',
+    },
+    {
+      actionId: 'openControllerSelect',
+    },
+    {
+      actionId: 'openControllerDebug',
+    },
+  ]);
+});
+
 test('registerIpcHandlers rejects malformed controller preference payloads', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   registerIpcHandlers(
@@ -872,7 +959,9 @@ test('registerIpcHandlers rejects malformed controller preference payloads', asy
       setMecabEnabled: () => {},
       handleMpvCommand: () => {},
       getKeybindings: () => [],
+      getSessionBindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      dispatchSessionAction: async () => {},
       getStatsToggleKey: () => 'Backquote',
       getMarkWatchedKey: () => 'KeyW',
       getControllerConfig: () => createControllerConfigFixture(),

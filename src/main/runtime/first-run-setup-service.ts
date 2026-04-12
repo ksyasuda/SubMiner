@@ -68,26 +68,43 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.hideVisibleOverlay ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
+    args.copySubtitleCount !== undefined ||
     args.mineSentence ||
     args.mineSentenceMultiple ||
+    args.mineSentenceCount !== undefined ||
     args.updateLastCardFromClipboard ||
     args.refreshKnownWords ||
     args.toggleSecondarySub ||
     args.triggerFieldGrouping ||
     args.triggerSubsync ||
     args.markAudioCard ||
+    args.toggleStatsOverlay ||
+    args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
+    args.openSessionHelp ||
+    args.openControllerSelect ||
+    args.openControllerDebug ||
+    args.openJimaku ||
+    args.openYoutubePicker ||
+    args.openPlaylistBrowser ||
+    args.replayCurrentSubtitle ||
+    args.playNextSubtitle ||
+    args.shiftSubDelayPrevLine ||
+    args.shiftSubDelayNextLine ||
+    args.cycleRuntimeOptionId !== undefined ||
     args.anilistStatus ||
     args.anilistLogout ||
     args.anilistSetup ||
     args.anilistRetryQueue ||
     args.dictionary ||
+    args.stats ||
     args.jellyfin ||
     args.jellyfinLogin ||
     args.jellyfinLogout ||
     args.jellyfinLibraries ||
     args.jellyfinItems ||
     args.jellyfinSubtitles ||
+    args.jellyfinSubtitleUrlsOnly ||
     args.jellyfinPlay ||
     args.jellyfinRemoteAnnounce ||
     args.jellyfinPreviewAuth ||

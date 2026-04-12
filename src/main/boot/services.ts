@@ -74,6 +74,7 @@ export interface MainBootServicesParams<
     getModalWindow: () => BrowserWindow | null;
     syncOverlayShortcutsForModal: (isActive: boolean) => void;
     syncOverlayVisibilityForModal: () => void;
+    restoreMainWindowFocus?: () => void;
   }) => TOverlayModalInputState;
   createOverlayContentMeasurementStore: (params: {
     logger: TLogger;
@@ -131,7 +132,7 @@ export function createMainBootServices<
   TSubtitleWebSocket,
   TLogger,
   TRuntimeRegistry,
-  TOverlayManager extends { getModalWindow: () => BrowserWindow | null },
+  TOverlayManager extends { getMainWindow: () => BrowserWindow | null; getModalWindow: () => BrowserWindow | null },
   TOverlayModalInputState extends OverlayModalInputStateShape,
   TOverlayContentMeasurementStore,
   TOverlayModalRuntime,
@@ -211,6 +212,26 @@ export function createMainBootServices<
     },
     syncOverlayVisibilityForModal: () => {
       params.getSyncOverlayVisibilityForModal()();
+    },
+    restoreMainWindowFocus: () => {
+      const mainWindow = overlayManager.getMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) return;
+      try {
+        const electron = require('electron') as {
+          app?: { focus?: (options?: { steal?: boolean }) => void };
+        };
+        electron.app?.focus?.({ steal: true });
+      } catch {
+        // Ignore in non-Electron environments.
+      }
+      const maybeFocusable = mainWindow as typeof mainWindow & {
+        setFocusable?: (focusable: boolean) => void;
+      };
+      maybeFocusable.setFocusable?.(true);
+      mainWindow.focus();
+      if (!mainWindow.webContents.isFocused()) {
+        mainWindow.webContents.focus();
+      }
     },
   });
   const overlayContentMeasurementStore = params.createOverlayContentMeasurementStore({

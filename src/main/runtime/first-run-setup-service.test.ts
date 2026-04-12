@@ -42,7 +42,21 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     triggerFieldGrouping: false,
     triggerSubsync: false,
     markAudioCard: false,
+    toggleStatsOverlay: false,
+    toggleSubtitleSidebar: false,
     openRuntimeOptions: false,
+    openSessionHelp: false,
+    openControllerSelect: false,
+    openControllerDebug: false,
+    openJimaku: false,
+    openYoutubePicker: false,
+    openPlaylistBrowser: false,
+    replayCurrentSubtitle: false,
+    playNextSubtitle: false,
+    shiftSubDelayPrevLine: false,
+    shiftSubDelayNextLine: false,
+    cycleRuntimeOptionId: undefined,
+    cycleRuntimeOptionDirection: undefined,
     anilistStatus: false,
     anilistLogout: false,
     anilistSetup: false,
@@ -77,6 +91,41 @@ test('shouldAutoOpenFirstRunSetup only for startup/setup intents', () => {
     false,
   );
   assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ settings: true })), false);
+});
+
+test('shouldAutoOpenFirstRunSetup treats numeric startup counts as explicit commands', () => {
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ start: true, copySubtitleCount: 2 })),
+    false,
+  );
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ background: true, mineSentenceCount: 1 })),
+    false,
+  );
+});
+
+test('shouldAutoOpenFirstRunSetup treats session and stats startup commands as explicit commands', () => {
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ start: true, toggleSubtitleSidebar: true })),
+    false,
+  );
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ background: true, openSessionHelp: true })),
+    false,
+  );
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ start: true, openControllerSelect: true })),
+    false,
+  );
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ background: true, openControllerDebug: true })),
+    false,
+  );
+  assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, stats: true })), false);
+  assert.equal(
+    shouldAutoOpenFirstRunSetup(makeArgs({ background: true, jellyfinSubtitleUrlsOnly: true })),
+    false,
+  );
 });
 
 test('setup service auto-completes legacy installs with config and dictionaries', async () => {

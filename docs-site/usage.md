@@ -272,12 +272,12 @@ SubMiner supports gamepad/controller input for couch-friendly usage via the Chro
 
 1. Connect a controller before or after launching SubMiner.
 2. Enable keyboard-only mode — press `Y` on the controller (default binding) or use the overlay keybinding.
-3. Press `Alt+C` in the overlay to pick the controller you want to save and remap any action inline.
+3. Press `Alt+C` in the overlay by default to pick the controller you want to save and remap any action inline.
 4. Click `Learn` on the overlay action you want, then press the matching button, trigger, or stick direction on the controller.
 5. Use the left stick to navigate subtitle tokens and scroll the popup; use the right stick vertically for popup page jumps.
 6. Press `A` to look up the selected word, `X` to mine a card, `B` to close the popup.
 
-By default SubMiner uses the first connected controller. `Alt+C` opens the controller config modal, where you can save the preferred controller and remap bindings inline. `Alt+Shift+C` still opens the live debug modal with raw axes/button values for non-standard pads.
+By default SubMiner uses the first connected controller. `Alt+C` opens the controller config modal, where you can save the preferred controller and remap bindings inline, and `Alt+Shift+C` opens the live debug modal with raw axes/button values for non-standard pads. Both shortcuts can be changed through `shortcuts.openControllerSelect` and `shortcuts.openControllerDebug`.
 
 ### Default Button Mapping
 
@@ -320,6 +320,8 @@ See [Keyboard Shortcuts](/shortcuts) for the full reference, including mining sh
 `Alt+Shift+Y` is fixed and not configurable. All other shortcuts can be changed under `shortcuts` in your config.
 
 Useful overlay-local default keybinding: `Ctrl+Alt+P` opens the playlist browser for the current video's parent directory and the live mpv queue so you can append, reorder, remove, or jump between episodes without leaving playback.
+
+`Ctrl/Cmd+Shift+H` opens the session help modal with the current overlay and mpv keybindings. If you use the mpv plugin, the same help view is also available through the `y-h` chord.
 
 Hovering over subtitle text pauses mpv by default; leaving resumes it. Yomitan popups also pause playback by default. Set `subtitleStyle.autoPauseVideoOnHover: false` or `subtitleStyle.autoPauseVideoOnYomitanPopup: false` to disable either behavior.
 

@@ -1,8 +1,29 @@
 import type { BrowserWindow } from 'electron';
 import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import type { WindowGeometry } from '../types';
+import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from '../core/services/overlay-window-flags';
 
 const MODAL_REVEAL_FALLBACK_DELAY_MS = 250;
+
+function requestOverlayApplicationFocus(): void {
+  try {
+    const electron = require('electron') as {
+      app?: {
+        focus?: (options?: { steal?: boolean }) => void;
+      };
+    };
+    electron.app?.focus?.({ steal: true });
+  } catch {
+    // Ignore focus-steal failures in non-Electron test environments.
+  }
+}
+
+function setWindowFocusable(window: BrowserWindow): void {
+  const maybeFocusableWindow = window as BrowserWindow & {
+    setFocusable?: (focusable: boolean) => void;
+  };
+  maybeFocusableWindow.setFocusable?.(true);
+}
 
 export interface OverlayWindowResolver {
   getMainWindow: () => BrowserWindow | null;
@@ -29,8 +50,15 @@ export interface OverlayModalRuntime {
   getRestoreVisibleOverlayOnModalClose: () => Set<OverlayHostedModal>;
 }
 
+type RevealFallbackHandle = NonNullable<Parameters<typeof globalThis.clearTimeout>[0]>;
+
 export interface OverlayModalRuntimeOptions {
   onModalStateChange?: (isActive: boolean) => void;
+  scheduleRevealFallback?: (
+    callback: () => void,
+    delayMs: number,
+  ) => RevealFallbackHandle;
+  clearRevealFallback?: (timeout: RevealFallbackHandle) => void;
 }
 
 export function createOverlayModalRuntimeService(
@@ -42,8 +70,16 @@ export function createOverlayModalRuntimeService(
   let modalActive = false;
   let mainWindowMousePassthroughForcedByModal = false;
   let mainWindowHiddenByModal = false;
+  let modalWindowPrimedForImmediateShow = false;
   let pendingModalWindowReveal: BrowserWindow | null = null;
-  let pendingModalWindowRevealTimeout: ReturnType<typeof setTimeout> | null = null;
+  let pendingModalWindowRevealTimeout: RevealFallbackHandle | null = null;
+  const scheduleRevealFallback = (
+    callback: () => void,
+    delayMs: number,
+  ): RevealFallbackHandle =>
+    (options.scheduleRevealFallback ?? globalThis.setTimeout)(callback, delayMs);
+  const clearRevealFallback = (timeout: RevealFallbackHandle): void =>
+    (options.clearRevealFallback ?? globalThis.clearTimeout)(timeout);
 
   const notifyModalStateChange = (nextState: boolean): void => {
     if (modalActive === nextState) return;
@@ -87,7 +123,19 @@ export function createOverlayModalRuntimeService(
   };
 
   const isWindowReadyForIpc = (window: BrowserWindow): boolean => {
+    if (window.isDestroyed()) {
+      return false;
+    }
     if (window.webContents.isLoading()) {
+      return false;
+    }
+    const overlayWindow = window as BrowserWindow & {
+      [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean;
+    };
+    if (
+      typeof overlayWindow[OVERLAY_WINDOW_CONTENT_READY_FLAG] === 'boolean' &&
+      overlayWindow[OVERLAY_WINDOW_CONTENT_READY_FLAG] !== true
+    ) {
       return false;
     }
     const currentURL = window.webContents.getURL();
@@ -109,11 +157,17 @@ export function createOverlayModalRuntimeService(
       return;
     }
 
-    window.webContents.once('did-finish-load', () => {
-      if (!window.isDestroyed() && !window.webContents.isLoading()) {
-        sendNow(window);
+    let delivered = false;
+    const deliverWhenReady = (): void => {
+      if (delivered || window.isDestroyed() || !isWindowReadyForIpc(window)) {
+        return;
       }
-    });
+      delivered = true;
+      sendNow(window);
+    };
+
+    window.webContents.once('did-finish-load', deliverWhenReady);
+    window.once('ready-to-show', deliverWhenReady);
   };
 
   const showModalWindow = (
@@ -122,6 +176,8 @@ export function createOverlayModalRuntimeService(
       passThroughMouseEvents: boolean;
     } = { passThroughMouseEvents: false },
   ): void => {
+    setWindowFocusable(window);
+    requestOverlayApplicationFocus();
     if (!window.isVisible()) {
       window.show();
     }
@@ -138,15 +194,14 @@ export function createOverlayModalRuntimeService(
   };
 
   const ensureModalWindowInteractive = (window: BrowserWindow): void => {
+    setWindowFocusable(window);
+    requestOverlayApplicationFocus();
+    window.setIgnoreMouseEvents(false);
+    elevateModalWindow(window);
+
     if (window.isVisible()) {
-      window.setIgnoreMouseEvents(false);
-      if (!window.isFocused()) {
-        window.focus();
-      }
-      if (!window.webContents.isFocused()) {
-        window.webContents.focus();
-      }
-      elevateModalWindow(window);
+      window.focus();
+      window.webContents.focus();
       return;
     }
 
@@ -166,7 +221,7 @@ export function createOverlayModalRuntimeService(
       return;
     }
 
-    clearTimeout(pendingModalWindowRevealTimeout);
+    clearRevealFallback(pendingModalWindowRevealTimeout);
     pendingModalWindowRevealTimeout = null;
     pendingModalWindowReveal = null;
   };
@@ -225,10 +280,13 @@ export function createOverlayModalRuntimeService(
       return;
     }
 
-    pendingModalWindowRevealTimeout = setTimeout(() => {
+    pendingModalWindowRevealTimeout = scheduleRevealFallback(() => {
       const targetWindow = pendingModalWindowReveal;
       clearPendingModalWindowReveal();
       if (!targetWindow || targetWindow.isDestroyed() || targetWindow.isVisible()) {
+        return;
+      }
+      if (!isWindowReadyForIpc(targetWindow)) {
         return;
       }
       showModalWindow(targetWindow, { passThroughMouseEvents: false });
@@ -256,9 +314,9 @@ export function createOverlayModalRuntimeService(
     };
 
     if (restoreOnModalClose) {
-      restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
       const mainWindow = getTargetOverlayWindow();
       if (!preferModalWindow && mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+        restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
         sendOrQueueForWindow(mainWindow, (window) => {
           if (payload === undefined) {
             window.webContents.send(channel);
@@ -272,15 +330,23 @@ export function createOverlayModalRuntimeService(
       const modalWindow = resolveModalWindow();
       if (!modalWindow) return false;
 
+      restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
       deps.setModalWindowBounds(deps.getModalGeometry());
       const wasVisible = modalWindow.isVisible();
       if (!wasVisible) {
-        scheduleModalWindowReveal(modalWindow);
+        if (modalWindowPrimedForImmediateShow && isWindowReadyForIpc(modalWindow)) {
+          showModalWindow(modalWindow);
+        } else {
+          scheduleModalWindowReveal(modalWindow);
+        }
       } else if (!modalWindow.isFocused()) {
         showModalWindow(modalWindow);
       }
 
       sendOrQueueForWindow(modalWindow, (window) => {
+        if (window.isVisible()) {
+          ensureModalWindowInteractive(window);
+        }
         if (payload === undefined) {
           window.webContents.send(channel);
         } else {
@@ -320,12 +386,13 @@ export function createOverlayModalRuntimeService(
     const modalWindow = deps.getModalWindow();
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
-      notifyModalStateChange(false);
-      setMainWindowMousePassthroughForModal(false);
-      setMainWindowVisibilityForModal(false);
       if (modalWindow && !modalWindow.isDestroyed()) {
-        modalWindow.hide();
+        modalWindow.destroy();
       }
+      modalWindowPrimedForImmediateShow = false;
+      mainWindowMousePassthroughForcedByModal = false;
+      mainWindowHiddenByModal = false;
+      notifyModalStateChange(false);
     }
   };
 
@@ -350,14 +417,7 @@ export function createOverlayModalRuntimeService(
     }
 
     if (targetWindow.isVisible()) {
-      targetWindow.setIgnoreMouseEvents(false);
-      elevateModalWindow(targetWindow);
-      if (!targetWindow.isFocused()) {
-        targetWindow.focus();
-      }
-      if (!targetWindow.webContents.isFocused()) {
-        targetWindow.webContents.focus();
-      }
+      ensureModalWindowInteractive(targetWindow);
       return;
     }
 

@@ -24,7 +24,23 @@ export interface CliArgs {
   triggerFieldGrouping: boolean;
   triggerSubsync: boolean;
   markAudioCard: boolean;
+  toggleStatsOverlay: boolean;
+  toggleSubtitleSidebar: boolean;
   openRuntimeOptions: boolean;
+  openSessionHelp: boolean;
+  openControllerSelect: boolean;
+  openControllerDebug: boolean;
+  openJimaku: boolean;
+  openYoutubePicker: boolean;
+  openPlaylistBrowser: boolean;
+  replayCurrentSubtitle: boolean;
+  playNextSubtitle: boolean;
+  shiftSubDelayPrevLine: boolean;
+  shiftSubDelayNextLine: boolean;
+  cycleRuntimeOptionId?: string;
+  cycleRuntimeOptionDirection?: 1 | -1;
+  copySubtitleCount?: number;
+  mineSentenceCount?: number;
   anilistStatus: boolean;
   anilistLogout: boolean;
   anilistSetup: boolean;
@@ -102,7 +118,19 @@ export function parseArgs(argv: string[]): CliArgs {
     triggerFieldGrouping: false,
     triggerSubsync: false,
     markAudioCard: false,
+    toggleStatsOverlay: false,
+    toggleSubtitleSidebar: false,
     openRuntimeOptions: false,
+    openSessionHelp: false,
+    openControllerSelect: false,
+    openControllerDebug: false,
+    openJimaku: false,
+    openYoutubePicker: false,
+    openPlaylistBrowser: false,
+    replayCurrentSubtitle: false,
+    playNextSubtitle: false,
+    shiftSubDelayPrevLine: false,
+    shiftSubDelayNextLine: false,
     anilistStatus: false,
     anilistLogout: false,
     anilistSetup: false,
@@ -136,6 +164,24 @@ export function parseArgs(argv: string[]): CliArgs {
     if (!value) return undefined;
     if (value.startsWith('--')) return undefined;
     return value;
+  };
+
+  const parseCycleRuntimeOption = (
+    value: string | undefined,
+  ): { id: string; direction: 1 | -1 } | null => {
+    if (!value) return null;
+    const separatorIndex = value.lastIndexOf(':');
+    if (separatorIndex <= 0 || separatorIndex === value.length - 1) return null;
+    const id = value.slice(0, separatorIndex).trim();
+    const rawDirection = value.slice(separatorIndex + 1).trim().toLowerCase();
+    if (!id) return null;
+    if (rawDirection === 'next' || rawDirection === '1') {
+      return { id, direction: 1 };
+    }
+    if (rawDirection === 'prev' || rawDirection === '-1') {
+      return { id, direction: -1 };
+    }
+    return null;
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -179,8 +225,44 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--trigger-field-grouping') args.triggerFieldGrouping = true;
     else if (arg === '--trigger-subsync') args.triggerSubsync = true;
     else if (arg === '--mark-audio-card') args.markAudioCard = true;
+    else if (arg === '--toggle-stats-overlay') args.toggleStatsOverlay = true;
+    else if (arg === '--toggle-subtitle-sidebar') args.toggleSubtitleSidebar = true;
     else if (arg === '--open-runtime-options') args.openRuntimeOptions = true;
-    else if (arg === '--anilist-status') args.anilistStatus = true;
+    else if (arg === '--open-session-help') args.openSessionHelp = true;
+    else if (arg === '--open-controller-select') args.openControllerSelect = true;
+    else if (arg === '--open-controller-debug') args.openControllerDebug = true;
+    else if (arg === '--open-jimaku') args.openJimaku = true;
+    else if (arg === '--open-youtube-picker') args.openYoutubePicker = true;
+    else if (arg === '--open-playlist-browser') args.openPlaylistBrowser = true;
+    else if (arg === '--replay-current-subtitle') args.replayCurrentSubtitle = true;
+    else if (arg === '--play-next-subtitle') args.playNextSubtitle = true;
+    else if (arg === '--shift-sub-delay-prev-line') args.shiftSubDelayPrevLine = true;
+    else if (arg === '--shift-sub-delay-next-line') args.shiftSubDelayNextLine = true;
+    else if (arg.startsWith('--cycle-runtime-option=')) {
+      const parsed = parseCycleRuntimeOption(arg.split('=', 2)[1]);
+      if (parsed) {
+        args.cycleRuntimeOptionId = parsed.id;
+        args.cycleRuntimeOptionDirection = parsed.direction;
+      }
+    } else if (arg === '--cycle-runtime-option') {
+      const parsed = parseCycleRuntimeOption(readValue(argv[i + 1]));
+      if (parsed) {
+        args.cycleRuntimeOptionId = parsed.id;
+        args.cycleRuntimeOptionDirection = parsed.direction;
+      }
+    } else if (arg.startsWith('--copy-subtitle-count=')) {
+      const value = Number(arg.split('=', 2)[1]);
+      if (Number.isInteger(value) && value > 0) args.copySubtitleCount = value;
+    } else if (arg === '--copy-subtitle-count') {
+      const value = Number(readValue(argv[i + 1]));
+      if (Number.isInteger(value) && value > 0) args.copySubtitleCount = value;
+    } else if (arg.startsWith('--mine-sentence-count=')) {
+      const value = Number(arg.split('=', 2)[1]);
+      if (Number.isInteger(value) && value > 0) args.mineSentenceCount = value;
+    } else if (arg === '--mine-sentence-count') {
+      const value = Number(readValue(argv[i + 1]));
+      if (Number.isInteger(value) && value > 0) args.mineSentenceCount = value;
+    } else if (arg === '--anilist-status') args.anilistStatus = true;
     else if (arg === '--anilist-logout') args.anilistLogout = true;
     else if (arg === '--anilist-setup') args.anilistSetup = true;
     else if (arg === '--anilist-retry-queue') args.anilistRetryQueue = true;
@@ -371,7 +453,22 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.triggerFieldGrouping ||
     args.triggerSubsync ||
     args.markAudioCard ||
+    args.toggleStatsOverlay ||
+    args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
+    args.openSessionHelp ||
+    args.openControllerSelect ||
+    args.openControllerDebug ||
+    args.openJimaku ||
+    args.openYoutubePicker ||
+    args.openPlaylistBrowser ||
+    args.replayCurrentSubtitle ||
+    args.playNextSubtitle ||
+    args.shiftSubDelayPrevLine ||
+    args.shiftSubDelayNextLine ||
+    args.cycleRuntimeOptionId !== undefined ||
+    args.copySubtitleCount !== undefined ||
+    args.mineSentenceCount !== undefined ||
     args.anilistStatus ||
     args.anilistLogout ||
     args.anilistSetup ||
@@ -423,7 +520,22 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.triggerFieldGrouping &&
     !args.triggerSubsync &&
     !args.markAudioCard &&
+    !args.toggleStatsOverlay &&
+    !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
+    !args.openSessionHelp &&
+    !args.openControllerSelect &&
+    !args.openControllerDebug &&
+    !args.openJimaku &&
+    !args.openYoutubePicker &&
+    !args.openPlaylistBrowser &&
+    !args.replayCurrentSubtitle &&
+    !args.playNextSubtitle &&
+    !args.shiftSubDelayPrevLine &&
+    !args.shiftSubDelayNextLine &&
+    args.cycleRuntimeOptionId === undefined &&
+    args.copySubtitleCount === undefined &&
+    args.mineSentenceCount === undefined &&
     !args.anilistStatus &&
     !args.anilistLogout &&
     !args.anilistSetup &&
@@ -466,7 +578,22 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.triggerFieldGrouping ||
     args.triggerSubsync ||
     args.markAudioCard ||
+    args.toggleStatsOverlay ||
+    args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
+    args.openSessionHelp ||
+    args.openControllerSelect ||
+    args.openControllerDebug ||
+    args.openJimaku ||
+    args.openYoutubePicker ||
+    args.openPlaylistBrowser ||
+    args.replayCurrentSubtitle ||
+    args.playNextSubtitle ||
+    args.shiftSubDelayPrevLine ||
+    args.shiftSubDelayNextLine ||
+    args.cycleRuntimeOptionId !== undefined ||
+    args.copySubtitleCount !== undefined ||
+    args.mineSentenceCount !== undefined ||
     args.dictionary ||
     args.stats ||
     args.jellyfin ||
@@ -504,7 +631,22 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.triggerFieldGrouping &&
     !args.triggerSubsync &&
     !args.markAudioCard &&
+    !args.toggleStatsOverlay &&
+    !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
+    !args.openSessionHelp &&
+    !args.openControllerSelect &&
+    !args.openControllerDebug &&
+    !args.openJimaku &&
+    !args.openYoutubePicker &&
+    !args.openPlaylistBrowser &&
+    !args.replayCurrentSubtitle &&
+    !args.playNextSubtitle &&
+    !args.shiftSubDelayPrevLine &&
+    !args.shiftSubDelayNextLine &&
+    args.cycleRuntimeOptionId === undefined &&
+    args.copySubtitleCount === undefined &&
+    args.mineSentenceCount === undefined &&
     !args.anilistStatus &&
     !args.anilistLogout &&
     !args.anilistSetup &&
@@ -544,10 +686,25 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.mineSentenceMultiple ||
     args.updateLastCardFromClipboard ||
     args.toggleSecondarySub ||
+    args.toggleStatsOverlay ||
+    args.toggleSubtitleSidebar ||
     args.triggerFieldGrouping ||
     args.triggerSubsync ||
     args.markAudioCard ||
-    args.openRuntimeOptions
+    args.openRuntimeOptions ||
+    args.openSessionHelp ||
+    args.openControllerSelect ||
+    args.openControllerDebug ||
+    args.openJimaku ||
+    args.openYoutubePicker ||
+    args.openPlaylistBrowser ||
+    args.replayCurrentSubtitle ||
+    args.playNextSubtitle ||
+    args.shiftSubDelayPrevLine ||
+    args.shiftSubDelayNextLine ||
+    args.cycleRuntimeOptionId !== undefined ||
+    args.copySubtitleCount !== undefined ||
+    args.mineSentenceCount !== undefined
   );
 }
 

@@ -22,6 +22,12 @@ test('publish release leaves prerelease unset so gh creates a normal release', (
   assert.ok(!releaseWorkflow.includes('--prerelease'));
 });
 
+test('stable release workflow excludes prerelease beta and rc tags', () => {
+  assert.match(releaseWorkflow, /tags:\s*\n\s*-\s*'v\*'/);
+  assert.match(releaseWorkflow, /tags:\s*\n(?:.*\n)*\s*-\s*'!v\*-beta\.\*'/);
+  assert.match(releaseWorkflow, /tags:\s*\n(?:.*\n)*\s*-\s*'!v\*-rc\.\*'/);
+});
+
 test('publish release forces an existing draft tag release to become public', () => {
   assert.ok(releaseWorkflow.includes('--draft=false'));
 });
@@ -69,6 +75,13 @@ test('release workflow includes the Windows installer in checksums and uploaded 
     releaseWorkflow,
     /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
   );
+});
+
+test('release workflow writes checksum entries using release asset basenames', () => {
+  assert.match(releaseWorkflow, /: > release\/SHA256SUMS\.txt/);
+  assert.match(releaseWorkflow, /for file in "\$\{files\[@\]\}"; do/);
+  assert.match(releaseWorkflow, /\$\{file##\*\/\}/);
+  assert.doesNotMatch(releaseWorkflow, /sha256sum "\$\{files\[@\]\}" > release\/SHA256SUMS\.txt/);
 });
 
 test('release package scripts disable implicit electron-builder publishing', () => {

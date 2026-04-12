@@ -123,6 +123,9 @@ function createQueuedIpcListenerWithPayload<T>(
 }
 
 const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
+const onOpenSessionHelpEvent = createQueuedIpcListener(IPC_CHANNELS.event.sessionHelpOpen);
+const onOpenControllerSelectEvent = createQueuedIpcListener(IPC_CHANNELS.event.controllerSelectOpen);
+const onOpenControllerDebugEvent = createQueuedIpcListener(IPC_CHANNELS.event.controllerDebugOpen);
 const onOpenJimakuEvent = createQueuedIpcListener(IPC_CHANNELS.event.jimakuOpen);
 const onOpenYoutubeTrackPickerEvent = createQueuedIpcListenerWithPayload<YoutubePickerOpenPayload>(
   IPC_CHANNELS.event.youtubePickerOpen,
@@ -141,6 +144,9 @@ const onLookupWindowToggleRequestedEvent = createQueuedIpcListener(
 const onSubsyncManualOpenEvent = createQueuedIpcListenerWithPayload<SubsyncManualPayload>(
   IPC_CHANNELS.event.subsyncOpenManual,
   (payload) => payload as SubsyncManualPayload,
+);
+const onSubtitleSidebarToggleEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.subtitleSidebarToggle,
 );
 const onKikuFieldGroupingRequestEvent =
   createQueuedIpcListenerWithPayload<KikuFieldGroupingRequestData>(
@@ -223,8 +229,11 @@ const electronAPI: ElectronAPI = {
 
   getKeybindings: (): Promise<Keybinding[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getKeybindings),
+  getSessionBindings: () => ipcRenderer.invoke(IPC_CHANNELS.request.getSessionBindings),
   getConfiguredShortcuts: (): Promise<Required<ShortcutsConfig>> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getConfigShortcuts),
+  dispatchSessionAction: (actionId, payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.command.dispatchSessionAction, { actionId, payload }),
   getStatsToggleKey: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getStatsToggleKey),
   getMarkWatchedKey: (): Promise<string> =>
@@ -323,9 +332,13 @@ const electronAPI: ElectronAPI = {
     );
   },
   onOpenRuntimeOptions: onOpenRuntimeOptionsEvent,
+  onOpenSessionHelp: onOpenSessionHelpEvent,
+  onOpenControllerSelect: onOpenControllerSelectEvent,
+  onOpenControllerDebug: onOpenControllerDebugEvent,
   onOpenJimaku: onOpenJimakuEvent,
   onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
   onOpenPlaylistBrowser: onOpenPlaylistBrowserEvent,
+  onSubtitleSidebarToggle: onSubtitleSidebarToggleEvent,
   onCancelYoutubeTrackPicker: onCancelYoutubeTrackPickerEvent,
   onKeyboardModeToggleRequested: onKeyboardModeToggleRequestedEvent,
   onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,

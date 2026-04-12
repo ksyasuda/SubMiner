@@ -55,6 +55,8 @@ import { resolveRendererDom } from './utils/dom.js';
 import { resolvePlatformInfo } from './utils/platform.js';
 import {
   buildMpvLoadfileCommands,
+  buildMpvSubtitleAddCommands,
+  collectDroppedSubtitlePaths,
   collectDroppedVideoPaths,
 } from '../core/services/overlay-drop.js';
 
@@ -172,18 +174,16 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
   openSessionHelpModal: sessionHelpModal.openSessionHelpModal,
+  openControllerSelectModal: () => {
+    controllerSelectModal.openControllerSelectModal();
+  },
+  openControllerDebugModal: () => {
+    controllerDebugModal.openControllerDebugModal();
+  },
   appendClipboardVideoToQueue: () => {
     void window.electronAPI.appendClipboardVideoToQueue();
   },
   getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
-  openControllerSelectModal: () => {
-    controllerSelectModal.openControllerSelectModal();
-    window.electronAPI.notifyOverlayModalOpened('controller-select');
-  },
-  openControllerDebugModal: () => {
-    controllerDebugModal.openControllerDebugModal();
-    window.electronAPI.notifyOverlayModalOpened('controller-debug');
-  },
   toggleSubtitleSidebarModal: () => {
     void subtitleSidebarModal.toggleSubtitleSidebarModal();
   },
@@ -430,15 +430,27 @@ registerRendererGlobalErrorHandlers(window, recovery);
 
 function registerModalOpenHandlers(): void {
   window.electronAPI.onOpenRuntimeOptions(() => {
-    runGuardedAsync('runtime-options:open', async () => {
-      try {
-        await runtimeOptionsModal.openRuntimeOptionsModal();
-        window.electronAPI.notifyOverlayModalOpened('runtime-options');
-      } catch {
-        runtimeOptionsModal.setRuntimeOptionsStatus('Failed to load runtime options', true);
-        window.electronAPI.notifyOverlayModalClosed('runtime-options');
-        syncSettingsModalSubtitleSuppression();
-      }
+    runGuarded('runtime-options:open', () => {
+      runtimeOptionsModal.openRuntimeOptionsModal();
+      window.electronAPI.notifyOverlayModalOpened('runtime-options');
+    });
+  });
+  window.electronAPI.onOpenSessionHelp(() => {
+    runGuarded('session-help:open', () => {
+      sessionHelpModal.openSessionHelpModal(keyboardHandlers.getSessionHelpOpeningInfo());
+      window.electronAPI.notifyOverlayModalOpened('session-help');
+    });
+  });
+  window.electronAPI.onOpenControllerSelect(() => {
+    runGuarded('controller-select:open', () => {
+      controllerSelectModal.openControllerSelectModal();
+      window.electronAPI.notifyOverlayModalOpened('controller-select');
+    });
+  });
+  window.electronAPI.onOpenControllerDebug(() => {
+    runGuarded('controller-debug:open', () => {
+      controllerDebugModal.openControllerDebugModal();
+      window.electronAPI.notifyOverlayModalOpened('controller-debug');
     });
   });
   window.electronAPI.onOpenJimaku(() => {
@@ -496,6 +508,12 @@ function registerKeyboardCommandHandlers(): void {
       keyboardHandlers.handleLookupWindowToggleRequested();
     });
   });
+
+  window.electronAPI.onSubtitleSidebarToggle(() => {
+    runGuardedAsync('subtitle-sidebar:toggle', async () => {
+      await subtitleSidebarModal.toggleSubtitleSidebarModal();
+    });
+  });
 }
 
 function runGuarded(action: string, fn: () => void): void {
@@ -526,6 +544,12 @@ async function init(): Promise<void> {
   document.body.classList.add(`layer-${ctx.platform.overlayLayer}`);
   if (ctx.platform.isMacOSPlatform) {
     document.body.classList.add('platform-macos');
+  }
+  if (ctx.platform.isWindowsPlatform) {
+    document.body.classList.add('platform-windows');
+  }
+  if (ctx.platform.shouldToggleMouseIgnore) {
+    syncOverlayMouseIgnoreState(ctx);
   }
 
   window.electronAPI.onSubtitle((data: SubtitleData) => {
@@ -620,7 +644,7 @@ async function init(): Promise<void> {
   });
   window.electronAPI.onConfigHotReload((payload: ConfigHotReloadPayload) => {
     runGuarded('config:hot-reload', () => {
-      keyboardHandlers.updateKeybindings(payload.keybindings);
+      keyboardHandlers.updateSessionBindings(payload.sessionBindings);
       void keyboardHandlers.refreshConfiguredShortcuts();
       subtitleRenderer.applySubtitleStyle(payload.subtitleStyle);
       subtitleRenderer.updateSecondarySubMode(payload.secondarySubMode);
@@ -653,10 +677,6 @@ async function init(): Promise<void> {
     'startup',
   );
   measurementReporter.schedule();
-
-  if (ctx.platform.shouldToggleMouseIgnore) {
-    syncOverlayMouseIgnoreState(ctx);
-  }
 
   measurementReporter.emitNow();
 }
@@ -706,18 +726,28 @@ function setupDragDropToMpvQueue(): void {
     if (!event.dataTransfer) return;
     event.preventDefault();
 
-    const droppedPaths = collectDroppedVideoPaths(event.dataTransfer);
-    const loadCommands = buildMpvLoadfileCommands(droppedPaths, event.shiftKey);
+    const droppedVideoPaths = collectDroppedVideoPaths(event.dataTransfer);
+    const droppedSubtitlePaths = collectDroppedSubtitlePaths(event.dataTransfer);
+    const loadCommands = buildMpvLoadfileCommands(droppedVideoPaths, event.shiftKey);
+    const subtitleCommands = buildMpvSubtitleAddCommands(droppedSubtitlePaths);
     for (const command of loadCommands) {
       window.electronAPI.sendMpvCommand(command);
     }
+    for (const command of subtitleCommands) {
+      window.electronAPI.sendMpvCommand(command);
+    }
+    const osdParts: string[] = [];
     if (loadCommands.length > 0) {
       const action = event.shiftKey ? 'Queued' : 'Loaded';
-      window.electronAPI.sendMpvCommand([
-        'show-text',
-        `${action} ${loadCommands.length} file${loadCommands.length === 1 ? '' : 's'}`,
-        '1500',
-      ]);
+      osdParts.push(`${action} ${loadCommands.length} file${loadCommands.length === 1 ? '' : 's'}`);
+    }
+    if (subtitleCommands.length > 0) {
+      osdParts.push(
+        `Loaded ${subtitleCommands.length} subtitle file${subtitleCommands.length === 1 ? '' : 's'}`,
+      );
+    }
+    if (osdParts.length > 0) {
+      window.electronAPI.sendMpvCommand(['show-text', osdParts.join(' | '), '1500']);
     }
 
     clearDropInteractive();

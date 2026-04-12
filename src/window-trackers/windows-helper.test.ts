@@ -1,111 +1,60 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  parseWindowTrackerHelperFocusState,
-  parseWindowTrackerHelperOutput,
-  resolveWindowsTrackerHelper,
-} from './windows-helper';
+import { findWindowsMpvTargetWindowHandle } from './windows-helper';
+import type { MpvPollResult } from './win32';
 
-test('parseWindowTrackerHelperOutput parses helper geometry output', () => {
-  assert.deepEqual(parseWindowTrackerHelperOutput('120,240,1280,720'), {
-    x: 120,
-    y: 240,
-    width: 1280,
-    height: 720,
-  });
-});
-
-test('parseWindowTrackerHelperOutput returns null for misses and invalid payloads', () => {
-  assert.equal(parseWindowTrackerHelperOutput('not-found'), null);
-  assert.equal(parseWindowTrackerHelperOutput('1,2,3'), null);
-  assert.equal(parseWindowTrackerHelperOutput('1,2,0,4'), null);
-});
-
-test('parseWindowTrackerHelperFocusState parses helper stderr metadata', () => {
-  assert.equal(parseWindowTrackerHelperFocusState('focus=focused'), true);
-  assert.equal(parseWindowTrackerHelperFocusState('focus=not-focused'), false);
-  assert.equal(parseWindowTrackerHelperFocusState('warning\nfocus=focused\nnote'), true);
-  assert.equal(parseWindowTrackerHelperFocusState(''), null);
-});
-
-test('resolveWindowsTrackerHelper auto mode prefers native helper when present', () => {
-  const helper = resolveWindowsTrackerHelper({
-    dirname: 'C:\\repo\\dist\\window-trackers',
-    resourcesPath: 'C:\\repo\\resources',
-    existsSync: (candidate) =>
-      candidate === 'C:\\repo\\resources\\scripts\\get-mpv-window-windows.exe',
-    helperModeEnv: 'auto',
-  });
-
-  assert.deepEqual(helper, {
-    kind: 'native',
-    command: 'C:\\repo\\resources\\scripts\\get-mpv-window-windows.exe',
-    args: [],
-    helperPath: 'C:\\repo\\resources\\scripts\\get-mpv-window-windows.exe',
-  });
-});
-
-test('resolveWindowsTrackerHelper auto mode falls back to powershell helper', () => {
-  const helper = resolveWindowsTrackerHelper({
-    dirname: 'C:\\repo\\dist\\window-trackers',
-    resourcesPath: 'C:\\repo\\resources',
-    existsSync: (candidate) =>
-      candidate === 'C:\\repo\\resources\\scripts\\get-mpv-window-windows.ps1',
-    helperModeEnv: 'auto',
-  });
-
-  assert.deepEqual(helper, {
-    kind: 'powershell',
-    command: 'powershell.exe',
-    args: [
-      '-NoProfile',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-File',
-      'C:\\repo\\resources\\scripts\\get-mpv-window-windows.ps1',
+test('findWindowsMpvTargetWindowHandle prefers the focused mpv window', () => {
+  const result: MpvPollResult = {
+    matches: [
+      {
+        hwnd: 111,
+        bounds: { x: 0, y: 0, width: 1280, height: 720 },
+        area: 1280 * 720,
+        isForeground: false,
+      },
+      {
+        hwnd: 222,
+        bounds: { x: 10, y: 10, width: 800, height: 600 },
+        area: 800 * 600,
+        isForeground: true,
+      },
     ],
-    helperPath: 'C:\\repo\\resources\\scripts\\get-mpv-window-windows.ps1',
-  });
+    focusState: true,
+    windowState: 'visible',
+  };
+
+  assert.equal(findWindowsMpvTargetWindowHandle(result), 222);
 });
 
-test('resolveWindowsTrackerHelper explicit powershell mode ignores native helper', () => {
-  const helper = resolveWindowsTrackerHelper({
-    dirname: 'C:\\repo\\dist\\window-trackers',
-    resourcesPath: 'C:\\repo\\resources',
-    existsSync: (candidate) =>
-      candidate === 'C:\\repo\\resources\\scripts\\get-mpv-window-windows.exe' ||
-      candidate === 'C:\\repo\\resources\\scripts\\get-mpv-window-windows.ps1',
-    helperModeEnv: 'powershell',
-  });
+test('findWindowsMpvTargetWindowHandle falls back to the largest visible mpv window', () => {
+  const result: MpvPollResult = {
+    matches: [
+      {
+        hwnd: 111,
+        bounds: { x: 0, y: 0, width: 640, height: 360 },
+        area: 640 * 360,
+        isForeground: false,
+      },
+      {
+        hwnd: 222,
+        bounds: { x: 10, y: 10, width: 1920, height: 1080 },
+        area: 1920 * 1080,
+        isForeground: false,
+      },
+    ],
+    focusState: false,
+    windowState: 'visible',
+  };
 
-  assert.equal(helper?.kind, 'powershell');
-  assert.equal(helper?.helperPath, 'C:\\repo\\resources\\scripts\\get-mpv-window-windows.ps1');
+  assert.equal(findWindowsMpvTargetWindowHandle(result), 222);
 });
 
-test('resolveWindowsTrackerHelper explicit native mode fails cleanly when helper is missing', () => {
-  const helper = resolveWindowsTrackerHelper({
-    dirname: 'C:\\repo\\dist\\window-trackers',
-    resourcesPath: 'C:\\repo\\resources',
-    existsSync: () => false,
-    helperModeEnv: 'native',
-  });
+test('findWindowsMpvTargetWindowHandle returns null when no mpv windows are visible', () => {
+  const result: MpvPollResult = {
+    matches: [],
+    focusState: false,
+    windowState: 'not-found',
+  };
 
-  assert.equal(helper, null);
-});
-
-test('resolveWindowsTrackerHelper explicit helper path overrides default search', () => {
-  const helper = resolveWindowsTrackerHelper({
-    dirname: 'C:\\repo\\dist\\window-trackers',
-    resourcesPath: 'C:\\repo\\resources',
-    existsSync: (candidate) => candidate === 'D:\\custom\\tracker.ps1',
-    helperModeEnv: 'auto',
-    helperPathEnv: 'D:\\custom\\tracker.ps1',
-  });
-
-  assert.deepEqual(helper, {
-    kind: 'powershell',
-    command: 'powershell.exe',
-    args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'D:\\custom\\tracker.ps1'],
-    helperPath: 'D:\\custom\\tracker.ps1',
-  });
+  assert.equal(findWindowsMpvTargetWindowHandle(result), null);
 });

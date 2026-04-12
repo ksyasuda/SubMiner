@@ -229,6 +229,22 @@ function M.create(ctx)
 		end)
 	end
 
+	local function run_binary_command_async(args, callback)
+		subminer_log("debug", "process", "Binary command: " .. table.concat(args, " "))
+		mp.command_native_async({
+			name = "subprocess",
+			args = args,
+			playback_only = false,
+			capture_stdout = true,
+			capture_stderr = true,
+		}, function(success, result, error)
+			local ok = success and (result == nil or result.status == 0)
+			if callback then
+				callback(ok, result, error)
+			end
+		end)
+	end
+
 	local function parse_start_script_message_overrides(...)
 		local overrides = {}
 		for i = 1, select("#", ...) do
@@ -528,6 +544,7 @@ function M.create(ctx)
 		build_command_args = build_command_args,
 		has_matching_mpv_ipc_socket = has_matching_mpv_ipc_socket,
 		run_control_command_async = run_control_command_async,
+		run_binary_command_async = run_binary_command_async,
 		parse_start_script_message_overrides = parse_start_script_message_overrides,
 		ensure_texthooker_running = ensure_texthooker_running,
 		start_overlay = start_overlay,

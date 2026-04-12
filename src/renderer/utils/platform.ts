@@ -5,6 +5,7 @@ export type PlatformInfo = {
   isModalLayer: boolean;
   isLinuxPlatform: boolean;
   isMacOSPlatform: boolean;
+  isWindowsPlatform: boolean;
   shouldToggleMouseIgnore: boolean;
 };
 
@@ -24,12 +25,15 @@ export function resolvePlatformInfo(): PlatformInfo {
   const isLinuxPlatform = navigator.platform.toLowerCase().includes('linux');
   const isMacOSPlatform =
     navigator.platform.toLowerCase().includes('mac') || /mac/i.test(navigator.userAgent);
+  const isWindowsPlatform =
+    navigator.platform.toLowerCase().includes('win') || /windows/i.test(navigator.userAgent);
 
   return {
     overlayLayer,
     isModalLayer,
     isLinuxPlatform,
     isMacOSPlatform,
+    isWindowsPlatform,
     shouldToggleMouseIgnore: !isLinuxPlatform && !isModalLayer,
   };
 }

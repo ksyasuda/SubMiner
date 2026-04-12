@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,6 +8,23 @@ import test from 'node:test';
 
 function createWorkspace(name: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
+}
+
+function toBashPath(filePath: string): string {
+  if (process.platform !== 'win32') return filePath;
+
+  const normalized = filePath.replace(/\\/g, '/');
+  const match = normalized.match(/^([A-Za-z]):\/(.*)$/);
+  if (!match) return normalized;
+
+  const drive = match[1]!;
+  const rest = match[2]!;
+  const probe = spawnSync('bash', ['-c', 'uname -s'], { encoding: 'utf8' });
+  if (probe.status === 0 && /linux/i.test(probe.stdout)) {
+    return `/mnt/${drive.toLowerCase()}/${rest}`;
+  }
+
+  return `${drive.toUpperCase()}:/${rest}`;
 }
 
 test('update-aur-package updates PKGBUILD and .SRCINFO without makepkg', () => {
@@ -29,15 +47,15 @@ test('update-aur-package updates PKGBUILD and .SRCINFO without makepkg', () => {
       [
         'scripts/update-aur-package.sh',
         '--pkg-dir',
-        pkgDir,
+        toBashPath(pkgDir),
         '--version',
         'v0.6.3',
         '--appimage',
-        appImagePath,
+        toBashPath(appImagePath),
         '--wrapper',
-        wrapperPath,
+        toBashPath(wrapperPath),
         '--assets',
-        assetsPath,
+        toBashPath(assetsPath),
       ],
       {
         cwd: process.cwd(),
@@ -47,8 +65,8 @@ test('update-aur-package updates PKGBUILD and .SRCINFO without makepkg', () => {
 
     const pkgbuild = fs.readFileSync(path.join(pkgDir, 'PKGBUILD'), 'utf8');
     const srcinfo = fs.readFileSync(path.join(pkgDir, '.SRCINFO'), 'utf8');
-    const expectedSums = [appImagePath, wrapperPath, assetsPath].map(
-      (filePath) => execFileSync('sha256sum', [filePath], { encoding: 'utf8' }).split(/\s+/)[0],
+    const expectedSums = [appImagePath, wrapperPath, assetsPath].map((filePath) =>
+      crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'),
     );
 
     assert.match(pkgbuild, /^pkgver=0\.6\.3$/m);

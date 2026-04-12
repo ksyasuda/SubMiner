@@ -10,6 +10,7 @@ export function buildOverlayWindowOptions(
   },
 ): BrowserWindowConstructorOptions {
   const showNativeDebugFrame = process.platform === 'win32' && options.isDev;
+  const shouldStartAlwaysOnTop = !(process.platform === 'win32' && kind === 'visible');
 
   return {
     show: false,
@@ -18,8 +19,9 @@ export function buildOverlayWindowOptions(
     x: 0,
     y: 0,
     transparent: true,
+    backgroundColor: '#00000000',
     frame: false,
-    alwaysOnTop: true,
+    alwaysOnTop: shouldStartAlwaysOnTop,
     skipTaskbar: true,
     resizable: false,
     hasShadow: false,
@@ -31,6 +33,7 @@ export function buildOverlayWindowOptions(
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      backgroundThrottling: false,
       webSecurity: true,
       session: options.yomitanSession ?? undefined,
       additionalArguments: [`--overlay-layer=${kind}`],

@@ -16,80 +16,53 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { execFile, type ExecFileException } from 'child_process';
 import { BaseWindowTracker } from './base-tracker';
-import {
-  parseWindowTrackerHelperFocusState,
-  parseWindowTrackerHelperOutput,
-  resolveWindowsTrackerHelper,
-  type WindowsTrackerHelperLaunchSpec,
-} from './windows-helper';
+import type { WindowGeometry } from '../types';
+import type { MpvPollResult } from './win32';
 import { createLogger } from '../logger';
 
 const log = createLogger('tracker').child('windows');
 
-type WindowsTrackerRunnerResult = {
-  stdout: string;
-  stderr: string;
-};
-
 type WindowsTrackerDeps = {
-  resolveHelper?: () => WindowsTrackerHelperLaunchSpec | null;
-  runHelper?: (
-    spec: WindowsTrackerHelperLaunchSpec,
-    mode: 'geometry',
-    targetMpvSocketPath: string | null,
-  ) => Promise<WindowsTrackerRunnerResult>;
+  pollMpvWindows?: () => MpvPollResult;
+  maxConsecutiveMisses?: number;
+  trackingLossGraceMs?: number;
+  minimizedTrackingLossGraceMs?: number;
+  now?: () => number;
 };
 
-function runHelperWithExecFile(
-  spec: WindowsTrackerHelperLaunchSpec,
-  mode: 'geometry',
-  targetMpvSocketPath: string | null,
-): Promise<WindowsTrackerRunnerResult> {
-  return new Promise((resolve, reject) => {
-    const modeArgs = spec.kind === 'native' ? ['--mode', mode] : ['-Mode', mode];
-    const args = targetMpvSocketPath
-      ? [...spec.args, ...modeArgs, targetMpvSocketPath]
-      : [...spec.args, ...modeArgs];
-    execFile(
-      spec.command,
-      args,
-      {
-        encoding: 'utf-8',
-        timeout: 1000,
-        maxBuffer: 1024 * 1024,
-        windowsHide: true,
-      },
-      (error: ExecFileException | null, stdout: string, stderr: string) => {
-        if (error) {
-          reject(Object.assign(error, { stderr }));
-          return;
-        }
-        resolve({ stdout, stderr });
-      },
-    );
-  });
+function defaultPollMpvWindows(_targetMpvSocketPath?: string | null): MpvPollResult {
+  const win32 = require('./win32') as typeof import('./win32');
+  return win32.findMpvWindows(_targetMpvSocketPath);
 }
 
 export class WindowsWindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private pollInFlight = false;
-  private helperSpec: WindowsTrackerHelperLaunchSpec | null;
+  private readonly pollMpvWindows: () => MpvPollResult;
+  private readonly maxConsecutiveMisses: number;
+  private readonly trackingLossGraceMs: number;
+  private readonly minimizedTrackingLossGraceMs: number;
+  private readonly now: () => number;
+  private lastPollErrorFingerprint: string | null = null;
+  private lastPollErrorLoggedAtMs = 0;
+  private consecutiveMisses = 0;
+  private trackingLossStartedAtMs: number | null = null;
+  private targetWindowMinimized = false;
   private readonly targetMpvSocketPath: string | null;
-  private readonly runHelper: (
-    spec: WindowsTrackerHelperLaunchSpec,
-    mode: 'geometry',
-    targetMpvSocketPath: string | null,
-  ) => Promise<WindowsTrackerRunnerResult>;
-  private lastExecErrorFingerprint: string | null = null;
-  private lastExecErrorLoggedAtMs = 0;
+  private currentTargetWindowHwnd: number | null = null;
 
-  constructor(targetMpvSocketPath?: string, deps: WindowsTrackerDeps = {}) {
+  constructor(_targetMpvSocketPath?: string, deps: WindowsTrackerDeps = {}) {
     super();
-    this.targetMpvSocketPath = targetMpvSocketPath?.trim() || null;
-    this.helperSpec = deps.resolveHelper ? deps.resolveHelper() : resolveWindowsTrackerHelper();
-    this.runHelper = deps.runHelper ?? runHelperWithExecFile;
+    this.targetMpvSocketPath = _targetMpvSocketPath?.trim() || null;
+    this.pollMpvWindows = deps.pollMpvWindows ?? (() => defaultPollMpvWindows(this.targetMpvSocketPath));
+    this.maxConsecutiveMisses = Math.max(1, Math.floor(deps.maxConsecutiveMisses ?? 2));
+    this.trackingLossGraceMs = Math.max(0, Math.floor(deps.trackingLossGraceMs ?? 1_500));
+    this.minimizedTrackingLossGraceMs = Math.max(
+      0,
+      Math.floor(deps.minimizedTrackingLossGraceMs ?? 500),
+    );
+    this.now = deps.now ?? (() => Date.now());
   }
 
   start(): void {
@@ -104,72 +77,108 @@ export class WindowsWindowTracker extends BaseWindowTracker {
     }
   }
 
-  private maybeLogExecError(error: Error, stderr: string): void {
-    const now = Date.now();
-    const fingerprint = `${error.message}|${stderr.trim()}`;
-    const shouldLog =
-      this.lastExecErrorFingerprint !== fingerprint || now - this.lastExecErrorLoggedAtMs >= 5000;
-    if (!shouldLog) {
-      return;
-    }
-
-    this.lastExecErrorFingerprint = fingerprint;
-    this.lastExecErrorLoggedAtMs = now;
-    log.warn('Windows helper execution failed', {
-      helperPath: this.helperSpec?.helperPath ?? null,
-      helperKind: this.helperSpec?.kind ?? null,
-      error: error.message,
-      stderr: stderr.trim(),
-    });
+  override isTargetWindowMinimized(): boolean {
+    return this.targetWindowMinimized;
   }
 
-  private async runHelperWithSocketFallback(): Promise<WindowsTrackerRunnerResult> {
-    if (!this.helperSpec) {
-      return { stdout: 'not-found', stderr: '' };
-    }
+  getTargetWindowHandle(): number | null {
+    return this.currentTargetWindowHwnd;
+  }
 
-    try {
-      const primary = await this.runHelper(this.helperSpec, 'geometry', this.targetMpvSocketPath);
-      const primaryGeometry = parseWindowTrackerHelperOutput(primary.stdout);
-      if (primaryGeometry || !this.targetMpvSocketPath) {
-        return primary;
-      }
-    } catch (error) {
-      if (!this.targetMpvSocketPath) {
-        throw error;
-      }
-    }
+  private maybeLogPollError(error: Error): void {
+    const now = Date.now();
+    const fingerprint = error.message;
+    const shouldLog =
+      this.lastPollErrorFingerprint !== fingerprint || now - this.lastPollErrorLoggedAtMs >= 5000;
+    if (!shouldLog) return;
 
-    return await this.runHelper(this.helperSpec, 'geometry', null);
+    this.lastPollErrorFingerprint = fingerprint;
+    this.lastPollErrorLoggedAtMs = now;
+    log.warn('Windows native poll failed', { error: error.message });
+  }
+
+  private resetTrackingLossState(): void {
+    this.consecutiveMisses = 0;
+    this.trackingLossStartedAtMs = null;
+  }
+
+  private shouldDropTracking(graceMs = this.trackingLossGraceMs): boolean {
+    if (!this.isTracking()) {
+      return true;
+    }
+    if (graceMs === 0) {
+      return this.consecutiveMisses >= this.maxConsecutiveMisses;
+    }
+    if (this.trackingLossStartedAtMs === null) {
+      this.trackingLossStartedAtMs = this.now();
+      return false;
+    }
+    return this.now() - this.trackingLossStartedAtMs > graceMs;
+  }
+
+  private registerTrackingMiss(graceMs = this.trackingLossGraceMs): void {
+    this.consecutiveMisses += 1;
+    if (this.shouldDropTracking(graceMs)) {
+      this.updateGeometry(null);
+      this.resetTrackingLossState();
+    }
+  }
+
+  private selectBestMatch(
+    result: MpvPollResult,
+  ): { geometry: WindowGeometry; focused: boolean; hwnd: number } | null {
+    if (result.matches.length === 0) return null;
+
+    const focusedMatch = result.matches.find((m) => m.isForeground);
+    const best =
+      focusedMatch ??
+      [...result.matches].sort((a, b) => b.area - a.area || b.bounds.width - a.bounds.width)[0]!;
+
+    return {
+      geometry: best.bounds,
+      focused: best.isForeground,
+      hwnd: best.hwnd,
+    };
   }
 
   private pollGeometry(): void {
-    if (this.pollInFlight || !this.helperSpec) {
-      return;
-    }
-
+    if (this.pollInFlight) return;
     this.pollInFlight = true;
-    void this.runHelperWithSocketFallback()
-      .then(({ stdout, stderr }) => {
-        const geometry = parseWindowTrackerHelperOutput(stdout);
-        const focusState = parseWindowTrackerHelperFocusState(stderr);
-        this.updateTargetWindowFocused(focusState ?? Boolean(geometry));
-        this.updateGeometry(geometry);
-      })
-      .catch((error: unknown) => {
-        const err = error instanceof Error ? error : new Error(String(error));
-        const stderr =
-          typeof error === 'object' &&
-          error !== null &&
-          'stderr' in error &&
-          typeof (error as { stderr?: unknown }).stderr === 'string'
-            ? (error as { stderr: string }).stderr
-            : '';
-        this.maybeLogExecError(err, stderr);
-        this.updateGeometry(null);
-      })
-      .finally(() => {
-        this.pollInFlight = false;
-      });
+
+    try {
+      const result = this.pollMpvWindows();
+      const best = this.selectBestMatch(result);
+
+      if (best) {
+        this.resetTrackingLossState();
+        this.targetWindowMinimized = false;
+        this.currentTargetWindowHwnd = best.hwnd;
+        this.updateGeometry(best.geometry, best.focused);
+        this.updateTargetWindowFocused(best.focused);
+        return;
+      }
+
+      if (result.windowState === 'minimized') {
+        this.targetWindowMinimized = true;
+        this.currentTargetWindowHwnd = null;
+        this.updateTargetWindowFocused(false);
+        this.registerTrackingMiss(this.minimizedTrackingLossGraceMs);
+        return;
+      }
+
+      this.targetWindowMinimized = false;
+      this.currentTargetWindowHwnd = null;
+      this.updateTargetWindowFocused(false);
+      this.registerTrackingMiss();
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.maybeLogPollError(err);
+      this.targetWindowMinimized = false;
+      this.currentTargetWindowHwnd = null;
+      this.updateTargetWindowFocused(false);
+      this.registerTrackingMiss();
+    } finally {
+      this.pollInFlight = false;
+    }
   }
 }

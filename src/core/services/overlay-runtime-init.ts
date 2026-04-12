@@ -71,6 +71,7 @@ export function initializeOverlayRuntime(options: {
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
   isVisibleOverlayVisible: () => boolean;
   updateVisibleOverlayVisibility: () => void;
+  refreshCurrentSubtitle?: () => void;
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
@@ -78,6 +79,8 @@ export function initializeOverlayRuntime(options: {
     override?: string | null,
     targetMpvSocketPath?: string | null,
   ) => BaseWindowTracker | null;
+  bindOverlayOwner?: () => void;
+  releaseOverlayOwner?: () => void;
 }): void {
   options.createMainWindow();
   options.registerGlobalShortcuts();
@@ -94,11 +97,14 @@ export function initializeOverlayRuntime(options: {
     };
     windowTracker.onWindowFound = (geometry: WindowGeometry) => {
       options.updateVisibleOverlayBounds(geometry);
+      options.bindOverlayOwner?.();
       if (options.isVisibleOverlayVisible()) {
         options.updateVisibleOverlayVisibility();
+        options.refreshCurrentSubtitle?.();
       }
     };
     windowTracker.onWindowLost = () => {
+      options.releaseOverlayOwner?.();
       for (const window of options.getOverlayWindows()) {
         window.hide();
       }

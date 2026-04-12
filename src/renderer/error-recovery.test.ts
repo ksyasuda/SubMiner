@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 
 import { createRendererRecoveryController } from './error-recovery.js';
 import {
+  YOMITAN_POPUP_HOST_SELECTOR,
   YOMITAN_POPUP_IFRAME_SELECTOR,
+  YOMITAN_POPUP_VISIBLE_HOST_SELECTOR,
   hasYomitanPopupIframe,
   isYomitanPopupIframe,
   isYomitanPopupVisible,
@@ -228,6 +230,42 @@ test('resolvePlatformInfo supports modal layer and disables mouse-ignore toggles
   }
 });
 
+test('resolvePlatformInfo flags Windows platforms', () => {
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousNavigator = (globalThis as { navigator?: unknown }).navigator;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getOverlayLayer: () => 'visible',
+      },
+      location: { search: '' },
+    },
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      platform: 'Win32',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    },
+  });
+
+  try {
+    const info = resolvePlatformInfo();
+    assert.equal(info.isWindowsPlatform, true);
+    assert.equal(info.isMacOSPlatform, false);
+    assert.equal(info.isLinuxPlatform, false);
+    assert.equal(info.shouldToggleMouseIgnore, true);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: previousNavigator,
+    });
+  }
+});
+
 test('isYomitanPopupIframe matches modern popup class and legacy id prefix', () => {
   const createElement = (options: {
     tagName: string;
@@ -284,9 +322,25 @@ test('hasYomitanPopupIframe queries for modern + legacy selector', () => {
   assert.equal(selector, YOMITAN_POPUP_IFRAME_SELECTOR);
 });
 
+test('hasYomitanPopupIframe falls back to popup host selector for shadow-hosted popups', () => {
+  const selectors: string[] = [];
+  const root = {
+    querySelector: (value: string) => {
+      selectors.push(value);
+      if (value === YOMITAN_POPUP_HOST_SELECTOR) {
+        return {};
+      }
+      return null;
+    },
+  } as unknown as ParentNode;
+
+  assert.equal(hasYomitanPopupIframe(root), true);
+  assert.deepEqual(selectors, [YOMITAN_POPUP_IFRAME_SELECTOR, YOMITAN_POPUP_HOST_SELECTOR]);
+});
+
 test('isYomitanPopupVisible requires visible iframe geometry', () => {
   const previousWindow = (globalThis as { window?: unknown }).window;
-  let selector = '';
+  const selectors: string[] = [];
   const visibleFrame = {
     getBoundingClientRect: () => ({ width: 320, height: 180 }),
   } as unknown as HTMLIFrameElement;
@@ -309,16 +363,38 @@ test('isYomitanPopupVisible requires visible iframe geometry', () => {
   try {
     const root = {
       querySelectorAll: (value: string) => {
-        selector = value;
+        selectors.push(value);
+        if (value === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR || value === YOMITAN_POPUP_HOST_SELECTOR) {
+          return [];
+        }
         return [hiddenFrame, visibleFrame];
       },
     } as unknown as ParentNode;
 
     assert.equal(isYomitanPopupVisible(root), true);
-    assert.equal(selector, YOMITAN_POPUP_IFRAME_SELECTOR);
+    assert.deepEqual(selectors, [
+      YOMITAN_POPUP_VISIBLE_HOST_SELECTOR,
+      YOMITAN_POPUP_IFRAME_SELECTOR,
+    ]);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
   }
+});
+
+test('isYomitanPopupVisible detects visible shadow-hosted popup marker without iframe access', () => {
+  let selector = '';
+  const root = {
+    querySelectorAll: (value: string) => {
+      selector = value;
+      if (value === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR) {
+        return [{ getAttribute: () => 'true' }];
+      }
+      return [];
+    },
+  } as unknown as ParentNode;
+
+  assert.equal(isYomitanPopupVisible(root), true);
+  assert.equal(selector, YOMITAN_POPUP_VISIBLE_HOST_SELECTOR);
 });
 
 test('scrollActiveRuntimeOptionIntoView scrolls active runtime option with nearest block', () => {

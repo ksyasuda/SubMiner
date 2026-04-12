@@ -6,6 +6,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   unregisterAllGlobalShortcuts: () => void;
   stopSubtitleWebsocket: () => void;
   stopTexthookerService: () => void;
+  clearWindowsVisibleOverlayForegroundPollLoop: () => void;
   destroyMainOverlayWindow: () => void;
   destroyModalOverlayWindow: () => void;
   destroyYomitanParserWindow: () => void;
@@ -36,6 +37,7 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.unregisterAllGlobalShortcuts();
     deps.stopSubtitleWebsocket();
     deps.stopTexthookerService();
+    deps.clearWindowsVisibleOverlayForegroundPollLoop();
     deps.destroyMainOverlayWindow();
     deps.destroyModalOverlayWindow();
     deps.destroyYomitanParserWindow();

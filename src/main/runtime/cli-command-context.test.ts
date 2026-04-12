@@ -36,6 +36,7 @@ function createDeps() {
       triggerFieldGrouping: async () => {},
       triggerSubsyncFromConfig: async () => {},
       markLastCardAsAudioCard: async () => {},
+      dispatchSessionAction: async () => {},
       getAnilistStatus: () => ({}) as never,
       clearAnilistToken: () => {},
       openAnilistSetup: () => {},

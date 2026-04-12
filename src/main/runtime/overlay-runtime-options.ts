@@ -14,6 +14,7 @@ type OverlayRuntimeOptions = {
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
   isVisibleOverlayVisible: () => boolean;
   updateVisibleOverlayVisibility: () => void;
+  refreshCurrentSubtitle?: () => void;
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
@@ -35,6 +36,8 @@ type OverlayRuntimeOptions = {
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
   shouldStartAnkiIntegration: () => boolean;
+  bindOverlayOwner?: () => void;
+  releaseOverlayOwner?: () => void;
 };
 
 export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
@@ -44,6 +47,7 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
   isVisibleOverlayVisible: () => boolean;
   updateVisibleOverlayVisibility: () => void;
+  refreshCurrentSubtitle?: () => void;
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
@@ -65,6 +69,8 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
   shouldStartAnkiIntegration: () => boolean;
+  bindOverlayOwner?: () => void;
+  releaseOverlayOwner?: () => void;
 }) {
   return (): OverlayRuntimeOptions => ({
     backendOverride: deps.getBackendOverride(),
@@ -73,6 +79,7 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
     updateVisibleOverlayBounds: deps.updateVisibleOverlayBounds,
     isVisibleOverlayVisible: deps.isVisibleOverlayVisible,
     updateVisibleOverlayVisibility: deps.updateVisibleOverlayVisibility,
+    refreshCurrentSubtitle: deps.refreshCurrentSubtitle,
     getOverlayWindows: deps.getOverlayWindows,
     syncOverlayShortcuts: deps.syncOverlayShortcuts,
     setWindowTracker: deps.setWindowTracker,
@@ -87,5 +94,7 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
     createFieldGroupingCallback: deps.createFieldGroupingCallback,
     getKnownWordCacheStatePath: deps.getKnownWordCacheStatePath,
     shouldStartAnkiIntegration: deps.shouldStartAnkiIntegration,
+    bindOverlayOwner: deps.bindOverlayOwner,
+    releaseOverlayOwner: deps.releaseOverlayOwner,
   });
 }

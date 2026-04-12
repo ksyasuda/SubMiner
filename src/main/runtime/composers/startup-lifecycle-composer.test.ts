@@ -21,6 +21,7 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       unregisterAllGlobalShortcuts: () => {},
       stopSubtitleWebsocket: () => {},
       stopTexthookerService: () => {},
+      clearWindowsVisibleOverlayForegroundPollLoop: () => {},
       getMainOverlayWindow: () => null,
       clearMainOverlayWindow: () => {},
       getModalOverlayWindow: () => null,

@@ -19,11 +19,33 @@ function writeExecutable(filePath: string, contents: string): void {
   fs.chmodSync(filePath, 0o755);
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
+}
+
+function toBashPath(filePath: string): string {
+  if (process.platform !== 'win32') return filePath;
+
+  const normalized = filePath.replace(/\\/g, '/');
+  const match = normalized.match(/^([A-Za-z]):\/(.*)$/);
+  if (!match) return normalized;
+
+  const drive = match[1]!;
+  const rest = match[2]!;
+  const probe = spawnSync('bash', ['-c', 'uname -s'], { encoding: 'utf8' });
+  if (probe.status === 0 && /linux/i.test(probe.stdout)) {
+    return `/mnt/${drive.toLowerCase()}/${rest}`;
+  }
+
+  return `${drive.toUpperCase()}:/${rest}`;
+}
+
 test('mkv-to-readme-video accepts libwebp_anim when libwebp is unavailable', () => {
   withTempDir((root) => {
     const binDir = path.join(root, 'bin');
     const inputPath = path.join(root, 'sample.mkv');
     const ffmpegLogPath = path.join(root, 'ffmpeg-args.log');
+    const ffmpegLogPathBash = toBashPath(ffmpegLogPath);
 
     fs.mkdirSync(binDir, { recursive: true });
     fs.writeFileSync(inputPath, 'fake-video', 'utf8');
@@ -44,22 +66,33 @@ EOF
   exit 0
 fi
 
-printf '%s\\n' "$*" >> "${ffmpegLogPath}"
+if [[ "$#" -eq 0 ]]; then
+  exit 0
+fi
+
+printf '%s\\n' "$*" >> "${ffmpegLogPathBash}"
 output=""
 for arg in "$@"; do
   output="$arg"
 done
+if [[ -z "$output" ]]; then
+  exit 0
+fi
 mkdir -p "$(dirname "$output")"
 touch "$output"
 `,
     );
 
-    const result = spawnSync('bash', ['scripts/mkv-to-readme-video.sh', '--webp', inputPath], {
+    const ffmpegShimPath = toBashPath(path.join(binDir, 'ffmpeg'));
+    const ffmpegShimDir = toBashPath(binDir);
+    const inputBashPath = toBashPath(inputPath);
+    const command = [
+      `chmod +x ${shellQuote(ffmpegShimPath)}`,
+      `PATH=${shellQuote(`${ffmpegShimDir}:`)}"$PATH"`,
+      `scripts/mkv-to-readme-video.sh --webp ${shellQuote(inputBashPath)}`,
+    ].join('; ');
+    const result = spawnSync('bash', ['-lc', command], {
       cwd: process.cwd(),
-      env: {
-        ...process.env,
-        PATH: `${binDir}:${process.env.PATH || ''}`,
-      },
       encoding: 'utf8',
     });
 

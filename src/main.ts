@@ -109,11 +109,13 @@ import * as os from 'os';
 import * as path from 'path';
 import { MecabTokenizer } from './mecab-tokenizer';
 import type {
+  CompiledSessionBinding,
   JimakuApiResponse,
   KikuFieldGroupingChoice,
   MpvSubtitleRenderMetrics,
   ResolvedConfig,
   RuntimeOptionState,
+  SessionActionDispatchRequest,
   SecondarySubMode,
   SubtitleData,
   SubtitlePosition,
@@ -130,6 +132,14 @@ import {
   type LogLevelSource,
 } from './logger';
 import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
+import {
+  bindWindowsOverlayAboveMpv,
+  clearWindowsOverlayOwner,
+  ensureWindowsOverlayTransparency,
+  findWindowsMpvTargetWindowHandle,
+  getWindowsForegroundProcessName,
+  setWindowsOverlayOwner,
+} from './window-trackers/windows-helper';
 import {
   commandNeedsOverlayStartupPrereqs,
   commandNeedsOverlayRuntime,
@@ -342,6 +352,7 @@ import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-reso
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import { startStatsServer } from './core/services/stats-server';
 import { registerStatsOverlayToggle, destroyStatsWindow } from './core/services/stats-window.js';
+import { toggleStatsOverlay as toggleStatsOverlayWindow } from './core/services/stats-window.js';
 import {
   createFirstRunSetupService,
   getFirstRunSetupCompletionMessage,
@@ -404,6 +415,8 @@ import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
+import { buildPluginSessionBindingsArtifact, compileSessionBindings } from './core/services/session-bindings';
+import { dispatchSessionAction as dispatchSessionActionCore } from './core/services/session-actions';
 import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/domains/shortcuts';
 import { createMainRuntimeRegistry } from './main/runtime/registry';
 import {
@@ -439,7 +452,14 @@ import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
+import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
+import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
+import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
+import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
+import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
+import { writeSessionBindingsArtifact } from './main/runtime/session-bindings-artifact';
+import { openOverlayHostedModal } from './main/runtime/overlay-hosted-modal-open';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
   createFrequencyDictionaryRuntimeService,
@@ -1470,9 +1490,7 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
       openRuntimeOptionsPalette();
     },
     openJimaku: () => {
-      sendToActiveOverlayWindow('jimaku:open', undefined, {
-        restoreOnModalClose: 'jimaku',
-      });
+      openJimakuOverlay();
     },
     markAudioCard: () => markLastCardAsAudioCard(),
     copySubtitleMultiple: (timeoutMs: number) => {
@@ -1525,6 +1543,9 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
   {
     setKeybindings: (keybindings) => {
       appState.keybindings = keybindings;
+    },
+    setSessionBindings: (sessionBindings, sessionBindingWarnings) => {
+      persistSessionBindings(sessionBindings, sessionBindingWarnings);
     },
     refreshGlobalAndOverlayShortcuts: () => {
       refreshGlobalAndOverlayShortcuts();
@@ -1835,6 +1856,9 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => appState.statsOverlayVisible,
     getWindowTracker: () => appState.windowTracker,
+    getLastKnownWindowsForegroundProcessName: () => lastWindowsVisibleOverlayForegroundProcessName,
+    getWindowsOverlayProcessName: () => path.parse(process.execPath).name.toLowerCase(),
+    getWindowsFocusHandoffGraceActive: () => hasWindowsVisibleOverlayFocusHandoffGrace(),
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown: boolean) => {
       appState.trackerNotReadyWarningShown = shown;
@@ -1842,6 +1866,9 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     updateVisibleOverlayBounds: (geometry: WindowGeometry) => updateVisibleOverlayBounds(geometry),
     ensureOverlayWindowLevel: (window) => {
       ensureOverlayWindowLevel(window);
+    },
+    syncWindowsOverlayToMpvZOrder: (_window) => {
+      requestWindowsVisibleOverlayZOrderSync();
     },
     syncPrimaryOverlayWindowLayer: (layer) => {
       syncPrimaryOverlayWindowLayer(layer);
@@ -1870,6 +1897,247 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     },
   })(),
 );
+
+const WINDOWS_VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
+const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] as const;
+const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
+const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
+let windowsVisibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
+let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
+let windowsVisibleOverlayZOrderSyncInFlight = false;
+let windowsVisibleOverlayZOrderSyncQueued = false;
+let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
+let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
+let lastWindowsVisibleOverlayBlurredAtMs = 0;
+
+function clearWindowsVisibleOverlayBlurRefreshTimeouts(): void {
+  for (const timeout of windowsVisibleOverlayBlurRefreshTimeouts) {
+    clearTimeout(timeout);
+  }
+  windowsVisibleOverlayBlurRefreshTimeouts = [];
+}
+
+function clearWindowsVisibleOverlayZOrderRetryTimeouts(): void {
+  for (const timeout of windowsVisibleOverlayZOrderRetryTimeouts) {
+    clearTimeout(timeout);
+  }
+  windowsVisibleOverlayZOrderRetryTimeouts = [];
+}
+
+function getWindowsNativeWindowHandle(window: BrowserWindow): string {
+  const handle = window.getNativeWindowHandle();
+  return handle.length >= 8
+    ? handle.readBigUInt64LE(0).toString()
+    : BigInt(handle.readUInt32LE(0)).toString();
+}
+
+function getWindowsNativeWindowHandleNumber(window: BrowserWindow): number {
+  const handle = window.getNativeWindowHandle();
+  return handle.length >= 8
+    ? Number(handle.readBigUInt64LE(0))
+    : handle.readUInt32LE(0);
+}
+
+function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | null): number | null {
+  if (process.platform !== 'win32') {
+    return null;
+  }
+
+  try {
+    if (targetMpvSocketPath) {
+      const windowTracker = appState.windowTracker as
+        | {
+            getTargetWindowHandle?: () => number | null;
+          }
+        | null;
+      const trackedHandle = windowTracker?.getTargetWindowHandle?.();
+      if (typeof trackedHandle === 'number' && Number.isFinite(trackedHandle)) {
+        return trackedHandle;
+      }
+    }
+    return findWindowsMpvTargetWindowHandle();
+  } catch {
+    return null;
+  }
+}
+
+async function syncWindowsVisibleOverlayToMpvZOrder(): Promise<boolean> {
+  if (process.platform !== 'win32') {
+    return false;
+  }
+
+  const mainWindow = overlayManager.getMainWindow();
+  if (
+    !mainWindow ||
+    mainWindow.isDestroyed() ||
+    !mainWindow.isVisible() ||
+    !overlayManager.getVisibleOverlayVisible()
+  ) {
+    return false;
+  }
+
+  const windowTracker = appState.windowTracker;
+  if (!windowTracker) {
+    return false;
+  }
+
+  if (
+    typeof windowTracker.isTargetWindowMinimized === 'function' &&
+    windowTracker.isTargetWindowMinimized()
+  ) {
+    return false;
+  }
+
+  if (!windowTracker.isTracking() && windowTracker.getGeometry() === null) {
+    return false;
+  }
+
+  const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
+  const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(appState.mpvSocketPath);
+  if (targetWindowHwnd !== null && bindWindowsOverlayAboveMpv(overlayHwnd, targetWindowHwnd)) {
+    (mainWindow as BrowserWindow & { setOpacity?: (opacity: number) => void }).setOpacity?.(1);
+    return true;
+  }
+  return false;
+}
+
+function requestWindowsVisibleOverlayZOrderSync(): void {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  if (windowsVisibleOverlayZOrderSyncInFlight) {
+    windowsVisibleOverlayZOrderSyncQueued = true;
+    return;
+  }
+
+  windowsVisibleOverlayZOrderSyncInFlight = true;
+  void syncWindowsVisibleOverlayToMpvZOrder()
+    .catch((error) => {
+      logger.warn('Failed to bind Windows overlay z-order to mpv', error);
+    })
+    .finally(() => {
+      windowsVisibleOverlayZOrderSyncInFlight = false;
+      if (!windowsVisibleOverlayZOrderSyncQueued) {
+        return;
+      }
+
+      windowsVisibleOverlayZOrderSyncQueued = false;
+      requestWindowsVisibleOverlayZOrderSync();
+    });
+}
+
+function scheduleWindowsVisibleOverlayZOrderSyncBurst(): void {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  clearWindowsVisibleOverlayZOrderRetryTimeouts();
+  for (const delayMs of WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS) {
+    const retryTimeout = setTimeout(() => {
+      windowsVisibleOverlayZOrderRetryTimeouts = windowsVisibleOverlayZOrderRetryTimeouts.filter(
+        (timeout) => timeout !== retryTimeout,
+      );
+      requestWindowsVisibleOverlayZOrderSync();
+    }, delayMs);
+    windowsVisibleOverlayZOrderRetryTimeouts.push(retryTimeout);
+  }
+}
+
+function hasWindowsVisibleOverlayFocusHandoffGrace(): boolean {
+  return (
+    process.platform === 'win32' &&
+    lastWindowsVisibleOverlayBlurredAtMs > 0 &&
+    Date.now() - lastWindowsVisibleOverlayBlurredAtMs <=
+      WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS
+  );
+}
+
+function shouldPollWindowsVisibleOverlayForegroundProcess(): boolean {
+  if (process.platform !== 'win32' || !overlayManager.getVisibleOverlayVisible()) {
+    return false;
+  }
+
+  const mainWindow = overlayManager.getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  const windowTracker = appState.windowTracker;
+  if (!windowTracker) {
+    return false;
+  }
+
+  if (
+    typeof windowTracker.isTargetWindowMinimized === 'function' &&
+    windowTracker.isTargetWindowMinimized()
+  ) {
+    return false;
+  }
+
+  const overlayFocused = mainWindow.isFocused();
+  const trackerFocused = windowTracker.isTargetWindowFocused?.() ?? false;
+  return !overlayFocused && !trackerFocused;
+}
+
+function maybePollWindowsVisibleOverlayForegroundProcess(): void {
+  if (!shouldPollWindowsVisibleOverlayForegroundProcess()) {
+    lastWindowsVisibleOverlayForegroundProcessName = null;
+    return;
+  }
+
+  const processName = getWindowsForegroundProcessName();
+  const normalizedProcessName = processName?.trim().toLowerCase() ?? null;
+  const previousProcessName = lastWindowsVisibleOverlayForegroundProcessName;
+  lastWindowsVisibleOverlayForegroundProcessName = normalizedProcessName;
+
+  if (normalizedProcessName !== previousProcessName) {
+    overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+  }
+  if (normalizedProcessName === 'mpv' && previousProcessName !== 'mpv') {
+    requestWindowsVisibleOverlayZOrderSync();
+  }
+}
+
+function ensureWindowsVisibleOverlayForegroundPollLoop(): void {
+  if (process.platform !== 'win32' || windowsVisibleOverlayForegroundPollInterval !== null) {
+    return;
+  }
+
+  windowsVisibleOverlayForegroundPollInterval = setInterval(() => {
+    maybePollWindowsVisibleOverlayForegroundProcess();
+  }, WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS);
+}
+
+function clearWindowsVisibleOverlayForegroundPollLoop(): void {
+  if (windowsVisibleOverlayForegroundPollInterval === null) {
+    return;
+  }
+
+  clearInterval(windowsVisibleOverlayForegroundPollInterval);
+  windowsVisibleOverlayForegroundPollInterval = null;
+}
+
+function scheduleVisibleOverlayBlurRefresh(): void {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  lastWindowsVisibleOverlayBlurredAtMs = Date.now();
+  clearWindowsVisibleOverlayBlurRefreshTimeouts();
+  for (const delayMs of WINDOWS_VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS) {
+    const refreshTimeout = setTimeout(() => {
+      windowsVisibleOverlayBlurRefreshTimeouts = windowsVisibleOverlayBlurRefreshTimeouts.filter(
+        (timeout) => timeout !== refreshTimeout,
+      );
+      overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+    }, delayMs);
+    windowsVisibleOverlayBlurRefreshTimeouts.push(refreshTimeout);
+  }
+}
+
+ensureWindowsVisibleOverlayForegroundPollLoop();
+
 const buildGetRuntimeOptionsStateMainDepsHandler = createBuildGetRuntimeOptionsStateMainDepsHandler(
   {
     getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
@@ -1957,8 +2225,84 @@ function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
   overlayVisibilityComposer.setOverlayDebugVisualizationEnabled(enabled);
 }
 
+function createOverlayHostedModalOpenDeps(): {
+  ensureOverlayStartupPrereqs: () => void;
+  ensureOverlayWindowsReadyForVisibilityActions: () => void;
+  sendToActiveOverlayWindow: (
+    channel: string,
+    payload?: unknown,
+    runtimeOptions?: {
+      restoreOnModalClose?: OverlayHostedModal;
+      preferModalWindow?: boolean;
+    },
+  ) => boolean;
+  waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
+  logWarn: (message: string) => void;
+} {
+  return {
+    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+    ensureOverlayWindowsReadyForVisibilityActions: () =>
+      ensureOverlayWindowsReadyForVisibilityActions(),
+    sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
+      sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+    waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
+    logWarn: (message) => logger.warn(message),
+  };
+}
+
+function openOverlayHostedModalWithOsd(
+  openModal: (deps: ReturnType<typeof createOverlayHostedModalOpenDeps>) => Promise<boolean>,
+  unavailableMessage: string,
+  failureLogMessage: string,
+): void {
+  void openModal(createOverlayHostedModalOpenDeps()).then((opened) => {
+    if (!opened) {
+      showMpvOsd(unavailableMessage);
+    }
+  }).catch((error) => {
+    logger.error(failureLogMessage, error);
+    showMpvOsd(unavailableMessage);
+  });
+}
+
 function openRuntimeOptionsPalette(): void {
-  overlayVisibilityComposer.openRuntimeOptionsPalette();
+  openOverlayHostedModalWithOsd(
+    openRuntimeOptionsModalRuntime,
+    'Runtime options overlay unavailable.',
+    'Failed to open runtime options overlay.',
+  );
+}
+
+function openJimakuOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openJimakuModalRuntime,
+    'Jimaku overlay unavailable.',
+    'Failed to open Jimaku overlay.',
+  );
+}
+
+function openSessionHelpOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openSessionHelpModalRuntime,
+    'Session help overlay unavailable.',
+    'Failed to open session help overlay.',
+  );
+}
+
+function openControllerSelectOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openControllerSelectModalRuntime,
+    'Controller select overlay unavailable.',
+    'Failed to open controller select overlay.',
+  );
+}
+
+function openControllerDebugOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openControllerDebugModalRuntime,
+    'Controller debug overlay unavailable.',
+    'Failed to open controller debug overlay.',
+  );
 }
 
 function openPlaylistBrowser(): void {
@@ -1966,16 +2310,11 @@ function openPlaylistBrowser(): void {
     showMpvOsd('Playlist browser requires active playback.');
     return;
   }
-  const opened = openPlaylistBrowserRuntime({
-    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
-    ensureOverlayWindowsReadyForVisibilityActions: () =>
-      ensureOverlayWindowsReadyForVisibilityActions(),
-    sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
-      sendToActiveOverlayWindow(channel, payload, runtimeOptions),
-  });
-  if (!opened) {
-    showMpvOsd('Playlist browser overlay unavailable.');
-  }
+  openOverlayHostedModalWithOsd(
+    openPlaylistBrowserRuntime,
+    'Playlist browser overlay unavailable.',
+    'Failed to open playlist browser overlay.',
+  );
 }
 
 function getResolvedConfig() {
@@ -2746,6 +3085,8 @@ const {
       annotationSubtitleWsService.stop();
     },
     stopTexthookerService: () => texthookerService.stop(),
+    clearWindowsVisibleOverlayForegroundPollLoop: () =>
+      clearWindowsVisibleOverlayForegroundPollLoop(),
     getMainOverlayWindow: () => overlayManager.getMainWindow(),
     clearMainOverlayWindow: () => overlayManager.setMainWindow(null),
     getModalOverlayWindow: () => overlayManager.getModalWindow(),
@@ -3146,6 +3487,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     loadSubtitlePosition: () => loadSubtitlePosition(),
     resolveKeybindings: () => {
       appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+      refreshCurrentSessionBindings();
     },
     createMpvClient: () => {
       appState.mpvClient = createMpvClientRuntimeService();
@@ -3288,6 +3630,9 @@ function ensureOverlayStartupPrereqs(): void {
   }
   if (appState.keybindings.length === 0) {
     appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+    refreshCurrentSessionBindings();
+  } else if (!appState.sessionBindingsInitialized) {
+    refreshCurrentSessionBindings();
   }
   if (!appState.mpvClient) {
     appState.mpvClient = createMpvClientRuntimeService();
@@ -3674,6 +4019,12 @@ function applyOverlayRegions(geometry: WindowGeometry): void {
 const buildUpdateVisibleOverlayBoundsMainDepsHandler =
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
     setOverlayWindowBounds: (geometry) => applyOverlayRegions(geometry),
+    afterSetOverlayWindowBounds: () => {
+      if (process.platform !== 'win32' || !overlayManager.getVisibleOverlayVisible()) {
+        return;
+      }
+      scheduleWindowsVisibleOverlayZOrderSyncBurst();
+    },
   });
 const updateVisibleOverlayBoundsMainDeps = buildUpdateVisibleOverlayBoundsMainDepsHandler();
 const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
@@ -3796,7 +4147,14 @@ function createModalWindow(): BrowserWindow {
 }
 
 function createMainWindow(): BrowserWindow {
-  return createMainWindowHandler();
+  const window = createMainWindowHandler();
+  if (process.platform === 'win32') {
+    const overlayHwnd = getWindowsNativeWindowHandleNumber(window);
+    if (!ensureWindowsOverlayTransparency(overlayHwnd)) {
+      logger.warn('Failed to eagerly extend Windows overlay transparency via koffi');
+    }
+  }
+  return window;
 }
 
 function ensureTray(): void {
@@ -3873,6 +4231,53 @@ const {
   },
 });
 
+function resolveSessionBindingPlatform(): 'darwin' | 'win32' | 'linux' {
+  if (process.platform === 'darwin') return 'darwin';
+  if (process.platform === 'win32') return 'win32';
+  return 'linux';
+}
+
+function compileCurrentSessionBindings(): {
+  bindings: CompiledSessionBinding[];
+  warnings: ReturnType<typeof compileSessionBindings>['warnings'];
+} {
+  return compileSessionBindings({
+    keybindings: appState.keybindings,
+    shortcuts: getConfiguredShortcuts(),
+    statsToggleKey: getResolvedConfig().stats.toggleKey,
+    platform: resolveSessionBindingPlatform(),
+    rawConfig: getResolvedConfig(),
+  });
+}
+
+function persistSessionBindings(
+  bindings: CompiledSessionBinding[],
+  warnings: ReturnType<typeof compileSessionBindings>['warnings'] = [],
+): void {
+  const artifact = buildPluginSessionBindingsArtifact({
+    bindings,
+    warnings,
+    numericSelectionTimeoutMs: getConfiguredShortcuts().multiCopyTimeoutMs,
+  });
+  writeSessionBindingsArtifact(CONFIG_DIR, artifact);
+  appState.sessionBindings = bindings;
+  appState.sessionBindingsInitialized = true;
+  if (appState.mpvClient?.connected) {
+    sendMpvCommandRuntime(appState.mpvClient, [
+      'script-message',
+      'subminer-reload-session-bindings',
+    ]);
+  }
+}
+
+function refreshCurrentSessionBindings(): void {
+  const compiled = compileCurrentSessionBindings();
+  for (const warning of compiled.warnings) {
+    logger.warn(`[session-bindings] ${warning.message}`);
+  }
+  persistSessionBindings(compiled.bindings, compiled.warnings);
+}
+
 const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
     logPath: DEFAULT_MPV_LOG_PATH,
@@ -3921,6 +4326,10 @@ function setSecondarySubMode(mode: SecondarySubMode): void {
 
 function handleCycleSecondarySubMode(): void {
   cycleSecondarySubMode();
+}
+
+function toggleSubtitleSidebar(): void {
+  broadcastToOverlayWindows(IPC_CHANNELS.event.subtitleSidebarToggle);
 }
 
 async function triggerSubsyncFromConfig(): Promise<void> {
@@ -4184,6 +4593,55 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
+async function dispatchSessionAction(request: SessionActionDispatchRequest): Promise<void> {
+  await dispatchSessionActionCore(request, {
+    toggleStatsOverlay: () =>
+      toggleStatsOverlayWindow({
+        staticDir: statsDistPath,
+        preloadPath: statsPreloadPath,
+        getApiBaseUrl: () => ensureStatsServerStarted(),
+        getToggleKey: () => getResolvedConfig().stats.toggleKey,
+        resolveBounds: () => getCurrentOverlayGeometry(),
+        onVisibilityChanged: (visible) => {
+          appState.statsOverlayVisible = visible;
+          overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+        },
+      }),
+    toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    copyCurrentSubtitle: () => copyCurrentSubtitle(),
+    copySubtitleCount: (count) => handleMultiCopyDigit(count),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+    triggerFieldGrouping: () => triggerFieldGrouping(),
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    mineSentenceCard: () => mineSentenceCard(),
+    mineSentenceCount: (count) => handleMineSentenceDigit(count),
+    toggleSecondarySub: () => handleCycleSecondarySubMode(),
+    toggleSubtitleSidebar: () => toggleSubtitleSidebar(),
+    markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    openJimaku: () => openJimakuOverlay(),
+    openSessionHelp: () => openSessionHelpOverlay(),
+    openControllerSelect: () => openControllerSelectOverlay(),
+    openControllerDebug: () => openControllerDebugOverlay(),
+    openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
+    openPlaylistBrowser: () => openPlaylistBrowser(),
+    replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
+    playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
+    shiftSubDelayToAdjacentSubtitle: (direction) =>
+      shiftSubtitleDelayToAdjacentCueHandler(direction),
+    cycleRuntimeOption: (id, direction) => {
+      if (!appState.runtimeOptionsManager) {
+        return { ok: false, error: 'Runtime options manager unavailable' };
+      }
+      return applyRuntimeOptionResultRuntime(
+        appState.runtimeOptionsManager.cycleOption(id, direction),
+        (text) => showMpvOsd(text),
+      );
+    },
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
+}
+
 const { playlistBrowserMainDeps } = createPlaylistBrowserIpcRuntime(() => appState.mpvClient, {
   getPrimarySubtitleLanguages: () => getResolvedConfig().youtube.primarySubLanguages,
   getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
@@ -4193,7 +4651,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-    openJimaku: () => overlayModalRuntime.openJimaku(),
+    openJimaku: () => openJimakuOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
     cycleRuntimeOption: (id, direction) => {
@@ -4233,7 +4691,17 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           mainWindow.focus();
         }
       },
-      onOverlayModalClosed: (modal) => {
+      onOverlayModalClosed: (modal, senderWindow) => {
+        const modalWindow = overlayManager.getModalWindow();
+        if (
+          senderWindow &&
+          modalWindow &&
+          senderWindow === modalWindow &&
+          !senderWindow.isDestroyed()
+        ) {
+          senderWindow.setIgnoreMouseEvents(true, { forward: true });
+          senderWindow.hide();
+        }
         handleOverlayModalClosed(modal);
       },
       onOverlayModalOpened: (modal) => {
@@ -4341,7 +4809,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       saveSubtitlePosition: (position) => saveSubtitlePosition(position),
       getMecabTokenizer: () => appState.mecabTokenizer,
       getKeybindings: () => appState.keybindings,
+      getSessionBindings: () => appState.sessionBindings,
       getConfiguredShortcuts: () => getConfiguredShortcuts(),
+      dispatchSessionAction: (request) => dispatchSessionAction(request),
       getStatsToggleKey: () => getResolvedConfig().stats.toggleKey,
       getMarkWatchedKey: () => getResolvedConfig().stats.markWatchedKey,
       getControllerConfig: () => getResolvedConfig().controller,
@@ -4462,6 +4932,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
     stopApp: () => requestAppQuit(),
     hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
+    dispatchSessionAction: (request: SessionActionDispatchRequest) => dispatchSessionAction(request),
     getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
     schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
     logInfo: (message: string) => logger.info(message),
@@ -4595,6 +5066,8 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
       tryHandleOverlayShortcutLocalFallback: (input) =>
         overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
       forwardTabToMpv: () => sendMpvCommandRuntime(appState.mpvClient, ['keypress', 'TAB']),
+      onVisibleWindowBlurred: () => scheduleVisibleOverlayBlurRefresh(),
+      onWindowContentReady: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
       onWindowClosed: (windowKind) => {
         if (windowKind === 'visible') {
           overlayManager.setMainWindow(null);
@@ -4696,6 +5169,9 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
         updateVisibleOverlayVisibility: () =>
           overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
       },
+      refreshCurrentSubtitle: () => {
+        subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+      },
       overlayShortcutsRuntime: {
         syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
       },
@@ -4719,6 +5195,40 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       },
       updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
         updateVisibleOverlayBounds(geometry),
+      bindOverlayOwner: () => {
+        const mainWindow = overlayManager.getMainWindow();
+        if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
+        const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
+        const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(appState.mpvSocketPath);
+        if (targetWindowHwnd !== null && bindWindowsOverlayAboveMpv(overlayHwnd, targetWindowHwnd)) {
+          return;
+        }
+        const tracker = appState.windowTracker;
+        const mpvResult = tracker
+          ? (() => {
+              try {
+                const win32 = require('./window-trackers/win32') as typeof import('./window-trackers/win32');
+                const poll = win32.findMpvWindows();
+                const focused = poll.matches.find((m) => m.isForeground);
+                return focused ?? [...poll.matches].sort((a, b) => b.area - a.area)[0] ?? null;
+              } catch {
+                return null;
+              }
+            })()
+          : null;
+        if (!mpvResult) return;
+        if (!setWindowsOverlayOwner(overlayHwnd, mpvResult.hwnd)) {
+          logger.warn('Failed to set overlay owner via koffi');
+        }
+      },
+      releaseOverlayOwner: () => {
+        const mainWindow = overlayManager.getMainWindow();
+        if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
+        const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
+        if (!clearWindowsOverlayOwner(overlayHwnd)) {
+          logger.warn('Failed to clear overlay owner via koffi');
+        }
+      },
       getOverlayWindows: () => getOverlayWindows(),
       getResolvedConfig: () => getResolvedConfig(),
       showDesktopNotification,

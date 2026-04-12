@@ -11,6 +11,7 @@ export const OVERLAY_HOSTED_MODALS = [
   'controller-select',
   'controller-debug',
   'subtitle-sidebar',
+  'session-help',
 ] as const;
 export type OverlayHostedModal = (typeof OVERLAY_HOSTED_MODALS)[number];
 
@@ -37,6 +38,7 @@ export const IPC_CHANNELS = {
     overlayModalOpened: 'overlay:modal-opened',
     toggleStatsOverlay: 'stats:toggle-overlay',
     markActiveVideoWatched: 'immersion:mark-active-video-watched',
+    dispatchSessionAction: 'session-action:dispatch',
   },
   request: {
     getVisibleOverlayVisibility: 'get-visible-overlay-visibility',
@@ -49,6 +51,7 @@ export const IPC_CHANNELS = {
     getSubtitleStyle: 'get-subtitle-style',
     getMecabStatus: 'get-mecab-status',
     getKeybindings: 'get-keybindings',
+    getSessionBindings: 'get-session-bindings',
     getConfigShortcuts: 'get-config-shortcuts',
     getStatsToggleKey: 'get-stats-toggle-key',
     getMarkWatchedKey: 'get-mark-watched-key',
@@ -109,6 +112,10 @@ export const IPC_CHANNELS = {
     playlistBrowserOpen: 'playlist-browser:open',
     keyboardModeToggleRequested: 'keyboard-mode-toggle:requested',
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
+    sessionHelpOpen: 'session-help:open',
+    controllerSelectOpen: 'controller-select:open',
+    controllerDebugOpen: 'controller-debug:open',
+    subtitleSidebarToggle: 'subtitle-sidebar:toggle',
     configHotReload: 'config:hot-reload',
   },
 } as const;

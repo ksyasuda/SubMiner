@@ -6,6 +6,12 @@ import type {
 } from './anki';
 import type { ResolvedConfig, ShortcutsConfig } from './config';
 import type {
+  CompiledSessionBinding,
+  SessionActionId,
+  SessionActionPayload,
+  SessionBindingWarning,
+} from './session-bindings';
+import type {
   JimakuApiResponse,
   JimakuDownloadQuery,
   JimakuDownloadResult,
@@ -321,9 +327,16 @@ export interface ClipboardAppendResult {
 
 export interface ConfigHotReloadPayload {
   keybindings: Keybinding[];
+  sessionBindings: CompiledSessionBinding[];
+  sessionBindingWarnings: SessionBindingWarning[];
   subtitleStyle: SubtitleStyleConfig | null;
   subtitleSidebar: Required<SubtitleSidebarConfig>;
   secondarySubMode: SecondarySubMode;
+}
+
+export interface SessionActionDispatchRequest {
+  actionId: SessionActionId;
+  payload?: SessionActionPayload;
 }
 
 export type ResolvedControllerConfig = ResolvedConfig['controller'];
@@ -349,7 +362,9 @@ export interface ElectronAPI {
   setMecabEnabled: (enabled: boolean) => void;
   sendMpvCommand: (command: (string | number)[]) => void;
   getKeybindings: () => Promise<Keybinding[]>;
+  getSessionBindings: () => Promise<CompiledSessionBinding[]>;
   getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
+  dispatchSessionAction: (actionId: SessionActionId, payload?: SessionActionPayload) => Promise<void>;
   getStatsToggleKey: () => Promise<string>;
   getMarkWatchedKey: () => Promise<string>;
   markActiveVideoWatched: () => Promise<boolean>;
@@ -386,9 +401,13 @@ export interface ElectronAPI {
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => Promise<RuntimeOptionApplyResult>;
   onRuntimeOptionsChanged: (callback: (options: RuntimeOptionState[]) => void) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
+  onOpenSessionHelp: (callback: () => void) => void;
+  onOpenControllerSelect: (callback: () => void) => void;
+  onOpenControllerDebug: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
   onOpenYoutubeTrackPicker: (callback: (payload: YoutubePickerOpenPayload) => void) => void;
   onOpenPlaylistBrowser: (callback: () => void) => void;
+  onSubtitleSidebarToggle: (callback: () => void) => void;
   onCancelYoutubeTrackPicker: (callback: () => void) => void;
   onKeyboardModeToggleRequested: (callback: () => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;
@@ -414,7 +433,8 @@ export interface ElectronAPI {
       | 'kiku'
       | 'controller-select'
       | 'controller-debug'
-      | 'subtitle-sidebar',
+      | 'subtitle-sidebar'
+      | 'session-help',
   ) => void;
   notifyOverlayModalOpened: (
     modal:
@@ -426,7 +446,8 @@ export interface ElectronAPI {
       | 'kiku'
       | 'controller-select'
       | 'controller-debug'
-      | 'subtitle-sidebar',
+      | 'subtitle-sidebar'
+      | 'session-help',
   ) => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;

@@ -13,6 +13,26 @@ appimage=
 wrapper=
 assets=
 
+normalize_path() {
+  local value="$1"
+  if command -v cygpath >/dev/null 2>&1; then
+    case "$value" in
+      [A-Za-z]:\\* | [A-Za-z]:/*)
+        cygpath -u "$value"
+        return 0
+        ;;
+    esac
+  fi
+  if [[ "$value" =~ ^([A-Za-z]):[\\/](.*)$ ]]; then
+    local drive="${BASH_REMATCH[1],,}"
+    local rest="${BASH_REMATCH[2]}"
+    rest="${rest//\\//}"
+    printf '/mnt/%s/%s\n' "$drive" "$rest"
+    return 0
+  fi
+  printf '%s\n' "$value"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --pkg-dir)
@@ -53,6 +73,10 @@ if [[ -z "$pkg_dir" || -z "$version" || -z "$appimage" || -z "$wrapper" || -z "$
 fi
 
 version="${version#v}"
+pkg_dir="$(normalize_path "$pkg_dir")"
+appimage="$(normalize_path "$appimage")"
+wrapper="$(normalize_path "$wrapper")"
+assets="$(normalize_path "$assets")"
 pkgbuild="${pkg_dir}/PKGBUILD"
 srcinfo="${pkg_dir}/.SRCINFO"
 
@@ -81,6 +105,9 @@ awk \
     in_sha_block = 0
     found_pkgver = 0
     found_sha_block = 0
+  }
+  {
+    sub(/\r$/, "")
   }
   /^pkgver=/ {
     print "pkgver=" version
@@ -139,6 +166,9 @@ awk \
     found_source_appimage = 0
     found_source_wrapper = 0
     found_source_assets = 0
+  }
+  {
+    sub(/\r$/, "")
   }
   /^\tpkgver = / {
     print "\tpkgver = " version

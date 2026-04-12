@@ -23,6 +23,7 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
     overlayVisibilityRuntime: {
       updateVisibleOverlayVisibility: () => calls.push('update-visible'),
     },
+    refreshCurrentSubtitle: () => calls.push('refresh-subtitle'),
     overlayShortcutsRuntime: {
       syncOverlayShortcuts: () => calls.push('sync-shortcuts'),
     },
@@ -53,6 +54,7 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
   deps.registerGlobalShortcuts();
   deps.updateVisibleOverlayBounds({ x: 0, y: 0, width: 10, height: 10 });
   deps.updateVisibleOverlayVisibility();
+  deps.refreshCurrentSubtitle?.();
   deps.syncOverlayShortcuts();
   deps.showDesktopNotification('title', {});
 
@@ -68,6 +70,7 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
     'register-shortcuts',
     'visible-bounds',
     'update-visible',
+    'refresh-subtitle',
     'sync-shortcuts',
     'notify',
   ]);

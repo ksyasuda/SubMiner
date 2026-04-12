@@ -31,6 +31,8 @@ type InitializeOverlayRuntimeCore = (options: {
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
   shouldStartAnkiIntegration: () => boolean;
+  bindOverlayOwner?: () => void;
+  releaseOverlayOwner?: () => void;
 }) => void;
 
 export function createInitializeOverlayRuntimeHandler(deps: {

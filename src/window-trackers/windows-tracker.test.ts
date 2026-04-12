@@ -1,56 +1,65 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WindowsWindowTracker } from './windows-tracker';
+import type { MpvPollResult } from './win32';
 
-test('WindowsWindowTracker skips overlapping polls while helper is in flight', async () => {
-  let helperCalls = 0;
-  let release: (() => void) | undefined;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
+function mpvVisible(
+  overrides: Partial<MpvPollResult & { x?: number; y?: number; width?: number; height?: number; focused?: boolean }> = {},
+): MpvPollResult {
+  return {
+    matches: [
+      {
+        hwnd: 12345,
+        bounds: {
+          x: overrides.x ?? 0,
+          y: overrides.y ?? 0,
+          width: overrides.width ?? 1280,
+          height: overrides.height ?? 720,
+        },
+        area: (overrides.width ?? 1280) * (overrides.height ?? 720),
+        isForeground: overrides.focused ?? true,
+      },
+    ],
+    focusState: overrides.focused ?? true,
+    windowState: 'visible',
+  };
+}
 
-  const tracker = new WindowsWindowTracker(undefined, {
-    resolveHelper: () => ({
-      kind: 'powershell',
-      command: 'powershell.exe',
-      args: ['-File', 'helper.ps1'],
-      helperPath: 'helper.ps1',
-    }),
-    runHelper: async () => {
-      helperCalls += 1;
-      await gate;
-      return {
-        stdout: '0,0,640,360',
-        stderr: 'focus=focused',
-      };
+const mpvNotFound: MpvPollResult = {
+  matches: [],
+  focusState: false,
+  windowState: 'not-found',
+};
+
+const mpvMinimized: MpvPollResult = {
+  matches: [],
+  focusState: false,
+  windowState: 'minimized',
+};
+
+test('WindowsWindowTracker skips overlapping polls while poll is in flight', () => {
+  let pollCalls = 0;
+  let tracker: WindowsWindowTracker;
+  tracker = new WindowsWindowTracker(undefined, {
+    pollMpvWindows: () => {
+      pollCalls += 1;
+      if (pollCalls === 1) {
+        (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+      }
+      return mpvVisible();
     },
   });
 
   (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  assert.equal(helperCalls, 1);
-
-  assert.ok(release);
-  release();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(pollCalls, 1);
 });
 
-test('WindowsWindowTracker updates geometry from helper output', async () => {
+test('WindowsWindowTracker updates geometry from poll output', () => {
   const tracker = new WindowsWindowTracker(undefined, {
-    resolveHelper: () => ({
-      kind: 'powershell',
-      command: 'powershell.exe',
-      args: ['-File', 'helper.ps1'],
-      helperPath: 'helper.ps1',
-    }),
-    runHelper: async () => ({
-      stdout: '10,20,1280,720',
-      stderr: 'focus=focused',
-    }),
+    pollMpvWindows: () => mpvVisible({ x: 10, y: 20, width: 1280, height: 720 }),
   });
 
   (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.deepEqual(tracker.getGeometry(), {
     x: 10,
@@ -61,59 +70,196 @@ test('WindowsWindowTracker updates geometry from helper output', async () => {
   assert.equal(tracker.isTargetWindowFocused(), true);
 });
 
-test('WindowsWindowTracker clears geometry for helper misses', async () => {
+test('WindowsWindowTracker preserves an unfocused initial match', () => {
   const tracker = new WindowsWindowTracker(undefined, {
-    resolveHelper: () => ({
-      kind: 'powershell',
-      command: 'powershell.exe',
-      args: ['-File', 'helper.ps1'],
-      helperPath: 'helper.ps1',
-    }),
-    runHelper: async () => ({
-      stdout: 'not-found',
-      stderr: 'focus=not-focused',
-    }),
+    pollMpvWindows: () => mpvVisible({ x: 10, y: 20, width: 1280, height: 720, focused: false }),
   });
 
   (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(tracker.getGeometry(), {
+    x: 10,
+    y: 20,
+    width: 1280,
+    height: 720,
+  });
+  assert.equal(tracker.isTargetWindowFocused(), false);
+});
+
+test('WindowsWindowTracker clears geometry for poll misses', () => {
+  const tracker = new WindowsWindowTracker(undefined, {
+    pollMpvWindows: () => mpvNotFound,
+    trackingLossGraceMs: 0,
+  });
+
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
   assert.equal(tracker.getGeometry(), null);
   assert.equal(tracker.isTargetWindowFocused(), false);
 });
 
-test('WindowsWindowTracker retries without socket filter when filtered helper lookup misses', async () => {
-  const helperCalls: Array<string | null> = [];
-  const tracker = new WindowsWindowTracker('\\\\.\\pipe\\subminer-socket', {
-    resolveHelper: () => ({
-      kind: 'powershell',
-      command: 'powershell.exe',
-      args: ['-File', 'helper.ps1'],
-      helperPath: 'helper.ps1',
-    }),
-    runHelper: async (_spec, _mode, targetMpvSocketPath) => {
-      helperCalls.push(targetMpvSocketPath);
-      if (targetMpvSocketPath) {
-        return {
-          stdout: 'not-found',
-          stderr: 'focus=not-focused',
-        };
-      }
-      return {
-        stdout: '25,30,1440,810',
-        stderr: 'focus=focused',
-      };
-    },
+test('WindowsWindowTracker keeps the last geometry through a single poll miss', () => {
+  let callIndex = 0;
+  const outputs = [
+    mpvVisible({ x: 10, y: 20, width: 1280, height: 720 }),
+    mpvNotFound,
+    mpvVisible({ x: 10, y: 20, width: 1280, height: 720 }),
+  ];
+
+  const tracker = new WindowsWindowTracker(undefined, {
+    pollMpvWindows: () => outputs[callIndex++] ?? outputs.at(-1)!,
+    trackingLossGraceMs: 0,
   });
 
   (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(tracker.getGeometry(), { x: 10, y: 20, width: 1280, height: 720 });
 
-  assert.deepEqual(helperCalls, ['\\\\.\\pipe\\subminer-socket', null]);
-  assert.deepEqual(tracker.getGeometry(), {
-    x: 25,
-    y: 30,
-    width: 1440,
-    height: 810,
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.deepEqual(tracker.getGeometry(), { x: 10, y: 20, width: 1280, height: 720 });
+
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.deepEqual(tracker.getGeometry(), { x: 10, y: 20, width: 1280, height: 720 });
+});
+
+test('WindowsWindowTracker drops tracking after grace window expires', () => {
+  let callIndex = 0;
+  let now = 1_000;
+  const outputs = [
+    mpvVisible({ x: 10, y: 20, width: 1280, height: 720 }),
+    mpvNotFound,
+    mpvNotFound,
+    mpvNotFound,
+    mpvNotFound,
+  ];
+
+  const tracker = new WindowsWindowTracker(undefined, {
+    pollMpvWindows: () => outputs[callIndex++] ?? outputs.at(-1)!,
+    now: () => now,
+    trackingLossGraceMs: 500,
   });
-  assert.equal(tracker.isTargetWindowFocused(), true);
+
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+
+  now += 250;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+
+  now += 250;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+
+  now += 250;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+
+  now += 250;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), false);
+  assert.equal(tracker.getGeometry(), null);
+});
+
+test('WindowsWindowTracker keeps tracking through repeated poll misses inside grace window', () => {
+  let callIndex = 0;
+  let now = 1_000;
+  const outputs = [
+    mpvVisible({ x: 10, y: 20, width: 1280, height: 720 }),
+    mpvNotFound,
+    mpvNotFound,
+    mpvNotFound,
+    mpvVisible({ x: 10, y: 20, width: 1280, height: 720 }),
+  ];
+
+  const tracker = new WindowsWindowTracker(undefined, {
+    pollMpvWindows: () => outputs[callIndex++] ?? outputs.at(-1)!,
+    now: () => now,
+    trackingLossGraceMs: 1_500,
+  });
+
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+
+  now += 250;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+
+  now += 250;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+
+  now += 250;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+  assert.deepEqual(tracker.getGeometry(), { x: 10, y: 20, width: 1280, height: 720 });
+
+  now += 250;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+  assert.deepEqual(tracker.getGeometry(), { x: 10, y: 20, width: 1280, height: 720 });
+});
+
+test('WindowsWindowTracker keeps tracking through a transient minimized report inside minimized grace window', () => {
+  let callIndex = 0;
+  let now = 1_000;
+  const outputs: MpvPollResult[] = [
+    mpvVisible({ x: 10, y: 20, width: 1280, height: 720 }),
+    mpvMinimized,
+    mpvVisible({ x: 10, y: 20, width: 1280, height: 720 }),
+  ];
+
+  const tracker = new WindowsWindowTracker(undefined, {
+    pollMpvWindows: () => outputs[callIndex++] ?? outputs.at(-1)!,
+    now: () => now,
+    minimizedTrackingLossGraceMs: 200,
+  });
+
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+
+  now += 100;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+  assert.deepEqual(tracker.getGeometry(), { x: 10, y: 20, width: 1280, height: 720 });
+
+  now += 100;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+  assert.deepEqual(tracker.getGeometry(), { x: 10, y: 20, width: 1280, height: 720 });
+});
+
+test('WindowsWindowTracker keeps tracking through repeated transient minimized reports inside minimized grace window', () => {
+  let callIndex = 0;
+  let now = 1_000;
+  const outputs: MpvPollResult[] = [
+    mpvVisible({ x: 10, y: 20, width: 1280, height: 720 }),
+    mpvMinimized,
+    mpvMinimized,
+    mpvVisible({ x: 10, y: 20, width: 1280, height: 720 }),
+  ];
+
+  const tracker = new WindowsWindowTracker(undefined, {
+    pollMpvWindows: () => outputs[callIndex++] ?? outputs.at(-1)!,
+    now: () => now,
+    minimizedTrackingLossGraceMs: 500,
+  });
+
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+
+  now += 250;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+  assert.equal(tracker.isTargetWindowMinimized(), true);
+  assert.deepEqual(tracker.getGeometry(), { x: 10, y: 20, width: 1280, height: 720 });
+
+  now += 250;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+  assert.equal(tracker.isTargetWindowMinimized(), true);
+  assert.deepEqual(tracker.getGeometry(), { x: 10, y: 20, width: 1280, height: 720 });
+
+  now += 250;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  assert.equal(tracker.isTracking(), true);
+  assert.equal(tracker.isTargetWindowMinimized(), false);
+  assert.deepEqual(tracker.getGeometry(), { x: 10, y: 20, width: 1280, height: 720 });
 });

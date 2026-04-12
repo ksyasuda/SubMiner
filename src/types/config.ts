@@ -89,6 +89,10 @@ export interface ShortcutsConfig {
   markAudioCard?: string | null;
   openRuntimeOptions?: string | null;
   openJimaku?: string | null;
+  openSessionHelp?: string | null;
+  openControllerSelect?: string | null;
+  openControllerDebug?: string | null;
+  toggleSubtitleSidebar?: string | null;
 }
 
 export interface Config {

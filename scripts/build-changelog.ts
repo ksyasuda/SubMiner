@@ -38,6 +38,7 @@ type PullRequestChangelogOptions = {
 };
 
 const RELEASE_NOTES_PATH = path.join('release', 'release-notes.md');
+const PRERELEASE_NOTES_PATH = path.join('release', 'prerelease-notes.md');
 const CHANGELOG_HEADER = '# Changelog';
 const CHANGE_TYPES: FragmentType[] = ['added', 'changed', 'fixed', 'docs', 'internal'];
 const CHANGE_TYPE_HEADINGS: Record<FragmentType, string> = {
@@ -73,6 +74,10 @@ function resolveVersion(options: Pick<ChangelogOptions, 'cwd' | 'version' | 'dep
   const cwd = options.cwd ?? process.cwd();
   const readFileSync = options.deps?.readFileSync ?? fs.readFileSync;
   return normalizeVersion(options.version ?? resolvePackageVersion(cwd, readFileSync));
+}
+
+function isSupportedPrereleaseVersion(version: string): boolean {
+  return /^\d+\.\d+\.\d+-(beta|rc)\.\d+$/u.test(normalizeVersion(version));
 }
 
 function verifyRequestedVersionMatchesPackageVersion(
@@ -314,8 +319,15 @@ export function resolveChangelogOutputPaths(options?: { cwd?: string }): string[
   return [path.join(cwd, 'CHANGELOG.md')];
 }
 
-function renderReleaseNotes(changes: string): string {
+function renderReleaseNotes(
+  changes: string,
+  options?: {
+    disclaimer?: string;
+  },
+): string {
+  const prefix = options?.disclaimer ? [options.disclaimer, ''] : [];
   return [
+    ...prefix,
     '## Highlights',
     changes,
     '',
@@ -334,13 +346,21 @@ function renderReleaseNotes(changes: string): string {
   ].join('\n');
 }
 
-function writeReleaseNotesFile(cwd: string, changes: string, deps?: ChangelogFsDeps): string {
+function writeReleaseNotesFile(
+  cwd: string,
+  changes: string,
+  deps?: ChangelogFsDeps,
+  options?: {
+    disclaimer?: string;
+    outputPath?: string;
+  },
+): string {
   const mkdirSync = deps?.mkdirSync ?? fs.mkdirSync;
   const writeFileSync = deps?.writeFileSync ?? fs.writeFileSync;
-  const releaseNotesPath = path.join(cwd, RELEASE_NOTES_PATH);
+  const releaseNotesPath = path.join(cwd, options?.outputPath ?? RELEASE_NOTES_PATH);
 
   mkdirSync(path.dirname(releaseNotesPath), { recursive: true });
-  writeFileSync(releaseNotesPath, renderReleaseNotes(changes), 'utf8');
+  writeFileSync(releaseNotesPath, renderReleaseNotes(changes, options), 'utf8');
   return releaseNotesPath;
 }
 
@@ -613,6 +633,30 @@ export function writeReleaseNotesForVersion(options?: ChangelogOptions): string 
   return writeReleaseNotesFile(cwd, changes, options?.deps);
 }
 
+export function writePrereleaseNotesForVersion(options?: ChangelogOptions): string {
+  verifyRequestedVersionMatchesPackageVersion(options ?? {});
+
+  const cwd = options?.cwd ?? process.cwd();
+  const version = resolveVersion(options ?? {});
+  if (!isSupportedPrereleaseVersion(version)) {
+    throw new Error(
+      `Unsupported prerelease version (${version}). Expected x.y.z-beta.N or x.y.z-rc.N.`,
+    );
+  }
+
+  const fragments = readChangeFragments(cwd, options?.deps);
+  if (fragments.length === 0) {
+    throw new Error('No changelog fragments found in changes/.');
+  }
+
+  const changes = renderGroupedChanges(fragments);
+  return writeReleaseNotesFile(cwd, changes, options?.deps, {
+    disclaimer:
+      '> This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.',
+    outputPath: PRERELEASE_NOTES_PATH,
+  });
+}
+
 function parseCliArgs(argv: string[]): {
   baseRef?: string;
   cwd?: string;
@@ -707,6 +751,11 @@ function main(): void {
 
   if (command === 'release-notes') {
     writeReleaseNotesForVersion(options);
+    return;
+  }
+
+  if (command === 'prerelease-notes') {
+    writePrereleaseNotesForVersion(options);
     return;
   }
 

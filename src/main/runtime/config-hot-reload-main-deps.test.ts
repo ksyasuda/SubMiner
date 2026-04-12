@@ -86,26 +86,35 @@ test('config hot reload message main deps builder maps notifications', () => {
 
 test('config hot reload applied main deps builder maps callbacks', () => {
   const calls: string[] = [];
-  const deps = createBuildConfigHotReloadAppliedMainDepsHandler({
+  const warningCounts: number[] = [];
+  const buildDeps = createBuildConfigHotReloadAppliedMainDepsHandler({
     setKeybindings: () => calls.push('keybindings'),
+    setSessionBindings: (_sessionBindings, warnings) => {
+      calls.push('session-bindings');
+      warningCounts.push(warnings.length);
+    },
     refreshGlobalAndOverlayShortcuts: () => calls.push('refresh-shortcuts'),
     setSecondarySubMode: () => calls.push('set-secondary'),
     broadcastToOverlayWindows: (channel) => calls.push(`broadcast:${channel}`),
     applyAnkiRuntimeConfigPatch: () => calls.push('apply-anki'),
-  })();
+  });
 
+  const deps = buildDeps();
   deps.setKeybindings([]);
+  deps.setSessionBindings([], []);
   deps.refreshGlobalAndOverlayShortcuts();
   deps.setSecondarySubMode('hover');
   deps.broadcastToOverlayWindows('config:hot-reload', {});
   deps.applyAnkiRuntimeConfigPatch({ ai: true });
   assert.deepEqual(calls, [
     'keybindings',
+    'session-bindings',
     'refresh-shortcuts',
     'set-secondary',
     'broadcast:config:hot-reload',
     'apply-anki',
   ]);
+  assert.deepEqual(warningCounts, [0]);
 });
 
 test('config hot reload runtime main deps builder maps runtime callbacks', () => {

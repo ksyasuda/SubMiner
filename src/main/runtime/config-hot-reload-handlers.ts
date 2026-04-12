@@ -1,10 +1,16 @@
 import type { ConfigHotReloadDiff } from '../../core/services/config-hot-reload';
+import { compileSessionBindings } from '../../core/services/session-bindings';
 import { resolveKeybindings } from '../../core/utils/keybindings';
-import { DEFAULT_KEYBINDINGS } from '../../config';
+import { resolveConfiguredShortcuts } from '../../core/utils/shortcut-config';
+import { DEFAULT_CONFIG, DEFAULT_KEYBINDINGS } from '../../config';
 import type { ConfigHotReloadPayload, ResolvedConfig, SecondarySubMode } from '../../types';
 
 type ConfigHotReloadAppliedDeps = {
   setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) => void;
+  setSessionBindings: (
+    sessionBindings: ConfigHotReloadPayload['sessionBindings'],
+    sessionBindingWarnings: ConfigHotReloadPayload['sessionBindingWarnings'],
+  ) => void;
   refreshGlobalAndOverlayShortcuts: () => void;
   setSecondarySubMode: (mode: SecondarySubMode) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
@@ -33,8 +39,23 @@ export function resolveSubtitleStyleForRenderer(config: ResolvedConfig) {
 }
 
 export function buildConfigHotReloadPayload(config: ResolvedConfig): ConfigHotReloadPayload {
+  const keybindings = resolveKeybindings(config, DEFAULT_KEYBINDINGS);
+  const { bindings: sessionBindings, warnings: sessionBindingWarnings } = compileSessionBindings({
+    keybindings,
+    shortcuts: resolveConfiguredShortcuts(config, DEFAULT_CONFIG),
+    statsToggleKey: config.stats.toggleKey,
+    platform:
+      process.platform === 'darwin'
+        ? 'darwin'
+        : process.platform === 'win32'
+          ? 'win32'
+          : 'linux',
+    rawConfig: config,
+  });
   return {
-    keybindings: resolveKeybindings(config, DEFAULT_KEYBINDINGS),
+    keybindings,
+    sessionBindings,
+    sessionBindingWarnings,
     subtitleStyle: resolveSubtitleStyleForRenderer(config),
     subtitleSidebar: config.subtitleSidebar,
     secondarySubMode: config.secondarySub.defaultMode,
@@ -45,6 +66,7 @@ export function createConfigHotReloadAppliedHandler(deps: ConfigHotReloadApplied
   return (diff: ConfigHotReloadDiff, config: ResolvedConfig): void => {
     const payload = buildConfigHotReloadPayload(config);
     deps.setKeybindings(payload.keybindings);
+    deps.setSessionBindings(payload.sessionBindings, payload.sessionBindingWarnings);
 
     if (diff.hotReloadFields.includes('shortcuts')) {
       deps.refreshGlobalAndOverlayShortcuts();

@@ -1,5 +1,6 @@
 import type { RendererContext } from './context';
 import type { RendererState } from './state';
+import { isYomitanPopupVisible } from './yomitan-popup.js';
 
 function isBlockingOverlayModalOpen(state: RendererState): boolean {
   return Boolean(
@@ -14,11 +15,21 @@ function isBlockingOverlayModalOpen(state: RendererState): boolean {
   );
 }
 
+function isYomitanPopupInteractionActive(state: RendererState): boolean {
+  if (state.yomitanPopupVisible) {
+    return true;
+  }
+  if (typeof document === 'undefined') {
+    return false;
+  }
+  return isYomitanPopupVisible(document);
+}
+
 export function syncOverlayMouseIgnoreState(ctx: RendererContext): void {
   const shouldStayInteractive =
     ctx.state.isOverSubtitle ||
     ctx.state.isOverSubtitleSidebar ||
-    ctx.state.yomitanPopupVisible ||
+    isYomitanPopupInteractionActive(ctx.state) ||
     isBlockingOverlayModalOpen(ctx.state);
 
   if (shouldStayInteractive) {

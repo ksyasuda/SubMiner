@@ -173,7 +173,11 @@
     "toggleSecondarySub": "CommandOrControl+Shift+V", // Toggle secondary sub setting.
     "markAudioCard": "CommandOrControl+Shift+A", // Mark audio card setting.
     "openRuntimeOptions": "CommandOrControl+Shift+O", // Open runtime options setting.
-    "openJimaku": "Ctrl+Shift+J" // Open jimaku setting.
+    "openJimaku": "Ctrl+Shift+J", // Open jimaku setting.
+    "openSessionHelp": "CommandOrControl+Shift+H", // Open session help setting.
+    "openControllerSelect": "Alt+C", // Open controller select setting.
+    "openControllerDebug": "Alt+Shift+C", // Open controller debug setting.
+    "toggleSubtitleSidebar": "Backslash" // Toggle subtitle sidebar setting.
   }, // Overlay keyboard shortcuts. Set a shortcut to null to disable.
 
   // ==========================================

@@ -14,6 +14,10 @@ export interface ConfiguredShortcuts {
   markAudioCard: string | null | undefined;
   openRuntimeOptions: string | null | undefined;
   openJimaku: string | null | undefined;
+  openSessionHelp: string | null | undefined;
+  openControllerSelect: string | null | undefined;
+  openControllerDebug: string | null | undefined;
+  toggleSubtitleSidebar: string | null | undefined;
 }
 
 export function resolveConfiguredShortcuts(
@@ -77,6 +81,18 @@ export function resolveConfiguredShortcuts(
     ),
     openJimaku: normalizeShortcut(
       config.shortcuts?.openJimaku ?? defaultConfig.shortcuts?.openJimaku,
+    ),
+    openSessionHelp: normalizeShortcut(
+      config.shortcuts?.openSessionHelp ?? defaultConfig.shortcuts?.openSessionHelp,
+    ),
+    openControllerSelect: normalizeShortcut(
+      config.shortcuts?.openControllerSelect ?? defaultConfig.shortcuts?.openControllerSelect,
+    ),
+    openControllerDebug: normalizeShortcut(
+      config.shortcuts?.openControllerDebug ?? defaultConfig.shortcuts?.openControllerDebug,
+    ),
+    toggleSubtitleSidebar: normalizeShortcut(
+      config.shortcuts?.toggleSubtitleSidebar ?? defaultConfig.shortcuts?.toggleSubtitleSidebar,
     ),
   };
 }

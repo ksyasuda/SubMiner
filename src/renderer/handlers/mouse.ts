@@ -2,10 +2,15 @@ import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 import {
   YOMITAN_POPUP_HIDDEN_EVENT,
+  YOMITAN_POPUP_MOUSE_ENTER_EVENT,
+  YOMITAN_POPUP_MOUSE_LEAVE_EVENT,
   YOMITAN_POPUP_SHOWN_EVENT,
   isYomitanPopupVisible,
   isYomitanPopupIframe,
 } from '../yomitan-popup.js';
+
+const VISIBILITY_RECOVERY_HOVER_SUPPRESSION_SOURCE = 'visibility-recovery';
+const WINDOW_RESIZE_HOVER_SUPPRESSION_SOURCE = 'window-resize';
 
 export function createMouseHandlers(
   ctx: RendererContext,
@@ -33,6 +38,61 @@ export function createMouseHandlers(
   let pausedByYomitanPopup = false;
   let lastPointerPosition: { clientX: number; clientY: number } | null = null;
   let pendingPointerResync = false;
+  let suppressDirectHoverEnterSource: string | null = null;
+
+  function getPopupVisibilityFromDom(): boolean {
+    return typeof document !== 'undefined' && isYomitanPopupVisible(document);
+  }
+
+  function syncPopupVisibilityState(assumeVisible = false): boolean {
+    const popupVisible = assumeVisible || getPopupVisibilityFromDom();
+    yomitanPopupVisible = popupVisible;
+    ctx.state.yomitanPopupVisible = popupVisible;
+    return popupVisible;
+  }
+
+  function reclaimOverlayWindowFocusForPopup(): void {
+    if (!ctx.platform.shouldToggleMouseIgnore) {
+      return;
+    }
+    if (ctx.platform.isMacOSPlatform || ctx.platform.isLinuxPlatform) {
+      return;
+    }
+
+    if (typeof window.electronAPI.focusMainWindow === 'function') {
+      void window.electronAPI.focusMainWindow();
+    }
+    window.focus();
+    if (typeof ctx.dom.overlay.focus === 'function') {
+      ctx.dom.overlay.focus({ preventScroll: true });
+    }
+  }
+
+  function sustainPopupInteraction(): void {
+    syncPopupVisibilityState(true);
+    syncOverlayMouseIgnoreState(ctx);
+  }
+
+  function reconcilePopupInteraction(args: {
+    assumeVisible?: boolean;
+    reclaimFocus?: boolean;
+    allowPause?: boolean;
+  } = {}): boolean {
+    const popupVisible = syncPopupVisibilityState(args.assumeVisible === true);
+    if (!popupVisible) {
+      syncOverlayMouseIgnoreState(ctx);
+      return false;
+    }
+
+    syncOverlayMouseIgnoreState(ctx);
+    if (args.reclaimFocus === true) {
+      reclaimOverlayWindowFocusForPopup();
+    }
+    if (args.allowPause === true) {
+      void maybePauseForYomitanPopup();
+    }
+    return true;
+  }
 
   function isElementWithinContainer(element: Element | null, container: HTMLElement): boolean {
     if (!element) {
@@ -86,6 +146,7 @@ export function createMouseHandlers(
       return;
     }
 
+    suppressDirectHoverEnterSource = null;
     const wasOverSubtitle = ctx.state.isOverSubtitle;
     const wasOverSecondarySubtitle = ctx.dom.secondarySubContainer.classList.contains(
       'secondary-sub-hover-active',
@@ -93,7 +154,7 @@ export function createMouseHandlers(
     const hoverState = syncHoverStateFromPoint(event.clientX, event.clientY);
 
     if (!wasOverSubtitle && hoverState.isOverSubtitle) {
-      void handleMouseEnter(undefined, hoverState.overSecondarySubtitle);
+      void handleMouseEnter(undefined, hoverState.overSecondarySubtitle, 'tracked-pointer');
       return;
     }
 
@@ -110,9 +171,13 @@ export function createMouseHandlers(
     }
   }
 
-  function restorePointerInteractionState(): void {
+  function resyncPointerInteractionState(options: {
+    allowInteractiveFallback: boolean;
+    suppressDirectHoverEnterSource?: string | null;
+  }): void {
     const pointerPosition = lastPointerPosition;
     pendingPointerResync = false;
+    suppressDirectHoverEnterSource = options.suppressDirectHoverEnterSource ?? null;
     if (pointerPosition) {
       syncHoverStateFromPoint(pointerPosition.clientX, pointerPosition.clientY);
     } else {
@@ -121,13 +186,21 @@ export function createMouseHandlers(
     }
     syncOverlayMouseIgnoreState(ctx);
 
-    if (!ctx.platform.shouldToggleMouseIgnore || ctx.state.isOverSubtitle) {
+    if (
+      !options.allowInteractiveFallback ||
+      !ctx.platform.shouldToggleMouseIgnore ||
+      ctx.state.isOverSubtitle
+    ) {
       return;
     }
 
     pendingPointerResync = true;
     ctx.dom.overlay.classList.add('interactive');
     window.electronAPI.setIgnoreMouseEvents(false);
+  }
+
+  function restorePointerInteractionState(): void {
+    resyncPointerInteractionState({ allowInteractiveFallback: true });
   }
 
   function maybeResyncPointerHoverState(event: MouseEvent | PointerEvent): void {
@@ -205,18 +278,14 @@ export function createMouseHandlers(
   }
 
   function enablePopupInteraction(): void {
-    yomitanPopupVisible = true;
-    ctx.state.yomitanPopupVisible = true;
-    syncOverlayMouseIgnoreState(ctx);
+    sustainPopupInteraction();
     if (ctx.platform.isMacOSPlatform) {
       window.focus();
     }
   }
 
   function disablePopupInteractionIfIdle(): void {
-    if (typeof document !== 'undefined' && isYomitanPopupVisible(document)) {
-      yomitanPopupVisible = true;
-      ctx.state.yomitanPopupVisible = true;
+    if (reconcilePopupInteraction({ reclaimFocus: true })) {
       return;
     }
 
@@ -228,7 +297,15 @@ export function createMouseHandlers(
     syncOverlayMouseIgnoreState(ctx);
   }
 
-  async function handleMouseEnter(_event?: MouseEvent, showSecondaryHover = false): Promise<void> {
+  async function handleMouseEnter(
+    _event?: MouseEvent,
+    showSecondaryHover = false,
+    source: 'direct' | 'tracked-pointer' = 'direct',
+  ): Promise<void> {
+    if (source === 'direct' && suppressDirectHoverEnterSource !== null) {
+      return;
+    }
+
     ctx.state.isOverSubtitle = true;
     if (showSecondaryHover) {
       ctx.dom.secondarySubContainer.classList.add('secondary-sub-hover-active');
@@ -326,6 +403,10 @@ export function createMouseHandlers(
   function setupResizeHandler(): void {
     window.addEventListener('resize', () => {
       options.applyYPercent(options.getCurrentYPercent());
+      resyncPointerInteractionState({
+        allowInteractiveFallback: false,
+        suppressDirectHoverEnterSource: WINDOW_RESIZE_HOVER_SUPPRESSION_SOURCE,
+      });
     });
   }
 
@@ -339,6 +420,15 @@ export function createMouseHandlers(
       updatePointerPosition(event);
       syncHoverStateFromTrackedPointer(event);
       maybeResyncPointerHoverState(event);
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      resyncPointerInteractionState({
+        allowInteractiveFallback: false,
+        suppressDirectHoverEnterSource: VISIBILITY_RECOVERY_HOVER_SUPPRESSION_SOURCE,
+      });
     });
   }
 
@@ -356,17 +446,35 @@ export function createMouseHandlers(
   }
 
   function setupYomitanObserver(): void {
-    yomitanPopupVisible = isYomitanPopupVisible(document);
-    ctx.state.yomitanPopupVisible = yomitanPopupVisible;
-    void maybePauseForYomitanPopup();
+    reconcilePopupInteraction({ allowPause: true });
 
     window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {
-      enablePopupInteraction();
-      void maybePauseForYomitanPopup();
+      reconcilePopupInteraction({ assumeVisible: true, allowPause: true });
     });
 
     window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, () => {
       disablePopupInteractionIfIdle();
+    });
+
+    window.addEventListener(YOMITAN_POPUP_MOUSE_ENTER_EVENT, () => {
+      reconcilePopupInteraction({ assumeVisible: true, reclaimFocus: true });
+    });
+
+    window.addEventListener(YOMITAN_POPUP_MOUSE_LEAVE_EVENT, () => {
+      reconcilePopupInteraction({ assumeVisible: true });
+    });
+
+    window.addEventListener('focus', () => {
+      reconcilePopupInteraction();
+    });
+
+    window.addEventListener('blur', () => {
+      queueMicrotask(() => {
+        if (typeof document === 'undefined' || document.visibilityState !== 'visible') {
+          return;
+        }
+        reconcilePopupInteraction({ reclaimFocus: true });
+      });
     });
 
     const observer = new MutationObserver((mutations: MutationRecord[]) => {

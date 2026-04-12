@@ -16,269 +16,62 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
-import type { WindowGeometry } from '../types';
-import { createLogger } from '../logger';
+import type { MpvPollResult } from './win32';
 
-const log = createLogger('tracker').child('windows-helper');
-
-export type WindowsTrackerHelperKind = 'powershell' | 'native';
-export type WindowsTrackerHelperMode = 'auto' | 'powershell' | 'native';
-
-export type WindowsTrackerHelperLaunchSpec = {
-  kind: WindowsTrackerHelperKind;
-  command: string;
-  args: string[];
-  helperPath: string;
-};
-
-type ResolveWindowsTrackerHelperOptions = {
-  dirname?: string;
-  resourcesPath?: string;
-  helperModeEnv?: string | undefined;
-  helperPathEnv?: string | undefined;
-  existsSync?: (candidate: string) => boolean;
-  mkdirSync?: (candidate: string, options: { recursive: true }) => void;
-  copyFileSync?: (source: string, destination: string) => void;
-};
-
-const windowsPath = path.win32;
-
-function normalizeHelperMode(value: string | undefined): WindowsTrackerHelperMode {
-  const normalized = value?.trim().toLowerCase();
-  if (normalized === 'powershell' || normalized === 'native') {
-    return normalized;
-  }
-  return 'auto';
+function loadWin32(): typeof import('./win32') {
+  return require('./win32') as typeof import('./win32');
 }
 
-function inferHelperKindFromPath(helperPath: string): WindowsTrackerHelperKind | null {
-  const normalized = helperPath.trim().toLowerCase();
-  if (normalized.endsWith('.exe')) return 'native';
-  if (normalized.endsWith('.ps1')) return 'powershell';
-  return null;
+export function findWindowsMpvTargetWindowHandle(result?: MpvPollResult): number | null {
+  const poll = result ?? loadWin32().findMpvWindows();
+  const focused = poll.matches.find((match) => match.isForeground);
+  const best =
+    focused ?? [...poll.matches].sort((a, b) => b.area - a.area || b.bounds.width - a.bounds.width)[0];
+  return best?.hwnd ?? null;
 }
 
-function materializeAsarHelper(
-  sourcePath: string,
-  kind: WindowsTrackerHelperKind,
-  deps: Required<Pick<ResolveWindowsTrackerHelperOptions, 'mkdirSync' | 'copyFileSync'>>,
-): string | null {
-  if (!sourcePath.includes('.asar')) {
-    return sourcePath;
-  }
-
-  const fileName = kind === 'native' ? 'get-mpv-window-windows.exe' : 'get-mpv-window-windows.ps1';
-  const targetDir = windowsPath.join(os.tmpdir(), 'subminer', 'helpers');
-  const targetPath = windowsPath.join(targetDir, fileName);
-
+export function setWindowsOverlayOwner(overlayHwnd: number, mpvHwnd: number): boolean {
   try {
-    deps.mkdirSync(targetDir, { recursive: true });
-    deps.copyFileSync(sourcePath, targetPath);
-    log.info(`Materialized Windows helper from asar: ${targetPath}`);
-    return targetPath;
-  } catch (error) {
-    log.warn(`Failed to materialize Windows helper from asar: ${sourcePath}`, error);
-    return null;
-  }
-}
-
-function createLaunchSpec(
-  helperPath: string,
-  kind: WindowsTrackerHelperKind,
-): WindowsTrackerHelperLaunchSpec {
-  if (kind === 'native') {
-    return {
-      kind,
-      command: helperPath,
-      args: [],
-      helperPath,
-    };
-  }
-
-  return {
-    kind,
-    command: 'powershell.exe',
-    args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', helperPath],
-    helperPath,
-  };
-}
-
-function normalizeHelperPathOverride(
-  helperPathEnv: string | undefined,
-  mode: WindowsTrackerHelperMode,
-): { path: string; kind: WindowsTrackerHelperKind } | null {
-  const helperPath = helperPathEnv?.trim();
-  if (!helperPath) {
-    return null;
-  }
-
-  const inferredKind = inferHelperKindFromPath(helperPath);
-  const kind = mode === 'auto' ? inferredKind : mode;
-  if (!kind) {
-    log.warn(
-      `Ignoring SUBMINER_WINDOWS_TRACKER_HELPER_PATH with unsupported extension: ${helperPath}`,
-    );
-    return null;
-  }
-
-  return { path: helperPath, kind };
-}
-
-function getHelperCandidates(
-  dirname: string,
-  resourcesPath: string | undefined,
-): Array<{
-  path: string;
-  kind: WindowsTrackerHelperKind;
-}> {
-  const scriptFileBase = 'get-mpv-window-windows';
-  const candidates: Array<{ path: string; kind: WindowsTrackerHelperKind }> = [];
-
-  if (resourcesPath) {
-    candidates.push({
-      path: windowsPath.join(resourcesPath, 'scripts', `${scriptFileBase}.exe`),
-      kind: 'native',
-    });
-    candidates.push({
-      path: windowsPath.join(resourcesPath, 'scripts', `${scriptFileBase}.ps1`),
-      kind: 'powershell',
-    });
-  }
-
-  candidates.push({
-    path: windowsPath.join(dirname, '..', 'scripts', `${scriptFileBase}.exe`),
-    kind: 'native',
-  });
-  candidates.push({
-    path: windowsPath.join(dirname, '..', 'scripts', `${scriptFileBase}.ps1`),
-    kind: 'powershell',
-  });
-  candidates.push({
-    path: windowsPath.join(dirname, '..', '..', 'scripts', `${scriptFileBase}.exe`),
-    kind: 'native',
-  });
-  candidates.push({
-    path: windowsPath.join(dirname, '..', '..', 'scripts', `${scriptFileBase}.ps1`),
-    kind: 'powershell',
-  });
-
-  return candidates;
-}
-
-export function parseWindowTrackerHelperOutput(output: string): WindowGeometry | null {
-  const result = output.trim();
-  if (!result || result === 'not-found') {
-    return null;
-  }
-
-  const parts = result.split(',');
-  if (parts.length !== 4) {
-    return null;
-  }
-
-  const [xText, yText, widthText, heightText] = parts;
-  const x = Number.parseInt(xText!, 10);
-  const y = Number.parseInt(yText!, 10);
-  const width = Number.parseInt(widthText!, 10);
-  const height = Number.parseInt(heightText!, 10);
-  if (
-    !Number.isFinite(x) ||
-    !Number.isFinite(y) ||
-    !Number.isFinite(width) ||
-    !Number.isFinite(height) ||
-    width <= 0 ||
-    height <= 0
-  ) {
-    return null;
-  }
-
-  return { x, y, width, height };
-}
-
-export function parseWindowTrackerHelperFocusState(output: string): boolean | null {
-  const focusLine = output
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => line.startsWith('focus='));
-
-  if (!focusLine) {
-    return null;
-  }
-
-  const value = focusLine.slice('focus='.length).trim().toLowerCase();
-  if (value === 'focused') {
+    loadWin32().setOverlayOwner(overlayHwnd, mpvHwnd);
     return true;
-  }
-  if (value === 'not-focused') {
+  } catch {
     return false;
   }
-
-  return null;
 }
 
-export function resolveWindowsTrackerHelper(
-  options: ResolveWindowsTrackerHelperOptions = {},
-): WindowsTrackerHelperLaunchSpec | null {
-  const existsSync = options.existsSync ?? fs.existsSync;
-  const mkdirSync = options.mkdirSync ?? fs.mkdirSync;
-  const copyFileSync = options.copyFileSync ?? fs.copyFileSync;
-  const dirname = options.dirname ?? __dirname;
-  const resourcesPath = options.resourcesPath ?? process.resourcesPath;
-  const mode = normalizeHelperMode(
-    options.helperModeEnv ?? process.env.SUBMINER_WINDOWS_TRACKER_HELPER,
-  );
-  const override = normalizeHelperPathOverride(
-    options.helperPathEnv ?? process.env.SUBMINER_WINDOWS_TRACKER_HELPER_PATH,
-    mode,
-  );
-
-  if (override) {
-    if (!existsSync(override.path)) {
-      log.warn(`Configured Windows tracker helper path does not exist: ${override.path}`);
-      return null;
-    }
-    const helperPath = materializeAsarHelper(override.path, override.kind, {
-      mkdirSync,
-      copyFileSync,
-    });
-    return helperPath ? createLaunchSpec(helperPath, override.kind) : null;
+export function ensureWindowsOverlayTransparency(overlayHwnd: number): boolean {
+  try {
+    loadWin32().ensureOverlayTransparency(overlayHwnd);
+    return true;
+  } catch {
+    return false;
   }
+}
 
-  const candidates = getHelperCandidates(dirname, resourcesPath);
-  const orderedCandidates =
-    mode === 'powershell'
-      ? candidates.filter((candidate) => candidate.kind === 'powershell')
-      : mode === 'native'
-        ? candidates.filter((candidate) => candidate.kind === 'native')
-        : candidates;
-
-  for (const candidate of orderedCandidates) {
-    if (!existsSync(candidate.path)) {
-      continue;
-    }
-
-    const helperPath = materializeAsarHelper(candidate.path, candidate.kind, {
-      mkdirSync,
-      copyFileSync,
-    });
-    if (!helperPath) {
-      continue;
-    }
-
-    log.info(`Using Windows helper (${candidate.kind}): ${helperPath}`);
-    return createLaunchSpec(helperPath, candidate.kind);
+export function bindWindowsOverlayAboveMpv(overlayHwnd: number, mpvHwnd: number): boolean {
+  try {
+    const win32 = loadWin32();
+    win32.bindOverlayAboveMpv(overlayHwnd, mpvHwnd);
+    win32.ensureOverlayTransparency(overlayHwnd);
+    return true;
+  } catch {
+    return false;
   }
+}
 
-  if (mode === 'native') {
-    log.warn('Windows native tracker helper requested but no helper was found.');
-  } else if (mode === 'powershell') {
-    log.warn('Windows PowerShell tracker helper requested but no helper was found.');
-  } else {
-    log.warn('Windows tracker helper not found.');
+export function clearWindowsOverlayOwner(overlayHwnd: number): boolean {
+  try {
+    loadWin32().clearOverlayOwner(overlayHwnd);
+    return true;
+  } catch {
+    return false;
   }
+}
 
-  return null;
+export function getWindowsForegroundProcessName(): string | null {
+  try {
+    return loadWin32().getForegroundProcessName();
+  } catch {
+    return null;
+  }
 }

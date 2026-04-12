@@ -96,6 +96,10 @@ const OVERLAY_SHORTCUTS: Array<{
   { key: 'markAudioCard', label: 'Mark audio card' },
   { key: 'openRuntimeOptions', label: 'Open runtime options' },
   { key: 'openJimaku', label: 'Open jimaku' },
+  { key: 'openSessionHelp', label: 'Open session help' },
+  { key: 'openControllerSelect', label: 'Open controller select' },
+  { key: 'openControllerDebug', label: 'Open controller debug' },
+  { key: 'toggleSubtitleSidebar', label: 'Toggle subtitle sidebar' },
   { key: 'toggleVisibleOverlayGlobal', label: 'Show/hide visible overlay' },
 ];
 
@@ -104,11 +108,12 @@ function buildOverlayShortcutSections(shortcuts: RuntimeShortcutConfig): Session
 
   for (const shortcut of OVERLAY_SHORTCUTS) {
     const keybind = shortcuts[shortcut.key];
-    if (typeof keybind !== 'string') continue;
-    if (keybind.trim().length === 0) continue;
 
     rows.push({
-      shortcut: formatKeybinding(keybind),
+      shortcut:
+        typeof keybind === 'string' && keybind.trim().length > 0
+          ? formatKeybinding(keybind)
+          : 'Unbound',
       action: shortcut.label,
     });
   }
@@ -586,11 +591,25 @@ export function createSessionHelpModal(
     }
   }
 
-  async function openSessionHelpModal(opening: SessionHelpBindingInfo): Promise<void> {
+  function openSessionHelpModal(opening: SessionHelpBindingInfo): void {
     openBinding = opening;
     priorFocus = document.activeElement;
 
-    const dataLoaded = await render();
+    ctx.state.sessionHelpModalOpen = true;
+    helpSections = [];
+    helpFilterValue = '';
+    options.syncSettingsModalSubtitleSuppression();
+    ctx.dom.overlay.classList.add('interactive');
+    ctx.dom.sessionHelpModal.classList.remove('hidden');
+    ctx.dom.sessionHelpModal.setAttribute('aria-hidden', 'false');
+    ctx.dom.sessionHelpModal.setAttribute('tabindex', '-1');
+    ctx.dom.sessionHelpFilter.value = '';
+    ctx.state.sessionHelpSelectedIndex = 0;
+    ctx.dom.sessionHelpContent.innerHTML = '';
+    ctx.dom.sessionHelpContent.classList.remove('session-help-content-no-results');
+    if (ctx.platform.shouldToggleMouseIgnore) {
+      window.electronAPI.setIgnoreMouseEvents(false);
+    }
 
     ctx.dom.sessionHelpShortcut.textContent = `Session help opened with ${formatBindingHint(openBinding)}`;
     if (openBinding.fallbackUnavailable) {
@@ -601,27 +620,7 @@ export function createSessionHelpModal(
     } else {
       ctx.dom.sessionHelpWarning.textContent = '';
     }
-    if (dataLoaded) {
-      ctx.dom.sessionHelpStatus.textContent =
-        'Use Arrow keys, J/K/H/L, mouse, click, or / then type to filter. Esc closes.';
-    } else {
-      ctx.dom.sessionHelpStatus.textContent =
-        'Session help data is unavailable right now. Press Esc to close.';
-      ctx.dom.sessionHelpWarning.textContent =
-        'Unable to load latest shortcut settings from the runtime.';
-    }
-
-    ctx.state.sessionHelpModalOpen = true;
-    options.syncSettingsModalSubtitleSuppression();
-    ctx.dom.overlay.classList.add('interactive');
-    ctx.dom.sessionHelpModal.classList.remove('hidden');
-    ctx.dom.sessionHelpModal.setAttribute('aria-hidden', 'false');
-    ctx.dom.sessionHelpModal.setAttribute('tabindex', '-1');
-    ctx.dom.sessionHelpFilter.value = '';
-    helpFilterValue = '';
-    if (ctx.platform.shouldToggleMouseIgnore) {
-      window.electronAPI.setIgnoreMouseEvents(false);
-    }
+    ctx.dom.sessionHelpStatus.textContent = 'Loading session help data...';
 
     if (focusGuard === null) {
       focusGuard = (event: FocusEvent) => {
@@ -639,6 +638,19 @@ export function createSessionHelpModal(
     requestOverlayFocus();
     window.focus();
     enforceModalFocus();
+
+    void render().then((dataLoaded) => {
+      if (!ctx.state.sessionHelpModalOpen) return;
+      if (dataLoaded) {
+        ctx.dom.sessionHelpStatus.textContent =
+          'Use Arrow keys, J/K/H/L, mouse, click, or / then type to filter. Esc closes.';
+      } else {
+        ctx.dom.sessionHelpStatus.textContent =
+          'Session help data is unavailable right now. Press Esc to close.';
+        ctx.dom.sessionHelpWarning.textContent =
+          'Unable to load latest shortcut settings from the runtime.';
+      }
+    });
   }
 
   function closeSessionHelpModal(): void {
@@ -648,6 +660,7 @@ export function createSessionHelpModal(
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.sessionHelpModal.classList.add('hidden');
     ctx.dom.sessionHelpModal.setAttribute('aria-hidden', 'true');
+    window.electronAPI.notifyOverlayModalClosed('session-help');
     if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
       ctx.dom.overlay.classList.remove('interactive');
     }

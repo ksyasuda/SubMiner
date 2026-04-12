@@ -22,6 +22,9 @@ export function createRuntimeOptionsModal(
     syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
+  const DEFAULT_STATUS_MESSAGE =
+    'Use arrow keys. Click value to cycle. Enter or double-click to apply.';
+
   function formatRuntimeOptionValue(value: RuntimeOptionValue): string {
     if (typeof value === 'boolean') {
       return value ? 'On' : 'Off';
@@ -177,10 +180,13 @@ export function createRuntimeOptionsModal(
     }
   }
 
-  async function openRuntimeOptionsModal(): Promise<void> {
+  async function refreshRuntimeOptions(): Promise<void> {
     const optionsList = await window.electronAPI.getRuntimeOptions();
     updateRuntimeOptions(optionsList);
+    setRuntimeOptionsStatus(DEFAULT_STATUS_MESSAGE);
+  }
 
+  function showRuntimeOptionsModalShell(): void {
     ctx.state.runtimeOptionsModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
 
@@ -188,9 +194,19 @@ export function createRuntimeOptionsModal(
     ctx.dom.runtimeOptionsModal.classList.remove('hidden');
     ctx.dom.runtimeOptionsModal.setAttribute('aria-hidden', 'false');
 
-    setRuntimeOptionsStatus(
-      'Use arrow keys. Click value to cycle. Enter or double-click to apply.',
-    );
+    setRuntimeOptionsStatus('Loading runtime options...');
+  }
+
+  function openRuntimeOptionsModal(): void {
+    if (!ctx.state.runtimeOptionsModalOpen) {
+      showRuntimeOptionsModalShell();
+    } else {
+      setRuntimeOptionsStatus('Refreshing runtime options...');
+    }
+
+    void refreshRuntimeOptions().catch(() => {
+      setRuntimeOptionsStatus('Failed to load runtime options', true);
+    });
   }
 
   function handleRuntimeOptionsKeydown(e: KeyboardEvent): boolean {

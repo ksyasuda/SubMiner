@@ -30,6 +30,7 @@ test('composeCliStartupHandlers returns callable CLI startup handlers', () => {
       triggerFieldGrouping: async () => {},
       triggerSubsyncFromConfig: async () => {},
       markLastCardAsAudioCard: async () => {},
+      dispatchSessionAction: async () => {},
       getAnilistStatus: () => ({}) as never,
       clearAnilistToken: () => {},
       openAnilistSetupWindow: () => {},
