@@ -344,7 +344,12 @@ jobs:
             echo "No release artifacts found for checksum generation."
             exit 1
           fi
-          sha256sum "${files[@]}" > release/SHA256SUMS.txt
+          : > release/SHA256SUMS.txt
+          for file in "${files[@]}"; do
+            printf '%s  %s\n' \
+              "$(sha256sum "$file" | awk '{print $1}')" \
+              "${file##*/}" >> release/SHA256SUMS.txt
+          done
 
       - name: Get version from tag
         id: version

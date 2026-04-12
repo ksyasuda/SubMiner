@@ -77,6 +77,13 @@ test('release workflow includes the Windows installer in checksums and uploaded 
   );
 });
 
+test('release workflow writes checksum entries using release asset basenames', () => {
+  assert.match(releaseWorkflow, /: > release\/SHA256SUMS\.txt/);
+  assert.match(releaseWorkflow, /for file in "\$\{files\[@\]\}"; do/);
+  assert.match(releaseWorkflow, /\$\{file##\*\/\}/);
+  assert.doesNotMatch(releaseWorkflow, /sha256sum "\$\{files\[@\]\}" > release\/SHA256SUMS\.txt/);
+});
+
 test('release package scripts disable implicit electron-builder publishing', () => {
   assert.match(packageJson.scripts['build:appimage'] ?? '', /--publish never/);
   assert.match(packageJson.scripts['build:mac'] ?? '', /--publish never/);

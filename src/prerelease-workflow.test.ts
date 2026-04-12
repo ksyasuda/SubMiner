@@ -76,6 +76,13 @@ test('prerelease workflow publishes the same release assets as the stable workfl
   );
 });
 
+test('prerelease workflow writes checksum entries using release asset basenames', () => {
+  assert.match(prereleaseWorkflow, /: > release\/SHA256SUMS\.txt/);
+  assert.match(prereleaseWorkflow, /for file in "\$\{files\[@\]\}"; do/);
+  assert.match(prereleaseWorkflow, /\$\{file##\*\/\}/);
+  assert.doesNotMatch(prereleaseWorkflow, /sha256sum "\$\{files\[@\]\}" > release\/SHA256SUMS\.txt/);
+});
+
 test('prerelease workflow validates artifacts before publishing the release and only undrafts after upload', () => {
   const artifactsIndex = prereleaseWorkflow.indexOf('artifacts=(');
   const createIndex = prereleaseWorkflow.indexOf('gh release create');
