@@ -50,6 +50,9 @@ jobs:
       - name: Test suite (source)
         run: bun run test:fast
 
+      - name: Environment suite
+        run: bun run test:env
+
       - name: Coverage suite (maintained source lane)
         run: bun run test:coverage:src
 

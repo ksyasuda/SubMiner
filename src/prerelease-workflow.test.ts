@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const prereleaseWorkflowPath = resolve(__dirname, '../.github/workflows/prerelease.yml');
-const prereleaseWorkflow = readFileSync(prereleaseWorkflowPath, 'utf8');
+const prereleaseWorkflow = readFileSync(prereleaseWorkflowPath, 'utf8').replace(/\r\n/g, '\n');
 const packageJsonPath = resolve(__dirname, '../package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
   scripts: Record<string, string>;
@@ -12,8 +12,12 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
 
 test('prerelease workflow triggers on beta and rc tags only', () => {
   assert.match(prereleaseWorkflow, /name: Prerelease/);
-  assert.match(prereleaseWorkflow, /tags:\s*\n\s*-\s*'v\*-beta\.\*'/);
-  assert.match(prereleaseWorkflow, /tags:\s*\n(?:.*\n)*\s*-\s*'v\*-rc\.\*'/);
+  const tagsBlock = prereleaseWorkflow.match(/tags:\s*\n((?:\s*-\s*'[^']+'\s*\n?)+)/);
+  assert.ok(tagsBlock, 'Workflow tags block not found');
+  const tagsText = tagsBlock[1];
+  assert.ok(tagsText, 'Workflow tags entries not found');
+  const tagPatterns = [...tagsText.matchAll(/-\s*'([^']+)'/g)].map(([, pattern]) => pattern);
+  assert.deepEqual(tagPatterns, ['v*-beta.*', 'v*-rc.*']);
 });
 
 test('package scripts expose prerelease notes generation separately from stable changelog build', () => {
@@ -26,6 +30,13 @@ test('package scripts expose prerelease notes generation separately from stable 
 test('prerelease workflow generates prerelease notes from pending fragments', () => {
   assert.match(prereleaseWorkflow, /bun run changelog:prerelease-notes --version/);
   assert.doesNotMatch(prereleaseWorkflow, /bun run changelog:build --version/);
+});
+
+test('prerelease workflow includes the environment suite in the gate sequence', () => {
+  assert.match(
+    prereleaseWorkflow,
+    /Test suite \(source\)\n\s*run: bun run test:fast\n\s*\n\s*- name: Environment suite(?: \(source\))?\n\s*run: bun run test:env\n\s*\n\s*- name: Coverage suite \(maintained source lane\)/,
+  );
 });
 
 test('prerelease workflow publishes GitHub prereleases and keeps them off latest', () => {
