@@ -36,6 +36,8 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   getAnilistQueueStatus: CliCommandContextFactoryDeps['getAnilistQueueStatus'];
   retryAnilistQueueNow: CliCommandContextFactoryDeps['retryAnilistQueueNow'];
   generateCharacterDictionary: CliCommandContextFactoryDeps['generateCharacterDictionary'];
+  getCharacterDictionarySelection?: CliCommandContextFactoryDeps['getCharacterDictionarySelection'];
+  setCharacterDictionarySelection?: CliCommandContextFactoryDeps['setCharacterDictionarySelection'];
   runStatsCommand: CliCommandContextFactoryDeps['runStatsCommand'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
   runYoutubePlaybackFlow: CliCommandContextFactoryDeps['runYoutubePlaybackFlow'];
@@ -86,6 +88,8 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     getAnilistQueueStatus: deps.getAnilistQueueStatus,
     retryAnilistQueueNow: deps.retryAnilistQueueNow,
     generateCharacterDictionary: deps.generateCharacterDictionary,
+    getCharacterDictionarySelection: deps.getCharacterDictionarySelection,
+    setCharacterDictionarySelection: deps.setCharacterDictionarySelection,
     runStatsCommand: deps.runStatsCommand,
     runJellyfinCommand: deps.runJellyfinCommand,
     runYoutubePlaybackFlow: deps.runYoutubePlaybackFlow,

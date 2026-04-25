@@ -38,6 +38,7 @@ ${B}Mining${R}
   --toggle-subtitle-sidebar      Toggle subtitle sidebar panel
   --open-runtime-options         Open runtime options palette
   --open-session-help            Open session help modal
+  --open-character-dictionary    Open character dictionary anime selection modal
   --open-controller-select       Open controller select modal
   --open-controller-debug        Open controller debug modal
 
@@ -47,6 +48,9 @@ ${B}AniList${R}
   --anilist-logout               Clear stored AniList token
   --anilist-retry-queue          Retry next queued update
   --dictionary                   Generate character dictionary ZIP for current anime
+  --dictionary-candidates        Show character dictionary AniList candidates
+  --dictionary-select            Save manual character dictionary AniList selection
+  --dictionary-anilist-id ${D}ID${R}      AniList media ID for --dictionary-select
   --dictionary-target ${D}PATH${R}         Override dictionary source path (file or directory)
 
 ${B}Jellyfin${R}

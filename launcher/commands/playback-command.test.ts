@@ -44,6 +44,8 @@ function createContext(): LauncherCommandContext {
       jellyfinPlay: false,
       jellyfinDiscovery: false,
       dictionary: false,
+      dictionaryCandidates: false,
+      dictionarySelect: false,
       stats: false,
       doctor: false,
       doctorRefreshKnownWords: false,

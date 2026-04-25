@@ -464,7 +464,40 @@ test('dictionary command forwards --dictionary and --dictionary-target to app co
     assert.equal(result.status, 0);
     assert.equal(
       fs.readFileSync(capturePath, 'utf8'),
-      `--dictionary\n--dictionary-target\n${targetPath}\n`,
+      `--start\n--dictionary\n--dictionary-target\n${targetPath}\n`,
+    );
+  });
+});
+
+test('dictionary command forwards manual AniList selection modes to app command path', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const capturePath = path.join(root, 'captured-args.txt');
+    fs.writeFileSync(
+      appPath,
+      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" >> "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+    );
+    fs.chmodSync(appPath, 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_CAPTURE: capturePath,
+    };
+    const targetPath = path.join(root, 'anime.mkv');
+    fs.writeFileSync(targetPath, '');
+
+    assert.equal(runLauncher(['dictionary', '--candidates', targetPath], env).status, 0);
+    assert.equal(
+      fs.readFileSync(capturePath, 'utf8'),
+      `--start\n--dictionary-candidates\n--dictionary-target\n${targetPath}\n`,
+    );
+    assert.equal(runLauncher(['dictionary', '--select', '21355', targetPath], env).status, 0);
+    assert.equal(
+      fs.readFileSync(capturePath, 'utf8'),
+      `--start\n--dictionary-select\n--dictionary-anilist-id\n21355\n--dictionary-target\n${targetPath}\n`,
     );
   });
 });

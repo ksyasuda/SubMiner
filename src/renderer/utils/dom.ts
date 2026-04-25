@@ -57,6 +57,13 @@ export type RendererDom = {
   runtimeOptionsList: HTMLUListElement;
   runtimeOptionsStatus: HTMLDivElement;
 
+  characterDictionaryModal: HTMLDivElement;
+  characterDictionaryClose: HTMLButtonElement;
+  characterDictionarySummary: HTMLDivElement;
+  characterDictionaryCurrent: HTMLDivElement;
+  characterDictionaryCandidates: HTMLUListElement;
+  characterDictionaryStatus: HTMLDivElement;
+
   subsyncModal: HTMLDivElement;
   subsyncCloseButton: HTMLButtonElement;
   subsyncEngineAlass: HTMLInputElement;
@@ -176,6 +183,15 @@ export function resolveRendererDom(): RendererDom {
     runtimeOptionsClose: getRequiredElement<HTMLButtonElement>('runtimeOptionsClose'),
     runtimeOptionsList: getRequiredElement<HTMLUListElement>('runtimeOptionsList'),
     runtimeOptionsStatus: getRequiredElement<HTMLDivElement>('runtimeOptionsStatus'),
+
+    characterDictionaryModal: getRequiredElement<HTMLDivElement>('characterDictionaryModal'),
+    characterDictionaryClose: getRequiredElement<HTMLButtonElement>('characterDictionaryClose'),
+    characterDictionarySummary: getRequiredElement<HTMLDivElement>('characterDictionarySummary'),
+    characterDictionaryCurrent: getRequiredElement<HTMLDivElement>('characterDictionaryCurrent'),
+    characterDictionaryCandidates: getRequiredElement<HTMLUListElement>(
+      'characterDictionaryCandidates',
+    ),
+    characterDictionaryStatus: getRequiredElement<HTMLDivElement>('characterDictionaryStatus'),
 
     subsyncModal: getRequiredElement<HTMLDivElement>('subsyncModal'),
     subsyncCloseButton: getRequiredElement<HTMLButtonElement>('subsyncClose'),

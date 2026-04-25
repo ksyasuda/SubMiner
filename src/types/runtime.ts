@@ -341,6 +341,27 @@ export interface SessionActionDispatchRequest {
 
 export type ResolvedControllerConfig = ResolvedConfig['controller'];
 
+export interface CharacterDictionaryCandidate {
+  id: number;
+  title: string;
+  episodes: number | null;
+}
+
+export interface CharacterDictionarySelectionSnapshot {
+  seriesKey: string;
+  guessTitle: string | null;
+  current: CharacterDictionaryCandidate | null;
+  override: CharacterDictionaryCandidate | null;
+  candidates: CharacterDictionaryCandidate[];
+}
+
+export interface CharacterDictionarySelectionResult {
+  ok: boolean;
+  seriesKey: string;
+  selected: CharacterDictionaryCandidate;
+  staleMediaIds: number[];
+}
+
 export interface ElectronAPI {
   getOverlayLayer: () => 'visible' | 'modal' | null;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
@@ -410,6 +431,7 @@ export interface ElectronAPI {
   onOpenJimaku: (callback: () => void) => void;
   onOpenYoutubeTrackPicker: (callback: (payload: YoutubePickerOpenPayload) => void) => void;
   onOpenPlaylistBrowser: (callback: () => void) => void;
+  onOpenCharacterDictionary: (callback: () => void) => void;
   onSubtitleSidebarToggle: (callback: () => void) => void;
   onCancelYoutubeTrackPicker: (callback: () => void) => void;
   onKeyboardModeToggleRequested: (callback: () => void) => void;
@@ -426,6 +448,8 @@ export interface ElectronAPI {
   youtubePickerResolve: (
     request: YoutubePickerResolveRequest,
   ) => Promise<YoutubePickerResolveResult>;
+  getCharacterDictionarySelection: () => Promise<CharacterDictionarySelectionSnapshot>;
+  setCharacterDictionarySelection: (mediaId: number) => Promise<CharacterDictionarySelectionResult>;
   notifyOverlayModalClosed: (
     modal:
       | 'runtime-options'
@@ -437,7 +461,8 @@ export interface ElectronAPI {
       | 'controller-select'
       | 'controller-debug'
       | 'subtitle-sidebar'
-      | 'session-help',
+      | 'session-help'
+      | 'character-dictionary',
   ) => void;
   notifyOverlayModalOpened: (
     modal:
@@ -450,7 +475,8 @@ export interface ElectronAPI {
       | 'controller-select'
       | 'controller-debug'
       | 'subtitle-sidebar'
-      | 'session-help',
+      | 'session-help'
+      | 'character-dictionary',
   ) => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;

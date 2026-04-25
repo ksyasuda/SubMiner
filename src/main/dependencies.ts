@@ -94,6 +94,8 @@ export interface MainIpcRuntimeServiceDepsParams {
   openAnilistSetup: IpcDepsRuntimeOptions['openAnilistSetup'];
   getAnilistQueueStatus: IpcDepsRuntimeOptions['getAnilistQueueStatus'];
   retryAnilistQueueNow: IpcDepsRuntimeOptions['retryAnilistQueueNow'];
+  getCharacterDictionarySelection?: IpcDepsRuntimeOptions['getCharacterDictionarySelection'];
+  setCharacterDictionarySelection?: IpcDepsRuntimeOptions['setCharacterDictionarySelection'];
   appendClipboardVideoToQueue: IpcDepsRuntimeOptions['appendClipboardVideoToQueue'];
   getPlaylistBrowserSnapshot: IpcDepsRuntimeOptions['getPlaylistBrowserSnapshot'];
   appendPlaylistBrowserFile: IpcDepsRuntimeOptions['appendPlaylistBrowserFile'];
@@ -169,6 +171,8 @@ export interface CliCommandRuntimeServiceDepsParams {
   };
   dictionary: {
     generate: CliCommandDepsRuntimeOptions['dictionary']['generate'];
+    getSelection: CliCommandDepsRuntimeOptions['dictionary']['getSelection'];
+    setSelection: CliCommandDepsRuntimeOptions['dictionary']['setSelection'];
   };
   jellyfin: {
     openSetup: CliCommandDepsRuntimeOptions['jellyfin']['openSetup'];
@@ -258,6 +262,8 @@ export function createMainIpcRuntimeServiceDeps(
     openAnilistSetup: params.openAnilistSetup,
     getAnilistQueueStatus: params.getAnilistQueueStatus,
     retryAnilistQueueNow: params.retryAnilistQueueNow,
+    getCharacterDictionarySelection: params.getCharacterDictionarySelection,
+    setCharacterDictionarySelection: params.setCharacterDictionarySelection,
     appendClipboardVideoToQueue: params.appendClipboardVideoToQueue,
     getPlaylistBrowserSnapshot: params.getPlaylistBrowserSnapshot,
     appendPlaylistBrowserFile: params.appendPlaylistBrowserFile,
@@ -341,6 +347,8 @@ export function createCliCommandRuntimeServiceDeps(
     },
     dictionary: {
       generate: params.dictionary.generate,
+      getSelection: params.dictionary.getSelection,
+      setSelection: params.dictionary.setSelection,
     },
     jellyfin: {
       openSetup: params.jellyfin.openSetup,

@@ -1463,6 +1463,71 @@ iframe[id^='yomitan-popup'],
   color: var(--ctp-red);
 }
 
+.character-dictionary-content {
+  width: min(680px, 92%);
+}
+
+.character-dictionary-current {
+  font-size: 12px;
+  color: var(--ctp-subtext1);
+}
+
+.character-dictionary-candidates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(110, 115, 141, 0.2);
+  border-radius: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.character-dictionary-candidate,
+.character-dictionary-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(110, 115, 141, 0.1);
+}
+
+.character-dictionary-candidate {
+  cursor: pointer;
+}
+
+.character-dictionary-candidate:last-child,
+.character-dictionary-empty:last-child {
+  border-bottom: none;
+}
+
+.character-dictionary-candidate.active {
+  background: rgba(138, 173, 244, 0.15);
+}
+
+.character-dictionary-candidate-body {
+  min-width: 0;
+}
+
+.character-dictionary-use {
+  flex: 0 0 auto;
+  border: 1px solid rgba(138, 173, 244, 0.38);
+  border-radius: 6px;
+  background: rgba(54, 58, 79, 0.8);
+  color: var(--ctp-text);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.character-dictionary-use:hover {
+  background: rgba(91, 96, 120, 0.9);
+}
+
+.character-dictionary-empty {
+  color: var(--ctp-overlay1);
+  font-size: 13px;
+}
+
 .controller-select-field {
   display: flex;
   flex-direction: column;

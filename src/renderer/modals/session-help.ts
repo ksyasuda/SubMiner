@@ -94,6 +94,7 @@ const OVERLAY_SHORTCUTS: Array<{
   { key: 'mineSentenceMultiple', label: 'Mine sentence (multi)' },
   { key: 'toggleSecondarySub', label: 'Toggle secondary subtitle mode' },
   { key: 'markAudioCard', label: 'Mark audio card' },
+  { key: 'openCharacterDictionary', label: 'Open character dictionary anime selector' },
   { key: 'openRuntimeOptions', label: 'Open runtime options' },
   { key: 'openJimaku', label: 'Open jimaku' },
   { key: 'openSessionHelp', label: 'Open session help' },

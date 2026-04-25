@@ -11,6 +11,7 @@ import type {
   RuntimeOptionId,
   RuntimeOptionState,
   RuntimeOptionValue,
+  CharacterDictionarySelectionSnapshot,
   SubtitlePosition,
   SubtitleSidebarConfig,
   SubtitleCue,
@@ -63,6 +64,11 @@ export type RendererState = {
   runtimeOptions: RuntimeOptionState[];
   runtimeOptionSelectedIndex: number;
   runtimeOptionDraftValues: Map<RuntimeOptionId, RuntimeOptionValue>;
+
+  characterDictionaryModalOpen: boolean;
+  characterDictionarySelection: CharacterDictionarySelectionSnapshot | null;
+  characterDictionarySelectedIndex: number;
+  characterDictionaryStatus: string;
 
   subsyncModalOpen: boolean;
   subsyncSourceTracks: SubsyncSourceTrack[];
@@ -168,6 +174,11 @@ export function createRendererState(): RendererState {
     runtimeOptions: [],
     runtimeOptionSelectedIndex: 0,
     runtimeOptionDraftValues: new Map(),
+
+    characterDictionaryModalOpen: false,
+    characterDictionarySelection: null,
+    characterDictionarySelectedIndex: 0,
+    characterDictionaryStatus: '',
 
     subsyncModalOpen: false,
     subsyncSourceTracks: [],

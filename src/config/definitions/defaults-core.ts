@@ -86,6 +86,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
     multiCopyTimeoutMs: 3000,
     toggleSecondarySub: 'CommandOrControl+Shift+V',
     markAudioCard: 'CommandOrControl+Shift+A',
+    openCharacterDictionary: 'CommandOrControl+Alt+A',
     openRuntimeOptions: 'CommandOrControl+Shift+O',
     openJimaku: 'Ctrl+Shift+J',
     openSessionHelp: 'CommandOrControl+Shift+H',

@@ -12,6 +12,7 @@ export function createKeyboardHandlers(
   ctx: RendererContext,
   options: {
     handleRuntimeOptionsKeydown: (e: KeyboardEvent) => boolean;
+    handleCharacterDictionaryKeydown: (e: KeyboardEvent) => boolean;
     handleSubsyncKeydown: (e: KeyboardEvent) => boolean;
     handleKikuKeydown: (e: KeyboardEvent) => boolean;
     handleJimakuKeydown: (e: KeyboardEvent) => boolean;
@@ -1002,6 +1003,10 @@ export function createKeyboardHandlers(
 
       if (ctx.state.runtimeOptionsModalOpen) {
         options.handleRuntimeOptionsKeydown(e);
+        return;
+      }
+      if (ctx.state.characterDictionaryModalOpen) {
+        options.handleCharacterDictionaryKeydown(e);
         return;
       }
       if (ctx.state.subsyncModalOpen) {

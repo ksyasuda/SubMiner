@@ -190,7 +190,43 @@ test('dictionary command forwards --dictionary and target path to app binary', (
   });
 
   assert.equal(handled, true);
-  assert.deepEqual(forwarded, [['--dictionary', '--dictionary-target', '/tmp/anime']]);
+  assert.deepEqual(forwarded, [['--start', '--dictionary', '--dictionary-target', '/tmp/anime']]);
+});
+
+test('dictionary command forwards candidate and selection modes to app binary', () => {
+  const candidatesContext = createContext();
+  candidatesContext.args.dictionary = true;
+  candidatesContext.args.dictionaryCandidates = true;
+  candidatesContext.args.dictionaryTarget = '/tmp/anime.mkv';
+  const selectContext = createContext();
+  selectContext.args.dictionary = true;
+  selectContext.args.dictionarySelect = true;
+  selectContext.args.dictionaryAnilistId = 21355;
+  selectContext.args.dictionaryTarget = '/tmp/anime.mkv';
+  const forwarded: string[][] = [];
+
+  runDictionaryCommand(candidatesContext, {
+    runAppCommandWithInherit: (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+    },
+  });
+  runDictionaryCommand(selectContext, {
+    runAppCommandWithInherit: (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+    },
+  });
+
+  assert.deepEqual(forwarded, [
+    ['--start', '--dictionary-candidates', '--dictionary-target', '/tmp/anime.mkv'],
+    [
+      '--start',
+      '--dictionary-select',
+      '--dictionary-anilist-id',
+      '21355',
+      '--dictionary-target',
+      '/tmp/anime.mkv',
+    ],
+  ]);
 });
 
 test('dictionary command returns after app handoff starts', () => {

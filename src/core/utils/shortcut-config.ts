@@ -12,6 +12,7 @@ export interface ConfiguredShortcuts {
   multiCopyTimeoutMs: number;
   toggleSecondarySub: string | null | undefined;
   markAudioCard: string | null | undefined;
+  openCharacterDictionary: string | null | undefined;
   openRuntimeOptions: string | null | undefined;
   openJimaku: string | null | undefined;
   openSessionHelp: string | null | undefined;
@@ -75,6 +76,9 @@ export function resolveConfiguredShortcuts(
       isAnkiConnectDisabled
         ? null
         : (config.shortcuts?.markAudioCard ?? defaultConfig.shortcuts?.markAudioCard),
+    ),
+    openCharacterDictionary: normalizeShortcut(
+      config.shortcuts?.openCharacterDictionary ?? defaultConfig.shortcuts?.openCharacterDictionary,
     ),
     openRuntimeOptions: normalizeShortcut(
       config.shortcuts?.openRuntimeOptions ?? defaultConfig.shortcuts?.openRuntimeOptions,

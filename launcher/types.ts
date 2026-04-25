@@ -121,6 +121,9 @@ export interface Args {
   jellyfinPlay: boolean;
   jellyfinDiscovery: boolean;
   dictionary: boolean;
+  dictionaryCandidates: boolean;
+  dictionarySelect: boolean;
+  dictionaryAnilistId?: number;
   stats: boolean;
   statsBackground?: boolean;
   statsStop?: boolean;

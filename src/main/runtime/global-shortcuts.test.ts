@@ -20,6 +20,7 @@ function createShortcuts(): ConfiguredShortcuts {
     multiCopyTimeoutMs: 5000,
     toggleSecondarySub: null,
     markAudioCard: null,
+    openCharacterDictionary: null,
     openRuntimeOptions: null,
     openJimaku: null,
     openSessionHelp: null,

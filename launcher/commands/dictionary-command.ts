@@ -18,7 +18,20 @@ export function runDictionaryCommand(
     return false;
   }
 
-  const forwarded = ['--dictionary'];
+  const forwarded = [
+    '--start',
+    args.dictionaryCandidates
+      ? '--dictionary-candidates'
+      : args.dictionarySelect
+        ? '--dictionary-select'
+        : '--dictionary',
+  ];
+  if (args.dictionarySelect) {
+    if (!args.dictionaryAnilistId) {
+      throw new Error('Dictionary selection requires an AniList media ID.');
+    }
+    forwarded.push('--dictionary-anilist-id', String(args.dictionaryAnilistId));
+  }
   if (typeof args.dictionaryTarget === 'string' && args.dictionaryTarget.trim()) {
     forwarded.push('--dictionary-target', args.dictionaryTarget);
   }

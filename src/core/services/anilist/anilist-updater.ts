@@ -7,6 +7,8 @@ const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
 
 export interface AnilistMediaGuess {
   title: string;
+  alternativeTitle?: string;
+  year?: number;
   season: number | null;
   episode: number | null;
   source: 'guessit' | 'fallback';
@@ -131,6 +133,20 @@ function firstPositiveInteger(value: unknown): number | null {
   return null;
 }
 
+function firstYear(value: unknown): number | undefined {
+  const candidate = firstPositiveInteger(value);
+  if (candidate === null) return undefined;
+  return candidate >= 1900 && candidate <= 2200 ? candidate : undefined;
+}
+
+function buildGuessitTitle(title: string, alternativeTitle: string | null): string {
+  if (!alternativeTitle) return title;
+  if (title.length <= 3) {
+    return `${title} ${alternativeTitle}`.replace(/\s+/g, ' ').trim();
+  }
+  return title;
+}
+
 function normalizeTitle(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, ' ');
 }
@@ -215,10 +231,19 @@ export async function guessAnilistMediaInfo(
       const stdout = await deps.runGuessit(guessitTarget);
       const parsed = JSON.parse(stdout) as Record<string, unknown>;
       const title = readGuessitTitle(parsed.title);
+      const alternativeTitle = readGuessitTitle(parsed.alternative_title);
       const episode = firstPositiveInteger(parsed.episode);
       const season = firstPositiveInteger(parsed.season);
+      const year = firstYear(parsed.year);
       if (title) {
-        return { title, season, episode, source: 'guessit' };
+        return {
+          title: buildGuessitTitle(title, alternativeTitle),
+          ...(alternativeTitle ? { alternativeTitle } : {}),
+          ...(year ? { year } : {}),
+          season,
+          episode,
+          source: 'guessit',
+        };
       }
     } catch {
       // Ignore guessit failures and fall back to internal parser.

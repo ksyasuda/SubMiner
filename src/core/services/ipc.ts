@@ -90,6 +90,8 @@ export interface IpcServiceDeps {
   openAnilistSetup: () => void;
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
+  getCharacterDictionarySelection?: () => Promise<unknown>;
+  setCharacterDictionarySelection?: (mediaId: number) => Promise<unknown>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (filePath: string) => Promise<PlaylistBrowserMutationResult>;
@@ -211,6 +213,8 @@ export interface IpcDepsRuntimeOptions {
   openAnilistSetup: () => void;
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
+  getCharacterDictionarySelection?: () => Promise<unknown>;
+  setCharacterDictionarySelection?: (mediaId: number) => Promise<unknown>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (filePath: string) => Promise<PlaylistBrowserMutationResult>;
@@ -284,6 +288,23 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     openAnilistSetup: options.openAnilistSetup,
     getAnilistQueueStatus: options.getAnilistQueueStatus,
     retryAnilistQueueNow: options.retryAnilistQueueNow,
+    getCharacterDictionarySelection:
+      options.getCharacterDictionarySelection ??
+      (async () => ({
+        seriesKey: '',
+        guessTitle: null,
+        current: null,
+        override: null,
+        candidates: [],
+      })),
+    setCharacterDictionarySelection:
+      options.setCharacterDictionarySelection ??
+      (async () => ({
+        ok: false,
+        seriesKey: '',
+        selected: { id: 0, title: '', episodes: null },
+        staleMediaIds: [],
+      })),
     appendClipboardVideoToQueue: options.appendClipboardVideoToQueue,
     getPlaylistBrowserSnapshot: options.getPlaylistBrowserSnapshot,
     appendPlaylistBrowserFile: options.appendPlaylistBrowserFile,
@@ -569,6 +590,31 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   ipc.handle(IPC_CHANNELS.request.retryAnilistNow, async () => {
     return await deps.retryAnilistQueueNow();
   });
+
+  ipc.handle(IPC_CHANNELS.request.getCharacterDictionarySelection, async () => {
+    return await (deps.getCharacterDictionarySelection?.() ??
+      Promise.resolve({
+        seriesKey: '',
+        guessTitle: null,
+        current: null,
+        override: null,
+        candidates: [],
+      }));
+  });
+
+  ipc.handle(
+    IPC_CHANNELS.request.setCharacterDictionarySelection,
+    async (_event, mediaId: unknown) => {
+      if (!Number.isSafeInteger(mediaId) || (mediaId as number) <= 0) {
+        return { ok: false, message: 'Invalid AniList media ID.' };
+      }
+      return await (deps.setCharacterDictionarySelection?.(mediaId as number) ??
+        Promise.resolve({
+          ok: false,
+          message: 'Character dictionary selection unavailable.',
+        }));
+    },
+  );
 
   ipc.handle(IPC_CHANNELS.request.appendClipboardVideoToQueue, () => {
     return deps.appendClipboardVideoToQueue();

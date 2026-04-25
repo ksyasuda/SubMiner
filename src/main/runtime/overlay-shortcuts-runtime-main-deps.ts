@@ -11,6 +11,7 @@ export function createBuildOverlayShortcutsRuntimeMainDepsHandler(
     isOverlayShortcutContextActive: () => deps.isOverlayShortcutContextActive?.() ?? true,
     showMpvOsd: (text: string) => deps.showMpvOsd(text),
     openRuntimeOptionsPalette: () => deps.openRuntimeOptionsPalette(),
+    openCharacterDictionary: () => deps.openCharacterDictionary(),
     openJimaku: () => deps.openJimaku(),
     markAudioCard: () => deps.markAudioCard(),
     copySubtitleMultiple: (timeoutMs: number) => deps.copySubtitleMultiple(timeoutMs),

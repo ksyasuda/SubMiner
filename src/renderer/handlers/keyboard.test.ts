@@ -365,6 +365,7 @@ function createKeyboardHandlerHarness() {
 
   const handlers = createKeyboardHandlers(ctx as never, {
     handleRuntimeOptionsKeydown: () => false,
+    handleCharacterDictionaryKeydown: () => false,
     handleSubsyncKeydown: () => false,
     handleKikuKeydown: () => false,
     handleJimakuKeydown: () => false,

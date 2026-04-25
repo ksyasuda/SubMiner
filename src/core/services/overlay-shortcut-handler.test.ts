@@ -25,6 +25,7 @@ function makeShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configured
     multiCopyTimeoutMs: 2500,
     toggleSecondarySub: null,
     markAudioCard: null,
+    openCharacterDictionary: null,
     openRuntimeOptions: null,
     openJimaku: null,
     openSessionHelp: null,
@@ -44,6 +45,9 @@ function createDeps(overrides: Partial<OverlayShortcutRuntimeDeps> = {}) {
     },
     openRuntimeOptions: () => {
       calls.push('openRuntimeOptions');
+    },
+    openCharacterDictionary: () => {
+      calls.push('openCharacterDictionary');
     },
     openJimaku: () => {
       calls.push('openJimaku');
@@ -154,6 +158,7 @@ test('runOverlayShortcutLocalFallback dispatches matching single-step actions', 
     },
     {
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
+      openCharacterDictionary: () => handled.push('openCharacterDictionary'),
       openJimaku: () => handled.push('openJimaku'),
       markAudioCard: () => handled.push('markAudioCard'),
       copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
@@ -186,6 +191,7 @@ test('runOverlayShortcutLocalFallback leaves multi-step numeric shortcuts for re
     (_input, accelerator) => accelerator === 'Ctrl+M',
     {
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
+      openCharacterDictionary: () => handled.push('openCharacterDictionary'),
       openJimaku: () => handled.push('openJimaku'),
       markAudioCard: () => handled.push('markAudioCard'),
       copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
@@ -205,6 +211,7 @@ test('runOverlayShortcutLocalFallback leaves multi-step numeric shortcuts for re
     (_input, accelerator) => accelerator === 'Ctrl+N',
     {
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
+      openCharacterDictionary: () => handled.push('openCharacterDictionary'),
       openJimaku: () => handled.push('openJimaku'),
       markAudioCard: () => handled.push('markAudioCard'),
       copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
@@ -241,6 +248,7 @@ test('runOverlayShortcutLocalFallback passes allowWhenRegistered for secondary-s
     },
     {
       openRuntimeOptions: () => {},
+      openCharacterDictionary: () => {},
       openJimaku: () => {},
       markAudioCard: () => {},
       copySubtitleMultiple: () => {},
@@ -276,6 +284,7 @@ test('runOverlayShortcutLocalFallback allows registered-global jimaku shortcut',
     },
     {
       openRuntimeOptions: () => {},
+      openCharacterDictionary: () => {},
       openJimaku: () => {},
       markAudioCard: () => {},
       copySubtitleMultiple: () => {},
@@ -301,6 +310,9 @@ test('runOverlayShortcutLocalFallback returns false when no action matches', () 
 
   const result = runOverlayShortcutLocalFallback({} as Electron.Input, shortcuts, () => false, {
     openRuntimeOptions: () => {
+      called = true;
+    },
+    openCharacterDictionary: () => {
       called = true;
     },
     openJimaku: () => {
@@ -385,6 +397,7 @@ test('registerOverlayShortcutsRuntime reports active shortcuts when configured',
       mineSentenceMultiple: () => {},
       toggleSecondarySub: () => {},
       markAudioCard: () => {},
+      openCharacterDictionary: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
     }),
@@ -411,6 +424,7 @@ test('unregisterOverlayShortcutsRuntime clears pending shortcut work when active
       mineSentenceMultiple: () => {},
       toggleSecondarySub: () => {},
       markAudioCard: () => {},
+      openCharacterDictionary: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
     }),

@@ -76,6 +76,32 @@ test('guessAnilistMediaInfo joins multi-part guessit titles', async () => {
   });
 });
 
+test('guessAnilistMediaInfo preserves useful guessit alternative title for ambiguous Re ZERO filenames', async () => {
+  const result = await guessAnilistMediaInfo(
+    '/tmp/Re - ZERO, Starting Life in Another World (2016) - S01E01 - - The End of the Beginning and the Beginning of the End [v2 Bluray-1080p Proper][10bit][x265][FLAC 2.0][EN+JA]-SCY.mkv',
+    null,
+    {
+      runGuessit: async () =>
+        JSON.stringify({
+          title: 'Re',
+          alternative_title: 'ZERO, Starting Life in Another World',
+          year: 2016,
+          season: 1,
+          episode: 1,
+        }),
+    },
+  );
+
+  assert.deepEqual(result, {
+    title: 'Re ZERO, Starting Life in Another World',
+    alternativeTitle: 'ZERO, Starting Life in Another World',
+    year: 2016,
+    season: 1,
+    episode: 1,
+    source: 'guessit',
+  });
+});
+
 test('updateAnilistPostWatchProgress updates progress when behind', async () => {
   const originalFetch = globalThis.fetch;
   let call = 0;

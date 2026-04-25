@@ -212,6 +212,18 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(hasExplicitCommand(anilistRetryQueue), true);
   assert.equal(shouldStartApp(anilistRetryQueue), false);
 
+  const dictionaryCandidates = parseArgs(['--dictionary-candidates', '--dictionary-target', '/tmp/a.mkv']);
+  assert.equal(dictionaryCandidates.dictionaryCandidates, true);
+  assert.equal(dictionaryCandidates.dictionaryTarget, '/tmp/a.mkv');
+  assert.equal(hasExplicitCommand(dictionaryCandidates), true);
+  assert.equal(shouldStartApp(dictionaryCandidates), true);
+
+  const dictionarySelect = parseArgs(['--dictionary-select', '--dictionary-anilist-id', '21355']);
+  assert.equal(dictionarySelect.dictionarySelect, true);
+  assert.equal(dictionarySelect.dictionaryAnilistId, 21355);
+  assert.equal(hasExplicitCommand(dictionarySelect), true);
+  assert.equal(shouldStartApp(dictionarySelect), true);
+
   const toggleStatsOverlay = parseArgs(['--toggle-stats-overlay']);
   assert.equal(toggleStatsOverlay.toggleStatsOverlay, true);
   assert.equal(hasExplicitCommand(toggleStatsOverlay), true);

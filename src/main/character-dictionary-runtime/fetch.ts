@@ -1,6 +1,7 @@
 import type { AnilistMediaGuess } from '../../core/services/anilist/anilist-updater';
 import { ANILIST_GRAPHQL_URL } from './constants';
 import type {
+  AniListMediaCandidate,
   CharacterDictionaryRole,
   CharacterRecord,
   ResolvedAniListMedia,
@@ -123,6 +124,29 @@ function pickAniListSearchResult(
   };
 }
 
+function toAniListMediaCandidate(
+  entry: {
+    id: number;
+    episodes?: number | null;
+    title?: {
+      romaji?: string | null;
+      english?: string | null;
+      native?: string | null;
+    };
+  },
+  fallbackTitle: string,
+): AniListMediaCandidate {
+  return {
+    id: entry.id,
+    title:
+      entry.title?.english?.trim() ||
+      entry.title?.romaji?.trim() ||
+      entry.title?.native?.trim() ||
+      fallbackTitle,
+    episodes: typeof entry.episodes === 'number' && entry.episodes > 0 ? entry.episodes : null,
+  };
+}
+
 async function fetchAniList<T>(
   query: string,
   variables: Record<string, unknown>,
@@ -206,6 +230,69 @@ export async function resolveAniListMediaIdFromGuess(
     throw new Error(`No AniList media match found for "${guess.title}".`);
   }
   return resolved;
+}
+
+export async function searchAniListMediaCandidates(
+  title: string,
+  beforeRequest?: () => Promise<void>,
+): Promise<AniListMediaCandidate[]> {
+  const data = await fetchAniList<AniListSearchResponse>(
+    `
+      query($search: String!) {
+        Page(perPage: 10) {
+          media(search: $search, type: ANIME, sort: [SEARCH_MATCH, POPULARITY_DESC]) {
+            id
+            episodes
+            title {
+              romaji
+              english
+              native
+            }
+          }
+        }
+      }
+    `,
+    { search: title },
+    beforeRequest,
+  );
+  return (data.Page?.media ?? []).map((entry) => toAniListMediaCandidate(entry, title));
+}
+
+export async function fetchAniListMediaCandidateById(
+  mediaId: number,
+  beforeRequest?: () => Promise<void>,
+): Promise<AniListMediaCandidate> {
+  const data = await fetchAniList<{
+    Media?: {
+      id: number;
+      episodes?: number | null;
+      title?: {
+        romaji?: string | null;
+        english?: string | null;
+        native?: string | null;
+      };
+    } | null;
+  }>(
+    `
+      query($id: Int!) {
+        Media(id: $id, type: ANIME) {
+          id
+          episodes
+          title {
+            romaji
+            english
+            native
+          }
+        }
+      }
+    `,
+    { id: mediaId },
+    beforeRequest,
+  );
+  if (!data.Media) {
+    throw new Error(`AniList media ${mediaId} not found.`);
+  }
+  return toAniListMediaCandidate(data.Media, `AniList ${mediaId}`);
 }
 
 export async function fetchCharactersForMedia(

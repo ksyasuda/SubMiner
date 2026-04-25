@@ -17,6 +17,7 @@ export interface SessionActionExecutorDeps {
   markLastCardAsAudioCard: () => Promise<void>;
   openRuntimeOptionsPalette: () => void;
   openSessionHelp: () => void;
+  openCharacterDictionary: () => void;
   openControllerSelect: () => void;
   openControllerDebug: () => void;
   openJimaku: () => void;
@@ -84,6 +85,9 @@ export async function dispatchSessionAction(
       return;
     case 'openSessionHelp':
       deps.openSessionHelp();
+      return;
+    case 'openCharacterDictionary':
+      deps.openCharacterDictionary();
       return;
     case 'openControllerSelect':
       deps.openControllerSelect();

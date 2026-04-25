@@ -458,6 +458,7 @@ import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
 import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
 import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
+import { openCharacterDictionaryModal as openCharacterDictionaryModalRuntime } from './main/runtime/character-dictionary-open';
 import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
 import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
@@ -1492,6 +1493,9 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
     openRuntimeOptionsPalette: () => {
       openRuntimeOptionsPalette();
     },
+    openCharacterDictionary: () => {
+      openCharacterDictionaryOverlay();
+    },
     openJimaku: () => {
       openJimakuOverlay();
     },
@@ -2287,6 +2291,14 @@ function openSessionHelpOverlay(): void {
     openSessionHelpModalRuntime,
     'Session help overlay unavailable.',
     'Failed to open session help overlay.',
+  );
+}
+
+function openCharacterDictionaryOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openCharacterDictionaryModalRuntime,
+    'Character dictionary overlay unavailable.',
+    'Failed to open character dictionary overlay.',
   );
 }
 
@@ -4622,6 +4634,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJimaku: () => openJimakuOverlay(),
     openSessionHelp: () => openSessionHelpOverlay(),
+    openCharacterDictionary: () => openCharacterDictionaryOverlay(),
     openControllerSelect: () => openControllerSelectOverlay(),
     openControllerDebug: () => openControllerDebugOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
@@ -4842,6 +4855,14 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       openAnilistSetup: () => openAnilistSetupWindow(),
       getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
       retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
+      getCharacterDictionarySelection: () =>
+        characterDictionaryRuntime.getManualSelectionSnapshot(),
+      setCharacterDictionarySelection: async (mediaId: number) => {
+        const result = await characterDictionaryRuntime.setManualSelection({ mediaId });
+        resetAnilistMediaGuessState();
+        await characterDictionaryAutoSyncRuntime.runSyncNow();
+        return result;
+      },
       appendClipboardVideoToQueue: () => appendClipboardVideoToQueue(),
       ...playlistBrowserMainDeps,
       getImmersionTracker: () => appState.immersionTracker,
@@ -4922,6 +4943,14 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
         throw new Error(disabledReason);
       }
       return await characterDictionaryRuntime.generateForCurrentMedia(targetPath);
+    },
+    getCharacterDictionarySelection: async (targetPath?: string) =>
+      characterDictionaryRuntime.getManualSelectionSnapshot(targetPath),
+    setCharacterDictionarySelection: async (request) => {
+      const result = await characterDictionaryRuntime.setManualSelection(request);
+      resetAnilistMediaGuessState();
+      await characterDictionaryAutoSyncRuntime.runSyncNow();
+      return result;
     },
     runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
     runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>

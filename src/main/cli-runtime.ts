@@ -37,6 +37,8 @@ export interface CliCommandRuntimeServiceContext {
   getAnilistQueueStatus: CliCommandRuntimeServiceDepsParams['anilist']['getQueueStatus'];
   retryAnilistQueueNow: CliCommandRuntimeServiceDepsParams['anilist']['retryQueueNow'];
   generateCharacterDictionary: CliCommandRuntimeServiceDepsParams['dictionary']['generate'];
+  getCharacterDictionarySelection: CliCommandRuntimeServiceDepsParams['dictionary']['getSelection'];
+  setCharacterDictionarySelection: CliCommandRuntimeServiceDepsParams['dictionary']['setSelection'];
   openJellyfinSetup: CliCommandRuntimeServiceDepsParams['jellyfin']['openSetup'];
   runStatsCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runStatsCommand'];
   runJellyfinCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runCommand'];
@@ -103,6 +105,8 @@ function createCliCommandDepsFromContext(
     },
     dictionary: {
       generate: context.generateCharacterDictionary,
+      getSelection: context.getCharacterDictionarySelection,
+      setSelection: context.setCharacterDictionarySelection,
     },
     jellyfin: {
       openSetup: context.openJellyfinSetup,

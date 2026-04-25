@@ -69,40 +69,42 @@ subminer stats -b                       # start background stats daemon
 
 ## Subcommands
 
-| Subcommand                   | Purpose                                                    |
-| ---------------------------- | ---------------------------------------------------------- |
-| `subminer jellyfin` / `jf`   | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login) |
-| `subminer stats`             | Start stats server and open immersion dashboard in browser |
-| `subminer stats -b`          | Start or reuse background stats daemon (non-blocking)      |
-| `subminer stats cleanup`     | Backfill vocabulary metadata and prune stale rows          |
-| `subminer doctor`            | Dependency + config + socket diagnostics                   |
-| `subminer config path`       | Print active config file path                              |
-| `subminer config show`       | Print active config contents                               |
-| `subminer mpv status`        | Check mpv socket readiness                                 |
-| `subminer mpv socket`        | Print active socket path                                   |
-| `subminer mpv idle`          | Launch detached idle mpv instance                          |
-| `subminer dictionary <path>` | Generate character dictionary ZIP from file/dir target     |
-| `subminer texthooker`        | Launch texthooker-only mode                                |
-| `subminer app`               | Pass arguments directly to SubMiner binary                 |
+| Subcommand                                 | Purpose                                                            |
+| ------------------------------------------ | ------------------------------------------------------------------ |
+| `subminer jellyfin` / `jf`                 | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login)         |
+| `subminer stats`                           | Start stats server and open immersion dashboard in browser         |
+| `subminer stats -b`                        | Start or reuse background stats daemon (non-blocking)              |
+| `subminer stats cleanup`                   | Backfill vocabulary metadata and prune stale rows                  |
+| `subminer doctor`                          | Dependency + config + socket diagnostics                           |
+| `subminer config path`                     | Print active config file path                                      |
+| `subminer config show`                     | Print active config contents                                       |
+| `subminer mpv status`                      | Check mpv socket readiness                                         |
+| `subminer mpv socket`                      | Print active socket path                                           |
+| `subminer mpv idle`                        | Launch detached idle mpv instance                                  |
+| `subminer dictionary <path>`               | Generate character dictionary ZIP from file/dir target             |
+| `subminer dictionary --candidates <path>`  | List AniList candidate matches for character dictionary correction |
+| `subminer dictionary --select <id> <path>` | Pin an AniList media ID for that target series                     |
+| `subminer texthooker`                      | Launch texthooker-only mode                                        |
+| `subminer app`                             | Pass arguments directly to SubMiner binary                         |
 
 Use `subminer <subcommand> -h` for command-specific help.
 
 ## Options
 
-| Flag                  | Description                                         |
-| --------------------- | --------------------------------------------------- |
-| `-d, --directory`     | Video search directory (default: cwd)               |
-| `-r, --recursive`     | Search directories recursively                      |
-| `-R, --rofi`          | Use rofi instead of fzf                             |
-| `--setup`               | Open first-run setup popup manually                    |
-| `--start`             | Explicitly start overlay after mpv launches         |
-| `-S, --start-overlay` | Explicitly start overlay after mpv launches         |
-| `-T, --no-texthooker` | Disable texthooker server                           |
-| `-p, --profile`       | mpv profile name (no default; omitted unless set)   |
-| `-a, --args`          | Pass additional mpv arguments as a quoted string      |
-| `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`, `macos`, `windows`)    |
-| `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`) |
-| `--dev`, `--debug`    | Enable app dev-mode (not tied to log level)         |
+| Flag                  | Description                                                          |
+| --------------------- | -------------------------------------------------------------------- |
+| `-d, --directory`     | Video search directory (default: cwd)                                |
+| `-r, --recursive`     | Search directories recursively                                       |
+| `-R, --rofi`          | Use rofi instead of fzf                                              |
+| `--setup`             | Open first-run setup popup manually                                  |
+| `--start`             | Explicitly start overlay after mpv launches                          |
+| `-S, --start-overlay` | Explicitly start overlay after mpv launches                          |
+| `-T, --no-texthooker` | Disable texthooker server                                            |
+| `-p, --profile`       | mpv profile name (no default; omitted unless set)                    |
+| `-a, --args`          | Pass additional mpv arguments as a quoted string                     |
+| `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`, `macos`, `windows`) |
+| `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`)                  |
+| `--dev`, `--debug`    | Enable app dev-mode (not tied to log level)                          |
 
 With default plugin settings (`auto_start=yes`, `auto_start_visible_overlay=yes`, `auto_start_pause_until_ready=yes`), explicit start flags are usually unnecessary.
 

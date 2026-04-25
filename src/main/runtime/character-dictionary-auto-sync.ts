@@ -271,12 +271,19 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
       currentMediaId = snapshot.mediaId;
       currentMediaTitle = snapshot.mediaTitle;
       const state = readAutoSyncState(statePath);
+      const staleMediaIds = new Set(
+        (snapshot.staleMediaIds ?? [])
+          .map((mediaId) => normalizeMediaId(mediaId))
+          .filter((mediaId): mediaId is number => mediaId !== null),
+      );
       const nextActiveMediaIds = [
         {
           mediaId: snapshot.mediaId,
           label: buildActiveMediaLabel(snapshot.mediaId, snapshot.mediaTitle),
         },
-        ...state.activeMediaIds.filter((entry) => entry.mediaId !== snapshot.mediaId),
+        ...state.activeMediaIds.filter(
+          (entry) => entry.mediaId !== snapshot.mediaId && !staleMediaIds.has(entry.mediaId),
+        ),
       ].slice(0, Math.max(1, Math.floor(config.maxLoaded)));
       const nextActiveMediaIdValues = nextActiveMediaIds.map((entry) => entry.mediaId);
       deps.logInfo?.(

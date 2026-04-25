@@ -100,6 +100,8 @@ subminer mpv socket               # Print active mpv socket path
 subminer mpv status               # Exit 0 if socket is ready, else exit 1
 subminer mpv idle                 # Launch detached idle mpv with SubMiner defaults
 subminer dictionary /path/to/file-or-directory  # Generate character dictionary ZIP from target (manual Yomitan import)
+subminer dictionary --candidates /path/to/file.mkv
+subminer dictionary --select 21355 /path/to/file.mkv
 subminer texthooker               # Launch texthooker-only mode
 subminer app --anilist            # Pass args directly to SubMiner binary (example: AniList login flow)
 
@@ -124,6 +126,9 @@ SubMiner.AppImage --jellyfin-items --jellyfin-library-id LIBRARY_ID --jellyfin-s
 SubMiner.AppImage --jellyfin-play --jellyfin-item-id ITEM_ID --jellyfin-audio-stream-index 1 --jellyfin-subtitle-stream-index 2  # Requires connected mpv IPC (--start or plugin workflow)
 SubMiner.AppImage --jellyfin-remote-announce  # Force cast-target capability announce + visibility check
 SubMiner.AppImage --dictionary             # Generate character dictionary ZIP for current anime
+SubMiner.AppImage --dictionary-candidates  # List AniList candidates for current character dictionary series
+SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355  # Pin correct AniList media for series
+SubMiner.AppImage --open-character-dictionary  # Open in-app AniList selector
 SubMiner.AppImage --help                  # Show all options
 ```
 
@@ -166,6 +171,7 @@ This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blan
 - `subminer config`: config helpers (`path`, `show`).
 - `subminer mpv`: mpv helpers (`status`, `socket`, `idle`).
 - `subminer dictionary <path>`: generates a Yomitan-importable character dictionary ZIP from a file/directory target.
+- Use `subminer dictionary --candidates <path>` and `subminer dictionary --select <id> <path>` to correct AniList character-dictionary matches for a whole series.
 - `subminer texthooker`: texthooker-only shortcut (same behavior as `--texthooker`).
 - `subminer app` / `subminer bin`: direct passthrough to the SubMiner binary/AppImage.
 - Subcommand help pages are available (for example `subminer jellyfin -h`).

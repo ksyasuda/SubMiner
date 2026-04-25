@@ -99,6 +99,17 @@ test('parseArgs maps dictionary command and log-level override', () => {
   assert.equal(parsed.logLevel, 'debug');
 });
 
+test('parseArgs maps dictionary candidate lookup and manual selection', () => {
+  const candidateParsed = parseArgs(['dictionary', '--candidates', '.'], 'subminer', {});
+  assert.equal(candidateParsed.dictionaryCandidates, true);
+  assert.equal(candidateParsed.dictionaryTarget, process.cwd());
+
+  const selectParsed = parseArgs(['dictionary', '--select', '21355', '.'], 'subminer', {});
+  assert.equal(selectParsed.dictionarySelect, true);
+  assert.equal(selectParsed.dictionaryAnilistId, 21355);
+  assert.equal(selectParsed.dictionaryTarget, process.cwd());
+});
+
 test('parseArgs maps stats command and log-level override', () => {
   const parsed = parseArgs(['stats', '--log-level', 'debug'], 'subminer', {});
 
