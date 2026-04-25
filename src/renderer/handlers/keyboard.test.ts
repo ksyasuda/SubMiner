@@ -1119,6 +1119,32 @@ test('session binding: Ctrl+Shift+O dispatches runtime options locally', async (
   }
 });
 
+test('session binding: copy subtitle multiple captures follow-up digit locally', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.copySubtitleMultiple',
+        originalKey: 'Ctrl+M',
+        key: { code: 'KeyM', modifiers: ['ctrl'] },
+        actionType: 'session-action',
+        actionId: 'copySubtitleMultiple',
+      },
+    ] as never);
+
+    testGlobals.dispatchKeydown({ key: 'm', code: 'KeyM', ctrlKey: true });
+    testGlobals.dispatchKeydown({ key: '3', code: 'Digit3' });
+
+    assert.deepEqual(testGlobals.sessionActions, [
+      { actionId: 'copySubtitleMultiple', payload: { count: 3 } },
+    ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: h moves left when popup is closed', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 

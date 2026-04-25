@@ -135,12 +135,11 @@ test('createOverlayShortcutRuntimeHandlers reports async failures via OSD', asyn
   }
 });
 
-test('runOverlayShortcutLocalFallback dispatches matching actions with timeout', () => {
+test('runOverlayShortcutLocalFallback dispatches matching single-step actions', () => {
   const handled: string[] = [];
   const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> = [];
   const shortcuts = makeShortcuts({
-    copySubtitleMultiple: 'Ctrl+M',
-    multiCopyTimeoutMs: 4321,
+    copySubtitle: 'Ctrl+M',
   });
 
   const result = runOverlayShortcutLocalFallback(
@@ -169,8 +168,59 @@ test('runOverlayShortcutLocalFallback dispatches matching actions with timeout',
   );
 
   assert.equal(result, true);
-  assert.deepEqual(handled, ['copySubtitleMultiple:4321']);
+  assert.deepEqual(handled, ['copySubtitle']);
   assert.deepEqual(matched, [{ accelerator: 'Ctrl+M', allowWhenRegistered: false }]);
+});
+
+test('runOverlayShortcutLocalFallback leaves multi-step numeric shortcuts for renderer handling', () => {
+  const handled: string[] = [];
+  const shortcuts = makeShortcuts({
+    copySubtitleMultiple: 'Ctrl+M',
+    mineSentenceMultiple: 'Ctrl+N',
+    multiCopyTimeoutMs: 4321,
+  });
+
+  const copyResult = runOverlayShortcutLocalFallback(
+    {} as Electron.Input,
+    shortcuts,
+    (_input, accelerator) => accelerator === 'Ctrl+M',
+    {
+      openRuntimeOptions: () => handled.push('openRuntimeOptions'),
+      openJimaku: () => handled.push('openJimaku'),
+      markAudioCard: () => handled.push('markAudioCard'),
+      copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
+      copySubtitle: () => handled.push('copySubtitle'),
+      toggleSecondarySub: () => handled.push('toggleSecondarySub'),
+      updateLastCardFromClipboard: () => handled.push('updateLastCardFromClipboard'),
+      triggerFieldGrouping: () => handled.push('triggerFieldGrouping'),
+      triggerSubsync: () => handled.push('triggerSubsync'),
+      mineSentence: () => handled.push('mineSentence'),
+      mineSentenceMultiple: (timeoutMs) => handled.push(`mineSentenceMultiple:${timeoutMs}`),
+    },
+  );
+
+  const mineResult = runOverlayShortcutLocalFallback(
+    {} as Electron.Input,
+    shortcuts,
+    (_input, accelerator) => accelerator === 'Ctrl+N',
+    {
+      openRuntimeOptions: () => handled.push('openRuntimeOptions'),
+      openJimaku: () => handled.push('openJimaku'),
+      markAudioCard: () => handled.push('markAudioCard'),
+      copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
+      copySubtitle: () => handled.push('copySubtitle'),
+      toggleSecondarySub: () => handled.push('toggleSecondarySub'),
+      updateLastCardFromClipboard: () => handled.push('updateLastCardFromClipboard'),
+      triggerFieldGrouping: () => handled.push('triggerFieldGrouping'),
+      triggerSubsync: () => handled.push('triggerSubsync'),
+      mineSentence: () => handled.push('mineSentence'),
+      mineSentenceMultiple: (timeoutMs) => handled.push(`mineSentenceMultiple:${timeoutMs}`),
+    },
+  );
+
+  assert.equal(copyResult, false);
+  assert.equal(mineResult, false);
+  assert.deepEqual(handled, []);
 });
 
 test('runOverlayShortcutLocalFallback passes allowWhenRegistered for secondary-sub toggle', () => {

@@ -148,12 +148,6 @@ export function runOverlayShortcutLocalFallback(
       },
     },
     {
-      accelerator: shortcuts.copySubtitleMultiple,
-      run: () => {
-        handlers.copySubtitleMultiple(shortcuts.multiCopyTimeoutMs);
-      },
-    },
-    {
       accelerator: shortcuts.copySubtitle,
       run: () => {
         handlers.copySubtitle();
@@ -186,12 +180,6 @@ export function runOverlayShortcutLocalFallback(
       accelerator: shortcuts.mineSentence,
       run: () => {
         handlers.mineSentence();
-      },
-    },
-    {
-      accelerator: shortcuts.mineSentenceMultiple,
-      run: () => {
-        handlers.mineSentenceMultiple(shortcuts.multiCopyTimeoutMs);
       },
     },
   ];
