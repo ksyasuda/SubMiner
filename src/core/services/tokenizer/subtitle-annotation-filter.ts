@@ -14,6 +14,7 @@ const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
 
 const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
+  'あ',
   'ああ',
   'ええ',
   'うう',

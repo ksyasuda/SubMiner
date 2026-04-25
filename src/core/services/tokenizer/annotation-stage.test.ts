@@ -812,3 +812,39 @@ test('annotateTokens applies one shared exclusion gate across known N+1 frequenc
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
 });
+
+test('annotateTokens clears all annotations from standalone あ interjections without POS tags', () => {
+  const tokens = [
+    makeToken({
+      surface: 'あ',
+      headword: 'あ',
+      reading: 'あ',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '',
+      pos2: '',
+      startPos: 0,
+      endPos: 1,
+      isKnown: true,
+      isNPlusOneTarget: true,
+      frequencyRank: 522,
+      jlptLevel: 'N5',
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'あ',
+      getJlptLevel: (text) => (text === 'あ' ? 'N5' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  assert.equal(result[0]?.surface, 'あ');
+  assert.equal(result[0]?.headword, 'あ');
+  assert.equal(result[0]?.reading, 'あ');
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.jlptLevel, undefined);
+});
