@@ -73,10 +73,6 @@ function M.create(ctx)
 		aniskip.clear_aniskip_state()
 		hover.clear_hover_overlay()
 		process.disarm_auto_play_ready_gate()
-		if state.overlay_running then
-			subminer_log("info", "lifecycle", "mpv shutting down, hiding SubMiner overlay")
-			process.hide_visible_overlay()
-		end
 	end
 
 	local function register_lifecycle_hooks()
@@ -85,10 +81,11 @@ function M.create(ctx)
 		mp.register_event("file-loaded", function()
 			hover.clear_hover_overlay()
 		end)
-		mp.register_event("end-file", function()
+		mp.register_event("end-file", function(event)
 			process.disarm_auto_play_ready_gate()
 			hover.clear_hover_overlay()
-			if state.overlay_running then
+			local reason = type(event) == "table" and event.reason or nil
+			if state.overlay_running and reason ~= "quit" then
 				process.hide_visible_overlay()
 			end
 		end)

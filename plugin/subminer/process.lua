@@ -186,6 +186,8 @@ function M.create(ctx)
 		end
 
 		if action == "start" then
+			table.insert(args, "--background")
+
 			local backend = resolve_backend(overrides.backend)
 			if backend and backend ~= "" then
 				table.insert(args, "--backend")

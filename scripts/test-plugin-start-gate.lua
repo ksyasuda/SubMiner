@@ -499,10 +499,10 @@ local function count_property_set(property_sets, name, value)
 	return count
 end
 
-local function fire_event(recorded, name)
+local function fire_event(recorded, name, ...)
 	local listeners = recorded.events[name] or {}
 	for _, listener in ipairs(listeners) do
-		listener()
+		listener(...)
 	end
 end
 
@@ -768,6 +768,7 @@ do
 	fire_event(recorded, "file-loaded")
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
+	assert_true(call_has_arg(start_call, "--background"), "auto-start should launch SubMiner in background mode")
 	assert_true(call_has_arg(start_call, "--texthooker"), "auto-start should include --texthooker on the main --start command when enabled")
 	assert_true(find_control_call(recorded.async_calls, "--texthooker") == nil, "auto-start should not issue a separate texthooker helper command")
 	assert_true(
@@ -1054,10 +1055,19 @@ do
 	})
 	assert_true(recorded ~= nil, "plugin failed to load for shutdown-preserve-background scenario: " .. tostring(err))
 	fire_event(recorded, "file-loaded")
+	fire_event(recorded, "end-file", { reason = "quit" })
+	assert_true(
+		find_control_call(recorded.async_calls, "--hide-visible-overlay") == nil,
+		"mpv quit end-file should not spawn hide-visible-overlay helper commands"
+	)
 	fire_event(recorded, "shutdown")
 	assert_true(
 		find_control_call(recorded.async_calls, "--stop") == nil,
 		"mpv shutdown should not stop the background SubMiner process"
+	)
+	assert_true(
+		find_control_call(recorded.async_calls, "--hide-visible-overlay") == nil,
+		"mpv shutdown should not spawn hide-visible-overlay helper commands"
 	)
 end
 
