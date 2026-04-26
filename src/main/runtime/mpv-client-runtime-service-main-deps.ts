@@ -11,6 +11,8 @@ export function createBuildMpvClientRuntimeServiceFactoryDepsHandler<
   isVisibleOverlayVisible: () => boolean;
   getReconnectTimer: () => ReturnType<typeof setTimeout> | null;
   setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;
+  shouldQuitOnMpvShutdown?: () => boolean;
+  requestAppQuit?: () => void;
   bindEventHandlers: (client: TClient) => void;
 }) {
   return () => ({
@@ -24,6 +26,8 @@ export function createBuildMpvClientRuntimeServiceFactoryDepsHandler<
       getReconnectTimer: () => deps.getReconnectTimer(),
       setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) =>
         deps.setReconnectTimer(timer),
+      shouldQuitOnMpvShutdown: () => deps.shouldQuitOnMpvShutdown?.() ?? false,
+      requestAppQuit: () => deps.requestAppQuit?.(),
     },
     bindEventHandlers: (client: TClient) => deps.bindEventHandlers(client),
   });

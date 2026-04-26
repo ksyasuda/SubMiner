@@ -41,10 +41,13 @@ All keybindings use a `y` chord prefix — press `y`, then the second key:
 | `y-s` | Start overlay          |
 | `y-S` | Stop overlay           |
 | `y-t` | Toggle visible overlay |
+| `v`   | Toggle primary subtitle bar visibility |
 | `y-o` | Open settings window   |
 | `y-r` | Restart overlay        |
 | `y-c` | Check status           |
 | `y-k` | Skip intro (AniSkip)   |
+
+The bare `v` binding is a forced mpv binding. It overrides mpv's default primary subtitle visibility toggle and routes the action to SubMiner's primary subtitle bar instead.
 
 ## Menu
 

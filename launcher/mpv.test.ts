@@ -415,6 +415,8 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     jellyfinPlay: false,
     jellyfinDiscovery: false,
     dictionary: false,
+    dictionaryCandidates: false,
+    dictionarySelect: false,
     stats: false,
     doctor: false,
     doctorRefreshKnownWords: false,

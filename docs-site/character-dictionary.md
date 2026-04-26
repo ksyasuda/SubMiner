@@ -28,9 +28,9 @@ Character dictionary sync is disabled by default. To turn it on:
     "enabled": true,
     "accessToken": "your-token",
     "characterDictionary": {
-      "enabled": true
-    }
-  }
+      "enabled": true,
+    },
+  },
 }
 ```
 
@@ -47,33 +47,35 @@ If `yomitan.externalProfilePath` is set, SubMiner switches to read-only external
 A single character produces many searchable terms so that names are recognized regardless of how they appear in dialogue. SubMiner generates variants for:
 
 **Spacing and combination:**
+
 - Full name with space: 須々木 心一
 - Combined form: 須々木心一
 - Family name alone: 須々木
 - Given name alone: 心一
 
 **Middle-dot removal** (common in katakana foreign names):
+
 - ア・リ・ス → アリス (combined), plus individual segments
 
 **Honorific suffixes** — each base name is expanded with 15 common suffixes:
 
-| Honorific | Reading |
-| --- | --- |
-| さん | さん |
-| 様 | さま |
-| 先生 | せんせい |
-| 先輩 | せんぱい |
-| 後輩 | こうはい |
-| 氏 | し |
-| 君 | くん |
-| くん | くん |
-| ちゃん | ちゃん |
-| たん | たん |
-| 坊 | ぼう |
-| 殿 | どの |
-| 博士 | はかせ |
-| 社長 | しゃちょう |
-| 部長 | ぶちょう |
+| Honorific | Reading    |
+| --------- | ---------- |
+| さん      | さん       |
+| 様        | さま       |
+| 先生      | せんせい   |
+| 先輩      | せんぱい   |
+| 後輩      | こうはい   |
+| 氏        | し         |
+| 君        | くん       |
+| くん      | くん       |
+| ちゃん    | ちゃん     |
+| たん      | たん       |
+| 坊        | ぼう       |
+| 殿        | どの       |
+| 博士      | はかせ     |
+| 社長      | しゃちょう |
+| 部長      | ぶちょう   |
 
 **Romanized names** — names stored in romaji on AniList are converted to kana aliases so they can match against Japanese subtitle text.
 
@@ -92,10 +94,10 @@ Name matches are visually distinct from [N+1 targeting, frequency highlighting, 
 
 **Key settings:**
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `subtitleStyle.nameMatchEnabled` | `true` | Toggle character-name highlighting |
-| `subtitleStyle.nameMatchColor` | `#f5bde6` | Highlight color for matched names |
+| Option                           | Default   | Description                        |
+| -------------------------------- | --------- | ---------------------------------- |
+| `subtitleStyle.nameMatchEnabled` | `true`    | Toggle character-name highlighting |
+| `subtitleStyle.nameMatchColor`   | `#f5bde6` | Highlight color for matched names  |
 
 ## Dictionary Entries
 
@@ -117,10 +119,10 @@ The three collapsible sections can be configured to start open or closed:
       "collapsibleSections": {
         "description": false,
         "characterInformation": false,
-        "voicedBy": false
-      }
-    }
-  }
+        "voicedBy": false,
+      },
+    },
+  },
 }
 ```
 
@@ -143,7 +145,7 @@ When `characterDictionary.enabled` is `true`, SubMiner runs an auto-sync routine
 {
   "activeMediaIds": [170942, 163134, 154587],
   "mergedRevision": "a1b2c3d4e5f6",
-  "mergedDictionaryTitle": "SubMiner Character Dictionary"
+  "mergedDictionaryTitle": "SubMiner Character Dictionary",
 }
 ```
 
@@ -163,6 +165,29 @@ SubMiner.AppImage --dictionary
 
 This creates a standalone dictionary ZIP for the target media and saves it alongside the snapshots.
 
+## Correcting AniList Matches
+
+SubMiner uses `guessit` to infer the anime title from the active filename, then searches AniList. Some filenames can still resolve to the wrong title. For example, `Re - ZERO, Starting Life in Another World (2016)` can be misread as a different `Re...` series.
+
+Use the in-app selector or CLI to pin the correct AniList media for the whole series:
+
+```bash
+# List candidate AniList matches for a file
+subminer dictionary --candidates "/path/to/episode.mkv"
+
+# Save the correct AniList media ID for that series
+subminer dictionary --select 21355 "/path/to/episode.mkv"
+
+# Equivalent direct app flags
+SubMiner.AppImage --dictionary-candidates --dictionary-target "/path/to/episode.mkv"
+SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355 --dictionary-target "/path/to/episode.mkv"
+
+# Open the in-app selector from the running app
+subminer app --open-character-dictionary
+```
+
+Manual selections are stored in `character-dictionaries/anilist-overrides.json` using a series key derived from the filename guess. Later episodes with the same series key use the selected AniList ID automatically. When the override replaces a previous wrong match, SubMiner removes that stale media ID from the merged dictionary's active set and rebuilds/imports the merged character dictionary.
+
 ## File Structure
 
 All character dictionary data lives under `{userData}/character-dictionaries/`:
@@ -174,6 +199,7 @@ character-dictionaries/
     anilist-163134.json
   merged.zip                  # Active merged dictionary (imported into Yomitan)
   auto-sync-state.json        # Tracks active media IDs and revision
+  anilist-overrides.json      # Manual series-to-AniList overrides
   img/
     m170942-c12345.jpg        # Character portrait
     m170942-va67890.jpg       # Voice actor portrait
@@ -194,16 +220,16 @@ merged.zip
 
 ## Configuration Reference
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `anilist.characterDictionary.enabled` | `false` | Enable auto-sync of character dictionary from AniList |
-| `anilist.characterDictionary.maxLoaded` | `3` | Number of recent media snapshots kept in the merged dictionary |
-| `anilist.characterDictionary.profileScope` | `"all"` | Apply dictionary to `"all"` Yomitan profiles or `"active"` only |
-| `anilist.characterDictionary.collapsibleSections.description` | `false` | Start Description section expanded |
-| `anilist.characterDictionary.collapsibleSections.characterInformation` | `false` | Start Character Information section expanded |
-| `anilist.characterDictionary.collapsibleSections.voicedBy` | `false` | Start Voiced By section expanded |
-| `subtitleStyle.nameMatchEnabled` | `true` | Toggle character-name highlighting in subtitles |
-| `subtitleStyle.nameMatchColor` | `#f5bde6` | Highlight color for character-name matches |
+| Option                                                                 | Default   | Description                                                     |
+| ---------------------------------------------------------------------- | --------- | --------------------------------------------------------------- |
+| `anilist.characterDictionary.enabled`                                  | `false`   | Enable auto-sync of character dictionary from AniList           |
+| `anilist.characterDictionary.maxLoaded`                                | `3`       | Number of recent media snapshots kept in the merged dictionary  |
+| `anilist.characterDictionary.profileScope`                             | `"all"`   | Apply dictionary to `"all"` Yomitan profiles or `"active"` only |
+| `anilist.characterDictionary.collapsibleSections.description`          | `false`   | Start Description section expanded                              |
+| `anilist.characterDictionary.collapsibleSections.characterInformation` | `false`   | Start Character Information section expanded                    |
+| `anilist.characterDictionary.collapsibleSections.voicedBy`             | `false`   | Start Voiced By section expanded                                |
+| `subtitleStyle.nameMatchEnabled`                                       | `true`    | Toggle character-name highlighting in subtitles                 |
+| `subtitleStyle.nameMatchColor`                                         | `#f5bde6` | Highlight color for character-name matches                      |
 
 ## Reference Implementation
 
@@ -211,14 +237,14 @@ SubMiner's character dictionary builder is inspired by the [Japanese Character N
 
 The reference implementation covers similar ground — name variant generation, honorific expansion, structured Yomitan content, portrait embedding — and additionally supports VNDB as a data source for visual novel characters. Key differences:
 
-| | SubMiner | Reference Implementation |
-| --- | --- | --- |
-| **Runtime** | TypeScript, runs inside Electron | Rust, standalone web service |
-| **Data sources** | AniList only | AniList + VNDB |
-| **Delivery** | Auto-synced into bundled Yomitan | ZIP download via web UI |
-| **Honorific strategy** | Eager generation at build time | Lazy generation during ZIP export |
-| **Caching** | File-based snapshots | Multi-tier (memory + disk + SQLite) |
-| **Updates** | Revision-hashed; skips reimport if unchanged | URL-encoded settings for auto-refresh |
+|                        | SubMiner                                     | Reference Implementation              |
+| ---------------------- | -------------------------------------------- | ------------------------------------- |
+| **Runtime**            | TypeScript, runs inside Electron             | Rust, standalone web service          |
+| **Data sources**       | AniList only                                 | AniList + VNDB                        |
+| **Delivery**           | Auto-synced into bundled Yomitan             | ZIP download via web UI               |
+| **Honorific strategy** | Eager generation at build time               | Lazy generation during ZIP export     |
+| **Caching**            | File-based snapshots                         | Multi-tier (memory + disk + SQLite)   |
+| **Updates**            | Revision-hashed; skips reimport if unchanged | URL-encoded settings for auto-refresh |
 
 If you work with visual novels or want a standalone dictionary generator independent of SubMiner, the reference implementation is worth checking out.
 
@@ -226,7 +252,7 @@ If you work with visual novels or want a standalone dictionary generator indepen
 
 - **Names not highlighting:** Confirm `anilist.characterDictionary.enabled` is `true` and `subtitleStyle.nameMatchEnabled` is `true`. Check that the current media has an AniList entry — SubMiner needs a media ID to fetch characters.
 - **Sync seems stuck:** The auto-sync debounces for 800ms after media changes and throttles image downloads at 250ms per image. Large casts (50+ characters) take longer. Check the status bar for the current sync phase.
-- **Wrong characters showing:** The merged dictionary includes your `maxLoaded` most recent titles. If you're seeing names from a previous show, they'll rotate out once you watch enough new titles to push it past the limit.
+- **Wrong characters showing:** Open the in-app character dictionary selector (`--open-character-dictionary`) or run `--dictionary-candidates`, then save the correct media with `--dictionary-select --dictionary-anilist-id <id>`. This replaces stale wrong-title entries for that series. If names are only from an older unrelated show, they'll rotate out once you watch enough new titles to push it past `maxLoaded`.
 - **Yomitan import fails:** SubMiner waits up to 7 seconds for Yomitan to be ready for mutations. If Yomitan is still loading dictionaries or performing another import, the operation may time out. Restarting the overlay typically resolves this.
 - **Portraits missing:** Images are downloaded from AniList CDN during snapshot generation. If the network was unavailable during the initial sync, delete the snapshot file from `character-dictionaries/snapshots/` and let it regenerate.
 

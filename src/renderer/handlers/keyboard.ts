@@ -12,6 +12,7 @@ export function createKeyboardHandlers(
   ctx: RendererContext,
   options: {
     handleRuntimeOptionsKeydown: (e: KeyboardEvent) => boolean;
+    handleCharacterDictionaryKeydown: (e: KeyboardEvent) => boolean;
     handleSubsyncKeydown: (e: KeyboardEvent) => boolean;
     handleKikuKeydown: (e: KeyboardEvent) => boolean;
     handleJimakuKeydown: (e: KeyboardEvent) => boolean;
@@ -358,6 +359,20 @@ export function createKeyboardHandlers(
       !e.shiftKey &&
       !e.repeat
     );
+  }
+
+  function isPrimarySubtitleVisibilityToggle(e: KeyboardEvent): boolean {
+    return e.code === 'KeyV' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && !e.repeat;
+  }
+
+  function togglePrimarySubtitleBarVisibility(): void {
+    const visible = !ctx.state.primarySubtitleBarVisible;
+    ctx.state.primarySubtitleBarVisible = visible;
+    if (visible) {
+      ctx.dom.subtitleContainer.classList.remove('primary-sub-hidden');
+    } else {
+      ctx.dom.subtitleContainer.classList.add('primary-sub-hidden');
+    }
   }
 
   async function handleMarkWatched(): Promise<void> {
@@ -1004,6 +1019,10 @@ export function createKeyboardHandlers(
         options.handleRuntimeOptionsKeydown(e);
         return;
       }
+      if (ctx.state.characterDictionaryModalOpen) {
+        options.handleCharacterDictionaryKeydown(e);
+        return;
+      }
       if (ctx.state.subsyncModalOpen) {
         options.handleSubsyncKeydown(e);
         return;
@@ -1057,6 +1076,12 @@ export function createKeyboardHandlers(
       if (isSubtitleSidebarToggle(e)) {
         e.preventDefault();
         options.toggleSubtitleSidebarModal?.();
+        return;
+      }
+
+      if (isPrimarySubtitleVisibilityToggle(e)) {
+        e.preventDefault();
+        togglePrimarySubtitleBarVisibility();
         return;
       }
 
@@ -1147,6 +1172,7 @@ export function createKeyboardHandlers(
     updateSessionBindings,
     syncKeyboardTokenSelection,
     handleSubtitleContentUpdated,
+    togglePrimarySubtitleBarVisibility,
     handleKeyboardModeToggleRequested,
     handleLookupWindowToggleRequested,
     closeLookupWindow,

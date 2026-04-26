@@ -27,6 +27,9 @@ export interface CliInvocations {
   dictionaryTriggered: boolean;
   dictionaryTarget: string | null;
   dictionaryLogLevel: string | null;
+  dictionaryCandidates: boolean;
+  dictionarySelect: boolean;
+  dictionaryAnilistId: string | null;
   statsTriggered: boolean;
   statsBackground: boolean;
   statsStop: boolean;
@@ -136,6 +139,9 @@ export function parseCliPrograms(
   let dictionaryTriggered = false;
   let dictionaryTarget: string | null = null;
   let dictionaryLogLevel: string | null = null;
+  let dictionaryCandidates = false;
+  let dictionarySelect = false;
+  let dictionaryAnilistId: string | null = null;
   let statsTriggered = false;
   let statsBackground = false;
   let statsStop = false;
@@ -207,13 +213,23 @@ export function parseCliPrograms(
   commandProgram
     .command('dictionary')
     .alias('dict')
-    .description('Generate character dictionary ZIP from a file or directory target')
-    .argument('<target>', 'Video file path or anime directory path')
+    .description('Generate or correct character dictionary AniList matches')
+    .argument('[target]', 'Video file path or anime directory path')
+    .option('--candidates', 'List AniList candidates for a character dictionary target')
+    .option('--select <id>', 'Pin an AniList media ID for the target series')
     .option('--log-level <level>', 'Log level')
-    .action((target: string, options: Record<string, unknown>) => {
+    .action((target: string | undefined, options: Record<string, unknown>) => {
+      const selectValue = typeof options.select === 'string' ? options.select.trim() : '';
+      const hasSelect = selectValue.length > 0;
+      if (options.candidates === true && hasSelect) {
+        throw new Error('Dictionary --candidates and --select cannot be combined.');
+      }
       dictionaryTriggered = true;
-      dictionaryTarget = target;
+      dictionaryTarget = target ?? null;
       dictionaryLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
+      dictionaryCandidates = options.candidates === true;
+      dictionarySelect = hasSelect;
+      dictionaryAnilistId = hasSelect ? selectValue : null;
     });
 
   commandProgram
@@ -338,6 +354,9 @@ export function parseCliPrograms(
       dictionaryTriggered,
       dictionaryTarget,
       dictionaryLogLevel,
+      dictionaryCandidates,
+      dictionarySelect,
+      dictionaryAnilistId,
       statsTriggered,
       statsBackground,
       statsStop,

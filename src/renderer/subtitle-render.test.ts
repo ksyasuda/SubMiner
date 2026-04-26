@@ -220,6 +220,22 @@ function normalizeCssSelector(selector: string): string {
     .trim();
 }
 
+function buildJlptColorSelector(level: number): string {
+  const higherPriorityClasses = [
+    '.word-known',
+    '.word-n-plus-one',
+    '.word-name-match',
+    '.word-frequency-single',
+    '.word-frequency-band-1',
+    '.word-frequency-band-2',
+    '.word-frequency-band-3',
+    '.word-frequency-band-4',
+    '.word-frequency-band-5',
+  ].join(', ');
+
+  return `#subtitleRoot .word.word-jlpt-n${level}:not(:is(${higherPriorityClasses}))`;
+}
+
 test('computeWordClass preserves known and n+1 classes while adding JLPT classes', () => {
   const knownJlpt = createToken({
     isKnown: true,
@@ -410,6 +426,96 @@ test('applySubtitleStyle stores secondary background styles in hover-aware css v
   }
 });
 
+test('annotated subtitle tokens inherit configured base subtitle typography', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({
+      fontFamily: 'M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP',
+      fontSize: 35,
+      fontColor: '#cad3f5',
+      fontWeight: 700,
+      lineHeight: 1.35,
+      letterSpacing: '-0.01em',
+      textRendering: 'geometricPrecision',
+      textShadow: '3px 0 0 #000, -3px 0 0 #000, 0 3px 0 #000, 0 -3px 0 #000, 2px 2px 0 #000',
+      frequencyDictionary: {
+        enabled: true,
+        topX: 10000,
+        mode: 'single',
+        singleColor: '#f5a97f',
+      },
+      enableJlpt: true,
+      jlptColors: {
+        N1: '#ed8796',
+        N2: '#f5a97f',
+        N3: '#f9e2af',
+        N4: '#a6e3a1',
+        N5: '#8aadf4',
+      },
+      nPlusOneColor: '#c6a0f6',
+      knownWordColor: '#a6da95',
+    } as never);
+
+    renderer.renderSubtitle({
+      text: 'お礼をされるようなことしてない',
+      tokens: [
+        createToken({ surface: 'お礼', isKnown: true }),
+        createToken({ surface: 'を' }),
+        createToken({ surface: 'される', jlptLevel: 'N4' }),
+        createToken({ surface: 'ような', frequencyRank: 15 }),
+      ],
+    });
+
+    const rootStyle = subtitleRoot.style as unknown as Record<string, string>;
+    assert.equal(rootStyle.fontFamily, 'M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP');
+    assert.equal(rootStyle.fontSize, '35px');
+    assert.equal(rootStyle.color, '#cad3f5');
+    assert.equal(rootStyle.fontWeight, '700');
+    assert.equal(rootStyle.lineHeight, '1.35');
+    assert.equal(rootStyle.letterSpacing, '-0.01em');
+    assert.equal(rootStyle.textRendering, 'geometricPrecision');
+    assert.match(rootStyle.textShadow ?? '', /3px 0 0 #000/);
+
+    const wordNodes = collectWordNodes(subtitleRoot);
+    assert.deepEqual(
+      wordNodes.map((node) => [node.textContent, node.className]),
+      [
+        ['お礼', 'word word-known'],
+        ['を', 'word'],
+        ['される', 'word word-jlpt-n4'],
+        ['ような', 'word word-frequency-single'],
+      ],
+    );
+    for (const wordNode of wordNodes) {
+      const tokenStyle = wordNode.style as unknown as Record<string, string>;
+      assert.equal(tokenStyle.fontFamily, undefined);
+      assert.equal(tokenStyle.fontSize, undefined);
+      assert.equal(tokenStyle.fontWeight, undefined);
+      assert.equal(tokenStyle.lineHeight, undefined);
+      assert.equal(tokenStyle.letterSpacing, undefined);
+      assert.equal(tokenStyle.textRendering, undefined);
+      assert.equal(tokenStyle.textShadow, undefined);
+    }
+  } finally {
+    restoreDocument();
+  }
+});
+
 test('computeWordClass adds frequency class for single mode when rank is within topX', () => {
   const token = createToken({
     surface: '猫',
@@ -550,6 +656,36 @@ test('sanitizeSubtitleHoverTokenColor falls back for pure black values', () => {
 test('sanitizeSubtitleHoverTokenColor keeps non-black color values', () => {
   assert.equal(sanitizeSubtitleHoverTokenColor('#ff00ff'), '#ff00ff');
   assert.equal(sanitizeSubtitleHoverTokenColor(undefined), '#f4dbd6');
+});
+
+test('applySubtitleStyle keeps transparent hover token background', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({
+      hoverTokenBackgroundColor: 'transparent',
+    } as never);
+
+    const rootStyleValues = (subtitleRoot.style as unknown as { values?: Map<string, string> })
+      .values;
+    assert.equal(rootStyleValues?.get('--subtitle-hover-token-background-color'), 'transparent');
+  } finally {
+    restoreDocument();
+  }
 });
 
 test('alignTokensToSourceText preserves newline separators between adjacent token surfaces', () => {
@@ -749,7 +885,7 @@ test('shouldRenderTokenizedSubtitle enables token rendering when tokens exist', 
   assert.equal(shouldRenderTokenizedSubtitle(0), false);
 });
 
-test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
+test('subtitle annotation CSS changes token color without overriding typography', () => {
   const distCssPath = path.join(process.cwd(), 'dist', 'renderer', 'style.css');
   const srcCssPath = path.join(process.cwd(), 'src', 'renderer', 'style.css');
 
@@ -763,17 +899,27 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   const cssText = fs.readFileSync(cssPath, 'utf-8');
 
   for (let level = 1; level <= 5; level += 1) {
-    const block = extractClassBlock(cssText, `#subtitleRoot .word.word-jlpt-n${level}`);
+    const plainJlptBlock = extractClassBlock(cssText, `#subtitleRoot .word.word-jlpt-n${level}`);
+    assert.doesNotMatch(plainJlptBlock, /(?:^|\n)\s*color\s*:/m);
+
+    const block = extractClassBlock(cssText, buildJlptColorSelector(level));
     assert.ok(block.length > 0, `word-jlpt-n${level} class should exist`);
-    assert.match(
-      block,
-      new RegExp(`--subtitle-jlpt-underline-color:\\s*var\\(--subtitle-jlpt-n${level}-color,`),
-    );
-    assert.match(block, /border-bottom:\s*2px solid var\(--subtitle-jlpt-underline-color\);/);
-    assert.match(block, /padding-bottom:\s*1px;/);
-    assert.match(block, /box-decoration-break:\s*clone;/);
-    assert.match(block, /-webkit-box-decoration-break:\s*clone;/);
-    assert.doesNotMatch(block, /(?:^|\n)\s*color\s*:/m);
+    assert.match(block, new RegExp(`color:\\s*var\\(--subtitle-jlpt-n${level}-color,`));
+    assert.doesNotMatch(block, /border-bottom\s*:/);
+    assert.doesNotMatch(block, /padding-bottom\s*:/);
+    assert.doesNotMatch(block, /box-decoration-break\s*:/);
+    assert.doesNotMatch(block, /-webkit-box-decoration-break\s*:/);
+    assert.doesNotMatch(block, /text-shadow\s*:/);
+  }
+
+  for (const selector of [
+    '#subtitleRoot .word.word-known',
+    '#subtitleRoot .word.word-n-plus-one',
+    '#subtitleRoot .word.word-name-match',
+  ]) {
+    const block = extractClassBlock(cssText, selector);
+    assert.match(block, /color:\s*var\(/);
+    assert.doesNotMatch(block, /text-shadow\s*:/);
   }
 
   for (let band = 1; band <= 5; band += 1) {
@@ -873,7 +1019,8 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
     /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
   );
   assert.match(coloredWordHoverBlock, /border-radius:\s*3px;/);
-  assert.match(coloredWordHoverBlock, /font-weight:\s*800;/);
+  assert.match(coloredWordHoverBlock, /filter:\s*brightness\(1\.18\) saturate\(1\.08\);/);
+  assert.doesNotMatch(coloredWordHoverBlock, /font-weight\s*:/);
   assert.doesNotMatch(coloredWordHoverBlock, /color:\s*var\(--subtitle-hover-token-color/);
   assert.doesNotMatch(
     coloredWordHoverBlock,

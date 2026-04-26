@@ -1023,3 +1023,58 @@ test('registerIpcHandlers rejects malformed controller preference payloads', asy
     await saveHandler!({}, { preferredGamepadId: 12 });
   }, /Invalid controller preference payload/);
 });
+
+test('registerIpcHandlers exposes character dictionary selection handlers', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: number[] = [];
+
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      getCharacterDictionarySelection: async () => ({
+        seriesKey: 're-zero-starting-life-in-another-world-2016',
+        guessTitle: 'Re ZERO, Starting Life in Another World',
+        current: { id: 10607, title: 'Rerere no Tensai Bakabon', episodes: 24 },
+        override: null,
+        candidates: [
+          { id: 21355, title: 'Re:ZERO -Starting Life in Another World-', episodes: 25 },
+        ],
+      }),
+      setCharacterDictionarySelection: async (mediaId) => {
+        calls.push(mediaId);
+        return {
+          ok: true,
+          seriesKey: 're-zero-starting-life-in-another-world-2016',
+          selected: {
+            id: mediaId,
+            title: 'Re:ZERO -Starting Life in Another World-',
+            episodes: 25,
+          },
+          staleMediaIds: [10607],
+        };
+      },
+    }),
+    registrar,
+  );
+
+  const getHandler = handlers.handle.get(IPC_CHANNELS.request.getCharacterDictionarySelection);
+  const setHandler = handlers.handle.get(IPC_CHANNELS.request.setCharacterDictionarySelection);
+
+  assert.deepEqual(await getHandler!({}), {
+    seriesKey: 're-zero-starting-life-in-another-world-2016',
+    guessTitle: 'Re ZERO, Starting Life in Another World',
+    current: { id: 10607, title: 'Rerere no Tensai Bakabon', episodes: 24 },
+    override: null,
+    candidates: [{ id: 21355, title: 'Re:ZERO -Starting Life in Another World-', episodes: 25 }],
+  });
+  assert.deepEqual(await setHandler!({}, 0), {
+    ok: false,
+    message: 'Invalid AniList media ID.',
+  });
+  assert.deepEqual(await setHandler!({}, 21355), {
+    ok: true,
+    seriesKey: 're-zero-starting-life-in-another-world-2016',
+    selected: { id: 21355, title: 'Re:ZERO -Starting Life in Another World-', episodes: 25 },
+    staleMediaIds: [10607],
+  });
+  assert.deepEqual(calls, [21355]);
+});

@@ -330,6 +330,7 @@ function installKeyboardTestGlobals() {
 function createKeyboardHandlerHarness() {
   const testGlobals = installKeyboardTestGlobals();
   const subtitleRootClassList = createClassList();
+  const subtitleContainerClassList = createClassList();
   let controllerSelectKeydownCount = 0;
   let openControllerSelectCount = 0;
   let openControllerDebugCount = 0;
@@ -349,6 +350,7 @@ function createKeyboardHandlerHarness() {
         querySelectorAll: () => wordNodes,
       },
       subtitleContainer: {
+        classList: subtitleContainerClassList,
         contains: () => false,
       },
       overlay: testGlobals.overlay,
@@ -365,6 +367,7 @@ function createKeyboardHandlerHarness() {
 
   const handlers = createKeyboardHandlers(ctx as never, {
     handleRuntimeOptionsKeydown: () => false,
+    handleCharacterDictionaryKeydown: () => false,
     handleSubsyncKeydown: () => false,
     handleKikuKeydown: () => false,
     handleJimakuKeydown: () => false,
@@ -403,6 +406,26 @@ function createKeyboardHandlerHarness() {
     },
   };
 }
+
+test('primary subtitle visibility key hides and restores the subtitle bar without mpv sub-visibility', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchKeydown({ key: 'v', code: 'KeyV' });
+    assert.equal(ctx.dom.subtitleContainer.classList.contains('primary-sub-hidden'), true);
+
+    testGlobals.dispatchKeydown({ key: 'v', code: 'KeyV' });
+    assert.equal(ctx.dom.subtitleContainer.classList.contains('primary-sub-hidden'), false);
+    assert.equal(
+      testGlobals.mpvCommands.some((command) => command.includes('sub-visibility')),
+      false,
+    );
+  } finally {
+    testGlobals.restore();
+  }
+});
 
 test('session help chord resolver follows remapped session bindings', async () => {
   const { handlers, testGlobals } = createKeyboardHandlerHarness();
@@ -1113,6 +1136,32 @@ test('session binding: Ctrl+Shift+O dispatches runtime options locally', async (
 
     assert.deepEqual(testGlobals.sessionActions, [
       { actionId: 'openRuntimeOptions', payload: undefined },
+    ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('session binding: copy subtitle multiple captures follow-up digit locally', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.copySubtitleMultiple',
+        originalKey: 'Ctrl+M',
+        key: { code: 'KeyM', modifiers: ['ctrl'] },
+        actionType: 'session-action',
+        actionId: 'copySubtitleMultiple',
+      },
+    ] as never);
+
+    testGlobals.dispatchKeydown({ key: 'm', code: 'KeyM', ctrlKey: true });
+    testGlobals.dispatchKeydown({ key: '3', code: 'Digit3' });
+
+    assert.deepEqual(testGlobals.sessionActions, [
+      { actionId: 'copySubtitleMultiple', payload: { count: 3 } },
     ]);
   } finally {
     testGlobals.restore();

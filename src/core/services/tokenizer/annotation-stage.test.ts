@@ -353,6 +353,19 @@ test('shouldExcludeTokenFromSubtitleAnnotations excludes kana-only demonstrative
   assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
 });
 
+test('shouldExcludeTokenFromSubtitleAnnotations excludes kana-only non-independent noun helper merges', () => {
+  const token = makeToken({
+    surface: 'ことに',
+    headword: '事',
+    reading: 'コトニ',
+    partOfSpeech: PartOfSpeech.noun,
+    pos1: '名詞|助詞',
+    pos2: '非自立|格助詞',
+  });
+
+  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
+});
+
 test('stripSubtitleAnnotationMetadata keeps token hover data while clearing annotation fields', () => {
   const token = makeToken({
     surface: 'は',
@@ -807,6 +820,72 @@ test('annotateTokens applies one shared exclusion gate across known N+1 frequenc
     { minSentenceWordsForNPlusOne: 1 },
   );
 
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.jlptLevel, undefined);
+});
+
+test('annotateTokens clears all annotations for kana-only non-independent noun helper merges', () => {
+  const tokens = [
+    makeToken({
+      surface: 'ことに',
+      headword: '事',
+      reading: 'コトニ',
+      partOfSpeech: PartOfSpeech.noun,
+      pos1: '名詞|助詞',
+      pos2: '非自立|格助詞',
+      startPos: 0,
+      endPos: 3,
+      frequencyRank: 81,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === '事',
+      getJlptLevel: (text) => (text === '事' ? 'N4' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.jlptLevel, undefined);
+});
+
+test('annotateTokens clears all annotations from standalone あ interjections without POS tags', () => {
+  const tokens = [
+    makeToken({
+      surface: 'あ',
+      headword: 'あ',
+      reading: 'あ',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '',
+      pos2: '',
+      startPos: 0,
+      endPos: 1,
+      isKnown: true,
+      isNPlusOneTarget: true,
+      frequencyRank: 522,
+      jlptLevel: 'N5',
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'あ',
+      getJlptLevel: (text) => (text === 'あ' ? 'N5' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  assert.equal(result[0]?.surface, 'あ');
+  assert.equal(result[0]?.headword, 'あ');
+  assert.equal(result[0]?.reading, 'あ');
   assert.equal(result[0]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.frequencyRank, undefined);

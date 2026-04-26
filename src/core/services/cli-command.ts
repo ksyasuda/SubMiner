@@ -1,6 +1,27 @@
 import { CliArgs, CliCommandSource, commandNeedsOverlayRuntime } from '../../cli/args';
 import type { SessionActionDispatchRequest } from '../../types/runtime';
 
+export type CharacterDictionaryCandidate = {
+  id: number;
+  title: string;
+  episodes: number | null;
+};
+
+export type CharacterDictionarySelectionSnapshot = {
+  seriesKey: string;
+  guessTitle: string | null;
+  current: CharacterDictionaryCandidate | null;
+  override: CharacterDictionaryCandidate | null;
+  candidates: CharacterDictionaryCandidate[];
+};
+
+export type CharacterDictionarySelectionResult = {
+  ok: boolean;
+  seriesKey: string;
+  selected: CharacterDictionaryCandidate;
+  staleMediaIds: number[];
+};
+
 export interface CliCommandServiceDeps {
   setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
   getMpvSocketPath: () => string;
@@ -19,6 +40,7 @@ export interface CliCommandServiceDeps {
   isOverlayRuntimeInitialized: () => boolean;
   initializeOverlayRuntime: () => void;
   toggleVisibleOverlay: () => void;
+  togglePrimarySubtitleBar: () => void;
   openFirstRunSetup: () => void;
   openYomitanSettingsDelayed: (delayMs: number) => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
@@ -64,6 +86,13 @@ export interface CliCommandServiceDeps {
     mediaTitle: string;
     entryCount: number;
   }>;
+  getCharacterDictionarySelection: (
+    targetPath?: string,
+  ) => Promise<CharacterDictionarySelectionSnapshot>;
+  setCharacterDictionarySelection: (request: {
+    targetPath?: string;
+    mediaId: number;
+  }) => Promise<CharacterDictionarySelectionResult>;
   runStatsCommand: (args: CliArgs, source: CliCommandSource) => Promise<void>;
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
   runYoutubePlaybackFlow: (request: {
@@ -110,6 +139,7 @@ interface OverlayCliRuntime {
   isInitialized: () => boolean;
   initialize: () => void;
   toggleVisible: () => void;
+  togglePrimarySubtitleBar: () => void;
   setVisible: (visible: boolean) => void;
 }
 
@@ -162,6 +192,11 @@ export interface CliCommandDepsRuntimeOptions {
       mediaTitle: string;
       entryCount: number;
     }>;
+    getSelection: (targetPath?: string) => Promise<CharacterDictionarySelectionSnapshot>;
+    setSelection: (request: {
+      targetPath?: string;
+      mediaId: number;
+    }) => Promise<CharacterDictionarySelectionResult>;
   };
   jellyfin: {
     openSetup: () => void;
@@ -211,6 +246,7 @@ export function createCliCommandDepsRuntime(
     isOverlayRuntimeInitialized: options.overlay.isInitialized,
     initializeOverlayRuntime: options.overlay.initialize,
     toggleVisibleOverlay: options.overlay.toggleVisible,
+    togglePrimarySubtitleBar: options.overlay.togglePrimarySubtitleBar,
     openFirstRunSetup: options.ui.openFirstRunSetup,
     openYomitanSettingsDelayed: (delayMs) => {
       options.schedule(() => {
@@ -237,6 +273,8 @@ export function createCliCommandDepsRuntime(
     getAnilistQueueStatus: options.anilist.getQueueStatus,
     retryAnilistQueue: options.anilist.retryQueueNow,
     generateCharacterDictionary: options.dictionary.generate,
+    getCharacterDictionarySelection: options.dictionary.getSelection,
+    setCharacterDictionarySelection: options.dictionary.setSelection,
     runStatsCommand: options.jellyfin.runStatsCommand,
     runJellyfinCommand: options.jellyfin.runCommand,
     runYoutubePlaybackFlow: options.app.runYoutubePlaybackFlow,
@@ -265,6 +303,14 @@ function runAsyncWithOsd(
     deps.error(`${logLabel} failed:`, err);
     deps.showMpvOsd(`${osdLabel}: ${(err as Error).message}`);
   });
+}
+
+function formatCandidate(candidate: CharacterDictionaryCandidate): string {
+  const episodeLabel =
+    typeof candidate.episodes === 'number' && candidate.episodes > 0
+      ? `${candidate.episodes} episodes`
+      : 'episodes unknown';
+  return `${candidate.id} - ${candidate.title} (${episodeLabel})`;
 }
 
 export function handleCliCommand(
@@ -326,6 +372,8 @@ export function handleCliCommand(
 
   if (args.toggle || args.toggleVisibleOverlay) {
     deps.toggleVisibleOverlay();
+  } else if (args.togglePrimarySubtitleBar) {
+    deps.togglePrimarySubtitleBar();
   } else if (args.setup) {
     deps.openFirstRunSetup();
     deps.log('Opened first-run setup flow.');
@@ -410,6 +458,12 @@ export function handleCliCommand(
       { actionId: 'openSessionHelp' },
       'openSessionHelp',
       'Open session help failed',
+    );
+  } else if (args.openCharacterDictionary) {
+    dispatchCliSessionAction(
+      { actionId: 'openCharacterDictionary' },
+      'openCharacterDictionary',
+      'Open character dictionary failed',
     );
   } else if (args.openControllerSelect) {
     dispatchCliSessionAction(
@@ -539,6 +593,75 @@ export function handleCliCommand(
         deps.error('generateCharacterDictionary failed:', error);
         deps.warn(
           `Dictionary generation failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      })
+      .finally(() => {
+        if (shouldStopAfterRun) {
+          deps.stopApp();
+        }
+      });
+  } else if (args.dictionaryCandidates) {
+    const shouldStopAfterRun = source === 'initial' && !deps.hasMainWindow();
+    deps
+      .getCharacterDictionarySelection(args.dictionaryTarget)
+      .then((selection) => {
+        deps.log(`Character dictionary series key: ${selection.seriesKey}`);
+        if (selection.guessTitle) {
+          deps.log(`Guess: ${selection.guessTitle}`);
+        }
+        if (selection.current) {
+          deps.log(`Current match: ${formatCandidate(selection.current)}`);
+        }
+        if (selection.override) {
+          deps.log(`Manual override: ${formatCandidate(selection.override)}`);
+        }
+        for (const candidate of selection.candidates) {
+          deps.log(`Candidate: ${formatCandidate(candidate)}`);
+        }
+      })
+      .catch((error) => {
+        deps.error('getCharacterDictionarySelection failed:', error);
+        deps.warn(
+          `Character dictionary candidate lookup failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      })
+      .finally(() => {
+        if (shouldStopAfterRun) {
+          deps.stopApp();
+        }
+      });
+  } else if (args.dictionarySelect) {
+    const shouldStopAfterRun = source === 'initial' && !deps.hasMainWindow();
+    if (!args.dictionaryAnilistId) {
+      deps.warn('--dictionary-select requires --dictionary-anilist-id <ID>.');
+      if (shouldStopAfterRun) deps.stopApp();
+      return;
+    }
+    deps
+      .setCharacterDictionarySelection({
+        targetPath: args.dictionaryTarget,
+        mediaId: args.dictionaryAnilistId,
+      })
+      .then((result) => {
+        if (!result.ok) {
+          deps.warn('Character dictionary override was not saved.');
+          return;
+        }
+        deps.log(
+          `Character dictionary override saved: ${result.seriesKey} -> ${result.selected.id} - ${result.selected.title}`,
+        );
+        if (result.staleMediaIds.length > 0) {
+          deps.log(`Removed stale AniList IDs: ${result.staleMediaIds.join(', ')}`);
+        }
+      })
+      .catch((error) => {
+        deps.error('setCharacterDictionarySelection failed:', error);
+        deps.warn(
+          `Character dictionary override failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
         );
       })
       .finally(() => {

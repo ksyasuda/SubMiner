@@ -19,14 +19,12 @@ test('tray runtime handlers compose resolve/menu/ensure/destroy handlers', () =>
       fileExists: () => true,
     },
     buildTrayMenuTemplateDeps: {
-      buildTrayMenuTemplateRuntime: () => [{ label: 'Open Overlay' }],
+      buildTrayMenuTemplateRuntime: () => [{ label: 'Open Help' }],
       initializeOverlayRuntime: () => {
         overlayInitialized = true;
       },
       isOverlayRuntimeInitialized: () => overlayInitialized,
-      setVisibleOverlayVisible: (visible) => {
-        visibleOverlay = visible;
-      },
+      openSessionHelpModal: () => {},
       showFirstRunSetup: () => true,
       openFirstRunSetupWindow: () => {},
       showWindowsMpvLauncherSetup: () => true,
@@ -88,7 +86,7 @@ test('tray runtime handlers compose resolve/menu/ensure/destroy handlers', () =>
   });
 
   assert.equal(runtime.resolveTrayIconPath(), '/tmp/SubMiner.png');
-  assert.deepEqual(runtime.buildTrayMenu(), { template: [{ label: 'Open Overlay' }] });
+  assert.deepEqual(runtime.buildTrayMenu(), { template: [{ label: 'Open Help' }] });
   runtime.ensureTray();
   assert.equal(overlayInitialized, true);
   assert.equal(visibleOverlay, true);

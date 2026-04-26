@@ -35,27 +35,28 @@ The multi-line shortcuts open a digit selector with a 3-second timeout (`shortcu
 
 These control playback and subtitle display. They require overlay window focus.
 
-| Shortcut             | Action                                             |
-| -------------------- | -------------------------------------------------- |
-| `Space`              | Toggle mpv pause                                   |
-| `J`                  | Cycle primary subtitle track                       |
-| `Shift+J`            | Cycle secondary subtitle track                     |
+| Shortcut             | Action                                              |
+| -------------------- | --------------------------------------------------- |
+| `Space`              | Toggle mpv pause                                    |
+| `V`                  | Toggle primary subtitle bar visibility              |
+| `J`                  | Cycle primary subtitle track                        |
+| `Shift+J`            | Cycle secondary subtitle track                      |
 | `Ctrl+Alt+P`         | Open playlist browser for current directory + queue |
-| `ArrowRight`         | Seek forward 5 seconds                             |
-| `ArrowLeft`          | Seek backward 5 seconds                            |
-| `ArrowUp`            | Seek forward 60 seconds                            |
-| `ArrowDown`          | Seek backward 60 seconds                           |
-| `Shift+H`            | Jump to previous subtitle                          |
-| `Shift+L`            | Jump to next subtitle                              |
-| `Shift+[`            | Shift subtitle delay to previous subtitle cue      |
-| `Shift+]`            | Shift subtitle delay to next subtitle cue          |
-| `Ctrl+Shift+H`       | Replay current subtitle (play to end, then pause)  |
-| `Ctrl+Shift+L`       | Play next subtitle (jump, play to end, then pause) |
-| `Q`                  | Quit mpv                                           |
-| `Ctrl+W`             | Quit mpv                                           |
-| `Right-click`        | Toggle pause (outside subtitle area)               |
-| `Right-click + drag` | Reposition subtitles (on subtitle area)            |
-| `Ctrl/Cmd+A`         | Append clipboard video path to mpv playlist        |
+| `ArrowRight`         | Seek forward 5 seconds                              |
+| `ArrowLeft`          | Seek backward 5 seconds                             |
+| `ArrowUp`            | Seek forward 60 seconds                             |
+| `ArrowDown`          | Seek backward 60 seconds                            |
+| `Shift+H`            | Jump to previous subtitle                           |
+| `Shift+L`            | Jump to next subtitle                               |
+| `Shift+[`            | Shift subtitle delay to previous subtitle cue       |
+| `Shift+]`            | Shift subtitle delay to next subtitle cue           |
+| `Ctrl+Shift+H`       | Replay current subtitle (play to end, then pause)   |
+| `Ctrl+Shift+L`       | Play next subtitle (jump, play to end, then pause)  |
+| `Q`                  | Quit mpv                                            |
+| `Ctrl+W`             | Quit mpv                                            |
+| `Right-click`        | Toggle pause (outside subtitle area)                |
+| `Right-click + drag` | Reposition subtitles (on subtitle area)             |
+| `Ctrl/Cmd+A`         | Append clipboard video path to mpv playlist         |
 
 These keybindings can be overridden or disabled via the `keybindings` config array. The playlist browser opens a split overlay modal with sibling video files on the left and the live mpv playlist on the right.
 
@@ -63,16 +64,17 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 
 ## Subtitle & Feature Shortcuts
 
-| Shortcut           | Action                                                   | Config key                     |
-| ------------------ | -------------------------------------------------------- | ------------------------------ |
-| `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub` |
-| `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions` |
-| `Ctrl/Cmd+Shift+H` | Open session help modal                                  | `shortcuts.openSessionHelp`    |
-| `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`         |
-| `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                  |
-| `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`     |
-| `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey`    |
-| `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`              |
+| Shortcut           | Action                                                   | Config key                          |
+| ------------------ | -------------------------------------------------------- | ----------------------------------- |
+| `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub`      |
+| `Ctrl/Cmd+Alt+A` | Open character dictionary AniList selector                 | `shortcuts.openCharacterDictionary` |
+| `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions`      |
+| `Ctrl/Cmd+Shift+H` | Open session help modal                                  | `shortcuts.openSessionHelp`         |
+| `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`              |
+| `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                       |
+| `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`          |
+| `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey`         |
+| `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`                   |
 
 The stats toggle is handled inside the focused visible overlay window. It is configurable through the top-level `stats.toggleKey` setting and defaults to `Backquote`.
 
@@ -99,10 +101,13 @@ When the mpv plugin is installed, all commands use a `y` chord prefix — press 
 | `y-s` | Start overlay            |
 | `y-S` | Stop overlay             |
 | `y-t` | Toggle visible overlay   |
+| `v`   | Toggle primary subtitle bar visibility |
 | `y-o` | Open Yomitan settings    |
 | `y-r` | Restart overlay          |
 | `y-c` | Check overlay status     |
 | `y-h` | Open session help        |
+
+The bare `v` plugin binding intentionally overrides mpv's native primary subtitle visibility toggle so the SubMiner primary subtitle bar is hidden or restored instead.
 
 When the overlay has focus, press `y` then `d` to toggle DevTools (debugging helper).
 
@@ -115,7 +120,7 @@ When the overlay has focus, press `y` then `d` to toggle DevTools (debugging hel
 
 ## Customizing Shortcuts
 
-All `shortcuts.*` keys accept [Electron accelerator strings](https://www.electronjs.org/docs/latest/tutorial/keyboard-shortcuts), for example `"CommandOrControl+Shift+M"`. Use `null` to disable a shortcut.
+All `shortcuts.*` keys accept [Electron accelerator strings](https://www.electronjs.org/docs/latest/tutorial/keyboard-shortcuts), for example `"CommandOrControl+Alt+A"`. Use `null` to disable a shortcut.
 
 ```jsonc
 {

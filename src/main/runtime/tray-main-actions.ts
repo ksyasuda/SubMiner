@@ -28,7 +28,7 @@ export function createResolveTrayIconPathHandler(deps: {
 
 export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   buildTrayMenuTemplateRuntime: (handlers: {
-    openOverlay: () => void;
+    openSessionHelp: () => void;
     openFirstRunSetup: () => void;
     showFirstRunSetup: boolean;
     openWindowsMpvLauncherSetup: () => void;
@@ -41,7 +41,7 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   }) => TMenuItem[];
   initializeOverlayRuntime: () => void;
   isOverlayRuntimeInitialized: () => boolean;
-  setVisibleOverlayVisible: (visible: boolean) => void;
+  openSessionHelpModal: () => void;
   showFirstRunSetup: () => boolean;
   openFirstRunSetupWindow: () => void;
   showWindowsMpvLauncherSetup: () => boolean;
@@ -53,11 +53,11 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
 }) {
   return (): TMenuItem[] => {
     return deps.buildTrayMenuTemplateRuntime({
-      openOverlay: () => {
+      openSessionHelp: () => {
         if (!deps.isOverlayRuntimeInitialized()) {
           deps.initializeOverlayRuntime();
         }
-        deps.setVisibleOverlayVisible(true);
+        deps.openSessionHelpModal();
       },
       openFirstRunSetup: () => {
         deps.openFirstRunSetupWindow();

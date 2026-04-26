@@ -459,6 +459,66 @@ test('auto sync keeps revisited media retained when a new title is added afterwa
   assert.deepEqual(state.activeMediaIds, ['1 - Title 1', '4 - Title 4', '3 - Title 3']);
 });
 
+test('auto sync removes stale manual-selection media ids when applying corrected snapshot', async () => {
+  const userDataPath = makeTempDir();
+  const dictionariesDir = path.join(userDataPath, 'character-dictionaries');
+  fs.mkdirSync(dictionariesDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dictionariesDir, 'auto-sync-state.json'),
+    JSON.stringify(
+      {
+        activeMediaIds: ['10607 - Rerere no Tensai Bakabon', '130298 - The Eminence in Shadow'],
+        mergedRevision: 'old',
+        mergedDictionaryTitle: 'SubMiner Character Dictionary',
+      },
+      null,
+      2,
+    ),
+  );
+  const builtMediaIds: number[][] = [];
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({
+      enabled: true,
+      maxLoaded: 5,
+      profileScope: 'all',
+    }),
+    getOrCreateCurrentSnapshot: async () => ({
+      mediaId: 21355,
+      mediaTitle: 'Re:ZERO -Starting Life in Another World-',
+      entryCount: 120,
+      fromCache: false,
+      updatedAt: 99,
+      staleMediaIds: [10607],
+    }),
+    buildMergedDictionary: async (mediaIds) => {
+      builtMediaIds.push([...mediaIds]);
+      return {
+        zipPath: path.join(dictionariesDir, 'merged.zip'),
+        revision: `rev-${mediaIds.join('-')}`,
+        dictionaryTitle: 'SubMiner Character Dictionary',
+        entryCount: 200,
+      };
+    },
+    getYomitanDictionaryInfo: async () => [],
+    importYomitanDictionary: async () => true,
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => false,
+    now: () => 1,
+  });
+
+  await runtime.runSyncNow();
+
+  assert.deepEqual(builtMediaIds, [[21355, 130298]]);
+  const state = JSON.parse(
+    fs.readFileSync(path.join(dictionariesDir, 'auto-sync-state.json'), 'utf8'),
+  ) as { activeMediaIds: string[] };
+  assert.deepEqual(state.activeMediaIds, [
+    '21355 - Re:ZERO -Starting Life in Another World-',
+    '130298 - The Eminence in Shadow',
+  ]);
+});
+
 test('auto sync persists rebuilt MRU state even if Yomitan import fails afterward', async () => {
   const userDataPath = makeTempDir();
   const dictionariesDir = path.join(userDataPath, 'character-dictionaries');

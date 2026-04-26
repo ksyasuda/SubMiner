@@ -25,6 +25,7 @@ function makeShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configured
     multiCopyTimeoutMs: 2500,
     toggleSecondarySub: null,
     markAudioCard: null,
+    openCharacterDictionary: null,
     openRuntimeOptions: null,
     openJimaku: null,
     openSessionHelp: null,
@@ -44,6 +45,9 @@ function createDeps(overrides: Partial<OverlayShortcutRuntimeDeps> = {}) {
     },
     openRuntimeOptions: () => {
       calls.push('openRuntimeOptions');
+    },
+    openCharacterDictionary: () => {
+      calls.push('openCharacterDictionary');
     },
     openJimaku: () => {
       calls.push('openJimaku');
@@ -135,12 +139,11 @@ test('createOverlayShortcutRuntimeHandlers reports async failures via OSD', asyn
   }
 });
 
-test('runOverlayShortcutLocalFallback dispatches matching actions with timeout', () => {
+test('runOverlayShortcutLocalFallback dispatches matching single-step actions', () => {
   const handled: string[] = [];
   const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> = [];
   const shortcuts = makeShortcuts({
-    copySubtitleMultiple: 'Ctrl+M',
-    multiCopyTimeoutMs: 4321,
+    copySubtitle: 'Ctrl+M',
   });
 
   const result = runOverlayShortcutLocalFallback(
@@ -155,6 +158,7 @@ test('runOverlayShortcutLocalFallback dispatches matching actions with timeout',
     },
     {
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
+      openCharacterDictionary: () => handled.push('openCharacterDictionary'),
       openJimaku: () => handled.push('openJimaku'),
       markAudioCard: () => handled.push('markAudioCard'),
       copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
@@ -169,8 +173,61 @@ test('runOverlayShortcutLocalFallback dispatches matching actions with timeout',
   );
 
   assert.equal(result, true);
-  assert.deepEqual(handled, ['copySubtitleMultiple:4321']);
+  assert.deepEqual(handled, ['copySubtitle']);
   assert.deepEqual(matched, [{ accelerator: 'Ctrl+M', allowWhenRegistered: false }]);
+});
+
+test('runOverlayShortcutLocalFallback leaves multi-step numeric shortcuts for renderer handling', () => {
+  const handled: string[] = [];
+  const shortcuts = makeShortcuts({
+    copySubtitleMultiple: 'Ctrl+M',
+    mineSentenceMultiple: 'Ctrl+N',
+    multiCopyTimeoutMs: 4321,
+  });
+
+  const copyResult = runOverlayShortcutLocalFallback(
+    {} as Electron.Input,
+    shortcuts,
+    (_input, accelerator) => accelerator === 'Ctrl+M',
+    {
+      openRuntimeOptions: () => handled.push('openRuntimeOptions'),
+      openCharacterDictionary: () => handled.push('openCharacterDictionary'),
+      openJimaku: () => handled.push('openJimaku'),
+      markAudioCard: () => handled.push('markAudioCard'),
+      copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
+      copySubtitle: () => handled.push('copySubtitle'),
+      toggleSecondarySub: () => handled.push('toggleSecondarySub'),
+      updateLastCardFromClipboard: () => handled.push('updateLastCardFromClipboard'),
+      triggerFieldGrouping: () => handled.push('triggerFieldGrouping'),
+      triggerSubsync: () => handled.push('triggerSubsync'),
+      mineSentence: () => handled.push('mineSentence'),
+      mineSentenceMultiple: (timeoutMs) => handled.push(`mineSentenceMultiple:${timeoutMs}`),
+    },
+  );
+
+  const mineResult = runOverlayShortcutLocalFallback(
+    {} as Electron.Input,
+    shortcuts,
+    (_input, accelerator) => accelerator === 'Ctrl+N',
+    {
+      openRuntimeOptions: () => handled.push('openRuntimeOptions'),
+      openCharacterDictionary: () => handled.push('openCharacterDictionary'),
+      openJimaku: () => handled.push('openJimaku'),
+      markAudioCard: () => handled.push('markAudioCard'),
+      copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
+      copySubtitle: () => handled.push('copySubtitle'),
+      toggleSecondarySub: () => handled.push('toggleSecondarySub'),
+      updateLastCardFromClipboard: () => handled.push('updateLastCardFromClipboard'),
+      triggerFieldGrouping: () => handled.push('triggerFieldGrouping'),
+      triggerSubsync: () => handled.push('triggerSubsync'),
+      mineSentence: () => handled.push('mineSentence'),
+      mineSentenceMultiple: (timeoutMs) => handled.push(`mineSentenceMultiple:${timeoutMs}`),
+    },
+  );
+
+  assert.equal(copyResult, false);
+  assert.equal(mineResult, false);
+  assert.deepEqual(handled, []);
 });
 
 test('runOverlayShortcutLocalFallback passes allowWhenRegistered for secondary-sub toggle', () => {
@@ -191,6 +248,7 @@ test('runOverlayShortcutLocalFallback passes allowWhenRegistered for secondary-s
     },
     {
       openRuntimeOptions: () => {},
+      openCharacterDictionary: () => {},
       openJimaku: () => {},
       markAudioCard: () => {},
       copySubtitleMultiple: () => {},
@@ -226,6 +284,7 @@ test('runOverlayShortcutLocalFallback allows registered-global jimaku shortcut',
     },
     {
       openRuntimeOptions: () => {},
+      openCharacterDictionary: () => {},
       openJimaku: () => {},
       markAudioCard: () => {},
       copySubtitleMultiple: () => {},
@@ -251,6 +310,9 @@ test('runOverlayShortcutLocalFallback returns false when no action matches', () 
 
   const result = runOverlayShortcutLocalFallback({} as Electron.Input, shortcuts, () => false, {
     openRuntimeOptions: () => {
+      called = true;
+    },
+    openCharacterDictionary: () => {
       called = true;
     },
     openJimaku: () => {
@@ -335,6 +397,7 @@ test('registerOverlayShortcutsRuntime reports active shortcuts when configured',
       mineSentenceMultiple: () => {},
       toggleSecondarySub: () => {},
       markAudioCard: () => {},
+      openCharacterDictionary: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
     }),
@@ -361,6 +424,7 @@ test('unregisterOverlayShortcutsRuntime clears pending shortcut work when active
       mineSentenceMultiple: () => {},
       toggleSecondarySub: () => {},
       markAudioCard: () => {},
+      openCharacterDictionary: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
     }),

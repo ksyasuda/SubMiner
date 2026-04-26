@@ -89,6 +89,14 @@ function parseDictionaryTarget(value: string): string {
   return resolved;
 }
 
+function parseDictionaryAnilistId(value: string): number {
+  const id = Number.parseInt(value, 10);
+  if (!Number.isSafeInteger(id) || id <= 0 || String(id) !== value.trim()) {
+    fail(`Invalid AniList media ID: ${value}`);
+  }
+  return id;
+}
+
 export function createDefaultArgs(
   launcherConfig: LauncherYoutubeSubgenConfig,
   mpvConfig: LauncherMpvConfig = {},
@@ -138,6 +146,8 @@ export function createDefaultArgs(
     jellyfinPlay: false,
     jellyfinDiscovery: false,
     dictionary: false,
+    dictionaryCandidates: false,
+    dictionarySelect: false,
     stats: false,
     statsBackground: false,
     statsStop: false,
@@ -214,6 +224,11 @@ export function applyRootOptionsToArgs(
 
 export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations): void {
   if (invocations.dictionaryTriggered) parsed.dictionary = true;
+  if (invocations.dictionaryCandidates) parsed.dictionaryCandidates = true;
+  if (invocations.dictionarySelect) parsed.dictionarySelect = true;
+  if (invocations.dictionaryAnilistId) {
+    parsed.dictionaryAnilistId = parseDictionaryAnilistId(invocations.dictionaryAnilistId);
+  }
   if (invocations.statsTriggered) parsed.stats = true;
   if (invocations.statsBackground) parsed.statsBackground = true;
   if (invocations.statsStop) parsed.statsStop = true;
@@ -222,6 +237,12 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
   if (invocations.statsCleanupLifetime) parsed.statsCleanupLifetime = true;
   if (invocations.dictionaryTarget) {
     parsed.dictionaryTarget = parseDictionaryTarget(invocations.dictionaryTarget);
+  } else if (
+    invocations.dictionaryTriggered &&
+    !invocations.dictionaryCandidates &&
+    !invocations.dictionarySelect
+  ) {
+    fail('Dictionary target path is required.');
   }
   if (invocations.doctorTriggered) parsed.doctor = true;
   if (invocations.doctorRefreshKnownWords) parsed.doctorRefreshKnownWords = true;

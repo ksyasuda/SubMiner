@@ -93,6 +93,7 @@ export type CharacterDictionarySnapshotResult = {
   entryCount: number;
   fromCache: boolean;
   updatedAt: number;
+  staleMediaIds?: number[];
 };
 
 export type CharacterDictionarySnapshotProgress = {
@@ -110,6 +111,27 @@ export type MergedCharacterDictionaryBuildResult = {
   revision: string;
   dictionaryTitle: string;
   entryCount: number;
+};
+
+export type AniListMediaCandidate = {
+  id: number;
+  title: string;
+  episodes: number | null;
+};
+
+export type CharacterDictionaryManualSelectionSnapshot = {
+  seriesKey: string;
+  guessTitle: string | null;
+  current: AniListMediaCandidate | null;
+  override: AniListMediaCandidate | null;
+  candidates: AniListMediaCandidate[];
+};
+
+export type CharacterDictionaryManualSelectionResult = {
+  ok: boolean;
+  seriesKey: string;
+  selected: AniListMediaCandidate;
+  staleMediaIds: number[];
 };
 
 export interface CharacterDictionaryRuntimeDeps {
@@ -133,4 +155,5 @@ export interface CharacterDictionaryRuntimeDeps {
 export type ResolvedAniListMedia = {
   id: number;
   title: string;
+  staleMediaIds?: number[];
 };

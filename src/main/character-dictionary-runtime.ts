@@ -25,12 +25,21 @@ import {
 } from './character-dictionary-runtime/constants';
 import {
   downloadCharacterImage,
+  fetchAniListMediaCandidateById,
   fetchCharactersForMedia,
   resolveAniListMediaIdFromGuess,
+  searchAniListMediaCandidates,
 } from './character-dictionary-runtime/fetch';
+import {
+  buildCharacterDictionarySeriesKey,
+  createCharacterDictionaryManualSelectionStore,
+} from './character-dictionary-runtime/manual-selection';
 import type {
+  AniListMediaCandidate,
   CharacterDictionaryBuildResult,
   CharacterDictionaryGenerateOptions,
+  CharacterDictionaryManualSelectionResult,
+  CharacterDictionaryManualSelectionSnapshot,
   CharacterDictionaryRuntimeDeps,
   CharacterDictionarySnapshotImage,
   CharacterDictionarySnapshotProgress,
@@ -136,6 +145,13 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     progress?: CharacterDictionarySnapshotProgressCallbacks,
   ) => Promise<CharacterDictionarySnapshotResult>;
   buildMergedDictionary: (mediaIds: number[]) => Promise<MergedCharacterDictionaryBuildResult>;
+  getManualSelectionSnapshot: (
+    targetPath?: string,
+  ) => Promise<CharacterDictionaryManualSelectionSnapshot>;
+  setManualSelection: (request: {
+    targetPath?: string;
+    mediaId: number;
+  }) => Promise<CharacterDictionaryManualSelectionResult>;
   generateForCurrentMedia: (
     targetPath?: string,
     options?: CharacterDictionaryGenerateOptions,
@@ -144,26 +160,56 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
   const outputDir = path.join(deps.userDataPath, 'character-dictionaries');
   const sleepMs = deps.sleep ?? sleep;
   const getCollapsibleSectionOpenState = deps.getCollapsibleSectionOpenState ?? (() => false);
+  const manualSelectionStore = createCharacterDictionaryManualSelectionStore({
+    userDataPath: deps.userDataPath,
+  });
+
+  const createAniListRequestSlot = (): (() => Promise<void>) => {
+    let hasAniListRequest = false;
+    return async (): Promise<void> => {
+      if (!hasAniListRequest) {
+        hasAniListRequest = true;
+        return;
+      }
+      await sleepMs(ANILIST_REQUEST_DELAY_MS);
+    };
+  };
+
+  const resolveGuessInput = (
+    targetPath?: string,
+  ): { mediaPath: string | null; mediaTitle: string | null } => {
+    const dictionaryTarget = targetPath?.trim() || '';
+    return dictionaryTarget.length > 0
+      ? resolveDictionaryGuessInputs(dictionaryTarget)
+      : {
+          mediaPath: deps.getCurrentMediaPath(),
+          mediaTitle: deps.getCurrentMediaTitle(),
+        };
+  };
+
+  const guessCurrentMedia = async (targetPath?: string) => {
+    const guessInput = resolveGuessInput(targetPath);
+    const mediaPathForGuess = deps.resolveMediaPathForJimaku(guessInput.mediaPath);
+    const guessed = await deps.guessAnilistMediaInfo(mediaPathForGuess, guessInput.mediaTitle);
+    if (!guessed || !guessed.title.trim()) {
+      throw new Error('Unable to resolve current anime from media path/title.');
+    }
+    return {
+      guessed,
+      seriesKey: buildCharacterDictionarySeriesKey({
+        mediaPath: mediaPathForGuess,
+        mediaTitle: guessInput.mediaTitle,
+        guess: guessed,
+      }),
+    };
+  };
 
   const resolveCurrentMedia = async (
     targetPath?: string,
     beforeRequest?: () => Promise<void>,
   ): Promise<ResolvedAniListMedia> => {
     deps.logInfo?.('[dictionary] resolving current anime for character dictionary generation');
-    const dictionaryTarget = targetPath?.trim() || '';
-    const guessInput =
-      dictionaryTarget.length > 0
-        ? resolveDictionaryGuessInputs(dictionaryTarget)
-        : {
-            mediaPath: deps.getCurrentMediaPath(),
-            mediaTitle: deps.getCurrentMediaTitle(),
-          };
-    const mediaPathForGuess = deps.resolveMediaPathForJimaku(guessInput.mediaPath);
-    const mediaTitle = guessInput.mediaTitle;
-    const guessed = await deps.guessAnilistMediaInfo(mediaPathForGuess, mediaTitle);
-    if (!guessed || !guessed.title.trim()) {
-      throw new Error('Unable to resolve current anime from media path/title.');
-    }
+    const { guessed, seriesKey } = await guessCurrentMedia(targetPath);
     deps.logInfo?.(
       `[dictionary] current anime guess: ${guessed.title.trim()}${
         typeof guessed.episode === 'number' && guessed.episode > 0
@@ -171,6 +217,17 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
           : ''
       }`,
     );
+    const override = await manualSelectionStore.getOverride(seriesKey);
+    if (override) {
+      deps.logInfo?.(
+        `[dictionary] manual AniList override: ${override.mediaTitle} -> AniList ${override.mediaId}`,
+      );
+      return {
+        id: override.mediaId,
+        title: override.mediaTitle,
+        staleMediaIds: override.staleMediaIds,
+      };
+    }
     const resolved = await resolveAniListMediaIdFromGuess(guessed, beforeRequest);
     deps.logInfo?.(`[dictionary] AniList match: ${resolved.title} -> AniList ${resolved.id}`);
     return resolved;
@@ -283,25 +340,22 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       targetPath?: string,
       progress?: CharacterDictionarySnapshotProgressCallbacks,
     ) => {
-      let hasAniListRequest = false;
-      const waitForAniListRequestSlot = async (): Promise<void> => {
-        if (!hasAniListRequest) {
-          hasAniListRequest = true;
-          return;
-        }
-        await sleepMs(ANILIST_REQUEST_DELAY_MS);
-      };
+      const waitForAniListRequestSlot = createAniListRequestSlot();
       const resolvedMedia = await resolveCurrentMedia(targetPath, waitForAniListRequestSlot);
       progress?.onChecking?.({
         mediaId: resolvedMedia.id,
         mediaTitle: resolvedMedia.title,
       });
-      return getOrCreateSnapshot(
+      const snapshot = await getOrCreateSnapshot(
         resolvedMedia.id,
         resolvedMedia.title,
         waitForAniListRequestSlot,
         progress,
       );
+      return {
+        ...snapshot,
+        staleMediaIds: resolvedMedia.staleMediaIds,
+      };
     },
     buildMergedDictionary: async (mediaIds: number[]) => {
       const normalizedMediaIds = normalizeMergedMediaIds(mediaIds);
@@ -341,18 +395,58 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         entryCount,
       };
     },
+    getManualSelectionSnapshot: async (targetPath?: string) => {
+      const waitForAniListRequestSlot = createAniListRequestSlot();
+      const { guessed, seriesKey } = await guessCurrentMedia(targetPath);
+      const [candidates, override] = await Promise.all([
+        searchAniListMediaCandidates(guessed.title, waitForAniListRequestSlot),
+        manualSelectionStore.getOverride(seriesKey),
+      ]);
+      const current = await resolveAniListMediaIdFromGuess(guessed, waitForAniListRequestSlot)
+        .then(
+          (entry): AniListMediaCandidate => ({
+            id: entry.id,
+            title: entry.title,
+            episodes: candidates.find((candidate) => candidate.id === entry.id)?.episodes ?? null,
+          }),
+        )
+        .catch(() => null);
+      return {
+        seriesKey,
+        guessTitle: guessed.title,
+        current,
+        override: override
+          ? { id: override.mediaId, title: override.mediaTitle, episodes: null }
+          : null,
+        candidates,
+      };
+    },
+    setManualSelection: async ({ targetPath, mediaId }) => {
+      const waitForAniListRequestSlot = createAniListRequestSlot();
+      const { guessed, seriesKey } = await guessCurrentMedia(targetPath);
+      const [selected, current] = await Promise.all([
+        fetchAniListMediaCandidateById(mediaId, waitForAniListRequestSlot),
+        resolveAniListMediaIdFromGuess(guessed, waitForAniListRequestSlot).catch(() => null),
+      ]);
+      const staleMediaIds = current && current.id !== selected.id ? [current.id] : [];
+      await manualSelectionStore.setOverride({
+        seriesKey,
+        mediaId: selected.id,
+        mediaTitle: selected.title,
+        staleMediaIds,
+      });
+      return {
+        ok: true,
+        seriesKey,
+        selected,
+        staleMediaIds,
+      };
+    },
     generateForCurrentMedia: async (
       targetPath?: string,
       _options?: CharacterDictionaryGenerateOptions,
     ) => {
-      let hasAniListRequest = false;
-      const waitForAniListRequestSlot = async (): Promise<void> => {
-        if (!hasAniListRequest) {
-          hasAniListRequest = true;
-          return;
-        }
-        await sleepMs(ANILIST_REQUEST_DELAY_MS);
-      };
+      const waitForAniListRequestSlot = createAniListRequestSlot();
       const resolvedMedia = await resolveCurrentMedia(targetPath, waitForAniListRequestSlot);
       const snapshot = await getOrCreateSnapshot(
         resolvedMedia.id,

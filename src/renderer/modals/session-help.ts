@@ -44,6 +44,8 @@ const KEY_NAME_MAP: Record<string, string> = {
   Escape: 'Esc',
   Tab: 'Tab',
   Enter: 'Enter',
+  BracketLeft: '[',
+  BracketRight: ']',
   CommandOrControl: 'Cmd/Ctrl',
   Ctrl: 'Ctrl',
   Control: 'Ctrl',
@@ -94,6 +96,7 @@ const OVERLAY_SHORTCUTS: Array<{
   { key: 'mineSentenceMultiple', label: 'Mine sentence (multi)' },
   { key: 'toggleSecondarySub', label: 'Toggle secondary subtitle mode' },
   { key: 'markAudioCard', label: 'Mark audio card' },
+  { key: 'openCharacterDictionary', label: 'Open character dictionary anime selector' },
   { key: 'openRuntimeOptions', label: 'Open runtime options' },
   { key: 'openJimaku', label: 'Open jimaku' },
   { key: 'openSessionHelp', label: 'Open session help' },
@@ -131,7 +134,9 @@ function describeCommand(command: (string | number)[]): string {
     return `Seek ${command[1] > 0 ? '+' : ''}${command[1]} second(s)`;
   }
   if (first === 'sub-seek' && typeof command[1] === 'number') {
-    return `Shift subtitle by ${command[1]} ms`;
+    if (command[1] > 0) return 'Jump to next subtitle';
+    if (command[1] < 0) return 'Jump to previous subtitle';
+    return 'Reload current subtitle timing';
   }
   if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) return 'Open subtitle sync controls';
   if (first === SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN) return 'Open runtime options';
@@ -139,6 +144,12 @@ function describeCommand(command: (string | number)[]): string {
   if (first === SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN) return 'Open playlist browser';
   if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE) return 'Replay current subtitle';
   if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE) return 'Play next subtitle';
+  if (first === SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START) {
+    return 'Shift subtitle delay to next cue';
+  }
+  if (first === SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START) {
+    return 'Shift subtitle delay to previous cue';
+  }
   if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
     const [, rawId, rawDirection] = first.split(':');
     return `Cycle runtime option ${rawId || 'option'} ${rawDirection === 'prev' ? 'previous' : 'next'}`;
@@ -146,6 +157,11 @@ function describeCommand(command: (string | number)[]): string {
 
   return `MPV command: ${command.map((entry) => String(entry)).join(' ')}`;
 }
+
+export {
+  describeCommand as describeSessionHelpCommand,
+  formatKeybinding as formatSessionHelpKeybinding,
+};
 
 function sectionForCommand(command: (string | number)[]): string {
   const first = command[0];

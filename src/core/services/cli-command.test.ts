@@ -6,6 +6,7 @@ import { CliCommandServiceDeps, handleCliCommand } from './cli-command';
 function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   return {
     background: false,
+    managedPlayback: false,
     start: false,
     launchMpv: false,
     launchMpvTargets: [],
@@ -34,11 +35,13 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     refreshKnownWords: false,
     openRuntimeOptions: false,
     openSessionHelp: false,
+    openCharacterDictionary: false,
     openControllerSelect: false,
     openControllerDebug: false,
     openJimaku: false,
     openYoutubePicker: false,
     openPlaylistBrowser: false,
+    togglePrimarySubtitleBar: false,
     replayCurrentSubtitle: false,
     playNextSubtitle: false,
     shiftSubDelayPrevLine: false,
@@ -50,6 +53,9 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     anilistSetup: false,
     anilistRetryQueue: false,
     dictionary: false,
+    dictionaryCandidates: false,
+    dictionarySelect: false,
+    dictionaryAnilistId: undefined,
     stats: false,
     jellyfin: false,
     jellyfinLogin: false,
@@ -114,6 +120,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     toggleVisibleOverlay: () => {
       calls.push('toggleVisibleOverlay');
+    },
+    togglePrimarySubtitleBar: () => {
+      calls.push('togglePrimarySubtitleBar');
     },
     openYomitanSettingsDelayed: (delayMs) => {
       calls.push(`openYomitanSettingsDelayed:${delayMs}`);
@@ -198,6 +207,19 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
       mediaId: 1,
       mediaTitle: 'Test',
       entryCount: 10,
+    }),
+    getCharacterDictionarySelection: async () => ({
+      seriesKey: 'test',
+      guessTitle: 'Test',
+      current: { id: 1, title: 'Test', episodes: 12 },
+      override: null,
+      candidates: [{ id: 1, title: 'Test', episodes: 12 }],
+    }),
+    setCharacterDictionarySelection: async () => ({
+      ok: true,
+      seriesKey: 'test',
+      selected: { id: 1, title: 'Test', episodes: 12 },
+      staleMediaIds: [],
     }),
     runStatsCommand: async () => {
       calls.push('runStatsCommand');
@@ -516,6 +538,7 @@ test('handleCliCommand handles visibility and utility command dispatches', () =>
       expected: 'startPendingMineSentenceMultiple:2500',
     },
     { args: { toggleSecondarySub: true }, expected: 'cycleSecondarySubMode' },
+    { args: { togglePrimarySubtitleBar: true }, expected: 'togglePrimarySubtitleBar' },
     { args: { toggleStatsOverlay: true }, expected: 'dispatchSessionAction' },
     {
       args: { openRuntimeOptions: true },
@@ -622,6 +645,105 @@ test('handleCliCommand forwards --dictionary-target to dictionary runtime', asyn
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(receivedTarget, '/tmp/example-video.mkv');
+});
+
+test('handleCliCommand lists character dictionary AniList candidates', async () => {
+  const { calls, deps } = createDeps({
+    getCharacterDictionarySelection: async (targetPath?: string) => {
+      calls.push(`getCharacterDictionarySelection:${targetPath ?? ''}`);
+      return {
+        seriesKey: 're-zero-starting-life-in-another-world-2016',
+        guessTitle: 'Re ZERO, Starting Life in Another World',
+        current: { id: 10607, title: 'Rerere no Tensai Bakabon', episodes: null },
+        override: null,
+        candidates: [
+          { id: 21355, title: 'Re:ZERO -Starting Life in Another World-', episodes: 25 },
+          { id: 10607, title: 'Rerere no Tensai Bakabon', episodes: 24 },
+        ],
+      };
+    },
+  });
+
+  handleCliCommand(
+    makeArgs({ dictionaryCandidates: true, dictionaryTarget: '/tmp/re-zero.mkv' }),
+    'initial',
+    deps,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(calls.includes('getCharacterDictionarySelection:/tmp/re-zero.mkv'));
+  assert.ok(
+    calls.includes(
+      'log:Character dictionary series key: re-zero-starting-life-in-another-world-2016',
+    ),
+  );
+  assert.ok(
+    calls.includes('log:Candidate: 21355 - Re:ZERO -Starting Life in Another World- (25 episodes)'),
+  );
+});
+
+test('handleCliCommand sets character dictionary manual AniList selection', async () => {
+  const { calls, deps } = createDeps({
+    setCharacterDictionarySelection: async (request) => {
+      calls.push(`setCharacterDictionarySelection:${request.mediaId}:${request.targetPath ?? ''}`);
+      return {
+        ok: true,
+        seriesKey: 're-zero-starting-life-in-another-world-2016',
+        selected: {
+          id: request.mediaId,
+          title: 'Re:ZERO -Starting Life in Another World-',
+          episodes: 25,
+        },
+        staleMediaIds: [10607],
+      };
+    },
+  });
+
+  handleCliCommand(
+    makeArgs({
+      dictionarySelect: true,
+      dictionaryAnilistId: 21355,
+      dictionaryTarget: '/tmp/re-zero.mkv',
+    }),
+    'initial',
+    deps,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(calls.includes('setCharacterDictionarySelection:21355:/tmp/re-zero.mkv'));
+  assert.ok(
+    calls.includes(
+      'log:Character dictionary override saved: re-zero-starting-life-in-another-world-2016 -> 21355 - Re:ZERO -Starting Life in Another World-',
+    ),
+  );
+});
+
+test('handleCliCommand does not log character dictionary selection success when result is not ok', async () => {
+  const { calls, deps } = createDeps({
+    setCharacterDictionarySelection: async () => ({
+      ok: false,
+      seriesKey: 'test',
+      selected: { id: 0, title: '', episodes: null },
+      staleMediaIds: [],
+    }),
+  });
+
+  handleCliCommand(
+    makeArgs({
+      dictionarySelect: true,
+      dictionaryAnilistId: 21355,
+      dictionaryTarget: '/tmp/re-zero.mkv',
+    }),
+    'initial',
+    deps,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(calls.includes('warn:Character dictionary override was not saved.'));
+  assert.equal(
+    calls.some((call) => call.startsWith('log:Character dictionary override saved:')),
+    false,
+  );
 });
 
 test('handleCliCommand does not dispatch runJellyfinCommand for non-Jellyfin commands', () => {

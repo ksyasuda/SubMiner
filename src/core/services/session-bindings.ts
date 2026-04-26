@@ -43,6 +43,7 @@ const SESSION_SHORTCUT_ACTIONS: Array<{
   { key: 'mineSentenceMultiple', actionId: 'mineSentenceMultiple' },
   { key: 'toggleSecondarySub', actionId: 'toggleSecondarySub' },
   { key: 'markAudioCard', actionId: 'markAudioCard' },
+  { key: 'openCharacterDictionary', actionId: 'openCharacterDictionary' },
   { key: 'openRuntimeOptions', actionId: 'openRuntimeOptions' },
   { key: 'openJimaku', actionId: 'openJimaku' },
   { key: 'openSessionHelp', actionId: 'openSessionHelp' },

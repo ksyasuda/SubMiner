@@ -29,7 +29,7 @@ test('resolve tray icon returns null when no asset exists', () => {
 test('tray menu template contains expected entries and handlers', () => {
   const calls: string[] = [];
   const template = buildTrayMenuTemplateRuntime({
-    openOverlay: () => calls.push('overlay'),
+    openSessionHelp: () => calls.push('help'),
     openFirstRunSetup: () => calls.push('setup'),
     showFirstRunSetup: true,
     openWindowsMpvLauncherSetup: () => calls.push('windows-mpv'),
@@ -42,15 +42,17 @@ test('tray menu template contains expected entries and handlers', () => {
   });
 
   assert.equal(template.length, 9);
+  assert.equal(template.some((entry) => entry.label === 'Open Overlay'), false);
+  assert.equal(template[0]!.label, 'Open Help');
   template[0]!.click?.();
   template[7]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
   template[8]!.click?.();
-  assert.deepEqual(calls, ['overlay', 'separator', 'quit']);
+  assert.deepEqual(calls, ['help', 'separator', 'quit']);
 });
 
 test('tray menu template omits first-run setup entry when setup is complete', () => {
   const labels = buildTrayMenuTemplateRuntime({
-    openOverlay: () => undefined,
+    openSessionHelp: () => undefined,
     openFirstRunSetup: () => undefined,
     showFirstRunSetup: false,
     openWindowsMpvLauncherSetup: () => undefined,

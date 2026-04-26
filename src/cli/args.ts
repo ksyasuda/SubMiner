@@ -1,5 +1,6 @@
 export interface CliArgs {
   background: boolean;
+  managedPlayback: boolean;
   start: boolean;
   launchMpv: boolean;
   launchMpvTargets: string[];
@@ -8,6 +9,7 @@ export interface CliArgs {
   stop: boolean;
   toggle: boolean;
   toggleVisibleOverlay: boolean;
+  togglePrimarySubtitleBar: boolean;
   settings: boolean;
   setup: boolean;
   show: boolean;
@@ -28,6 +30,7 @@ export interface CliArgs {
   toggleSubtitleSidebar: boolean;
   openRuntimeOptions: boolean;
   openSessionHelp: boolean;
+  openCharacterDictionary: boolean;
   openControllerSelect: boolean;
   openControllerDebug: boolean;
   openJimaku: boolean;
@@ -46,6 +49,9 @@ export interface CliArgs {
   anilistSetup: boolean;
   anilistRetryQueue: boolean;
   dictionary: boolean;
+  dictionaryCandidates: boolean;
+  dictionarySelect: boolean;
+  dictionaryAnilistId?: number;
   dictionaryTarget?: string;
   stats: boolean;
   statsBackground?: boolean;
@@ -94,6 +100,7 @@ export type CliCommandSource = 'initial' | 'second-instance';
 export function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     background: false,
+    managedPlayback: false,
     start: false,
     launchMpv: false,
     launchMpvTargets: [],
@@ -102,6 +109,7 @@ export function parseArgs(argv: string[]): CliArgs {
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
+    togglePrimarySubtitleBar: false,
     settings: false,
     setup: false,
     show: false,
@@ -122,6 +130,7 @@ export function parseArgs(argv: string[]): CliArgs {
     toggleSubtitleSidebar: false,
     openRuntimeOptions: false,
     openSessionHelp: false,
+    openCharacterDictionary: false,
     openControllerSelect: false,
     openControllerDebug: false,
     openJimaku: false,
@@ -136,6 +145,8 @@ export function parseArgs(argv: string[]): CliArgs {
     anilistSetup: false,
     anilistRetryQueue: false,
     dictionary: false,
+    dictionaryCandidates: false,
+    dictionarySelect: false,
     stats: false,
     statsBackground: false,
     statsStop: false,
@@ -192,6 +203,7 @@ export function parseArgs(argv: string[]): CliArgs {
     if (!arg || !arg.startsWith('--')) continue;
 
     if (arg === '--background') args.background = true;
+    else if (arg === '--managed-playback') args.managedPlayback = true;
     else if (arg === '--start') args.start = true;
     else if (arg.startsWith('--youtube-play=')) {
       const value = arg.split('=', 2)[1];
@@ -212,6 +224,7 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--stop') args.stop = true;
     else if (arg === '--toggle') args.toggle = true;
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
+    else if (arg === '--toggle-primary-subtitle-bar') args.togglePrimarySubtitleBar = true;
     else if (arg === '--settings' || arg === '--yomitan') args.settings = true;
     else if (arg === '--setup') args.setup = true;
     else if (arg === '--show') args.show = true;
@@ -232,6 +245,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--toggle-subtitle-sidebar') args.toggleSubtitleSidebar = true;
     else if (arg === '--open-runtime-options') args.openRuntimeOptions = true;
     else if (arg === '--open-session-help') args.openSessionHelp = true;
+    else if (arg === '--open-character-dictionary') args.openCharacterDictionary = true;
     else if (arg === '--open-controller-select') args.openControllerSelect = true;
     else if (arg === '--open-controller-debug') args.openControllerDebug = true;
     else if (arg === '--open-jimaku') args.openJimaku = true;
@@ -270,7 +284,15 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--anilist-setup') args.anilistSetup = true;
     else if (arg === '--anilist-retry-queue') args.anilistRetryQueue = true;
     else if (arg === '--dictionary') args.dictionary = true;
-    else if (arg.startsWith('--dictionary-target=')) {
+    else if (arg === '--dictionary-candidates') args.dictionaryCandidates = true;
+    else if (arg === '--dictionary-select') args.dictionarySelect = true;
+    else if (arg.startsWith('--dictionary-anilist-id=')) {
+      const value = Number(arg.split('=', 2)[1]);
+      if (Number.isInteger(value) && value > 0) args.dictionaryAnilistId = value;
+    } else if (arg === '--dictionary-anilist-id') {
+      const value = Number(readValue(argv[i + 1]));
+      if (Number.isInteger(value) && value > 0) args.dictionaryAnilistId = value;
+    } else if (arg.startsWith('--dictionary-target=')) {
       const value = arg.split('=', 2)[1];
       if (value) args.dictionaryTarget = value;
     } else if (arg === '--dictionary-target') {
@@ -440,6 +462,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.stop ||
     args.toggle ||
     args.toggleVisibleOverlay ||
+    args.togglePrimarySubtitleBar ||
     args.settings ||
     args.setup ||
     args.show ||
@@ -460,6 +483,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||
+    args.openCharacterDictionary ||
     args.openControllerSelect ||
     args.openControllerDebug ||
     args.openJimaku ||
@@ -477,6 +501,8 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.anilistSetup ||
     args.anilistRetryQueue ||
     args.dictionary ||
+    args.dictionaryCandidates ||
+    args.dictionarySelect ||
     args.stats ||
     args.jellyfin ||
     args.jellyfinLogin ||
@@ -507,6 +533,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.stop &&
     !args.toggle &&
     !args.toggleVisibleOverlay &&
+    !args.togglePrimarySubtitleBar &&
     !args.settings &&
     !args.setup &&
     !args.show &&
@@ -527,6 +554,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
     !args.openSessionHelp &&
+    !args.openCharacterDictionary &&
     !args.openControllerSelect &&
     !args.openControllerDebug &&
     !args.openJimaku &&
@@ -544,6 +572,8 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.anilistSetup &&
     !args.anilistRetryQueue &&
     !args.dictionary &&
+    !args.dictionaryCandidates &&
+    !args.dictionarySelect &&
     !args.stats &&
     !args.jellyfin &&
     !args.jellyfinLogin &&
@@ -569,6 +599,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.launchMpv ||
     args.toggle ||
     args.toggleVisibleOverlay ||
+    args.togglePrimarySubtitleBar ||
     args.settings ||
     args.setup ||
     args.copySubtitle ||
@@ -585,6 +616,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||
+    args.openCharacterDictionary ||
     args.openControllerSelect ||
     args.openControllerDebug ||
     args.openJimaku ||
@@ -598,6 +630,8 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.copySubtitleCount !== undefined ||
     args.mineSentenceCount !== undefined ||
     args.dictionary ||
+    args.dictionaryCandidates ||
+    args.dictionarySelect ||
     args.stats ||
     args.jellyfin ||
     args.jellyfinPlay ||
@@ -619,6 +653,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.stop &&
     !args.toggle &&
     !args.toggleVisibleOverlay &&
+    !args.togglePrimarySubtitleBar &&
     !args.show &&
     !args.hide &&
     !args.setup &&
@@ -638,6 +673,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
     !args.openSessionHelp &&
+    !args.openCharacterDictionary &&
     !args.openControllerSelect &&
     !args.openControllerDebug &&
     !args.openJimaku &&
@@ -655,6 +691,8 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.anilistSetup &&
     !args.anilistRetryQueue &&
     !args.dictionary &&
+    !args.dictionaryCandidates &&
+    !args.dictionarySelect &&
     !args.stats &&
     !args.jellyfin &&
     !args.jellyfinLogin &&
@@ -679,6 +717,7 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
   return (
     args.toggle ||
     args.toggleVisibleOverlay ||
+    args.togglePrimarySubtitleBar ||
     args.show ||
     args.hide ||
     args.showVisibleOverlay ||
@@ -696,6 +735,7 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.markAudioCard ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||
+    args.openCharacterDictionary ||
     args.openControllerSelect ||
     args.openControllerDebug ||
     args.openJimaku ||

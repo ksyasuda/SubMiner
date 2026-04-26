@@ -50,6 +50,8 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.startupWarmups.yomitanExtension, true);
   assert.equal(config.startupWarmups.subtitleDictionaries, true);
   assert.equal(config.startupWarmups.jellyfinRemoteSession, true);
+  assert.equal(config.shortcuts.markAudioCard, 'CommandOrControl+Shift+A');
+  assert.equal(config.shortcuts.openCharacterDictionary, 'CommandOrControl+Alt+A');
   assert.equal(config.shortcuts.toggleSubtitleSidebar, 'Backslash');
   assert.equal(config.discordPresence.enabled, true);
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);
@@ -418,6 +420,46 @@ test('parses subtitleStyle.hoverTokenBackgroundColor and warns on invalid values
     `{
       "subtitleStyle": {
         "hoverTokenBackgroundColor": true
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.hoverTokenBackgroundColor,
+    DEFAULT_CONFIG.subtitleStyle.hoverTokenBackgroundColor,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.hoverTokenBackgroundColor'),
+  );
+});
+
+test('parses subtitleStyle.hoverBackground as a hoverTokenBackgroundColor alias', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "hoverBackground": "transparent"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.hoverTokenBackgroundColor, 'transparent');
+});
+
+test('parses subtitleStyle.hoverTokenBackgroundColor null as invalid instead of missing', () => {
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "hoverTokenBackgroundColor": null
       }
     }`,
     'utf-8',

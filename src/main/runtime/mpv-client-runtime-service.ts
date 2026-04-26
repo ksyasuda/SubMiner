@@ -7,6 +7,8 @@ export type MpvClientRuntimeServiceOptions = {
   isVisibleOverlayVisible: () => boolean;
   getReconnectTimer: () => ReturnType<typeof setTimeout> | null;
   setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;
+  shouldQuitOnMpvShutdown?: () => boolean;
+  requestAppQuit?: () => void;
 };
 
 type MpvClientLike = {

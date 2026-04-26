@@ -6,6 +6,7 @@ const logger = createLogger('main:overlay-shortcut-handler');
 
 export interface OverlayShortcutFallbackHandlers {
   openRuntimeOptions: () => void;
+  openCharacterDictionary: () => void;
   openJimaku: () => void;
   markAudioCard: () => void;
   copySubtitleMultiple: (timeoutMs: number) => void;
@@ -21,6 +22,7 @@ export interface OverlayShortcutFallbackHandlers {
 export interface OverlayShortcutRuntimeDeps {
   showMpvOsd: (text: string) => void;
   openRuntimeOptions: () => void;
+  openCharacterDictionary: () => void;
   openJimaku: () => void;
   markAudioCard: () => Promise<void>;
   copySubtitleMultiple: (timeoutMs: number) => void;
@@ -95,6 +97,9 @@ export function createOverlayShortcutRuntimeHandlers(deps: OverlayShortcutRuntim
     openRuntimeOptions: () => {
       deps.openRuntimeOptions();
     },
+    openCharacterDictionary: () => {
+      deps.openCharacterDictionary();
+    },
     openJimaku: () => {
       deps.openJimaku();
     },
@@ -102,6 +107,7 @@ export function createOverlayShortcutRuntimeHandlers(deps: OverlayShortcutRuntim
 
   const fallbackHandlers: OverlayShortcutFallbackHandlers = {
     openRuntimeOptions: overlayHandlers.openRuntimeOptions,
+    openCharacterDictionary: overlayHandlers.openCharacterDictionary,
     openJimaku: overlayHandlers.openJimaku,
     markAudioCard: overlayHandlers.markAudioCard,
     copySubtitleMultiple: overlayHandlers.copySubtitleMultiple,
@@ -135,6 +141,12 @@ export function runOverlayShortcutLocalFallback(
       },
     },
     {
+      accelerator: shortcuts.openCharacterDictionary,
+      run: () => {
+        handlers.openCharacterDictionary();
+      },
+    },
+    {
       accelerator: shortcuts.openJimaku,
       run: () => {
         handlers.openJimaku();
@@ -145,12 +157,6 @@ export function runOverlayShortcutLocalFallback(
       accelerator: shortcuts.markAudioCard,
       run: () => {
         handlers.markAudioCard();
-      },
-    },
-    {
-      accelerator: shortcuts.copySubtitleMultiple,
-      run: () => {
-        handlers.copySubtitleMultiple(shortcuts.multiCopyTimeoutMs);
       },
     },
     {
@@ -186,12 +192,6 @@ export function runOverlayShortcutLocalFallback(
       accelerator: shortcuts.mineSentence,
       run: () => {
         handlers.mineSentence();
-      },
-    },
-    {
-      accelerator: shortcuts.mineSentenceMultiple,
-      run: () => {
-        handlers.mineSentenceMultiple(shortcuts.multiCopyTimeoutMs);
       },
     },
   ];

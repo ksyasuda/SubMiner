@@ -15,6 +15,7 @@ export type SessionActionId =
   | 'markAudioCard'
   | 'openRuntimeOptions'
   | 'openSessionHelp'
+  | 'openCharacterDictionary'
   | 'openControllerSelect'
   | 'openControllerDebug'
   | 'openJimaku'

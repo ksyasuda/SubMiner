@@ -12,6 +12,7 @@ export const OVERLAY_HOSTED_MODALS = [
   'controller-debug',
   'subtitle-sidebar',
   'session-help',
+  'character-dictionary',
 ] as const;
 export type OverlayHostedModal = (typeof OVERLAY_HOSTED_MODALS)[number];
 
@@ -70,6 +71,8 @@ export const IPC_CHANNELS = {
     openAnilistSetup: 'anilist:open-setup',
     getAnilistQueueStatus: 'anilist:get-queue-status',
     retryAnilistNow: 'anilist:retry-now',
+    getCharacterDictionarySelection: 'character-dictionary:get-selection',
+    setCharacterDictionarySelection: 'character-dictionary:set-selection',
     appendClipboardVideoToQueue: 'clipboard:append-video-to-queue',
     getPlaylistBrowserSnapshot: 'playlist-browser:get-snapshot',
     appendPlaylistBrowserFile: 'playlist-browser:append-file',
@@ -113,9 +116,11 @@ export const IPC_CHANNELS = {
     keyboardModeToggleRequested: 'keyboard-mode-toggle:requested',
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
     sessionHelpOpen: 'session-help:open',
+    characterDictionaryOpen: 'character-dictionary:open',
     controllerSelectOpen: 'controller-select:open',
     controllerDebugOpen: 'controller-debug:open',
     subtitleSidebarToggle: 'subtitle-sidebar:toggle',
+    primarySubtitleBarToggle: 'primary-subtitle-bar:toggle',
     configHotReload: 'config:hot-reload',
   },
 } as const;

@@ -41,7 +41,7 @@ test('build tray template handler wires actions and init guards', () => {
   let initialized = false;
   const buildTemplate = createBuildTrayMenuTemplateHandler({
     buildTrayMenuTemplateRuntime: (handlers) => {
-      handlers.openOverlay();
+      handlers.openSessionHelp();
       handlers.openFirstRunSetup();
       handlers.openWindowsMpvLauncherSetup();
       handlers.openYomitanSettings();
@@ -56,7 +56,7 @@ test('build tray template handler wires actions and init guards', () => {
       calls.push('init');
     },
     isOverlayRuntimeInitialized: () => initialized,
-    setVisibleOverlayVisible: (visible) => calls.push(`visible:${visible}`),
+    openSessionHelpModal: () => calls.push('help'),
     showFirstRunSetup: () => true,
     openFirstRunSetupWindow: () => calls.push('setup'),
     showWindowsMpvLauncherSetup: () => true,
@@ -71,7 +71,7 @@ test('build tray template handler wires actions and init guards', () => {
   assert.deepEqual(template, [{ label: 'ok' }]);
   assert.deepEqual(calls, [
     'init',
-    'visible:true',
+    'help',
     'setup',
     'setup',
     'yomitan',

@@ -19,6 +19,7 @@ export interface CliCommandRuntimeServiceContext {
   isOverlayInitialized: () => boolean;
   initializeOverlay: () => void;
   toggleVisibleOverlay: () => void;
+  togglePrimarySubtitleBar: () => void;
   openFirstRunSetup: () => void;
   setVisibleOverlay: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
@@ -37,6 +38,8 @@ export interface CliCommandRuntimeServiceContext {
   getAnilistQueueStatus: CliCommandRuntimeServiceDepsParams['anilist']['getQueueStatus'];
   retryAnilistQueueNow: CliCommandRuntimeServiceDepsParams['anilist']['retryQueueNow'];
   generateCharacterDictionary: CliCommandRuntimeServiceDepsParams['dictionary']['generate'];
+  getCharacterDictionarySelection: CliCommandRuntimeServiceDepsParams['dictionary']['getSelection'];
+  setCharacterDictionarySelection: CliCommandRuntimeServiceDepsParams['dictionary']['setSelection'];
   openJellyfinSetup: CliCommandRuntimeServiceDepsParams['jellyfin']['openSetup'];
   runStatsCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runStatsCommand'];
   runJellyfinCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runCommand'];
@@ -81,6 +84,7 @@ function createCliCommandDepsFromContext(
       isInitialized: context.isOverlayInitialized,
       initialize: context.initializeOverlay,
       toggleVisible: context.toggleVisibleOverlay,
+      togglePrimarySubtitleBar: context.togglePrimarySubtitleBar,
       setVisible: context.setVisibleOverlay,
     },
     mining: {
@@ -103,6 +107,8 @@ function createCliCommandDepsFromContext(
     },
     dictionary: {
       generate: context.generateCharacterDictionary,
+      getSelection: context.getCharacterDictionarySelection,
+      setSelection: context.setCharacterDictionarySelection,
     },
     jellyfin: {
       openSetup: context.openJellyfinSetup,

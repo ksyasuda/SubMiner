@@ -260,20 +260,23 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       );
     }
 
-    const hoverTokenBackgroundColor = asString(
-      (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor,
-    );
+    const subtitleStyleSource = src.subtitleStyle as {
+      hoverBackground?: unknown;
+      hoverTokenBackgroundColor?: unknown;
+    };
+    const rawHoverTokenBackgroundColor =
+      subtitleStyleSource.hoverTokenBackgroundColor !== undefined
+        ? subtitleStyleSource.hoverTokenBackgroundColor
+        : subtitleStyleSource.hoverBackground;
+    const hoverTokenBackgroundColor = asString(rawHoverTokenBackgroundColor);
     if (hoverTokenBackgroundColor !== undefined) {
       resolved.subtitleStyle.hoverTokenBackgroundColor = hoverTokenBackgroundColor;
-    } else if (
-      (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor !==
-      undefined
-    ) {
+    } else if (rawHoverTokenBackgroundColor !== undefined) {
       resolved.subtitleStyle.hoverTokenBackgroundColor =
         fallbackSubtitleStyleHoverTokenBackgroundColor;
       warn(
         'subtitleStyle.hoverTokenBackgroundColor',
-        (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor,
+        rawHoverTokenBackgroundColor,
         resolved.subtitleStyle.hoverTokenBackgroundColor,
         'Expected a CSS color value (hex, rgba/hsl/hsla, named color, or var()).',
       );

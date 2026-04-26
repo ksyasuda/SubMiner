@@ -79,6 +79,7 @@ test('parseArgs captures session action forwarding flags', () => {
     '--open-jimaku',
     '--open-youtube-picker',
     '--open-playlist-browser',
+    '--toggle-primary-subtitle-bar',
     '--replay-current-subtitle',
     '--play-next-subtitle',
     '--shift-sub-delay-prev-line',
@@ -94,6 +95,7 @@ test('parseArgs captures session action forwarding flags', () => {
   assert.equal(args.openJimaku, true);
   assert.equal(args.openYoutubePicker, true);
   assert.equal(args.openPlaylistBrowser, true);
+  assert.equal(args.togglePrimarySubtitleBar, true);
   assert.equal(args.replayCurrentSubtitle, true);
   assert.equal(args.playNextSubtitle, true);
   assert.equal(args.shiftSubDelayPrevLine, true);
@@ -212,6 +214,22 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(hasExplicitCommand(anilistRetryQueue), true);
   assert.equal(shouldStartApp(anilistRetryQueue), false);
 
+  const dictionaryCandidates = parseArgs([
+    '--dictionary-candidates',
+    '--dictionary-target',
+    '/tmp/a.mkv',
+  ]);
+  assert.equal(dictionaryCandidates.dictionaryCandidates, true);
+  assert.equal(dictionaryCandidates.dictionaryTarget, '/tmp/a.mkv');
+  assert.equal(hasExplicitCommand(dictionaryCandidates), true);
+  assert.equal(shouldStartApp(dictionaryCandidates), true);
+
+  const dictionarySelect = parseArgs(['--dictionary-select', '--dictionary-anilist-id', '21355']);
+  assert.equal(dictionarySelect.dictionarySelect, true);
+  assert.equal(dictionarySelect.dictionaryAnilistId, 21355);
+  assert.equal(hasExplicitCommand(dictionarySelect), true);
+  assert.equal(shouldStartApp(dictionarySelect), true);
+
   const toggleStatsOverlay = parseArgs(['--toggle-stats-overlay']);
   assert.equal(toggleStatsOverlay.toggleStatsOverlay, true);
   assert.equal(hasExplicitCommand(toggleStatsOverlay), true);
@@ -319,6 +337,12 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(background.background, true);
   assert.equal(hasExplicitCommand(background), true);
   assert.equal(shouldStartApp(background), true);
+
+  const managedPlayback = parseArgs(['--background', '--managed-playback']);
+  assert.equal(managedPlayback.background, true);
+  assert.equal(managedPlayback.managedPlayback, true);
+  assert.equal(hasExplicitCommand(managedPlayback), true);
+  assert.equal(shouldStartApp(managedPlayback), true);
 
   const setup = parseArgs(['--setup']);
   assert.equal((setup as typeof setup & { setup?: boolean }).setup, true);

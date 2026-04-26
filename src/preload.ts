@@ -124,6 +124,9 @@ function createQueuedIpcListenerWithPayload<T>(
 
 const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
 const onOpenSessionHelpEvent = createQueuedIpcListener(IPC_CHANNELS.event.sessionHelpOpen);
+const onOpenCharacterDictionaryEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.characterDictionaryOpen,
+);
 const onOpenControllerSelectEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.controllerSelectOpen,
 );
@@ -149,6 +152,9 @@ const onSubsyncManualOpenEvent = createQueuedIpcListenerWithPayload<SubsyncManua
 );
 const onSubtitleSidebarToggleEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.subtitleSidebarToggle,
+);
+const onPrimarySubtitleBarToggleEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.primarySubtitleBarToggle,
 );
 const onKikuFieldGroupingRequestEvent =
   createQueuedIpcListenerWithPayload<KikuFieldGroupingRequestData>(
@@ -340,7 +346,9 @@ const electronAPI: ElectronAPI = {
   onOpenJimaku: onOpenJimakuEvent,
   onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
   onOpenPlaylistBrowser: onOpenPlaylistBrowserEvent,
+  onOpenCharacterDictionary: onOpenCharacterDictionaryEvent,
   onSubtitleSidebarToggle: onSubtitleSidebarToggleEvent,
+  onPrimarySubtitleBarToggle: onPrimarySubtitleBarToggleEvent,
   onCancelYoutubeTrackPicker: onCancelYoutubeTrackPickerEvent,
   onKeyboardModeToggleRequested: onKeyboardModeToggleRequestedEvent,
   onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,
@@ -363,6 +371,10 @@ const electronAPI: ElectronAPI = {
     request: YoutubePickerResolveRequest,
   ): Promise<YoutubePickerResolveResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.youtubePickerResolve, request),
+  getCharacterDictionarySelection: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getCharacterDictionarySelection),
+  setCharacterDictionarySelection: (mediaId: number) =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.setCharacterDictionarySelection, mediaId),
   notifyOverlayModalClosed: (modal) => {
     ipcRenderer.send(IPC_CHANNELS.command.overlayModalClosed, modal);
   },

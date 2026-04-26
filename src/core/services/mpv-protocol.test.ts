@@ -19,6 +19,7 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
     commands: unknown[];
     mediaPath: string;
     restored: number;
+    quitRequested: number;
   };
 } {
   const state = {
@@ -28,6 +29,7 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
     commands: [] as unknown[],
     mediaPath: '',
     restored: 0,
+    quitRequested: 0,
   };
   const metrics: MpvSubtitleRenderMetrics = {
     subPos: 100,
@@ -101,6 +103,10 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
       },
       restorePreviousSecondarySubVisibility: () => {
         state.restored += 1;
+      },
+      shouldQuitOnMpvShutdown: () => false,
+      requestAppQuit: () => {
+        state.quitRequested += 1;
       },
       setPreviousSecondarySubVisibility: () => {
         // intentionally not tracked in this unit test
@@ -223,6 +229,18 @@ test('dispatchMpvProtocolMessage restores secondary visibility on shutdown', asy
   await dispatchMpvProtocolMessage({ event: 'shutdown' }, deps);
 
   assert.equal(state.restored, 1);
+  assert.equal(state.quitRequested, 0);
+});
+
+test('dispatchMpvProtocolMessage quits app on managed playback shutdown', async () => {
+  const { deps, state } = createDeps({
+    shouldQuitOnMpvShutdown: () => true,
+  });
+
+  await dispatchMpvProtocolMessage({ event: 'shutdown' }, deps);
+
+  assert.equal(state.restored, 1);
+  assert.equal(state.quitRequested, 1);
 });
 
 test('dispatchMpvProtocolMessage pauses on sub-end when pendingPauseAtSubEnd is set', async () => {

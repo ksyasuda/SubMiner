@@ -18,6 +18,7 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
     multiCopyTimeoutMs: 2500,
     toggleSecondarySub: null,
     markAudioCard: null,
+    openCharacterDictionary: null,
     openRuntimeOptions: null,
     openJimaku: null,
     openSessionHelp: null,

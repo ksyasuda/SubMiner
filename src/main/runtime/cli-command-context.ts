@@ -22,6 +22,7 @@ export type CliCommandContextFactoryDeps = {
   isOverlayInitialized: () => boolean;
   initializeOverlay: () => void;
   toggleVisibleOverlay: () => void;
+  togglePrimarySubtitleBar: () => void;
   openFirstRunSetup: () => void;
   setVisibleOverlay: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
@@ -41,6 +42,8 @@ export type CliCommandContextFactoryDeps = {
   getAnilistQueueStatus: CliCommandRuntimeServiceContext['getAnilistQueueStatus'];
   retryAnilistQueueNow: CliCommandRuntimeServiceContext['retryAnilistQueueNow'];
   generateCharacterDictionary: CliCommandRuntimeServiceContext['generateCharacterDictionary'];
+  getCharacterDictionarySelection?: CliCommandRuntimeServiceContext['getCharacterDictionarySelection'];
+  setCharacterDictionarySelection?: CliCommandRuntimeServiceContext['setCharacterDictionarySelection'];
   runStatsCommand: CliCommandRuntimeServiceContext['runStatsCommand'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
   runYoutubePlaybackFlow: CliCommandRuntimeServiceContext['runYoutubePlaybackFlow'];
@@ -79,6 +82,7 @@ export function createCliCommandContext(
     isOverlayInitialized: deps.isOverlayInitialized,
     initializeOverlay: deps.initializeOverlay,
     toggleVisibleOverlay: deps.toggleVisibleOverlay,
+    togglePrimarySubtitleBar: deps.togglePrimarySubtitleBar,
     openFirstRunSetup: deps.openFirstRunSetup,
     setVisibleOverlay: deps.setVisibleOverlay,
     copyCurrentSubtitle: deps.copyCurrentSubtitle,
@@ -98,6 +102,23 @@ export function createCliCommandContext(
     getAnilistQueueStatus: deps.getAnilistQueueStatus,
     retryAnilistQueueNow: deps.retryAnilistQueueNow,
     generateCharacterDictionary: deps.generateCharacterDictionary,
+    getCharacterDictionarySelection:
+      deps.getCharacterDictionarySelection ??
+      (async () => ({
+        seriesKey: '',
+        guessTitle: null,
+        current: null,
+        override: null,
+        candidates: [],
+      })),
+    setCharacterDictionarySelection:
+      deps.setCharacterDictionarySelection ??
+      (async () => ({
+        ok: false,
+        seriesKey: '',
+        selected: { id: 0, title: '', episodes: null },
+        staleMediaIds: [],
+      })),
     runStatsCommand: deps.runStatsCommand,
     runJellyfinCommand: deps.runJellyfinCommand,
     runYoutubePlaybackFlow: deps.runYoutubePlaybackFlow,

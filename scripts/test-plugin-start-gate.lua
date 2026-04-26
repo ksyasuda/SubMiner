@@ -151,6 +151,14 @@ local function run_plugin_scenario(config)
 				fn = fn,
 			}
 		end
+		function mp.add_forced_key_binding(keys, name, fn)
+			recorded.key_bindings[#recorded.key_bindings + 1] = {
+				keys = keys,
+				name = name,
+				fn = fn,
+				forced = true,
+			}
+		end
 		function mp.register_event(name, fn)
 			if recorded.events[name] == nil then
 				recorded.events[name] = {}
@@ -491,10 +499,10 @@ local function count_property_set(property_sets, name, value)
 	return count
 end
 
-local function fire_event(recorded, name)
+local function fire_event(recorded, name, ...)
 	local listeners = recorded.events[name] or {}
 	for _, listener in ipairs(listeners) do
-		listener()
+		listener(...)
 	end
 end
 
@@ -534,6 +542,39 @@ do
 	assert_true(
 		not has_sync_command(recorded.sync_calls, "ps"),
 		"expected cold-start start command to avoid synchronous process list scan"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+		},
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for primary subtitle bar binding scenario: " .. tostring(err))
+	local binding = nil
+	for _, candidate in ipairs(recorded.key_bindings) do
+		if candidate.name == "subminer-toggle-primary-subtitle-bar" then
+			binding = candidate
+			break
+		end
+	end
+	assert_true(binding ~= nil, "primary subtitle bar v binding should be registered")
+	assert_true(binding.keys == "v", "primary subtitle bar binding should use bare v")
+	assert_true(binding.forced == true, "primary subtitle bar binding should override mpv's built-in v binding")
+	binding.fn()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--toggle-primary-subtitle-bar") == 1,
+		"primary subtitle bar binding should issue primary subtitle toggle command"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--toggle-visible-overlay") == 0,
+		"primary subtitle bar binding should not toggle the whole visible overlay"
 	)
 end
 
@@ -727,6 +768,11 @@ do
 	fire_event(recorded, "file-loaded")
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
+	assert_true(call_has_arg(start_call, "--background"), "auto-start should launch SubMiner in background mode")
+	assert_true(
+		call_has_arg(start_call, "--managed-playback"),
+		"auto-start should mark SubMiner as launcher-managed playback"
+	)
 	assert_true(call_has_arg(start_call, "--texthooker"), "auto-start should include --texthooker on the main --start command when enabled")
 	assert_true(find_control_call(recorded.async_calls, "--texthooker") == nil, "auto-start should not issue a separate texthooker helper command")
 	assert_true(
@@ -1013,10 +1059,19 @@ do
 	})
 	assert_true(recorded ~= nil, "plugin failed to load for shutdown-preserve-background scenario: " .. tostring(err))
 	fire_event(recorded, "file-loaded")
+	fire_event(recorded, "end-file", { reason = "quit" })
+	assert_true(
+		find_control_call(recorded.async_calls, "--hide-visible-overlay") == nil,
+		"mpv quit end-file should not spawn hide-visible-overlay helper commands"
+	)
 	fire_event(recorded, "shutdown")
 	assert_true(
 		find_control_call(recorded.async_calls, "--stop") == nil,
 		"mpv shutdown should not stop the background SubMiner process"
+	)
+	assert_true(
+		find_control_call(recorded.async_calls, "--hide-visible-overlay") == nil,
+		"mpv shutdown should not spawn hide-visible-overlay helper commands"
 	)
 end
 

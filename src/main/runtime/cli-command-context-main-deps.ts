@@ -27,6 +27,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
 
   initializeOverlayRuntime: () => void;
   toggleVisibleOverlay: () => void;
+  togglePrimarySubtitleBar: () => void;
   openFirstRunSetupWindow: () => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
 
@@ -48,6 +49,8 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   getAnilistQueueStatus: CliCommandContextFactoryDeps['getAnilistQueueStatus'];
   processNextAnilistRetryUpdate: CliCommandContextFactoryDeps['retryAnilistQueueNow'];
   generateCharacterDictionary: CliCommandContextFactoryDeps['generateCharacterDictionary'];
+  getCharacterDictionarySelection?: CliCommandContextFactoryDeps['getCharacterDictionarySelection'];
+  setCharacterDictionarySelection?: CliCommandContextFactoryDeps['setCharacterDictionarySelection'];
   runStatsCommand: CliCommandContextFactoryDeps['runStatsCommand'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
   runYoutubePlaybackFlow: CliCommandContextFactoryDeps['runYoutubePlaybackFlow'];
@@ -92,6 +95,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     isOverlayInitialized: () => deps.appState.overlayRuntimeInitialized,
     initializeOverlay: () => deps.initializeOverlayRuntime(),
     toggleVisibleOverlay: () => deps.toggleVisibleOverlay(),
+    togglePrimarySubtitleBar: () => deps.togglePrimarySubtitleBar(),
     openFirstRunSetup: () => deps.openFirstRunSetupWindow(),
     setVisibleOverlay: (visible: boolean) => deps.setVisibleOverlayVisible(visible),
     copyCurrentSubtitle: () => deps.copyCurrentSubtitle(),
@@ -113,6 +117,8 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     retryAnilistQueueNow: () => deps.processNextAnilistRetryUpdate(),
     generateCharacterDictionary: (targetPath?: string) =>
       deps.generateCharacterDictionary(targetPath),
+    getCharacterDictionarySelection: deps.getCharacterDictionarySelection,
+    setCharacterDictionarySelection: deps.setCharacterDictionarySelection,
     runStatsCommand: (args: CliArgs, source) => deps.runStatsCommand(args, source),
     runJellyfinCommand: (args: CliArgs) => deps.runJellyfinCommand(args),
     runYoutubePlaybackFlow: (request) => deps.runYoutubePlaybackFlow(request),

@@ -31,6 +31,7 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'toggleSubtitleSidebar',
   'openRuntimeOptions',
   'openSessionHelp',
+  'openCharacterDictionary',
   'openControllerSelect',
   'openControllerDebug',
   'openJimaku',

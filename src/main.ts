@@ -458,6 +458,7 @@ import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
 import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
 import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
+import { openCharacterDictionaryModal as openCharacterDictionaryModalRuntime } from './main/runtime/character-dictionary-open';
 import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
 import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
@@ -533,6 +534,7 @@ import {
   resolveSubtitleSourcePath,
 } from './main/runtime/subtitle-prefetch-source';
 import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
+import { applyCharacterDictionarySelection } from './main/character-dictionary-selection';
 import { codecToExtension, getSubsyncConfig } from './subsync/utils';
 
 if (process.platform === 'linux') {
@@ -1492,6 +1494,9 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
     openRuntimeOptionsPalette: () => {
       openRuntimeOptionsPalette();
     },
+    openCharacterDictionary: () => {
+      openCharacterDictionaryOverlay();
+    },
     openJimaku: () => {
       openJimakuOverlay();
     },
@@ -2287,6 +2292,14 @@ function openSessionHelpOverlay(): void {
     openSessionHelpModalRuntime,
     'Session help overlay unavailable.',
     'Failed to open session help overlay.',
+  );
+}
+
+function openCharacterDictionaryOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openCharacterDictionaryModalRuntime,
+    'Character dictionary overlay unavailable.',
+    'Failed to open character dictionary overlay.',
   );
 }
 
@@ -3810,6 +3823,8 @@ const {
     setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
       appState.reconnectTimer = timer;
     },
+    shouldQuitOnMpvShutdown: () => appState.initialArgs?.managedPlayback === true,
+    requestAppQuit: () => requestAppQuit(),
   },
   updateMpvSubtitleRenderMetricsMainDeps: {
     getCurrentMetrics: () => appState.mpvSubtitleRenderMetrics,
@@ -4333,6 +4348,10 @@ function toggleSubtitleSidebar(): void {
   broadcastToOverlayWindows(IPC_CHANNELS.event.subtitleSidebarToggle);
 }
 
+function togglePrimarySubtitleBar(): void {
+  broadcastToOverlayWindows(IPC_CHANNELS.event.primarySubtitleBarToggle);
+}
+
 async function triggerSubsyncFromConfig(): Promise<void> {
   await subsyncRuntime.triggerFromConfig();
 }
@@ -4622,6 +4641,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJimaku: () => openJimakuOverlay(),
     openSessionHelp: () => openSessionHelpOverlay(),
+    openCharacterDictionary: () => openCharacterDictionaryOverlay(),
     openControllerSelect: () => openControllerSelectOverlay(),
     openControllerDebug: () => openControllerDebugOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
@@ -4842,6 +4862,18 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       openAnilistSetup: () => openAnilistSetupWindow(),
       getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
       retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
+      getCharacterDictionarySelection: () =>
+        characterDictionaryRuntime.getManualSelectionSnapshot(),
+      setCharacterDictionarySelection: async (mediaId: number) =>
+        applyCharacterDictionarySelection(
+          { mediaId },
+          {
+            setManualSelection: (request) => characterDictionaryRuntime.setManualSelection(request),
+            resetAnilistMediaGuessState,
+            runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
+            warn: (message, error) => logger.warn(message, error),
+          },
+        ),
       appendClipboardVideoToQueue: () => appendClipboardVideoToQueue(),
       ...playlistBrowserMainDeps,
       getImmersionTracker: () => appState.immersionTracker,
@@ -4898,6 +4930,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     showMpvOsd: (text: string) => showMpvOsd(text),
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    togglePrimarySubtitleBar: () => togglePrimarySubtitleBar(),
     openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
     setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
     copyCurrentSubtitle: () => copyCurrentSubtitle(),
@@ -4923,6 +4956,16 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
       }
       return await characterDictionaryRuntime.generateForCurrentMedia(targetPath);
     },
+    getCharacterDictionarySelection: async (targetPath?: string) =>
+      characterDictionaryRuntime.getManualSelectionSnapshot(targetPath),
+    setCharacterDictionarySelection: async (request) =>
+      applyCharacterDictionarySelection(request, {
+        setManualSelection: (selectionRequest) =>
+          characterDictionaryRuntime.setManualSelection(selectionRequest),
+        resetAnilistMediaGuessState,
+        runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
+        warn: (message, error) => logger.warn(message, error),
+      }),
     runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
     runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
       runStatsCliCommand(argsFromCommand, source),
@@ -5096,7 +5139,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       buildTrayMenuTemplateRuntime,
       initializeOverlayRuntime: () => initializeOverlayRuntime(),
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-      setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+      openSessionHelpModal: () => openSessionHelpOverlay(),
       showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
       openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',

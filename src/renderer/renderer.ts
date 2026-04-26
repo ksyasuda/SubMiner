@@ -38,6 +38,7 @@ import { createPlaylistBrowserModal } from './modals/playlist-browser.js';
 import { createSessionHelpModal } from './modals/session-help.js';
 import { createSubtitleSidebarModal } from './modals/subtitle-sidebar.js';
 import { isControllerInteractionBlocked } from './controller-interaction-blocking.js';
+import { createCharacterDictionaryModal } from './modals/character-dictionary.js';
 import { createRuntimeOptionsModal } from './modals/runtime-options.js';
 import { createSubsyncModal } from './modals/subsync.js';
 import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js';
@@ -71,6 +72,7 @@ function isAnySettingsModalOpen(): boolean {
     ctx.state.controllerSelectModalOpen ||
     ctx.state.controllerDebugModalOpen ||
     ctx.state.runtimeOptionsModalOpen ||
+    ctx.state.characterDictionaryModalOpen ||
     ctx.state.subsyncModalOpen ||
     ctx.state.kikuModalOpen ||
     ctx.state.jimakuModalOpen ||
@@ -87,6 +89,7 @@ function isAnyModalOpen(): boolean {
     ctx.state.jimakuModalOpen ||
     ctx.state.kikuModalOpen ||
     ctx.state.runtimeOptionsModalOpen ||
+    ctx.state.characterDictionaryModalOpen ||
     ctx.state.subsyncModalOpen ||
     ctx.state.youtubePickerModalOpen ||
     ctx.state.sessionHelpModalOpen ||
@@ -111,6 +114,10 @@ const subtitleRenderer = createSubtitleRenderer(ctx);
 const measurementReporter = createOverlayContentMeasurementReporter(ctx);
 const positioning = createPositioningController(ctx);
 const runtimeOptionsModal = createRuntimeOptionsModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
+const characterDictionaryModal = createCharacterDictionaryModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
@@ -165,6 +172,7 @@ const playlistBrowserModal = createPlaylistBrowserModal(ctx, {
 });
 const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
+  handleCharacterDictionaryKeydown: characterDictionaryModal.handleCharacterDictionaryKeydown,
   handleSubsyncKeydown: subsyncModal.handleSubsyncKeydown,
   handleKikuKeydown: kikuModal.handleKikuKeydown,
   handleJimakuKeydown: jimakuModal.handleJimakuKeydown,
@@ -221,6 +229,7 @@ function getActiveModal(): string | null {
   if (ctx.state.playlistBrowserModalOpen) return 'playlist-browser';
   if (ctx.state.kikuModalOpen) return 'kiku';
   if (ctx.state.runtimeOptionsModalOpen) return 'runtime-options';
+  if (ctx.state.characterDictionaryModalOpen) return 'character-dictionary';
   if (ctx.state.subsyncModalOpen) return 'subsync';
   if (ctx.state.sessionHelpModalOpen) return 'session-help';
   return null;
@@ -247,6 +256,9 @@ function dismissActiveUiAfterError(): void {
   }
   if (ctx.state.runtimeOptionsModalOpen) {
     runtimeOptionsModal.closeRuntimeOptionsModal();
+  }
+  if (ctx.state.characterDictionaryModalOpen) {
+    characterDictionaryModal.closeCharacterDictionaryModal();
   }
   if (ctx.state.subsyncModalOpen) {
     subsyncModal.closeSubsyncModal();
@@ -435,6 +447,12 @@ function registerModalOpenHandlers(): void {
       window.electronAPI.notifyOverlayModalOpened('runtime-options');
     });
   });
+  window.electronAPI.onOpenCharacterDictionary(() => {
+    runGuardedAsync('character-dictionary:open', async () => {
+      await characterDictionaryModal.openCharacterDictionaryModal();
+      window.electronAPI.notifyOverlayModalOpened('character-dictionary');
+    });
+  });
   window.electronAPI.onOpenSessionHelp(() => {
     runGuarded('session-help:open', () => {
       sessionHelpModal.openSessionHelpModal(keyboardHandlers.getSessionHelpOpeningInfo());
@@ -512,6 +530,12 @@ function registerKeyboardCommandHandlers(): void {
   window.electronAPI.onSubtitleSidebarToggle(() => {
     runGuardedAsync('subtitle-sidebar:toggle', async () => {
       await subtitleSidebarModal.toggleSubtitleSidebarModal();
+    });
+  });
+
+  window.electronAPI.onPrimarySubtitleBarToggle(() => {
+    runGuarded('primary-subtitle-bar:toggle', () => {
+      keyboardHandlers.togglePrimarySubtitleBarVisibility();
     });
   });
 }
@@ -633,6 +657,7 @@ async function init(): Promise<void> {
   controllerDebugModal.wireDomEvents();
   sessionHelpModal.wireDomEvents();
   subtitleSidebarModal.wireDomEvents();
+  characterDictionaryModal.wireDomEvents();
   window.addEventListener('beforeunload', () => {
     subtitleSidebarModal.disposeDomEvents();
   });
