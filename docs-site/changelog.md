@@ -5,6 +5,7 @@
 **Changed**
 - Overlay: Added configurable overlay shortcuts for session help, controller select, and controller debug actions.
 - Overlay: Added mpv/plugin and CLI routing for session help, controller utilities, and subtitle sidebar toggling through the shared session-action path.
+- Overlay: Added a `V` shortcut and mpv plugin binding to toggle the SubMiner primary subtitle bar instead of mpv's native primary subtitle visibility.
 - Overlay: Improved dedicated overlay modal retry and focus handling for runtime options, Jimaku, session help, controller tools, and the playlist browser.
 - Overlay: Fixed controller configuration and controller debug shortcut opens so configured bindings bring up their modals again instead of tripping renderer recovery.
 - Stats: Sessions are rolled up per episode within each day, with a bulk delete that wipes every session in the group.

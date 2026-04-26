@@ -19,6 +19,7 @@ export interface CliCommandRuntimeServiceContext {
   isOverlayInitialized: () => boolean;
   initializeOverlay: () => void;
   toggleVisibleOverlay: () => void;
+  togglePrimarySubtitleBar: () => void;
   openFirstRunSetup: () => void;
   setVisibleOverlay: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
@@ -83,6 +84,7 @@ function createCliCommandDepsFromContext(
       isInitialized: context.isOverlayInitialized,
       initialize: context.initializeOverlay,
       toggleVisible: context.toggleVisibleOverlay,
+      togglePrimarySubtitleBar: context.togglePrimarySubtitleBar,
       setVisible: context.setVisibleOverlay,
     },
     mining: {

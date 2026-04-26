@@ -433,6 +433,7 @@ export interface ElectronAPI {
   onOpenPlaylistBrowser: (callback: () => void) => void;
   onOpenCharacterDictionary: (callback: () => void) => void;
   onSubtitleSidebarToggle: (callback: () => void) => void;
+  onPrimarySubtitleBarToggle: (callback: () => void) => void;
   onCancelYoutubeTrackPicker: (callback: () => void) => void;
   onKeyboardModeToggleRequested: (callback: () => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;

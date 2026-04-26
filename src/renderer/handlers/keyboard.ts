@@ -361,6 +361,27 @@ export function createKeyboardHandlers(
     );
   }
 
+  function isPrimarySubtitleVisibilityToggle(e: KeyboardEvent): boolean {
+    return (
+      e.code === 'KeyV' &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.metaKey &&
+      !e.shiftKey &&
+      !e.repeat
+    );
+  }
+
+  function togglePrimarySubtitleBarVisibility(): void {
+    const visible = !ctx.state.primarySubtitleBarVisible;
+    ctx.state.primarySubtitleBarVisible = visible;
+    if (visible) {
+      ctx.dom.subtitleContainer.classList.remove('primary-sub-hidden');
+    } else {
+      ctx.dom.subtitleContainer.classList.add('primary-sub-hidden');
+    }
+  }
+
   async function handleMarkWatched(): Promise<void> {
     const marked = await window.electronAPI.markActiveVideoWatched();
     if (marked) {
@@ -1065,6 +1086,12 @@ export function createKeyboardHandlers(
         return;
       }
 
+      if (isPrimarySubtitleVisibilityToggle(e)) {
+        e.preventDefault();
+        togglePrimarySubtitleBarVisibility();
+        return;
+      }
+
       if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
         if (handleYomitanPopupKeybind(e)) {
           e.preventDefault();
@@ -1152,6 +1179,7 @@ export function createKeyboardHandlers(
     updateSessionBindings,
     syncKeyboardTokenSelection,
     handleSubtitleContentUpdated,
+    togglePrimarySubtitleBarVisibility,
     handleKeyboardModeToggleRequested,
     handleLookupWindowToggleRequested,
     closeLookupWindow,

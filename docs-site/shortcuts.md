@@ -38,6 +38,7 @@ These control playback and subtitle display. They require overlay window focus.
 | Shortcut             | Action                                              |
 | -------------------- | --------------------------------------------------- |
 | `Space`              | Toggle mpv pause                                    |
+| `V`                  | Toggle primary subtitle bar visibility              |
 | `J`                  | Cycle primary subtitle track                        |
 | `Shift+J`            | Cycle secondary subtitle track                      |
 | `Ctrl+Alt+P`         | Open playlist browser for current directory + queue |
@@ -100,10 +101,13 @@ When the mpv plugin is installed, all commands use a `y` chord prefix — press 
 | `y-s` | Start overlay            |
 | `y-S` | Stop overlay             |
 | `y-t` | Toggle visible overlay   |
+| `v`   | Toggle primary subtitle bar visibility |
 | `y-o` | Open Yomitan settings    |
 | `y-r` | Restart overlay          |
 | `y-c` | Check overlay status     |
 | `y-h` | Open session help        |
+
+The bare `v` plugin binding intentionally overrides mpv's native primary subtitle visibility toggle so the SubMiner primary subtitle bar is hidden or restored instead.
 
 When the overlay has focus, press `y` then `d` to toggle DevTools (debugging helper).
 

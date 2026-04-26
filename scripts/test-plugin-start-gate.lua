@@ -151,6 +151,14 @@ local function run_plugin_scenario(config)
 				fn = fn,
 			}
 		end
+		function mp.add_forced_key_binding(keys, name, fn)
+			recorded.key_bindings[#recorded.key_bindings + 1] = {
+				keys = keys,
+				name = name,
+				fn = fn,
+				forced = true,
+			}
+		end
 		function mp.register_event(name, fn)
 			if recorded.events[name] == nil then
 				recorded.events[name] = {}
@@ -534,6 +542,39 @@ do
 	assert_true(
 		not has_sync_command(recorded.sync_calls, "ps"),
 		"expected cold-start start command to avoid synchronous process list scan"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+		},
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for primary subtitle bar binding scenario: " .. tostring(err))
+	local binding = nil
+	for _, candidate in ipairs(recorded.key_bindings) do
+		if candidate.name == "subminer-toggle-primary-subtitle-bar" then
+			binding = candidate
+			break
+		end
+	end
+	assert_true(binding ~= nil, "primary subtitle bar v binding should be registered")
+	assert_true(binding.keys == "v", "primary subtitle bar binding should use bare v")
+	assert_true(binding.forced == true, "primary subtitle bar binding should override mpv's built-in v binding")
+	binding.fn()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--toggle-primary-subtitle-bar") == 1,
+		"primary subtitle bar binding should issue primary subtitle toggle command"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--toggle-visible-overlay") == 0,
+		"primary subtitle bar binding should not toggle the whole visible overlay"
 	)
 end
 

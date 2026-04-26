@@ -114,6 +114,7 @@ SubMiner.AppImage --stop                  # Stop overlay
 SubMiner.AppImage --start --toggle        # Start MPV IPC + toggle visibility
 SubMiner.AppImage --show-visible-overlay              # Force show visible overlay
 SubMiner.AppImage --hide-visible-overlay              # Force hide visible overlay
+SubMiner.AppImage --toggle-primary-subtitle-bar       # Toggle primary subtitle bar visibility
 SubMiner.AppImage --start --dev                         # Enable app/dev mode only
 SubMiner.AppImage --start --debug                       # Alias for --dev
 SubMiner.AppImage --start --log-level debug             # Force verbose logging without app/dev mode
@@ -326,6 +327,8 @@ See [Keyboard Shortcuts](/shortcuts) for the full reference, including mining sh
 `Alt+Shift+Y` is fixed and not configurable. All other shortcuts can be changed under `shortcuts` in your config.
 
 Useful overlay-local default keybinding: `Ctrl+Alt+P` opens the playlist browser for the current video's parent directory and the live mpv queue so you can append, reorder, remove, or jump between episodes without leaving playback.
+
+Press `V` to hide or restore the primary SubMiner subtitle bar. The mpv plugin also binds bare `v` to the same action, overriding mpv's native primary subtitle visibility toggle.
 
 `Ctrl/Cmd+Shift+H` opens the session help modal with the current overlay and mpv keybindings. If you use the mpv plugin, the same help view is also available through the `y-h` chord.
 

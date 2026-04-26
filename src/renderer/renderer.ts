@@ -532,6 +532,12 @@ function registerKeyboardCommandHandlers(): void {
       await subtitleSidebarModal.toggleSubtitleSidebarModal();
     });
   });
+
+  window.electronAPI.onPrimarySubtitleBarToggle(() => {
+    runGuarded('primary-subtitle-bar:toggle', () => {
+      keyboardHandlers.togglePrimarySubtitleBarVisibility();
+    });
+  });
 }
 
 function runGuarded(action: string, fn: () => void): void {

@@ -22,6 +22,7 @@ export type CliCommandContextFactoryDeps = {
   isOverlayInitialized: () => boolean;
   initializeOverlay: () => void;
   toggleVisibleOverlay: () => void;
+  togglePrimarySubtitleBar: () => void;
   openFirstRunSetup: () => void;
   setVisibleOverlay: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
@@ -81,6 +82,7 @@ export function createCliCommandContext(
     isOverlayInitialized: deps.isOverlayInitialized,
     initializeOverlay: deps.initializeOverlay,
     toggleVisibleOverlay: deps.toggleVisibleOverlay,
+    togglePrimarySubtitleBar: deps.togglePrimarySubtitleBar,
     openFirstRunSetup: deps.openFirstRunSetup,
     setVisibleOverlay: deps.setVisibleOverlay,
     copyCurrentSubtitle: deps.copyCurrentSubtitle,

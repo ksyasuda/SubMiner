@@ -8,6 +8,7 @@ export interface CliArgs {
   stop: boolean;
   toggle: boolean;
   toggleVisibleOverlay: boolean;
+  togglePrimarySubtitleBar: boolean;
   settings: boolean;
   setup: boolean;
   show: boolean;
@@ -106,6 +107,7 @@ export function parseArgs(argv: string[]): CliArgs {
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
+    togglePrimarySubtitleBar: false,
     settings: false,
     setup: false,
     show: false,
@@ -219,6 +221,7 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--stop') args.stop = true;
     else if (arg === '--toggle') args.toggle = true;
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
+    else if (arg === '--toggle-primary-subtitle-bar') args.togglePrimarySubtitleBar = true;
     else if (arg === '--settings' || arg === '--yomitan') args.settings = true;
     else if (arg === '--setup') args.setup = true;
     else if (arg === '--show') args.show = true;
@@ -456,6 +459,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.stop ||
     args.toggle ||
     args.toggleVisibleOverlay ||
+    args.togglePrimarySubtitleBar ||
     args.settings ||
     args.setup ||
     args.show ||
@@ -526,6 +530,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.stop &&
     !args.toggle &&
     !args.toggleVisibleOverlay &&
+    !args.togglePrimarySubtitleBar &&
     !args.settings &&
     !args.setup &&
     !args.show &&
@@ -591,6 +596,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.launchMpv ||
     args.toggle ||
     args.toggleVisibleOverlay ||
+    args.togglePrimarySubtitleBar ||
     args.settings ||
     args.setup ||
     args.copySubtitle ||
@@ -644,6 +650,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.stop &&
     !args.toggle &&
     !args.toggleVisibleOverlay &&
+    !args.togglePrimarySubtitleBar &&
     !args.show &&
     !args.hide &&
     !args.setup &&
@@ -707,6 +714,7 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
   return (
     args.toggle ||
     args.toggleVisibleOverlay ||
+    args.togglePrimarySubtitleBar ||
     args.show ||
     args.hide ||
     args.showVisibleOverlay ||

@@ -40,6 +40,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     openJimaku: false,
     openYoutubePicker: false,
     openPlaylistBrowser: false,
+    togglePrimarySubtitleBar: false,
     replayCurrentSubtitle: false,
     playNextSubtitle: false,
     shiftSubDelayPrevLine: false,
@@ -118,6 +119,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     toggleVisibleOverlay: () => {
       calls.push('toggleVisibleOverlay');
+    },
+    togglePrimarySubtitleBar: () => {
+      calls.push('togglePrimarySubtitleBar');
     },
     openYomitanSettingsDelayed: (delayMs) => {
       calls.push(`openYomitanSettingsDelayed:${delayMs}`);
@@ -533,6 +537,7 @@ test('handleCliCommand handles visibility and utility command dispatches', () =>
       expected: 'startPendingMineSentenceMultiple:2500',
     },
     { args: { toggleSecondarySub: true }, expected: 'cycleSecondarySubMode' },
+    { args: { togglePrimarySubtitleBar: true }, expected: 'togglePrimarySubtitleBar' },
     { args: { toggleStatsOverlay: true }, expected: 'dispatchSessionAction' },
     {
       args: { openRuntimeOptions: true },

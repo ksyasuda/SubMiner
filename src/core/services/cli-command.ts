@@ -40,6 +40,7 @@ export interface CliCommandServiceDeps {
   isOverlayRuntimeInitialized: () => boolean;
   initializeOverlayRuntime: () => void;
   toggleVisibleOverlay: () => void;
+  togglePrimarySubtitleBar: () => void;
   openFirstRunSetup: () => void;
   openYomitanSettingsDelayed: (delayMs: number) => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
@@ -138,6 +139,7 @@ interface OverlayCliRuntime {
   isInitialized: () => boolean;
   initialize: () => void;
   toggleVisible: () => void;
+  togglePrimarySubtitleBar: () => void;
   setVisible: (visible: boolean) => void;
 }
 
@@ -244,6 +246,7 @@ export function createCliCommandDepsRuntime(
     isOverlayRuntimeInitialized: options.overlay.isInitialized,
     initializeOverlayRuntime: options.overlay.initialize,
     toggleVisibleOverlay: options.overlay.toggleVisible,
+    togglePrimarySubtitleBar: options.overlay.togglePrimarySubtitleBar,
     openFirstRunSetup: options.ui.openFirstRunSetup,
     openYomitanSettingsDelayed: (delayMs) => {
       options.schedule(() => {
@@ -369,6 +372,8 @@ export function handleCliCommand(
 
   if (args.toggle || args.toggleVisibleOverlay) {
     deps.toggleVisibleOverlay();
+  } else if (args.togglePrimarySubtitleBar) {
+    deps.togglePrimarySubtitleBar();
   } else if (args.setup) {
     deps.openFirstRunSetup();
     deps.log('Opened first-run setup flow.');

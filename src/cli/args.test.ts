@@ -79,6 +79,7 @@ test('parseArgs captures session action forwarding flags', () => {
     '--open-jimaku',
     '--open-youtube-picker',
     '--open-playlist-browser',
+    '--toggle-primary-subtitle-bar',
     '--replay-current-subtitle',
     '--play-next-subtitle',
     '--shift-sub-delay-prev-line',
@@ -94,6 +95,7 @@ test('parseArgs captures session action forwarding flags', () => {
   assert.equal(args.openJimaku, true);
   assert.equal(args.openYoutubePicker, true);
   assert.equal(args.openPlaylistBrowser, true);
+  assert.equal(args.togglePrimarySubtitleBar, true);
   assert.equal(args.replayCurrentSubtitle, true);
   assert.equal(args.playNextSubtitle, true);
   assert.equal(args.shiftSubDelayPrevLine, true);

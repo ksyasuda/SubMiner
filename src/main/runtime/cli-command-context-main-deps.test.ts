@@ -29,6 +29,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
 
     initializeOverlayRuntime: () => calls.push('init-overlay'),
     toggleVisibleOverlay: () => calls.push('toggle-visible'),
+    togglePrimarySubtitleBar: () => calls.push('toggle-primary-subtitle'),
     openFirstRunSetupWindow: () => calls.push('open-setup'),
     setVisibleOverlayVisible: (visible) => calls.push(`set-visible:${visible}`),
 

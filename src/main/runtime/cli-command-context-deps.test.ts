@@ -19,6 +19,7 @@ test('build cli command context deps maps handlers and values', () => {
     isOverlayInitialized: () => true,
     initializeOverlay: () => calls.push('init'),
     toggleVisibleOverlay: () => calls.push('toggle-visible'),
+    togglePrimarySubtitleBar: () => calls.push('toggle-primary-subtitle'),
     openFirstRunSetup: () => calls.push('setup'),
     setVisibleOverlay: (visible) => calls.push(`set-visible:${visible}`),
     copyCurrentSubtitle: () => calls.push('copy'),

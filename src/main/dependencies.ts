@@ -149,6 +149,7 @@ export interface CliCommandRuntimeServiceDepsParams {
     isInitialized: CliCommandDepsRuntimeOptions['overlay']['isInitialized'];
     initialize: CliCommandDepsRuntimeOptions['overlay']['initialize'];
     toggleVisible: CliCommandDepsRuntimeOptions['overlay']['toggleVisible'];
+    togglePrimarySubtitleBar: CliCommandDepsRuntimeOptions['overlay']['togglePrimarySubtitleBar'];
     setVisible: CliCommandDepsRuntimeOptions['overlay']['setVisible'];
   };
   mining: {
@@ -325,6 +326,7 @@ export function createCliCommandRuntimeServiceDeps(
       isInitialized: params.overlay.isInitialized,
       initialize: params.overlay.initialize,
       toggleVisible: params.overlay.toggleVisible,
+      togglePrimarySubtitleBar: params.overlay.togglePrimarySubtitleBar,
       setVisible: params.overlay.setVisible,
     },
     mining: {

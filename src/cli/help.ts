@@ -19,6 +19,7 @@ ${B}Session${R}
 
 ${B}Overlay${R}
   --toggle-visible-overlay       Toggle subtitle overlay
+  --toggle-primary-subtitle-bar  Toggle primary subtitle bar
   --show-visible-overlay         Show subtitle overlay
   --hide-visible-overlay         Hide subtitle overlay
   --settings                     Open Yomitan settings window

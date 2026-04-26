@@ -153,6 +153,9 @@ const onSubsyncManualOpenEvent = createQueuedIpcListenerWithPayload<SubsyncManua
 const onSubtitleSidebarToggleEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.subtitleSidebarToggle,
 );
+const onPrimarySubtitleBarToggleEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.primarySubtitleBarToggle,
+);
 const onKikuFieldGroupingRequestEvent =
   createQueuedIpcListenerWithPayload<KikuFieldGroupingRequestData>(
     IPC_CHANNELS.event.kikuFieldGroupingRequest,
@@ -345,6 +348,7 @@ const electronAPI: ElectronAPI = {
   onOpenPlaylistBrowser: onOpenPlaylistBrowserEvent,
   onOpenCharacterDictionary: onOpenCharacterDictionaryEvent,
   onSubtitleSidebarToggle: onSubtitleSidebarToggleEvent,
+  onPrimarySubtitleBarToggle: onPrimarySubtitleBarToggleEvent,
   onCancelYoutubeTrackPicker: onCancelYoutubeTrackPickerEvent,
   onKeyboardModeToggleRequested: onKeyboardModeToggleRequestedEvent,
   onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,

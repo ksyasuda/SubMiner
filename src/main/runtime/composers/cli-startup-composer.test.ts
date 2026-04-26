@@ -19,6 +19,7 @@ test('composeCliStartupHandlers returns callable CLI startup handlers', () => {
       showMpvOsd: () => {},
       initializeOverlayRuntime: () => {},
       toggleVisibleOverlay: () => {},
+      togglePrimarySubtitleBar: () => {},
       openFirstRunSetupWindow: () => {},
       setVisibleOverlayVisible: () => {},
       copyCurrentSubtitle: () => {},

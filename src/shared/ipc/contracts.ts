@@ -120,6 +120,7 @@ export const IPC_CHANNELS = {
     controllerSelectOpen: 'controller-select:open',
     controllerDebugOpen: 'controller-debug:open',
     subtitleSidebarToggle: 'subtitle-sidebar:toggle',
+    primarySubtitleBarToggle: 'primary-subtitle-bar:toggle',
     configHotReload: 'config:hot-reload',
   },
 } as const;

@@ -330,6 +330,7 @@ function installKeyboardTestGlobals() {
 function createKeyboardHandlerHarness() {
   const testGlobals = installKeyboardTestGlobals();
   const subtitleRootClassList = createClassList();
+  const subtitleContainerClassList = createClassList();
   let controllerSelectKeydownCount = 0;
   let openControllerSelectCount = 0;
   let openControllerDebugCount = 0;
@@ -349,6 +350,7 @@ function createKeyboardHandlerHarness() {
         querySelectorAll: () => wordNodes,
       },
       subtitleContainer: {
+        classList: subtitleContainerClassList,
         contains: () => false,
       },
       overlay: testGlobals.overlay,
@@ -404,6 +406,26 @@ function createKeyboardHandlerHarness() {
     },
   };
 }
+
+test('primary subtitle visibility key hides and restores the subtitle bar without mpv sub-visibility', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchKeydown({ key: 'v', code: 'KeyV' });
+    assert.equal(ctx.dom.subtitleContainer.classList.contains('primary-sub-hidden'), true);
+
+    testGlobals.dispatchKeydown({ key: 'v', code: 'KeyV' });
+    assert.equal(ctx.dom.subtitleContainer.classList.contains('primary-sub-hidden'), false);
+    assert.equal(
+      testGlobals.mpvCommands.some((command) => command.includes('sub-visibility')),
+      false,
+    );
+  } finally {
+    testGlobals.restore();
+  }
+});
 
 test('session help chord resolver follows remapped session bindings', async () => {
   const { handlers, testGlobals } = createKeyboardHandlerHarness();

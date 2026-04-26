@@ -27,6 +27,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
 
   initializeOverlayRuntime: () => void;
   toggleVisibleOverlay: () => void;
+  togglePrimarySubtitleBar: () => void;
   openFirstRunSetupWindow: () => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
 
@@ -94,6 +95,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     isOverlayInitialized: () => deps.appState.overlayRuntimeInitialized,
     initializeOverlay: () => deps.initializeOverlayRuntime(),
     toggleVisibleOverlay: () => deps.toggleVisibleOverlay(),
+    togglePrimarySubtitleBar: () => deps.togglePrimarySubtitleBar(),
     openFirstRunSetup: () => deps.openFirstRunSetupWindow(),
     setVisibleOverlay: (visible: boolean) => deps.setVisibleOverlayVisible(visible),
     copyCurrentSubtitle: () => deps.copyCurrentSubtitle(),

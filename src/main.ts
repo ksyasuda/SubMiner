@@ -4345,6 +4345,10 @@ function toggleSubtitleSidebar(): void {
   broadcastToOverlayWindows(IPC_CHANNELS.event.subtitleSidebarToggle);
 }
 
+function togglePrimarySubtitleBar(): void {
+  broadcastToOverlayWindows(IPC_CHANNELS.event.primarySubtitleBarToggle);
+}
+
 async function triggerSubsyncFromConfig(): Promise<void> {
   await subsyncRuntime.triggerFromConfig();
 }
@@ -4919,6 +4923,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     showMpvOsd: (text: string) => showMpvOsd(text),
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    togglePrimarySubtitleBar: () => togglePrimarySubtitleBar(),
     openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
     setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
     copyCurrentSubtitle: () => copyCurrentSubtitle(),

@@ -462,6 +462,21 @@ function M.create(ctx)
 		end)
 	end
 
+	local function toggle_primary_subtitle_bar()
+		if not binary.ensure_binary_available() then
+			subminer_log("error", "binary", "SubMiner binary not found")
+			show_osd("Error: binary not found")
+			return
+		end
+
+		run_control_command_async("toggle-primary-subtitle-bar", nil, function(ok)
+			if not ok then
+				subminer_log("warn", "process", "Primary subtitle bar toggle command failed")
+				show_osd("Primary subtitle toggle failed")
+			end
+		end)
+	end
+
 	local function open_options()
 		if not binary.ensure_binary_available() then
 			subminer_log("error", "binary", "SubMiner binary not found")
@@ -552,6 +567,7 @@ function M.create(ctx)
 		stop_overlay = stop_overlay,
 		hide_visible_overlay = hide_visible_overlay,
 		toggle_overlay = toggle_overlay,
+		toggle_primary_subtitle_bar = toggle_primary_subtitle_bar,
 		open_options = open_options,
 		restart_overlay = restart_overlay,
 		check_status = check_status,

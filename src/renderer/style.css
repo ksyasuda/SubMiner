@@ -678,6 +678,11 @@ body.subtitle-sidebar-embedded-open #subtitleContainer {
   display: none;
 }
 
+#subtitleContainer.primary-sub-hidden {
+  display: none;
+  pointer-events: none;
+}
+
 body.settings-modal-open #subtitleContainer {
   display: none !important;
   pointer-events: none !important;
