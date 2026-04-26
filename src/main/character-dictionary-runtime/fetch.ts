@@ -136,13 +136,14 @@ function toAniListMediaCandidate(
   },
   fallbackTitle: string,
 ): AniListMediaCandidate {
+  const normalizedFallback = fallbackTitle.trim() || `AniList ${entry.id}`;
   return {
     id: entry.id,
     title:
       entry.title?.english?.trim() ||
       entry.title?.romaji?.trim() ||
       entry.title?.native?.trim() ||
-      fallbackTitle,
+      normalizedFallback,
     episodes: typeof entry.episodes === 'number' && entry.episodes > 0 ? entry.episodes : null,
   };
 }

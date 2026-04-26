@@ -38,12 +38,18 @@ function createElementStub() {
 }
 
 function createNodeStub(hidden = false) {
+  const listeners = new Map<string, Array<() => void>>();
   return {
     textContent: '',
     children: [] as unknown[],
     classList: createClassList(hidden ? ['hidden'] : []),
     setAttribute: () => {},
-    addEventListener: () => {},
+    addEventListener: (event: string, listener: () => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), listener]);
+    },
+    dispatchEvent: (event: string) => {
+      for (const listener of listeners.get(event) ?? []) listener();
+    },
     replaceChildren(...children: unknown[]) {
       this.children = [...children];
     },
@@ -69,6 +75,7 @@ test('character dictionary modal loads candidates and applies selected override'
   const calls: number[] = [];
   const overlay = createNodeStub();
   const modalNode = createNodeStub(true);
+  const closeButton = createNodeStub();
   const candidates = createNodeStub();
   const status = createNodeStub();
   const state = createRendererState();
@@ -110,7 +117,7 @@ test('character dictionary modal loads candidates and applies selected override'
         dom: {
           overlay,
           characterDictionaryModal: modalNode,
-          characterDictionaryClose: createNodeStub(),
+          characterDictionaryClose: closeButton,
           characterDictionarySummary: createNodeStub(),
           characterDictionaryCurrent: createNodeStub(),
           characterDictionaryCandidates: candidates,
@@ -122,6 +129,7 @@ test('character dictionary modal loads candidates and applies selected override'
         syncSettingsModalSubtitleSuppression: () => {},
       },
     );
+    modal.wireDomEvents();
 
     await modal.openCharacterDictionaryModal();
     assert.equal(state.characterDictionaryModalOpen, true);
@@ -137,6 +145,9 @@ test('character dictionary modal loads candidates and applies selected override'
 
     assert.deepEqual(calls, [21355]);
     assert.match(status.textContent, /Override saved/);
+
+    closeButton.dispatchEvent('click');
+    assert.equal(state.characterDictionaryModalOpen, false);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });

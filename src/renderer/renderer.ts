@@ -657,6 +657,7 @@ async function init(): Promise<void> {
   controllerDebugModal.wireDomEvents();
   sessionHelpModal.wireDomEvents();
   subtitleSidebarModal.wireDomEvents();
+  characterDictionaryModal.wireDomEvents();
   window.addEventListener('beforeunload', () => {
     subtitleSidebarModal.disposeDomEvents();
   });

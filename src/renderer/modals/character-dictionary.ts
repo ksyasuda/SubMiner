@@ -214,11 +214,14 @@ export function createCharacterDictionaryModal(
     return false;
   }
 
-  ctx.dom.characterDictionaryClose.addEventListener('click', closeCharacterDictionaryModal);
+  function wireDomEvents(): void {
+    ctx.dom.characterDictionaryClose.addEventListener('click', closeCharacterDictionaryModal);
+  }
 
   return {
     openCharacterDictionaryModal,
     closeCharacterDictionaryModal,
     handleCharacterDictionaryKeydown,
+    wireDomEvents,
   };
 }
