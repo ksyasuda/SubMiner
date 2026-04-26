@@ -213,6 +213,8 @@ Animated AVIF requires an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`)
 }
 ```
 
+`overwriteAudio` applies to automatic card updates and duplicate-card enrichment. Manual clipboard subtitle updates (`Ctrl/Cmd+C`, then `Ctrl/Cmd+V`) always replace generated audio in both the expression audio field and sentence audio field.
+
 ## AI Translation
 
 SubMiner can auto-translate the mined sentence and fill the translation field.
