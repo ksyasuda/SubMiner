@@ -1019,6 +1019,7 @@ test('subtitle annotation CSS changes token color without overriding typography'
     /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
   );
   assert.match(coloredWordHoverBlock, /border-radius:\s*3px;/);
+  assert.match(coloredWordHoverBlock, /filter:\s*brightness\(1\.18\) saturate\(1\.08\);/);
   assert.doesNotMatch(coloredWordHoverBlock, /font-weight\s*:/);
   assert.doesNotMatch(coloredWordHoverBlock, /color:\s*var\(--subtitle-hover-token-color/);
   assert.doesNotMatch(

@@ -945,6 +945,7 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 #subtitleRoot .word.word-frequency-band-5:hover {
   background: var(--subtitle-hover-token-background-color, rgba(54, 58, 79, 0.84));
   border-radius: 3px;
+  filter: brightness(1.18) saturate(1.08);
 }
 
 #subtitleRoot .word.word-known .c:hover,
