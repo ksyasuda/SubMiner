@@ -265,7 +265,9 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       hoverTokenBackgroundColor?: unknown;
     };
     const rawHoverTokenBackgroundColor =
-      subtitleStyleSource.hoverTokenBackgroundColor ?? subtitleStyleSource.hoverBackground;
+      subtitleStyleSource.hoverTokenBackgroundColor !== undefined
+        ? subtitleStyleSource.hoverTokenBackgroundColor
+        : subtitleStyleSource.hoverBackground;
     const hoverTokenBackgroundColor = asString(rawHoverTokenBackgroundColor);
     if (hoverTokenBackgroundColor !== undefined) {
       resolved.subtitleStyle.hoverTokenBackgroundColor = hoverTokenBackgroundColor;

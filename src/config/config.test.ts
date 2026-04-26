@@ -453,6 +453,30 @@ test('parses subtitleStyle.hoverBackground as a hoverTokenBackgroundColor alias'
   assert.equal(validService.getConfig().subtitleStyle.hoverTokenBackgroundColor, 'transparent');
 });
 
+test('parses subtitleStyle.hoverTokenBackgroundColor null as invalid instead of missing', () => {
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "hoverTokenBackgroundColor": null
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.hoverTokenBackgroundColor,
+    DEFAULT_CONFIG.subtitleStyle.hoverTokenBackgroundColor,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.hoverTokenBackgroundColor'),
+  );
+});
+
 test('parses subtitleStyle.nameMatchEnabled and warns on invalid values', () => {
   const validDir = makeTempDir();
   fs.writeFileSync(
