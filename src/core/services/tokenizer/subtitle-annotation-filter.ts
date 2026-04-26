@@ -25,20 +25,23 @@ export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   'お前',
   'こいつ',
   'こっち',
+  'くれ',
   'じゃない',
   'そうだ',
   'たち',
+  'たって',
+  'だって',
   'である',
   'どこか',
   'なんか',
   'べき',
+  'って',
   'はあ',
   'はは',
   'へえ',
   'ふう',
   'ほう',
   'やはり',
-  'って',
   '何か',
   '何だ',
   '何も',
@@ -47,6 +50,8 @@ export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   '確かに',
   '誰も',
   '貴方',
+  'もんか',
+  'ものか',
 ]);
 const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES = ['ん', 'の', 'なん', 'なの'];
 const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES = [
@@ -95,6 +100,26 @@ const SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES = new Set([
 ]);
 const AUXILIARY_STEM_GRAMMAR_TAIL_POS1 = new Set(['名詞', '助動詞', '助詞']);
 const NON_INDEPENDENT_NOUN_HELPER_TAIL_POS1 = new Set(['助詞', '助動詞']);
+const STANDALONE_GRAMMAR_PARTICLE_SURFACES = new Set([
+  'か',
+  'が',
+  'さ',
+  'し',
+  'ぞ',
+  'ぜ',
+  'と',
+  'な',
+  'に',
+  'ね',
+  'の',
+  'は',
+  'へ',
+  'も',
+  'や',
+  'よ',
+  'を',
+]);
+const STANDALONE_GRAMMAR_PARTICLE_PHRASES = new Set(['たって', 'だって']);
 
 export interface SubtitleAnnotationFilterOptions {
   pos1Exclusions?: ReadonlySet<string>;
@@ -301,6 +326,38 @@ function isKanaOnlyNonIndependentNounHelperMerge(token: MergedToken): boolean {
   return pos1Parts.slice(1).every((part) => NON_INDEPENDENT_NOUN_HELPER_TAIL_POS1.has(part));
 }
 
+function isKanaOnlyText(text: string): boolean {
+  const normalized = normalizeKana(text);
+  return normalized.length > 0 && [...normalized].every(isKanaChar);
+}
+
+function isStandaloneSuruTeGrammarHelper(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  const normalizedHeadword = normalizeKana(token.headword);
+  if (!normalizedSurface.startsWith('して') || normalizedHeadword !== 'する') {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  return isKanaOnlyText(normalizedSurface) && (pos1Parts.length === 0 || pos1Parts.includes('動詞'));
+}
+
+function isStandaloneGrammarParticle(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  const normalizedHeadword = normalizeKana(token.headword);
+  return (
+    normalizedSurface === normalizedHeadword &&
+    (STANDALONE_GRAMMAR_PARTICLE_SURFACES.has(normalizedSurface) ||
+      STANDALONE_GRAMMAR_PARTICLE_PHRASES.has(normalizedSurface))
+  );
+}
+
+function isSingleKanaSurfaceFragment(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  const chars = [...normalizedSurface];
+  return chars.length === 1 && chars.every(isKanaChar);
+}
+
 function isExcludedByTerm(token: MergedToken): boolean {
   const candidates = [token.surface, token.reading, token.headword].filter(
     (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
@@ -385,6 +442,18 @@ export function shouldExcludeTokenFromSubtitleAnnotations(
   }
 
   if (isKanaOnlyNonIndependentNounHelperMerge(token)) {
+    return true;
+  }
+
+  if (isStandaloneSuruTeGrammarHelper(token)) {
+    return true;
+  }
+
+  if (isStandaloneGrammarParticle(token)) {
+    return true;
+  }
+
+  if (isSingleKanaSurfaceFragment(token)) {
     return true;
   }
 

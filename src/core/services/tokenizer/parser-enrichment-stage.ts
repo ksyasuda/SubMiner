@@ -303,7 +303,9 @@ function fillMissingPos1BySurfaceSequence(
 
   let cursor = 0;
   return tokens.map((token) => {
-    if (token.pos1 && token.pos1.trim().length > 0) {
+    const hasCompletePosMetadata =
+      token.pos1?.trim() && token.pos2?.trim() && token.pos3?.trim();
+    if (hasCompletePosMetadata) {
       return token;
     }
 
@@ -327,9 +329,9 @@ function fillMissingPos1BySurfaceSequence(
     cursor = best.index + 1;
     return {
       ...token,
-      pos1: best.pos1,
-      pos2: best.pos2,
-      pos3: best.pos3,
+      pos1: token.pos1 ?? best.pos1,
+      pos2: token.pos2 ?? best.pos2,
+      pos3: token.pos3 ?? best.pos3,
     };
   });
 }
@@ -382,7 +384,7 @@ export function enrichTokensWithMecabPos1(
   const metadataByTokenIndex = new Map<number, MecabPosMetadata>();
 
   for (const [index, token] of tokens.entries()) {
-    if (token.pos1) {
+    if (token.pos1?.trim() && token.pos2?.trim() && token.pos3?.trim()) {
       continue;
     }
 
@@ -410,9 +412,9 @@ export function enrichTokensWithMecabPos1(
 
     return {
       ...token,
-      pos1: metadata.pos1,
-      pos2: metadata.pos2,
-      pos3: metadata.pos3,
+      pos1: token.pos1 ?? metadata.pos1,
+      pos2: token.pos2 ?? metadata.pos2,
+      pos3: token.pos3 ?? metadata.pos3,
     };
   });
 

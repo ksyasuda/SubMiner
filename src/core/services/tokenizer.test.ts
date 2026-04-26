@@ -25,6 +25,7 @@ interface YomitanTokenInput {
   reading?: string;
   headword?: string;
   isNameMatch?: boolean;
+  wordClasses?: string[];
 }
 
 function makeDepsFromYomitanTokens(
@@ -55,6 +56,7 @@ function makeDepsFromYomitanTokens(
                 startPos,
                 endPos,
                 isNameMatch: token.isNameMatch ?? false,
+                wordClasses: token.wordClasses,
               };
             });
           },
@@ -1552,7 +1554,7 @@ test('tokenizeSubtitle assigns JLPT level to Yomitan tokens', async () => {
   assert.equal(result.tokens?.[0]?.jlptLevel, 'N4');
 });
 
-test('tokenizeSubtitle can assign JLPT level to Yomitan particle token', async () => {
+test('tokenizeSubtitle clears JLPT level from standalone Yomitan particle token', async () => {
   const result = await tokenizeSubtitle(
     'は',
     makeDepsFromYomitanTokens([{ surface: 'は', reading: 'は', headword: 'は' }], {
@@ -1561,7 +1563,7 @@ test('tokenizeSubtitle can assign JLPT level to Yomitan particle token', async (
   );
 
   assert.equal(result.tokens?.length, 1);
-  assert.equal(result.tokens?.[0]?.jlptLevel, 'N5');
+  assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
 });
 
 test('tokenizeSubtitle returns null tokens for empty normalized text', async () => {
@@ -3034,6 +3036,58 @@ test('tokenizeSubtitle skips all enrichment stages when disabled', async () => {
   assert.equal(frequencyCalls, 0);
 });
 
+test('tokenizeSubtitle uses Yomitan word classes to classify standalone particles', async () => {
+  let mecabCalls = 0;
+  const result = await tokenizeSubtitle(
+    'は',
+    makeDepsFromYomitanTokens([{ surface: 'は', reading: 'は', headword: 'は', wordClasses: ['prt'] }], {
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === 'は' ? 10 : null),
+      getJlptLevel: (text) => (text === 'は' ? 'N5' : null),
+      tokenizeWithMecab: async () => {
+        mecabCalls += 1;
+        return null;
+      },
+    }),
+  );
+
+  assert.equal(mecabCalls, 1);
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.partOfSpeech, PartOfSpeech.particle);
+  assert.equal(result.tokens?.[0]?.pos1, '助詞');
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+  assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
+});
+
+test('tokenizeSubtitle fills detailed MeCab POS when Yomitan word class supplies coarse POS', async () => {
+  const result = await tokenizeSubtitle(
+    'は',
+    makeDepsFromYomitanTokens([{ surface: 'は', reading: 'は', headword: 'は', wordClasses: ['prt'] }], {
+      tokenizeWithMecab: async () => [
+        {
+          headword: 'は',
+          surface: 'は',
+          reading: 'ハ',
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          pos2: '係助詞',
+          pos3: '*',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(result.tokens?.[0]?.partOfSpeech, PartOfSpeech.particle);
+  assert.equal(result.tokens?.[0]?.pos1, '助詞');
+  assert.equal(result.tokens?.[0]?.pos2, '係助詞');
+});
+
 test('tokenizeSubtitle keeps frequency enrichment while n+1 is disabled', async () => {
   let knownCalls = 0;
   let mecabCalls = 0;
@@ -3108,6 +3162,60 @@ test('tokenizeSubtitle excludes default non-independent pos2 from N+1 and freque
   assert.equal(result.tokens?.length, 1);
   assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
   assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
+});
+
+test('tokenizeSubtitle preserves known-word highlight for exact non-independent kanji noun tokens', async () => {
+  const result = await tokenizeSubtitle(
+    'その点',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: 'その', reading: 'その', headword: 'その' },
+        { surface: '点', reading: 'てん', headword: '点' },
+      ],
+      {
+        isKnownWord: (text) => text === '点' || text === 'てん',
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) => (text === '点' ? 1384 : null),
+        getJlptLevel: (text) => (text === '点' ? 'N3' : null),
+        tokenizeWithMecab: async () => [
+          {
+            headword: 'その',
+            surface: 'その',
+            reading: 'ソノ',
+            startPos: 0,
+            endPos: 2,
+            partOfSpeech: PartOfSpeech.other,
+            pos1: '連体詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: '点',
+            surface: '点',
+            reading: 'テン',
+            startPos: 2,
+            endPos: 3,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '非自立',
+            pos3: '一般',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+      },
+    ),
+  );
+
+  assert.equal(result.tokens?.length, 2);
+  assert.equal(result.tokens?.[0]?.isKnown, false);
+  assert.equal(result.tokens?.[1]?.surface, '点');
+  assert.equal(result.tokens?.[1]?.isKnown, true);
+  assert.equal(result.tokens?.[1]?.isNPlusOneTarget, false);
+  assert.equal(result.tokens?.[1]?.frequencyRank, undefined);
+  assert.equal(result.tokens?.[1]?.jlptLevel, undefined);
 });
 
 test('tokenizeSubtitle keeps mecab-tagged interjections tokenized while clearing annotation metadata', async () => {

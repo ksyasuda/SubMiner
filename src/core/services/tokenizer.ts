@@ -96,6 +96,7 @@ interface TokenizerAnnotationOptions {
   minSentenceWordsForNPlusOne: number | undefined;
   pos1Exclusions: ReadonlySet<string>;
   pos2Exclusions: ReadonlySet<string>;
+  sourceText?: string;
 }
 
 let parserEnrichmentWorkerRuntimeModulePromise: Promise<
@@ -331,6 +332,66 @@ function normalizeSelectedYomitanTokens(tokens: MergedToken[]): MergedToken[] {
     isNameMatch: token.isNameMatch ?? false,
     reading: normalizeYomitanMergedReading(token),
   }));
+}
+
+function normalizeYomitanWordClasses(wordClasses: unknown): string[] {
+  if (!Array.isArray(wordClasses)) {
+    return [];
+  }
+
+  const normalized: string[] = [];
+  for (const wordClass of wordClasses) {
+    if (typeof wordClass !== 'string') {
+      continue;
+    }
+    const trimmed = wordClass.trim();
+    if (trimmed && !normalized.includes(trimmed)) {
+      normalized.push(trimmed);
+    }
+  }
+  return normalized;
+}
+
+function resolvePartOfSpeechFromYomitanWordClasses(wordClasses: string[]): {
+  partOfSpeech: PartOfSpeech;
+  pos1?: string;
+} {
+  if (wordClasses.includes('prt')) {
+    return { partOfSpeech: PartOfSpeech.particle, pos1: '助詞' };
+  }
+  if (wordClasses.includes('aux')) {
+    return { partOfSpeech: PartOfSpeech.bound_auxiliary, pos1: '助動詞' };
+  }
+  if (wordClasses.some((wordClass) => wordClass.startsWith('v'))) {
+    return { partOfSpeech: PartOfSpeech.verb, pos1: '動詞' };
+  }
+  if (wordClasses.includes('adj-i') || wordClasses.includes('adj-ix')) {
+    return { partOfSpeech: PartOfSpeech.i_adjective, pos1: '形容詞' };
+  }
+  if (wordClasses.includes('adj-na')) {
+    return { partOfSpeech: PartOfSpeech.na_adjective, pos1: '名詞' };
+  }
+  if (
+    wordClasses.some(
+      (wordClass) =>
+        wordClass === 'n' ||
+        wordClass === 'num' ||
+        wordClass === 'ctr' ||
+        wordClass === 'pn' ||
+        wordClass.startsWith('n-'),
+    )
+  ) {
+    return { partOfSpeech: PartOfSpeech.noun, pos1: '名詞' };
+  }
+
+  return { partOfSpeech: PartOfSpeech.other };
+}
+
+function getYomitanWordClassPosMetadata(wordClasses: unknown): {
+  partOfSpeech: PartOfSpeech;
+  pos1?: string;
+} {
+  return resolvePartOfSpeechFromYomitanWordClasses(normalizeYomitanWordClasses(wordClasses));
 }
 
 function resolveFrequencyLookupText(
@@ -623,19 +684,23 @@ async function parseWithYomitanInternalParser(
   }
   const normalizedSelectedTokens = normalizeSelectedYomitanTokens(
     selectedTokens.map(
-      (token): MergedToken => ({
-        surface: token.surface,
-        reading: token.reading,
-        headword: token.headword,
-        startPos: token.startPos,
-        endPos: token.endPos,
-        partOfSpeech: PartOfSpeech.other,
-        isMerged: true,
-        isKnown: false,
-        isNPlusOneTarget: false,
-        isNameMatch: token.isNameMatch ?? false,
-        frequencyRank: token.frequencyRank,
-      }),
+      (token): MergedToken => {
+        const posMetadata = getYomitanWordClassPosMetadata(token.wordClasses);
+        return {
+          surface: token.surface,
+          reading: token.reading,
+          headword: token.headword,
+          startPos: token.startPos,
+          endPos: token.endPos,
+          partOfSpeech: posMetadata.partOfSpeech,
+          pos1: posMetadata.pos1,
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+          isNameMatch: token.isNameMatch ?? false,
+          frequencyRank: token.frequencyRank,
+        };
+      },
     ),
   );
 
@@ -716,12 +781,11 @@ export async function tokenizeSubtitle(
     .replace(/\s+/g, ' ')
     .trim();
   const annotationOptions = getAnnotationOptions(deps);
+  annotationOptions.sourceText = tokenizeText;
 
   const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps, annotationOptions);
   if (yomitanTokens && yomitanTokens.length > 0) {
-    const annotatedTokens = await stripSubtitleAnnotationMetadata(
-      await applyAnnotationStage(yomitanTokens, deps, annotationOptions),
-    );
+    const annotatedTokens = await applyAnnotationStage(yomitanTokens, deps, annotationOptions);
     return {
       text: displayText,
       tokens: annotatedTokens.length > 0 ? annotatedTokens : null,

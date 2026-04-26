@@ -1049,6 +1049,60 @@ test('requestYomitanScanTokens marks grouped entries when SubMiner dictionary al
   assert.equal((result as Array<{ isNameMatch?: boolean }>)[0]?.isNameMatch, true);
 });
 
+test('requestYomitanScanTokens preserves matched headword word classes', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens('は', deps, { error: () => undefined });
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+
+    const text = (params as { text?: string } | undefined)?.text;
+    if (text !== 'は') {
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    }
+
+    return {
+      originalTextLength: 1,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: 'は',
+              reading: 'は',
+              wordClasses: ['prt'],
+              sources: [{ originalText: 'は', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  assert.deepEqual((result as Array<{ wordClasses?: string[] }>)[0]?.wordClasses, ['prt']);
+});
+
 test('requestYomitanScanTokens skips fallback fragments without exact primary source matches', async () => {
   const deps = createDeps(async (script) => {
     if (script.includes('optionsGetFull')) {

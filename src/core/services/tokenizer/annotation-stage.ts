@@ -89,6 +89,7 @@ export interface AnnotationStageOptions {
   minSentenceWordsForNPlusOne?: number;
   pos1Exclusions?: ReadonlySet<string>;
   pos2Exclusions?: ReadonlySet<string>;
+  sourceText?: string;
 }
 
 function resolveKnownWordText(
@@ -672,6 +673,36 @@ function computeTokenKnownStatus(
   return normalizedReading !== matchText.trim() && isKnownWord(normalizedReading);
 }
 
+function computeExcludedTokenKnownStatus(
+  token: MergedToken,
+  isKnownWord: (text: string) => boolean,
+): boolean {
+  const normalizedSurface = token.surface.trim();
+  if (!hasKanjiChar(normalizedSurface)) {
+    return false;
+  }
+
+  if (normalizedSurface && isKnownWord(normalizedSurface)) {
+    return true;
+  }
+
+  const normalizedReading = token.reading.trim();
+  if (
+    normalizedReading &&
+    normalizedReading !== normalizedSurface &&
+    isKnownWord(normalizedReading)
+  ) {
+    return true;
+  }
+
+  const normalizedHeadword = token.headword.trim();
+  return (
+    normalizedHeadword.length > 0 &&
+    normalizedHeadword === normalizedSurface &&
+    isKnownWord(normalizedHeadword)
+  );
+}
+
 function filterTokenFrequencyRank(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string>,
@@ -734,10 +765,16 @@ export function annotateTokens(
         pos2Exclusions,
       })
     ) {
-      return sharedStripSubtitleAnnotationMetadata(token, {
+      const strippedToken = sharedStripSubtitleAnnotationMetadata(token, {
         pos1Exclusions,
         pos2Exclusions,
       });
+      return {
+        ...strippedToken,
+        isKnown:
+          nPlusOneEnabled &&
+          computeExcludedTokenKnownStatus(token, deps.isKnownWord),
+      };
     }
 
     const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
@@ -781,6 +818,7 @@ export function annotateTokens(
     sanitizedMinSentenceWordsForNPlusOne,
     pos1Exclusions,
     pos2Exclusions,
+    options.sourceText,
   );
 
   if (!nameMatchEnabled) {

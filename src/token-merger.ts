@@ -347,11 +347,25 @@ function isSentenceBoundaryToken(token: MergedToken): boolean {
   return SENTENCE_BOUNDARY_SURFACES.has(token.surface);
 }
 
+function hasSentenceBoundaryInSourceGap(
+  sourceText: string | undefined,
+  previousEnd: number | null,
+  nextStart: number,
+): boolean {
+  if (typeof sourceText !== 'string' || previousEnd === null || nextStart <= previousEnd) {
+    return false;
+  }
+
+  const gap = sourceText.slice(previousEnd, nextStart);
+  return [...gap].some((char) => SENTENCE_BOUNDARY_SURFACES.has(char));
+}
+
 export function markNPlusOneTargets(
   tokens: MergedToken[],
   minSentenceWords = 3,
   pos1Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS1,
   pos2Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS2,
+  sourceText?: string,
 ): MergedToken[] {
   if (tokens.length === 0) {
     return [];
@@ -363,6 +377,7 @@ export function markNPlusOneTargets(
   }));
 
   let sentenceStart = 0;
+  let previousTokenEnd: number | null = null;
   const minimumSentenceWords = Number.isInteger(minSentenceWords)
     ? Math.max(1, minSentenceWords)
     : 3;
@@ -393,10 +408,15 @@ export function markNPlusOneTargets(
   for (let i = 0; i < markedTokens.length; i++) {
     const token = markedTokens[i];
     if (!token) continue;
+    if (hasSentenceBoundaryInSourceGap(sourceText, previousTokenEnd, token.startPos)) {
+      markSentence(sentenceStart, i);
+      sentenceStart = i;
+    }
     if (isSentenceBoundaryToken(token)) {
       markSentence(sentenceStart, i);
       sentenceStart = i + 1;
     }
+    previousTokenEnd = token.endPos;
   }
 
   if (sentenceStart < markedTokens.length) {
