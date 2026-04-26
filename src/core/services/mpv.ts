@@ -219,6 +219,10 @@ export class MpvIpcClient implements MpvClient {
         this.playbackPaused = null;
         this.emit('connection-change', { connected: false });
         this.failPendingRequests();
+        if (this.deps.shouldQuitOnMpvShutdown?.() === true) {
+          this.deps.requestAppQuit?.();
+          return;
+        }
         this.scheduleReconnect();
       },
     });

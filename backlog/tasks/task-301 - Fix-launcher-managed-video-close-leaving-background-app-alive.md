@@ -5,7 +5,7 @@ status: Done
 assignee:
   - Codex
 created_date: '2026-04-26 03:29'
-updated_date: '2026-04-26 03:33'
+updated_date: '2026-04-26 03:44'
 labels:
   - bug
   - launcher
@@ -42,12 +42,14 @@ Launcher/plugin-managed video playback should not leave the SubMiner background 
 
 <!-- SECTION:NOTES:BEGIN -->
 Implemented managed playback shutdown by adding a `--managed-playback` app flag that the mpv plugin passes only for launcher-managed starts. The main mpv shutdown path now quits the app when initial args indicate managed playback, while explicit background/no-arg startup remains persistent. Added plugin start-gate and mpv protocol regression coverage.
+
+Implemented managed playback lifecycle: mpv plugin auto-start passes --background --managed-playback; app quits on mpv shutdown only when initial args include managedPlayback. Explicit --background and no-arg startup remain persistent. Installed updated mpv plugin to ~/.config/mpv/scripts/subminer via make install-plugin.
+
+Retest showed tray still remained. Root cause: relying on mpv's JSON IPC shutdown event was insufficient; the app may only see the socket close. Added managed-playback quit on MpvIpcClient onClose before reconnect scheduling, with regression coverage.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Launcher-managed video playback now exits the SubMiner background app/tray when mpv shuts down, avoiding a leftover background process after closing a launcher-started video. Explicit `--background` and no-argument app startup remain persistent because the quit path is gated on the new `--managed-playback` flag. The mpv plugin passes that flag for auto-started playback, and mpv protocol shutdown requests app quit only in that managed mode.
-
-Verification: plugin start-gate regression coverage, mpv protocol shutdown regression coverage, CLI managed-playback parse coverage, plus broader local gates run before handoff.
+Launcher-managed playback now starts SubMiner with an internal --managed-playback marker alongside --background. The app requests quit either when mpv sends shutdown or when the mpv IPC socket closes, but only for managed playback mode; explicit background/no-arg startup remains persistent. Added CLI, mpv protocol, mpv socket-close, and plugin regression coverage plus a launcher changelog fragment. Rebuilt the app/launcher and confirmed focused checks, typecheck, build, plugin tests, dist smoke, and formatting.
 <!-- SECTION:FINAL_SUMMARY:END -->

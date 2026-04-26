@@ -285,6 +285,25 @@ test('MpvIpcClient onClose resolves outstanding requests and schedules reconnect
   assert.equal(timers.length, 1);
 });
 
+test('MpvIpcClient onClose requests app quit for managed playback', () => {
+  let quitRequests = 0;
+  const client = new MpvIpcClient(
+    '/tmp/mpv.sock',
+    makeDeps({
+      shouldQuitOnMpvShutdown: () => true,
+      requestAppQuit: () => {
+        quitRequests += 1;
+      },
+    }),
+  );
+
+  (client as any).scheduleReconnect = () => {};
+
+  (client as any).transport.callbacks.onClose();
+
+  assert.equal(quitRequests, 1);
+});
+
 test('MpvIpcClient reconnect replays property subscriptions and initial state requests', () => {
   const commands: unknown[] = [];
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
