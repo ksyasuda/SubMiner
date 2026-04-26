@@ -769,6 +769,10 @@ do
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
 	assert_true(call_has_arg(start_call, "--background"), "auto-start should launch SubMiner in background mode")
+	assert_true(
+		call_has_arg(start_call, "--managed-playback"),
+		"auto-start should mark SubMiner as launcher-managed playback"
+	)
 	assert_true(call_has_arg(start_call, "--texthooker"), "auto-start should include --texthooker on the main --start command when enabled")
 	assert_true(find_control_call(recorded.async_calls, "--texthooker") == nil, "auto-start should not issue a separate texthooker helper command")
 	assert_true(

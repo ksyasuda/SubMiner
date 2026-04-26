@@ -98,11 +98,7 @@ export function buildCharacterDictionarySeriesKey(input: {
 }
 
 export function createCharacterDictionaryManualSelectionStore(deps: { userDataPath: string }) {
-  const filePath = path.join(
-    deps.userDataPath,
-    'character-dictionaries',
-    'anilist-overrides.json',
-  );
+  const filePath = path.join(deps.userDataPath, 'character-dictionaries', 'anilist-overrides.json');
 
   return {
     getOverride: async (seriesKey: string): Promise<CharacterDictionaryManualSelection | null> => {

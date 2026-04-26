@@ -4,9 +4,10 @@ import test from 'node:test';
 import { searchAniListMediaCandidates } from './fetch';
 
 test('searchAniListMediaCandidates trims fallback candidate titles', async () => {
-  const previousFetch = globalThis.fetch;
+  const previousFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
   Object.defineProperty(globalThis, 'fetch', {
     configurable: true,
+    writable: true,
     value: async () =>
       new Response(
         JSON.stringify({
@@ -24,6 +25,10 @@ test('searchAniListMediaCandidates trims fallback candidate titles', async () =>
 
     assert.equal(candidates[0]?.title, 'Re:ZERO');
   } finally {
-    Object.defineProperty(globalThis, 'fetch', { configurable: true, value: previousFetch });
+    if (previousFetchDescriptor) {
+      Object.defineProperty(globalThis, 'fetch', previousFetchDescriptor);
+    } else {
+      Reflect.deleteProperty(globalThis, 'fetch');
+    }
   }
 });

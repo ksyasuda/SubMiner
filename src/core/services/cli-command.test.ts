@@ -6,6 +6,7 @@ import { CliCommandServiceDeps, handleCliCommand } from './cli-command';
 function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   return {
     background: false,
+    managedPlayback: false,
     start: false,
     launchMpv: false,
     launchMpvTargets: [],
@@ -714,6 +715,34 @@ test('handleCliCommand sets character dictionary manual AniList selection', asyn
     calls.includes(
       'log:Character dictionary override saved: re-zero-starting-life-in-another-world-2016 -> 21355 - Re:ZERO -Starting Life in Another World-',
     ),
+  );
+});
+
+test('handleCliCommand does not log character dictionary selection success when result is not ok', async () => {
+  const { calls, deps } = createDeps({
+    setCharacterDictionarySelection: async () => ({
+      ok: false,
+      seriesKey: 'test',
+      selected: { id: 0, title: '', episodes: null },
+      staleMediaIds: [],
+    }),
+  });
+
+  handleCliCommand(
+    makeArgs({
+      dictionarySelect: true,
+      dictionaryAnilistId: 21355,
+      dictionaryTarget: '/tmp/re-zero.mkv',
+    }),
+    'initial',
+    deps,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(calls.includes('warn:Character dictionary override was not saved.'));
+  assert.equal(
+    calls.some((call) => call.startsWith('log:Character dictionary override saved:')),
+    false,
   );
 });
 

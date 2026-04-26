@@ -162,7 +162,11 @@ export function createCharacterDictionaryModal(
     } else {
       setStatus('Refreshing AniList candidates...');
     }
-    await refreshSelection();
+    try {
+      await refreshSelection();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
   }
 
   function closeCharacterDictionaryModal(): void {

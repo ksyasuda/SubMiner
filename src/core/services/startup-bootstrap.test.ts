@@ -6,6 +6,7 @@ import { CliArgs } from '../../cli/args';
 function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   return {
     background: false,
+    managedPlayback: false,
     start: false,
     launchMpv: false,
     launchMpvTargets: [],

@@ -658,6 +658,36 @@ test('sanitizeSubtitleHoverTokenColor keeps non-black color values', () => {
   assert.equal(sanitizeSubtitleHoverTokenColor(undefined), '#f4dbd6');
 });
 
+test('applySubtitleStyle keeps transparent hover token background', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({
+      hoverTokenBackgroundColor: 'transparent',
+    } as never);
+
+    const rootStyleValues = (subtitleRoot.style as unknown as { values?: Map<string, string> })
+      .values;
+    assert.equal(rootStyleValues?.get('--subtitle-hover-token-background-color'), 'transparent');
+  } finally {
+    restoreDocument();
+  }
+});
+
 test('alignTokensToSourceText preserves newline separators between adjacent token surfaces', () => {
   const tokens = [
     createToken({ surface: 'キリキリと', reading: 'きりきりと', headword: 'キリキリと' }),

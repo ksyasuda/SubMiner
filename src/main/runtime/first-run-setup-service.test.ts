@@ -20,6 +20,7 @@ function withTempDir(fn: (dir: string) => Promise<void> | void): Promise<void> |
 function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   return {
     background: false,
+    managedPlayback: false,
     start: false,
     launchMpv: false,
     launchMpvTargets: [],

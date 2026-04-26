@@ -362,14 +362,7 @@ export function createKeyboardHandlers(
   }
 
   function isPrimarySubtitleVisibilityToggle(e: KeyboardEvent): boolean {
-    return (
-      e.code === 'KeyV' &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.metaKey &&
-      !e.shiftKey &&
-      !e.repeat
-    );
+    return e.code === 'KeyV' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && !e.repeat;
   }
 
   function togglePrimarySubtitleBarVisibility(): void {

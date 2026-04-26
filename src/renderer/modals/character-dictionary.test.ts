@@ -153,3 +153,63 @@ test('character dictionary modal loads candidates and applies selected override'
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
   }
 });
+
+test('character dictionary modal shows refresh errors without rejecting open', async () => {
+  const previousWindow = globalThis.window;
+  const overlay = createNodeStub();
+  const modalNode = createNodeStub(true);
+  const status = createNodeStub();
+  const state = createRendererState();
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getCharacterDictionarySelection: async () => {
+          throw new Error('candidate lookup failed');
+        },
+        setCharacterDictionarySelection: async () => ({
+          ok: false,
+          seriesKey: 'test',
+          selected: { id: 0, title: '', episodes: null },
+          staleMediaIds: [],
+        }),
+        notifyOverlayModalClosed: () => {},
+      } satisfies Pick<
+        ElectronAPI,
+        | 'getCharacterDictionarySelection'
+        | 'setCharacterDictionarySelection'
+        | 'notifyOverlayModalClosed'
+      >,
+    },
+  });
+
+  try {
+    const modal = createCharacterDictionaryModal(
+      {
+        state,
+        dom: {
+          overlay,
+          characterDictionaryModal: modalNode,
+          characterDictionaryClose: createNodeStub(),
+          characterDictionarySummary: createNodeStub(),
+          characterDictionaryCurrent: createNodeStub(),
+          characterDictionaryCandidates: createNodeStub(),
+          characterDictionaryStatus: status,
+        },
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => false },
+        syncSettingsModalSubtitleSuppression: () => {},
+      },
+    );
+
+    await modal.openCharacterDictionaryModal();
+
+    assert.equal(state.characterDictionaryModalOpen, true);
+    assert.equal(status.textContent, 'candidate lookup failed');
+    assert.equal(status.classList.contains('error'), true);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+  }
+});

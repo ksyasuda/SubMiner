@@ -467,10 +467,7 @@ test('auto sync removes stale manual-selection media ids when applying corrected
     path.join(dictionariesDir, 'auto-sync-state.json'),
     JSON.stringify(
       {
-        activeMediaIds: [
-          '10607 - Rerere no Tensai Bakabon',
-          '130298 - The Eminence in Shadow',
-        ],
+        activeMediaIds: ['10607 - Rerere no Tensai Bakabon', '130298 - The Eminence in Shadow'],
         mergedRevision: 'old',
         mergedDictionaryTitle: 'SubMiner Character Dictionary',
       },

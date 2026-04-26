@@ -91,6 +91,8 @@ export interface MpvProtocolHandleMessageDeps {
   ) => void;
   sendCommand: (payload: { command: unknown[]; request_id?: number }) => boolean;
   restorePreviousSecondarySubVisibility: () => void;
+  shouldQuitOnMpvShutdown: () => boolean;
+  requestAppQuit: () => void;
 }
 
 type SubtitleTrackCandidate = {
@@ -360,6 +362,9 @@ export async function dispatchMpvProtocolMessage(
     }
   } else if (msg.event === 'shutdown') {
     deps.restorePreviousSecondarySubVisibility();
+    if (deps.shouldQuitOnMpvShutdown()) {
+      deps.requestAppQuit();
+    }
   } else if (msg.request_id) {
     if (deps.resolvePendingRequest(msg.request_id, msg)) {
       return;

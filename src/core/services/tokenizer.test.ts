@@ -4091,8 +4091,7 @@ test('tokenizeSubtitle clears annotations for ことに while preserving lexical
           text === '違う' ? 900 : text === '事' ? 81 : text === '気付く' ? 1500 : null,
         getJlptLevel: (text) =>
           text === '違う' ? 'N4' : text === '事' ? 'N4' : text === '気付く' ? 'N3' : null,
-        isKnownWord: (text) =>
-          ['さっき', 'の', '俺', 'と', '気付く', 'かい', '？'].includes(text),
+        isKnownWord: (text) => ['さっき', 'の', '俺', 'と', '気付く', 'かい', '？'].includes(text),
         getMinSentenceWordsForNPlusOne: () => 1,
         tokenizeWithMecab: async () => [
           {

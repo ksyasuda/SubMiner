@@ -437,6 +437,22 @@ test('parses subtitleStyle.hoverTokenBackgroundColor and warns on invalid values
   );
 });
 
+test('parses subtitleStyle.hoverBackground as a hoverTokenBackgroundColor alias', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "hoverBackground": "transparent"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.hoverTokenBackgroundColor, 'transparent');
+});
+
 test('parses subtitleStyle.nameMatchEnabled and warns on invalid values', () => {
   const validDir = makeTempDir();
   fs.writeFileSync(

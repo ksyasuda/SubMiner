@@ -1,5 +1,6 @@
 export interface CliArgs {
   background: boolean;
+  managedPlayback: boolean;
   start: boolean;
   launchMpv: boolean;
   launchMpvTargets: string[];
@@ -99,6 +100,7 @@ export type CliCommandSource = 'initial' | 'second-instance';
 export function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     background: false,
+    managedPlayback: false,
     start: false,
     launchMpv: false,
     launchMpvTargets: [],
@@ -201,6 +203,7 @@ export function parseArgs(argv: string[]): CliArgs {
     if (!arg || !arg.startsWith('--')) continue;
 
     if (arg === '--background') args.background = true;
+    else if (arg === '--managed-playback') args.managedPlayback = true;
     else if (arg === '--start') args.start = true;
     else if (arg.startsWith('--youtube-play=')) {
       const value = arg.split('=', 2)[1];

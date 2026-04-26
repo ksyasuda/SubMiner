@@ -214,7 +214,11 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(hasExplicitCommand(anilistRetryQueue), true);
   assert.equal(shouldStartApp(anilistRetryQueue), false);
 
-  const dictionaryCandidates = parseArgs(['--dictionary-candidates', '--dictionary-target', '/tmp/a.mkv']);
+  const dictionaryCandidates = parseArgs([
+    '--dictionary-candidates',
+    '--dictionary-target',
+    '/tmp/a.mkv',
+  ]);
   assert.equal(dictionaryCandidates.dictionaryCandidates, true);
   assert.equal(dictionaryCandidates.dictionaryTarget, '/tmp/a.mkv');
   assert.equal(hasExplicitCommand(dictionaryCandidates), true);
@@ -333,6 +337,12 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(background.background, true);
   assert.equal(hasExplicitCommand(background), true);
   assert.equal(shouldStartApp(background), true);
+
+  const managedPlayback = parseArgs(['--background', '--managed-playback']);
+  assert.equal(managedPlayback.background, true);
+  assert.equal(managedPlayback.managedPlayback, true);
+  assert.equal(hasExplicitCommand(managedPlayback), true);
+  assert.equal(shouldStartApp(managedPlayback), true);
 
   const setup = parseArgs(['--setup']);
   assert.equal((setup as typeof setup & { setup?: boolean }).setup, true);

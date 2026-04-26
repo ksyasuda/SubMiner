@@ -3823,6 +3823,8 @@ const {
     setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
       appState.reconnectTimer = timer;
     },
+    shouldQuitOnMpvShutdown: () => appState.initialArgs?.managedPlayback === true,
+    requestAppQuit: () => requestAppQuit(),
   },
   updateMpvSubtitleRenderMetricsMainDeps: {
     getCurrentMetrics: () => appState.mpvSubtitleRenderMetrics,

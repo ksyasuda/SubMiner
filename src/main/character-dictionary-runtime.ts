@@ -175,7 +175,9 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     };
   };
 
-  const resolveGuessInput = (targetPath?: string): { mediaPath: string | null; mediaTitle: string | null } => {
+  const resolveGuessInput = (
+    targetPath?: string,
+  ): { mediaPath: string | null; mediaTitle: string | null } => {
     const dictionaryTarget = targetPath?.trim() || '';
     return dictionaryTarget.length > 0
       ? resolveDictionaryGuessInputs(dictionaryTarget)
@@ -324,13 +326,13 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       `[dictionary] stored snapshot for AniList ${mediaId}: ${snapshot.entryCount} terms`,
     );
 
-      return {
-        mediaId: snapshot.mediaId,
-        mediaTitle: snapshot.mediaTitle,
-        entryCount: snapshot.entryCount,
-        fromCache: false,
-        updatedAt: snapshot.updatedAt,
-      };
+    return {
+      mediaId: snapshot.mediaId,
+      mediaTitle: snapshot.mediaTitle,
+      entryCount: snapshot.entryCount,
+      fromCache: false,
+      updatedAt: snapshot.updatedAt,
+    };
   };
 
   return {

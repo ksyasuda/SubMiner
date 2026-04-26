@@ -6,6 +6,7 @@ import { AppLifecycleServiceDeps, startAppLifecycle } from './app-lifecycle';
 function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   return {
     background: false,
+    managedPlayback: false,
     start: false,
     launchMpv: false,
     launchMpvTargets: [],

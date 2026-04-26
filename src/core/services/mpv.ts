@@ -105,6 +105,8 @@ export interface MpvIpcClientProtocolDeps {
   isVisibleOverlayVisible: () => boolean;
   getReconnectTimer: () => ReturnType<typeof setTimeout> | null;
   setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;
+  shouldQuitOnMpvShutdown?: () => boolean;
+  requestAppQuit?: () => void;
 }
 
 export interface MpvIpcClientDeps extends MpvIpcClientProtocolDeps {}
@@ -399,6 +401,8 @@ export class MpvIpcClient implements MpvClient {
       restorePreviousSecondarySubVisibility: () => {
         this.restorePreviousSecondarySubVisibility();
       },
+      shouldQuitOnMpvShutdown: () => this.deps.shouldQuitOnMpvShutdown?.() ?? false,
+      requestAppQuit: () => this.deps.requestAppQuit?.(),
     };
   }
 

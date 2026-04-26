@@ -645,6 +645,10 @@ export function handleCliCommand(
         mediaId: args.dictionaryAnilistId,
       })
       .then((result) => {
+        if (!result.ok) {
+          deps.warn('Character dictionary override was not saved.');
+          return;
+        }
         deps.log(
           `Character dictionary override saved: ${result.seriesKey} -> ${result.selected.id} - ${result.selected.title}`,
         );

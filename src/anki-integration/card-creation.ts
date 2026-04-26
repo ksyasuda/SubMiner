@@ -261,6 +261,7 @@ export class CardCreationService {
                 );
                 for (const audioField of audioFields) {
                   const existingAudio = noteInfo.fields[audioField]?.value || '';
+                  // Manual clipboard updates intentionally replace old captured audio.
                   updatedFields[audioField] = this.deps.mergeFieldValue(
                     existingAudio,
                     audioValue,
