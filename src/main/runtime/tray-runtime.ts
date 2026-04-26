@@ -30,7 +30,7 @@ export function resolveTrayIconPathRuntime(deps: {
 }
 
 export type TrayMenuActionHandlers = {
-  openOverlay: () => void;
+  openSessionHelp: () => void;
   openFirstRunSetup: () => void;
   showFirstRunSetup: boolean;
   openWindowsMpvLauncherSetup: () => void;
@@ -49,8 +49,8 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
 }> {
   return [
     {
-      label: 'Open Overlay',
-      click: handlers.openOverlay,
+      label: 'Open Help',
+      click: handlers.openSessionHelp,
     },
     ...(handlers.showFirstRunSetup
       ? [

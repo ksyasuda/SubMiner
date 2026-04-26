@@ -24,7 +24,7 @@ test('tray main deps builders return mapped handlers', () => {
     buildTrayMenuTemplateRuntime: () => [{ label: 'tray' }] as never,
     initializeOverlayRuntime: () => calls.push('init'),
     isOverlayRuntimeInitialized: () => false,
-    setVisibleOverlayVisible: (visible) => calls.push(`visible:${visible}`),
+    openSessionHelpModal: () => calls.push('help'),
     showFirstRunSetup: () => true,
     openFirstRunSetupWindow: () => calls.push('setup'),
     showWindowsMpvLauncherSetup: () => true,
@@ -36,7 +36,7 @@ test('tray main deps builders return mapped handlers', () => {
   })();
 
   const template = menuDeps.buildTrayMenuTemplateRuntime({
-    openOverlay: () => calls.push('open-overlay'),
+    openSessionHelp: () => calls.push('open-help'),
     openFirstRunSetup: () => calls.push('open-setup'),
     showFirstRunSetup: true,
     openWindowsMpvLauncherSetup: () => calls.push('open-windows-mpv'),

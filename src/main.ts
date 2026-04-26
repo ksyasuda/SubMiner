@@ -5139,7 +5139,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       buildTrayMenuTemplateRuntime,
       initializeOverlayRuntime: () => initializeOverlayRuntime(),
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-      setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+      openSessionHelpModal: () => openSessionHelpOverlay(),
       showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
       openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
