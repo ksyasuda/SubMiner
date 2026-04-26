@@ -353,6 +353,19 @@ test('shouldExcludeTokenFromSubtitleAnnotations excludes kana-only demonstrative
   assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
 });
 
+test('shouldExcludeTokenFromSubtitleAnnotations excludes kana-only non-independent noun helper merges', () => {
+  const token = makeToken({
+    surface: 'ことに',
+    headword: '事',
+    reading: 'コトニ',
+    partOfSpeech: PartOfSpeech.noun,
+    pos1: '名詞|助詞',
+    pos2: '非自立|格助詞',
+  });
+
+  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
+});
+
 test('stripSubtitleAnnotationMetadata keeps token hover data while clearing annotation fields', () => {
   const token = makeToken({
     surface: 'は',
@@ -803,6 +816,36 @@ test('annotateTokens applies one shared exclusion gate across known N+1 frequenc
     makeDeps({
       isKnownWord: (text) => text === 'これ',
       getJlptLevel: (text) => (text === 'これ' ? 'N5' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.jlptLevel, undefined);
+});
+
+test('annotateTokens clears all annotations for kana-only non-independent noun helper merges', () => {
+  const tokens = [
+    makeToken({
+      surface: 'ことに',
+      headword: '事',
+      reading: 'コトニ',
+      partOfSpeech: PartOfSpeech.noun,
+      pos1: '名詞|助詞',
+      pos2: '非自立|格助詞',
+      startPos: 0,
+      endPos: 3,
+      frequencyRank: 81,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === '事',
+      getJlptLevel: (text) => (text === '事' ? 'N4' : null),
     }),
     { minSentenceWordsForNPlusOne: 1 },
   );

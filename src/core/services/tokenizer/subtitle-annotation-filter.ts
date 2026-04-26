@@ -71,6 +71,7 @@ const SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES = new Set([
   'ってば',
 ]);
 const AUXILIARY_STEM_GRAMMAR_TAIL_POS1 = new Set(['名詞', '助動詞', '助詞']);
+const NON_INDEPENDENT_NOUN_HELPER_TAIL_POS1 = new Set(['助詞', '助動詞']);
 
 export interface SubtitleAnnotationFilterOptions {
   pos1Exclusions?: ReadonlySet<string>;
@@ -252,6 +253,31 @@ function isAuxiliaryStemGrammarTailToken(token: MergedToken): boolean {
   return pos3Parts.includes('助動詞語幹');
 }
 
+function isKanaOnlyNonIndependentNounHelperMerge(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  const normalizedHeadword = normalizeKana(token.headword);
+  if (
+    !normalizedSurface ||
+    !normalizedHeadword ||
+    normalizedSurface === normalizedHeadword ||
+    ![...normalizedSurface].every(isKanaChar)
+  ) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  if (pos1Parts.length < 2 || pos1Parts[0] !== '名詞') {
+    return false;
+  }
+
+  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  if (pos2Parts[0] !== '非自立') {
+    return false;
+  }
+
+  return pos1Parts.slice(1).every((part) => NON_INDEPENDENT_NOUN_HELPER_TAIL_POS1.has(part));
+}
+
 function isExcludedByTerm(token: MergedToken): boolean {
   const candidates = [token.surface, token.reading, token.headword].filter(
     (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
@@ -332,6 +358,10 @@ export function shouldExcludeTokenFromSubtitleAnnotations(
   }
 
   if (isAuxiliaryStemGrammarTailToken(token)) {
+    return true;
+  }
+
+  if (isKanaOnlyNonIndependentNounHelperMerge(token)) {
     return true;
   }
 
