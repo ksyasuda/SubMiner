@@ -534,6 +534,7 @@ import {
   resolveSubtitleSourcePath,
 } from './main/runtime/subtitle-prefetch-source';
 import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
+import { applyCharacterDictionarySelection } from './main/character-dictionary-selection';
 import { codecToExtension, getSubsyncConfig } from './subsync/utils';
 
 if (process.platform === 'linux') {
@@ -4861,12 +4862,16 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
       getCharacterDictionarySelection: () =>
         characterDictionaryRuntime.getManualSelectionSnapshot(),
-      setCharacterDictionarySelection: async (mediaId: number) => {
-        const result = await characterDictionaryRuntime.setManualSelection({ mediaId });
-        resetAnilistMediaGuessState();
-        await characterDictionaryAutoSyncRuntime.runSyncNow();
-        return result;
-      },
+      setCharacterDictionarySelection: async (mediaId: number) =>
+        applyCharacterDictionarySelection(
+          { mediaId },
+          {
+            setManualSelection: (request) => characterDictionaryRuntime.setManualSelection(request),
+            resetAnilistMediaGuessState,
+            runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
+            warn: (message, error) => logger.warn(message, error),
+          },
+        ),
       appendClipboardVideoToQueue: () => appendClipboardVideoToQueue(),
       ...playlistBrowserMainDeps,
       getImmersionTracker: () => appState.immersionTracker,
@@ -4951,12 +4956,14 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     },
     getCharacterDictionarySelection: async (targetPath?: string) =>
       characterDictionaryRuntime.getManualSelectionSnapshot(targetPath),
-    setCharacterDictionarySelection: async (request) => {
-      const result = await characterDictionaryRuntime.setManualSelection(request);
-      resetAnilistMediaGuessState();
-      await characterDictionaryAutoSyncRuntime.runSyncNow();
-      return result;
-    },
+    setCharacterDictionarySelection: async (request) =>
+      applyCharacterDictionarySelection(request, {
+        setManualSelection: (selectionRequest) =>
+          characterDictionaryRuntime.setManualSelection(selectionRequest),
+        resetAnilistMediaGuessState,
+        runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
+        warn: (message, error) => logger.warn(message, error),
+      }),
     runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
     runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
       runStatsCliCommand(argsFromCommand, source),
