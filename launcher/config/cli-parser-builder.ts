@@ -219,12 +219,17 @@ export function parseCliPrograms(
     .option('--select <id>', 'Pin an AniList media ID for the target series')
     .option('--log-level <level>', 'Log level')
     .action((target: string | undefined, options: Record<string, unknown>) => {
+      const selectValue = typeof options.select === 'string' ? options.select.trim() : '';
+      const hasSelect = selectValue.length > 0;
+      if (options.candidates === true && hasSelect) {
+        throw new Error('Dictionary --candidates and --select cannot be combined.');
+      }
       dictionaryTriggered = true;
       dictionaryTarget = target ?? null;
       dictionaryLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
       dictionaryCandidates = options.candidates === true;
-      dictionarySelect = typeof options.select === 'string';
-      dictionaryAnilistId = typeof options.select === 'string' ? options.select : null;
+      dictionarySelect = hasSelect;
+      dictionaryAnilistId = hasSelect ? selectValue : null;
     });
 
   commandProgram

@@ -110,6 +110,14 @@ test('parseArgs maps dictionary candidate lookup and manual selection', () => {
   assert.equal(selectParsed.dictionaryTarget, process.cwd());
 });
 
+test('parseArgs rejects conflicting dictionary candidate and selection modes', () => {
+  const exit = withProcessExitIntercept(() => {
+    parseArgs(['dictionary', '--candidates', '--select', '21355', '.'], 'subminer', {});
+  });
+
+  assert.equal(exit.code, 1);
+});
+
 test('parseArgs maps stats command and log-level override', () => {
   const parsed = parseArgs(['stats', '--log-level', 'debug'], 'subminer', {});
 

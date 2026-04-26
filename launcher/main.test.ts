@@ -477,7 +477,7 @@ test('dictionary command forwards manual AniList selection modes to app command 
     const capturePath = path.join(root, 'captured-args.txt');
     fs.writeFileSync(
       appPath,
-      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" >> "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
     );
     fs.chmodSync(appPath, 0o755);
 
