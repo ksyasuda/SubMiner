@@ -394,6 +394,9 @@ export function markNPlusOneTargets(
     return [];
   }
 
+  const normalizedSourceText =
+    typeof sourceText === 'string' ? sourceText.replace(/\r?\n/g, ' ').trim() : undefined;
+
   const markedTokens = tokens.map((token) => ({
     ...token,
     isNPlusOneTarget: false,
@@ -431,7 +434,7 @@ export function markNPlusOneTargets(
   for (let i = 0; i < markedTokens.length; i++) {
     const token = markedTokens[i];
     if (!token) continue;
-    if (hasSentenceBoundaryInSourceGap(sourceText, previousTokenEnd, token.startPos)) {
+    if (hasSentenceBoundaryInSourceGap(normalizedSourceText, previousTokenEnd, token.startPos)) {
       markSentence(sentenceStart, i);
       sentenceStart = i;
     }

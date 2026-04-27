@@ -353,8 +353,12 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
       return null;
     }
 
-    const output = execSync('hyprctl -j monitors', { encoding: 'utf-8' });
-    return parseHyprctlMonitors(output);
+    try {
+      const output = execSync('hyprctl -j monitors', { encoding: 'utf-8' });
+      return parseHyprctlMonitors(output);
+    } catch {
+      return null;
+    }
   }
 
   private getWindowCommandLine(pid: number): string | null {

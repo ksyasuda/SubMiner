@@ -1962,7 +1962,7 @@ function refreshLinuxVisibleOverlayAfterMpvFullscreenChange(): void {
   }
 
   mainWindow.hide();
-  mainWindow.show();
+  mainWindow.showInactive();
   ensureOverlayWindowLevel(mainWindow);
 }
 
