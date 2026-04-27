@@ -404,6 +404,7 @@ import {
   resolveBackgroundStatsServerUrl,
   writeBackgroundStatsServerState,
 } from './main/runtime/stats-daemon';
+import { createEnsureStatsServerUrlHandler } from './main/runtime/stats-server-routing';
 import { resolveLegacyVocabularyPosFromTokens } from './core/services/immersion-tracker/legacy-vocabulary-pos';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import {
@@ -3170,11 +3171,7 @@ registerProtocolUrlHandlersHandler();
 const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
 const statsPreloadPath = path.join(__dirname, 'preload-stats.js');
 
-const ensureStatsServerStarted = (): string => {
-  const liveDaemon = readLiveBackgroundStatsDaemonState();
-  if (liveDaemon && liveDaemon.pid !== process.pid) {
-    return resolveBackgroundStatsServerUrl(liveDaemon);
-  }
+const startLocalStatsServer = (): void => {
   const tracker = appState.immersionTracker;
   if (!tracker) {
     throw new Error('Immersion tracker failed to initialize.');
@@ -3224,8 +3221,19 @@ const ensureStatsServerStarted = (): string => {
     appState.statsServer = statsServer;
   }
   appState.statsServer = statsServer;
-  return `http://127.0.0.1:${getResolvedConfig().stats.serverPort}`;
 };
+
+const ensureStatsServerStarted = createEnsureStatsServerUrlHandler({
+  currentPid: process.pid,
+  readBackgroundState: () => readBackgroundStatsServerState(statsDaemonStatePath),
+  removeBackgroundState: () => {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+  },
+  isProcessAlive: (pid) => isBackgroundStatsServerProcessAlive(pid),
+  hasLocalStatsServer: () => statsServer !== null,
+  startLocalStatsServer,
+  getConfiguredPort: () => getResolvedConfig().stats.serverPort,
+});
 
 const ensureBackgroundStatsServerStarted = (): {
   url: string;

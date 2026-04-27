@@ -143,7 +143,17 @@ export function shouldHandleStatsDaemonCommandAtEntry(
   env: NodeJS.ProcessEnv,
 ): boolean {
   if (env.ELECTRON_RUN_AS_NODE === '1') return false;
-  return argv.includes('--stats-daemon-start') || argv.includes('--stats-daemon-stop');
+  return resolveStatsDaemonCommandAction(argv) !== null;
+}
+
+export function resolveStatsDaemonCommandAction(argv: string[]): 'start' | 'stop' | null {
+  if (argv.includes('--stats-daemon-stop') || argv.includes('--stats-stop')) {
+    return 'stop';
+  }
+  if (argv.includes('--stats-daemon-start') || argv.includes('--stats-background')) {
+    return 'start';
+  }
+  return null;
 }
 
 export function normalizeLaunchMpvTargets(argv: string[]): string[] {
