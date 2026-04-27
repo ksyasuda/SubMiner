@@ -3255,13 +3255,15 @@ const ensureBackgroundStatsServerStarted = (): {
   }
 
   const port = getResolvedConfig().stats.serverPort;
-  const url = ensureStatsServerStarted();
-  writeBackgroundStatsServerState(statsDaemonStatePath, {
-    pid: process.pid,
-    port,
-    startedAtMs: Date.now(),
-  });
-  return { url, runningInCurrentProcess: true };
+  const result = ensureStatsServerStarted();
+  if (result.source === 'local') {
+    writeBackgroundStatsServerState(statsDaemonStatePath, {
+      pid: process.pid,
+      port,
+      startedAtMs: Date.now(),
+    });
+  }
+  return { url: result.url, runningInCurrentProcess: result.source === 'local' };
 };
 
 const stopBackgroundStatsServer = async (): Promise<{ ok: boolean; stale: boolean }> => {
@@ -3360,7 +3362,7 @@ const immersionTrackerStartupMainDeps: Parameters<
       registerStatsOverlayToggle({
         staticDir: statsDistPath,
         preloadPath: statsPreloadPath,
-        getApiBaseUrl: () => ensureStatsServerStarted(),
+        getApiBaseUrl: () => ensureStatsServerStarted().url,
         getToggleKey: () => getResolvedConfig().stats.toggleKey,
         resolveBounds: () => getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {
@@ -3415,7 +3417,7 @@ const runStatsCliCommand = createRunStatsCliCommandHandler({
     await createMecabTokenizerAndCheck();
   },
   getImmersionTracker: () => appState.immersionTracker,
-  ensureStatsServerStarted: () => statsStartupRuntime.ensureStatsServerStarted(),
+  ensureStatsServerStarted: () => statsStartupRuntime.ensureStatsServerStarted().url,
   ensureBackgroundStatsServerStarted: () =>
     statsStartupRuntime.ensureBackgroundStatsServerStarted(),
   stopBackgroundStatsServer: () => statsStartupRuntime.stopBackgroundStatsServer(),
@@ -4627,7 +4629,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
       toggleStatsOverlayWindow({
         staticDir: statsDistPath,
         preloadPath: statsPreloadPath,
-        getApiBaseUrl: () => ensureStatsServerStarted(),
+        getApiBaseUrl: () => ensureStatsServerStarted().url,
         getToggleKey: () => getResolvedConfig().stats.toggleKey,
         resolveBounds: () => getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {

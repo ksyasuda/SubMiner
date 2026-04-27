@@ -42,7 +42,7 @@ test('stats server routing defers to a live background daemon from another proce
     processAlive: true,
   });
 
-  assert.equal(handler(), 'http://127.0.0.1:7979');
+  assert.deepEqual(handler(), { url: 'http://127.0.0.1:7979', source: 'foreign' });
   assert.deepEqual(calls, ['readBackgroundState', 'isProcessAlive']);
 });
 
@@ -52,7 +52,7 @@ test('stats server routing clears dead daemon state and starts local server', ()
     processAlive: false,
   });
 
-  assert.equal(handler(), 'http://127.0.0.1:6969');
+  assert.deepEqual(handler(), { url: 'http://127.0.0.1:6969', source: 'local' });
   assert.deepEqual(calls, [
     'readBackgroundState',
     'isProcessAlive',
@@ -67,7 +67,7 @@ test('stats server routing clears self-owned stale state and starts local server
     processAlive: true,
   });
 
-  assert.equal(handler(), 'http://127.0.0.1:6969');
+  assert.deepEqual(handler(), { url: 'http://127.0.0.1:6969', source: 'local' });
   assert.deepEqual(calls, [
     'readBackgroundState',
     'removeBackgroundState',
@@ -81,6 +81,6 @@ test('stats server routing reuses a started local stats server', () => {
     localServerStarted: true,
   });
 
-  assert.equal(handler(), 'http://127.0.0.1:6969');
+  assert.deepEqual(handler(), { url: 'http://127.0.0.1:6969', source: 'local' });
   assert.deepEqual(calls, ['readBackgroundState', 'removeBackgroundState']);
 });
