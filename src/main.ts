@@ -1918,6 +1918,7 @@ const WINDOWS_VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as cons
 const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] as const;
 const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
 const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
+const LINUX_MPV_FULLSCREEN_OVERLAY_REFRESH_DELAYS_MS = [0, 50, 150, 300, 600] as const;
 let windowsVisibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderSyncInFlight = false;
@@ -1925,6 +1926,7 @@ let windowsVisibleOverlayZOrderSyncQueued = false;
 let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
 let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
 let lastWindowsVisibleOverlayBlurredAtMs = 0;
+let linuxMpvFullscreenOverlayRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 
 function clearWindowsVisibleOverlayBlurRefreshTimeouts(): void {
   for (const timeout of windowsVisibleOverlayBlurRefreshTimeouts) {
@@ -1938,6 +1940,48 @@ function clearWindowsVisibleOverlayZOrderRetryTimeouts(): void {
     clearTimeout(timeout);
   }
   windowsVisibleOverlayZOrderRetryTimeouts = [];
+}
+
+function clearLinuxMpvFullscreenOverlayRefreshTimeouts(): void {
+  for (const timeout of linuxMpvFullscreenOverlayRefreshTimeouts) {
+    clearTimeout(timeout);
+  }
+  linuxMpvFullscreenOverlayRefreshTimeouts = [];
+}
+
+function refreshLinuxVisibleOverlayAfterMpvFullscreenChange(): void {
+  if (process.platform !== 'linux' || !overlayManager.getVisibleOverlayVisible()) {
+    return;
+  }
+
+  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+
+  const mainWindow = overlayManager.getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) {
+    return;
+  }
+
+  mainWindow.hide();
+  mainWindow.show();
+  ensureOverlayWindowLevel(mainWindow);
+}
+
+function scheduleLinuxVisibleOverlayFullscreenRefreshBurst(): void {
+  if (process.platform !== 'linux') {
+    return;
+  }
+
+  clearLinuxMpvFullscreenOverlayRefreshTimeouts();
+  for (const delayMs of LINUX_MPV_FULLSCREEN_OVERLAY_REFRESH_DELAYS_MS) {
+    const refreshTimeout = setTimeout(() => {
+      linuxMpvFullscreenOverlayRefreshTimeouts = linuxMpvFullscreenOverlayRefreshTimeouts.filter(
+        (timeout) => timeout !== refreshTimeout,
+      );
+      refreshLinuxVisibleOverlayAfterMpvFullscreenChange();
+    }, delayMs);
+    refreshTimeout.unref?.();
+    linuxMpvFullscreenOverlayRefreshTimeouts.push(refreshTimeout);
+  }
 }
 
 function getWindowsNativeWindowHandle(window: BrowserWindow): string {
@@ -3840,6 +3884,9 @@ const {
       }
       lastObservedTimePos = time;
     },
+    onFullscreenChange: () => {
+      scheduleLinuxVisibleOverlayFullscreenRefreshBurst();
+    },
     onSubtitleTrackChange: (sid) => {
       scheduleSubtitlePrefetchRefresh();
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackChange(sid);
@@ -4080,10 +4127,18 @@ const buildUpdateVisibleOverlayBoundsMainDepsHandler =
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
     setOverlayWindowBounds: (geometry) => applyOverlayRegions(geometry),
     afterSetOverlayWindowBounds: () => {
-      if (process.platform !== 'win32' || !overlayManager.getVisibleOverlayVisible()) {
+      if (!overlayManager.getVisibleOverlayVisible()) {
         return;
       }
-      scheduleWindowsVisibleOverlayZOrderSyncBurst();
+      if (process.platform === 'win32') {
+        scheduleWindowsVisibleOverlayZOrderSyncBurst();
+        return;
+      }
+      const mainWindow = overlayManager.getMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+      }
+      ensureOverlayWindowLevel(mainWindow);
     },
   });
 const updateVisibleOverlayBoundsMainDeps = buildUpdateVisibleOverlayBoundsMainDepsHandler();

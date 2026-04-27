@@ -57,6 +57,22 @@ test('MpvIpcClient handles sub-text property change and broadcasts tokenized sub
   assert.equal(events[0]!.isOverlayVisible, false);
 });
 
+test('MpvIpcClient emits fullscreen property changes', async () => {
+  const events: Array<{ fullscreen: boolean }> = [];
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  client.on('fullscreen-change', (payload) => {
+    events.push(payload);
+  });
+
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'fullscreen',
+    data: true,
+  });
+
+  assert.deepEqual(events, [{ fullscreen: true }]);
+});
+
 test('MpvIpcClient clears cached media title when media path changes', async () => {
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
 

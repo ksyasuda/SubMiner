@@ -60,6 +60,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   resetAnilistMediaGuessState: () => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   onTimePosUpdate?: (time: number) => void;
+  onFullscreenChange?: (fullscreen: boolean) => void;
   updateSubtitleRenderMetrics: (patch: Record<string, unknown>) => void;
   refreshDiscordPresence: () => void;
   ensureImmersionTrackerInitialized: () => void;
@@ -175,6 +176,9 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       deps.reportJellyfinRemoteProgress(forceImmediate),
     onTimePosUpdate: deps.onTimePosUpdate
       ? (time: number) => deps.onTimePosUpdate!(time)
+      : undefined,
+    onFullscreenChange: deps.onFullscreenChange
+      ? (fullscreen: boolean) => deps.onFullscreenChange!(fullscreen)
       : undefined,
     recordPauseState: (paused: boolean) => {
       deps.appState.playbackPaused = paused;

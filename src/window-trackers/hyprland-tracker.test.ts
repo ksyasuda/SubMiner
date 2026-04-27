@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  isHyprlandGeometryEvent,
   parseHyprctlClients,
+  resolveHyprlandWindowGeometry,
   selectHyprlandMpvWindow,
   type HyprlandClient,
+  type HyprlandMonitor,
 } from './hyprland-tracker';
 
 function makeClient(overrides: Partial<HyprlandClient> = {}): HyprlandClient {
@@ -15,6 +18,17 @@ function makeClient(overrides: Partial<HyprlandClient> = {}): HyprlandClient {
     size: [1280, 720],
     mapped: true,
     hidden: false,
+    ...overrides,
+  };
+}
+
+function makeMonitor(overrides: Partial<HyprlandMonitor> = {}): HyprlandMonitor {
+  return {
+    id: 0,
+    x: 0,
+    y: 0,
+    width: 1920,
+    height: 1080,
     ...overrides,
   };
 }
@@ -105,4 +119,33 @@ test('parseHyprctlClients tolerates non-json prefix output', () => {
       size: [3, 4],
     },
   ]);
+});
+
+test('isHyprlandGeometryEvent treats fullscreenv2 as a geometry-changing event', () => {
+  assert.equal(isHyprlandGeometryEvent('fullscreenv2'), true);
+  assert.equal(isHyprlandGeometryEvent('workspacev2'), true);
+  assert.equal(isHyprlandGeometryEvent('activewindowv2'), false);
+});
+
+test('resolveHyprlandWindowGeometry uses monitor bounds for fullscreen clients', () => {
+  const geometry = resolveHyprlandWindowGeometry(
+    makeClient({
+      at: [60, 80],
+      size: [1280, 720],
+      monitor: 1,
+      fullscreen: 2,
+      fullscreenClient: 2,
+    }),
+    [
+      makeMonitor({ id: 0, x: 0, y: 0, width: 1920, height: 1080 }),
+      makeMonitor({ id: 1, x: 1920, y: 0, width: 2560, height: 1440 }),
+    ],
+  );
+
+  assert.deepEqual(geometry, {
+    x: 1920,
+    y: 0,
+    width: 2560,
+    height: 1440,
+  });
 });

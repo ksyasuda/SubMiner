@@ -68,6 +68,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   recordMediaDuration: (durationSec: number) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   onTimePosUpdate?: (time: number) => void;
+  onFullscreenChange?: (fullscreen: boolean) => void;
   recordPauseState: (paused: boolean) => void;
 
   updateSubtitleRenderMetrics: (patch: Record<string, unknown>) => void;
@@ -177,6 +178,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       onTimePosChange: handleMpvTimePosChange,
       onDurationChange: ({ duration }) => deps.recordMediaDuration(duration),
       onPauseChange: handleMpvPauseChange,
+      onFullscreenChange: ({ fullscreen }) => deps.onFullscreenChange?.(fullscreen),
       onSubtitleMetricsChange: handleMpvSubtitleMetricsChange,
       onSecondarySubtitleVisibility: handleMpvSecondarySubtitleVisibility,
     })(mpvClient);

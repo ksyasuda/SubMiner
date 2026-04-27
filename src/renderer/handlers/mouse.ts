@@ -300,12 +300,15 @@ export function createMouseHandlers(
   }
 
   async function handleMouseEnter(
-    _event?: MouseEvent,
+    event?: MouseEvent,
     showSecondaryHover = false,
     source: 'direct' | 'tracked-pointer' = 'direct',
   ): Promise<void> {
     if (source === 'direct' && suppressDirectHoverEnterSource !== null) {
-      return;
+      if (!event || !syncHoverStateFromPoint(event.clientX, event.clientY).isOverSubtitle) {
+        return;
+      }
+      suppressDirectHoverEnterSource = null;
     }
 
     ctx.state.isOverSubtitle = true;

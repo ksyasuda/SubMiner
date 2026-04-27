@@ -57,6 +57,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     updateCurrentMediaTitle: (title) => calls.push(`title:${title}`),
     resetAnilistMediaGuessState: () => calls.push('reset-guess'),
     reportJellyfinRemoteProgress: (forceImmediate) => calls.push(`progress:${forceImmediate}`),
+    onFullscreenChange: (fullscreen) => calls.push(`fullscreen:${fullscreen}`),
     updateSubtitleRenderMetrics: () => calls.push('metrics'),
     refreshDiscordPresence: () => calls.push('presence-refresh'),
   })();
@@ -95,6 +96,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.notifyImmersionTitleUpdate('title');
   deps.recordPlaybackPosition(10);
   deps.reportJellyfinRemoteProgress(true);
+  deps.onFullscreenChange?.(true);
   deps.recordPauseState(true);
   deps.updateSubtitleRenderMetrics({});
   deps.setPreviousSecondarySubVisibility(true);
@@ -112,6 +114,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.ok(calls.includes('sync-immersion'));
   assert.ok(calls.includes('autoplay:/tmp/video'));
   assert.ok(calls.includes('metrics'));
+  assert.ok(calls.includes('fullscreen:true'));
   assert.ok(calls.includes('presence-refresh'));
   assert.ok(calls.includes('restore-mpv-sub'));
   assert.ok(calls.includes('reset-sidebar-layout'));

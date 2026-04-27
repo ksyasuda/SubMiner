@@ -93,6 +93,7 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
       emitTimePosChange: () => {},
       emitDurationChange: () => {},
       emitPauseChange: () => {},
+      emitFullscreenChange: (payload) => state.events.push(payload),
       autoLoadSecondarySubTrack: () => {},
       setCurrentVideoPath: () => {},
       emitSecondarySubtitleVisibility: (payload) => state.events.push(payload),
@@ -158,6 +159,17 @@ test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay sup
       command: ['set_property', 'sub-visibility', false],
     },
   ]);
+});
+
+test('dispatchMpvProtocolMessage emits fullscreen changes', async () => {
+  const { deps, state } = createDeps();
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'fullscreen', data: true },
+    deps,
+  );
+
+  assert.deepEqual(state.events, [{ fullscreen: true }]);
 });
 
 test('dispatchMpvProtocolMessage skips sub-visibility suppression when overlay is hidden', async () => {

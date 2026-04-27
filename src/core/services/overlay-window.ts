@@ -67,6 +67,8 @@ export function ensureOverlayWindowLevel(window: BrowserWindow): void {
     return;
   }
   window.setAlwaysOnTop(true);
+  window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  window.moveTop();
 }
 
 export function enforceOverlayLayerOrder(options: {

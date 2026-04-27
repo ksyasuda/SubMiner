@@ -1315,6 +1315,74 @@ test('window resize ignores synthetic subtitle enter until the pointer moves aga
   }
 });
 
+test('window resize allows primary hover pause from a real mouseenter over subtitles', async () => {
+  const ctx = createMouseTestContext();
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const mpvCommands: Array<(string | number)[]> = [];
+  const windowListeners = new Map<string, Array<() => void>>();
+  ctx.platform.shouldToggleMouseIgnore = true;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        setIgnoreMouseEvents: () => {},
+      },
+      addEventListener: (type: string, listener: () => void) => {
+        const bucket = windowListeners.get(type) ?? [];
+        bucket.push(listener);
+        windowListeners.set(type, bucket);
+      },
+      getComputedStyle: () => ({
+        visibility: 'hidden',
+        display: 'none',
+        opacity: '0',
+      }),
+      focus: () => {},
+      innerHeight: 1000,
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      addEventListener: () => {},
+      elementFromPoint: () => ctx.dom.subtitleContainer,
+      querySelectorAll: () => [],
+      body: {},
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => false,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => true,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: (command) => {
+        mpvCommands.push(command);
+      },
+    });
+
+    handlers.setupResizeHandler();
+    for (const listener of windowListeners.get('resize') ?? []) {
+      listener();
+    }
+
+    await handlers.handlePrimaryMouseEnter({ clientX: 120, clientY: 240 } as MouseEvent);
+    assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
+  }
+});
+
 test('visibility recovery keeps overlay click-through when pointer is not over subtitles', () => {
   const ctx = createMouseTestContext();
   const originalWindow = globalThis.window;

@@ -324,6 +324,10 @@ Add a `pass` rule for each global shortcut you configure. The defaults are `Alt+
 
 Without these rules, Hyprland intercepts the keypresses before they reach SubMiner, and the shortcuts silently do nothing.
 
+**Overlay stays behind mpv after fullscreen**
+
+SubMiner watches mpv's `fullscreen` property and refreshes the overlay geometry when it changes. If the overlay still does not move or rise above fullscreen mpv, confirm that the mpv IPC socket is connected and that `hyprctl -j clients` and `hyprctl -j monitors` work from the same environment that launched SubMiner.
+
 For more details, see the Hyprland docs on [global keybinds](https://wiki.hypr.land/Configuring/Binds/#global-keybinds) and [window rules](https://wiki.hypr.land/Configuring/Window-Rules/).
 
 ### macOS

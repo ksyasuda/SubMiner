@@ -65,6 +65,7 @@ export interface MpvProtocolHandleMessageDeps {
   emitTimePosChange: (payload: { time: number }) => void;
   emitDurationChange: (payload: { duration: number }) => void;
   emitPauseChange: (payload: { paused: boolean }) => void;
+  emitFullscreenChange: (payload: { fullscreen: boolean }) => void;
   emitSubtitleMetricsChange: (payload: Partial<MpvSubtitleRenderMetrics>) => void;
   setCurrentSecondarySubText: (text: string) => void;
   resolvePendingRequest: (requestId: number, message: MpvMessage) => boolean;
@@ -291,6 +292,8 @@ export async function dispatchMpvProtocolMessage(
       }
     } else if (msg.name === 'pause') {
       deps.emitPauseChange({ paused: asBoolean(msg.data, false) });
+    } else if (msg.name === 'fullscreen') {
+      deps.emitFullscreenChange({ fullscreen: asBoolean(msg.data, false) });
     } else if (msg.name === 'media-title') {
       deps.emitMediaTitleChange({
         title: typeof msg.data === 'string' ? msg.data.trim() : null,
