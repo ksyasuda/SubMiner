@@ -652,13 +652,13 @@ test('annotateTokens keeps other annotations for name matches when name highligh
   let jlptLookupCalls = 0;
   const tokens = [
     makeToken({
-      surface: 'オリヴィア',
-      reading: 'オリヴィア',
-      headword: 'オリヴィア',
+      surface: '山田',
+      reading: 'ヤマダ',
+      headword: '山田',
       isNameMatch: true,
       frequencyRank: 42,
       startPos: 0,
-      endPos: 5,
+      endPos: 2,
     }),
   ];
 
@@ -852,7 +852,7 @@ test('annotateTokens allows previously default-excluded pos1 when removed from e
   });
 
   assert.equal(result[0]?.frequencyRank, 8);
-  assert.equal(result[0]?.isNPlusOneTarget, true);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
 });
 
 test('annotateTokens excludes default non-independent pos2 from frequency and N+1', () => {
@@ -869,13 +869,9 @@ test('annotateTokens excludes default non-independent pos2 from frequency and N+
     }),
   ];
 
-  const result = annotateTokens(
-    tokens,
-    makeDeps(),
-    {
-      minSentenceWordsForNPlusOne: 1,
-    },
-  );
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
 
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.isNPlusOneTarget, false);
@@ -1051,10 +1047,10 @@ test('annotateTokens allows previously default-excluded pos2 when removed from e
   });
 
   assert.equal(result[0]?.frequencyRank, 9);
-  assert.equal(result[0]?.isNPlusOneTarget, true);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
 });
 
-test('annotateTokens excludes composite function/content tokens from frequency but keeps N+1 eligible', () => {
+test('annotateTokens excludes kana-only composite function/content tokens from frequency and N+1', () => {
   const tokens = [
     makeToken({
       surface: 'になれば',
@@ -1072,7 +1068,7 @@ test('annotateTokens excludes composite function/content tokens from frequency b
   });
 
   assert.equal(result[0]?.frequencyRank, undefined);
-  assert.equal(result[0]?.isNPlusOneTarget, true);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
 });
 
 test('annotateTokens excludes composite tokens when all component pos tags are excluded', () => {

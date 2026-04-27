@@ -2306,6 +2306,29 @@ test('tokenizeSubtitle selects one N+1 target token', async () => {
   assert.equal(targets[0]?.surface, '犬');
 });
 
+test('tokenizeSubtitle does not select kana-only N+1 target tokens', async () => {
+  const result = await tokenizeSubtitle(
+    '私のばあい',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: '私', reading: 'わたし', headword: '私' },
+        { surface: 'の', reading: 'の', headword: 'の' },
+        { surface: 'ばあい', reading: 'ばあい', headword: '場合' },
+      ],
+      {
+        getMinSentenceWordsForNPlusOne: () => 2,
+        isKnownWord: (text) => text === '私',
+      },
+    ),
+  );
+
+  assert.equal(result.tokens?.length, 3);
+  assert.equal(
+    result.tokens?.some((token) => token.isNPlusOneTarget),
+    false,
+  );
+});
+
 test('tokenizeSubtitle does not mark target when sentence has multiple candidates', async () => {
   const result = await tokenizeSubtitle(
     '猫犬',
@@ -3040,15 +3063,18 @@ test('tokenizeSubtitle uses Yomitan word classes to classify standalone particle
   let mecabCalls = 0;
   const result = await tokenizeSubtitle(
     'は',
-    makeDepsFromYomitanTokens([{ surface: 'は', reading: 'は', headword: 'は', wordClasses: ['prt'] }], {
-      getFrequencyDictionaryEnabled: () => true,
-      getFrequencyRank: (text) => (text === 'は' ? 10 : null),
-      getJlptLevel: (text) => (text === 'は' ? 'N5' : null),
-      tokenizeWithMecab: async () => {
-        mecabCalls += 1;
-        return null;
+    makeDepsFromYomitanTokens(
+      [{ surface: 'は', reading: 'は', headword: 'は', wordClasses: ['prt'] }],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) => (text === 'は' ? 10 : null),
+        getJlptLevel: (text) => (text === 'は' ? 'N5' : null),
+        tokenizeWithMecab: async () => {
+          mecabCalls += 1;
+          return null;
+        },
       },
-    }),
+    ),
   );
 
   assert.equal(mecabCalls, 1);
@@ -3063,24 +3089,27 @@ test('tokenizeSubtitle uses Yomitan word classes to classify standalone particle
 test('tokenizeSubtitle fills detailed MeCab POS when Yomitan word class supplies coarse POS', async () => {
   const result = await tokenizeSubtitle(
     'は',
-    makeDepsFromYomitanTokens([{ surface: 'は', reading: 'は', headword: 'は', wordClasses: ['prt'] }], {
-      tokenizeWithMecab: async () => [
-        {
-          headword: 'は',
-          surface: 'は',
-          reading: 'ハ',
-          startPos: 0,
-          endPos: 1,
-          partOfSpeech: PartOfSpeech.particle,
-          pos1: '助詞',
-          pos2: '係助詞',
-          pos3: '*',
-          isMerged: false,
-          isKnown: false,
-          isNPlusOneTarget: false,
-        },
-      ],
-    }),
+    makeDepsFromYomitanTokens(
+      [{ surface: 'は', reading: 'は', headword: 'は', wordClasses: ['prt'] }],
+      {
+        tokenizeWithMecab: async () => [
+          {
+            headword: 'は',
+            surface: 'は',
+            reading: 'ハ',
+            startPos: 0,
+            endPos: 1,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '係助詞',
+            pos3: '*',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+      },
+    ),
   );
 
   assert.equal(result.tokens?.[0]?.partOfSpeech, PartOfSpeech.particle);
@@ -3682,7 +3711,7 @@ test('tokenizeSubtitle excludes single-kana merged tokens from frequency highlig
   assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
 });
 
-test('tokenizeSubtitle excludes merged function/content token from frequency highlighting but keeps N+1', async () => {
+test('tokenizeSubtitle excludes merged kana-only function/content token from frequency and N+1', async () => {
   const result = await tokenizeSubtitle(
     'になれば',
     makeDepsFromYomitanTokens([{ surface: 'になれば', reading: 'になれば', headword: 'なる' }], {
@@ -3736,7 +3765,7 @@ test('tokenizeSubtitle excludes merged function/content token from frequency hig
   assert.equal(result.tokens?.length, 1);
   assert.equal(result.tokens?.[0]?.pos1, '助詞|動詞');
   assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
-  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, true);
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
 });
 
 test('tokenizeSubtitle clears all annotations for kana-only demonstrative helper merges', async () => {
@@ -3935,7 +3964,7 @@ test('tokenizeSubtitle clears all annotations for explanatory pondering endings'
         surface: 'どうかしちゃった',
         headword: 'どうかしちゃう',
         isKnown: false,
-        isNPlusOneTarget: true,
+        isNPlusOneTarget: false,
         frequencyRank: 3200,
         jlptLevel: 'N3',
       },

@@ -282,12 +282,35 @@ function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<strin
   return parts.every((part) => exclusions.has(part));
 }
 
+function isKanaChar(char: string): boolean {
+  const code = char.codePointAt(0);
+  if (code === undefined) {
+    return false;
+  }
+
+  return (
+    (code >= 0x3041 && code <= 0x3096) ||
+    (code >= 0x309b && code <= 0x309f) ||
+    code === 0x30fc ||
+    (code >= 0x30a0 && code <= 0x30fa) ||
+    (code >= 0x30fd && code <= 0x30ff)
+  );
+}
+
+function isKanaOnlyText(text: string): boolean {
+  const normalized = text.trim();
+  return normalized.length > 0 && Array.from(normalized).every((char) => isKanaChar(char));
+}
+
 export function isNPlusOneCandidateToken(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS1,
   pos2Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS2,
 ): boolean {
   if (token.isKnown) {
+    return false;
+  }
+  if (isKanaOnlyText(token.surface)) {
     return false;
   }
   return isNPlusOneWordCountToken(token, pos1Exclusions, pos2Exclusions);
