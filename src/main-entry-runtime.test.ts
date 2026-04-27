@@ -5,6 +5,7 @@ import {
   normalizeLaunchMpvExtraArgs,
   normalizeStartupArgv,
   normalizeLaunchMpvTargets,
+  resolveStatsDaemonCommandAction,
   sanitizeHelpEnv,
   sanitizeLaunchMpvEnv,
   sanitizeStartupEnv,
@@ -162,6 +163,51 @@ test('stats-daemon entry helper detects internal daemon commands', () => {
     false,
   );
   assert.equal(shouldHandleStatsDaemonCommandAtEntry(['SubMiner.AppImage', '--start'], {}), false);
+});
+
+test('stats-daemon entry helper detects public background stats commands', () => {
+  assert.equal(
+    shouldHandleStatsDaemonCommandAtEntry(
+      ['SubMiner.AppImage', '--stats', '--stats-background'],
+      {},
+    ),
+    true,
+  );
+  assert.equal(
+    shouldHandleStatsDaemonCommandAtEntry(['SubMiner.AppImage', '--stats', '--stats-stop'], {}),
+    true,
+  );
+  assert.equal(
+    shouldHandleStatsDaemonCommandAtEntry(['SubMiner.AppImage', '--stats-background'], {}),
+    true,
+  );
+  assert.equal(
+    shouldHandleStatsDaemonCommandAtEntry(['SubMiner.AppImage', '--stats-background'], {
+      ELECTRON_RUN_AS_NODE: '1',
+    }),
+    false,
+  );
+  assert.equal(shouldHandleStatsDaemonCommandAtEntry(['SubMiner.AppImage', '--stats'], {}), false);
+});
+
+test('stats-daemon entry helper resolves daemon action for public and internal commands', () => {
+  assert.equal(
+    resolveStatsDaemonCommandAction(['SubMiner.AppImage', '--stats-daemon-start']),
+    'start',
+  );
+  assert.equal(
+    resolveStatsDaemonCommandAction(['SubMiner.AppImage', '--stats-daemon-stop']),
+    'stop',
+  );
+  assert.equal(
+    resolveStatsDaemonCommandAction(['SubMiner.AppImage', '--stats', '--stats-background']),
+    'start',
+  );
+  assert.equal(
+    resolveStatsDaemonCommandAction(['SubMiner.AppImage', '--stats', '--stats-stop']),
+    'stop',
+  );
+  assert.equal(resolveStatsDaemonCommandAction(['SubMiner.AppImage', '--stats']), null);
 });
 
 test('sanitizeStartupEnv suppresses warnings and lsfg layer', () => {

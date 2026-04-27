@@ -404,6 +404,7 @@ import {
   resolveBackgroundStatsServerUrl,
   writeBackgroundStatsServerState,
 } from './main/runtime/stats-daemon';
+import { createEnsureStatsServerUrlHandler } from './main/runtime/stats-server-routing';
 import { resolveLegacyVocabularyPosFromTokens } from './core/services/immersion-tracker/legacy-vocabulary-pos';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import {
@@ -3170,11 +3171,7 @@ registerProtocolUrlHandlersHandler();
 const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
 const statsPreloadPath = path.join(__dirname, 'preload-stats.js');
 
-const ensureStatsServerStarted = (): string => {
-  const liveDaemon = readLiveBackgroundStatsDaemonState();
-  if (liveDaemon && liveDaemon.pid !== process.pid) {
-    return resolveBackgroundStatsServerUrl(liveDaemon);
-  }
+const startLocalStatsServer = (): void => {
   const tracker = appState.immersionTracker;
   if (!tracker) {
     throw new Error('Immersion tracker failed to initialize.');
@@ -3224,8 +3221,19 @@ const ensureStatsServerStarted = (): string => {
     appState.statsServer = statsServer;
   }
   appState.statsServer = statsServer;
-  return `http://127.0.0.1:${getResolvedConfig().stats.serverPort}`;
 };
+
+const ensureStatsServerStarted = createEnsureStatsServerUrlHandler({
+  currentPid: process.pid,
+  readBackgroundState: () => readBackgroundStatsServerState(statsDaemonStatePath),
+  removeBackgroundState: () => {
+    removeBackgroundStatsServerState(statsDaemonStatePath);
+  },
+  isProcessAlive: (pid) => isBackgroundStatsServerProcessAlive(pid),
+  hasLocalStatsServer: () => statsServer !== null,
+  startLocalStatsServer,
+  getConfiguredPort: () => getResolvedConfig().stats.serverPort,
+});
 
 const ensureBackgroundStatsServerStarted = (): {
   url: string;
@@ -3247,13 +3255,15 @@ const ensureBackgroundStatsServerStarted = (): {
   }
 
   const port = getResolvedConfig().stats.serverPort;
-  const url = ensureStatsServerStarted();
-  writeBackgroundStatsServerState(statsDaemonStatePath, {
-    pid: process.pid,
-    port,
-    startedAtMs: Date.now(),
-  });
-  return { url, runningInCurrentProcess: true };
+  const result = ensureStatsServerStarted();
+  if (result.source === 'local') {
+    writeBackgroundStatsServerState(statsDaemonStatePath, {
+      pid: process.pid,
+      port,
+      startedAtMs: Date.now(),
+    });
+  }
+  return { url: result.url, runningInCurrentProcess: result.source === 'local' };
 };
 
 const stopBackgroundStatsServer = async (): Promise<{ ok: boolean; stale: boolean }> => {
@@ -3352,7 +3362,7 @@ const immersionTrackerStartupMainDeps: Parameters<
       registerStatsOverlayToggle({
         staticDir: statsDistPath,
         preloadPath: statsPreloadPath,
-        getApiBaseUrl: () => ensureStatsServerStarted(),
+        getApiBaseUrl: () => ensureStatsServerStarted().url,
         getToggleKey: () => getResolvedConfig().stats.toggleKey,
         resolveBounds: () => getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {
@@ -3407,7 +3417,7 @@ const runStatsCliCommand = createRunStatsCliCommandHandler({
     await createMecabTokenizerAndCheck();
   },
   getImmersionTracker: () => appState.immersionTracker,
-  ensureStatsServerStarted: () => statsStartupRuntime.ensureStatsServerStarted(),
+  ensureStatsServerStarted: () => statsStartupRuntime.ensureStatsServerStarted().url,
   ensureBackgroundStatsServerStarted: () =>
     statsStartupRuntime.ensureBackgroundStatsServerStarted(),
   stopBackgroundStatsServer: () => statsStartupRuntime.stopBackgroundStatsServer(),
@@ -4619,7 +4629,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
       toggleStatsOverlayWindow({
         staticDir: statsDistPath,
         preloadPath: statsPreloadPath,
-        getApiBaseUrl: () => ensureStatsServerStarted(),
+        getApiBaseUrl: () => ensureStatsServerStarted().url,
         getToggleKey: () => getResolvedConfig().stats.toggleKey,
         resolveBounds: () => getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {

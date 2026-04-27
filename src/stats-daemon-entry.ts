@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { shell } from 'electron';
-import { sanitizeStartupEnv } from './main-entry-runtime';
+import { resolveStatsDaemonCommandAction, sanitizeStartupEnv } from './main-entry-runtime';
 import {
   isBackgroundStatsServerProcessAlive,
   readBackgroundStatsServerState,
@@ -44,7 +44,7 @@ function hasFlag(argv: string[], flag: string): boolean {
 
 function parseControlArgs(argv: string[], userDataPath: string): StatsDaemonControlArgs {
   return {
-    action: hasFlag(argv, '--stats-daemon-stop') ? 'stop' : 'start',
+    action: resolveStatsDaemonCommandAction(argv) ?? 'start',
     responsePath: readFlagValue(argv, '--stats-response-path'),
     openBrowser: hasFlag(argv, '--stats-daemon-open-browser'),
     daemonScriptPath: path.join(__dirname, 'stats-daemon-runner.js'),
