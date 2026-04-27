@@ -871,10 +871,7 @@ test('annotateTokens excludes default non-independent pos2 from frequency and N+
 
   const result = annotateTokens(
     tokens,
-    makeDeps({
-      isKnownWord: (text) => text === 'た' || text === '負',
-      getJlptLevel: (text) => (text === 'た' || text === '負' ? 'N3' : null),
-    }),
+    makeDeps(),
     {
       minSentenceWordsForNPlusOne: 1,
     },

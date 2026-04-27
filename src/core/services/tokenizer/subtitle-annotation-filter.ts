@@ -13,6 +13,11 @@ const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
 
+const STANDALONE_GRAMMAR_PARTICLE_PHRASES = ['たって', 'だって'] as const;
+const STANDALONE_GRAMMAR_PARTICLE_PHRASES_SET: ReadonlySet<string> = new Set(
+  STANDALONE_GRAMMAR_PARTICLE_PHRASES,
+);
+
 export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   'あ',
   'ああ',
@@ -29,8 +34,6 @@ export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   'じゃない',
   'そうだ',
   'たち',
-  'たって',
-  'だって',
   'である',
   'どこか',
   'なんか',
@@ -52,6 +55,7 @@ export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   '貴方',
   'もんか',
   'ものか',
+  ...STANDALONE_GRAMMAR_PARTICLE_PHRASES,
 ]);
 const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES = ['ん', 'の', 'なん', 'なの'];
 const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES = [
@@ -119,8 +123,6 @@ const STANDALONE_GRAMMAR_PARTICLE_SURFACES = new Set([
   'よ',
   'を',
 ]);
-const STANDALONE_GRAMMAR_PARTICLE_PHRASES = new Set(['たって', 'だって']);
-
 export interface SubtitleAnnotationFilterOptions {
   pos1Exclusions?: ReadonlySet<string>;
   pos2Exclusions?: ReadonlySet<string>;
@@ -348,7 +350,7 @@ function isStandaloneGrammarParticle(token: MergedToken): boolean {
   return (
     normalizedSurface === normalizedHeadword &&
     (STANDALONE_GRAMMAR_PARTICLE_SURFACES.has(normalizedSurface) ||
-      STANDALONE_GRAMMAR_PARTICLE_PHRASES.has(normalizedSurface))
+      STANDALONE_GRAMMAR_PARTICLE_PHRASES_SET.has(normalizedSurface))
   );
 }
 

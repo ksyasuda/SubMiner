@@ -160,7 +160,7 @@ async function applyAnnotationStage(
   options: TokenizerAnnotationOptions,
 ): Promise<MergedToken[]> {
   if (!hasAnyAnnotationEnabled(options)) {
-    return tokens;
+    return stripSubtitleAnnotationMetadata(tokens);
   }
 
   if (!annotationStageModulePromise) {
