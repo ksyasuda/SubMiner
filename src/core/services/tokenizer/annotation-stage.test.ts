@@ -709,6 +709,63 @@ test('annotateTokens N+1 handoff marks expected target when threshold is satisfi
   assert.equal(result[2]?.isNPlusOneTarget, false);
 });
 
+test('annotateTokens does not mark kana-only unknown target with subtitle punctuation as N+1', () => {
+  const tokens = [
+    makeToken({
+      surface: '何やら',
+      headword: '何やら',
+      reading: 'ナニヤラ',
+      pos1: '副詞',
+      startPos: 0,
+      endPos: 3,
+    }),
+    makeToken({
+      surface: 'ボタン',
+      headword: 'ボタン',
+      reading: 'ボタン',
+      pos1: '名詞',
+      startPos: 3,
+      endPos: 6,
+    }),
+    makeToken({
+      surface: 'スイッチ…',
+      headword: 'スイッチ',
+      reading: 'スイッチ',
+      pos1: '名詞',
+      startPos: 6,
+      endPos: 11,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === '何やら' || text === 'ボタン',
+    }),
+    { minSentenceWordsForNPlusOne: 3 },
+  );
+
+  assert.equal(result[2]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens still marks kanji unknown target in otherwise eligible sentence as N+1', () => {
+  const tokens = [
+    makeToken({ surface: '私', headword: '私', pos1: '名詞', startPos: 0, endPos: 1 }),
+    makeToken({ surface: '猫', headword: '猫', pos1: '名詞', startPos: 1, endPos: 2 }),
+    makeToken({ surface: '装置…', headword: '装置', pos1: '名詞', startPos: 2, endPos: 5 }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === '私' || text === '猫',
+    }),
+    { minSentenceWordsForNPlusOne: 3 },
+  );
+
+  assert.equal(result[2]?.isNPlusOneTarget, true);
+});
+
 test('annotateTokens N+1 minimum sentence words counts only eligible word tokens', () => {
   const tokens = [
     makeToken({ surface: '猫', headword: '猫', startPos: 0, endPos: 1 }),
@@ -742,6 +799,32 @@ test('annotateTokens N+1 minimum sentence words counts only eligible word tokens
   assert.equal(result[1]?.isKnown, false);
   assert.equal(result[2]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens N+1 minimum sentence words excludes unknown tokens filtered from N+1 targeting', () => {
+  const tokens = [
+    makeToken({ surface: '私', headword: '私', pos1: '名詞', startPos: 0, endPos: 1 }),
+    makeToken({ surface: '猫', headword: '猫', pos1: '名詞', startPos: 1, endPos: 2 }),
+    makeToken({
+      surface: 'スイッチ',
+      headword: 'スイッチ',
+      reading: 'スイッチ',
+      pos1: '名詞',
+      startPos: 2,
+      endPos: 6,
+    }),
+    makeToken({ surface: '装置', headword: '装置', pos1: '名詞', startPos: 6, endPos: 8 }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === '私' || text === '猫',
+    }),
+    { minSentenceWordsForNPlusOne: 4 },
+  );
+
+  assert.equal(result[3]?.isNPlusOneTarget, false);
 });
 
 test('annotateTokens N+1 sentence word count respects source punctuation gaps omitted by Yomitan', () => {

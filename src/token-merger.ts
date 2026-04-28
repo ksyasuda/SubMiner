@@ -298,9 +298,28 @@ function isKanaChar(char: string): boolean {
   );
 }
 
+function isKanaCandidateIgnorableChar(char: string): boolean {
+  return /^[\s.,!?;:()[\]{}"'`、。！？…‥・「」『』（）［］｛｝〈〉《》【】―-]$/u.test(char);
+}
+
 function isKanaOnlyText(text: string): boolean {
   const normalized = text.trim();
-  return normalized.length > 0 && Array.from(normalized).every((char) => isKanaChar(char));
+  if (normalized.length === 0) {
+    return false;
+  }
+
+  let hasKana = false;
+  for (const char of normalized) {
+    if (isKanaChar(char)) {
+      hasKana = true;
+      continue;
+    }
+    if (!isKanaCandidateIgnorableChar(char)) {
+      return false;
+    }
+  }
+
+  return hasKana;
 }
 
 function normalizeSourceTextForTokenOffsets(sourceText: string | undefined): string | undefined {
@@ -367,6 +386,18 @@ function isNPlusOneWordCountToken(
   return true;
 }
 
+function isNPlusOneSentenceLengthToken(
+  token: MergedToken,
+  pos1Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS1,
+  pos2Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS2,
+): boolean {
+  if (!isNPlusOneWordCountToken(token, pos1Exclusions, pos2Exclusions)) {
+    return false;
+  }
+
+  return token.isKnown || isNPlusOneCandidateToken(token, pos1Exclusions, pos2Exclusions);
+}
+
 function isSentenceBoundaryToken(token: MergedToken): boolean {
   if (token.partOfSpeech !== PartOfSpeech.symbol) {
     return false;
@@ -418,7 +449,7 @@ export function markNPlusOneTargets(
     for (let i = start; i < endExclusive; i++) {
       const token = markedTokens[i];
       if (!token) continue;
-      if (isNPlusOneWordCountToken(token, pos1Exclusions, pos2Exclusions)) {
+      if (isNPlusOneSentenceLengthToken(token, pos1Exclusions, pos2Exclusions)) {
         sentenceWordCount += 1;
       }
 
