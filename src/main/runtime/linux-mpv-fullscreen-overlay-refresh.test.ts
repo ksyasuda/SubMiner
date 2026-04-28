@@ -32,7 +32,10 @@ test('linux mpv fullscreen overlay refresh burst schedules overlay refresh work 
       ensureOverlayWindowLevel: () => calls.push('ensureOverlayWindowLevel'),
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    const deadline = Date.now() + 200;
+    while (!calls.includes('updateVisibleOverlayVisibility') && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
 
     assert.ok(calls.includes('updateVisibleOverlayVisibility'));
     assert.ok(calls.includes('hide'));

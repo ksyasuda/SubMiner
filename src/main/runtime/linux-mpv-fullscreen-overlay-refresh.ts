@@ -15,6 +15,7 @@ export type LinuxMpvFullscreenOverlayRefreshDeps = {
   };
   ensureOverlayWindowLevel: (window: LinuxMpvFullscreenOverlayWindow) => void;
 };
+export type CancelLinuxMpvFullscreenOverlayRefreshBurst = () => void;
 
 const LINUX_MPV_FULLSCREEN_OVERLAY_REFRESH_DELAYS_MS = [0, 50, 150, 300, 600] as const;
 let linuxMpvFullscreenOverlayRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
@@ -47,9 +48,9 @@ function refreshLinuxVisibleOverlayAfterMpvFullscreenChange(
 
 export function scheduleLinuxVisibleOverlayFullscreenRefreshBurst(
   deps: LinuxMpvFullscreenOverlayRefreshDeps,
-): void {
+): CancelLinuxMpvFullscreenOverlayRefreshBurst {
   if (process.platform !== 'linux') {
-    return;
+    return () => {};
   }
 
   clearLinuxMpvFullscreenOverlayRefreshTimeouts();
@@ -63,6 +64,7 @@ export function scheduleLinuxVisibleOverlayFullscreenRefreshBurst(
     refreshTimeout.unref?.();
     linuxMpvFullscreenOverlayRefreshTimeouts.push(refreshTimeout);
   }
+  return clearLinuxMpvFullscreenOverlayRefreshTimeouts;
 }
 
 export { clearLinuxMpvFullscreenOverlayRefreshTimeouts };

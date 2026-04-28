@@ -34,6 +34,7 @@ import { applyControllerConfigUpdate } from './main/controller-config-update.js'
 import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import {
+  type CancelLinuxMpvFullscreenOverlayRefreshBurst,
   clearLinuxMpvFullscreenOverlayRefreshTimeouts,
   scheduleLinuxVisibleOverlayFullscreenRefreshBurst,
 } from './main/runtime/linux-mpv-fullscreen-overlay-refresh';
@@ -1406,6 +1407,9 @@ const subtitleProcessingController = createSubtitleProcessingController(
 let subtitlePrefetchService: SubtitlePrefetchService | null = null;
 let subtitlePrefetchRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let lastObservedTimePos = 0;
+let cancelLinuxMpvFullscreenOverlayRefreshBurst:
+  | CancelLinuxMpvFullscreenOverlayRefreshBurst
+  | null = null;
 const SEEK_THRESHOLD_SECONDS = 3;
 
 function clearScheduledSubtitlePrefetchRefresh(): void {
@@ -1413,6 +1417,11 @@ function clearScheduledSubtitlePrefetchRefresh(): void {
     clearTimeout(subtitlePrefetchRefreshTimer);
     subtitlePrefetchRefreshTimer = null;
   }
+}
+
+function cancelPendingLinuxMpvFullscreenOverlayRefreshBurst(): void {
+  cancelLinuxMpvFullscreenOverlayRefreshBurst?.();
+  cancelLinuxMpvFullscreenOverlayRefreshBurst = null;
 }
 
 const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
@@ -3140,8 +3149,10 @@ const {
     stopTexthookerService: () => texthookerService.stop(),
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       clearWindowsVisibleOverlayForegroundPollLoop(),
-    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () =>
-      clearLinuxMpvFullscreenOverlayRefreshTimeouts(),
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {
+      cancelLinuxMpvFullscreenOverlayRefreshBurst = null;
+      clearLinuxMpvFullscreenOverlayRefreshTimeouts();
+    },
     getMainOverlayWindow: () => overlayManager.getMainWindow(),
     clearMainOverlayWindow: () => overlayManager.setMainWindow(null),
     getModalOverlayWindow: () => overlayManager.getModalWindow(),
@@ -3847,14 +3858,15 @@ const {
       lastObservedTimePos = time;
     },
     onFullscreenChange: () => {
-      scheduleLinuxVisibleOverlayFullscreenRefreshBurst({
-        overlayManager: {
-          getMainWindow: () => overlayManager.getMainWindow(),
-          getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-        },
-        overlayVisibilityRuntime,
-        ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-      });
+      cancelLinuxMpvFullscreenOverlayRefreshBurst =
+        scheduleLinuxVisibleOverlayFullscreenRefreshBurst({
+          overlayManager: {
+            getMainWindow: () => overlayManager.getMainWindow(),
+            getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+          },
+          overlayVisibilityRuntime,
+          ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+        });
     },
     onSubtitleTrackChange: (sid) => {
       scheduleSubtitlePrefetchRefresh();
@@ -5183,6 +5195,7 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
       onWindowContentReady: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
       onWindowClosed: (windowKind) => {
         if (windowKind === 'visible') {
+          cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
           overlayManager.setMainWindow(null);
         } else {
           overlayManager.setModalWindow(null);
@@ -5457,6 +5470,9 @@ function ensureOverlayWindowsReadyForVisibilityActions(): void {
 
 function setVisibleOverlayVisible(visible: boolean): void {
   ensureOverlayWindowsReadyForVisibilityActions();
+  if (!visible) {
+    cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
+  }
   if (visible) {
     void ensureOverlayMpvSubtitlesHidden();
   }
@@ -5466,13 +5482,18 @@ function setVisibleOverlayVisible(visible: boolean): void {
 
 function toggleVisibleOverlay(): void {
   ensureOverlayWindowsReadyForVisibilityActions();
-  if (!overlayManager.getVisibleOverlayVisible()) {
+  if (overlayManager.getVisibleOverlayVisible()) {
+    cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
+  } else {
     void ensureOverlayMpvSubtitlesHidden();
   }
   toggleVisibleOverlayHandler();
   syncOverlayMpvSubtitleSuppression();
 }
 function setOverlayVisible(visible: boolean): void {
+  if (!visible) {
+    cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
+  }
   if (visible) {
     void ensureOverlayMpvSubtitlesHidden();
   }
