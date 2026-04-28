@@ -359,7 +359,7 @@ function resolvePartOfSpeechFromYomitanWordClasses(wordClasses: string[]): {
   if (wordClasses.includes('prt')) {
     return { partOfSpeech: PartOfSpeech.particle, pos1: '助詞' };
   }
-  if (wordClasses.includes('aux')) {
+  if (wordClasses.some((wordClass) => wordClass === 'aux' || wordClass.startsWith('aux-'))) {
     return { partOfSpeech: PartOfSpeech.bound_auxiliary, pos1: '助動詞' };
   }
   if (wordClasses.some((wordClass) => wordClass.startsWith('v'))) {

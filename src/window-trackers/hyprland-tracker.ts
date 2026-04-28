@@ -302,11 +302,10 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
   }
 
   private scheduleGeometryPollBurst(): void {
-    this.pollGeometry();
     for (const timeout of this.pollTimeouts) {
       clearTimeout(timeout);
     }
-    this.pollTimeouts = [50, 150, 300].map((delayMs) => {
+    this.pollTimeouts = [0, 50, 150, 300].map((delayMs) => {
       const pollTimeout = setTimeout(() => {
         this.pollTimeouts = this.pollTimeouts.filter((timeout) => timeout !== pollTimeout);
         this.pollGeometry();

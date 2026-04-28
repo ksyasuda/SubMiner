@@ -795,6 +795,57 @@ test('annotateTokens N+1 sentence word count respects source punctuation gaps om
   assert.equal(result[3]?.isNPlusOneTarget, false);
 });
 
+test('annotateTokens N+1 sentence word count normalizes line breaks before gap detection', () => {
+  const tokens = [
+    makeToken({
+      surface: '私',
+      headword: '私',
+      pos1: '名詞',
+      startPos: 0,
+      endPos: 1,
+    }),
+    makeToken({
+      surface: '猫',
+      headword: '猫',
+      pos1: '名詞',
+      startPos: 2,
+      endPos: 3,
+    }),
+    makeToken({
+      surface: '犬',
+      headword: '犬',
+      pos1: '名詞',
+      startPos: 3,
+      endPos: 4,
+    }),
+    makeToken({
+      surface: 'ふざけん',
+      headword: 'ふざける',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞',
+      pos2: '自立',
+      startPos: 5,
+      endPos: 9,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === '私' || text === '猫' || text === '犬',
+    }),
+    {
+      minSentenceWordsForNPlusOne: 3,
+      sourceText: '私\r\n猫犬！ふざけんなよ！',
+    },
+  );
+
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[1]?.isNPlusOneTarget, false);
+  assert.equal(result[2]?.isNPlusOneTarget, false);
+  assert.equal(result[3]?.isNPlusOneTarget, false);
+});
+
 test('annotateTokens applies configured pos1 exclusions to both frequency and N+1', () => {
   const tokens = [
     makeToken({

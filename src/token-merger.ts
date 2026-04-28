@@ -177,8 +177,7 @@ export function mergeTokens(
   }
 
   const result: MergedToken[] = [];
-  const normalizedSourceText =
-    typeof sourceText === 'string' ? sourceText.replace(/\r?\n/g, ' ').trim() : null;
+  const normalizedSourceText = normalizeSourceTextForTokenOffsets(sourceText);
   let charOffset = 0;
   let sourceCursor = 0;
   let lastStandaloneToken: Token | null = null;
@@ -191,7 +190,9 @@ export function mergeTokens(
 
   for (const token of tokens) {
     const matchedStart =
-      normalizedSourceText !== null ? normalizedSourceText.indexOf(token.word, sourceCursor) : -1;
+      typeof normalizedSourceText === 'string'
+        ? normalizedSourceText.indexOf(token.word, sourceCursor)
+        : -1;
     const start = matchedStart >= sourceCursor ? matchedStart : charOffset;
     const end = start + token.word.length;
     charOffset = end;
@@ -302,6 +303,10 @@ function isKanaOnlyText(text: string): boolean {
   return normalized.length > 0 && Array.from(normalized).every((char) => isKanaChar(char));
 }
 
+function normalizeSourceTextForTokenOffsets(sourceText: string | undefined): string | undefined {
+  return typeof sourceText === 'string' ? sourceText.replace(/\r?\n/g, ' ').trim() : undefined;
+}
+
 export function isNPlusOneCandidateToken(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS1,
@@ -394,8 +399,7 @@ export function markNPlusOneTargets(
     return [];
   }
 
-  const normalizedSourceText =
-    typeof sourceText === 'string' ? sourceText.replace(/\r?\n/g, ' ').trim() : undefined;
+  const normalizedSourceText = normalizeSourceTextForTokenOffsets(sourceText);
 
   const markedTokens = tokens.map((token) => ({
     ...token,

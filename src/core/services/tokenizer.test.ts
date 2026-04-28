@@ -3086,6 +3086,27 @@ test('tokenizeSubtitle uses Yomitan word classes to classify standalone particle
   assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
 });
 
+test('tokenizeSubtitle uses Yomitan word classes to classify auxiliary subclasses', async () => {
+  const result = await tokenizeSubtitle(
+    'です',
+    makeDepsFromYomitanTokens(
+      [{ surface: 'です', reading: 'です', headword: 'です', wordClasses: ['aux-v'] }],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: () => 10,
+        getJlptLevel: () => 'N5',
+        tokenizeWithMecab: async () => null,
+      },
+    ),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.partOfSpeech, PartOfSpeech.bound_auxiliary);
+  assert.equal(result.tokens?.[0]?.pos1, '助動詞');
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+  assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
+});
+
 test('tokenizeSubtitle fills detailed MeCab POS when Yomitan word class supplies coarse POS', async () => {
   const result = await tokenizeSubtitle(
     'は',

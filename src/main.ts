@@ -33,6 +33,10 @@ import {
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
 import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
+import {
+  clearLinuxMpvFullscreenOverlayRefreshTimeouts,
+  scheduleLinuxVisibleOverlayFullscreenRefreshBurst,
+} from './main/runtime/linux-mpv-fullscreen-overlay-refresh';
 import { mergeAiConfig } from './ai/config';
 
 function getPasswordStoreArg(argv: string[]): string | null {
@@ -1918,7 +1922,6 @@ const WINDOWS_VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as cons
 const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] as const;
 const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
 const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
-const LINUX_MPV_FULLSCREEN_OVERLAY_REFRESH_DELAYS_MS = [0, 50, 150, 300, 600] as const;
 let windowsVisibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderSyncInFlight = false;
@@ -1926,7 +1929,6 @@ let windowsVisibleOverlayZOrderSyncQueued = false;
 let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
 let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
 let lastWindowsVisibleOverlayBlurredAtMs = 0;
-let linuxMpvFullscreenOverlayRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 
 function clearWindowsVisibleOverlayBlurRefreshTimeouts(): void {
   for (const timeout of windowsVisibleOverlayBlurRefreshTimeouts) {
@@ -1940,48 +1942,6 @@ function clearWindowsVisibleOverlayZOrderRetryTimeouts(): void {
     clearTimeout(timeout);
   }
   windowsVisibleOverlayZOrderRetryTimeouts = [];
-}
-
-function clearLinuxMpvFullscreenOverlayRefreshTimeouts(): void {
-  for (const timeout of linuxMpvFullscreenOverlayRefreshTimeouts) {
-    clearTimeout(timeout);
-  }
-  linuxMpvFullscreenOverlayRefreshTimeouts = [];
-}
-
-function refreshLinuxVisibleOverlayAfterMpvFullscreenChange(): void {
-  if (process.platform !== 'linux' || !overlayManager.getVisibleOverlayVisible()) {
-    return;
-  }
-
-  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-
-  const mainWindow = overlayManager.getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) {
-    return;
-  }
-
-  mainWindow.hide();
-  mainWindow.showInactive();
-  ensureOverlayWindowLevel(mainWindow);
-}
-
-function scheduleLinuxVisibleOverlayFullscreenRefreshBurst(): void {
-  if (process.platform !== 'linux') {
-    return;
-  }
-
-  clearLinuxMpvFullscreenOverlayRefreshTimeouts();
-  for (const delayMs of LINUX_MPV_FULLSCREEN_OVERLAY_REFRESH_DELAYS_MS) {
-    const refreshTimeout = setTimeout(() => {
-      linuxMpvFullscreenOverlayRefreshTimeouts = linuxMpvFullscreenOverlayRefreshTimeouts.filter(
-        (timeout) => timeout !== refreshTimeout,
-      );
-      refreshLinuxVisibleOverlayAfterMpvFullscreenChange();
-    }, delayMs);
-    refreshTimeout.unref?.();
-    linuxMpvFullscreenOverlayRefreshTimeouts.push(refreshTimeout);
-  }
 }
 
 function getWindowsNativeWindowHandle(window: BrowserWindow): string {
@@ -3180,6 +3140,8 @@ const {
     stopTexthookerService: () => texthookerService.stop(),
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       clearWindowsVisibleOverlayForegroundPollLoop(),
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () =>
+      clearLinuxMpvFullscreenOverlayRefreshTimeouts(),
     getMainOverlayWindow: () => overlayManager.getMainWindow(),
     clearMainOverlayWindow: () => overlayManager.setMainWindow(null),
     getModalOverlayWindow: () => overlayManager.getModalWindow(),
@@ -3885,7 +3847,14 @@ const {
       lastObservedTimePos = time;
     },
     onFullscreenChange: () => {
-      scheduleLinuxVisibleOverlayFullscreenRefreshBurst();
+      scheduleLinuxVisibleOverlayFullscreenRefreshBurst({
+        overlayManager: {
+          getMainWindow: () => overlayManager.getMainWindow(),
+          getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+        },
+        overlayVisibilityRuntime,
+        ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+      });
     },
     onSubtitleTrackChange: (sid) => {
       scheduleSubtitlePrefetchRefresh();

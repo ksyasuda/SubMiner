@@ -20,6 +20,8 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
     stopTexthookerService: () => calls.push('stop-texthooker'),
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       calls.push('clear-windows-visible-overlay-foreground-poll-loop'),
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () =>
+      calls.push('clear-linux-mpv-fullscreen-overlay-refresh-timeouts'),
     getMainOverlayWindow: () => ({
       isDestroyed: () => false,
       destroy: () => calls.push('destroy-main-overlay-window'),
@@ -88,6 +90,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
   assert.ok(calls.includes('stop-jellyfin-remote'));
   assert.ok(calls.includes('stop-discord-presence'));
   assert.ok(calls.includes('clear-windows-visible-overlay-foreground-poll-loop'));
+  assert.ok(calls.includes('clear-linux-mpv-fullscreen-overlay-refresh-timeouts'));
   assert.equal(reconnectTimer, null);
   assert.equal(immersionTracker, null);
 });
@@ -103,6 +106,7 @@ test('cleanup deps builder skips destroyed yomitan window', () => {
     stopSubtitleWebsocket: () => {},
     stopTexthookerService: () => {},
     clearWindowsVisibleOverlayForegroundPollLoop: () => {},
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {},
     getMainOverlayWindow: () => ({
       isDestroyed: () => true,
       destroy: () => calls.push('destroy-main-overlay-window'),
