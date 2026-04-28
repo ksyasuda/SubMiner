@@ -1202,6 +1202,32 @@ test('session binding: copy subtitle multiple captures follow-up digit locally',
   }
 });
 
+test('session binding: mine sentence multiple captures modified follow-up digit locally', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.mineSentenceMultiple',
+        originalKey: 'Ctrl+Shift+S',
+        key: { code: 'KeyS', modifiers: ['ctrl', 'shift'] },
+        actionType: 'session-action',
+        actionId: 'mineSentenceMultiple',
+      },
+    ] as never);
+
+    testGlobals.dispatchKeydown({ key: 'S', code: 'KeyS', ctrlKey: true, shiftKey: true });
+    testGlobals.dispatchKeydown({ key: '#', code: 'Digit3', ctrlKey: true, shiftKey: true });
+
+    assert.deepEqual(testGlobals.sessionActions, [
+      { actionId: 'mineSentenceMultiple', payload: { count: 3 } },
+    ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: h moves left when popup is closed', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
