@@ -84,6 +84,24 @@ const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_THOUGHT_SUFFIXES = [
   'かな',
   'かね',
 ] as const;
+const SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_SUFFIXES = [
+  'か',
+  'ね',
+  'よ',
+  'な',
+] as const;
+const SUBTITLE_ANNOTATION_EXCLUDED_JA_NAI_SUFFIXES = [
+  '',
+  'か',
+  'ね',
+  'よ',
+  'な',
+  'です',
+  'ですか',
+  'ですよ',
+  'ですね',
+  'ですな',
+] as const;
 const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS = new Set(
   SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES.flatMap((prefix) =>
     SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES.flatMap((core) =>
@@ -92,6 +110,12 @@ const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS = new Set(
       ),
     ),
   ),
+);
+const SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_ENDINGS = new Set(
+  SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_SUFFIXES.map((suffix) => `です${suffix}`),
+);
+const SUBTITLE_ANNOTATION_EXCLUDED_JA_NAI_ENDINGS = new Set(
+  SUBTITLE_ANNOTATION_EXCLUDED_JA_NAI_SUFFIXES.map((suffix) => `じゃない${suffix}`),
 );
 const SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES = new Set([
   'って',
@@ -104,6 +128,7 @@ const SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES = new Set([
 ]);
 const AUXILIARY_STEM_GRAMMAR_TAIL_POS1 = new Set(['名詞', '助動詞', '助詞']);
 const NON_INDEPENDENT_NOUN_HELPER_TAIL_POS1 = new Set(['助詞', '助動詞']);
+const AUXILIARY_INFLECTION_TRAILING_POS1 = new Set(['助動詞']);
 const STANDALONE_GRAMMAR_PARTICLE_SURFACES = new Set([
   'か',
   'が',
@@ -333,6 +358,44 @@ function isKanaOnlyText(text: string): boolean {
   return normalized.length > 0 && [...normalized].every(isKanaChar);
 }
 
+function isLexicalKureruVerb(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  const normalizedHeadword = normalizeKana(token.headword);
+  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  return (
+    normalizedSurface === 'くれ' &&
+    normalizedHeadword === 'くれる' &&
+    pos1Parts.length === 1 &&
+    pos1Parts[0] === '動詞' &&
+    pos2Parts.length === 1 &&
+    pos2Parts[0] === '自立'
+  );
+}
+
+function isStandaloneAuxiliaryInflectionFragment(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  if (!isKanaOnlyText(normalizedSurface)) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  if (pos1Parts.length === 0) {
+    return false;
+  }
+
+  if (pos1Parts.every((part) => part === '助動詞')) {
+    return true;
+  }
+
+  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  return (
+    pos1Parts[0] === '動詞' &&
+    pos2Parts[0] === '接尾' &&
+    pos1Parts.slice(1).every((part) => AUXILIARY_INFLECTION_TRAILING_POS1.has(part))
+  );
+}
+
 function isStandaloneSuruTeGrammarHelper(token: MergedToken): boolean {
   const normalizedSurface = normalizeKana(token.surface);
   const normalizedHeadword = normalizeKana(token.headword);
@@ -391,6 +454,10 @@ function isExcludedByTerm(token: MergedToken): boolean {
       SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(normalized) ||
       SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(trimmed) ||
       SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(normalized) ||
+      SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_ENDINGS.has(trimmed) ||
+      SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_ENDINGS.has(normalized) ||
+      SUBTITLE_ANNOTATION_EXCLUDED_JA_NAI_ENDINGS.has(trimmed) ||
+      SUBTITLE_ANNOTATION_EXCLUDED_JA_NAI_ENDINGS.has(normalized) ||
       shouldIgnoreJlptByTerm(trimmed) ||
       shouldIgnoreJlptByTerm(normalized)
     ) {
@@ -447,6 +514,10 @@ export function shouldExcludeTokenFromSubtitleAnnotations(
     return true;
   }
 
+  if (isStandaloneAuxiliaryInflectionFragment(token)) {
+    return true;
+  }
+
   if (isStandaloneSuruTeGrammarHelper(token)) {
     return true;
   }
@@ -461,6 +532,10 @@ export function shouldExcludeTokenFromSubtitleAnnotations(
 
   if (isExcludedTrailingParticleMergedToken(token)) {
     return true;
+  }
+
+  if (isLexicalKureruVerb(token)) {
+    return false;
   }
 
   return isExcludedByTerm(token);

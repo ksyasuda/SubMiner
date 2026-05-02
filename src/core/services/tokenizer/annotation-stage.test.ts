@@ -259,6 +259,48 @@ test('shouldExcludeTokenFromSubtitleAnnotations excludes explanatory contrast en
   assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
 });
 
+test('shouldExcludeTokenFromSubtitleAnnotations excludes ja-nai explanatory endings', () => {
+  const tokens = [
+    makeToken({
+      surface: 'じゃない',
+      headword: 'じゃない',
+      reading: 'ジャナイ',
+      partOfSpeech: PartOfSpeech.i_adjective,
+      pos1: '接続詞|形容詞',
+      pos2: '*|自立',
+    }),
+    makeToken({
+      surface: 'じゃないですか',
+      headword: 'じゃない',
+      reading: 'ジャナイデスカ',
+      partOfSpeech: PartOfSpeech.i_adjective,
+      pos1: '接続詞|形容詞|助動詞|助詞',
+      pos2: '*|自立|*|副助詞／並立助詞／終助詞',
+    }),
+  ];
+
+  for (const token of tokens) {
+    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
+  }
+});
+
+test('shouldExcludeTokenFromSubtitleAnnotations excludes standalone polite copula suffix endings without POS tags', () => {
+  const tokens = [
+    makeToken({
+      surface: 'ですよ',
+      headword: 'です',
+      reading: 'デスヨ',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '',
+      pos2: '',
+    }),
+  ];
+
+  for (const token of tokens) {
+    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
+  }
+});
+
 test('shouldExcludeTokenFromSubtitleAnnotations excludes auxiliary-stem そうだ grammar tails', () => {
   const token = makeToken({
     surface: 'そうだ',
@@ -1284,6 +1326,78 @@ test('annotateTokens clears all annotations for kana-only non-independent noun h
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
+});
+
+test('annotateTokens clears all annotations for standalone auxiliary inflection fragments', () => {
+  const tokens = [
+    makeToken({
+      surface: 'れる',
+      headword: 'れる',
+      reading: 'レル',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞',
+      pos2: '接尾',
+      startPos: 0,
+      endPos: 2,
+      frequencyRank: 18,
+    }),
+    makeToken({
+      surface: 'れた',
+      headword: 'れる',
+      reading: 'レタ',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞|助動詞',
+      pos2: '接尾|*',
+      startPos: 2,
+      endPos: 4,
+      frequencyRank: 19,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'れる',
+      getJlptLevel: (text) => (text === 'れる' ? 'N4' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  for (const token of result) {
+    assert.equal(token.isKnown, false, token.surface);
+    assert.equal(token.isNPlusOneTarget, false, token.surface);
+    assert.equal(token.frequencyRank, undefined, token.surface);
+    assert.equal(token.jlptLevel, undefined, token.surface);
+  }
+});
+
+test('annotateTokens keeps lexical くれる forms eligible for annotation', () => {
+  const tokens = [
+    makeToken({
+      surface: 'くれ',
+      headword: 'くれる',
+      reading: 'クレ',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞',
+      pos2: '自立',
+      startPos: 0,
+      endPos: 2,
+      frequencyRank: 20,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      getJlptLevel: (text) => (text === 'くれる' ? 'N4' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[0]?.frequencyRank, 20);
+  assert.equal(result[0]?.jlptLevel, 'N4');
 });
 
 test('annotateTokens clears all annotations for standalone して helper fragments', () => {

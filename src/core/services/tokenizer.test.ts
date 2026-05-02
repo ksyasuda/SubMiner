@@ -4227,6 +4227,211 @@ test('tokenizeSubtitle clears all annotations for explanatory contrast endings',
   );
 });
 
+test('tokenizeSubtitle clears annotations for ja-nai explanatory endings while preserving lexical content', async () => {
+  const result = await tokenizeSubtitle(
+    'みたいなのあるじゃないですか',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: 'みたいな', reading: 'みたいな', headword: 'みたい' },
+        { surface: 'の', reading: 'の', headword: 'の' },
+        { surface: 'ある', reading: 'ある', headword: 'ある' },
+        { surface: 'じゃないですか', reading: 'じゃないですか', headword: 'じゃない' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) =>
+          text === 'みたい' ? 320 : text === 'ある' ? 240 : text === 'じゃない' ? 80 : null,
+        getJlptLevel: (text) =>
+          text === 'みたい' ? 'N4' : text === 'ある' ? 'N5' : text === 'じゃない' ? 'N5' : null,
+        isKnownWord: (text) => text === 'みたい' || text === 'の',
+        getMinSentenceWordsForNPlusOne: () => 1,
+        tokenizeWithMecab: async () => [
+          {
+            headword: 'みたい',
+            surface: 'みたい',
+            reading: 'ミタイ',
+            startPos: 0,
+            endPos: 3,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '非自立',
+            pos3: '形容動詞語幹',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'だ',
+            surface: 'な',
+            reading: 'ナ',
+            startPos: 3,
+            endPos: 4,
+            partOfSpeech: PartOfSpeech.bound_auxiliary,
+            pos1: '助動詞',
+            pos2: '*',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'の',
+            surface: 'の',
+            reading: 'ノ',
+            startPos: 4,
+            endPos: 5,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '非自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'ある',
+            surface: 'ある',
+            reading: 'アル',
+            startPos: 5,
+            endPos: 7,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '動詞',
+            pos2: '自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'じゃない',
+            surface: 'じゃない',
+            reading: 'ジャナイ',
+            startPos: 7,
+            endPos: 11,
+            partOfSpeech: PartOfSpeech.i_adjective,
+            pos1: '接続詞|形容詞',
+            pos2: '*|自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'です',
+            surface: 'です',
+            reading: 'デス',
+            startPos: 11,
+            endPos: 13,
+            partOfSpeech: PartOfSpeech.bound_auxiliary,
+            pos1: '助動詞',
+            pos2: '*',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'か',
+            surface: 'か',
+            reading: 'カ',
+            startPos: 13,
+            endPos: 14,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '副助詞／並立助詞／終助詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+      },
+    ),
+  );
+
+  const tokenSummary = result.tokens?.map((token) => ({
+    surface: token.surface,
+    headword: token.headword,
+    isKnown: token.isKnown,
+    isNPlusOneTarget: token.isNPlusOneTarget,
+    frequencyRank: token.frequencyRank,
+    jlptLevel: token.jlptLevel,
+  }));
+
+  assert.deepEqual(
+    tokenSummary?.find((token) => token.surface === 'じゃないですか'),
+    {
+      surface: 'じゃないですか',
+      headword: 'じゃない',
+      isKnown: false,
+      isNPlusOneTarget: false,
+      frequencyRank: undefined,
+      jlptLevel: undefined,
+    },
+  );
+  assert.deepEqual(
+    tokenSummary?.find((token) => token.surface === 'ある'),
+    {
+      surface: 'ある',
+      headword: 'ある',
+      isKnown: false,
+      isNPlusOneTarget: false,
+      frequencyRank: 240,
+      jlptLevel: 'N5',
+    },
+  );
+});
+
+test('tokenizeSubtitle clears annotations for standalone polite copula endings without POS metadata', async () => {
+  const result = await tokenizeSubtitle(
+    '現実は感じですよ',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: '現実', reading: 'げんじつ', headword: '現実' },
+        { surface: 'は', reading: 'は', headword: 'は' },
+        { surface: '感じ', reading: 'かんじ', headword: '感じ' },
+        { surface: 'ですよ', reading: 'ですよ', headword: 'です' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) =>
+          text === '現実' ? 600 : text === '感じ' ? 240 : text === 'です' ? 50 : null,
+        getJlptLevel: (text) =>
+          text === '現実' ? 'N3' : text === '感じ' ? 'N4' : text === 'です' ? 'N5' : null,
+        isKnownWord: (text) => text === '現実' || text === 'は' || text === 'です',
+        getMinSentenceWordsForNPlusOne: () => 1,
+        tokenizeWithMecab: async () => null,
+      },
+    ),
+  );
+
+  const tokenSummary = result.tokens?.map((token) => ({
+    surface: token.surface,
+    headword: token.headword,
+    isKnown: token.isKnown,
+    isNPlusOneTarget: token.isNPlusOneTarget,
+    frequencyRank: token.frequencyRank,
+    jlptLevel: token.jlptLevel,
+  }));
+
+  assert.deepEqual(
+    tokenSummary?.find((token) => token.surface === 'ですよ'),
+    {
+      surface: 'ですよ',
+      headword: 'です',
+      isKnown: false,
+      isNPlusOneTarget: false,
+      frequencyRank: undefined,
+      jlptLevel: undefined,
+    },
+  );
+  assert.deepEqual(
+    tokenSummary?.find((token) => token.surface === '感じ'),
+    {
+      surface: '感じ',
+      headword: '感じ',
+      isKnown: false,
+      isNPlusOneTarget: true,
+      frequencyRank: 240,
+      jlptLevel: 'N4',
+    },
+  );
+});
+
 test('tokenizeSubtitle clears annotations for ことに while preserving lexical N+1 target', async () => {
   const result = await tokenizeSubtitle(
     'さっきの俺と違うことに気付かないのかい？',
@@ -4442,6 +4647,114 @@ test('tokenizeSubtitle clears annotations for ことに while preserving lexical
       isNPlusOneTarget: true,
       frequencyRank: 900,
       jlptLevel: 'N4',
+    },
+  );
+});
+
+test('tokenizeSubtitle clears annotations for auxiliary inflection fragments while preserving lexical N+1 target', async () => {
+  const result = await tokenizeSubtitle(
+    '私れた猫',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: '私', reading: 'わたし', headword: '私' },
+        { surface: 'れた', reading: 'れた', headword: 'れる' },
+        { surface: '猫', reading: 'ねこ', headword: '猫' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) =>
+          text === '私' ? 50 : text === 'れる' ? 18 : text === '猫' ? 900 : null,
+        getJlptLevel: (text) =>
+          text === '私' ? 'N5' : text === 'れる' ? 'N4' : text === '猫' ? 'N5' : null,
+        isKnownWord: (text) => text === '私' || text === 'れる',
+        getMinSentenceWordsForNPlusOne: () => 1,
+        tokenizeWithMecab: async () => [
+          {
+            headword: '私',
+            surface: '私',
+            reading: 'ワタシ',
+            startPos: 0,
+            endPos: 1,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '代名詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'れる',
+            surface: 'れ',
+            reading: 'レ',
+            startPos: 1,
+            endPos: 2,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '動詞',
+            pos2: '接尾',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'た',
+            surface: 'た',
+            reading: 'タ',
+            startPos: 2,
+            endPos: 3,
+            partOfSpeech: PartOfSpeech.bound_auxiliary,
+            pos1: '助動詞',
+            pos2: '*',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: '猫',
+            surface: '猫',
+            reading: 'ネコ',
+            startPos: 3,
+            endPos: 4,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '一般',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+      },
+    ),
+  );
+
+  const tokenSummary = result.tokens?.map((token) => ({
+    surface: token.surface,
+    headword: token.headword,
+    isKnown: token.isKnown,
+    isNPlusOneTarget: token.isNPlusOneTarget,
+    frequencyRank: token.frequencyRank,
+    jlptLevel: token.jlptLevel,
+  }));
+
+  assert.deepEqual(
+    tokenSummary?.find((token) => token.surface === 'れた'),
+    {
+      surface: 'れた',
+      headword: 'れる',
+      isKnown: false,
+      isNPlusOneTarget: false,
+      frequencyRank: undefined,
+      jlptLevel: undefined,
+    },
+  );
+  assert.deepEqual(
+    tokenSummary?.find((token) => token.surface === '猫'),
+    {
+      surface: '猫',
+      headword: '猫',
+      isKnown: false,
+      isNPlusOneTarget: true,
+      frequencyRank: 900,
+      jlptLevel: 'N5',
     },
   );
 });
