@@ -461,6 +461,20 @@ local function has_async_curl_for(async_calls, needle)
 	return false
 end
 
+local function count_async_curl_for(async_calls, needle)
+	local count = 0
+	for _, call in ipairs(async_calls) do
+		local args = call.args or {}
+		if args[1] == "curl" then
+			local url = args[#args] or ""
+			if type(url) == "string" and url:find(needle, 1, true) then
+				count = count + 1
+			end
+		end
+	end
+	return count
+end
+
 local function has_property_set(property_sets, name, value)
 	for _, call in ipairs(property_sets) do
 		if call.name == name and call.value == value then
@@ -575,6 +589,45 @@ do
 	assert_true(
 		count_control_calls(recorded.async_calls, "--toggle-visible-overlay") == 0,
 		"primary subtitle bar binding should not toggle the whole visible overlay"
+	)
+end
+
+do
+	local media_path = "/media/Sample Show S01E01.mkv"
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = media_path,
+		media_title = "Sample Show S01E01",
+		mal_lookup_stdout = "__MAL_FOUND__",
+		aniskip_stdout = "__ANISKIP_FOUND__",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for same-media reload scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	fire_event(recorded, "end-file", { reason = "reload" })
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_control_calls(recorded.async_calls, "--hide-visible-overlay") == 0,
+		"same-media reload should not hide the visible overlay"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 1,
+		"same-media reload should not re-arm pause-until-ready"
+	)
+	assert_true(
+		count_async_curl_for(recorded.async_calls, "api.aniskip.com") == 1,
+		"same-media reload should not repeat AniSkip lookup"
 	)
 end
 

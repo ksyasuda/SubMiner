@@ -11,6 +11,29 @@ function M.create(ctx)
 	local subminer_log = ctx.log.subminer_log
 	local show_osd = ctx.log.show_osd
 
+	local function resolve_media_identity()
+		local path = mp.get_property("path")
+		if type(path) == "string" and path ~= "" then
+			return path
+		end
+
+		local filename = mp.get_property("filename")
+		if type(filename) == "string" and filename ~= "" then
+			return filename
+		end
+
+		local media_title = mp.get_property("media-title")
+		if type(media_title) == "string" and media_title ~= "" then
+			return media_title
+		end
+
+		return nil
+	end
+
+	local function is_reload_end_file(reason)
+		return reason == "reload" or reason == "redirect"
+	end
+
 	local function schedule_aniskip_fetch(trigger_source, delay_seconds)
 		local delay = tonumber(delay_seconds) or 0
 		mp.add_timeout(delay, function()
@@ -41,6 +64,25 @@ function M.create(ctx)
 	end
 
 	local function on_file_loaded()
+		local media_identity = resolve_media_identity()
+		local same_media_reload = (
+			media_identity ~= nil
+			and state.pending_reload_media_identity ~= nil
+			and media_identity == state.pending_reload_media_identity
+		)
+		state.pending_reload_media_identity = nil
+		state.current_media_identity = media_identity
+
+		if same_media_reload then
+			subminer_log("debug", "lifecycle", "Skipping startup lifecycle for same-media mpv reload")
+			if state.overlay_running and resolve_auto_start_enabled() and process.has_matching_mpv_ipc_socket(opts.socket_path) then
+				process.run_control_command_async("show-visible-overlay", {
+					socket_path = opts.socket_path,
+				})
+			end
+			return
+		end
+
 		aniskip.clear_aniskip_state()
 		process.disarm_auto_play_ready_gate()
 		local has_matching_socket = rearm_managed_subtitle_defaults()
@@ -73,6 +115,8 @@ function M.create(ctx)
 		aniskip.clear_aniskip_state()
 		hover.clear_hover_overlay()
 		process.disarm_auto_play_ready_gate()
+		state.current_media_identity = nil
+		state.pending_reload_media_identity = nil
 	end
 
 	local function register_lifecycle_hooks()
@@ -85,6 +129,11 @@ function M.create(ctx)
 			process.disarm_auto_play_ready_gate()
 			hover.clear_hover_overlay()
 			local reason = type(event) == "table" and event.reason or nil
+			if is_reload_end_file(reason) then
+				state.pending_reload_media_identity = state.current_media_identity or resolve_media_identity()
+				return
+			end
+			state.pending_reload_media_identity = nil
 			if state.overlay_running and reason ~= "quit" then
 				process.hide_visible_overlay()
 			end
