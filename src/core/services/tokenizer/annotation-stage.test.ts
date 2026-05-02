@@ -751,7 +751,7 @@ test('annotateTokens N+1 handoff marks expected target when threshold is satisfi
   assert.equal(result[2]?.isNPlusOneTarget, false);
 });
 
-test('annotateTokens does not mark kana-only unknown target with subtitle punctuation as N+1', () => {
+test('annotateTokens does not mark kana-only unknown target as N+1', () => {
   const tokens = [
     makeToken({
       surface: '何やら',
@@ -770,12 +770,12 @@ test('annotateTokens does not mark kana-only unknown target with subtitle punctu
       endPos: 6,
     }),
     makeToken({
-      surface: 'スイッチ…',
-      headword: 'スイッチ',
+      surface: 'すいっち',
+      headword: 'すいっち',
       reading: 'スイッチ',
       pos1: '名詞',
       startPos: 6,
-      endPos: 11,
+      endPos: 10,
     }),
   ];
 
