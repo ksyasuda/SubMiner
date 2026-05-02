@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildJellyfinSetupFormHtml,
+  buildJellyfinSetupViewState,
   createHandleJellyfinSetupWindowClosedHandler,
   createHandleJellyfinSetupNavigationHandler,
   createHandleJellyfinSetupSubmissionHandler,
@@ -12,10 +13,49 @@ import {
 } from './jellyfin-setup-window';
 
 test('buildJellyfinSetupFormHtml escapes default values', () => {
-  const html = buildJellyfinSetupFormHtml('http://host/"x"', 'user"name');
+  const html = buildJellyfinSetupFormHtml({
+    servers: [
+      {
+        serverUrl: 'http://host/"x"',
+        label: 'Configured "Server"',
+        source: 'config',
+      },
+    ],
+    selectedServerUrl: 'http://host/"x"',
+    username: 'user"name',
+    hasStoredSession: true,
+    statusMessage: 'Ready "now"',
+    statusKind: 'success',
+  });
   assert.ok(html.includes('http://host/&quot;x&quot;'));
   assert.ok(html.includes('user&quot;name'));
+  assert.ok(html.includes('Ready &quot;now&quot;'));
+  assert.ok(html.includes('Logout'));
   assert.ok(html.includes('subminer://jellyfin-setup?'));
+});
+
+test('buildJellyfinSetupViewState composes config, recent, and default servers', () => {
+  const state = buildJellyfinSetupViewState({
+    config: {
+      serverUrl: ' http://configured:8096/ ',
+      username: 'alice',
+      recentServers: ['http://recent:8096', 'http://configured:8096', ''],
+    },
+    defaultServerUrl: 'http://127.0.0.1:8096',
+    hasStoredSession: false,
+  });
+
+  assert.deepEqual(
+    state.servers.map((server) => [server.serverUrl, server.source]),
+    [
+      ['http://configured:8096', 'config'],
+      ['http://recent:8096', 'recent'],
+      ['http://127.0.0.1:8096', 'default'],
+    ],
+  );
+  assert.equal(state.selectedServerUrl, 'http://configured:8096');
+  assert.equal(state.username, 'alice');
+  assert.equal(state.statusKind, 'idle');
 });
 
 test('maybe focus jellyfin setup window no-ops without window', () => {
@@ -28,12 +68,25 @@ test('maybe focus jellyfin setup window no-ops without window', () => {
 
 test('parseJellyfinSetupSubmissionUrl parses setup url parameters', () => {
   const parsed = parseJellyfinSetupSubmissionUrl(
-    'subminer://jellyfin-setup?server=http%3A%2F%2Flocalhost&username=a&password=b',
+    'subminer://jellyfin-setup?action=login&server=http%3A%2F%2Flocalhost&username=a&password=b',
   );
   assert.deepEqual(parsed, {
+    action: 'login',
     server: 'http://localhost',
     username: 'a',
     password: 'b',
+  });
+  assert.deepEqual(parseJellyfinSetupSubmissionUrl('subminer://jellyfin-setup?action=logout'), {
+    action: 'logout',
+    server: '',
+    username: '',
+    password: '',
+  });
+  assert.deepEqual(parseJellyfinSetupSubmissionUrl('subminer://jellyfin-setup?action=done'), {
+    action: 'done',
+    server: '',
+    username: '',
+    password: '',
   });
   assert.equal(parseJellyfinSetupSubmissionUrl('https://example.com'), null);
 });
@@ -59,6 +112,7 @@ test('createHandleJellyfinSetupSubmissionHandler applies successful login', asyn
       savedSession = session;
       calls.push('save');
     },
+    clearStoredSession: () => calls.push('clear'),
     patchJellyfinConfig: (session) => {
       patchPayload = session;
       calls.push('patch');
@@ -67,13 +121,14 @@ test('createHandleJellyfinSetupSubmissionHandler applies successful login', asyn
     logError: () => calls.push('error'),
     showMpvOsd: (message) => calls.push(`osd:${message}`),
     closeSetupWindow: () => calls.push('close'),
+    reloadSetupWindow: () => calls.push('reload'),
   });
 
   const handled = await handler(
-    'subminer://jellyfin-setup?server=http%3A%2F%2Flocalhost&username=a&password=b',
+    'subminer://jellyfin-setup?action=login&server=http%3A%2F%2Flocalhost&username=a&password=b',
   );
   assert.equal(handled, true);
-  assert.deepEqual(calls, ['save', 'patch', 'info', 'osd:Jellyfin login success', 'close']);
+  assert.deepEqual(calls, ['save', 'patch', 'info', 'osd:Jellyfin login success', 'reload']);
   assert.deepEqual(savedSession, { accessToken: 'token', userId: 'uid' });
   assert.deepEqual(patchPayload, {
     serverUrl: 'http://localhost',
@@ -96,18 +151,53 @@ test('createHandleJellyfinSetupSubmissionHandler reports failure to OSD', async 
       deviceId: 'did',
     }),
     saveStoredSession: () => calls.push('save'),
+    clearStoredSession: () => calls.push('clear'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: () => calls.push('info'),
     logError: () => calls.push('error'),
     showMpvOsd: (message) => calls.push(`osd:${message}`),
     closeSetupWindow: () => calls.push('close'),
+    reloadSetupWindow: (_state) => calls.push('reload'),
   });
 
   const handled = await handler(
-    'subminer://jellyfin-setup?server=http%3A%2F%2Flocalhost&username=a&password=b',
+    'subminer://jellyfin-setup?action=login&server=http%3A%2F%2Flocalhost&username=a&password=b',
   );
   assert.equal(handled, true);
-  assert.deepEqual(calls, ['error', 'osd:Jellyfin login failed: bad credentials']);
+  assert.deepEqual(calls, ['error', 'osd:Jellyfin login failed: bad credentials', 'reload']);
+});
+
+test('createHandleJellyfinSetupSubmissionHandler handles logout and done', async () => {
+  const calls: string[] = [];
+  const handler = createHandleJellyfinSetupSubmissionHandler({
+    parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
+    authenticateWithPassword: async () => {
+      throw new Error('should not authenticate');
+    },
+    getJellyfinClientInfo: () => ({
+      clientName: 'SubMiner',
+      clientVersion: '1.0',
+      deviceId: 'did',
+    }),
+    saveStoredSession: () => calls.push('save'),
+    clearStoredSession: () => calls.push('clear'),
+    patchJellyfinConfig: () => calls.push('patch'),
+    logInfo: (message) => calls.push(message),
+    logError: () => calls.push('error'),
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    closeSetupWindow: () => calls.push('close'),
+    reloadSetupWindow: () => calls.push('reload'),
+  });
+
+  assert.equal(await handler('subminer://jellyfin-setup?action=logout'), true);
+  assert.equal(await handler('subminer://jellyfin-setup?action=done'), true);
+  assert.deepEqual(calls, [
+    'clear',
+    'Cleared stored Jellyfin auth session.',
+    'osd:Jellyfin logged out',
+    'reload',
+    'close',
+  ]);
 });
 
 test('createHandleJellyfinSetupNavigationHandler ignores unrelated urls', () => {
@@ -200,7 +290,10 @@ test('createOpenJellyfinSetupWindowHandler no-ops when existing setup window is 
     showMpvOsd: () => {},
     clearSetupWindow: () => {},
     setSetupWindow: () => {},
+    clearStoredSession: () => {},
     encodeURIComponent: (value) => value,
+    defaultServerUrl: 'http://127.0.0.1:8096',
+    hasStoredSession: () => false,
   });
 
   handler();
@@ -240,8 +333,12 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
   const handler = createOpenJellyfinSetupWindowHandler({
     maybeFocusExistingSetupWindow: () => false,
     createSetupWindow: () => fakeWindow,
-    getResolvedJellyfinConfig: () => ({ serverUrl: 'http://localhost:8096', username: 'alice' }),
-    buildSetupFormHtml: (server, username) => `<html>${server}|${username}</html>`,
+    getResolvedJellyfinConfig: () => ({
+      serverUrl: 'http://localhost:8096',
+      username: 'alice',
+      recentServers: [],
+    }),
+    buildSetupFormHtml: (state) => `<html>${state.selectedServerUrl}|${state.username}</html>`,
     parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
     authenticateWithPassword: async () => ({
       serverUrl: 'http://localhost:8096',
@@ -255,6 +352,7 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
       deviceId: 'did',
     }),
     saveStoredSession: () => calls.push('save'),
+    clearStoredSession: () => calls.push('clear'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: () => calls.push('info'),
     logError: () => calls.push('error'),
@@ -262,6 +360,8 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
     clearSetupWindow: () => calls.push('clear-window'),
     setSetupWindow: () => calls.push('set-window'),
     encodeURIComponent: (value) => encodeURIComponent(value),
+    defaultServerUrl: 'http://127.0.0.1:8096',
+    hasStoredSession: () => true,
   });
 
   handler();
@@ -281,7 +381,7 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
         prevented = true;
       },
     },
-    'subminer://jellyfin-setup?server=http%3A%2F%2Flocalhost&username=alice&password=pass',
+    'subminer://jellyfin-setup?action=login&server=http%3A%2F%2Flocalhost&username=alice&password=pass',
   );
   await Promise.resolve();
 
@@ -289,7 +389,7 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
   assert.ok(calls.includes('save'));
   assert.ok(calls.includes('patch'));
   assert.ok(calls.includes('osd:Jellyfin login success'));
-  assert.ok(calls.includes('close'));
+  assert.ok(calls.includes('load:data-url'));
 
   const onClosed = closedHandler as (() => void) | null;
   if (!onClosed) {

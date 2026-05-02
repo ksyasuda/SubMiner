@@ -3,6 +3,7 @@ import type { CliArgs } from '../../cli/args';
 type JellyfinConfig = {
   serverUrl: string;
   username: string;
+  recentServers?: string[];
 };
 
 type JellyfinClientInfo = {
@@ -17,6 +18,67 @@ type JellyfinSession = {
   accessToken: string;
   userId: string;
 };
+
+const MAX_RECENT_JELLYFIN_SERVERS = 5;
+
+export function normalizeJellyfinServerUrl(value: string): string {
+  return value.trim().replace(/\/+$/, '');
+}
+
+export function normalizeJellyfinRecentServers(values: unknown[]): string[] {
+  const seen = new Set<string>();
+  const servers: string[] = [];
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const normalized = normalizeJellyfinServerUrl(value);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    servers.push(normalized);
+    if (servers.length >= MAX_RECENT_JELLYFIN_SERVERS) break;
+  }
+  return servers;
+}
+
+export function mergeJellyfinRecentServers(serverUrl: string, existing: unknown[]): string[] {
+  return normalizeJellyfinRecentServers([serverUrl, ...existing]);
+}
+
+export function persistJellyfinAuthSession(deps: {
+  session: JellyfinSession;
+  clientInfo: JellyfinClientInfo;
+  existingRecentServers?: unknown[];
+  saveStoredSession: (session: { accessToken: string; userId: string }) => void;
+  patchRawConfig: (patch: {
+    jellyfin: Partial<{
+      enabled: boolean;
+      serverUrl: string;
+      username: string;
+      deviceId: string;
+      clientName: string;
+      clientVersion: string;
+      recentServers: string[];
+    }>;
+  }) => void;
+}): void {
+  deps.saveStoredSession({
+    accessToken: deps.session.accessToken,
+    userId: deps.session.userId,
+  });
+  deps.patchRawConfig({
+    jellyfin: {
+      enabled: true,
+      serverUrl: deps.session.serverUrl,
+      username: deps.session.username,
+      deviceId: deps.clientInfo.deviceId,
+      clientName: deps.clientInfo.clientName,
+      clientVersion: deps.clientInfo.clientVersion,
+      recentServers: mergeJellyfinRecentServers(
+        deps.session.serverUrl,
+        deps.existingRecentServers || [],
+      ),
+    },
+  });
+}
 
 export function createHandleJellyfinAuthCommands(deps: {
   patchRawConfig: (patch: {
@@ -66,19 +128,12 @@ export function createHandleJellyfinAuthCommands(deps: {
       password,
       params.clientInfo,
     );
-    deps.saveStoredSession({
-      accessToken: session.accessToken,
-      userId: session.userId,
-    });
-    deps.patchRawConfig({
-      jellyfin: {
-        enabled: true,
-        serverUrl: session.serverUrl,
-        username: session.username,
-        deviceId: params.clientInfo.deviceId,
-        clientName: params.clientInfo.clientName,
-        clientVersion: params.clientInfo.clientVersion,
-      },
+    persistJellyfinAuthSession({
+      session,
+      clientInfo: params.clientInfo,
+      existingRecentServers: params.jellyfinConfig.recentServers || [],
+      saveStoredSession: (storedSession) => deps.saveStoredSession(storedSession),
+      patchRawConfig: (patch) => deps.patchRawConfig(patch),
     });
     deps.logInfo(`Jellyfin login succeeded for ${session.username}.`);
     return true;

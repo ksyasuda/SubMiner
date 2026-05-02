@@ -318,6 +318,26 @@ export function applyIntegrationConfig(context: ResolveContext): void {
         'Expected string array.',
       );
     }
+
+    if (Array.isArray(src.jellyfin.recentServers)) {
+      const seenRecentServers = new Set<string>();
+      resolved.jellyfin.recentServers = src.jellyfin.recentServers
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim().replace(/\/+$/, ''))
+        .filter((item) => {
+          if (!item || seenRecentServers.has(item)) return false;
+          seenRecentServers.add(item);
+          return true;
+        })
+        .slice(0, 5);
+    } else if (src.jellyfin.recentServers !== undefined) {
+      warn(
+        'jellyfin.recentServers',
+        src.jellyfin.recentServers,
+        resolved.jellyfin.recentServers,
+        'Expected string array.',
+      );
+    }
   }
 
   if (isObject(src.discordPresence)) {

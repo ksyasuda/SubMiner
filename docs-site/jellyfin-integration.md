@@ -6,7 +6,8 @@ SubMiner includes an optional Jellyfin CLI integration for:
 - listing libraries and media items
 - launching item playback in the connected mpv instance
 - receiving Jellyfin remote cast-to-device playback events in-app
-- opening an in-app setup window for server/user/password input
+- opening an in-app setup window for server selection and authentication
+- toggling Jellyfin cast discovery from the tray once configured
 
 ## Requirements
 
@@ -23,6 +24,7 @@ SubMiner includes an optional Jellyfin CLI integration for:
   "jellyfin": {
     "enabled": true,
     "serverUrl": "http://127.0.0.1:8096",
+    "recentServers": ["http://127.0.0.1:8096"],
     "username": "your-user",
     "remoteControlEnabled": true,
     "remoteControlAutoConnect": true,
@@ -48,6 +50,8 @@ subminer jellyfin -l \
   --password 'your-password'
 ```
 
+`subminer jellyfin` opens the setup window. It offers the configured server, recent servers, and a manual server URL field. Successful login keeps the window open, stores the Jellyfin session token in encrypted storage, updates the configured server/username/client metadata, and refreshes recent servers. Passwords are never stored.
+
 3. List libraries:
 
 ```bash
@@ -65,6 +69,8 @@ Launcher wrapper for Jellyfin cast discovery mode (background app + tray):
 ```bash
 subminer jellyfin -d
 ```
+
+After Jellyfin is configured and SubMiner is already running, the tray menu shows `Jellyfin Discovery`. Use that checkbox to start or stop discovery for the current runtime session without changing config. It does not survive app restart.
 
 Stop discovery session/app:
 
@@ -129,12 +135,13 @@ remote playback target in Jellyfin's cast-to-device menu.
 - `jellyfin.enabled=true`
 - valid `jellyfin.serverUrl` and Jellyfin auth session (env override or stored login session)
 - `jellyfin.remoteControlEnabled=true` (default)
-- `jellyfin.remoteControlAutoConnect=true` (default)
+- `jellyfin.remoteControlAutoConnect=true` (default) for startup auto-connect
 - `jellyfin.autoAnnounce=false` by default (`true` enables auto announce/visibility check logs on connect)
 
 ### Behavior
 
 - SubMiner connects to Jellyfin remote websocket and posts playback capabilities.
+- Startup auto-connect still requires `remoteControlAutoConnect=true`; the tray `Jellyfin Discovery` checkbox can start discovery later even when startup auto-connect is disabled.
 - `Play` events open media in mpv with the same defaults used by `--jellyfin-play`.
 - If mpv IPC is not connected at cast time, SubMiner auto-launches mpv in idle mode with SubMiner defaults and retries playback.
 - `Playstate` events map to mpv pause/resume/seek/stop controls.
@@ -147,7 +154,8 @@ remote playback target in Jellyfin's cast-to-device menu.
 - Device not visible in Jellyfin cast menu:
   - ensure SubMiner is running
   - ensure session token is valid (`--jellyfin-login` again if needed)
-  - ensure `remoteControlEnabled` and `remoteControlAutoConnect` are true
+  - ensure `remoteControlEnabled` is true
+  - use tray `Jellyfin Discovery` or `subminer jellyfin -d` to start discovery
 - Cast command received but playback does not start:
   - verify mpv IPC can connect (`--start` flow)
   - verify item is playable from normal `--jellyfin-play --jellyfin-item-id ...`

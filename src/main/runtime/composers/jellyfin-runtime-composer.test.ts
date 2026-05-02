@@ -159,8 +159,7 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
           isDestroyed: () => false,
           close: () => {},
         }) as never,
-      buildSetupFormHtml: (defaultServer, defaultUser) =>
-        `<html>${defaultServer}${defaultUser}</html>`,
+      buildSetupFormHtml: (state) => `<html>${state.selectedServerUrl}${state.username}</html>`,
       parseSubmissionUrl: () => null,
       authenticateWithPassword: async () => ({
         serverUrl: 'https://example.test',
@@ -169,6 +168,7 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
         userId: 'id',
       }),
       saveStoredSession: () => {},
+      clearStoredSession: () => {},
       patchJellyfinConfig: () => {},
       logInfo: () => {},
       logError: () => {},
@@ -176,6 +176,8 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
       clearSetupWindow: () => {},
       setSetupWindow: () => {},
       encodeURIComponent,
+      defaultServerUrl: 'https://example.test',
+      hasStoredSession: () => false,
     },
   });
 

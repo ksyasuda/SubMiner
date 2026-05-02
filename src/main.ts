@@ -181,6 +181,8 @@ import {
   buildJellyfinSetupFormHtml,
   parseJellyfinSetupSubmissionUrl,
   getConfiguredJellyfinSession,
+  mergeJellyfinRecentServers,
+  persistJellyfinAuthSession,
   type ActiveJellyfinRemotePlaybackState,
 } from './main/runtime/domains/jellyfin';
 import {
@@ -2369,6 +2371,7 @@ const {
   stopJellyfinRemoteSession,
   runJellyfinCommand,
   openJellyfinSetupWindow,
+  getJellyfinClientInfo,
 } = composeJellyfinRuntimeHandlers({
   getResolvedJellyfinConfigMainDeps: {
     getResolvedConfig: () => getResolvedConfig(),
@@ -2547,21 +2550,40 @@ const {
     createSetupWindow: createCreateJellyfinSetupWindowHandler({
       createBrowserWindow: (options) => new BrowserWindow(options),
     }),
-    buildSetupFormHtml: (defaultServer, defaultUser) =>
-      buildJellyfinSetupFormHtml(defaultServer, defaultUser),
+    buildSetupFormHtml: (state) => buildJellyfinSetupFormHtml(state),
     parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
     authenticateWithPassword: (server, username, password, clientInfo) =>
       authenticateWithPasswordRuntime(server, username, password, clientInfo),
     saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
+    clearStoredSession: () => jellyfinTokenStore.clearSession(),
     patchJellyfinConfig: (session) => {
+      const clientInfo = getJellyfinClientInfo();
+      const recentServers = mergeJellyfinRecentServers(
+        session.serverUrl,
+        getResolvedConfig().jellyfin.recentServers || [],
+      );
       configService.patchRawConfig({
         jellyfin: {
           enabled: true,
           serverUrl: session.serverUrl,
           username: session.username,
+          deviceId: clientInfo.deviceId,
+          clientName: clientInfo.clientName,
+          clientVersion: clientInfo.clientVersion,
+          recentServers,
         },
       });
     },
+    persistAuthenticatedSession: (session, clientInfo) =>
+      persistJellyfinAuthSession({
+        session,
+        clientInfo,
+        existingRecentServers: getResolvedConfig().jellyfin.recentServers || [],
+        saveStoredSession: (storedSession) => jellyfinTokenStore.saveSession(storedSession),
+        patchRawConfig: (patch) => {
+          configService.patchRawConfig(patch);
+        },
+      }),
     logInfo: (message) => logger.info(message),
     logError: (message, error) => logger.error(message, error),
     showMpvOsd: (message) => showMpvOsd(message),
@@ -2572,6 +2594,8 @@ const {
       appState.jellyfinSetupWindow = window as BrowserWindow;
     },
     encodeURIComponent: (value) => encodeURIComponent(value),
+    defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl || 'http://127.0.0.1:8096',
+    hasStoredSession: () => Boolean(jellyfinTokenStore.loadSession()),
   },
 });
 
@@ -5134,6 +5158,43 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
     setMainWindow: (window) => overlayManager.setMainWindow(window),
     setModalWindow: (window) => overlayManager.setModalWindow(window),
   });
+
+function isJellyfinConfiguredForTray(): boolean {
+  const jellyfin = getResolvedJellyfinConfig();
+  return Boolean(
+    jellyfin.enabled && jellyfin.serverUrl && jellyfin.accessToken && jellyfin.userId,
+  );
+}
+
+async function toggleJellyfinDiscoveryFromTray(): Promise<void> {
+  if (appState.jellyfinRemoteSession) {
+    stopJellyfinRemoteSession();
+    logger.info('Jellyfin discovery stopped.');
+    showMpvOsd('Jellyfin discovery stopped');
+    ensureTrayHandler();
+    return;
+  }
+
+  await startJellyfinRemoteSession({ explicit: true });
+  const remoteSession = appState.jellyfinRemoteSession as JellyfinRemoteSessionService | null;
+  if (!remoteSession) {
+    logger.warn('Jellyfin discovery could not start. Configure Jellyfin first.');
+    showMpvOsd('Jellyfin discovery unavailable');
+    ensureTrayHandler();
+    return;
+  }
+
+  const visible = await remoteSession.advertiseNow();
+  if (visible) {
+    logger.info('Jellyfin discovery started; cast target is visible in server sessions.');
+    showMpvOsd('Jellyfin discovery started');
+  } else {
+    logger.warn('Jellyfin discovery started, but cast target is not visible yet.');
+    showMpvOsd('Jellyfin discovery started; waiting for visibility');
+  }
+  ensureTrayHandler();
+}
+
 const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
   createTrayRuntimeHandlers({
     resolveTrayIconPathDeps: {
@@ -5156,6 +5217,9 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       openYomitanSettings: () => openYomitanSettings(),
       openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
       openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
+      isJellyfinConfigured: () => isJellyfinConfiguredForTray(),
+      isJellyfinDiscoveryActive: () => Boolean(appState.jellyfinRemoteSession),
+      toggleJellyfinDiscovery: () => toggleJellyfinDiscoveryFromTray(),
       openAnilistSetupWindow: () => openAnilistSetupWindow(),
       quitApp: () => requestAppQuit(),
     },

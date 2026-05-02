@@ -9,7 +9,7 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     createSetupWindow: () => ({}) as never,
     getResolvedJellyfinConfig: () => ({ serverUrl: 'http://127.0.0.1:8096', username: 'alice' }),
     buildSetupFormHtml: () => '<html></html>',
-    parseSubmissionUrl: () => ({ server: 's', username: 'u', password: 'p' }),
+    parseSubmissionUrl: () => ({ action: 'login', server: 's', username: 'u', password: 'p' }),
     authenticateWithPassword: async () => ({
       serverUrl: 'http://127.0.0.1:8096',
       username: 'alice',
@@ -22,6 +22,7 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
       deviceId: 'dev',
     }),
     saveStoredSession: () => calls.push('save'),
+    clearStoredSession: () => calls.push('clear-session'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: (message) => calls.push(`info:${message}`),
     logError: (message) => calls.push(`error:${message}`),
@@ -29,6 +30,8 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     clearSetupWindow: () => calls.push('clear'),
     setSetupWindow: () => calls.push('set-window'),
     encodeURIComponent: (value) => encodeURIComponent(value),
+    defaultServerUrl: 'http://127.0.0.1:8096',
+    hasStoredSession: () => true,
   })();
 
   assert.equal(deps.maybeFocusExistingSetupWindow(), false);
@@ -36,8 +39,19 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     serverUrl: 'http://127.0.0.1:8096',
     username: 'alice',
   });
-  assert.equal(deps.buildSetupFormHtml('a', 'b'), '<html></html>');
+  assert.equal(
+    deps.buildSetupFormHtml({
+      servers: [],
+      selectedServerUrl: 'a',
+      username: 'b',
+      hasStoredSession: false,
+      statusMessage: '',
+      statusKind: 'idle',
+    }),
+    '<html></html>',
+  );
   assert.deepEqual(deps.parseSubmissionUrl('subminer://jellyfin-setup?x=1'), {
+    action: 'login',
     server: 's',
     username: 'u',
     password: 'p',
@@ -52,6 +66,7 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     },
   );
   deps.saveStoredSession({ accessToken: 'token', userId: 'uid' });
+  deps.clearStoredSession();
   deps.patchJellyfinConfig({
     serverUrl: 'http://127.0.0.1:8096',
     username: 'alice',
@@ -64,8 +79,11 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
   deps.clearSetupWindow();
   deps.setSetupWindow({} as never);
   assert.equal(deps.encodeURIComponent('a b'), 'a%20b');
+  assert.equal(deps.defaultServerUrl, 'http://127.0.0.1:8096');
+  assert.equal(deps.hasStoredSession(), true);
   assert.deepEqual(calls, [
     'save',
+    'clear-session',
     'patch',
     'info:ok',
     'error:bad',

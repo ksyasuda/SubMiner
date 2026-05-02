@@ -273,6 +273,7 @@ export interface ResolvedConfig {
   jellyfin: {
     enabled: boolean;
     serverUrl: string;
+    recentServers: string[];
     username: string;
     deviceId: string;
     clientName: string;

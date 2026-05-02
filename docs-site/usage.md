@@ -133,6 +133,8 @@ SubMiner.AppImage --open-character-dictionary  # Open in-app AniList selector
 SubMiner.AppImage --help                  # Show all options
 ```
 
+Once Jellyfin is configured, the tray menu includes `Jellyfin Discovery` for starting or stopping cast discovery in the current app session without changing config.
+
 ### Logging and App Mode
 
 - `--log-level` controls logger verbosity.

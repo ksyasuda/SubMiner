@@ -78,6 +78,37 @@ test('start handler no-ops when remote control is disabled', async () => {
   assert.equal(created, false);
 });
 
+test('start handler respects auto-connect unless explicit start is requested', async () => {
+  let created = 0;
+  const startRemote = createStartJellyfinRemoteSessionHandler({
+    getJellyfinConfig: () => createConfig({ remoteControlAutoConnect: false }),
+    getCurrentSession: () => null,
+    setCurrentSession: () => {},
+    createRemoteSessionService: () => {
+      created += 1;
+      return {
+        start: () => {},
+        stop: () => {},
+        advertiseNow: async () => true,
+      };
+    },
+    defaultDeviceId: 'default-device',
+    defaultClientName: 'SubMiner',
+    defaultClientVersion: '1.0',
+    handlePlay: async () => {},
+    handlePlaystate: async () => {},
+    handleGeneralCommand: async () => {},
+    logInfo: () => {},
+    logWarn: () => {},
+  });
+
+  await startRemote();
+  assert.equal(created, 0);
+
+  await startRemote({ explicit: true });
+  assert.equal(created, 1);
+});
+
 test('start handler creates, starts, and stores session', async () => {
   let storedSession: {
     start: () => void;

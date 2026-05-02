@@ -1157,6 +1157,7 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
   "jellyfin": {
     "enabled": true,
     "serverUrl": "http://127.0.0.1:8096",
+    "recentServers": ["http://127.0.0.1:8096"],
     "username": "",
     "remoteControlEnabled": true,
     "remoteControlAutoConnect": true,
@@ -1174,6 +1175,7 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | -------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------ |
 | `enabled`                  | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`)                                              |
 | `serverUrl`                | string (URL)    | Jellyfin server base URL                                                                                     |
+| `recentServers`            | string[]        | Recent Jellyfin server URLs shown in setup; entries are trimmed, deduped, and capped at 5                    |
 | `username`                 | string          | Default username used by `--jellyfin-login`                                                                  |
 | `deviceId`                 | string          | Client device id sent in auth headers (default: `subminer`)                                                  |
 | `clientName`               | string          | Client name sent in auth headers (default: `SubMiner`)                                                       |
@@ -1205,6 +1207,8 @@ Launcher subcommands:
 See [Jellyfin Integration](/jellyfin-integration) for the full setup and cast-to-device guide.
 
 Jellyfin remote auto-connect runs only when all three are `true`: `jellyfin.enabled`, `jellyfin.remoteControlEnabled`, and `jellyfin.remoteControlAutoConnect`.
+
+When Jellyfin is configured and SubMiner is running, the tray menu also shows a `Jellyfin Discovery` checkbox. It starts or stops discovery for the current runtime session only and does not write config.
 
 ### Discord Rich Presence
 
