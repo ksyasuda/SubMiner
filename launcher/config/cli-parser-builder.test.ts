@@ -35,3 +35,10 @@ test('parseCliPrograms routes app alias arguments through passthrough mode', () 
     appArgs: ['--anilist', '--log-level', 'debug'],
   });
 });
+
+test('parseCliPrograms captures texthooker browser-open flag', () => {
+  const result = parseCliPrograms(['texthooker', '-o'], 'subminer');
+
+  assert.equal(result.invocations.texthookerTriggered, true);
+  assert.equal(result.invocations.texthookerOpenBrowser, true);
+});

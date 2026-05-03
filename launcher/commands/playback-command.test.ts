@@ -28,6 +28,7 @@ function createContext(): LauncherCommandContext {
       useTexthooker: false,
       autoStartOverlay: false,
       texthookerOnly: false,
+      texthookerOpenBrowser: false,
       useRofi: false,
       logLevel: 'info',
       passwordStore: '',

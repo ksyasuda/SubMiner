@@ -19,6 +19,7 @@ test('printHelp includes configured texthooker port', () => {
   assert.match(output, /default: 7777/);
   assert.match(output, /--launch-mpv.*Launch mpv with SubMiner defaults and exit/);
   assert.match(output, /--stats\s+Open the stats dashboard in your browser/);
+  assert.match(output, /--open-browser\s+Open texthooker in your default browser/);
   assert.doesNotMatch(output, /--refresh-known-words/);
   assert.match(output, /--setup\s+Open first-run setup window/);
   assert.match(output, /--anilist-status/);

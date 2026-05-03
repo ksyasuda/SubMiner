@@ -270,6 +270,29 @@ test('launchTexthookerOnly exits non-zero when app binary cannot be spawned', ()
   assert.equal(error.code, 1);
 });
 
+test('launchTexthookerOnly forwards browser-open request to app command', () => {
+  const { dir } = createTempSocketPath();
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const argsPath = path.join(dir, 'args.txt');
+  const openedUrls: string[] = [];
+  fs.writeFileSync(appPath, `#!/bin/sh\nprintf '%s\\n' "$@" > "${argsPath}"\nexit 0\n`);
+  fs.chmodSync(appPath, 0o755);
+
+  const error = withProcessExitIntercept(() => {
+    launchTexthookerOnly(appPath, makeArgs({ logLevel: 'info', texthookerOpenBrowser: true }), {
+      openBrowser: (url) => openedUrls.push(url),
+    });
+  });
+
+  assert.equal(error.code, 0);
+  assert.deepEqual(fs.readFileSync(argsPath, 'utf8').trim().split('\n'), [
+    '--texthooker',
+    '--open-browser',
+  ]);
+  assert.deepEqual(openedUrls, ['http://127.0.0.1:5174']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('launchAppCommandDetached handles child process spawn errors', async () => {
   let uncaughtError: Error | null = null;
   const onUncaughtException = (error: Error) => {
@@ -399,6 +422,7 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     useTexthooker: false,
     autoStartOverlay: false,
     texthookerOnly: false,
+    texthookerOpenBrowser: false,
     useRofi: false,
     logLevel: 'error',
     passwordStore: '',

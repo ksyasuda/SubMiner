@@ -831,14 +831,43 @@ export async function startOverlay(
   }
 }
 
-export function launchTexthookerOnly(appPath: string, args: Args): never {
+export function openUrlInDefaultBrowser(url: string, logLevel: LogLevel): void {
+  const target =
+    process.platform === 'darwin'
+      ? { command: 'open', args: [url] }
+      : process.platform === 'win32'
+        ? { command: 'cmd', args: ['/c', 'start', '', url] }
+        : { command: 'xdg-open', args: [url] };
+  const result = spawnSync(target.command, target.args, {
+    stdio: 'ignore',
+    env: process.env,
+    windowsHide: true,
+  });
+  if (result.error) {
+    log('warn', logLevel, `Failed to open browser for ${url}: ${result.error.message}`);
+  }
+}
+
+export function launchTexthookerOnly(
+  appPath: string,
+  args: Args,
+  deps: { openBrowser?: (url: string) => void } = {},
+): never {
   const overlayArgs = ['--texthooker'];
+  if (args.texthookerOpenBrowser) overlayArgs.push('--open-browser');
   if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
 
   log('info', args.logLevel, 'Launching texthooker mode...');
   const result = runSyncAppCommand(appPath, overlayArgs, true);
   if (result.error) {
     fail(`Failed to launch texthooker mode: ${result.error.message}`);
+  }
+  if (args.texthookerOpenBrowser && (result.status ?? 0) === 0) {
+    const url = 'http://127.0.0.1:5174';
+    const openBrowser =
+      deps.openBrowser ??
+      ((browserUrl: string) => openUrlInDefaultBrowser(browserUrl, args.logLevel));
+    openBrowser(url);
   }
   process.exit(result.status ?? 0);
 }

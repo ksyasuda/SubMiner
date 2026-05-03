@@ -704,7 +704,7 @@ export function handleCliCommand(
   } else if (args.texthooker) {
     const texthookerPort = deps.getTexthookerPort();
     deps.ensureTexthookerRunning(texthookerPort, deps.getTexthookerWebsocketUrl());
-    if (deps.shouldOpenTexthookerBrowser()) {
+    if (args.texthookerOpenBrowser || deps.shouldOpenTexthookerBrowser()) {
       deps.openTexthookerInBrowser(`http://127.0.0.1:${texthookerPort}`);
     }
     deps.log(`Texthooker available at http://127.0.0.1:${texthookerPort}`);

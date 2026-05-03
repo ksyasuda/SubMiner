@@ -124,9 +124,12 @@ test('youtube playback does not use generic overlay-runtime bootstrap classifica
 
 test('standalone texthooker classification excludes integrated start flow', () => {
   const standalone = parseArgs(['--texthooker']);
+  const standaloneOpenBrowser = parseArgs(['--texthooker', '--open-browser']);
   const integrated = parseArgs(['--start', '--texthooker']);
 
   assert.equal(isStandaloneTexthookerCommand(standalone), true);
+  assert.equal(standaloneOpenBrowser.texthookerOpenBrowser, true);
+  assert.equal(isStandaloneTexthookerCommand(standaloneOpenBrowser), true);
   assert.equal(isStandaloneTexthookerCommand(integrated), false);
 });
 

@@ -42,6 +42,7 @@ export interface CliInvocations {
   doctorRefreshKnownWords: boolean;
   texthookerTriggered: boolean;
   texthookerLogLevel: string | null;
+  texthookerOpenBrowser: boolean;
 }
 
 function applyRootOptions(program: Command): void {
@@ -152,6 +153,7 @@ export function parseCliPrograms(
   let doctorLogLevel: string | null = null;
   let doctorRefreshKnownWords = false;
   let texthookerLogLevel: string | null = null;
+  let texthookerOpenBrowser = false;
   let doctorTriggered = false;
   let texthookerTriggered = false;
 
@@ -313,10 +315,12 @@ export function parseCliPrograms(
   commandProgram
     .command('texthooker')
     .description('Launch texthooker-only mode')
+    .option('-o, --open-browser', 'Open texthooker in the default browser')
     .option('--log-level <level>', 'Log level')
     .action((options: Record<string, unknown>) => {
       texthookerTriggered = true;
       texthookerLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
+      texthookerOpenBrowser = options.openBrowser === true;
     });
 
   commandProgram
@@ -369,6 +373,7 @@ export function parseCliPrograms(
       doctorRefreshKnownWords,
       texthookerTriggered,
       texthookerLogLevel,
+      texthookerOpenBrowser,
     },
   };
 }

@@ -25,6 +25,7 @@ test('tray main deps builders return mapped handlers', () => {
     initializeOverlayRuntime: () => calls.push('init'),
     isOverlayRuntimeInitialized: () => false,
     openSessionHelpModal: () => calls.push('help'),
+    openTexthookerInBrowser: () => calls.push('texthooker'),
     showFirstRunSetup: () => true,
     openFirstRunSetupWindow: () => calls.push('setup'),
     showWindowsMpvLauncherSetup: () => true,
@@ -42,6 +43,7 @@ test('tray main deps builders return mapped handlers', () => {
 
   const template = menuDeps.buildTrayMenuTemplateRuntime({
     openSessionHelp: () => calls.push('open-help'),
+    openTexthookerInBrowser: () => calls.push('open-texthooker'),
     openFirstRunSetup: () => calls.push('open-setup'),
     showFirstRunSetup: true,
     openWindowsMpvLauncherSetup: () => calls.push('open-windows-mpv'),
