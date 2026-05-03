@@ -2491,11 +2491,15 @@ const {
   handleJellyfinAuthCommandsMainDeps: {
     patchRawConfig: (patch) => {
       configService.patchRawConfig(patch);
+      refreshTrayMenuIfPresent();
     },
     authenticateWithPassword: (serverUrl, username, password, clientInfo) =>
       authenticateWithPasswordRuntime(serverUrl, username, password, clientInfo),
     saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
-    clearStoredSession: () => jellyfinTokenStore.clearSession(),
+    clearStoredSession: () => {
+      jellyfinTokenStore.clearSession();
+      refreshTrayMenuIfPresent();
+    },
     logInfo: (message) => logger.info(message),
   },
   handleJellyfinListCommandsMainDeps: {
@@ -2555,7 +2559,10 @@ const {
     authenticateWithPassword: (server, username, password, clientInfo) =>
       authenticateWithPasswordRuntime(server, username, password, clientInfo),
     saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
-    clearStoredSession: () => jellyfinTokenStore.clearSession(),
+    clearStoredSession: () => {
+      jellyfinTokenStore.clearSession();
+      refreshTrayMenuIfPresent();
+    },
     patchJellyfinConfig: (session) => {
       const clientInfo = getJellyfinClientInfo();
       const recentServers = mergeJellyfinRecentServers(
@@ -2573,6 +2580,7 @@ const {
           recentServers,
         },
       });
+      refreshTrayMenuIfPresent();
     },
     persistAuthenticatedSession: (session, clientInfo) =>
       persistJellyfinAuthSession({
@@ -2582,6 +2590,7 @@ const {
         saveStoredSession: (storedSession) => jellyfinTokenStore.saveSession(storedSession),
         patchRawConfig: (patch) => {
           configService.patchRawConfig(patch);
+          refreshTrayMenuIfPresent();
         },
       }),
     logInfo: (message) => logger.info(message),
@@ -5166,33 +5175,43 @@ function isJellyfinConfiguredForTray(): boolean {
   );
 }
 
+function refreshTrayMenuIfPresent(): void {
+  if (appTray) {
+    ensureTrayHandler();
+  }
+}
+
 async function toggleJellyfinDiscoveryFromTray(): Promise<void> {
-  if (appState.jellyfinRemoteSession) {
-    stopJellyfinRemoteSession();
-    logger.info('Jellyfin discovery stopped.');
-    showMpvOsd('Jellyfin discovery stopped');
-    ensureTrayHandler();
-    return;
-  }
+  try {
+    if (appState.jellyfinRemoteSession) {
+      stopJellyfinRemoteSession();
+      logger.info('Jellyfin discovery stopped.');
+      showMpvOsd('Jellyfin discovery stopped');
+      return;
+    }
 
-  await startJellyfinRemoteSession({ explicit: true });
-  const remoteSession = appState.jellyfinRemoteSession as JellyfinRemoteSessionService | null;
-  if (!remoteSession) {
-    logger.warn('Jellyfin discovery could not start. Configure Jellyfin first.');
-    showMpvOsd('Jellyfin discovery unavailable');
-    ensureTrayHandler();
-    return;
-  }
+    await startJellyfinRemoteSession({ explicit: true });
+    const remoteSession = appState.jellyfinRemoteSession as JellyfinRemoteSessionService | null;
+    if (!remoteSession) {
+      logger.warn('Jellyfin discovery could not start. Configure Jellyfin first.');
+      showMpvOsd('Jellyfin discovery unavailable');
+      return;
+    }
 
-  const visible = await remoteSession.advertiseNow();
-  if (visible) {
-    logger.info('Jellyfin discovery started; cast target is visible in server sessions.');
-    showMpvOsd('Jellyfin discovery started');
-  } else {
-    logger.warn('Jellyfin discovery started, but cast target is not visible yet.');
-    showMpvOsd('Jellyfin discovery started; waiting for visibility');
+    const visible = await remoteSession.advertiseNow();
+    if (visible) {
+      logger.info('Jellyfin discovery started; cast target is visible in server sessions.');
+      showMpvOsd('Jellyfin discovery started');
+    } else {
+      logger.warn('Jellyfin discovery started, but cast target is not visible yet.');
+      showMpvOsd('Jellyfin discovery started; waiting for visibility');
+    }
+  } catch (error) {
+    logger.error('Failed to toggle Jellyfin discovery.', error);
+    showMpvOsd('Jellyfin discovery failed');
+  } finally {
+    refreshTrayMenuIfPresent();
   }
-  ensureTrayHandler();
 }
 
 const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =

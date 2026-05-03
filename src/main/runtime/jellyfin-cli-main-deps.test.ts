@@ -94,17 +94,17 @@ test('jellyfin remote announce main deps builder maps callbacks', async () => {
   const calls: string[] = [];
   const session = { advertiseNow: async () => true };
   const deps = createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler({
-    startJellyfinRemoteSession: async () => {
-      calls.push('start');
+    startJellyfinRemoteSession: async (options) => {
+      calls.push(`start:${options?.explicit ? 'explicit' : 'default'}`);
     },
     getRemoteSession: () => session,
     logInfo: (message) => calls.push(`info:${message}`),
     logWarn: (message) => calls.push(`warn:${message}`),
   })();
 
-  await deps.startJellyfinRemoteSession();
+  await deps.startJellyfinRemoteSession({ explicit: true });
   assert.equal(deps.getRemoteSession(), session);
   deps.logInfo('visible');
   deps.logWarn('not-visible');
-  assert.deepEqual(calls, ['start', 'info:visible', 'warn:not-visible']);
+  assert.deepEqual(calls, ['start:explicit', 'info:visible', 'warn:not-visible']);
 });

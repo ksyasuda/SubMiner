@@ -23,10 +23,10 @@ test('remote announce handler no-ops when flag is disabled', async () => {
 
 test('remote announce handler warns when session is unavailable', async () => {
   const warnings: string[] = [];
-  let started = false;
+  let startOptions: { explicit?: boolean } | undefined;
   const handleRemoteAnnounce = createHandleJellyfinRemoteAnnounceCommand({
-    startJellyfinRemoteSession: async () => {
-      started = true;
+    startJellyfinRemoteSession: async (options) => {
+      startOptions = options;
     },
     getRemoteSession: () => null,
     logInfo: () => {},
@@ -38,7 +38,7 @@ test('remote announce handler warns when session is unavailable', async () => {
   } as never);
 
   assert.equal(handled, true);
-  assert.equal(started, true);
+  assert.deepEqual(startOptions, { explicit: true });
   assert.deepEqual(warnings, ['Jellyfin remote session is not available.']);
 });
 

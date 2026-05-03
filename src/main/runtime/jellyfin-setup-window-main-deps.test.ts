@@ -4,12 +4,28 @@ import { createBuildOpenJellyfinSetupWindowMainDepsHandler } from './jellyfin-se
 
 test('open jellyfin setup window main deps builder maps callbacks', async () => {
   const calls: string[] = [];
+  const expectedState = {
+    servers: [],
+    selectedServerUrl: 'a',
+    username: 'b',
+    hasStoredSession: false,
+    statusMessage: '',
+    statusKind: 'idle' as const,
+  };
+  let capturedBuildState: unknown = null;
+  let capturedParseUrl = '';
   const deps = createBuildOpenJellyfinSetupWindowMainDepsHandler({
     maybeFocusExistingSetupWindow: () => false,
     createSetupWindow: () => ({}) as never,
     getResolvedJellyfinConfig: () => ({ serverUrl: 'http://127.0.0.1:8096', username: 'alice' }),
-    buildSetupFormHtml: () => '<html></html>',
-    parseSubmissionUrl: () => ({ action: 'login', server: 's', username: 'u', password: 'p' }),
+    buildSetupFormHtml: (state) => {
+      capturedBuildState = state;
+      return '<html></html>';
+    },
+    parseSubmissionUrl: (rawUrl) => {
+      capturedParseUrl = rawUrl;
+      return { action: 'login', server: 's', username: 'u', password: 'p' };
+    },
     authenticateWithPassword: async () => ({
       serverUrl: 'http://127.0.0.1:8096',
       username: 'alice',
@@ -24,6 +40,7 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     saveStoredSession: () => calls.push('save'),
     clearStoredSession: () => calls.push('clear-session'),
     patchJellyfinConfig: () => calls.push('patch'),
+    persistAuthenticatedSession: () => calls.push('persist'),
     logInfo: (message) => calls.push(`info:${message}`),
     logError: (message) => calls.push(`error:${message}`),
     showMpvOsd: (message) => calls.push(`osd:${message}`),
@@ -39,23 +56,16 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     serverUrl: 'http://127.0.0.1:8096',
     username: 'alice',
   });
-  assert.equal(
-    deps.buildSetupFormHtml({
-      servers: [],
-      selectedServerUrl: 'a',
-      username: 'b',
-      hasStoredSession: false,
-      statusMessage: '',
-      statusKind: 'idle',
-    }),
-    '<html></html>',
-  );
-  assert.deepEqual(deps.parseSubmissionUrl('subminer://jellyfin-setup?x=1'), {
+  assert.equal(deps.buildSetupFormHtml(expectedState), '<html></html>');
+  assert.deepEqual(capturedBuildState, expectedState);
+  const setupUrl = 'subminer://jellyfin-setup?x=1';
+  assert.deepEqual(deps.parseSubmissionUrl(setupUrl), {
     action: 'login',
     server: 's',
     username: 'u',
     password: 'p',
   });
+  assert.equal(capturedParseUrl, setupUrl);
   assert.deepEqual(
     await deps.authenticateWithPassword('s', 'u', 'p', deps.getJellyfinClientInfo()),
     {
@@ -73,6 +83,15 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     accessToken: 'token',
     userId: 'uid',
   });
+  deps.persistAuthenticatedSession?.(
+    {
+      serverUrl: 'http://127.0.0.1:8096',
+      username: 'alice',
+      accessToken: 'token',
+      userId: 'uid',
+    },
+    deps.getJellyfinClientInfo(),
+  );
   deps.logInfo('ok');
   deps.logError('bad', null);
   deps.showMpvOsd('toast');
@@ -85,6 +104,7 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     'save',
     'clear-session',
     'patch',
+    'persist',
     'info:ok',
     'error:bad',
     'osd:toast',

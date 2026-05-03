@@ -227,7 +227,8 @@ export function composeJellyfinRuntimeHandlers(
   const handleJellyfinRemoteAnnounceCommand = createHandleJellyfinRemoteAnnounceCommand(
     createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler({
       ...options.handleJellyfinRemoteAnnounceCommandMainDeps,
-      startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
+      startJellyfinRemoteSession: (startOptions) =>
+        startJellyfinRemoteSession(startOptions),
     })(),
   );
 
