@@ -266,6 +266,12 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Base Jellyfin server URL (for example: http://localhost:8096).',
     },
     {
+      path: 'jellyfin.recentServers',
+      kind: 'array',
+      defaultValue: defaultConfig.jellyfin.recentServers,
+      description: 'Recently authenticated Jellyfin server URLs shown in setup.',
+    },
+    {
       path: 'jellyfin.username',
       kind: 'string',
       defaultValue: defaultConfig.jellyfin.username,

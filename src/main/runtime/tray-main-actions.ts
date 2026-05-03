@@ -37,6 +37,9 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
     openYomitanSettings: () => void;
     openRuntimeOptions: () => void;
     openJellyfinSetup: () => void;
+    showJellyfinDiscovery: boolean;
+    jellyfinDiscoveryActive: boolean;
+    toggleJellyfinDiscovery: () => void;
     openAnilistSetup: () => void;
     quitApp: () => void;
   }) => TMenuItem[];
@@ -50,6 +53,9 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   openYomitanSettings: () => void;
   openRuntimeOptionsPalette: () => void;
   openJellyfinSetupWindow: () => void;
+  isJellyfinConfigured: () => boolean;
+  isJellyfinDiscoveryActive: () => boolean;
+  toggleJellyfinDiscovery: () => void | Promise<void>;
   openAnilistSetupWindow: () => void;
   quitApp: () => void;
 }) {
@@ -83,6 +89,11 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
       },
       openJellyfinSetup: () => {
         deps.openJellyfinSetupWindow();
+      },
+      showJellyfinDiscovery: deps.isJellyfinConfigured(),
+      jellyfinDiscoveryActive: deps.isJellyfinDiscoveryActive(),
+      toggleJellyfinDiscovery: () => {
+        void deps.toggleJellyfinDiscovery();
       },
       openAnilistSetup: () => {
         deps.openAnilistSetupWindow();

@@ -483,6 +483,7 @@
   "jellyfin": {
     "enabled": false, // Enable optional Jellyfin integration and CLI control commands. Values: true | false
     "serverUrl": "", // Base Jellyfin server URL (for example: http://localhost:8096).
+    "recentServers": [], // Recently authenticated Jellyfin server URLs shown in setup.
     "username": "", // Default Jellyfin username used during CLI login.
     "deviceId": "subminer", // Device id setting.
     "clientName": "SubMiner", // Client name setting.

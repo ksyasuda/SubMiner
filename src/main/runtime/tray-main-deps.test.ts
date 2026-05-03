@@ -32,6 +32,11 @@ test('tray main deps builders return mapped handlers', () => {
     openYomitanSettings: () => calls.push('yomitan'),
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
+    isJellyfinConfigured: () => true,
+    isJellyfinDiscoveryActive: () => false,
+    toggleJellyfinDiscovery: () => {
+      calls.push('jellyfin-discovery');
+    },
     openAnilistSetupWindow: () => calls.push('anilist'),
     quitApp: () => calls.push('quit'),
   })();
@@ -46,6 +51,9 @@ test('tray main deps builders return mapped handlers', () => {
     openYomitanSettings: () => calls.push('open-yomitan'),
     openRuntimeOptions: () => calls.push('open-runtime-options'),
     openJellyfinSetup: () => calls.push('open-jellyfin'),
+    showJellyfinDiscovery: true,
+    jellyfinDiscoveryActive: false,
+    toggleJellyfinDiscovery: () => calls.push('open-jellyfin-discovery'),
     openAnilistSetup: () => calls.push('open-anilist'),
     quitApp: () => calls.push('quit-app'),
   });

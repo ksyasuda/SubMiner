@@ -84,7 +84,7 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
   </tr>
   <tr>
     <td><b>Jellyfin</b></td>
-    <td>Browse and launch media from your Jellyfin server</td>
+    <td>Browse, launch, and cast media from your Jellyfin server with setup and discovery controls in the app tray</td>
   </tr>
   <tr>
     <td><b>Jimaku</b></td>
@@ -251,6 +251,8 @@ subminer app --setup            # launch the first-run setup wizard
 ```
 
 SubMiner creates a default config, starts in the system tray, and opens a setup popup that walks you through installing the mpv plugin and configuring Yomitan dictionaries. Follow the on-screen steps to complete setup.
+
+Jellyfin setup is available from the tray or `subminer jellyfin`; once Jellyfin is enabled with a server URL, the tray can toggle Jellyfin Discovery for the current app session.
 
 > [!NOTE]
 > On Windows, run `SubMiner.exe` directly — it opens the setup wizard automatically on first launch.

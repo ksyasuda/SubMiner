@@ -85,6 +85,7 @@ export interface YomitanConfig {
 export interface JellyfinConfig {
   enabled?: boolean;
   serverUrl?: string;
+  recentServers?: string[];
   username?: string;
   deviceId?: string;
   clientName?: string;

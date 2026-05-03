@@ -5,7 +5,7 @@ type JellyfinRemoteSession = {
 };
 
 export function createHandleJellyfinRemoteAnnounceCommand(deps: {
-  startJellyfinRemoteSession: () => Promise<void>;
+  startJellyfinRemoteSession: (options?: { explicit?: boolean }) => Promise<void>;
   getRemoteSession: () => JellyfinRemoteSession | null;
   logInfo: (message: string) => void;
   logWarn: (message: string) => void;
@@ -15,7 +15,7 @@ export function createHandleJellyfinRemoteAnnounceCommand(deps: {
       return false;
     }
 
-    await deps.startJellyfinRemoteSession();
+    await deps.startJellyfinRemoteSession({ explicit: true });
     const remoteSession = deps.getRemoteSession();
     if (!remoteSession) {
       deps.logWarn('Jellyfin remote session is not available.');

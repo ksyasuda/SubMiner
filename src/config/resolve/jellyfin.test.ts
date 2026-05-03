@@ -17,6 +17,34 @@ test('jellyfin directPlayContainers are normalized', () => {
   assert.deepEqual(context.resolved.jellyfin.directPlayContainers, ['mkv', 'mp4', 'webm']);
 });
 
+test('jellyfin recentServers are normalized, deduped, and capped', () => {
+  const { context } = createResolveContext({
+    jellyfin: {
+      recentServers: [
+        ' http://one.local:8096/ ',
+        '',
+        'http://two.local:8096',
+        'http://one.local:8096',
+        42 as unknown as string,
+        'http://three.local:8096',
+        'http://four.local:8096',
+        'http://five.local:8096',
+        'http://six.local:8096',
+      ],
+    },
+  });
+
+  applyIntegrationConfig(context);
+
+  assert.deepEqual(context.resolved.jellyfin.recentServers, [
+    'http://one.local:8096',
+    'http://two.local:8096',
+    'http://three.local:8096',
+    'http://four.local:8096',
+    'http://five.local:8096',
+  ]);
+});
+
 test('jellyfin legacy auth keys are ignored by resolver', () => {
   const { context } = createResolveContext({
     jellyfin: { accessToken: 'legacy-token', userId: 'legacy-user' } as unknown as never,

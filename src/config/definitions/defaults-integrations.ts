@@ -117,6 +117,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   jellyfin: {
     enabled: false,
     serverUrl: '',
+    recentServers: [],
     username: '',
     deviceId: 'subminer',
     clientName: 'SubMiner',

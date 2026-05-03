@@ -181,6 +181,8 @@ import {
   buildJellyfinSetupFormHtml,
   parseJellyfinSetupSubmissionUrl,
   getConfiguredJellyfinSession,
+  mergeJellyfinRecentServers,
+  persistJellyfinAuthSession,
   type ActiveJellyfinRemotePlaybackState,
 } from './main/runtime/domains/jellyfin';
 import {
@@ -389,6 +391,11 @@ import {
   launchWindowsMpv,
 } from './main/runtime/windows-mpv-launch';
 import { createWaitForMpvConnectedHandler } from './main/runtime/jellyfin-remote-connection';
+import {
+  clearJellyfinAuthSessionAndRefreshTray as clearJellyfinAuthSessionAndRefreshTrayRuntime,
+  isJellyfinConfiguredForTray as isJellyfinConfiguredForTrayRuntime,
+  toggleJellyfinDiscoveryFromTray as toggleJellyfinDiscoveryFromTrayRuntime,
+} from './main/runtime/jellyfin-tray-discovery';
 import { createPrepareYoutubePlaybackInMpvHandler } from './main/runtime/youtube-playback-launch';
 import { shouldEnsureTrayOnStartupForInitialArgs } from './main/runtime/startup-tray-policy';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
@@ -2369,6 +2376,7 @@ const {
   stopJellyfinRemoteSession,
   runJellyfinCommand,
   openJellyfinSetupWindow,
+  getJellyfinClientInfo,
 } = composeJellyfinRuntimeHandlers({
   getResolvedJellyfinConfigMainDeps: {
     getResolvedConfig: () => getResolvedConfig(),
@@ -2488,11 +2496,13 @@ const {
   handleJellyfinAuthCommandsMainDeps: {
     patchRawConfig: (patch) => {
       configService.patchRawConfig(patch);
+      refreshTrayMenuIfPresent();
     },
     authenticateWithPassword: (serverUrl, username, password, clientInfo) =>
       authenticateWithPasswordRuntime(serverUrl, username, password, clientInfo),
     saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
-    clearStoredSession: () => jellyfinTokenStore.clearSession(),
+    clearStoredSession: () =>
+      clearJellyfinAuthSessionAndRefreshTrayRuntime(getJellyfinTrayDiscoveryDeps()),
     logInfo: (message) => logger.info(message),
   },
   handleJellyfinListCommandsMainDeps: {
@@ -2547,21 +2557,43 @@ const {
     createSetupWindow: createCreateJellyfinSetupWindowHandler({
       createBrowserWindow: (options) => new BrowserWindow(options),
     }),
-    buildSetupFormHtml: (defaultServer, defaultUser) =>
-      buildJellyfinSetupFormHtml(defaultServer, defaultUser),
+    buildSetupFormHtml: (state) => buildJellyfinSetupFormHtml(state),
     parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
     authenticateWithPassword: (server, username, password, clientInfo) =>
       authenticateWithPasswordRuntime(server, username, password, clientInfo),
     saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
+    clearStoredSession: () =>
+      clearJellyfinAuthSessionAndRefreshTrayRuntime(getJellyfinTrayDiscoveryDeps()),
     patchJellyfinConfig: (session) => {
+      const clientInfo = getJellyfinClientInfo();
+      const recentServers = mergeJellyfinRecentServers(
+        session.serverUrl,
+        getResolvedConfig().jellyfin.recentServers || [],
+      );
       configService.patchRawConfig({
         jellyfin: {
           enabled: true,
           serverUrl: session.serverUrl,
           username: session.username,
+          deviceId: clientInfo.deviceId,
+          clientName: clientInfo.clientName,
+          clientVersion: clientInfo.clientVersion,
+          recentServers,
         },
       });
+      refreshTrayMenuIfPresent();
     },
+    persistAuthenticatedSession: (session, clientInfo) =>
+      persistJellyfinAuthSession({
+        session,
+        clientInfo,
+        existingRecentServers: getResolvedConfig().jellyfin.recentServers || [],
+        saveStoredSession: (storedSession) => jellyfinTokenStore.saveSession(storedSession),
+        patchRawConfig: (patch) => {
+          configService.patchRawConfig(patch);
+          refreshTrayMenuIfPresent();
+        },
+      }),
     logInfo: (message) => logger.info(message),
     logError: (message, error) => logger.error(message, error),
     showMpvOsd: (message) => showMpvOsd(message),
@@ -2572,6 +2604,8 @@ const {
       appState.jellyfinSetupWindow = window as BrowserWindow;
     },
     encodeURIComponent: (value) => encodeURIComponent(value),
+    defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl || 'http://127.0.0.1:8096',
+    hasStoredSession: () => Boolean(jellyfinTokenStore.loadSession()),
   },
 });
 
@@ -5134,6 +5168,26 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
     setMainWindow: (window) => overlayManager.setMainWindow(window),
     setModalWindow: (window) => overlayManager.setModalWindow(window),
   });
+
+function refreshTrayMenuIfPresent(): void {
+  if (appTray) {
+    ensureTrayHandler();
+  }
+}
+
+function getJellyfinTrayDiscoveryDeps() {
+  return {
+    getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
+    getRemoteSession: () => appState.jellyfinRemoteSession,
+    clearStoredSession: () => jellyfinTokenStore.clearSession(),
+    stopRemoteSession: () => stopJellyfinRemoteSession(),
+    startRemoteSession: (options: { explicit: true }) => startJellyfinRemoteSession(options),
+    refreshTrayMenu: () => refreshTrayMenuIfPresent(),
+    logger,
+    showMpvOsd: (message: string) => showMpvOsd(message),
+  };
+}
+
 const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
   createTrayRuntimeHandlers({
     resolveTrayIconPathDeps: {
@@ -5158,6 +5212,11 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       openYomitanSettings: () => openYomitanSettings(),
       openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
       openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
+      isJellyfinConfigured: () =>
+        isJellyfinConfiguredForTrayRuntime(getJellyfinTrayDiscoveryDeps()),
+      isJellyfinDiscoveryActive: () => Boolean(appState.jellyfinRemoteSession),
+      toggleJellyfinDiscovery: () =>
+        toggleJellyfinDiscoveryFromTrayRuntime(getJellyfinTrayDiscoveryDeps()),
       openAnilistSetupWindow: () => openAnilistSetupWindow(),
       quitApp: () => requestAppQuit(),
     },

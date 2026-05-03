@@ -53,11 +53,11 @@ export function createStartJellyfinRemoteSessionHandler(deps: {
   logInfo: (message: string) => void;
   logWarn: (message: string, details?: unknown) => void;
 }) {
-  return async (): Promise<void> => {
+  return async (options?: { explicit?: boolean }): Promise<void> => {
     const jellyfinConfig = deps.getJellyfinConfig();
     if (jellyfinConfig.enabled === false) return;
     if (jellyfinConfig.remoteControlEnabled === false) return;
-    if (jellyfinConfig.remoteControlAutoConnect === false) return;
+    if (jellyfinConfig.remoteControlAutoConnect === false && options?.explicit !== true) return;
     if (!jellyfinConfig.serverUrl || !jellyfinConfig.accessToken || !jellyfinConfig.userId) return;
 
     const existing = deps.getCurrentSession();

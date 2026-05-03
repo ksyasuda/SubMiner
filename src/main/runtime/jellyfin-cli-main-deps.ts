@@ -51,7 +51,7 @@ export function createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler(
   deps: HandleJellyfinRemoteAnnounceCommandMainDeps,
 ) {
   return (): HandleJellyfinRemoteAnnounceCommandMainDeps => ({
-    startJellyfinRemoteSession: () => deps.startJellyfinRemoteSession(),
+    startJellyfinRemoteSession: (options) => deps.startJellyfinRemoteSession(options),
     getRemoteSession: () => deps.getRemoteSession(),
     logInfo: (message: string) => deps.logInfo(message),
     logWarn: (message: string) => deps.logWarn(message),

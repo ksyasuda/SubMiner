@@ -48,6 +48,7 @@ test('build tray template handler wires actions and init guards', () => {
       handlers.openYomitanSettings();
       handlers.openRuntimeOptions();
       handlers.openJellyfinSetup();
+      handlers.toggleJellyfinDiscovery();
       handlers.openAnilistSetup();
       handlers.quitApp();
       return [{ label: 'ok' }] as never;
@@ -65,6 +66,11 @@ test('build tray template handler wires actions and init guards', () => {
     openYomitanSettings: () => calls.push('yomitan'),
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
+    isJellyfinConfigured: () => true,
+    isJellyfinDiscoveryActive: () => false,
+    toggleJellyfinDiscovery: async () => {
+      calls.push('jellyfin-discovery');
+    },
     openAnilistSetupWindow: () => calls.push('anilist'),
     quitApp: () => calls.push('quit'),
   });
@@ -80,6 +86,7 @@ test('build tray template handler wires actions and init guards', () => {
     'yomitan',
     'runtime-options',
     'jellyfin',
+    'jellyfin-discovery',
     'anilist',
     'quit',
   ]);

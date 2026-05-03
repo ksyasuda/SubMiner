@@ -9,19 +9,24 @@ export function createBuildOpenJellyfinSetupWindowMainDepsHandler(
     maybeFocusExistingSetupWindow: () => deps.maybeFocusExistingSetupWindow(),
     createSetupWindow: () => deps.createSetupWindow(),
     getResolvedJellyfinConfig: () => deps.getResolvedJellyfinConfig(),
-    buildSetupFormHtml: (defaultServer: string, defaultUser: string) =>
-      deps.buildSetupFormHtml(defaultServer, defaultUser),
+    buildSetupFormHtml: (state) => deps.buildSetupFormHtml(state),
     parseSubmissionUrl: (rawUrl: string) => deps.parseSubmissionUrl(rawUrl),
     authenticateWithPassword: (server: string, username: string, password: string, clientInfo) =>
       deps.authenticateWithPassword(server, username, password, clientInfo),
     getJellyfinClientInfo: () => deps.getJellyfinClientInfo(),
     saveStoredSession: (session) => deps.saveStoredSession(session),
+    clearStoredSession: () => deps.clearStoredSession(),
     patchJellyfinConfig: (session) => deps.patchJellyfinConfig(session),
+    persistAuthenticatedSession: deps.persistAuthenticatedSession
+      ? (session, clientInfo) => deps.persistAuthenticatedSession?.(session, clientInfo)
+      : undefined,
     logInfo: (message: string) => deps.logInfo(message),
     logError: (message: string, error: unknown) => deps.logError(message, error),
     showMpvOsd: (message: string) => deps.showMpvOsd(message),
     clearSetupWindow: () => deps.clearSetupWindow(),
     setSetupWindow: (window) => deps.setSetupWindow(window),
     encodeURIComponent: (value: string) => deps.encodeURIComponent(value),
+    defaultServerUrl: deps.defaultServerUrl,
+    hasStoredSession: () => deps.hasStoredSession(),
   });
 }

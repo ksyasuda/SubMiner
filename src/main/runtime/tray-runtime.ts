@@ -39,13 +39,18 @@ export type TrayMenuActionHandlers = {
   openYomitanSettings: () => void;
   openRuntimeOptions: () => void;
   openJellyfinSetup: () => void;
+  showJellyfinDiscovery: boolean;
+  jellyfinDiscoveryActive: boolean;
+  toggleJellyfinDiscovery: () => void;
   openAnilistSetup: () => void;
   quitApp: () => void;
 };
 
 export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): Array<{
   label?: string;
-  type?: 'separator';
+  type?: 'separator' | 'checkbox';
+  checked?: boolean;
+  enabled?: boolean;
   click?: () => void;
 }> {
   return [
@@ -85,6 +90,17 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
       label: 'Configure Jellyfin',
       click: handlers.openJellyfinSetup,
     },
+    ...(handlers.showJellyfinDiscovery
+      ? [
+          {
+            label: 'Jellyfin Discovery',
+            type: 'checkbox' as const,
+            checked: handlers.jellyfinDiscoveryActive,
+            enabled: true,
+            click: handlers.toggleJellyfinDiscovery,
+          },
+        ]
+      : []),
     {
       label: 'Configure AniList',
       click: handlers.openAnilistSetup,
