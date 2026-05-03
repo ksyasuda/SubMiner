@@ -1,4 +1,5 @@
 import { MergedToken, NPlusOneMatchMode, PartOfSpeech } from '../../../types';
+import { isStandaloneGrammarEndingText } from './grammar-ending';
 
 interface YomitanParseHeadword {
   term?: unknown;
@@ -23,24 +24,6 @@ export interface YomitanParseCandidate {
   index: number;
   tokens: MergedToken[];
 }
-
-const STANDALONE_GRAMMAR_ENDINGS = new Set([
-  'です',
-  'ですか',
-  'ですね',
-  'ですよ',
-  'ですな',
-  'じゃない',
-  'じゃないか',
-  'じゃないね',
-  'じゃないよ',
-  'じゃないな',
-  'じゃないです',
-  'じゃないですか',
-  'じゃないですね',
-  'じゃないですよ',
-  'じゃないですな',
-]);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object');
@@ -164,7 +147,7 @@ function isStandaloneGrammarEndingSegment(segment: YomitanParseSegment): boolean
   const headword = extractYomitanHeadword(segment).trim();
   return (
     headword.length > 0 &&
-    (STANDALONE_GRAMMAR_ENDINGS.has(surface) || STANDALONE_GRAMMAR_ENDINGS.has(headword))
+    (isStandaloneGrammarEndingText(surface) || isStandaloneGrammarEndingText(headword))
   );
 }
 

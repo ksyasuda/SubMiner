@@ -219,10 +219,6 @@ export class CardCreationService {
           this.deps.getConfig(),
         );
         const sentenceAudioField = this.getResolvedSentenceAudioFieldName(noteInfo);
-        const expressionAudioField = this.deps.resolveConfiguredFieldName(
-          noteInfo,
-          this.deps.getConfig().fields?.audio || 'ExpressionAudio',
-        );
         const sentenceField = this.deps.getEffectiveSentenceCardConfig().sentenceField;
 
         const sentence = blocks.join(' ');
@@ -252,22 +248,15 @@ export class CardCreationService {
 
             if (audioBuffer) {
               await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
-              if (sentenceAudioField || expressionAudioField) {
+              if (sentenceAudioField) {
                 const audioValue = `[sound:${audioFilename}]`;
-                const audioFields = new Set(
-                  [sentenceAudioField, expressionAudioField].filter(
-                    (fieldName): fieldName is string => Boolean(fieldName),
-                  ),
+                const existingAudio = noteInfo.fields[sentenceAudioField]?.value || '';
+                // Manual clipboard updates intentionally replace old captured sentence audio.
+                updatedFields[sentenceAudioField] = this.deps.mergeFieldValue(
+                  existingAudio,
+                  audioValue,
+                  true,
                 );
-                for (const audioField of audioFields) {
-                  const existingAudio = noteInfo.fields[audioField]?.value || '';
-                  // Manual clipboard updates intentionally replace old captured audio.
-                  updatedFields[audioField] = this.deps.mergeFieldValue(
-                    existingAudio,
-                    audioValue,
-                    true,
-                  );
-                }
               }
               miscInfoFilename = audioFilename;
               updatePerformed = true;

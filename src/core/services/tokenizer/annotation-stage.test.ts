@@ -301,6 +301,31 @@ test('shouldExcludeTokenFromSubtitleAnnotations excludes standalone polite copul
   }
 });
 
+test('shouldExcludeTokenFromSubtitleAnnotations excludes grammar-ending patterns without enumerating variants', () => {
+  const tokens = [
+    makeToken({
+      surface: 'ですわ',
+      headword: 'です',
+      reading: 'デスワ',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '',
+      pos2: '',
+    }),
+    makeToken({
+      surface: 'ではないですか',
+      headword: 'ない',
+      reading: 'デハナイデスカ',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '',
+      pos2: '',
+    }),
+  ];
+
+  for (const token of tokens) {
+    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
+  }
+});
+
 test('shouldExcludeTokenFromSubtitleAnnotations excludes auxiliary-stem そうだ grammar tails', () => {
   const token = makeToken({
     surface: 'そうだ',

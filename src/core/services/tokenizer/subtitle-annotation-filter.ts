@@ -8,6 +8,7 @@ import {
 } from '../../../token-pos2-exclusions';
 import { MergedToken, PartOfSpeech } from '../../../types';
 import { shouldIgnoreJlptByTerm } from '../jlpt-token-filter';
+import { isSubtitleGrammarEndingText } from './grammar-ending';
 
 const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
@@ -58,61 +59,6 @@ export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   'ものか',
   ...STANDALONE_GRAMMAR_PARTICLE_PHRASES,
 ]);
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES = ['ん', 'の', 'なん', 'なの'];
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES = [
-  'だ',
-  'です',
-  'でした',
-  'だった',
-  'では',
-  'じゃ',
-  'でしょう',
-  'だろう',
-] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES = [
-  '',
-  'か',
-  'ね',
-  'よ',
-  'な',
-  'けど',
-  'よね',
-  'かな',
-  'かね',
-] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_THOUGHT_SUFFIXES = [
-  'か',
-  'かな',
-  'かね',
-] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_SUFFIXES = ['', 'か', 'ね', 'よ', 'な'] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_JA_NAI_SUFFIXES = [
-  '',
-  'か',
-  'ね',
-  'よ',
-  'な',
-  'です',
-  'ですか',
-  'ですよ',
-  'ですね',
-  'ですな',
-] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS = new Set(
-  SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES.flatMap((prefix) =>
-    SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES.flatMap((core) =>
-      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES.map(
-        (particle) => `${prefix}${core}${particle}`,
-      ),
-    ),
-  ),
-);
-const SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_ENDINGS = new Set(
-  SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_SUFFIXES.map((suffix) => `です${suffix}`),
-);
-const SUBTITLE_ANNOTATION_EXCLUDED_JA_NAI_ENDINGS = new Set(
-  SUBTITLE_ANNOTATION_EXCLUDED_JA_NAI_SUFFIXES.map((suffix) => `じゃない${suffix}`),
-);
 const SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES = new Set([
   'って',
   'ってよ',
@@ -461,24 +407,10 @@ function isExcludedByTerm(token: MergedToken): boolean {
     }
 
     if (
-      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES.some((prefix) =>
-        SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_THOUGHT_SUFFIXES.some(
-          (suffix) => normalized === `${prefix}${suffix}`,
-        ),
-      )
-    ) {
-      return true;
-    }
-
-    if (
       SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(trimmed) ||
       SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(normalized) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(trimmed) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(normalized) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_ENDINGS.has(trimmed) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_ENDINGS.has(normalized) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_JA_NAI_ENDINGS.has(trimmed) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_JA_NAI_ENDINGS.has(normalized) ||
+      isSubtitleGrammarEndingText(trimmed) ||
+      isSubtitleGrammarEndingText(normalized) ||
       shouldIgnoreJlptByTerm(trimmed) ||
       shouldIgnoreJlptByTerm(normalized)
     ) {

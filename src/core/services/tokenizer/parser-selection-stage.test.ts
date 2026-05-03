@@ -219,6 +219,38 @@ test('splits trailing ja-nai grammar endings from preceding content', () => {
   );
 });
 
+test('splits trailing negative-copula grammar endings by pattern', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [
+        { text: '問題', reading: 'もんだい', headword: '問題' },
+        { text: 'ではないですか', reading: 'ではないですか', headword: 'ない' },
+      ],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.deepEqual(
+    tokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+    })),
+    [
+      {
+        surface: '問題',
+        reading: 'もんだい',
+        headword: '問題',
+      },
+      {
+        surface: 'ではないですか',
+        reading: 'ではないですか',
+        headword: 'ない',
+      },
+    ],
+  );
+});
+
 test('merges trailing katakana continuation without headword into previous token', () => {
   const parseResults = [
     makeParseItem('scanning-parser', [

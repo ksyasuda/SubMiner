@@ -126,7 +126,7 @@ function createManualUpdateService(overrides: Partial<CardCreationDeps> = {}): {
   };
 }
 
-test('manual clipboard subtitle update replaces expression and sentence audio even when overwriteAudio is disabled', async () => {
+test('manual clipboard subtitle update replaces sentence audio without touching expression audio', async () => {
   const { service, updatedFields, mergeCalls, storedMedia } = createManualUpdateService();
 
   await service.updateLastAddedFromClipboard('字幕');
@@ -134,10 +134,10 @@ test('manual clipboard subtitle update replaces expression and sentence audio ev
   assert.equal(updatedFields.length, 1);
   assert.equal(storedMedia.length, 1);
   const audioValue = `[sound:${storedMedia[0]}]`;
-  assert.equal(updatedFields[0]?.ExpressionAudio, audioValue);
   assert.equal(updatedFields[0]?.SentenceAudio, audioValue);
+  assert.equal('ExpressionAudio' in updatedFields[0]!, false);
   assert.deepEqual(
     mergeCalls.map((call) => call.overwrite),
-    [true, true],
+    [true],
   );
 });
