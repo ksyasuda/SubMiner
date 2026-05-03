@@ -14,9 +14,7 @@ function formatStatsServerUrl(port: number): string {
   return `http://127.0.0.1:${port}`;
 }
 
-export type EnsureStatsServerUrlResult =
-  | { url: string; source: 'foreign' }
-  | { url: string; source: 'local' };
+export type EnsureStatsServerUrlResult = { url: string; source: 'local' };
 
 export function createEnsureStatsServerUrlHandler(
   deps: EnsureStatsServerUrlDeps,
@@ -29,8 +27,6 @@ export function createEnsureStatsServerUrlHandler(
       deps.removeBackgroundState();
     } else if (!deps.isProcessAlive(state.pid)) {
       deps.removeBackgroundState();
-    } else if (state.pid !== deps.currentPid) {
-      return { url: formatStatsServerUrl(state.port), source: 'foreign' };
     }
 
     if (!deps.hasLocalStatsServer()) {

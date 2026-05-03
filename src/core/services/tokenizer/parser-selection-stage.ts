@@ -24,6 +24,24 @@ export interface YomitanParseCandidate {
   tokens: MergedToken[];
 }
 
+const STANDALONE_GRAMMAR_ENDINGS = new Set([
+  'です',
+  'ですか',
+  'ですね',
+  'ですよ',
+  'ですな',
+  'じゃない',
+  'じゃないか',
+  'じゃないね',
+  'じゃないよ',
+  'じゃないな',
+  'じゃないです',
+  'じゃないですか',
+  'じゃないですね',
+  'じゃないですよ',
+  'じゃないですな',
+]);
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object');
 }
@@ -141,6 +159,15 @@ function isKanaOnlyText(text: string): boolean {
   return text.length > 0 && Array.from(text).every((char) => isKanaChar(char));
 }
 
+function isStandaloneGrammarEndingSegment(segment: YomitanParseSegment): boolean {
+  const surface = segment.text?.trim() ?? '';
+  const headword = extractYomitanHeadword(segment).trim();
+  return (
+    headword.length > 0 &&
+    (STANDALONE_GRAMMAR_ENDINGS.has(surface) || STANDALONE_GRAMMAR_ENDINGS.has(headword))
+  );
+}
+
 function shouldMergeKanaContinuation(
   previousToken: MergedToken | undefined,
   continuationSurface: string,
@@ -186,8 +213,63 @@ export function mapYomitanParseResultItemToMergedTokens(
 
     let combinedSurface = '';
     let combinedReading = '';
+    let combinedStart = charOffset;
     let firstHeadword = '';
     const expandedHeadwords: string[] = [];
+
+    const pushToken = (
+      surface: string,
+      reading: string,
+      headword: string,
+      start: number,
+      end: number,
+    ): void => {
+      tokens.push({
+        surface,
+        reading,
+        headword,
+        startPos: start,
+        endPos: end,
+        partOfSpeech: PartOfSpeech.other,
+        pos1: '',
+        isMerged: true,
+        isNPlusOneTarget: false,
+        isKnown: (() => {
+          const matchText = resolveKnownWordText(surface, headword, knownWordMatchMode);
+          return matchText ? isKnownWord(matchText) : false;
+        })(),
+      });
+    };
+
+    const flushCombinedToken = (end: number): void => {
+      if (!combinedSurface) {
+        combinedStart = end;
+        return;
+      }
+
+      const combinedHeadword = selectMergedHeadword(
+        firstHeadword,
+        expandedHeadwords,
+        combinedSurface,
+      );
+      if (!combinedHeadword) {
+        const previousToken = tokens[tokens.length - 1];
+        if (shouldMergeKanaContinuation(previousToken, combinedSurface)) {
+          previousToken.surface += combinedSurface;
+          previousToken.reading += combinedReading;
+          previousToken.endPos = end;
+        }
+      } else {
+        hasDictionaryMatch = true;
+        pushToken(combinedSurface, combinedReading, combinedHeadword, combinedStart, end);
+      }
+
+      combinedSurface = '';
+      combinedReading = '';
+      firstHeadword = '';
+      expandedHeadwords.length = 0;
+      combinedStart = end;
+    };
 
     for (const segment of line) {
       const segmentText = segment.text;
@@ -195,11 +277,33 @@ export function mapYomitanParseResultItemToMergedTokens(
         continue;
       }
 
+      const segmentStart = charOffset;
+      const segmentEnd = segmentStart + segmentText.length;
+      charOffset = segmentEnd;
       combinedSurface += segmentText;
       if (typeof segment.reading === 'string') {
         combinedReading += segment.reading;
       }
       const segmentHeadword = extractYomitanHeadword(segment);
+      if (isStandaloneGrammarEndingSegment(segment)) {
+        combinedSurface = combinedSurface.slice(0, -segmentText.length);
+        if (typeof segment.reading === 'string') {
+          combinedReading = combinedReading.slice(0, -segment.reading.length);
+        }
+        flushCombinedToken(segmentStart);
+        const grammarHeadword = segmentHeadword || segmentText;
+        hasDictionaryMatch = true;
+        pushToken(
+          segmentText,
+          typeof segment.reading === 'string' ? segment.reading : '',
+          grammarHeadword,
+          segmentStart,
+          segmentEnd,
+        );
+        combinedStart = segmentEnd;
+        continue;
+      }
+
       if (segmentHeadword) {
         if (!firstHeadword) {
           firstHeadword = segmentHeadword;
@@ -210,49 +314,7 @@ export function mapYomitanParseResultItemToMergedTokens(
       }
     }
 
-    if (!combinedSurface) {
-      continue;
-    }
-
-    const start = charOffset;
-    const end = start + combinedSurface.length;
-    charOffset = end;
-    const combinedHeadword = selectMergedHeadword(
-      firstHeadword,
-      expandedHeadwords,
-      combinedSurface,
-    );
-    if (!combinedHeadword) {
-      const previousToken = tokens[tokens.length - 1];
-      if (shouldMergeKanaContinuation(previousToken, combinedSurface)) {
-        previousToken.surface += combinedSurface;
-        previousToken.reading += combinedReading;
-        previousToken.endPos = end;
-        continue;
-      }
-
-      // No dictionary-backed headword for this merged unit; skip it entirely so
-      // downstream keyboard/frequency/JLPT flows only operate on lookup-backed tokens.
-      continue;
-    }
-    hasDictionaryMatch = true;
-    const headword = combinedHeadword;
-
-    tokens.push({
-      surface: combinedSurface,
-      reading: combinedReading,
-      headword,
-      startPos: start,
-      endPos: end,
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '',
-      isMerged: true,
-      isNPlusOneTarget: false,
-      isKnown: (() => {
-        const matchText = resolveKnownWordText(combinedSurface, headword, knownWordMatchMode);
-        return matchText ? isKnownWord(matchText) : false;
-      })(),
-    });
+    flushCombinedToken(charOffset);
   }
 
   if (validLineCount === 0 || tokens.length === 0 || !hasDictionaryMatch) {

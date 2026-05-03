@@ -79,7 +79,7 @@ function createDeferred<T>() {
   };
 }
 
-test('tokenizeSubtitle assigns JLPT level to parsed Yomitan tokens', async () => {
+test('tokenizeSubtitle splits same-line grammar endings before applying annotations', async () => {
   const result = await tokenizeSubtitle(
     '猫です',
     makeDeps({
@@ -88,35 +88,51 @@ test('tokenizeSubtitle assigns JLPT level to parsed Yomitan tokens', async () =>
         ({
           isDestroyed: () => false,
           webContents: {
-            executeJavaScript: async () => [
-              {
-                source: 'scanning-parser',
-                index: 0,
-                content: [
-                  [
-                    {
-                      text: '猫',
-                      reading: 'ねこ',
-                      headwords: [[{ term: '猫' }]],
-                    },
-                    {
-                      text: 'です',
-                      reading: 'です',
-                      headwords: [[{ term: 'です' }]],
-                    },
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '猫',
+                        reading: 'ねこ',
+                        headwords: [[{ term: '猫' }]],
+                      },
+                      {
+                        text: 'です',
+                        reading: 'です',
+                        headwords: [[{ term: 'です' }]],
+                      },
+                    ],
                   ],
-                ],
-              },
-            ],
+                },
+              ];
+            },
           },
         }) as unknown as Electron.BrowserWindow,
       tokenizeWithMecab: async () => null,
-      getJlptLevel: (text) => (text === '猫' ? 'N5' : null),
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === '猫' ? 40 : text === 'です' ? 50 : null),
+      getJlptLevel: (text) => (text === '猫' || text === 'です' ? 'N5' : null),
+      isKnownWord: (text) => text === 'です',
     }),
   );
 
-  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.length, 2);
+  assert.equal(result.tokens?.[0]?.surface, '猫');
   assert.equal(result.tokens?.[0]?.jlptLevel, 'N5');
+  assert.equal(result.tokens?.[0]?.frequencyRank, 40);
+  assert.equal(result.tokens?.[1]?.surface, 'です');
+  assert.equal(result.tokens?.[1]?.isKnown, false);
+  assert.equal(result.tokens?.[1]?.isNPlusOneTarget, false);
+  assert.equal(result.tokens?.[1]?.frequencyRank, undefined);
+  assert.equal(result.tokens?.[1]?.jlptLevel, undefined);
 });
 
 test('tokenizeSubtitle preserves Yomitan name-match metadata on tokens', async () => {
@@ -204,7 +220,7 @@ test('tokenizeSubtitle applies frequency dictionary ranks', async () => {
 
   assert.equal(result.tokens?.length, 2);
   assert.equal(result.tokens?.[0]?.frequencyRank, 23);
-  assert.equal(result.tokens?.[1]?.frequencyRank, 1200);
+  assert.equal(result.tokens?.[1]?.frequencyRank, undefined);
 });
 
 test('tokenizeSubtitle uses left-to-right yomitan scanning to keep full katakana name tokens', async () => {
@@ -2383,7 +2399,7 @@ test('tokenizeSubtitle applies N+1 target marking to Yomitan results', async () 
       getYomitanParserWindow: () => parserWindow,
       tokenizeWithMecab: async () => null,
       isKnownWord: (text) => text === 'です',
-      getMinSentenceWordsForNPlusOne: () => 2,
+      getMinSentenceWordsForNPlusOne: () => 1,
     }),
   );
 
@@ -4755,6 +4771,143 @@ test('tokenizeSubtitle clears annotations for auxiliary inflection fragments whi
       isNPlusOneTarget: true,
       frequencyRank: 900,
       jlptLevel: 'N5',
+    },
+  );
+});
+
+test('tokenizeSubtitle clears annotations for te-kureru auxiliary helper spans', async () => {
+  const result = await tokenizeSubtitle(
+    'ベアトリスがいてくれたから',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: 'ベアトリス', reading: 'べあとりす', headword: 'ベアトリス' },
+        { surface: 'が', reading: 'が', headword: 'が' },
+        { surface: 'い', reading: 'い', headword: 'いる' },
+        { surface: 'てく', reading: 'てく', headword: 'てく' },
+        { surface: 'れた', reading: 'れた', headword: 'れる' },
+        { surface: 'から', reading: 'から', headword: 'から' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) =>
+          text === 'ベアトリス' ? 1000 : text === 'てく' ? 140 : text === 'れる' ? 19 : null,
+        getJlptLevel: (text) =>
+          text === 'てく' || text === 'れる' || text === 'いる' ? 'N4' : null,
+        isKnownWord: (text) => text === 'てく' || text === 'れる',
+        getMinSentenceWordsForNPlusOne: () => 1,
+        tokenizeWithMecab: async () => [
+          {
+            headword: 'ベアトリス',
+            surface: 'ベアトリス',
+            reading: 'ベアトリス',
+            startPos: 0,
+            endPos: 5,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '固有名詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'が',
+            surface: 'が',
+            reading: 'ガ',
+            startPos: 5,
+            endPos: 6,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '格助詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'いる',
+            surface: 'い',
+            reading: 'イ',
+            startPos: 6,
+            endPos: 7,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '動詞',
+            pos2: '自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'てく',
+            surface: 'てく',
+            reading: 'テク',
+            startPos: 7,
+            endPos: 9,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '助詞|動詞',
+            pos2: '接続助詞|非自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'れる',
+            surface: 'れた',
+            reading: 'レタ',
+            startPos: 9,
+            endPos: 11,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '動詞|助動詞',
+            pos2: '接尾|*',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'から',
+            surface: 'から',
+            reading: 'カラ',
+            startPos: 11,
+            endPos: 13,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '接続助詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+      },
+    ),
+  );
+
+  const tokenSummary = result.tokens?.map((token) => ({
+    surface: token.surface,
+    headword: token.headword,
+    isKnown: token.isKnown,
+    isNPlusOneTarget: token.isNPlusOneTarget,
+    frequencyRank: token.frequencyRank,
+    jlptLevel: token.jlptLevel,
+  }));
+
+  assert.deepEqual(
+    tokenSummary?.find((token) => token.surface === 'てく'),
+    {
+      surface: 'てく',
+      headword: 'てく',
+      isKnown: false,
+      isNPlusOneTarget: false,
+      frequencyRank: undefined,
+      jlptLevel: undefined,
+    },
+  );
+  assert.deepEqual(
+    tokenSummary?.find((token) => token.surface === 'れた'),
+    {
+      surface: 'れた',
+      headword: 'れる',
+      isKnown: false,
+      isNPlusOneTarget: false,
+      frequencyRank: undefined,
+      jlptLevel: undefined,
     },
   );
 });

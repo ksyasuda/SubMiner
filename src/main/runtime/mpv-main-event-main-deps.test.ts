@@ -162,6 +162,48 @@ test('mpv main event main deps wire subtitle callbacks without suppression gate'
   assert.equal(typeof deps.setCurrentSubText, 'function');
 });
 
+test('mpv main event main deps treat managed playback as quit-on-disconnect', () => {
+  const deps = createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState: {
+      initialArgs: { managedPlayback: true },
+      overlayRuntimeInitialized: false,
+      mpvClient: null,
+      immersionTracker: null,
+      subtitleTimingTracker: null,
+      currentSubText: '',
+      currentSubAssText: '',
+      playbackPaused: null,
+      previousSecondarySubVisibility: false,
+    },
+    getQuitOnDisconnectArmed: () => true,
+    scheduleQuitCheck: () => {},
+    quitApp: () => {},
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    broadcastToOverlayWindows: () => {},
+    onSubtitleChange: () => {},
+    ensureImmersionTrackerInitialized: () => {},
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    resetSubtitleSidebarEmbeddedLayout: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    refreshDiscordPresence: () => {},
+  })();
+
+  assert.equal(deps.hasInitialPlaybackQuitOnDisconnectArg(), true);
+  assert.equal(deps.shouldQuitOnDisconnectWhenOverlayRuntimeInitialized(), true);
+});
+
 test('flushPlaybackPositionOnMediaPathClear ignores disconnected mpv time-pos reads', async () => {
   const recorded: number[] = [];
   const deps = createBuildBindMpvMainEventHandlersMainDepsHandler({

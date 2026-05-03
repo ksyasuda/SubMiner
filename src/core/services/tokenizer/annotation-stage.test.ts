@@ -1371,6 +1371,49 @@ test('annotateTokens clears all annotations for standalone auxiliary inflection 
   }
 });
 
+test('annotateTokens clears all annotations for auxiliary-only te-kureru helper spans', () => {
+  const tokens = [
+    makeToken({
+      surface: 'てく',
+      headword: 'てく',
+      reading: 'テク',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '助詞|動詞',
+      pos2: '接続助詞|非自立',
+      startPos: 0,
+      endPos: 2,
+      frequencyRank: 140,
+    }),
+    makeToken({
+      surface: 'れた',
+      headword: 'れる',
+      reading: 'レタ',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞|助動詞',
+      pos2: '接尾|*',
+      startPos: 2,
+      endPos: 4,
+      frequencyRank: 19,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'てく' || text === 'れる',
+      getJlptLevel: (text) => (text === 'てく' || text === 'れる' ? 'N4' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  for (const token of result) {
+    assert.equal(token.isKnown, false, token.surface);
+    assert.equal(token.isNPlusOneTarget, false, token.surface);
+    assert.equal(token.frequencyRank, undefined, token.surface);
+    assert.equal(token.jlptLevel, undefined, token.surface);
+  }
+});
+
 test('annotateTokens keeps lexical くれる forms eligible for annotation', () => {
   const tokens = [
     makeToken({

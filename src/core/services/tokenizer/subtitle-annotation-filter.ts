@@ -84,12 +84,7 @@ const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_THOUGHT_SUFFIXES = [
   'かな',
   'かね',
 ] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_SUFFIXES = [
-  'か',
-  'ね',
-  'よ',
-  'な',
-] as const;
+const SUBTITLE_ANNOTATION_EXCLUDED_POLITE_COPULA_SUFFIXES = ['', 'か', 'ね', 'よ', 'な'] as const;
 const SUBTITLE_ANNOTATION_EXCLUDED_JA_NAI_SUFFIXES = [
   '',
   'か',
@@ -129,6 +124,8 @@ const SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES = new Set([
 const AUXILIARY_STEM_GRAMMAR_TAIL_POS1 = new Set(['名詞', '助動詞', '助詞']);
 const NON_INDEPENDENT_NOUN_HELPER_TAIL_POS1 = new Set(['助詞', '助動詞']);
 const AUXILIARY_INFLECTION_TRAILING_POS1 = new Set(['助動詞']);
+const AUXILIARY_HELPER_SPAN_POS1 = new Set(['助詞', '助動詞', '動詞']);
+const LEXICAL_VERB_POS2 = new Set(['自立']);
 const STANDALONE_GRAMMAR_PARTICLE_SURFACES = new Set([
   'か',
   'が',
@@ -396,6 +393,27 @@ function isStandaloneAuxiliaryInflectionFragment(token: MergedToken): boolean {
   );
 }
 
+function isAuxiliaryOnlyHelperSpan(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  const normalizedHeadword = normalizeKana(token.headword);
+  if (!isKanaOnlyText(normalizedSurface) || !isKanaOnlyText(normalizedHeadword)) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  if (
+    pos1Parts.length === 0 ||
+    !pos1Parts.every((part) => AUXILIARY_HELPER_SPAN_POS1.has(part)) ||
+    !pos1Parts.includes('助詞') ||
+    !pos1Parts.includes('動詞')
+  ) {
+    return false;
+  }
+
+  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  return !pos2Parts.some((part) => LEXICAL_VERB_POS2.has(part));
+}
+
 function isStandaloneSuruTeGrammarHelper(token: MergedToken): boolean {
   const normalizedSurface = normalizeKana(token.surface);
   const normalizedHeadword = normalizeKana(token.headword);
@@ -404,7 +422,9 @@ function isStandaloneSuruTeGrammarHelper(token: MergedToken): boolean {
   }
 
   const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
-  return isKanaOnlyText(normalizedSurface) && (pos1Parts.length === 0 || pos1Parts.includes('動詞'));
+  return (
+    isKanaOnlyText(normalizedSurface) && (pos1Parts.length === 0 || pos1Parts.includes('動詞'))
+  );
 }
 
 function isStandaloneGrammarParticle(token: MergedToken): boolean {
@@ -515,6 +535,10 @@ export function shouldExcludeTokenFromSubtitleAnnotations(
   }
 
   if (isStandaloneAuxiliaryInflectionFragment(token)) {
+    return true;
+  }
+
+  if (isAuxiliaryOnlyHelperSpan(token)) {
     return true;
   }
 
