@@ -252,7 +252,7 @@ subminer app --setup            # launch the first-run setup wizard
 
 SubMiner creates a default config, starts in the system tray, and opens a setup popup that walks you through installing the mpv plugin and configuring Yomitan dictionaries. Follow the on-screen steps to complete setup.
 
-Jellyfin setup is available from the tray or `subminer jellyfin`; after login, the tray can toggle Jellyfin Discovery for the current app session.
+Jellyfin setup is available from the tray or `subminer jellyfin`; once Jellyfin is enabled with a server URL, the tray can toggle Jellyfin Discovery for the current app session.
 
 > [!NOTE]
 > On Windows, run `SubMiner.exe` directly — it opens the setup wizard automatically on first launch.

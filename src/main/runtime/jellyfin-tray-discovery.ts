@@ -30,9 +30,7 @@ export function isJellyfinConfiguredForTray(
   deps: Pick<JellyfinTrayDiscoveryDeps<JellyfinTrayRemoteSession>, 'getResolvedJellyfinConfig'>,
 ): boolean {
   const jellyfin = deps.getResolvedJellyfinConfig();
-  return Boolean(
-    jellyfin.enabled !== false && jellyfin.serverUrl && jellyfin.accessToken && jellyfin.userId,
-  );
+  return Boolean(jellyfin.enabled !== false && jellyfin.serverUrl);
 }
 
 export function clearJellyfinAuthSessionAndRefreshTray<TSession extends JellyfinTrayRemoteSession>(

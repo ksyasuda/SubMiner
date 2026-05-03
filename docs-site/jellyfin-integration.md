@@ -70,7 +70,7 @@ Launcher wrapper for Jellyfin cast discovery mode (background app + tray):
 subminer jellyfin -d
 ```
 
-After Jellyfin is configured and SubMiner is already running, the tray menu shows `Jellyfin Discovery`. Use that checkbox to start or stop discovery for the current runtime session without changing config. It does not survive app restart.
+After Jellyfin is enabled with a server URL and SubMiner is already running, the tray menu shows `Jellyfin Discovery`. Use that checkbox to start or stop discovery for the current runtime session without changing config. If the stored login session is missing or expired, starting discovery shows a warning and setup remains the path to refresh credentials. It does not survive app restart.
 
 Stop discovery session/app:
 

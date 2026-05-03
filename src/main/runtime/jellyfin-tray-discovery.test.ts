@@ -6,7 +6,7 @@ import {
   toggleJellyfinDiscoveryFromTray,
 } from './jellyfin-tray-discovery';
 
-test('detects Jellyfin tray configuration only when auth session fields exist', () => {
+test('detects Jellyfin tray configuration when Jellyfin has a server URL', () => {
   assert.equal(
     isJellyfinConfiguredForTray({
       getResolvedJellyfinConfig: () => ({
@@ -22,9 +22,8 @@ test('detects Jellyfin tray configuration only when auth session fields exist', 
   assert.equal(
     isJellyfinConfiguredForTray({
       getResolvedJellyfinConfig: () => ({
+        enabled: true,
         serverUrl: 'http://server:8096',
-        accessToken: 'token',
-        userId: 'user',
       }),
     }),
     true,
@@ -45,9 +44,10 @@ test('detects Jellyfin tray configuration only when auth session fields exist', 
   assert.equal(
     isJellyfinConfiguredForTray({
       getResolvedJellyfinConfig: () => ({
-        serverUrl: 'http://server:8096',
+        enabled: true,
+        serverUrl: '',
         accessToken: 'token',
-        userId: '',
+        userId: 'user',
       }),
     }),
     false,
