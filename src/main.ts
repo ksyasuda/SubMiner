@@ -1407,9 +1407,8 @@ const subtitleProcessingController = createSubtitleProcessingController(
 let subtitlePrefetchService: SubtitlePrefetchService | null = null;
 let subtitlePrefetchRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let lastObservedTimePos = 0;
-let cancelLinuxMpvFullscreenOverlayRefreshBurst:
-  | CancelLinuxMpvFullscreenOverlayRefreshBurst
-  | null = null;
+let cancelLinuxMpvFullscreenOverlayRefreshBurst: CancelLinuxMpvFullscreenOverlayRefreshBurst | null =
+  null;
 const SEEK_THRESHOLD_SECONDS = 3;
 
 function clearScheduledSubtitlePrefetchRefresh(): void {
@@ -3439,6 +3438,9 @@ const recordTrackedCardsMined = (count: number, noteIds?: number[]): void => {
   ensureImmersionTrackerStarted();
   appState.immersionTracker?.recordCardsMined(count, noteIds);
 };
+const refreshCurrentSubtitleAfterKnownWordUpdate = (): void => {
+  subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+};
 let hasAttemptedImmersionTrackerStartup = false;
 const ensureImmersionTrackerStarted = (): void => {
   if (hasAttemptedImmersionTrackerStartup || appState.immersionTracker) {
@@ -4264,6 +4266,9 @@ function destroyTray(): void {
 function initializeOverlayRuntime(): void {
   initializeOverlayRuntimeHandler();
   appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
+  appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(
+    refreshCurrentSubtitleAfterKnownWordUpdate,
+  );
   syncOverlayMpvSubtitleSuppression();
 }
 
@@ -4970,6 +4975,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       setAnkiIntegration: (integration: AnkiIntegration | null) => {
         appState.ankiIntegration = integration;
         appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
+        appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(
+          refreshCurrentSubtitleAfterKnownWordUpdate,
+        );
       },
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       showDesktopNotification,

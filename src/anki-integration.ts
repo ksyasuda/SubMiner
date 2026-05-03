@@ -148,6 +148,7 @@ export class AnkiIntegration {
   private runtime: AnkiIntegrationRuntime;
   private aiConfig: AiConfig;
   private recordCardsMinedCallback: ((count: number, noteIds?: number[]) => void) | null = null;
+  private knownWordCacheUpdatedCallback: (() => void) | null = null;
   private noteIdRedirects = new Map<number, number>();
   private trackedDuplicateNoteIds = new Map<number, number[]>();
 
@@ -552,10 +553,25 @@ export class AnkiIntegration {
       return;
     }
 
-    this.knownWordCache.appendFromNoteInfo({
+    const changed = this.knownWordCache.appendFromNoteInfo({
       noteId: noteInfo.noteId,
       fields: noteInfo.fields,
     });
+    if (changed) {
+      this.notifyKnownWordCacheUpdated();
+    }
+  }
+
+  private notifyKnownWordCacheUpdated(): void {
+    if (!this.knownWordCacheUpdatedCallback) {
+      return;
+    }
+
+    try {
+      this.knownWordCacheUpdatedCallback();
+    } catch (error) {
+      log.warn('Known-word cache update callback failed:', (error as Error).message);
+    }
   }
 
   private getLapisConfig(): {
@@ -1265,6 +1281,10 @@ export class AnkiIntegration {
     callback: ((count: number, noteIds?: number[]) => void) | null,
   ): void {
     this.recordCardsMinedCallback = callback;
+  }
+
+  setKnownWordCacheUpdatedCallback(callback: (() => void) | null): void {
+    this.knownWordCacheUpdatedCallback = callback;
   }
 
   resolveCurrentNoteId(noteId: number): number {

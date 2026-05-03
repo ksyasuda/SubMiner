@@ -165,9 +165,9 @@ export class KnownWordCacheManager {
     }
   }
 
-  appendFromNoteInfo(noteInfo: KnownWordCacheNoteInfo): void {
+  appendFromNoteInfo(noteInfo: KnownWordCacheNoteInfo): boolean {
     if (!this.isKnownWordCacheEnabled() || !this.shouldAddMinedWordsImmediately()) {
-      return;
+      return false;
     }
 
     const currentStateKey = this.getKnownWordCacheStateKey();
@@ -180,13 +180,13 @@ export class KnownWordCacheManager {
 
     const preferredFields = this.getImmediateAppendFields();
     if (!preferredFields) {
-      return;
+      return false;
     }
 
     const nextWords = this.extractNormalizedKnownWordsFromNoteInfo(noteInfo, preferredFields);
     const changed = this.replaceNoteSnapshot(noteInfo.noteId, nextWords);
     if (!changed) {
-      return;
+      return false;
     }
 
     if (this.knownWordsLastRefreshedAtMs <= 0) {
@@ -199,6 +199,7 @@ export class KnownWordCacheManager {
       `wordCount=${nextWords.length}`,
       `scope=${getKnownWordCacheScopeForConfig(this.deps.getConfig())}`,
     );
+    return true;
   }
 
   clearKnownWordCacheState(): void {

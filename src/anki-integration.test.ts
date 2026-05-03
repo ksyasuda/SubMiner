@@ -177,6 +177,44 @@ test('AnkiIntegration.refreshKnownWordCache skips work when highlight mode is di
   }
 });
 
+test('AnkiIntegration notifies when mined note info updates known words', () => {
+  const ctx = createIntegrationTestContext({
+    stateDirPrefix: 'subminer-anki-integration-known-update-',
+  });
+  let notifications = 0;
+
+  try {
+    const integrationState = ctx.integration as unknown as {
+      config: AnkiConnectConfig;
+      appendKnownWordsFromNoteInfo: (noteInfo: {
+        noteId: number;
+        fields: Record<string, { value: string }>;
+      }) => void;
+    };
+    integrationState.config.deck = 'Mining';
+    integrationState.config.knownWords = {
+      ...integrationState.config.knownWords,
+      decks: {
+        Mining: ['Word'],
+      },
+    };
+    ctx.integration.setKnownWordCacheUpdatedCallback(() => {
+      notifications += 1;
+    });
+    integrationState.appendKnownWordsFromNoteInfo({
+      noteId: 42,
+      fields: {
+        Word: { value: '食べる' },
+      },
+    });
+
+    assert.equal(ctx.integration.isKnownWord('食べる'), true);
+    assert.equal(notifications, 1);
+  } finally {
+    cleanupIntegrationTestContext(ctx);
+  }
+});
+
 test('AnkiIntegration.refreshKnownWordCache deduplicates concurrent refreshes', async () => {
   let releaseFindNotes: (() => void) | undefined;
   const findNotesPromise = new Promise<void>((resolve) => {
