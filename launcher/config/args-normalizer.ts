@@ -184,6 +184,7 @@ export function createDefaultArgs(
     useTexthooker: true,
     autoStartOverlay: false,
     texthookerOnly: false,
+    texthookerOpenBrowser: false,
     useRofi: false,
     logLevel: 'info',
     passwordStore: '',
@@ -247,6 +248,7 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
   if (invocations.doctorTriggered) parsed.doctor = true;
   if (invocations.doctorRefreshKnownWords) parsed.doctorRefreshKnownWords = true;
   if (invocations.texthookerTriggered) parsed.texthookerOnly = true;
+  if (invocations.texthookerOpenBrowser) parsed.texthookerOpenBrowser = true;
 
   if (invocations.jellyfinInvocation) {
     if (invocations.jellyfinInvocation.logLevel) {

@@ -103,12 +103,14 @@ subminer dictionary /path/to/file-or-directory  # Generate character dictionary 
 subminer dictionary --candidates /path/to/file.mkv
 subminer dictionary --select 21355 /path/to/file.mkv
 subminer texthooker               # Launch texthooker-only mode
+subminer texthooker -o            # Launch texthooker and open it in your browser
 subminer app --anilist            # Pass args directly to SubMiner binary (example: AniList login flow)
 
 # Direct packaged app control
 SubMiner.AppImage --background             # Start in background (tray + IPC wait, minimal logs)
 SubMiner.AppImage --start --texthooker   # Start overlay with texthooker
 SubMiner.AppImage --texthooker           # Launch texthooker only (no overlay window)
+SubMiner.AppImage --texthooker --open-browser  # Launch texthooker and open browser
 SubMiner.AppImage --setup                  # Open first-run setup popup
 SubMiner.AppImage --stop                  # Stop overlay
 SubMiner.AppImage --start --toggle        # Start MPV IPC + toggle visibility

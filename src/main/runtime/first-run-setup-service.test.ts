@@ -80,6 +80,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     jellyfinRemoteAnnounce: false,
     jellyfinPreviewAuth: false,
     texthooker: false,
+    texthookerOpenBrowser: false,
     help: false,
     autoStartOverlay: false,
     generateConfig: false,

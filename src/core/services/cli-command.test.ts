@@ -68,6 +68,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     jellyfinRemoteAnnounce: false,
     jellyfinPreviewAuth: false,
     texthooker: false,
+    texthookerOpenBrowser: false,
     help: false,
     autoStartOverlay: false,
     generateConfig: false,
@@ -392,6 +393,21 @@ test('handleCliCommand applies cli log level for second-instance commands', () =
 test('handleCliCommand runs texthooker flow with browser open', () => {
   const { deps, calls } = createDeps();
   const args = makeArgs({ texthooker: true });
+
+  handleCliCommand(args, 'initial', deps);
+
+  assert.ok(calls.includes('ensureTexthookerRunning:5174:'));
+  assert.ok(calls.includes('openTexthookerInBrowser:http://127.0.0.1:5174'));
+});
+
+test('handleCliCommand opens texthooker browser when requested even if config disables auto-open', () => {
+  const { deps, calls } = createDeps({
+    shouldOpenTexthookerBrowser: () => false,
+  });
+  const args = {
+    ...makeArgs({ texthooker: true }),
+    texthookerOpenBrowser: true,
+  } as CliArgs;
 
   handleCliCommand(args, 'initial', deps);
 

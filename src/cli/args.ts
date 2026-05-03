@@ -71,6 +71,7 @@ export interface CliArgs {
   jellyfinRemoteAnnounce: boolean;
   jellyfinPreviewAuth: boolean;
   texthooker: boolean;
+  texthookerOpenBrowser: boolean;
   help: boolean;
   autoStartOverlay: boolean;
   generateConfig: boolean;
@@ -164,6 +165,7 @@ export function parseArgs(argv: string[]): CliArgs {
     jellyfinRemoteAnnounce: false,
     jellyfinPreviewAuth: false,
     texthooker: false,
+    texthookerOpenBrowser: false,
     help: false,
     autoStartOverlay: false,
     generateConfig: false,
@@ -327,6 +329,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--jellyfin-remote-announce') args.jellyfinRemoteAnnounce = true;
     else if (arg === '--jellyfin-preview-auth') args.jellyfinPreviewAuth = true;
     else if (arg === '--texthooker') args.texthooker = true;
+    else if (arg === '--open-browser') args.texthookerOpenBrowser = true;
     else if (arg === '--auto-start-overlay') args.autoStartOverlay = true;
     else if (arg === '--generate-config') args.generateConfig = true;
     else if (arg === '--backup-overwrite') args.backupOverwrite = true;

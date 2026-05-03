@@ -42,6 +42,7 @@ test('build tray template handler wires actions and init guards', () => {
   const buildTemplate = createBuildTrayMenuTemplateHandler({
     buildTrayMenuTemplateRuntime: (handlers) => {
       handlers.openSessionHelp();
+      handlers.openTexthookerInBrowser();
       handlers.openFirstRunSetup();
       handlers.openWindowsMpvLauncherSetup();
       handlers.openYomitanSettings();
@@ -57,6 +58,7 @@ test('build tray template handler wires actions and init guards', () => {
     },
     isOverlayRuntimeInitialized: () => initialized,
     openSessionHelpModal: () => calls.push('help'),
+    openTexthookerInBrowser: () => calls.push('texthooker'),
     showFirstRunSetup: () => true,
     openFirstRunSetupWindow: () => calls.push('setup'),
     showWindowsMpvLauncherSetup: () => true,
@@ -72,6 +74,7 @@ test('build tray template handler wires actions and init guards', () => {
   assert.deepEqual(calls, [
     'init',
     'help',
+    'texthooker',
     'setup',
     'setup',
     'yomitan',

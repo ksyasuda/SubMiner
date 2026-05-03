@@ -105,6 +105,7 @@ export interface Args {
   useTexthooker: boolean;
   autoStartOverlay: boolean;
   texthookerOnly: boolean;
+  texthookerOpenBrowser: boolean;
   useRofi: boolean;
   logLevel: LogLevel;
   passwordStore: string;

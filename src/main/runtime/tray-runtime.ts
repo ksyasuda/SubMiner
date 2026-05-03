@@ -31,6 +31,7 @@ export function resolveTrayIconPathRuntime(deps: {
 
 export type TrayMenuActionHandlers = {
   openSessionHelp: () => void;
+  openTexthookerInBrowser: () => void;
   openFirstRunSetup: () => void;
   showFirstRunSetup: boolean;
   openWindowsMpvLauncherSetup: () => void;
@@ -51,6 +52,10 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
     {
       label: 'Open Help',
       click: handlers.openSessionHelp,
+    },
+    {
+      label: 'Open Texthooker',
+      click: handlers.openTexthookerInBrowser,
     },
     ...(handlers.showFirstRunSetup
       ? [

@@ -5150,6 +5150,8 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       initializeOverlayRuntime: () => initializeOverlayRuntime(),
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
       openSessionHelpModal: () => openSessionHelpOverlay(),
+      openTexthookerInBrowser: () =>
+        handleCliCommand(parseArgs(['--texthooker', '--open-browser'])),
       showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
       openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',

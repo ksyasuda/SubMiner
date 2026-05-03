@@ -144,6 +144,7 @@ test('applyInvocationsToArgs maps config and jellyfin invocation state', () => {
     doctorRefreshKnownWords: false,
     texthookerTriggered: false,
     texthookerLogLevel: null,
+    texthookerOpenBrowser: false,
   });
 
   assert.equal(parsed.jellyfin, false);
@@ -156,4 +157,37 @@ test('applyInvocationsToArgs maps config and jellyfin invocation state', () => {
   assert.equal(parsed.jellyfinPassword, 'secret');
   assert.equal(parsed.configShow, true);
   assert.equal(parsed.logLevel, 'warn');
+});
+
+test('applyInvocationsToArgs maps texthooker browser-open request', () => {
+  const parsed = createDefaultArgs({});
+
+  applyInvocationsToArgs(parsed, {
+    jellyfinInvocation: null,
+    configInvocation: null,
+    mpvInvocation: null,
+    appInvocation: null,
+    dictionaryTriggered: false,
+    dictionaryTarget: null,
+    dictionaryLogLevel: null,
+    dictionaryCandidates: false,
+    dictionarySelect: false,
+    dictionaryAnilistId: null,
+    statsTriggered: false,
+    statsBackground: false,
+    statsStop: false,
+    statsCleanup: false,
+    statsCleanupVocab: false,
+    statsCleanupLifetime: false,
+    statsLogLevel: null,
+    doctorTriggered: false,
+    doctorLogLevel: null,
+    doctorRefreshKnownWords: false,
+    texthookerTriggered: true,
+    texthookerLogLevel: null,
+    texthookerOpenBrowser: true,
+  });
+
+  assert.equal(parsed.texthookerOnly, true);
+  assert.equal(parsed.texthookerOpenBrowser, true);
 });

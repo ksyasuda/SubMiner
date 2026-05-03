@@ -164,6 +164,8 @@ Start it with either:
 
 ```bash
 subminer texthooker
+# or open the page immediately
+subminer texthooker -o
 ```
 
 or by leaving `texthooker.launchAtStartup` enabled.
@@ -273,7 +275,7 @@ Examples:
 Examples:
 
 - open a media picker, then call `subminer /path/to/file.mkv`
-- launch browser-only subtitle tooling with `subminer texthooker`
+- launch browser-only subtitle tooling with `subminer texthooker -o`
 - disable the helper UI for a session with `subminer --no-texthooker video.mkv`
 
 #### Build an overlay-adjacent client

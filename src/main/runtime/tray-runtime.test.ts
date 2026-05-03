@@ -30,6 +30,7 @@ test('tray menu template contains expected entries and handlers', () => {
   const calls: string[] = [];
   const template = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => calls.push('help'),
+    openTexthookerInBrowser: () => calls.push('texthooker'),
     openFirstRunSetup: () => calls.push('setup'),
     showFirstRunSetup: true,
     openWindowsMpvLauncherSetup: () => calls.push('windows-mpv'),
@@ -41,18 +42,24 @@ test('tray menu template contains expected entries and handlers', () => {
     quitApp: () => calls.push('quit'),
   });
 
-  assert.equal(template.length, 9);
-  assert.equal(template.some((entry) => entry.label === 'Open Overlay'), false);
+  assert.equal(template.length, 10);
+  assert.equal(
+    template.some((entry) => entry.label === 'Open Overlay'),
+    false,
+  );
   assert.equal(template[0]!.label, 'Open Help');
   template[0]!.click?.();
-  template[7]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
-  template[8]!.click?.();
-  assert.deepEqual(calls, ['help', 'separator', 'quit']);
+  assert.equal(template[1]!.label, 'Open Texthooker');
+  template[1]!.click?.();
+  template[8]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
+  template[9]!.click?.();
+  assert.deepEqual(calls, ['help', 'texthooker', 'separator', 'quit']);
 });
 
 test('tray menu template omits first-run setup entry when setup is complete', () => {
   const labels = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => undefined,
+    openTexthookerInBrowser: () => undefined,
     openFirstRunSetup: () => undefined,
     showFirstRunSetup: false,
     openWindowsMpvLauncherSetup: () => undefined,

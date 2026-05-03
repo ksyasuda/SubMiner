@@ -28,6 +28,7 @@ export function createBuildResolveTrayIconPathMainDepsHandler(deps: {
 export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
   buildTrayMenuTemplateRuntime: (handlers: {
     openSessionHelp: () => void;
+    openTexthookerInBrowser: () => void;
     openFirstRunSetup: () => void;
     showFirstRunSetup: boolean;
     openWindowsMpvLauncherSetup: () => void;
@@ -41,6 +42,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
   initializeOverlayRuntime: () => void;
   isOverlayRuntimeInitialized: () => boolean;
   openSessionHelpModal: () => void;
+  openTexthookerInBrowser: () => void;
   showFirstRunSetup: () => boolean;
   openFirstRunSetupWindow: () => void;
   showWindowsMpvLauncherSetup: () => boolean;
@@ -55,6 +57,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
     initializeOverlayRuntime: deps.initializeOverlayRuntime,
     isOverlayRuntimeInitialized: deps.isOverlayRuntimeInitialized,
     openSessionHelpModal: deps.openSessionHelpModal,
+    openTexthookerInBrowser: deps.openTexthookerInBrowser,
     showFirstRunSetup: deps.showFirstRunSetup,
     openFirstRunSetupWindow: deps.openFirstRunSetupWindow,
     showWindowsMpvLauncherSetup: deps.showWindowsMpvLauncherSetup,

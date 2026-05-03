@@ -85,6 +85,7 @@ subminer stats -b                       # start background stats daemon
 | `subminer dictionary --candidates <path>`  | List AniList candidate matches for character dictionary correction |
 | `subminer dictionary --select <id> <path>` | Pin an AniList media ID for that target series                     |
 | `subminer texthooker`                      | Launch texthooker-only mode                                        |
+| `subminer texthooker -o`                   | Launch texthooker and open it in the default browser               |
 | `subminer app`                             | Pass arguments directly to SubMiner binary                         |
 
 Use `subminer <subcommand> -h` for command-specific help.

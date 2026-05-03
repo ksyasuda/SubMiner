@@ -16,6 +16,7 @@ ${B}Session${R}
   --stop                         Stop the running instance
   --stats                        Open the stats dashboard in your browser
   --texthooker                   Start texthooker server only ${D}(no overlay)${R}
+  --open-browser                 Open texthooker in your default browser
 
 ${B}Overlay${R}
   --toggle-visible-overlay       Toggle subtitle overlay
