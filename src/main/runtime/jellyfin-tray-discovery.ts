@@ -36,14 +36,24 @@ export function isJellyfinConfiguredForTray(
 export function clearJellyfinAuthSessionAndRefreshTray<TSession extends JellyfinTrayRemoteSession>(
   deps: Pick<
     JellyfinTrayDiscoveryDeps<TSession>,
-    'clearStoredSession' | 'getRemoteSession' | 'stopRemoteSession' | 'refreshTrayMenu'
+    'clearStoredSession' | 'getRemoteSession' | 'stopRemoteSession' | 'refreshTrayMenu' | 'logger'
   >,
 ): void {
-  deps.clearStoredSession();
-  if (deps.getRemoteSession()) {
-    deps.stopRemoteSession();
+  try {
+    deps.clearStoredSession();
+  } catch (error) {
+    deps.logger.error('Failed to clear Jellyfin auth session.', error);
   }
-  deps.refreshTrayMenu();
+
+  try {
+    if (deps.getRemoteSession()) {
+      deps.stopRemoteSession();
+    }
+  } catch (error) {
+    deps.logger.error('Failed to stop Jellyfin discovery while clearing auth session.', error);
+  } finally {
+    deps.refreshTrayMenu();
+  }
 }
 
 export async function toggleJellyfinDiscoveryFromTray<TSession extends JellyfinTrayRemoteSession>(

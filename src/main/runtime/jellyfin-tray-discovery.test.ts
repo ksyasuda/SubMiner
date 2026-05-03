@@ -40,9 +40,40 @@ test('clears stored auth, stops active discovery, and refreshes tray', () => {
     getRemoteSession: () => ({ advertiseNow: async () => true }),
     stopRemoteSession: () => calls.push('stop'),
     refreshTrayMenu: () => calls.push('refresh'),
+    logger: {
+      info: (message) => calls.push(`info:${message}`),
+      warn: (message) => calls.push(`warn:${message}`),
+      error: (message) => calls.push(`error:${message}`),
+    },
   });
 
   assert.deepEqual(calls, ['clear', 'stop', 'refresh']);
+});
+
+test('clear auth still refreshes tray when clear or stop throws', () => {
+  const calls: string[] = [];
+
+  clearJellyfinAuthSessionAndRefreshTray({
+    clearStoredSession: () => {
+      throw new Error('clear failed');
+    },
+    getRemoteSession: () => ({ advertiseNow: async () => true }),
+    stopRemoteSession: () => {
+      throw new Error('stop failed');
+    },
+    refreshTrayMenu: () => calls.push('refresh'),
+    logger: {
+      info: (message) => calls.push(`info:${message}`),
+      warn: (message) => calls.push(`warn:${message}`),
+      error: (message) => calls.push(`error:${message}`),
+    },
+  });
+
+  assert.deepEqual(calls, [
+    'error:Failed to clear Jellyfin auth session.',
+    'error:Failed to stop Jellyfin discovery while clearing auth session.',
+    'refresh',
+  ]);
 });
 
 test('starts explicit discovery and advertises cast target from tray', async () => {
@@ -76,6 +107,41 @@ test('starts explicit discovery and advertises cast target from tray', async () 
     'advertise',
     'info:Jellyfin discovery started; cast target is visible in server sessions.',
     'osd:Jellyfin discovery started',
+    'refresh',
+  ]);
+});
+
+test('starts explicit discovery and reports pending visibility from tray', async () => {
+  const calls: string[] = [];
+  let session: { advertiseNow: () => Promise<boolean> } | null = null;
+
+  await toggleJellyfinDiscoveryFromTray({
+    getRemoteSession: () => session,
+    stopRemoteSession: () => calls.push('stop'),
+    startRemoteSession: async (options) => {
+      assert.deepEqual(options, { explicit: true });
+      calls.push('start');
+      session = {
+        advertiseNow: async () => {
+          calls.push('advertise');
+          return false;
+        },
+      };
+    },
+    refreshTrayMenu: () => calls.push('refresh'),
+    logger: {
+      info: (message) => calls.push(`info:${message}`),
+      warn: (message) => calls.push(`warn:${message}`),
+      error: (message) => calls.push(`error:${message}`),
+    },
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+  });
+
+  assert.deepEqual(calls, [
+    'start',
+    'advertise',
+    'warn:Jellyfin discovery started, but cast target is not visible yet.',
+    'osd:Jellyfin discovery started; waiting for visibility',
     'refresh',
   ]);
 });

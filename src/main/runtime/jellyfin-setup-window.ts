@@ -19,6 +19,7 @@ type FocusableWindowLike = {
 
 type JellyfinSetupWebContentsLike = {
   on: (event: 'will-navigate', handler: (event: unknown, url: string) => void) => void;
+  executeJavaScript?: (code: string, userGesture?: boolean) => Promise<unknown>;
 };
 
 type JellyfinSetupWindowLike = FocusableWindowLike & {
@@ -207,7 +208,7 @@ export function buildJellyfinSetupFormHtml(state: JellyfinSetupViewState): strin
         const data = new FormData(form);
         params.set("server", String(data.get("server") || ""));
         params.set("username", String(data.get("username") || ""));
-        params.set("password", String(data.get("password") || ""));
+        window.__subminerJellyfinPassword = String(data.get("password") || "");
       }
       window.location.href = "subminer://jellyfin-setup?" + params.toString();
     }
@@ -264,7 +265,9 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
   closeSetupWindow: () => void;
   reloadSetupWindow: (state?: JellyfinSetupViewOverrides) => void;
 }) {
-  return async (rawUrl: string): Promise<boolean> => {
+  let loginInFlight = false;
+
+  return async (rawUrl: string, passwordOverride?: string): Promise<boolean> => {
     const submission = deps.parseSubmissionUrl(rawUrl);
     if (!submission) {
       return false;
@@ -276,22 +279,44 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
     }
 
     if (submission.action === 'logout') {
-      deps.clearStoredSession();
-      deps.logInfo('Cleared stored Jellyfin auth session.');
-      deps.showMpvOsd('Jellyfin logged out');
+      try {
+        deps.clearStoredSession();
+        deps.logInfo('Cleared stored Jellyfin auth session.');
+        deps.showMpvOsd('Jellyfin logged out');
+        deps.reloadSetupWindow({
+          statusMessage: 'Jellyfin session cleared.',
+          statusKind: 'success',
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        deps.logError('Jellyfin logout failed', error);
+        deps.showMpvOsd(`Jellyfin logout failed: ${message}`);
+        deps.reloadSetupWindow({
+          statusMessage: message,
+          statusKind: 'error',
+        });
+      }
+      return true;
+    }
+
+    if (loginInFlight) {
+      deps.showMpvOsd('Jellyfin login already in progress');
       deps.reloadSetupWindow({
-        statusMessage: 'Jellyfin session cleared.',
-        statusKind: 'success',
+        selectedServerUrl: submission.server,
+        username: submission.username,
+        statusMessage: 'Jellyfin login already in progress.',
+        statusKind: 'loading',
       });
       return true;
     }
 
+    loginInFlight = true;
     try {
       const clientInfo = deps.getJellyfinClientInfo();
       const session = await deps.authenticateWithPassword(
         submission.server,
         submission.username,
-        submission.password,
+        passwordOverride ?? submission.password,
         clientInfo,
       );
       if (deps.persistAuthenticatedSession) {
@@ -318,6 +343,8 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
         statusMessage: message,
         statusKind: 'error',
       });
+    } finally {
+      loginInFlight = false;
     }
     return true;
   };
@@ -338,6 +365,27 @@ export function createHandleJellyfinSetupNavigationHandler(deps: {
     });
     return true;
   };
+}
+
+async function readJellyfinSetupPasswordFromWindow(
+  setupWindow: JellyfinSetupWindowLike,
+): Promise<string | undefined> {
+  const executeJavaScript = setupWindow.webContents.executeJavaScript;
+  if (!executeJavaScript) {
+    return undefined;
+  }
+
+  const value = await executeJavaScript(
+    `(() => {
+      const input = document.getElementById("password");
+      const password = String(window.__subminerJellyfinPassword || input?.value || "");
+      window.__subminerJellyfinPassword = "";
+      if (input) input.value = "";
+      return password;
+    })()`,
+    true,
+  );
+  return typeof value === 'string' ? value : '';
 }
 
 export function createHandleJellyfinSetupWindowClosedHandler(deps: {
@@ -434,7 +482,14 @@ export function createOpenJellyfinSetupWindowHandler<
     });
     const handleNavigation = createHandleJellyfinSetupNavigationHandler({
       setupSchemePrefix: 'subminer://jellyfin-setup',
-      handleSubmission: (rawUrl) => handleSubmission(rawUrl),
+      handleSubmission: async (rawUrl) => {
+        const submission = deps.parseSubmissionUrl(rawUrl);
+        const password =
+          submission?.action === 'login' && !submission.password
+            ? await readJellyfinSetupPasswordFromWindow(setupWindow)
+            : undefined;
+        return handleSubmission(rawUrl, password);
+      },
       logError: (message, error) => deps.logError(message, error),
     });
     const handleWindowClosed = createHandleJellyfinSetupWindowClosedHandler({
