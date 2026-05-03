@@ -40,6 +40,7 @@ export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   'べき',
   'って',
   'はあ',
+  'はぁ',
   'はは',
   'へえ',
   'ふう',

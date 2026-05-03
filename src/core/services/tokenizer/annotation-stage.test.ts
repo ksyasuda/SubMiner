@@ -1691,3 +1691,67 @@ test('annotateTokens clears all annotations from standalone あ interjections wi
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
 });
+
+test('annotateTokens clears all annotations from expressive subtitle interjections without POS tags', () => {
+  const tokens = [
+    makeToken({
+      surface: 'ハァ',
+      headword: 'ハァ',
+      reading: 'ハァ',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '',
+      pos2: '',
+      startPos: 0,
+      endPos: 2,
+      isKnown: true,
+      isNPlusOneTarget: true,
+      frequencyRank: 3007,
+      jlptLevel: 'N5',
+    }),
+    makeToken({
+      surface: 'はっ',
+      headword: 'はっ',
+      reading: 'ハッ',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '',
+      pos2: '',
+      startPos: 10,
+      endPos: 12,
+      isKnown: true,
+      isNPlusOneTarget: true,
+      frequencyRank: 3007,
+      jlptLevel: 'N5',
+    }),
+    makeToken({
+      surface: '猫',
+      headword: '猫',
+      reading: 'ネコ',
+      partOfSpeech: PartOfSpeech.noun,
+      pos1: '名詞',
+      pos2: '一般',
+      startPos: 13,
+      endPos: 14,
+      frequencyRank: 11,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'ハァ' || text === 'はっ',
+      getJlptLevel: (text) => (text === 'ハァ' || text === 'はっ' ? 'N5' : null),
+    }),
+    {
+      minSentenceWordsForNPlusOne: 1,
+      sourceText: 'ハァ…\n（ガーフィール）はっ！ 猫',
+    },
+  );
+
+  for (const token of result.slice(0, 2)) {
+    assert.equal(token.isKnown, false, token.surface);
+    assert.equal(token.isNPlusOneTarget, false, token.surface);
+    assert.equal(token.frequencyRank, undefined, token.surface);
+    assert.equal(token.jlptLevel, undefined, token.surface);
+  }
+  assert.equal(result[2]?.frequencyRank, 11);
+});
