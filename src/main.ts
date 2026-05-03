@@ -2496,10 +2496,7 @@ const {
     authenticateWithPassword: (serverUrl, username, password, clientInfo) =>
       authenticateWithPasswordRuntime(serverUrl, username, password, clientInfo),
     saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
-    clearStoredSession: () => {
-      jellyfinTokenStore.clearSession();
-      refreshTrayMenuIfPresent();
-    },
+    clearStoredSession: () => clearJellyfinAuthSessionAndRefreshTray(),
     logInfo: (message) => logger.info(message),
   },
   handleJellyfinListCommandsMainDeps: {
@@ -2559,10 +2556,7 @@ const {
     authenticateWithPassword: (server, username, password, clientInfo) =>
       authenticateWithPasswordRuntime(server, username, password, clientInfo),
     saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
-    clearStoredSession: () => {
-      jellyfinTokenStore.clearSession();
-      refreshTrayMenuIfPresent();
-    },
+    clearStoredSession: () => clearJellyfinAuthSessionAndRefreshTray(),
     patchJellyfinConfig: (session) => {
       const clientInfo = getJellyfinClientInfo();
       const recentServers = mergeJellyfinRecentServers(
@@ -5179,6 +5173,14 @@ function refreshTrayMenuIfPresent(): void {
   if (appTray) {
     ensureTrayHandler();
   }
+}
+
+function clearJellyfinAuthSessionAndRefreshTray(): void {
+  jellyfinTokenStore.clearSession();
+  if (appState.jellyfinRemoteSession) {
+    stopJellyfinRemoteSession();
+  }
+  refreshTrayMenuIfPresent();
 }
 
 async function toggleJellyfinDiscoveryFromTray(): Promise<void> {
