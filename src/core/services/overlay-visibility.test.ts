@@ -1192,6 +1192,65 @@ test('macOS keeps visible overlay hidden while tracker is not initialized yet', 
   assert.ok(!calls.includes('update-bounds'));
 });
 
+test('macOS preserves visible overlay during transient tracker loss with retained geometry', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const osdMessages: string[] = [];
+  let trackerWarning = false;
+  let tracking = true;
+  const tracker: WindowTrackerStub = {
+    isTracking: () => tracking,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+    isTargetWindowFocused: () => true,
+  };
+
+  const run = () =>
+    updateVisibleOverlayVisibility({
+      visibleOverlayVisible: true,
+      mainWindow: window as never,
+      windowTracker: tracker as never,
+      trackerNotReadyWarningShown: trackerWarning,
+      setTrackerNotReadyWarningShown: (shown: boolean) => {
+        trackerWarning = shown;
+      },
+      updateVisibleOverlayBounds: () => {
+        calls.push('update-bounds');
+      },
+      ensureOverlayWindowLevel: () => {
+        calls.push('ensure-level');
+      },
+      syncPrimaryOverlayWindowLayer: () => {
+        calls.push('sync-layer');
+      },
+      enforceOverlayLayerOrder: () => {
+        calls.push('enforce-order');
+      },
+      syncOverlayShortcuts: () => {
+        calls.push('sync-shortcuts');
+      },
+      isMacOSPlatform: true,
+      showOverlayLoadingOsd: (message: string) => {
+        osdMessages.push(message);
+      },
+    } as never);
+
+  run();
+  calls.length = 0;
+  tracking = false;
+
+  run();
+
+  assert.equal(trackerWarning, false);
+  assert.deepEqual(osdMessages, []);
+  assert.ok(calls.includes('update-bounds'));
+  assert.ok(calls.includes('sync-layer'));
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('ensure-level'));
+  assert.ok(calls.includes('enforce-order'));
+  assert.ok(calls.includes('sync-shortcuts'));
+  assert.ok(!calls.includes('hide'));
+  assert.ok(!calls.includes('show'));
+});
+
 test('macOS suppresses immediate repeat loading OSD after tracker recovery until cooldown expires', () => {
   const { window } = createMainWindowRecorder();
   const osdMessages: string[] = [];

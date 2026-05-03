@@ -260,11 +260,16 @@ export function updateVisibleOverlayVisibility(args: {
     return;
   }
 
+  const hasRetainedTrackedGeometry = args.windowTracker.getGeometry() !== null;
+  const shouldPreserveTransientTrackedOverlay =
+    (args.isMacOSPlatform && hasRetainedTrackedGeometry) ||
+    (args.isWindowsPlatform &&
+      typeof args.windowTracker.isTargetWindowMinimized === 'function' &&
+      !args.windowTracker.isTargetWindowMinimized());
+
   if (
-    args.isWindowsPlatform &&
-    typeof args.windowTracker.isTargetWindowMinimized === 'function' &&
-    !args.windowTracker.isTargetWindowMinimized() &&
-    (mainWindow.isVisible() || args.windowTracker.getGeometry() !== null)
+    shouldPreserveTransientTrackedOverlay &&
+    (mainWindow.isVisible() || hasRetainedTrackedGeometry)
   ) {
     args.setTrackerNotReadyWarningShown(false);
     const geometry = args.windowTracker.getGeometry();
@@ -273,6 +278,9 @@ export function updateVisibleOverlayVisibility(args: {
     }
     args.syncPrimaryOverlayWindowLayer('visible');
     showPassiveVisibleOverlay();
+    if (!args.forceMousePassthrough && !args.isWindowsPlatform) {
+      args.enforceOverlayLayerOrder();
+    }
     args.syncOverlayShortcuts();
     return;
   }
