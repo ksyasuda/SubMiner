@@ -2,16 +2,28 @@
 
 # Releasing
 
+## Prerequisites
+
+- `claude` (Claude Code CLI) installed, on `PATH`, and authenticated.
+  `changelog:build` and `changelog:prerelease-notes` invoke
+  `claude -p --model sonnet` to merge and rewrite `changes/*.md` fragments into
+  a polished, user-facing release body. Either OAuth login (`claude /login`) or
+  `ANTHROPIC_API_KEY` works. Install from <https://claude.com/claude-code> if
+  you don't already have it.
+
 ## Stable Release
 
 1. Confirm `main` is green: `gh run list --workflow CI --limit 5`.
 2. Confirm release-facing docs are current: `README.md`, `changes/*.md`, and any touched `docs-site/` pages/config examples.
 3. Run `bun run changelog:lint`.
 4. Bump `package.json` to the release version.
-5. Build release metadata before tagging:
+5. Build release metadata before tagging (this calls `claude -p` locally):
    `bun run changelog:build --version <version> --date <yyyy-mm-dd>`
-   - Release CI now also auto-runs this step when releasing directly from a tag and `changes/*.md` fragments remain.
-6. Review `CHANGELOG.md` and `release/release-notes.md`.
+   - The polished `CHANGELOG.md` and `release/release-notes.md` are committed
+     before tagging. Release CI no longer auto-builds the changelog; it fails
+     fast if `changes/*.md` fragments are still present on a tag-based run.
+6. Review `CHANGELOG.md` and `release/release-notes.md`. Edit by hand if Claude
+   missed something — the committed Markdown is what ships.
 7. Run release gate locally:
    `bun run changelog:check --version <version>`
    `bun run verify:config-example`
@@ -31,7 +43,7 @@
 1. Confirm release-facing docs and pending `changes/*.md` fragments are current.
 2. Run `bun run changelog:lint`.
 3. Bump `package.json` to the prerelease version, for example `0.11.3-beta.1` or `0.11.3-rc.1`.
-4. Run the prerelease gate locally:
+4. Run the prerelease gate locally (this calls `claude -p` locally):
    `bun run changelog:prerelease-notes --version <version>`
    `bun run verify:config-example`
    `bun run typecheck`
@@ -51,8 +63,8 @@ Notes:
 - Pass `--date` explicitly when you want the release stamped with the local cut date; otherwise the generator uses the current ISO date, which can roll over to the next UTC day late at night.
 - `changelog:check` now rejects tag/package version mismatches.
 - `changelog:prerelease-notes` also rejects tag/package version mismatches and writes `release/prerelease-notes.md` without mutating tracked changelog files.
-- `changelog:build` generates `CHANGELOG.md` + `release/release-notes.md` and removes the released `changes/*.md` fragments.
-- In the same way, the release workflow now auto-runs `changelog:build` when it detects unreleased `changes/*.md` on a tag-based run, then verifies and publishes.
+- `changelog:build` generates `CHANGELOG.md` + `release/release-notes.md` (both polished by `claude -p`) and removes the released `changes/*.md` fragments. The CHANGELOG keeps internal notes inside a `<details><summary>Internal changes</summary>` collapse; the release notes drop them entirely.
+- The release workflow no longer auto-runs `changelog:build`. If pending `changes/*.md` fragments are present on a tag-based run, CI exits with a clear `::error::` pointing at the local fix. Run `bun run changelog:build --version <version>` locally, commit the polished output, then tag.
 - Do not tag while `changes/*.md` fragments still exist.
 - Prerelease tags intentionally keep `changes/*.md` fragments in place so multiple prereleases can reuse the same cumulative pending notes until the final stable cut.
 - If you need to repair a published release body (for example, a prior version’s section was omitted), regenerate notes from `CHANGELOG.md` and re-edit the release with `gh release edit --notes-file`.

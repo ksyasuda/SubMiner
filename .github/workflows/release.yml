@@ -351,12 +351,11 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
-      - name: Build changelog artifacts for release
+      - name: Guard against pending changelog fragments
         run: |
           if find changes -maxdepth 1 -name '*.md' -not -name README.md -print -quit | grep -q .; then
-            bun run changelog:build --version "${{ steps.version.outputs.VERSION }}"
-          else
-            echo "No pending changelog fragments found."
+            echo "::error::Pending changelog fragments detected. Run 'bun run changelog:build --version ${{ steps.version.outputs.VERSION }}' locally and commit the polished CHANGELOG.md before tagging. CI no longer auto-builds the changelog because the polish step requires the local 'claude' CLI."
+            exit 1
           fi
 
       - name: Verify changelog is ready for tagged release

@@ -2,6 +2,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
+type RunClaude = (input: string, args: string[]) => string;
+
 type ChangelogFsDeps = {
   existsSync?: (candidate: string) => boolean;
   mkdirSync?: (candidate: string, options: { recursive: true }) => void;
@@ -10,7 +12,10 @@ type ChangelogFsDeps = {
   rmSync?: (candidate: string) => void;
   writeFileSync?: (candidate: string, content: string, encoding: BufferEncoding) => void;
   log?: (message: string) => void;
+  runClaude?: RunClaude;
 };
+
+type PolishMode = 'changelog' | 'release-notes';
 
 type ChangelogOptions = {
   cwd?: string;
@@ -41,13 +46,6 @@ const RELEASE_NOTES_PATH = path.join('release', 'release-notes.md');
 const PRERELEASE_NOTES_PATH = path.join('release', 'prerelease-notes.md');
 const CHANGELOG_HEADER = '# Changelog';
 const CHANGE_TYPES: FragmentType[] = ['added', 'changed', 'fixed', 'docs', 'internal'];
-const CHANGE_TYPE_HEADINGS: Record<FragmentType, string> = {
-  added: 'Added',
-  changed: 'Changed',
-  fixed: 'Fixed',
-  docs: 'Docs',
-  internal: 'Internal',
-};
 const SKIP_CHANGELOG_LABEL = 'skip-changelog';
 
 function normalizeVersion(version: string): string {
@@ -217,54 +215,179 @@ function readChangeFragments(cwd: string, deps?: ChangelogFsDeps): ChangeFragmen
   });
 }
 
-function formatAreaLabel(area: string): string {
-  return area
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(' ');
-}
+// We deliberately don't pass --bare here. --bare skips OAuth/keychain reads and
+// requires ANTHROPIC_API_KEY, which most Claude Code users don't have set up.
+// The polish prompt is self-contained and doesn't need tools, so loading the
+// user's hooks/MCP/CLAUDE.md is harmless overhead.
+const CLAUDE_CLI_ARGS = [
+  '-p',
+  '--model',
+  'sonnet',
+  '--permission-mode',
+  'bypassPermissions',
+  '--output-format',
+  'text',
+];
 
-function renderFragmentBullet(fragment: ChangeFragment, bullet: string): string {
-  return `- ${formatAreaLabel(fragment.area)}: ${bullet.replace(/^- /, '')}`;
-}
+const SECTION_HEADER_PATTERN = /^### (Breaking Changes|Added|Changed|Fixed|Docs|Internal)$/m;
 
-function renderGroupedChanges(fragments: ChangeFragment[]): string {
-  const sections: string[] = [];
+const POLISH_PROMPT_INSTRUCTIONS = `You are formatting a software release changelog for end users of SubMiner, an Electron app for Japanese sentence mining.
 
-  const breakingFragments = fragments.filter((fragment) => fragment.breaking);
-  if (breakingFragments.length > 0) {
-    const bullets = breakingFragments
-      .flatMap((fragment) =>
-        fragment.bullets.map((bullet) => renderFragmentBullet(fragment, bullet)),
-      )
-      .join('\n');
-    sections.push(`### Breaking Changes\n${bullets}`);
-  }
+You will receive a list of FRAGMENT entries below. Each fragment has metadata (type, area, breaking) and one or more bullet points written by the engineer who shipped that change. Your job is to merge, dedupe, and rewrite these fragments into a polished, user-facing release body.
 
-  for (const type of CHANGE_TYPES) {
-    const typeFragments = fragments.filter((fragment) => fragment.type === type);
-    if (typeFragments.length === 0) {
-      continue;
+## Output Rules
+
+1. Output Markdown ONLY. No preamble, no commentary, no closing remarks. Start directly with the first section heading.
+2. Use these section headings, in this order, omitting any that have no bullets:
+   ### Breaking Changes
+   ### Added
+   ### Changed
+   ### Fixed
+   ### Docs
+3. In MODE: changelog only, append a final section after Docs:
+   <details>
+   <summary>Internal changes</summary>
+
+   ### Internal
+   - …
+
+   </details>
+   Do not include the Internal section at all in MODE: release-notes; internal fragments will not be present in the input for that mode.
+4. Each bullet should:
+   - Lead with a short feature/area name in title case followed by a colon, e.g. "Playlist browser:", "Windows overlay:", "Stats dashboard:". Pick the name from the fragment's bullet content, not the raw 'area:' slug.
+   - Be written in user-facing language. Drop implementation jargon, internal class names, file paths, and PR numbers.
+   - Be merged with related bullets when possible. If five fragments all touch Windows overlay z-order/focus/restore, write one or two bullets that summarize the overall improvement instead of five.
+   - Drop bullets that only describe PR housekeeping, CodeRabbit follow-ups, or test-only changes that don't affect users.
+   - Preserve the substance of every breaking change in ### Breaking Changes. Do not soften or omit them.
+5. Do not invent features. Every bullet must be grounded in the input fragments.
+6. Do not include the version heading (## v...) — that wrapper is added by the caller.
+
+The input begins below.
+
+`;
+
+function defaultRunClaude(input: string, args: string[]): string {
+  try {
+    return execFileSync('claude', args, {
+      input,
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ['pipe', 'pipe', 'inherit'],
+    });
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code === 'ENOENT') {
+      throw new Error(
+        "claude CLI not found on PATH. Install Claude Code (https://claude.com/claude-code) and ensure 'claude' is on your PATH before running changelog:build.",
+      );
     }
-
-    const bullets = typeFragments
-      .flatMap((fragment) =>
-        fragment.bullets.map((bullet) => renderFragmentBullet(fragment, bullet)),
-      )
-      .join('\n');
-    sections.push(`### ${CHANGE_TYPE_HEADINGS[type]}\n${bullets}`);
+    throw new Error(`claude CLI invocation failed: ${err.message}`);
   }
-
-  return sections.join('\n\n');
 }
 
-function buildReleaseSection(version: string, date: string, fragments: ChangeFragment[]): string {
+function serializeFragmentsForPrompt(
+  fragments: ChangeFragment[],
+  mode: PolishMode,
+  version: string,
+  date?: string,
+): string {
+  const header: string[] = [`MODE: ${mode}`, `VERSION: ${version}`];
+  if (date) {
+    header.push(`DATE: ${date}`);
+  }
+
+  const fragmentBlocks = fragments.map((fragment) => {
+    const relativePath = fragment.path.replace(/^.*?(changes\/.*)$/u, '$1');
+    return [
+      `FRAGMENT ${relativePath}`,
+      `type: ${fragment.type}`,
+      `area: ${fragment.area}`,
+      `breaking: ${fragment.breaking}`,
+      ...fragment.bullets,
+    ].join('\n');
+  });
+
+  return [...header, '', ...fragmentBlocks].join('\n\n');
+}
+
+function validatePolishedOutput(
+  output: string,
+  mode: PolishMode,
+  hasInternalFragments: boolean,
+): string {
+  const trimmed = output.trim();
+  if (!trimmed) {
+    throw new Error('claude returned empty output for changelog polish.');
+  }
+  if (!SECTION_HEADER_PATTERN.test(trimmed)) {
+    throw new Error(
+      `claude output is missing the expected section heading (### Added/Changed/Fixed/Docs/Breaking Changes). Got:\n${trimmed.slice(0, 400)}`,
+    );
+  }
+  if (mode === 'changelog' && hasInternalFragments) {
+    if (!/<details>[\s\S]*<summary>[^<]*Internal[^<]*<\/summary>/m.test(trimmed)) {
+      throw new Error(
+        'claude output is missing the expected <details><summary>Internal changes</summary> wrapper for the Internal section.',
+      );
+    }
+  }
+  return trimmed;
+}
+
+function polishFragmentsWithClaude(
+  fragments: ChangeFragment[],
+  options: {
+    mode: PolishMode;
+    version: string;
+    date?: string;
+    deps?: ChangelogFsDeps;
+  },
+): string {
+  const { mode, version, date } = options;
+  const runClaude = options.deps?.runClaude ?? defaultRunClaude;
+
+  const filtered =
+    mode === 'release-notes'
+      ? fragments.filter((fragment) => fragment.type !== 'internal')
+      : fragments;
+  const hasInternalFragments =
+    mode === 'changelog' && fragments.some((fragment) => fragment.type === 'internal');
+
+  if (filtered.length === 0) {
+    throw new Error(
+      mode === 'release-notes'
+        ? 'No user-facing changelog fragments found in changes/ (only internal fragments are present, which are dropped from release notes).'
+        : 'No changelog fragments found in changes/.',
+    );
+  }
+
+  const prompt =
+    POLISH_PROMPT_INSTRUCTIONS + serializeFragmentsForPrompt(filtered, mode, version, date);
+  const output = runClaude(prompt, CLAUDE_CLI_ARGS);
+  return validatePolishedOutput(output, mode, hasInternalFragments);
+}
+
+function stripDetailsBlocks(body: string): string {
+  return body.replace(/<details>[\s\S]*?<\/details>\s*/gm, '').trim();
+}
+
+function buildReleaseSection(
+  version: string,
+  date: string,
+  fragments: ChangeFragment[],
+  deps?: ChangelogFsDeps,
+): string {
   if (fragments.length === 0) {
     throw new Error('No changelog fragments found in changes/.');
   }
 
-  return [`## v${version} (${date})`, '', renderGroupedChanges(fragments), ''].join('\n');
+  const polished = polishFragmentsWithClaude(fragments, {
+    mode: 'changelog',
+    version,
+    date,
+    deps,
+  });
+  return [`## v${version} (${date})`, '', polished, ''].join('\n');
 }
 
 function ensureChangelogHeader(existingChangelog: string): string {
@@ -392,7 +515,11 @@ export function writeChangelogArtifacts(options?: ChangelogOptions): {
       log(`Removed ${fragment.path}`);
     }
 
-    const releaseNotesPath = writeReleaseNotesFile(cwd, existingReleaseSection, options?.deps);
+    const releaseNotesPath = writeReleaseNotesFile(
+      cwd,
+      stripDetailsBlocks(existingReleaseSection),
+      options?.deps,
+    );
     log(`Generated ${releaseNotesPath}`);
 
     return {
@@ -402,7 +529,7 @@ export function writeChangelogArtifacts(options?: ChangelogOptions): {
     };
   }
 
-  const releaseSection = buildReleaseSection(version, date, fragments);
+  const releaseSection = buildReleaseSection(version, date, fragments, options?.deps);
   const nextChangelog = prependReleaseSection(existingChangelog, releaseSection, version);
 
   for (const outputPath of outputPaths) {
@@ -411,11 +538,13 @@ export function writeChangelogArtifacts(options?: ChangelogOptions): {
     log(`Updated ${outputPath}`);
   }
 
-  const releaseNotesPath = writeReleaseNotesFile(
-    cwd,
-    extractReleaseSectionBody(nextChangelog, version) ?? releaseSection,
-    options?.deps,
-  );
+  const releaseNotesBody = polishFragmentsWithClaude(fragments, {
+    mode: 'release-notes',
+    version,
+    date,
+    deps: options?.deps,
+  });
+  const releaseNotesPath = writeReleaseNotesFile(cwd, releaseNotesBody, options?.deps);
   log(`Generated ${releaseNotesPath}`);
 
   for (const fragment of fragments) {
@@ -645,7 +774,7 @@ export function writeReleaseNotesForVersion(options?: ChangelogOptions): string 
     throw new Error(`Missing CHANGELOG section for v${version}.`);
   }
 
-  return writeReleaseNotesFile(cwd, changes, options?.deps);
+  return writeReleaseNotesFile(cwd, stripDetailsBlocks(changes), options?.deps);
 }
 
 export function writePrereleaseNotesForVersion(options?: ChangelogOptions): string {
@@ -664,7 +793,11 @@ export function writePrereleaseNotesForVersion(options?: ChangelogOptions): stri
     throw new Error('No changelog fragments found in changes/.');
   }
 
-  const changes = renderGroupedChanges(fragments);
+  const changes = polishFragmentsWithClaude(fragments, {
+    mode: 'release-notes',
+    version,
+    deps: options?.deps,
+  });
   return writeReleaseNotesFile(cwd, changes, options?.deps, {
     disclaimer:
       '> This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.',
