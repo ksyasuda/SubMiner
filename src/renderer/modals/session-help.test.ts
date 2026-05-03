@@ -2,10 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { SPECIAL_COMMANDS } from '../../config/definitions';
-import {
-  describeSessionHelpCommand,
-  formatSessionHelpKeybinding,
-} from './session-help.js';
+import { describeSessionHelpCommand, formatSessionHelpKeybinding } from './session-help.js';
 
 test('session help describes sub-seek commands as subtitle-line navigation', () => {
   assert.equal(describeSessionHelpCommand(['sub-seek', 1]), 'Jump to next subtitle');

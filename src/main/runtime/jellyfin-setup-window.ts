@@ -405,9 +405,7 @@ export function createOpenJellyfinSetupWindowHandler<
         statusKind: overrides.statusKind,
       });
       const formHtml = deps.buildSetupFormHtml(state);
-      void setupWindow.loadURL(
-        `data:text/html;charset=utf-8,${deps.encodeURIComponent(formHtml)}`,
-      );
+      void setupWindow.loadURL(`data:text/html;charset=utf-8,${deps.encodeURIComponent(formHtml)}`);
     };
     const handleSubmission = createHandleJellyfinSetupSubmissionHandler({
       parseSubmissionUrl: (rawUrl) => deps.parseSubmissionUrl(rawUrl),

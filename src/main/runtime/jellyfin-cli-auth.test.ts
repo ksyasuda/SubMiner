@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  createHandleJellyfinAuthCommands,
-  persistJellyfinAuthSession,
-} from './jellyfin-cli-auth';
+import { createHandleJellyfinAuthCommands, persistJellyfinAuthSession } from './jellyfin-cli-auth';
 
 test('jellyfin auth handler processes logout', async () => {
   const calls: string[] = [];

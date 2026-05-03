@@ -45,7 +45,10 @@ test('tray menu template contains expected entries and handlers', () => {
   });
 
   assert.equal(template.length, 10);
-  assert.equal(template.some((entry) => entry.label === 'Open Overlay'), false);
+  assert.equal(
+    template.some((entry) => entry.label === 'Open Overlay'),
+    false,
+  );
   assert.equal(template[0]!.label, 'Open Help');
   const discovery = template.find((entry) => entry.label === 'Jellyfin Discovery');
   assert.equal(discovery?.type, 'checkbox');
