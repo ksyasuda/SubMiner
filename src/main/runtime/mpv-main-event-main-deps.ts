@@ -85,12 +85,16 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     hasInitialPlaybackQuitOnDisconnectArg: () =>
       Boolean(
         deps.appState.initialArgs?.managedPlayback ||
-          deps.appState.initialArgs?.jellyfinPlay ||
-          deps.appState.initialArgs?.youtubePlay,
+        deps.appState.initialArgs?.jellyfinPlay ||
+        deps.appState.initialArgs?.youtubePlay,
       ),
     isOverlayRuntimeInitialized: () => deps.appState.overlayRuntimeInitialized,
     shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () =>
-      Boolean(deps.appState.initialArgs?.managedPlayback || deps.appState.initialArgs?.youtubePlay),
+      Boolean(
+        deps.appState.initialArgs?.managedPlayback ||
+        deps.appState.initialArgs?.jellyfinPlay ||
+        deps.appState.initialArgs?.youtubePlay,
+      ),
     isQuitOnDisconnectArmed: () => deps.getQuitOnDisconnectArmed(),
     scheduleQuitCheck: (callback: () => void) => deps.scheduleQuitCheck(callback),
     isMpvConnected: () => Boolean(deps.appState.mpvClient?.connected),

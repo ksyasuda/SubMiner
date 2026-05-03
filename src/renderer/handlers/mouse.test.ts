@@ -1347,7 +1347,8 @@ test('window resize allows primary hover pause from a real mouseenter over subti
     configurable: true,
     value: {
       addEventListener: () => {},
-      elementFromPoint: () => ctx.dom.subtitleContainer,
+      elementFromPoint: (x: number, y: number) =>
+        x === 120 && y === 240 ? ctx.dom.subtitleContainer : null,
       querySelectorAll: () => [],
       body: {},
     },
@@ -1496,7 +1497,8 @@ test('pointer tracking enables overlay interaction as soon as the cursor reaches
         bucket.push(listener);
         documentListeners.set(type, bucket);
       },
-      elementFromPoint: () => ctx.dom.subtitleContainer,
+      elementFromPoint: (x: number, y: number) =>
+        x === 120 && y === 240 ? ctx.dom.subtitleContainer : null,
       querySelectorAll: () => [],
       body: {},
     },

@@ -1069,10 +1069,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
       cssText,
       `#subtitleRoot .word.word-jlpt-n${level}::selection`,
     );
-    assert.ok(
-      jlptSelectionLockBlock.length > 0,
-      `word-jlpt-n${level} selection lock should exist`,
-    );
+    assert.ok(jlptSelectionLockBlock.length > 0, `word-jlpt-n${level} selection lock should exist`);
     assert.match(
       jlptSelectionLockBlock,
       new RegExp(

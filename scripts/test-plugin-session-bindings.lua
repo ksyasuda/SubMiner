@@ -10,7 +10,9 @@ local function assert_true(condition, message)
 end
 
 local artifact_path = ".tmp/test-plugin-session-bindings.json"
-os.execute("mkdir -p .tmp")
+local is_windows = package.config:sub(1, 1) == "\\"
+local mkdir_cmd = is_windows and "mkdir .tmp >NUL 2>NUL" or "mkdir -p .tmp"
+os.execute(mkdir_cmd)
 local handle = assert(io.open(artifact_path, "w"))
 handle:write("__SESSION_BINDINGS__")
 handle:close()

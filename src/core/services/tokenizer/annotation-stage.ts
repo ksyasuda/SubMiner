@@ -507,8 +507,11 @@ export function shouldExcludeTokenFromSubtitleAnnotations(token: MergedToken): b
   return sharedShouldExcludeTokenFromSubtitleAnnotations(token);
 }
 
-export function stripSubtitleAnnotationMetadata(token: MergedToken): MergedToken {
-  return sharedStripSubtitleAnnotationMetadata(token);
+export function stripSubtitleAnnotationMetadata(
+  token: MergedToken,
+  options: AnnotationStageOptions = {},
+): MergedToken {
+  return sharedStripSubtitleAnnotationMetadata(token, options);
 }
 
 function computeTokenKnownStatus(

@@ -160,7 +160,7 @@ async function applyAnnotationStage(
   options: TokenizerAnnotationOptions,
 ): Promise<MergedToken[]> {
   if (!hasAnyAnnotationEnabled(options)) {
-    return stripSubtitleAnnotationMetadata(tokens);
+    return stripSubtitleAnnotationMetadata(tokens, options);
   }
 
   if (!annotationStageModulePromise) {
@@ -179,7 +179,10 @@ async function applyAnnotationStage(
   );
 }
 
-async function stripSubtitleAnnotationMetadata(tokens: MergedToken[]): Promise<MergedToken[]> {
+async function stripSubtitleAnnotationMetadata(
+  tokens: MergedToken[],
+  options: TokenizerAnnotationOptions,
+): Promise<MergedToken[]> {
   if (tokens.length === 0) {
     return tokens;
   }
@@ -189,7 +192,7 @@ async function stripSubtitleAnnotationMetadata(tokens: MergedToken[]): Promise<M
   }
 
   const annotationStage = await annotationStageModulePromise;
-  return tokens.map((token) => annotationStage.stripSubtitleAnnotationMetadata(token));
+  return tokens.map((token) => annotationStage.stripSubtitleAnnotationMetadata(token, options));
 }
 
 export function createTokenizerDepsRuntime(
@@ -683,25 +686,23 @@ async function parseWithYomitanInternalParser(
     return null;
   }
   const normalizedSelectedTokens = normalizeSelectedYomitanTokens(
-    selectedTokens.map(
-      (token): MergedToken => {
-        const posMetadata = getYomitanWordClassPosMetadata(token.wordClasses);
-        return {
-          surface: token.surface,
-          reading: token.reading,
-          headword: token.headword,
-          startPos: token.startPos,
-          endPos: token.endPos,
-          partOfSpeech: posMetadata.partOfSpeech,
-          pos1: posMetadata.pos1,
-          isMerged: true,
-          isKnown: false,
-          isNPlusOneTarget: false,
-          isNameMatch: token.isNameMatch ?? false,
-          frequencyRank: token.frequencyRank,
-        };
-      },
-    ),
+    selectedTokens.map((token): MergedToken => {
+      const posMetadata = getYomitanWordClassPosMetadata(token.wordClasses);
+      return {
+        surface: token.surface,
+        reading: token.reading,
+        headword: token.headword,
+        startPos: token.startPos,
+        endPos: token.endPos,
+        partOfSpeech: posMetadata.partOfSpeech,
+        pos1: posMetadata.pos1,
+        isMerged: true,
+        isKnown: false,
+        isNPlusOneTarget: false,
+        isNameMatch: token.isNameMatch ?? false,
+        frequencyRank: token.frequencyRank,
+      };
+    }),
   );
 
   if (deps.getYomitanGroupDebugEnabled?.() === true) {

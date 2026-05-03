@@ -310,8 +310,7 @@ function fillMissingPos1BySurfaceSequence(
 
   let cursor = 0;
   return tokens.map((token) => {
-    const hasCompletePosMetadata =
-      token.pos1?.trim() && token.pos2?.trim() && token.pos3?.trim();
+    const hasCompletePosMetadata = token.pos1?.trim() && token.pos2?.trim() && token.pos3?.trim();
     if (hasCompletePosMetadata) {
       return token;
     }
