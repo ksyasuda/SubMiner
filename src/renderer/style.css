@@ -997,6 +997,31 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
   -webkit-text-fill-color: var(--subtitle-frequency-band-5-color, #8aadf4) !important;
 }
 
+#subtitleRoot .word.word-jlpt-n1::selection,
+#subtitleRoot .word.word-jlpt-n1 .c::selection {
+  text-decoration-color: var(--subtitle-jlpt-n1-color, #ed8796) !important;
+}
+
+#subtitleRoot .word.word-jlpt-n2::selection,
+#subtitleRoot .word.word-jlpt-n2 .c::selection {
+  text-decoration-color: var(--subtitle-jlpt-n2-color, #f5a97f) !important;
+}
+
+#subtitleRoot .word.word-jlpt-n3::selection,
+#subtitleRoot .word.word-jlpt-n3 .c::selection {
+  text-decoration-color: var(--subtitle-jlpt-n3-color, #f9e2af) !important;
+}
+
+#subtitleRoot .word.word-jlpt-n4::selection,
+#subtitleRoot .word.word-jlpt-n4 .c::selection {
+  text-decoration-color: var(--subtitle-jlpt-n4-color, #a6e3a1) !important;
+}
+
+#subtitleRoot .word.word-jlpt-n5::selection,
+#subtitleRoot .word.word-jlpt-n5 .c::selection {
+  text-decoration-color: var(--subtitle-jlpt-n5-color, #8aadf4) !important;
+}
+
 #subtitleRoot
   .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(
     .word-known

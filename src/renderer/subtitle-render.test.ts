@@ -1064,6 +1064,24 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
     /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
 
+  for (let level = 1; level <= 5; level += 1) {
+    const jlptSelectionLockBlock = extractClassBlock(
+      cssText,
+      `#subtitleRoot .word.word-jlpt-n${level}::selection`,
+    );
+    assert.ok(
+      jlptSelectionLockBlock.length > 0,
+      `word-jlpt-n${level} selection lock should exist`,
+    );
+    assert.match(
+      jlptSelectionLockBlock,
+      new RegExp(
+        `text-decoration-color:\\s*var\\(--subtitle-jlpt-n${level}-color,\\s*#[0-9a-f]{6}\\)\\s*!important;`,
+        'i',
+      ),
+    );
+  }
+
   const selectionBlock = extractClassBlock(cssText, '#subtitleRoot::selection');
   assert.match(
     selectionBlock,
