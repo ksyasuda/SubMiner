@@ -144,33 +144,36 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
       deps.resetTrackedMedia(mediaKey);
     }
 
+    let watchedSeconds = 0;
     if (!force) {
-      const watchedSeconds = deps.getWatchedSeconds();
+      watchedSeconds = deps.getWatchedSeconds();
       if (!Number.isFinite(watchedSeconds) || watchedSeconds < deps.minWatchSeconds) {
         return;
       }
-
-      const duration = await deps.maybeProbeAnilistDuration(mediaKey);
-      if (!duration || duration <= 0) {
-        return;
-      }
-      if (watchedSeconds / duration < deps.minWatchRatio) {
-        return;
-      }
-    }
-
-    const guess = await deps.ensureAnilistMediaGuess(mediaKey);
-    if (!guess?.title || !guess.episode || guess.episode <= 0) {
-      return;
-    }
-
-    const attemptKey = buildAnilistAttemptKey(mediaKey, guess.episode);
-    if (deps.hasAttemptedUpdateKey(attemptKey)) {
-      return;
     }
 
     deps.setInFlight(true);
     try {
+      if (!force) {
+        const duration = await deps.maybeProbeAnilistDuration(mediaKey);
+        if (!duration || duration <= 0) {
+          return;
+        }
+        if (watchedSeconds / duration < deps.minWatchRatio) {
+          return;
+        }
+      }
+
+      const guess = await deps.ensureAnilistMediaGuess(mediaKey);
+      if (!guess?.title || !guess.episode || guess.episode <= 0) {
+        return;
+      }
+
+      const attemptKey = buildAnilistAttemptKey(mediaKey, guess.episode);
+      if (deps.hasAttemptedUpdateKey(attemptKey)) {
+        return;
+      }
+
       await deps.processNextAnilistRetryUpdate();
       if (deps.hasAttemptedUpdateKey(attemptKey)) {
         return;

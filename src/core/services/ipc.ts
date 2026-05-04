@@ -390,7 +390,14 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   ipc.handle(IPC_CHANNELS.command.markActiveVideoWatched, async () => {
     const marked = (await deps.immersionTracker?.markActiveVideoWatched()) ?? false;
     if (marked) {
-      await deps.runAnilistPostWatchUpdateOnManualMark?.();
+      try {
+        await deps.runAnilistPostWatchUpdateOnManualMark?.();
+      } catch (error) {
+        console.warn(
+          'Failed to run AniList post-watch update after manual watched mark:',
+          (error as Error).message,
+        );
+      }
     }
     return marked;
   });

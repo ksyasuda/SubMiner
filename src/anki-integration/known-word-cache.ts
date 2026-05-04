@@ -170,8 +170,10 @@ export class KnownWordCacheManager {
       return false;
     }
 
+    let didMutateCache = false;
     const currentStateKey = this.getKnownWordCacheStateKey();
     if (this.knownWordsStateKey && this.knownWordsStateKey !== currentStateKey) {
+      didMutateCache = this.knownWords.size > 0 || this.noteWordsById.size > 0;
       this.clearKnownWordCacheState();
     }
     if (!this.knownWordsStateKey) {
@@ -180,13 +182,13 @@ export class KnownWordCacheManager {
 
     const preferredFields = this.getImmediateAppendFields();
     if (!preferredFields) {
-      return false;
+      return didMutateCache;
     }
 
     const nextWords = this.extractNormalizedKnownWordsFromNoteInfo(noteInfo, preferredFields);
     const changed = this.replaceNoteSnapshot(noteInfo.noteId, nextWords);
     if (!changed) {
-      return false;
+      return didMutateCache;
     }
 
     if (this.knownWordsLastRefreshedAtMs <= 0) {
