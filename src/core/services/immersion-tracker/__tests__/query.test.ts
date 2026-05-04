@@ -86,6 +86,77 @@ function cleanupDbPath(dbPath: string): void {
   }
 }
 
+function insertFilteredWordOccurrence(
+  db: InstanceType<typeof Database>,
+  options: {
+    sessionId: number;
+    videoId: number;
+    animeId?: number | null;
+    lineIndex?: number;
+    occurrenceCount: number;
+    startedAtMs: number;
+    headword?: string;
+    word?: string;
+    reading?: string;
+    partOfSpeech?: string;
+    pos1?: string;
+    pos2?: string;
+    pos3?: string;
+  },
+): void {
+  const headword = options.headword ?? options.word ?? '猫';
+  const word = options.word ?? headword;
+  const lineId = Number(
+    db
+      .prepare(
+        `INSERT INTO imm_subtitle_lines (
+          session_id, event_id, video_id, anime_id, line_index,
+          segment_start_ms, segment_end_ms, text, CREATED_DATE, LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        options.sessionId,
+        null,
+        options.videoId,
+        options.animeId ?? null,
+        options.lineIndex ?? 1,
+        0,
+        1000,
+        word,
+        options.startedAtMs,
+        options.startedAtMs,
+      ).lastInsertRowid,
+  );
+  const wordRow = db
+    .prepare(
+      `INSERT INTO imm_words (
+        headword, word, reading, pos1, pos2, pos3, part_of_speech,
+        first_seen, last_seen, frequency
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(headword, word, reading) DO UPDATE SET
+        frequency = imm_words.frequency + excluded.frequency,
+        last_seen = excluded.last_seen
+      RETURNING id`,
+    )
+    .get(
+      word,
+      options.reading ?? '',
+      options.pos1 ?? '名詞',
+      options.pos2 ?? '一般',
+      options.pos3 ?? '',
+      options.partOfSpeech ?? 'noun',
+      Math.floor(options.startedAtMs / 1000),
+      Math.floor(options.startedAtMs / 1000),
+      options.occurrenceCount,
+    ) as { id: number };
+  const wordId = Number(wordRow.id);
+
+  db.prepare(
+    `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count)
+     VALUES (?, ?, ?)`,
+  ).run(lineId, wordId, options.occurrenceCount);
+}
+
 function withMockNowMs<T>(fixedDateMs: string | number, run: () => T): T {
   const previousNowMs = globalThis.__subminerTestNowMs;
   globalThis.__subminerTestNowMs = fixedDateMs;
@@ -1236,6 +1307,89 @@ test('getQueryHints computes weekly new-word cutoff from calendar midnights', ()
   });
 });
 
+test('word-count read models use filtered persisted occurrences with raw fallback', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/filtered-word-metrics.mkv', {
+      canonicalTitle: 'Filtered Word Metrics',
+      sourcePath: '/tmp/filtered-word-metrics.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const startedAtMs = 1_700_000_000_000;
+    const withOccurrences = startSessionRecord(db, videoId, startedAtMs);
+    const fallbackOnly = startSessionRecord(db, videoId, startedAtMs + 60_000);
+
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET ended_at_ms = ?, status = 2, active_watched_ms = ?, tokens_seen = ?, yomitan_lookup_count = ?
+      WHERE session_id = ?
+      `,
+    ).run(startedAtMs + 30_000, 2, 5, 1, withOccurrences.sessionId);
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET ended_at_ms = ?, status = 2, active_watched_ms = ?, tokens_seen = ?, yomitan_lookup_count = ?
+      WHERE session_id = ?
+      `,
+    ).run(startedAtMs + 90_000, 2, 7, 2, fallbackOnly.sessionId);
+
+    insertFilteredWordOccurrence(db, {
+      sessionId: withOccurrences.sessionId,
+      videoId,
+      occurrenceCount: 2,
+      startedAtMs,
+    });
+    insertFilteredWordOccurrence(db, {
+      sessionId: withOccurrences.sessionId,
+      videoId,
+      lineIndex: 2,
+      occurrenceCount: 3,
+      startedAtMs,
+      headword: 'じゃない',
+      word: 'じゃない',
+      partOfSpeech: 'i_adjective',
+      pos1: '形容詞',
+      pos2: '*|自立',
+      pos3: '*',
+    });
+
+    db.prepare(
+      `
+      INSERT INTO imm_daily_rollups (
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(Math.floor(startedAtMs / 86_400_000), videoId, 2, 1, 2, 12, 0);
+
+    const summaries = getSessionSummaries(db, 10);
+    assert.equal(
+      summaries.find((session) => session.sessionId === withOccurrences.sessionId)?.tokensSeen,
+      2,
+    );
+    assert.equal(
+      summaries.find((session) => session.sessionId === fallbackOnly.sessionId)?.tokensSeen,
+      7,
+    );
+
+    const hints = getQueryHints(db);
+    assert.equal(hints.totalTokensSeen, 9);
+
+    const rollup = getDailyRollups(db, 1)[0]!;
+    assert.equal(rollup.totalTokensSeen, 9);
+    assert.equal(rollup.tokensPerMin, 9);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getQueryHints counts new words by distinct headword first-seen time', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
@@ -1430,6 +1584,61 @@ test('getVocabularyStats returns rows ordered by frequency descending', () => {
   }
 });
 
+test('getVocabularyStats filters rows that fail tokenizer vocabulary rules', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    stmts.wordUpsertStmt.run(
+      'どうしても',
+      'どうしてもって',
+      'どうしてもって',
+      'other',
+      '副詞|助詞',
+      '一般|格助詞',
+      '',
+      1_000,
+      1_000,
+    );
+    stmts.wordUpsertStmt.run(
+      'じゃない',
+      'じゃない',
+      '',
+      'i_adjective',
+      '形容詞',
+      '*|自立',
+      '*',
+      1_100,
+      1_100,
+    );
+    stmts.wordUpsertStmt.run(
+      '何か',
+      '何か',
+      'なにか',
+      'other',
+      '名詞|助詞',
+      '代名詞|副助詞／並立助詞／終助詞',
+      '一般|*',
+      1_200,
+      1_200,
+    );
+    stmts.wordUpsertStmt.run('猫', '猫', 'ねこ', 'noun', '名詞', '一般', '', 1_500, 1_500);
+
+    const rows = getVocabularyStats(db, 10);
+
+    assert.deepEqual(
+      rows.map((row) => row.headword),
+      ['猫'],
+    );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getVocabularyStats returns empty array when no words exist', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
@@ -1475,6 +1684,22 @@ test('cleanupVocabularyStats repairs stored POS metadata and removes excluded im
         headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run('未解決', '未解決', '', '', '', '', '', 901, 951, 1);
+    db.prepare(
+      `INSERT INTO imm_words (
+        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      'どうしても',
+      'どうしてもって',
+      'どうしてもって',
+      'other',
+      '副詞|助詞',
+      '一般|格助詞',
+      '',
+      1_110,
+      1_610,
+      7,
+    );
 
     const result = await cleanupVocabularyStats(db, {
       resolveLegacyPos: async (row) => {
@@ -1517,7 +1742,7 @@ test('cleanupVocabularyStats repairs stored POS metadata and removes excluded im
       pos2: string;
     }>;
 
-    assert.deepEqual(result, { scanned: 5, kept: 3, deleted: 2, repaired: 2 });
+    assert.deepEqual(result, { scanned: 6, kept: 3, deleted: 3, repaired: 2 });
     assert.deepEqual(
       rows.map((row) => ({ headword: row.headword, frequency: row.frequency })),
       [
@@ -2226,6 +2451,31 @@ test('getSessionWordsByLine joins word occurrences through imm_words.id', () => 
       `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count)
        VALUES (?, ?, ?)`,
     ).run(lineId, wordId, 1);
+    const excludedWordId = Number(
+      db
+        .prepare(
+          `INSERT INTO imm_words (
+            headword, word, reading, pos1, pos2, pos3, part_of_speech, first_seen, last_seen, frequency
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          'じゃない',
+          'じゃない',
+          '',
+          '形容詞',
+          '*|自立',
+          '*',
+          'i_adjective',
+          startedAtMs,
+          startedAtMs,
+          1,
+        ).lastInsertRowid,
+    );
+
+    db.prepare(
+      `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count)
+       VALUES (?, ?, ?)`,
+    ).run(lineId, excludedWordId, 3);
 
     assert.deepEqual(getSessionWordsByLine(db, sessionId), [
       { lineIndex: 0, headword: '猫', occurrenceCount: 1 },
@@ -3953,6 +4203,121 @@ test('getTrendsDashboard librarySummary returns null lookupsPerHundred when word
     assert.equal(dashboard.librarySummary.length, 1);
     assert.equal(dashboard.librarySummary[0]!.lookupsPerHundred, null);
     assert.equal(dashboard.librarySummary[0]!.words, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getTrendsDashboard word metrics use filtered persisted occurrences', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/filtered-trends.mkv', {
+      canonicalTitle: 'Filtered Trends Episode',
+      sourcePath: '/tmp/filtered-trends.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Filtered Trends Anime',
+      canonicalTitle: 'Filtered Trends Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'filtered-trends.mkv',
+      parsedTitle: 'Filtered Trends Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    const dayOneStart = 1_700_000_000_000;
+    const dayTwoStart = dayOneStart + 86_400_000;
+    const rows = [
+      { start: dayOneStart, rawWords: 10, filteredWords: 2, lookups: 4 },
+      { start: dayTwoStart, rawWords: 20, filteredWords: 3, lookups: 6 },
+    ];
+
+    for (const [index, row] of rows.entries()) {
+      const session = startSessionRecord(db, videoId, row.start);
+      stmts.telemetryInsertStmt.run(
+        session.sessionId,
+        `${row.start + 60_000}`,
+        10 * 60_000,
+        10 * 60_000,
+        1,
+        row.rawWords,
+        0,
+        0,
+        0,
+        row.lookups,
+        0,
+        0,
+        0,
+        0,
+        `${row.start + 60_000}`,
+        `${row.start + 60_000}`,
+      );
+      db.prepare(
+        `
+        UPDATE imm_sessions
+        SET ended_at_ms = ?, total_watched_ms = ?, active_watched_ms = ?,
+            lines_seen = ?, tokens_seen = ?, cards_mined = ?, yomitan_lookup_count = ?
+        WHERE session_id = ?
+        `,
+      ).run(
+        `${row.start + 60_000}`,
+        10 * 60_000,
+        10 * 60_000,
+        1,
+        row.rawWords,
+        0,
+        row.lookups,
+        session.sessionId,
+      );
+      insertFilteredWordOccurrence(db, {
+        sessionId: session.sessionId,
+        videoId,
+        animeId,
+        lineIndex: index + 1,
+        occurrenceCount: row.filteredWords,
+        startedAtMs: row.start,
+        headword: `単語${index}`,
+      });
+      db.prepare(
+        `
+        INSERT INTO imm_daily_rollups (
+          rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+          total_tokens_seen, total_cards
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+      ).run(Math.floor(row.start / 86_400_000), videoId, 1, 10, 1, row.rawWords, 0);
+    }
+
+    const dashboard = getTrendsDashboard(db, 'all', 'day');
+    assert.deepEqual(
+      dashboard.activity.words.map((point) => point.value),
+      [2, 3],
+    );
+    assert.deepEqual(
+      dashboard.progress.words.map((point) => point.value),
+      [2, 5],
+    );
+    assert.equal(dashboard.ratios.lookupsPerHundred[0]?.value, 200);
+    assert.equal(dashboard.librarySummary[0]?.words, 5);
+    assert.equal(dashboard.librarySummary[0]?.lookupsPerHundred, 200);
+    assert.equal(dashboard.animeCumulative.words.at(-1)?.value, 5);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

@@ -1,5 +1,41 @@
 import type { DatabaseSync } from './sqlite';
+import { SUBTITLE_ANNOTATION_EXCLUDED_TERMS } from '../tokenizer/subtitle-annotation-filter';
 import { nowMs } from './time';
+
+function quoteSqlString(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+const SQL_EXCLUDED_VOCABULARY_TERMS = [...SUBTITLE_ANNOTATION_EXCLUDED_TERMS].map(quoteSqlString);
+const SQL_EXCLUDED_VOCABULARY_TERMS_LIST =
+  SQL_EXCLUDED_VOCABULARY_TERMS.length > 0 ? SQL_EXCLUDED_VOCABULARY_TERMS.join(', ') : "''";
+
+export function visibleWordSql(wordAlias: string): string {
+  return `(
+    TRIM(COALESCE(${wordAlias}.word, '')) NOT IN (${SQL_EXCLUDED_VOCABULARY_TERMS_LIST})
+    AND TRIM(COALESCE(${wordAlias}.headword, '')) NOT IN (${SQL_EXCLUDED_VOCABULARY_TERMS_LIST})
+    AND TRIM(COALESCE(${wordAlias}.reading, '')) NOT IN (${SQL_EXCLUDED_VOCABULARY_TERMS_LIST})
+  )`;
+}
+
+export function filteredWordOccurrenceCountSql(occurrenceAlias: string, wordAlias: string): string {
+  return `CASE
+    WHEN ${occurrenceAlias}.word_id IS NOT NULL AND ${visibleWordSql(wordAlias)}
+      THEN ${occurrenceAlias}.occurrence_count
+    ELSE 0
+  END`;
+}
+
+export const SESSION_WORD_COUNTS_SELECT = `
+  SELECT
+    sl.session_id AS sessionId,
+    COUNT(DISTINCT sl.line_id) AS persistedLineCount,
+    COALESCE(SUM(${filteredWordOccurrenceCountSql('wlo', 'w')}), 0) AS filteredWordsSeen
+  FROM imm_subtitle_lines sl
+  LEFT JOIN imm_word_line_occurrences wlo ON wlo.line_id = sl.line_id
+  LEFT JOIN imm_words w ON w.id = wlo.word_id
+  GROUP BY sl.session_id
+`;
 
 export const ACTIVE_SESSION_METRICS_CTE = `
   WITH active_session_metrics AS (
@@ -17,8 +53,28 @@ export const ACTIVE_SESSION_METRICS_CTE = `
     JOIN imm_sessions s ON s.session_id = t.session_id
     WHERE s.ended_at_ms IS NULL
     GROUP BY t.session_id
+  ),
+  session_word_counts AS (
+    ${SESSION_WORD_COUNTS_SELECT}
   )
 `;
+
+export const SESSION_WORD_COUNTS_CTE = `
+  WITH session_word_counts AS (
+    ${SESSION_WORD_COUNTS_SELECT}
+  )
+`;
+
+export function sessionDisplayWordsExpr(
+  sessionAlias: string,
+  wordCountAlias: string,
+  rawTokensExpr = `${sessionAlias}.tokens_seen`,
+): string {
+  return `CASE
+    WHEN COALESCE(${wordCountAlias}.persistedLineCount, 0) > 0 THEN COALESCE(${wordCountAlias}.filteredWordsSeen, 0)
+    ELSE COALESCE(${rawTokensExpr}, 0)
+  END`;
+}
 
 export function makePlaceholders(values: number[]): string {
   return values.map(() => '?').join(',');

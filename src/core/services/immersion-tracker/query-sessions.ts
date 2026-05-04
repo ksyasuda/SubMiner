@@ -6,14 +6,18 @@ import type {
 } from './types';
 import {
   ACTIVE_SESSION_METRICS_CTE,
+  SESSION_WORD_COUNTS_CTE,
+  SESSION_WORD_COUNTS_SELECT,
   currentDbTimestamp,
   fromDbTimestamp,
   getLocalEpochDay,
   getShiftedLocalDaySec,
-  toDbTimestamp,
+  sessionDisplayWordsExpr,
+  visibleWordSql,
 } from './query-shared';
 
 export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummaryQueryRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const prepared = db.prepare(`
     ${ACTIVE_SESSION_METRICS_CTE}
     SELECT
@@ -27,13 +31,14 @@ export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummar
       COALESCE(asm.totalWatchedMs, s.total_watched_ms, 0) AS totalWatchedMs,
       COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
       COALESCE(asm.linesSeen, s.lines_seen, 0) AS linesSeen,
-      COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
+      ${wordsExpr} AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
       COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits,
       COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount
     FROM imm_sessions s
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
+    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     LEFT JOIN imm_videos v ON v.video_id = s.video_id
     LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
     ORDER BY s.started_at_ms DESC
@@ -94,7 +99,9 @@ export function getSessionTimeline(
 
 /** Returns all distinct headwords in the vocabulary table (global). */
 export function getAllDistinctHeadwords(db: DatabaseSync): string[] {
-  const rows = db.prepare('SELECT DISTINCT headword FROM imm_words').all() as Array<{
+  const rows = db
+    .prepare(`SELECT DISTINCT headword FROM imm_words w WHERE ${visibleWordSql('w')}`)
+    .all() as Array<{
     headword: string;
   }>;
   return rows.map((r) => r.headword);
@@ -109,7 +116,7 @@ export function getAnimeDistinctHeadwords(db: DatabaseSync, animeId: number): st
       FROM imm_word_line_occurrences o
       JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
       JOIN imm_words w ON w.id = o.word_id
-      WHERE sl.anime_id = ?
+      WHERE sl.anime_id = ? AND ${visibleWordSql('w')}
     `,
     )
     .all(animeId) as Array<{ headword: string }>;
@@ -125,7 +132,7 @@ export function getMediaDistinctHeadwords(db: DatabaseSync, videoId: number): st
       FROM imm_word_line_occurrences o
       JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
       JOIN imm_words w ON w.id = o.word_id
-      WHERE sl.video_id = ?
+      WHERE sl.video_id = ? AND ${visibleWordSql('w')}
     `,
     )
     .all(videoId) as Array<{ headword: string }>;
@@ -148,7 +155,7 @@ export function getSessionWordsByLine(
     FROM imm_subtitle_lines sl
     JOIN imm_word_line_occurrences wlo ON wlo.line_id = sl.line_id
     JOIN imm_words w ON w.id = wlo.word_id
-    WHERE sl.session_id = ?
+    WHERE sl.session_id = ? AND ${visibleWordSql('w')}
     ORDER BY sl.line_index ASC
   `);
   return stmt.all(sessionId) as Array<{
@@ -290,11 +297,17 @@ export function getQueryHints(db: DatabaseSync): {
   const totalCards = Number(lifetime?.totalCards ?? 0);
   const activeDays = Number(lifetime?.activeDays ?? 0);
 
+  const lookupWordsExpr = sessionDisplayWordsExpr(
+    's',
+    'swc',
+    'COALESCE(t.tokens_seen, s.tokens_seen)',
+  );
   const lookupTotals = db
     .prepare(
       `
+    ${SESSION_WORD_COUNTS_CTE}
     SELECT
-      COALESCE(SUM(COALESCE(t.tokens_seen, s.tokens_seen, 0)), 0) AS totalTokensSeen,
+      COALESCE(SUM(${lookupWordsExpr}), 0) AS totalTokensSeen,
       COALESCE(SUM(COALESCE(t.lookup_count, s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(t.lookup_hits, s.lookup_hits, 0)), 0) AS totalLookupHits,
       COALESCE(SUM(COALESCE(t.yomitan_lookup_count, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount
@@ -309,6 +322,7 @@ export function getQueryHints(db: DatabaseSync): {
       FROM imm_session_telemetry
       GROUP BY session_id
     ) t ON t.session_id = s.session_id
+    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE s.ended_at_ms IS NOT NULL
   `,
     )
@@ -338,8 +352,25 @@ export function getQueryHints(db: DatabaseSync): {
 }
 
 export function getDailyRollups(db: DatabaseSync, limit = 60): ImmersionSessionRollupRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc');
   const prepared = db.prepare(`
-    WITH recent_days AS (
+    WITH session_word_counts AS (
+      ${SESSION_WORD_COUNTS_SELECT}
+    ),
+    daily_word_counts AS (
+      SELECT
+        CAST(
+          julianday(CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5
+          AS INTEGER
+        ) AS rollupDay,
+        s.video_id AS videoId,
+        SUM(${wordsExpr}) AS totalTokensSeen
+      FROM imm_sessions s
+      LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
+      WHERE s.ended_at_ms IS NOT NULL
+      GROUP BY rollupDay, s.video_id
+    ),
+    recent_days AS (
       SELECT DISTINCT rollup_day
       FROM imm_daily_rollups
       ORDER BY rollup_day DESC
@@ -351,12 +382,21 @@ export function getDailyRollups(db: DatabaseSync, limit = 60): ImmersionSessionR
       r.total_sessions AS totalSessions,
       r.total_active_min AS totalActiveMin,
       r.total_lines_seen AS totalLinesSeen,
-      r.total_tokens_seen AS totalTokensSeen,
+      COALESCE(dwc.totalTokensSeen, r.total_tokens_seen) AS totalTokensSeen,
       r.total_cards AS totalCards,
       r.cards_per_hour AS cardsPerHour,
-      r.tokens_per_min AS tokensPerMin,
+      CASE
+        WHEN r.total_active_min > 0 THEN COALESCE(dwc.totalTokensSeen, r.total_tokens_seen) * 1.0 / r.total_active_min
+        ELSE NULL
+      END AS tokensPerMin,
       r.lookup_hit_rate AS lookupHitRate
     FROM imm_daily_rollups r
+    LEFT JOIN daily_word_counts dwc
+      ON dwc.rollupDay = r.rollup_day
+      AND (
+        (dwc.videoId IS NULL AND r.video_id IS NULL)
+        OR dwc.videoId = r.video_id
+      )
     WHERE r.rollup_day IN (SELECT rollup_day FROM recent_days)
     ORDER BY r.rollup_day DESC, r.video_id DESC
     `);
@@ -365,33 +405,53 @@ export function getDailyRollups(db: DatabaseSync, limit = 60): ImmersionSessionR
 }
 
 export function getMonthlyRollups(db: DatabaseSync, limit = 24): ImmersionSessionRollupRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc');
   const prepared = db.prepare(`
-    WITH recent_months AS (
+    WITH session_word_counts AS (
+      ${SESSION_WORD_COUNTS_SELECT}
+    ),
+    monthly_word_counts AS (
+      SELECT
+        CAST(strftime('%Y%m', CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) AS rollupMonth,
+        s.video_id AS videoId,
+        SUM(${wordsExpr}) AS totalTokensSeen
+      FROM imm_sessions s
+      LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
+      WHERE s.ended_at_ms IS NOT NULL
+      GROUP BY rollupMonth, s.video_id
+    ),
+    recent_months AS (
       SELECT DISTINCT rollup_month
       FROM imm_monthly_rollups
       ORDER BY rollup_month DESC
       LIMIT ?
     )
     SELECT
-      rollup_month AS rollupDayOrMonth,
-      video_id AS videoId,
-      total_sessions AS totalSessions,
-      total_active_min AS totalActiveMin,
-      total_lines_seen AS totalLinesSeen,
-      total_tokens_seen AS totalTokensSeen,
-      total_cards AS totalCards,
+      r.rollup_month AS rollupDayOrMonth,
+      r.video_id AS videoId,
+      r.total_sessions AS totalSessions,
+      r.total_active_min AS totalActiveMin,
+      r.total_lines_seen AS totalLinesSeen,
+      COALESCE(mwc.totalTokensSeen, r.total_tokens_seen) AS totalTokensSeen,
+      r.total_cards AS totalCards,
       CASE
-        WHEN total_active_min > 0 THEN (total_cards * 60.0) / total_active_min
+        WHEN r.total_active_min > 0 THEN (r.total_cards * 60.0) / r.total_active_min
         ELSE NULL
       END AS cardsPerHour,
       CASE
-        WHEN total_active_min > 0 THEN total_tokens_seen * 1.0 / total_active_min
+        WHEN r.total_active_min > 0 THEN COALESCE(mwc.totalTokensSeen, r.total_tokens_seen) * 1.0 / r.total_active_min
         ELSE NULL
       END AS tokensPerMin,
       NULL AS lookupHitRate
-    FROM imm_monthly_rollups
-    WHERE rollup_month IN (SELECT rollup_month FROM recent_months)
-    ORDER BY rollup_month DESC, video_id DESC
+    FROM imm_monthly_rollups r
+    LEFT JOIN monthly_word_counts mwc
+      ON mwc.rollupMonth = r.rollup_month
+      AND (
+        (mwc.videoId IS NULL AND r.video_id IS NULL)
+        OR mwc.videoId = r.video_id
+      )
+    WHERE r.rollup_month IN (SELECT rollup_month FROM recent_months)
+    ORDER BY r.rollup_month DESC, r.video_id DESC
   `);
   return prepared.all(limit) as unknown as ImmersionSessionRollupRow[];
 }

@@ -53,18 +53,31 @@ function formatTime(ms: number): string {
   });
 }
 
-/** Build a lookup: linesSeen → knownWordsSeen */
-function buildKnownWordsLookup(knownWordsTimeline: KnownWordsTimelinePoint[]): Map<number, number> {
-  const map = new Map<number, number>();
+type KnownWordsLineCounts = {
+  knownWordsSeen: number;
+  totalWordsSeen: number;
+};
+
+/** Build a lookup: linesSeen -> filtered known/total word counts */
+function buildKnownWordsLookup(
+  knownWordsTimeline: KnownWordsTimelinePoint[],
+): Map<number, KnownWordsLineCounts> {
+  const map = new Map<number, KnownWordsLineCounts>();
   for (const pt of knownWordsTimeline) {
-    map.set(pt.linesSeen, pt.knownWordsSeen);
+    map.set(pt.linesSeen, {
+      knownWordsSeen: pt.knownWordsSeen,
+      totalWordsSeen: pt.totalWordsSeen,
+    });
   }
   return map;
 }
 
-/** For a given linesSeen value, find the closest known words count (floor lookup). */
-function lookupKnownWords(map: Map<number, number>, linesSeen: number): number {
-  if (map.size === 0) return 0;
+/** For a given linesSeen value, find the closest filtered word counts (floor lookup). */
+function lookupKnownWordCounts(
+  map: Map<number, KnownWordsLineCounts>,
+  linesSeen: number,
+): KnownWordsLineCounts {
+  if (map.size === 0) return { knownWordsSeen: 0, totalWordsSeen: 0 };
   if (map.has(linesSeen)) return map.get(linesSeen)!;
   let best = 0;
   for (const k of map.keys()) {
@@ -72,7 +85,7 @@ function lookupKnownWords(map: Map<number, number>, linesSeen: number): number {
       best = k;
     }
   }
-  return best > 0 ? map.get(best)! : 0;
+  return best > 0 ? map.get(best)! : { knownWordsSeen: 0, totalWordsSeen: 0 };
 }
 
 interface RatioChartPoint {
@@ -92,6 +105,32 @@ type TimelineEntry = {
   linesSeen: number;
   tokensSeen: number;
 };
+
+export function buildKnownWordsRatioChartData(
+  sorted: TimelineEntry[],
+  knownWordsMap: Map<number, KnownWordsLineCounts>,
+): RatioChartPoint[] {
+  const chartData: RatioChartPoint[] = [];
+  for (const t of sorted) {
+    const counts = lookupKnownWordCounts(knownWordsMap, t.linesSeen);
+    const totalWords = counts.totalWordsSeen;
+    if (totalWords === 0) continue;
+    const knownWords = Math.min(counts.knownWordsSeen, totalWords);
+    const unknownWords = totalWords - knownWords;
+    chartData.push({
+      tsMs: t.sampleMs,
+      knownWords,
+      unknownWords,
+      totalWords,
+    });
+  }
+  return chartData;
+}
+
+export function getKnownPctAxisMax(values: number[]): number {
+  const max = Math.max(0, ...values.filter((value) => Number.isFinite(value)));
+  return Math.min(100, Math.ceil((max + 5) / 10) * 10);
+}
 
 function SessionChartOffsetProbe({
   offset,
@@ -291,7 +330,7 @@ function RatioView({
   session,
 }: {
   sorted: TimelineEntry[];
-  knownWordsMap: Map<number, number>;
+  knownWordsMap: Map<number, KnownWordsLineCounts>;
   cardEvents: SessionEvent[];
   yomitanLookupEvents: SessionEvent[];
   pauseRegions: Array<{ startMs: number; endMs: number }>;
@@ -309,19 +348,7 @@ function RatioView({
   session: SessionSummary;
 }) {
   const [plotArea, setPlotArea] = useState<SessionChartPlotArea | null>(null);
-  const chartData: RatioChartPoint[] = [];
-  for (const t of sorted) {
-    const totalWords = getSessionDisplayWordCount(t);
-    if (totalWords === 0) continue;
-    const knownWords = Math.min(lookupKnownWords(knownWordsMap, t.linesSeen), totalWords);
-    const unknownWords = totalWords - knownWords;
-    chartData.push({
-      tsMs: t.sampleMs,
-      knownWords,
-      unknownWords,
-      totalWords,
-    });
-  }
+  const chartData = buildKnownWordsRatioChartData(sorted, knownWordsMap);
 
   if (chartData.length === 0) {
     return <div className="text-ctp-overlay2 text-xs p-2">No word data for this session.</div>;

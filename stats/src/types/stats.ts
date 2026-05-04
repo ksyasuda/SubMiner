@@ -76,6 +76,12 @@ export interface VocabularyEntry {
   lastSeen: number;
 }
 
+export interface StatsExcludedWord {
+  headword: string;
+  word: string;
+  reading: string;
+}
+
 export interface KanjiEntry {
   kanjiId: number;
   kanji: string;

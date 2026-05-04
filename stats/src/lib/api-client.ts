@@ -22,6 +22,7 @@ import type {
   KanjiDetailData,
   EpisodeDetailData,
   StatsAnkiNoteInfo,
+  StatsExcludedWord,
 } from '../types/stats';
 
 type StatsLocationLike = Pick<Location, 'protocol' | 'origin' | 'search'>;
@@ -85,11 +86,19 @@ export const apiClient = {
     return fetchJson<SessionEvent[]>(`/api/stats/sessions/${id}/events?${params.toString()}`);
   },
   getSessionKnownWordsTimeline: (id: number) =>
-    fetchJson<Array<{ linesSeen: number; knownWordsSeen: number }>>(
+    fetchJson<Array<{ linesSeen: number; knownWordsSeen: number; totalWordsSeen: number }>>(
       `/api/stats/sessions/${id}/known-words-timeline`,
     ),
   getVocabulary: (limit = 100) =>
     fetchJson<VocabularyEntry[]>(`/api/stats/vocabulary?limit=${limit}`),
+  getExcludedWords: () => fetchJson<StatsExcludedWord[]>('/api/stats/excluded-words'),
+  setExcludedWords: async (words: StatsExcludedWord[]): Promise<void> => {
+    await fetchResponse('/api/stats/excluded-words', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ words }),
+    });
+  },
   getWordOccurrences: (headword: string, word: string, reading: string, limit = 50, offset = 0) =>
     fetchJson<VocabularyOccurrenceEntry[]>(
       `/api/stats/vocabulary/occurrences?headword=${encodeURIComponent(headword)}&word=${encodeURIComponent(word)}&reading=${encodeURIComponent(reading)}&limit=${limit}&offset=${offset}`,

@@ -9,6 +9,7 @@ import {
   getLocalMonthKey,
   getShiftedLocalDayTimestamp,
   makePlaceholders,
+  sessionDisplayWordsExpr,
   toDbTimestamp,
 } from './query-shared';
 import { getDailyRollups, getMonthlyRollups } from './query-sessions';
@@ -560,6 +561,7 @@ function getTrendSessionMetrics(
   db: DatabaseSync,
   cutoffMs: string | null,
 ): TrendSessionMetricRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const whereClause = cutoffMs === null ? '' : 'WHERE s.started_at_ms >= ?';
   const cutoffValue = cutoffMs === null ? null : toDbTimestamp(cutoffMs);
   const prepared = db.prepare(`
@@ -570,11 +572,12 @@ function getTrendSessionMetrics(
       v.canonical_title AS canonicalTitle,
       a.canonical_title AS animeTitle,
       COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
-      COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
+      ${wordsExpr} AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount
     FROM imm_sessions s
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
+    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     LEFT JOIN imm_videos v ON v.video_id = s.video_id
     LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
     ${whereClause}

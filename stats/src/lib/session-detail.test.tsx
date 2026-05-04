@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SessionDetail, getKnownPctAxisMax } from '../components/sessions/SessionDetail';
+import {
+  SessionDetail,
+  buildKnownWordsRatioChartData,
+  getKnownPctAxisMax,
+} from '../components/sessions/SessionDetail';
 import { buildSessionChartEvents } from './session-events';
 import { EventType } from '../types/stats';
 
@@ -68,4 +72,22 @@ test('getKnownPctAxisMax adds headroom above the highest known percentage', () =
 
 test('getKnownPctAxisMax caps the chart top at 100%', () => {
   assert.equal(getKnownPctAxisMax([97.1, 98.6]), 100);
+});
+
+test('buildKnownWordsRatioChartData uses filtered known-word timeline totals', () => {
+  const chartData = buildKnownWordsRatioChartData(
+    [
+      { sampleMs: 1_000, linesSeen: 1, tokensSeen: 10 },
+      { sampleMs: 2_000, linesSeen: 2, tokensSeen: 20 },
+    ],
+    new Map([
+      [1, { knownWordsSeen: 2, totalWordsSeen: 3 }],
+      [2, { knownWordsSeen: 3, totalWordsSeen: 4 }],
+    ]),
+  );
+
+  assert.deepEqual(chartData, [
+    { tsMs: 1_000, knownWords: 2, unknownWords: 1, totalWords: 3 },
+    { tsMs: 2_000, knownWords: 3, unknownWords: 1, totalWords: 4 },
+  ]);
 });

@@ -52,7 +52,9 @@ import {
   getKanjiWords,
   getSessionEvents,
   getSimilarWords,
+  getStatsExcludedWords,
   getVocabularyStats,
+  replaceStatsExcludedWords,
   getWordAnimeAppearances,
   getWordDetail,
   getWordOccurrences,
@@ -151,6 +153,7 @@ import {
   type SessionSummaryQueryRow,
   type SessionTimelineRow,
   type SimilarWordRow,
+  type StatsExcludedWordRow,
   type StreakCalendarRow,
   type VocabularyCleanupSummary,
   type WatchTimePerAnimeRow,
@@ -289,6 +292,7 @@ export type {
   SessionSummaryQueryRow,
   SessionTimelineRow,
   SimilarWordRow,
+  StatsExcludedWordRow,
   StreakCalendarRow,
   WatchTimePerAnimeRow,
   WordAnimeAppearanceRow,
@@ -496,6 +500,14 @@ export class ImmersionTrackerService {
 
   async getVocabularyStats(limit = 100, excludePos?: string[]): Promise<VocabularyStatsRow[]> {
     return getVocabularyStats(this.db, limit, excludePos);
+  }
+
+  async getStatsExcludedWords(): Promise<StatsExcludedWordRow[]> {
+    return getStatsExcludedWords(this.db);
+  }
+
+  async replaceStatsExcludedWords(words: StatsExcludedWordRow[]): Promise<void> {
+    replaceStatsExcludedWords(this.db, words);
   }
 
   async cleanupVocabularyStats(): Promise<VocabularyCleanupSummary> {

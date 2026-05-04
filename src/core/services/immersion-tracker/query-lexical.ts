@@ -1,4 +1,6 @@
 import type { DatabaseSync } from './sqlite';
+import { PartOfSpeech, type MergedToken } from '../../../types';
+import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
 import type {
   KanjiAnimeAppearanceRow,
   KanjiDetailRow,
@@ -7,18 +9,55 @@ import type {
   KanjiWordRow,
   SessionEventRow,
   SimilarWordRow,
+  StatsExcludedWordRow,
   VocabularyStatsRow,
   WordAnimeAppearanceRow,
   WordDetailRow,
   WordOccurrenceRow,
 } from './types';
-import { fromDbTimestamp } from './query-shared';
+import { fromDbTimestamp, toDbTimestamp } from './query-shared';
+import { nowMs } from './time';
+
+const VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR = 4;
+const VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN = 100;
+
+function toVocabularyToken(row: VocabularyStatsRow): MergedToken {
+  const partOfSpeech =
+    row.partOfSpeech && Object.values(PartOfSpeech).includes(row.partOfSpeech as PartOfSpeech)
+      ? (row.partOfSpeech as PartOfSpeech)
+      : PartOfSpeech.other;
+
+  return {
+    surface: row.word,
+    reading: row.reading ?? '',
+    headword: row.headword,
+    startPos: 0,
+    endPos: row.word.length,
+    partOfSpeech,
+    pos1: row.pos1 ?? '',
+    pos2: row.pos2 ?? '',
+    pos3: row.pos3 ?? '',
+    frequencyRank: row.frequencyRank ?? undefined,
+    isMerged: false,
+    isKnown: false,
+    isNPlusOneTarget: false,
+  };
+}
+
+function isVocabularyStatsRowVisible(row: VocabularyStatsRow): boolean {
+  return !shouldExcludeTokenFromVocabularyPersistence(toVocabularyToken(row));
+}
 
 export function getVocabularyStats(
   db: DatabaseSync,
   limit = 100,
   excludePos?: string[],
 ): VocabularyStatsRow[] {
+  const queryLimit = Math.max(
+    limit,
+    limit * VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR,
+    limit + VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN,
+  );
   const hasExclude = excludePos && excludePos.length > 0;
   const placeholders = hasExclude ? excludePos.map(() => '?').join(', ') : '';
   const whereClause = hasExclude
@@ -37,8 +76,48 @@ export function getVocabularyStats(
     GROUP BY w.id
     ORDER BY w.frequency DESC LIMIT ?
   `);
-  const params = hasExclude ? [...excludePos, limit] : [limit];
-  return stmt.all(...params) as VocabularyStatsRow[];
+  const params = hasExclude ? [...excludePos, queryLimit] : [queryLimit];
+  return (stmt.all(...params) as VocabularyStatsRow[])
+    .filter(isVocabularyStatsRowVisible)
+    .slice(0, limit);
+}
+
+export function getStatsExcludedWords(db: DatabaseSync): StatsExcludedWordRow[] {
+  return db
+    .prepare(
+      `
+        SELECT headword, word, reading
+        FROM imm_stats_excluded_words
+        ORDER BY headword COLLATE NOCASE, word COLLATE NOCASE, reading COLLATE NOCASE
+      `,
+    )
+    .all() as StatsExcludedWordRow[];
+}
+
+export function replaceStatsExcludedWords(db: DatabaseSync, words: StatsExcludedWordRow[]): void {
+  const now = toDbTimestamp(nowMs());
+  const insertStmt = db.prepare(`
+    INSERT OR IGNORE INTO imm_stats_excluded_words(
+      headword,
+      word,
+      reading,
+      CREATED_DATE,
+      LAST_UPDATE_DATE
+    )
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.prepare('DELETE FROM imm_stats_excluded_words').run();
+    for (const word of words) {
+      insertStmt.run(word.headword, word.word, word.reading, now, now);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 export function getKanjiStats(db: DatabaseSync, limit = 100): KanjiStatsRow[] {

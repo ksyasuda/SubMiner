@@ -16,12 +16,31 @@ import type {
   StreakCalendarRow,
   WatchTimePerAnimeRow,
 } from './types';
-import { ACTIVE_SESSION_METRICS_CTE, fromDbTimestamp, resolvedCoverBlobExpr } from './query-shared';
+import {
+  ACTIVE_SESSION_METRICS_CTE,
+  SESSION_WORD_COUNTS_CTE,
+  SESSION_WORD_COUNTS_SELECT,
+  fromDbTimestamp,
+  resolvedCoverBlobExpr,
+  sessionDisplayWordsExpr,
+  visibleWordSql,
+} from './query-shared';
 
 export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc');
   const rows = db
     .prepare(
       `
+    ${SESSION_WORD_COUNTS_CTE},
+    anime_word_counts AS (
+      SELECT v.anime_id AS animeId, SUM(${wordsExpr}) AS totalTokensSeen
+      FROM imm_sessions s
+      JOIN imm_videos v ON v.video_id = s.video_id
+      LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
+      WHERE s.ended_at_ms IS NOT NULL
+        AND v.anime_id IS NOT NULL
+      GROUP BY v.anime_id
+    )
     SELECT
       a.anime_id AS animeId,
       a.canonical_title AS canonicalTitle,
@@ -29,13 +48,14 @@ export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
+      COALESCE(awc.totalTokensSeen, lm.total_tokens_seen, 0) AS totalTokensSeen,
       COUNT(DISTINCT v.video_id) AS episodeCount,
       a.episodes_total AS episodesTotal,
       COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs
     FROM imm_anime a
     JOIN imm_lifetime_anime lm ON lm.anime_id = a.anime_id
     JOIN imm_videos v ON v.anime_id = a.anime_id
+    LEFT JOIN anime_word_counts awc ON awc.animeId = a.anime_id
     GROUP BY a.anime_id
     ORDER BY totalActiveMs DESC, lm.last_watched_ms DESC, canonicalTitle ASC
   `,
@@ -48,6 +68,7 @@ export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
 }
 
 export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRow | null {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const row = db
     .prepare(
       `
@@ -63,7 +84,10 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
+      CASE
+        WHEN COUNT(s.session_id) > 0 THEN COALESCE(SUM(${wordsExpr}), 0)
+        ELSE COALESCE(lm.total_tokens_seen, 0)
+      END AS totalTokensSeen,
       COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
       COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
@@ -75,6 +99,7 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
     JOIN imm_videos v ON v.anime_id = a.anime_id
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
+    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE a.anime_id = ?
     GROUP BY a.anime_id
   `,
@@ -108,6 +133,7 @@ export function getAnimeAnilistEntries(db: DatabaseSync, animeId: number): Anime
 }
 
 export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisodeRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const rows = db
     .prepare(
       `
@@ -162,12 +188,13 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
       COUNT(DISTINCT s.session_id) AS totalSessions,
       COALESCE(SUM(COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0)), 0) AS totalActiveMs,
       COALESCE(SUM(COALESCE(asm.cardsMined, s.cards_mined, 0)), 0) AS totalCards,
-      COALESCE(SUM(COALESCE(asm.tokensSeen, s.tokens_seen, 0)), 0) AS totalTokensSeen,
+      COALESCE(SUM(${wordsExpr}), 0) AS totalTokensSeen,
       COALESCE(SUM(COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount,
       MAX(s.started_at_ms) AS lastWatchedMs
     FROM imm_videos v
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
+    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE v.anime_id = ?
     GROUP BY v.video_id
     ORDER BY
@@ -192,16 +219,25 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
 }
 
 export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc');
   const rows = db
     .prepare(
       `
+    ${SESSION_WORD_COUNTS_CTE},
+    media_word_counts AS (
+      SELECT s.video_id AS videoId, SUM(${wordsExpr}) AS totalTokensSeen
+      FROM imm_sessions s
+      LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
+      WHERE s.ended_at_ms IS NOT NULL
+      GROUP BY s.video_id
+    )
     SELECT
       v.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
+      COALESCE(mwc.totalTokensSeen, lm.total_tokens_seen, 0) AS totalTokensSeen,
       COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs,
       yv.youtube_video_id AS youtubeVideoId,
       yv.video_url AS videoUrl,
@@ -220,6 +256,7 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
       END AS hasCoverArt
     FROM imm_videos v
     JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
+    LEFT JOIN media_word_counts mwc ON mwc.videoId = v.video_id
     LEFT JOIN imm_media_art ma ON ma.video_id = v.video_id
     LEFT JOIN imm_youtube_videos yv ON yv.video_id = v.video_id
     ORDER BY lm.last_watched_ms DESC
@@ -233,6 +270,7 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
 }
 
 export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRow | null {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   return db
     .prepare(
       `
@@ -244,7 +282,10 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
+      CASE
+        WHEN COUNT(s.session_id) > 0 THEN COALESCE(SUM(${wordsExpr}), 0)
+        ELSE COALESCE(lm.total_tokens_seen, 0)
+      END AS totalTokensSeen,
       COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
       COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
@@ -265,6 +306,7 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
     LEFT JOIN imm_youtube_videos yv ON yv.video_id = v.video_id
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
+    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE v.video_id = ?
     GROUP BY v.video_id
   `,
@@ -277,6 +319,7 @@ export function getMediaSessions(
   videoId: number,
   limit = 100,
 ): SessionSummaryQueryRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const rows = db
     .prepare(
       `
@@ -290,13 +333,14 @@ export function getMediaSessions(
       COALESCE(asm.totalWatchedMs, s.total_watched_ms, 0) AS totalWatchedMs,
       COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
       COALESCE(asm.linesSeen, s.lines_seen, 0) AS linesSeen,
-      COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
+      ${wordsExpr} AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
       COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits,
       COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount
     FROM imm_sessions s
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
+    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     LEFT JOIN imm_videos v ON v.video_id = s.video_id
     WHERE s.video_id = ?
     ORDER BY s.started_at_ms DESC
@@ -321,10 +365,27 @@ export function getMediaDailyRollups(
   videoId: number,
   limit = 90,
 ): ImmersionSessionRollupRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc');
   return db
     .prepare(
       `
-    WITH recent_days AS (
+    WITH session_word_counts AS (
+      ${SESSION_WORD_COUNTS_SELECT}
+    ),
+    daily_word_counts AS (
+      SELECT
+        CAST(
+          julianday(CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5
+          AS INTEGER
+        ) AS rollupDay,
+        s.video_id AS videoId,
+        SUM(${wordsExpr}) AS totalTokensSeen
+      FROM imm_sessions s
+      LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
+      WHERE s.ended_at_ms IS NOT NULL
+      GROUP BY rollupDay, s.video_id
+    ),
+    recent_days AS (
       SELECT DISTINCT rollup_day
       FROM imm_daily_rollups
       WHERE video_id = ?
@@ -337,12 +398,18 @@ export function getMediaDailyRollups(
       total_sessions AS totalSessions,
       total_active_min AS totalActiveMin,
       total_lines_seen AS totalLinesSeen,
-      total_tokens_seen AS totalTokensSeen,
+      COALESCE(dwc.totalTokensSeen, total_tokens_seen) AS totalTokensSeen,
       total_cards AS totalCards,
       cards_per_hour AS cardsPerHour,
-      tokens_per_min AS tokensPerMin,
+      CASE
+        WHEN total_active_min > 0 THEN COALESCE(dwc.totalTokensSeen, total_tokens_seen) * 1.0 / total_active_min
+        ELSE NULL
+      END AS tokensPerMin,
       lookup_hit_rate AS lookupHitRate
     FROM imm_daily_rollups
+    LEFT JOIN daily_word_counts dwc
+      ON dwc.rollupDay = rollup_day
+      AND dwc.videoId = video_id
     WHERE video_id = ?
     AND rollup_day IN (SELECT rollup_day FROM recent_days)
     ORDER BY rollup_day DESC, video_id DESC
@@ -356,10 +423,27 @@ export function getAnimeDailyRollups(
   animeId: number,
   limit = 90,
 ): ImmersionSessionRollupRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc');
   return db
     .prepare(
       `
-    WITH recent_days AS (
+    WITH session_word_counts AS (
+      ${SESSION_WORD_COUNTS_SELECT}
+    ),
+    daily_word_counts AS (
+      SELECT
+        CAST(
+          julianday(CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5
+          AS INTEGER
+        ) AS rollupDay,
+        s.video_id AS videoId,
+        SUM(${wordsExpr}) AS totalTokensSeen
+      FROM imm_sessions s
+      LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
+      WHERE s.ended_at_ms IS NOT NULL
+      GROUP BY rollupDay, s.video_id
+    ),
+    recent_days AS (
       SELECT DISTINCT r.rollup_day
       FROM imm_daily_rollups r
       JOIN imm_videos v ON v.video_id = r.video_id
@@ -370,11 +454,19 @@ export function getAnimeDailyRollups(
     SELECT r.rollup_day AS rollupDayOrMonth, r.video_id AS videoId,
            r.total_sessions AS totalSessions, r.total_active_min AS totalActiveMin,
            r.total_lines_seen AS totalLinesSeen,
-           r.total_tokens_seen AS totalTokensSeen, r.total_cards AS totalCards,
-           r.cards_per_hour AS cardsPerHour, r.tokens_per_min AS tokensPerMin,
+           COALESCE(dwc.totalTokensSeen, r.total_tokens_seen) AS totalTokensSeen,
+           r.total_cards AS totalCards,
+           r.cards_per_hour AS cardsPerHour,
+           CASE
+             WHEN r.total_active_min > 0 THEN COALESCE(dwc.totalTokensSeen, r.total_tokens_seen) * 1.0 / r.total_active_min
+             ELSE NULL
+           END AS tokensPerMin,
            r.lookup_hit_rate AS lookupHitRate
     FROM imm_daily_rollups r
     JOIN imm_videos v ON v.video_id = r.video_id
+    LEFT JOIN daily_word_counts dwc
+      ON dwc.rollupDay = r.rollup_day
+      AND dwc.videoId = r.video_id
     WHERE v.anime_id = ?
     AND r.rollup_day IN (SELECT rollup_day FROM recent_days)
     ORDER BY r.rollup_day DESC, r.video_id DESC
@@ -470,7 +562,7 @@ export function getAnimeWords(db: DatabaseSync, animeId: number, limit = 50): An
     FROM imm_word_line_occurrences o
     JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
     JOIN imm_words w ON w.id = o.word_id
-    WHERE sl.anime_id = ?
+    WHERE sl.anime_id = ? AND ${visibleWordSql('w')}
     GROUP BY w.id
     ORDER BY frequency DESC
     LIMIT ?
@@ -556,6 +648,7 @@ export function getEpisodeWords(db: DatabaseSync, videoId: number, limit = 50): 
 }
 
 export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSummaryQueryRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const rows = db
     .prepare(
       `
@@ -567,7 +660,7 @@ export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSu
       COALESCE(asm.totalWatchedMs, s.total_watched_ms, 0) AS totalWatchedMs,
       COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
       COALESCE(asm.linesSeen, s.lines_seen, 0) AS linesSeen,
-      COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
+      ${wordsExpr} AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
       COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits,
@@ -575,6 +668,7 @@ export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSu
     FROM imm_sessions s
     JOIN imm_videos v ON v.video_id = s.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
+    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE s.video_id = ?
     ORDER BY s.started_at_ms DESC
   `,

@@ -172,6 +172,50 @@ test('getSessionEvents can request only specific event types', async () => {
   }
 });
 
+test('getExcludedWords requests database-backed exclusions', async () => {
+  const originalFetch = globalThis.fetch;
+  let seenUrl = '';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    seenUrl = String(input);
+    return new Response(JSON.stringify([{ headword: '猫', word: '猫', reading: 'ねこ' }]), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    const words = await apiClient.getExcludedWords();
+    assert.equal(seenUrl, `${BASE_URL}/api/stats/excluded-words`);
+    assert.deepEqual(words, [{ headword: '猫', word: '猫', reading: 'ねこ' }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('setExcludedWords replaces database-backed exclusions', async () => {
+  const originalFetch = globalThis.fetch;
+  let seenUrl = '';
+  let seenMethod = '';
+  let seenBody = '';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    seenUrl = String(input);
+    seenMethod = init?.method ?? 'GET';
+    seenBody = String(init?.body ?? '');
+    return new Response(null, { status: 200 });
+  }) as typeof globalThis.fetch;
+
+  try {
+    await apiClient.setExcludedWords([{ headword: '猫', word: '猫', reading: 'ねこ' }]);
+    assert.equal(seenUrl, `${BASE_URL}/api/stats/excluded-words`);
+    assert.equal(seenMethod, 'PUT');
+    assert.deepEqual(JSON.parse(seenBody), {
+      words: [{ headword: '猫', word: '猫', reading: 'ねこ' }],
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('getSessionTimeline requests full session history when limit is omitted', async () => {
   const originalFetch = globalThis.fetch;
   let seenUrl = '';

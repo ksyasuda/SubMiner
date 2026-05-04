@@ -793,105 +793,60 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
   color: var(--subtitle-name-match-color, #f5bde6);
 }
 
-#subtitleRoot
-  .word.word-jlpt-n1:not(
-    :is(
-      .word-known,
-      .word-n-plus-one,
-      .word-name-match,
-      .word-frequency-single,
-      .word-frequency-band-1,
-      .word-frequency-band-2,
-      .word-frequency-band-3,
-      .word-frequency-band-4,
-      .word-frequency-band-5
-    )
-  ) {
-  color: var(--subtitle-jlpt-n1-color, #ed8796);
+#subtitleRoot .word.word-jlpt-n1 {
+  text-decoration-line: underline;
+  text-decoration-color: var(--subtitle-jlpt-n1-color, #ed8796);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.12em;
+  text-decoration-skip-ink: none;
 }
 
 #subtitleRoot .word.word-jlpt-n1[data-jlpt-level]::after {
   color: var(--subtitle-jlpt-n1-color, #ed8796);
 }
 
-#subtitleRoot
-  .word.word-jlpt-n2:not(
-    :is(
-      .word-known,
-      .word-n-plus-one,
-      .word-name-match,
-      .word-frequency-single,
-      .word-frequency-band-1,
-      .word-frequency-band-2,
-      .word-frequency-band-3,
-      .word-frequency-band-4,
-      .word-frequency-band-5
-    )
-  ) {
-  color: var(--subtitle-jlpt-n2-color, #f5a97f);
+#subtitleRoot .word.word-jlpt-n2 {
+  text-decoration-line: underline;
+  text-decoration-color: var(--subtitle-jlpt-n2-color, #f5a97f);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.12em;
+  text-decoration-skip-ink: none;
 }
 
 #subtitleRoot .word.word-jlpt-n2[data-jlpt-level]::after {
   color: var(--subtitle-jlpt-n2-color, #f5a97f);
 }
 
-#subtitleRoot
-  .word.word-jlpt-n3:not(
-    :is(
-      .word-known,
-      .word-n-plus-one,
-      .word-name-match,
-      .word-frequency-single,
-      .word-frequency-band-1,
-      .word-frequency-band-2,
-      .word-frequency-band-3,
-      .word-frequency-band-4,
-      .word-frequency-band-5
-    )
-  ) {
-  color: var(--subtitle-jlpt-n3-color, #f9e2af);
+#subtitleRoot .word.word-jlpt-n3 {
+  text-decoration-line: underline;
+  text-decoration-color: var(--subtitle-jlpt-n3-color, #f9e2af);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.12em;
+  text-decoration-skip-ink: none;
 }
 
 #subtitleRoot .word.word-jlpt-n3[data-jlpt-level]::after {
   color: var(--subtitle-jlpt-n3-color, #f9e2af);
 }
 
-#subtitleRoot
-  .word.word-jlpt-n4:not(
-    :is(
-      .word-known,
-      .word-n-plus-one,
-      .word-name-match,
-      .word-frequency-single,
-      .word-frequency-band-1,
-      .word-frequency-band-2,
-      .word-frequency-band-3,
-      .word-frequency-band-4,
-      .word-frequency-band-5
-    )
-  ) {
-  color: var(--subtitle-jlpt-n4-color, #a6e3a1);
+#subtitleRoot .word.word-jlpt-n4 {
+  text-decoration-line: underline;
+  text-decoration-color: var(--subtitle-jlpt-n4-color, #a6e3a1);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.12em;
+  text-decoration-skip-ink: none;
 }
 
 #subtitleRoot .word.word-jlpt-n4[data-jlpt-level]::after {
   color: var(--subtitle-jlpt-n4-color, #a6e3a1);
 }
 
-#subtitleRoot
-  .word.word-jlpt-n5:not(
-    :is(
-      .word-known,
-      .word-n-plus-one,
-      .word-name-match,
-      .word-frequency-single,
-      .word-frequency-band-1,
-      .word-frequency-band-2,
-      .word-frequency-band-3,
-      .word-frequency-band-4,
-      .word-frequency-band-5
-    )
-  ) {
-  color: var(--subtitle-jlpt-n5-color, #8aadf4);
+#subtitleRoot .word.word-jlpt-n5 {
+  text-decoration-line: underline;
+  text-decoration-color: var(--subtitle-jlpt-n5-color, #8aadf4);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.12em;
+  text-decoration-skip-ink: none;
 }
 
 #subtitleRoot .word.word-jlpt-n5[data-jlpt-level]::after {

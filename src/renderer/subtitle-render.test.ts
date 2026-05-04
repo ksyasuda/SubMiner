@@ -220,20 +220,8 @@ function normalizeCssSelector(selector: string): string {
     .trim();
 }
 
-function buildJlptColorSelector(level: number): string {
-  const higherPriorityClasses = [
-    '.word-known',
-    '.word-n-plus-one',
-    '.word-name-match',
-    '.word-frequency-single',
-    '.word-frequency-band-1',
-    '.word-frequency-band-2',
-    '.word-frequency-band-3',
-    '.word-frequency-band-4',
-    '.word-frequency-band-5',
-  ].join(', ');
-
-  return `#subtitleRoot .word.word-jlpt-n${level}:not(:is(${higherPriorityClasses}))`;
+function buildJlptUnderlineSelector(level: number): string {
+  return `#subtitleRoot .word.word-jlpt-n${level}`;
 }
 
 test('computeWordClass preserves known and n+1 classes while adding JLPT classes', () => {
@@ -885,7 +873,7 @@ test('shouldRenderTokenizedSubtitle enables token rendering when tokens exist', 
   assert.equal(shouldRenderTokenizedSubtitle(0), false);
 });
 
-test('subtitle annotation CSS changes token color without overriding typography', () => {
+test('subtitle annotation CSS underlines JLPT tokens without changing token color', () => {
   const distCssPath = path.join(process.cwd(), 'dist', 'renderer', 'style.css');
   const srcCssPath = path.join(process.cwd(), 'src', 'renderer', 'style.css');
 
@@ -899,12 +887,15 @@ test('subtitle annotation CSS changes token color without overriding typography'
   const cssText = fs.readFileSync(cssPath, 'utf-8');
 
   for (let level = 1; level <= 5; level += 1) {
-    const plainJlptBlock = extractClassBlock(cssText, `#subtitleRoot .word.word-jlpt-n${level}`);
-    assert.doesNotMatch(plainJlptBlock, /(?:^|\n)\s*color\s*:/m);
-
-    const block = extractClassBlock(cssText, buildJlptColorSelector(level));
+    const block = extractClassBlock(cssText, buildJlptUnderlineSelector(level));
     assert.ok(block.length > 0, `word-jlpt-n${level} class should exist`);
-    assert.match(block, new RegExp(`color:\\s*var\\(--subtitle-jlpt-n${level}-color,`));
+    assert.doesNotMatch(block, /(?:^|\n)\s*color\s*:/m);
+    assert.doesNotMatch(block, /-webkit-text-fill-color\s*:/);
+    assert.match(block, /text-decoration-line:\s*underline;/);
+    assert.match(
+      block,
+      new RegExp(`text-decoration-color:\\s*var\\(--subtitle-jlpt-n${level}-color,`),
+    );
     assert.doesNotMatch(block, /border-bottom\s*:/);
     assert.doesNotMatch(block, /padding-bottom\s*:/);
     assert.doesNotMatch(block, /box-decoration-break\s*:/);
