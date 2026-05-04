@@ -4947,6 +4947,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       openAnilistSetup: () => openAnilistSetupWindow(),
       getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
       retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
+      runAnilistPostWatchUpdateOnManualMark: () => maybeRunAnilistPostWatchUpdate({ force: true }),
       getCharacterDictionarySelection: () =>
         characterDictionaryRuntime.getManualSelectionSnapshot(),
       setCharacterDictionarySelection: async (mediaId: number) =>

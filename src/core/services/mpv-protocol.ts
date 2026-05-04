@@ -276,8 +276,9 @@ export async function dispatchMpvProtocolMessage(
       deps.setCurrentAudioTrackId(typeof msg.data === 'number' ? (msg.data as number) : null);
       deps.syncCurrentAudioStreamIndex();
     } else if (msg.name === 'time-pos') {
-      deps.emitTimePosChange({ time: (msg.data as number) || 0 });
-      deps.setCurrentTimePos((msg.data as number) || 0);
+      const timePos = (msg.data as number) || 0;
+      deps.setCurrentTimePos(timePos);
+      deps.emitTimePosChange({ time: timePos });
       if (
         deps.getPauseAtTime() !== null &&
         deps.getCurrentTimePos() >= (deps.getPauseAtTime() as number)

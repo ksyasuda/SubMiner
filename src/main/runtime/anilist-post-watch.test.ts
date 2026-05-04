@@ -77,6 +77,50 @@ test('createMaybeRunAnilistPostWatchUpdateHandler queues when token missing', as
   assert.ok(calls.includes('inflight:false'));
 });
 
+test('createMaybeRunAnilistPostWatchUpdateHandler force-runs manual watched updates below threshold', async () => {
+  const calls: string[] = [];
+  const handler = createMaybeRunAnilistPostWatchUpdateHandler({
+    getInFlight: () => false,
+    setInFlight: (value) => calls.push(`inflight:${value}`),
+    getResolvedConfig: () => ({}),
+    isAnilistTrackingEnabled: () => true,
+    getCurrentMediaKey: () => '/tmp/video.mkv',
+    hasMpvClient: () => false,
+    getTrackedMediaKey: () => '/tmp/video.mkv',
+    resetTrackedMedia: () => {},
+    getWatchedSeconds: () => 0,
+    maybeProbeAnilistDuration: async () => {
+      calls.push('probe');
+      return 1000;
+    },
+    ensureAnilistMediaGuess: async () => ({ title: 'Show', episode: 3 }),
+    hasAttemptedUpdateKey: () => false,
+    processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'noop' }),
+    refreshAnilistClientSecretState: async () => 'token',
+    enqueueRetry: () => calls.push('enqueue'),
+    markRetryFailure: () => calls.push('mark-failure'),
+    markRetrySuccess: () => calls.push('mark-success'),
+    refreshRetryQueueState: () => calls.push('refresh'),
+    updateAnilistPostWatchProgress: async () => {
+      calls.push('update');
+      return { status: 'updated', message: 'updated ok' };
+    },
+    rememberAttemptedUpdateKey: () => calls.push('remember'),
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    logInfo: (message) => calls.push(`info:${message}`),
+    logWarn: (message) => calls.push(`warn:${message}`),
+    minWatchSeconds: 600,
+    minWatchRatio: 0.85,
+  });
+
+  await handler({ force: true });
+
+  assert.equal(calls.includes('probe'), false);
+  assert.ok(calls.includes('update'));
+  assert.ok(calls.includes('remember'));
+  assert.ok(calls.includes('osd:updated ok'));
+});
+
 test('createMaybeRunAnilistPostWatchUpdateHandler skips youtube playback entirely', async () => {
   const calls: string[] = [];
   const handler = createMaybeRunAnilistPostWatchUpdateHandler({

@@ -94,6 +94,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   openAnilistSetup: IpcDepsRuntimeOptions['openAnilistSetup'];
   getAnilistQueueStatus: IpcDepsRuntimeOptions['getAnilistQueueStatus'];
   retryAnilistQueueNow: IpcDepsRuntimeOptions['retryAnilistQueueNow'];
+  runAnilistPostWatchUpdateOnManualMark?: IpcDepsRuntimeOptions['runAnilistPostWatchUpdateOnManualMark'];
   getCharacterDictionarySelection?: IpcDepsRuntimeOptions['getCharacterDictionarySelection'];
   setCharacterDictionarySelection?: IpcDepsRuntimeOptions['setCharacterDictionarySelection'];
   appendClipboardVideoToQueue: IpcDepsRuntimeOptions['appendClipboardVideoToQueue'];
@@ -263,6 +264,7 @@ export function createMainIpcRuntimeServiceDeps(
     openAnilistSetup: params.openAnilistSetup,
     getAnilistQueueStatus: params.getAnilistQueueStatus,
     retryAnilistQueueNow: params.retryAnilistQueueNow,
+    runAnilistPostWatchUpdateOnManualMark: params.runAnilistPostWatchUpdateOnManualMark,
     getCharacterDictionarySelection: params.getCharacterDictionarySelection,
     setCharacterDictionarySelection: params.setCharacterDictionarySelection,
     appendClipboardVideoToQueue: params.appendClipboardVideoToQueue,

@@ -16,6 +16,10 @@ type RetryQueueItem = {
   episode: number;
 };
 
+type AnilistPostWatchRunOptions = {
+  force?: boolean;
+};
+
 export function buildAnilistAttemptKey(mediaKey: string, episode: number): string {
   return `${mediaKey}::${episode}`;
 }
@@ -118,10 +122,11 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
   minWatchSeconds: number;
   minWatchRatio: number;
 }) {
-  return async (): Promise<void> => {
+  return async (options: AnilistPostWatchRunOptions = {}): Promise<void> => {
     if (deps.getInFlight()) {
       return;
     }
+    const force = options.force === true;
 
     const resolved = deps.getResolvedConfig();
     if (!deps.isAnilistTrackingEnabled(resolved)) {
@@ -129,7 +134,7 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
     }
 
     const mediaKey = deps.getCurrentMediaKey();
-    if (!mediaKey || !deps.hasMpvClient()) {
+    if (!mediaKey || (!force && !deps.hasMpvClient())) {
       return;
     }
     if (isYoutubeMediaPath(mediaKey)) {
@@ -139,17 +144,19 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
       deps.resetTrackedMedia(mediaKey);
     }
 
-    const watchedSeconds = deps.getWatchedSeconds();
-    if (!Number.isFinite(watchedSeconds) || watchedSeconds < deps.minWatchSeconds) {
-      return;
-    }
+    if (!force) {
+      const watchedSeconds = deps.getWatchedSeconds();
+      if (!Number.isFinite(watchedSeconds) || watchedSeconds < deps.minWatchSeconds) {
+        return;
+      }
 
-    const duration = await deps.maybeProbeAnilistDuration(mediaKey);
-    if (!duration || duration <= 0) {
-      return;
-    }
-    if (watchedSeconds / duration < deps.minWatchRatio) {
-      return;
+      const duration = await deps.maybeProbeAnilistDuration(mediaKey);
+      if (!duration || duration <= 0) {
+        return;
+      }
+      if (watchedSeconds / duration < deps.minWatchRatio) {
+        return;
+      }
     }
 
     const guess = await deps.ensureAnilistMediaGuess(mediaKey);

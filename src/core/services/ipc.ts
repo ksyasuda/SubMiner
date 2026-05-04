@@ -90,6 +90,7 @@ export interface IpcServiceDeps {
   openAnilistSetup: () => void;
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
+  runAnilistPostWatchUpdateOnManualMark?: () => Promise<void>;
   getCharacterDictionarySelection?: () => Promise<unknown>;
   setCharacterDictionarySelection?: (mediaId: number) => Promise<unknown>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
@@ -213,6 +214,7 @@ export interface IpcDepsRuntimeOptions {
   openAnilistSetup: () => void;
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
+  runAnilistPostWatchUpdateOnManualMark?: () => Promise<void>;
   getCharacterDictionarySelection?: () => Promise<unknown>;
   setCharacterDictionarySelection?: (mediaId: number) => Promise<unknown>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
@@ -288,6 +290,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     openAnilistSetup: options.openAnilistSetup,
     getAnilistQueueStatus: options.getAnilistQueueStatus,
     retryAnilistQueueNow: options.retryAnilistQueueNow,
+    runAnilistPostWatchUpdateOnManualMark: options.runAnilistPostWatchUpdateOnManualMark,
     getCharacterDictionarySelection:
       options.getCharacterDictionarySelection ??
       (async () => ({
@@ -385,7 +388,11 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   });
 
   ipc.handle(IPC_CHANNELS.command.markActiveVideoWatched, async () => {
-    return (await deps.immersionTracker?.markActiveVideoWatched()) ?? false;
+    const marked = (await deps.immersionTracker?.markActiveVideoWatched()) ?? false;
+    if (marked) {
+      await deps.runAnilistPostWatchUpdateOnManualMark?.();
+    }
+    return marked;
   });
 
   ipc.on(IPC_CHANNELS.command.quitApp, () => {
