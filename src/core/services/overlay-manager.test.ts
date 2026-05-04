@@ -77,6 +77,7 @@ test('overlay manager applies bounds for main and modal windows', () => {
   const visibleCalls: Electron.Rectangle[] = [];
   const visibleWindow = {
     isDestroyed: () => false,
+    getTitle: () => 'SubMiner Overlay',
     setBounds: (bounds: Electron.Rectangle) => {
       visibleCalls.push(bounds);
     },
@@ -84,6 +85,7 @@ test('overlay manager applies bounds for main and modal windows', () => {
   const modalCalls: Electron.Rectangle[] = [];
   const modalWindow = {
     isDestroyed: () => false,
+    getTitle: () => 'SubMiner Overlay Modal',
     setBounds: (bounds: Electron.Rectangle) => {
       modalCalls.push(bounds);
     },

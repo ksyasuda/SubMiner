@@ -7,7 +7,9 @@ import {
   buildStatsWindowOptions,
   promoteStatsWindowLevel,
   shouldHideStatsWindowForInput,
+  STATS_WINDOW_TITLE,
 } from './stats-window-runtime.js';
+import { ensureHyprlandWindowFloatingByTitle } from './hyprland-window-placement.js';
 
 let statsWindow: BrowserWindow | null = null;
 let toggleRegistered = false;
@@ -41,6 +43,9 @@ function showStatsWindow(window: BrowserWindow, options: StatsWindowOptions): vo
   syncStatsWindowBounds(window, options.resolveBounds());
   promoteStatsWindowLevel(window);
   window.show();
+  if (ensureHyprlandWindowFloatingByTitle({ title: STATS_WINDOW_TITLE })) {
+    syncStatsWindowBounds(window, options.resolveBounds());
+  }
   window.focus();
   options.onVisibilityChanged?.(true);
   promoteStatsWindowLevel(window);

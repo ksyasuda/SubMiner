@@ -18,6 +18,7 @@ test('buildStatsWindowOptions uses tracked overlay bounds and preload-friendly w
     },
   });
 
+  assert.equal(options.title, 'SubMiner Stats');
   assert.equal(options.x, 120);
   assert.equal(options.y, 80);
   assert.equal(options.width, 1440);

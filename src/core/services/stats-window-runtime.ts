@@ -3,6 +3,7 @@ import type { WindowGeometry } from '../../types';
 
 const DEFAULT_STATS_WINDOW_WIDTH = 900;
 const DEFAULT_STATS_WINDOW_HEIGHT = 700;
+export const STATS_WINDOW_TITLE = 'SubMiner Stats';
 
 type StatsWindowLevelController = Pick<BrowserWindow, 'setAlwaysOnTop' | 'moveTop'> &
   Partial<Pick<BrowserWindow, 'setVisibleOnAllWorkspaces' | 'setFullScreenable'>>;
@@ -30,6 +31,7 @@ export function buildStatsWindowOptions(options: {
   bounds?: WindowGeometry | null;
 }): BrowserWindowConstructorOptions {
   return {
+    title: STATS_WINDOW_TITLE,
     x: options.bounds?.x,
     y: options.bounds?.y,
     width: options.bounds?.width ?? DEFAULT_STATS_WINDOW_WIDTH,

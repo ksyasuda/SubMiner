@@ -159,7 +159,7 @@ export function parseHyprctlMonitors(output: string): HyprlandMonitor[] | null {
 }
 
 function isHyprlandFullscreenClient(client: HyprlandClient): boolean {
-  return (client.fullscreen ?? 0) > 0;
+  return (client.fullscreen ?? 0) > 0 || (client.fullscreenClient ?? 0) > 0;
 }
 
 export function resolveHyprlandWindowGeometry(

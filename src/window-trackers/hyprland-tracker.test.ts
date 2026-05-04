@@ -149,3 +149,23 @@ test('resolveHyprlandWindowGeometry uses monitor bounds for fullscreen clients',
     height: 1440,
   });
 });
+
+test('resolveHyprlandWindowGeometry uses monitor bounds for client-requested fullscreen', () => {
+  const geometry = resolveHyprlandWindowGeometry(
+    makeClient({
+      at: [0, 28],
+      size: [1920, 1052],
+      monitor: 0,
+      fullscreen: 0,
+      fullscreenClient: 2,
+    }),
+    [makeMonitor({ id: 0, x: 0, y: 0, width: 1920, height: 1080 })],
+  );
+
+  assert.deepEqual(geometry, {
+    x: 0,
+    y: 0,
+    width: 1920,
+    height: 1080,
+  });
+});

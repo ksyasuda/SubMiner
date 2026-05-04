@@ -1,4 +1,5 @@
-import { BrowserWindow, screen, type Session } from 'electron';
+import electron from 'electron';
+import type { BrowserWindow, Session } from 'electron';
 import * as path from 'path';
 import { WindowGeometry } from '../../types';
 import { createLogger } from '../../logger';
@@ -8,12 +9,14 @@ import {
   handleOverlayWindowBlurred,
   type OverlayWindowKind,
 } from './overlay-window-input';
+import { ensureHyprlandWindowFloatingByTitle } from './hyprland-window-placement';
 import { buildOverlayWindowOptions } from './overlay-window-options';
 import { normalizeOverlayWindowBoundsForPlatform } from './overlay-window-bounds';
 import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
 export { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
 
 const logger = createLogger('main:overlay-window');
+const { BrowserWindow: ElectronBrowserWindow, screen } = electron;
 const overlayWindowLayerByInstance = new WeakMap<BrowserWindow, OverlayWindowKind>();
 const overlayWindowContentReady = new WeakSet<BrowserWindow>();
 
@@ -50,6 +53,7 @@ export function updateOverlayWindowBounds(
   window: BrowserWindow | null,
 ): void {
   if (!geometry || !window || window.isDestroyed()) return;
+  ensureHyprlandWindowFloatingByTitle({ title: window.getTitle() });
   window.setBounds(normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen));
 }
 
@@ -68,6 +72,7 @@ export function ensureOverlayWindowLevel(window: BrowserWindow): void {
   }
   window.setAlwaysOnTop(true);
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  ensureHyprlandWindowFloatingByTitle({ title: window.getTitle() });
   window.moveTop();
 }
 
@@ -99,7 +104,7 @@ export function createOverlayWindow(
     yomitanSession?: Session | null;
   },
 ): BrowserWindow {
-  const window = new BrowserWindow(buildOverlayWindowOptions(kind, options));
+  const window = new ElectronBrowserWindow(buildOverlayWindowOptions(kind, options));
   (window as BrowserWindow & { [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean })[
     OVERLAY_WINDOW_CONTENT_READY_FLAG
   ] = false;
