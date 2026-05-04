@@ -865,7 +865,7 @@ export function createKeyboardHandlers(
     if (modifierOnlyCodes.has(e.code)) return false;
 
     const keyString = keyEventToString(e);
-    if (ctx.state.sessionBindingMap.has(keyString)) {
+    if (!ctx.state.keyboardDrivenModeEnabled && ctx.state.sessionBindingMap.has(keyString)) {
       return false;
     }
 
