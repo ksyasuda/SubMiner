@@ -22,7 +22,7 @@ test('createNotifyAnilistSetupHandler sends OSD when mpv client exists', () => {
 test('createConsumeAnilistSetupTokenFromUrlHandler delegates with deps', () => {
   const consume = createConsumeAnilistSetupTokenFromUrlHandler({
     consumeAnilistSetupCallbackUrl: (input) => input.rawUrl.includes('access_token=ok'),
-    saveToken: () => {},
+    saveToken: () => true,
     setCachedToken: () => {},
     setResolvedState: () => {},
     setSetupPageOpened: () => {},

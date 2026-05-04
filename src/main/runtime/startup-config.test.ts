@@ -50,7 +50,7 @@ test('createReloadConfigHandler runs success flow with warnings', async () => {
   assert.equal(showedWarningDialog, process.platform === 'darwin');
   assert.ok(calls.some((entry) => entry.includes('actual=10 fallback=250')));
   assert.ok(calls.includes('hotReload:start'));
-  assert.deepEqual(refreshCalls, [{ force: true }]);
+  assert.deepEqual(refreshCalls, [{ force: true, allowSetupPrompt: false }]);
 });
 
 test('createReloadConfigHandler fails startup for parse errors', () => {

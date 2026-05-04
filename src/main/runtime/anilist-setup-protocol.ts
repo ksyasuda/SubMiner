@@ -1,14 +1,14 @@
 export type ConsumeAnilistSetupTokenDeps = {
   consumeAnilistSetupCallbackUrl: (input: {
     rawUrl: string;
-    saveToken: (token: string) => void;
+    saveToken: (token: string) => boolean;
     setCachedToken: (token: string) => void;
     setResolvedState: (resolvedAt: number) => void;
     setSetupPageOpened: (opened: boolean) => void;
     onSuccess: () => void;
     closeWindow: () => void;
   }) => boolean;
-  saveToken: (token: string) => void;
+  saveToken: (token: string) => boolean;
   setCachedToken: (token: string) => void;
   setResolvedState: (resolvedAt: number) => void;
   setSetupPageOpened: (opened: boolean) => void;
