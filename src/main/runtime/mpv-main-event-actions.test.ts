@@ -49,8 +49,37 @@ test('subtitle change handler broadcasts cached annotated payload immediately wh
   assert.deepEqual(calls, [
     'set:line',
     'lookup:line',
-    'broadcast:annotated',
     'process:line',
+    'broadcast:annotated',
+    'presence',
+  ]);
+});
+
+test('subtitle change handler emits cached annotation after forwarding the subtitle change', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvSubtitleChangeHandler({
+    setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getImmediateSubtitlePayload: (text) => {
+      calls.push(`lookup:${text}`);
+      return { text, tokens: [] };
+    },
+    emitImmediateSubtitle: (payload) => {
+      calls.push(`emit:${payload.tokens === null ? 'plain' : 'annotated'}`);
+    },
+    broadcastSubtitle: (payload) => {
+      calls.push(`broadcast:${payload.tokens === null ? 'plain' : 'annotated'}`);
+    },
+    onSubtitleChange: (text) => calls.push(`process:${text}`),
+    refreshDiscordPresence: () => calls.push('presence'),
+  });
+
+  handler({ text: 'line' });
+
+  assert.deepEqual(calls, [
+    'set:line',
+    'lookup:line',
+    'process:line',
+    'emit:annotated',
     'presence',
   ]);
 });

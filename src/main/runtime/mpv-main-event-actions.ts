@@ -12,14 +12,15 @@ export function createHandleMpvSubtitleChangeHandler(deps: {
     deps.setCurrentSubText(text);
     const immediatePayload = deps.getImmediateSubtitlePayload?.(text) ?? null;
     if (immediatePayload) {
+      deps.onSubtitleChange(text);
       (deps.emitImmediateSubtitle ?? deps.broadcastSubtitle)(immediatePayload);
     } else {
       deps.broadcastSubtitle({
         text,
         tokens: null,
       });
+      deps.onSubtitleChange(text);
     }
-    deps.onSubtitleChange(text);
     deps.refreshDiscordPresence();
   };
 }
