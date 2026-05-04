@@ -129,7 +129,7 @@ test('tokenizeSubtitle splits same-line grammar endings before applying annotati
   assert.equal(result.tokens?.[0]?.jlptLevel, 'N5');
   assert.equal(result.tokens?.[0]?.frequencyRank, 40);
   assert.equal(result.tokens?.[1]?.surface, 'です');
-  assert.equal(result.tokens?.[1]?.isKnown, false);
+  assert.equal(result.tokens?.[1]?.isKnown, true);
   assert.equal(result.tokens?.[1]?.isNPlusOneTarget, false);
   assert.equal(result.tokens?.[1]?.frequencyRank, undefined);
   assert.equal(result.tokens?.[1]?.jlptLevel, undefined);
@@ -3893,7 +3893,7 @@ test('tokenizeSubtitle clears all annotations for kana-only demonstrative helper
       {
         surface: 'これで',
         headword: 'これ',
-        isKnown: false,
+        isKnown: true,
         isNPlusOneTarget: false,
         frequencyRank: undefined,
         jlptLevel: undefined,
@@ -4008,7 +4008,7 @@ test('tokenizeSubtitle clears all annotations for explanatory pondering endings'
       {
         surface: 'のかな',
         headword: 'の',
-        isKnown: false,
+        isKnown: true,
         isNPlusOneTarget: false,
         frequencyRank: undefined,
         jlptLevel: undefined,
@@ -4306,7 +4306,7 @@ test('tokenizeSubtitle clears all annotations for explanatory contrast endings',
   );
 });
 
-test('tokenizeSubtitle clears annotations for ja-nai explanatory endings while preserving lexical content', async () => {
+test('tokenizeSubtitle clears annotations for ja-nai explanatory endings and aru verbs', async () => {
   const result = await tokenizeSubtitle(
     'みたいなのあるじゃないですか',
     makeDepsFromYomitanTokens(
@@ -4322,7 +4322,7 @@ test('tokenizeSubtitle clears annotations for ja-nai explanatory endings while p
           text === 'みたい' ? 320 : text === 'ある' ? 240 : text === 'じゃない' ? 80 : null,
         getJlptLevel: (text) =>
           text === 'みたい' ? 'N4' : text === 'ある' ? 'N5' : text === 'じゃない' ? 'N5' : null,
-        isKnownWord: (text) => text === 'みたい' || text === 'の',
+        isKnownWord: (text) => text === 'みたい' || text === 'の' || text === 'ある',
         getMinSentenceWordsForNPlusOne: () => 1,
         tokenizeWithMecab: async () => [
           {
@@ -4447,10 +4447,10 @@ test('tokenizeSubtitle clears annotations for ja-nai explanatory endings while p
     {
       surface: 'ある',
       headword: 'ある',
-      isKnown: false,
+      isKnown: true,
       isNPlusOneTarget: false,
-      frequencyRank: 240,
-      jlptLevel: 'N5',
+      frequencyRank: undefined,
+      jlptLevel: undefined,
     },
   );
 });
@@ -4492,7 +4492,7 @@ test('tokenizeSubtitle clears annotations for standalone polite copula endings w
     {
       surface: 'ですよ',
       headword: 'です',
-      isKnown: false,
+      isKnown: true,
       isNPlusOneTarget: false,
       frequencyRank: undefined,
       jlptLevel: undefined,
@@ -4819,7 +4819,7 @@ test('tokenizeSubtitle clears annotations for auxiliary inflection fragments whi
     {
       surface: 'れた',
       headword: 'れる',
-      isKnown: false,
+      isKnown: true,
       isNPlusOneTarget: false,
       frequencyRank: undefined,
       jlptLevel: undefined,
@@ -4956,7 +4956,7 @@ test('tokenizeSubtitle clears annotations for te-kureru auxiliary helper spans',
     {
       surface: 'てく',
       headword: 'てく',
-      isKnown: false,
+      isKnown: true,
       isNPlusOneTarget: false,
       frequencyRank: undefined,
       jlptLevel: undefined,
@@ -4967,7 +4967,7 @@ test('tokenizeSubtitle clears annotations for te-kureru auxiliary helper spans',
     {
       surface: 'れた',
       headword: 'れる',
-      isKnown: false,
+      isKnown: true,
       isNPlusOneTarget: false,
       frequencyRank: undefined,
       jlptLevel: undefined,

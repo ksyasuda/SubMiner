@@ -559,36 +559,6 @@ function computeTokenKnownStatus(
   return normalizedReading !== matchText.trim() && isKnownWord(normalizedReading);
 }
 
-function computeExcludedTokenKnownStatus(
-  token: MergedToken,
-  isKnownWord: (text: string) => boolean,
-): boolean {
-  const normalizedSurface = token.surface.trim();
-  if (!hasKanjiChar(normalizedSurface)) {
-    return false;
-  }
-
-  if (normalizedSurface && isKnownWord(normalizedSurface)) {
-    return true;
-  }
-
-  const normalizedReading = token.reading.trim();
-  if (
-    normalizedReading &&
-    normalizedReading !== normalizedSurface &&
-    isKnownWord(normalizedReading)
-  ) {
-    return true;
-  }
-
-  const normalizedHeadword = token.headword.trim();
-  return (
-    normalizedHeadword.length > 0 &&
-    normalizedHeadword === normalizedSurface &&
-    isKnownWord(normalizedHeadword)
-  );
-}
-
 function filterTokenFrequencyRank(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string>,
@@ -657,7 +627,9 @@ export function annotateTokens(
       });
       return {
         ...strippedToken,
-        isKnown: nPlusOneEnabled && computeExcludedTokenKnownStatus(token, deps.isKnownWord),
+        isKnown: nPlusOneEnabled
+          ? computeTokenKnownStatus(token, deps.isKnownWord, deps.knownWordMatchMode)
+          : false,
       };
     }
 

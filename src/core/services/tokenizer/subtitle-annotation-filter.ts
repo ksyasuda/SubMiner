@@ -22,6 +22,7 @@ const STANDALONE_GRAMMAR_PARTICLE_PHRASES_SET: ReadonlySet<string> = new Set(
 export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   'あ',
   'ああ',
+  'ある',
   'あなた',
   'あんた',
   'ええ',
@@ -51,6 +52,8 @@ export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   '何だ',
   '何も',
   '如何した',
+  '有る',
+  '在る',
   '様',
   '確かに',
   '誰も',
@@ -507,7 +510,6 @@ export function stripSubtitleAnnotationMetadata(
 
   return {
     ...token,
-    isKnown: false,
     isNPlusOneTarget: false,
     isNameMatch: false,
     jlptLevel: undefined,
