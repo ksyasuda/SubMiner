@@ -627,9 +627,7 @@ export function annotateTokens(
       });
       return {
         ...strippedToken,
-        isKnown: nPlusOneEnabled
-          ? computeTokenKnownStatus(token, deps.isKnownWord, deps.knownWordMatchMode)
-          : false,
+        isKnown: false,
       };
     }
 

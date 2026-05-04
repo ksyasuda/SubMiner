@@ -898,8 +898,8 @@ test('annotateTokens N+1 minimum sentence words counts only eligible word tokens
   );
 
   assert.equal(result[0]?.isKnown, false);
-  assert.equal(result[1]?.isKnown, true);
-  assert.equal(result[2]?.isKnown, true);
+  assert.equal(result[1]?.isKnown, false);
+  assert.equal(result[2]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
 });
 
@@ -1113,7 +1113,7 @@ test('annotateTokens excludes default non-independent pos2 from frequency and N+
   assert.equal(result[0]?.isNPlusOneTarget, false);
 });
 
-test('annotateTokens preserves exact known-word status for non-independent kanji noun tokens', () => {
+test('annotateTokens clears known-word status for non-independent kanji noun tokens', () => {
   const tokens = [
     makeToken({
       surface: '点',
@@ -1138,7 +1138,7 @@ test('annotateTokens preserves exact known-word status for non-independent kanji
     { minSentenceWordsForNPlusOne: 1 },
   );
 
-  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
@@ -1352,13 +1352,13 @@ test('annotateTokens applies one shared exclusion gate across known N+1 frequenc
     { minSentenceWordsForNPlusOne: 1 },
   );
 
-  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
 });
 
-test('annotateTokens keeps known status while clearing other annotations for kana-only non-independent noun helper merges', () => {
+test('annotateTokens clears known status and other annotations for kana-only non-independent noun helper merges', () => {
   const tokens = [
     makeToken({
       surface: 'ことに',
@@ -1382,13 +1382,13 @@ test('annotateTokens keeps known status while clearing other annotations for kan
     { minSentenceWordsForNPlusOne: 1 },
   );
 
-  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
 });
 
-test('annotateTokens keeps known status while clearing other annotations for standalone auxiliary inflection fragments', () => {
+test('annotateTokens clears known status and other annotations for standalone auxiliary inflection fragments', () => {
   const tokens = [
     makeToken({
       surface: 'れる',
@@ -1424,14 +1424,14 @@ test('annotateTokens keeps known status while clearing other annotations for sta
   );
 
   for (const token of result) {
-    assert.equal(token.isKnown, true, token.surface);
+    assert.equal(token.isKnown, false, token.surface);
     assert.equal(token.isNPlusOneTarget, false, token.surface);
     assert.equal(token.frequencyRank, undefined, token.surface);
     assert.equal(token.jlptLevel, undefined, token.surface);
   }
 });
 
-test('annotateTokens keeps known status while clearing other annotations for auxiliary-only te-kureru helper spans', () => {
+test('annotateTokens clears known status and other annotations for auxiliary-only te-kureru helper spans', () => {
   const tokens = [
     makeToken({
       surface: 'てく',
@@ -1467,7 +1467,7 @@ test('annotateTokens keeps known status while clearing other annotations for aux
   );
 
   for (const token of result) {
-    assert.equal(token.isKnown, true, token.surface);
+    assert.equal(token.isKnown, false, token.surface);
     assert.equal(token.isNPlusOneTarget, false, token.surface);
     assert.equal(token.frequencyRank, undefined, token.surface);
     assert.equal(token.jlptLevel, undefined, token.surface);
@@ -1503,7 +1503,7 @@ test('annotateTokens keeps lexical くれる forms eligible for annotation', () 
   assert.equal(result[0]?.jlptLevel, 'N4');
 });
 
-test('annotateTokens keeps known status while clearing other annotations for standalone して helper fragments', () => {
+test('annotateTokens clears known status and other annotations for standalone して helper fragments', () => {
   const tokens = [
     makeToken({
       surface: 'してる',
@@ -1527,13 +1527,13 @@ test('annotateTokens keeps known status while clearing other annotations for sta
     { minSentenceWordsForNPlusOne: 1 },
   );
 
-  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
 });
 
-test('annotateTokens keeps known status while clearing other annotations for standalone particle fragments without POS tags', () => {
+test('annotateTokens clears known status and other annotations for standalone particle fragments without POS tags', () => {
   const tokens = [
     makeToken({
       surface: 'と',
@@ -1557,10 +1557,52 @@ test('annotateTokens keeps known status while clearing other annotations for sta
     { minSentenceWordsForNPlusOne: 1 },
   );
 
-  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
+});
+
+test('annotateTokens clears known status from standalone particles even when the known-word cache contains them', () => {
+  const tokens = [
+    makeToken({
+      surface: 'に',
+      headword: 'に',
+      reading: 'ニ',
+      partOfSpeech: PartOfSpeech.particle,
+      pos1: '助詞',
+      pos2: '格助詞',
+      startPos: 0,
+      endPos: 1,
+      frequencyRank: 2,
+    }),
+    makeToken({
+      surface: '泉',
+      headword: '泉',
+      reading: 'イズミ',
+      partOfSpeech: PartOfSpeech.noun,
+      pos1: '名詞',
+      pos2: '一般',
+      startPos: 1,
+      endPos: 2,
+      frequencyRank: 50,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'に' || text === '泉',
+      getJlptLevel: (text) => (text === 'に' ? 'N5' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.jlptLevel, undefined);
+  assert.equal(result[1]?.isKnown, true);
 });
 
 test('annotateTokens does not mark standalone connective particles as N+1', () => {
@@ -1613,7 +1655,7 @@ test('annotateTokens does not mark standalone connective particles as N+1', () =
   assert.equal(result[1]?.jlptLevel, undefined);
 });
 
-test('annotateTokens keeps known status while clearing other annotations for rhetorical もんか grammar particle phrases', () => {
+test('annotateTokens clears known status and other annotations for rhetorical もんか grammar particle phrases', () => {
   const tokens = [
     makeToken({
       surface: 'もんか',
@@ -1637,13 +1679,13 @@ test('annotateTokens keeps known status while clearing other annotations for rhe
     { minSentenceWordsForNPlusOne: 1 },
   );
 
-  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
 });
 
-test('annotateTokens keeps known status while clearing other annotations for bare くれ auxiliary fragments', () => {
+test('annotateTokens clears known status and other annotations for bare くれ auxiliary fragments', () => {
   const tokens = [
     makeToken({
       surface: 'くれ',
@@ -1667,13 +1709,13 @@ test('annotateTokens keeps known status while clearing other annotations for bar
     { minSentenceWordsForNPlusOne: 1 },
   );
 
-  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
 });
 
-test('annotateTokens keeps known status while clearing other annotations for aru existence verbs', () => {
+test('annotateTokens clears known status and other annotations for aru existence verbs', () => {
   const tokens = [
     makeToken({
       surface: '有る',
@@ -1703,14 +1745,14 @@ test('annotateTokens keeps known status while clearing other annotations for aru
 
   assert.equal(result[0]?.surface, '有る');
   assert.equal(result[0]?.headword, '有る');
-  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.isNameMatch, false);
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
 });
 
-test('annotateTokens keeps known status while clearing other annotations for standalone quote particle and auxiliary grammar terms', () => {
+test('annotateTokens clears known status and other annotations for standalone quote particle and auxiliary grammar terms', () => {
   const tokens = [
     makeToken({
       surface: 'って',
@@ -1746,14 +1788,14 @@ test('annotateTokens keeps known status while clearing other annotations for sta
   );
 
   for (const token of result) {
-    assert.equal(token.isKnown, true, token.surface);
+    assert.equal(token.isKnown, false, token.surface);
     assert.equal(token.isNPlusOneTarget, false, token.surface);
     assert.equal(token.frequencyRank, undefined, token.surface);
     assert.equal(token.jlptLevel, undefined, token.surface);
   }
 });
 
-test('annotateTokens keeps known status while clearing other annotations from standalone あ interjections without POS tags', () => {
+test('annotateTokens clears known status and other annotations from standalone あ interjections without POS tags', () => {
   const tokens = [
     makeToken({
       surface: 'あ',
@@ -1783,7 +1825,7 @@ test('annotateTokens keeps known status while clearing other annotations from st
   assert.equal(result[0]?.surface, 'あ');
   assert.equal(result[0]?.headword, 'あ');
   assert.equal(result[0]?.reading, 'あ');
-  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.isKnown, false);
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
@@ -1845,7 +1887,7 @@ test('annotateTokens clears all annotations from expressive subtitle interjectio
   );
 
   for (const token of result.slice(0, 2)) {
-    assert.equal(token.isKnown, true, token.surface);
+    assert.equal(token.isKnown, false, token.surface);
     assert.equal(token.isNPlusOneTarget, false, token.surface);
     assert.equal(token.frequencyRank, undefined, token.surface);
     assert.equal(token.jlptLevel, undefined, token.surface);
