@@ -909,6 +909,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
     // popup/selection state.
     assert.doesNotMatch(plainJlptBlock, /(?:^|\n)\s*color\s*:/m);
     assert.doesNotMatch(plainJlptBlock, /text-decoration-line:\s*underline;/);
+    assert.doesNotMatch(plainJlptBlock, /text-decoration\s*:[^;]*\bunderline\b/i);
     assert.match(
       plainJlptBlock,
       new RegExp(`border-bottom:\\s*2px\\s+solid\\s+var\\(--subtitle-jlpt-n${level}-color,`),

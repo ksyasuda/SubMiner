@@ -34,6 +34,18 @@ test('guessAnilistMediaInfo fills missing guessit episode from filename parser',
   });
 });
 
+test('guessAnilistMediaInfo ignores low-confidence parser details when guessit omits them', async () => {
+  const result = await guessAnilistMediaInfo('/tmp/Season 2/Guessit Title.mkv', null, {
+    runGuessit: async () => JSON.stringify({ title: 'Guessit Title' }),
+  });
+  assert.deepEqual(result, {
+    title: 'Guessit Title',
+    season: null,
+    episode: null,
+    source: 'guessit',
+  });
+});
+
 test('guessAnilistMediaInfo parses Little Witch Academia release filename', async () => {
   const filename =
     '/tmp/Little Witch Academia (2017) - S01E02 - 002 - Papiliodia [Bluray-1080p][10bit][h265][AC3 2.0][JA].mkv';

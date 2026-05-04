@@ -218,7 +218,7 @@ export class CardCreationService {
           fields,
           this.deps.getConfig(),
         );
-        const sentenceAudioField = this.getResolvedSentenceAudioFieldName(noteInfo);
+        const sentenceAudioField = this.getResolvedSentenceOnlyAudioFieldName(noteInfo);
         const sentenceField = this.deps.getEffectiveSentenceCardConfig().sentenceField;
 
         const sentence = blocks.join(' ');
@@ -718,6 +718,13 @@ export class CardCreationService {
         noteInfo,
         this.deps.getEffectiveSentenceCardConfig().audioField || 'SentenceAudio',
       ) || this.deps.resolveConfiguredFieldName(noteInfo, this.deps.getConfig().fields?.audio)
+    );
+  }
+
+  private getResolvedSentenceOnlyAudioFieldName(noteInfo: CardCreationNoteInfo): string | null {
+    return this.deps.resolveNoteFieldName(
+      noteInfo,
+      this.deps.getEffectiveSentenceCardConfig().audioField || 'SentenceAudio',
     );
   }
 

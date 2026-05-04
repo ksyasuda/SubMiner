@@ -223,6 +223,41 @@ test('time-pos and pause handlers report progress with correct urgency', () => {
   ]);
 });
 
+test('time-pos handler logs post-watch update rejection without blocking later handlers', async () => {
+  const calls: string[] = [];
+  const timeHandler = createHandleMpvTimePosChangeHandler({
+    recordPlaybackPosition: (time) => calls.push(`time:${time}`),
+    reportJellyfinRemoteProgress: (force) => calls.push(`progress:${force ? 'force' : 'normal'}`),
+    refreshDiscordPresence: () => calls.push('presence'),
+    maybeRunAnilistPostWatchUpdate: async () => {
+      calls.push('post-watch');
+      throw new Error('boom');
+    },
+    logError: (message, error) => calls.push(`error:${message}:${(error as Error).message}`),
+  });
+  const pauseHandler = createHandleMpvPauseChangeHandler({
+    recordPauseState: (paused) => calls.push(`pause:${paused ? 'yes' : 'no'}`),
+    reportJellyfinRemoteProgress: (force) => calls.push(`progress:${force ? 'force' : 'normal'}`),
+    refreshDiscordPresence: () => calls.push('presence'),
+  });
+
+  timeHandler({ time: 12.5 });
+  pauseHandler({ paused: true });
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.deepEqual(calls, [
+    'time:12.5',
+    'progress:normal',
+    'presence',
+    'post-watch',
+    'pause:yes',
+    'progress:force',
+    'presence',
+    'error:AniList post-watch update failed unexpectedly:boom',
+  ]);
+});
+
 test('subtitle metrics change handler forwards patch payload', () => {
   let received: Record<string, unknown> | null = null;
   const handler = createHandleMpvSubtitleMetricsChangeHandler({

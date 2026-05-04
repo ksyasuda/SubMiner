@@ -567,6 +567,19 @@ test('shouldExcludeTokenFromSubtitleAnnotations excludes standalone connective p
   assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
 });
 
+test('shouldExcludeTokenFromSubtitleAnnotations keeps lexical verbs whose reading matches connective particles', () => {
+  const token = makeToken({
+    surface: '立って',
+    headword: '立つ',
+    reading: 'タッテ',
+    partOfSpeech: PartOfSpeech.verb,
+    pos1: '動詞',
+    pos2: '自立',
+  });
+
+  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false);
+});
+
 test('shouldExcludeTokenFromSubtitleAnnotations excludes rhetorical もんか grammar particle phrases', () => {
   for (const surface of ['もんか', 'ものか']) {
     const token = makeToken({

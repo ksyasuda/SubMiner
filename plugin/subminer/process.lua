@@ -299,7 +299,9 @@ function M.create(ctx)
 			if overrides.auto_start_trigger == true then
 				subminer_log("debug", "process", "Auto-start ignored because overlay is already running")
 				local socket_path = overrides.socket_path or opts.socket_path
-				disarm_auto_play_ready_gate()
+				if not state.auto_play_ready_gate_armed then
+					disarm_auto_play_ready_gate()
+				end
 				local visibility_action = resolve_visible_overlay_startup()
 						and "show-visible-overlay"
 					or "hide-visible-overlay"

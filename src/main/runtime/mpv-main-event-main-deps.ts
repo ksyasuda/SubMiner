@@ -78,23 +78,19 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     deps.ensureImmersionTrackerInitialized();
     deps.appState.immersionTracker?.recordPlaybackPosition?.(normalizedTimeSec);
   };
+  const hasInitialPlaybackQuitOnDisconnectArg = (): boolean =>
+    Boolean(
+      deps.appState.initialArgs?.managedPlayback ||
+      deps.appState.initialArgs?.jellyfinPlay ||
+      deps.appState.initialArgs?.youtubePlay,
+    );
 
   return () => ({
     reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
     syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
-    hasInitialPlaybackQuitOnDisconnectArg: () =>
-      Boolean(
-        deps.appState.initialArgs?.managedPlayback ||
-        deps.appState.initialArgs?.jellyfinPlay ||
-        deps.appState.initialArgs?.youtubePlay,
-      ),
+    hasInitialPlaybackQuitOnDisconnectArg,
     isOverlayRuntimeInitialized: () => deps.appState.overlayRuntimeInitialized,
-    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () =>
-      Boolean(
-        deps.appState.initialArgs?.managedPlayback ||
-        deps.appState.initialArgs?.jellyfinPlay ||
-        deps.appState.initialArgs?.youtubePlay,
-      ),
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: hasInitialPlaybackQuitOnDisconnectArg,
     isQuitOnDisconnectArmed: () => deps.getQuitOnDisconnectArmed(),
     scheduleQuitCheck: (callback: () => void) => deps.scheduleQuitCheck(callback),
     isMpvConnected: () => Boolean(deps.appState.mpvClient?.connected),

@@ -141,3 +141,37 @@ test('manual clipboard subtitle update replaces sentence audio without touching 
     [true],
   );
 });
+
+test('manual clipboard subtitle update skips audio when sentence audio field is missing', async () => {
+  const { service, updatedFields, mergeCalls, storedMedia } = createManualUpdateService({
+    client: {
+      addNote: async () => 0,
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: {
+            Expression: { value: '単語' },
+            Sentence: { value: '' },
+            ExpressionAudio: { value: '[sound:auto-expression.mp3]' },
+          },
+        },
+      ],
+      updateNoteFields: async (_noteId, fields) => {
+        updatedFields.push(fields);
+      },
+      storeMediaFile: async (filename) => {
+        storedMedia.push(filename);
+      },
+      findNotes: async () => [42],
+      retrieveMediaFile: async () => '',
+    },
+  });
+
+  await service.updateLastAddedFromClipboard('字幕');
+
+  assert.equal(storedMedia.length, 1);
+  assert.equal(updatedFields.length, 1);
+  assert.deepEqual(updatedFields[0], { Sentence: '字幕' });
+  assert.equal(mergeCalls.length, 0);
+});
