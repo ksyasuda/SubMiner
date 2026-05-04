@@ -10,7 +10,7 @@ import {
   type OverlayWindowKind,
 } from './overlay-window-input';
 import { ensureHyprlandWindowFloatingByTitle } from './hyprland-window-placement';
-import { buildOverlayWindowOptions } from './overlay-window-options';
+import { buildOverlayWindowOptions, OVERLAY_WINDOW_TITLES } from './overlay-window-options';
 import { normalizeOverlayWindowBoundsForPlatform } from './overlay-window-bounds';
 import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
 export { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
@@ -53,8 +53,9 @@ export function updateOverlayWindowBounds(
   window: BrowserWindow | null,
 ): void {
   if (!geometry || !window || window.isDestroyed()) return;
-  ensureHyprlandWindowFloatingByTitle({ title: window.getTitle() });
-  window.setBounds(normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen));
+  const bounds = normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen);
+  window.setBounds(bounds);
+  ensureHyprlandWindowFloatingByTitle({ title: window.getTitle(), bounds });
 }
 
 export function ensureOverlayWindowLevel(window: BrowserWindow): void {
@@ -119,7 +120,13 @@ export function createOverlayWindow(
   });
 
   window.webContents.on('did-finish-load', () => {
+    window.setTitle(OVERLAY_WINDOW_TITLES[kind]);
     options.onRuntimeOptionsChanged();
+  });
+
+  window.webContents.on('page-title-updated', (event) => {
+    event.preventDefault();
+    window.setTitle(OVERLAY_WINDOW_TITLES[kind]);
   });
 
   window.once('ready-to-show', () => {

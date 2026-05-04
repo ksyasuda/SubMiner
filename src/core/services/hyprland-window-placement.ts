@@ -11,6 +11,13 @@ export interface HyprlandPlacementClient {
   title?: string;
 }
 
+export interface HyprlandPlacementBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 type ExecFileSync = typeof execFileSync;
 
 export function shouldAttemptHyprlandWindowPlacement(
@@ -56,6 +63,7 @@ export function findHyprlandWindowForPlacement(
 
 export function buildHyprlandPlacementDispatches(
   client: HyprlandPlacementClient,
+  bounds?: HyprlandPlacementBounds | null,
 ): string[][] {
   if (!client.address) {
     return [];
@@ -66,14 +74,55 @@ export function buildHyprlandPlacementDispatches(
   if (client.floating !== true) {
     dispatches.push(['dispatch', 'setfloating', windowAddress]);
   }
-  if (client.pinned !== true) {
+  if (client.pinned === true) {
     dispatches.push(['dispatch', 'pin', windowAddress]);
+  }
+  const roundedBounds = roundPlacementBounds(bounds);
+  if (roundedBounds) {
+    dispatches.push([
+      'dispatch',
+      'movewindowpixel',
+      `exact ${roundedBounds.x} ${roundedBounds.y},${windowAddress}`,
+    ]);
+    dispatches.push([
+      'dispatch',
+      'resizewindowpixel',
+      `exact ${roundedBounds.width} ${roundedBounds.height},${windowAddress}`,
+    ]);
+    dispatches.push(['dispatch', 'setprop', `${windowAddress} rounding 0`]);
+    dispatches.push(['dispatch', 'setprop', `${windowAddress} border_size 0`]);
+    dispatches.push(['dispatch', 'setprop', `${windowAddress} no_shadow 1`]);
+    dispatches.push(['dispatch', 'setprop', `${windowAddress} no_blur 1`]);
+    dispatches.push(['dispatch', 'setprop', `${windowAddress} decorate 0`]);
   }
   return dispatches;
 }
 
+function roundPlacementBounds(
+  bounds?: HyprlandPlacementBounds | null,
+): HyprlandPlacementBounds | null {
+  if (!bounds) {
+    return null;
+  }
+  const rounded = {
+    x: Math.round(bounds.x),
+    y: Math.round(bounds.y),
+    width: Math.round(bounds.width),
+    height: Math.round(bounds.height),
+  };
+  return Number.isFinite(rounded.x) &&
+    Number.isFinite(rounded.y) &&
+    Number.isFinite(rounded.width) &&
+    Number.isFinite(rounded.height) &&
+    rounded.width > 0 &&
+    rounded.height > 0
+    ? rounded
+    : null;
+}
+
 export function ensureHyprlandWindowFloatingByTitle(options: {
   title: string;
+  bounds?: HyprlandPlacementBounds | null;
   platform?: NodeJS.Platform;
   env?: NodeJS.ProcessEnv;
   pid?: number;
@@ -96,7 +145,7 @@ export function ensureHyprlandWindowFloatingByTitle(options: {
       return false;
     }
 
-    const dispatches = buildHyprlandPlacementDispatches(client);
+    const dispatches = buildHyprlandPlacementDispatches(client, options.bounds);
     for (const args of dispatches) {
       run('hyprctl', args, { stdio: 'ignore' });
     }

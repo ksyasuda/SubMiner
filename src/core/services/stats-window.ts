@@ -6,6 +6,7 @@ import {
   buildStatsWindowLoadFileOptions,
   buildStatsWindowOptions,
   promoteStatsWindowLevel,
+  resolveStatsWindowOuterBoundsForContent,
   shouldHideStatsWindowForInput,
   STATS_WINDOW_TITLE,
 } from './stats-window-runtime.js';
@@ -29,22 +30,29 @@ export interface StatsWindowOptions {
   onVisibilityChanged?: (visible: boolean) => void;
 }
 
-function syncStatsWindowBounds(window: BrowserWindow, bounds: WindowGeometry | null): void {
-  if (!bounds || window.isDestroyed()) return;
+function syncStatsWindowBounds(
+  window: BrowserWindow,
+  bounds: WindowGeometry | null,
+): WindowGeometry | null {
+  if (!bounds || window.isDestroyed()) return null;
+  const outerBounds = resolveStatsWindowOuterBoundsForContent(window, bounds);
   window.setBounds({
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height,
+    x: outerBounds.x,
+    y: outerBounds.y,
+    width: outerBounds.width,
+    height: outerBounds.height,
   });
+  return outerBounds;
 }
 
 function showStatsWindow(window: BrowserWindow, options: StatsWindowOptions): void {
-  syncStatsWindowBounds(window, options.resolveBounds());
+  const bounds = options.resolveBounds();
+  let placementBounds = syncStatsWindowBounds(window, bounds);
   promoteStatsWindowLevel(window);
   window.show();
-  if (ensureHyprlandWindowFloatingByTitle({ title: STATS_WINDOW_TITLE })) {
-    syncStatsWindowBounds(window, options.resolveBounds());
+  placementBounds = syncStatsWindowBounds(window, bounds) ?? placementBounds;
+  if (!ensureHyprlandWindowFloatingByTitle({ title: STATS_WINDOW_TITLE, bounds: placementBounds })) {
+    placementBounds = syncStatsWindowBounds(window, bounds) ?? placementBounds;
   }
   window.focus();
   options.onVisibilityChanged?.(true);
@@ -64,6 +72,12 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
       }),
     );
 
+    statsWindow.setTitle(STATS_WINDOW_TITLE);
+    statsWindow.webContents.on('page-title-updated', (event) => {
+      event.preventDefault();
+      statsWindow?.setTitle(STATS_WINDOW_TITLE);
+    });
+
     const indexPath = path.join(options.staticDir, 'index.html');
     statsWindow.loadFile(indexPath, buildStatsWindowLoadFileOptions(options.getApiBaseUrl?.()));
 
@@ -79,7 +93,6 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
         options.onVisibilityChanged?.(false);
       }
     });
-
     statsWindow.once('ready-to-show', () => {
       if (!statsWindow) return;
       showStatsWindow(statsWindow, options);

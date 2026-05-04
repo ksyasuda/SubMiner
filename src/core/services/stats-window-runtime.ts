@@ -8,6 +8,8 @@ export const STATS_WINDOW_TITLE = 'SubMiner Stats';
 type StatsWindowLevelController = Pick<BrowserWindow, 'setAlwaysOnTop' | 'moveTop'> &
   Partial<Pick<BrowserWindow, 'setVisibleOnAllWorkspaces' | 'setFullScreenable'>>;
 
+type StatsWindowBoundsController = Pick<BrowserWindow, 'getBounds' | 'getContentBounds'>;
+
 function isBareToggleKeyInput(input: Electron.Input, toggleKey: string): boolean {
   return (
     input.type === 'keyDown' &&
@@ -37,7 +39,7 @@ export function buildStatsWindowOptions(options: {
     width: options.bounds?.width ?? DEFAULT_STATS_WINDOW_WIDTH,
     height: options.bounds?.height ?? DEFAULT_STATS_WINDOW_HEIGHT,
     frame: false,
-    transparent: true,
+    transparent: false,
     alwaysOnTop: true,
     resizable: false,
     skipTaskbar: true,
@@ -45,7 +47,7 @@ export function buildStatsWindowOptions(options: {
     focusable: true,
     acceptFirstMouse: true,
     fullscreenable: false,
-    backgroundColor: '#1e1e2e',
+    backgroundColor: '#24273a',
     show: false,
     webPreferences: {
       nodeIntegration: false,
@@ -53,6 +55,30 @@ export function buildStatsWindowOptions(options: {
       preload: options.preloadPath,
       sandbox: true,
     },
+  };
+}
+
+export function resolveStatsWindowOuterBoundsForContent(
+  window: StatsWindowBoundsController,
+  target: WindowGeometry,
+): WindowGeometry {
+  const outer = window.getBounds();
+  const content = window.getContentBounds();
+  const leftInset = content.x - outer.x;
+  const topInset = content.y - outer.y;
+  const rightInset = outer.x + outer.width - (content.x + content.width);
+  const bottomInset = outer.y + outer.height - (content.y + content.height);
+  const insets = [leftInset, topInset, rightInset, bottomInset];
+
+  if (insets.some((inset) => !Number.isFinite(inset) || inset < 0)) {
+    return target;
+  }
+
+  return {
+    x: target.x - leftInset,
+    y: target.y - topInset,
+    width: target.width + leftInset + rightInset,
+    height: target.height + topInset + bottomInset,
   };
 }
 

@@ -127,7 +127,7 @@ export function App() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-ctp-base">
+    <div className="h-screen min-h-0 overflow-hidden flex flex-col bg-ctp-base">
       <header className="px-4 pt-3 pb-0">
         <button
           type="button"
@@ -139,7 +139,7 @@ export function App() {
         </button>
         <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
       </header>
-      <main className="flex-1 overflow-y-auto p-4">
+      <main className="flex-1 min-h-0 overflow-y-auto p-4">
         {mediaDetail ? (
           <Suspense fallback={<LoadingSurface label="Loading media detail..." />}>
             <MediaDetailView
