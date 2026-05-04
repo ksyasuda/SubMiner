@@ -463,7 +463,9 @@ describe('stats server API routes', () => {
       const res = await app.request('/api/stats/sessions/1/known-words-timeline');
       assert.equal(res.status, 200);
       assert.deepEqual(await res.json(), [
+        { linesSeen: 0, knownWordsSeen: 0, totalWordsSeen: 0 },
         { linesSeen: 1, knownWordsSeen: 2, totalWordsSeen: 2 },
+        { linesSeen: 2, knownWordsSeen: 2, totalWordsSeen: 2 },
         { linesSeen: 3, knownWordsSeen: 3, totalWordsSeen: 7 },
       ]);
     });

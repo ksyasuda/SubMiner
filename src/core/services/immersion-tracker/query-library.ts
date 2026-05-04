@@ -27,20 +27,9 @@ import {
 } from './query-shared';
 
 export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc');
   const rows = db
     .prepare(
       `
-    ${SESSION_WORD_COUNTS_CTE},
-    anime_word_counts AS (
-      SELECT v.anime_id AS animeId, SUM(${wordsExpr}) AS totalTokensSeen
-      FROM imm_sessions s
-      JOIN imm_videos v ON v.video_id = s.video_id
-      LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
-      WHERE s.ended_at_ms IS NOT NULL
-        AND v.anime_id IS NOT NULL
-      GROUP BY v.anime_id
-    )
     SELECT
       a.anime_id AS animeId,
       a.canonical_title AS canonicalTitle,
@@ -48,14 +37,13 @@ export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      COALESCE(awc.totalTokensSeen, lm.total_tokens_seen, 0) AS totalTokensSeen,
+      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
       COUNT(DISTINCT v.video_id) AS episodeCount,
       a.episodes_total AS episodesTotal,
       COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs
     FROM imm_anime a
     JOIN imm_lifetime_anime lm ON lm.anime_id = a.anime_id
     JOIN imm_videos v ON v.anime_id = a.anime_id
-    LEFT JOIN anime_word_counts awc ON awc.animeId = a.anime_id
     GROUP BY a.anime_id
     ORDER BY totalActiveMs DESC, lm.last_watched_ms DESC, canonicalTitle ASC
   `,
@@ -68,7 +56,6 @@ export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
 }
 
 export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRow | null {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const row = db
     .prepare(
       `
@@ -84,10 +71,7 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      CASE
-        WHEN COUNT(s.session_id) > 0 THEN COALESCE(SUM(${wordsExpr}), 0)
-        ELSE COALESCE(lm.total_tokens_seen, 0)
-      END AS totalTokensSeen,
+      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
       COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
       COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
@@ -99,7 +83,6 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
     JOIN imm_videos v ON v.anime_id = a.anime_id
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
-    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE a.anime_id = ?
     GROUP BY a.anime_id
   `,
@@ -219,25 +202,16 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
 }
 
 export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc');
   const rows = db
     .prepare(
       `
-    ${SESSION_WORD_COUNTS_CTE},
-    media_word_counts AS (
-      SELECT s.video_id AS videoId, SUM(${wordsExpr}) AS totalTokensSeen
-      FROM imm_sessions s
-      LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
-      WHERE s.ended_at_ms IS NOT NULL
-      GROUP BY s.video_id
-    )
     SELECT
       v.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      COALESCE(mwc.totalTokensSeen, lm.total_tokens_seen, 0) AS totalTokensSeen,
+      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
       COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs,
       yv.youtube_video_id AS youtubeVideoId,
       yv.video_url AS videoUrl,
@@ -256,7 +230,6 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
       END AS hasCoverArt
     FROM imm_videos v
     JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
-    LEFT JOIN media_word_counts mwc ON mwc.videoId = v.video_id
     LEFT JOIN imm_media_art ma ON ma.video_id = v.video_id
     LEFT JOIN imm_youtube_videos yv ON yv.video_id = v.video_id
     ORDER BY lm.last_watched_ms DESC
@@ -270,7 +243,6 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
 }
 
 export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRow | null {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   return db
     .prepare(
       `
@@ -282,10 +254,7 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
       COALESCE(lm.total_sessions, 0) AS totalSessions,
       COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
       COALESCE(lm.total_cards, 0) AS totalCards,
-      CASE
-        WHEN COUNT(s.session_id) > 0 THEN COALESCE(SUM(${wordsExpr}), 0)
-        ELSE COALESCE(lm.total_tokens_seen, 0)
-      END AS totalTokensSeen,
+      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
       COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
       COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
@@ -306,7 +275,6 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
     LEFT JOIN imm_youtube_videos yv ON yv.video_id = v.video_id
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
-    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE v.video_id = ?
     GROUP BY v.video_id
   `,
@@ -398,11 +366,19 @@ export function getMediaDailyRollups(
       total_sessions AS totalSessions,
       total_active_min AS totalActiveMin,
       total_lines_seen AS totalLinesSeen,
-      COALESCE(dwc.totalTokensSeen, total_tokens_seen) AS totalTokensSeen,
+      CASE
+        WHEN dwc.totalTokensSeen IS NOT NULL AND dwc.totalTokensSeen > total_tokens_seen THEN dwc.totalTokensSeen
+        ELSE total_tokens_seen
+      END AS totalTokensSeen,
       total_cards AS totalCards,
       cards_per_hour AS cardsPerHour,
       CASE
-        WHEN total_active_min > 0 THEN COALESCE(dwc.totalTokensSeen, total_tokens_seen) * 1.0 / total_active_min
+        WHEN total_active_min > 0 THEN (
+          CASE
+            WHEN dwc.totalTokensSeen IS NOT NULL AND dwc.totalTokensSeen > total_tokens_seen THEN dwc.totalTokensSeen
+            ELSE total_tokens_seen
+          END
+        ) * 1.0 / total_active_min
         ELSE NULL
       END AS tokensPerMin,
       lookup_hit_rate AS lookupHitRate
@@ -454,11 +430,19 @@ export function getAnimeDailyRollups(
     SELECT r.rollup_day AS rollupDayOrMonth, r.video_id AS videoId,
            r.total_sessions AS totalSessions, r.total_active_min AS totalActiveMin,
            r.total_lines_seen AS totalLinesSeen,
-           COALESCE(dwc.totalTokensSeen, r.total_tokens_seen) AS totalTokensSeen,
+           CASE
+             WHEN dwc.totalTokensSeen IS NOT NULL AND dwc.totalTokensSeen > r.total_tokens_seen THEN dwc.totalTokensSeen
+             ELSE r.total_tokens_seen
+           END AS totalTokensSeen,
            r.total_cards AS totalCards,
            r.cards_per_hour AS cardsPerHour,
            CASE
-             WHEN r.total_active_min > 0 THEN COALESCE(dwc.totalTokensSeen, r.total_tokens_seen) * 1.0 / r.total_active_min
+             WHEN r.total_active_min > 0 THEN (
+               CASE
+                 WHEN dwc.totalTokensSeen IS NOT NULL AND dwc.totalTokensSeen > r.total_tokens_seen THEN dwc.totalTokensSeen
+                 ELSE r.total_tokens_seen
+               END
+             ) * 1.0 / r.total_active_min
              ELSE NULL
            END AS tokensPerMin,
            r.lookup_hit_rate AS lookupHitRate

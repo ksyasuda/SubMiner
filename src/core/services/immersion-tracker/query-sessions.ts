@@ -17,7 +17,6 @@ import {
 } from './query-shared';
 
 export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummaryQueryRow[] {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const prepared = db.prepare(`
     ${ACTIVE_SESSION_METRICS_CTE}
     SELECT
@@ -31,14 +30,13 @@ export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummar
       COALESCE(asm.totalWatchedMs, s.total_watched_ms, 0) AS totalWatchedMs,
       COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
       COALESCE(asm.linesSeen, s.lines_seen, 0) AS linesSeen,
-      ${wordsExpr} AS tokensSeen,
+      COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
       COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits,
       COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount
     FROM imm_sessions s
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
-    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     LEFT JOIN imm_videos v ON v.video_id = s.video_id
     LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
     ORDER BY s.started_at_ms DESC
@@ -382,11 +380,19 @@ export function getDailyRollups(db: DatabaseSync, limit = 60): ImmersionSessionR
       r.total_sessions AS totalSessions,
       r.total_active_min AS totalActiveMin,
       r.total_lines_seen AS totalLinesSeen,
-      COALESCE(dwc.totalTokensSeen, r.total_tokens_seen) AS totalTokensSeen,
+      CASE
+        WHEN dwc.totalTokensSeen IS NOT NULL AND dwc.totalTokensSeen > r.total_tokens_seen THEN dwc.totalTokensSeen
+        ELSE r.total_tokens_seen
+      END AS totalTokensSeen,
       r.total_cards AS totalCards,
       r.cards_per_hour AS cardsPerHour,
       CASE
-        WHEN r.total_active_min > 0 THEN COALESCE(dwc.totalTokensSeen, r.total_tokens_seen) * 1.0 / r.total_active_min
+        WHEN r.total_active_min > 0 THEN (
+          CASE
+            WHEN dwc.totalTokensSeen IS NOT NULL AND dwc.totalTokensSeen > r.total_tokens_seen THEN dwc.totalTokensSeen
+            ELSE r.total_tokens_seen
+          END
+        ) * 1.0 / r.total_active_min
         ELSE NULL
       END AS tokensPerMin,
       r.lookup_hit_rate AS lookupHitRate
@@ -432,14 +438,22 @@ export function getMonthlyRollups(db: DatabaseSync, limit = 24): ImmersionSessio
       r.total_sessions AS totalSessions,
       r.total_active_min AS totalActiveMin,
       r.total_lines_seen AS totalLinesSeen,
-      COALESCE(mwc.totalTokensSeen, r.total_tokens_seen) AS totalTokensSeen,
+      CASE
+        WHEN mwc.totalTokensSeen IS NOT NULL AND mwc.totalTokensSeen > r.total_tokens_seen THEN mwc.totalTokensSeen
+        ELSE r.total_tokens_seen
+      END AS totalTokensSeen,
       r.total_cards AS totalCards,
       CASE
         WHEN r.total_active_min > 0 THEN (r.total_cards * 60.0) / r.total_active_min
         ELSE NULL
       END AS cardsPerHour,
       CASE
-        WHEN r.total_active_min > 0 THEN COALESCE(mwc.totalTokensSeen, r.total_tokens_seen) * 1.0 / r.total_active_min
+        WHEN r.total_active_min > 0 THEN (
+          CASE
+            WHEN mwc.totalTokensSeen IS NOT NULL AND mwc.totalTokensSeen > r.total_tokens_seen THEN mwc.totalTokensSeen
+            ELSE r.total_tokens_seen
+          END
+        ) * 1.0 / r.total_active_min
         ELSE NULL
       END AS tokensPerMin,
       NULL AS lookupHitRate

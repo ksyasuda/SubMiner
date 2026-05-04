@@ -139,6 +139,7 @@ function insertFilteredWordOccurrence(
       RETURNING id`,
     )
     .get(
+      headword,
       word,
       options.reading ?? '',
       options.pos1 ?? '名詞',
@@ -1371,7 +1372,7 @@ test('word-count read models use filtered persisted occurrences with raw fallbac
     const summaries = getSessionSummaries(db, 10);
     assert.equal(
       summaries.find((session) => session.sessionId === withOccurrences.sessionId)?.tokensSeen,
-      2,
+      5,
     );
     assert.equal(
       summaries.find((session) => session.sessionId === fallbackOnly.sessionId)?.tokensSeen,
@@ -1382,8 +1383,69 @@ test('word-count read models use filtered persisted occurrences with raw fallbac
     assert.equal(hints.totalTokensSeen, 9);
 
     const rollup = getDailyRollups(db, 1)[0]!;
-    assert.equal(rollup.totalTokensSeen, 9);
-    assert.equal(rollup.tokensPerMin, 9);
+    assert.equal(rollup.totalTokensSeen, 12);
+    assert.equal(rollup.tokensPerMin, 12);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('rollups keep persisted totals when retained-session word counts are partial', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/partial-rollup.mkv', {
+      canonicalTitle: 'Partial Rollup',
+      sourcePath: '/tmp/partial-rollup.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const startedAtMs = 1_700_000_000_000;
+    const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET ended_at_ms = ?, status = 2, active_watched_ms = ?, tokens_seen = ?
+      WHERE session_id = ?
+      `,
+    ).run(startedAtMs + 60_000, 60_000, 4, sessionId);
+
+    insertFilteredWordOccurrence(db, {
+      sessionId,
+      videoId,
+      occurrenceCount: 4,
+      startedAtMs,
+    });
+
+    const rollupDay = Math.floor(startedAtMs / 86_400_000);
+    db.prepare(
+      `
+      INSERT INTO imm_daily_rollups (
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(rollupDay, videoId, 2, 2, 8, 12, 0);
+    db.prepare(
+      `
+      INSERT INTO imm_monthly_rollups (
+        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(202311, videoId, 2, 3, 12, 18, 0);
+
+    const daily = getDailyRollups(db, 1)[0]!;
+    assert.equal(daily.totalTokensSeen, 12);
+    assert.equal(daily.tokensPerMin, 6);
+
+    const monthly = getMonthlyRollups(db, 1)[0]!;
+    assert.equal(monthly.totalTokensSeen, 18);
+    assert.equal(monthly.tokensPerMin, 6);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -1628,6 +1690,41 @@ test('getVocabularyStats filters rows that fail tokenizer vocabulary rules', () 
     stmts.wordUpsertStmt.run('猫', '猫', 'ねこ', 'noun', '名詞', '一般', '', 1_500, 1_500);
 
     const rows = getVocabularyStats(db, 10);
+
+    assert.deepEqual(
+      rows.map((row) => row.headword),
+      ['猫'],
+    );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getVocabularyStats pages past hidden rows until enough visible rows are collected', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    for (let i = 0; i < 105; i += 1) {
+      stmts.wordUpsertStmt.run(
+        `助詞${i}`,
+        `助詞${i}`,
+        `じょし${i}`,
+        'particle',
+        '助詞',
+        '格助詞',
+        '',
+        10_000 - i,
+        1_000,
+      );
+    }
+    stmts.wordUpsertStmt.run('猫', '猫', 'ねこ', 'noun', '名詞', '一般', '', 1, 1_000);
+
+    const rows = getVocabularyStats(db, 1);
 
     assert.deepEqual(
       rows.map((row) => row.headword),
@@ -2857,6 +2954,96 @@ test('anime library and detail still return lifetime rows without retained sessi
     assert.equal(detail?.episodeCount, 2);
     assert.equal(detail?.totalLookupCount, 0);
     assert.equal(detail?.totalLookupHits, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('anime and media detail prefer lifetime totals over partial retained sessions', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Partial History Anime',
+      canonicalTitle: 'Partial History Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/partial-history.mkv', {
+      canonicalTitle: 'Partial History Episode',
+      sourcePath: '/tmp/partial-history.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'Partial History Episode',
+      parsedTitle: 'Partial History Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    const startedAtMs = 1_700_000_000_000;
+    const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET ended_at_ms = ?, status = 2, active_watched_ms = ?, tokens_seen = ?
+      WHERE session_id = ?
+      `,
+    ).run(startedAtMs + 30_000, 30_000, 10, sessionId);
+
+    const now = Date.now();
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_anime (
+        anime_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_lines_seen,
+        total_tokens_seen,
+        episodes_started,
+        episodes_completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    ).run(animeId, 3, 90_000, 1, 12, 100, 1, 0, startedAtMs, startedAtMs, now, now);
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_media (
+        video_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_lines_seen,
+        total_tokens_seen,
+        completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(videoId, 3, 90_000, 1, 12, 100, 0, startedAtMs, startedAtMs, now, now);
+
+    assert.equal(getAnimeLibrary(db)[0]?.totalTokensSeen, 100);
+    assert.equal(getAnimeDetail(db, animeId)?.totalTokensSeen, 100);
+    assert.equal(getMediaLibrary(db)[0]?.totalTokensSeen, 100);
+    assert.equal(getMediaDetail(db, videoId)?.totalTokensSeen, 100);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -4209,7 +4396,7 @@ test('getTrendsDashboard librarySummary returns null lookupsPerHundred when word
   }
 });
 
-test('getTrendsDashboard word metrics use filtered persisted occurrences', () => {
+test('getTrendsDashboard rollup word metrics keep persisted totals over partial session counts', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
 
@@ -4308,16 +4495,16 @@ test('getTrendsDashboard word metrics use filtered persisted occurrences', () =>
     const dashboard = getTrendsDashboard(db, 'all', 'day');
     assert.deepEqual(
       dashboard.activity.words.map((point) => point.value),
-      [2, 3],
+      [10, 20],
     );
     assert.deepEqual(
       dashboard.progress.words.map((point) => point.value),
-      [2, 5],
+      [10, 30],
     );
     assert.equal(dashboard.ratios.lookupsPerHundred[0]?.value, 200);
-    assert.equal(dashboard.librarySummary[0]?.words, 5);
-    assert.equal(dashboard.librarySummary[0]?.lookupsPerHundred, 200);
-    assert.equal(dashboard.animeCumulative.words.at(-1)?.value, 5);
+    assert.equal(dashboard.librarySummary[0]?.words, 30);
+    assert.equal(dashboard.librarySummary[0]?.lookupsPerHundred, 33.3);
+    assert.equal(dashboard.animeCumulative.words.at(-1)?.value, 30);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

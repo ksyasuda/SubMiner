@@ -11,6 +11,7 @@ import { BASE_URL } from '../lib/api-client';
 const STORAGE_KEY = 'subminer-excluded-words';
 
 function installLocalStorage(initial: Record<string, string> = {}) {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   const values = new Map(Object.entries(initial));
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
@@ -20,13 +21,24 @@ function installLocalStorage(initial: Record<string, string> = {}) {
       removeItem: (key: string) => values.delete(key),
     },
   });
-  return values;
+  return {
+    values,
+    restore: () => {
+      if (previous) {
+        Object.defineProperty(globalThis, 'localStorage', previous);
+      } else {
+        delete (globalThis as { localStorage?: unknown }).localStorage;
+      }
+    },
+  };
 }
 
 test('initializeExcludedWordsStore seeds empty database exclusions from localStorage', async () => {
   resetExcludedWordsStoreForTests();
   const localRows = [{ headword: '猫', word: '猫', reading: 'ねこ' }];
-  const storage = installLocalStorage({ [STORAGE_KEY]: JSON.stringify(localRows) });
+  const { values: storage, restore } = installLocalStorage({
+    [STORAGE_KEY]: JSON.stringify(localRows),
+  });
   const originalFetch = globalThis.fetch;
   const requests: Array<{ url: string; method: string; body: string }> = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -59,13 +71,14 @@ test('initializeExcludedWordsStore seeds empty database exclusions from localSto
     assert.equal(storage.get(STORAGE_KEY), JSON.stringify(localRows));
   } finally {
     globalThis.fetch = originalFetch;
+    restore();
     resetExcludedWordsStoreForTests();
   }
 });
 
 test('setExcludedWords updates the database-backed exclusion list', async () => {
   resetExcludedWordsStoreForTests();
-  const storage = installLocalStorage();
+  const { values: storage, restore } = installLocalStorage();
   const originalFetch = globalThis.fetch;
   let seenBody = '';
   globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -82,6 +95,66 @@ test('setExcludedWords updates the database-backed exclusion list', async () => 
     assert.equal(storage.get(STORAGE_KEY), JSON.stringify(rows));
   } finally {
     globalThis.fetch = originalFetch;
+    restore();
+    resetExcludedWordsStoreForTests();
+  }
+});
+
+test('setExcludedWords rolls back local state when persistence fails', async () => {
+  resetExcludedWordsStoreForTests();
+  const previousRows = [{ headword: '猫', word: '猫', reading: 'ねこ' }];
+  const nextRows = [{ headword: 'する', word: 'する', reading: 'する' }];
+  const { values: storage, restore } = installLocalStorage({
+    [STORAGE_KEY]: JSON.stringify(previousRows),
+  });
+  const originalFetch = globalThis.fetch;
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  globalThis.fetch = (async () => {
+    return new Response('failed', { status: 500 });
+  }) as typeof globalThis.fetch;
+
+  try {
+    await assert.rejects(() => setExcludedWords(nextRows), /Stats API error: 500/);
+
+    assert.deepEqual(getExcludedWordsSnapshot(), previousRows);
+    assert.equal(storage.get(STORAGE_KEY), JSON.stringify(previousRows));
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.error = originalConsoleError;
+    restore();
+    resetExcludedWordsStoreForTests();
+  }
+});
+
+test('initializeExcludedWordsStore retries after transient database load failures', async () => {
+  resetExcludedWordsStoreForTests();
+  const { restore } = installLocalStorage();
+  const originalFetch = globalThis.fetch;
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    if (calls === 1) {
+      return new Response('failed', { status: 500 });
+    }
+    return new Response(JSON.stringify([{ headword: '猫', word: '猫', reading: 'ねこ' }]), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    await initializeExcludedWordsStore();
+    await initializeExcludedWordsStore();
+
+    assert.equal(calls, 2);
+    assert.deepEqual(getExcludedWordsSnapshot(), [{ headword: '猫', word: '猫', reading: 'ねこ' }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.error = originalConsoleError;
+    restore();
     resetExcludedWordsStoreForTests();
   }
 });

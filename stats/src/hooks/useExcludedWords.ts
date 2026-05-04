@@ -64,12 +64,20 @@ export function getExcludedWordsSnapshot(): ExcludedWord[] {
 }
 
 export async function setExcludedWords(words: ExcludedWord[]): Promise<void> {
-  revision += 1;
+  const previousWords = [...load()];
+  const previousRevision = revision;
+  const writeRevision = previousRevision + 1;
+  revision = writeRevision;
   applyWords(words);
   try {
     await apiClient.setExcludedWords(words);
   } catch (error) {
+    if (revision === writeRevision) {
+      revision = previousRevision;
+      applyWords(previousWords);
+    }
     console.error('Failed to persist excluded words to stats database', error);
+    throw error;
   }
 }
 
@@ -82,17 +90,25 @@ export function initializeExcludedWordsStore(): Promise<void> {
     try {
       dbWords = await apiClient.getExcludedWords();
     } catch (error) {
+      initialized = null;
       console.error('Failed to load excluded words from stats database', error);
       return;
     }
 
-    if (revision !== startRevision) return;
+    if (revision !== startRevision) {
+      initialized = null;
+      return;
+    }
     if (dbWords.length > 0) {
       applyWords(dbWords);
       return;
     }
     if (localWords.length > 0) {
-      await setExcludedWords(localWords);
+      try {
+        await setExcludedWords(localWords);
+      } catch {
+        initialized = null;
+      }
       return;
     }
     applyWords([]);

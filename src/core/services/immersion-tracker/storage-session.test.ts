@@ -172,9 +172,7 @@ test('stats excluded words are replaced and read from sqlite storage', () => {
     ]);
 
     replaceStatsExcludedWords(db, [{ headword: '犬', word: '犬', reading: 'いぬ' }]);
-    assert.deepEqual(getStatsExcludedWords(db), [
-      { headword: '犬', word: '犬', reading: 'いぬ' },
-    ]);
+    assert.deepEqual(getStatsExcludedWords(db), [{ headword: '犬', word: '犬', reading: 'いぬ' }]);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

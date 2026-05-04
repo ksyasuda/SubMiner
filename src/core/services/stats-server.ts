@@ -452,7 +452,7 @@ export function createStatsApp(
       }
     }
 
-    const sortedLineIndices = [...totalLineGroups.keys()].sort((a, b) => a - b);
+    const maxLineIndex = Math.max(...totalLineGroups.keys(), ...knownLineGroups.keys(), -1);
     let knownWordsSeen = 0;
     let totalWordsSeen = 0;
     const knownByLinesSeen: Array<{
@@ -461,9 +461,9 @@ export function createStatsApp(
       totalWordsSeen: number;
     }> = [];
 
-    for (const lineIdx of sortedLineIndices) {
+    for (let lineIdx = 0; lineIdx <= maxLineIndex; lineIdx += 1) {
       knownWordsSeen += knownLineGroups.get(lineIdx) ?? 0;
-      totalWordsSeen += totalLineGroups.get(lineIdx)!;
+      totalWordsSeen += totalLineGroups.get(lineIdx) ?? 0;
       knownByLinesSeen.push({
         linesSeen: lineIdx,
         knownWordsSeen,

@@ -53,7 +53,7 @@ export function getVocabularyStats(
   limit = 100,
   excludePos?: string[],
 ): VocabularyStatsRow[] {
-  const queryLimit = Math.max(
+  const pageSize = Math.max(
     limit,
     limit * VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR,
     limit + VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN,
@@ -74,12 +74,20 @@ export function getVocabularyStats(
     LEFT JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id AND sl.anime_id IS NOT NULL
     ${whereClause ? whereClause.replace('part_of_speech', 'w.part_of_speech') : ''}
     GROUP BY w.id
-    ORDER BY w.frequency DESC LIMIT ?
+    ORDER BY w.frequency DESC LIMIT ? OFFSET ?
   `);
-  const params = hasExclude ? [...excludePos, queryLimit] : [queryLimit];
-  return (stmt.all(...params) as VocabularyStatsRow[])
-    .filter(isVocabularyStatsRowVisible)
-    .slice(0, limit);
+  const visibleRows: VocabularyStatsRow[] = [];
+  let offset = 0;
+
+  while (visibleRows.length < limit) {
+    const params = hasExclude ? [...excludePos, pageSize, offset] : [pageSize, offset];
+    const page = stmt.all(...params) as VocabularyStatsRow[];
+    if (page.length === 0) break;
+    visibleRows.push(...page.filter(isVocabularyStatsRowVisible));
+    offset += page.length;
+  }
+
+  return visibleRows.slice(0, limit);
 }
 
 export function getStatsExcludedWords(db: DatabaseSync): StatsExcludedWordRow[] {
