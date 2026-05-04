@@ -28,6 +28,11 @@ test('renderer stylesheet no longer contains invisible-layer selectors', () => {
   assert.doesNotMatch(cssSource, /body\.layer-invisible/);
 });
 
+test('renderer stylesheet hides focus chrome on top-level overlay focus targets', () => {
+  const cssSource = readWorkspaceFile('src/renderer/style.css');
+  assert.match(cssSource, /html:focus,\s*body:focus,\s*#overlay:focus\s*\{[^}]*outline:\s*none;/s);
+});
+
 test('top-level readme avoids stale overlay-layers wording', () => {
   const readmeSource = readWorkspaceFile('README.md');
   assert.doesNotMatch(readmeSource, /overlay layers/i);
