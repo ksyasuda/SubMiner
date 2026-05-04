@@ -613,6 +613,40 @@ test('keyboard mode: up/down/j/k forward keydown to yomitan popup when open', as
   }
 });
 
+test('keyboard mode: popup keybinds take precedence over configured session bindings', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'KeyJ',
+        key: { code: 'KeyJ', modifiers: [] },
+        actionType: 'mpv-command',
+        command: ['cycle', 'sid'],
+      },
+    ] as never);
+    handlers.handleKeyboardModeToggleRequested();
+
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+
+    testGlobals.dispatchKeydown({ key: 'j', code: 'KeyJ' });
+
+    assert.deepEqual(testGlobals.mpvCommands, []);
+    assert.deepEqual(
+      testGlobals.commandEvents
+        .filter((event) => event.type === 'forwardKeyDown')
+        .map((event) => event.code),
+      ['KeyJ'],
+    );
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: repeated popup navigation keys are forwarded while popup is open', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
