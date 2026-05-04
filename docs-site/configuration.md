@@ -537,7 +537,7 @@ See `config.example.jsonc` for detailed configuration options.
     "markAudioCard": "CommandOrControl+Shift+A",
     "openCharacterDictionary": "CommandOrControl+Alt+A",
     "openRuntimeOptions": "CommandOrControl+Shift+O",
-    "openSessionHelp": "CommandOrControl+Shift+H",
+    "openSessionHelp": "CommandOrControl+Slash",
     "openControllerSelect": "Alt+C",
     "openControllerDebug": "Alt+Shift+C",
     "openJimaku": "Ctrl+Shift+J",
@@ -562,7 +562,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `markAudioCard`               | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                                       |
 | `openCharacterDictionary`     | string \| `null` | Opens the character dictionary AniList selector (default: `"CommandOrControl+Alt+A"`)                                                         |
 | `openRuntimeOptions`          | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                           |
-| `openSessionHelp`             | string \| `null` | Opens the in-overlay session help modal (default: `"CommandOrControl+Shift+H"`)                                                               |
+| `openSessionHelp`             | string \| `null` | Opens the in-overlay session help modal (default: `"CommandOrControl+Slash"`)                                                                 |
 | `openControllerSelect`        | string \| `null` | Opens the controller config/remap modal (default: `"Alt+C"`)                                                                                  |
 | `openControllerDebug`         | string \| `null` | Opens the controller debug modal (default: `"Alt+Shift+C"`)                                                                                   |
 | `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                     |
@@ -706,7 +706,7 @@ These shortcuts are only active when the overlay window is visible and automatic
 
 ### Session Help Modal
 
-The session help modal opens from the overlay with `Ctrl/Cmd+Shift+H` by default. The mpv plugin also exposes it through the `Y-H` chord (falling back to `Y-K` if needed). It shows the current session keybindings and color legend.
+The session help modal opens from the overlay with `Ctrl/Cmd+/` by default. The mpv plugin also exposes it through the `Y-H` chord (falling back to `Y-K` if needed). It shows the current session keybindings and color legend.
 
 You can filter the modal quickly with `/`:
 

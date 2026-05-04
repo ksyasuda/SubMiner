@@ -522,14 +522,12 @@ export class MpvIpcClient implements MpvClient {
   }
 
   playNextSubtitle(): void {
-    if (this.playbackPaused === true) {
-      this.pendingPauseAtSubEnd = false;
-      this.pauseAtTime = null;
-      this.send({ command: ['sub-seek', 1] });
-      return;
-    }
     this.pendingPauseAtSubEnd = true;
+    this.pauseAtTime = null;
     this.send({ command: ['sub-seek', 1] });
+    if (this.playbackPaused === true) {
+      this.send({ command: ['set_property', 'pause', false] });
+    }
   }
 
   restorePreviousSecondarySubVisibility(): void {

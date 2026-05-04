@@ -489,7 +489,7 @@ test('MpvIpcClient updates current audio stream index from track list', async ()
   assert.equal(client.currentAudioStreamIndex, 11);
 });
 
-test('MpvIpcClient playNextSubtitle preserves a manual paused state', async () => {
+test('MpvIpcClient playNextSubtitle starts playback from paused state and auto-pauses at end', async () => {
   const commands: unknown[] = [];
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
   (client as any).send = (payload: unknown) => {
@@ -507,9 +507,12 @@ test('MpvIpcClient playNextSubtitle preserves a manual paused state', async () =
 
   client.playNextSubtitle();
 
-  assert.equal((client as any).pendingPauseAtSubEnd, false);
+  assert.equal((client as any).pendingPauseAtSubEnd, true);
   assert.equal((client as any).pauseAtTime, null);
-  assert.deepEqual(commands, [{ command: ['sub-seek', 1] }]);
+  assert.deepEqual(commands, [
+    { command: ['sub-seek', 1] },
+    { command: ['set_property', 'pause', false] },
+  ]);
 });
 
 test('MpvIpcClient playNextSubtitle still auto-pauses at end while already playing', async () => {

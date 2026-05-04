@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Keybinding } from '../../types';
 import type { ConfiguredShortcuts } from '../utils/shortcut-config';
-import { SPECIAL_COMMANDS } from '../../config/definitions';
+import { DEFAULT_CONFIG, DEFAULT_KEYBINDINGS, SPECIAL_COMMANDS } from '../../config/definitions';
+import { resolveConfiguredShortcuts } from '../utils/shortcut-config';
 import { compileSessionBindings } from './session-bindings';
 
 function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): ConfiguredShortcuts {
@@ -177,6 +178,35 @@ test('compileSessionBindings drops conflicting bindings that canonicalize to the
     'shortcuts.openJimaku',
     'keybindings[0].key',
   ]);
+});
+
+test('compileSessionBindings keeps default replay and next subtitle session actions on Linux', () => {
+  const result = compileSessionBindings({
+    shortcuts: resolveConfiguredShortcuts(DEFAULT_CONFIG, DEFAULT_CONFIG),
+    keybindings: DEFAULT_KEYBINDINGS,
+    statsToggleKey: DEFAULT_CONFIG.stats.toggleKey,
+    platform: 'linux',
+    rawConfig: DEFAULT_CONFIG,
+  });
+
+  assert.deepEqual(
+    result.warnings.filter((warning) => warning.kind === 'conflict'),
+    [],
+  );
+  const bySignature = new Map(
+    result.bindings.map((binding) => [
+      `${binding.key.modifiers.join('+')}+${binding.key.code}`,
+      binding,
+    ]),
+  );
+
+  const replay = bySignature.get('ctrl+shift+KeyH');
+  assert.equal(replay?.actionType, 'session-action');
+  assert.equal(replay?.actionId, 'replayCurrentSubtitle');
+
+  const next = bySignature.get('ctrl+shift+KeyL');
+  assert.equal(next?.actionType, 'session-action');
+  assert.equal(next?.actionId, 'playNextSubtitle');
 });
 
 test('compileSessionBindings omits disabled bindings', () => {

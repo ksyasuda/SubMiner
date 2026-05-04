@@ -71,6 +71,22 @@ local ctx = {
 						actionType = "session-action",
 						actionId = "mineSentenceMultiple",
 					},
+					{
+						key = {
+							code = "KeyL",
+							modifiers = { "ctrl", "shift" },
+						},
+						actionType = "session-action",
+						actionId = "playNextSubtitle",
+					},
+					{
+						key = {
+							code = "KeyL",
+							modifiers = { "shift" },
+						},
+						actionType = "mpv-command",
+						command = { "sub-seek", 1 },
+					},
 				},
 			}, nil
 		end,
@@ -107,12 +123,35 @@ assert_true(bindings.register_bindings(), "session bindings should register")
 
 local starter = nil
 for _, binding in ipairs(recorded.bindings) do
-	if binding.keys == "Ctrl+Shift+s" then
+	if binding.keys == "Ctrl+S" then
 		starter = binding
 		break
 	end
 end
 assert_true(starter ~= nil, "multi-mine starter binding should be registered")
+
+local play_next = nil
+for _, binding in ipairs(recorded.bindings) do
+	if binding.keys == "Ctrl+L" then
+		play_next = binding
+		break
+	end
+end
+assert_true(play_next ~= nil, "play-next subtitle binding should use mpv shifted-letter form")
+
+local subtitle_jump = nil
+for _, binding in ipairs(recorded.bindings) do
+	if binding.keys == "L" then
+		subtitle_jump = binding
+		break
+	end
+end
+assert_true(subtitle_jump ~= nil, "shifted subtitle jump binding should use mpv uppercase letter form")
+
+play_next.fn()
+local play_next_call = recorded.async_calls[#recorded.async_calls]
+assert_true(play_next_call ~= nil, "play-next binding should invoke CLI action")
+assert_true(play_next_call[2] == "--play-next-subtitle", "play-next binding should pass CLI flag")
 
 starter.fn()
 

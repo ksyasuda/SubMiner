@@ -96,16 +96,30 @@ function M.create(ctx)
 			return nil
 		end
 
+		local shifted_letter = key.code:match("^Key([A-Z])$")
+		local has_shift = false
+		for _, modifier in ipairs(key.modifiers) do
+			if modifier == "shift" then
+				has_shift = true
+				break
+			end
+		end
+
 		local key_name = key_code_to_mpv_name(key.code)
+		if shifted_letter and has_shift then
+			key_name = shifted_letter
+		end
 		if not key_name then
 			return nil
 		end
 
 		local parts = {}
 		for _, modifier in ipairs(key.modifiers) do
-			local mapped = MODIFIER_MAP[modifier]
-			if mapped then
-				parts[#parts + 1] = mapped
+			if not (modifier == "shift" and shifted_letter) then
+				local mapped = MODIFIER_MAP[modifier]
+				if mapped then
+					parts[#parts + 1] = mapped
+				end
 			end
 		end
 		parts[#parts + 1] = key_name
