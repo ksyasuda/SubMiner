@@ -960,6 +960,9 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
         const matchReading = typeof match.headword?.reading === 'string' ? match.headword.reading : '';
         const preferredReading =
           typeof preferredMatch.headword?.reading === 'string' ? preferredMatch.headword.reading : '';
+        if (!matchReading || !preferredReading) {
+          return true;
+        }
         return matchReading === preferredReading;
       }
       function getBestFrequencyRankForMatches(matches, dictionaryPriorityByName, dictionaryFrequencyModeByName) {

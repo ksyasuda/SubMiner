@@ -4077,6 +4077,69 @@ test('tokenizeSubtitle keeps frequency for content-led merged token with trailin
   assert.equal(result.tokens?.[0]?.frequencyRank, 5468);
 });
 
+test('tokenizeSubtitle keeps frequency for ordinal prefix-noun tokens', async () => {
+  const result = await tokenizeSubtitle(
+    '第二走者',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: '第二', reading: 'だいに', headword: '第二' },
+        { surface: '走者', reading: 'そうしゃ', headword: '走者' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) => (text === '第二' ? 1820 : text === '走者' ? 41555 : null),
+        tokenizeWithMecab: async () => [
+          {
+            headword: '第',
+            surface: '第',
+            reading: 'ダイ',
+            startPos: 0,
+            endPos: 1,
+            partOfSpeech: PartOfSpeech.other,
+            pos1: '接頭詞',
+            pos2: '数接続',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: '二',
+            surface: '二',
+            reading: 'ニ',
+            startPos: 1,
+            endPos: 2,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '数',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: '走者',
+            surface: '走者',
+            reading: 'ソウシャ',
+            startPos: 2,
+            endPos: 4,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '一般',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+        getMinSentenceWordsForNPlusOne: () => 1,
+      },
+    ),
+  );
+
+  assert.equal(result.tokens?.[0]?.surface, '第二');
+  assert.equal(result.tokens?.[0]?.pos1, '接頭詞|名詞');
+  assert.equal(result.tokens?.[0]?.pos2, '数接続|数');
+  assert.equal(result.tokens?.[0]?.frequencyRank, 1820);
+});
+
 test('tokenizeSubtitle clears all annotations for explanatory contrast endings', async () => {
   const result = await tokenizeSubtitle(
     '最近辛いものが続いとるんですけど',
