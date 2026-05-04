@@ -199,6 +199,10 @@ test('time-pos and pause handlers report progress with correct urgency', () => {
     recordPlaybackPosition: (time) => calls.push(`time:${time}`),
     reportJellyfinRemoteProgress: (force) => calls.push(`progress:${force ? 'force' : 'normal'}`),
     refreshDiscordPresence: () => calls.push('presence'),
+    maybeRunAnilistPostWatchUpdate: async () => {
+      calls.push('post-watch');
+    },
+    logError: () => calls.push('post-watch-error'),
   });
   const pauseHandler = createHandleMpvPauseChangeHandler({
     recordPauseState: (paused) => calls.push(`pause:${paused ? 'yes' : 'no'}`),
@@ -212,6 +216,7 @@ test('time-pos and pause handlers report progress with correct urgency', () => {
     'time:12.5',
     'progress:normal',
     'presence',
+    'post-watch',
     'pause:yes',
     'progress:force',
     'presence',

@@ -105,12 +105,17 @@ export function createHandleMpvTimePosChangeHandler(deps: {
   recordPlaybackPosition: (time: number) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   refreshDiscordPresence: () => void;
+  maybeRunAnilistPostWatchUpdate?: () => Promise<void>;
+  logError?: (message: string, error: unknown) => void;
   onTimePosUpdate?: (time: number) => void;
 }) {
   return ({ time }: { time: number }): void => {
     deps.recordPlaybackPosition(time);
     deps.reportJellyfinRemoteProgress(false);
     deps.refreshDiscordPresence();
+    void deps.maybeRunAnilistPostWatchUpdate?.().catch((error) => {
+      deps.logError?.('AniList post-watch update failed unexpectedly', error);
+    });
     deps.onTimePosUpdate?.(time);
   };
 }

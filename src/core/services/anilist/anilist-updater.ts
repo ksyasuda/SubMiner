@@ -236,12 +236,13 @@ export async function guessAnilistMediaInfo(
       const season = firstPositiveInteger(parsed.season);
       const year = firstYear(parsed.year);
       if (title) {
+        const fallback = parseMediaInfo(target);
         return {
           title: buildGuessitTitle(title, alternativeTitle),
           ...(alternativeTitle ? { alternativeTitle } : {}),
           ...(year ? { year } : {}),
-          season,
-          episode,
+          season: season ?? fallback.season,
+          episode: episode ?? fallback.episode,
           source: 'guessit',
         };
       }

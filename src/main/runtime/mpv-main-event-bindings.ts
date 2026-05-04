@@ -149,6 +149,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       reportJellyfinRemoteProgress: (forceImmediate) =>
         deps.reportJellyfinRemoteProgress(forceImmediate),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
+      maybeRunAnilistPostWatchUpdate: () => deps.maybeRunAnilistPostWatchUpdate(),
+      logError: (message, error) => deps.logSubtitleTimingError(message, error),
       onTimePosUpdate: (time) => deps.onTimePosUpdate?.(time),
     });
     const handleMpvPauseChange = createHandleMpvPauseChangeHandler({
