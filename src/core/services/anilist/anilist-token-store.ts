@@ -69,7 +69,6 @@ export function createAnilistTokenStore(
           `AniList token encryption unavailable: safeStorage.isEncryptionAvailable() is false. ` +
             `Context: ${getSafeStorageDebugContext()}`,
         );
-        safeStorageUsable = false;
         return false;
       }
       const probe = storage.encryptString('__subminer_anilist_probe__');
@@ -77,7 +76,6 @@ export function createAnilistTokenStore(
         notifyUser(
           'AniList token encryption probe failed: safeStorage.encryptString() returned plaintext bytes.',
         );
-        safeStorageUsable = false;
         return false;
       }
       const roundTrip = storage.decryptString(probe);
@@ -85,7 +83,6 @@ export function createAnilistTokenStore(
         notifyUser(
           'AniList token encryption probe failed: encrypt/decrypt round trip returned unexpected content.',
         );
-        safeStorageUsable = false;
         return false;
       }
       safeStorageUsable = true;
@@ -96,7 +93,6 @@ export function createAnilistTokenStore(
         `AniList token encryption unavailable: safeStorage probe threw an error. ` +
           `Context: ${getSafeStorageDebugContext()}`,
       );
-      safeStorageUsable = false;
       return false;
     }
   };
