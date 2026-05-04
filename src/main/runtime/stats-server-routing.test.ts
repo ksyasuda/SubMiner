@@ -36,14 +36,14 @@ function createHarness(options?: {
   };
 }
 
-test('stats server routing ignores a live background daemon from another process', () => {
+test('stats server routing defers to a live background daemon from another process', () => {
   const { calls, handler } = createHarness({
     state: { pid: 200, port: 7979, startedAtMs: 1 },
     processAlive: true,
   });
 
-  assert.deepEqual(handler(), { url: 'http://127.0.0.1:6969', source: 'local' });
-  assert.deepEqual(calls, ['readBackgroundState', 'isProcessAlive', 'startLocalStatsServer']);
+  assert.deepEqual(handler(), { url: 'http://127.0.0.1:7979', source: 'background' });
+  assert.deepEqual(calls, ['readBackgroundState', 'isProcessAlive']);
 });
 
 test('stats server routing clears dead daemon state and starts local server', () => {
