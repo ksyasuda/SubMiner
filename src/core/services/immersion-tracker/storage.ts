@@ -464,6 +464,19 @@ function ensureLifetimeSummaryTables(db: DatabaseSync): void {
   `);
 }
 
+function ensureStatsExcludedWordsTable(db: DatabaseSync): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_stats_excluded_words(
+      headword TEXT NOT NULL,
+      word TEXT NOT NULL,
+      reading TEXT NOT NULL,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
+      PRIMARY KEY(headword, word, reading)
+    )
+  `);
+}
+
 export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput): number {
   const normalizedTitleKey = normalizeAnimeIdentityKey(input.parsedTitle);
   if (!normalizedTitleKey) {
@@ -678,6 +691,7 @@ export function ensureSchema(db: DatabaseSync): void {
     .get() as { schema_version: number } | null;
   if (currentVersion?.schema_version === SCHEMA_VERSION) {
     ensureLifetimeSummaryTables(db);
+    ensureStatsExcludedWordsTable(db);
     return;
   }
 
@@ -1221,6 +1235,7 @@ export function ensureSchema(db: DatabaseSync): void {
   migrateSessionEventTimestampsToText(db);
 
   ensureLifetimeSummaryTables(db);
+  ensureStatsExcludedWordsTable(db);
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_anime_normalized_title

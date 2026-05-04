@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { Database } from './sqlite';
+import { getStatsExcludedWords, replaceStatsExcludedWords } from './query-lexical';
 import { finalizeSessionRecord, startSessionRecord } from './session';
 import {
   applyPragmas,
@@ -113,6 +114,7 @@ test('ensureSchema creates immersion core tables', () => {
     assert.ok(tableNames.has('imm_rollup_state'));
     assert.ok(tableNames.has('imm_cover_art_blobs'));
     assert.ok(tableNames.has('imm_youtube_videos'));
+    assert.ok(tableNames.has('imm_stats_excluded_words'));
 
     const videoColumns = new Set(
       (
@@ -147,6 +149,30 @@ test('ensureSchema creates immersion core tables', () => {
     } | null;
     assert.ok(rollupStateRow);
     assert.equal(Number(rollupStateRow?.state_value ?? 0), 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('stats excluded words are replaced and read from sqlite storage', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    replaceStatsExcludedWords(db, [
+      { headword: '猫', word: '猫', reading: 'ねこ' },
+      { headword: 'する', word: 'する', reading: 'する' },
+    ]);
+    assert.deepEqual(getStatsExcludedWords(db), [
+      { headword: 'する', word: 'する', reading: 'する' },
+      { headword: '猫', word: '猫', reading: 'ねこ' },
+    ]);
+
+    replaceStatsExcludedWords(db, [{ headword: '犬', word: '犬', reading: 'いぬ' }]);
+    assert.deepEqual(getStatsExcludedWords(db), [{ headword: '犬', word: '犬', reading: 'いぬ' }]);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

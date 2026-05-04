@@ -277,6 +277,8 @@ function createMockTracker(
     getSessionTimeline: async () => [],
     getSessionEvents: async () => [],
     getVocabularyStats: async () => VOCABULARY_STATS,
+    getStatsExcludedWords: async () => [],
+    replaceStatsExcludedWords: async () => {},
     getKanjiStats: async () => KANJI_STATS,
     getWordOccurrences: async () => OCCURRENCES,
     getKanjiOccurrences: async () => OCCURRENCES,
@@ -362,7 +364,7 @@ describe('stats server API routes', () => {
     assert.ok(Array.isArray(body));
   });
 
-  it('GET /api/stats/sessions enriches each session with known-word metrics when cache exists', async () => {
+  it('GET /api/stats/sessions enriches known-word metrics using filtered persisted totals', async () => {
     await withTempDir(async (dir) => {
       const cachePath = path.join(dir, 'known-words.json');
       fs.writeFileSync(
@@ -391,7 +393,7 @@ describe('stats server API routes', () => {
       const body = await res.json();
       const first = body[0];
       assert.equal(first.knownWordsSeen, 2);
-      assert.equal(first.knownWordRate, 2.5);
+      assert.equal(first.knownWordRate, 66.7);
     });
   });
 
@@ -436,7 +438,7 @@ describe('stats server API routes', () => {
     assert.equal(seenLimit, undefined);
   });
 
-  it('GET /api/stats/sessions/:id/known-words-timeline preserves line positions and counts known occurrences', async () => {
+  it('GET /api/stats/sessions/:id/known-words-timeline preserves line positions and counts filtered totals', async () => {
     await withTempDir(async (dir) => {
       const cachePath = path.join(dir, 'known-words.json');
       fs.writeFileSync(
@@ -461,8 +463,10 @@ describe('stats server API routes', () => {
       const res = await app.request('/api/stats/sessions/1/known-words-timeline');
       assert.equal(res.status, 200);
       assert.deepEqual(await res.json(), [
-        { linesSeen: 1, knownWordsSeen: 2 },
-        { linesSeen: 3, knownWordsSeen: 3 },
+        { linesSeen: 0, knownWordsSeen: 0, totalWordsSeen: 0 },
+        { linesSeen: 1, knownWordsSeen: 2, totalWordsSeen: 2 },
+        { linesSeen: 2, knownWordsSeen: 2, totalWordsSeen: 2 },
+        { linesSeen: 3, knownWordsSeen: 3, totalWordsSeen: 7 },
       ]);
     });
   });
@@ -728,6 +732,65 @@ describe('stats server API routes', () => {
     assert.equal(body[0].pos1, '動詞');
     assert.equal(body[0].pos2, '自立');
     assert.equal(body[0].pos3, null);
+  });
+
+  it('GET /api/stats/excluded-words returns tracker exclusion rows', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        getStatsExcludedWords: async () => [
+          { headword: '猫', word: '猫', reading: 'ねこ' },
+          { headword: 'する', word: 'する', reading: 'する' },
+        ],
+      }),
+    );
+
+    const res = await app.request('/api/stats/excluded-words');
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), [
+      { headword: '猫', word: '猫', reading: 'ねこ' },
+      { headword: 'する', word: 'する', reading: 'する' },
+    ]);
+  });
+
+  it('PUT /api/stats/excluded-words replaces tracker exclusion rows', async () => {
+    let seenWords: unknown = null;
+    const app = createStatsApp(
+      createMockTracker({
+        replaceStatsExcludedWords: async (words: unknown) => {
+          seenWords = words;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/excluded-words', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        words: [
+          { headword: '猫', word: '猫', reading: 'ねこ' },
+          { headword: 'する', word: 'する', reading: 'する' },
+        ],
+      }),
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true });
+    assert.deepEqual(seenWords, [
+      { headword: '猫', word: '猫', reading: 'ねこ' },
+      { headword: 'する', word: 'する', reading: 'する' },
+    ]);
+  });
+
+  it('PUT /api/stats/excluded-words rejects malformed rows', async () => {
+    const app = createStatsApp(createMockTracker());
+
+    const res = await app.request('/api/stats/excluded-words', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ words: [{ headword: '猫', word: 7, reading: 'ねこ' }] }),
+    });
+
+    assert.equal(res.status, 400);
   });
 
   it('GET /api/stats/anime returns anime library', async () => {

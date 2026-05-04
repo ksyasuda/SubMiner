@@ -20,6 +20,12 @@ type StatsServerNoteInfo = {
   fields: Record<string, { value: string }>;
 };
 
+type StatsExcludedWordPayload = {
+  headword: string;
+  word: string;
+  reading: string;
+};
+
 function parseIntQuery(raw: string | undefined, fallback: number, maxLimit?: number): number {
   if (raw === undefined) return fallback;
   const n = Number(raw);
@@ -47,6 +53,23 @@ function parseEventTypesQuery(raw: string | undefined): number[] | undefined {
     .map((entry) => Number.parseInt(entry.trim(), 10))
     .filter((entry) => Number.isInteger(entry) && entry > 0);
   return parsed.length > 0 ? parsed : undefined;
+}
+
+function parseExcludedWordsBody(body: unknown): StatsExcludedWordPayload[] | null {
+  if (!body || typeof body !== 'object' || !Array.isArray((body as { words?: unknown }).words)) {
+    return null;
+  }
+
+  const words: StatsExcludedWordPayload[] = [];
+  for (const row of (body as { words: unknown[] }).words) {
+    if (!row || typeof row !== 'object') return null;
+    const { headword, word, reading } = row as Record<string, unknown>;
+    if (typeof headword !== 'string' || typeof word !== 'string' || typeof reading !== 'string') {
+      return null;
+    }
+    words.push({ headword, word, reading });
+  }
+  return words;
 }
 
 function resolveStatsNoteFieldName(
@@ -161,6 +184,21 @@ function toKnownWordRate(knownWordsSeen: number, tokensSeen: number): number {
   return Number(((knownWordsSeen / tokensSeen) * 100).toFixed(1));
 }
 
+function summarizeFilteredWordOccurrences(
+  wordsByLine: Array<{ lineIndex: number; headword: string; occurrenceCount: number }>,
+  knownWordsSet: Set<string>,
+): { knownWordsSeen: number; totalWordsSeen: number } {
+  let knownWordsSeen = 0;
+  let totalWordsSeen = 0;
+  for (const row of wordsByLine) {
+    totalWordsSeen += row.occurrenceCount;
+    if (knownWordsSet.has(row.headword)) {
+      knownWordsSeen += row.occurrenceCount;
+    }
+  }
+  return { knownWordsSeen, totalWordsSeen };
+}
+
 async function enrichSessionsWithKnownWordMetrics(
   tracker: ImmersionTrackerService,
   sessions: Array<{
@@ -188,21 +226,21 @@ async function enrichSessionsWithKnownWordMetrics(
   const enriched = await Promise.all(
     sessions.map(async (session) => {
       let knownWordsSeen = 0;
+      let totalWordsSeen = 0;
       try {
         const wordsByLine = await tracker.getSessionWordsByLine(session.sessionId);
-        for (const row of wordsByLine) {
-          if (knownWordsSet.has(row.headword)) {
-            knownWordsSeen += row.occurrenceCount;
-          }
-        }
+        const summary = summarizeFilteredWordOccurrences(wordsByLine, knownWordsSet);
+        knownWordsSeen = summary.knownWordsSeen;
+        totalWordsSeen = summary.totalWordsSeen;
       } catch {
         knownWordsSeen = 0;
+        totalWordsSeen = 0;
       }
 
       return {
         ...session,
         knownWordsSeen,
-        knownWordRate: toKnownWordRate(knownWordsSeen, session.tokensSeen),
+        knownWordRate: toKnownWordRate(knownWordsSeen, totalWordsSeen),
       };
     }),
   );
@@ -391,32 +429,45 @@ export function createStatsApp(
     const id = parseIntQuery(c.req.param('id'), 0);
     if (id <= 0) return c.json([], 400);
 
-    const knownWordsSet = loadKnownWordsSet(options?.knownWordCachePath);
-    if (!knownWordsSet) return c.json([]);
+    const knownWordsSet = loadKnownWordsSet(options?.knownWordCachePath) ?? new Set<string>();
 
     // Get per-line word occurrences for the session.
     const wordsByLine = await tracker.getSessionWordsByLine(id);
 
-    // Build cumulative known-word occurrence count per recorded line index.
+    // Build cumulative filtered occurrence counts per recorded line index.
     // The stats UI uses line-count progress to align this series with the session
     // timeline, so preserve the stored line position rather than compressing gaps.
-    const lineGroups = new Map<number, number>();
+    const totalLineGroups = new Map<number, number>();
+    const knownLineGroups = new Map<number, number>();
     for (const row of wordsByLine) {
-      if (!knownWordsSet.has(row.headword)) {
-        continue;
+      totalLineGroups.set(
+        row.lineIndex,
+        (totalLineGroups.get(row.lineIndex) ?? 0) + row.occurrenceCount,
+      );
+      if (knownWordsSet.has(row.headword)) {
+        knownLineGroups.set(
+          row.lineIndex,
+          (knownLineGroups.get(row.lineIndex) ?? 0) + row.occurrenceCount,
+        );
       }
-      lineGroups.set(row.lineIndex, (lineGroups.get(row.lineIndex) ?? 0) + row.occurrenceCount);
     }
 
-    const sortedLineIndices = [...lineGroups.keys()].sort((a, b) => a - b);
+    const maxLineIndex = Math.max(...totalLineGroups.keys(), ...knownLineGroups.keys(), -1);
     let knownWordsSeen = 0;
-    const knownByLinesSeen: Array<{ linesSeen: number; knownWordsSeen: number }> = [];
+    let totalWordsSeen = 0;
+    const knownByLinesSeen: Array<{
+      linesSeen: number;
+      knownWordsSeen: number;
+      totalWordsSeen: number;
+    }> = [];
 
-    for (const lineIdx of sortedLineIndices) {
-      knownWordsSeen += lineGroups.get(lineIdx)!;
+    for (let lineIdx = 0; lineIdx <= maxLineIndex; lineIdx += 1) {
+      knownWordsSeen += knownLineGroups.get(lineIdx) ?? 0;
+      totalWordsSeen += totalLineGroups.get(lineIdx) ?? 0;
       knownByLinesSeen.push({
         linesSeen: lineIdx,
         knownWordsSeen,
+        totalWordsSeen,
       });
     }
 
@@ -428,6 +479,18 @@ export function createStatsApp(
     const excludePos = c.req.query('excludePos')?.split(',').filter(Boolean);
     const vocab = await tracker.getVocabularyStats(limit, excludePos);
     return c.json(vocab);
+  });
+
+  app.get('/api/stats/excluded-words', async (c) => {
+    return c.json(await tracker.getStatsExcludedWords());
+  });
+
+  app.put('/api/stats/excluded-words', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const words = parseExcludedWordsBody(body);
+    if (!words) return c.body(null, 400);
+    await tracker.replaceStatsExcludedWords(words);
+    return c.json({ ok: true });
   });
 
   app.get('/api/stats/vocabulary/occurrences', async (c) => {

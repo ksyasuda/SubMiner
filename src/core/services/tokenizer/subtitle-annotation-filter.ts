@@ -13,17 +13,40 @@ const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
 
-const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
+export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   'あ',
   'ああ',
+  'あなた',
+  'あんた',
   'ええ',
   'うう',
   'おお',
+  'おい',
+  'お前',
+  'こいつ',
+  'こっち',
+  'じゃない',
+  'そうだ',
+  'たち',
+  'である',
+  'どこか',
+  'なんか',
+  'べき',
   'はあ',
   'はは',
   'へえ',
   'ふう',
   'ほう',
+  'やはり',
+  'って',
+  '何か',
+  '何だ',
+  '何も',
+  '如何した',
+  '様',
+  '確かに',
+  '誰も',
+  '貴方',
 ]);
 const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES = ['ん', 'の', 'なん', 'なの'];
 const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES = [

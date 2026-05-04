@@ -5,6 +5,7 @@ import {
   annotateTokens,
   AnnotationStageDeps,
   shouldExcludeTokenFromSubtitleAnnotations,
+  shouldExcludeTokenFromVocabularyPersistence,
   stripSubtitleAnnotationMetadata,
 } from './annotation-stage';
 
@@ -364,6 +365,87 @@ test('shouldExcludeTokenFromSubtitleAnnotations excludes kana-only non-independe
   });
 
   assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
+});
+
+test('shouldExcludeTokenFromVocabularyPersistence mirrors subtitle annotation grammar filters', () => {
+  const tokens = [
+    makeToken({
+      surface: 'どうしてもって',
+      headword: 'どうしても',
+      reading: 'ドウシテモッテ',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '副詞|助詞',
+      pos2: '一般|格助詞',
+    }),
+    makeToken({
+      surface: 'そうだ',
+      headword: 'そう',
+      reading: 'ソウダ',
+      partOfSpeech: PartOfSpeech.noun,
+      pos1: '名詞|助動詞',
+      pos2: '一般|',
+      pos3: '助動詞語幹|',
+    }),
+  ];
+
+  for (const token of tokens) {
+    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
+    assert.equal(shouldExcludeTokenFromVocabularyPersistence(token), true, token.surface);
+  }
+});
+
+test('shouldExcludeTokenFromVocabularyPersistence excludes common frequency stop terms', () => {
+  const tokens = [
+    makeToken({
+      surface: 'じゃない',
+      headword: 'じゃない',
+      reading: '',
+      partOfSpeech: PartOfSpeech.i_adjective,
+      pos1: '形容詞',
+      pos2: '*|自立',
+      pos3: '*',
+    }),
+    makeToken({
+      surface: 'である',
+      headword: 'である',
+      reading: '',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞',
+      pos2: '*',
+      pos3: '*',
+    }),
+    makeToken({
+      surface: '何か',
+      headword: '何か',
+      reading: 'なにか',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '名詞|助詞',
+      pos2: '代名詞|副助詞／並立助詞／終助詞',
+      pos3: '一般|*',
+    }),
+    makeToken({
+      surface: '確かに',
+      headword: '確かに',
+      reading: 'たしかに',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '名詞|助詞',
+      pos2: '形容動詞語幹|副詞化',
+      pos3: '*',
+    }),
+    makeToken({
+      surface: 'あなた',
+      headword: '貴方',
+      reading: 'あなた',
+      partOfSpeech: PartOfSpeech.noun,
+      pos1: '名詞',
+      pos2: '代名詞',
+      pos3: '一般',
+    }),
+  ];
+
+  for (const token of tokens) {
+    assert.equal(shouldExcludeTokenFromVocabularyPersistence(token), true, token.surface);
+  }
 });
 
 test('stripSubtitleAnnotationMetadata keeps token hover data while clearing annotation fields', () => {

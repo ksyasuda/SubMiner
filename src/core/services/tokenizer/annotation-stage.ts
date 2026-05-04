@@ -328,10 +328,12 @@ export function shouldExcludeTokenFromVocabularyPersistence(
   token: MergedToken,
   options: Pick<AnnotationStageOptions, 'pos1Exclusions' | 'pos2Exclusions'> = {},
 ): boolean {
-  return isFrequencyExcludedByPos(
-    token,
-    resolvePos1Exclusions(options),
-    resolvePos2Exclusions(options),
+  const pos1Exclusions = resolvePos1Exclusions(options);
+  const pos2Exclusions = resolvePos2Exclusions(options);
+
+  return (
+    sharedShouldExcludeTokenFromSubtitleAnnotations(token, { pos1Exclusions, pos2Exclusions }) ||
+    isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions)
   );
 }
 

@@ -42,6 +42,7 @@ export function useSessions(limit = 50) {
 export interface KnownWordsTimelinePoint {
   linesSeen: number;
   knownWordsSeen: number;
+  totalWordsSeen: number;
 }
 
 export function useSessionDetail(sessionId: number | null) {

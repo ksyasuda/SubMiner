@@ -102,7 +102,7 @@ Secondary subtitle text (typically English translations) is stored alongside pri
 
 ### Word Exclusion List
 
-The Vocabulary tab toolbar includes an **Exclusions** button for hiding words from all vocabulary views. Excluded words are stored in browser localStorage and can be managed (restored or cleared) from the exclusion modal. Exclusions affect stat cards, charts, the frequency rank table, and the word list.
+The Vocabulary tab toolbar includes an **Exclusions** button for hiding words from all vocabulary views. Excluded words are stored in the immersion database, with older browser localStorage exclusions imported on first load after upgrade. They can be managed (restored or cleared) from the exclusion modal. Exclusions affect stat cards, charts, the frequency rank table, and the word list.
 
 ## Retention Defaults
 
