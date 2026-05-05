@@ -167,6 +167,27 @@ function shouldAllowOrdinalPrefixNounFrequency(token: MergedToken): boolean {
   );
 }
 
+function shouldAllowHonorificPrefixNounFrequency(token: MergedToken): boolean {
+  const normalizedSurface = token.surface.trim();
+  const normalizedHeadword = token.headword.trim();
+  if (
+    !['お', 'ご', '御'].some(
+      (prefix) => normalizedSurface.startsWith(prefix) || normalizedHeadword.startsWith(prefix),
+    )
+  ) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
+  const pos2Parts = splitNormalizedTagParts(normalizePos2Tag(token.pos2));
+  return (
+    pos1Parts.length >= 2 &&
+    pos1Parts[0] === '接頭詞' &&
+    pos1Parts.slice(1).some((part) => part === '名詞') &&
+    pos2Parts[0] === '名詞接続'
+  );
+}
+
 function isFrequencyExcludedByPos(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string>,
@@ -187,11 +208,13 @@ function isFrequencyExcludedByPos(
     pos2Exclusions,
   );
   const allowOrdinalPrefixNounToken = shouldAllowOrdinalPrefixNounFrequency(token);
+  const allowHonorificPrefixNounToken = shouldAllowHonorificPrefixNounFrequency(token);
 
   if (
     isExcludedByTagSet(normalizedPos1, pos1Exclusions) &&
     !allowContentLedMergedToken &&
-    !allowOrdinalPrefixNounToken
+    !allowOrdinalPrefixNounToken &&
+    !allowHonorificPrefixNounToken
   ) {
     return true;
   }
@@ -199,7 +222,8 @@ function isFrequencyExcludedByPos(
   if (
     isExcludedByTagSet(normalizedPos2, pos2Exclusions) &&
     !allowContentLedMergedToken &&
-    !allowOrdinalPrefixNounToken
+    !allowOrdinalPrefixNounToken &&
+    !allowHonorificPrefixNounToken
   ) {
     return true;
   }

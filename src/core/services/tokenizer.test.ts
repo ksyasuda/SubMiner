@@ -4140,6 +4140,96 @@ test('tokenizeSubtitle keeps frequency for ordinal prefix-noun tokens', async ()
   assert.equal(result.tokens?.[0]?.frequencyRank, 1820);
 });
 
+test('tokenizeSubtitle keeps frequency for honorific prefix-noun tokens', async () => {
+  const result = await tokenizeSubtitle(
+    'ご機嫌が良くない',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: 'ご機嫌', reading: 'ごきげん', headword: 'ご機嫌' },
+        { surface: 'が', reading: 'が', headword: 'が' },
+        { surface: '良くない', reading: 'よくない', headword: '良い' },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getFrequencyRank: (text) => (text === 'ご機嫌' ? 5484 : null),
+        tokenizeWithMecab: async () => [
+          {
+            headword: 'ご',
+            surface: 'ご',
+            reading: 'ゴ',
+            startPos: 0,
+            endPos: 1,
+            partOfSpeech: PartOfSpeech.other,
+            pos1: '接頭詞',
+            pos2: '名詞接続',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: '機嫌',
+            surface: '機嫌',
+            reading: 'キゲン',
+            startPos: 1,
+            endPos: 3,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '一般',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'が',
+            surface: 'が',
+            reading: 'ガ',
+            startPos: 3,
+            endPos: 4,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '格助詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: '良い',
+            surface: '良く',
+            reading: 'ヨク',
+            startPos: 4,
+            endPos: 6,
+            partOfSpeech: PartOfSpeech.i_adjective,
+            pos1: '形容詞',
+            pos2: '自立',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'ない',
+            surface: 'ない',
+            reading: 'ナイ',
+            startPos: 6,
+            endPos: 8,
+            partOfSpeech: PartOfSpeech.bound_auxiliary,
+            pos1: '助動詞',
+            pos2: '*',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+        getMinSentenceWordsForNPlusOne: () => 1,
+      },
+    ),
+  );
+
+  assert.equal(result.tokens?.[0]?.surface, 'ご機嫌');
+  assert.equal(result.tokens?.[0]?.pos1, '接頭詞|名詞');
+  assert.equal(result.tokens?.[0]?.pos2, '名詞接続|一般');
+  assert.equal(result.tokens?.[0]?.frequencyRank, 5484);
+});
+
 test('tokenizeSubtitle clears all annotations for explanatory contrast endings', async () => {
   const result = await tokenizeSubtitle(
     '最近辛いものが続いとるんですけど',
