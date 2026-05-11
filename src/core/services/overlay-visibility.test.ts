@@ -883,7 +883,7 @@ test('visible overlay stays hidden while a modal window is active', () => {
   assert.ok(!calls.includes('update-bounds'));
 });
 
-test('macOS tracked visible overlay stays click-through without passively stealing focus', () => {
+test('macOS tracked visible overlay stays interactive without passively stealing focus', () => {
   const { window, calls } = createMainWindowRecorder();
   const tracker: WindowTrackerStub = {
     isTracking: () => true,
@@ -915,9 +915,111 @@ test('macOS tracked visible overlay stays click-through without passively steali
     isWindowsPlatform: false,
   } as never);
 
-  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('mouse-ignore:false:plain'));
   assert.ok(calls.includes('show'));
   assert.ok(!calls.includes('focus'));
+});
+
+test('macOS keeps active mpv overlay visible and interactive during tracker refresh', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const osdMessages: string[] = [];
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+    isTargetWindowFocused: () => true,
+  };
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {
+      calls.push('tracker-warning');
+    },
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: true,
+    isWindowsPlatform: false,
+    showOverlayLoadingOsd: (message: string) => {
+      osdMessages.push(message);
+    },
+  } as never);
+
+  assert.ok(calls.includes('update-bounds'));
+  assert.ok(calls.includes('sync-layer'));
+  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('ensure-level'));
+  assert.ok(calls.includes('enforce-order'));
+  assert.ok(calls.includes('sync-shortcuts'));
+  assert.ok(!calls.includes('hide'));
+  assert.deepEqual(osdMessages, []);
+});
+
+test('macOS preserves an already visible active mpv overlay while tracker is temporarily not ready', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const osdMessages: string[] = [];
+  let trackerWarning = false;
+  const tracker: WindowTrackerStub = {
+    isTracking: () => false,
+    getGeometry: () => null,
+    isTargetWindowFocused: () => true,
+  };
+
+  window.show();
+  calls.length = 0;
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: trackerWarning,
+    setTrackerNotReadyWarningShown: (shown: boolean) => {
+      trackerWarning = shown;
+      calls.push(`tracker-warning:${shown}`);
+    },
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: true,
+    isWindowsPlatform: false,
+    showOverlayLoadingOsd: (message: string) => {
+      osdMessages.push(message);
+    },
+  } as never);
+
+  assert.equal(trackerWarning, false);
+  assert.ok(calls.includes('sync-layer'));
+  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('ensure-level'));
+  assert.ok(calls.includes('sync-shortcuts'));
+  assert.ok(!calls.includes('hide'));
+  assert.deepEqual(osdMessages, []);
 });
 
 test('forced mouse passthrough keeps macOS tracked overlay passive while visible', () => {
@@ -1243,7 +1345,7 @@ test('macOS preserves visible overlay during transient tracker loss with retaine
   assert.deepEqual(osdMessages, []);
   assert.ok(calls.includes('update-bounds'));
   assert.ok(calls.includes('sync-layer'));
-  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('mouse-ignore:false:plain'));
   assert.ok(calls.includes('ensure-level'));
   assert.ok(calls.includes('enforce-order'));
   assert.ok(calls.includes('sync-shortcuts'));

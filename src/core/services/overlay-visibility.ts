@@ -92,10 +92,14 @@ export function updateVisibleOverlayVisibility(args: {
   const showPassiveVisibleOverlay = (): void => {
     const forceMousePassthrough = args.forceMousePassthrough === true;
     const wasVisible = mainWindow.isVisible();
-    const shouldDefaultToPassthrough =
-      args.isMacOSPlatform || args.isWindowsPlatform || forceMousePassthrough;
     const isVisibleOverlayFocused =
       typeof mainWindow.isFocused === 'function' && mainWindow.isFocused();
+    const shouldDefaultToPassthrough =
+      args.isWindowsPlatform ||
+      forceMousePassthrough ||
+      (args.isMacOSPlatform &&
+        !isVisibleOverlayFocused &&
+        !(args.windowTracker?.isTargetWindowFocused?.() ?? true));
     const windowsForegroundProcessName =
       args.lastKnownWindowsForegroundProcessName?.trim().toLowerCase() ?? null;
     const windowsOverlayProcessName = args.windowsOverlayProcessName?.trim().toLowerCase() ?? null;
@@ -261,8 +265,11 @@ export function updateVisibleOverlayVisibility(args: {
   }
 
   const hasRetainedTrackedGeometry = args.windowTracker.getGeometry() !== null;
+  const hasActiveMacOSTargetSignal =
+    args.isMacOSPlatform && (args.windowTracker.isTargetWindowFocused?.() ?? false);
   const shouldPreserveTransientTrackedOverlay =
-    (args.isMacOSPlatform && hasRetainedTrackedGeometry) ||
+    (args.isMacOSPlatform &&
+      (hasRetainedTrackedGeometry || (mainWindow.isVisible() && hasActiveMacOSTargetSignal))) ||
     (args.isWindowsPlatform &&
       typeof args.windowTracker.isTargetWindowMinimized === 'function' &&
       !args.windowTracker.isTargetWindowMinimized());
