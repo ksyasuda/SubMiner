@@ -1,3 +1,15 @@
+const DOCS_HOSTNAME = 'https://docs.subminer.moe';
+
+function pageToCanonicalHref(page: string): string | null {
+  if (page === '404.md') return null;
+
+  const route = page
+    .replace(/(^|\/)index\.md$/, '')
+    .replace(/\.md$/, '')
+    .replace(/\/$/, '');
+  return route ? `${DOCS_HOSTNAME}/${route}` : `${DOCS_HOSTNAME}/`;
+}
+
 export default {
   title: 'SubMiner Docs',
   description:
@@ -34,7 +46,18 @@ export default {
   appearance: 'dark',
   cleanUrls: true,
   metaChunk: true,
-  sitemap: { hostname: 'https://docs.subminer.moe' },
+  sitemap: {
+    hostname: DOCS_HOSTNAME,
+    transformItems(items) {
+      return items.filter(
+        (item) => item.url !== 'README' && item.url !== `${DOCS_HOSTNAME}/README`,
+      );
+    },
+  },
+  transformHead({ page }) {
+    const href = pageToCanonicalHref(page);
+    return href ? [['link', { rel: 'canonical', href }]] : [];
+  },
   lastUpdated: true,
   srcExclude: ['subagents/**'],
   markdown: {
