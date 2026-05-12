@@ -515,6 +515,23 @@ test('MpvIpcClient playNextSubtitle starts playback from paused state and auto-p
   ]);
 });
 
+test('MpvIpcClient playNextSubtitle starts playback when pause state is unknown', () => {
+  const commands: unknown[] = [];
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  (client as any).send = (payload: unknown) => {
+    commands.push(payload);
+    return true;
+  };
+
+  client.playNextSubtitle();
+
+  assert.equal((client as any).pendingPauseAtSubEnd, true);
+  assert.deepEqual(commands, [
+    { command: ['sub-seek', 1] },
+    { command: ['set_property', 'pause', false] },
+  ]);
+});
+
 test('MpvIpcClient playNextSubtitle still auto-pauses at end while already playing', async () => {
   const commands: unknown[] = [];
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());

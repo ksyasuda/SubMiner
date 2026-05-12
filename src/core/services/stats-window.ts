@@ -51,7 +51,9 @@ function showStatsWindow(window: BrowserWindow, options: StatsWindowOptions): vo
   promoteStatsWindowLevel(window);
   window.show();
   placementBounds = syncStatsWindowBounds(window, bounds) ?? placementBounds;
-  if (!ensureHyprlandWindowFloatingByTitle({ title: STATS_WINDOW_TITLE, bounds: placementBounds })) {
+  if (
+    !ensureHyprlandWindowFloatingByTitle({ title: STATS_WINDOW_TITLE, bounds: placementBounds })
+  ) {
     placementBounds = syncStatsWindowBounds(window, bounds) ?? placementBounds;
   }
   window.focus();

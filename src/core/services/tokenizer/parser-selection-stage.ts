@@ -270,7 +270,7 @@ export function mapYomitanParseResultItemToMergedTokens(
       const segmentHeadword = extractYomitanHeadword(segment);
       if (isStandaloneGrammarEndingSegment(segment)) {
         combinedSurface = combinedSurface.slice(0, -segmentText.length);
-        if (typeof segment.reading === 'string') {
+        if (typeof segment.reading === 'string' && segment.reading.length > 0) {
           combinedReading = combinedReading.slice(0, -segment.reading.length);
         }
         flushCombinedToken(segmentStart);

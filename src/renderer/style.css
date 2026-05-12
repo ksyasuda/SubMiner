@@ -40,9 +40,9 @@ body {
     'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Arial Unicode MS', Arial, sans-serif;
 }
 
-html:focus,
-body:focus,
-#overlay:focus {
+html:focus-visible,
+body:focus-visible,
+#overlay:focus-visible {
   outline: none;
 }
 

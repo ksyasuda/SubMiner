@@ -187,6 +187,38 @@ test('splits trailing grammar endings when later segments are standalone words',
   );
 });
 
+test('keeps preceding reading when standalone grammar ending has empty reading', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [
+        { text: '猫', reading: 'ねこ', headword: '猫' },
+        { text: 'です', reading: '', headword: 'です' },
+      ],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.deepEqual(
+    tokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+    })),
+    [
+      {
+        surface: '猫',
+        reading: 'ねこ',
+        headword: '猫',
+      },
+      {
+        surface: 'です',
+        reading: '',
+        headword: 'です',
+      },
+    ],
+  );
+});
+
 test('splits trailing ja-nai grammar endings from preceding content', () => {
   const parseResults = [
     makeParseItem('scanning-parser', [

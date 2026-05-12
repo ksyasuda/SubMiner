@@ -525,7 +525,7 @@ export class MpvIpcClient implements MpvClient {
     this.pendingPauseAtSubEnd = true;
     this.pauseAtTime = null;
     this.send({ command: ['sub-seek', 1] });
-    if (this.playbackPaused === true) {
+    if (this.playbackPaused !== false) {
       this.send({ command: ['set_property', 'pause', false] });
     }
   }
