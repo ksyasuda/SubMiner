@@ -70,8 +70,11 @@ export function handleOverlayWindowBlurred(options: {
   platform?: NodeJS.Platform;
 }): boolean {
   const platform = options.platform ?? process.platform;
-  if ((platform === 'win32' || platform === 'darwin') && options.kind === 'visible') {
+  if (platform === 'win32' && options.kind === 'visible') {
     options.onWindowsVisibleOverlayBlur?.();
+    return false;
+  }
+  if (platform === 'darwin' && options.kind === 'visible') {
     return false;
   }
 

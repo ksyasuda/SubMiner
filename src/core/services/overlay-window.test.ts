@@ -166,6 +166,29 @@ test('handleOverlayWindowBlurred skips macOS visible overlay restacking after fo
   assert.deepEqual(calls, []);
 });
 
+test('handleOverlayWindowBlurred leaves Windows callback inactive on macOS visible overlay blur', () => {
+  const calls: string[] = [];
+
+  const handled = handleOverlayWindowBlurred({
+    kind: 'visible',
+    windowVisible: true,
+    isOverlayVisible: () => true,
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    moveWindowTop: () => {
+      calls.push('move-top');
+    },
+    onWindowsVisibleOverlayBlur: () => {
+      calls.push('windows-visible-blur');
+    },
+    platform: 'darwin',
+  });
+
+  assert.equal(handled, false);
+  assert.deepEqual(calls, []);
+});
+
 test('handleOverlayWindowBlurred preserves active visible/modal window stacking', () => {
   const calls: string[] = [];
 
