@@ -969,6 +969,51 @@ test('macOS keeps active mpv overlay visible and interactive during tracker refr
   assert.deepEqual(osdMessages, []);
 });
 
+test('macOS tracked overlay releases topmost level when mpv loses foreground', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+    isTargetWindowFocused: () => false,
+  };
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: true,
+    isWindowsPlatform: false,
+  } as never);
+
+  assert.ok(calls.includes('update-bounds'));
+  assert.ok(calls.includes('sync-layer'));
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('always-on-top:false'));
+  assert.ok(calls.includes('show'));
+  assert.ok(calls.includes('sync-shortcuts'));
+  assert.ok(!calls.includes('ensure-level'));
+  assert.ok(!calls.includes('enforce-order'));
+  assert.ok(!calls.includes('focus'));
+  assert.ok(!calls.includes('hide'));
+});
+
 test('macOS preserves an already visible active mpv overlay while tracker is temporarily not ready', () => {
   const { window, calls } = createMainWindowRecorder();
   const osdMessages: string[] = [];

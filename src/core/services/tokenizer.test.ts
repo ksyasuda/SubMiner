@@ -2846,6 +2846,141 @@ test('tokenizeSubtitle checks known words by surface when configured', async () 
   assert.equal(result.tokens?.[0]?.isKnown, true);
 });
 
+test('tokenizeSubtitle preserves Yomitan compound token when MeCab components are known', async () => {
+  const text = '取り組んでもらいます';
+  const result = await tokenizeSubtitle(
+    text,
+    makeDeps({
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [];
+              }
+
+              if (script.includes('parseText')) {
+                return [
+                  {
+                    source: 'scanning-parser',
+                    index: 0,
+                    content: [
+                      [
+                        {
+                          text: '取り組んで',
+                          reading: 'とりくんで',
+                          headwords: [[{ term: '取り組む' }]],
+                        },
+                      ],
+                      [
+                        {
+                          text: 'もらいます',
+                          reading: 'もらいます',
+                          headwords: [[{ term: 'もらう' }]],
+                        },
+                      ],
+                    ],
+                  },
+                ];
+              }
+
+              return [
+                {
+                  surface: '取り',
+                  reading: 'とり',
+                  headword: '取る',
+                  startPos: 0,
+                  endPos: 2,
+                },
+                {
+                  surface: '組んで',
+                  reading: 'くんで',
+                  headword: '組む',
+                  startPos: 2,
+                  endPos: 5,
+                },
+                {
+                  surface: 'もらいます',
+                  reading: 'もらいます',
+                  headword: 'もらう',
+                  startPos: 5,
+                  endPos: 10,
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+      isKnownWord: (word) => word === '取る' || word === '組む' || word === 'もらう',
+      tokenizeWithMecab: async () => [
+        {
+          headword: '取り組む',
+          surface: '取り組ん',
+          reading: 'トリクン',
+          startPos: 0,
+          endPos: 4,
+          partOfSpeech: PartOfSpeech.verb,
+          pos1: '動詞',
+          pos2: '自立',
+          pos3: '*',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: 'で',
+          surface: 'で',
+          reading: 'デ',
+          startPos: 4,
+          endPos: 5,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          pos2: '接続助詞',
+          pos3: '*',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: 'もらう',
+          surface: 'もらい',
+          reading: 'モライ',
+          startPos: 5,
+          endPos: 8,
+          partOfSpeech: PartOfSpeech.verb,
+          pos1: '動詞',
+          pos2: '非自立',
+          pos3: '*',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: 'ます',
+          surface: 'ます',
+          reading: 'マス',
+          startPos: 8,
+          endPos: 10,
+          partOfSpeech: PartOfSpeech.bound_auxiliary,
+          pos1: '助動詞',
+          pos2: '*',
+          pos3: '*',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(result.text, text);
+  assert.equal(result.tokens?.[0]?.surface, '取り組んで');
+  assert.equal(result.tokens?.[0]?.headword, '取り組む');
+  assert.equal(result.tokens?.[0]?.isKnown, false);
+  assert.equal(result.tokens?.[0]?.pos1, '動詞|助詞');
+});
+
 test('tokenizeSubtitle uses frequency surface match mode when configured', async () => {
   const result = await tokenizeSubtitle(
     '鍛えた',

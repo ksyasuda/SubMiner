@@ -100,6 +100,22 @@ function isScanTokenArray(value: unknown): value is YomitanScanToken[] {
   );
 }
 
+function hasSameTokenSpans(left: YomitanScanToken[], right: YomitanScanToken[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((token, index) => {
+    const other = right[index];
+    return (
+      other !== undefined &&
+      token.surface === other.surface &&
+      token.startPos === other.startPos &&
+      token.endPos === other.endPos
+    );
+  });
+}
+
 function makeTermReadingCacheKey(term: string, reading: string | null): string {
   return `${term}\u0000${reading ?? ''}`;
 }
@@ -1252,6 +1268,17 @@ export async function requestYomitanScanTokens(
     return null;
   }
 
+  const parseResults = await requestYomitanParseResults(text, deps, logger);
+  const selectedParseTokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  const parseScanTokens =
+    selectedParseTokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+      startPos: token.startPos,
+      endPos: token.endPos,
+    })) ?? null;
+
   const metadata = await requestYomitanProfileMetadata(parserWindow, logger);
   const profileIndex = metadata?.profileIndex ?? 0;
   const scanLength = metadata?.scanLength ?? DEFAULT_YOMITAN_SCAN_LENGTH;
@@ -1269,6 +1296,9 @@ export async function requestYomitanScanTokens(
       true,
     );
     if (isScanTokenArray(rawResult)) {
+      if (parseScanTokens && parseScanTokens.length > 0) {
+        return hasSameTokenSpans(parseScanTokens, rawResult) ? rawResult : parseScanTokens;
+      }
       return rawResult;
     }
     if (Array.isArray(rawResult)) {
@@ -1283,8 +1313,14 @@ export async function requestYomitanScanTokens(
         })) ?? null
       );
     }
+    if (parseScanTokens && parseScanTokens.length > 0) {
+      return parseScanTokens;
+    }
     return null;
   } catch (err) {
+    if (parseScanTokens && parseScanTokens.length > 0) {
+      return parseScanTokens;
+    }
     logger.error('Yomitan scanner request failed:', (err as Error).message);
     return null;
   }

@@ -533,7 +533,7 @@ test('requestYomitanTermFrequencies caches repeated term+reading lookups', async
   assert.equal(frequencyCalls, 1);
 });
 
-test('requestYomitanScanTokens uses left-to-right termsFind scanning instead of parseText', async () => {
+test('requestYomitanScanTokens prefers parseText tokenization over termsFind fragments', async () => {
   const scripts: string[] = [];
   const deps = createDeps(async (script) => {
     scripts.push(script);
@@ -548,6 +548,138 @@ test('requestYomitanScanTokens uses left-to-right termsFind scanning instead of 
           },
         ],
       };
+    }
+    if (script.includes('parseText')) {
+      return [
+        {
+          source: 'scanning-parser',
+          index: 0,
+          content: [
+            [
+              {
+                text: '取り組んで',
+                reading: 'とりくんで',
+                headwords: [[{ term: '取り組む' }]],
+              },
+            ],
+          ],
+        },
+      ];
+    }
+    return [
+      {
+        surface: '取り',
+        reading: 'とり',
+        headword: '取る',
+        startPos: 0,
+        endPos: 2,
+      },
+      {
+        surface: '組んで',
+        reading: 'くんで',
+        headword: '組む',
+        startPos: 2,
+        endPos: 5,
+      },
+    ];
+  });
+
+  const result = await requestYomitanScanTokens('取り組んで', deps, {
+    error: () => undefined,
+  });
+
+  assert.deepEqual(result, [
+    {
+      surface: '取り組んで',
+      reading: 'とりくんで',
+      headword: '取り組む',
+      startPos: 0,
+      endPos: 5,
+    },
+  ]);
+  assert.ok(scripts.some((script) => script.includes('parseText')));
+  assert.ok(scripts.some((script) => script.includes('termsFind')));
+});
+
+test('requestYomitanScanTokens keeps scanner metadata when parse spans agree', async () => {
+  const deps = createDeps(async (script) => {
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+    if (script.includes('parseText')) {
+      return [
+        {
+          source: 'scanning-parser',
+          index: 0,
+          content: [
+            [
+              {
+                text: 'アクア',
+                reading: 'あくあ',
+                headwords: [[{ term: 'アクア' }]],
+              },
+            ],
+          ],
+        },
+      ];
+    }
+    return [
+      {
+        surface: 'アクア',
+        reading: 'あくあ',
+        headword: 'アクア',
+        startPos: 0,
+        endPos: 3,
+        isNameMatch: true,
+        wordClasses: ['n'],
+      },
+    ];
+  });
+
+  const result = await requestYomitanScanTokens('アクア', deps, {
+    error: () => undefined,
+  });
+
+  assert.deepEqual(result, [
+    {
+      surface: 'アクア',
+      reading: 'あくあ',
+      headword: 'アクア',
+      startPos: 0,
+      endPos: 3,
+      isNameMatch: true,
+      wordClasses: ['n'],
+    },
+  ]);
+});
+
+test('requestYomitanScanTokens falls back to left-to-right termsFind scanning', async () => {
+  const scripts: string[] = [];
+  const deps = createDeps(async (script) => {
+    scripts.push(script);
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+    if (script.includes('parseText')) {
+      return [];
     }
     return [
       {
@@ -573,6 +705,7 @@ test('requestYomitanScanTokens uses left-to-right termsFind scanning instead of 
       endPos: 3,
     },
   ]);
+  assert.ok(scripts.some((script) => script.includes('parseText')));
   const scannerScript = scripts.find((script) => script.includes('termsFind'));
   assert.ok(scannerScript, 'expected termsFind scanning request script');
   assert.doesNotMatch(scannerScript ?? '', /parseText/);
