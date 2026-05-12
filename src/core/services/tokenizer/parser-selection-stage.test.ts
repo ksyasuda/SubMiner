@@ -155,7 +155,7 @@ test('prefers the longest dictionary headword across merged segments', () => {
   );
 });
 
-test('keeps the first headword when later segments are standalone words', () => {
+test('splits trailing grammar endings when later segments are standalone words', () => {
   const parseResults = [
     makeParseItem('scanning-parser', [
       [
@@ -174,9 +174,110 @@ test('keeps the first headword when later segments are standalone words', () => 
     })),
     [
       {
-        surface: '猫です',
-        reading: 'ねこです',
+        surface: '猫',
+        reading: 'ねこ',
         headword: '猫',
+      },
+      {
+        surface: 'です',
+        reading: 'です',
+        headword: 'です',
+      },
+    ],
+  );
+});
+
+test('keeps preceding reading when standalone grammar ending has empty reading', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [
+        { text: '猫', reading: 'ねこ', headword: '猫' },
+        { text: 'です', reading: '', headword: 'です' },
+      ],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.deepEqual(
+    tokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+    })),
+    [
+      {
+        surface: '猫',
+        reading: 'ねこ',
+        headword: '猫',
+      },
+      {
+        surface: 'です',
+        reading: '',
+        headword: 'です',
+      },
+    ],
+  );
+});
+
+test('splits trailing ja-nai grammar endings from preceding content', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [
+        { text: 'いる', reading: 'いる', headword: 'いる' },
+        { text: 'じゃない', reading: 'じゃない', headword: 'じゃない' },
+      ],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.deepEqual(
+    tokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+    })),
+    [
+      {
+        surface: 'いる',
+        reading: 'いる',
+        headword: 'いる',
+      },
+      {
+        surface: 'じゃない',
+        reading: 'じゃない',
+        headword: 'じゃない',
+      },
+    ],
+  );
+});
+
+test('splits trailing negative-copula grammar endings by pattern', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [
+        { text: '問題', reading: 'もんだい', headword: '問題' },
+        { text: 'ではないですか', reading: 'ではないですか', headword: 'ない' },
+      ],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.deepEqual(
+    tokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+    })),
+    [
+      {
+        surface: '問題',
+        reading: 'もんだい',
+        headword: '問題',
+      },
+      {
+        surface: 'ではないですか',
+        reading: 'ではないですか',
+        headword: 'ない',
       },
     ],
   );

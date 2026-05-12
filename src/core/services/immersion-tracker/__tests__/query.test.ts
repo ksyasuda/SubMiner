@@ -3050,6 +3050,59 @@ test('anime and media detail prefer lifetime totals over partial retained sessio
   }
 });
 
+test('media detail resolves retained sessions before lifetime summary exists', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/recent-session.mkv', {
+      canonicalTitle: 'Recent Session Episode',
+      sourcePath: '/tmp/recent-session.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const startedAtMs = 1_700_000_000_000;
+    const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET ended_at_ms = ?, status = 2, active_watched_ms = ?, lines_seen = ?, tokens_seen = ?, cards_mined = ?
+      WHERE session_id = ?
+      `,
+    ).run(startedAtMs + 600_000, 600_000, 100, 990, 1, sessionId);
+    insertFilteredWordOccurrence(db, {
+      sessionId,
+      videoId,
+      occurrenceCount: 4,
+      startedAtMs,
+    });
+
+    assert.equal(getSessionSummaries(db, 1)[0]?.videoId, videoId);
+    assert.equal(
+      (
+        db
+          .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_media WHERE video_id = ?')
+          .get(videoId) as { total: number }
+      ).total,
+      0,
+    );
+
+    const detail = getMediaDetail(db, videoId);
+    assert.ok(detail);
+    assert.equal(detail.canonicalTitle, 'Recent Session Episode');
+    assert.equal(detail.totalSessions, 1);
+    assert.equal(detail.totalActiveMs, 600_000);
+    assert.equal(detail.totalLinesSeen, 100);
+    assert.equal(detail.totalTokensSeen, 4);
+    assert.equal(detail.totalCards, 1);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('media library and detail queries read lifetime totals', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

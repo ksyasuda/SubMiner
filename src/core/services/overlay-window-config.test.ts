@@ -8,6 +8,7 @@ test('overlay window config explicitly disables renderer sandbox for preload com
     yomitanSession: null,
   });
 
+  assert.equal(options.title, 'SubMiner Overlay');
   assert.equal(options.backgroundColor, '#00000000');
   assert.equal(options.webPreferences?.sandbox, false);
   assert.equal(options.webPreferences?.backgroundThrottling, false);

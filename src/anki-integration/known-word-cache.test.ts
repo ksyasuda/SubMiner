@@ -520,6 +520,51 @@ test('KnownWordCacheManager uses the current deck fields for immediate append', 
   }
 });
 
+test('KnownWordCacheManager reports immediate append cache clears as mutations', () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Expression',
+    },
+    knownWords: {
+      highlightEnabled: true,
+      refreshMinutes: 60,
+    },
+  };
+  const { manager, statePath, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    fs.writeFileSync(
+      statePath,
+      JSON.stringify({
+        version: 2,
+        refreshedAtMs: Date.now(),
+        scope: '{"refreshMinutes":60,"scope":"is:note","fieldsWord":"Expression"}',
+        words: ['猫'],
+        notes: {
+          '1': ['猫'],
+        },
+      }),
+      'utf-8',
+    );
+    manager.startLifecycle();
+    assert.equal(manager.isKnownWord('猫'), true);
+
+    config.fields = { word: 'Word' };
+    const changed = manager.appendFromNoteInfo({
+      noteId: 2,
+      fields: {
+        Word: { value: '' },
+      },
+    });
+
+    assert.equal(changed, true);
+    assert.equal(manager.isKnownWord('猫'), false);
+  } finally {
+    manager.stopLifecycle();
+    cleanup();
+  }
+});
+
 test('KnownWordCacheManager skips immediate append when addMinedWordsImmediately is disabled', () => {
   const config: AnkiConnectConfig = {
     knownWords: {

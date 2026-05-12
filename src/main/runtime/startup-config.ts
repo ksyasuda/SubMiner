@@ -27,7 +27,10 @@ export type ReloadConfigRuntimeDeps = {
   logWarning: (message: string) => void;
   showDesktopNotification: (title: string, options: { body: string }) => void;
   startConfigHotReload: () => void;
-  refreshAnilistClientSecretState: (options: { force: boolean }) => Promise<unknown>;
+  refreshAnilistClientSecretState: (options: {
+    force: boolean;
+    allowSetupPrompt?: boolean;
+  }) => Promise<unknown>;
   failHandlers: {
     logError: (details: string) => void;
     showErrorBox: (title: string, details: string) => void;
@@ -72,7 +75,7 @@ export function createReloadConfigHandler(deps: ReloadConfigRuntimeDeps): () => 
     }
 
     deps.startConfigHotReload();
-    void deps.refreshAnilistClientSecretState({ force: true });
+    void deps.refreshAnilistClientSecretState({ force: true, allowSetupPrompt: false });
   };
 }
 

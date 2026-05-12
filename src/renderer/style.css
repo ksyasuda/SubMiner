@@ -40,6 +40,12 @@ body {
     'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Arial Unicode MS', Arial, sans-serif;
 }
 
+html:focus-visible,
+body:focus-visible,
+#overlay:focus-visible {
+  outline: none;
+}
+
 :root {
   --subtitle-sidebar-reserved-width: 0px;
 
@@ -794,11 +800,8 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 }
 
 #subtitleRoot .word.word-jlpt-n1 {
-  text-decoration-line: underline;
-  text-decoration-color: var(--subtitle-jlpt-n1-color, #ed8796);
-  text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.12em;
-  text-decoration-skip-ink: none;
+  text-decoration-line: none;
+  border-bottom: 2px solid var(--subtitle-jlpt-n1-color, #ed8796);
 }
 
 #subtitleRoot .word.word-jlpt-n1[data-jlpt-level]::after {
@@ -806,11 +809,8 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 }
 
 #subtitleRoot .word.word-jlpt-n2 {
-  text-decoration-line: underline;
-  text-decoration-color: var(--subtitle-jlpt-n2-color, #f5a97f);
-  text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.12em;
-  text-decoration-skip-ink: none;
+  text-decoration-line: none;
+  border-bottom: 2px solid var(--subtitle-jlpt-n2-color, #f5a97f);
 }
 
 #subtitleRoot .word.word-jlpt-n2[data-jlpt-level]::after {
@@ -818,11 +818,8 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 }
 
 #subtitleRoot .word.word-jlpt-n3 {
-  text-decoration-line: underline;
-  text-decoration-color: var(--subtitle-jlpt-n3-color, #f9e2af);
-  text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.12em;
-  text-decoration-skip-ink: none;
+  text-decoration-line: none;
+  border-bottom: 2px solid var(--subtitle-jlpt-n3-color, #f9e2af);
 }
 
 #subtitleRoot .word.word-jlpt-n3[data-jlpt-level]::after {
@@ -830,11 +827,8 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 }
 
 #subtitleRoot .word.word-jlpt-n4 {
-  text-decoration-line: underline;
-  text-decoration-color: var(--subtitle-jlpt-n4-color, #a6e3a1);
-  text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.12em;
-  text-decoration-skip-ink: none;
+  text-decoration-line: none;
+  border-bottom: 2px solid var(--subtitle-jlpt-n4-color, #a6e3a1);
 }
 
 #subtitleRoot .word.word-jlpt-n4[data-jlpt-level]::after {
@@ -842,11 +836,8 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 }
 
 #subtitleRoot .word.word-jlpt-n5 {
-  text-decoration-line: underline;
-  text-decoration-color: var(--subtitle-jlpt-n5-color, #8aadf4);
-  text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.12em;
-  text-decoration-skip-ink: none;
+  text-decoration-line: none;
+  border-bottom: 2px solid var(--subtitle-jlpt-n5-color, #8aadf4);
 }
 
 #subtitleRoot .word.word-jlpt-n5[data-jlpt-level]::after {
@@ -995,6 +986,91 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 #subtitleRoot .word.word-frequency-band-5 .c::selection {
   color: var(--subtitle-frequency-band-5-color, #8aadf4) !important;
   -webkit-text-fill-color: var(--subtitle-frequency-band-5-color, #8aadf4) !important;
+}
+
+#subtitleRoot .word.word-jlpt-n1.word-known,
+#subtitleRoot .word.word-jlpt-n1.word-n-plus-one,
+#subtitleRoot .word.word-jlpt-n1.word-name-match,
+#subtitleRoot .word.word-jlpt-n1.word-frequency-single,
+#subtitleRoot .word.word-jlpt-n1.word-frequency-band-1,
+#subtitleRoot .word.word-jlpt-n1.word-frequency-band-2,
+#subtitleRoot .word.word-jlpt-n1.word-frequency-band-3,
+#subtitleRoot .word.word-jlpt-n1.word-frequency-band-4,
+#subtitleRoot .word.word-jlpt-n1.word-frequency-band-5,
+#subtitleRoot .word.word-jlpt-n1:hover,
+#subtitleRoot .word.word-jlpt-n1 .c:hover,
+#subtitleRoot .word.word-jlpt-n1::selection,
+#subtitleRoot .word.word-jlpt-n1 .c::selection {
+  text-decoration-color: var(--subtitle-jlpt-n1-color, #ed8796) !important;
+  -webkit-text-decoration-color: var(--subtitle-jlpt-n1-color, #ed8796) !important;
+}
+
+#subtitleRoot .word.word-jlpt-n2.word-known,
+#subtitleRoot .word.word-jlpt-n2.word-n-plus-one,
+#subtitleRoot .word.word-jlpt-n2.word-name-match,
+#subtitleRoot .word.word-jlpt-n2.word-frequency-single,
+#subtitleRoot .word.word-jlpt-n2.word-frequency-band-1,
+#subtitleRoot .word.word-jlpt-n2.word-frequency-band-2,
+#subtitleRoot .word.word-jlpt-n2.word-frequency-band-3,
+#subtitleRoot .word.word-jlpt-n2.word-frequency-band-4,
+#subtitleRoot .word.word-jlpt-n2.word-frequency-band-5,
+#subtitleRoot .word.word-jlpt-n2:hover,
+#subtitleRoot .word.word-jlpt-n2 .c:hover,
+#subtitleRoot .word.word-jlpt-n2::selection,
+#subtitleRoot .word.word-jlpt-n2 .c::selection {
+  text-decoration-color: var(--subtitle-jlpt-n2-color, #f5a97f) !important;
+  -webkit-text-decoration-color: var(--subtitle-jlpt-n2-color, #f5a97f) !important;
+}
+
+#subtitleRoot .word.word-jlpt-n3.word-known,
+#subtitleRoot .word.word-jlpt-n3.word-n-plus-one,
+#subtitleRoot .word.word-jlpt-n3.word-name-match,
+#subtitleRoot .word.word-jlpt-n3.word-frequency-single,
+#subtitleRoot .word.word-jlpt-n3.word-frequency-band-1,
+#subtitleRoot .word.word-jlpt-n3.word-frequency-band-2,
+#subtitleRoot .word.word-jlpt-n3.word-frequency-band-3,
+#subtitleRoot .word.word-jlpt-n3.word-frequency-band-4,
+#subtitleRoot .word.word-jlpt-n3.word-frequency-band-5,
+#subtitleRoot .word.word-jlpt-n3:hover,
+#subtitleRoot .word.word-jlpt-n3 .c:hover,
+#subtitleRoot .word.word-jlpt-n3::selection,
+#subtitleRoot .word.word-jlpt-n3 .c::selection {
+  text-decoration-color: var(--subtitle-jlpt-n3-color, #f9e2af) !important;
+  -webkit-text-decoration-color: var(--subtitle-jlpt-n3-color, #f9e2af) !important;
+}
+
+#subtitleRoot .word.word-jlpt-n4.word-known,
+#subtitleRoot .word.word-jlpt-n4.word-n-plus-one,
+#subtitleRoot .word.word-jlpt-n4.word-name-match,
+#subtitleRoot .word.word-jlpt-n4.word-frequency-single,
+#subtitleRoot .word.word-jlpt-n4.word-frequency-band-1,
+#subtitleRoot .word.word-jlpt-n4.word-frequency-band-2,
+#subtitleRoot .word.word-jlpt-n4.word-frequency-band-3,
+#subtitleRoot .word.word-jlpt-n4.word-frequency-band-4,
+#subtitleRoot .word.word-jlpt-n4.word-frequency-band-5,
+#subtitleRoot .word.word-jlpt-n4:hover,
+#subtitleRoot .word.word-jlpt-n4 .c:hover,
+#subtitleRoot .word.word-jlpt-n4::selection,
+#subtitleRoot .word.word-jlpt-n4 .c::selection {
+  text-decoration-color: var(--subtitle-jlpt-n4-color, #a6e3a1) !important;
+  -webkit-text-decoration-color: var(--subtitle-jlpt-n4-color, #a6e3a1) !important;
+}
+
+#subtitleRoot .word.word-jlpt-n5.word-known,
+#subtitleRoot .word.word-jlpt-n5.word-n-plus-one,
+#subtitleRoot .word.word-jlpt-n5.word-name-match,
+#subtitleRoot .word.word-jlpt-n5.word-frequency-single,
+#subtitleRoot .word.word-jlpt-n5.word-frequency-band-1,
+#subtitleRoot .word.word-jlpt-n5.word-frequency-band-2,
+#subtitleRoot .word.word-jlpt-n5.word-frequency-band-3,
+#subtitleRoot .word.word-jlpt-n5.word-frequency-band-4,
+#subtitleRoot .word.word-jlpt-n5.word-frequency-band-5,
+#subtitleRoot .word.word-jlpt-n5:hover,
+#subtitleRoot .word.word-jlpt-n5 .c:hover,
+#subtitleRoot .word.word-jlpt-n5::selection,
+#subtitleRoot .word.word-jlpt-n5 .c::selection {
+  text-decoration-color: var(--subtitle-jlpt-n5-color, #8aadf4) !important;
+  -webkit-text-decoration-color: var(--subtitle-jlpt-n5-color, #8aadf4) !important;
 }
 
 #subtitleRoot

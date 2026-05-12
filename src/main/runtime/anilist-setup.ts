@@ -10,7 +10,7 @@ export type BuildAnilistSetupUrlDeps = {
 
 export type ConsumeAnilistSetupCallbackUrlDeps = {
   rawUrl: string;
-  saveToken: (token: string) => void;
+  saveToken: (token: string) => boolean;
   setCachedToken: (token: string) => void;
   setResolvedState: (resolvedAt: number) => void;
   setSetupPageOpened: (opened: boolean) => void;
@@ -71,8 +71,12 @@ export function consumeAnilistSetupCallbackUrl(deps: ConsumeAnilistSetupCallback
     return false;
   }
 
+  if (!deps.saveToken(token)) {
+    deps.setSetupPageOpened(true);
+    return true;
+  }
+
   const resolvedAt = Date.now();
-  deps.saveToken(token);
   deps.setCachedToken(token);
   deps.setResolvedState(resolvedAt);
   deps.setSetupPageOpened(false);

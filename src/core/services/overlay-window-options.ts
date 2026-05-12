@@ -2,6 +2,11 @@ import type { BrowserWindowConstructorOptions, Session } from 'electron';
 import * as path from 'path';
 import type { OverlayWindowKind } from './overlay-window-input';
 
+export const OVERLAY_WINDOW_TITLES: Record<OverlayWindowKind, string> = {
+  visible: 'SubMiner Overlay',
+  modal: 'SubMiner Overlay Modal',
+};
+
 export function buildOverlayWindowOptions(
   kind: OverlayWindowKind,
   options: {
@@ -14,6 +19,7 @@ export function buildOverlayWindowOptions(
 
   return {
     show: false,
+    title: OVERLAY_WINDOW_TITLES[kind],
     width: 800,
     height: 600,
     x: 0,

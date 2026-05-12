@@ -18,6 +18,8 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     stopTexthookerService: () => calls.push('stop-texthooker'),
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       calls.push('clear-windows-visible-overlay-poll'),
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () =>
+      calls.push('clear-linux-mpv-fullscreen-overlay-refresh-timeouts'),
     destroyMainOverlayWindow: () => calls.push('destroy-main-overlay-window'),
     destroyModalOverlayWindow: () => calls.push('destroy-modal-overlay-window'),
     destroyYomitanParserWindow: () => calls.push('destroy-yomitan-window'),
@@ -42,10 +44,11 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
   });
 
   cleanup();
-  assert.equal(calls.length, 29);
+  assert.equal(calls.length, 30);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-discord-presence');
   assert.ok(calls.includes('clear-windows-visible-overlay-poll'));
+  assert.ok(calls.includes('clear-linux-mpv-fullscreen-overlay-refresh-timeouts'));
   assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));
 });
 

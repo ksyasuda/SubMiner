@@ -128,6 +128,7 @@ test('mpv event bindings register all expected events', () => {
     onTimePosChange: () => {},
     onDurationChange: () => {},
     onPauseChange: () => {},
+    onFullscreenChange: () => {},
     onSubtitleMetricsChange: () => {},
     onSecondarySubtitleVisibility: () => {},
   });
@@ -151,6 +152,7 @@ test('mpv event bindings register all expected events', () => {
     'time-pos-change',
     'duration-change',
     'pause-change',
+    'fullscreen-change',
     'subtitle-metrics-change',
     'secondary-subtitle-visibility',
   ]);

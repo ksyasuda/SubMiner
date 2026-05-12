@@ -564,6 +564,49 @@ do
 		process_list = "",
 		option_overrides = {
 			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for pre-ready duplicate auto-start scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	fire_event(recorded, "file-loaded")
+	assert_true(recorded.script_messages["subminer-autoplay-ready"] ~= nil, "subminer-autoplay-ready script message not registered")
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"pre-ready duplicate auto-start should not issue duplicate --start commands"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 1,
+		"pre-ready duplicate auto-start should not repeat the pause gate"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 0,
+		"pre-ready duplicate auto-start should not resume playback before tokenization is ready"
+	)
+	assert_true(
+		count_osd_message(recorded.osd, "SubMiner: Loading subtitle tokenization...") == 1,
+		"pre-ready duplicate auto-start should not repeat the loading OSD"
+	)
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 1,
+		"autoplay-ready should resume the original pre-ready gate"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
 			auto_start = "no",
 		},
 		files = {
@@ -906,23 +949,23 @@ do
 	)
 	assert_true(
 		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 4,
-		"duplicate pause-until-ready auto-start should re-assert visible overlay on both start and ready events"
+		"duplicate pause-until-ready auto-start should re-assert visible overlay on initial start, ready, and later file load"
 	)
 	assert_true(
-		count_osd_message(recorded.osd, "SubMiner: Loading subtitle tokenization...") == 2,
-		"duplicate pause-until-ready auto-start should arm tokenization loading gate for each file"
+		count_osd_message(recorded.osd, "SubMiner: Loading subtitle tokenization...") == 1,
+		"duplicate pause-until-ready auto-start should not repeat tokenization loading gate after overlay is running"
 	)
 	assert_true(
-		count_osd_message(recorded.osd, "SubMiner: Subtitle tokenization ready") == 2,
-		"duplicate pause-until-ready auto-start should release tokenization gate for each file"
+		count_osd_message(recorded.osd, "SubMiner: Subtitle tokenization ready") == 1,
+		"duplicate pause-until-ready auto-start should not wait for a second readiness signal after overlay is running"
 	)
 	assert_true(
-		count_property_set(recorded.property_sets, "pause", true) == 2,
-		"duplicate pause-until-ready auto-start should force pause for each file"
+		count_property_set(recorded.property_sets, "pause", true) == 1,
+		"duplicate pause-until-ready auto-start should not force pause after overlay is running"
 	)
 	assert_true(
-		count_property_set(recorded.property_sets, "pause", false) == 2,
-		"duplicate pause-until-ready auto-start should resume playback for each file"
+		count_property_set(recorded.property_sets, "pause", false) == 1,
+		"duplicate pause-until-ready auto-start should not resume a gate that was never rearmed"
 	)
 end
 

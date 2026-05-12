@@ -89,7 +89,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
     openCharacterDictionary: 'CommandOrControl+Alt+A',
     openRuntimeOptions: 'CommandOrControl+Shift+O',
     openJimaku: 'Ctrl+Shift+J',
-    openSessionHelp: 'CommandOrControl+Shift+H',
+    openSessionHelp: 'CommandOrControl+Slash',
     openControllerSelect: 'Alt+C',
     openControllerDebug: 'Alt+Shift+C',
     toggleSubtitleSidebar: 'Backslash',

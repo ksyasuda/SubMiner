@@ -8,14 +8,21 @@ import {
 } from '../../../token-pos2-exclusions';
 import { MergedToken, PartOfSpeech } from '../../../types';
 import { shouldIgnoreJlptByTerm } from '../jlpt-token-filter';
+import { isSubtitleGrammarEndingText } from './grammar-ending';
 
 const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
 
+const STANDALONE_GRAMMAR_PARTICLE_PHRASES = ['たって', 'だって'] as const;
+const STANDALONE_GRAMMAR_PARTICLE_PHRASES_SET: ReadonlySet<string> = new Set(
+  STANDALONE_GRAMMAR_PARTICLE_PHRASES,
+);
+
 export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   'あ',
   'ああ',
+  'ある',
   'あなた',
   'あんた',
   'ええ',
@@ -25,6 +32,7 @@ export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   'お前',
   'こいつ',
   'こっち',
+  'くれ',
   'じゃない',
   'そうだ',
   'たち',
@@ -32,58 +40,27 @@ export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
   'どこか',
   'なんか',
   'べき',
+  'って',
   'はあ',
+  'はぁ',
   'はは',
   'へえ',
   'ふう',
   'ほう',
   'やはり',
-  'って',
   '何か',
   '何だ',
   '何も',
   '如何した',
+  '有る',
+  '在る',
   '様',
   '確かに',
   '誰も',
   '貴方',
+  'もんか',
+  'ものか',
 ]);
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES = ['ん', 'の', 'なん', 'なの'];
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES = [
-  'だ',
-  'です',
-  'でした',
-  'だった',
-  'では',
-  'じゃ',
-  'でしょう',
-  'だろう',
-] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES = [
-  '',
-  'か',
-  'ね',
-  'よ',
-  'な',
-  'けど',
-  'よね',
-  'かな',
-  'かね',
-] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_THOUGHT_SUFFIXES = [
-  'か',
-  'かな',
-  'かね',
-] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS = new Set(
-  SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES.flatMap((prefix) =>
-    SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES.flatMap((core) =>
-      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES.map(
-        (particle) => `${prefix}${core}${particle}`,
-      ),
-    ),
-  ),
-);
 const SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES = new Set([
   'って',
   'ってよ',
@@ -95,7 +72,28 @@ const SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES = new Set([
 ]);
 const AUXILIARY_STEM_GRAMMAR_TAIL_POS1 = new Set(['名詞', '助動詞', '助詞']);
 const NON_INDEPENDENT_NOUN_HELPER_TAIL_POS1 = new Set(['助詞', '助動詞']);
-
+const AUXILIARY_INFLECTION_TRAILING_POS1 = new Set(['助動詞']);
+const AUXILIARY_HELPER_SPAN_POS1 = new Set(['助詞', '助動詞', '動詞']);
+const LEXICAL_VERB_POS2 = new Set(['自立']);
+const STANDALONE_GRAMMAR_PARTICLE_SURFACES = new Set([
+  'か',
+  'が',
+  'さ',
+  'し',
+  'ぞ',
+  'ぜ',
+  'と',
+  'な',
+  'に',
+  'ね',
+  'の',
+  'は',
+  'へ',
+  'も',
+  'や',
+  'よ',
+  'を',
+]);
 export interface SubtitleAnnotationFilterOptions {
   pos1Exclusions?: ReadonlySet<string>;
   pos2Exclusions?: ReadonlySet<string>;
@@ -301,6 +299,99 @@ function isKanaOnlyNonIndependentNounHelperMerge(token: MergedToken): boolean {
   return pos1Parts.slice(1).every((part) => NON_INDEPENDENT_NOUN_HELPER_TAIL_POS1.has(part));
 }
 
+function isKanaOnlyText(text: string): boolean {
+  const normalized = normalizeKana(text);
+  return normalized.length > 0 && [...normalized].every(isKanaChar);
+}
+
+function isLexicalKureruVerb(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  const normalizedHeadword = normalizeKana(token.headword);
+  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  return (
+    normalizedSurface === 'くれ' &&
+    normalizedHeadword === 'くれる' &&
+    pos1Parts.length === 1 &&
+    pos1Parts[0] === '動詞' &&
+    pos2Parts.length === 1 &&
+    pos2Parts[0] === '自立'
+  );
+}
+
+function isStandaloneAuxiliaryInflectionFragment(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  if (!isKanaOnlyText(normalizedSurface)) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  if (pos1Parts.length === 0) {
+    return false;
+  }
+
+  if (pos1Parts.every((part) => part === '助動詞')) {
+    return true;
+  }
+
+  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  return (
+    pos1Parts[0] === '動詞' &&
+    pos2Parts[0] === '接尾' &&
+    pos1Parts.slice(1).every((part) => AUXILIARY_INFLECTION_TRAILING_POS1.has(part))
+  );
+}
+
+function isAuxiliaryOnlyHelperSpan(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  const normalizedHeadword = normalizeKana(token.headword);
+  if (!isKanaOnlyText(normalizedSurface) || !isKanaOnlyText(normalizedHeadword)) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  if (
+    pos1Parts.length === 0 ||
+    !pos1Parts.every((part) => AUXILIARY_HELPER_SPAN_POS1.has(part)) ||
+    !pos1Parts.includes('助詞') ||
+    !pos1Parts.includes('動詞')
+  ) {
+    return false;
+  }
+
+  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  return !pos2Parts.some((part) => LEXICAL_VERB_POS2.has(part));
+}
+
+function isStandaloneSuruTeGrammarHelper(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  const normalizedHeadword = normalizeKana(token.headword);
+  if (!normalizedSurface.startsWith('して') || normalizedHeadword !== 'する') {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  return (
+    isKanaOnlyText(normalizedSurface) && (pos1Parts.length === 0 || pos1Parts.includes('動詞'))
+  );
+}
+
+function isStandaloneGrammarParticle(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  const normalizedHeadword = normalizeKana(token.headword);
+  return (
+    normalizedSurface === normalizedHeadword &&
+    (STANDALONE_GRAMMAR_PARTICLE_SURFACES.has(normalizedSurface) ||
+      STANDALONE_GRAMMAR_PARTICLE_PHRASES_SET.has(normalizedSurface))
+  );
+}
+
+function isSingleKanaSurfaceFragment(token: MergedToken): boolean {
+  const normalizedSurface = normalizeKana(token.surface);
+  const chars = [...normalizedSurface];
+  return chars.length === 1 && chars.every(isKanaChar);
+}
+
 function isExcludedByTerm(token: MergedToken): boolean {
   const candidates = [token.surface, token.reading, token.headword].filter(
     (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
@@ -318,20 +409,10 @@ function isExcludedByTerm(token: MergedToken): boolean {
     }
 
     if (
-      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES.some((prefix) =>
-        SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_THOUGHT_SUFFIXES.some(
-          (suffix) => normalized === `${prefix}${suffix}`,
-        ),
-      )
-    ) {
-      return true;
-    }
-
-    if (
       SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(trimmed) ||
       SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(normalized) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(trimmed) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(normalized) ||
+      isSubtitleGrammarEndingText(trimmed) ||
+      isSubtitleGrammarEndingText(normalized) ||
       shouldIgnoreJlptByTerm(trimmed) ||
       shouldIgnoreJlptByTerm(normalized)
     ) {
@@ -388,8 +469,32 @@ export function shouldExcludeTokenFromSubtitleAnnotations(
     return true;
   }
 
+  if (isStandaloneAuxiliaryInflectionFragment(token)) {
+    return true;
+  }
+
+  if (isAuxiliaryOnlyHelperSpan(token)) {
+    return true;
+  }
+
+  if (isStandaloneSuruTeGrammarHelper(token)) {
+    return true;
+  }
+
+  if (isStandaloneGrammarParticle(token)) {
+    return true;
+  }
+
+  if (isSingleKanaSurfaceFragment(token)) {
+    return true;
+  }
+
   if (isExcludedTrailingParticleMergedToken(token)) {
     return true;
+  }
+
+  if (isLexicalKureruVerb(token)) {
+    return false;
   }
 
   return isExcludedByTerm(token);
@@ -405,7 +510,6 @@ export function stripSubtitleAnnotationMetadata(
 
   return {
     ...token,
-    isKnown: false,
     isNPlusOneTarget: false,
     isNameMatch: false,
     jlptLevel: undefined,

@@ -243,6 +243,7 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
 }
 
 export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRow | null {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   return db
     .prepare(
       `
@@ -251,11 +252,26 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
       v.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
       v.anime_id AS animeId,
-      COALESCE(lm.total_sessions, 0) AS totalSessions,
-      COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
-      COALESCE(lm.total_cards, 0) AS totalCards,
-      COALESCE(lm.total_tokens_seen, 0) AS totalTokensSeen,
-      COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
+      CASE
+        WHEN lm.video_id IS NOT NULL THEN COALESCE(lm.total_sessions, 0)
+        ELSE COUNT(DISTINCT s.session_id)
+      END AS totalSessions,
+      CASE
+        WHEN lm.video_id IS NOT NULL THEN COALESCE(lm.total_active_ms, 0)
+        ELSE COALESCE(SUM(COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0)), 0)
+      END AS totalActiveMs,
+      CASE
+        WHEN lm.video_id IS NOT NULL THEN COALESCE(lm.total_cards, 0)
+        ELSE COALESCE(SUM(COALESCE(asm.cardsMined, s.cards_mined, 0)), 0)
+      END AS totalCards,
+      CASE
+        WHEN lm.video_id IS NOT NULL THEN COALESCE(lm.total_tokens_seen, 0)
+        ELSE COALESCE(SUM(${wordsExpr}), 0)
+      END AS totalTokensSeen,
+      CASE
+        WHEN lm.video_id IS NOT NULL THEN COALESCE(lm.total_lines_seen, 0)
+        ELSE COALESCE(SUM(COALESCE(asm.linesSeen, s.lines_seen, 0)), 0)
+      END AS totalLinesSeen,
       COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
       COALESCE(SUM(COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount,
@@ -271,11 +287,13 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
       yv.uploader_url AS uploaderUrl,
       yv.description AS description
     FROM imm_videos v
-    JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
+    LEFT JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
     LEFT JOIN imm_youtube_videos yv ON yv.video_id = v.video_id
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
+    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE v.video_id = ?
+      AND (lm.video_id IS NOT NULL OR s.session_id IS NOT NULL)
     GROUP BY v.video_id
   `,
     )

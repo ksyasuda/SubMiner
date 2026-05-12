@@ -533,7 +533,7 @@ test('requestYomitanTermFrequencies caches repeated term+reading lookups', async
   assert.equal(frequencyCalls, 1);
 });
 
-test('requestYomitanScanTokens uses left-to-right termsFind scanning instead of parseText', async () => {
+test('requestYomitanScanTokens prefers parseText tokenization over termsFind fragments', async () => {
   const scripts: string[] = [];
   const deps = createDeps(async (script) => {
     scripts.push(script);
@@ -548,6 +548,138 @@ test('requestYomitanScanTokens uses left-to-right termsFind scanning instead of 
           },
         ],
       };
+    }
+    if (script.includes('parseText')) {
+      return [
+        {
+          source: 'scanning-parser',
+          index: 0,
+          content: [
+            [
+              {
+                text: '取り組んで',
+                reading: 'とりくんで',
+                headwords: [[{ term: '取り組む' }]],
+              },
+            ],
+          ],
+        },
+      ];
+    }
+    return [
+      {
+        surface: '取り',
+        reading: 'とり',
+        headword: '取る',
+        startPos: 0,
+        endPos: 2,
+      },
+      {
+        surface: '組んで',
+        reading: 'くんで',
+        headword: '組む',
+        startPos: 2,
+        endPos: 5,
+      },
+    ];
+  });
+
+  const result = await requestYomitanScanTokens('取り組んで', deps, {
+    error: () => undefined,
+  });
+
+  assert.deepEqual(result, [
+    {
+      surface: '取り組んで',
+      reading: 'とりくんで',
+      headword: '取り組む',
+      startPos: 0,
+      endPos: 5,
+    },
+  ]);
+  assert.ok(scripts.some((script) => script.includes('parseText')));
+  assert.ok(scripts.some((script) => script.includes('termsFind')));
+});
+
+test('requestYomitanScanTokens keeps scanner metadata when parse spans agree', async () => {
+  const deps = createDeps(async (script) => {
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+    if (script.includes('parseText')) {
+      return [
+        {
+          source: 'scanning-parser',
+          index: 0,
+          content: [
+            [
+              {
+                text: 'アクア',
+                reading: 'あくあ',
+                headwords: [[{ term: 'アクア' }]],
+              },
+            ],
+          ],
+        },
+      ];
+    }
+    return [
+      {
+        surface: 'アクア',
+        reading: 'あくあ',
+        headword: 'アクア',
+        startPos: 0,
+        endPos: 3,
+        isNameMatch: true,
+        wordClasses: ['n'],
+      },
+    ];
+  });
+
+  const result = await requestYomitanScanTokens('アクア', deps, {
+    error: () => undefined,
+  });
+
+  assert.deepEqual(result, [
+    {
+      surface: 'アクア',
+      reading: 'あくあ',
+      headword: 'アクア',
+      startPos: 0,
+      endPos: 3,
+      isNameMatch: true,
+      wordClasses: ['n'],
+    },
+  ]);
+});
+
+test('requestYomitanScanTokens falls back to left-to-right termsFind scanning', async () => {
+  const scripts: string[] = [];
+  const deps = createDeps(async (script) => {
+    scripts.push(script);
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+    if (script.includes('parseText')) {
+      return [];
     }
     return [
       {
@@ -573,6 +705,7 @@ test('requestYomitanScanTokens uses left-to-right termsFind scanning instead of 
       endPos: 3,
     },
   ]);
+  assert.ok(scripts.some((script) => script.includes('parseText')));
   const scannerScript = scripts.find((script) => script.includes('termsFind'));
   assert.ok(scannerScript, 'expected termsFind scanning request script');
   assert.doesNotMatch(scannerScript ?? '', /parseText/);
@@ -891,6 +1024,105 @@ test('requestYomitanScanTokens can use frequency from later exact secondary-matc
   ]);
 });
 
+test('requestYomitanScanTokens uses exact frequency entry when selected reading differs', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profileIndex: 0,
+        scanLength: 40,
+        dictionaries: ['JPDBv2㋕', 'Jiten', 'CC100'],
+        dictionaryPriorityByName: {
+          'JPDBv2㋕': 0,
+          Jiten: 1,
+          CC100: 2,
+        },
+        dictionaryFrequencyModeByName: {
+          'JPDBv2㋕': 'rank-based',
+          Jiten: 'rank-based',
+          CC100: 'rank-based',
+        },
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [
+                { name: 'JPDBv2㋕', enabled: true, id: 0 },
+                { name: 'Jiten', enabled: true, id: 1 },
+                { name: 'CC100', enabled: true, id: 2 },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens('第二走者', deps, {
+    error: () => undefined,
+  });
+
+  const result = (await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (!text.startsWith('第二')) {
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    }
+
+    return {
+      originalTextLength: 2,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: '第二',
+              reading: 'だいに',
+              sources: [{ originalText: '第二', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+          frequencies: [],
+        },
+        {
+          headwords: [
+            {
+              term: '第二',
+              reading: '',
+              sources: [{ originalText: '第二', isPrimary: false, matchType: 'exact' }],
+            },
+          ],
+          frequencies: [
+            {
+              headwordIndex: 0,
+              dictionary: 'JPDBv2㋕',
+              frequency: 189513,
+              displayValue: '1820,189513句',
+            },
+          ],
+        },
+      ],
+    };
+  })) as Array<Record<string, unknown>>;
+
+  assert.deepEqual(result?.[0], {
+    surface: '第二',
+    reading: 'だいに',
+    headword: '第二',
+    startPos: 0,
+    endPos: 2,
+    isNameMatch: false,
+    frequencyRank: 1820,
+  });
+});
+
 test('requestYomitanScanTokens marks tokens backed by SubMiner character dictionary entries', async () => {
   const deps = createDeps(async (script) => {
     if (script.includes('optionsGetFull')) {
@@ -1047,6 +1279,60 @@ test('requestYomitanScanTokens marks grouped entries when SubMiner dictionary al
   assert.equal((result as Array<{ startPos?: number }>)[0]?.startPos, 0);
   assert.equal((result as Array<{ endPos?: number }>)[0]?.endPos, 3);
   assert.equal((result as Array<{ isNameMatch?: boolean }>)[0]?.isNameMatch, true);
+});
+
+test('requestYomitanScanTokens preserves matched headword word classes', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens('は', deps, { error: () => undefined });
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+
+    const text = (params as { text?: string } | undefined)?.text;
+    if (text !== 'は') {
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    }
+
+    return {
+      originalTextLength: 1,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: 'は',
+              reading: 'は',
+              wordClasses: ['prt'],
+              sources: [{ originalText: 'は', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  assert.deepEqual((result as Array<{ wordClasses?: string[] }>)[0]?.wordClasses, ['prt']);
 });
 
 test('requestYomitanScanTokens skips fallback fragments without exact primary source matches', async () => {

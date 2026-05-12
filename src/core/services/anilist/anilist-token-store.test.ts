@@ -38,6 +38,24 @@ function createPassthroughStorage(): SafeStorageLike {
   };
 }
 
+function createTransientUnavailableStorage(): SafeStorageLike & {
+  setAvailable: (next: boolean) => void;
+} {
+  let available = false;
+  return {
+    isEncryptionAvailable: () => available,
+    encryptString: (value: string) => Buffer.from(`enc:${value}`, 'utf-8'),
+    decryptString: (value: Buffer) => {
+      const raw = value.toString('utf-8');
+      return raw.startsWith('enc:') ? raw.slice(4) : raw;
+    },
+    getSelectedStorageBackend: () => (available ? 'gnome_libsecret' : 'unknown'),
+    setAvailable(next: boolean) {
+      available = next;
+    },
+  } as SafeStorageLike & { setAvailable: (next: boolean) => void };
+}
+
 test('anilist token store saves and loads encrypted token', () => {
   const filePath = createTempTokenFile();
   const store = createAnilistTokenStore(filePath, createLogger(), createStorage(true));
@@ -59,6 +77,27 @@ test('anilist token store refuses to persist token when encryption unavailable',
 
   assert.equal(fs.existsSync(filePath), false);
   assert.equal(store.loadToken(), null);
+});
+
+test('anilist token store retries safeStorage after transient encryption unavailability', () => {
+  const filePath = createTempTokenFile();
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify({
+      encryptedToken: Buffer.from('enc:stored-token', 'utf-8').toString('base64'),
+      updatedAt: Date.now(),
+    }),
+    'utf-8',
+  );
+  const storage = createTransientUnavailableStorage();
+  const store = createAnilistTokenStore(filePath, createLogger(), storage);
+
+  assert.equal(store.loadToken(), null);
+  storage.setAvailable(true);
+
+  assert.equal(store.loadToken(), 'stored-token');
+  assert.equal(store.saveToken('new-token'), true);
+  assert.equal(store.loadToken(), 'new-token');
 });
 
 test('anilist token store migrates legacy plaintext to encrypted', () => {

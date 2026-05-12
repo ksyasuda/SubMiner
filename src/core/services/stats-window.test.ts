@@ -4,6 +4,7 @@ import {
   buildStatsWindowLoadFileOptions,
   buildStatsWindowOptions,
   promoteStatsWindowLevel,
+  resolveStatsWindowOuterBoundsForContent,
   shouldHideStatsWindowForInput,
 } from './stats-window-runtime';
 
@@ -18,12 +19,14 @@ test('buildStatsWindowOptions uses tracked overlay bounds and preload-friendly w
     },
   });
 
+  assert.equal(options.title, 'SubMiner Stats');
   assert.equal(options.x, 120);
   assert.equal(options.y, 80);
   assert.equal(options.width, 1440);
   assert.equal(options.height, 900);
   assert.equal(options.frame, false);
-  assert.equal(options.transparent, true);
+  assert.equal(options.transparent, false);
+  assert.equal(options.backgroundColor, '#24273a');
   assert.equal(options.resizable, false);
   assert.equal(options.webPreferences?.preload, '/tmp/preload-stats.js');
   assert.equal(options.webPreferences?.contextIsolation, true);
@@ -149,6 +152,33 @@ test('buildStatsWindowLoadFileOptions includes provided stats API base URL', () 
       apiBase: 'http://127.0.0.1:6123',
     },
   });
+});
+
+test('resolveStatsWindowOuterBoundsForContent compensates for Wayland content insets', () => {
+  assert.deepEqual(
+    resolveStatsWindowOuterBoundsForContent(
+      {
+        getBounds: () => ({ x: 0, y: 0, width: 3440, height: 1440 }),
+        getContentBounds: () => ({ x: 0, y: 14, width: 3440, height: 1426 }),
+      },
+      { x: 0, y: 0, width: 3440, height: 1440 },
+    ),
+    { x: 0, y: -14, width: 3440, height: 1454 },
+  );
+});
+
+test('resolveStatsWindowOuterBoundsForContent ignores invalid inset geometry', () => {
+  const target = { x: 0, y: 0, width: 3440, height: 1440 };
+  assert.deepEqual(
+    resolveStatsWindowOuterBoundsForContent(
+      {
+        getBounds: () => ({ x: 0, y: 0, width: 3440, height: 1440 }),
+        getContentBounds: () => ({ x: -1, y: 0, width: 3440, height: 1440 }),
+      },
+      target,
+    ),
+    target,
+  );
 });
 
 test('promoteStatsWindowLevel raises stats above overlay level on macOS', () => {

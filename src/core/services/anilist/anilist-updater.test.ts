@@ -22,6 +22,44 @@ test('guessAnilistMediaInfo uses guessit output when available', async () => {
   });
 });
 
+test('guessAnilistMediaInfo fills missing guessit episode from filename parser', async () => {
+  const result = await guessAnilistMediaInfo('/tmp/Guessit Title S01E09.mkv', null, {
+    runGuessit: async () => JSON.stringify({ title: 'Guessit Title' }),
+  });
+  assert.deepEqual(result, {
+    title: 'Guessit Title',
+    season: 1,
+    episode: 9,
+    source: 'guessit',
+  });
+});
+
+test('guessAnilistMediaInfo ignores low-confidence parser details when guessit omits them', async () => {
+  const result = await guessAnilistMediaInfo('/tmp/Season 2/Guessit Title.mkv', null, {
+    runGuessit: async () => JSON.stringify({ title: 'Guessit Title' }),
+  });
+  assert.deepEqual(result, {
+    title: 'Guessit Title',
+    season: null,
+    episode: null,
+    source: 'guessit',
+  });
+});
+
+test('guessAnilistMediaInfo parses Little Witch Academia release filename', async () => {
+  const filename =
+    '/tmp/Little Witch Academia (2017) - S01E02 - 002 - Papiliodia [Bluray-1080p][10bit][h265][AC3 2.0][JA].mkv';
+  const result = await guessAnilistMediaInfo(filename, null, {
+    runGuessit: async () => JSON.stringify({ title: 'Little Witch Academia' }),
+  });
+  assert.deepEqual(result, {
+    title: 'Little Witch Academia',
+    season: 1,
+    episode: 2,
+    source: 'guessit',
+  });
+});
+
 test('guessAnilistMediaInfo falls back to parser when guessit fails', async () => {
   const result = await guessAnilistMediaInfo('/tmp/My Anime S01E03.mkv', null, {
     runGuessit: async () => {
@@ -54,7 +92,7 @@ test('guessAnilistMediaInfo uses basename for guessit input', async () => {
   ]);
   assert.deepEqual(result, {
     title: 'Rascal Does Not Dream of Bunny Girl Senpai',
-    season: null,
+    season: 1,
     episode: 1,
     source: 'guessit',
   });

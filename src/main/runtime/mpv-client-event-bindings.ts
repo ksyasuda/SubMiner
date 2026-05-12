@@ -11,6 +11,7 @@ type MpvBindingEventName =
   | 'time-pos-change'
   | 'duration-change'
   | 'pause-change'
+  | 'fullscreen-change'
   | 'subtitle-metrics-change'
   | 'secondary-subtitle-visibility';
 
@@ -83,6 +84,7 @@ export function createBindMpvClientEventHandlers(deps: {
   onTimePosChange: (payload: { time: number }) => void;
   onDurationChange: (payload: { duration: number }) => void;
   onPauseChange: (payload: { paused: boolean }) => void;
+  onFullscreenChange: (payload: { fullscreen: boolean }) => void;
   onSubtitleMetricsChange: (payload: { patch: Record<string, unknown> }) => void;
   onSecondarySubtitleVisibility: (payload: { visible: boolean }) => void;
 }) {
@@ -99,6 +101,7 @@ export function createBindMpvClientEventHandlers(deps: {
     mpvClient.on('time-pos-change', deps.onTimePosChange);
     mpvClient.on('duration-change', deps.onDurationChange);
     mpvClient.on('pause-change', deps.onPauseChange);
+    mpvClient.on('fullscreen-change', deps.onFullscreenChange);
     mpvClient.on('subtitle-metrics-change', deps.onSubtitleMetricsChange);
     mpvClient.on('secondary-subtitle-visibility', deps.onSecondarySubtitleVisibility);
   };

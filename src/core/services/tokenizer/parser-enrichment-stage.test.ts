@@ -39,6 +39,33 @@ test('enrichTokensWithMecabPos1 fills missing pos1 using surface-sequence fallba
   assert.equal(enriched[0]?.pos1, '助詞');
 });
 
+test('enrichTokensWithMecabPos1 backfills blank pos2 and pos3 fields', () => {
+  const tokens = [
+    makeToken({
+      surface: 'は',
+      startPos: 0,
+      endPos: 1,
+      pos1: '助詞',
+      pos2: '',
+      pos3: ' ',
+    }),
+  ];
+  const mecabTokens = [
+    makeToken({
+      surface: 'は',
+      startPos: 0,
+      endPos: 1,
+      pos1: '助詞',
+      pos2: '係助詞',
+      pos3: '一般',
+    }),
+  ];
+
+  const enriched = enrichTokensWithMecabPos1(tokens, mecabTokens);
+  assert.equal(enriched[0]?.pos2, '係助詞');
+  assert.equal(enriched[0]?.pos3, '一般');
+});
+
 test('enrichTokensWithMecabPos1 keeps partOfSpeech unchanged and only enriches POS tags', () => {
   const tokens = [makeToken({ surface: 'これは', startPos: 0, endPos: 3 })];
   const mecabTokens = [

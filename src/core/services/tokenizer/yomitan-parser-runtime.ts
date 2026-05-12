@@ -53,6 +53,7 @@ export interface YomitanScanToken {
   endPos: number;
   isNameMatch?: boolean;
   frequencyRank?: number;
+  wordClasses?: string[];
 }
 
 interface YomitanProfileMetadata {
@@ -91,9 +92,28 @@ function isScanTokenArray(value: unknown): value is YomitanScanToken[] {
         typeof entry.startPos === 'number' &&
         typeof entry.endPos === 'number' &&
         (entry.isNameMatch === undefined || typeof entry.isNameMatch === 'boolean') &&
-        (entry.frequencyRank === undefined || typeof entry.frequencyRank === 'number'),
+        (entry.frequencyRank === undefined || typeof entry.frequencyRank === 'number') &&
+        (entry.wordClasses === undefined ||
+          (Array.isArray(entry.wordClasses) &&
+            entry.wordClasses.every((wordClass) => typeof wordClass === 'string'))),
     )
   );
+}
+
+function hasSameTokenSpans(left: YomitanScanToken[], right: YomitanScanToken[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((token, index) => {
+    const other = right[index];
+    return (
+      other !== undefined &&
+      token.surface === other.surface &&
+      token.startPos === other.startPos &&
+      token.endPos === other.endPos
+    );
+  });
 }
 
 function makeTermReadingCacheKey(term: string, reading: string | null): string {
@@ -956,6 +976,9 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
         const matchReading = typeof match.headword?.reading === 'string' ? match.headword.reading : '';
         const preferredReading =
           typeof preferredMatch.headword?.reading === 'string' ? preferredMatch.headword.reading : '';
+        if (!matchReading || !preferredReading) {
+          return true;
+        }
         return matchReading === preferredReading;
       }
       function getBestFrequencyRankForMatches(matches, dictionaryPriorityByName, dictionaryFrequencyModeByName) {
@@ -975,6 +998,11 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
         return best;
       }
       function getPreferredHeadword(dictionaryEntries, token, dictionaryPriorityByName, dictionaryFrequencyModeByName) {
+        function normalizeWordClasses(headword) {
+          if (!Array.isArray(headword?.wordClasses)) { return undefined; }
+          const classes = headword.wordClasses.filter((wordClass) => typeof wordClass === "string" && wordClass.trim().length > 0);
+          return classes.length > 0 ? classes : undefined;
+        }
         function appendDictionaryNames(target, value) {
           if (!value || typeof value !== 'object') {
             return;
@@ -1033,6 +1061,7 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
           return {
             term: preferredMatch.headword.term,
             reading: preferredMatch.headword.reading,
+            wordClasses: normalizeWordClasses(preferredMatch.headword),
             isNameMatch: matchedNameDictionary || isNameDictionaryEntry(preferredMatch.dictionaryEntry),
             frequencyRank: getBestFrequencyRankForMatches(
               exactFrequencyMatches.length > 0 ? exactFrequencyMatches : exactPrimaryMatches,
@@ -1099,7 +1128,7 @@ ${YOMITAN_SCANNING_HELPERS}
           if (preferredHeadword && typeof preferredHeadword.term === "string") {
             const reading = typeof preferredHeadword.reading === "string" ? preferredHeadword.reading : "";
             const segments = distributeFuriganaInflected(preferredHeadword.term, reading, source);
-            tokens.push({
+            const tokenPayload = {
               surface: segments.map((segment) => segment.text).join("") || source,
               reading: segments.map((segment) => typeof segment.reading === "string" ? segment.reading : "").join(""),
               headword: preferredHeadword.term,
@@ -1110,7 +1139,11 @@ ${YOMITAN_SCANNING_HELPERS}
                 typeof preferredHeadword.frequencyRank === "number" && Number.isFinite(preferredHeadword.frequencyRank)
                   ? Math.max(1, Math.floor(preferredHeadword.frequencyRank))
                   : undefined,
-            });
+            };
+            if (Array.isArray(preferredHeadword.wordClasses) && preferredHeadword.wordClasses.length > 0) {
+              tokenPayload.wordClasses = preferredHeadword.wordClasses;
+            }
+            tokens.push(tokenPayload);
             i += originalTextLength;
             continue;
           }
@@ -1235,6 +1268,17 @@ export async function requestYomitanScanTokens(
     return null;
   }
 
+  const parseResults = await requestYomitanParseResults(text, deps, logger);
+  const selectedParseTokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  const parseScanTokens =
+    selectedParseTokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+      startPos: token.startPos,
+      endPos: token.endPos,
+    })) ?? null;
+
   const metadata = await requestYomitanProfileMetadata(parserWindow, logger);
   const profileIndex = metadata?.profileIndex ?? 0;
   const scanLength = metadata?.scanLength ?? DEFAULT_YOMITAN_SCAN_LENGTH;
@@ -1252,6 +1296,9 @@ export async function requestYomitanScanTokens(
       true,
     );
     if (isScanTokenArray(rawResult)) {
+      if (parseScanTokens && parseScanTokens.length > 0) {
+        return hasSameTokenSpans(parseScanTokens, rawResult) ? rawResult : parseScanTokens;
+      }
       return rawResult;
     }
     if (Array.isArray(rawResult)) {
@@ -1266,8 +1313,14 @@ export async function requestYomitanScanTokens(
         })) ?? null
       );
     }
+    if (parseScanTokens && parseScanTokens.length > 0) {
+      return parseScanTokens;
+    }
     return null;
   } catch (err) {
+    if (parseScanTokens && parseScanTokens.length > 0) {
+      return parseScanTokens;
+    }
     logger.error('Yomitan scanner request failed:', (err as Error).message);
     return null;
   }

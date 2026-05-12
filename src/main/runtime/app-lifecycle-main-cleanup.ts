@@ -26,6 +26,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   stopSubtitleWebsocket: () => void;
   stopTexthookerService: () => void;
   clearWindowsVisibleOverlayForegroundPollLoop: () => void;
+  clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => void;
   getMainOverlayWindow: () => DestroyableWindow | null;
   clearMainOverlayWindow: () => void;
   getModalOverlayWindow: () => DestroyableWindow | null;
@@ -67,6 +68,8 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     stopTexthookerService: () => deps.stopTexthookerService(),
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       deps.clearWindowsVisibleOverlayForegroundPollLoop(),
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () =>
+      deps.clearLinuxMpvFullscreenOverlayRefreshTimeouts(),
     destroyMainOverlayWindow: () => {
       const window = deps.getMainOverlayWindow();
       if (!window) return;

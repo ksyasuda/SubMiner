@@ -302,6 +302,86 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
   assert.equal(deps.getPlaybackPaused(), true);
 });
 
+test('registerIpcHandlers runs AniList update after manual mark watched succeeds', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: string[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      immersionTracker: createFakeImmersionTracker({
+        markActiveVideoWatched: async () => {
+          calls.push('mark');
+          return true;
+        },
+      }),
+      runAnilistPostWatchUpdateOnManualMark: async () => {
+        calls.push('anilist');
+      },
+    }),
+    registrar,
+  );
+
+  const result = await handlers.handle.get(IPC_CHANNELS.command.markActiveVideoWatched)?.({});
+
+  assert.equal(result, true);
+  assert.deepEqual(calls, ['mark', 'anilist']);
+});
+
+test('registerIpcHandlers isolates AniList update failures after manual mark watched succeeds', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: string[] = [];
+  const originalWarn = console.warn;
+  console.warn = () => undefined;
+
+  try {
+    registerIpcHandlers(
+      createRegisterIpcDeps({
+        immersionTracker: createFakeImmersionTracker({
+          markActiveVideoWatched: async () => {
+            calls.push('mark');
+            return true;
+          },
+        }),
+        runAnilistPostWatchUpdateOnManualMark: async () => {
+          calls.push('anilist');
+          throw new Error('post-watch failed');
+        },
+      }),
+      registrar,
+    );
+
+    const result = await handlers.handle.get(IPC_CHANNELS.command.markActiveVideoWatched)?.({});
+
+    assert.equal(result, true);
+    assert.deepEqual(calls, ['mark', 'anilist']);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('registerIpcHandlers skips AniList update when manual mark watched has no active session', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: string[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      immersionTracker: createFakeImmersionTracker({
+        markActiveVideoWatched: async () => {
+          calls.push('mark');
+          return false;
+        },
+      }),
+      runAnilistPostWatchUpdateOnManualMark: async () => {
+        calls.push('anilist');
+      },
+    }),
+    registrar,
+  );
+
+  const result = await handlers.handle.get(IPC_CHANNELS.command.markActiveVideoWatched)?.({});
+
+  assert.equal(result, false);
+  assert.deepEqual(calls, ['mark']);
+});
+
 test('registerIpcHandlers exposes playlist browser snapshot and mutations', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const calls: Array<[string, unknown[]]> = [];

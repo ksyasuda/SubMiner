@@ -57,6 +57,22 @@ test('MpvIpcClient handles sub-text property change and broadcasts tokenized sub
   assert.equal(events[0]!.isOverlayVisible, false);
 });
 
+test('MpvIpcClient emits fullscreen property changes', async () => {
+  const events: Array<{ fullscreen: boolean }> = [];
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  client.on('fullscreen-change', (payload) => {
+    events.push(payload);
+  });
+
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'fullscreen',
+    data: true,
+  });
+
+  assert.deepEqual(events, [{ fullscreen: true }]);
+});
+
 test('MpvIpcClient clears cached media title when media path changes', async () => {
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
 
@@ -473,7 +489,7 @@ test('MpvIpcClient updates current audio stream index from track list', async ()
   assert.equal(client.currentAudioStreamIndex, 11);
 });
 
-test('MpvIpcClient playNextSubtitle preserves a manual paused state', async () => {
+test('MpvIpcClient playNextSubtitle starts playback from paused state and auto-pauses at end', async () => {
   const commands: unknown[] = [];
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
   (client as any).send = (payload: unknown) => {
@@ -491,9 +507,29 @@ test('MpvIpcClient playNextSubtitle preserves a manual paused state', async () =
 
   client.playNextSubtitle();
 
-  assert.equal((client as any).pendingPauseAtSubEnd, false);
+  assert.equal((client as any).pendingPauseAtSubEnd, true);
   assert.equal((client as any).pauseAtTime, null);
-  assert.deepEqual(commands, [{ command: ['sub-seek', 1] }]);
+  assert.deepEqual(commands, [
+    { command: ['sub-seek', 1] },
+    { command: ['set_property', 'pause', false] },
+  ]);
+});
+
+test('MpvIpcClient playNextSubtitle starts playback when pause state is unknown', () => {
+  const commands: unknown[] = [];
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  (client as any).send = (payload: unknown) => {
+    commands.push(payload);
+    return true;
+  };
+
+  client.playNextSubtitle();
+
+  assert.equal((client as any).pendingPauseAtSubEnd, true);
+  assert.deepEqual(commands, [
+    { command: ['sub-seek', 1] },
+    { command: ['set_property', 'pause', false] },
+  ]);
 });
 
 test('MpvIpcClient playNextSubtitle still auto-pauses at end while already playing', async () => {

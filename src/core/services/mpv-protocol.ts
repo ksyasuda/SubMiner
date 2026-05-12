@@ -65,6 +65,7 @@ export interface MpvProtocolHandleMessageDeps {
   emitTimePosChange: (payload: { time: number }) => void;
   emitDurationChange: (payload: { duration: number }) => void;
   emitPauseChange: (payload: { paused: boolean }) => void;
+  emitFullscreenChange: (payload: { fullscreen: boolean }) => void;
   emitSubtitleMetricsChange: (payload: Partial<MpvSubtitleRenderMetrics>) => void;
   setCurrentSecondarySubText: (text: string) => void;
   resolvePendingRequest: (requestId: number, message: MpvMessage) => boolean;
@@ -275,8 +276,9 @@ export async function dispatchMpvProtocolMessage(
       deps.setCurrentAudioTrackId(typeof msg.data === 'number' ? (msg.data as number) : null);
       deps.syncCurrentAudioStreamIndex();
     } else if (msg.name === 'time-pos') {
-      deps.emitTimePosChange({ time: (msg.data as number) || 0 });
-      deps.setCurrentTimePos((msg.data as number) || 0);
+      const timePos = (msg.data as number) || 0;
+      deps.setCurrentTimePos(timePos);
+      deps.emitTimePosChange({ time: timePos });
       if (
         deps.getPauseAtTime() !== null &&
         deps.getCurrentTimePos() >= (deps.getPauseAtTime() as number)
@@ -291,6 +293,8 @@ export async function dispatchMpvProtocolMessage(
       }
     } else if (msg.name === 'pause') {
       deps.emitPauseChange({ paused: asBoolean(msg.data, false) });
+    } else if (msg.name === 'fullscreen') {
+      deps.emitFullscreenChange({ fullscreen: asBoolean(msg.data, false) });
     } else if (msg.name === 'media-title') {
       deps.emitMediaTitleChange({
         title: typeof msg.data === 'string' ? msg.data.trim() : null,

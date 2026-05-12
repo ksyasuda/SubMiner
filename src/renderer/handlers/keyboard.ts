@@ -176,13 +176,17 @@ export function createKeyboardHandlers(
       return true;
     }
 
-    if (!/^[1-9]$/.test(e.key) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) {
+    const digit = /^[1-9]$/.test(e.key)
+      ? e.key
+      : (e.code.match(/^(?:Digit|Numpad)([1-9])$/)?.[1] ?? null);
+
+    if (!digit) {
       e.preventDefault();
       return true;
     }
 
     e.preventDefault();
-    const count = Number(e.key);
+    const count = Number(digit);
     const actionId = pendingNumericSelection.actionId;
     cancelPendingNumericSelection(false);
     void window.electronAPI.dispatchSessionAction(actionId, { count });

@@ -96,16 +96,30 @@ function M.create(ctx)
 			return nil
 		end
 
+		local shifted_letter = key.code:match("^Key([A-Z])$")
+		local has_shift = false
+		for _, modifier in ipairs(key.modifiers) do
+			if modifier == "shift" then
+				has_shift = true
+				break
+			end
+		end
+
 		local key_name = key_code_to_mpv_name(key.code)
+		if shifted_letter and has_shift then
+			key_name = shifted_letter
+		end
 		if not key_name then
 			return nil
 		end
 
 		local parts = {}
 		for _, modifier in ipairs(key.modifiers) do
-			local mapped = MODIFIER_MAP[modifier]
-			if mapped then
-				parts[#parts + 1] = mapped
+			if not (modifier == "shift" and shifted_letter) then
+				local mapped = MODIFIER_MAP[modifier]
+				if mapped then
+					parts[#parts + 1] = mapped
+				end
 			end
 		end
 		parts[#parts + 1] = key_name
@@ -145,6 +159,8 @@ function M.create(ctx)
 			return { "--open-youtube-picker" }
 		elseif action_id == "openSessionHelp" then
 			return { "--open-session-help" }
+		elseif action_id == "openCharacterDictionary" then
+			return { "--open-character-dictionary" }
 		elseif action_id == "openControllerSelect" then
 			return { "--open-controller-select" }
 		elseif action_id == "openControllerDebug" then
@@ -225,16 +241,39 @@ function M.create(ctx)
 		end
 	end
 
-	local function start_numeric_selection(action_id, timeout_ms)
+	local function build_modifier_prefixes(modifiers)
+		local prefixes = { "" }
+		if type(modifiers) ~= "table" then
+			return prefixes
+		end
+
+		for _, modifier in ipairs(modifiers) do
+			local mapped = MODIFIER_MAP[modifier]
+			if mapped then
+				local existing_count = #prefixes
+				for index = 1, existing_count do
+					prefixes[#prefixes + 1] = prefixes[index] .. mapped .. "+"
+				end
+			end
+		end
+		return prefixes
+	end
+
+	local function start_numeric_selection(action_id, timeout_ms, starter_modifiers)
 		clear_numeric_selection(false)
+		local modifier_prefixes = build_modifier_prefixes(starter_modifiers)
 		for digit = 1, 9 do
 			local digit_string = tostring(digit)
-			local name = "subminer-session-digit-" .. digit_string
-			state.session_numeric_binding_names[#state.session_numeric_binding_names + 1] = name
-			mp.add_forced_key_binding(digit_string, name, function()
-				clear_numeric_selection(false)
-				invoke_cli_action(action_id, { count = digit })
-			end)
+			for _, prefix in ipairs(modifier_prefixes) do
+				local key_name = prefix .. digit_string
+				local modifier_name = prefix:gsub("[^%w]", "-")
+				local name = "subminer-session-digit-" .. modifier_name .. digit_string
+				state.session_numeric_binding_names[#state.session_numeric_binding_names + 1] = name
+				mp.add_forced_key_binding(key_name, name, function()
+					clear_numeric_selection(false)
+					invoke_cli_action(action_id, { count = digit })
+				end)
+			end
 		end
 
 		state.session_numeric_binding_names[#state.session_numeric_binding_names + 1] =
@@ -272,7 +311,7 @@ function M.create(ctx)
 		end
 
 		if binding.actionId == "copySubtitleMultiple" or binding.actionId == "mineSentenceMultiple" then
-			start_numeric_selection(binding.actionId, numeric_selection_timeout_ms)
+			start_numeric_selection(binding.actionId, numeric_selection_timeout_ms, binding.key.modifiers)
 			return
 		end
 

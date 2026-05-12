@@ -20,6 +20,7 @@ import * as net from 'net';
 import { execSync } from 'child_process';
 import { BaseWindowTracker } from './base-tracker';
 import { createLogger } from '../logger';
+import type { WindowGeometry } from '../types';
 
 const log = createLogger('tracker').child('hyprland');
 
@@ -29,9 +30,20 @@ export interface HyprlandClient {
   initialClass?: string;
   at: [number, number];
   size: [number, number];
+  monitor?: number;
+  fullscreen?: number;
+  fullscreenClient?: number;
   pid?: number;
   mapped?: boolean;
   hidden?: boolean;
+}
+
+export interface HyprlandMonitor {
+  id: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 interface SelectHyprlandMpvWindowOptions {
@@ -124,7 +136,12 @@ export function parseHyprctlClients(output: string): HyprlandClient[] | null {
     return null;
   }
 
-  const parsed = JSON.parse(jsonPayload) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonPayload) as unknown;
+  } catch {
+    return null;
+  }
   if (!Array.isArray(parsed)) {
     return null;
   }
@@ -132,8 +149,76 @@ export function parseHyprctlClients(output: string): HyprlandClient[] | null {
   return parsed as HyprlandClient[];
 }
 
+export function parseHyprctlMonitors(output: string): HyprlandMonitor[] | null {
+  const jsonPayload = extractHyprctlJsonPayload(output);
+  if (!jsonPayload) {
+    return null;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonPayload) as unknown;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed)) {
+    return null;
+  }
+
+  return parsed as HyprlandMonitor[];
+}
+
+function isHyprlandFullscreenClient(client: HyprlandClient): boolean {
+  return (client.fullscreen ?? 0) > 0 || (client.fullscreenClient ?? 0) > 0;
+}
+
+export function resolveHyprlandWindowGeometry(
+  client: HyprlandClient,
+  monitors: HyprlandMonitor[] | null,
+): WindowGeometry {
+  if (isHyprlandFullscreenClient(client) && typeof client.monitor === 'number') {
+    const monitor = monitors?.find((candidate) => candidate.id === client.monitor);
+    if (monitor) {
+      return {
+        x: monitor.x,
+        y: monitor.y,
+        width: monitor.width,
+        height: monitor.height,
+      };
+    }
+  }
+
+  return {
+    x: client.at[0],
+    y: client.at[1],
+    width: client.size[0],
+    height: client.size[1],
+  };
+}
+
+export function isHyprlandGeometryEvent(name: string): boolean {
+  return (
+    name === 'movewindow' ||
+    name === 'movewindowv2' ||
+    name === 'resizewindow' ||
+    name === 'resizewindowv2' ||
+    name === 'openwindow' ||
+    name === 'closewindow' ||
+    name === 'fullscreen' ||
+    name === 'fullscreenv2' ||
+    name === 'changefloatingmode' ||
+    name === 'workspace' ||
+    name === 'workspacev2' ||
+    name === 'focusedmon' ||
+    name === 'monitoradded' ||
+    name === 'monitoraddedv2' ||
+    name === 'monitorremoved'
+  );
+}
+
 export class HyprlandWindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private pollTimeouts: Array<ReturnType<typeof setTimeout>> = [];
   private eventSocket: net.Socket | null = null;
   private readonly targetMpvSocketPath: string | null;
   private activeWindowAddress: string | null = null;
@@ -154,6 +239,10 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
+    for (const timeout of this.pollTimeouts) {
+      clearTimeout(timeout);
+    }
+    this.pollTimeouts = [];
     if (this.eventSocket) {
       this.eventSocket.destroy();
       this.eventSocket = null;
@@ -200,6 +289,9 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
     }
 
     const [name, rawData = ''] = trimmedEvent.split('>>', 2);
+    if (!name) {
+      return;
+    }
     const data = rawData.trim();
 
     if (name === 'activewindowv2') {
@@ -212,17 +304,24 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
       this.activeWindowAddress = null;
     }
 
-    if (
-      name === 'movewindow' ||
-      name === 'movewindowv2' ||
-      name === 'windowtitle' ||
-      name === 'windowtitlev2' ||
-      name === 'openwindow' ||
-      name === 'closewindow' ||
-      name === 'fullscreen' ||
-      name === 'changefloatingmode'
-    ) {
-      this.pollGeometry();
+    if (isHyprlandGeometryEvent(name)) {
+      this.scheduleGeometryPollBurst();
+    }
+  }
+
+  private scheduleGeometryPollBurst(): void {
+    for (const timeout of this.pollTimeouts) {
+      clearTimeout(timeout);
+    }
+    this.pollTimeouts = [0, 50, 150, 300].map((delayMs) => {
+      const pollTimeout = setTimeout(() => {
+        this.pollTimeouts = this.pollTimeouts.filter((timeout) => timeout !== pollTimeout);
+        this.pollGeometry();
+      }, delayMs);
+      return pollTimeout;
+    });
+    for (const pollTimeout of this.pollTimeouts) {
+      pollTimeout.unref?.();
     }
   }
 
@@ -237,12 +336,9 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
       const mpvWindow = this.findTargetWindow(clients);
 
       if (mpvWindow) {
-        this.updateGeometry({
-          x: mpvWindow.at[0],
-          y: mpvWindow.at[1],
-          width: mpvWindow.size[0],
-          height: mpvWindow.size[1],
-        });
+        this.updateGeometry(
+          resolveHyprlandWindowGeometry(mpvWindow, this.getHyprlandMonitors(mpvWindow)),
+        );
       } else {
         this.updateGeometry(null);
       }
@@ -257,6 +353,19 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
       activeWindowAddress: this.activeWindowAddress,
       getWindowCommandLine: (pid) => this.getWindowCommandLine(pid),
     });
+  }
+
+  private getHyprlandMonitors(client: HyprlandClient): HyprlandMonitor[] | null {
+    if (!isHyprlandFullscreenClient(client)) {
+      return null;
+    }
+
+    try {
+      const output = execSync('hyprctl -j monitors', { encoding: 'utf-8' });
+      return parseHyprctlMonitors(output);
+    } catch {
+      return null;
+    }
   }
 
   private getWindowCommandLine(pid: number): string | null {

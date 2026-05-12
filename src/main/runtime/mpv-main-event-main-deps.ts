@@ -2,7 +2,11 @@ import type { MergedToken, SubtitleData } from '../../types';
 
 export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   appState: {
-    initialArgs?: { jellyfinPlay?: unknown; youtubePlay?: unknown } | null;
+    initialArgs?: {
+      jellyfinPlay?: unknown;
+      managedPlayback?: unknown;
+      youtubePlay?: unknown;
+    } | null;
     overlayRuntimeInitialized: boolean;
     mpvClient: {
       connected?: boolean;
@@ -60,6 +64,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   resetAnilistMediaGuessState: () => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   onTimePosUpdate?: (time: number) => void;
+  onFullscreenChange?: (fullscreen: boolean) => void;
   updateSubtitleRenderMetrics: (patch: Record<string, unknown>) => void;
   refreshDiscordPresence: () => void;
   ensureImmersionTrackerInitialized: () => void;
@@ -73,15 +78,19 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     deps.ensureImmersionTrackerInitialized();
     deps.appState.immersionTracker?.recordPlaybackPosition?.(normalizedTimeSec);
   };
+  const hasInitialPlaybackQuitOnDisconnectArg = (): boolean =>
+    Boolean(
+      deps.appState.initialArgs?.managedPlayback ||
+      deps.appState.initialArgs?.jellyfinPlay ||
+      deps.appState.initialArgs?.youtubePlay,
+    );
 
   return () => ({
     reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
     syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
-    hasInitialPlaybackQuitOnDisconnectArg: () =>
-      Boolean(deps.appState.initialArgs?.jellyfinPlay || deps.appState.initialArgs?.youtubePlay),
+    hasInitialPlaybackQuitOnDisconnectArg,
     isOverlayRuntimeInitialized: () => deps.appState.overlayRuntimeInitialized,
-    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () =>
-      Boolean(deps.appState.initialArgs?.youtubePlay),
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: hasInitialPlaybackQuitOnDisconnectArg,
     isQuitOnDisconnectArmed: () => deps.getQuitOnDisconnectArmed(),
     scheduleQuitCheck: (callback: () => void) => deps.scheduleQuitCheck(callback),
     isMpvConnected: () => Boolean(deps.appState.mpvClient?.connected),
@@ -175,6 +184,9 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       deps.reportJellyfinRemoteProgress(forceImmediate),
     onTimePosUpdate: deps.onTimePosUpdate
       ? (time: number) => deps.onTimePosUpdate!(time)
+      : undefined,
+    onFullscreenChange: deps.onFullscreenChange
+      ? (fullscreen: boolean) => deps.onFullscreenChange!(fullscreen)
       : undefined,
     recordPauseState: (paused: boolean) => {
       deps.appState.playbackPaused = paused;

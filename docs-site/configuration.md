@@ -537,7 +537,7 @@ See `config.example.jsonc` for detailed configuration options.
     "markAudioCard": "CommandOrControl+Shift+A",
     "openCharacterDictionary": "CommandOrControl+Alt+A",
     "openRuntimeOptions": "CommandOrControl+Shift+O",
-    "openSessionHelp": "CommandOrControl+Shift+H",
+    "openSessionHelp": "CommandOrControl+Slash",
     "openControllerSelect": "Alt+C",
     "openControllerDebug": "Alt+Shift+C",
     "openJimaku": "Ctrl+Shift+J",
@@ -562,7 +562,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `markAudioCard`               | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                                       |
 | `openCharacterDictionary`     | string \| `null` | Opens the character dictionary AniList selector (default: `"CommandOrControl+Alt+A"`)                                                         |
 | `openRuntimeOptions`          | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                           |
-| `openSessionHelp`             | string \| `null` | Opens the in-overlay session help modal (default: `"CommandOrControl+Shift+H"`)                                                               |
+| `openSessionHelp`             | string \| `null` | Opens the in-overlay session help modal (default: `"CommandOrControl+Slash"`)                                                                 |
 | `openControllerSelect`        | string \| `null` | Opens the controller config/remap modal (default: `"Alt+C"`)                                                                                  |
 | `openControllerDebug`         | string \| `null` | Opens the controller debug modal (default: `"Alt+Shift+C"`)                                                                                   |
 | `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                     |
@@ -706,7 +706,7 @@ These shortcuts are only active when the overlay window is visible and automatic
 
 ### Session Help Modal
 
-The session help modal opens from the overlay with `Ctrl/Cmd+Shift+H` by default. The mpv plugin also exposes it through the `Y-H` chord (falling back to `Y-K` if needed). It shows the current session keybindings and color legend.
+The session help modal opens from the overlay with `Ctrl/Cmd+/` by default. The mpv plugin also exposes it through the `Y-H` chord (falling back to `Y-K` if needed). It shows the current session keybindings and color legend.
 
 You can filter the modal quickly with `/`:
 
@@ -893,7 +893,7 @@ This example is intentionally compact. The option table below documents availabl
 | `media.audioPadding`                              | number (seconds)                        | Padding around audio clip timing (default: `0.5`)                                                                                                                                          |
 | `media.fallbackDuration`                          | number (seconds)                        | Default duration if timing unavailable (default: `3.0`)                                                                                                                                    |
 | `media.maxMediaDuration`                          | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                                                                                      |
-| `behavior.overwriteAudio`                         | `true`, `false`                         | Replace existing audio on updates; when `false`, new audio is appended/prepended per `behavior.mediaInsertMode`; manual clipboard updates always replace generated audio (default: `true`) |
+| `behavior.overwriteAudio`                         | `true`, `false`                         | Replace existing audio on updates; when `false`, new audio is appended/prepended per `behavior.mediaInsertMode`; manual clipboard updates always replace generated sentence audio (default: `true`) |
 | `behavior.overwriteImage`                         | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `behavior.mediaInsertMode` (default: `true`)                                                       |
 | `behavior.mediaInsertMode`                        | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                                                                      |
 | `behavior.highlightWord`                          | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                                                                   |

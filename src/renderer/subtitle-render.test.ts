@@ -220,8 +220,20 @@ function normalizeCssSelector(selector: string): string {
     .trim();
 }
 
-function buildJlptUnderlineSelector(level: number): string {
-  return `#subtitleRoot .word.word-jlpt-n${level}`;
+function buildJlptColorSelector(level: number): string {
+  const higherPriorityClasses = [
+    '.word-known',
+    '.word-n-plus-one',
+    '.word-name-match',
+    '.word-frequency-single',
+    '.word-frequency-band-1',
+    '.word-frequency-band-2',
+    '.word-frequency-band-3',
+    '.word-frequency-band-4',
+    '.word-frequency-band-5',
+  ].join(', ');
+
+  return `#subtitleRoot .word.word-jlpt-n${level}:not(:is(${higherPriorityClasses}))`;
 }
 
 test('computeWordClass preserves known and n+1 classes while adding JLPT classes', () => {
@@ -887,20 +899,32 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   const cssText = fs.readFileSync(cssPath, 'utf-8');
 
   for (let level = 1; level <= 5; level += 1) {
-    const block = extractClassBlock(cssText, buildJlptUnderlineSelector(level));
-    assert.ok(block.length > 0, `word-jlpt-n${level} class should exist`);
-    assert.doesNotMatch(block, /(?:^|\n)\s*color\s*:/m);
-    assert.doesNotMatch(block, /-webkit-text-fill-color\s*:/);
-    assert.match(block, /text-decoration-line:\s*underline;/);
+    const plainJlptBlock = extractClassBlock(cssText, `#subtitleRoot .word.word-jlpt-n${level}`);
+    // JLPT tagging must never recolor the token text — other annotations own
+    // text color. JLPT also must not use `text-decoration: underline`,
+    // because Chromium repaints text-decoration during ::selection and the
+    // underline would adopt the other annotation's color during a Yomitan
+    // lookup. The underline is drawn by `border-bottom`, which is unaffected
+    // by ::selection and stays locked on the JLPT level color regardless of
+    // popup/selection state.
+    assert.doesNotMatch(plainJlptBlock, /(?:^|\n)\s*color\s*:/m);
+    assert.doesNotMatch(plainJlptBlock, /text-decoration-line:\s*underline;/);
+    assert.doesNotMatch(plainJlptBlock, /text-decoration\s*:[^;]*\bunderline\b/i);
     assert.match(
-      block,
-      new RegExp(`text-decoration-color:\\s*var\\(--subtitle-jlpt-n${level}-color,`),
+      plainJlptBlock,
+      new RegExp(`border-bottom:\\s*2px\\s+solid\\s+var\\(--subtitle-jlpt-n${level}-color,`),
+      `JLPT level must paint a permanent 2px border-bottom in the level color`,
     );
-    assert.doesNotMatch(block, /border-bottom\s*:/);
-    assert.doesNotMatch(block, /padding-bottom\s*:/);
-    assert.doesNotMatch(block, /box-decoration-break\s*:/);
-    assert.doesNotMatch(block, /-webkit-box-decoration-break\s*:/);
-    assert.doesNotMatch(block, /text-shadow\s*:/);
+
+    // JLPT tagging must communicate level *only* via the underline; it must
+    // never recolor the token text. Other annotations (known, n+1, frequency,
+    // name match) are responsible for token text color.
+    const jlptOnlyColorBlock = extractClassBlock(cssText, buildJlptColorSelector(level));
+    assert.equal(
+      jlptOnlyColorBlock,
+      '',
+      `word-jlpt-n${level} (without other annotations) must not set text color — JLPT only paints the underline`,
+    );
   }
 
   for (const selector of [
@@ -1063,6 +1087,55 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
     jlptOnlySelectionBlock,
     /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
+
+  for (let level = 1; level <= 5; level += 1) {
+    const jlptSelectionLockBlock = extractClassBlock(
+      cssText,
+      `#subtitleRoot .word.word-jlpt-n${level}::selection`,
+    );
+    assert.ok(jlptSelectionLockBlock.length > 0, `word-jlpt-n${level} selection lock should exist`);
+    assert.match(
+      jlptSelectionLockBlock,
+      new RegExp(
+        `text-decoration-color:\\s*var\\(--subtitle-jlpt-n${level}-color,\\s*#[0-9a-f]{6}\\)\\s*!important;`,
+        'i',
+      ),
+    );
+
+    for (const annotationClass of [
+      'word-known',
+      'word-n-plus-one',
+      'word-name-match',
+      'word-frequency-single',
+      'word-frequency-band-2',
+    ]) {
+      const combinedAnnotationBlock = extractClassBlock(
+        cssText,
+        `#subtitleRoot .word.word-jlpt-n${level}.${annotationClass}`,
+      );
+      assert.match(
+        combinedAnnotationBlock,
+        new RegExp(
+          `text-decoration-color:\\s*var\\(--subtitle-jlpt-n${level}-color,\\s*#[0-9a-f]{6}\\)\\s*!important;`,
+          'i',
+        ),
+        `combined JLPT ${annotationClass} selector should lock underline color`,
+      );
+    }
+
+    const jlptCharHoverBlock = extractClassBlock(
+      cssText,
+      `#subtitleRoot .word.word-jlpt-n${level} .c:hover`,
+    );
+    assert.match(
+      jlptCharHoverBlock,
+      new RegExp(
+        `text-decoration-color:\\s*var\\(--subtitle-jlpt-n${level}-color,\\s*#[0-9a-f]{6}\\)\\s*!important;`,
+        'i',
+      ),
+      'JLPT character hover selector should lock underline color',
+    );
+  }
 
   const selectionBlock = extractClassBlock(cssText, '#subtitleRoot::selection');
   assert.match(

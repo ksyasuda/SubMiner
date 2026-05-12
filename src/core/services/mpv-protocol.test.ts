@@ -93,6 +93,7 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
       emitTimePosChange: () => {},
       emitDurationChange: () => {},
       emitPauseChange: () => {},
+      emitFullscreenChange: (payload) => state.events.push(payload),
       autoLoadSecondarySubTrack: () => {},
       setCurrentVideoPath: () => {},
       emitSecondarySubtitleVisibility: (payload) => state.events.push(payload),
@@ -158,6 +159,17 @@ test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay sup
       command: ['set_property', 'sub-visibility', false],
     },
   ]);
+});
+
+test('dispatchMpvProtocolMessage emits fullscreen changes', async () => {
+  const { deps, state } = createDeps();
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'fullscreen', data: true },
+    deps,
+  );
+
+  assert.deepEqual(state.events, [{ fullscreen: true }]);
 });
 
 test('dispatchMpvProtocolMessage skips sub-visibility suppression when overlay is hidden', async () => {
@@ -267,6 +279,25 @@ test('dispatchMpvProtocolMessage pauses on sub-end when pendingPauseAtSubEnd is 
   assert.deepEqual(state.commands[state.commands.length - 1], {
     command: ['set_property', 'pause', false],
   });
+});
+
+test('dispatchMpvProtocolMessage updates current time before emitting time-pos change', async () => {
+  const calls: string[] = [];
+  let currentTimePos = 0;
+  const { deps } = createDeps({
+    setCurrentTimePos: (time) => {
+      currentTimePos = time;
+      calls.push(`set:${time}`);
+    },
+    getCurrentTimePos: () => currentTimePos,
+    emitTimePosChange: ({ time }) => {
+      calls.push(`emit:${time}:current=${currentTimePos}`);
+    },
+  });
+
+  await dispatchMpvProtocolMessage({ event: 'property-change', name: 'time-pos', data: 90 }, deps);
+
+  assert.deepEqual(calls, ['set:90', 'emit:90:current=90']);
 });
 
 test('splitMpvMessagesFromBuffer parses complete lines and preserves partial buffer', () => {

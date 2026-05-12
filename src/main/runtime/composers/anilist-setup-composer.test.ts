@@ -15,7 +15,7 @@ test('composeAnilistSetupHandlers returns callable setup handlers', () => {
     },
     consumeTokenDeps: {
       consumeAnilistSetupCallbackUrl: () => false,
-      saveToken: () => {},
+      saveToken: () => true,
       setCachedToken: () => {},
       setResolvedState: () => {},
       setSetupPageOpened: () => {},

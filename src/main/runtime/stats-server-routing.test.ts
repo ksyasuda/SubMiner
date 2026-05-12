@@ -42,7 +42,7 @@ test('stats server routing defers to a live background daemon from another proce
     processAlive: true,
   });
 
-  assert.deepEqual(handler(), { url: 'http://127.0.0.1:7979', source: 'foreign' });
+  assert.deepEqual(handler(), { url: 'http://127.0.0.1:7979', source: 'background' });
   assert.deepEqual(calls, ['readBackgroundState', 'isProcessAlive']);
 });
 

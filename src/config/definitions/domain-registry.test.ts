@@ -92,3 +92,11 @@ test('default keybindings include fullscreen on F', () => {
   );
   assert.deepEqual(keybindingMap.get('KeyF'), ['cycle', 'fullscreen']);
 });
+
+test('default keybindings include replay and next subtitle controls', () => {
+  const keybindingMap = new Map(
+    DEFAULT_KEYBINDINGS.map((binding) => [binding.key, binding.command]),
+  );
+  assert.deepEqual(keybindingMap.get('Ctrl+Shift+KeyH'), ['__replay-subtitle']);
+  assert.deepEqual(keybindingMap.get('Ctrl+Shift+KeyL'), ['__play-next-subtitle']);
+});

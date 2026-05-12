@@ -334,7 +334,7 @@ Useful overlay-local default keybinding: `Ctrl+Alt+P` opens the playlist browser
 
 Press `V` to hide or restore the primary SubMiner subtitle bar. The mpv plugin also binds bare `v` to the same action, overriding mpv's native primary subtitle visibility toggle.
 
-`Ctrl/Cmd+Shift+H` opens the session help modal with the current overlay and mpv keybindings. If you use the mpv plugin, the same help view is also available through the `y-h` chord.
+`Ctrl/Cmd+/` opens the session help modal with the current overlay and mpv keybindings. If you use the mpv plugin, the same help view is also available through the `y-h` chord.
 
 Hovering over subtitle text pauses mpv by default; leaving resumes it. Yomitan popups also pause playback by default. Set `subtitleStyle.autoPauseVideoOnHover: false` or `subtitleStyle.autoPauseVideoOnYomitanPopup: false` to disable either behavior.
 

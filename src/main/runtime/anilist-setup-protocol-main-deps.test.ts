@@ -27,7 +27,10 @@ test('consume anilist setup token main deps builder maps callbacks', () => {
   const calls: string[] = [];
   const deps = createBuildConsumeAnilistSetupTokenFromUrlMainDepsHandler({
     consumeAnilistSetupCallbackUrl: () => true,
-    saveToken: () => calls.push('save'),
+    saveToken: () => {
+      calls.push('save');
+      return true;
+    },
     setCachedToken: () => calls.push('cache'),
     setResolvedState: () => calls.push('resolved'),
     setSetupPageOpened: () => calls.push('opened'),
@@ -38,7 +41,7 @@ test('consume anilist setup token main deps builder maps callbacks', () => {
   assert.equal(
     deps.consumeAnilistSetupCallbackUrl({
       rawUrl: 'subminer://anilist-setup',
-      saveToken: () => {},
+      saveToken: () => true,
       setCachedToken: () => {},
       setResolvedState: () => {},
       setSetupPageOpened: () => {},

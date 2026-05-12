@@ -177,8 +177,7 @@ export function mergeTokens(
   }
 
   const result: MergedToken[] = [];
-  const normalizedSourceText =
-    typeof sourceText === 'string' ? sourceText.replace(/\r?\n/g, ' ').trim() : null;
+  const normalizedSourceText = normalizeSourceTextForTokenOffsets(sourceText);
   let charOffset = 0;
   let sourceCursor = 0;
   let lastStandaloneToken: Token | null = null;
@@ -191,7 +190,9 @@ export function mergeTokens(
 
   for (const token of tokens) {
     const matchedStart =
-      normalizedSourceText !== null ? normalizedSourceText.indexOf(token.word, sourceCursor) : -1;
+      typeof normalizedSourceText === 'string'
+        ? normalizedSourceText.indexOf(token.word, sourceCursor)
+        : -1;
     const start = matchedStart >= sourceCursor ? matchedStart : charOffset;
     const end = start + token.word.length;
     charOffset = end;
@@ -282,12 +283,58 @@ function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<strin
   return parts.every((part) => exclusions.has(part));
 }
 
+function isKanaChar(char: string): boolean {
+  const code = char.codePointAt(0);
+  if (code === undefined) {
+    return false;
+  }
+
+  return (
+    (code >= 0x3041 && code <= 0x3096) ||
+    (code >= 0x309b && code <= 0x309f) ||
+    code === 0x30fc ||
+    (code >= 0x30a0 && code <= 0x30fa) ||
+    (code >= 0x30fd && code <= 0x30ff)
+  );
+}
+
+function isKanaCandidateIgnorableChar(char: string): boolean {
+  return /^[\s.,!?;:()[\]{}"'`、。！？…‥・「」『』（）［］｛｝〈〉《》【】―-]$/u.test(char);
+}
+
+function isKanaOnlyText(text: string): boolean {
+  const normalized = text.trim();
+  if (normalized.length === 0) {
+    return false;
+  }
+
+  let hasKana = false;
+  for (const char of normalized) {
+    if (isKanaChar(char)) {
+      hasKana = true;
+      continue;
+    }
+    if (!isKanaCandidateIgnorableChar(char)) {
+      return false;
+    }
+  }
+
+  return hasKana;
+}
+
+function normalizeSourceTextForTokenOffsets(sourceText: string | undefined): string | undefined {
+  return typeof sourceText === 'string' ? sourceText.replace(/\r?\n/g, ' ').trim() : undefined;
+}
+
 export function isNPlusOneCandidateToken(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS1,
   pos2Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS2,
 ): boolean {
   if (token.isKnown) {
+    return false;
+  }
+  if (isKanaOnlyText(token.surface)) {
     return false;
   }
   return isNPlusOneWordCountToken(token, pos1Exclusions, pos2Exclusions);
@@ -339,6 +386,18 @@ function isNPlusOneWordCountToken(
   return true;
 }
 
+function isNPlusOneSentenceLengthToken(
+  token: MergedToken,
+  pos1Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS1,
+  pos2Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS2,
+): boolean {
+  if (!isNPlusOneWordCountToken(token, pos1Exclusions, pos2Exclusions)) {
+    return false;
+  }
+
+  return token.isKnown || isNPlusOneCandidateToken(token, pos1Exclusions, pos2Exclusions);
+}
+
 function isSentenceBoundaryToken(token: MergedToken): boolean {
   if (token.partOfSpeech !== PartOfSpeech.symbol) {
     return false;
@@ -347,15 +406,31 @@ function isSentenceBoundaryToken(token: MergedToken): boolean {
   return SENTENCE_BOUNDARY_SURFACES.has(token.surface);
 }
 
+function hasSentenceBoundaryInSourceGap(
+  sourceText: string | undefined,
+  previousEnd: number | null,
+  nextStart: number,
+): boolean {
+  if (typeof sourceText !== 'string' || previousEnd === null || nextStart <= previousEnd) {
+    return false;
+  }
+
+  const gap = sourceText.slice(previousEnd, nextStart);
+  return [...gap].some((char) => SENTENCE_BOUNDARY_SURFACES.has(char));
+}
+
 export function markNPlusOneTargets(
   tokens: MergedToken[],
   minSentenceWords = 3,
   pos1Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS1,
   pos2Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS2,
+  sourceText?: string,
 ): MergedToken[] {
   if (tokens.length === 0) {
     return [];
   }
+
+  const normalizedSourceText = normalizeSourceTextForTokenOffsets(sourceText);
 
   const markedTokens = tokens.map((token) => ({
     ...token,
@@ -363,6 +438,7 @@ export function markNPlusOneTargets(
   }));
 
   let sentenceStart = 0;
+  let previousTokenEnd: number | null = null;
   const minimumSentenceWords = Number.isInteger(minSentenceWords)
     ? Math.max(1, minSentenceWords)
     : 3;
@@ -373,7 +449,7 @@ export function markNPlusOneTargets(
     for (let i = start; i < endExclusive; i++) {
       const token = markedTokens[i];
       if (!token) continue;
-      if (isNPlusOneWordCountToken(token, pos1Exclusions, pos2Exclusions)) {
+      if (isNPlusOneSentenceLengthToken(token, pos1Exclusions, pos2Exclusions)) {
         sentenceWordCount += 1;
       }
 
@@ -393,10 +469,15 @@ export function markNPlusOneTargets(
   for (let i = 0; i < markedTokens.length; i++) {
     const token = markedTokens[i];
     if (!token) continue;
+    if (hasSentenceBoundaryInSourceGap(normalizedSourceText, previousTokenEnd, token.startPos)) {
+      markSentence(sentenceStart, i);
+      sentenceStart = i;
+    }
     if (isSentenceBoundaryToken(token)) {
       markSentence(sentenceStart, i);
       sentenceStart = i + 1;
     }
+    previousTokenEnd = token.endPos;
   }
 
   if (sentenceStart < markedTokens.length) {

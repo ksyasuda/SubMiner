@@ -119,6 +119,7 @@ export interface MpvIpcClientEventMap {
   'time-pos-change': { time: number };
   'duration-change': { duration: number };
   'pause-change': { paused: boolean };
+  'fullscreen-change': { fullscreen: boolean };
   'secondary-subtitle-change': { text: string };
   'subtitle-track-change': { sid: number | null };
   'subtitle-track-list-change': { trackList: unknown[] | null };
@@ -330,6 +331,9 @@ export class MpvIpcClient implements MpvClient {
         this.playbackPaused = payload.paused;
         this.emit('pause-change', payload);
       },
+      emitFullscreenChange: (payload) => {
+        this.emit('fullscreen-change', payload);
+      },
       emitSecondarySubtitleChange: (payload) => {
         this.emit('secondary-subtitle-change', payload);
       },
@@ -518,14 +522,12 @@ export class MpvIpcClient implements MpvClient {
   }
 
   playNextSubtitle(): void {
-    if (this.playbackPaused === true) {
-      this.pendingPauseAtSubEnd = false;
-      this.pauseAtTime = null;
-      this.send({ command: ['sub-seek', 1] });
-      return;
-    }
     this.pendingPauseAtSubEnd = true;
+    this.pauseAtTime = null;
     this.send({ command: ['sub-seek', 1] });
+    if (this.playbackPaused !== false) {
+      this.send({ command: ['set_property', 'pause', false] });
+    }
   }
 
   restorePreviousSecondarySubVisibility(): void {

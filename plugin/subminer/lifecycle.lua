@@ -83,11 +83,17 @@ function M.create(ctx)
 			return
 		end
 
-		aniskip.clear_aniskip_state()
-		process.disarm_auto_play_ready_gate()
-		local has_matching_socket = rearm_managed_subtitle_defaults()
-
 		local should_auto_start = resolve_auto_start_enabled()
+		local has_matching_socket = process.has_matching_mpv_ipc_socket(opts.socket_path)
+		local preserve_active_auto_start_gate = (
+			state.overlay_running and state.auto_play_ready_gate_armed and should_auto_start and has_matching_socket
+		)
+		aniskip.clear_aniskip_state()
+		if not preserve_active_auto_start_gate then
+			process.disarm_auto_play_ready_gate()
+		end
+		has_matching_socket = rearm_managed_subtitle_defaults()
+
 		if should_auto_start then
 			if not has_matching_socket then
 				subminer_log(

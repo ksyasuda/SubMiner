@@ -18,57 +18,6 @@ const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
 const JLPT_LEVEL_LOOKUP_CACHE_LIMIT = 2048;
-const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
-  'ああ',
-  'ええ',
-  'うう',
-  'おお',
-  'はあ',
-  'はは',
-  'へえ',
-  'ふう',
-  'ほう',
-]);
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES = ['ん', 'の', 'なん', 'なの'];
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES = [
-  'だ',
-  'です',
-  'でした',
-  'だった',
-  'では',
-  'じゃ',
-  'でしょう',
-  'だろう',
-] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES = [
-  '',
-  'か',
-  'ね',
-  'よ',
-  'な',
-  'けど',
-  'よね',
-  'かな',
-  'かね',
-] as const;
-const SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS = new Set(
-  SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_PREFIXES.flatMap((prefix) =>
-    SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_CORES.flatMap((core) =>
-      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDING_TRAILING_PARTICLES.map(
-        (particle) => `${prefix}${core}${particle}`,
-      ),
-    ),
-  ),
-);
-const SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES = new Set([
-  'って',
-  'ってよ',
-  'ってね',
-  'ってな',
-  'ってさ',
-  'ってか',
-  'ってば',
-]);
 
 const jlptLevelLookupCaches = new WeakMap<
   (text: string) => JlptLevel | null,
@@ -89,6 +38,7 @@ export interface AnnotationStageOptions {
   minSentenceWordsForNPlusOne?: number;
   pos1Exclusions?: ReadonlySet<string>;
   pos2Exclusions?: ReadonlySet<string>;
+  sourceText?: string;
 }
 
 function resolveKnownWordText(
@@ -102,10 +52,6 @@ function resolveKnownWordText(
 function normalizePos1Tag(pos1: string | undefined): string {
   return typeof pos1 === 'string' ? pos1.trim() : '';
 }
-
-const SUBTITLE_ANNOTATION_EXCLUDED_POS1 = new Set(['感動詞']);
-const SUBTITLE_ANNOTATION_GRAMMAR_ONLY_POS1 = new Set(['助詞', '助動詞', '連体詞']);
-const AUXILIARY_STEM_GRAMMAR_TAIL_POS1 = new Set(['名詞', '助動詞', '助詞']);
 
 function splitNormalizedTagParts(normalizedTag: string): string[] {
   if (!normalizedTag) {
@@ -126,57 +72,6 @@ function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<strin
   // Frequency highlighting should be conservative: if any merged component is excluded,
   // skip highlighting the whole token to avoid noisy merged fragments.
   return parts.some((part) => exclusions.has(part));
-}
-
-function isExcludedFromSubtitleAnnotationsByPos1(normalizedPos1: string): boolean {
-  const parts = splitNormalizedTagParts(normalizedPos1);
-  if (parts.some((part) => SUBTITLE_ANNOTATION_EXCLUDED_POS1.has(part))) {
-    return true;
-  }
-
-  return parts.length > 0 && parts.every((part) => SUBTITLE_ANNOTATION_GRAMMAR_ONLY_POS1.has(part));
-}
-
-function isExcludedTrailingParticleMergedToken(token: MergedToken): boolean {
-  const normalizedSurface = normalizeJlptTextForExclusion(token.surface);
-  const normalizedHeadword = normalizeJlptTextForExclusion(token.headword);
-  if (
-    !normalizedSurface ||
-    !normalizedHeadword ||
-    !normalizedSurface.startsWith(normalizedHeadword)
-  ) {
-    return false;
-  }
-
-  const suffix = normalizedSurface.slice(normalizedHeadword.length);
-  if (!SUBTITLE_ANNOTATION_EXCLUDED_TRAILING_PARTICLE_SUFFIXES.has(suffix)) {
-    return false;
-  }
-
-  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
-  if (pos1Parts.length < 2) {
-    return false;
-  }
-
-  const [leadingPos1, ...trailingPos1] = pos1Parts;
-  if (!leadingPos1 || SUBTITLE_ANNOTATION_GRAMMAR_ONLY_POS1.has(leadingPos1)) {
-    return false;
-  }
-
-  return trailingPos1.length > 0 && trailingPos1.every((part) => part === '助詞');
-}
-
-function isAuxiliaryStemGrammarTailToken(token: MergedToken): boolean {
-  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
-  if (
-    pos1Parts.length === 0 ||
-    !pos1Parts.every((part) => AUXILIARY_STEM_GRAMMAR_TAIL_POS1.has(part))
-  ) {
-    return false;
-  }
-
-  const pos3Parts = splitNormalizedTagParts(normalizePos2Tag(token.pos3));
-  return pos3Parts.includes('助動詞語幹');
 }
 
 function resolvePos1Exclusions(options: AnnotationStageOptions): ReadonlySet<string> {
@@ -254,6 +149,45 @@ function shouldAllowContentLedMergedTokenFrequency(
   return true;
 }
 
+function shouldAllowOrdinalPrefixNounFrequency(token: MergedToken): boolean {
+  const normalizedSurface = token.surface.trim();
+  const normalizedHeadword = token.headword.trim();
+  if (!normalizedSurface.startsWith('第') && !normalizedHeadword.startsWith('第')) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
+  const pos2Parts = splitNormalizedTagParts(normalizePos2Tag(token.pos2));
+  return (
+    pos1Parts.length >= 2 &&
+    pos1Parts[0] === '接頭詞' &&
+    pos1Parts.slice(1).some((part) => part === '名詞') &&
+    pos2Parts[0] === '数接続' &&
+    pos2Parts.slice(1).some((part) => part === '数')
+  );
+}
+
+function shouldAllowHonorificPrefixNounFrequency(token: MergedToken): boolean {
+  const normalizedSurface = token.surface.trim();
+  const normalizedHeadword = token.headword.trim();
+  if (
+    !['お', 'ご', '御'].some(
+      (prefix) => normalizedSurface.startsWith(prefix) || normalizedHeadword.startsWith(prefix),
+    )
+  ) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
+  const pos2Parts = splitNormalizedTagParts(normalizePos2Tag(token.pos2));
+  return (
+    pos1Parts.length >= 2 &&
+    pos1Parts[0] === '接頭詞' &&
+    pos1Parts.slice(1).some((part) => part === '名詞') &&
+    pos2Parts[0] === '名詞接続'
+  );
+}
+
 function isFrequencyExcludedByPos(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string>,
@@ -273,12 +207,24 @@ function isFrequencyExcludedByPos(
     pos1Exclusions,
     pos2Exclusions,
   );
+  const allowOrdinalPrefixNounToken = shouldAllowOrdinalPrefixNounFrequency(token);
+  const allowHonorificPrefixNounToken = shouldAllowHonorificPrefixNounFrequency(token);
 
-  if (isExcludedByTagSet(normalizedPos1, pos1Exclusions) && !allowContentLedMergedToken) {
+  if (
+    isExcludedByTagSet(normalizedPos1, pos1Exclusions) &&
+    !allowContentLedMergedToken &&
+    !allowOrdinalPrefixNounToken &&
+    !allowHonorificPrefixNounToken
+  ) {
     return true;
   }
 
-  if (isExcludedByTagSet(normalizedPos2, pos2Exclusions) && !allowContentLedMergedToken) {
+  if (
+    isExcludedByTagSet(normalizedPos2, pos2Exclusions) &&
+    !allowContentLedMergedToken &&
+    !allowOrdinalPrefixNounToken &&
+    !allowHonorificPrefixNounToken
+  ) {
     return true;
   }
 
@@ -608,50 +554,15 @@ function isJlptEligibleToken(token: MergedToken): boolean {
   return true;
 }
 
-function isExcludedFromSubtitleAnnotationsByTerm(token: MergedToken): boolean {
-  const candidates = [token.surface, token.reading, resolveJlptLookupText(token)].filter(
-    (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
-  );
-
-  for (const candidate of candidates) {
-    const trimmedCandidate = candidate.trim();
-    if (!trimmedCandidate) {
-      continue;
-    }
-
-    const normalizedCandidate = normalizeJlptTextForExclusion(trimmedCandidate);
-    if (!normalizedCandidate) {
-      continue;
-    }
-
-    if (
-      SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(trimmedCandidate) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(normalizedCandidate) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(trimmedCandidate) ||
-      SUBTITLE_ANNOTATION_EXCLUDED_EXPLANATORY_ENDINGS.has(normalizedCandidate)
-    ) {
-      return true;
-    }
-
-    if (
-      isTrailingSmallTsuKanaSfx(trimmedCandidate) ||
-      isTrailingSmallTsuKanaSfx(normalizedCandidate) ||
-      isReduplicatedKanaSfxWithOptionalTrailingTo(trimmedCandidate) ||
-      isReduplicatedKanaSfxWithOptionalTrailingTo(normalizedCandidate)
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 export function shouldExcludeTokenFromSubtitleAnnotations(token: MergedToken): boolean {
   return sharedShouldExcludeTokenFromSubtitleAnnotations(token);
 }
 
-export function stripSubtitleAnnotationMetadata(token: MergedToken): MergedToken {
-  return sharedStripSubtitleAnnotationMetadata(token);
+export function stripSubtitleAnnotationMetadata(
+  token: MergedToken,
+  options: AnnotationStageOptions = {},
+): MergedToken {
+  return sharedStripSubtitleAnnotationMetadata(token, options);
 }
 
 function computeTokenKnownStatus(
@@ -734,10 +645,14 @@ export function annotateTokens(
         pos2Exclusions,
       })
     ) {
-      return sharedStripSubtitleAnnotationMetadata(token, {
+      const strippedToken = sharedStripSubtitleAnnotationMetadata(token, {
         pos1Exclusions,
         pos2Exclusions,
       });
+      return {
+        ...strippedToken,
+        isKnown: false,
+      };
     }
 
     const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
@@ -781,6 +696,7 @@ export function annotateTokens(
     sanitizedMinSentenceWordsForNPlusOne,
     pos1Exclusions,
     pos2Exclusions,
+    options.sourceText,
   );
 
   if (!nameMatchEnabled) {

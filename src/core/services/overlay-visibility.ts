@@ -89,13 +89,22 @@ export function updateVisibleOverlayVisibility(args: {
     return;
   }
 
-  const showPassiveVisibleOverlay = (): void => {
+  const showPassiveVisibleOverlay = (): boolean => {
     const forceMousePassthrough = args.forceMousePassthrough === true;
     const wasVisible = mainWindow.isVisible();
-    const shouldDefaultToPassthrough =
-      args.isMacOSPlatform || args.isWindowsPlatform || forceMousePassthrough;
     const isVisibleOverlayFocused =
       typeof mainWindow.isFocused === 'function' && mainWindow.isFocused();
+    const isTrackedMacOSTargetFocused =
+      !args.isMacOSPlatform || !args.windowTracker
+        ? true
+        : (args.windowTracker.isTargetWindowFocused?.() ?? true);
+    const shouldReleaseMacOSOverlayLevel =
+      args.isMacOSPlatform &&
+      !!args.windowTracker &&
+      !isVisibleOverlayFocused &&
+      !isTrackedMacOSTargetFocused;
+    const shouldDefaultToPassthrough =
+      args.isWindowsPlatform || forceMousePassthrough || shouldReleaseMacOSOverlayLevel;
     const windowsForegroundProcessName =
       args.lastKnownWindowsForegroundProcessName?.trim().toLowerCase() ?? null;
     const windowsOverlayProcessName = args.windowsOverlayProcessName?.trim().toLowerCase() ?? null;
@@ -138,7 +147,7 @@ export function updateVisibleOverlayVisibility(args: {
       // On Windows, z-order is enforced by the OS via the owner window mechanism
       // (SetWindowLongPtr GWLP_HWNDPARENT). The overlay is always above mpv
       // without any manual z-order management.
-    } else if (!forceMousePassthrough) {
+    } else if (!forceMousePassthrough && !shouldReleaseMacOSOverlayLevel) {
       args.ensureOverlayWindowLevel(mainWindow);
     } else {
       mainWindow.setAlwaysOnTop(false);
@@ -187,6 +196,8 @@ export function updateVisibleOverlayVisibility(args: {
     if (!args.isWindowsPlatform && !args.isMacOSPlatform && !forceMousePassthrough) {
       mainWindow.focus();
     }
+
+    return !shouldReleaseMacOSOverlayLevel;
   };
 
   const maybeShowOverlayLoadingOsd = (): void => {
@@ -230,8 +241,8 @@ export function updateVisibleOverlayVisibility(args: {
       args.updateVisibleOverlayBounds(geometry);
     }
     args.syncPrimaryOverlayWindowLayer('visible');
-    showPassiveVisibleOverlay();
-    if (!args.forceMousePassthrough && !args.isWindowsPlatform) {
+    const shouldEnforceLayerOrder = showPassiveVisibleOverlay();
+    if (shouldEnforceLayerOrder && !args.forceMousePassthrough && !args.isWindowsPlatform) {
       args.enforceOverlayLayerOrder();
     }
     args.syncOverlayShortcuts();
@@ -260,11 +271,19 @@ export function updateVisibleOverlayVisibility(args: {
     return;
   }
 
+  const hasRetainedTrackedGeometry = args.windowTracker.getGeometry() !== null;
+  const hasActiveMacOSTargetSignal =
+    args.isMacOSPlatform && (args.windowTracker.isTargetWindowFocused?.() ?? false);
+  const shouldPreserveTransientTrackedOverlay =
+    (args.isMacOSPlatform &&
+      (hasRetainedTrackedGeometry || (mainWindow.isVisible() && hasActiveMacOSTargetSignal))) ||
+    (args.isWindowsPlatform &&
+      typeof args.windowTracker.isTargetWindowMinimized === 'function' &&
+      !args.windowTracker.isTargetWindowMinimized());
+
   if (
-    args.isWindowsPlatform &&
-    typeof args.windowTracker.isTargetWindowMinimized === 'function' &&
-    !args.windowTracker.isTargetWindowMinimized() &&
-    (mainWindow.isVisible() || args.windowTracker.getGeometry() !== null)
+    shouldPreserveTransientTrackedOverlay &&
+    (mainWindow.isVisible() || hasRetainedTrackedGeometry)
   ) {
     args.setTrackerNotReadyWarningShown(false);
     const geometry = args.windowTracker.getGeometry();
@@ -272,7 +291,10 @@ export function updateVisibleOverlayVisibility(args: {
       args.updateVisibleOverlayBounds(geometry);
     }
     args.syncPrimaryOverlayWindowLayer('visible');
-    showPassiveVisibleOverlay();
+    const shouldEnforceLayerOrder = showPassiveVisibleOverlay();
+    if (shouldEnforceLayerOrder && !args.forceMousePassthrough && !args.isWindowsPlatform) {
+      args.enforceOverlayLayerOrder();
+    }
     args.syncOverlayShortcuts();
     return;
   }

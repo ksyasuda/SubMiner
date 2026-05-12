@@ -1,4 +1,5 @@
-import { BrowserWindow, screen, type Session } from 'electron';
+import electron from 'electron';
+import type { BrowserWindow, Session } from 'electron';
 import * as path from 'path';
 import { WindowGeometry } from '../../types';
 import { createLogger } from '../../logger';
@@ -8,12 +9,14 @@ import {
   handleOverlayWindowBlurred,
   type OverlayWindowKind,
 } from './overlay-window-input';
-import { buildOverlayWindowOptions } from './overlay-window-options';
+import { ensureHyprlandWindowFloatingByTitle } from './hyprland-window-placement';
+import { buildOverlayWindowOptions, OVERLAY_WINDOW_TITLES } from './overlay-window-options';
 import { normalizeOverlayWindowBoundsForPlatform } from './overlay-window-bounds';
 import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
 export { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
 
 const logger = createLogger('main:overlay-window');
+const { BrowserWindow: ElectronBrowserWindow, screen } = electron;
 const overlayWindowLayerByInstance = new WeakMap<BrowserWindow, OverlayWindowKind>();
 const overlayWindowContentReady = new WeakSet<BrowserWindow>();
 
@@ -50,7 +53,9 @@ export function updateOverlayWindowBounds(
   window: BrowserWindow | null,
 ): void {
   if (!geometry || !window || window.isDestroyed()) return;
-  window.setBounds(normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen));
+  const bounds = normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen);
+  window.setBounds(bounds);
+  ensureHyprlandWindowFloatingByTitle({ title: window.getTitle(), bounds });
 }
 
 export function ensureOverlayWindowLevel(window: BrowserWindow): void {
@@ -67,6 +72,9 @@ export function ensureOverlayWindowLevel(window: BrowserWindow): void {
     return;
   }
   window.setAlwaysOnTop(true);
+  window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  ensureHyprlandWindowFloatingByTitle({ title: window.getTitle() });
+  window.moveTop();
 }
 
 export function enforceOverlayLayerOrder(options: {
@@ -97,7 +105,7 @@ export function createOverlayWindow(
     yomitanSession?: Session | null;
   },
 ): BrowserWindow {
-  const window = new BrowserWindow(buildOverlayWindowOptions(kind, options));
+  const window = new ElectronBrowserWindow(buildOverlayWindowOptions(kind, options));
   (window as BrowserWindow & { [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean })[
     OVERLAY_WINDOW_CONTENT_READY_FLAG
   ] = false;
@@ -112,7 +120,13 @@ export function createOverlayWindow(
   });
 
   window.webContents.on('did-finish-load', () => {
+    window.setTitle(OVERLAY_WINDOW_TITLES[kind]);
     options.onRuntimeOptionsChanged();
+  });
+
+  window.webContents.on('page-title-updated', (event) => {
+    event.preventDefault();
+    window.setTitle(OVERLAY_WINDOW_TITLES[kind]);
   });
 
   window.once('ready-to-show', () => {
