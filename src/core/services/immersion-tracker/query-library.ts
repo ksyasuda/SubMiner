@@ -243,6 +243,7 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
 }
 
 export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRow | null {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   return db
     .prepare(
       `
@@ -265,7 +266,7 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
       END AS totalCards,
       CASE
         WHEN lm.video_id IS NOT NULL THEN COALESCE(lm.total_tokens_seen, 0)
-        ELSE COALESCE(SUM(COALESCE(asm.tokensSeen, s.tokens_seen, 0)), 0)
+        ELSE COALESCE(SUM(${wordsExpr}), 0)
       END AS totalTokensSeen,
       CASE
         WHEN lm.video_id IS NOT NULL THEN COALESCE(lm.total_lines_seen, 0)
@@ -290,6 +291,7 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
     LEFT JOIN imm_youtube_videos yv ON yv.video_id = v.video_id
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
+    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE v.video_id = ?
       AND (lm.video_id IS NOT NULL OR s.session_id IS NOT NULL)
     GROUP BY v.video_id

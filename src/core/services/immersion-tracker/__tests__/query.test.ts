@@ -3072,6 +3072,12 @@ test('media detail resolves retained sessions before lifetime summary exists', (
       WHERE session_id = ?
       `,
     ).run(startedAtMs + 600_000, 600_000, 100, 990, 1, sessionId);
+    insertFilteredWordOccurrence(db, {
+      sessionId,
+      videoId,
+      occurrenceCount: 4,
+      startedAtMs,
+    });
 
     assert.equal(getSessionSummaries(db, 1)[0]?.videoId, videoId);
     assert.equal(
@@ -3089,7 +3095,7 @@ test('media detail resolves retained sessions before lifetime summary exists', (
     assert.equal(detail.totalSessions, 1);
     assert.equal(detail.totalActiveMs, 600_000);
     assert.equal(detail.totalLinesSeen, 100);
-    assert.equal(detail.totalTokensSeen, 990);
+    assert.equal(detail.totalTokensSeen, 4);
     assert.equal(detail.totalCards, 1);
   } finally {
     db.close();

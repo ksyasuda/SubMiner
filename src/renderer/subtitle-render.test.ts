@@ -1105,6 +1105,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
     for (const annotationClass of [
       'word-known',
       'word-n-plus-one',
+      'word-name-match',
       'word-frequency-single',
       'word-frequency-band-2',
     ]) {

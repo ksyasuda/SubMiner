@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   clearLinuxMpvFullscreenOverlayRefreshTimeouts,
+  updateLinuxMpvFullscreenOverlayRefreshBurst,
   scheduleLinuxVisibleOverlayFullscreenRefreshBurst,
 } from './linux-mpv-fullscreen-overlay-refresh';
 
@@ -41,6 +42,48 @@ test('linux mpv fullscreen overlay refresh burst schedules overlay refresh work 
     assert.ok(calls.includes('hide'));
     assert.ok(calls.includes('showInactive'));
     assert.ok(calls.includes('ensureOverlayWindowLevel'));
+  } finally {
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts();
+    if (originalPlatformDescriptor) {
+      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+    }
+  }
+});
+
+test('linux mpv fullscreen overlay refresh update cancels burst when fullscreen exits', async () => {
+  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', {
+    configurable: true,
+    value: 'linux',
+  });
+
+  const calls: string[] = [];
+
+  try {
+    const deps = {
+      overlayManager: {
+        getMainWindow: () =>
+          ({
+            hide: () => calls.push('hide'),
+            isDestroyed: () => false,
+            isVisible: () => true,
+            showInactive: () => calls.push('showInactive'),
+          }) as never,
+        getVisibleOverlayVisible: () => true,
+      },
+      overlayVisibilityRuntime: {
+        updateVisibleOverlayVisibility: () => calls.push('updateVisibleOverlayVisibility'),
+      },
+      ensureOverlayWindowLevel: () => calls.push('ensureOverlayWindowLevel'),
+    };
+
+    const cancel = updateLinuxMpvFullscreenOverlayRefreshBurst(true, deps, null);
+    const nextCancel = updateLinuxMpvFullscreenOverlayRefreshBurst(false, deps, cancel);
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    assert.equal(nextCancel, null);
+    assert.deepEqual(calls, []);
   } finally {
     clearLinuxMpvFullscreenOverlayRefreshTimeouts();
     if (originalPlatformDescriptor) {

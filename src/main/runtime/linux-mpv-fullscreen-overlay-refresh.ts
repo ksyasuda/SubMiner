@@ -67,4 +67,17 @@ export function scheduleLinuxVisibleOverlayFullscreenRefreshBurst(
   return clearLinuxMpvFullscreenOverlayRefreshTimeouts;
 }
 
+export function updateLinuxMpvFullscreenOverlayRefreshBurst(
+  isFullscreen: boolean,
+  deps: LinuxMpvFullscreenOverlayRefreshDeps,
+  cancelCurrentBurst: CancelLinuxMpvFullscreenOverlayRefreshBurst | null,
+): CancelLinuxMpvFullscreenOverlayRefreshBurst | null {
+  cancelCurrentBurst?.();
+  if (!isFullscreen) {
+    return null;
+  }
+
+  return scheduleLinuxVisibleOverlayFullscreenRefreshBurst(deps);
+}
+
 export { clearLinuxMpvFullscreenOverlayRefreshTimeouts };

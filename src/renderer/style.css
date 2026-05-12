@@ -990,6 +990,7 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 
 #subtitleRoot .word.word-jlpt-n1.word-known,
 #subtitleRoot .word.word-jlpt-n1.word-n-plus-one,
+#subtitleRoot .word.word-jlpt-n1.word-name-match,
 #subtitleRoot .word.word-jlpt-n1.word-frequency-single,
 #subtitleRoot .word.word-jlpt-n1.word-frequency-band-1,
 #subtitleRoot .word.word-jlpt-n1.word-frequency-band-2,
@@ -1006,6 +1007,7 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 
 #subtitleRoot .word.word-jlpt-n2.word-known,
 #subtitleRoot .word.word-jlpt-n2.word-n-plus-one,
+#subtitleRoot .word.word-jlpt-n2.word-name-match,
 #subtitleRoot .word.word-jlpt-n2.word-frequency-single,
 #subtitleRoot .word.word-jlpt-n2.word-frequency-band-1,
 #subtitleRoot .word.word-jlpt-n2.word-frequency-band-2,
@@ -1022,6 +1024,7 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 
 #subtitleRoot .word.word-jlpt-n3.word-known,
 #subtitleRoot .word.word-jlpt-n3.word-n-plus-one,
+#subtitleRoot .word.word-jlpt-n3.word-name-match,
 #subtitleRoot .word.word-jlpt-n3.word-frequency-single,
 #subtitleRoot .word.word-jlpt-n3.word-frequency-band-1,
 #subtitleRoot .word.word-jlpt-n3.word-frequency-band-2,
@@ -1038,6 +1041,7 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 
 #subtitleRoot .word.word-jlpt-n4.word-known,
 #subtitleRoot .word.word-jlpt-n4.word-n-plus-one,
+#subtitleRoot .word.word-jlpt-n4.word-name-match,
 #subtitleRoot .word.word-jlpt-n4.word-frequency-single,
 #subtitleRoot .word.word-jlpt-n4.word-frequency-band-1,
 #subtitleRoot .word.word-jlpt-n4.word-frequency-band-2,
@@ -1054,6 +1058,7 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 
 #subtitleRoot .word.word-jlpt-n5.word-known,
 #subtitleRoot .word.word-jlpt-n5.word-n-plus-one,
+#subtitleRoot .word.word-jlpt-n5.word-name-match,
 #subtitleRoot .word.word-jlpt-n5.word-frequency-single,
 #subtitleRoot .word.word-jlpt-n5.word-frequency-band-1,
 #subtitleRoot .word.word-jlpt-n5.word-frequency-band-2,

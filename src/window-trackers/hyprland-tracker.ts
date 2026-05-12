@@ -136,7 +136,12 @@ export function parseHyprctlClients(output: string): HyprlandClient[] | null {
     return null;
   }
 
-  const parsed = JSON.parse(jsonPayload) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonPayload) as unknown;
+  } catch {
+    return null;
+  }
   if (!Array.isArray(parsed)) {
     return null;
   }
@@ -150,7 +155,12 @@ export function parseHyprctlMonitors(output: string): HyprlandMonitor[] | null {
     return null;
   }
 
-  const parsed = JSON.parse(jsonPayload) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonPayload) as unknown;
+  } catch {
+    return null;
+  }
   if (!Array.isArray(parsed)) {
     return null;
   }
@@ -192,8 +202,6 @@ export function isHyprlandGeometryEvent(name: string): boolean {
     name === 'movewindowv2' ||
     name === 'resizewindow' ||
     name === 'resizewindowv2' ||
-    name === 'windowtitle' ||
-    name === 'windowtitlev2' ||
     name === 'openwindow' ||
     name === 'closewindow' ||
     name === 'fullscreen' ||

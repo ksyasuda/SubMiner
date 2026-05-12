@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   isHyprlandGeometryEvent,
   parseHyprctlClients,
+  parseHyprctlMonitors,
   resolveHyprlandWindowGeometry,
   selectHyprlandMpvWindow,
   type HyprlandClient,
@@ -121,9 +122,16 @@ test('parseHyprctlClients tolerates non-json prefix output', () => {
   ]);
 });
 
-test('isHyprlandGeometryEvent treats fullscreenv2 as a geometry-changing event', () => {
+test('parseHyprctlMonitors returns null for malformed JSON output', () => {
+  assert.equal(parseHyprctlMonitors('not-json'), null);
+  assert.equal(parseHyprctlMonitors('[{"id":0,"x":0,"y":0,"width":1920'), null);
+});
+
+test('isHyprlandGeometryEvent treats geometry events as geometry-changing only', () => {
   assert.equal(isHyprlandGeometryEvent('fullscreenv2'), true);
   assert.equal(isHyprlandGeometryEvent('workspacev2'), true);
+  assert.equal(isHyprlandGeometryEvent('windowtitle'), false);
+  assert.equal(isHyprlandGeometryEvent('windowtitlev2'), false);
   assert.equal(isHyprlandGeometryEvent('activewindowv2'), false);
 });
 

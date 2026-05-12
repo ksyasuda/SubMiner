@@ -36,7 +36,7 @@ import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import {
   type CancelLinuxMpvFullscreenOverlayRefreshBurst,
   clearLinuxMpvFullscreenOverlayRefreshTimeouts,
-  scheduleLinuxVisibleOverlayFullscreenRefreshBurst,
+  updateLinuxMpvFullscreenOverlayRefreshBurst,
 } from './main/runtime/linux-mpv-fullscreen-overlay-refresh';
 import { mergeAiConfig } from './ai/config';
 
@@ -3859,16 +3859,19 @@ const {
       }
       lastObservedTimePos = time;
     },
-    onFullscreenChange: () => {
-      cancelLinuxMpvFullscreenOverlayRefreshBurst =
-        scheduleLinuxVisibleOverlayFullscreenRefreshBurst({
+    onFullscreenChange: (fullscreen) => {
+      cancelLinuxMpvFullscreenOverlayRefreshBurst = updateLinuxMpvFullscreenOverlayRefreshBurst(
+        fullscreen,
+        {
           overlayManager: {
             getMainWindow: () => overlayManager.getMainWindow(),
             getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
           },
           overlayVisibilityRuntime,
           ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-        });
+        },
+        cancelLinuxMpvFullscreenOverlayRefreshBurst,
+      );
     },
     onSubtitleTrackChange: (sid) => {
       scheduleSubtitlePrefetchRefresh();
