@@ -183,11 +183,130 @@
 
   // ==========================================
   // Keybindings (MPV Commands)
-  // Extra keybindings that are merged with built-in defaults.
+  // Default and custom keybindings that are merged with built-in defaults.
   // Set command to null to disable a default keybinding.
   // Hot-reload: keybinding changes apply live and update the session help modal on reopen.
   // ==========================================
-  "keybindings": [], // Extra keybindings that are merged with built-in defaults.
+  "keybindings": [
+    {
+      "key": "Space", // Key setting.
+      "command": [
+        "cycle",
+        "pause"
+      ] // Command setting.
+    },
+    {
+      "key": "KeyF", // Key setting.
+      "command": [
+        "cycle",
+        "fullscreen"
+      ] // Command setting.
+    },
+    {
+      "key": "KeyJ", // Key setting.
+      "command": [
+        "cycle",
+        "sid"
+      ] // Command setting.
+    },
+    {
+      "key": "Shift+KeyJ", // Key setting.
+      "command": [
+        "cycle",
+        "secondary-sid"
+      ] // Command setting.
+    },
+    {
+      "key": "ArrowRight", // Key setting.
+      "command": [
+        "seek",
+        5
+      ] // Command setting.
+    },
+    {
+      "key": "ArrowLeft", // Key setting.
+      "command": [
+        "seek",
+        -5
+      ] // Command setting.
+    },
+    {
+      "key": "ArrowUp", // Key setting.
+      "command": [
+        "seek",
+        60
+      ] // Command setting.
+    },
+    {
+      "key": "ArrowDown", // Key setting.
+      "command": [
+        "seek",
+        -60
+      ] // Command setting.
+    },
+    {
+      "key": "Shift+KeyH", // Key setting.
+      "command": [
+        "sub-seek",
+        -1
+      ] // Command setting.
+    },
+    {
+      "key": "Shift+KeyL", // Key setting.
+      "command": [
+        "sub-seek",
+        1
+      ] // Command setting.
+    },
+    {
+      "key": "Shift+BracketRight", // Key setting.
+      "command": [
+        "__sub-delay-next-line"
+      ] // Command setting.
+    },
+    {
+      "key": "Shift+BracketLeft", // Key setting.
+      "command": [
+        "__sub-delay-prev-line"
+      ] // Command setting.
+    },
+    {
+      "key": "Ctrl+Alt+KeyC", // Key setting.
+      "command": [
+        "__youtube-picker-open"
+      ] // Command setting.
+    },
+    {
+      "key": "Ctrl+Alt+KeyP", // Key setting.
+      "command": [
+        "__playlist-browser-open"
+      ] // Command setting.
+    },
+    {
+      "key": "Ctrl+Shift+KeyH", // Key setting.
+      "command": [
+        "__replay-subtitle"
+      ] // Command setting.
+    },
+    {
+      "key": "Ctrl+Shift+KeyL", // Key setting.
+      "command": [
+        "__play-next-subtitle"
+      ] // Command setting.
+    },
+    {
+      "key": "KeyQ", // Key setting.
+      "command": [
+        "quit"
+      ] // Command setting.
+    },
+    {
+      "key": "Ctrl+KeyW", // Key setting.
+      "command": [
+        "quit"
+      ] // Command setting.
+    }
+  ], // Default and custom keybindings that are merged with built-in defaults.
 
   // ==========================================
   // Secondary Subtitles

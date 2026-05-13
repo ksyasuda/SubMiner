@@ -62,7 +62,7 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'Keybindings (MPV Commands)',
     description: [
-      'Extra keybindings that are merged with built-in defaults.',
+      'Default and custom keybindings that are merged with built-in defaults.',
       'Set command to null to disable a default keybinding.',
     ],
     notes: [
