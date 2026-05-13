@@ -247,13 +247,15 @@ uninstall:
 uninstall-linux:
 	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
 	@rm -f "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
-	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(BINDIR)/SubMiner.AppImage" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
+	@rm -rf "$(LINUX_DATA_DIR)/plugin/subminer"
+	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(BINDIR)/SubMiner.AppImage" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)" "  $(LINUX_DATA_DIR)/plugin/subminer"
 
 uninstall-macos:
 	@rm -f "$(BINDIR)/subminer"
 	@rm -f "$(MACOS_DATA_DIR)/themes/$(THEME_FILE)"
+	@rm -rf "$(MACOS_DATA_DIR)/plugin/subminer"
 	@rm -rf "$(MACOS_APP_DEST)"
-	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(MACOS_DATA_DIR)/themes/$(THEME_FILE)" "  $(MACOS_APP_DEST)"
+	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(MACOS_DATA_DIR)/themes/$(THEME_FILE)" "  $(MACOS_DATA_DIR)/plugin/subminer" "  $(MACOS_APP_DEST)"
 
 uninstall-windows:
 	@rm -rf "$(MPV_SCRIPTS_DIR)/subminer"

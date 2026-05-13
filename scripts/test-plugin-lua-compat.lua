@@ -1,4 +1,5 @@
 local MODULE_PATHS = {
+	"plugin/subminer/bootstrap.lua",
 	"plugin/subminer/hover.lua",
 	"plugin/subminer/environment.lua",
 	"plugin/subminer/version.lua",
@@ -47,6 +48,12 @@ end
 local function assert_loadfile_ok(path)
 	local chunk, err = loadfile(path)
 	assert_true(chunk ~= nil, "loadfile failed for " .. path .. ": " .. tostring(err))
+end
+
+local function assert_bootstrap_uses_defensive_version_load()
+	local source = read_file("plugin/subminer/bootstrap.lua")
+	assert_true(not source:find('require%("version"%)'), "bootstrap.lua must not hard-require version.lua")
+	assert_true(source:find('pcall%(require, "version"%)') ~= nil, "bootstrap.lua must load version.lua with pcall")
 end
 
 local function normalize_execute_result(ok, why, code)
@@ -129,6 +136,7 @@ for _, path in ipairs(MODULE_PATHS) do
 	assert_no_legacy_incompatible_continue(path)
 	assert_loadfile_ok(path)
 end
+assert_bootstrap_uses_defensive_version_load()
 
 local parser = find_legacy_parser()
 if parser then

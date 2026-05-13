@@ -14,7 +14,10 @@ function M.init()
 	local utils = require("mp.utils")
 
 	local options_helper = require("options")
-	local version = require("version")
+	local ok_version, version = pcall(require, "version")
+	if not ok_version or type(version) ~= "table" then
+		version = { version = "unknown" }
+	end
 	local environment = require("environment").create({ mp = mp, utils = utils })
 	local opts = options_helper.load(options_lib, environment.default_socket_path())
 	local state = require("state").new()
