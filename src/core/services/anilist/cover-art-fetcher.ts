@@ -1,6 +1,11 @@
 import type { AnilistRateLimiter } from './rate-limiter';
 import type { DatabaseSync } from '../immersion-tracker/sqlite';
-import { getCoverArt, upsertCoverArt, updateAnimeAnilistInfo } from '../immersion-tracker/query';
+import {
+  getAnimeCoverArt,
+  getCoverArt,
+  upsertCoverArt,
+  updateAnimeAnilistInfo,
+} from '../immersion-tracker/query';
 import {
   guessAnilistMediaInfo,
   runGuessit,
@@ -257,6 +262,30 @@ export function createCoverArtFetcher(
   logger: Logger,
   options: CoverArtFetcherOptions = {},
 ): CoverArtFetcher {
+  const reuseAnimeCoverArt = (db: DatabaseSync, videoId: number): boolean => {
+    const row = db
+      .prepare('SELECT anime_id AS animeId FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { animeId: number | null } | undefined;
+    if (!row?.animeId) {
+      return false;
+    }
+
+    const shared = getAnimeCoverArt(db, row.animeId);
+    if (!shared?.coverBlob) {
+      return false;
+    }
+
+    upsertCoverArt(db, videoId, {
+      anilistId: shared.anilistId,
+      coverUrl: shared.coverUrl,
+      coverBlob: shared.coverBlob,
+      titleRomaji: shared.titleRomaji,
+      titleEnglish: shared.titleEnglish,
+      episodesTotal: shared.episodesTotal,
+    });
+    return true;
+  };
+
   const resolveCanonicalTitle = (
     db: DatabaseSync,
     videoId: number,
@@ -315,6 +344,10 @@ export function createCoverArtFetcher(
           });
           return true;
         }
+      }
+
+      if (reuseAnimeCoverArt(db, videoId)) {
+        return true;
       }
 
       if (

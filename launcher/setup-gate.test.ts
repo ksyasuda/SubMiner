@@ -116,34 +116,81 @@ test('ensureLauncherSetupReady bypasses setup gate when external yomitan is conf
   assert.deepEqual(calls, []);
 });
 
-test('ensureLauncherSetupReady bypasses setup gate when plugin is already installed', async () => {
+test('ensureLauncherSetupReady waits for finish after legacy mpv plugin removal', async () => {
   const calls: string[] = [];
+  let legacyPluginInstalled = true;
+  let reads = 0;
 
   const ready = await ensureLauncherSetupReady({
-    readSetupState: () => ({
-      version: 3,
-      status: 'cancelled',
-      completedAt: null,
-      completionSource: null,
-      yomitanSetupMode: null,
-      lastSeenYomitanDictionaryCount: 0,
-      pluginInstallStatus: 'unknown',
-      pluginInstallPathSummary: null,
-      windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
-      windowsMpvShortcutLastStatus: 'unknown',
-    }),
-    isPluginInstalled: () => true,
+    readSetupState: () => {
+      reads += 1;
+      return {
+        version: 3,
+        status: 'completed',
+        completedAt: reads < 3 ? '2026-03-07T00:00:00.000Z' : '2026-05-12T14:40:00.000Z',
+        completionSource: 'user',
+        yomitanSetupMode: null,
+        lastSeenYomitanDictionaryCount: 0,
+        pluginInstallStatus: 'unknown',
+        pluginInstallPathSummary: null,
+        windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+        windowsMpvShortcutLastStatus: 'unknown',
+      };
+    },
+    hasLegacyMpvPlugin: () => legacyPluginInstalled,
     launchSetupApp: () => {
       calls.push('launch');
+      legacyPluginInstalled = false;
     },
     sleep: async () => undefined,
-    now: () => 0,
+    now: (() => {
+      let value = 0;
+      return () => (value += 100);
+    })(),
     timeoutMs: 5_000,
     pollIntervalMs: 100,
   });
 
   assert.equal(ready, true);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, ['launch']);
+  assert.equal(reads >= 3, true);
+});
+
+test('ensureLauncherSetupReady lets users continue without removing a legacy mpv plugin', async () => {
+  const calls: string[] = [];
+  let reads = 0;
+
+  const ready = await ensureLauncherSetupReady({
+    readSetupState: () => {
+      reads += 1;
+      return {
+        version: 3,
+        status: 'completed',
+        completedAt: reads < 3 ? '2026-03-07T00:00:00.000Z' : '2026-05-12T14:30:00.000Z',
+        completionSource: 'user',
+        yomitanSetupMode: 'internal',
+        lastSeenYomitanDictionaryCount: 2,
+        pluginInstallStatus: 'unknown',
+        pluginInstallPathSummary: null,
+        windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+        windowsMpvShortcutLastStatus: 'unknown',
+      };
+    },
+    hasLegacyMpvPlugin: () => true,
+    launchSetupApp: () => {
+      calls.push('launch');
+    },
+    sleep: async () => undefined,
+    now: (() => {
+      let value = 0;
+      return () => (value += 100);
+    })(),
+    timeoutMs: 5_000,
+    pollIntervalMs: 100,
+  });
+
+  assert.equal(ready, true);
+  assert.deepEqual(calls, ['launch']);
 });
 
 test('ensureLauncherSetupReady fails on timeout/cancelled state', async () => {

@@ -178,10 +178,12 @@ test('release workflow skips empty AUR sync commits', () => {
   assert.match(releaseWorkflow, /if git diff --quiet -- PKGBUILD \.SRCINFO; then/);
 });
 
-test('Makefile routes Windows install-plugin setup through bun and documents Windows builds', () => {
+test('Makefile does not expose the legacy global mpv plugin installer', () => {
   assert.match(
     makefile,
     /windows\) printf '%s\\n' "\[INFO\] Windows builds run via: bun run build:win" ;;/,
   );
-  assert.match(makefile, /bun \.\/scripts\/configure-plugin-binary-path\.mjs/);
+  assert.doesNotMatch(makefile, /^\s*install-plugin:/m);
+  assert.doesNotMatch(makefile, /\binstall-plugin\b/);
+  assert.doesNotMatch(makefile, /configure-plugin-binary-path\.mjs/);
 });

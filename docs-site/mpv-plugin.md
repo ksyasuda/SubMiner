@@ -1,22 +1,12 @@
 # MPV Plugin
 
-The SubMiner mpv plugin (`subminer/main.lua`) provides in-player keybindings to control the overlay without leaving mpv. It communicates with SubMiner by invoking the AppImage (or binary) with CLI flags.
+The SubMiner mpv plugin (`subminer/main.lua`) provides in-player keybindings to control the overlay without leaving mpv. SubMiner-managed launches inject the bundled runtime plugin, so users do not need to install it into mpv's global `scripts` directory.
 
-## Installation
+## Runtime Loading
 
-```bash
-# From release bundle:
-wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
-tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
-mkdir -p ~/.config/SubMiner
-cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
-mkdir -p ~/.config/mpv/scripts/subminer
-mkdir -p ~/.config/mpv/script-opts
-cp -R /tmp/plugin/subminer/. ~/.config/mpv/scripts/subminer/
-cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
+Launch mpv through the SubMiner app, the `subminer` launcher, or the packaged Windows SubMiner mpv shortcut. These paths pass mpv a bundled plugin path for that playback session only, leaving regular mpv playback untouched.
 
-# Or from source checkout: make install-plugin
-```
+If setup detects an older global SubMiner plugin in mpv's `scripts` directory, use **Remove legacy mpv plugin** in first-run setup. The global plugin is not needed once runtime loading is available.
 
 mpv must have IPC enabled for SubMiner to connect:
 
@@ -67,7 +57,7 @@ Select an item by pressing its number.
 
 ## Configuration
 
-Create or edit `~/.config/mpv/script-opts/subminer.conf`:
+For advanced/manual runtime use, create or edit `~/.config/mpv/script-opts/subminer.conf`:
 
 ```ini
 # Path to SubMiner binary. Leave empty for auto-detection.

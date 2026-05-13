@@ -18,7 +18,7 @@ type FirstRunSetupWindowLike = FocusableWindowLike & {
 
 export type FirstRunSetupAction =
   | 'configure-mpv-executable-path'
-  | 'install-plugin'
+  | 'remove-legacy-plugin'
   | 'configure-windows-mpv-shortcuts'
   | 'open-yomitan-settings'
   | 'refresh'
@@ -38,6 +38,7 @@ export interface FirstRunSetupHtmlModel {
   externalYomitanConfigured: boolean;
   pluginStatus: 'installed' | 'required' | 'failed';
   pluginInstallPathSummary: string | null;
+  legacyMpvPluginPaths?: string[];
   mpvExecutablePath: string;
   mpvExecutablePathStatus: 'blank' | 'configured' | 'invalid';
   windowsMpvShortcuts: {
@@ -64,20 +65,19 @@ function renderStatusBadge(value: string, tone: 'ready' | 'warn' | 'muted' | 'da
 }
 
 export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
-  const pluginActionLabel =
-    model.pluginStatus === 'installed' ? 'Reinstall mpv plugin' : 'Install mpv plugin';
+  const legacyMpvPluginPaths = model.legacyMpvPluginPaths ?? [];
+  const finishButtonLabel =
+    legacyMpvPluginPaths.length > 0 && model.canFinish
+      ? 'Continue without removing'
+      : 'Finish setup';
   const pluginLabel =
-    model.pluginStatus === 'installed'
-      ? 'Installed'
+    legacyMpvPluginPaths.length > 0
+      ? 'Legacy detected'
       : model.pluginStatus === 'failed'
         ? 'Failed'
-        : 'Required';
+        : 'Ready';
   const pluginTone =
-    model.pluginStatus === 'installed'
-      ? 'ready'
-      : model.pluginStatus === 'failed'
-        ? 'danger'
-        : 'warn';
+    legacyMpvPluginPaths.length > 0 ? 'warn' : model.pluginStatus === 'failed' ? 'danger' : 'ready';
   const windowsShortcutLabel =
     model.windowsMpvShortcuts.status === 'installed'
       ? 'Installed'
@@ -159,6 +159,23 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       </form>
     </div>`
     : '';
+  const legacyPluginCard =
+    legacyMpvPluginPaths.length > 0
+      ? `
+    <div class="card block">
+      <div class="card-head">
+        <div>
+          <strong>Legacy mpv plugin</strong>
+          <div class="meta">Regular mpv still loads SubMiner from these mpv scripts paths.</div>
+        </div>
+        ${renderStatusBadge('Found', 'warn')}
+      </div>
+      <ul class="legacy-paths">
+        ${legacyMpvPluginPaths.map((pluginPath) => `<li>${escapeHtml(pluginPath)}</li>`).join('')}
+      </ul>
+      <button class="legacy-remove" onclick="if (confirm(&quot;Remove these SubMiner mpv plugin files from mpv's scripts directory? This stops regular mpv from loading SubMiner. SubMiner-managed playback will keep working with the bundled runtime plugin.&quot;)) window.location.href='subminer://first-run-setup?action=remove-legacy-plugin'">Remove legacy mpv plugin</button>
+    </div>`
+      : '';
 
   const yomitanMeta = model.externalYomitanConfigured
     ? 'External profile configured. SubMiner is reusing that Yomitan profile for this setup run.'
@@ -179,8 +196,8 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     : model.canFinish
       ? model.externalYomitanConfigured
         ? 'Finish stays unlocked while SubMiner is reusing an external Yomitan profile. If you later launch without yomitan.externalProfilePath, setup will require at least one internal dictionary.'
-        : 'Finish stays unlocked once the mpv plugin is installed and Yomitan reports at least one installed dictionary.'
-      : 'Finish stays locked until the mpv plugin is installed and Yomitan reports at least one installed dictionary.';
+        : 'Finish stays unlocked once Yomitan reports at least one installed dictionary. SubMiner-managed mpv launches use the bundled runtime plugin.'
+      : 'Finish stays locked until Yomitan reports at least one installed dictionary.';
 
   return `<!doctype html>
 <html>
@@ -307,6 +324,18 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       background: transparent;
       border: 1px solid rgba(202, 211, 245, 0.12);
     }
+    button.legacy-remove {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      min-width: 220px;
+      border: 1px solid rgba(237, 135, 150, 0.38);
+      background: rgba(237, 135, 150, 0.14);
+      color: #f5b1ba;
+    }
+    button.legacy-remove:hover {
+      background: rgba(237, 135, 150, 0.22);
+    }
     button:disabled {
       cursor: not-allowed;
       opacity: 0.55;
@@ -320,6 +349,13 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       margin-top: 10px;
       color: var(--muted);
       font-size: 12px;
+    }
+    .legacy-paths {
+      margin: 10px 0 12px;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
     }
   </style>
 </head>
@@ -335,9 +371,9 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     </div>
     <div class="card">
       <div>
-        <strong>mpv plugin</strong>
+        <strong>mpv runtime plugin</strong>
         <div class="meta">${escapeHtml(model.pluginInstallPathSummary ?? 'Default mpv scripts location')}</div>
-        <div class="meta">Required before SubMiner setup can finish.</div>
+        <div class="meta">Managed mpv launches use the bundled runtime plugin.</div>
       </div>
       ${renderStatusBadge(pluginLabel, pluginTone)}
     </div>
@@ -350,11 +386,11 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     </div>
     ${mpvExecutablePathCard}
     ${windowsShortcutCard}
+    ${legacyPluginCard}
     <div class="actions">
-      <button onclick="window.location.href='subminer://first-run-setup?action=install-plugin'">${pluginActionLabel}</button>
       <button onclick="window.location.href='subminer://first-run-setup?action=open-yomitan-settings'">Open Yomitan Settings</button>
       <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh status</button>
-      <button class="primary" ${model.canFinish ? '' : 'disabled'} onclick="window.location.href='subminer://first-run-setup?action=finish'">Finish setup</button>
+      <button class="primary" ${model.canFinish ? '' : 'disabled'} onclick="window.location.href='subminer://first-run-setup?action=finish'">${finishButtonLabel}</button>
     </div>
     <div class="message">${model.message ? escapeHtml(model.message) : ''}</div>
     <div class="footer">${escapeHtml(footerMessage)}</div>
@@ -371,7 +407,7 @@ export function parseFirstRunSetupSubmissionUrl(rawUrl: string): FirstRunSetupSu
   const action = parsed.searchParams.get('action');
   if (
     action !== 'configure-mpv-executable-path' &&
-    action !== 'install-plugin' &&
+    action !== 'remove-legacy-plugin' &&
     action !== 'configure-windows-mpv-shortcuts' &&
     action !== 'open-yomitan-settings' &&
     action !== 'refresh' &&

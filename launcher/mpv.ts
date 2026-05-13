@@ -4,6 +4,10 @@ import os from 'node:os';
 import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
 import { buildMpvLaunchModeArgs } from '../src/shared/mpv-launch-mode.js';
+import {
+  detectInstalledMpvPlugin,
+  type InstalledMpvPluginDetection,
+} from '../src/main/runtime/first-run-setup-plugin.js';
 import type { LogLevel, Backend, Args, MpvTrack } from './types.js';
 import { DEFAULT_MPV_SUBMINER_ARGS, DEFAULT_YOUTUBE_YTDL_FORMAT } from './types.js';
 import { appendToAppLog, getAppLogPath, log, fail, getMpvLogPath } from './log.js';
@@ -41,6 +45,13 @@ type PathModule = Pick<typeof path, 'join' | 'extname' | 'delimiter' | 'sep' | '
 const DETACHED_IDLE_MPV_PID_FILE = path.join(os.tmpdir(), 'subminer-idle-mpv.pid');
 const OVERLAY_START_SOCKET_READY_TIMEOUT_MS = 900;
 const OVERLAY_START_COMMAND_SETTLE_TIMEOUT_MS = 700;
+
+export interface LauncherRuntimePluginPlan {
+  scriptPath: string | null;
+  installedPlugin: InstalledMpvPluginDetection;
+  warningMessage: string | null;
+  errorMessage: string | null;
+}
 
 export function parseMpvArgString(input: string): string[] {
   const chars = input;
@@ -224,6 +235,182 @@ async function terminateTrackedDetachedMpv(logLevel: LogLevel): Promise<void> {
 
 export function makeTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function normalizeRuntimePluginEntrypoint(
+  candidate: string,
+  deps: {
+    pathModule: typeof path;
+    existsSync: (candidate: string) => boolean;
+  },
+): string | null {
+  const trimmed = candidate.trim();
+  if (!trimmed) return null;
+  if (trimmed.endsWith('.lua')) {
+    return deps.existsSync(trimmed) ? trimmed : null;
+  }
+  const entrypoint = deps.pathModule.join(trimmed, 'main.lua');
+  return deps.existsSync(entrypoint) ? entrypoint : null;
+}
+
+function pushMacAppRuntimePluginCandidate(
+  candidates: string[],
+  appPath: string,
+  pathModule: typeof path,
+): void {
+  const appIndex = appPath.indexOf('.app');
+  if (appIndex < 0) return;
+  candidates.push(
+    pathModule.join(
+      appPath.slice(0, appIndex + '.app'.length),
+      'Contents',
+      'Resources',
+      'plugin',
+      'subminer',
+    ),
+  );
+}
+
+export function resolveLauncherRuntimePluginPath(options: {
+  appPath: string;
+  scriptPath?: string;
+  platform?: NodeJS.Platform;
+  homeDir?: string;
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  dirname?: string;
+  pathModule?: typeof path;
+  existsSync?: (candidate: string) => boolean;
+}): string | null {
+  const pathModule = options.pathModule ?? path;
+  const existsSync = options.existsSync ?? fs.existsSync;
+  const env = options.env ?? process.env;
+  const dirname = options.dirname ?? __dirname;
+  const cwd = options.cwd ?? process.cwd();
+  const platform = options.platform ?? process.platform;
+  const homeDir = options.homeDir ?? os.homedir();
+  const candidates: string[] = [];
+
+  if (env.SUBMINER_MPV_PLUGIN_PATH) {
+    candidates.push(env.SUBMINER_MPV_PLUGIN_PATH);
+  }
+
+  pushMacAppRuntimePluginCandidate(candidates, options.appPath, pathModule);
+
+  const appDir = pathModule.dirname(options.appPath);
+  candidates.push(
+    pathModule.join(appDir, 'resources', 'plugin', 'subminer'),
+    pathModule.join(appDir, 'plugin', 'subminer'),
+  );
+
+  if (options.scriptPath) {
+    const scriptDir = pathModule.dirname(realpathMaybe(options.scriptPath));
+    candidates.push(
+      pathModule.join(scriptDir, '..', 'share', 'SubMiner', 'plugin', 'subminer'),
+      pathModule.join(scriptDir, '..', 'lib', 'SubMiner', 'plugin', 'subminer'),
+      pathModule.join(scriptDir, 'plugin', 'subminer'),
+    );
+  }
+
+  if (platform === 'darwin') {
+    candidates.push(
+      pathModule.join(homeDir, 'Library', 'Application Support', 'SubMiner', 'plugin', 'subminer'),
+    );
+  } else if (platform !== 'win32') {
+    candidates.push(
+      pathModule.join(
+        env.XDG_DATA_HOME?.trim() || pathModule.join(homeDir, '.local', 'share'),
+        'SubMiner',
+        'plugin',
+        'subminer',
+      ),
+    );
+  }
+
+  candidates.push(
+    pathModule.join(cwd, 'plugin', 'subminer'),
+    pathModule.join(dirname, '..', 'plugin', 'subminer'),
+    pathModule.join(dirname, '..', '..', 'plugin', 'subminer'),
+  );
+
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const resolved = pathModule.resolve(candidate);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    const entrypoint = normalizeRuntimePluginEntrypoint(resolved, { pathModule, existsSync });
+    if (entrypoint) {
+      return entrypoint;
+    }
+  }
+
+  return null;
+}
+
+export function resolveLauncherRuntimePluginPlan(options: {
+  runtimePluginPath?: string | null;
+  platform?: NodeJS.Platform;
+  homeDir?: string;
+  xdgConfigHome?: string;
+  appDataDir?: string;
+  mpvExecutablePath?: string;
+  existsSync?: (candidate: string) => boolean;
+  readFileSync?: (candidate: string, encoding: BufferEncoding) => string;
+}): LauncherRuntimePluginPlan {
+  const installedPlugin = detectInstalledMpvPlugin({
+    platform: options.platform ?? process.platform,
+    homeDir: options.homeDir ?? os.homedir(),
+    xdgConfigHome: options.xdgConfigHome ?? process.env.XDG_CONFIG_HOME,
+    appDataDir: options.appDataDir ?? process.env.APPDATA,
+    mpvExecutablePath: options.mpvExecutablePath,
+    existsSync: options.existsSync,
+    readFileSync: options.readFileSync,
+  });
+
+  if (installedPlugin.installed) {
+    const versionText = installedPlugin.version
+      ? `Detected plugin version: ${installedPlugin.version}.`
+      : 'Detected plugin version: unknown or legacy.';
+    return {
+      scriptPath: null,
+      installedPlugin,
+      warningMessage: `SubMiner detected an installed mpv plugin at: ${installedPlugin.path}. This mpv session will use the installed plugin. Remove it to use SubMiner's bundled runtime plugin automatically. ${versionText}`,
+      errorMessage: null,
+    };
+  }
+
+  if (options.runtimePluginPath) {
+    return {
+      scriptPath: options.runtimePluginPath,
+      installedPlugin,
+      warningMessage: null,
+      errorMessage: null,
+    };
+  }
+
+  return {
+    scriptPath: null,
+    installedPlugin,
+    warningMessage: null,
+    errorMessage:
+      'Packaged mpv plugin assets were not found. Install the SubMiner assets bundle or set SUBMINER_MPV_PLUGIN_PATH to plugin/subminer/main.lua.',
+  };
+}
+
+function appendRuntimePluginLaunchArgs(
+  mpvArgs: string[],
+  plan: LauncherRuntimePluginPlan,
+  logLevel: LogLevel,
+): void {
+  if (plan.warningMessage) {
+    log('warn', logLevel, plan.warningMessage);
+  }
+  if (plan.errorMessage) {
+    fail(plan.errorMessage);
+  }
+  if (plan.scriptPath) {
+    mpvArgs.push(`--script=${plan.scriptPath}`);
+  }
 }
 
 export function detectBackend(
@@ -658,7 +845,11 @@ export async function startMpv(
   socketPath: string,
   appPath: string,
   preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
-  options?: { startPaused?: boolean; disableYoutubeSubtitleAutoLoad?: boolean },
+  options?: {
+    startPaused?: boolean;
+    disableYoutubeSubtitleAutoLoad?: boolean;
+    runtimePluginPath?: string | null;
+  },
 ): Promise<void> {
   if (targetKind === 'file' && (!fs.existsSync(target) || !fs.statSync(target).isFile())) {
     fail(`Video file not found: ${target}`);
@@ -672,6 +863,14 @@ export async function startMpv(
 
   const mpvArgs: string[] = [];
   mpvArgs.push(...buildConfiguredMpvDefaultArgs(args));
+  appendRuntimePluginLaunchArgs(
+    mpvArgs,
+    resolveLauncherRuntimePluginPlan({
+      runtimePluginPath:
+        options?.runtimePluginPath ?? resolveLauncherRuntimePluginPath({ appPath }),
+    }),
+    args.logLevel,
+  );
   if (targetKind === 'url' && isYoutubeTarget(target)) {
     log('info', args.logLevel, 'Applying URL playback options');
     mpvArgs.push('--ytdl=yes');
@@ -811,7 +1010,7 @@ export async function startOverlay(
     env: buildAppEnv(),
   });
   attachAppProcessLogging(state.overlayProc);
-  state.overlayManagedByLauncher = true;
+  markOverlayManagedByLauncher(appPath);
 
   const [socketReady] = await Promise.all([
     waitForUnixSocketReady(socketPath, OVERLAY_START_SOCKET_READY_TIMEOUT_MS),
@@ -829,6 +1028,13 @@ export async function startOverlay(
       'Overlay start continuing before mpv socket readiness was confirmed',
     );
   }
+}
+
+export function markOverlayManagedByLauncher(appPath?: string): void {
+  if (appPath) {
+    state.appPath = appPath;
+  }
+  state.overlayManagedByLauncher = true;
 }
 
 export function openUrlInDefaultBrowser(url: string, logLevel: LogLevel): void {
@@ -1236,6 +1442,7 @@ export function launchMpvIdleDetached(
   socketPath: string,
   appPath: string,
   args: Args,
+  runtimePluginPath?: string | null,
 ): Promise<void> {
   return (async () => {
     await terminateTrackedDetachedMpv(args.logLevel);
@@ -1246,6 +1453,13 @@ export function launchMpvIdleDetached(
     }
 
     const mpvArgs: string[] = buildConfiguredMpvDefaultArgs(args);
+    appendRuntimePluginLaunchArgs(
+      mpvArgs,
+      resolveLauncherRuntimePluginPlan({
+        runtimePluginPath: runtimePluginPath ?? resolveLauncherRuntimePluginPath({ appPath }),
+      }),
+      args.logLevel,
+    );
     if (args.mpvArgs) {
       mpvArgs.push(...parseMpvArgString(args.mpvArgs));
     }

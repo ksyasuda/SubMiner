@@ -11,6 +11,10 @@ import {
   type SetupState,
 } from '../../shared/setup-state';
 import type { CliArgs } from '../../cli/args';
+import type {
+  InstalledFirstRunPluginCandidate,
+  LegacyMpvPluginRemovalResult,
+} from './first-run-setup-plugin';
 
 export interface SetupWindowsMpvShortcutSnapshot {
   supported: boolean;
@@ -29,6 +33,7 @@ export interface SetupStatusSnapshot {
   externalYomitanConfigured: boolean;
   pluginStatus: 'installed' | 'required' | 'failed';
   pluginInstallPathSummary: string | null;
+  legacyMpvPluginPaths: string[];
   windowsMpvShortcuts: SetupWindowsMpvShortcutSnapshot;
   message: string | null;
   state: SetupState;
@@ -48,7 +53,7 @@ export interface FirstRunSetupService {
   markSetupInProgress: () => Promise<SetupStatusSnapshot>;
   markSetupCancelled: () => Promise<SetupStatusSnapshot>;
   markSetupCompleted: () => Promise<SetupStatusSnapshot>;
-  installMpvPlugin: () => Promise<SetupStatusSnapshot>;
+  removeLegacyMpvPlugin: () => Promise<SetupStatusSnapshot>;
   configureWindowsMpvShortcuts: (preferences: {
     startMenuEnabled: boolean;
     desktopEnabled: boolean;
@@ -176,9 +181,6 @@ export function getFirstRunSetupCompletionMessage(snapshot: {
   if (!snapshot.configReady) {
     return 'Create or provide the config file before finishing setup.';
   }
-  if (snapshot.pluginStatus !== 'installed') {
-    return 'Install the mpv plugin before finishing setup.';
-  }
   if (!snapshot.externalYomitanConfigured && snapshot.dictionaryCount < 1) {
     return 'Install at least one Yomitan dictionary before finishing setup.';
   }
@@ -219,7 +221,13 @@ export function createFirstRunSetupService(deps: {
   getYomitanDictionaryCount: () => Promise<number>;
   isExternalYomitanConfigured?: () => boolean;
   detectPluginInstalled: () => boolean | Promise<boolean>;
-  installPlugin: () => Promise<PluginInstallResult>;
+  detectLegacyMpvPluginCandidates?: () =>
+    | InstalledFirstRunPluginCandidate[]
+    | Promise<InstalledFirstRunPluginCandidate[]>;
+  installPlugin?: () => Promise<PluginInstallResult>;
+  removeLegacyMpvPlugins?: (
+    candidates: InstalledFirstRunPluginCandidate[],
+  ) => Promise<LegacyMpvPluginRemovalResult>;
   detectWindowsMpvShortcuts?: () =>
     | { startMenuInstalled: boolean; desktopInstalled: boolean }
     | Promise<{ startMenuInstalled: boolean; desktopInstalled: boolean }>;
@@ -250,6 +258,7 @@ export function createFirstRunSetupService(deps: {
         isExternalYomitanConfigured: deps.isExternalYomitanConfigured,
       });
     const pluginInstalled = await deps.detectPluginInstalled();
+    const legacyMpvPluginCandidates = (await deps.detectLegacyMpvPluginCandidates?.()) ?? [];
     const detectedWindowsMpvShortcuts = isWindows
       ? await deps.detectWindowsMpvShortcuts?.()
       : undefined;
@@ -264,16 +273,15 @@ export function createFirstRunSetupService(deps: {
     return {
       configReady,
       dictionaryCount,
-      canFinish:
-        pluginInstalled &&
-        isYomitanSetupSatisfied({
-          configReady,
-          dictionaryCount,
-          externalYomitanConfigured,
-        }),
+      canFinish: isYomitanSetupSatisfied({
+        configReady,
+        dictionaryCount,
+        externalYomitanConfigured,
+      }),
       externalYomitanConfigured,
       pluginStatus: getPluginStatus(state, pluginInstalled),
       pluginInstallPathSummary: state.pluginInstallPathSummary,
+      legacyMpvPluginPaths: legacyMpvPluginCandidates.map((candidate) => candidate.path),
       windowsMpvShortcuts: {
         supported: isWindows,
         startMenuEnabled: effectiveWindowsMpvShortcutPreferences.startMenuEnabled,
@@ -308,14 +316,11 @@ export function createFirstRunSetupService(deps: {
           getYomitanDictionaryCount: deps.getYomitanDictionaryCount,
           isExternalYomitanConfigured: deps.isExternalYomitanConfigured,
         });
-      const pluginInstalled = await deps.detectPluginInstalled();
-      const canFinish =
-        pluginInstalled &&
-        isYomitanSetupSatisfied({
-          configReady,
-          dictionaryCount,
-          externalYomitanConfigured,
-        });
+      const canFinish = isYomitanSetupSatisfied({
+        configReady,
+        dictionaryCount,
+        externalYomitanConfigured,
+      });
       if (isSetupCompleted(state) && canFinish) {
         completed = true;
         return refreshWithState(state);
@@ -349,8 +354,20 @@ export function createFirstRunSetupService(deps: {
     markSetupInProgress: async () => {
       const state = readState();
       if (state.status === 'completed') {
-        completed = true;
-        return refreshWithState(state);
+        const legacyMpvPluginCandidates = (await deps.detectLegacyMpvPluginCandidates?.()) ?? [];
+        if (legacyMpvPluginCandidates.length === 0) {
+          completed = true;
+          return refreshWithState(state);
+        }
+        completed = false;
+        return refreshWithState(
+          writeState({
+            ...state,
+            status: 'in_progress',
+            completedAt: null,
+            completionSource: null,
+          }),
+        );
       }
       return refreshWithState(writeState({ ...state, status: 'in_progress' }));
     },
@@ -379,15 +396,34 @@ export function createFirstRunSetupService(deps: {
         }),
       );
     },
-    installMpvPlugin: async () => {
-      const result = await deps.installPlugin();
+    removeLegacyMpvPlugin: async () => {
+      const candidates = (await deps.detectLegacyMpvPluginCandidates?.()) ?? [];
+      if (candidates.length === 0) {
+        return refreshWithState(readState(), 'No legacy mpv plugin files were found.');
+      }
+      if (!deps.removeLegacyMpvPlugins) {
+        return refreshWithState(
+          readState(),
+          'Legacy mpv plugin removal is unavailable in this runtime.',
+        );
+      }
+
+      const result = await deps.removeLegacyMpvPlugins(candidates);
+      if (result.ok) {
+        return refreshWithState(
+          readState(),
+          'Legacy mpv plugin removed. Regular mpv will no longer load SubMiner. SubMiner-managed playback will use the bundled runtime plugin.',
+        );
+      }
+
+      const removedCount = result.removedPaths.length;
+      const removedText = `${removedCount} legacy mpv plugin path${removedCount === 1 ? '' : 's'}`;
+      const failedText = result.failedPaths
+        .map((failure) => `${failure.path} (${failure.message})`)
+        .join(', ');
       return refreshWithState(
-        writeState({
-          ...readState(),
-          pluginInstallStatus: result.pluginInstallStatus,
-          pluginInstallPathSummary: result.pluginInstallPathSummary,
-        }),
-        result.message,
+        readState(),
+        `Removed ${removedText}, but failed to remove: ${failedText}. Delete the failed paths manually from mpv scripts.`,
       );
     },
     configureWindowsMpvShortcuts: async (preferences) => {

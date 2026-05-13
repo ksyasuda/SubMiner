@@ -2,6 +2,7 @@ import * as childProcess from 'child_process';
 import * as path from 'path';
 
 import { parseMediaInfo } from '../../../jimaku/utils';
+import type { AnilistRateLimiter } from './rate-limiter';
 
 const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
 
@@ -17,6 +18,10 @@ export interface AnilistMediaGuess {
 export interface AnilistPostWatchUpdateResult {
   status: 'updated' | 'skipped' | 'error';
   message: string;
+}
+
+export interface AnilistPostWatchUpdateOptions {
+  rateLimiter?: AnilistRateLimiter;
 }
 
 interface AnilistGraphQlError {
@@ -155,8 +160,10 @@ async function anilistGraphQl<T>(
   accessToken: string,
   query: string,
   variables: Record<string, unknown>,
+  options: AnilistPostWatchUpdateOptions = {},
 ): Promise<AnilistGraphQlResponse<T>> {
   try {
+    await options.rateLimiter?.acquire();
     const response = await fetch(ANILIST_GRAPHQL_URL, {
       method: 'POST',
       headers: {
@@ -166,6 +173,7 @@ async function anilistGraphQl<T>(
       body: JSON.stringify({ query, variables }),
     });
 
+    options.rateLimiter?.recordResponse(response.headers);
     const payload = (await response.json()) as AnilistGraphQlResponse<T>;
     return payload;
   } catch (error) {
@@ -269,6 +277,7 @@ export async function updateAnilistPostWatchProgress(
   accessToken: string,
   title: string,
   episode: number,
+  options: AnilistPostWatchUpdateOptions = {},
 ): Promise<AnilistPostWatchUpdateResult> {
   const searchResponse = await anilistGraphQl<AnilistSearchData>(
     accessToken,
@@ -288,6 +297,7 @@ export async function updateAnilistPostWatchProgress(
       }
     `,
     { search: title },
+    options,
   );
   const searchError = firstErrorMessage(searchResponse);
   if (searchError) {
@@ -317,6 +327,7 @@ export async function updateAnilistPostWatchProgress(
       }
     `,
     { mediaId: picked.id },
+    options,
   );
   const entryError = firstErrorMessage(entryResponse);
   if (entryError) {
@@ -345,6 +356,7 @@ export async function updateAnilistPostWatchProgress(
       }
     `,
     { mediaId: picked.id, progress: episode },
+    options,
   );
   const saveError = firstErrorMessage(saveResponse);
   if (saveError) {

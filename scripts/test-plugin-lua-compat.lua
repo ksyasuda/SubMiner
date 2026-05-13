@@ -1,6 +1,7 @@
 local MODULE_PATHS = {
 	"plugin/subminer/hover.lua",
 	"plugin/subminer/environment.lua",
+	"plugin/subminer/version.lua",
 }
 
 local LEGACY_PARSER_CANDIDATES = {

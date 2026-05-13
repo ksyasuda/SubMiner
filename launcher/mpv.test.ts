@@ -17,6 +17,8 @@ import {
   launchTexthookerOnly,
   parseMpvArgString,
   runAppCommandCaptureOutput,
+  resolveLauncherRuntimePluginPath,
+  resolveLauncherRuntimePluginPlan,
   shouldResolveAniSkipMetadata,
   stopOverlay,
   startOverlay,
@@ -260,6 +262,89 @@ test('buildConfiguredMpvDefaultArgs appends maximized launch mode to configured 
       ],
     );
   });
+});
+
+test('resolveLauncherRuntimePluginPath finds bundled plugin from explicit environment path', () => {
+  const pluginDir = '/opt/SubMiner/plugin/subminer';
+  assert.equal(
+    resolveLauncherRuntimePluginPath({
+      appPath: '/opt/SubMiner/SubMiner.AppImage',
+      env: { SUBMINER_MPV_PLUGIN_PATH: pluginDir },
+      existsSync: (candidate) => candidate === path.join(pluginDir, 'main.lua'),
+    }),
+    path.join(pluginDir, 'main.lua'),
+  );
+});
+
+test('resolveLauncherRuntimePluginPath finds Linux app-support plugin assets', () => {
+  const homeDir = '/home/tester';
+  const expected = path.join(
+    homeDir,
+    '.local',
+    'share',
+    'SubMiner',
+    'plugin',
+    'subminer',
+    'main.lua',
+  );
+
+  assert.equal(
+    resolveLauncherRuntimePluginPath({
+      appPath: '/home/tester/.local/bin/SubMiner.AppImage',
+      scriptPath: '/home/tester/.local/bin/subminer',
+      platform: 'linux',
+      homeDir,
+      env: {},
+      existsSync: (candidate) => candidate === expected,
+    }),
+    expected,
+  );
+});
+
+test('resolveLauncherRuntimePluginPlan injects bundled plugin when no installed plugin exists', () => {
+  const plan = resolveLauncherRuntimePluginPlan({
+    runtimePluginPath: '/opt/SubMiner/plugin/subminer/main.lua',
+    platform: 'linux',
+    homeDir: '/home/tester',
+    existsSync: () => false,
+  });
+
+  assert.equal(plan.scriptPath, '/opt/SubMiner/plugin/subminer/main.lua');
+  assert.equal(plan.installedPlugin.installed, false);
+  assert.equal(plan.warningMessage, null);
+  assert.equal(plan.errorMessage, null);
+});
+
+test('resolveLauncherRuntimePluginPlan uses installed plugin instead of bundled injection', () => {
+  const installedPath = '/home/tester/.config/mpv/scripts/subminer/main.lua';
+  const versionPath = '/home/tester/.config/mpv/scripts/subminer/version.lua';
+  const existing = new Set([installedPath, versionPath]);
+  const plan = resolveLauncherRuntimePluginPlan({
+    runtimePluginPath: '/opt/SubMiner/plugin/subminer/main.lua',
+    platform: 'linux',
+    homeDir: '/home/tester',
+    existsSync: (candidate) => existing.has(candidate),
+    readFileSync: () => 'return { version = "0.12.0" }',
+  });
+
+  assert.equal(plan.scriptPath, null);
+  assert.equal(plan.installedPlugin.path, installedPath);
+  assert.equal(plan.installedPlugin.version, '0.12.0');
+  assert.match(plan.warningMessage ?? '', /This mpv session will use the installed plugin/);
+  assert.equal(plan.errorMessage, null);
+});
+
+test('resolveLauncherRuntimePluginPlan reports missing bundled plugin when no installed plugin exists', () => {
+  const plan = resolveLauncherRuntimePluginPlan({
+    runtimePluginPath: null,
+    platform: 'linux',
+    homeDir: '/home/tester',
+    existsSync: () => false,
+  });
+
+  assert.equal(plan.scriptPath, null);
+  assert.equal(plan.installedPlugin.installed, false);
+  assert.match(plan.errorMessage ?? '', /Packaged mpv plugin assets were not found/);
 });
 
 test('launchTexthookerOnly exits non-zero when app binary cannot be spawned', () => {

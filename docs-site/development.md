@@ -202,7 +202,6 @@ Run `make help` for a full list of targets. Key ones:
 | `make build`           | Build platform package for detected OS                           |
 | `make build-launcher`  | Generate Bun launcher wrapper at `dist/launcher/subminer`        |
 | `make install`         | Install platform artifacts (wrapper, theme, AppImage/app bundle) |
-| `make install-plugin`  | Install mpv Lua plugin and config                                |
 | `make deps`            | Install JS dependencies (root + stats + texthooker-ui)           |
 | `make pretty`          | Run scoped Prettier formatting for maintained source/config files |
 | `make generate-config` | Generate default config from centralized registry                |

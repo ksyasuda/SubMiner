@@ -151,7 +151,7 @@ Once Jellyfin is configured, the tray menu includes `Jellyfin Discovery` for sta
 
 ### Windows mpv Shortcut
 
-First-run setup creates the config file, then requires the mpv plugin and Yomitan dictionaries before it can finish.
+First-run setup creates the config file, then requires Yomitan dictionaries before it can finish. The global mpv plugin install is optional because SubMiner-managed mpv launches inject the bundled runtime plugin.
 
 If you enabled the optional Windows shortcut during install, SubMiner creates a `SubMiner mpv` shortcut in the Start menu and/or on the desktop. On Windows, that shortcut is the recommended way to launch local files with SubMiner because it starts `mpv.exe` with the right defaults directly.
 After setup completes, the shortcut is the normal Windows playback entry point.
@@ -195,13 +195,14 @@ SubMiner.AppImage --setup
 Setup flow:
 
 - config file: create the default config directory and prefer `config.jsonc`
-- plugin status: install the bundled mpv plugin before finishing setup
+- plugin compatibility: optionally install the legacy global mpv plugin; managed launches use the bundled runtime plugin without it
+- legacy plugin cleanup: remove detected global SubMiner mpv plugin files from mpv script directories via the OS trash when you do not want regular mpv to load SubMiner
 - Yomitan shortcut: open bundled Yomitan settings directly from the setup window
 - dictionary check: ensure at least one bundled Yomitan dictionary is available, unless an external Yomitan profile is configured
 - Windows: optionally create or remove `SubMiner mpv` Start Menu/Desktop shortcuts (`SubMiner.exe --launch-mpv`)
 - Windows: optionally set `mpv.executablePath` if `mpv.exe` is not on `PATH`
 - refresh: re-check plugin + dictionary state without restarting
-- `Finish setup` stays disabled until the config, plugin, and dictionary gates are satisfied
+- `Finish setup` stays disabled until the config and dictionary gates are satisfied
 - finish action writes setup completion state and suppresses future auto-open prompts
 
 AniList character dictionary auto-sync (optional):

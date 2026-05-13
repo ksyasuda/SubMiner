@@ -159,18 +159,17 @@ test('setup service auto-completes legacy installs with config and dictionaries'
   });
 });
 
-test('setup service requires mpv plugin install before finish', async () => {
+test('setup service allows finish without global mpv plugin once dictionaries are ready', async () => {
   await withTempDir(async (root) => {
     const configDir = path.join(root, 'SubMiner');
     fs.mkdirSync(configDir, { recursive: true });
     fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
     let dictionaryCount = 0;
-    let pluginInstalled = false;
 
     const service = createFirstRunSetupService({
       configDir,
       getYomitanDictionaryCount: async () => dictionaryCount,
-      detectPluginInstalled: () => pluginInstalled,
+      detectPluginInstalled: () => false,
       installPlugin: async () => ({
         ok: true,
         pluginInstallStatus: 'installed',
@@ -184,11 +183,6 @@ test('setup service requires mpv plugin install before finish', async () => {
     assert.equal(initial.state.status, 'incomplete');
     assert.equal(initial.canFinish, false);
 
-    const installed = await service.installMpvPlugin();
-    assert.equal(installed.state.pluginInstallStatus, 'installed');
-    assert.equal(installed.pluginInstallPathSummary, '/tmp/mpv');
-
-    pluginInstalled = true;
     dictionaryCount = 1;
     const refreshed = await service.refreshStatus();
     assert.equal(refreshed.canFinish, true);
@@ -304,7 +298,7 @@ test('setup service reopens when external-yomitan completion later has no extern
   });
 });
 
-test('setup service reopens when a completed setup no longer has the mpv plugin installed', async () => {
+test('setup service keeps completed when a global mpv plugin is removed later', async () => {
   await withTempDir(async (root) => {
     const configDir = path.join(root, 'SubMiner');
     fs.mkdirSync(configDir, { recursive: true });
@@ -340,9 +334,38 @@ test('setup service reopens when a completed setup no longer has the mpv plugin 
     });
 
     const snapshot = await service.ensureSetupStateInitialized();
-    assert.equal(snapshot.state.status, 'incomplete');
-    assert.equal(snapshot.canFinish, false);
+    assert.equal(snapshot.state.status, 'completed');
+    assert.equal(snapshot.canFinish, true);
     assert.equal(snapshot.pluginStatus, 'required');
+  });
+});
+
+test('setup service reopens completed setup as in-progress when legacy mpv plugin removal is needed', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 2,
+      detectPluginInstalled: () => true,
+      detectLegacyMpvPluginCandidates: () => [
+        { path: '/tmp/mpv/scripts/subminer', kind: 'directory' },
+      ],
+      onStateChanged: () => undefined,
+    });
+
+    await service.ensureSetupStateInitialized();
+    await service.markSetupCompleted();
+
+    const inProgress = await service.markSetupInProgress();
+    assert.equal(inProgress.state.status, 'in_progress');
+    assert.equal(inProgress.state.completedAt, null);
+
+    const completed = await service.markSetupCompleted();
+    assert.equal(completed.state.status, 'completed');
+    assert.notEqual(completed.state.completedAt, null);
   });
 });
 
@@ -488,5 +511,88 @@ test('setup service persists Windows mpv shortcut preferences and status with on
     assert.equal(snapshot.state.windowsMpvShortcutLastStatus, 'installed');
     assert.equal(snapshot.message, 'shortcuts updated');
     assert.deepEqual(stateChanges, ['installed']);
+  });
+});
+
+test('setup service removes legacy mpv plugin candidates and refreshes detection', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+    let legacyCandidates = [{ path: '/tmp/mpv/scripts/subminer', kind: 'directory' as const }];
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 1,
+      detectPluginInstalled: () => legacyCandidates.length > 0,
+      detectLegacyMpvPluginCandidates: () => legacyCandidates,
+      removeLegacyMpvPlugins: async (candidates) => {
+        assert.deepEqual(candidates, legacyCandidates);
+        legacyCandidates = [];
+        return {
+          ok: true,
+          removedPaths: ['/tmp/mpv/scripts/subminer'],
+          failedPaths: [],
+        };
+      },
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+        message: 'ok',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    const before = await service.refreshStatus();
+    assert.deepEqual(before.legacyMpvPluginPaths, ['/tmp/mpv/scripts/subminer']);
+
+    const removed = await service.removeLegacyMpvPlugin();
+    assert.equal(
+      removed.message,
+      'Legacy mpv plugin removed. Regular mpv will no longer load SubMiner. SubMiner-managed playback will use the bundled runtime plugin.',
+    );
+    assert.deepEqual(removed.legacyMpvPluginPaths, []);
+  });
+});
+
+test('setup service reports failed legacy mpv plugin trash paths', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+    const legacyCandidates = [
+      { path: '/tmp/mpv/scripts/subminer', kind: 'directory' as const },
+      { path: '/tmp/mpv/scripts/subminer.lua', kind: 'file' as const },
+    ];
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 1,
+      detectPluginInstalled: () => true,
+      detectLegacyMpvPluginCandidates: () => legacyCandidates,
+      removeLegacyMpvPlugins: async () => ({
+        ok: false,
+        removedPaths: ['/tmp/mpv/scripts/subminer'],
+        failedPaths: [{ path: '/tmp/mpv/scripts/subminer.lua', message: 'permission denied' }],
+      }),
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+        message: 'ok',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    const removed = await service.removeLegacyMpvPlugin();
+    assert.equal(
+      removed.message,
+      'Removed 1 legacy mpv plugin path, but failed to remove: /tmp/mpv/scripts/subminer.lua (permission denied). Delete the failed paths manually from mpv scripts.',
+    );
+    assert.deepEqual(removed.legacyMpvPluginPaths, [
+      '/tmp/mpv/scripts/subminer',
+      '/tmp/mpv/scripts/subminer.lua',
+    ]);
   });
 });

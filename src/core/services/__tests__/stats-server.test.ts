@@ -1025,6 +1025,46 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 400);
   });
 
+  it('GET /api/stats/anilist/search uses the configured AniList rate limiter', async () => {
+    const originalFetch = globalThis.fetch;
+    let acquireCalls = 0;
+    let recordCalls = 0;
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          data: {
+            Page: {
+              media: [{ id: 21858, title: { romaji: 'Little Witch Academia' } }],
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'X-RateLimit-Remaining': '29' },
+        },
+      )) as typeof fetch;
+
+    try {
+      const app = createStatsApp(createMockTracker(), {
+        anilistRateLimiter: {
+          acquire: async () => {
+            acquireCalls += 1;
+          },
+          recordResponse: () => {
+            recordCalls += 1;
+          },
+        },
+      });
+      const res = await app.request('/api/stats/anilist/search?q=Little%20Witch%20Academia');
+
+      assert.equal(res.status, 200);
+      assert.equal(acquireCalls, 1);
+      assert.equal(recordCalls, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('POST /api/stats/anki/notesInfo resolves stale note ids through the configured alias resolver', async () => {
     const originalFetch = globalThis.fetch;
     const requests: unknown[] = [];

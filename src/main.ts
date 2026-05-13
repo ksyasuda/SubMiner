@@ -382,7 +382,10 @@ import {
 } from './main/runtime/first-run-setup-window';
 import {
   detectInstalledFirstRunPlugin,
-  installFirstRunPluginToDefaultLocation,
+  detectInstalledFirstRunPluginCandidates,
+  detectInstalledMpvPlugin,
+  removeLegacyMpvPluginCandidates,
+  resolvePackagedRuntimePluginPath,
   syncInstalledFirstRunPluginBinaryPath,
 } from './main/runtime/first-run-setup-plugin';
 import {
@@ -1063,6 +1066,89 @@ const managedLocalSubtitleSelectionRuntime = createManagedLocalSubtitleSelection
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
   clearScheduled: (timer) => clearTimeout(timer),
 });
+
+function resolveBundledMpvRuntimePluginEntrypoint(): string | undefined {
+  return (
+    resolvePackagedRuntimePluginPath({
+      dirname: __dirname,
+      appPath: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
+    }) ?? undefined
+  );
+}
+
+function detectWindowsInstalledMpvPlugin(mpvExecutablePath: string) {
+  return detectInstalledMpvPlugin({
+    platform: 'win32',
+    homeDir: os.homedir(),
+    appDataDir: app.getPath('appData'),
+    mpvExecutablePath,
+  });
+}
+
+function logInstalledMpvPluginDetected(detection: { path: string | null; version: string | null }) {
+  if (!detection.path) return;
+  logger.warn(
+    `SubMiner detected an installed mpv plugin at ${detection.path}. This mpv session will use the installed plugin. Remove it to use the bundled runtime plugin automatically. Detected plugin version: ${detection.version ?? 'unknown or legacy'}.`,
+  );
+}
+
+async function promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(
+  mpvPath: string,
+  detection: { path: string | null; version: string | null },
+): Promise<'removed' | 'continue' | 'cancel'> {
+  const response = await dialog.showMessageBox({
+    type: 'warning',
+    title: 'SubMiner mpv plugin detected',
+    message: [
+      'SubMiner detected an installed mpv plugin at:',
+      detection.path ?? 'unknown path',
+      '',
+      "This mpv session will use the installed plugin unless it is removed. Remove it now to use SubMiner's bundled runtime plugin automatically.",
+      `Detected plugin version: ${detection.version ?? 'unknown or legacy'}`,
+    ].join('\n'),
+    detail:
+      'Remove the legacy SubMiner mpv plugin files from mpv before launching this video? This moves the files to the OS trash.',
+    buttons: ['Remove legacy plugin', 'Continue with installed plugin', 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
+  });
+
+  if (response.response === 2) {
+    return 'cancel';
+  }
+  if (response.response === 1) {
+    return 'continue';
+  }
+
+  const result = await removeLegacyMpvPluginCandidates({
+    candidates: detectInstalledFirstRunPluginCandidates({
+      platform: 'win32',
+      homeDir: os.homedir(),
+      appDataDir: app.getPath('appData'),
+      mpvExecutablePath: mpvPath,
+    }),
+    trashItem: (candidatePath) => shell.trashItem(candidatePath),
+  });
+  if (result.ok) {
+    await dialog.showMessageBox({
+      type: 'info',
+      title: 'Legacy mpv plugin removed',
+      message:
+        'Legacy mpv plugin removed. SubMiner-managed playback will use the bundled runtime plugin.',
+    });
+    return 'removed';
+  }
+
+  await dialog.showMessageBox({
+    type: 'error',
+    title: 'Could not remove legacy mpv plugin',
+    message: 'Some legacy SubMiner mpv plugin files could not be moved to the trash.',
+    detail: result.failedPaths.map((failure) => `${failure.path}: ${failure.message}`).join('\n'),
+  });
+  return 'cancel';
+}
+
 const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   platform: process.platform,
   directPlaybackFormat: YOUTUBE_DIRECT_PLAYBACK_FORMAT,
@@ -1087,10 +1173,16 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
         showError: (title, content) => dialog.showErrorBox(title, content),
       }),
       [...args, `--log-file=${DEFAULT_MPV_LOG_PATH}`],
-      undefined,
-      undefined,
+      process.execPath,
+      resolveBundledMpvRuntimePluginEntrypoint(),
       getResolvedConfig().mpv.executablePath,
       getResolvedConfig().mpv.launchMode,
+      {
+        detectInstalledMpvPlugin: detectWindowsInstalledMpvPlugin,
+        notifyInstalledPluginDetected: logInstalledMpvPluginDetected,
+        resolveInstalledPluginBeforeLaunch: (detection, mpvPath) =>
+          promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(mpvPath, detection),
+      },
     ),
   waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
   prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
@@ -1127,6 +1219,16 @@ const firstRunSetupService = createFirstRunSetupService({
   isExternalYomitanConfigured: () =>
     getResolvedConfig().yomitan.externalProfilePath.trim().length > 0,
   detectPluginInstalled: () => {
+    const candidates = detectInstalledFirstRunPluginCandidates({
+      platform: process.platform,
+      homeDir: os.homedir(),
+      xdgConfigHome: process.env.XDG_CONFIG_HOME,
+      appDataDir: app.getPath('appData'),
+      mpvExecutablePath: getResolvedConfig().mpv.executablePath,
+    });
+    if (candidates.length > 0) {
+      return true;
+    }
     const installPaths = resolveDefaultMpvInstallPaths(
       process.platform,
       os.homedir(),
@@ -1134,15 +1236,18 @@ const firstRunSetupService = createFirstRunSetupService({
     );
     return detectInstalledFirstRunPlugin(installPaths);
   },
-  installPlugin: async () =>
-    installFirstRunPluginToDefaultLocation({
+  detectLegacyMpvPluginCandidates: () =>
+    detectInstalledFirstRunPluginCandidates({
       platform: process.platform,
       homeDir: os.homedir(),
       xdgConfigHome: process.env.XDG_CONFIG_HOME,
-      dirname: __dirname,
-      appPath: app.getAppPath(),
-      resourcesPath: process.resourcesPath,
-      binaryPath: process.execPath,
+      appDataDir: app.getPath('appData'),
+      mpvExecutablePath: getResolvedConfig().mpv.executablePath,
+    }),
+  removeLegacyMpvPlugins: (candidates) =>
+    removeLegacyMpvPluginCandidates({
+      candidates,
+      trashItem: (candidatePath) => shell.trashItem(candidatePath),
     }),
   detectWindowsMpvShortcuts: () => {
     if (process.platform !== 'win32') {
@@ -1309,8 +1414,9 @@ const buildMainSubsyncRuntimeMainDepsHandler = createBuildMainSubsyncRuntimeMain
 const immersionMediaRuntime = createImmersionMediaRuntime(
   buildImmersionMediaRuntimeMainDepsHandler(),
 );
+const anilistRateLimiter = createAnilistRateLimiter();
 const statsCoverArtFetcher = createCoverArtFetcher(
-  createAnilistRateLimiter(),
+  anilistRateLimiter,
   createLogger('main:stats-cover-art'),
 );
 const anilistStateRuntime = createAnilistStateRuntime(buildAnilistStateRuntimeMainDepsHandler());
@@ -2639,6 +2745,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       externalYomitanConfigured: snapshot.externalYomitanConfigured,
       pluginStatus: snapshot.pluginStatus,
       pluginInstallPathSummary: snapshot.pluginInstallPathSummary,
+      legacyMpvPluginPaths: snapshot.legacyMpvPluginPaths,
       mpvExecutablePath,
       mpvExecutablePathStatus: getConfiguredWindowsMpvPathStatus(mpvExecutablePath),
       windowsMpvShortcuts: snapshot.windowsMpvShortcuts,
@@ -2648,8 +2755,8 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
   buildSetupHtml: (model) => buildFirstRunSetupHtml(model),
   parseSubmissionUrl: (rawUrl) => parseFirstRunSetupSubmissionUrl(rawUrl),
   handleAction: async (submission: FirstRunSetupSubmission) => {
-    if (submission.action === 'install-plugin') {
-      const snapshot = await firstRunSetupService.installMpvPlugin();
+    if (submission.action === 'remove-legacy-plugin') {
+      const snapshot = await firstRunSetupService.removeLegacyMpvPlugin();
       firstRunSetupMessage = snapshot.message;
       return;
     }
@@ -2998,7 +3105,9 @@ const {
     },
     refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
     updateAnilistPostWatchProgress: (accessToken, title, episode) =>
-      updateAnilistPostWatchProgress(accessToken, title, episode),
+      updateAnilistPostWatchProgress(accessToken, title, episode, {
+        rateLimiter: anilistRateLimiter,
+      }),
     markSuccess: (key) => {
       anilistUpdateQueue.markSuccess(key);
     },
@@ -3044,7 +3153,9 @@ const {
     },
     refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
     updateAnilistPostWatchProgress: (accessToken, title, episode) =>
-      updateAnilistPostWatchProgress(accessToken, title, episode),
+      updateAnilistPostWatchProgress(accessToken, title, episode, {
+        rateLimiter: anilistRateLimiter,
+      }),
     rememberAttemptedUpdateKey: (key) => {
       rememberAnilistAttemptedUpdate(key);
     },
@@ -3251,6 +3362,7 @@ const startLocalStatsServer = (): void => {
       knownWordCachePath: path.join(USER_DATA_PATH, 'known-words-cache.json'),
       mpvSocketPath: appState.mpvSocketPath,
       ankiConnectConfig: getResolvedConfig().ankiConnect,
+      anilistRateLimiter,
       resolveAnkiNoteId: (noteId: number) =>
         appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
       addYomitanNote: async (word: string) => {

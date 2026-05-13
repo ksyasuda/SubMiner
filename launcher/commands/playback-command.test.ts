@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import type { LauncherCommandContext } from './context.js';
 import { runPlaybackCommandWithDeps } from './playback-command.js';
+import { state } from '../mpv.js';
 
 function createContext(): LauncherCommandContext {
   return {
@@ -95,7 +97,7 @@ test('youtube playback launches overlay with app-owned youtube flow args', async
     autoStartVisibleOverlay: false,
     autoStartPauseUntilReady: false,
   };
-  let receivedStartMpvOptions: Record<string, unknown> | null = null;
+  const receivedStartMpvOptions: Record<string, unknown>[] = [];
 
   await runPlaybackCommandWithDeps(context, {
     ensurePlaybackSetupReady: async () => {},
@@ -111,7 +113,9 @@ test('youtube playback launches overlay with app-owned youtube flow args', async
       _preloadedSubtitles,
       options,
     ) => {
-      receivedStartMpvOptions = options ?? null;
+      if (options) {
+        receivedStartMpvOptions.push(options as Record<string, unknown>);
+      }
       calls.push('startMpv');
     },
     waitForUnixSocketReady: async () => true,
@@ -130,8 +134,63 @@ test('youtube playback launches overlay with app-owned youtube flow args', async
     'startMpv',
     'startOverlay:--youtube-play https://www.youtube.com/watch?v=65Ovd7t8sNw --youtube-mode download',
   ]);
-  assert.deepEqual(receivedStartMpvOptions, {
-    startPaused: true,
-    disableYoutubeSubtitleAutoLoad: true,
-  });
+  assert.equal(receivedStartMpvOptions[0]?.startPaused, true);
+  assert.equal(receivedStartMpvOptions[0]?.disableYoutubeSubtitleAutoLoad, true);
+});
+
+test('plugin auto-start playback marks background app for cleanup when mpv exits', async () => {
+  const context = createContext();
+  context.args = {
+    ...context.args,
+    target: '/tmp/movie.mkv',
+    targetKind: 'file',
+  };
+  context.pluginRuntimeConfig = {
+    socketPath: '/tmp/subminer.sock',
+    autoStart: true,
+    autoStartVisibleOverlay: false,
+    autoStartPauseUntilReady: false,
+  };
+  const appPath = context.appPath ?? '';
+  state.appPath = appPath;
+  state.overlayManagedByLauncher = false;
+  const mpvProc = new EventEmitter() as EventEmitter & {
+    exitCode: number | null;
+    killed: boolean;
+    kill: () => boolean;
+  };
+  mpvProc.exitCode = null;
+  mpvProc.killed = false;
+  mpvProc.kill = () => true;
+  let cleanupSawManagedOverlay = false;
+
+  try {
+    await runPlaybackCommandWithDeps(context, {
+      ensurePlaybackSetupReady: async () => {},
+      chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
+      checkDependencies: () => {},
+      registerCleanup: () => {},
+      startMpv: async () => {
+        setTimeout(() => {
+          mpvProc.exitCode = 0;
+          mpvProc.emit('exit', 0);
+        }, 5);
+      },
+      waitForUnixSocketReady: async () => true,
+      startOverlay: async () => {
+        throw new Error('startOverlay should not run when plugin auto-start is used');
+      },
+      launchAppCommandDetached: () => {},
+      log: () => {},
+      cleanupPlaybackSession: async () => {
+        cleanupSawManagedOverlay = state.overlayManagedByLauncher;
+      },
+      getMpvProc: () => mpvProc as NonNullable<typeof state.mpvProc>,
+    });
+
+    assert.equal(cleanupSawManagedOverlay, true);
+  } finally {
+    state.appPath = '';
+    state.overlayManagedByLauncher = false;
+  }
 });

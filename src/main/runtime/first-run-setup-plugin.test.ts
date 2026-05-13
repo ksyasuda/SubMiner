@@ -5,8 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   detectInstalledFirstRunPlugin,
-  installFirstRunPluginToDefaultLocation,
+  detectInstalledFirstRunPluginCandidates,
+  detectInstalledMpvPlugin,
+  removeLegacyMpvPluginCandidates,
   resolvePackagedFirstRunPluginAssets,
+  resolvePackagedRuntimePluginPath,
   syncInstalledFirstRunPluginBinaryPath,
 } from './first-run-setup-plugin';
 import { resolveDefaultMpvInstallPaths } from '../../shared/setup-state';
@@ -43,125 +46,22 @@ test('resolvePackagedFirstRunPluginAssets finds packaged plugin assets', () => {
   });
 });
 
-test('installFirstRunPluginToDefaultLocation installs plugin and backs up existing files', () => {
+test('resolvePackagedRuntimePluginPath returns packaged plugin entrypoint', () => {
   withTempDir((root) => {
     const resourcesPath = path.join(root, 'resources');
     const pluginRoot = path.join(resourcesPath, 'plugin');
-    const homeDir = path.join(root, 'home');
-    const xdgConfigHome = path.join(root, 'xdg');
-    const installPaths = resolveDefaultMpvInstallPaths('linux', homeDir, xdgConfigHome);
-
-    fs.mkdirSync(path.join(pluginRoot, 'subminer'), { recursive: true });
-    fs.writeFileSync(path.join(pluginRoot, 'subminer', 'main.lua'), '-- packaged plugin');
+    const entrypoint = path.join(pluginRoot, 'subminer', 'main.lua');
+    fs.mkdirSync(path.dirname(entrypoint), { recursive: true });
+    fs.writeFileSync(entrypoint, '-- plugin');
     fs.writeFileSync(path.join(pluginRoot, 'subminer.conf'), 'configured=true\n');
 
-    fs.mkdirSync(path.dirname(installPaths.pluginEntrypointPath), { recursive: true });
-    fs.mkdirSync(installPaths.pluginDir, { recursive: true });
-    fs.mkdirSync(path.dirname(installPaths.pluginConfigPath), { recursive: true });
-    fs.writeFileSync(path.join(installPaths.scriptsDir, 'subminer-loader.lua'), '-- old loader');
-    fs.writeFileSync(path.join(installPaths.pluginDir, 'old.lua'), '-- old plugin');
-    fs.writeFileSync(installPaths.pluginConfigPath, 'old=true\n');
-
-    const result = installFirstRunPluginToDefaultLocation({
-      platform: 'linux',
-      homeDir,
-      xdgConfigHome,
-      dirname: path.join(root, 'dist', 'main', 'runtime'),
-      appPath: path.join(root, 'app'),
-      resourcesPath,
-      binaryPath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
-    });
-
-    assert.equal(result.ok, true);
-    assert.equal(result.pluginInstallStatus, 'installed');
-    assert.equal(detectInstalledFirstRunPlugin(installPaths), true);
-    assert.equal(fs.readFileSync(installPaths.pluginEntrypointPath, 'utf8'), '-- packaged plugin');
     assert.equal(
-      fs.readFileSync(installPaths.pluginConfigPath, 'utf8'),
-      'configured=true\nbinary_path=/Applications/SubMiner.app/Contents/MacOS/SubMiner\n',
-    );
-
-    const scriptsDirEntries = fs.readdirSync(installPaths.scriptsDir);
-    const scriptOptsEntries = fs.readdirSync(installPaths.scriptOptsDir);
-    assert.equal(
-      scriptsDirEntries.some((entry) => entry.startsWith('subminer.bak.')),
-      true,
-    );
-    assert.equal(
-      scriptsDirEntries.some((entry) => entry.startsWith('subminer-loader.lua.bak.')),
-      true,
-    );
-    assert.equal(
-      scriptOptsEntries.some((entry) => entry.startsWith('subminer.conf.bak.')),
-      true,
-    );
-  });
-});
-
-test('installFirstRunPluginToDefaultLocation installs plugin to Windows mpv defaults', () => {
-  if (process.platform !== 'win32') {
-    return;
-  }
-  withTempDir((root) => {
-    const resourcesPath = path.join(root, 'resources');
-    const pluginRoot = path.join(resourcesPath, 'plugin');
-    const homeDir = path.join(root, 'home');
-    const installPaths = resolveDefaultMpvInstallPaths('win32', homeDir);
-
-    fs.mkdirSync(path.join(pluginRoot, 'subminer'), { recursive: true });
-    fs.writeFileSync(path.join(pluginRoot, 'subminer', 'main.lua'), '-- packaged plugin');
-    fs.writeFileSync(path.join(pluginRoot, 'subminer.conf'), 'configured=true\n');
-
-    const result = installFirstRunPluginToDefaultLocation({
-      platform: 'win32',
-      homeDir,
-      dirname: path.join(root, 'dist', 'main', 'runtime'),
-      appPath: path.join(root, 'app'),
-      resourcesPath,
-      binaryPath: 'C:\\Program Files\\SubMiner\\SubMiner.exe',
-    });
-
-    assert.equal(result.ok, true);
-    assert.equal(result.pluginInstallStatus, 'installed');
-    assert.equal(detectInstalledFirstRunPlugin(installPaths), true);
-    assert.equal(fs.readFileSync(installPaths.pluginEntrypointPath, 'utf8'), '-- packaged plugin');
-    assert.equal(
-      fs.readFileSync(installPaths.pluginConfigPath, 'utf8'),
-      'configured=true\nbinary_path=C:\\Program Files\\SubMiner\\SubMiner.exe\n',
-    );
-  });
-});
-
-test('installFirstRunPluginToDefaultLocation rewrites Windows plugin socket_path', () => {
-  if (process.platform !== 'win32') {
-    return;
-  }
-  withTempDir((root) => {
-    const resourcesPath = path.join(root, 'resources');
-    const pluginRoot = path.join(resourcesPath, 'plugin');
-    const homeDir = path.join(root, 'home');
-    const installPaths = resolveDefaultMpvInstallPaths('win32', homeDir);
-
-    fs.mkdirSync(path.join(pluginRoot, 'subminer'), { recursive: true });
-    fs.writeFileSync(path.join(pluginRoot, 'subminer', 'main.lua'), '-- packaged plugin');
-    fs.writeFileSync(
-      path.join(pluginRoot, 'subminer.conf'),
-      'binary_path=\nsocket_path=/tmp/subminer-socket\n',
-    );
-
-    const result = installFirstRunPluginToDefaultLocation({
-      platform: 'win32',
-      homeDir,
-      dirname: path.join(root, 'dist', 'main', 'runtime'),
-      appPath: path.join(root, 'app'),
-      resourcesPath,
-      binaryPath: 'C:\\Program Files\\SubMiner\\SubMiner.exe',
-    });
-
-    assert.equal(result.ok, true);
-    assert.equal(
-      fs.readFileSync(installPaths.pluginConfigPath, 'utf8'),
-      'binary_path=C:\\Program Files\\SubMiner\\SubMiner.exe\nsocket_path=\\\\.\\pipe\\subminer-socket\n',
+      resolvePackagedRuntimePluginPath({
+        dirname: path.join(root, 'dist', 'main', 'runtime'),
+        appPath: path.join(root, 'app'),
+        resourcesPath,
+      }),
+      entrypoint,
     );
   });
 });
@@ -268,6 +168,140 @@ test('detectInstalledFirstRunPlugin ignores legacy loader file', () => {
 
     assert.equal(detectInstalledFirstRunPlugin(installPaths), false);
   });
+});
+
+test('detectInstalledFirstRunPluginCandidates returns all legacy autoload entries without script opts', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const installPaths = resolveDefaultMpvInstallPaths('linux', homeDir, xdgConfigHome);
+    const directoryInstall = installPaths.pluginDir;
+    const legacyScript = path.join(installPaths.scriptsDir, 'subminer.lua');
+    const legacyLoader = path.join(installPaths.scriptsDir, 'subminer-loader.lua');
+
+    fs.mkdirSync(directoryInstall, { recursive: true });
+    fs.writeFileSync(path.join(directoryInstall, 'main.lua'), '-- plugin');
+    fs.writeFileSync(legacyScript, '-- legacy plugin');
+    fs.writeFileSync(legacyLoader, '-- legacy loader');
+    fs.mkdirSync(path.dirname(installPaths.pluginConfigPath), { recursive: true });
+    fs.writeFileSync(installPaths.pluginConfigPath, 'socket_path=/tmp/subminer-socket\n');
+
+    const candidates = detectInstalledFirstRunPluginCandidates({
+      platform: 'linux',
+      homeDir,
+      xdgConfigHome,
+    });
+
+    assert.deepEqual(
+      candidates.map((candidate) => candidate.path).sort(),
+      [directoryInstall, legacyLoader, legacyScript].sort(),
+    );
+    assert.equal(
+      candidates.some((candidate) => candidate.path === installPaths.pluginConfigPath),
+      false,
+    );
+  });
+});
+
+test('detectInstalledFirstRunPluginCandidates includes Windows portable mpv scripts', () => {
+  withTempDir((root) => {
+    const homeDir = path.win32.join('C:\\Users', 'tester');
+    const appDataDir = path.win32.join(root, 'AppData', 'Roaming');
+    const mpvExecutablePath = path.win32.join(root, 'mpv', 'mpv.exe');
+    const portablePluginDir = path.win32.join(
+      path.win32.dirname(mpvExecutablePath),
+      'portable_config',
+      'scripts',
+      'subminer',
+    );
+    const portableLegacyScript = path.win32.join(
+      path.win32.dirname(mpvExecutablePath),
+      'portable_config',
+      'scripts',
+      'subminer.lua',
+    );
+    const existing = new Set([portablePluginDir, portableLegacyScript]);
+
+    const candidates = detectInstalledFirstRunPluginCandidates({
+      platform: 'win32',
+      homeDir,
+      appDataDir,
+      mpvExecutablePath,
+      existsSync: (candidate) => existing.has(candidate),
+    });
+
+    assert.deepEqual(
+      candidates.map((candidate) => candidate.path),
+      [portablePluginDir, portableLegacyScript],
+    );
+  });
+});
+
+test('detectInstalledMpvPlugin prefers Windows portable plugin and parses version', () => {
+  const homeDir = 'C:\\Users\\tester';
+  const appDataDir = 'C:\\Users\\tester\\AppData\\Roaming';
+  const mpvExecutablePath = 'C:\\tools\\mpv\\mpv.exe';
+  const portableEntrypoint = 'C:\\tools\\mpv\\portable_config\\scripts\\subminer\\main.lua';
+  const portableVersion = 'C:\\tools\\mpv\\portable_config\\scripts\\subminer\\version.lua';
+  const appDataEntrypoint = 'C:\\Users\\tester\\AppData\\Roaming\\mpv\\scripts\\subminer\\main.lua';
+  const existing = new Set([portableEntrypoint, portableVersion, appDataEntrypoint]);
+
+  const detection = detectInstalledMpvPlugin({
+    platform: 'win32',
+    homeDir,
+    appDataDir,
+    mpvExecutablePath,
+    existsSync: (candidate) => existing.has(candidate),
+    readFileSync: (candidate) =>
+      candidate === portableVersion ? 'return { version = "0.12.0" }' : '',
+  });
+
+  assert.equal(detection.installed, true);
+  assert.equal(detection.path, portableEntrypoint);
+  assert.equal(detection.version, '0.12.0');
+  assert.equal(detection.source, 'portable-config');
+});
+
+test('detectInstalledMpvPlugin detects Linux legacy single-file plugin without version', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const legacyPath = path.join(homeDir, '.config', 'mpv', 'scripts', 'subminer-loader.lua');
+    fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+    fs.writeFileSync(legacyPath, '-- legacy');
+
+    const detection = detectInstalledMpvPlugin({
+      platform: 'linux',
+      homeDir,
+    });
+
+    assert.equal(detection.installed, true);
+    assert.equal(detection.path, legacyPath);
+    assert.equal(detection.version, null);
+    assert.equal(detection.source, 'legacy-file');
+  });
+});
+
+test('removeLegacyMpvPluginCandidates trashes candidates and reports partial failures', async () => {
+  const calls: string[] = [];
+  const result = await removeLegacyMpvPluginCandidates({
+    candidates: [
+      { path: '/tmp/mpv/scripts/subminer', kind: 'directory' },
+      { path: '/tmp/mpv/scripts/subminer.lua', kind: 'file' },
+    ],
+    trashItem: async (candidate) => {
+      calls.push(candidate);
+      if (candidate.endsWith('subminer.lua')) {
+        throw new Error('permission denied');
+      }
+    },
+  });
+
+  assert.deepEqual(calls, ['/tmp/mpv/scripts/subminer', '/tmp/mpv/scripts/subminer.lua']);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.removedPaths, ['/tmp/mpv/scripts/subminer']);
+  assert.deepEqual(result.failedPaths, [
+    { path: '/tmp/mpv/scripts/subminer.lua', message: 'permission denied' },
+  ]);
 });
 
 test('detectInstalledFirstRunPlugin requires main.lua in subminer directory', () => {
