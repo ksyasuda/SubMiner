@@ -17,8 +17,8 @@ test('createCreateFirstRunSetupWindowHandler builds first-run setup window', () 
 
   assert.deepEqual(createSetupWindow(), { id: 'first-run' });
   assert.deepEqual(options, {
-    width: 480,
-    height: 460,
+    width: 560,
+    height: 640,
     title: 'SubMiner Setup',
     show: true,
     autoHideMenuBar: true,

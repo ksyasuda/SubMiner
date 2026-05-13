@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { buildMpvLaunchModeArgs } from '../../shared/mpv-launch-mode';
 import type { MpvLaunchMode } from '../../types/config';
+import type { InstalledMpvPluginDetection } from './first-run-setup-plugin';
 
 export interface WindowsMpvLaunchDeps {
   getEnv: (name: string) => string | undefined;
@@ -12,6 +13,15 @@ export interface WindowsMpvLaunchDeps {
 }
 
 export type ConfiguredWindowsMpvPathStatus = 'blank' | 'configured' | 'invalid';
+
+export interface WindowsMpvRuntimePluginPolicy {
+  detectInstalledMpvPlugin?: (mpvPath: string) => InstalledMpvPluginDetection;
+  notifyInstalledPluginDetected?: (detection: InstalledMpvPluginDetection) => void;
+  resolveInstalledPluginBeforeLaunch?: (
+    detection: InstalledMpvPluginDetection,
+    mpvPath: string,
+  ) => Promise<'removed' | 'continue' | 'cancel'> | 'removed' | 'continue' | 'cancel';
+}
 
 function normalizeCandidate(candidate: string | undefined): string {
   return typeof candidate === 'string' ? candidate.trim() : '';
@@ -100,10 +110,12 @@ export function buildWindowsMpvLaunchArgs(
     typeof pluginEntrypointPath === 'string' && pluginEntrypointPath.trim().length > 0
       ? `--script=${pluginEntrypointPath.trim()}`
       : null;
-  const scriptOptPairs = scriptEntrypoint
+  const hasBinaryPath = typeof binaryPath === 'string' && binaryPath.trim().length > 0;
+  const shouldPassSubminerScriptOpts = scriptEntrypoint || hasBinaryPath;
+  const scriptOptPairs = shouldPassSubminerScriptOpts
     ? [`subminer-socket_path=${inputIpcServer.replace(/,/g, '\\,')}`]
     : [];
-  if (scriptEntrypoint && typeof binaryPath === 'string' && binaryPath.trim().length > 0) {
+  if (hasBinaryPath) {
     scriptOptPairs.unshift(`subminer-binary_path=${binaryPath.trim().replace(/,/g, '\\,')}`);
   }
   const scriptOpts = scriptOptPairs.length > 0 ? `--script-opts=${scriptOptPairs.join(',')}` : null;
@@ -136,6 +148,7 @@ export async function launchWindowsMpv(
   pluginEntrypointPath?: string,
   configuredMpvPath?: string,
   launchMode: MpvLaunchMode = 'normal',
+  runtimePluginPolicy?: WindowsMpvRuntimePluginPolicy,
 ): Promise<{ ok: boolean; mpvPath: string }> {
   const normalizedConfiguredPath = normalizeCandidate(configuredMpvPath);
   const mpvPath = resolveWindowsMpvPath(deps, normalizedConfiguredPath);
@@ -150,9 +163,36 @@ export async function launchWindowsMpv(
   }
 
   try {
+    let installedPlugin = runtimePluginPolicy?.detectInstalledMpvPlugin?.(mpvPath);
+    let installedPluginPrompted = false;
+    if (installedPlugin?.installed) {
+      const resolution = await runtimePluginPolicy?.resolveInstalledPluginBeforeLaunch?.(
+        installedPlugin,
+        mpvPath,
+      );
+      installedPluginPrompted = resolution != null;
+      if (resolution === 'cancel') {
+        return { ok: false, mpvPath };
+      }
+      if (resolution === 'removed') {
+        installedPlugin = runtimePluginPolicy?.detectInstalledMpvPlugin?.(mpvPath);
+      }
+    }
+    const runtimePluginEntrypointPath = installedPlugin?.installed
+      ? undefined
+      : pluginEntrypointPath;
+    if (installedPlugin?.installed && !installedPluginPrompted) {
+      runtimePluginPolicy?.notifyInstalledPluginDetected?.(installedPlugin);
+    }
     await deps.spawnDetached(
       mpvPath,
-      buildWindowsMpvLaunchArgs(targets, extraArgs, binaryPath, pluginEntrypointPath, launchMode),
+      buildWindowsMpvLaunchArgs(
+        targets,
+        extraArgs,
+        binaryPath,
+        runtimePluginEntrypointPath,
+        launchMode,
+      ),
     );
     return { ok: true, mpvPath };
   } catch (error) {

@@ -32,31 +32,81 @@ export async function waitForSetupCompletion(deps: {
   return 'timeout';
 }
 
+export async function waitForLegacyMpvPluginPromptResolution(deps: {
+  readSetupState: () => SetupState | null;
+  sleep: (ms: number) => Promise<void>;
+  now: () => number;
+  timeoutMs: number;
+  pollIntervalMs: number;
+  initialState?: SetupState | null;
+}): Promise<'acknowledged' | 'cancelled' | 'timeout'> {
+  const deadline = deps.now() + deps.timeoutMs;
+  const initialCompleted = isSetupCompleted(deps.initialState);
+  const initialCompletedAt = deps.initialState?.completedAt ?? null;
+
+  while (deps.now() <= deadline) {
+    const state = deps.readSetupState();
+    if (
+      isSetupCompleted(state) &&
+      (!initialCompleted || state?.completedAt !== initialCompletedAt)
+    ) {
+      return 'acknowledged';
+    }
+    if (!initialCompleted && state?.status === 'cancelled') {
+      return 'cancelled';
+    }
+
+    await deps.sleep(deps.pollIntervalMs);
+  }
+
+  return 'timeout';
+}
+
 export async function ensureLauncherSetupReady(deps: {
   readSetupState: () => SetupState | null;
   isExternalYomitanConfigured?: () => boolean;
-  isPluginInstalled?: () => boolean;
+  hasLegacyMpvPlugin?: () => boolean;
   launchSetupApp: () => void;
   sleep: (ms: number) => Promise<void>;
   now: () => number;
   timeoutMs: number;
   pollIntervalMs: number;
 }): Promise<boolean> {
+  const initialState = deps.readSetupState();
+  let setupLaunched = false;
+  const launchSetupApp = () => {
+    if (setupLaunched) return;
+    setupLaunched = true;
+    deps.launchSetupApp();
+  };
+
+  if (deps.hasLegacyMpvPlugin?.()) {
+    launchSetupApp();
+    const result = await waitForLegacyMpvPluginPromptResolution({
+      readSetupState: deps.readSetupState,
+      sleep: deps.sleep,
+      now: deps.now,
+      timeoutMs: deps.timeoutMs,
+      pollIntervalMs: deps.pollIntervalMs,
+      initialState,
+    });
+    if (result === 'cancelled' || result === 'timeout') {
+      return false;
+    }
+  }
+
   if (deps.isExternalYomitanConfigured?.()) {
     return true;
   }
-  if (deps.isPluginInstalled?.()) {
-    return true;
-  }
-  const initialState = deps.readSetupState();
-  if (isSetupCompleted(initialState)) {
+  const stateAfterLegacyPrompt = deps.readSetupState();
+  if (isSetupCompleted(stateAfterLegacyPrompt)) {
     return true;
   }
 
-  deps.launchSetupApp();
+  launchSetupApp();
   const result = await waitForSetupCompletion({
     ...deps,
-    ignoreInitialCancelledState: initialState?.status === 'cancelled',
+    ignoreInitialCancelledState: stateAfterLegacyPrompt?.status === 'cancelled',
   });
   return result === 'completed';
 }

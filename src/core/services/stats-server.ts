@@ -14,6 +14,7 @@ import {
   getPreferredNoteFieldValue,
 } from '../../anki-field-config.js';
 import { resolveAnimatedImageLeadInSeconds } from '../../anki-integration/animated-image-sync.js';
+import type { AnilistRateLimiter } from './anilist/rate-limiter.js';
 
 type StatsServerNoteInfo = {
   noteId: number;
@@ -255,6 +256,7 @@ export interface StatsServerConfig {
   knownWordCachePath?: string;
   mpvSocketPath?: string;
   ankiConnectConfig?: AnkiConnectConfig;
+  anilistRateLimiter?: AnilistRateLimiter;
   addYomitanNote?: (word: string) => Promise<number | null>;
   resolveAnkiNoteId?: (noteId: number) => number;
 }
@@ -338,6 +340,7 @@ export function createStatsApp(
     knownWordCachePath?: string;
     mpvSocketPath?: string;
     ankiConnectConfig?: AnkiConnectConfig;
+    anilistRateLimiter?: AnilistRateLimiter;
     addYomitanNote?: (word: string) => Promise<number | null>;
     resolveAnkiNoteId?: (noteId: number) => number;
   },
@@ -632,6 +635,7 @@ export function createStatsApp(
     const query = (c.req.query('q') ?? '').trim();
     if (!query) return c.json([]);
     try {
+      await options?.anilistRateLimiter?.acquire();
       const res = await fetch('https://graphql.anilist.co', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -652,6 +656,10 @@ export function createStatsApp(
           variables: { search: query },
         }),
       });
+      options?.anilistRateLimiter?.recordResponse(res.headers);
+      if (res.status === 429) {
+        return c.json([]);
+      }
       const json = (await res.json()) as { data?: { Page?: { media?: unknown[] } } };
       return c.json(json.data?.Page?.media ?? []);
     } catch {
@@ -1131,6 +1139,7 @@ export function startStatsServer(config: StatsServerConfig): { close: () => void
     knownWordCachePath: config.knownWordCachePath,
     mpvSocketPath: config.mpvSocketPath,
     ankiConnectConfig: config.ankiConnectConfig,
+    anilistRateLimiter: config.anilistRateLimiter,
     addYomitanNote: config.addYomitanNote,
     resolveAnkiNoteId: config.resolveAnkiNoteId,
   });

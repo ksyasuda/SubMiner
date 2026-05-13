@@ -1,10 +1,9 @@
-.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-windows install-plugin uninstall uninstall-linux uninstall-macos uninstall-windows print-dirs pretty lint ensure-bun generate-config generate-example-config dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop
+.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-windows uninstall uninstall-linux uninstall-macos uninstall-windows print-dirs pretty lint ensure-bun generate-config generate-example-config dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop
 
 APP_NAME := subminer
 THEME_SOURCE := assets/themes/subminer.rasi
 LAUNCHER_OUT := dist/launcher/$(APP_NAME)
 THEME_FILE := subminer.rasi
-PLUGIN_CONF := plugin/subminer.conf
 
 # Default install prefix for the wrapper script.
 PREFIX ?= $(HOME)/.local
@@ -64,8 +63,7 @@ help:
 		"  dev-stop         Stop a running local Electron app" \
 		"  install-linux    Install Linux wrapper/theme/app artifacts" \
 		"  install-macos    Install macOS wrapper/theme/app artifacts" \
-		"  install-windows  Install Windows mpv plugin artifacts" \
-		"  install-plugin   Install mpv Lua plugin and plugin config" \
+		"  install-windows  Print Windows packaging/install guidance" \
 		"  generate-config  Generate ~/.config/SubMiner/config.jsonc from centralized defaults" \
 		"" \
 		"Other targets:" \
@@ -200,6 +198,8 @@ install-linux: build-launcher
 	@install -m 0755 "$(LAUNCHER_OUT)" "$(BINDIR)/$(APP_NAME)"
 	@install -d "$(LINUX_DATA_DIR)/themes"
 	@install -m 0644 "./$(THEME_SOURCE)" "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
+	@install -d "$(LINUX_DATA_DIR)/plugin/subminer"
+	@cp -R ./plugin/subminer/. "$(LINUX_DATA_DIR)/plugin/subminer/"
 	@if [ -n "$(APPIMAGE_SRC)" ]; then \
 		install -m 0755 "$(APPIMAGE_SRC)" "$(BINDIR)/SubMiner.AppImage"; \
 	else \
@@ -214,6 +214,8 @@ install-macos: build-launcher
 	@install -m 0755 "$(LAUNCHER_OUT)" "$(BINDIR)/$(APP_NAME)"
 	@install -d "$(MACOS_DATA_DIR)/themes"
 	@install -m 0644 "./$(THEME_SOURCE)" "$(MACOS_DATA_DIR)/themes/$(THEME_FILE)"
+	@install -d "$(MACOS_DATA_DIR)/plugin/subminer"
+	@cp -R ./plugin/subminer/. "$(MACOS_DATA_DIR)/plugin/subminer/"
 	@install -d "$(MACOS_APP_DIR)"
 	@if [ -n "$(MACOS_APP_SRC)" ]; then \
 		rm -rf "$(MACOS_APP_DEST)"; \
@@ -230,21 +232,8 @@ install-macos: build-launcher
 	@printf '%s\n' "Installed to:" "  $(BINDIR)/subminer" "  $(MACOS_DATA_DIR)/themes/$(THEME_FILE)" "  $(MACOS_APP_DEST)"
 
 install-windows:
-	@printf '%s\n' "[INFO] Installing Windows mpv plugin artifacts"
-	@$(MAKE) --no-print-directory install-plugin
-
-install-plugin:
-	@printf '%s\n' "[INFO] Installing mpv plugin artifacts"
-	@install -d "$(MPV_SCRIPTS_DIR)"
-	@rm -f "$(MPV_SCRIPTS_DIR)/subminer.lua" "$(MPV_SCRIPTS_DIR)/subminer-loader.lua"
-	@install -d "$(MPV_SCRIPTS_DIR)/subminer"
-	@install -d "$(MPV_SCRIPT_OPTS_DIR)"
-	@cp -R ./plugin/subminer/. "$(MPV_SCRIPTS_DIR)/subminer/"
-	@install -m 0644 "./$(PLUGIN_CONF)" "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
-	@if [ "$(PLATFORM)" = "windows" ]; then \
-		bun ./scripts/configure-plugin-binary-path.mjs "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf" "$(CURDIR)" win32; \
-	fi
-	@printf '%s\n' "Installed to:" "  $(MPV_SCRIPTS_DIR)/subminer/main.lua" "  $(MPV_SCRIPTS_DIR)/subminer/" "  $(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
+	@printf '%s\n' "[INFO] Windows builds run via: bun run build:win"
+	@printf '%s\n' "[INFO] SubMiner-managed mpv launches inject the bundled runtime plugin; no global mpv plugin install is needed."
 
 uninstall:
 	@printf '%s\n' "[INFO] Detected platform: $(PLATFORM)"
@@ -258,13 +247,15 @@ uninstall:
 uninstall-linux:
 	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
 	@rm -f "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
-	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(BINDIR)/SubMiner.AppImage" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
+	@rm -rf "$(LINUX_DATA_DIR)/plugin/subminer"
+	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(BINDIR)/SubMiner.AppImage" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)" "  $(LINUX_DATA_DIR)/plugin/subminer"
 
 uninstall-macos:
 	@rm -f "$(BINDIR)/subminer"
 	@rm -f "$(MACOS_DATA_DIR)/themes/$(THEME_FILE)"
+	@rm -rf "$(MACOS_DATA_DIR)/plugin/subminer"
 	@rm -rf "$(MACOS_APP_DEST)"
-	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(MACOS_DATA_DIR)/themes/$(THEME_FILE)" "  $(MACOS_APP_DEST)"
+	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(MACOS_DATA_DIR)/themes/$(THEME_FILE)" "  $(MACOS_DATA_DIR)/plugin/subminer" "  $(MACOS_APP_DEST)"
 
 uninstall-windows:
 	@rm -rf "$(MPV_SCRIPTS_DIR)/subminer"

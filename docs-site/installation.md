@@ -154,9 +154,15 @@ chmod +x ~/.local/bin/SubMiner.AppImage
 # Download and install the subminer launcher (recommended)
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer
 chmod +x ~/.local/bin/subminer
+
+# Download launcher support assets used for bundled runtime plugin injection
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
+tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
+mkdir -p ~/.local/share/SubMiner/plugin/subminer
+cp -R /tmp/plugin/subminer/. ~/.local/share/SubMiner/plugin/subminer/
 ```
 
-The `subminer` launcher is the recommended way to use SubMiner on Linux. It ensures mpv is launched with the correct IPC socket and SubMiner defaults so you don't need to configure `mpv.conf` manually.
+The `subminer` launcher is the recommended way to use SubMiner on Linux. It ensures mpv is launched with the correct IPC socket, SubMiner defaults, and the bundled runtime plugin so you don't need to configure `mpv.conf` or install a global mpv plugin.
 
 ### From Source
 
@@ -315,7 +321,7 @@ Download the latest Windows installer from [GitHub Releases](https://github.com/
 
 ### Getting Started on Windows
 
-1. **Run `SubMiner.exe` once** — first-run setup creates `%APPDATA%\SubMiner\config.jsonc`, installs the mpv plugin, and opens Yomitan settings for dictionary import.
+1. **Run `SubMiner.exe` once** — first-run setup creates `%APPDATA%\SubMiner\config.jsonc` and opens Yomitan settings for dictionary import. The global mpv plugin install is optional for compatibility; the SubMiner mpv shortcut injects the bundled runtime plugin.
 2. **Create the SubMiner mpv shortcut** _(recommended)_ — the setup popup offers to create a `SubMiner mpv` Start Menu and/or Desktop shortcut. This is the recommended way to launch playback on Windows.
 3. **Play a video** — double-click the shortcut, drag a video file onto it, or run from a terminal:
 
@@ -323,7 +329,7 @@ Download the latest Windows installer from [GitHub Releases](https://github.com/
 & "C:\Program Files\SubMiner\SubMiner.exe" --launch-mpv "C:\Videos\episode 01.mkv"
 ```
 
-The shortcut and `--launch-mpv` pass SubMiner's default IPC socket and subtitle args directly — no `mpv.conf` profile is needed.
+The shortcut and `--launch-mpv` pass SubMiner's default IPC socket, subtitle args, and bundled runtime plugin directly — no `mpv.conf` profile or global mpv plugin install is needed.
 
 ### Windows-Specific Notes
 
@@ -352,33 +358,15 @@ bun run build:win
 Windows installer builds already get the required NSIS `WinShell` helper through electron-builder's cached `nsis-resources` bundle.
 No extra repo-local WinShell plugin install step is required.
 
-## MPV Plugin (Recommended)
+## MPV Plugin
 
-The Lua plugin provides in-player keybindings to control the overlay from mpv. It communicates with SubMiner by invoking the binary with CLI flags.
+SubMiner-managed playback loads the bundled mpv plugin at runtime. No separate global mpv plugin install is required when launching from the app, the launcher, or the packaged Windows SubMiner mpv shortcut.
 
 ::: warning Important
-mpv must be launched with `--input-ipc-server=/tmp/subminer-socket` for SubMiner to connect.
+If first-run setup detects an older global SubMiner mpv plugin under mpv's `scripts` directory, use **Remove legacy mpv plugin** so regular mpv playback stops loading SubMiner.
 :::
 
-On Windows, the packaged plugin config is rewritten to `socket_path=\\.\pipe\subminer-socket`.
-First-run setup also pins `binary_path` to the current app binary so mpv launches the same SubMiner build that installed the plugin.
-
-```bash
-# Option 1: install from release assets bundle
-wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
-tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
-mkdir -p ~/.config/SubMiner
-cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
-mkdir -p ~/.config/mpv/scripts/subminer
-mkdir -p ~/.config/mpv/script-opts
-cp -R /tmp/plugin/subminer/. ~/.config/mpv/scripts/subminer/
-cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
-
-# Option 2: from source checkout
-# make install-plugin
-```
-
-See [MPV Plugin](/mpv-plugin) for the full configuration reference, keybindings, script messages, and binary auto-detection details.
+See [MPV Plugin](/mpv-plugin) for the keybindings, script messages, and runtime configuration reference.
 
 ## Anki Setup (Recommended)
 

@@ -1,6 +1,7 @@
 import path from 'node:path';
+import os from 'node:os';
 import { spawn } from 'node:child_process';
-import { app, dialog } from 'electron';
+import { app, dialog, shell } from 'electron';
 import { printHelp } from './cli/help';
 import { loadRawConfigStrict } from './config/load';
 import {
@@ -18,7 +19,12 @@ import {
   shouldHandleStatsDaemonCommandAtEntry,
 } from './main-entry-runtime';
 import { requestSingleInstanceLockEarly } from './main/early-single-instance';
-import { resolvePackagedFirstRunPluginAssets } from './main/runtime/first-run-setup-plugin';
+import {
+  detectInstalledFirstRunPluginCandidates,
+  detectInstalledMpvPlugin,
+  removeLegacyMpvPluginCandidates,
+  resolvePackagedRuntimePluginPath,
+} from './main/runtime/first-run-setup-plugin';
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
 import { parseMpvLaunchMode } from './shared/mpv-launch-mode';
 import { runStatsDaemonControlFromProcess } from './stats-daemon-entry';
@@ -38,16 +44,105 @@ function applySanitizedEnv(sanitizedEnv: NodeJS.ProcessEnv): void {
 }
 
 function resolveBundledWindowsMpvPluginEntrypoint(): string | undefined {
-  const assets = resolvePackagedFirstRunPluginAssets({
-    dirname: __dirname,
-    appPath: app.getAppPath(),
-    resourcesPath: process.resourcesPath,
+  return (
+    resolvePackagedRuntimePluginPath({
+      dirname: __dirname,
+      appPath: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
+    }) ?? undefined
+  );
+}
+
+function buildInstalledWindowsMpvPluginMessage(pathValue: string, version: string | null): string {
+  return [
+    'SubMiner detected an installed mpv plugin at:',
+    pathValue,
+    '',
+    "This mpv session will use the installed plugin. Remove it to use SubMiner's bundled runtime plugin automatically.",
+    `Detected plugin version: ${version ?? 'unknown or legacy'}`,
+  ].join('\n');
+}
+
+async function promptForWindowsLegacyMpvPluginRemoval(
+  mpvPath: string,
+  detection: { path: string | null; version: string | null },
+): Promise<'removed' | 'continue' | 'cancel'> {
+  const response = await dialog.showMessageBox({
+    type: 'warning',
+    title: 'SubMiner mpv plugin detected',
+    message: buildInstalledWindowsMpvPluginMessage(
+      detection.path ?? 'unknown path',
+      detection.version,
+    ),
+    detail:
+      'Remove the legacy SubMiner mpv plugin files from mpv before launching this video? This moves the files to the OS trash. SubMiner-managed playback will then use the bundled runtime plugin.',
+    buttons: ['Remove legacy plugin', 'Continue with installed plugin', 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
   });
-  if (!assets) {
-    return undefined;
+
+  if (response.response === 2) {
+    return 'cancel';
+  }
+  if (response.response === 1) {
+    return 'continue';
   }
 
-  return path.join(assets.pluginDirSource, 'main.lua');
+  const candidates = detectInstalledFirstRunPluginCandidates({
+    platform: 'win32',
+    homeDir: os.homedir(),
+    appDataDir: app.getPath('appData'),
+    mpvExecutablePath: mpvPath,
+  });
+  const result = await removeLegacyMpvPluginCandidates({
+    candidates,
+    trashItem: (candidatePath) => shell.trashItem(candidatePath),
+  });
+  if (result.ok) {
+    await dialog.showMessageBox({
+      type: 'info',
+      title: 'Legacy mpv plugin removed',
+      message:
+        'Legacy mpv plugin removed. SubMiner-managed playback will use the bundled runtime plugin.',
+    });
+    return 'removed';
+  }
+
+  await dialog.showMessageBox({
+    type: 'error',
+    title: 'Could not remove legacy mpv plugin',
+    message: 'Some legacy SubMiner mpv plugin files could not be moved to the trash.',
+    detail: result.failedPaths.map((failure) => `${failure.path}: ${failure.message}`).join('\n'),
+  });
+  return 'cancel';
+}
+
+function createWindowsRuntimePluginPolicy() {
+  return {
+    detectInstalledMpvPlugin: (mpvPath: string) =>
+      detectInstalledMpvPlugin({
+        platform: 'win32',
+        homeDir: os.homedir(),
+        appDataDir: app.getPath('appData'),
+        mpvExecutablePath: mpvPath,
+      }),
+    notifyInstalledPluginDetected: (detection: {
+      installed: boolean;
+      path: string | null;
+      version: string | null;
+    }) => {
+      if (!detection.installed || !detection.path) return;
+      dialog.showMessageBoxSync({
+        type: 'warning',
+        title: 'SubMiner mpv plugin detected',
+        message: buildInstalledWindowsMpvPluginMessage(detection.path, detection.version),
+      });
+    },
+    resolveInstalledPluginBeforeLaunch: (
+      detection: { path: string | null; version: string | null },
+      mpvPath: string,
+    ) => promptForWindowsLegacyMpvPluginRemoval(mpvPath, detection),
+  };
 }
 
 function readConfiguredWindowsMpvLaunch(configDir: string): {
@@ -117,6 +212,7 @@ if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
       resolveBundledWindowsMpvPluginEntrypoint(),
       configuredMpvLaunch.executablePath,
       configuredMpvLaunch.launchMode,
+      createWindowsRuntimePluginPolicy(),
     );
     app.exit(result.ok ? 0 : 1);
   });

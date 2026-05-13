@@ -5,7 +5,12 @@ import path from 'node:path';
 import test from 'node:test';
 import { createCoverArtFetcher, stripFilenameTags } from './cover-art-fetcher.js';
 import { Database } from '../immersion-tracker/sqlite.js';
-import { ensureSchema, getOrCreateVideoRecord } from '../immersion-tracker/storage.js';
+import {
+  ensureSchema,
+  getOrCreateAnimeRecord,
+  getOrCreateVideoRecord,
+  linkVideoToAnimeRecord,
+} from '../immersion-tracker/storage.js';
 import { getCoverArt } from '../immersion-tracker/query-library.js';
 import { upsertCoverArt } from '../immersion-tracker/query-maintenance.js';
 import { SOURCE_TYPE_LOCAL } from '../immersion-tracker/types.js';
@@ -93,6 +98,82 @@ test('fetchIfMissing backfills a missing blob from an existing cover URL', async
     assert.equal(fetchCalls.length, 1);
     assert.equal(stored?.coverBlob?.length, 4);
     assert.equal(stored?.titleEnglish, 'Test Title');
+  } finally {
+    globalThis.fetch = originalFetch;
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('fetchIfMissing reuses cached cover art from another video in the same anime', async () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  ensureSchema(db);
+  const firstVideoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-cache-1.mkv', {
+    canonicalTitle: 'Shared Cover Show',
+    sourcePath: '/tmp/cover-fetcher-cache-1.mkv',
+    sourceUrl: null,
+    sourceType: SOURCE_TYPE_LOCAL,
+  });
+  const secondVideoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-cache-2.mkv', {
+    canonicalTitle: 'Shared Cover Show',
+    sourcePath: '/tmp/cover-fetcher-cache-2.mkv',
+    sourceUrl: null,
+    sourceType: SOURCE_TYPE_LOCAL,
+  });
+  const animeId = getOrCreateAnimeRecord(db, {
+    parsedTitle: 'Shared Cover Show',
+    canonicalTitle: 'Shared Cover Show',
+    anilistId: 99,
+    titleRomaji: 'Shared Cover Show',
+    titleEnglish: 'Shared Cover Show',
+    titleNative: null,
+    metadataJson: null,
+  });
+  for (const videoId of [firstVideoId, secondVideoId]) {
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: null,
+      parsedTitle: 'Shared Cover Show',
+      parsedSeason: 1,
+      parsedEpisode: videoId,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+  }
+  upsertCoverArt(db, firstVideoId, {
+    anilistId: 99,
+    coverUrl: 'https://images.test/shared-cover.jpg',
+    coverBlob: Buffer.from([9, 8, 7, 6]),
+    titleRomaji: 'Shared Cover Show',
+    titleEnglish: 'Shared Cover Show',
+    episodesTotal: 12,
+  });
+
+  let fetchCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    fetchCalls += 1;
+    throw new Error('unexpected AniList or image request');
+  }) as typeof fetch;
+
+  try {
+    const fetcher = createCoverArtFetcher(
+      {
+        acquire: async () => {},
+        recordResponse: () => {},
+      },
+      console,
+    );
+
+    const fetched = await fetcher.fetchIfMissing(db, secondVideoId, 'Shared Cover Show');
+    const stored = getCoverArt(db, secondVideoId);
+
+    assert.equal(fetched, true);
+    assert.equal(fetchCalls, 0);
+    assert.equal(stored?.anilistId, 99);
+    assert.equal(Buffer.from(stored?.coverBlob ?? []).toString('hex'), '09080706');
   } finally {
     globalThis.fetch = originalFetch;
     db.close();

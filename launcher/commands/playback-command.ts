@@ -7,6 +7,8 @@ import { collectVideos, showFzfMenu, showRofiMenu } from '../picker.js';
 import {
   cleanupPlaybackSession,
   launchAppCommandDetached,
+  markOverlayManagedByLauncher,
+  resolveLauncherRuntimePluginPath,
   startMpv,
   startOverlay,
   state,
@@ -21,9 +23,8 @@ import {
   getDefaultConfigDir,
   getSetupStatePath,
   readSetupState,
-  resolveDefaultMpvInstallPaths,
 } from '../../src/shared/setup-state.js';
-import { detectInstalledFirstRunPlugin } from '../../src/main/runtime/first-run-setup-plugin.js';
+import { detectInstalledFirstRunPluginCandidates } from '../../src/main/runtime/first-run-setup-plugin.js';
 import { hasLauncherExternalYomitanProfileConfig } from '../config.js';
 
 const SETUP_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -107,14 +108,13 @@ async function ensurePlaybackSetupReady(context: LauncherCommandContext): Promis
   const ready = await ensureLauncherSetupReady({
     readSetupState: () => readSetupState(statePath),
     isExternalYomitanConfigured: () => hasLauncherExternalYomitanProfileConfig(),
-    isPluginInstalled: () => {
-      const installPaths = resolveDefaultMpvInstallPaths(
-        process.platform,
-        os.homedir(),
-        process.env.XDG_CONFIG_HOME,
-      );
-      return detectInstalledFirstRunPlugin(installPaths);
-    },
+    hasLegacyMpvPlugin: () =>
+      detectInstalledFirstRunPluginCandidates({
+        platform: process.platform,
+        homeDir: os.homedir(),
+        xdgConfigHome: process.env.XDG_CONFIG_HOME,
+        appDataDir: process.env.APPDATA,
+      }).length > 0,
     launchSetupApp: () => {
       const setupArgs = ['--background', '--setup'];
       if (args.logLevel) {
@@ -237,6 +237,7 @@ export async function runPlaybackCommandWithDeps(
     {
       startPaused: shouldPauseUntilOverlayReady || isAppOwnedYoutubeFlow,
       disableYoutubeSubtitleAutoLoad: isAppOwnedYoutubeFlow,
+      runtimePluginPath: resolveLauncherRuntimePluginPath({ appPath, scriptPath }),
     },
   );
 
@@ -262,6 +263,7 @@ export async function runPlaybackCommandWithDeps(
         : [],
     );
   } else if (pluginAutoStartEnabled) {
+    markOverlayManagedByLauncher(appPath);
     if (ready) {
       deps.log('info', args.logLevel, 'MPV IPC socket ready, relying on mpv plugin auto-start');
     } else {

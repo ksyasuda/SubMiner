@@ -184,6 +184,57 @@ test('updateAnilistPostWatchProgress updates progress when behind', async () => 
   }
 });
 
+test('updateAnilistPostWatchProgress uses the configured AniList rate limiter', async () => {
+  const originalFetch = globalThis.fetch;
+  let call = 0;
+  let acquireCalls = 0;
+  let recordCalls = 0;
+  globalThis.fetch = (async () => {
+    call += 1;
+    if (call === 1) {
+      return createJsonResponse({
+        data: {
+          Page: {
+            media: [{ id: 11, episodes: 24, title: { english: 'Demo Show' } }],
+          },
+        },
+      });
+    }
+    if (call === 2) {
+      return createJsonResponse({
+        data: {
+          Media: {
+            id: 11,
+            mediaListEntry: { progress: 2, status: 'CURRENT' },
+          },
+        },
+      });
+    }
+    return createJsonResponse({
+      data: { SaveMediaListEntry: { progress: 3, status: 'CURRENT' } },
+    });
+  }) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'Demo Show', 3, {
+      rateLimiter: {
+        acquire: async () => {
+          acquireCalls += 1;
+        },
+        recordResponse: () => {
+          recordCalls += 1;
+        },
+      },
+    });
+
+    assert.equal(result.status, 'updated');
+    assert.equal(acquireCalls, 3);
+    assert.equal(recordCalls, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('updateAnilistPostWatchProgress skips when progress already reached', async () => {
   const originalFetch = globalThis.fetch;
   let call = 0;

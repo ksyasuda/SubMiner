@@ -32,8 +32,8 @@ export function createCreateFirstRunSetupWindowHandler<TWindow>(deps: {
   createBrowserWindow: (options: Electron.BrowserWindowConstructorOptions) => TWindow;
 }) {
   return createSetupWindowHandler(deps, {
-    width: 480,
-    height: 460,
+    width: 560,
+    height: 640,
     title: 'SubMiner Setup',
     resizable: false,
     minimizable: false,

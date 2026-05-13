@@ -230,6 +230,104 @@ test('launchWindowsMpv spawns detached mpv with targets', async () => {
   ]);
 });
 
+test('launchWindowsMpv skips bundled script when installed plugin is detected', async () => {
+  const calls: string[] = [];
+  const notifications: string[] = [];
+  const result = await launchWindowsMpv(
+    ['C:\\video.mkv'],
+    createDeps({
+      getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
+      fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
+      spawnDetached: async (command, args) => {
+        calls.push(command);
+        calls.push(args.join('|'));
+      },
+    }),
+    [],
+    'C:\\SubMiner\\SubMiner.exe',
+    'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    '',
+    'normal',
+    {
+      detectInstalledMpvPlugin: () => ({
+        installed: true,
+        path: 'C:\\Users\\tester\\AppData\\Roaming\\mpv\\scripts\\subminer\\main.lua',
+        version: null,
+        source: 'default-config',
+        message: null,
+      }),
+      notifyInstalledPluginDetected: (detection) => {
+        notifications.push(detection.path ?? '');
+      },
+    },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(calls[0], 'C:\\mpv\\mpv.exe');
+  assert.doesNotMatch(calls[1] ?? '', /--script=C:\\Program Files\\SubMiner/);
+  assert.match(calls[1] ?? '', /--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner\.exe/);
+  assert.deepEqual(notifications, [
+    'C:\\Users\\tester\\AppData\\Roaming\\mpv\\scripts\\subminer\\main.lua',
+  ]);
+});
+
+test('launchWindowsMpv prompts before launch and injects bundled script after legacy plugin removal', async () => {
+  const calls: string[] = [];
+  const prompts: string[] = [];
+  let detectCalls = 0;
+  const result = await launchWindowsMpv(
+    ['C:\\video.mkv'],
+    createDeps({
+      getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
+      fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
+      spawnDetached: async (command, args) => {
+        calls.push(command);
+        calls.push(args.join('|'));
+      },
+    }),
+    [],
+    'C:\\SubMiner\\SubMiner.exe',
+    'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    '',
+    'normal',
+    {
+      detectInstalledMpvPlugin: () => {
+        detectCalls += 1;
+        return detectCalls === 1
+          ? {
+              installed: true,
+              path: 'C:\\Users\\tester\\AppData\\Roaming\\mpv\\scripts\\subminer\\main.lua',
+              version: '0.12.0',
+              source: 'default-config',
+              message: null,
+            }
+          : {
+              installed: false,
+              path: null,
+              version: null,
+              source: null,
+              message: null,
+            };
+      },
+      resolveInstalledPluginBeforeLaunch: async (detection) => {
+        prompts.push(detection.path ?? '');
+        return 'removed' as const;
+      },
+    },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(detectCalls, 2);
+  assert.deepEqual(prompts, [
+    'C:\\Users\\tester\\AppData\\Roaming\\mpv\\scripts\\subminer\\main.lua',
+  ]);
+  assert.equal(calls[0], 'C:\\mpv\\mpv.exe');
+  assert.match(
+    calls[1] ?? '',
+    /--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main\.lua/,
+  );
+});
+
 test('launchWindowsMpv reports spawn failures with path context', async () => {
   const errors: string[] = [];
   const result = await launchWindowsMpv(

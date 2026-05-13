@@ -1,5 +1,9 @@
 import { fail, log } from '../log.js';
-import { waitForUnixSocketReady, launchMpvIdleDetached } from '../mpv.js';
+import {
+  waitForUnixSocketReady,
+  launchMpvIdleDetached,
+  resolveLauncherRuntimePluginPath,
+} from '../mpv.js';
 import type { LauncherCommandContext } from './context.js';
 
 interface MpvCommandDeps {
@@ -8,6 +12,7 @@ interface MpvCommandDeps {
     socketPath: string,
     appPath: string,
     args: LauncherCommandContext['args'],
+    runtimePluginPath?: string | null,
   ): Promise<void>;
 }
 
@@ -44,7 +49,7 @@ export async function runMpvPostAppCommand(
   context: LauncherCommandContext,
   deps: MpvCommandDeps = defaultDeps,
 ): Promise<boolean> {
-  const { args, appPath, mpvSocketPath } = context;
+  const { args, appPath, scriptPath, mpvSocketPath } = context;
   if (!args.mpvIdle) {
     return false;
   }
@@ -52,7 +57,12 @@ export async function runMpvPostAppCommand(
     fail('SubMiner app binary not found. Install to ~/.local/bin/ or set SUBMINER_APPIMAGE_PATH.');
   }
 
-  await deps.launchMpvIdleDetached(mpvSocketPath, appPath, args);
+  await deps.launchMpvIdleDetached(
+    mpvSocketPath,
+    appPath,
+    args,
+    resolveLauncherRuntimePluginPath({ appPath, scriptPath }),
+  );
   const ready = await deps.waitForUnixSocketReady(mpvSocketPath, 8000);
   if (!ready) {
     fail(`MPV IPC socket not ready after idle launch: ${mpvSocketPath}`);

@@ -14,6 +14,10 @@ function M.init()
 	local utils = require("mp.utils")
 
 	local options_helper = require("options")
+	local ok_version, version = pcall(require, "version")
+	if not ok_version or type(version) ~= "table" then
+		version = { version = "unknown" }
+	end
 	local environment = require("environment").create({ mp = mp, utils = utils })
 	local opts = options_helper.load(options_lib, environment.default_socket_path())
 	local state = require("state").new()
@@ -78,7 +82,7 @@ function M.init()
 	ctx.session_bindings.register_bindings()
 	ctx.messages.register_script_messages()
 	ctx.lifecycle.register_lifecycle_hooks()
-	ctx.log.subminer_log("info", "lifecycle", "SubMiner plugin loaded")
+	ctx.log.subminer_log("info", "lifecycle", "SubMiner plugin loaded " .. tostring(version.version or "unknown"))
 end
 
 return M

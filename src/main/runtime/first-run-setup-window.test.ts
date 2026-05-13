@@ -30,8 +30,11 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
   });
 
   assert.match(html, /SubMiner setup/);
-  assert.match(html, /Install mpv plugin/);
-  assert.match(html, /Required before SubMiner setup can finish/);
+  assert.doesNotMatch(html, /Install legacy mpv plugin/);
+  assert.doesNotMatch(html, /action=install-plugin/);
+  assert.match(html, /Ready/);
+  assert.doesNotMatch(html, /Bundled ready/);
+  assert.match(html, /Managed mpv launches use the bundled runtime plugin\./);
   assert.match(html, /Open Yomitan Settings/);
   assert.match(html, /Finish setup/);
   assert.match(html, /disabled/);
@@ -58,14 +61,49 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
     message: null,
   });
 
-  assert.match(html, /Reinstall mpv plugin/);
+  assert.doesNotMatch(html, /Reinstall mpv plugin/);
+  assert.doesNotMatch(html, /action=install-plugin/);
   assert.match(html, /mpv executable path/);
   assert.match(html, /Leave blank to auto-discover mpv\.exe from PATH\./);
   assert.match(html, /aria-label="Path to mpv\.exe"/);
+  assert.match(html, /SubMiner-managed mpv launches use the bundled runtime plugin\./);
+});
+
+test('buildFirstRunSetupHtml shows legacy mpv plugin removal action with confirmation', () => {
+  const html = buildFirstRunSetupHtml({
+    configReady: true,
+    dictionaryCount: 1,
+    canFinish: true,
+    externalYomitanConfigured: false,
+    pluginStatus: 'installed',
+    pluginInstallPathSummary: '/tmp/mpv',
+    legacyMpvPluginPaths: ['/tmp/mpv/scripts/subminer', '/tmp/mpv/scripts/subminer.lua'],
+    mpvExecutablePath: '',
+    mpvExecutablePathStatus: 'blank',
+    windowsMpvShortcuts: {
+      supported: false,
+      startMenuEnabled: true,
+      desktopEnabled: true,
+      startMenuInstalled: false,
+      desktopInstalled: false,
+      status: 'optional',
+    },
+    message: null,
+  });
+
+  assert.match(html, /Legacy mpv plugin/);
+  assert.match(html, /Legacy detected/);
+  assert.match(html, /\/tmp\/mpv\/scripts\/subminer/);
+  assert.match(html, /\/tmp\/mpv\/scripts\/subminer\.lua/);
+  assert.match(html, /Remove legacy mpv plugin/);
+  assert.match(html, /class="legacy-remove"/);
+  assert.match(html, /\.legacy-remove/);
+  assert.match(html, /Continue without removing/);
   assert.match(
     html,
-    /Finish stays unlocked once the mpv plugin is installed and Yomitan reports at least one installed dictionary\./,
+    /Remove these SubMiner mpv plugin files from mpv.s scripts directory\? This stops regular mpv from loading SubMiner\./,
   );
+  assert.match(html, /action=remove-legacy-plugin/);
 });
 
 test('buildFirstRunSetupHtml marks an invalid configured mpv path as invalid', () => {
@@ -158,6 +196,12 @@ test('parseFirstRunSetupSubmissionUrl parses supported custom actions', () => {
   assert.deepEqual(parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=refresh'), {
     action: 'refresh',
   });
+  assert.deepEqual(
+    parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=remove-legacy-plugin'),
+    {
+      action: 'remove-legacy-plugin',
+    },
+  );
   assert.equal(
     parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=skip-plugin'),
     null,
@@ -177,7 +221,7 @@ test('first-run setup window handler focuses existing window', () => {
   assert.deepEqual(calls, ['focus']);
 });
 
-test('first-run setup navigation handler prevents default and dispatches action', async () => {
+test('first-run setup navigation handler prevents default and dispatches supported action', async () => {
   const calls: string[] = [];
   const handleNavigation = createHandleFirstRunSetupNavigationHandler({
     parseSubmissionUrl: (url) => parseFirstRunSetupSubmissionUrl(url),
@@ -188,13 +232,20 @@ test('first-run setup navigation handler prevents default and dispatches action'
   });
 
   const prevented = handleNavigation({
-    url: 'subminer://first-run-setup?action=install-plugin',
+    url: 'subminer://first-run-setup?action=refresh',
     preventDefault: () => calls.push('preventDefault'),
   });
 
   assert.equal(prevented, true);
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.deepEqual(calls, ['preventDefault', 'install-plugin']);
+  assert.deepEqual(calls, ['preventDefault', 'refresh']);
+});
+
+test('first-run setup parser rejects legacy global plugin install action', () => {
+  assert.equal(
+    parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=install-plugin'),
+    null,
+  );
 });
 
 test('first-run setup navigation handler swallows stale custom-scheme actions', () => {

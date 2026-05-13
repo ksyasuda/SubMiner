@@ -26,6 +26,7 @@ import {
   runAppCommandCaptureOutput,
   launchAppStartDetached,
   launchMpvIdleDetached,
+  resolveLauncherRuntimePluginPath,
   waitForUnixSocketReady,
 } from './mpv.js';
 
@@ -1014,7 +1015,12 @@ export async function runJellyfinPlayMenu(
     mpvReady = await waitForUnixSocketReady(mpvSocketPath, 250);
   }
   if (!mpvReady) {
-    await launchMpvIdleDetached(mpvSocketPath, appPath, args);
+    await launchMpvIdleDetached(
+      mpvSocketPath,
+      appPath,
+      args,
+      resolveLauncherRuntimePluginPath({ appPath, scriptPath }),
+    );
     mpvReady = await waitForUnixSocketReady(mpvSocketPath, 8000);
   }
   log('debug', args.logLevel, `MPV socket ready check result: ${mpvReady ? 'ready' : 'not ready'}`);
