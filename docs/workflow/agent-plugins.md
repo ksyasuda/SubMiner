@@ -21,11 +21,6 @@ Read when: packaging or migrating repo-local agent workflow skills into plugins
 - `.agents/skills/subminer-*` remain only as compatibility shims.
 - Existing script entrypoints under `.agents/skills/subminer-change-verification/scripts/` stay as wrappers so historical commands do not break.
 
-## Backlog
-
-- Prefer Backlog.md MCP when the host session exposes it.
-- If MCP is unavailable, use repo-local `backlog/` files and record that fallback.
-
 ## Verification
 
 - For plugin/docs-only changes, start with `bun run test:docs:kb`.

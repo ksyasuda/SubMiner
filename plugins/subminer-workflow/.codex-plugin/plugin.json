@@ -1,7 +1,7 @@
 {
   "name": "subminer-workflow",
   "version": "0.1.0",
-  "description": "Repo-local SubMiner agent workflow plugin for backlog-first orchestration and change verification.",
+  "description": "Repo-local SubMiner agent workflow plugin for orchestration and change verification.",
   "author": {
     "name": "Kyle Yasuda",
     "email": "suda@sudacode.com",
@@ -10,11 +10,11 @@
   "homepage": "https://github.com/sudacode/SubMiner/tree/main/plugins/subminer-workflow",
   "repository": "https://github.com/sudacode/SubMiner",
   "license": "GPL-3.0-or-later",
-  "keywords": ["subminer", "workflow", "backlog", "verification", "skills"],
+  "keywords": ["subminer", "workflow", "verification", "skills"],
   "skills": "./skills/",
   "interface": {
     "displayName": "SubMiner Workflow",
-    "shortDescription": "Backlog-first SubMiner orchestration and verification.",
+    "shortDescription": "SubMiner orchestration and verification.",
     "longDescription": "Canonical repo-local plugin for SubMiner agent workflow packaging. Owns the scrum-master and change-verification skills plus helper scripts used to plan, verify, and validate changes reproducibly inside this repo.",
     "developerName": "Kyle Yasuda",
     "category": "Productivity",
@@ -23,7 +23,7 @@
     "defaultPrompt": [
       "Use SubMiner workflow to plan and ship a feature.",
       "Verify a SubMiner change with the plugin-owned verifier.",
-      "Run backlog-first intake for this SubMiner task."
+      "Plan and ship this SubMiner task."
     ],
     "brandColor": "#2F6B4F"
   }

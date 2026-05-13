@@ -613,8 +613,7 @@ function isIgnoredPullRequestPath(candidate: string): boolean {
     candidate === 'README.md' ||
     candidate.startsWith('changes/') ||
     candidate.startsWith('docs/') ||
-    candidate.startsWith('.github/') ||
-    candidate.startsWith('backlog/')
+    candidate.startsWith('.github/')
   );
 }
 

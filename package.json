@@ -195,7 +195,6 @@
       "!stats/vite.config.ts",
       "!docs-site{,/**/*}",
       "!changes{,/**/*}",
-      "!backlog{,/**/*}",
       "!.tmp{,/**/*}",
       "!release-*{,/**/*}",
       "!dist/**/*.map",

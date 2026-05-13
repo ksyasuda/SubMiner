@@ -18,5 +18,5 @@ When this shim is invoked:
 
 1. Read the canonical plugin-owned skill.
 2. Follow the plugin-owned skill as the source of truth.
-3. Use the wrapper scripts in this shim directory only for compatibility with existing commands, docs, and backlog history.
+3. Use the wrapper scripts in this shim directory only for compatibility with existing commands and docs.
 4. Do not duplicate workflow changes here; update the plugin-owned skill and scripts instead.

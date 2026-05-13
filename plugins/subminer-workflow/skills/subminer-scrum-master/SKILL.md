@@ -1,6 +1,6 @@
 ---
 name: 'subminer-scrum-master'
-description: 'Use in the SubMiner repo when a request should be turned into planned work and driven through execution. Assesses whether backlog tracking is warranted, creates or updates tasks when needed, records a plan, dispatches one or more subagents, and requires verification before handoff.'
+description: 'Use in the SubMiner repo when a request should be turned into planned work and driven through execution. Records a plan, dispatches one or more subagents when useful, and requires verification before handoff.'
 ---
 
 # SubMiner Scrum Master
@@ -9,67 +9,27 @@ Canonical source: this plugin path.
 
 Own workflow, not code by default.
 
-Use this skill when the user gives a feature request, bug report, issue, refactor, or implementation ask and the agent should manage intake, planning, backlog hygiene, worker dispatch, and verification through completion.
+Use this skill when the user gives a feature request, bug report, issue, refactor, or implementation ask and the agent should manage intake, planning, worker dispatch, and verification through completion.
 
 ## Core Rules
 
-1. Decide first whether backlog tracking is warranted.
-2. If backlog is needed, search first. Update existing work when it clearly matches.
-3. If backlog is not needed, keep the process light. Do not invent ticket ceremony.
-4. Record a plan before dispatching coding work.
-5. Use parent + subtasks for multi-part work when backlog is used.
-6. Dispatch conservatively. Parallelize only disjoint write scopes.
-7. Require verification before handoff, typically via `subminer-change-verification`.
-8. Report backlog actions, dispatched workers, verification, blockers, and remaining risks.
-
-## Backlog Workflow
-
-Preferred order:
-
-1. Read `backlog://workflow/overview` when MCP resources are available.
-2. If resources are unavailable, use the corresponding backlog tool overview.
-3. If backlog MCP is unavailable in the session, work directly in repo-local `backlog/` files and record that constraint explicitly.
-
-## Backlog Decision
-
-Skip backlog when the request is:
-
-- question only
-- obvious mechanical edit
-- tiny isolated change with no real planning
-
-Use backlog when the work:
-
-- needs planning or scope decisions
-- spans multiple phases or subsystems
-- is likely to need subagent dispatch
-- should remain traceable for handoff/resume
-
-If backlog is used:
-
-- search existing tasks first
-- create/update a standalone task for one focused deliverable
-- create/update a parent task plus subtasks for multi-part work
-- record the implementation plan in the task before implementation begins
+1. Keep the process light for questions, obvious mechanical edits, and tiny isolated changes.
+2. Record a plan before dispatching coding work.
+3. Split multi-part work into clear phases and ownership areas.
+4. Dispatch conservatively. Parallelize only disjoint write scopes.
+5. Require verification before handoff, typically via `subminer-change-verification`.
+6. Report dispatched workers, verification, blockers, and remaining risks.
 
 ## Intake Workflow
 
 1. Parse the request.
    Classify it as question, mechanical edit, bugfix, feature, refactor, investigation, or follow-up.
-2. Decide whether backlog is needed.
-3. If backlog is needed:
-   - search first
-   - update existing task if clearly relevant
-   - otherwise create the right structure
-   - write the implementation plan before dispatch
-4. If backlog is skipped:
-   - write a short working plan in-thread
-   - proceed without fake ticketing
-5. Choose execution mode:
+2. Write a short working plan in-thread when the work is nontrivial.
+3. Choose execution mode:
    - no subagents for trivial work
    - one worker for focused work
    - parallel workers only for disjoint scopes
-6. Run verification before handoff.
+4. Run verification before handoff.
 
 ## Dispatch Rules
 
@@ -118,42 +78,38 @@ Rules:
 - If verification fails, either:
   - send the worker back with exact failure context, or
   - fix it directly if it is tiny and clearly in scope
-- If new scope appears, revisit backlog structure before silently expanding work.
+- If new scope appears, pause and re-plan before silently expanding work.
 
 ## Representative Flows
 
-### Trivial no-ticket work
+### Trivial work
 
-- decide backlog is unnecessary
 - keep a short plan
 - implement directly or with one worker if helpful
 - run targeted verification
 - report outcome concisely
 
-### Single-task implementation
+### Focused implementation
 
-- search/create/update one task
 - record plan
 - dispatch one worker
 - integrate
 - verify
-- update task and report outcome
+- report outcome
 
-### Parent + subtasks execution
+### Multi-part execution
 
-- search/create/update parent task
-- create subtasks for distinct deliverables/phases
+- define distinct deliverables/phases
 - record sequencing in the plan
 - dispatch workers only where scopes are disjoint
 - integrate
 - run consolidated verification
-- update task state and report outcome
+- report outcome
 
 ## Output Expectations
 
 At the end, report:
 
-- whether backlog was used and what changed
 - which workers were dispatched and what they owned
 - what verification ran
 - explicit answers to:
