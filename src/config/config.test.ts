@@ -4,7 +4,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { ConfigService, ConfigStartupParseError } from './service';
-import { DEFAULT_CONFIG, RUNTIME_OPTION_REGISTRY, deepMergeRawConfig } from './definitions';
+import {
+  DEFAULT_CONFIG,
+  DEFAULT_KEYBINDINGS,
+  RUNTIME_OPTION_REGISTRY,
+  deepMergeRawConfig,
+} from './definitions';
+import { parseConfigContent } from './parse';
 import { generateConfigTemplate } from './template';
 
 function makeTempDir(): string {
@@ -2216,4 +2222,13 @@ test('template generator includes known keys', () => {
     output,
     /"launchAtStartup": true,? \/\/ Launch texthooker server automatically when SubMiner starts\. Values: true \| false/,
   );
+});
+
+test('template generator shows built-in default keybindings in the keybindings array', () => {
+  const output = generateConfigTemplate(DEFAULT_CONFIG);
+  const parsed = parseConfigContent('config.example.jsonc', output) as {
+    keybindings?: unknown;
+  };
+
+  assert.deepEqual(parsed.keybindings, DEFAULT_KEYBINDINGS);
 });

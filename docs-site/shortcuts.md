@@ -38,6 +38,7 @@ These control playback and subtitle display. They require overlay window focus.
 | Shortcut             | Action                                              |
 | -------------------- | --------------------------------------------------- |
 | `Space`              | Toggle mpv pause                                    |
+| `F`                  | Toggle fullscreen                                   |
 | `V`                  | Toggle primary subtitle bar visibility              |
 | `J`                  | Cycle primary subtitle track                        |
 | `Shift+J`            | Cycle secondary subtitle track                      |

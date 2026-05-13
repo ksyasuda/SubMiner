@@ -461,7 +461,7 @@ See `config.example.jsonc` for detailed configuration options.
 
 ### Keybindings
 
-Add a `keybindings` array to configure keyboard shortcuts that send commands to mpv:
+Add a `keybindings` array to configure keyboard shortcuts that send mpv commands or SubMiner session actions:
 
 See `config.example.jsonc` for detailed configuration options and more examples.
 
@@ -470,6 +470,7 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 | Key                  | Command                       | Description                             |
 | -------------------- | ----------------------------- | --------------------------------------- |
 | `Space`              | `["cycle", "pause"]`          | Toggle pause                            |
+| `KeyF`               | `["cycle", "fullscreen"]`     | Toggle fullscreen                       |
 | `KeyJ`               | `["cycle", "sid"]`            | Cycle primary subtitle track            |
 | `Shift+KeyJ`         | `["cycle", "secondary-sid"]`  | Cycle secondary subtitle track          |
 | `Ctrl+Alt+KeyP`      | `["__playlist-browser-open"]` | Open playlist browser                   |

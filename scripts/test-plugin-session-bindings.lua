@@ -21,6 +21,7 @@ local recorded = {
 	bindings = {},
 	removed = {},
 	async_calls = {},
+	mpv_commands = {},
 	osd = {},
 }
 
@@ -36,6 +37,10 @@ end
 
 function mp.remove_key_binding(name)
 	recorded.removed[#recorded.removed + 1] = name
+end
+
+function mp.commandv(...)
+	recorded.mpv_commands[#recorded.mpv_commands + 1] = { ... }
 end
 
 function mp.add_timeout(seconds, callback)
@@ -73,19 +78,75 @@ local ctx = {
 					},
 					{
 						key = {
-							code = "KeyL",
-							modifiers = { "ctrl", "shift" },
+							code = "Space",
+							modifiers = {},
 						},
-						actionType = "session-action",
-						actionId = "playNextSubtitle",
+						actionType = "mpv-command",
+						command = { "cycle", "pause" },
 					},
 					{
 						key = {
-							code = "KeyA",
-							modifiers = { "alt", "meta" },
+							code = "KeyF",
+							modifiers = {},
 						},
-						actionType = "session-action",
-						actionId = "openCharacterDictionary",
+						actionType = "mpv-command",
+						command = { "cycle", "fullscreen" },
+					},
+					{
+						key = {
+							code = "KeyJ",
+							modifiers = {},
+						},
+						actionType = "mpv-command",
+						command = { "cycle", "sid" },
+					},
+					{
+						key = {
+							code = "KeyJ",
+							modifiers = { "shift" },
+						},
+						actionType = "mpv-command",
+						command = { "cycle", "secondary-sid" },
+					},
+					{
+						key = {
+							code = "ArrowRight",
+							modifiers = {},
+						},
+						actionType = "mpv-command",
+						command = { "seek", 5 },
+					},
+					{
+						key = {
+							code = "ArrowLeft",
+							modifiers = {},
+						},
+						actionType = "mpv-command",
+						command = { "seek", -5 },
+					},
+					{
+						key = {
+							code = "ArrowUp",
+							modifiers = {},
+						},
+						actionType = "mpv-command",
+						command = { "seek", 60 },
+					},
+					{
+						key = {
+							code = "ArrowDown",
+							modifiers = {},
+						},
+						actionType = "mpv-command",
+						command = { "seek", -60 },
+					},
+					{
+						key = {
+							code = "KeyH",
+							modifiers = { "shift" },
+						},
+						actionType = "mpv-command",
+						command = { "sub-seek", -1 },
 					},
 					{
 						key = {
@@ -94,6 +155,78 @@ local ctx = {
 						},
 						actionType = "mpv-command",
 						command = { "sub-seek", 1 },
+					},
+					{
+						key = {
+							code = "BracketRight",
+							modifiers = { "shift" },
+						},
+						actionType = "session-action",
+						actionId = "shiftSubDelayNextLine",
+					},
+					{
+						key = {
+							code = "BracketLeft",
+							modifiers = { "shift" },
+						},
+						actionType = "session-action",
+						actionId = "shiftSubDelayPrevLine",
+					},
+					{
+						key = {
+							code = "KeyC",
+							modifiers = { "ctrl", "alt" },
+						},
+						actionType = "session-action",
+						actionId = "openYoutubePicker",
+					},
+					{
+						key = {
+							code = "KeyP",
+							modifiers = { "ctrl", "alt" },
+						},
+						actionType = "session-action",
+						actionId = "openPlaylistBrowser",
+					},
+					{
+						key = {
+							code = "KeyH",
+							modifiers = { "ctrl", "shift" },
+						},
+						actionType = "session-action",
+						actionId = "replayCurrentSubtitle",
+					},
+					{
+						key = {
+							code = "KeyL",
+							modifiers = { "ctrl", "shift" },
+						},
+						actionType = "session-action",
+						actionId = "playNextSubtitle",
+					},
+					{
+						key = {
+							code = "KeyQ",
+							modifiers = {},
+						},
+						actionType = "mpv-command",
+						command = { "quit" },
+					},
+					{
+						key = {
+							code = "KeyW",
+							modifiers = { "ctrl" },
+						},
+						actionType = "mpv-command",
+						command = { "quit" },
+					},
+					{
+						key = {
+							code = "KeyA",
+							modifiers = { "alt", "meta" },
+						},
+						actionType = "session-action",
+						actionId = "openCharacterDictionary",
 					},
 				},
 			}, nil
@@ -129,31 +262,66 @@ local ctx = {
 local bindings = session_bindings.create(ctx)
 assert_true(bindings.register_bindings(), "session bindings should register")
 
-local starter = nil
-for _, binding in ipairs(recorded.bindings) do
-	if binding.keys == "Ctrl+S" then
-		starter = binding
-		break
+local function find_binding(keys)
+	for _, binding in ipairs(recorded.bindings) do
+		if binding.keys == keys then
+			return binding
+		end
 	end
+	return nil
 end
+
+local starter = find_binding("Ctrl+S")
 assert_true(starter ~= nil, "multi-mine starter binding should be registered")
 
-local play_next = nil
-for _, binding in ipairs(recorded.bindings) do
-	if binding.keys == "Ctrl+L" then
-		play_next = binding
-		break
+local expected_mpv_bindings = {
+	{ keys = "SPACE", command = { "cycle", "pause" } },
+	{ keys = "f", command = { "cycle", "fullscreen" } },
+	{ keys = "j", command = { "cycle", "sid" } },
+	{ keys = "J", command = { "cycle", "secondary-sid" } },
+	{ keys = "RIGHT", command = { "seek", 5 } },
+	{ keys = "LEFT", command = { "seek", -5 } },
+	{ keys = "UP", command = { "seek", 60 } },
+	{ keys = "DOWN", command = { "seek", -60 } },
+	{ keys = "H", command = { "sub-seek", -1 } },
+	{ keys = "L", command = { "sub-seek", 1 } },
+	{ keys = "q", command = { "quit" } },
+	{ keys = "Ctrl+w", command = { "quit" } },
+}
+
+for _, expected in ipairs(expected_mpv_bindings) do
+	local binding = find_binding(expected.keys)
+	assert_true(binding ~= nil, "default mpv binding should register " .. expected.keys)
+	binding.fn()
+	local command = recorded.mpv_commands[#recorded.mpv_commands]
+	assert_true(command ~= nil, "default mpv binding should invoke mpv command " .. expected.keys)
+	for index, value in ipairs(expected.command) do
+		assert_true(command[index] == value, "default mpv command mismatch for " .. expected.keys)
 	end
 end
+
+local expected_cli_bindings = {
+	{ keys = "Shift+]", flag = "--shift-sub-delay-next-line" },
+	{ keys = "Shift+[", flag = "--shift-sub-delay-prev-line" },
+	{ keys = "Ctrl+Alt+c", flag = "--open-youtube-picker" },
+	{ keys = "Ctrl+Alt+p", flag = "--open-playlist-browser" },
+	{ keys = "Ctrl+H", flag = "--replay-current-subtitle" },
+	{ keys = "Ctrl+L", flag = "--play-next-subtitle" },
+}
+
+for _, expected in ipairs(expected_cli_bindings) do
+	local binding = find_binding(expected.keys)
+	assert_true(binding ~= nil, "default session action should register " .. expected.keys)
+	binding.fn()
+	local cli_call = recorded.async_calls[#recorded.async_calls]
+	assert_true(cli_call ~= nil, "default session action should invoke CLI " .. expected.keys)
+	assert_true(cli_call[2] == expected.flag, "default session action should pass " .. expected.flag)
+end
+
+local play_next = find_binding("Ctrl+L")
 assert_true(play_next ~= nil, "play-next subtitle binding should use mpv shifted-letter form")
 
-local subtitle_jump = nil
-for _, binding in ipairs(recorded.bindings) do
-	if binding.keys == "L" then
-		subtitle_jump = binding
-		break
-	end
-end
+local subtitle_jump = find_binding("L")
 assert_true(subtitle_jump ~= nil, "shifted subtitle jump binding should use mpv uppercase letter form")
 
 play_next.fn()
@@ -161,13 +329,7 @@ local play_next_call = recorded.async_calls[#recorded.async_calls]
 assert_true(play_next_call ~= nil, "play-next binding should invoke CLI action")
 assert_true(play_next_call[2] == "--play-next-subtitle", "play-next binding should pass CLI flag")
 
-local character_dictionary = nil
-for _, binding in ipairs(recorded.bindings) do
-	if binding.keys == "Alt+Meta+a" then
-		character_dictionary = binding
-		break
-	end
-end
+local character_dictionary = find_binding("Alt+Meta+a")
 assert_true(character_dictionary ~= nil, "character dictionary binding should be registered")
 
 character_dictionary.fn()

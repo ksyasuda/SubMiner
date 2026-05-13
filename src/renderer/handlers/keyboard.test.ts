@@ -4,6 +4,9 @@ import test from 'node:test';
 import { createKeyboardHandlers } from './keyboard.js';
 import { createRendererState } from '../state.js';
 import type { CompiledSessionBinding } from '../../types';
+import { DEFAULT_KEYBINDINGS, SPECIAL_COMMANDS } from '../../config/definitions';
+import { compileSessionBindings } from '../../core/services/session-bindings';
+import type { ConfiguredShortcuts } from '../../core/utils/shortcut-config';
 import { YOMITAN_POPUP_COMMAND_EVENT, YOMITAN_POPUP_HIDDEN_EVENT } from '../yomitan-popup.js';
 
 type CommandEventDetail = {
@@ -38,6 +41,58 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function eventFromKeyString(keyString: string): {
+  key: string;
+  code: string;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  altKey?: boolean;
+  shiftKey?: boolean;
+} {
+  const parts = keyString.split('+');
+  const code = parts.pop() ?? '';
+  return {
+    key: code === 'Space' ? ' ' : code,
+    code,
+    ctrlKey: parts.includes('Ctrl'),
+    metaKey: parts.includes('Meta'),
+    altKey: parts.includes('Alt'),
+    shiftKey: parts.includes('Shift'),
+  };
+}
+
+function countedJsonValues(values: unknown[]): Array<[string, number]> {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    const key = JSON.stringify(value);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort(([left], [right]) => left.localeCompare(right));
+}
+
+function createEmptyShortcuts(): ConfiguredShortcuts {
+  return {
+    toggleVisibleOverlayGlobal: null,
+    copySubtitle: null,
+    copySubtitleMultiple: null,
+    updateLastCardFromClipboard: null,
+    triggerFieldGrouping: null,
+    triggerSubsync: null,
+    mineSentence: null,
+    mineSentenceMultiple: null,
+    multiCopyTimeoutMs: 3000,
+    toggleSecondarySub: null,
+    markAudioCard: null,
+    openCharacterDictionary: null,
+    openRuntimeOptions: null,
+    openJimaku: null,
+    openSessionHelp: null,
+    openControllerSelect: null,
+    openControllerDebug: null,
+    toggleSubtitleSidebar: null,
+  };
 }
 
 function installKeyboardTestGlobals() {
@@ -704,6 +759,52 @@ test('popup-visible mpv keybindings still fire for bound keys', async () => {
     testGlobals.dispatchKeydown({ key: 'q', code: 'KeyQ' });
 
     assert.deepEqual(testGlobals.mpvCommands.slice(-2), [['cycle', 'pause'], ['quit']]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('default keybindings dispatch through overlay keyboard handling', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  const specialActionIds: Record<string, string> = {
+    [SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START]: 'shiftSubDelayPrevLine',
+    [SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START]: 'shiftSubDelayNextLine',
+    [SPECIAL_COMMANDS.YOUTUBE_PICKER_OPEN]: 'openYoutubePicker',
+    [SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN]: 'openPlaylistBrowser',
+    [SPECIAL_COMMANDS.REPLAY_SUBTITLE]: 'replayCurrentSubtitle',
+    [SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE]: 'playNextSubtitle',
+  };
+  const compiled = compileSessionBindings({
+    shortcuts: createEmptyShortcuts(),
+    keybindings: DEFAULT_KEYBINDINGS,
+    platform: 'linux',
+  });
+
+  try {
+    assert.deepEqual(compiled.warnings, []);
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings(compiled.bindings);
+
+    for (const binding of DEFAULT_KEYBINDINGS) {
+      testGlobals.dispatchKeydown(eventFromKeyString(binding.key));
+    }
+    await wait(0);
+
+    const expectedMpvCommands = DEFAULT_KEYBINDINGS.filter(
+      (binding) => !specialActionIds[String(binding.command?.[0])],
+    ).map((binding) => binding.command);
+    const expectedSessionActions = DEFAULT_KEYBINDINGS.map(
+      (binding) => specialActionIds[String(binding.command?.[0])],
+    ).filter(Boolean);
+
+    assert.deepEqual(
+      countedJsonValues(testGlobals.mpvCommands),
+      countedJsonValues(expectedMpvCommands),
+    );
+    assert.deepEqual(
+      testGlobals.sessionActions.map((action) => action.actionId).sort(),
+      expectedSessionActions.sort(),
+    );
   } finally {
     testGlobals.restore();
   }

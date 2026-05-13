@@ -3,6 +3,7 @@ import {
   CONFIG_OPTION_REGISTRY,
   CONFIG_TEMPLATE_SECTIONS,
   DEFAULT_CONFIG,
+  DEFAULT_KEYBINDINGS,
   deepCloneConfig,
 } from './definitions';
 
@@ -103,9 +104,21 @@ function renderSection(
   return lines.join('\n');
 }
 
+function createTemplateConfig(config: ResolvedConfig): ResolvedConfig {
+  const templateConfig = deepCloneConfig(config);
+  if (templateConfig.keybindings.length === 0) {
+    templateConfig.keybindings = DEFAULT_KEYBINDINGS.map((binding) => ({
+      key: binding.key,
+      command: binding.command === null ? null : [...binding.command],
+    }));
+  }
+  return templateConfig;
+}
+
 export function generateConfigTemplate(
   config: ResolvedConfig = deepCloneConfig(DEFAULT_CONFIG),
 ): string {
+  const templateConfig = createTemplateConfig(config);
   const lines: string[] = [];
   lines.push('/**');
   lines.push(' * SubMiner Example Configuration File');
@@ -123,7 +136,7 @@ export function generateConfigTemplate(
     lines.push(
       renderSection(
         section.key,
-        config[section.key],
+        templateConfig[section.key],
         index === CONFIG_TEMPLATE_SECTIONS.length - 1,
         comments,
       ),

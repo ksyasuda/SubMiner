@@ -209,6 +209,41 @@ test('compileSessionBindings keeps default replay and next subtitle session acti
   assert.equal(next?.actionId, 'playNextSubtitle');
 });
 
+test('compileSessionBindings wires every default keybinding to an overlay or mpv action', () => {
+  const expectedSpecialActions: Record<string, string> = {
+    [SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START]: 'shiftSubDelayPrevLine',
+    [SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START]: 'shiftSubDelayNextLine',
+    [SPECIAL_COMMANDS.YOUTUBE_PICKER_OPEN]: 'openYoutubePicker',
+    [SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN]: 'openPlaylistBrowser',
+    [SPECIAL_COMMANDS.REPLAY_SUBTITLE]: 'replayCurrentSubtitle',
+    [SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE]: 'playNextSubtitle',
+  };
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts(),
+    keybindings: DEFAULT_KEYBINDINGS,
+    platform: 'linux',
+  });
+
+  assert.deepEqual(result.warnings, []);
+  const byOriginalKey = new Map(result.bindings.map((binding) => [binding.originalKey, binding]));
+  assert.equal(byOriginalKey.size, DEFAULT_KEYBINDINGS.length);
+
+  for (const defaultBinding of DEFAULT_KEYBINDINGS) {
+    const compiled = byOriginalKey.get(defaultBinding.key);
+    assert.ok(compiled, `${defaultBinding.key} should compile`);
+
+    const specialAction = expectedSpecialActions[String(defaultBinding.command?.[0])];
+    if (specialAction) {
+      assert.equal(compiled.actionType, 'session-action');
+      assert.equal(compiled.actionId, specialAction);
+      continue;
+    }
+
+    assert.equal(compiled.actionType, 'mpv-command');
+    assert.deepEqual(compiled.command, defaultBinding.command);
+  }
+});
+
 test('compileSessionBindings omits disabled bindings', () => {
   const result = compileSessionBindings({
     shortcuts: createShortcuts({
