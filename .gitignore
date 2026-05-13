@@ -7,7 +7,9 @@ node_modules/
 # Electron build output
 out/
 dist/
-release/
+release/*
+!release/
+!release/release-notes.md
 build/yomitan/
 coverage/
 

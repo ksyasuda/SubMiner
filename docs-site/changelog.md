@@ -1,11 +1,78 @@
 # Changelog
 
-## v0.12.0 (2026-04-11)
+## v0.14.0 (2026-05-12)
+
+**Added**
+
+- **Character Dictionary:** Added AniList-based character dictionary selection for resolving title mismatches — open it in-app with the new `Ctrl+Alt+A` shortcut or from the CLI with `subminer dictionary --candidates` / `--select`. Series-scoped overrides replace stale entries in the merged dictionary.
+- **Primary Subtitle Bar:** Added a `V` shortcut and mpv plugin binding to toggle the primary subtitle bar without affecting mpv's native subtitle visibility.
+- **Texthooker:** Added `subminer texthooker -o` and a tray menu item to open the local texthooker page in the default browser.
 
 **Changed**
+
+- **mpv Plugin Setup:** SubMiner-managed launches now automatically inject the bundled mpv plugin when no global plugin is installed. The legacy plugin removal prompt appears before mpv starts so users can trash the old global plugin and relaunch immediately.
+- **Tray Menu:** Replaced the "Open Overlay" menu item with "Open Help", which opens the session help modal.
+- **Stats Exclusions:** Vocabulary exclusions now persist in the immersion database and import any existing browser-local exclusions on first load.
+- **Config Example:** The generated example config now lists every built-in default keybinding, with regression coverage ensuring they compile, dispatch in the overlay, and register through the mpv plugin.
+- **Default Startup Options:** Texthooker startup and subtitle/annotation WebSocket servers are now disabled by default. Fresh installs also get updated primary subtitle style defaults: a Japanese font stack, transparent subtitle backgrounds, stronger text shadows, and teal N4/fourth-band coloring.
+
+**Fixed**
+
+- **JLPT Underlines:** Restored persistent JLPT underlines on subtitle tokens; they now keep their JLPT color after dictionary lookups and when a token also carries a known-word or frequency annotation color.
+- **Hyprland Fullscreen Overlay:** Fixed fullscreen transitions on Hyprland so mpv fullscreen changes refresh overlay geometry, reassert topmost stacking, and keep hover-pause working through resize/toggle cycles. The overlay now aligns exactly with the mpv window, disables floating-window decoration on exact placement, and no longer pins across workspaces.
+- **macOS Overlay:** Kept the overlay visible and interactive during transient tracker refreshes and while mpv is the active tracked window. Fixed z-order so the overlay stays above mpv but behind other foreground windows.
+- **Subtitle Annotation Colors:** Fixed annotated token colors so `subtitleStyle` typography is preserved and higher-priority known-word and frequency colors correctly take precedence over JLPT colors. Added a subtle brightness lift for hover states so transparent hover backgrounds still show a visible affordance. Hid the browser focus ring on the overlay surface so focused overlays no longer show a viewport border.
+- **Grammar and Particle Annotation Filters:** Suppressed annotation styling (N+1, JLPT, frequency, name) for grammar-only tokens including auxiliary inflection fragments like `れる`/`れた`, polite copula tails like `です`/`ですよ`, negative copula phrases like `じゃないですか`, and standalone particles like `に`; lexical forms like `くれる` remain eligible.
+- **Interjection and Existence Verb Filters:** Suppressed annotations for ハァ-style interjections and `ある`/`有る` existence verbs; known-word highlighting still applies for `ある`.
+- **Known-Word Compound Tokens:** Preserved Yomitan compound token boundaries for known-word highlighting so known component words no longer color a larger unknown compound green.
+- **Kana Token Annotations:** Stopped kana-only tokens from being selected as N+1 targets or receiving N+1, JLPT, or frequency annotation metadata.
+- **Subtitle Bar Modes:** Changed `v` to cycle the primary subtitle bar through visible, hover, and hidden modes with OSD feedback. A new `subtitleStyle.primaryDefaultMode` config option sets the startup default independently of secondary subtitles.
+- **Subtitle Keybindings:** Fixed the default replay/next subtitle keybindings by moving session help to `Ctrl/Cmd+/`, freeing `Ctrl+Shift+H` and `Ctrl+Shift+L` for subtitle playback controls. The mpv plugin now registers shifted letter chords correctly so `Ctrl+Shift+L` reaches play-next-subtitle; play-next also starts playback from a paused state before re-pausing at subtitle end.
+- **Yomitan Popup Precedence:** Fixed keyboard-only Yomitan popup controls so popup shortcuts take precedence over overlay keybindings like `j`.
+- **Subtitle Prefetch:** Kept annotation prefetch running after immediate cache-hit renders so upcoming subtitle colors stay ready.
+- **Frequency Highlighting:** Fixed frequency highlighting for ordinal prefix-noun tokens like `第二` so JPDB ranks are preserved in subtitle annotations.
+- **Known-Word Refresh After Mining:** Refreshed the current subtitle after successful card mining so newly known words recolor immediately.
+- **Linux Multi-Line Copy:** Fixed multi-line subtitle copy on Linux so the overlay handles the follow-up digit selection locally, eliminating the timeout.
+- **mpv Crash Notifications:** Stopped mpv from owning long-running SubMiner subprocesses during shutdown, preventing desktop crash notifications when closing video.
+- **mpv Buffering Reload:** Kept the overlay alive across same-media reloads during buffering, avoiding duplicate startup gates and AniSkip lookups.
+- **mpv Playlist Navigation:** Playlist navigation now reuses the running overlay without repeating the pause-until-ready warmup gate.
+- **Anki Manual Updates:** Manual clipboard subtitle updates now replace sentence audio and media even when audio overwrite is disabled, while preserving existing word audio.
+- **AniList Progress Tracking:** Fixed post-watch progress to check on mpv time-position updates using the fresh mpv position, wired manual mark-watched to force a progress sync, and filled missing episode metadata from the filename parser. Prevented duplicate post-watch writes during concurrent checks and preserved manual watched marks when sync fails.
+- **AniList Setup:** Prevented config reload from opening the setup window during playback when token storage is unavailable; stopped setup from reporting success when encrypted token persistence fails.
+- **AniList Linux Keyring:** Retried keyring availability after transient GNOME libsecret startup failures so stored tokens load once the keyring becomes available.
+- **Stats Daemon:** Fixed stats background mode to route through the isolated stats daemon and deferred in-app stats startup when a daemon is already running, so video launches no longer fail when the stats port is in use.
+- **Stats Session Detail:** Fixed recent session detail pages showing "Media not found" before lifetime media summaries are available.
+- **Hover Background Config:** Accepted `subtitleStyle.hoverBackground` as an alias for `subtitleStyle.hoverTokenBackgroundColor` so setting it to `transparent` removes hover token backgrounds.
+- **Managed Playback Exit:** Launcher-managed playback now exits the background SubMiner app when the video closes; explicit background launches remain persistent.
+- **Multi-Mine Shortcuts:** Multi-line subtitle mining now accepts follow-up number-row digits even when the original shortcut modifiers are still held.
+- **Jellyfin Setup:** Improved setup with recent server selection and inline authentication feedback; added a tray "Jellyfin Discovery" toggle for runtime-only cast discovery.
+- **Subtitle POS Filtering:** Used Yomitan `wordClasses` metadata for subtitle part-of-speech filtering and backfilled blank MeCab POS detail fields during parser enrichment.
+
+**Docs**
+
+- Improved the docs homepage with canonical URLs and a cleaner sitemap for better search engine indexing.
+
+<details>
+<summary>Internal changes</summary>
+
+**Internal**
+
+- Replaced the changelog renderer with an AI polish pass that merges related fragments and writes user-facing release notes. `CHANGELOG.md` keeps internal items in a collapsed `<details>` block; GitHub release notes omit them entirely.
+- Release CI no longer auto-builds pending `changes/*.md` fragments on tag. Tagging now fails fast if fragments remain — run `bun run changelog:build` (requires the `claude` CLI) and commit before tagging.
+
+</details>
+
+## Previous Versions
+
+<details>
+<summary>v0.12.x</summary>
+
+<h2>v0.12.0 (2026-04-11)</h2>
+
+**Changed**
+
 - Overlay: Added configurable overlay shortcuts for session help, controller select, and controller debug actions.
 - Overlay: Added mpv/plugin and CLI routing for session help, controller utilities, and subtitle sidebar toggling through the shared session-action path.
-- Overlay: Added a `V` shortcut and mpv plugin binding to toggle the SubMiner primary subtitle bar instead of mpv's native primary subtitle visibility.
 - Overlay: Improved dedicated overlay modal retry and focus handling for runtime options, Jimaku, session help, controller tools, and the playlist browser.
 - Overlay: Fixed controller configuration and controller debug shortcut opens so configured bindings bring up their modals again instead of tripping renderer recovery.
 - Stats: Sessions are rolled up per episode within each day, with a bulk delete that wipes every session in the group.
@@ -19,6 +86,7 @@
 - Stats: Replaced the "Library — Per Day" section on the Stats → Trends page with a "Library — Summary" section. The new section shows a top-10 watch-time leaderboard chart and a sortable per-title table (watch time, videos, sessions, cards, words, lookups, lookups/100w, date range), all scoped to the current date range selector.
 
 **Fixed**
+
 - Overlay: Fixed overlay drag-and-drop routing so dropping external subtitle files like `.ass` onto mpv still loads them when the overlay is visible.
 - Overlay: Addressed the latest CodeRabbit follow-ups on PR #49, including generation-scoped Lua session binding names, stricter session command validation, session-help shortcut visibility, the numeric-selection key guard, stats-overlay startup classification, and safer session-binding persistence.
 - Overlay: Addressed the latest CodeRabbit follow-ups on the Windows overlay flow, including exact mpv target resolution, lower-overlay helper arguments, Win32 failure detection, and overlay cleanup on tracker loss.
@@ -36,10 +104,11 @@
 - Mpv Plugin: Fixed the mpv Lua plugin so hover and environment modules no longer use the `goto continue` pattern that can fail to parse on some user Lua runtimes.
 
 **Internal**
+
 - Release: Added a dedicated beta/rc prerelease GitHub Actions workflow that publishes GitHub prereleases without consuming pending changelog fragments or updating AUR.
 - Release: Added prerelease note generation so beta and release-candidate tags can reuse the current pending `changes/*.md` fragments while leaving stable changelog publication for the final release cut.
 
-## Previous Versions
+</details>
 
 <details>
 <summary>v0.11.x</summary>
@@ -47,9 +116,11 @@
 <h2>v0.11.2 (2026-04-07)</h2>
 
 **Changed**
+
 - Launcher: Replaced the launcher-only fullscreen toggle with `mpv.launchMode` so SubMiner-managed mpv playback can start in normal, maximized, or fullscreen mode.
 
 **Fixed**
+
 - Launcher: Fixed launcher-managed mpv spawning to force an explicit X11 GPU path when Wayland trackers are unavailable.
 - Launcher: Local playback now promotes a single unlabeled external subtitle sidecar to the primary slot instead of leaving mpv's embedded English auto-selection in place.
 - Release: Fixed Linux AppImage startup packaging so Chromium child relaunches can resolve the bundled `libffmpeg.so` instead of crash-looping on startup.
@@ -57,16 +128,19 @@
 <h2>v0.11.1 (2026-04-04)</h2>
 
 **Fixed**
+
 - Release: Linux packaged builds now expose the canonical `SubMiner` app identity to Electron's startup metadata so native Wayland compositors stop reporting the window class/app-id as lowercase `subminer`.
 - Linux: Linux now restores the runtime options, Jimaku, and Subsync shortcuts after the Electron 39 regression by routing those actions through the overlay's mpv/IPC shortcut path.
 
 <h2>v0.11.0 (2026-04-03)</h2>
 
 **Added**
+
 - Overlay: Added a playlist browser overlay modal for browsing sibling video files and the live mpv queue during playback.
 - Overlay: Added the default `Ctrl+Alt+P` keybinding to open the playlist browser and manage queue order without leaving playback.
 
 **Changed**
+
 - Setup: Made mpv plugin installation mandatory in the first-run setup flow, removed the skip path, and kept Finish disabled until the plugin is installed.
 - Setup: Clarified that the mpv plugin requirement applies to setup on every platform, while the optional `SubMiner mpv` shortcut remains the recommended Windows playback entry point.
 - Launcher: Streamlined Windows setup and config by making the `SubMiner mpv` shortcut self-contained and keeping `mpv.executablePath` as the simple fallback when `mpv.exe` is not on `PATH`.
@@ -74,6 +148,7 @@
 - Overlay: Changed fresh-install default config to enable AnkiConnect, Discord Rich Presence, subtitle-sidebar, and Yomitan-popup auto-pause by default, while disabling controller input by default.
 
 **Fixed**
+
 - Main: Resolve the YouTube playback socket path lazily so startup honors CLI and config overrides.
 - Main: Add regression coverage for the lazy socket-path lookup during Windows mpv startup.
 - Main: Keep integrated `--start --texthooker` launches on the full app-ready startup path so the texthooker page and websocket servers start together during normal playback startup.
@@ -104,11 +179,13 @@
 - Playback: Prevented stale async playlist-browser subtitle rearm callbacks from overriding newer subtitle selections during rapid file changes.
 
 **Docs**
+
 - Docs Site: Added a dedicated Subtitle Sidebar guide and linked it from the homepage and configuration docs.
 - Docs Site: Linked Jimaku integration from the homepage to its dedicated docs page.
 - Docs Site: Refreshed docs-site theme tokens and hover/selection styling for the updated pages.
 
 **Internal**
+
 - Release: Retried AUR clone and push operations in the tagged release workflow.
 - Release: Kept GitHub Releases green when AUR publish flakes and needs manual follow-up.
 - Release: Updated Electron to 39.8.6 and pinned patched transitive build dependencies to clear the reported high-severity audit findings.
@@ -121,15 +198,18 @@
 <h2>v0.10.0 (2026-03-29)</h2>
 
 **Changed**
+
 - Integrations: Replaced the deprecated Discord Rich Presence wrapper with the maintained `@xhayper/discord-rpc` package.
 
 **Fixed**
+
 - Stats: Fixed stats startup so the immersion tracker can run when `Bun.serve` is unavailable.
 - Stats: Stats server now falls back to a Node `http` listener in Electron/runtime paths that do not expose Bun.
 - Overlay: Fixed the macOS visible-overlay toggle path so manual hides stay hidden and the plugin uses the explicit visible-overlay toggle command.
 - Subtitle Sidebar: Restored macOS mpv passthrough while the overlay subtitle sidebar is open so clicks outside the sidebar can refocus mpv and keep native keybindings working.
 
 **Internal**
+
 - Release: Added a maintained source coverage lane that shards Bun coverage one test file at a time and merges LCOV output into `coverage/test-src/lcov.info`.
 - Release: CI and release quality-gate now upload the merged source-lane LCOV artifact for inspection.
 - Runtime: Extracted remaining inline runtime logic from `src/main.ts` into dedicated runtime modules and composer helpers.
@@ -147,6 +227,7 @@
 <h2>v0.9.3 (2026-03-25)</h2>
 
 **Changed**
+
 - Launcher: Moved YouTube primary subtitle language defaults to `youtube.primarySubLanguages`.
 - Launcher: Removed the placeholder YouTube subtitle retime step and now uses downloaded primary subtitle tracks directly, so there is no fake path rewrite before playback/sidebar loading.
 - YouTube: Removed the `src/core/services/youtube/retime` helper and its tests after retiring the internal retime strategy.
@@ -156,6 +237,7 @@
 <h2>v0.9.2 (2026-03-25)</h2>
 
 **Fixed**
+
 - Overlay: Fixed overlay pointer tracking so Windows click-through toggles immediately when the cursor enters or leaves subtitle regions, without waiting for a later hover resync.
 - Overlay: Fixed Windows overlay window tracking on scaled displays by converting native tracked window bounds to Electron DIP coordinates before applying overlay bounds.
 - Launcher: Fixed Windows direct `--youtube-play` startup so MPV boots reliably, stays paused until the app-owned subtitle flow is ready, and reuses an already-running SubMiner instance when available.
@@ -165,18 +247,22 @@
 <h2>v0.9.1 (2026-03-24)</h2>
 
 **Changed**
+
 - Release: Reduced packaged release size by excluding duplicate `extraResources` payload and pruning docs, tests, sourcemaps, and other source-only files from Electron bundles.
 
 **Fixed**
+
 - Overlay: Restored controller navigation and lookup/mining controls while the subtitle sidebar is open, while keeping true modal dialogs blocking controller actions.
 - Tokenizer: Fixed subtitle annotation clearing so explanatory contrast endings like `んですけど` are excluded consistently across the shared tokenizer filter and annotation stage.
 
 <h2>v0.9.0 (2026-03-23)</h2>
 
 **Added**
+
 - Docs: Added a new WebSocket / Texthooker API and integration guide covering WebSocket payloads, custom client patterns, mpv plugin automation, and webhook-style relay examples. Linked from configuration and mining workflow docs for easier discovery.
 
 **Changed**
+
 - Launcher: Added an app-owned YouTube subtitle flow that pauses mpv, uses absPlayer-style YouTube timedtext parsing/conversion to download subtitle tracks, and injects them as external files before playback resumes.
 - Launcher: Changed YouTube subtitle startup to auto-load the best-available primary and secondary subtitle tracks at launch instead of forcing the picker modal first. Secondary subtitle failures no longer block playback resume.
 - Launcher: Added `Ctrl+Alt+C` as the default keybinding to manually open the YouTube subtitle picker during active YouTube playback.
@@ -190,6 +276,7 @@
 - Stats: Stats Library tab now displays YouTube video title, channel name, and channel thumbnail for YouTube media entries, with retry logic to fill in metadata that arrives after initial load.
 
 **Fixed**
+
 - Launcher: Fixed Anki media mining for mpv YouTube streams by unwrapping the stream URL so audio and screenshot capture work correctly for YouTube playback sessions.
 - Immersion: Fixed YouTube media path handling in the immersion runtime and tracking so YouTube sessions record correct media references, AniList guessing skips YouTube URLs, and post-watch state transitions do not fire for YouTube media.
 - Launcher: Fixed startup-launched YouTube playback so primary subtitle overlay updates continue after auto-load completes.
@@ -206,15 +293,18 @@
 <h2>v0.8.0 (2026-03-22)</h2>
 
 **Added**
+
 - Overlay: Added the subtitle sidebar feature with a new `subtitleSidebar` configuration surface and rendered sidebar modal with cue list rendering, click-to-seek, active-cue highlighting, and embedded layout support.
 - IPC: Added sidebar snapshot plumbing between renderer and main process for overlay/sidebar synchronization.
 
 **Changed**
+
 - Config: Added hot-reloadable sidebar options for enablement, layout, visibility, typography, opacity, sizing, and interaction behavior (`autoOpen`, `pauseOnHover`, `autoScroll`, toggle key).
 - Docs: Added full `subtitleSidebar` documentation coverage, including sample config, option table, and toggle shortcut notes.
 - Runtime: Improved subtitle prefetch/rendering flow so sidebar and overlay subtitle states stay in sync across media transitions.
 
 **Fixed**
+
 - Overlay: Kept sidebar cue tracking stable across playback transitions and timing edge cases.
 - Overlay: Improved sidebar resume/start behavior to jump directly to the first resolved active cue.
 - Overlay: Stopped stale subtitle refreshes from regressing active-cue and text state.
@@ -227,6 +317,7 @@
 <h2>v0.7.0 (2026-03-19)</h2>
 
 **Added**
+
 - Immersion: Added Mine Word, Mine Sentence, and Mine Audio buttons to word detail example lines in the stats dashboard.
 - Immersion: Mine Word creates a full Yomitan card (definition, reading, pitch accent) via the hidden search page bridge, then enriches with sentence audio, screenshot, and metadata extracted from the source video.
 - Immersion: Mine Sentence and Mine Audio create cards directly with appropriate Lapis/Kiku flags, sentence highlighting, and media from the source file.
@@ -248,6 +339,7 @@
 - Immersion: Added completed-episodes and completed-anime totals to the Overview tracking snapshot.
 
 **Changed**
+
 - Anki: Changed known-word cache settings to live under `ankiConnect.knownWords` instead of mixing them into `ankiConnect.nPlusOne`.
 - Anki: Kept legacy `ankiConnect.nPlusOne` known-word keys and older `ankiConnect.behavior.nPlusOne*` keys as deprecated compatibility fallbacks.
 - Stats: Added session deletion to the Sessions tab with the same confirmation prompt used by anime episode/session deletes, and removed all associated session rows from the stats database.
@@ -263,6 +355,7 @@
 - Overlay: Expanded subtitle annotation noise filtering to also strip annotation metadata from standalone grammar-only helper tokens such as particles, auxiliaries, adnominals, common explanatory endings like `んです` / `のだ`, and merged trailing quote-particle forms like `...って` while keeping them tokenized for hover lookup.
 
 **Fixed**
+
 - Launcher: Fixed mpv Lua plugin binary auto-detection on Linux to also search `/usr/bin/subminer` and `/usr/local/bin/subminer` (lowercase), matching the conventional Unix wrapper name used by packaged installs such as the AUR package.
 - Stats: Fixed the in-app stats overlay so it connects to the configured `stats.serverPort` instead of falling back to the default port.
 - Overlay: Fixed subtitle frequency tagging for merged lookup-backed tokens like `陰に` by falling back to exact surface-form Yomitan frequencies when the normalized headword lookup misses.
@@ -299,25 +392,30 @@
 <h2>v0.6.5 (2026-03-15)</h2>
 
 **Internal**
+
 - Release: Seed the AUR checkout with the repo `.SRCINFO` template before rewriting metadata so tagged releases do not depend on prior AUR state.
 
 <h2>v0.6.4 (2026-03-15)</h2>
 
 **Internal**
+
 - Release: Reworked AUR metadata generation to update `.SRCINFO` directly instead of depending on runner `makepkg`, fixing tagged release publishing for `subminer-bin`.
 
 <h2>v0.6.3 (2026-03-15)</h2>
 
 **Changed**
+
 - Overlay: Expanded the `Alt+C` controller modal into an inline config/remap flow with preferred-controller saving and per-action learn mode for buttons, triggers, and stick directions.
 
 **Internal**
+
 - Workflow: Hardened the `subminer-scrum-master` skill to explicitly answer whether docs updates and changelog fragments are required before handoff.
 - Release: Automate `subminer-bin` AUR package updates from the tagged release workflow.
 
 <h2>v0.6.2 (2026-03-12)</h2>
 
 **Changed**
+
 - Config: Added `yomitan.externalProfilePath` to reuse another Electron app's Yomitan profile in read-only mode.
 - Config: SubMiner now reuses external Yomitan dictionaries/settings without writing back to that profile.
 - Config: Launcher-managed playback now respects `yomitan.externalProfilePath` and no longer forces first-run setup when external Yomitan is configured.
@@ -327,15 +425,18 @@
 <h2>v0.6.1 (2026-03-12)</h2>
 
 **Added**
+
 - Overlay: Added Chrome Gamepad API controller support for keyboard-only overlay mode, including configurable logical bindings for lookup, mining, popup navigation, Yomitan audio, mpv pause, d-pad fallback navigation, and slower smooth popup scrolling.
 - Overlay: Added `Alt+C` controller selection and `Alt+Shift+C` controller debug modals, with preferred controller persistence and live raw input inspection.
 - Overlay: Added a transient in-overlay controller-detected indicator when a controller is first found.
 - Overlay: Fixed stale keyboard-only token highlight cleanup when keyboard-only mode turns off or the Yomitan popup closes.
 
 **Docs**
+
 - Install: Added Arch Linux AUR install docs for `subminer-bin` in the README and installation guide.
 
 **Internal**
+
 - Config: add an enforced `verify:config-example` gate so checked-in example config artifacts cannot drift silently
 - Release: Fixed the release workflow token permissions so tagged builds can download `oven-sh/setup-bun` and publish artifacts again.
 
