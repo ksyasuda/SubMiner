@@ -2,6 +2,8 @@
 
 ## v0.14.0 (2026-05-12)
 
+SubMiner no longer requires a globally-installed mpv plugin. The bundled plugin is injected at runtime only when SubMiner launches mpv — through the `subminer` launcher, the app's managed launch, or the packaged Windows SubMiner mpv shortcut. When you open mpv on its own, SubMiner is not involved and the plugin is never loaded. If you have a legacy global SubMiner plugin under mpv's `scripts` directory, first-run setup detects it and prompts you to remove it before playback starts.
+
 **Added**
 
 - **Character Dictionary:** Added AniList-based character dictionary selection for resolving title mismatches — open it in-app with the new `Ctrl+Alt+A` shortcut or from the CLI with `subminer dictionary --candidates` / `--select`. Series-scoped overrides replace stale entries in the merged dictionary.
