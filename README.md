@@ -229,11 +229,9 @@ sudo curl -fSL https://github.com/ksyasuda/SubMiner/releases/latest/download/sub
 <details>
 <summary><b>Windows</b></summary>
 
-Download the latest installer or portable `.zip` from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Make sure `mpv` is on your `PATH`.
+Download the latest installer (`.exe`) [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Make sure `mpv` is on your `PATH`.
 
-**Windows support is experimental.** Core features such as mining, annotations, and dictionary lookups work, but some functionality may be missing or unstable. Bug reports welcome.
-
-**Note:** On Windows the `subminer` launcher requires [`bun`](https://bun.sh) and must be invoked with `bun run subminer` instead of running the script directly. The recommended alternative is the **SubMiner mpv** shortcut created during first-run setup — double-click it, drag files onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See the [Windows mpv Shortcut](https://docs.subminer.moe/usage#windows-mpv-shortcut) section for details.
+**Note:** On Windows the recommended way to run SubMiner is with the **SubMiner mpv** shortcut created during first-run setup — double-click it, drag files onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See the [Windows mpv Shortcut](https://docs.subminer.moe/usage#windows-mpv-shortcut) section for details.
 
 </details>
 
@@ -250,23 +248,12 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 subminer app --setup            # launch the first-run setup wizard
 ```
 
-SubMiner creates a default config, starts in the system tray, and opens a setup popup that walks you through installing the mpv plugin and configuring Yomitan dictionaries. Follow the on-screen steps to complete setup.
-
-Jellyfin setup is available from the tray or `subminer jellyfin`; once Jellyfin is enabled with a server URL, the tray can toggle Jellyfin Discovery for the current app session.
+SubMiner creates a default config, starts in the system tray, and opens a setup popup that walks you through installing Yomitan dictionaries. Follow the on-screen steps to complete setup.
 
 > [!NOTE]
 > On Windows, run `SubMiner.exe` directly — it opens the setup wizard automatically on first launch.
 
-### 3. Verify Setup
-
-```bash
-subminer doctor                 # verify mpv, ffmpeg, config, and socket
-```
-
-> [!NOTE]
-> On Windows, use `bun run subminer doctor` or run `SubMiner.exe` directly — first-run setup will guide you through dependency checks.
-
-### 4. Mine
+### 3. Mine
 
 ```bash
 subminer video.mkv          # play video with overlay
@@ -276,7 +263,7 @@ subminer stats -b           # stats daemon in background
 subminer stats -s           # stop background stats daemon
 ```
 
-On **Windows**, the `subminer` script must be run with `bun run subminer` (e.g. `bun run subminer video.mkv`). The recommended alternative is the **SubMiner mpv** shortcut (created during setup) or `SubMiner.exe --launch-mpv`. Drag a video file onto the shortcut to play it, or double-click it to open mpv with SubMiner's defaults.
+On **Windows**, use the **SubMiner mpv** shortcut created during first-run setup — double-click it to open mpv, or drag a video file onto it. You can also run `SubMiner.exe --launch-mpv` from a terminal.
 
 ## Documentation
 

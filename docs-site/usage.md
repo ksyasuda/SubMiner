@@ -37,7 +37,7 @@ Field names must match your Anki note type exactly (case-sensitive). See [Anki I
 There are several ways to use SubMiner:
 
 > [!TIP]
-> **New users: start with the `subminer` wrapper script** (or the **SubMiner mpv** shortcut on Windows). It handles mpv launch, IPC socket setup, and overlay lifecycle automatically so you don't need to configure anything in `mpv.conf`.
+> **New users on Linux/macOS: start with the `subminer` wrapper script.** On Windows, use the **SubMiner mpv** shortcut created during first-run setup. Both handle mpv launch, IPC socket setup, and overlay lifecycle automatically so you don't need to configure anything in `mpv.conf`.
 
 | Approach                            | Use when                                                                                                                                            | How                                                                   |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
@@ -45,7 +45,7 @@ There are several ways to use SubMiner:
 | **SubMiner mpv shortcut** (Windows) | The recommended Windows entry point. Created during first-run setup, launches mpv with SubMiner's defaults directly.                                | Double-click, drag a file onto it, or run `SubMiner.exe --launch-mpv` |
 | **MPV plugin** (all platforms)      | You launch mpv yourself or from another tool (file manager, Jellyfin, etc.). Requires `--input-ipc-server=/tmp/subminer-socket` in your mpv config. | Use `y` chord keybindings inside mpv                                  |
 
-You can use both — the plugin provides in-player controls, while the `subminer` script (or the Windows shortcut) is convenient for direct playback. The `subminer` script runs directly via shebang on Linux and macOS (no `bun run` needed); on Windows it must be invoked with `bun run subminer` since the shebang is not supported.
+You can use both — the plugin provides in-player controls, while the `subminer` script (Linux/macOS) or the SubMiner mpv shortcut (Windows) is convenient for direct playback.
 
 ## Live Config Reload
 

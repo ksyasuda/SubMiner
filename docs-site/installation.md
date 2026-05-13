@@ -301,9 +301,6 @@ binary_path=/Applications/SubMiner.app/Contents/MacOS/subminer
 
 ## Windows
 
-> [!WARNING]
-> **Windows support is experimental.** Core features — mining, annotations, and dictionary lookups — work, but some functionality may be missing or unstable. Bug reports welcome.
-
 ### Prerequisites
 
 1. Install [`mpv`](https://mpv.io/installation/) and ensure `mpv.exe` is on `PATH`. If mpv is installed elsewhere, you can set `mpv.executablePath` in `config.jsonc` or use the first-run setup field to point at the executable.
@@ -333,7 +330,7 @@ The shortcut and `--launch-mpv` pass SubMiner's default IPC socket, subtitle arg
 
 ### Windows-Specific Notes
 
-- The `subminer` launcher script requires [Bun](https://bun.sh) and must be invoked with `bun run subminer` on Windows since the shebang is not supported. The **SubMiner mpv** shortcut or `SubMiner.exe --launch-mpv` is the simpler alternative.
+- The **SubMiner mpv** shortcut created during first-run setup is the recommended way to launch playback on Windows. The `subminer` launcher script is primarily for Linux and macOS.
 - First-run plugin installs pin `binary_path` to the current `SubMiner.exe` automatically. Manual plugin configs can leave `binary_path` empty unless SubMiner is in a non-standard location.
 - Plugin installs rewrite `socket_path` to `\\.\pipe\subminer-socket` — do not keep `/tmp/subminer-socket` on Windows.
 - Config is stored at `%APPDATA%\SubMiner\config.jsonc`.
@@ -442,7 +439,7 @@ subminer doctor
 This checks for the app binary, mpv, ffmpeg, config file, and socket path. Fix any failures before continuing.
 
 > [!NOTE]
-> On Windows, use `bun run subminer doctor` or run `SubMiner.exe` directly. Replace `SubMiner.AppImage` with `SubMiner.exe` in the direct app commands below.
+> On Windows, run `SubMiner.exe` directly. Replace `SubMiner.AppImage` with `SubMiner.exe` in the direct app commands below.
 
 ## Optional Extras
 
