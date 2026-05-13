@@ -17,7 +17,7 @@
   // Configure texthooker startup launch and browser opening behavior.
   // ==========================================
   "texthooker": {
-    "launchAtStartup": true, // Launch texthooker server automatically when SubMiner starts. Values: true | false
+    "launchAtStartup": false, // Launch texthooker server automatically when SubMiner starts. Values: true | false
     "openBrowser": false // Open browser setting. Values: true | false
   }, // Configure texthooker startup launch and browser opening behavior.
 
@@ -27,7 +27,7 @@
   // Auto mode disables built-in server if mpv_websocket is detected.
   // ==========================================
   "websocket": {
-    "enabled": "auto", // Built-in subtitle websocket server mode. Values: auto | true | false
+    "enabled": false, // Built-in subtitle websocket server mode. Values: auto | true | false
     "port": 6677 // Built-in subtitle websocket server port.
   }, // Built-in WebSocket server broadcasts subtitle text to connected clients.
 
@@ -37,7 +37,7 @@
   // Independent from websocket.auto and defaults to port 6678.
   // ==========================================
   "annotationWebsocket": {
-    "enabled": true, // Annotated subtitle websocket server enabled state. Values: true | false
+    "enabled": false, // Annotated subtitle websocket server enabled state. Values: true | false
     "port": 6678 // Annotated subtitle websocket server port.
   }, // Dedicated annotated subtitle websocket for bundled texthooker and token-aware clients.
 
@@ -355,7 +355,7 @@
     "hoverTokenBackgroundColor": "rgba(54, 58, 79, 0.84)", // CSS color used for hovered subtitle token background highlight in mpv.
     "nameMatchEnabled": true, // Enable subtitle token coloring for matches from the SubMiner character dictionary. Values: true | false
     "nameMatchColor": "#f5bde6", // Hex color used when a subtitle token matches an entry from the SubMiner character dictionary.
-    "fontFamily": "M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.
+    "fontFamily": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.
     "fontSize": 35, // Font size setting.
     "fontColor": "#cad3f5", // Font color setting.
     "fontWeight": "600", // Font weight setting.
@@ -364,9 +364,9 @@
     "wordSpacing": 0, // Word spacing setting.
     "fontKerning": "normal", // Font kerning setting.
     "textRendering": "geometricPrecision", // Text rendering setting.
-    "textShadow": "0 3px 10px rgba(0,0,0,0.69)", // Text shadow setting.
+    "textShadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
     "fontStyle": "normal", // Font style setting.
-    "backgroundColor": "rgb(30, 32, 48, 0.88)", // Background color setting.
+    "backgroundColor": "transparent", // Background color setting.
     "backdropFilter": "blur(6px)", // Backdrop filter setting.
     "nPlusOneColor": "#c6a0f6", // N plus one color setting.
     "knownWordColor": "#a6da95", // Known word color setting.
@@ -374,7 +374,7 @@
       "N1": "#ed8796", // N1 setting.
       "N2": "#f5a97f", // N2 setting.
       "N3": "#f9e2af", // N3 setting.
-      "N4": "#a6e3a1", // N4 setting.
+      "N4": "#8bd5ca", // N4 setting.
       "N5": "#8aadf4" // N5 setting.
     }, // Jlpt colors setting.
     "frequencyDictionary": {
@@ -401,8 +401,8 @@
       "wordSpacing": 0, // Word spacing setting.
       "fontKerning": "normal", // Font kerning setting.
       "textRendering": "geometricPrecision", // Text rendering setting.
-      "textShadow": "0 2px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8), 0 0 16px rgba(0,0,0,0.55)", // Text shadow setting.
-      "backgroundColor": "rgba(20, 22, 34, 0.78)", // Background color setting.
+      "textShadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
+      "backgroundColor": "transparent", // Background color setting.
       "backdropFilter": "blur(6px)", // Backdrop filter setting.
       "fontWeight": "600", // Font weight setting.
       "fontStyle": "normal" // Font style setting.

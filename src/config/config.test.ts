@@ -13,6 +13,11 @@ import {
 import { parseConfigContent } from './parse';
 import { generateConfigTemplate } from './template';
 
+const DEFAULT_SUBTITLE_FONT_FAMILY =
+  'Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP';
+const DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY = 'Inter, Noto Sans, Helvetica Neue, sans-serif';
+const DEFAULT_SUBTITLE_TEXT_SHADOW = '0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)';
+
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-config-test-'));
 }
@@ -21,10 +26,11 @@ test('loads defaults when config is missing', () => {
   const dir = makeTempDir();
   const service = new ConfigService(dir);
   const config = service.getConfig();
+  assert.equal(config.websocket.enabled, false);
   assert.equal(config.websocket.port, DEFAULT_CONFIG.websocket.port);
-  assert.equal(config.annotationWebsocket.enabled, DEFAULT_CONFIG.annotationWebsocket.enabled);
+  assert.equal(config.annotationWebsocket.enabled, false);
   assert.equal(config.annotationWebsocket.port, DEFAULT_CONFIG.annotationWebsocket.port);
-  assert.equal(config.texthooker.launchAtStartup, true);
+  assert.equal(config.texthooker.launchAtStartup, false);
   assert.equal(config.ankiConnect.behavior.autoUpdateNewCards, true);
   assert.deepEqual(config.ankiConnect.tags, ['SubMiner']);
   assert.equal(config.anilist.enabled, false);
@@ -61,7 +67,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.shortcuts.toggleSubtitleSidebar, 'Backslash');
   assert.equal(config.discordPresence.enabled, true);
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);
-  assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
+  assert.equal(config.subtitleStyle.backgroundColor, 'transparent');
   assert.equal(config.subtitleStyle.primaryDefaultMode, 'visible');
   assert.equal(config.subtitleStyle.preserveLineBreaks, false);
   assert.equal(config.subtitleStyle.autoPauseVideoOnHover, true);
@@ -69,29 +75,21 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.subtitleSidebar.enabled, true);
   assert.equal(config.subtitleStyle.hoverTokenColor, '#f4dbd6');
   assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, 'rgba(54, 58, 79, 0.84)');
-  assert.equal(
-    config.subtitleStyle.fontFamily,
-    'M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP',
-  );
+  assert.equal(config.subtitleStyle.fontFamily, DEFAULT_SUBTITLE_FONT_FAMILY);
   assert.equal(config.subtitleStyle.fontWeight, '600');
   assert.equal(config.subtitleStyle.lineHeight, 1.35);
   assert.equal(config.subtitleStyle.letterSpacing, '-0.01em');
   assert.equal(config.subtitleStyle.wordSpacing, 0);
   assert.equal(config.subtitleStyle.fontKerning, 'normal');
   assert.equal(config.subtitleStyle.textRendering, 'geometricPrecision');
-  assert.equal(config.subtitleStyle.textShadow, '0 3px 10px rgba(0,0,0,0.69)');
+  assert.equal(config.subtitleStyle.textShadow, DEFAULT_SUBTITLE_TEXT_SHADOW);
   assert.equal(config.subtitleStyle.backdropFilter, 'blur(6px)');
-  assert.equal(
-    config.subtitleStyle.secondary.fontFamily,
-    'Inter, Noto Sans, Helvetica Neue, sans-serif',
-  );
+  assert.equal(config.subtitleStyle.jlptColors.N4, '#8bd5ca');
+  assert.equal(config.subtitleStyle.secondary.fontFamily, DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY);
   assert.equal(config.subtitleStyle.secondary.fontColor, '#cad3f5');
   assert.equal(config.subtitleStyle.secondary.fontWeight, '600');
-  assert.equal(
-    config.subtitleStyle.secondary.textShadow,
-    '0 2px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8), 0 0 16px rgba(0,0,0,0.55)',
-  );
-  assert.equal(config.subtitleStyle.secondary.backgroundColor, 'rgba(20, 22, 34, 0.78)');
+  assert.equal(config.subtitleStyle.secondary.textShadow, DEFAULT_SUBTITLE_TEXT_SHADOW);
+  assert.equal(config.subtitleStyle.secondary.backgroundColor, 'transparent');
   assert.equal(config.immersionTracking.enabled, true);
   assert.equal(config.immersionTracking.dbPath, '');
   assert.equal(config.immersionTracking.batchSize, 25);
@@ -2142,11 +2140,11 @@ test('template generator includes known keys', () => {
   );
   assert.match(
     output,
-    /"enabled": "auto",? \/\/ Built-in subtitle websocket server mode\. Values: auto \| true \| false/,
+    /"enabled": false,? \/\/ Built-in subtitle websocket server mode\. Values: auto \| true \| false/,
   );
   assert.match(
     output,
-    /"enabled": true,? \/\/ Annotated subtitle websocket server enabled state\. Values: true \| false/,
+    /"enabled": false,? \/\/ Annotated subtitle websocket server enabled state\. Values: true \| false/,
   );
   assert.match(
     output,
@@ -2221,7 +2219,7 @@ test('template generator includes known keys', () => {
   assert.doesNotMatch(output, /"whisperThreads": 4/);
   assert.match(
     output,
-    /"launchAtStartup": true,? \/\/ Launch texthooker server automatically when SubMiner starts\. Values: true \| false/,
+    /"launchAtStartup": false,? \/\/ Launch texthooker server automatically when SubMiner starts\. Values: true \| false/,
   );
 });
 

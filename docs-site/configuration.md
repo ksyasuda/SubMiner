@@ -205,23 +205,23 @@ The overlay includes a built-in WebSocket server that broadcasts subtitle text t
 
 For endpoint details, payload examples, and client patterns, see [WebSocket / Texthooker API & Integration](/websocket-texthooker-api).
 
-By default, the server uses "auto" mode: it starts automatically unless [mpv_websocket](https://github.com/kuroahna/mpv_websocket) is detected at `~/.config/mpv/mpv_websocket`. If you have mpv_websocket installed, the built-in server is skipped to avoid conflicts.
+By default, the server is disabled. Set `enabled` to `true` to force it on, or `"auto"` to start it unless [mpv_websocket](https://github.com/kuroahna/mpv_websocket) is detected at `~/.config/mpv/mpv_websocket`.
 
 See `config.example.jsonc` for detailed configuration options.
 
 ```json
 {
   "websocket": {
-    "enabled": "auto",
+    "enabled": false,
     "port": 6677
   }
 }
 ```
 
-| Option    | Values                    | Description                                              |
-| --------- | ------------------------- | -------------------------------------------------------- |
-| `enabled` | `true`, `false`, `"auto"` | `"auto"` (default) disables if mpv_websocket is detected |
-| `port`    | number                    | WebSocket server port (default: 6677)                    |
+| Option    | Values                    | Description                                   |
+| --------- | ------------------------- | --------------------------------------------- |
+| `enabled` | `true`, `false`, `"auto"` | Built-in subtitle websocket mode (default: `false`) |
+| `port`    | number                    | WebSocket server port (default: 6677)         |
 
 ### Annotation WebSocket
 
@@ -232,7 +232,7 @@ This stream includes subtitle text plus token metadata (N+1, known-word, frequen
 ```json
 {
   "annotationWebsocket": {
-    "enabled": true,
+    "enabled": false,
     "port": 6678
   }
 }
@@ -245,14 +245,14 @@ This stream includes subtitle text plus token metadata (N+1, known-word, frequen
 
 ### Texthooker
 
-Control whether the browser opens automatically when texthooker starts:
+Control whether texthooker starts automatically and whether it opens a browser:
 
 See `config.example.jsonc` for detailed configuration options.
 
 ```json
 {
   "texthooker": {
-    "launchAtStartup": true,
+    "launchAtStartup": false,
     "openBrowser": false
   }
 }
@@ -260,7 +260,7 @@ See `config.example.jsonc` for detailed configuration options.
 
 | Option            | Values          | Description                                                            |
 | ----------------- | --------------- | ---------------------------------------------------------------------- |
-| `launchAtStartup` | `true`, `false` | Start texthooker automatically with SubMiner startup (default: `true`) |
+| `launchAtStartup` | `true`, `false` | Start texthooker automatically with SubMiner startup (default: `false`) |
 | `openBrowser`     | `true`, `false` | Open browser tab when texthooker starts (default: `false`)             |
 
 ## Subtitle Display
@@ -274,7 +274,7 @@ See `config.example.jsonc` for detailed configuration options.
 ```json
 {
   "subtitleStyle": {
-    "fontFamily": "M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP",
+    "fontFamily": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP",
     "fontSize": 35,
     "fontColor": "#cad3f5",
     "fontWeight": "600",
@@ -283,14 +283,15 @@ See `config.example.jsonc` for detailed configuration options.
     "wordSpacing": 0,
     "fontKerning": "normal",
     "textRendering": "geometricPrecision",
-    "textShadow": "0 3px 10px rgba(0,0,0,0.69)",
+    "textShadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)",
     "fontStyle": "normal",
-    "backgroundColor": "rgb(30, 32, 48, 0.88)",
+    "backgroundColor": "transparent",
     "backdropFilter": "blur(6px)",
     "secondary": {
       "fontFamily": "Inter, Noto Sans, Helvetica Neue, sans-serif",
       "fontSize": 24,
       "fontColor": "#cad3f5",
+      "textShadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)",
       "backgroundColor": "transparent"
     }
   }
@@ -299,12 +300,12 @@ See `config.example.jsonc` for detailed configuration options.
 
 | Option                             | Values      | Description                                                                                                                |
 | ---------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `fontFamily`                       | string      | CSS font-family value (default: `"M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP"`)                                 |
+| `fontFamily`                       | string      | CSS font-family value (default: `"Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP"`)                         |
 | `fontSize`                         | number (px) | Font size in pixels (default: `35`)                                                                                        |
 | `fontColor`                        | string      | Any CSS color value (default: `"#cad3f5"`)                                                                                 |
 | `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"600"`)                                                     |
 | `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                             |
-| `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgb(30, 32, 48, 0.88)"`)                                              |
+| `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"transparent"`)                                                        |
 | `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                                   |
 | `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.         |
 | `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                 |
@@ -343,7 +344,7 @@ Character-name highlighting is separate from N+1 and frequency highlighting:
 - `nameMatchColor` sets the highlight color for those matched character names.
 - Matches come from the bundled SubMiner character dictionary, including AniList-synced merged dictionaries when enabled.
 
-Secondary subtitle defaults: `fontFamily: "Inter, Noto Sans, Helvetica Neue, sans-serif"`, `fontSize: 24`, `fontColor: "#cad3f5"`, `textShadow: "0 2px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8), 0 0 16px rgba(0,0,0,0.55)"`, `backgroundColor: "rgba(20, 22, 34, 0.78)"`, `fontWeight: "600"`. Any property not set in `secondary` falls back to the CSS defaults.
+Secondary subtitle defaults: `fontFamily: "Inter, Noto Sans, Helvetica Neue, sans-serif"`, `fontSize: 24`, `fontColor: "#cad3f5"`, `textShadow: "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)"`, `backgroundColor: "transparent"`, `fontWeight: "600"`. Any property not set in `secondary` falls back to the CSS defaults.
 
 **See `config.example.jsonc`** for the complete list of subtitle style configuration options.
 

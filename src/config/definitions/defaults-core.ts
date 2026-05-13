@@ -19,18 +19,18 @@ export const CORE_DEFAULT_CONFIG: Pick<
   subtitlePosition: { yPercent: 10 },
   keybindings: [],
   websocket: {
-    enabled: 'auto',
+    enabled: false,
     port: 6677,
   },
   annotationWebsocket: {
-    enabled: true,
+    enabled: false,
     port: 6678,
   },
   logging: {
     level: 'info',
   },
   texthooker: {
-    launchAtStartup: true,
+    launchAtStartup: false,
     openBrowser: false,
   },
   controller: {
