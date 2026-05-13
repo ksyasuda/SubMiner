@@ -56,6 +56,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.discordPresence.enabled, true);
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
+  assert.equal(config.subtitleStyle.primaryDefaultMode, 'visible');
   assert.equal(config.subtitleStyle.preserveLineBreaks, false);
   assert.equal(config.subtitleStyle.autoPauseVideoOnHover, true);
   assert.equal(config.subtitleStyle.autoPauseVideoOnYomitanPopup, true);

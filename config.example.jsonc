@@ -227,6 +227,7 @@
   // Hot-reload: subtitle style changes apply live without restarting SubMiner.
   // ==========================================
   "subtitleStyle": {
+    "primaryDefaultMode": "visible", // Default primary subtitle bar visibility mode. hidden hides it, visible shows it, hover reveals it on hover. Values: hidden | visible | hover
     "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
     "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false

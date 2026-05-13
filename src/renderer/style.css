@@ -684,6 +684,16 @@ body.subtitle-sidebar-embedded-open #subtitleContainer {
   display: none;
 }
 
+#subtitleContainer.primary-sub-hover {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: auto;
+}
+
+#subtitleContainer.primary-sub-hover:hover {
+  opacity: 1;
+}
+
 #subtitleContainer.primary-sub-hidden {
   display: none;
   pointer-events: none;

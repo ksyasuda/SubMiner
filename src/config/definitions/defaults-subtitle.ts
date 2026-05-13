@@ -2,6 +2,7 @@ import { ResolvedConfig } from '../../types/config';
 
 export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'subtitleSidebar'> = {
   subtitleStyle: {
+    primaryDefaultMode: 'visible',
     enableJlpt: false,
     preserveLineBreaks: false,
     autoPauseVideoOnHover: true,

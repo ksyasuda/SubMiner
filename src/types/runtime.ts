@@ -25,6 +25,7 @@ import type {
   YoutubePickerResolveResult,
 } from './integrations';
 import type {
+  PrimarySubMode,
   SecondarySubMode,
   SubtitleData,
   SubtitlePosition,
@@ -331,6 +332,7 @@ export interface ConfigHotReloadPayload {
   sessionBindingWarnings: SessionBindingWarning[];
   subtitleStyle: SubtitleStyleConfig | null;
   subtitleSidebar: Required<SubtitleSidebarConfig>;
+  primarySubMode: PrimarySubMode;
   secondarySubMode: SecondarySubMode;
 }
 

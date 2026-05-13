@@ -672,6 +672,7 @@ async function init(): Promise<void> {
       keyboardHandlers.updateSessionBindings(payload.sessionBindings);
       void keyboardHandlers.refreshConfiguredShortcuts();
       subtitleRenderer.applySubtitleStyle(payload.subtitleStyle);
+      subtitleRenderer.updatePrimarySubMode(payload.primarySubMode);
       subtitleRenderer.updateSecondarySubMode(payload.secondarySubMode);
       ctx.state.subtitleSidebarConfig = payload.subtitleSidebar;
       ctx.state.subtitleSidebarToggleKey = payload.subtitleSidebar.toggleKey;
@@ -694,6 +695,7 @@ async function init(): Promise<void> {
 
   const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();
   subtitleRenderer.applySubtitleStyle(initialSubtitleStyle);
+  subtitleRenderer.updatePrimarySubMode(initialSubtitleStyle?.primaryDefaultMode ?? 'visible');
   await subtitleSidebarModal.refreshSubtitleSidebarSnapshot();
   await subtitleSidebarModal.autoOpenSubtitleSidebarOnStartup();
 

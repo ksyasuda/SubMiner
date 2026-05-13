@@ -54,6 +54,7 @@ export function buildConfigHotReloadPayload(config: ResolvedConfig): ConfigHotRe
     sessionBindingWarnings,
     subtitleStyle: resolveSubtitleStyleForRenderer(config),
     subtitleSidebar: config.subtitleSidebar,
+    primarySubMode: config.subtitleStyle.primaryDefaultMode,
     secondarySubMode: config.secondarySub.defaultMode,
   };
 }

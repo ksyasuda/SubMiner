@@ -12,6 +12,7 @@ import type {
   RuntimeOptionState,
   RuntimeOptionValue,
   CharacterDictionarySelectionSnapshot,
+  PrimarySubMode,
   SubtitlePosition,
   SubtitleSidebarConfig,
   SubtitleCue,
@@ -134,7 +135,7 @@ export type RendererState = {
   keyboardSelectionVisible: boolean;
   keyboardSelectedWordIndex: number | null;
   yomitanPopupVisible: boolean;
-  primarySubtitleBarVisible: boolean;
+  primarySubtitleMode: PrimarySubMode;
 };
 
 export function createRendererState(): RendererState {
@@ -245,6 +246,6 @@ export function createRendererState(): RendererState {
     keyboardSelectionVisible: false,
     keyboardSelectedWordIndex: null,
     yomitanPopupVisible: false,
-    primarySubtitleBarVisible: true,
+    primarySubtitleMode: 'visible',
   };
 }
