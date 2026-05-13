@@ -147,6 +147,7 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
 
   if (isObject(src.subtitleStyle)) {
     const fallbackSubtitleStyleEnableJlpt = resolved.subtitleStyle.enableJlpt;
+    const fallbackSubtitleStylePrimaryDefaultMode = resolved.subtitleStyle.primaryDefaultMode;
     const fallbackSubtitleStylePreserveLineBreaks = resolved.subtitleStyle.preserveLineBreaks;
     const fallbackSubtitleStyleAutoPauseVideoOnHover = resolved.subtitleStyle.autoPauseVideoOnHover;
     const fallbackSubtitleStyleAutoPauseVideoOnYomitanPopup =
@@ -187,6 +188,24 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         (src.subtitleStyle as { enableJlpt?: unknown }).enableJlpt,
         resolved.subtitleStyle.enableJlpt,
         'Expected boolean.',
+      );
+    }
+
+    const primaryDefaultMode = (src.subtitleStyle as { primaryDefaultMode?: unknown })
+      .primaryDefaultMode;
+    if (
+      primaryDefaultMode === 'hidden' ||
+      primaryDefaultMode === 'visible' ||
+      primaryDefaultMode === 'hover'
+    ) {
+      resolved.subtitleStyle.primaryDefaultMode = primaryDefaultMode;
+    } else if (primaryDefaultMode !== undefined) {
+      resolved.subtitleStyle.primaryDefaultMode = fallbackSubtitleStylePrimaryDefaultMode;
+      warn(
+        'subtitleStyle.primaryDefaultMode',
+        primaryDefaultMode,
+        resolved.subtitleStyle.primaryDefaultMode,
+        'Expected hidden, visible, or hover.',
       );
     }
 

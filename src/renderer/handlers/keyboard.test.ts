@@ -407,20 +407,36 @@ function createKeyboardHandlerHarness() {
   };
 }
 
-test('primary subtitle visibility key hides and restores the subtitle bar without mpv sub-visibility', async () => {
+test('primary subtitle visibility key cycles modes with primary OSD without mpv sub-visibility', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
   try {
     await handlers.setupMpvInputForwarding();
 
     testGlobals.dispatchKeydown({ key: 'v', code: 'KeyV' });
+    assert.equal(ctx.dom.subtitleContainer.classList.contains('primary-sub-hidden'), false);
+    assert.equal(ctx.dom.subtitleContainer.classList.contains('primary-sub-hover'), true);
+    assert.equal(ctx.state.primarySubtitleMode, 'hover');
+
+    testGlobals.dispatchKeydown({ key: 'v', code: 'KeyV' });
     assert.equal(ctx.dom.subtitleContainer.classList.contains('primary-sub-hidden'), true);
+    assert.equal(ctx.state.primarySubtitleMode, 'hidden');
 
     testGlobals.dispatchKeydown({ key: 'v', code: 'KeyV' });
     assert.equal(ctx.dom.subtitleContainer.classList.contains('primary-sub-hidden'), false);
+    assert.equal(ctx.dom.subtitleContainer.classList.contains('primary-sub-hover'), false);
+    assert.equal(ctx.state.primarySubtitleMode, 'visible');
     assert.equal(
       testGlobals.mpvCommands.some((command) => command.includes('sub-visibility')),
       false,
+    );
+    assert.deepEqual(
+      testGlobals.mpvCommands.filter((command) => command[0] === 'show-text'),
+      [
+        ['show-text', 'Primary subtitle: hover', '1500'],
+        ['show-text', 'Primary subtitle: hidden', '1500'],
+        ['show-text', 'Primary subtitle: visible', '1500'],
+      ],
     );
   } finally {
     testGlobals.restore();

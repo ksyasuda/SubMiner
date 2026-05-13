@@ -1,4 +1,4 @@
-import type { CompiledSessionBinding, ShortcutsConfig } from '../../types';
+import type { CompiledSessionBinding, PrimarySubMode, ShortcutsConfig } from '../../types';
 import type { RendererContext } from '../context';
 import {
   YOMITAN_POPUP_HIDDEN_EVENT,
@@ -370,13 +370,17 @@ export function createKeyboardHandlers(
   }
 
   function togglePrimarySubtitleBarVisibility(): void {
-    const visible = !ctx.state.primarySubtitleBarVisible;
-    ctx.state.primarySubtitleBarVisible = visible;
-    if (visible) {
-      ctx.dom.subtitleContainer.classList.remove('primary-sub-hidden');
-    } else {
-      ctx.dom.subtitleContainer.classList.add('primary-sub-hidden');
-    }
+    const modes: PrimarySubMode[] = ['hidden', 'visible', 'hover'];
+    const currentIndex = modes.indexOf(ctx.state.primarySubtitleMode);
+    const nextMode = modes[((currentIndex >= 0 ? currentIndex : 1) + 1) % modes.length]!;
+    ctx.state.primarySubtitleMode = nextMode;
+    ctx.dom.subtitleContainer.classList.remove(
+      'primary-sub-hidden',
+      'primary-sub-visible',
+      'primary-sub-hover',
+    );
+    ctx.dom.subtitleContainer.classList.add(`primary-sub-${nextMode}`);
+    window.electronAPI.sendMpvCommand(['show-text', `Primary subtitle: ${nextMode}`, '1500']);
   }
 
   async function handleMarkWatched(): Promise<void> {

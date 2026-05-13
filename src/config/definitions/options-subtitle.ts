@@ -6,6 +6,14 @@ export function buildSubtitleConfigOptionRegistry(
 ): ConfigOptionRegistryEntry[] {
   return [
     {
+      path: 'subtitleStyle.primaryDefaultMode',
+      kind: 'enum',
+      enumValues: ['hidden', 'visible', 'hover'],
+      defaultValue: defaultConfig.subtitleStyle.primaryDefaultMode,
+      description:
+        'Default primary subtitle bar visibility mode. hidden hides it, visible shows it, hover reveals it on hover.',
+    },
+    {
       path: 'subtitleStyle.enableJlpt',
       kind: 'boolean',
       defaultValue: defaultConfig.subtitleStyle.enableJlpt,

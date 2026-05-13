@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_CONFIG, deepCloneConfig } from '../../config';
 import {
+  buildConfigHotReloadPayload,
   buildRestartRequiredConfigMessage,
   createConfigHotReloadAppliedHandler,
   createConfigHotReloadMessageHandler,
@@ -54,6 +55,17 @@ test('createConfigHotReloadAppliedHandler runs all hot-reload effects', () => {
       message.includes('Rename shortcuts.toggleVisibleOverlayGlobal'),
     ),
   );
+});
+
+test('buildConfigHotReloadPayload includes independent primary subtitle mode', () => {
+  const config = deepCloneConfig(DEFAULT_CONFIG);
+  config.subtitleStyle.primaryDefaultMode = 'hover';
+  config.secondarySub.defaultMode = 'hidden';
+
+  const payload = buildConfigHotReloadPayload(config);
+
+  assert.equal(payload.primarySubMode, 'hover');
+  assert.equal(payload.secondarySubMode, 'hidden');
 });
 
 test('createConfigHotReloadAppliedHandler skips optional effects when no hot fields', () => {

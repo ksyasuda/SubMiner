@@ -1,4 +1,10 @@
-import type { MergedToken, SecondarySubMode, SubtitleData, SubtitleStyleConfig } from '../types';
+import type {
+  MergedToken,
+  PrimarySubMode,
+  SecondarySubMode,
+  SubtitleData,
+  SubtitleStyleConfig,
+} from '../types';
 import type { RendererContext } from './context';
 
 type FrequencyRenderSettings = {
@@ -613,6 +619,16 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     ctx.dom.secondarySubContainer.classList.add(`secondary-sub-${mode}`);
   }
 
+  function updatePrimarySubMode(mode: PrimarySubMode): void {
+    ctx.state.primarySubtitleMode = mode;
+    ctx.dom.subtitleContainer.classList.remove(
+      'primary-sub-hidden',
+      'primary-sub-visible',
+      'primary-sub-hover',
+    );
+    ctx.dom.subtitleContainer.classList.add(`primary-sub-${mode}`);
+  }
+
   function applySubtitleFontSize(fontSize: number): void {
     const clampedSize = Math.max(10, fontSize);
     ctx.dom.subtitleRoot.style.fontSize = `${clampedSize}px`;
@@ -791,6 +807,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     applySubtitleStyle,
     renderSecondarySub,
     renderSubtitle,
+    updatePrimarySubMode,
     updateSecondarySubMode,
   };
 }

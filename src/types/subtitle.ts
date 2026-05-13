@@ -55,7 +55,9 @@ export interface SubtitleStyle {
   fontSize: number;
 }
 
-export type SecondarySubMode = 'hidden' | 'visible' | 'hover';
+export type SubtitleBarMode = 'hidden' | 'visible' | 'hover';
+export type PrimarySubMode = SubtitleBarMode;
+export type SecondarySubMode = SubtitleBarMode;
 
 export interface SecondarySubConfig {
   secondarySubLanguages?: string[];
@@ -67,6 +69,7 @@ export type NPlusOneMatchMode = 'headword' | 'surface';
 export type FrequencyDictionaryMatchMode = 'headword' | 'surface';
 
 export interface SubtitleStyleConfig {
+  primaryDefaultMode?: PrimarySubMode;
   enableJlpt?: boolean;
   preserveLineBreaks?: boolean;
   autoPauseVideoOnHover?: boolean;

@@ -66,6 +66,31 @@ test('subtitleStyle autoPauseVideoOnYomitanPopup falls back on invalid value', (
   );
 });
 
+test('subtitleStyle primaryDefaultMode accepts valid values and warns on invalid', () => {
+  const valid = createResolveContext({
+    subtitleStyle: {
+      primaryDefaultMode: 'hover',
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.equal(valid.context.resolved.subtitleStyle.primaryDefaultMode, 'hover');
+
+  const invalid = createResolveContext({
+    subtitleStyle: {
+      primaryDefaultMode: 'auto' as never,
+    },
+  });
+  applySubtitleDomainConfig(invalid.context);
+  assert.equal(invalid.context.resolved.subtitleStyle.primaryDefaultMode, 'visible');
+  assert.ok(
+    invalid.warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.primaryDefaultMode' &&
+        warning.message === 'Expected hidden, visible, or hover.',
+    ),
+  );
+});
+
 test('subtitleStyle nameMatchEnabled falls back on invalid value', () => {
   const { context, warnings } = createResolveContext({
     subtitleStyle: {
