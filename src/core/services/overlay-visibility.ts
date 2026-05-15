@@ -94,13 +94,27 @@ export function updateVisibleOverlayVisibility(args: {
     const wasVisible = mainWindow.isVisible();
     const isVisibleOverlayFocused =
       typeof mainWindow.isFocused === 'function' && mainWindow.isFocused();
+    const windowTracker = args.windowTracker;
+    const canReportMacOSTargetMinimized =
+      args.isMacOSPlatform && typeof windowTracker?.isTargetWindowMinimized === 'function';
+    const isTrackedMacOSTargetMinimized =
+      canReportMacOSTargetMinimized &&
+      windowTracker?.isTargetWindowMinimized() === true;
+    const hasTransientMacOSTrackerLoss =
+      args.isMacOSPlatform &&
+      canReportMacOSTargetMinimized &&
+      !!windowTracker &&
+      !windowTracker.isTracking() &&
+      !isTrackedMacOSTargetMinimized &&
+      mainWindow.isVisible();
     const isTrackedMacOSTargetFocused =
-      !args.isMacOSPlatform || !args.windowTracker
+      hasTransientMacOSTrackerLoss || !args.isMacOSPlatform || !args.windowTracker
         ? true
         : (args.windowTracker.isTargetWindowFocused?.() ?? true);
     const shouldReleaseMacOSOverlayLevel =
       args.isMacOSPlatform &&
       !!args.windowTracker &&
+      !hasTransientMacOSTrackerLoss &&
       !isVisibleOverlayFocused &&
       !isTrackedMacOSTargetFocused;
     const shouldDefaultToPassthrough =
@@ -274,9 +288,17 @@ export function updateVisibleOverlayVisibility(args: {
   const hasRetainedTrackedGeometry = args.windowTracker.getGeometry() !== null;
   const hasActiveMacOSTargetSignal =
     args.isMacOSPlatform && (args.windowTracker.isTargetWindowFocused?.() ?? false);
+  const canReportMacOSTargetMinimized =
+    args.isMacOSPlatform && typeof args.windowTracker.isTargetWindowMinimized === 'function';
+  const isTrackedMacOSTargetMinimized =
+    canReportMacOSTargetMinimized &&
+    args.windowTracker.isTargetWindowMinimized();
   const shouldPreserveTransientTrackedOverlay =
     (args.isMacOSPlatform &&
-      (hasRetainedTrackedGeometry || (mainWindow.isVisible() && hasActiveMacOSTargetSignal))) ||
+      !isTrackedMacOSTargetMinimized &&
+      (hasRetainedTrackedGeometry ||
+        (mainWindow.isVisible() && hasActiveMacOSTargetSignal) ||
+        (canReportMacOSTargetMinimized && mainWindow.isVisible()))) ||
     (args.isWindowsPlatform &&
       typeof args.windowTracker.isTargetWindowMinimized === 'function' &&
       !args.windowTracker.isTargetWindowMinimized());

@@ -483,13 +483,13 @@ import { createOverlayModalInputState } from './main/runtime/overlay-modal-input
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
 import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
+import { openSubsyncManualModal as openSubsyncManualModalRuntime } from './main/runtime/subsync-open';
 import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
 import { openCharacterDictionaryModal as openCharacterDictionaryModalRuntime } from './main/runtime/character-dictionary-open';
 import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
 import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
 import { writeSessionBindingsArtifact } from './main/runtime/session-bindings-artifact';
-import { openOverlayHostedModal } from './main/runtime/overlay-hosted-modal-open';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
   createFrequencyDictionaryRuntimeService,
@@ -1479,9 +1479,11 @@ const buildMainSubsyncRuntimeMainDepsHandler = createBuildMainSubsyncRuntimeMain
   },
   showMpvOsd: (text) => showMpvOsd(text),
   openManualPicker: (payload) => {
-    sendToActiveOverlayWindow('subsync:open-manual', payload, {
-      restoreOnModalClose: 'subsync',
-    });
+    openOverlayHostedModalWithOsd(
+      (deps) => openSubsyncManualModalRuntime(deps, payload),
+      'Subsync overlay unavailable.',
+      'Failed to open subsync overlay.',
+    );
   },
 });
 const immersionMediaRuntime = createImmersionMediaRuntime(

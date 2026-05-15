@@ -40,13 +40,21 @@ type MacOSTrackerDeps = {
   ) => Promise<MacOSTrackerRunnerResult>;
   maxConsecutiveMisses?: number;
   trackingLossGraceMs?: number;
+  minimizedTrackingLossGraceMs?: number;
   now?: () => number;
 };
 
-export interface MacOSHelperWindowState {
-  geometry: WindowGeometry;
-  focused: boolean;
-}
+export type MacOSHelperWindowState =
+  | {
+      geometry: WindowGeometry;
+      focused: boolean;
+      minimized?: false;
+    }
+  | {
+      geometry: null;
+      focused: false;
+      minimized: true;
+    };
 
 function runHelperWithExecFile(
   helperPath: string,
@@ -84,6 +92,13 @@ function runHelperWithExecFile(
 
 export function parseMacOSHelperOutput(result: string): MacOSHelperWindowState | null {
   const trimmed = result.trim();
+  if (trimmed === 'minimized') {
+    return {
+      geometry: null,
+      focused: false,
+      minimized: true,
+    };
+  }
   if (!trimmed || trimmed === 'not-found') {
     return null;
   }
@@ -137,9 +152,11 @@ export class MacOSWindowTracker extends BaseWindowTracker {
   ) => Promise<MacOSTrackerRunnerResult>;
   private readonly maxConsecutiveMisses: number;
   private readonly trackingLossGraceMs: number;
+  private readonly minimizedTrackingLossGraceMs: number;
   private readonly now: () => number;
   private consecutiveMisses = 0;
   private trackingLossStartedAtMs: number | null = null;
+  private targetWindowMinimized = false;
 
   constructor(targetMpvSocketPath?: string, deps: MacOSTrackerDeps = {}) {
     super();
@@ -147,6 +164,10 @@ export class MacOSWindowTracker extends BaseWindowTracker {
     this.runHelper = deps.runHelper ?? runHelperWithExecFile;
     this.maxConsecutiveMisses = Math.max(1, Math.floor(deps.maxConsecutiveMisses ?? 2));
     this.trackingLossGraceMs = Math.max(0, Math.floor(deps.trackingLossGraceMs ?? 1_500));
+    this.minimizedTrackingLossGraceMs = Math.max(
+      0,
+      Math.floor(deps.minimizedTrackingLossGraceMs ?? 500),
+    );
     this.now = deps.now ?? (() => Date.now());
     const resolvedHelper = deps.resolveHelper?.() ?? null;
     if (resolvedHelper) {
@@ -259,28 +280,32 @@ export class MacOSWindowTracker extends BaseWindowTracker {
     }
   }
 
+  override isTargetWindowMinimized(): boolean {
+    return this.targetWindowMinimized;
+  }
+
   private resetTrackingLossState(): void {
     this.consecutiveMisses = 0;
     this.trackingLossStartedAtMs = null;
   }
 
-  private shouldDropTracking(): boolean {
+  private shouldDropTracking(graceMs = this.trackingLossGraceMs): boolean {
     if (!this.isTracking()) {
       return true;
     }
-    if (this.trackingLossGraceMs === 0) {
+    if (graceMs === 0) {
       return this.consecutiveMisses >= this.maxConsecutiveMisses;
     }
     if (this.trackingLossStartedAtMs === null) {
       this.trackingLossStartedAtMs = this.now();
       return false;
     }
-    return this.now() - this.trackingLossStartedAtMs > this.trackingLossGraceMs;
+    return this.now() - this.trackingLossStartedAtMs > graceMs;
   }
 
-  private registerTrackingMiss(): void {
+  private registerTrackingMiss(graceMs = this.trackingLossGraceMs): void {
     this.consecutiveMisses += 1;
-    if (this.shouldDropTracking()) {
+    if (this.shouldDropTracking(graceMs)) {
       this.updateGeometry(null);
       this.resetTrackingLossState();
     }
@@ -296,12 +321,20 @@ export class MacOSWindowTracker extends BaseWindowTracker {
       .then(({ stdout }) => {
         const parsed = parseMacOSHelperOutput(stdout || '');
         if (parsed) {
+          if (parsed.minimized) {
+            this.targetWindowMinimized = true;
+            this.updateTargetWindowFocused(false);
+            this.registerTrackingMiss(this.minimizedTrackingLossGraceMs);
+            return;
+          }
           this.resetTrackingLossState();
+          this.targetWindowMinimized = false;
           this.updateFocus(parsed.focused);
           this.updateGeometry(parsed.geometry);
           return;
         }
 
+        this.targetWindowMinimized = false;
         this.registerTrackingMiss();
       })
       .catch((error: unknown) => {
@@ -314,6 +347,7 @@ export class MacOSWindowTracker extends BaseWindowTracker {
             ? (error as { stderr: string }).stderr
             : '';
         this.maybeLogExecError(err, stderr);
+        this.targetWindowMinimized = false;
         this.registerTrackingMiss();
       })
       .finally(() => {

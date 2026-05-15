@@ -547,7 +547,7 @@ test('initializeOverlayRuntime hides overlay windows when tracker loses the targ
   assert.deepEqual(calls, ['hide-visible', 'hide-modal', 'sync-shortcuts']);
 });
 
-test('initializeOverlayRuntime hides visible overlay on Windows tracker loss when target is not minimized', () => {
+test('initializeOverlayRuntime refreshes visible overlay on tracker loss when target is not minimized', () => {
   const calls: string[] = [];
   const tracker = {
     onGeometryChange: null as ((...args: unknown[]) => void) | null,
@@ -600,7 +600,7 @@ test('initializeOverlayRuntime hides visible overlay on Windows tracker loss whe
   calls.length = 0;
   tracker.onWindowLost?.();
 
-  assert.deepEqual(calls, ['hide-visible', 'sync-shortcuts']);
+  assert.deepEqual(calls, ['update-visible']);
 });
 
 test('initializeOverlayRuntime restores overlay bounds and visibility when tracker finds the target window again', () => {

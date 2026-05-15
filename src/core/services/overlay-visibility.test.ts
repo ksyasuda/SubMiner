@@ -1398,6 +1398,55 @@ test('macOS preserves visible overlay during transient tracker loss with retaine
   assert.ok(!calls.includes('show'));
 });
 
+test('macOS preserves visible overlay level during non-minimized tracker loss', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => false,
+    getGeometry: () => null,
+    isTargetWindowFocused: () => false,
+    isTargetWindowMinimized: () => false,
+  };
+
+  window.show();
+  calls.length = 0;
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: true,
+    showOverlayLoadingOsd: () => {
+      calls.push('loading-osd');
+    },
+  } as never);
+
+  assert.ok(calls.includes('sync-layer'));
+  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('ensure-level'));
+  assert.ok(calls.includes('enforce-order'));
+  assert.ok(calls.includes('sync-shortcuts'));
+  assert.ok(!calls.includes('hide'));
+  assert.ok(!calls.includes('always-on-top:false'));
+  assert.ok(!calls.includes('loading-osd'));
+});
+
 test('macOS suppresses immediate repeat loading OSD after tracker recovery until cooldown expires', () => {
   const { window } = createMainWindowRecorder();
   const osdMessages: string[] = [];
