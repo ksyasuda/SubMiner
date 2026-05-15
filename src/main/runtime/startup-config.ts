@@ -31,6 +31,7 @@ export type ReloadConfigRuntimeDeps = {
     force: boolean;
     allowSetupPrompt?: boolean;
   }) => Promise<unknown>;
+  shouldRefreshAnilistClientSecretState?: () => boolean;
   failHandlers: {
     logError: (details: string) => void;
     showErrorBox: (title: string, details: string) => void;
@@ -75,7 +76,9 @@ export function createReloadConfigHandler(deps: ReloadConfigRuntimeDeps): () => 
     }
 
     deps.startConfigHotReload();
-    void deps.refreshAnilistClientSecretState({ force: true, allowSetupPrompt: false });
+    if (deps.shouldRefreshAnilistClientSecretState?.() !== false) {
+      void deps.refreshAnilistClientSecretState({ force: true, allowSetupPrompt: false });
+    }
   };
 }
 

@@ -3,11 +3,17 @@ import assert from 'node:assert/strict';
 import { ensureLauncherSetupReady, waitForSetupCompletion } from './setup-gate';
 import type { SetupState } from '../src/shared/setup-state';
 
+const commandLineSetupDefaults = {
+  bunInstallStatus: 'unknown',
+  launcherInstallStatus: 'unknown',
+  launcherInstallPath: null,
+} satisfies Pick<SetupState, 'bunInstallStatus' | 'launcherInstallStatus' | 'launcherInstallPath'>;
+
 test('waitForSetupCompletion resolves completed and cancelled states', async () => {
   const sequence: Array<SetupState | null> = [
     null,
     {
-      version: 3,
+      version: 4,
       status: 'in_progress',
       completedAt: null,
       completionSource: null,
@@ -17,9 +23,10 @@ test('waitForSetupCompletion resolves completed and cancelled states', async () 
       pluginInstallPathSummary: null,
       windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
       windowsMpvShortcutLastStatus: 'unknown',
+      ...commandLineSetupDefaults,
     },
     {
-      version: 3,
+      version: 4,
       status: 'completed',
       completedAt: '2026-03-07T00:00:00.000Z',
       completionSource: 'user',
@@ -29,6 +36,7 @@ test('waitForSetupCompletion resolves completed and cancelled states', async () 
       pluginInstallPathSummary: null,
       windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
       windowsMpvShortcutLastStatus: 'skipped',
+      ...commandLineSetupDefaults,
     },
   ];
 
@@ -56,7 +64,7 @@ test('ensureLauncherSetupReady launches setup app and resumes only after complet
       if (reads === 1) return null;
       if (reads === 2) {
         return {
-          version: 3,
+          version: 4,
           status: 'in_progress',
           completedAt: null,
           completionSource: null,
@@ -66,10 +74,11 @@ test('ensureLauncherSetupReady launches setup app and resumes only after complet
           pluginInstallPathSummary: null,
           windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
           windowsMpvShortcutLastStatus: 'unknown',
+          ...commandLineSetupDefaults,
         };
       }
       return {
-        version: 3,
+        version: 4,
         status: 'completed',
         completedAt: '2026-03-07T00:00:00.000Z',
         completionSource: 'user',
@@ -79,6 +88,7 @@ test('ensureLauncherSetupReady launches setup app and resumes only after complet
         pluginInstallPathSummary: '/tmp/mpv',
         windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
         windowsMpvShortcutLastStatus: 'installed',
+        ...commandLineSetupDefaults,
       };
     },
     launchSetupApp: () => {
@@ -125,7 +135,7 @@ test('ensureLauncherSetupReady waits for finish after legacy mpv plugin removal'
     readSetupState: () => {
       reads += 1;
       return {
-        version: 3,
+        version: 4,
         status: 'completed',
         completedAt: reads < 3 ? '2026-03-07T00:00:00.000Z' : '2026-05-12T14:40:00.000Z',
         completionSource: 'user',
@@ -135,6 +145,7 @@ test('ensureLauncherSetupReady waits for finish after legacy mpv plugin removal'
         pluginInstallPathSummary: null,
         windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
         windowsMpvShortcutLastStatus: 'unknown',
+        ...commandLineSetupDefaults,
       };
     },
     hasLegacyMpvPlugin: () => legacyPluginInstalled,
@@ -164,7 +175,7 @@ test('ensureLauncherSetupReady lets users continue without removing a legacy mpv
     readSetupState: () => {
       reads += 1;
       return {
-        version: 3,
+        version: 4,
         status: 'completed',
         completedAt: reads < 3 ? '2026-03-07T00:00:00.000Z' : '2026-05-12T14:30:00.000Z',
         completionSource: 'user',
@@ -174,6 +185,7 @@ test('ensureLauncherSetupReady lets users continue without removing a legacy mpv
         pluginInstallPathSummary: null,
         windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
         windowsMpvShortcutLastStatus: 'unknown',
+        ...commandLineSetupDefaults,
       };
     },
     hasLegacyMpvPlugin: () => true,
@@ -196,7 +208,7 @@ test('ensureLauncherSetupReady lets users continue without removing a legacy mpv
 test('ensureLauncherSetupReady fails on timeout/cancelled state', async () => {
   const result = await ensureLauncherSetupReady({
     readSetupState: () => ({
-      version: 3,
+      version: 4,
       status: 'cancelled',
       completedAt: null,
       completionSource: null,
@@ -206,6 +218,7 @@ test('ensureLauncherSetupReady fails on timeout/cancelled state', async () => {
       pluginInstallPathSummary: null,
       windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
       windowsMpvShortcutLastStatus: 'unknown',
+      ...commandLineSetupDefaults,
     }),
     launchSetupApp: () => undefined,
     sleep: async () => undefined,
@@ -228,7 +241,7 @@ test('ensureLauncherSetupReady ignores stale cancelled state after launching set
       reads += 1;
       if (reads <= 2) {
         return {
-          version: 3,
+          version: 4,
           status: 'cancelled',
           completedAt: null,
           completionSource: null,
@@ -238,11 +251,12 @@ test('ensureLauncherSetupReady ignores stale cancelled state after launching set
           pluginInstallPathSummary: null,
           windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
           windowsMpvShortcutLastStatus: 'unknown',
+          ...commandLineSetupDefaults,
         };
       }
       if (reads === 3) {
         return {
-          version: 3,
+          version: 4,
           status: 'in_progress',
           completedAt: null,
           completionSource: null,
@@ -252,10 +266,11 @@ test('ensureLauncherSetupReady ignores stale cancelled state after launching set
           pluginInstallPathSummary: null,
           windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
           windowsMpvShortcutLastStatus: 'unknown',
+          ...commandLineSetupDefaults,
         };
       }
       return {
-        version: 3,
+        version: 4,
         status: 'completed',
         completedAt: '2026-03-07T00:00:00.000Z',
         completionSource: 'legacy_auto_detected',
@@ -265,6 +280,7 @@ test('ensureLauncherSetupReady ignores stale cancelled state after launching set
         pluginInstallPathSummary: '/tmp/mpv',
         windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
         windowsMpvShortcutLastStatus: 'unknown',
+        ...commandLineSetupDefaults,
       };
     },
     launchSetupApp: () => undefined,

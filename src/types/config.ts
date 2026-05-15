@@ -75,6 +75,16 @@ export interface StartupWarmupsConfig {
   jellyfinRemoteSession?: boolean;
 }
 
+export type UpdateNotificationType = 'system' | 'osd' | 'both' | 'none';
+export type UpdateChannel = 'stable' | 'prerelease';
+
+export interface UpdatesConfig {
+  enabled?: boolean;
+  checkIntervalHours?: number;
+  notificationType?: UpdateNotificationType;
+  channel?: UpdateChannel;
+}
+
 export interface ShortcutsConfig {
   toggleVisibleOverlayGlobal?: string | null;
   copySubtitle?: string | null;
@@ -122,6 +132,7 @@ export interface Config {
   youtubeSubgen?: YoutubeSubgenConfig;
   immersionTracking?: ImmersionTrackingConfig;
   stats?: StatsConfig;
+  updates?: UpdatesConfig;
   logging?: {
     level?: 'debug' | 'info' | 'warn' | 'error';
   };
@@ -346,6 +357,7 @@ export interface ResolvedConfig {
     autoStartServer: boolean;
     autoOpenBrowser: boolean;
   };
+  updates: Required<UpdatesConfig>;
   logging: {
     level: 'debug' | 'info' | 'warn' | 'error';
   };

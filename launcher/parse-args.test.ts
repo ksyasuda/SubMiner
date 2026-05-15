@@ -57,6 +57,18 @@ test('parseArgs captures mpv args string', () => {
   assert.equal(parsed.mpvArgs, '--pause=yes --title="movie night"');
 });
 
+test('parseArgs maps root update flags without conflicting with jellyfin username', () => {
+  const shortParsed = parseArgs(['-u'], 'subminer', {});
+  const longParsed = parseArgs(['--update'], 'subminer', {});
+  const jellyfinParsed = parseArgs(['jellyfin', 'setup', '-u', 'kyle'], 'subminer', {});
+
+  assert.equal(shortParsed.update, true);
+  assert.equal(longParsed.update, true);
+  assert.equal(jellyfinParsed.update, false);
+  assert.equal(jellyfinParsed.jellyfin, true);
+  assert.equal(jellyfinParsed.jellyfinUsername, 'kyle');
+});
+
 test('parseArgs maps jellyfin play action and log-level override', () => {
   const parsed = parseArgs(['jellyfin', 'play', '--log-level', 'debug'], 'subminer', {});
 

@@ -62,6 +62,8 @@ export function createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler<TOpt
 
 export function createBuildOpenYomitanSettingsMainDepsHandler<TYomitanExt, TWindow>(deps: {
   ensureYomitanExtensionLoaded: () => Promise<TYomitanExt | null>;
+  getYomitanExtension?: () => TYomitanExt | null;
+  getYomitanExtensionLoadInFlight?: () => Promise<unknown> | null;
   openYomitanSettingsWindow: (params: {
     yomitanExt: TYomitanExt;
     getExistingWindow: () => TWindow | null;
@@ -77,6 +79,15 @@ export function createBuildOpenYomitanSettingsMainDepsHandler<TYomitanExt, TWind
 }) {
   return () => ({
     ensureYomitanExtensionLoaded: () => deps.ensureYomitanExtensionLoaded(),
+    ...(deps.getYomitanExtension
+      ? { getYomitanExtension: () => deps.getYomitanExtension?.() ?? null }
+      : {}),
+    ...(deps.getYomitanExtensionLoadInFlight
+      ? {
+          getYomitanExtensionLoadInFlight: () =>
+            deps.getYomitanExtensionLoadInFlight?.() ?? null,
+        }
+      : {}),
     openYomitanSettingsWindow: (params: {
       yomitanExt: TYomitanExt;
       getExistingWindow: () => TWindow | null;

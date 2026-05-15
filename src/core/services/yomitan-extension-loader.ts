@@ -3,7 +3,7 @@ import type { BrowserWindow, Extension, Session } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createLogger } from '../../logger';
-import { ensureExtensionCopy } from './yomitan-extension-copy';
+import { ensureExtensionCopyAsync } from './yomitan-extension-copy';
 import {
   getYomitanExtensionSearchPaths,
   resolveExternalYomitanExtensionPath,
@@ -79,7 +79,7 @@ export async function loadYomitanExtension(
       return null;
     }
 
-    const extensionCopy = ensureExtensionCopy(extPath, deps.userDataPath);
+    const extensionCopy = await ensureExtensionCopyAsync(extPath, deps.userDataPath);
     if (extensionCopy.copied) {
       logger.info(`Copied yomitan extension to ${extensionCopy.targetDir}`);
     }

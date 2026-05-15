@@ -29,6 +29,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
   buildTrayMenuTemplateRuntime: (handlers: {
     openSessionHelp: () => void;
     openTexthookerInBrowser: () => void;
+    showTexthookerPage: boolean;
     openFirstRunSetup: () => void;
     showFirstRunSetup: boolean;
     openWindowsMpvLauncherSetup: () => void;
@@ -40,12 +41,14 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
     jellyfinDiscoveryActive: boolean;
     toggleJellyfinDiscovery: () => void;
     openAnilistSetup: () => void;
+    checkForUpdates: () => void;
     quitApp: () => void;
   }) => TMenuItem[];
   initializeOverlayRuntime: () => void;
   isOverlayRuntimeInitialized: () => boolean;
   openSessionHelpModal: () => void;
   openTexthookerInBrowser: () => void;
+  showTexthookerPage: () => boolean;
   showFirstRunSetup: () => boolean;
   openFirstRunSetupWindow: () => void;
   showWindowsMpvLauncherSetup: () => boolean;
@@ -56,6 +59,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
   isJellyfinDiscoveryActive: () => boolean;
   toggleJellyfinDiscovery: () => void | Promise<void>;
   openAnilistSetupWindow: () => void;
+  checkForUpdates: () => void;
   quitApp: () => void;
 }) {
   return () => ({
@@ -64,6 +68,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
     isOverlayRuntimeInitialized: deps.isOverlayRuntimeInitialized,
     openSessionHelpModal: deps.openSessionHelpModal,
     openTexthookerInBrowser: deps.openTexthookerInBrowser,
+    showTexthookerPage: deps.showTexthookerPage,
     showFirstRunSetup: deps.showFirstRunSetup,
     openFirstRunSetupWindow: deps.openFirstRunSetupWindow,
     showWindowsMpvLauncherSetup: deps.showWindowsMpvLauncherSetup,
@@ -74,6 +79,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
     isJellyfinDiscoveryActive: deps.isJellyfinDiscoveryActive,
     toggleJellyfinDiscovery: deps.toggleJellyfinDiscovery,
     openAnilistSetupWindow: deps.openAnilistSetupWindow,
+    checkForUpdates: deps.checkForUpdates,
     quitApp: deps.quitApp,
   });
 }

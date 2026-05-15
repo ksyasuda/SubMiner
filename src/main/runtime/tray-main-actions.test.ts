@@ -43,6 +43,7 @@ test('build tray template handler wires actions and init guards', () => {
     buildTrayMenuTemplateRuntime: (handlers) => {
       handlers.openSessionHelp();
       handlers.openTexthookerInBrowser();
+      calls.push(`show-texthooker:${handlers.showTexthookerPage}`);
       handlers.openFirstRunSetup();
       handlers.openWindowsMpvLauncherSetup();
       handlers.openYomitanSettings();
@@ -50,6 +51,7 @@ test('build tray template handler wires actions and init guards', () => {
       handlers.openJellyfinSetup();
       handlers.toggleJellyfinDiscovery();
       handlers.openAnilistSetup();
+      handlers.checkForUpdates();
       handlers.quitApp();
       return [{ label: 'ok' }] as never;
     },
@@ -60,6 +62,7 @@ test('build tray template handler wires actions and init guards', () => {
     isOverlayRuntimeInitialized: () => initialized,
     openSessionHelpModal: () => calls.push('help'),
     openTexthookerInBrowser: () => calls.push('texthooker'),
+    showTexthookerPage: () => true,
     showFirstRunSetup: () => true,
     openFirstRunSetupWindow: () => calls.push('setup'),
     showWindowsMpvLauncherSetup: () => true,
@@ -72,6 +75,7 @@ test('build tray template handler wires actions and init guards', () => {
       calls.push('jellyfin-discovery');
     },
     openAnilistSetupWindow: () => calls.push('anilist'),
+    checkForUpdates: () => calls.push('updates'),
     quitApp: () => calls.push('quit'),
   });
 
@@ -81,6 +85,7 @@ test('build tray template handler wires actions and init guards', () => {
     'init',
     'help',
     'texthooker',
+    'show-texthooker:true',
     'setup',
     'setup',
     'yomitan',
@@ -88,6 +93,7 @@ test('build tray template handler wires actions and init guards', () => {
     'jellyfin',
     'jellyfin-discovery',
     'anilist',
+    'updates',
     'quit',
   ]);
 });

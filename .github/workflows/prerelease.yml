@@ -139,7 +139,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: appimage
-          path: release/*.AppImage
+          path: |
+            release/*.AppImage
+            release/*.yml
+            release/*.blockmap
           if-no-files-found: error
 
   build-macos:
@@ -216,6 +219,8 @@ jobs:
           path: |
             release/*.dmg
             release/*.zip
+            release/*.yml
+            release/*.blockmap
           if-no-files-found: error
 
   build-windows:
@@ -267,6 +272,8 @@ jobs:
           path: |
             release/*.exe
             release/*.zip
+            release/*.yml
+            release/*.blockmap
           if-no-files-found: error
 
   release:
@@ -339,7 +346,7 @@ jobs:
       - name: Generate checksums
         run: |
           shopt -s nullglob
-          files=(release/*.AppImage release/*.dmg release/*.exe release/*.zip release/*.tar.gz dist/launcher/subminer)
+          files=(release/*.AppImage release/*.dmg release/*.exe release/*.zip release/*.tar.gz release/*.yml release/*.blockmap dist/launcher/subminer)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No release artifacts found for checksum generation."
             exit 1
@@ -371,6 +378,8 @@ jobs:
             release/*.exe
             release/*.zip
             release/*.tar.gz
+            release/*.yml
+            release/*.blockmap
             release/SHA256SUMS.txt
             dist/launcher/subminer
           )

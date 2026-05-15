@@ -26,6 +26,7 @@ test('tray main deps builders return mapped handlers', () => {
     isOverlayRuntimeInitialized: () => false,
     openSessionHelpModal: () => calls.push('help'),
     openTexthookerInBrowser: () => calls.push('texthooker'),
+    showTexthookerPage: () => true,
     showFirstRunSetup: () => true,
     openFirstRunSetupWindow: () => calls.push('setup'),
     showWindowsMpvLauncherSetup: () => true,
@@ -38,12 +39,14 @@ test('tray main deps builders return mapped handlers', () => {
       calls.push('jellyfin-discovery');
     },
     openAnilistSetupWindow: () => calls.push('anilist'),
+    checkForUpdates: () => calls.push('updates'),
     quitApp: () => calls.push('quit'),
   })();
 
   const template = menuDeps.buildTrayMenuTemplateRuntime({
     openSessionHelp: () => calls.push('open-help'),
     openTexthookerInBrowser: () => calls.push('open-texthooker'),
+    showTexthookerPage: true,
     openFirstRunSetup: () => calls.push('open-setup'),
     showFirstRunSetup: true,
     openWindowsMpvLauncherSetup: () => calls.push('open-windows-mpv'),
@@ -55,6 +58,7 @@ test('tray main deps builders return mapped handlers', () => {
     jellyfinDiscoveryActive: false,
     toggleJellyfinDiscovery: () => calls.push('open-jellyfin-discovery'),
     openAnilistSetup: () => calls.push('open-anilist'),
+    checkForUpdates: () => calls.push('open-updates'),
     quitApp: () => calls.push('quit-app'),
   });
 

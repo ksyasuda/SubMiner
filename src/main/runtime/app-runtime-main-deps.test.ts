@@ -68,9 +68,12 @@ test('open yomitan settings main deps map async open callbacks', async () => {
   const calls: string[] = [];
   let currentWindow: unknown = null;
   const extension = { id: 'ext' };
+  const startupLoad = Promise.resolve(extension);
   const yomitanSession = { id: 'session' };
   const deps = createBuildOpenYomitanSettingsMainDepsHandler({
     ensureYomitanExtensionLoaded: async () => extension,
+    getYomitanExtension: () => extension,
+    getYomitanExtensionLoadInFlight: () => startupLoad,
     openYomitanSettingsWindow: ({ yomitanExt, yomitanSession: forwardedSession }) =>
       calls.push(
         `open:${(yomitanExt as { id: string }).id}:${(forwardedSession as { id: string } | null)?.id ?? 'null'}`,
@@ -86,6 +89,8 @@ test('open yomitan settings main deps map async open callbacks', async () => {
   })();
 
   assert.equal(await deps.ensureYomitanExtensionLoaded(), extension);
+  assert.equal(deps.getYomitanExtension?.(), extension);
+  assert.equal(deps.getYomitanExtensionLoadInFlight?.(), startupLoad);
   assert.equal(deps.getExistingWindow(), null);
   deps.setWindow({ id: 'win' });
   deps.openYomitanSettingsWindow({

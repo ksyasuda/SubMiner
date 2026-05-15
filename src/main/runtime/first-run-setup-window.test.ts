@@ -7,6 +7,32 @@ import {
   createOpenFirstRunSetupWindowHandler,
   parseFirstRunSetupSubmissionUrl,
 } from './first-run-setup-window';
+import type { CommandLineLauncherSnapshot } from './command-line-launcher';
+
+function createCommandLineLauncherSnapshot(
+  overrides: Partial<CommandLineLauncherSnapshot> = {},
+): CommandLineLauncherSnapshot {
+  return {
+    supported: true,
+    bun: {
+      status: 'missing',
+      commandPath: null,
+      version: null,
+      installMethod: 'official-script',
+      installCommand: ['bash', '-lc', 'curl -fsSL https://bun.com/install | bash'],
+      message: null,
+    },
+    launcher: {
+      status: 'not_installed',
+      commandPath: null,
+      installPath: '/home/tester/.local/bin/subminer',
+      pathDir: '/home/tester/.local/bin',
+      shadowedBy: null,
+      message: null,
+    },
+    ...overrides,
+  };
+}
 
 test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish state', () => {
   const html = buildFirstRunSetupHtml({
@@ -26,6 +52,7 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
       desktopInstalled: false,
       status: 'optional',
     },
+    commandLineLauncher: createCommandLineLauncherSnapshot(),
     message: 'Waiting for dictionaries',
   });
 
@@ -58,6 +85,7 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
       desktopInstalled: false,
       status: 'installed',
     },
+    commandLineLauncher: createCommandLineLauncherSnapshot(),
     message: null,
   });
 
@@ -88,6 +116,7 @@ test('buildFirstRunSetupHtml shows legacy mpv plugin removal action with confirm
       desktopInstalled: false,
       status: 'optional',
     },
+    commandLineLauncher: createCommandLineLauncherSnapshot(),
     message: null,
   });
 
@@ -124,6 +153,7 @@ test('buildFirstRunSetupHtml marks an invalid configured mpv path as invalid', (
       desktopInstalled: false,
       status: 'optional',
     },
+    commandLineLauncher: createCommandLineLauncherSnapshot(),
     message: null,
   });
 
@@ -149,6 +179,7 @@ test('buildFirstRunSetupHtml explains the config blocker when setup is missing c
       desktopInstalled: false,
       status: 'optional',
     },
+    commandLineLauncher: createCommandLineLauncherSnapshot(),
     message: null,
   });
 
@@ -173,6 +204,7 @@ test('buildFirstRunSetupHtml explains external yomitan mode and keeps finish ena
       desktopInstalled: false,
       status: 'optional',
     },
+    commandLineLauncher: createCommandLineLauncherSnapshot(),
     message: null,
   });
 
@@ -197,6 +229,20 @@ test('parseFirstRunSetupSubmissionUrl parses supported custom actions', () => {
     action: 'refresh',
   });
   assert.deepEqual(
+    parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=install-bun'),
+    {
+      action: 'install-bun',
+    },
+  );
+  assert.deepEqual(
+    parseFirstRunSetupSubmissionUrl(
+      'subminer://first-run-setup?action=install-command-line-launcher',
+    ),
+    {
+      action: 'install-command-line-launcher',
+    },
+  );
+  assert.deepEqual(
     parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=remove-legacy-plugin'),
     {
       action: 'remove-legacy-plugin',
@@ -207,6 +253,59 @@ test('parseFirstRunSetupSubmissionUrl parses supported custom actions', () => {
     null,
   );
   assert.equal(parseFirstRunSetupSubmissionUrl('https://example.com'), null);
+});
+
+test('buildFirstRunSetupHtml renders command-line launcher section and actions', () => {
+  const html = buildFirstRunSetupHtml({
+    configReady: true,
+    dictionaryCount: 1,
+    canFinish: true,
+    externalYomitanConfigured: false,
+    pluginStatus: 'installed',
+    pluginInstallPathSummary: null,
+    mpvExecutablePath: '',
+    mpvExecutablePathStatus: 'blank',
+    windowsMpvShortcuts: {
+      supported: false,
+      startMenuEnabled: true,
+      desktopEnabled: true,
+      startMenuInstalled: false,
+      desktopInstalled: false,
+      status: 'optional',
+    },
+    commandLineLauncher: createCommandLineLauncherSnapshot({
+      bun: {
+        status: 'failed',
+        commandPath: null,
+        version: null,
+        installMethod: 'official-script',
+        installCommand: ['bash', '-lc', 'curl -fsSL https://bun.com/install | bash'],
+        message: 'network failed',
+      },
+      launcher: {
+        status: 'installed_bun_missing',
+        commandPath: '/home/tester/.local/bin/subminer',
+        installPath: '/home/tester/.local/bin/subminer',
+        pathDir: '/home/tester/.local/bin',
+        shadowedBy: null,
+        message: 'Bun is missing.',
+      },
+    }),
+    message: null,
+  });
+
+  assert.match(html, /Command line launcher/);
+  assert.match(html, /Optional\. Setup can finish without Bun or the launcher\./);
+  assert.match(html, /Bun runtime/);
+  assert.match(html, /Failed/);
+  assert.match(html, /bash -lc curl -fsSL https:\/\/bun\.com\/install \| bash/);
+  assert.match(html, /Install Bun/);
+  assert.match(html, /action=install-bun/);
+  assert.match(html, /SubMiner launcher/);
+  assert.match(html, /Installed, Bun missing/);
+  assert.match(html, /\/home\/tester\/\.local\/bin\/subminer/);
+  assert.match(html, /action=install-command-line-launcher/);
+  assert.match(html, /<button class="primary"  onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=finish'">Finish setup<\/button>/);
 });
 
 test('first-run setup window handler focuses existing window', () => {
@@ -304,6 +403,7 @@ test('closing incomplete first-run setup quits app outside background mode', asy
         desktopInstalled: false,
         status: 'optional',
       },
+      commandLineLauncher: createCommandLineLauncherSnapshot(),
       message: null,
     }),
     buildSetupHtml: () => '<html></html>',

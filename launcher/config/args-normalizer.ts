@@ -156,6 +156,7 @@ export function createDefaultArgs(
     statsCleanupLifetime: false,
     doctor: false,
     doctorRefreshKnownWords: false,
+    update: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,
@@ -217,6 +218,7 @@ export function applyRootOptionsToArgs(
   if (typeof options.logLevel === 'string') parsed.logLevel = parseLogLevel(options.logLevel);
   if (typeof options.passwordStore === 'string') parsed.passwordStore = options.passwordStore;
   if (options.rofi === true) parsed.useRofi = true;
+  if (options.update === true) parsed.update = true;
   if (options.startOverlay === true) parsed.autoStartOverlay = true;
   if (options.texthooker === false) parsed.useTexthooker = false;
   if (typeof options.args === 'string') parsed.mpvArgs = options.args;

@@ -63,6 +63,9 @@ test('build cli command context deps maps handlers and values', () => {
     runJellyfinCommand: async () => {
       calls.push('run-jellyfin');
     },
+    runUpdateCommand: async () => {
+      calls.push('run-update');
+    },
     runYoutubePlaybackFlow: async () => {
       calls.push('run-youtube-playback');
     },

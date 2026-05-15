@@ -8,6 +8,8 @@ export type SetupCompletionSource = 'user' | 'legacy_auto_detected' | null;
 export type SetupYomitanMode = 'internal' | 'external' | null;
 export type SetupPluginInstallStatus = 'unknown' | 'installed' | 'skipped' | 'failed';
 export type SetupWindowsMpvShortcutInstallStatus = 'unknown' | 'installed' | 'skipped' | 'failed';
+export type SetupBunInstallStatus = 'unknown' | 'installed' | 'skipped' | 'failed';
+export type SetupLauncherInstallStatus = 'unknown' | 'installed' | 'skipped' | 'failed';
 
 export interface SetupWindowsMpvShortcutPreferences {
   startMenuEnabled: boolean;
@@ -15,7 +17,7 @@ export interface SetupWindowsMpvShortcutPreferences {
 }
 
 export interface SetupState {
-  version: 3;
+  version: 4;
   status: SetupStateStatus;
   completedAt: string | null;
   completionSource: SetupCompletionSource;
@@ -25,6 +27,9 @@ export interface SetupState {
   pluginInstallPathSummary: string | null;
   windowsMpvShortcutPreferences: SetupWindowsMpvShortcutPreferences;
   windowsMpvShortcutLastStatus: SetupWindowsMpvShortcutInstallStatus;
+  bunInstallStatus: SetupBunInstallStatus;
+  launcherInstallStatus: SetupLauncherInstallStatus;
+  launcherInstallPath: string | null;
 }
 
 export interface ConfigFilePaths {
@@ -54,7 +59,7 @@ function asObject(value: unknown): Record<string, unknown> | null {
 
 export function createDefaultSetupState(): SetupState {
   return {
-    version: 3,
+    version: 4,
     status: 'incomplete',
     completedAt: null,
     completionSource: null,
@@ -67,6 +72,9 @@ export function createDefaultSetupState(): SetupState {
       desktopEnabled: true,
     },
     windowsMpvShortcutLastStatus: 'unknown',
+    bunInstallStatus: 'unknown',
+    launcherInstallStatus: 'unknown',
+    launcherInstallPath: null,
   };
 }
 
@@ -80,9 +88,11 @@ export function normalizeSetupState(value: unknown): SetupState | null {
   const yomitanSetupMode = record.yomitanSetupMode;
   const windowsPrefs = asObject(record.windowsMpvShortcutPreferences);
   const windowsMpvShortcutLastStatus = record.windowsMpvShortcutLastStatus;
+  const bunInstallStatus = record.bunInstallStatus;
+  const launcherInstallStatus = record.launcherInstallStatus;
 
   if (
-    (version !== 1 && version !== 2 && version !== 3) ||
+    (version !== 1 && version !== 2 && version !== 3 && version !== 4) ||
     (status !== 'incomplete' &&
       status !== 'in_progress' &&
       status !== 'completed' &&
@@ -91,7 +101,7 @@ export function normalizeSetupState(value: unknown): SetupState | null {
       pluginInstallStatus !== 'installed' &&
       pluginInstallStatus !== 'skipped' &&
       pluginInstallStatus !== 'failed') ||
-    (version === 2 &&
+    ((version === 2 || version === 3 || version === 4) &&
       windowsMpvShortcutLastStatus !== 'unknown' &&
       windowsMpvShortcutLastStatus !== 'installed' &&
       windowsMpvShortcutLastStatus !== 'skipped' &&
@@ -99,21 +109,32 @@ export function normalizeSetupState(value: unknown): SetupState | null {
     (completionSource !== null &&
       completionSource !== 'user' &&
       completionSource !== 'legacy_auto_detected') ||
-    (version === 3 &&
+    ((version === 3 || version === 4) &&
       yomitanSetupMode !== null &&
       yomitanSetupMode !== 'internal' &&
-      yomitanSetupMode !== 'external')
+      yomitanSetupMode !== 'external') ||
+    (version === 4 &&
+      bunInstallStatus !== 'unknown' &&
+      bunInstallStatus !== 'installed' &&
+      bunInstallStatus !== 'skipped' &&
+      bunInstallStatus !== 'failed') ||
+    (version === 4 &&
+      launcherInstallStatus !== 'unknown' &&
+      launcherInstallStatus !== 'installed' &&
+      launcherInstallStatus !== 'skipped' &&
+      launcherInstallStatus !== 'failed')
   ) {
     return null;
   }
 
   return {
-    version: 3,
+    version: 4,
     status,
     completedAt: typeof record.completedAt === 'string' ? record.completedAt : null,
     completionSource,
     yomitanSetupMode:
-      version === 3 && (yomitanSetupMode === 'internal' || yomitanSetupMode === 'external')
+      (version === 3 || version === 4) &&
+      (yomitanSetupMode === 'internal' || yomitanSetupMode === 'external')
         ? yomitanSetupMode
         : status === 'completed'
           ? 'internal'
@@ -129,22 +150,44 @@ export function normalizeSetupState(value: unknown): SetupState | null {
       typeof record.pluginInstallPathSummary === 'string' ? record.pluginInstallPathSummary : null,
     windowsMpvShortcutPreferences: {
       startMenuEnabled:
-        version === 2 && typeof windowsPrefs?.startMenuEnabled === 'boolean'
+        (version === 2 || version === 3 || version === 4) &&
+        typeof windowsPrefs?.startMenuEnabled === 'boolean'
           ? windowsPrefs.startMenuEnabled
           : true,
       desktopEnabled:
-        version === 2 && typeof windowsPrefs?.desktopEnabled === 'boolean'
+        (version === 2 || version === 3 || version === 4) &&
+        typeof windowsPrefs?.desktopEnabled === 'boolean'
           ? windowsPrefs.desktopEnabled
           : true,
     },
     windowsMpvShortcutLastStatus:
-      version === 2 &&
+      (version === 2 || version === 3 || version === 4) &&
       (windowsMpvShortcutLastStatus === 'unknown' ||
         windowsMpvShortcutLastStatus === 'installed' ||
         windowsMpvShortcutLastStatus === 'skipped' ||
         windowsMpvShortcutLastStatus === 'failed')
         ? windowsMpvShortcutLastStatus
         : 'unknown',
+    bunInstallStatus:
+      version === 4 &&
+      (bunInstallStatus === 'unknown' ||
+        bunInstallStatus === 'installed' ||
+        bunInstallStatus === 'skipped' ||
+        bunInstallStatus === 'failed')
+        ? bunInstallStatus
+        : 'unknown',
+    launcherInstallStatus:
+      version === 4 &&
+      (launcherInstallStatus === 'unknown' ||
+        launcherInstallStatus === 'installed' ||
+        launcherInstallStatus === 'skipped' ||
+        launcherInstallStatus === 'failed')
+        ? launcherInstallStatus
+        : 'unknown',
+    launcherInstallPath:
+      version === 4 && typeof record.launcherInstallPath === 'string'
+        ? record.launcherInstallPath
+        : null,
   };
 }
 

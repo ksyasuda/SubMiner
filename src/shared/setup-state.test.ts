@@ -9,6 +9,7 @@ import {
   getDefaultConfigDir,
   getDefaultConfigFilePaths,
   getSetupStatePath,
+  normalizeSetupState,
   readSetupState,
   resolveDefaultMpvInstallPaths,
   writeSetupState,
@@ -102,7 +103,28 @@ test('readSetupState ignores invalid files and round-trips valid state', () => {
   });
 });
 
-test('readSetupState migrates v1 state to v3 windows shortcut defaults', () => {
+test('createDefaultSetupState includes v4 command-line launcher defaults', () => {
+  assert.deepEqual(createDefaultSetupState(), {
+    version: 4,
+    status: 'incomplete',
+    completedAt: null,
+    completionSource: null,
+    yomitanSetupMode: null,
+    lastSeenYomitanDictionaryCount: 0,
+    pluginInstallStatus: 'unknown',
+    pluginInstallPathSummary: null,
+    windowsMpvShortcutPreferences: {
+      startMenuEnabled: true,
+      desktopEnabled: true,
+    },
+    windowsMpvShortcutLastStatus: 'unknown',
+    bunInstallStatus: 'unknown',
+    launcherInstallStatus: 'unknown',
+    launcherInstallPath: null,
+  });
+});
+
+test('readSetupState migrates v1 state to v4 launcher defaults', () => {
   withTempDir((root) => {
     const statePath = getSetupStatePath(root);
     fs.writeFileSync(
@@ -119,7 +141,7 @@ test('readSetupState migrates v1 state to v3 windows shortcut defaults', () => {
     );
 
     assert.deepEqual(readSetupState(statePath), {
-      version: 3,
+      version: 4,
       status: 'incomplete',
       completedAt: null,
       completionSource: null,
@@ -132,11 +154,14 @@ test('readSetupState migrates v1 state to v3 windows shortcut defaults', () => {
         desktopEnabled: true,
       },
       windowsMpvShortcutLastStatus: 'unknown',
+      bunInstallStatus: 'unknown',
+      launcherInstallStatus: 'unknown',
+      launcherInstallPath: null,
     });
   });
 });
 
-test('readSetupState migrates completed v2 state to internal yomitan setup mode', () => {
+test('readSetupState migrates completed v2 state to v4 launcher defaults', () => {
   withTempDir((root) => {
     const statePath = getSetupStatePath(root);
     fs.writeFileSync(
@@ -158,7 +183,7 @@ test('readSetupState migrates completed v2 state to internal yomitan setup mode'
     );
 
     assert.deepEqual(readSetupState(statePath), {
-      version: 3,
+      version: 4,
       status: 'completed',
       completedAt: '2026-03-12T00:00:00.000Z',
       completionSource: 'user',
@@ -171,8 +196,78 @@ test('readSetupState migrates completed v2 state to internal yomitan setup mode'
         desktopEnabled: true,
       },
       windowsMpvShortcutLastStatus: 'unknown',
+      bunInstallStatus: 'unknown',
+      launcherInstallStatus: 'unknown',
+      launcherInstallPath: null,
     });
   });
+});
+
+test('readSetupState migrates v3 state to v4 without requiring optional launcher fields', () => {
+  withTempDir((root) => {
+    const statePath = getSetupStatePath(root);
+    fs.writeFileSync(
+      statePath,
+      JSON.stringify({
+        version: 3,
+        status: 'completed',
+        completedAt: '2026-04-01T00:00:00.000Z',
+        completionSource: 'user',
+        yomitanSetupMode: 'external',
+        lastSeenYomitanDictionaryCount: 0,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: '/tmp/mpv',
+        windowsMpvShortcutPreferences: {
+          startMenuEnabled: false,
+          desktopEnabled: true,
+        },
+        windowsMpvShortcutLastStatus: 'installed',
+      }),
+    );
+
+    assert.deepEqual(readSetupState(statePath), {
+      version: 4,
+      status: 'completed',
+      completedAt: '2026-04-01T00:00:00.000Z',
+      completionSource: 'user',
+      yomitanSetupMode: 'external',
+      lastSeenYomitanDictionaryCount: 0,
+      pluginInstallStatus: 'installed',
+      pluginInstallPathSummary: '/tmp/mpv',
+      windowsMpvShortcutPreferences: {
+        startMenuEnabled: false,
+        desktopEnabled: true,
+      },
+      windowsMpvShortcutLastStatus: 'installed',
+      bunInstallStatus: 'unknown',
+      launcherInstallStatus: 'unknown',
+      launcherInstallPath: null,
+    });
+  });
+});
+
+test('normalizeSetupState rejects invalid v4 Bun and launcher statuses', () => {
+  const valid = {
+    version: 4,
+    status: 'incomplete',
+    completedAt: null,
+    completionSource: null,
+    yomitanSetupMode: null,
+    lastSeenYomitanDictionaryCount: 0,
+    pluginInstallStatus: 'unknown',
+    pluginInstallPathSummary: null,
+    windowsMpvShortcutPreferences: {
+      startMenuEnabled: true,
+      desktopEnabled: true,
+    },
+    windowsMpvShortcutLastStatus: 'unknown',
+    bunInstallStatus: 'unknown',
+    launcherInstallStatus: 'unknown',
+    launcherInstallPath: null,
+  };
+
+  assert.equal(normalizeSetupState({ ...valid, bunInstallStatus: 'bogus' }), null);
+  assert.equal(normalizeSetupState({ ...valid, launcherInstallStatus: 'bogus' }), null);
 });
 
 test('resolveDefaultMpvInstallPaths resolves linux, macOS, and Windows defaults', () => {

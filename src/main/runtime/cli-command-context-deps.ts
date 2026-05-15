@@ -41,6 +41,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   setCharacterDictionarySelection?: CliCommandContextFactoryDeps['setCharacterDictionarySelection'];
   runStatsCommand: CliCommandContextFactoryDeps['runStatsCommand'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
+  runUpdateCommand: CliCommandContextFactoryDeps['runUpdateCommand'];
   runYoutubePlaybackFlow: CliCommandContextFactoryDeps['runYoutubePlaybackFlow'];
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
@@ -94,6 +95,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     setCharacterDictionarySelection: deps.setCharacterDictionarySelection,
     runStatsCommand: deps.runStatsCommand,
     runJellyfinCommand: deps.runJellyfinCommand,
+    runUpdateCommand: deps.runUpdateCommand,
     runYoutubePlaybackFlow: deps.runYoutubePlaybackFlow,
     openYomitanSettings: deps.openYomitanSettings,
     cycleSecondarySubMode: deps.cycleSecondarySubMode,

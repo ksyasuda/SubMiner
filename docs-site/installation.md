@@ -164,6 +164,18 @@ cp -R /tmp/plugin/subminer/. ~/.local/share/SubMiner/plugin/subminer/
 
 The `subminer` launcher is the recommended way to use SubMiner on Linux. It ensures mpv is launched with the correct IPC socket, SubMiner defaults, and the bundled runtime plugin so you don't need to configure `mpv.conf` or install a global mpv plugin.
 
+The first-run setup window can also install Bun and the packaged `subminer` launcher into an existing writable PATH directory. Both steps are optional.
+
+To check for updates later:
+
+```bash
+subminer -u
+# or
+subminer --update
+```
+
+SubMiner verifies launcher/support asset downloads against `SHA256SUMS.txt`. If the launcher is installed in a protected path such as `/usr/local/bin/subminer`, SubMiner does not elevate itself; it shows the exact `sudo curl ... && sudo chmod +x ...` command to run instead.
+
 ### From Source
 
 ```bash
@@ -204,6 +216,8 @@ brew install mecab mecab-ipadic
 
 The `subminer` launcher is the recommended way to use SubMiner on macOS. It launches mpv with the correct IPC socket and SubMiner defaults so you don't need to set up an `mpv.conf` profile manually.
 
+First-run setup can install Bun and the packaged launcher into a writable directory that is already on PATH. It does not edit shell profiles.
+
 Download it from the same [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest) page:
 
 ```bash
@@ -217,6 +231,16 @@ Or with curl:
 sudo curl -fSL https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -o /usr/local/bin/subminer
 sudo chmod +x /usr/local/bin/subminer
 ```
+
+To check for updates later:
+
+```bash
+subminer -u
+# or
+subminer --update
+```
+
+SubMiner verifies launcher/support asset downloads against `SHA256SUMS.txt`. If `/usr/local/bin/subminer` is protected, SubMiner shows the exact `sudo curl ... && sudo chmod +x ...` command to run instead of elevating itself.
 
 ::: warning Bun required for the launcher
 The `subminer` launcher uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`. Install Bun if you haven't already: `curl -fsSL https://bun.sh/install | bash`.
@@ -320,7 +344,8 @@ Download the latest Windows installer from [GitHub Releases](https://github.com/
 
 1. **Run `SubMiner.exe` once** — first-run setup creates `%APPDATA%\SubMiner\config.jsonc` and opens Yomitan settings for dictionary import. The global mpv plugin install is optional for compatibility; the SubMiner mpv shortcut injects the bundled runtime plugin.
 2. **Create the SubMiner mpv shortcut** _(recommended)_ — the setup popup offers to create a `SubMiner mpv` Start Menu and/or Desktop shortcut. This is the recommended way to launch playback on Windows.
-3. **Play a video** — double-click the shortcut, drag a video file onto it, or run from a terminal:
+3. **Optional: install the command-line launcher** — first-run setup can install Bun with winget/Scoop/the official installer and add `%LOCALAPPDATA%\SubMiner\bin\subminer.cmd` to your user PATH. Open a new terminal and type `subminer`.
+4. **Play a video** — double-click the shortcut, drag a video file onto it, or run from a terminal:
 
 ```powershell
 & "C:\Program Files\SubMiner\SubMiner.exe" --launch-mpv "C:\Videos\episode 01.mkv"
@@ -330,7 +355,9 @@ The shortcut and `--launch-mpv` pass SubMiner's default IPC socket, subtitle arg
 
 ### Windows-Specific Notes
 
-- The **SubMiner mpv** shortcut created during first-run setup is the recommended way to launch playback on Windows. The `subminer` launcher script is primarily for Linux and macOS.
+- The **SubMiner mpv** shortcut created during first-run setup is the recommended way to launch playback on Windows.
+- The optional command-line launcher installs a `subminer.cmd` shim, but users type `subminer`; Windows resolves `.cmd` through `PATHEXT`.
+- First-run setup adds only `%LOCALAPPDATA%\SubMiner\bin` to the HKCU user PATH. It does not add `SubMiner.exe` or the app install directory to PATH.
 - First-run plugin installs pin `binary_path` to the current `SubMiner.exe` automatically. Manual plugin configs can leave `binary_path` empty unless SubMiner is in a non-standard location.
 - Plugin installs rewrite `socket_path` to `\\.\pipe\subminer-socket` — do not keep `/tmp/subminer-socket` on Windows.
 - Config is stored at `%APPDATA%\SubMiner\config.jsonc`.
@@ -394,8 +421,9 @@ The setup popup walks you through:
 - **mpv plugin**: install the bundled Lua plugin for in-player keybindings
 - **Yomitan dictionaries**: import at least one dictionary so lookups work
 - **Windows shortcut** _(Windows only)_: optionally create a `SubMiner mpv` Start Menu/Desktop shortcut
+- **Command line launcher**: optionally install Bun and the `subminer` launcher to your command-line PATH
 
-The `Finish setup` button stays disabled until the plugin is installed and at least one dictionary is imported. Once you finish, SubMiner will not show the popup again.
+The `Finish setup` button follows the normal config/Yomitan readiness checks. Bun and the command-line launcher are optional and never block setup completion.
 
 > [!TIP]
 > You can re-open the setup popup at any time with `subminer app --setup` or `SubMiner.AppImage --setup`.

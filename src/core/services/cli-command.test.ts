@@ -70,6 +70,8 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     texthooker: false,
     texthookerOpenBrowser: false,
     help: false,
+    update: false,
+    updateLauncherPath: undefined,
     autoStartOverlay: false,
     generateConfig: false,
     backupOverwrite: false,
@@ -231,6 +233,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     runYoutubePlaybackFlow: async (request) => {
       calls.push(`runYoutubePlaybackFlow:${request.url}:${request.mode}:${request.source}`);
     },
+    runUpdateCommand: async (args) => {
+      calls.push(`runUpdateCommand:${args.updateLauncherPath ?? ''}`);
+    },
     printHelp: () => {
       calls.push('printHelp');
     },
@@ -361,6 +366,34 @@ test('handleCliCommand opens first-run setup window for --setup', () => {
   assert.ok(calls.includes('openFirstRunSetup'));
   assert.ok(calls.includes('log:Opened first-run setup flow.'));
   assert.equal(calls.includes('openYomitanSettingsDelayed:1000'), false);
+});
+
+test('handleCliCommand runs update command without overlay startup', async () => {
+  const { deps, calls } = createDeps();
+
+  handleCliCommand(
+    makeArgs({ update: true, updateLauncherPath: '/home/kyle/.local/bin/subminer' }),
+    'initial',
+    deps,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(calls, ['runUpdateCommand:/home/kyle/.local/bin/subminer']);
+});
+
+test('handleCliCommand stops app after headless initial update completes', async () => {
+  const { deps, calls } = createDeps({
+    hasMainWindow: () => false,
+  });
+
+  handleCliCommand(
+    makeArgs({ update: true, updateLauncherPath: '/home/kyle/.local/bin/subminer' }),
+    'initial',
+    deps,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(calls, ['runUpdateCommand:/home/kyle/.local/bin/subminer', 'stopApp']);
 });
 
 test('handleCliCommand dispatches stats command without overlay startup', async () => {

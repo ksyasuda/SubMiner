@@ -100,6 +100,30 @@ SubMiner retries the connection automatically with increasing delays (200 ms, 50
 
 Logged when a malformed JSON line arrives from the mpv socket. Usually harmless — SubMiner skips the bad line and continues. If it happens constantly, check that nothing else is writing to the same socket path.
 
+## Updates
+
+**"Update check failed"**
+
+Manual update checks show this when GitHub Releases or updater metadata cannot be reached. Check your network connection, then try again from the tray menu or:
+
+```bash
+subminer -u
+```
+
+Automatic checks log failures quietly so playback is not interrupted.
+
+**"SubMiner is up to date" but a prerelease exists**
+
+SubMiner defaults to stable GitHub releases. Set `updates.channel` to `"prerelease"` in `config.jsonc` when you want update checks to include beta and RC releases.
+
+**Launcher update shows a sudo command**
+
+The detected launcher is installed in a protected path such as `/usr/local/bin/subminer` or `/usr/bin/subminer`. SubMiner does not elevate itself. Run the command shown in the popup to replace the launcher after checksum verification.
+
+**OSD update notification did not appear**
+
+`updates.notificationType: "osd"` uses the existing mpv/overlay notification path. If mpv is disconnected, SubMiner logs the update and does not force-start the overlay. Use `"system"` or `"both"` if you want OS notifications outside playback.
+
 ## AnkiConnect
 
 **"AnkiConnect: unable to connect"**

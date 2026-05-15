@@ -93,6 +93,36 @@ test('createReloadConfigHandler fails startup for parse errors', () => {
   assert.equal(calls.includes('hotReload:start'), false);
 });
 
+test('createReloadConfigHandler can skip AniList refresh for headless commands', async () => {
+  const calls: string[] = [];
+  const reloadConfig = createReloadConfigHandler({
+    reloadConfigStrict: () => ({
+      ok: true,
+      path: '/tmp/config.jsonc',
+      warnings: [],
+    }),
+    logInfo: (message) => calls.push(`info:${message}`),
+    logWarning: (message) => calls.push(`warn:${message}`),
+    showDesktopNotification: (title, options) => calls.push(`notify:${title}:${options.body}`),
+    startConfigHotReload: () => calls.push('hotReload:start'),
+    shouldRefreshAnilistClientSecretState: () => false,
+    refreshAnilistClientSecretState: async () => {
+      calls.push('refresh');
+    },
+    failHandlers: {
+      logError: (details) => calls.push(`error:${details}`),
+      showErrorBox: (title, details) => calls.push(`dialog:${title}:${details}`),
+      quit: () => calls.push('quit'),
+    },
+  });
+
+  reloadConfig();
+  await Promise.resolve();
+
+  assert.equal(calls.includes('refresh'), false);
+  assert.ok(calls.includes('hotReload:start'));
+});
+
 test('createCriticalConfigErrorHandler formats and fails', () => {
   const calls: string[] = [];
   const exitCodes: number[] = [];

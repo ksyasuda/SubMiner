@@ -68,11 +68,11 @@ test('prerelease workflow builds and uploads all release platforms', () => {
 test('prerelease workflow publishes the same release assets as the stable workflow', () => {
   assert.match(
     prereleaseWorkflow,
-    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz dist\/launcher\/subminer\)/,
+    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz release\/\*\.yml release\/\*\.blockmap dist\/launcher\/subminer\)/,
   );
   assert.match(
     prereleaseWorkflow,
-    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
+    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/\*\.yml[\s\S]*release\/\*\.blockmap[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
   );
 });
 

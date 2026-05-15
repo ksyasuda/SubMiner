@@ -54,6 +54,14 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'startupWarmups',
   },
   {
+    title: 'Updates',
+    description: [
+      'Automatic update check behavior.',
+      'Manual checks from the tray or launcher are always allowed.',
+    ],
+    key: 'updates',
+  },
+  {
     title: 'Keyboard Shortcuts',
     description: ['Overlay keyboard shortcuts. Set a shortcut to null to disable.'],
     notes: ['Hot-reload: shortcut changes apply live and update the session help modal on reopen.'],

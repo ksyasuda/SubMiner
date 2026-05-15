@@ -47,6 +47,7 @@ test('composeCliStartupHandlers returns callable CLI startup handlers', () => {
       }),
       runJellyfinCommand: async () => {},
       runStatsCommand: async () => {},
+      runUpdateCommand: async () => {},
       runYoutubePlaybackFlow: async () => {},
       openYomitanSettings: () => {},
       cycleSecondarySubMode: () => {},

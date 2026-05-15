@@ -8,6 +8,7 @@ import { runDictionaryCommand } from './dictionary-command.js';
 import { runDoctorCommand } from './doctor-command.js';
 import { runMpvPreAppCommand } from './mpv-command.js';
 import { runStatsCommand } from './stats-command.js';
+import { runUpdateCommand } from './update-command.js';
 
 class ExitSignal extends Error {
   code: number;
@@ -238,6 +239,38 @@ test('dictionary command returns after app handoff starts', () => {
   });
 
   assert.equal(handled, true);
+});
+
+test('update command forwards launcher path and waits for response', async () => {
+  const context = createContext();
+  context.args.update = true;
+  const forwarded: string[][] = [];
+  const responses: string[] = [];
+
+  const handled = await runUpdateCommand(context, {
+    createTempDir: () => '/tmp/subminer-update-test',
+    joinPath: (...parts) => parts.join('/'),
+    runAppCommandCaptureOutput: (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+      return { status: 0, stdout: '', stderr: '' };
+    },
+    waitForUpdateResponse: async (responsePath) => {
+      responses.push(responsePath);
+      return { ok: true, status: 'up-to-date', version: '0.15.0' };
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(forwarded, [
+    [
+      '--update',
+      '--update-launcher-path',
+      '/tmp/subminer',
+      '--update-response-path',
+      '/tmp/subminer-update-test/response.json',
+    ],
+  ]);
+  assert.deepEqual(responses, ['/tmp/subminer-update-test/response.json']);
 });
 
 test('stats command launches attached app command with response path', async () => {

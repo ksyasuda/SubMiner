@@ -18,6 +18,7 @@ import { runDictionaryCommand } from './commands/dictionary-command.js';
 import { runStatsCommand } from './commands/stats-command.js';
 import { runJellyfinCommand } from './commands/jellyfin-command.js';
 import { runPlaybackCommand } from './commands/playback-command.js';
+import { runUpdateCommand } from './commands/update-command.js';
 
 function createCommandContext(
   args: ReturnType<typeof parseArgs>,
@@ -83,6 +84,10 @@ async function main(): Promise<void> {
   };
 
   if (runAppPassthroughCommand(appContext)) {
+    return;
+  }
+
+  if (await runUpdateCommand(appContext)) {
     return;
   }
 

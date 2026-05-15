@@ -63,6 +63,7 @@ SUBMINER_ROFI_THEME=/path/to/custom-theme.rasi subminer -R
 subminer video.mkv                      # play a specific file (default plugin config auto-starts visible overlay)
 subminer https://youtu.be/...           # YouTube playback (requires yt-dlp)
 subminer --backend x11 video.mkv        # Force x11 backend for a specific file
+subminer -u                             # check for SubMiner updates
 subminer stats                          # open immersion dashboard
 subminer stats -b                       # start background stats daemon
 ```
@@ -98,6 +99,7 @@ Use `subminer <subcommand> -h` for command-specific help.
 | `-r, --recursive`     | Search directories recursively                                       |
 | `-R, --rofi`          | Use rofi instead of fzf                                              |
 | `--setup`             | Open first-run setup popup manually                                  |
+| `-u, --update`        | Check for SubMiner updates and update the app/launcher when possible |
 | `--start`             | Explicitly start overlay after mpv launches                          |
 | `-S, --start-overlay` | Explicitly start overlay after mpv launches                          |
 | `-T, --no-texthooker` | Disable texthooker server                                            |

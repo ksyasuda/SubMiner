@@ -384,6 +384,32 @@ export function buildCoreConfigOptionRegistry(
       description: 'Warm up Jellyfin remote session at startup.',
     },
     {
+      path: 'updates.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.updates.enabled,
+      description: 'Run automatic update checks in the background.',
+    },
+    {
+      path: 'updates.checkIntervalHours',
+      kind: 'number',
+      defaultValue: defaultConfig.updates.checkIntervalHours,
+      description: 'Minimum hours between automatic update checks.',
+    },
+    {
+      path: 'updates.notificationType',
+      kind: 'enum',
+      enumValues: ['system', 'osd', 'both', 'none'],
+      defaultValue: defaultConfig.updates.notificationType,
+      description: 'How SubMiner announces available updates.',
+    },
+    {
+      path: 'updates.channel',
+      kind: 'enum',
+      enumValues: ['stable', 'prerelease'],
+      defaultValue: defaultConfig.updates.channel,
+      description: 'Release channel used for update checks.',
+    },
+    {
       path: 'shortcuts.multiCopyTimeoutMs',
       kind: 'number',
       defaultValue: defaultConfig.shortcuts.multiCopyTimeoutMs,

@@ -1315,6 +1315,25 @@ export function runAppCommandWithInherit(appPath: string, appArgs: string[]): vo
   });
 }
 
+export function runAppCommandSilently(appPath: string, appArgs: string[]): void {
+  if (maybeCaptureAppArgs(appArgs)) {
+    process.exit(0);
+  }
+
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  const proc = spawn(target.command, target.args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: buildAppEnv(),
+  });
+  attachAppProcessLogging(proc);
+  proc.once('error', (error) => {
+    fail(`Failed to run app command: ${error.message}`);
+  });
+  proc.once('close', (code) => {
+    process.exit(code ?? 0);
+  });
+}
+
 export function runAppCommandCaptureOutput(
   appPath: string,
   appArgs: string[],

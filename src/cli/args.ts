@@ -73,6 +73,9 @@ export interface CliArgs {
   texthooker: boolean;
   texthookerOpenBrowser: boolean;
   help: boolean;
+  update?: boolean;
+  updateLauncherPath?: string;
+  updateResponsePath?: string;
   autoStartOverlay: boolean;
   generateConfig: boolean;
   configPath?: string;
@@ -167,6 +170,9 @@ export function parseArgs(argv: string[]): CliArgs {
     texthooker: false,
     texthookerOpenBrowser: false,
     help: false,
+    update: false,
+    updateLauncherPath: undefined,
+    updateResponsePath: undefined,
     autoStartOverlay: false,
     generateConfig: false,
     backupOverwrite: false,
@@ -330,7 +336,20 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--jellyfin-preview-auth') args.jellyfinPreviewAuth = true;
     else if (arg === '--texthooker') args.texthooker = true;
     else if (arg === '--open-browser') args.texthookerOpenBrowser = true;
-    else if (arg === '--auto-start-overlay') args.autoStartOverlay = true;
+    else if (arg === '--update') args.update = true;
+    else if (arg.startsWith('--update-launcher-path=')) {
+      const value = arg.split('=', 2)[1];
+      if (value) args.updateLauncherPath = value;
+    } else if (arg === '--update-launcher-path') {
+      const value = readValue(argv[i + 1]);
+      if (value) args.updateLauncherPath = value;
+    } else if (arg.startsWith('--update-response-path=')) {
+      const value = arg.split('=', 2)[1];
+      if (value) args.updateResponsePath = value;
+    } else if (arg === '--update-response-path') {
+      const value = readValue(argv[i + 1]);
+      if (value) args.updateResponsePath = value;
+    } else if (arg === '--auto-start-overlay') args.autoStartOverlay = true;
     else if (arg === '--generate-config') args.generateConfig = true;
     else if (arg === '--backup-overwrite') args.backupOverwrite = true;
     else if (arg === '--help') args.help = true;
@@ -517,13 +536,14 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.jellyfinRemoteAnnounce ||
     args.jellyfinPreviewAuth ||
     args.texthooker ||
+    args.update ||
     args.generateConfig ||
     args.help
   );
 }
 
 export function isHeadlessInitialCommand(args: CliArgs): boolean {
-  return args.refreshKnownWords;
+  return args.refreshKnownWords || args.update === true;
 }
 
 export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
@@ -587,6 +607,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.jellyfinPlay &&
     !args.jellyfinRemoteAnnounce &&
     !args.jellyfinPreviewAuth &&
+    !args.update &&
     !args.help &&
     !args.autoStartOverlay &&
     !args.generateConfig
@@ -638,7 +659,8 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.stats ||
     args.jellyfin ||
     args.jellyfinPlay ||
-    args.texthooker
+    args.texthooker ||
+    args.update
   ) {
     if (args.launchMpv) {
       return false;
@@ -708,6 +730,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.jellyfinRemoteAnnounce &&
     !args.jellyfinPreviewAuth &&
     !args.texthooker &&
+    !args.update &&
     !args.help &&
     !args.autoStartOverlay &&
     !args.generateConfig &&

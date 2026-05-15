@@ -27,7 +27,7 @@ export {
   isAutoUpdateEnabledRuntime,
   shouldAutoInitializeOverlayRuntimeFromConfig,
 } from './startup';
-export { openYomitanSettingsWindow } from './yomitan-settings';
+export { destroyYomitanSettingsWindow, openYomitanSettingsWindow } from './yomitan-settings';
 export { createTokenizerDepsRuntime, tokenizeSubtitle } from './tokenizer';
 export {
   addYomitanNoteViaSearch,

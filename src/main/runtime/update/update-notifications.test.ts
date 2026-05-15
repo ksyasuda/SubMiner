@@ -1,0 +1,49 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { notifyUpdateAvailable } from './update-notifications';
+
+test('notifyUpdateAvailable routes system and osd notifications from config', async () => {
+  const calls: string[] = [];
+  const deps = {
+    showSystemNotification: (title: string, body: string) => {
+      calls.push(`system:${title}:${body}`);
+    },
+    showOsdNotification: async (message: string) => {
+      calls.push(`osd:${message}`);
+    },
+    log: (message: string) => {
+      calls.push(`log:${message}`);
+    },
+  };
+
+  await notifyUpdateAvailable({ notificationType: 'system', version: '0.15.0' }, deps);
+  await notifyUpdateAvailable({ notificationType: 'both', version: '0.15.0' }, deps);
+  await notifyUpdateAvailable({ notificationType: 'none', version: '0.15.0' }, deps);
+
+  assert.deepEqual(calls, [
+    'system:SubMiner update available:SubMiner v0.15.0 is available',
+    'system:SubMiner update available:SubMiner v0.15.0 is available',
+    'osd:SubMiner v0.15.0 is available',
+  ]);
+});
+
+test('notifyUpdateAvailable logs osd fallback when overlay notification fails', async () => {
+  const calls: string[] = [];
+
+  await notifyUpdateAvailable(
+    { notificationType: 'osd', version: '0.15.0' },
+    {
+      showSystemNotification: () => {
+        calls.push('system');
+      },
+      showOsdNotification: async () => {
+        throw new Error('mpv disconnected');
+      },
+      log: (message) => {
+        calls.push(message);
+      },
+    },
+  );
+
+  assert.deepEqual(calls, ['Update OSD notification failed: mpv disconnected']);
+});

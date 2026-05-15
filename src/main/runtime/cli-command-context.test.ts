@@ -53,6 +53,7 @@ function createDeps() {
       }),
       runStatsCommand: async () => {},
       runJellyfinCommand: async () => {},
+      runUpdateCommand: async () => {},
       runYoutubePlaybackFlow: async () => {},
       openYomitanSettings: () => {},
       cycleSecondarySubMode: () => {},

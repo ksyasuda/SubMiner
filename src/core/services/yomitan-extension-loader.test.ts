@@ -4,7 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { ensureExtensionCopy, shouldCopyYomitanExtension } from './yomitan-extension-copy';
+import {
+  ensureExtensionCopy,
+  ensureExtensionCopyAsync,
+  shouldCopyYomitanExtension,
+} from './yomitan-extension-copy';
 
 function makeTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -81,4 +85,116 @@ test('ensureExtensionCopy refreshes copied extension when display files change',
     ),
     'new display code',
   );
+});
+
+test('ensureExtensionCopyAsync refreshes copied extension without completing synchronously', async () => {
+  const sourceRoot = makeTempDir('subminer-yomitan-src-');
+  const userDataRoot = makeTempDir('subminer-yomitan-user-');
+
+  const sourceDir = path.join(sourceRoot, 'yomitan');
+  const targetDir = path.join(userDataRoot, 'extensions', 'yomitan');
+
+  fs.mkdirSync(path.join(sourceDir, 'js', 'display'), { recursive: true });
+  fs.mkdirSync(path.join(targetDir, 'js', 'display'), { recursive: true });
+
+  fs.writeFileSync(path.join(sourceDir, 'manifest.json'), JSON.stringify({ version: '1.0.0' }));
+  fs.writeFileSync(path.join(targetDir, 'manifest.json'), JSON.stringify({ version: '1.0.0' }));
+  fs.writeFileSync(
+    path.join(sourceDir, 'js', 'display', 'structured-content-generator.js'),
+    'new display code',
+  );
+  fs.writeFileSync(
+    path.join(targetDir, 'js', 'display', 'structured-content-generator.js'),
+    'old display code',
+  );
+
+  let completed = false;
+  const resultPromise = ensureExtensionCopyAsync(sourceDir, userDataRoot).then((result) => {
+    completed = true;
+    return result;
+  });
+
+  assert.equal(completed, false);
+
+  const result = await resultPromise;
+
+  assert.equal(result.targetDir, targetDir);
+  assert.equal(result.copied, true);
+  assert.equal(
+    fs.readFileSync(
+      path.join(targetDir, 'js', 'display', 'structured-content-generator.js'),
+      'utf8',
+    ),
+    'new display code',
+  );
+});
+
+test('ensureExtensionCopyAsync shares an in-flight refresh for the same copied extension', async () => {
+  const sourceRoot = makeTempDir('subminer-yomitan-src-');
+  const userDataRoot = makeTempDir('subminer-yomitan-user-');
+
+  const sourceDir = path.join(sourceRoot, 'yomitan');
+  const targetDir = path.join(userDataRoot, 'extensions', 'yomitan');
+
+  fs.mkdirSync(path.join(sourceDir, 'js', 'pages', 'settings'), { recursive: true });
+  fs.mkdirSync(path.join(targetDir, 'js', 'pages', 'settings'), { recursive: true });
+
+  fs.writeFileSync(path.join(sourceDir, 'manifest.json'), JSON.stringify({ version: '1.0.0' }));
+  fs.writeFileSync(path.join(targetDir, 'manifest.json'), JSON.stringify({ version: '1.0.0' }));
+  fs.writeFileSync(
+    path.join(sourceDir, 'js', 'pages', 'settings', 'settings-main.js'),
+    'new settings code',
+  );
+  fs.writeFileSync(
+    path.join(targetDir, 'js', 'pages', 'settings', 'settings-main.js'),
+    'old settings code',
+  );
+
+  const originalCp = fs.promises.cp;
+  let cpCalls = 0;
+  let firstCopyStarted = false;
+  let releaseFirstCopy: () => void = () => {};
+  const firstCopyStartedPromise = new Promise<void>((resolve) => {
+    const fsPromises = fs.promises as typeof fs.promises & {
+      cp: typeof fs.promises.cp;
+    };
+    fsPromises.cp = async (...args: Parameters<typeof fs.promises.cp>) => {
+      cpCalls++;
+      if (!firstCopyStarted) {
+        firstCopyStarted = true;
+        resolve();
+        await new Promise<void>((release) => {
+          releaseFirstCopy = release;
+        });
+      }
+      return await originalCp(...args);
+    };
+  });
+
+  try {
+    const first = ensureExtensionCopyAsync(sourceDir, userDataRoot);
+    await firstCopyStartedPromise;
+    const second = ensureExtensionCopyAsync(sourceDir, userDataRoot);
+
+    releaseFirstCopy();
+    const results = await Promise.all([first, second]);
+
+    assert.equal(cpCalls, 1);
+    assert.equal(results[0].targetDir, targetDir);
+    assert.equal(results[1].targetDir, targetDir);
+    assert.equal(results[0].copied, true);
+    assert.equal(results[1].copied, true);
+    assert.equal(
+      fs.readFileSync(
+        path.join(targetDir, 'js', 'pages', 'settings', 'settings-main.js'),
+        'utf8',
+      ),
+      'new settings code',
+    );
+  } finally {
+    const fsPromises = fs.promises as typeof fs.promises & {
+      cp: typeof fs.promises.cp;
+    };
+    fsPromises.cp = originalCp;
+  }
 });

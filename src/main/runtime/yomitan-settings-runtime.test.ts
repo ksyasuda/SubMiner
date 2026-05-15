@@ -36,14 +36,14 @@ test('yomitan settings runtime composes opener with built deps', async () => {
   assert.deepEqual(calls, ['open-window:session']);
 });
 
-test('yomitan settings runtime warns and does not open when no yomitan session is available', async () => {
+test('yomitan settings runtime opens with default session when no yomitan session is available', async () => {
   let existingWindow: { id: string } | null = null;
   const calls: string[] = [];
 
   const runtime = createYomitanSettingsRuntime({
     ensureYomitanExtensionLoaded: async () => ({ id: 'ext' }),
-    openYomitanSettingsWindow: () => {
-      calls.push('open-window');
+    openYomitanSettingsWindow: ({ yomitanSession }) => {
+      calls.push(`open-window:${yomitanSession === null ? 'default-session' : 'custom-session'}`);
     },
     getExistingWindow: () => existingWindow as never,
     setWindow: (window) => {
@@ -58,7 +58,5 @@ test('yomitan settings runtime warns and does not open when no yomitan session i
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(existingWindow, null);
-  assert.deepEqual(calls, [
-    'warn:Unable to open Yomitan settings: Yomitan session is unavailable.',
-  ]);
+  assert.deepEqual(calls, ['open-window:default-session']);
 });

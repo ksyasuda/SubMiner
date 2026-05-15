@@ -124,6 +124,7 @@ import type {
   SecondarySubMode,
   SubtitleData,
   SubtitlePosition,
+  UpdateChannel,
   WindowGeometry,
 } from './types';
 import { AnkiIntegration } from './anki-integration';
@@ -313,6 +314,7 @@ import {
   createTokenizerDepsRuntime,
   cycleSecondarySubMode as cycleSecondarySubModeCore,
   deleteYomitanDictionaryByTitle,
+  destroyYomitanSettingsWindow,
   enforceOverlayLayerOrder as enforceOverlayLayerOrderCore,
   ensureOverlayWindowLevel as ensureOverlayWindowLevelCore,
   getYomitanDictionaryInfo,
@@ -394,6 +396,11 @@ import {
   resolveWindowsMpvShortcutPaths,
 } from './main/runtime/windows-mpv-shortcuts';
 import {
+  detectCommandLineLauncher,
+  installBun as installCommandLineBun,
+  installLauncher as installCommandLineLauncher,
+} from './main/runtime/command-line-launcher';
+import {
   createWindowsMpvLaunchDeps,
   getConfiguredWindowsMpvPathStatus,
   launchWindowsMpv,
@@ -405,7 +412,10 @@ import {
   toggleJellyfinDiscoveryFromTray as toggleJellyfinDiscoveryFromTrayRuntime,
 } from './main/runtime/jellyfin-tray-discovery';
 import { createPrepareYoutubePlaybackInMpvHandler } from './main/runtime/youtube-playback-launch';
-import { shouldEnsureTrayOnStartupForInitialArgs } from './main/runtime/startup-tray-policy';
+import {
+  shouldEnsureTrayOnStartupForInitialArgs,
+  shouldQuitOnWindowAllClosedForTrayState,
+} from './main/runtime/startup-tray-policy';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
 import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
 import {
@@ -498,6 +508,31 @@ import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/charac
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
+import { createElectronAppUpdater } from './main/runtime/update/app-updater';
+import {
+  fetchLatestStableRelease,
+  fetchReleaseAssetBuffer,
+  fetchReleaseAssetText,
+  findReleaseAsset,
+  parseSha256Sums,
+} from './main/runtime/update/release-assets';
+import { updateLauncherFromRelease } from './main/runtime/update/launcher-updater';
+import { notifyUpdateAvailable } from './main/runtime/update/update-notifications';
+import {
+  showNoUpdateDialog,
+  showRestartDialog,
+  showUpdateAvailableDialog,
+  showUpdateFailedDialog,
+} from './main/runtime/update/update-dialogs';
+import {
+  runUpdateCliCommand,
+  writeUpdateCliCommandResponse,
+} from './main/runtime/update/update-cli-command';
+import {
+  createFileUpdateStateStore,
+  createUpdateService,
+} from './main/runtime/update/update-service';
+import { updateSupportAssetsFromRelease } from './main/runtime/update/support-assets';
 import {
   createRefreshSubtitlePrefetchFromActiveTrackHandler,
   createResolveActiveSubtitleSidebarSourceHandler,
@@ -875,6 +910,8 @@ function stopStatsServer(): void {
 }
 
 function requestAppQuit(): void {
+  destroyYomitanSettingsWindow(appState.yomitanSettingsWindow);
+  appState.yomitanSettingsWindow = null;
   destroyStatsWindow();
   stopStatsServer();
   if (!forceQuitTimer) {
@@ -1199,6 +1236,16 @@ const resolveWindowsMpvShortcutRuntimePaths = () =>
     appDataDir: app.getPath('appData'),
     desktopDir: app.getPath('desktop'),
   });
+const createCommandLineLauncherRuntimeOptions = () => ({
+  platform: process.platform,
+  env: process.env,
+  homeDir: os.homedir(),
+  localAppData: process.env.LOCALAPPDATA,
+  userProfile: process.env.USERPROFILE,
+  cwd: process.cwd(),
+  resourcesPath: process.resourcesPath,
+  appExePath: process.execPath,
+});
 syncInstalledFirstRunPluginBinaryPath({
   platform: process.platform,
   homeDir: os.homedir(),
@@ -1273,6 +1320,32 @@ const firstRunSetupService = createFirstRunSetupService({
       writeShortcutLink: (shortcutPath, operation, details) =>
         shell.writeShortcutLink(shortcutPath, operation, details),
     });
+  },
+  detectCommandLineLauncher: () =>
+    detectCommandLineLauncher(createCommandLineLauncherRuntimeOptions()),
+  installBun: async () => {
+    const snapshot = await installCommandLineBun(createCommandLineLauncherRuntimeOptions());
+    return {
+      ok: snapshot.status === 'ready',
+      message:
+        snapshot.message ??
+        (snapshot.status === 'ready'
+          ? 'Bun is ready. Open a new terminal.'
+          : 'Bun installation failed.'),
+    };
+  },
+  installCommandLineLauncher: async () => {
+    const snapshot = await installCommandLineLauncher(createCommandLineLauncherRuntimeOptions());
+    const ok = snapshot.status === 'ready' || snapshot.status === 'installed_bun_missing';
+    return {
+      ok,
+      installPath: snapshot.installPath,
+      message:
+        snapshot.message ??
+        (ok
+          ? 'Command-line launcher installed. Open a new terminal.'
+          : 'Command-line launcher installation failed.'),
+    };
   },
   onStateChanged: (state) => {
     appState.firstRunSetupCompleted = state.status === 'completed';
@@ -2749,6 +2822,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       mpvExecutablePath,
       mpvExecutablePathStatus: getConfiguredWindowsMpvPathStatus(mpvExecutablePath),
       windowsMpvShortcuts: snapshot.windowsMpvShortcuts,
+      commandLineLauncher: snapshot.commandLineLauncher,
       message: firstRunSetupMessage,
     };
   },
@@ -2781,6 +2855,16 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
         startMenuEnabled: submission.startMenuEnabled === true,
         desktopEnabled: submission.desktopEnabled === true,
       });
+      firstRunSetupMessage = snapshot.message;
+      return;
+    }
+    if (submission.action === 'install-bun') {
+      const snapshot = await firstRunSetupService.installBun();
+      firstRunSetupMessage = snapshot.message;
+      return;
+    }
+    if (submission.action === 'install-command-line-launcher') {
+      const snapshot = await firstRunSetupService.installCommandLineLauncher();
       firstRunSetupMessage = snapshot.message;
       return;
     }
@@ -3650,6 +3734,8 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     logWarning: (message) => appLogger.logWarning(message),
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
     startConfigHotReload: () => configHotReloadRuntime.start(),
+    shouldRefreshAnilistClientSecretState: () =>
+      !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     refreshAnilistClientSecretState: (options) => refreshAnilistClientSecretStateIfEnabled(options),
     failHandlers: {
       logError: (details) => logger.error(details),
@@ -4518,6 +4604,92 @@ flushPendingMpvLogWrites = () => {
   void flushMpvLog();
 };
 
+const updateStateStore = createFileUpdateStateStore(path.join(USER_DATA_PATH, 'update-state.json'));
+let updateService: ReturnType<typeof createUpdateService> | null = null;
+
+function getFetchForUpdater() {
+  return globalThis.fetch.bind(globalThis);
+}
+
+async function updateLauncherFromLatestRelease(
+  launcherPath?: string,
+  channel: UpdateChannel = getResolvedConfig().updates.channel,
+) {
+  const fetchForUpdater = getFetchForUpdater();
+  const release = await fetchLatestStableRelease({ fetch: fetchForUpdater, channel });
+  if (!release) {
+    return { status: 'missing-asset', message: `No ${channel} GitHub release found.` };
+  }
+  const sumsAsset = findReleaseAsset(release, 'SHA256SUMS.txt');
+  if (!sumsAsset) {
+    return { status: 'missing-asset', message: 'Release has no SHA256SUMS.txt asset.' };
+  }
+  const sums = parseSha256Sums(
+    await fetchReleaseAssetText(fetchForUpdater, sumsAsset.browser_download_url),
+  );
+  const launcherResult = await updateLauncherFromRelease({
+    release,
+    sha256Sums: sums,
+    launcherPath,
+    downloadAsset: (url) => fetchReleaseAssetBuffer(fetchForUpdater, url),
+  });
+  const supportResults = await updateSupportAssetsFromRelease({
+    release,
+    sha256Sums: sums,
+    downloadAsset: (url) => fetchReleaseAssetBuffer(fetchForUpdater, url),
+  });
+  for (const result of supportResults) {
+    if (result.status === 'protected' && result.command) {
+      logger.warn(`Support assets update requires manual command: ${result.command}`);
+    } else if (result.status === 'hash-mismatch' || result.status === 'missing-asset') {
+      logger.warn(`Support assets update skipped: ${result.message ?? result.status}`);
+    }
+  }
+  return launcherResult;
+}
+
+function getUpdateService() {
+  if (updateService) return updateService;
+  const appUpdater = createElectronAppUpdater({
+    currentVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    log: (message) => logger.info(message),
+    getChannel: () => getResolvedConfig().updates.channel,
+  });
+  updateService = createUpdateService({
+    getConfig: () => getResolvedConfig().updates,
+    getCurrentVersion: () => app.getVersion(),
+    now: () => Date.now(),
+    readState: () => updateStateStore.readState(),
+    writeState: (state) => updateStateStore.writeState(state),
+    checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
+    fetchLatestStableRelease: (channel) =>
+      fetchLatestStableRelease({ fetch: getFetchForUpdater(), channel }),
+    updateLauncher: (launcherPath, channel) =>
+      updateLauncherFromLatestRelease(launcherPath, channel),
+    showNoUpdateDialog: (version) =>
+      showNoUpdateDialog((options) => dialog.showMessageBox(options), version),
+    showUpdateAvailableDialog: (version) =>
+      showUpdateAvailableDialog((options) => dialog.showMessageBox(options), version),
+    showUpdateFailedDialog: (message) =>
+      showUpdateFailedDialog((options) => dialog.showMessageBox(options), message),
+    downloadAppUpdate: () => appUpdater.downloadUpdate(),
+    showRestartDialog: () => showRestartDialog((options) => dialog.showMessageBox(options)),
+    quitAndInstall: () => appUpdater.quitAndInstall(),
+    notifyUpdateAvailable: (version) =>
+      notifyUpdateAvailable(
+        { notificationType: getResolvedConfig().updates.notificationType, version },
+        {
+          showSystemNotification: (title, body) => showDesktopNotification(title, { body }),
+          showOsdNotification: (message) => showMpvOsd(message),
+          log: (message) => logger.warn(message),
+        },
+      ),
+    log: (message) => logger.warn(message),
+  });
+  return updateService;
+}
+
 const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
   cycleSecondarySubModeMainDeps: {
     getSecondarySubMode: () => appState.secondarySubMode,
@@ -5173,6 +5345,14 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
     runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
       runStatsCliCommand(argsFromCommand, source),
+    runUpdateCommand: async (argsFromCommand: CliArgs, source: CliCommandSource) => {
+      await runUpdateCliCommand(argsFromCommand, source, {
+        checkForUpdates: (request) => getUpdateService().checkForUpdates(request),
+        writeResponse: (responsePath, payload) =>
+          writeUpdateCliCommandResponse(responsePath, payload),
+        logWarn: (message, error) => logger.warn(message, error),
+      });
+    },
     runYoutubePlaybackFlow: (request) => youtubePlaybackRuntime.runYoutubePlaybackFlow(request),
     openYomitanSettings: () => openYomitanSettings(),
     cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
@@ -5240,7 +5420,11 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
       onWillQuitCleanup: () => onWillQuitCleanupHandler(),
       shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
       restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
-      shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
+      shouldQuitOnWindowAllClosed: () =>
+        shouldQuitOnWindowAllClosedForTrayState({
+          backgroundMode: appState.backgroundMode,
+          hasTray: Boolean(appTray),
+        }),
     },
     createAppLifecycleRuntimeRunner: (params) => createAppLifecycleRuntimeRunner(params),
     buildStartupBootstrapMainDeps: (startAppLifecycle) => ({
@@ -5283,6 +5467,12 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
 });
 
 runAndApplyStartupState();
+void app.whenReady().then(() => {
+  if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+    return;
+  }
+  getUpdateService().startAutomaticChecks();
+});
 const startupModeFlags = getStartupModeFlags(appState.initialArgs);
 const shouldUseMinimalStartup = startupModeFlags.shouldUseMinimalStartup;
 const shouldSkipHeavyStartup = startupModeFlags.shouldSkipHeavyStartup;
@@ -5367,6 +5557,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       openSessionHelpModal: () => openSessionHelpOverlay(),
       openTexthookerInBrowser: () =>
         handleCliCommand(parseArgs(['--texthooker', '--open-browser'])),
+      showTexthookerPage: () => getResolvedConfig().texthooker.launchAtStartup !== false,
       showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
       openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
@@ -5379,6 +5570,9 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       toggleJellyfinDiscovery: () =>
         toggleJellyfinDiscoveryFromTrayRuntime(getJellyfinTrayDiscoveryDeps()),
       openAnilistSetupWindow: () => openAnilistSetupWindow(),
+      checkForUpdates: () => {
+        void getUpdateService().checkForUpdates({ source: 'manual' });
+      },
       quitApp: () => requestAppQuit(),
     },
     ensureTrayDeps: {
@@ -5534,6 +5728,8 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
   });
 const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSettingsRuntime({
   ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
+  getYomitanExtension: () => appState.yomitanExt,
+  getYomitanExtensionLoadInFlight: () => yomitanLoadInFlight,
   getYomitanSession: () => appState.yomitanSession,
   openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow, yomitanSession }) => {
     openYomitanSettingsWindow({

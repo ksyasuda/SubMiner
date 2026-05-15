@@ -31,6 +31,9 @@
    `bun run test:fast`
    `bun run test:env`
    `bun run build`
+   When validating auto-update metadata, also run the relevant platform package
+   build and confirm `release/` contains the generated updater metadata
+   (`*.yml`) and blockmaps (`*.blockmap`).
 8. If `docs-site/` changed, also run:
    `bun run docs:test`
    `bun run docs:build`
@@ -50,6 +53,8 @@
    `bun run test:fast`
    `bun run test:env`
    `bun run build`
+   When validating packaged updater output, confirm the platform build writes
+   `*.yml` and `*.blockmap` files under `release/`.
 5. Commit the prerelease prep. Do not run `bun run changelog:build`.
 6. Tag the commit: `git tag v<version>`.
 7. Push commit + tag.
@@ -72,3 +77,6 @@ Notes:
 - Tagged release workflow now also attempts to update `subminer-bin` on the AUR after GitHub Release publication.
 - AUR publish is best-effort: the workflow retries transient SSH clone/push failures, then warns and leaves the GitHub Release green if AUR still fails. Follow up with a manual `git push aur master` from the AUR checkout when needed.
 - Required GitHub Actions secret: `AUR_SSH_PRIVATE_KEY`. Add the matching public key to your AUR account before relying on the automation.
+- Release and prerelease workflows upload updater metadata (`*.yml`) and blockmaps (`*.blockmap`) alongside platform artifacts. Do not remove those files while `electron-updater` is enabled.
+- The first updater-enabled release cannot update older installs automatically. Users need one manual install to get the updater code.
+- Stable auto-update checks ignore beta/RC prereleases by default. Set `updates.channel` to `"prerelease"` on a test install when validating beta/RC updater behavior.

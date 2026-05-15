@@ -33,6 +33,7 @@ const {
   youtube,
   subsync,
   startupWarmups,
+  updates,
   auto_start_overlay,
 } = CORE_DEFAULT_CONFIG;
 const { ankiConnect, jimaku, anilist, mpv, yomitan, jellyfin, discordPresence, ai, youtubeSubgen } =
@@ -55,6 +56,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   youtube,
   subsync,
   startupWarmups,
+  updates,
   subtitleStyle,
   subtitleSidebar,
   auto_start_overlay,

@@ -223,3 +223,23 @@ test('runStartupBootstrapRuntime enables quiet background mode by default', () =
   assert.equal(result.backgroundMode, true);
   assert.deepEqual(calls, ['setLog:warn:cli', 'forceX11', 'enforceWayland', 'startLifecycle']);
 });
+
+test('runStartupBootstrapRuntime enables quiet update mode by default', () => {
+  const calls: string[] = [];
+  const args = makeArgs({ update: true });
+
+  const result = runStartupBootstrapRuntime({
+    argv: ['node', 'main.ts', '--update'],
+    parseArgs: () => args,
+    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
+    forceX11Backend: () => calls.push('forceX11'),
+    enforceUnsupportedWaylandMode: () => calls.push('enforceWayland'),
+    getDefaultSocketPath: () => '/tmp/default.sock',
+    defaultTexthookerPort: 5174,
+    runGenerateConfigFlow: () => false,
+    startAppLifecycle: () => calls.push('startLifecycle'),
+  });
+
+  assert.equal(result.backgroundMode, false);
+  assert.deepEqual(calls, ['setLog:warn:cli', 'forceX11', 'enforceWayland', 'startLifecycle']);
+});

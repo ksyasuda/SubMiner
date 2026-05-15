@@ -14,7 +14,17 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
   scripts: Record<string, string>;
   build?: {
     afterPack?: string;
+    electronUpdaterCompatibility?: string;
     files?: string[];
+    extraResources?: Array<{
+      from?: string;
+      to?: string;
+    }>;
+    publish?: Array<{
+      provider?: string;
+      owner?: string;
+      repo?: string;
+    }>;
   };
 };
 
@@ -72,12 +82,19 @@ test('release workflow generates release notes from committed changelog output',
 test('release workflow includes the Windows installer in checksums and uploaded assets', () => {
   assert.match(
     releaseWorkflow,
-    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz dist\/launcher\/subminer\)/,
+    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz release\/\*\.yml release\/\*\.blockmap dist\/launcher\/subminer\)/,
   );
   assert.match(
     releaseWorkflow,
-    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
+    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/\*\.yml[\s\S]*release\/\*\.blockmap[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
   );
+});
+
+test('release package metadata enables GitHub updater metadata without builder uploads', () => {
+  assert.equal(packageJson.build?.publish?.[0]?.provider, 'github');
+  assert.equal(packageJson.build?.publish?.[0]?.owner, 'ksyasuda');
+  assert.equal(packageJson.build?.publish?.[0]?.repo, 'SubMiner');
+  assert.equal(packageJson.build?.electronUpdaterCompatibility, '>=2.16');
 });
 
 test('release workflow writes checksum entries using release asset basenames', () => {
@@ -137,6 +154,16 @@ test('release packaging keeps default file inclusion and excludes large source-o
   assert.ok(files.includes('!vendor/texthooker-ui/package.json'));
   assert.ok(files.includes('!vendor/texthooker-ui/tsconfig*.json'));
   assert.ok(files.includes('!node_modules/@libsql/linux-x64-musl{,/**/*}'));
+});
+
+test('release packaging stages generated launcher as an app resource', () => {
+  assert.ok(
+    packageJson.build?.extraResources?.some(
+      (resource) =>
+        resource.from === 'dist/launcher/subminer' && resource.to === 'launcher/subminer',
+    ),
+  );
+  assert.match(packageJson.scripts.build ?? '', /bun run build:launcher/);
 });
 
 test('config example generation runs directly from source without unrelated bundle prerequisites', () => {

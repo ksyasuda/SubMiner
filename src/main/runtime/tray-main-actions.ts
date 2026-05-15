@@ -30,6 +30,7 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   buildTrayMenuTemplateRuntime: (handlers: {
     openSessionHelp: () => void;
     openTexthookerInBrowser: () => void;
+    showTexthookerPage: boolean;
     openFirstRunSetup: () => void;
     showFirstRunSetup: boolean;
     openWindowsMpvLauncherSetup: () => void;
@@ -41,12 +42,14 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
     jellyfinDiscoveryActive: boolean;
     toggleJellyfinDiscovery: () => void;
     openAnilistSetup: () => void;
+    checkForUpdates: () => void;
     quitApp: () => void;
   }) => TMenuItem[];
   initializeOverlayRuntime: () => void;
   isOverlayRuntimeInitialized: () => boolean;
   openSessionHelpModal: () => void;
   openTexthookerInBrowser: () => void;
+  showTexthookerPage: () => boolean;
   showFirstRunSetup: () => boolean;
   openFirstRunSetupWindow: () => void;
   showWindowsMpvLauncherSetup: () => boolean;
@@ -57,6 +60,7 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   isJellyfinDiscoveryActive: () => boolean;
   toggleJellyfinDiscovery: () => void | Promise<void>;
   openAnilistSetupWindow: () => void;
+  checkForUpdates: () => void;
   quitApp: () => void;
 }) {
   return (): TMenuItem[] => {
@@ -70,6 +74,7 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
       openTexthookerInBrowser: () => {
         deps.openTexthookerInBrowser();
       },
+      showTexthookerPage: deps.showTexthookerPage(),
       openFirstRunSetup: () => {
         deps.openFirstRunSetupWindow();
       },
@@ -97,6 +102,9 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
       },
       openAnilistSetup: () => {
         deps.openAnilistSetupWindow();
+      },
+      checkForUpdates: () => {
+        deps.checkForUpdates();
       },
       quitApp: () => {
         deps.quitApp();

@@ -156,6 +156,18 @@
   }, // Background warmup controls for MeCab, Yomitan, dictionaries, and Jellyfin session.
 
   // ==========================================
+  // Updates
+  // Automatic update check behavior.
+  // Manual checks from the tray or launcher are always allowed.
+  // ==========================================
+  "updates": {
+    "enabled": true, // Run automatic update checks in the background. Values: true | false
+    "checkIntervalHours": 24, // Minimum hours between automatic update checks.
+    "notificationType": "system", // How SubMiner announces available updates. Values: system | osd | both | none
+    "channel": "stable" // Release channel used for update checks. Values: stable | prerelease
+  }, // Automatic update check behavior.
+
+  // ==========================================
   // Keyboard Shortcuts
   // Overlay keyboard shortcuts. Set a shortcut to null to disable.
   // Hot-reload: shortcut changes apply live and update the session help modal on reopen.

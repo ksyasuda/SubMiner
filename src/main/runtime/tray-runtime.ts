@@ -32,6 +32,7 @@ export function resolveTrayIconPathRuntime(deps: {
 export type TrayMenuActionHandlers = {
   openSessionHelp: () => void;
   openTexthookerInBrowser: () => void;
+  showTexthookerPage: boolean;
   openFirstRunSetup: () => void;
   showFirstRunSetup: boolean;
   openWindowsMpvLauncherSetup: () => void;
@@ -43,6 +44,7 @@ export type TrayMenuActionHandlers = {
   jellyfinDiscoveryActive: boolean;
   toggleJellyfinDiscovery: () => void;
   openAnilistSetup: () => void;
+  checkForUpdates: () => void;
   quitApp: () => void;
 };
 
@@ -58,10 +60,14 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
       label: 'Open Help',
       click: handlers.openSessionHelp,
     },
-    {
-      label: 'Open Texthooker',
-      click: handlers.openTexthookerInBrowser,
-    },
+    ...(handlers.showTexthookerPage
+      ? [
+          {
+            label: 'Open Texthooker',
+            click: handlers.openTexthookerInBrowser,
+          },
+        ]
+      : []),
     ...(handlers.showFirstRunSetup
       ? [
           {
@@ -104,6 +110,10 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
     {
       label: 'Configure AniList',
       click: handlers.openAnilistSetup,
+    },
+    {
+      label: 'Check for Updates',
+      click: handlers.checkForUpdates,
     },
     { type: 'separator' },
     {

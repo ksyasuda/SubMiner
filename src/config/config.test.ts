@@ -109,6 +109,58 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.immersionTracking.lifetimeSummaries?.anime, true);
   assert.equal(config.immersionTracking.lifetimeSummaries?.media, true);
   assert.equal(config.stats.autoOpenBrowser, false);
+  assert.equal(config.updates.enabled, true);
+  assert.equal(config.updates.checkIntervalHours, 24);
+  assert.equal(config.updates.notificationType, 'system');
+  assert.equal(config.updates.channel, 'stable');
+});
+
+test('parses updates config and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "updates": {
+        "enabled": false,
+        "checkIntervalHours": 6,
+        "notificationType": "both",
+        "channel": "prerelease"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().updates.enabled, false);
+  assert.equal(validService.getConfig().updates.checkIntervalHours, 6);
+  assert.equal(validService.getConfig().updates.notificationType, 'both');
+  assert.equal(validService.getConfig().updates.channel, 'prerelease');
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "updates": {
+        "enabled": "yes",
+        "checkIntervalHours": 0,
+        "notificationType": "toast",
+        "channel": "nightly"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  const config = invalidService.getConfig();
+  const warnings = invalidService.getWarnings();
+  assert.equal(config.updates.enabled, DEFAULT_CONFIG.updates.enabled);
+  assert.equal(config.updates.checkIntervalHours, DEFAULT_CONFIG.updates.checkIntervalHours);
+  assert.equal(config.updates.notificationType, DEFAULT_CONFIG.updates.notificationType);
+  assert.equal(config.updates.channel, DEFAULT_CONFIG.updates.channel);
+  assert.ok(warnings.some((warning) => warning.path === 'updates.enabled'));
+  assert.ok(warnings.some((warning) => warning.path === 'updates.checkIntervalHours'));
+  assert.ok(warnings.some((warning) => warning.path === 'updates.notificationType'));
+  assert.ok(warnings.some((warning) => warning.path === 'updates.channel'));
 });
 
 test('throws actionable startup parse error for malformed config at construction time', () => {
@@ -2124,6 +2176,7 @@ test('template generator includes known keys', () => {
   assert.match(output, /"websocket":/);
   assert.match(output, /"discordPresence":/);
   assert.match(output, /"startupWarmups":/);
+  assert.match(output, /"updates":/);
   assert.match(output, /"youtube":/);
   assert.doesNotMatch(output, /"youtubeSubgen":/);
   assert.match(output, /"characterDictionary":\s*\{/);
@@ -2209,6 +2262,14 @@ test('template generator includes known keys', () => {
   assert.match(
     output,
     /"autoOpenBrowser": false,? \/\/ Automatically open the stats dashboard in a browser when the server starts\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"notificationType": "system",? \/\/ How SubMiner announces available updates\. Values: system \| osd \| both \| none/,
+  );
+  assert.match(
+    output,
+    /"channel": "stable",? \/\/ Release channel used for update checks\. Values: stable \| prerelease/,
   );
   assert.match(
     output,

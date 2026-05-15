@@ -51,6 +51,24 @@ test('parseArgs ignores missing value after --log-level', () => {
   assert.equal(args.start, true);
 });
 
+test('parseArgs captures update command and internal launcher paths', () => {
+  const args = parseArgs([
+    '--update',
+    '--update-launcher-path',
+    '/home/kyle/.local/bin/subminer',
+    '--update-response-path',
+    '/tmp/subminer-update-response.json',
+  ]);
+
+  assert.equal(args.update, true);
+  assert.equal(args.updateLauncherPath, '/home/kyle/.local/bin/subminer');
+  assert.equal(args.updateResponsePath, '/tmp/subminer-update-response.json');
+  assert.equal(hasExplicitCommand(args), true);
+  assert.equal(shouldStartApp(args), true);
+  assert.equal(commandNeedsOverlayRuntime(args), false);
+  assert.equal(shouldRunSettingsOnlyStartup(args), false);
+});
+
 test('parseArgs captures launch-mpv targets and keeps it out of app startup', () => {
   const args = parseArgs(['--launch-mpv', 'C:\\a.mkv', 'C:\\b.mkv']);
   assert.equal(args.launchMpv, true);
@@ -181,6 +199,12 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(hasExplicitCommand(refreshKnownWords), true);
   assert.equal(shouldStartApp(refreshKnownWords), true);
   assert.equal(isHeadlessInitialCommand(refreshKnownWords), true);
+
+  const update = parseArgs(['--update']);
+  assert.equal(update.update, true);
+  assert.equal(hasExplicitCommand(update), true);
+  assert.equal(shouldStartApp(update), true);
+  assert.equal(isHeadlessInitialCommand(update), true);
 
   const settings = parseArgs(['--settings']);
   assert.equal(settings.settings, true);

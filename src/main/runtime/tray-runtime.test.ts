@@ -31,6 +31,7 @@ test('tray menu template contains expected entries and handlers', () => {
   const template = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => calls.push('help'),
     openTexthookerInBrowser: () => calls.push('texthooker'),
+    showTexthookerPage: true,
     openFirstRunSetup: () => calls.push('setup'),
     showFirstRunSetup: true,
     openWindowsMpvLauncherSetup: () => calls.push('windows-mpv'),
@@ -42,10 +43,11 @@ test('tray menu template contains expected entries and handlers', () => {
     jellyfinDiscoveryActive: false,
     toggleJellyfinDiscovery: () => calls.push('jellyfin-discovery'),
     openAnilistSetup: () => calls.push('anilist'),
+    checkForUpdates: () => calls.push('updates'),
     quitApp: () => calls.push('quit'),
   });
 
-  assert.equal(template.length, 11);
+  assert.equal(template.length, 12);
   assert.equal(
     template.some((entry) => entry.label === 'Open Overlay'),
     false,
@@ -58,15 +60,25 @@ test('tray menu template contains expected entries and handlers', () => {
   template[0]!.click?.();
   assert.equal(template[1]!.label, 'Open Texthooker');
   template[1]!.click?.();
-  template[9]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
-  template[10]!.click?.();
-  assert.deepEqual(calls, ['jellyfin-discovery', 'help', 'texthooker', 'separator', 'quit']);
+  assert.equal(template[9]!.label, 'Check for Updates');
+  template[9]!.click?.();
+  template[10]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
+  template[11]!.click?.();
+  assert.deepEqual(calls, [
+    'jellyfin-discovery',
+    'help',
+    'texthooker',
+    'updates',
+    'separator',
+    'quit',
+  ]);
 });
 
 test('tray menu template omits first-run setup entry when setup is complete', () => {
   const labels = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => undefined,
     openTexthookerInBrowser: () => undefined,
+    showTexthookerPage: true,
     openFirstRunSetup: () => undefined,
     showFirstRunSetup: false,
     openWindowsMpvLauncherSetup: () => undefined,
@@ -78,6 +90,7 @@ test('tray menu template omits first-run setup entry when setup is complete', ()
     jellyfinDiscoveryActive: false,
     toggleJellyfinDiscovery: () => undefined,
     openAnilistSetup: () => undefined,
+    checkForUpdates: () => undefined,
     quitApp: () => undefined,
   })
     .map((entry) => entry.label)
@@ -88,10 +101,36 @@ test('tray menu template omits first-run setup entry when setup is complete', ()
   assert.equal(labels.includes('Jellyfin Discovery'), false);
 });
 
+test('tray menu template omits texthooker entry when texthooker page is disabled', () => {
+  const labels = buildTrayMenuTemplateRuntime({
+    openSessionHelp: () => undefined,
+    openTexthookerInBrowser: () => undefined,
+    showTexthookerPage: false,
+    openFirstRunSetup: () => undefined,
+    showFirstRunSetup: false,
+    openWindowsMpvLauncherSetup: () => undefined,
+    showWindowsMpvLauncherSetup: false,
+    openYomitanSettings: () => undefined,
+    openRuntimeOptions: () => undefined,
+    openJellyfinSetup: () => undefined,
+    showJellyfinDiscovery: false,
+    jellyfinDiscoveryActive: false,
+    toggleJellyfinDiscovery: () => undefined,
+    openAnilistSetup: () => undefined,
+    checkForUpdates: () => undefined,
+    quitApp: () => undefined,
+  })
+    .map((entry) => entry.label)
+    .filter(Boolean);
+
+  assert.equal(labels.includes('Open Texthooker'), false);
+});
+
 test('tray menu template renders active jellyfin discovery checkbox', () => {
   const template = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => undefined,
     openTexthookerInBrowser: () => undefined,
+    showTexthookerPage: true,
     openFirstRunSetup: () => undefined,
     showFirstRunSetup: false,
     openWindowsMpvLauncherSetup: () => undefined,
@@ -103,6 +142,7 @@ test('tray menu template renders active jellyfin discovery checkbox', () => {
     jellyfinDiscoveryActive: true,
     toggleJellyfinDiscovery: () => undefined,
     openAnilistSetup: () => undefined,
+    checkForUpdates: () => undefined,
     quitApp: () => undefined,
   });
 

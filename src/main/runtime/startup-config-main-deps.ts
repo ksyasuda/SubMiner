@@ -11,6 +11,9 @@ export function createBuildReloadConfigMainDepsHandler(deps: ReloadConfigMainDep
     showDesktopNotification: (title: string, options: { body: string }) =>
       deps.showDesktopNotification(title, options),
     startConfigHotReload: () => deps.startConfigHotReload(),
+    shouldRefreshAnilistClientSecretState: deps.shouldRefreshAnilistClientSecretState
+      ? () => deps.shouldRefreshAnilistClientSecretState?.() !== false
+      : undefined,
     refreshAnilistClientSecretState: (options: { force: boolean }) =>
       deps.refreshAnilistClientSecretState(options),
     failHandlers: {

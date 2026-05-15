@@ -1,4 +1,4 @@
-import type { CliArgs } from '../../cli/args';
+import type { CliArgs, CliCommandSource } from '../../cli/args';
 import { resolveTexthookerWebsocketUrl } from '../../core/services/startup';
 import type { CliCommandContextFactoryDeps } from './cli-command-context';
 
@@ -53,6 +53,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   setCharacterDictionarySelection?: CliCommandContextFactoryDeps['setCharacterDictionarySelection'];
   runStatsCommand: CliCommandContextFactoryDeps['runStatsCommand'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
+  runUpdateCommand: CliCommandContextFactoryDeps['runUpdateCommand'];
   runYoutubePlaybackFlow: CliCommandContextFactoryDeps['runYoutubePlaybackFlow'];
 
   openYomitanSettings: () => void;
@@ -121,6 +122,8 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     setCharacterDictionarySelection: deps.setCharacterDictionarySelection,
     runStatsCommand: (args: CliArgs, source) => deps.runStatsCommand(args, source),
     runJellyfinCommand: (args: CliArgs) => deps.runJellyfinCommand(args),
+    runUpdateCommand: (args: CliArgs, source: CliCommandSource) =>
+      deps.runUpdateCommand(args, source),
     runYoutubePlaybackFlow: (request) => deps.runYoutubePlaybackFlow(request),
     openYomitanSettings: () => deps.openYomitanSettings(),
     cycleSecondarySubMode: () => deps.cycleSecondarySubMode(),

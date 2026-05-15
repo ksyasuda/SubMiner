@@ -478,6 +478,62 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
     }
   }
 
+  if (isObject(src.updates)) {
+    const enabled = asBoolean(src.updates.enabled);
+    if (enabled !== undefined) {
+      resolved.updates.enabled = enabled;
+    } else if (src.updates.enabled !== undefined) {
+      warn('updates.enabled', src.updates.enabled, resolved.updates.enabled, 'Expected boolean.');
+    }
+
+    const checkIntervalHours = asNumber(src.updates.checkIntervalHours);
+    if (
+      checkIntervalHours !== undefined &&
+      Number.isFinite(checkIntervalHours) &&
+      checkIntervalHours > 0
+    ) {
+      resolved.updates.checkIntervalHours = checkIntervalHours;
+    } else if (src.updates.checkIntervalHours !== undefined) {
+      warn(
+        'updates.checkIntervalHours',
+        src.updates.checkIntervalHours,
+        resolved.updates.checkIntervalHours,
+        'Expected positive number.',
+      );
+    }
+
+    const notificationType = asString(src.updates.notificationType);
+    if (
+      notificationType === 'system' ||
+      notificationType === 'osd' ||
+      notificationType === 'both' ||
+      notificationType === 'none'
+    ) {
+      resolved.updates.notificationType = notificationType;
+    } else if (src.updates.notificationType !== undefined) {
+      warn(
+        'updates.notificationType',
+        src.updates.notificationType,
+        resolved.updates.notificationType,
+        'Expected system, osd, both, or none.',
+      );
+    }
+
+    const channel = asString(src.updates.channel);
+    if (channel === 'stable' || channel === 'prerelease') {
+      resolved.updates.channel = channel;
+    } else if (src.updates.channel !== undefined) {
+      warn(
+        'updates.channel',
+        src.updates.channel,
+        resolved.updates.channel,
+        'Expected stable or prerelease.',
+      );
+    }
+  } else if (src.updates !== undefined) {
+    warn('updates', src.updates, resolved.updates, 'Expected object.');
+  }
+
   if (isObject(src.shortcuts)) {
     const shortcutKeys = [
       'toggleVisibleOverlayGlobal',

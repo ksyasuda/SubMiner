@@ -22,6 +22,7 @@ test('config option registry includes critical paths and has unique entries', ()
     'controller.enabled',
     'controller.scrollPixelsPerSecond',
     'startupWarmups.lowPowerMode',
+    'updates.channel',
     'youtube.primarySubLanguages',
     'subtitleStyle.enableJlpt',
     'subtitleStyle.autoPauseVideoOnYomitanPopup',

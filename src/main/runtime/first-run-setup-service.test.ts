@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createFirstRunSetupService, shouldAutoOpenFirstRunSetup } from './first-run-setup-service';
 import type { CliArgs } from '../../cli/args';
+import type { CommandLineLauncherSnapshot } from './command-line-launcher';
 
 function withTempDir(fn: (dir: string) => Promise<void> | void): Promise<void> | void {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-first-run-service-test-'));
@@ -86,6 +87,31 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     generateConfig: false,
     backupOverwrite: false,
     debug: false,
+    ...overrides,
+  };
+}
+
+function createCommandLineLauncherSnapshot(
+  overrides: Partial<CommandLineLauncherSnapshot> = {},
+): CommandLineLauncherSnapshot {
+  return {
+    supported: true,
+    bun: {
+      status: 'missing',
+      commandPath: null,
+      version: null,
+      installMethod: 'official-script',
+      installCommand: ['bash', '-lc', 'curl -fsSL https://bun.com/install | bash'],
+      message: null,
+    },
+    launcher: {
+      status: 'not_installed',
+      commandPath: null,
+      installPath: '/home/tester/.local/bin/subminer',
+      pathDir: '/home/tester/.local/bin',
+      shadowedBy: null,
+      message: null,
+    },
     ...overrides,
   };
 }
@@ -511,6 +537,141 @@ test('setup service persists Windows mpv shortcut preferences and status with on
     assert.equal(snapshot.state.windowsMpvShortcutLastStatus, 'installed');
     assert.equal(snapshot.message, 'shortcuts updated');
     assert.deepEqual(stateChanges, ['installed']);
+  });
+});
+
+test('setup service snapshot includes command-line launcher status', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+
+    const commandLineLauncher = createCommandLineLauncherSnapshot({
+      bun: {
+        status: 'ready',
+        commandPath: '/usr/local/bin/bun',
+        version: '1.3.5',
+        installMethod: null,
+        installCommand: null,
+        message: null,
+      },
+    });
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 0,
+      detectPluginInstalled: () => true,
+      detectCommandLineLauncher: async () => commandLineLauncher,
+      onStateChanged: () => undefined,
+    });
+
+    const snapshot = await service.refreshStatus();
+    assert.deepEqual(snapshot.commandLineLauncher, commandLineLauncher);
+  });
+});
+
+test('setup service installBun persists installed and failed status', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+    let installOk = true;
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 1,
+      detectPluginInstalled: () => true,
+      detectCommandLineLauncher: async () => createCommandLineLauncherSnapshot(),
+      installBun: async () => ({
+        ok: installOk,
+        message: installOk ? 'Bun installed. Open a new terminal.' : 'Bun install failed.',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    const installed = await service.installBun();
+    assert.equal(installed.state.bunInstallStatus, 'installed');
+    assert.equal(installed.canFinish, true);
+    assert.equal(installed.message, 'Bun installed. Open a new terminal.');
+
+    installOk = false;
+    const failed = await service.installBun();
+    assert.equal(failed.state.bunInstallStatus, 'failed');
+    assert.equal(failed.canFinish, true);
+    assert.equal(failed.message, 'Bun install failed.');
+  });
+});
+
+test('setup service installCommandLineLauncher persists status and path', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+    let installOk = true;
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 1,
+      detectPluginInstalled: () => true,
+      detectCommandLineLauncher: async () => createCommandLineLauncherSnapshot(),
+      installCommandLineLauncher: async () => ({
+        ok: installOk,
+        installPath: installOk ? '/home/tester/.local/bin/subminer' : null,
+        message: installOk ? 'Launcher installed.' : 'Launcher install failed.',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    const installed = await service.installCommandLineLauncher();
+    assert.equal(installed.state.launcherInstallStatus, 'installed');
+    assert.equal(installed.state.launcherInstallPath, '/home/tester/.local/bin/subminer');
+    assert.equal(installed.canFinish, true);
+
+    installOk = false;
+    const failed = await service.installCommandLineLauncher();
+    assert.equal(failed.state.launcherInstallStatus, 'failed');
+    assert.equal(failed.state.launcherInstallPath, null);
+    assert.equal(failed.canFinish, true);
+  });
+});
+
+test('setup completion is unaffected by missing or failed command-line launcher setup', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 1,
+      detectPluginInstalled: () => true,
+      detectCommandLineLauncher: async () =>
+        createCommandLineLauncherSnapshot({
+          bun: {
+            status: 'failed',
+            commandPath: null,
+            version: null,
+            installMethod: 'official-script',
+            installCommand: ['bash', '-lc', 'curl -fsSL https://bun.com/install | bash'],
+            message: 'Bun install failed.',
+          },
+          launcher: {
+            status: 'failed',
+            commandPath: null,
+            installPath: '/home/tester/.local/bin/subminer',
+            pathDir: '/home/tester/.local/bin',
+            shadowedBy: null,
+            message: 'Launcher install failed.',
+          },
+        }),
+      onStateChanged: () => undefined,
+    });
+
+    const initial = await service.ensureSetupStateInitialized();
+    assert.equal(initial.canFinish, true);
+
+    const completed = await service.markSetupCompleted();
+    assert.equal(completed.state.status, 'completed');
+    assert.equal(completed.canFinish, true);
   });
 });
 

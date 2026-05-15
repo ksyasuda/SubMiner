@@ -26,6 +26,7 @@ test('tray runtime handlers compose resolve/menu/ensure/destroy handlers', () =>
       isOverlayRuntimeInitialized: () => overlayInitialized,
       openSessionHelpModal: () => {},
       openTexthookerInBrowser: () => {},
+      showTexthookerPage: () => true,
       showFirstRunSetup: () => true,
       openFirstRunSetupWindow: () => {},
       showWindowsMpvLauncherSetup: () => true,
@@ -36,6 +37,7 @@ test('tray runtime handlers compose resolve/menu/ensure/destroy handlers', () =>
       isJellyfinDiscoveryActive: () => false,
       toggleJellyfinDiscovery: () => {},
       openAnilistSetupWindow: () => {},
+      checkForUpdates: () => {},
       quitApp: () => {},
     },
     ensureTrayDeps: {

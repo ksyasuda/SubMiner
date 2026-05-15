@@ -14,6 +14,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'youtube'
   | 'subsync'
   | 'startupWarmups'
+  | 'updates'
   | 'auto_start_overlay'
 > = {
   subtitlePosition: { yPercent: 10 },
@@ -115,6 +116,12 @@ export const CORE_DEFAULT_CONFIG: Pick<
     yomitanExtension: true,
     subtitleDictionaries: true,
     jellyfinRemoteSession: true,
+  },
+  updates: {
+    enabled: true,
+    checkIntervalHours: 24,
+    notificationType: 'system',
+    channel: 'stable',
   },
   auto_start_overlay: false,
 };

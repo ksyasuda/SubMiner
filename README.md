@@ -205,7 +205,7 @@ wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~
 ```
 
 > [!NOTE]
-> The `subminer` wrapper uses a [Bun](https://bun.sh) shebang. Make sure `bun` is on your `PATH`.
+> The `subminer` wrapper uses a [Bun](https://bun.sh) shebang. First-run setup can optionally install Bun and the launcher into an existing writable PATH directory.
 
 </details>
 
@@ -222,7 +222,7 @@ sudo curl -fSL https://github.com/ksyasuda/SubMiner/releases/latest/download/sub
 ```
 
 > [!NOTE]
-> The `subminer` launcher uses a [Bun](https://bun.sh) shebang. Make sure `bun` is on your `PATH`.
+> The `subminer` launcher uses a [Bun](https://bun.sh) shebang. First-run setup can optionally install Bun and the launcher into an existing writable PATH directory.
 
 </details>
 
@@ -231,7 +231,7 @@ sudo curl -fSL https://github.com/ksyasuda/SubMiner/releases/latest/download/sub
 
 Download the latest installer (`.exe`) [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Make sure `mpv` is on your `PATH`.
 
-**Note:** On Windows the recommended way to run SubMiner is with the **SubMiner mpv** shortcut created during first-run setup — double-click it, drag files onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See the [Windows mpv Shortcut](https://docs.subminer.moe/usage#windows-mpv-shortcut) section for details.
+**Note:** On Windows the recommended way to run playback is with the **SubMiner mpv** shortcut created during first-run setup. First-run setup can also optionally install Bun and a `subminer.cmd` command shim to your user PATH, so new terminals can run `subminer` without adding `SubMiner.exe` to PATH.
 
 </details>
 
@@ -248,7 +248,7 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 subminer app --setup            # launch the first-run setup wizard
 ```
 
-SubMiner creates a default config, starts in the system tray, and opens a setup popup that walks you through installing Yomitan dictionaries. Follow the on-screen steps to complete setup.
+SubMiner creates a default config, starts in the system tray, and opens a setup popup that walks you through installing Yomitan dictionaries. The setup popup can also optionally install Bun and the `subminer` command-line launcher; those choices do not block setup completion.
 
 > [!NOTE]
 > On Windows, run `SubMiner.exe` directly — it opens the setup wizard automatically on first launch.

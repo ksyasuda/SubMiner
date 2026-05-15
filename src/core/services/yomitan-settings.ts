@@ -13,6 +13,39 @@ export interface OpenYomitanSettingsWindowOptions {
   onWindowClosed?: () => void;
 }
 
+export function configureYomitanSettingsWindowChrome(
+  settingsWindow: Pick<BrowserWindow, 'setAutoHideMenuBar' | 'setMenu'>,
+): void {
+  settingsWindow.setAutoHideMenuBar(true);
+  settingsWindow.setMenu(null);
+}
+
+export function buildYomitanSettingsUrl(extensionId: string): string {
+  return `chrome-extension://${extensionId}/settings.html?popup-preview=false&subminer-settings-safe=true`;
+}
+
+export function showYomitanSettingsWindow(settingsWindow: BrowserWindow): void {
+  if (settingsWindow.isDestroyed()) {
+    return;
+  }
+  if (settingsWindow.isMinimized()) {
+    settingsWindow.restore();
+  }
+  const [width = 0, height = 0] = settingsWindow.getSize();
+  settingsWindow.setSize(width, height);
+  settingsWindow.webContents.invalidate();
+  settingsWindow.show();
+  settingsWindow.focus();
+}
+
+export function destroyYomitanSettingsWindow(settingsWindow: BrowserWindow | null): boolean {
+  if (!settingsWindow || settingsWindow.isDestroyed()) {
+    return false;
+  }
+  settingsWindow.destroy();
+  return true;
+}
+
 export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOptions): void {
   logger.info('openYomitanSettings called');
 
@@ -24,8 +57,8 @@ export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOpti
 
   const existingWindow = options.getExistingWindow();
   if (existingWindow && !existingWindow.isDestroyed()) {
-    logger.info('Settings window already exists, focusing');
-    existingWindow.focus();
+    logger.info('Settings window already exists, showing and focusing');
+    showYomitanSettingsWindow(existingWindow);
     return;
   }
 
@@ -35,15 +68,17 @@ export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOpti
     width: 1200,
     height: 800,
     show: false,
+    autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       session: options.yomitanSession ?? session.defaultSession,
     },
   });
+  configureYomitanSettingsWindowChrome(settingsWindow);
   options.setWindow(settingsWindow);
 
-  const settingsUrl = `chrome-extension://${options.yomitanExt.id}/settings.html`;
+  const settingsUrl = buildYomitanSettingsUrl(options.yomitanExt.id);
   logger.info('Loading settings URL:', settingsUrl);
 
   let loadAttempts = 0;
@@ -76,12 +111,7 @@ export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOpti
   });
 
   setTimeout(() => {
-    if (!settingsWindow.isDestroyed()) {
-      const [width = 0, height = 0] = settingsWindow.getSize();
-      settingsWindow.setSize(width, height);
-      settingsWindow.webContents.invalidate();
-      settingsWindow.show();
-    }
+    showYomitanSettingsWindow(settingsWindow);
   }, 500);
 
   settingsWindow.on('closed', () => {

@@ -450,7 +450,9 @@ export function createSessionHelpModal(
   }
 
   function focusFallbackTarget(): boolean {
-    void window.electronAPI.focusMainWindow();
+    if (!ctx.platform.isModalLayer) {
+      void window.electronAPI.focusMainWindow();
+    }
     const items = getItems();
     const firstItem = items.find((item) => item.offsetParent !== null);
     if (firstItem) {
@@ -526,7 +528,9 @@ export function createSessionHelpModal(
   }
 
   function requestOverlayFocus(): void {
-    void window.electronAPI.focusMainWindow();
+    if (!ctx.platform.isModalLayer) {
+      void window.electronAPI.focusMainWindow();
+    }
   }
 
   function addPointerFocusListener(): void {

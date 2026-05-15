@@ -15,6 +15,7 @@ import type {
   InstalledFirstRunPluginCandidate,
   LegacyMpvPluginRemovalResult,
 } from './first-run-setup-plugin';
+import type { CommandLineLauncherSnapshot } from './command-line-launcher';
 
 export interface SetupWindowsMpvShortcutSnapshot {
   supported: boolean;
@@ -35,6 +36,7 @@ export interface SetupStatusSnapshot {
   pluginInstallPathSummary: string | null;
   legacyMpvPluginPaths: string[];
   windowsMpvShortcuts: SetupWindowsMpvShortcutSnapshot;
+  commandLineLauncher: CommandLineLauncherSnapshot;
   message: string | null;
   state: SetupState;
 }
@@ -58,6 +60,8 @@ export interface FirstRunSetupService {
     startMenuEnabled: boolean;
     desktopEnabled: boolean;
   }) => Promise<SetupStatusSnapshot>;
+  installBun: () => Promise<SetupStatusSnapshot>;
+  installCommandLineLauncher: () => Promise<SetupStatusSnapshot>;
   isSetupCompleted: () => boolean;
 }
 
@@ -172,6 +176,28 @@ function isYomitanSetupSatisfied(options: {
   return options.externalYomitanConfigured || options.dictionaryCount >= 1;
 }
 
+function createUnsupportedCommandLineLauncherSnapshot(): CommandLineLauncherSnapshot {
+  return {
+    supported: false,
+    bun: {
+      status: 'missing',
+      commandPath: null,
+      version: null,
+      installMethod: null,
+      installCommand: null,
+      message: 'Command-line launcher setup is unavailable in this runtime.',
+    },
+    launcher: {
+      status: 'not_installable',
+      commandPath: null,
+      installPath: null,
+      pathDir: null,
+      shadowedBy: null,
+      message: 'Command-line launcher setup is unavailable in this runtime.',
+    },
+  };
+}
+
 export function getFirstRunSetupCompletionMessage(snapshot: {
   configReady: boolean;
   dictionaryCount: number;
@@ -235,6 +261,15 @@ export function createFirstRunSetupService(deps: {
     startMenuEnabled: boolean;
     desktopEnabled: boolean;
   }) => Promise<{ ok: boolean; status: SetupWindowsMpvShortcutInstallStatus; message: string }>;
+  detectCommandLineLauncher?: () =>
+    | CommandLineLauncherSnapshot
+    | Promise<CommandLineLauncherSnapshot>;
+  installBun?: () => Promise<{ ok: boolean; message: string }>;
+  installCommandLineLauncher?: () => Promise<{
+    ok: boolean;
+    installPath: string | null;
+    message: string;
+  }>;
   onStateChanged?: (state: SetupState) => void;
 }): FirstRunSetupService {
   const setupStatePath = getSetupStatePath(deps.configDir);
@@ -262,6 +297,8 @@ export function createFirstRunSetupService(deps: {
     const detectedWindowsMpvShortcuts = isWindows
       ? await deps.detectWindowsMpvShortcuts?.()
       : undefined;
+    const commandLineLauncher =
+      (await deps.detectCommandLineLauncher?.()) ?? createUnsupportedCommandLineLauncherSnapshot();
     const installedWindowsMpvShortcuts = {
       startMenuInstalled: detectedWindowsMpvShortcuts?.startMenuInstalled ?? false,
       desktopInstalled: detectedWindowsMpvShortcuts?.desktopInstalled ?? false,
@@ -291,6 +328,7 @@ export function createFirstRunSetupService(deps: {
         status: getWindowsMpvShortcutStatus(state, installedWindowsMpvShortcuts),
         message: null,
       },
+      commandLineLauncher,
       message,
       state,
     } satisfies SetupStatusSnapshot;
@@ -449,6 +487,36 @@ export function createFirstRunSetupService(deps: {
             desktopEnabled: preferences.desktopEnabled,
           },
           windowsMpvShortcutLastStatus: result.status,
+        }),
+        result.message,
+      );
+    },
+    installBun: async () => {
+      if (!deps.installBun) {
+        return refreshWithState(readState(), 'Bun installation is unavailable in this runtime.');
+      }
+      const result = await deps.installBun();
+      return refreshWithState(
+        writeState({
+          ...readState(),
+          bunInstallStatus: result.ok ? 'installed' : 'failed',
+        }),
+        result.message,
+      );
+    },
+    installCommandLineLauncher: async () => {
+      if (!deps.installCommandLineLauncher) {
+        return refreshWithState(
+          readState(),
+          'Command-line launcher installation is unavailable in this runtime.',
+        );
+      }
+      const result = await deps.installCommandLineLauncher();
+      return refreshWithState(
+        writeState({
+          ...readState(),
+          launcherInstallStatus: result.ok ? 'installed' : 'failed',
+          launcherInstallPath: result.ok ? result.installPath : null,
         }),
         result.message,
       );

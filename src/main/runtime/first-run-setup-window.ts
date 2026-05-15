@@ -1,4 +1,9 @@
 import { getFirstRunSetupCompletionMessage } from './first-run-setup-service';
+import type {
+  BunSnapshot,
+  CommandLineLauncherSnapshot,
+  LauncherSnapshot,
+} from './command-line-launcher';
 
 type FocusableWindowLike = {
   focus: () => void;
@@ -20,6 +25,8 @@ export type FirstRunSetupAction =
   | 'configure-mpv-executable-path'
   | 'remove-legacy-plugin'
   | 'configure-windows-mpv-shortcuts'
+  | 'install-bun'
+  | 'install-command-line-launcher'
   | 'open-yomitan-settings'
   | 'refresh'
   | 'finish';
@@ -49,6 +56,7 @@ export interface FirstRunSetupHtmlModel {
     desktopInstalled: boolean;
     status: 'installed' | 'optional' | 'skipped' | 'failed';
   };
+  commandLineLauncher: CommandLineLauncherSnapshot;
   message: string | null;
 }
 
@@ -62,6 +70,125 @@ function escapeHtml(value: string): string {
 
 function renderStatusBadge(value: string, tone: 'ready' | 'warn' | 'muted' | 'danger'): string {
   return `<span class="badge ${tone}">${escapeHtml(value)}</span>`;
+}
+
+function formatCommand(command: string[] | null): string {
+  return command?.join(' ') ?? 'No install command detected';
+}
+
+function getBunStatusLabel(status: BunSnapshot['status']): string {
+  switch (status) {
+    case 'ready':
+      return 'Ready';
+    case 'installing':
+      return 'Installing';
+    case 'failed':
+      return 'Failed';
+    case 'missing':
+      return 'Missing';
+  }
+}
+
+function getLauncherStatusLabel(status: LauncherSnapshot['status']): string {
+  switch (status) {
+    case 'ready':
+      return 'Ready';
+    case 'installed_bun_missing':
+      return 'Installed, Bun missing';
+    case 'not_installed':
+      return 'Not installed';
+    case 'not_on_path':
+      return 'Not on PATH';
+    case 'shadowed':
+      return 'Shadowed';
+    case 'not_installable':
+      return 'Not installable';
+    case 'failed':
+      return 'Failed';
+  }
+}
+
+function getToolTone(status: BunSnapshot['status']): 'ready' | 'warn' | 'muted' | 'danger' {
+  if (status === 'ready') return 'ready';
+  if (status === 'failed') return 'danger';
+  if (status === 'installing') return 'muted';
+  return 'warn';
+}
+
+function getLauncherTone(
+  status: LauncherSnapshot['status'],
+): 'ready' | 'warn' | 'muted' | 'danger' {
+  if (status === 'ready') return 'ready';
+  if (status === 'failed') return 'danger';
+  if (status === 'installed_bun_missing' || status === 'not_installed') return 'warn';
+  return 'muted';
+}
+
+function renderCommandLineLauncherSection(commandLineLauncher: CommandLineLauncherSnapshot): string {
+  if (!commandLineLauncher.supported) {
+    return '';
+  }
+
+  const bun = commandLineLauncher.bun;
+  const launcher = commandLineLauncher.launcher;
+  const bunMeta =
+    bun.status === 'ready'
+      ? [
+          bun.commandPath ? `Path: ${bun.commandPath}` : null,
+          bun.version ? `Version: ${bun.version}` : null,
+        ].filter(Boolean)
+      : [
+          bun.installMethod ? `Method: ${bun.installMethod}` : null,
+          `Command: ${formatCommand(bun.installCommand)}`,
+          bun.message,
+        ].filter(Boolean);
+  const launcherMeta = [
+    launcher.commandPath ? `Command: ${launcher.commandPath}` : null,
+    launcher.installPath ? `Install target: ${launcher.installPath}` : null,
+    launcher.pathDir ? `PATH dir: ${launcher.pathDir}` : null,
+    launcher.shadowedBy ? `Shadowed by: ${launcher.shadowedBy}` : null,
+    launcher.message,
+    bun.status !== 'ready' ? 'Warning: subminer will not run until Bun is available.' : null,
+  ].filter(Boolean);
+  const bunInstallButton =
+    bun.status === 'missing' || bun.status === 'failed'
+      ? `<button onclick="window.location.href='subminer://first-run-setup?action=install-bun'">Install Bun</button>`
+      : '';
+  const launcherButtonDisabled = launcher.status === 'failed' ? '' : '';
+
+  return `
+    <section class="setup-section">
+      <div class="section-head">
+        <h2>Command line launcher</h2>
+        <div class="meta">Optional. Setup can finish without Bun or the launcher.</div>
+      </div>
+      <div class="card block">
+        <div class="card-head">
+          <div>
+            <strong>Bun runtime</strong>
+            ${bunMeta.map((line) => `<div class="meta">${escapeHtml(String(line))}</div>`).join('')}
+          </div>
+          ${renderStatusBadge(getBunStatusLabel(bun.status), getToolTone(bun.status))}
+        </div>
+        <div class="inline-actions">
+          ${bunInstallButton}
+          <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh</button>
+        </div>
+      </div>
+      <div class="card block">
+        <div class="card-head">
+          <div>
+            <strong>SubMiner launcher</strong>
+            ${launcherMeta.map((line) => `<div class="meta">${escapeHtml(String(line))}</div>`).join('')}
+          </div>
+          ${renderStatusBadge(getLauncherStatusLabel(launcher.status), getLauncherTone(launcher.status))}
+        </div>
+        <div class="inline-actions">
+          <button ${launcherButtonDisabled} onclick="window.location.href='subminer://first-run-setup?action=install-command-line-launcher'">Install launcher</button>
+          <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh</button>
+        </div>
+      </div>
+    </section>`;
 }
 
 export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
@@ -264,6 +391,16 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       gap: 8px;
       margin-top: 12px;
     }
+    .setup-section {
+      margin-top: 10px;
+    }
+    .section-head {
+      margin: 14px 0 8px;
+    }
+    .section-head h2 {
+      margin: 0;
+      font-size: 14px;
+    }
     label {
       color: var(--muted);
       display: flex;
@@ -306,6 +443,12 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       grid-template-columns: 1fr 1fr;
       gap: 8px;
       margin-top: 14px;
+    }
+    .inline-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
     }
     button {
       border: 0;
@@ -386,6 +529,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     </div>
     ${mpvExecutablePathCard}
     ${windowsShortcutCard}
+    ${renderCommandLineLauncherSection(model.commandLineLauncher)}
     ${legacyPluginCard}
     <div class="actions">
       <button onclick="window.location.href='subminer://first-run-setup?action=open-yomitan-settings'">Open Yomitan Settings</button>
@@ -409,6 +553,8 @@ export function parseFirstRunSetupSubmissionUrl(rawUrl: string): FirstRunSetupSu
     action !== 'configure-mpv-executable-path' &&
     action !== 'remove-legacy-plugin' &&
     action !== 'configure-windows-mpv-shortcuts' &&
+    action !== 'install-bun' &&
+    action !== 'install-command-line-launcher' &&
     action !== 'open-yomitan-settings' &&
     action !== 'refresh' &&
     action !== 'finish'

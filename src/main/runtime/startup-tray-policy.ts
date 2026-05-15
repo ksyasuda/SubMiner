@@ -12,3 +12,12 @@ export function shouldEnsureTrayOnStartupForInitialArgs(
   }
   return true;
 }
+
+export function shouldQuitOnWindowAllClosedForTrayState(options: {
+  backgroundMode: boolean;
+  hasTray: boolean;
+}): boolean {
+  if (options.backgroundMode) return false;
+  if (options.hasTray) return false;
+  return true;
+}
