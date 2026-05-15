@@ -1,8 +1,8 @@
 import electron from 'electron';
-import type { BrowserWindow, Extension, Session } from 'electron';
+import type { BrowserWindow, Extension, Menu, MenuItemConstructorOptions, Session } from 'electron';
 import { createLogger } from '../../logger';
 
-const { BrowserWindow: ElectronBrowserWindow, session } = electron;
+const { BrowserWindow: ElectronBrowserWindow, Menu: ElectronMenu, session } = electron;
 const logger = createLogger('main:yomitan-settings');
 
 export interface OpenYomitanSettingsWindowOptions {
@@ -13,15 +13,40 @@ export interface OpenYomitanSettingsWindowOptions {
   onWindowClosed?: () => void;
 }
 
+type YomitanSettingsWindowMenuOwner = Pick<BrowserWindow, 'close' | 'isDestroyed'>;
+
+export function buildYomitanSettingsWindowMenuTemplate(
+  settingsWindow: YomitanSettingsWindowMenuOwner,
+): MenuItemConstructorOptions[] {
+  return [
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Close',
+          accelerator: process.platform === 'darwin' ? 'Command+W' : 'Ctrl+W',
+          click: () => {
+            if (!settingsWindow.isDestroyed()) {
+              settingsWindow.close();
+            }
+          },
+        },
+      ],
+    },
+  ];
+}
+
 export function configureYomitanSettingsWindowChrome(
-  settingsWindow: Pick<BrowserWindow, 'setAutoHideMenuBar' | 'setMenu'>,
+  settingsWindow: Pick<BrowserWindow, 'close' | 'isDestroyed' | 'setAutoHideMenuBar' | 'setMenu'>,
+  buildMenu: (template: MenuItemConstructorOptions[]) => Menu = (template) =>
+    ElectronMenu.buildFromTemplate(template),
 ): void {
-  settingsWindow.setAutoHideMenuBar(true);
-  settingsWindow.setMenu(null);
+  settingsWindow.setAutoHideMenuBar(false);
+  settingsWindow.setMenu(buildMenu(buildYomitanSettingsWindowMenuTemplate(settingsWindow)));
 }
 
 export function buildYomitanSettingsUrl(extensionId: string): string {
-  return `chrome-extension://${extensionId}/settings.html?popup-preview=false&subminer-settings-safe=true`;
+  return `chrome-extension://${extensionId}/settings.html?popup-preview=false`;
 }
 
 export function showYomitanSettingsWindow(settingsWindow: BrowserWindow): void {
