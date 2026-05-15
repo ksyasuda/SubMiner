@@ -575,6 +575,7 @@ test('numeric selection ignores non-digit keys instead of falling through to oth
       testGlobals.commandEvents.some((event) => event.type === 'forwardKeyDown'),
       false,
     );
+    testGlobals.dispatchKeydown({ key: 'Escape', code: 'Escape' });
   } finally {
     testGlobals.restore();
   }
