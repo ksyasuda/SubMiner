@@ -11,7 +11,7 @@ const docsPackageContents = readFileSync(docsPackagePath, 'utf8');
 test('docs site loads the docs.subminer.moe Plausible script through the analytics proxy', () => {
   expect(docsConfigContents).toContain("const DOCS_HOSTNAME = 'https://docs.subminer.moe'");
   expect(docsConfigContents).toContain(
-    "const PLAUSIBLE_PROXY_HOSTNAME = 'https://worker.subminer.moe'",
+    "const PLAUSIBLE_PROXY_HOSTNAME = 'https://worker.sudacode.com'",
   );
   expect(docsConfigContents).toContain(
     "const PLAUSIBLE_SITE_SCRIPT_PATH = '/js/pa-h28Pn9ppgTJRmiSJlyPT6.js'",

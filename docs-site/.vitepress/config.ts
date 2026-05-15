@@ -1,5 +1,5 @@
 const DOCS_HOSTNAME = 'https://docs.subminer.moe';
-const PLAUSIBLE_PROXY_HOSTNAME = 'https://worker.subminer.moe';
+const PLAUSIBLE_PROXY_HOSTNAME = 'https://worker.sudacode.com';
 const PLAUSIBLE_SITE_SCRIPT_PATH = '/js/pa-h28Pn9ppgTJRmiSJlyPT6.js';
 const PLAUSIBLE_ENDPOINT = `${PLAUSIBLE_PROXY_HOSTNAME}/api/event`;
 const PLAUSIBLE_INIT_SCRIPT = [
