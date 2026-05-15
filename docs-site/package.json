@@ -14,7 +14,6 @@
     "@catppuccin/vitepress": "^0.1.2",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/manrope": "^5.2.8",
-    "@plausible-analytics/tracker": "^0.4.4",
     "mermaid": "^11.12.3"
   },
   "devDependencies": {

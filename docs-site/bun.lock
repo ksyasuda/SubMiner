@@ -8,7 +8,6 @@
         "@catppuccin/vitepress": "^0.1.2",
         "@fontsource/jetbrains-mono": "^5.2.8",
         "@fontsource/manrope": "^5.2.8",
-        "@plausible-analytics/tracker": "^0.4.4",
         "mermaid": "^11.12.3",
       },
       "devDependencies": {
@@ -142,8 +141,6 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@mermaid-js/parser": ["@mermaid-js/parser@1.0.0", "", { "dependencies": { "langium": "^4.0.0" } }, "sha512-vvK0Hi/VWndxoh03Mmz6wa1KDriSPjS2XMZL/1l19HFwygiObEEoEwSDxOqyLzzAI6J2PU3261JjTMTO7x+BPw=="],
-
-    "@plausible-analytics/tracker": ["@plausible-analytics/tracker@0.4.4", "", {}, "sha512-fz0NOYUEYXtg1TBaPEEvtcBq3FfmLFuTe1VZw4M8sTWX129br5dguu3M15+plOQnc181ShYe67RfwhKgK89VnA=="],
 
     "@rollup/rollup-android-arm-eabi": ["@rollup/rollup-android-arm-eabi@4.59.0", "", { "os": "android", "cpu": "arm" }, "sha512-upnNBkA6ZH2VKGcBj9Fyl9IGNPULcjXRlg0LLeaioQWueH30p6IXtJEbKAgvyv+mJaMxSm1l6xwDXYjpEMiLMg=="],
 

@@ -1,4 +1,11 @@
 const DOCS_HOSTNAME = 'https://docs.subminer.moe';
+const PLAUSIBLE_PROXY_HOSTNAME = 'https://worker.subminer.moe';
+const PLAUSIBLE_SITE_SCRIPT_PATH = '/js/pa-h28Pn9ppgTJRmiSJlyPT6.js';
+const PLAUSIBLE_ENDPOINT = `${PLAUSIBLE_PROXY_HOSTNAME}/api/event`;
+const PLAUSIBLE_INIT_SCRIPT = [
+  'window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};',
+  `plausible.init({ endpoint: '${PLAUSIBLE_ENDPOINT}' });`,
+].join('\n');
 
 function pageToCanonicalHref(page: string): string | null {
   if (page === '404.md') return null;
@@ -15,6 +22,15 @@ export default {
   description:
     'SubMiner: an MPV immersion-mining overlay with Yomitan and AnkiConnect integration.',
   head: [
+    ['link', { rel: 'preconnect', href: PLAUSIBLE_PROXY_HOSTNAME }],
+    [
+      'script',
+      {
+        async: '',
+        src: `${PLAUSIBLE_PROXY_HOSTNAME}${PLAUSIBLE_SITE_SCRIPT_PATH}`,
+      },
+    ],
+    ['script', {}, PLAUSIBLE_INIT_SCRIPT],
     ['link', { rel: 'icon', href: '/favicon.ico', sizes: 'any' }],
     [
       'link',
