@@ -3856,6 +3856,9 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     loadYomitanExtension: async () => {
       await loadYomitanExtension();
     },
+    ensureYomitanExtensionLoaded: async () => {
+      await ensureYomitanExtensionLoaded();
+    },
     handleFirstRunSetup: async () => {
       const snapshot = await firstRunSetupService.ensureSetupStateInitialized();
       appState.firstRunSetupCompleted = snapshot.state.status === 'completed';

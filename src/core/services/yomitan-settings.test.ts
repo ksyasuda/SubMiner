@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildYomitanSettingsCloseButtonScript,
   buildYomitanSettingsWindowMenuTemplate,
   buildYomitanSettingsUrl,
   configureYomitanSettingsWindowChrome,
@@ -41,6 +42,15 @@ test('yomitan settings close menu skips destroyed windows', () => {
   assert.ok(Array.isArray(submenu));
   submenu[0]?.click?.({} as never, {} as never, {} as never);
   assert.deepEqual(calls, []);
+});
+
+test('yomitan settings close button script installs an idempotent in-page close control', () => {
+  const script = buildYomitanSettingsCloseButtonScript();
+
+  assert.match(script, /subminer-yomitan-settings-close/);
+  assert.match(script, /aria-label', 'Close Yomitan settings'/);
+  assert.match(script, /window\.close\(\)/);
+  assert.match(script, /getElementById\(buttonId\)/);
 });
 
 test('yomitan settings URL disables the embedded popup preview', () => {

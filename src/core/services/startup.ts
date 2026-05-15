@@ -131,6 +131,7 @@ export interface AppReadyRuntimeDeps {
   createImmersionTracker?: () => void;
   startJellyfinRemoteSession?: () => Promise<void>;
   loadYomitanExtension: () => Promise<void>;
+  ensureYomitanExtensionLoaded?: () => Promise<void>;
   handleFirstRunSetup: () => Promise<void>;
   prewarmSubtitleDictionaries?: () => Promise<void>;
   startBackgroundWarmups: () => void;
@@ -215,6 +216,8 @@ export function isAutoUpdateEnabledRuntime(
 export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<void> {
   const now = deps.now ?? (() => Date.now());
   const startupStartedAtMs = now();
+  const ensureYomitanExtensionReady =
+    deps.ensureYomitanExtensionLoaded ?? deps.loadYomitanExtension;
   deps.ensureDefaultConfigBootstrap();
   if (deps.shouldRunHeadlessInitialCommand?.()) {
     deps.reloadConfig();
@@ -224,7 +227,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
     } else {
       deps.createMpvClient();
       deps.createSubtitleTimingTracker();
-      await deps.loadYomitanExtension();
+      await ensureYomitanExtensionReady();
       deps.initializeOverlayRuntime();
       deps.handleInitialArgs();
     }
@@ -238,7 +241,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   }
 
   if (deps.shouldSkipHeavyStartup?.()) {
-    await deps.loadYomitanExtension();
+    await ensureYomitanExtensionReady();
     deps.reloadConfig();
     await deps.handleFirstRunSetup();
     deps.handleInitialArgs();
@@ -248,7 +251,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   deps.logDebug?.('App-ready critical path started.');
 
   if (deps.shouldSkipHeavyStartup?.()) {
-    await deps.loadYomitanExtension();
+    await ensureYomitanExtensionReady();
     deps.reloadConfig();
     await deps.handleFirstRunSetup();
     deps.handleInitialArgs();
@@ -319,12 +322,12 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   if (deps.texthookerOnlyMode) {
     deps.log('Texthooker-only mode enabled; skipping overlay window.');
   } else if (deps.shouldAutoInitializeOverlayRuntimeFromConfig()) {
-    await deps.loadYomitanExtension();
+    await ensureYomitanExtensionReady();
     deps.setVisibleOverlayVisible(true);
     deps.initializeOverlayRuntime();
   } else {
     deps.log('Overlay runtime deferred: waiting for explicit overlay command.');
-    await deps.loadYomitanExtension();
+    await ensureYomitanExtensionReady();
   }
 
   await deps.handleFirstRunSetup();

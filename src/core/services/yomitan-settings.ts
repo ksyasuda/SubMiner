@@ -36,6 +36,73 @@ export function buildYomitanSettingsWindowMenuTemplate(
   ];
 }
 
+export function buildYomitanSettingsCloseButtonScript(): string {
+  return `
+(() => {
+  const buttonId = 'subminer-yomitan-settings-close';
+  const styleId = 'subminer-yomitan-settings-close-style';
+  if (document.getElementById(buttonId)) {
+    return;
+  }
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = \`
+      #\${buttonId} {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 2147483647;
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 4px;
+        background: rgba(24, 24, 24, 0.92);
+        color: #f2f2f2;
+        font: 22px/1 system-ui, sans-serif;
+        cursor: pointer;
+      }
+      #\${buttonId}:hover {
+        background: rgba(54, 54, 54, 0.96);
+        border-color: rgba(255, 255, 255, 0.5);
+      }
+      #\${buttonId}:focus-visible {
+        outline: 2px solid #8ab4f8;
+        outline-offset: 2px;
+      }
+    \`;
+    document.head.appendChild(style);
+  }
+  const button = document.createElement('button');
+  button.id = buttonId;
+  button.type = 'button';
+  button.title = 'Close';
+  button.setAttribute('aria-label', 'Close Yomitan settings');
+  button.textContent = '\\u00d7';
+  button.addEventListener('click', () => {
+    window.close();
+  });
+  document.body.appendChild(button);
+})();
+`;
+}
+
+export function installYomitanSettingsCloseButton(
+  settingsWindow: Pick<BrowserWindow, 'isDestroyed' | 'webContents'>,
+): void {
+  if (settingsWindow.isDestroyed()) {
+    return;
+  }
+  settingsWindow.webContents
+    .executeJavaScript(buildYomitanSettingsCloseButtonScript())
+    .catch((error: Error) => {
+      logger.warn('Failed to install Yomitan settings close button:', error.message);
+    });
+}
+
 export function configureYomitanSettingsWindowChrome(
   settingsWindow: Pick<BrowserWindow, 'close' | 'isDestroyed' | 'setAutoHideMenuBar' | 'setMenu'>,
   buildMenu: (template: MenuItemConstructorOptions[]) => Menu = (template) =>
@@ -133,6 +200,7 @@ export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOpti
 
   settingsWindow.webContents.on('did-finish-load', () => {
     logger.info('Settings page loaded successfully');
+    installYomitanSettingsCloseButton(settingsWindow);
   });
 
   setTimeout(() => {
