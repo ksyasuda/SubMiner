@@ -7,6 +7,7 @@ import type {
 
 type FocusableWindowLike = {
   focus: () => void;
+  show?: () => void;
 };
 
 type FirstRunSetupWebContentsLike = {
@@ -585,6 +586,7 @@ export function createMaybeFocusExistingFirstRunSetupWindowHandler(deps: {
   return (): boolean => {
     const window = deps.getSetupWindow();
     if (!window) return false;
+    window.show?.();
     window.focus();
     return true;
   };
@@ -642,11 +644,17 @@ export function createOpenFirstRunSetupWindowHandler<
 
     const setupWindow = deps.createSetupWindow();
     deps.setSetupWindow(setupWindow);
+    setupWindow.show?.();
+    setupWindow.focus();
 
     const render = async (): Promise<void> => {
       const model = await deps.getSetupSnapshot();
       const html = deps.buildSetupHtml(model);
       await setupWindow.loadURL(`data:text/html;charset=utf-8,${deps.encodeURIComponent(html)}`);
+      if (!setupWindow.isDestroyed()) {
+        setupWindow.show?.();
+        setupWindow.focus();
+      }
     };
 
     const handleNavigation = createHandleFirstRunSetupNavigationHandler({

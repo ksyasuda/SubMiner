@@ -352,12 +352,13 @@ test('first-run setup window handler focuses existing window', () => {
   const calls: string[] = [];
   const maybeFocus = createMaybeFocusExistingFirstRunSetupWindowHandler({
     getSetupWindow: () => ({
+      show: () => calls.push('show'),
       focus: () => calls.push('focus'),
     }),
   });
 
   assert.equal(maybeFocus(), true);
-  assert.deepEqual(calls, ['focus']);
+  assert.deepEqual(calls, ['show', 'focus']);
 });
 
 test('first-run setup navigation handler prevents default and dispatches supported action', async () => {
@@ -404,6 +405,76 @@ test('first-run setup navigation handler swallows stale custom-scheme actions', 
 
   assert.equal(prevented, true);
   assert.deepEqual(calls, ['preventDefault']);
+});
+
+test('opening first-run setup shows and focuses window after content loads', async () => {
+  const calls: string[] = [];
+  const handler = createOpenFirstRunSetupWindowHandler({
+    maybeFocusExistingSetupWindow: () => false,
+    createSetupWindow: () =>
+      ({
+        webContents: {
+          on: () => {},
+        },
+        loadURL: async () => {
+          calls.push('load');
+        },
+        on: () => {},
+        isDestroyed: () => false,
+        close: () => {},
+        show: () => calls.push('show'),
+        focus: () => calls.push('focus'),
+      }) as never,
+    getSetupSnapshot: async () => ({
+      configReady: true,
+      dictionaryCount: 1,
+      canFinish: true,
+      externalYomitanConfigured: false,
+      pluginStatus: 'installed',
+      pluginInstallPathSummary: null,
+      mpvExecutablePath: '',
+      mpvExecutablePathStatus: 'blank',
+      windowsMpvShortcuts: {
+        supported: false,
+        startMenuEnabled: true,
+        desktopEnabled: true,
+        startMenuInstalled: false,
+        desktopInstalled: false,
+        status: 'optional',
+      },
+      commandLineLauncher: createCommandLineLauncherSnapshot(),
+      message: null,
+    }),
+    buildSetupHtml: () => '<html></html>',
+    parseSubmissionUrl: () => null,
+    handleAction: async () => undefined,
+    markSetupInProgress: async () => {
+      calls.push('in-progress');
+    },
+    markSetupCancelled: async () => undefined,
+    isSetupCompleted: () => true,
+    shouldQuitWhenClosedIncomplete: () => false,
+    quitApp: () => {},
+    clearSetupWindow: () => {},
+    setSetupWindow: () => {
+      calls.push('set');
+    },
+    encodeURIComponent: (value) => value,
+    logError: () => {},
+  });
+
+  handler();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(calls, [
+    'set',
+    'show',
+    'focus',
+    'in-progress',
+    'load',
+    'show',
+    'focus',
+  ]);
 });
 
 test('closing incomplete first-run setup quits app outside background mode', async () => {
