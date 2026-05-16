@@ -174,19 +174,23 @@ private func windowStateFromAccessibilityAPI() -> WindowLookupResult? {
         }
 
         for window in windows {
-            var minimizedRef: CFTypeRef?
-            let minimizedStatus = AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minimizedRef)
-            if minimizedStatus == .success, let minimized = minimizedRef as? Bool, minimized {
-                foundMinimizedTargetWindow = true
-                continue
-            }
-
             var windowPid: pid_t = 0
             if AXUIElementGetPid(window, &windowPid) != .success {
                 continue
             }
 
+            if windowPid != app.processIdentifier {
+                continue
+            }
+
             if !windowHasTargetSocket(windowPid) {
+                continue
+            }
+
+            var minimizedRef: CFTypeRef?
+            let minimizedStatus = AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minimizedRef)
+            if minimizedStatus == .success, let minimized = minimizedRef as? Bool, minimized {
+                foundMinimizedTargetWindow = true
                 continue
             }
 
