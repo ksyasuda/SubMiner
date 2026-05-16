@@ -50,6 +50,13 @@ jobs:
       - name: Test suite (source)
         run: bun run test:fast
 
+      - name: Install Lua
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4
+          sudo ln -sf /usr/bin/lua5.4 /usr/local/bin/lua
+          lua -v
+
       - name: Environment suite
         run: bun run test:env
 
