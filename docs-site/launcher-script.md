@@ -109,7 +109,7 @@ Use `subminer <subcommand> -h` for command-specific help.
 | `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`)                  |
 | `--dev`, `--debug`    | Enable app dev-mode (not tied to log level)                          |
 
-On Linux, `subminer -u` updates from the launcher process itself. It can check and replace the AppImage, launcher, and support assets even when SubMiner is already running in the tray.
+On Linux, `subminer -u` updates from the launcher process itself. It can check and replace the AppImage, launcher, and rofi theme even when SubMiner is already running in the tray.
 
 With default plugin settings (`auto_start=yes`, `auto_start_visible_overlay=yes`, `auto_start_pause_until_ready=yes`), explicit start flags are usually unnecessary.
 

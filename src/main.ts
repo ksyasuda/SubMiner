@@ -4656,9 +4656,9 @@ async function updateLauncherFromSelectedRelease(
   });
   for (const result of supportResults) {
     if (result.status === 'protected' && result.command) {
-      logger.warn(`Support assets update requires manual command: ${result.command}`);
+      logger.warn(`Rofi theme update requires manual command: ${result.command}`);
     } else if (result.status === 'hash-mismatch' || result.status === 'missing-asset') {
-      logger.warn(`Support assets update skipped: ${result.message ?? result.status}`);
+      logger.warn(`Rofi theme update skipped: ${result.message ?? result.status}`);
     }
   }
   return launcherResult;

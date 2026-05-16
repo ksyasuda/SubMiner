@@ -269,7 +269,7 @@ test('update command runs direct Linux release update without launching Electron
     'direct:/tmp/subminer.app:/tmp/subminer:stable',
     'info:AppImage update: not-found',
     'info:Launcher update: updated',
-    'info:Support assets update: skipped',
+    'info:Rofi theme update: skipped',
   ]);
 });
 

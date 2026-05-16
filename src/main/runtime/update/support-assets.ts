@@ -29,12 +29,6 @@ export function detectSupportAssetDataDirs(options: {
   homeDir: string;
   xdgDataHome?: string;
 }): string[] {
-  if (options.platform === 'darwin') {
-    return [
-      path.join(options.homeDir, 'Library/Application Support/SubMiner'),
-      '/usr/local/share/SubMiner',
-    ];
-  }
   if (options.platform === 'linux') {
     const xdgDataHome = options.xdgDataHome || path.join(options.homeDir, '.local/share');
     return [path.join(xdgDataHome, 'SubMiner'), '/usr/local/share/SubMiner', '/usr/share/SubMiner'];
@@ -48,8 +42,7 @@ export function buildProtectedSupportAssetsCommand(assetUrl: string, dataDir: st
     'tmp=$(mktemp -d)',
     `curl -fSL ${shellQuote(assetUrl)} -o "$tmp/subminer-assets.tar.gz"`,
     'tar -xzf "$tmp/subminer-assets.tar.gz" -C "$tmp"',
-    `sudo mkdir -p ${quotedDir}/plugin/subminer ${quotedDir}/themes`,
-    `sudo cp -R "$tmp/plugin/subminer/." ${quotedDir}/plugin/subminer/`,
+    `sudo mkdir -p ${quotedDir}/themes`,
     `sudo cp "$tmp/assets/themes/subminer.rasi" ${quotedDir}/themes/subminer.rasi`,
   ].join(' && ');
 }
@@ -76,12 +69,15 @@ export async function updateSupportAssetsFromRelease(options: {
   homeDir?: string;
   xdgDataHome?: string;
 }): Promise<SupportAssetsUpdateResult[]> {
+  if ((options.platform ?? process.platform) !== 'linux') {
+    return [{ status: 'skipped', message: 'Support assets are only installed on Linux.' }];
+  }
   if (!options.release) return [{ status: 'missing-asset', message: 'No release found.' }];
   const asset = findReleaseAsset(options.release, 'subminer-assets.tar.gz');
-  if (!asset) return [{ status: 'missing-asset', message: 'Release has no support assets.' }];
+  if (!asset) return [{ status: 'missing-asset', message: 'Release has no rofi theme asset.' }];
   const expectedSha256 = options.sha256Sums.get('subminer-assets.tar.gz');
   if (!expectedSha256) {
-    return [{ status: 'missing-asset', message: 'SHA256SUMS.txt has no support assets entry.' }];
+    return [{ status: 'missing-asset', message: 'SHA256SUMS.txt has no rofi theme entry.' }];
   }
 
   const dataDirs = detectSupportAssetDataDirs({
@@ -91,12 +87,11 @@ export async function updateSupportAssetsFromRelease(options: {
   });
   const existingDataDirs: string[] = [];
   for (const dataDir of dataDirs) {
-    const hasPlugin = await pathExists(path.join(dataDir, 'plugin/subminer'));
     const hasTheme = await pathExists(path.join(dataDir, 'themes/subminer.rasi'));
-    if (hasPlugin || hasTheme) existingDataDirs.push(dataDir);
+    if (hasTheme) existingDataDirs.push(dataDir);
   }
   if (existingDataDirs.length === 0) {
-    return [{ status: 'skipped', message: 'No existing support asset install detected.' }];
+    return [{ status: 'skipped', message: 'No existing rofi theme install detected.' }];
   }
 
   const protectedResults: SupportAssetsUpdateResult[] = existingDataDirs
@@ -139,15 +134,7 @@ export async function updateSupportAssetsFromRelease(options: {
     await execFileAsync('tar', ['-xzf', archivePath, '-C', tempDir]);
     const results: SupportAssetsUpdateResult[] = [...protectedResults];
     for (const dataDir of writableDataDirs) {
-      const targetPluginDir = path.join(dataDir, 'plugin/subminer');
       const targetThemePath = path.join(dataDir, 'themes/subminer.rasi');
-      if (await pathExists(targetPluginDir)) {
-        await fs.promises.mkdir(targetPluginDir, { recursive: true });
-        await fs.promises.cp(path.join(tempDir, 'plugin/subminer'), targetPluginDir, {
-          recursive: true,
-          force: true,
-        });
-      }
       if (await pathExists(targetThemePath)) {
         await fs.promises.mkdir(path.dirname(targetThemePath), { recursive: true });
         await fs.promises.copyFile(

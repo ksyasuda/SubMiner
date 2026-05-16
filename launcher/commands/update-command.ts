@@ -128,7 +128,8 @@ function logUpdateResult(
   configuredLogLevel: NonNullable<LauncherCommandContext['args']['logLevel']>,
   deps: Pick<UpdateCommandDeps, 'log'>,
 ): void {
-  deps.log('info', configuredLogLevel, `${label} update: ${result.status}`);
+  const displayStatus = result.status === 'up-to-date' ? 'up to date' : result.status;
+  deps.log('info', configuredLogLevel, `${label} update: ${displayStatus}`);
   if (result.command) {
     deps.log(
       'warn',
@@ -186,7 +187,7 @@ export async function runUpdateCommand(
     logUpdateResult('AppImage', result.appImage, logLevel, resolvedDeps);
     logUpdateResult('Launcher', result.launcher, logLevel, resolvedDeps);
     for (const supportResult of result.supportAssets) {
-      logUpdateResult('Support assets', supportResult, logLevel, resolvedDeps);
+      logUpdateResult('Rofi theme', supportResult, logLevel, resolvedDeps);
     }
     return true;
   }

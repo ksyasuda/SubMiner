@@ -155,11 +155,11 @@ chmod +x ~/.local/bin/SubMiner.AppImage
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer
 chmod +x ~/.local/bin/subminer
 
-# Download launcher support assets used for bundled runtime plugin injection
+# Download the optional Linux rofi theme
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
-mkdir -p ~/.local/share/SubMiner/plugin/subminer
-cp -R /tmp/plugin/subminer/. ~/.local/share/SubMiner/plugin/subminer/
+mkdir -p ~/.local/share/SubMiner/themes
+cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
 ```
 
 The `subminer` launcher is the recommended way to use SubMiner on Linux. It ensures mpv is launched with the correct IPC socket, SubMiner defaults, and the bundled runtime plugin so you don't need to configure `mpv.conf` or install a global mpv plugin.
@@ -174,7 +174,7 @@ subminer -u
 subminer --update
 ```
 
-SubMiner verifies launcher/support asset downloads against `SHA256SUMS.txt`. If the launcher is installed in a protected path such as `/usr/local/bin/subminer`, SubMiner does not elevate itself; it shows the exact `sudo curl ... && sudo chmod +x ...` command to run instead.
+SubMiner verifies launcher and Linux rofi theme downloads against `SHA256SUMS.txt`. If the launcher is installed in a protected path such as `/usr/local/bin/subminer`, SubMiner does not elevate itself; it shows the exact `sudo curl ... && sudo chmod +x ...` command to run instead.
 
 On Linux, `subminer -u` performs this update from the launcher process, so it does not need to start or IPC into the tray app.
 
@@ -242,7 +242,7 @@ subminer -u
 subminer --update
 ```
 
-SubMiner verifies launcher/support asset downloads against `SHA256SUMS.txt`. If `/usr/local/bin/subminer` is protected, SubMiner shows the exact `sudo curl ... && sudo chmod +x ...` command to run instead of elevating itself.
+SubMiner verifies launcher downloads against `SHA256SUMS.txt`. If `/usr/local/bin/subminer` is protected, SubMiner shows the exact `sudo curl ... && sudo chmod +x ...` command to run instead of elevating itself.
 
 ::: warning Bun required for the launcher
 The `subminer` launcher uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`. Install Bun if you haven't already: `curl -fsSL https://bun.sh/install | bash`.
@@ -271,7 +271,7 @@ Build and install the launcher alongside the app:
 make install-macos
 ```
 
-This builds the `subminer` launcher into `dist/launcher/subminer` and installs it to `~/.local/bin/subminer` along with the app bundle and rofi theme. To install to `/usr/local/bin` instead (already on the default macOS `PATH`):
+This builds the `subminer` launcher into `dist/launcher/subminer` and installs it to `~/.local/bin/subminer` along with the app bundle. To install to `/usr/local/bin` instead (already on the default macOS `PATH`):
 
 ```bash
 sudo make install-macos PREFIX=/usr/local

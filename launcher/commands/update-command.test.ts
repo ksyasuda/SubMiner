@@ -48,7 +48,7 @@ test('runUpdateCommand updates directly on Linux without launching Electron', as
     'direct:/home/kyle/.local/bin/SubMiner.AppImage:/home/kyle/.local/bin/subminer:prerelease',
     'info:AppImage update: updated',
     'info:Launcher update: updated',
-    'info:Support assets update: skipped',
+    'info:Rofi theme update: skipped',
   ]);
 });
 
@@ -99,9 +99,9 @@ test('runUpdateCommand skips Linux asset replacement when release is not newer',
     assert.equal(handled, true);
     assert.deepEqual(calls, [
       'fetch:https://api.github.com/repos/ksyasuda/SubMiner/releases',
-      'info:AppImage update: up-to-date',
-      'info:Launcher update: up-to-date',
-      'info:Support assets update: up-to-date',
+      'info:AppImage update: up to date',
+      'info:Launcher update: up to date',
+      'info:Rofi theme update: up to date',
     ]);
   } finally {
     globalThis.fetch = originalFetch;
