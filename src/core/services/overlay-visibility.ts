@@ -98,8 +98,7 @@ export function updateVisibleOverlayVisibility(args: {
     const canReportMacOSTargetMinimized =
       args.isMacOSPlatform && typeof windowTracker?.isTargetWindowMinimized === 'function';
     const isTrackedMacOSTargetMinimized =
-      canReportMacOSTargetMinimized &&
-      windowTracker?.isTargetWindowMinimized() === true;
+      canReportMacOSTargetMinimized && windowTracker?.isTargetWindowMinimized() === true;
     const hasTransientMacOSTrackerLoss =
       args.isMacOSPlatform &&
       canReportMacOSTargetMinimized &&
@@ -117,6 +116,8 @@ export function updateVisibleOverlayVisibility(args: {
       !hasTransientMacOSTrackerLoss &&
       !isVisibleOverlayFocused &&
       !isTrackedMacOSTargetFocused;
+    // Renderer hover tracking temporarily disables this for subtitle and popup interaction.
+    const shouldUseMacOSMousePassthrough = args.isMacOSPlatform;
     const shouldDefaultToPassthrough =
       args.isWindowsPlatform || forceMousePassthrough || shouldReleaseMacOSOverlayLevel;
     const windowsForegroundProcessName =
@@ -141,6 +142,7 @@ export function updateVisibleOverlayVisibility(args: {
       (args.windowTracker.isTracking() || args.windowTracker.getGeometry() !== null);
     const shouldForcePassiveReshow = args.isWindowsPlatform && !wasVisible;
     const shouldIgnoreMouseEvents =
+      shouldUseMacOSMousePassthrough ||
       forceMousePassthrough ||
       (shouldDefaultToPassthrough && (!isVisibleOverlayFocused || shouldForcePassiveReshow));
     const shouldBindTrackedWindowsOverlay = args.isWindowsPlatform && !!args.windowTracker;
@@ -291,8 +293,7 @@ export function updateVisibleOverlayVisibility(args: {
   const canReportMacOSTargetMinimized =
     args.isMacOSPlatform && typeof args.windowTracker.isTargetWindowMinimized === 'function';
   const isTrackedMacOSTargetMinimized =
-    canReportMacOSTargetMinimized &&
-    args.windowTracker.isTargetWindowMinimized();
+    canReportMacOSTargetMinimized && args.windowTracker.isTargetWindowMinimized();
   const shouldPreserveTransientTrackedOverlay =
     (args.isMacOSPlatform &&
       !isTrackedMacOSTargetMinimized &&

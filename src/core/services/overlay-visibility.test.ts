@@ -883,7 +883,7 @@ test('visible overlay stays hidden while a modal window is active', () => {
   assert.ok(!calls.includes('update-bounds'));
 });
 
-test('macOS tracked visible overlay stays interactive without passively stealing focus', () => {
+test('macOS tracked visible overlay starts click-through without passively stealing focus', () => {
   const { window, calls } = createMainWindowRecorder();
   const tracker: WindowTrackerStub = {
     isTracking: () => true,
@@ -915,12 +915,52 @@ test('macOS tracked visible overlay stays interactive without passively stealing
     isWindowsPlatform: false,
   } as never);
 
-  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
   assert.ok(calls.includes('show'));
   assert.ok(!calls.includes('focus'));
 });
 
-test('macOS keeps active mpv overlay visible and interactive during tracker refresh', () => {
+test('macOS tracked visible overlay remains click-through even if the overlay had focus', () => {
+  const { window, calls, setFocused } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+    isTargetWindowFocused: () => true,
+  };
+
+  setFocused(true);
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: true,
+    isWindowsPlatform: false,
+  } as never);
+
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('ensure-level'));
+  assert.ok(!calls.includes('focus'));
+});
+
+test('macOS keeps active mpv overlay visible and click-through during tracker refresh', () => {
   const { window, calls } = createMainWindowRecorder();
   const osdMessages: string[] = [];
   const tracker: WindowTrackerStub = {
@@ -961,7 +1001,7 @@ test('macOS keeps active mpv overlay visible and interactive during tracker refr
 
   assert.ok(calls.includes('update-bounds'));
   assert.ok(calls.includes('sync-layer'));
-  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
   assert.ok(calls.includes('ensure-level'));
   assert.ok(calls.includes('enforce-order'));
   assert.ok(calls.includes('sync-shortcuts'));
@@ -1060,7 +1100,7 @@ test('macOS preserves an already visible active mpv overlay while tracker is tem
 
   assert.equal(trackerWarning, false);
   assert.ok(calls.includes('sync-layer'));
-  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
   assert.ok(calls.includes('ensure-level'));
   assert.ok(calls.includes('sync-shortcuts'));
   assert.ok(!calls.includes('hide'));
@@ -1390,7 +1430,7 @@ test('macOS preserves visible overlay during transient tracker loss with retaine
   assert.deepEqual(osdMessages, []);
   assert.ok(calls.includes('update-bounds'));
   assert.ok(calls.includes('sync-layer'));
-  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
   assert.ok(calls.includes('ensure-level'));
   assert.ok(calls.includes('enforce-order'));
   assert.ok(calls.includes('sync-shortcuts'));
@@ -1438,7 +1478,7 @@ test('macOS preserves visible overlay level during non-minimized tracker loss', 
   } as never);
 
   assert.ok(calls.includes('sync-layer'));
-  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
   assert.ok(calls.includes('ensure-level'));
   assert.ok(calls.includes('enforce-order'));
   assert.ok(calls.includes('sync-shortcuts'));
