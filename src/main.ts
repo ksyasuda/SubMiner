@@ -2112,11 +2112,11 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   })(),
 );
 
-const WINDOWS_VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
+const VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
 const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] as const;
 const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
 const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
-let windowsVisibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
+let visibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderSyncInFlight = false;
 let windowsVisibleOverlayZOrderSyncQueued = false;
@@ -2124,11 +2124,11 @@ let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> 
 let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
 let lastWindowsVisibleOverlayBlurredAtMs = 0;
 
-function clearWindowsVisibleOverlayBlurRefreshTimeouts(): void {
-  for (const timeout of windowsVisibleOverlayBlurRefreshTimeouts) {
+function clearVisibleOverlayBlurRefreshTimeouts(): void {
+  for (const timeout of visibleOverlayBlurRefreshTimeouts) {
     clearTimeout(timeout);
   }
-  windowsVisibleOverlayBlurRefreshTimeouts = [];
+  visibleOverlayBlurRefreshTimeouts = [];
 }
 
 function clearWindowsVisibleOverlayZOrderRetryTimeouts(): void {
@@ -2329,20 +2329,22 @@ function clearWindowsVisibleOverlayForegroundPollLoop(): void {
 }
 
 function scheduleVisibleOverlayBlurRefresh(): void {
-  if (process.platform !== 'win32') {
+  if (process.platform !== 'win32' && process.platform !== 'darwin') {
     return;
   }
 
-  lastWindowsVisibleOverlayBlurredAtMs = Date.now();
-  clearWindowsVisibleOverlayBlurRefreshTimeouts();
-  for (const delayMs of WINDOWS_VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS) {
+  if (process.platform === 'win32') {
+    lastWindowsVisibleOverlayBlurredAtMs = Date.now();
+  }
+  clearVisibleOverlayBlurRefreshTimeouts();
+  for (const delayMs of VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS) {
     const refreshTimeout = setTimeout(() => {
-      windowsVisibleOverlayBlurRefreshTimeouts = windowsVisibleOverlayBlurRefreshTimeouts.filter(
+      visibleOverlayBlurRefreshTimeouts = visibleOverlayBlurRefreshTimeouts.filter(
         (timeout) => timeout !== refreshTimeout,
       );
       overlayVisibilityRuntime.updateVisibleOverlayVisibility();
     }, delayMs);
-    windowsVisibleOverlayBlurRefreshTimeouts.push(refreshTimeout);
+    visibleOverlayBlurRefreshTimeouts.push(refreshTimeout);
   }
 }
 

@@ -5,6 +5,7 @@ import { IPC_CHANNELS } from '../../shared/ipc/contracts.js';
 import {
   buildStatsWindowLoadFileOptions,
   buildStatsWindowOptions,
+  presentStatsWindow,
   promoteStatsWindowLevel,
   resolveStatsWindowOuterBoundsForContent,
   shouldHideStatsWindowForInput,
@@ -49,14 +50,13 @@ function showStatsWindow(window: BrowserWindow, options: StatsWindowOptions): vo
   const bounds = options.resolveBounds();
   let placementBounds = syncStatsWindowBounds(window, bounds);
   promoteStatsWindowLevel(window);
-  window.show();
+  presentStatsWindow(window);
   placementBounds = syncStatsWindowBounds(window, bounds) ?? placementBounds;
   if (
     !ensureHyprlandWindowFloatingByTitle({ title: STATS_WINDOW_TITLE, bounds: placementBounds })
   ) {
     placementBounds = syncStatsWindowBounds(window, bounds) ?? placementBounds;
   }
-  window.focus();
   options.onVisibilityChanged?.(true);
   promoteStatsWindowLevel(window);
 }

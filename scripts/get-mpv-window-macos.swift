@@ -7,7 +7,7 @@
 //  It works with both bundled and unbundled mpv installations.
 //
 //  Usage: swift get-mpv-window-macos.swift
-//  Output: "x,y,width,height" or "not-found"
+//  Output: "x,y,width,height,focused", "minimized", "active", or "not-found"
 //
 
 import Cocoa
@@ -25,9 +25,15 @@ private struct WindowState {
     let focused: Bool
 }
 
+private struct FrontmostApplicationState {
+    let pid: pid_t
+    let isMpv: Bool
+}
+
 private enum WindowLookupResult {
     case visible(WindowState)
     case minimized
+    case active
 }
 
 private let targetMpvSocketPath: String? = {
@@ -146,8 +152,35 @@ private func geometryFromAXWindow(_ axWindow: AXUIElement) -> WindowGeometry? {
     return geometry
 }
 
-private func frontmostApplicationPid() -> pid_t? {
-    NSWorkspace.shared.frontmostApplication?.processIdentifier
+private func frontmostApplicationState() -> FrontmostApplicationState? {
+    guard let app = NSWorkspace.shared.frontmostApplication else {
+        return nil
+    }
+
+    return FrontmostApplicationState(
+        pid: app.processIdentifier,
+        isMpv: app.localizedName.map(normalizedMpvName) ?? false
+    )
+}
+
+private func isFocusedMpvWindow(ownerPid: pid_t, frontmost: FrontmostApplicationState?) -> Bool {
+    guard let frontmost = frontmost else {
+        return false
+    }
+
+    if frontmost.pid == ownerPid {
+        return true
+    }
+
+    return frontmost.isMpv && windowHasTargetSocket(ownerPid)
+}
+
+private func isFrontmostTargetMpv(_ frontmost: FrontmostApplicationState?) -> Bool {
+    guard let frontmost = frontmost else {
+        return false
+    }
+
+    return frontmost.isMpv && windowHasTargetSocket(frontmost.pid)
 }
 
 private func windowStateFromAccessibilityAPI() -> WindowLookupResult? {
@@ -158,7 +191,7 @@ private func windowStateFromAccessibilityAPI() -> WindowLookupResult? {
         return normalizedMpvName(name)
     }
 
-    let frontmostPid = frontmostApplicationPid()
+    let frontmost = frontmostApplicationState()
     var foundMinimizedTargetWindow = false
 
     for app in runningApps {
@@ -198,7 +231,7 @@ private func windowStateFromAccessibilityAPI() -> WindowLookupResult? {
                 return .visible(
                     WindowState(
                         geometry: geometry,
-                        focused: frontmostPid == windowPid
+                        focused: isFocusedMpvWindow(ownerPid: windowPid, frontmost: frontmost)
                     )
                 )
             }
@@ -217,7 +250,7 @@ private func windowStateFromCoreGraphics() -> WindowState? {
     // Use on-screen layer-0 windows to avoid off-screen helpers/shadows.
     let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
     let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
-    let frontmostPid = frontmostApplicationPid()
+    let frontmost = frontmostApplicationState()
 
     for window in windowList {
         guard let ownerName = window[kCGWindowOwnerName as String] as? String,
@@ -260,7 +293,7 @@ private func windowStateFromCoreGraphics() -> WindowState? {
 
         return WindowState(
             geometry: geometry,
-            focused: frontmostPid == ownerPid
+            focused: isFocusedMpvWindow(ownerPid: ownerPid, frontmost: frontmost)
         )
     }
 
@@ -274,6 +307,9 @@ private let lookupResult: WindowLookupResult? = {
     if let cgWindow = windowStateFromCoreGraphics() {
         return .visible(cgWindow)
     }
+    if isFrontmostTargetMpv(frontmostApplicationState()) {
+        return .active
+    }
     return nil
 }()
 
@@ -285,6 +321,8 @@ if let result = lookupResult {
         )
     case .minimized:
         print("minimized")
+    case .active:
+        print("active")
     }
 } else {
     print("not-found")

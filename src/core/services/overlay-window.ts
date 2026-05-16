@@ -180,7 +180,7 @@ export function createOverlayWindow(
       moveWindowTop: () => {
         window.moveTop();
       },
-      onWindowsVisibleOverlayBlur:
+      onVisibleOverlayBlur:
         kind === 'visible' ? () => options.onVisibleWindowBlurred?.() : undefined,
     });
   });

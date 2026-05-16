@@ -9,6 +9,8 @@ type StatsWindowLevelController = Pick<BrowserWindow, 'setAlwaysOnTop' | 'moveTo
   Partial<Pick<BrowserWindow, 'setVisibleOnAllWorkspaces' | 'setFullScreenable'>>;
 
 type StatsWindowBoundsController = Pick<BrowserWindow, 'getBounds' | 'getContentBounds'>;
+type StatsWindowPresentationController = Pick<BrowserWindow, 'show' | 'focus'> &
+  Partial<Pick<BrowserWindow, 'showInactive'>>;
 
 function isBareToggleKeyInput(input: Electron.Input, toggleKey: string): boolean {
   return (
@@ -102,6 +104,23 @@ export function promoteStatsWindowLevel(
 
   window.setAlwaysOnTop(true);
   window.moveTop();
+}
+
+export function presentStatsWindow(
+  window: StatsWindowPresentationController,
+  platform: NodeJS.Platform = process.platform,
+): void {
+  if (platform === 'darwin') {
+    if (window.showInactive) {
+      window.showInactive();
+    } else {
+      window.show();
+    }
+    return;
+  }
+
+  window.show();
+  window.focus();
 }
 
 export function buildStatsWindowLoadFileOptions(apiBaseUrl?: string): {

@@ -49,11 +49,19 @@ export type MacOSHelperWindowState =
       geometry: WindowGeometry;
       focused: boolean;
       minimized?: false;
+      active?: false;
+    }
+  | {
+      geometry: null;
+      focused: true;
+      active: true;
+      minimized?: false;
     }
   | {
       geometry: null;
       focused: false;
       minimized: true;
+      active?: false;
     };
 
 function runHelperWithExecFile(
@@ -97,6 +105,13 @@ export function parseMacOSHelperOutput(result: string): MacOSHelperWindowState |
       geometry: null,
       focused: false,
       minimized: true,
+    };
+  }
+  if (trimmed === 'active') {
+    return {
+      geometry: null,
+      focused: true,
+      active: true,
     };
   }
   if (!trimmed || trimmed === 'not-found') {
@@ -325,6 +340,12 @@ export class MacOSWindowTracker extends BaseWindowTracker {
             this.targetWindowMinimized = true;
             this.updateTargetWindowFocused(false);
             this.registerTrackingMiss(this.minimizedTrackingLossGraceMs);
+            return;
+          }
+          if (parsed.active) {
+            this.resetTrackingLossState();
+            this.targetWindowMinimized = false;
+            this.updateTargetWindowFocused(true);
             return;
           }
           this.resetTrackingLossState();
