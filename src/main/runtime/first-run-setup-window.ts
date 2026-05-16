@@ -628,6 +628,7 @@ export function createOpenFirstRunSetupWindowHandler<
   markSetupCancelled: () => Promise<unknown>;
   isSetupCompleted: () => boolean;
   shouldQuitWhenClosedIncomplete: () => boolean;
+  shouldQuitWhenClosedCompleted?: () => boolean;
   quitApp: () => void;
   clearSetupWindow: () => void;
   setSetupWindow: (window: TWindow) => void;
@@ -684,7 +685,10 @@ export function createOpenFirstRunSetupWindowHandler<
         });
       }
       deps.clearSetupWindow();
-      if (!setupCompleted && deps.shouldQuitWhenClosedIncomplete()) {
+      if (
+        (setupCompleted && deps.shouldQuitWhenClosedCompleted?.()) ||
+        (!setupCompleted && deps.shouldQuitWhenClosedIncomplete())
+      ) {
         deps.quitApp();
       }
     });

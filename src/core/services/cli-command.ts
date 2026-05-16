@@ -106,6 +106,7 @@ export interface CliCommandServiceDeps {
   getMultiCopyTimeoutMs: () => number;
   showMpvOsd: (text: string) => void;
   log: (message: string) => void;
+  logDebug: (message: string) => void;
   warn: (message: string) => void;
   error: (message: string, err: unknown) => void;
 }
@@ -211,6 +212,7 @@ export interface CliCommandDepsRuntimeOptions {
   getMultiCopyTimeoutMs: () => number;
   schedule: (fn: () => void, delayMs: number) => unknown;
   log: (message: string) => void;
+  logDebug: (message: string) => void;
   warn: (message: string) => void;
   error: (message: string, err: unknown) => void;
 }
@@ -286,6 +288,7 @@ export function createCliCommandDepsRuntime(
     getMultiCopyTimeoutMs: options.getMultiCopyTimeoutMs,
     showMpvOsd: options.mpv.showOsd,
     log: options.log,
+    logDebug: options.logDebug,
     warn: options.warn,
     error: options.error,
   };
@@ -379,7 +382,7 @@ export function handleCliCommand(
     deps.togglePrimarySubtitleBar();
   } else if (args.setup) {
     deps.openFirstRunSetup();
-    deps.log('Opened first-run setup flow.');
+    deps.logDebug('Opened first-run setup flow.');
   } else if (args.settings) {
     deps.openYomitanSettingsDelayed(1000);
   } else if (args.show || args.showVisibleOverlay) {

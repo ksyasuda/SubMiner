@@ -1,5 +1,4 @@
-import { constants, accessSync, realpathSync } from 'node:fs';
-import path from 'node:path';
+import { realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { autoUpdater as electronAutoUpdater } from 'electron-updater';
 import type { UpdateChannel } from '../../../types/config';
@@ -23,6 +22,9 @@ export interface ElectronAutoUpdaterLike {
   allowPrerelease: boolean;
   allowDowngrade: boolean;
   logger?: ElectronUpdaterLoggerLike | null;
+  on?: (event: 'error', listener: (error: unknown) => void) => unknown;
+  off?: (event: 'error', listener: (error: unknown) => void) => unknown;
+  removeListener?: (event: 'error', listener: (error: unknown) => void) => unknown;
   checkForUpdates: () => Promise<{
     updateInfo?: {
       version?: string;
@@ -31,6 +33,8 @@ export interface ElectronAutoUpdaterLike {
   downloadUpdate: () => Promise<unknown>;
   quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void;
 }
+
+const updaterErrorListeners = new WeakMap<object, (error: unknown) => void>();
 
 export function resolveMacAppBundlePath(execPath: string): string | null {
   const marker = '.app/Contents/MacOS/';
@@ -46,16 +50,6 @@ function readMacCodeSignature(appBundlePath: string): string | null {
   });
   if (result.error || result.status !== 0) return null;
   return `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
-}
-
-function canWriteLinuxAppImage(appImagePath: string): boolean {
-  try {
-    accessSync(appImagePath, constants.W_OK);
-    accessSync(path.dirname(appImagePath), constants.W_OK);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function realpathOrOriginal(filePath: string): string {
@@ -75,7 +69,6 @@ export function isNativeUpdaterSupported(options: {
   isPackaged: boolean;
   execPath: string;
   env?: NodeJS.ProcessEnv;
-  canWriteAppImage?: (appImagePath: string) => boolean;
   readCodeSignature?: (appBundlePath: string) => string | null;
   log?: (message: string) => void;
 }): boolean {
@@ -84,22 +77,10 @@ export function isNativeUpdaterSupported(options: {
     return false;
   }
   if (options.platform === 'linux') {
-    const appImagePath = options.env?.APPIMAGE?.trim();
-    if (!appImagePath) {
-      options.log?.('Skipping native Linux updater because APPIMAGE is not set.');
-      return false;
-    }
-    if (isKnownLinuxPackageManagedAppImage(appImagePath)) {
-      options.log?.(
-        'Skipping native Linux updater because this AppImage is managed by the system package manager.',
-      );
-      return false;
-    }
-    if (!(options.canWriteAppImage ?? canWriteLinuxAppImage)(appImagePath)) {
-      options.log?.('Skipping native Linux updater because the running AppImage is not writable.');
-      return false;
-    }
-    return true;
+    options.log?.(
+      'Skipping native Linux updater because Linux tray checks use GitHub release assets.',
+    );
+    return false;
   }
   if (options.platform !== 'darwin') {
     options.log?.('Skipping native updater because this platform uses GitHub metadata checks.');
@@ -143,6 +124,22 @@ export function configureAutoUpdater(
     warn: (message) => log(message),
     error: (message) => log(message),
   };
+  const previousErrorListener = updaterErrorListeners.get(updater);
+  if (previousErrorListener) {
+    if (updater.off) {
+      updater.off('error', previousErrorListener);
+    } else {
+      updater.removeListener?.('error', previousErrorListener);
+    }
+  }
+  if (updater.on) {
+    const errorListener = (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      log(`Updater error event: ${message}`);
+    };
+    updater.on('error', errorListener);
+    updaterErrorListeners.set(updater, errorListener);
+  }
   return updater;
 }
 

@@ -54,6 +54,7 @@ export interface CliCommandRuntimeServiceContext {
   getMultiCopyTimeoutMs: () => number;
   schedule: (fn: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   log: (message: string) => void;
+  logDebug: (message: string) => void;
   warn: (message: string) => void;
   error: (message: string, err: unknown) => void;
 }
@@ -133,6 +134,7 @@ function createCliCommandDepsFromContext(
     getMultiCopyTimeoutMs: context.getMultiCopyTimeoutMs,
     schedule: context.schedule,
     log: context.log,
+    logDebug: context.logDebug,
     warn: context.warn,
     error: context.error,
   };

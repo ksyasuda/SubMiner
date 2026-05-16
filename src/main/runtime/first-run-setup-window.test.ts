@@ -477,3 +477,76 @@ test('closing incomplete first-run setup quits app outside background mode', asy
 
   assert.deepEqual(calls, ['set', 'cancelled', 'clear', 'quit']);
 });
+
+test('closing completed first-run setup quits app when completion policy allows it', async () => {
+  const calls: string[] = [];
+  let closedHandler: (() => void) | undefined;
+  const handler = createOpenFirstRunSetupWindowHandler({
+    maybeFocusExistingSetupWindow: () => false,
+    createSetupWindow: () =>
+      ({
+        webContents: {
+          on: () => {},
+        },
+        loadURL: async () => undefined,
+        on: (event: 'closed', callback: () => void) => {
+          if (event === 'closed') {
+            closedHandler = callback;
+          }
+        },
+        isDestroyed: () => false,
+        close: () => calls.push('close-window'),
+        focus: () => {},
+      }) as never,
+    getSetupSnapshot: async () => ({
+      configReady: true,
+      dictionaryCount: 1,
+      canFinish: true,
+      externalYomitanConfigured: false,
+      pluginStatus: 'installed',
+      pluginInstallPathSummary: null,
+      mpvExecutablePath: '',
+      mpvExecutablePathStatus: 'blank',
+      windowsMpvShortcuts: {
+        supported: false,
+        startMenuEnabled: true,
+        desktopEnabled: true,
+        startMenuInstalled: false,
+        desktopInstalled: false,
+        status: 'optional',
+      },
+      commandLineLauncher: createCommandLineLauncherSnapshot(),
+      message: null,
+    }),
+    buildSetupHtml: () => '<html></html>',
+    parseSubmissionUrl: () => null,
+    handleAction: async () => undefined,
+    markSetupInProgress: async () => undefined,
+    markSetupCancelled: async () => {
+      calls.push('cancelled');
+    },
+    isSetupCompleted: () => true,
+    shouldQuitWhenClosedIncomplete: () => true,
+    shouldQuitWhenClosedCompleted: () => true,
+    quitApp: () => {
+      calls.push('quit');
+    },
+    clearSetupWindow: () => {
+      calls.push('clear');
+    },
+    setSetupWindow: () => {
+      calls.push('set');
+    },
+    encodeURIComponent: (value) => value,
+    logError: () => {},
+  });
+
+  handler();
+  if (typeof closedHandler !== 'function') {
+    throw new Error('expected closed handler');
+  }
+  closedHandler();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(calls, ['set', 'clear', 'quit']);
+});

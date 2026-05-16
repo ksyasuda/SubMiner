@@ -65,6 +65,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   getMultiCopyTimeoutMs: () => number;
   schedule: (fn: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   logInfo: (message: string) => void;
+  logDebug: (message: string) => void;
   logWarn: (message: string) => void;
   logError: (message: string, err: unknown) => void;
 }) {
@@ -134,6 +135,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     getMultiCopyTimeoutMs: () => deps.getMultiCopyTimeoutMs(),
     schedule: (fn: () => void, delayMs: number) => deps.schedule(fn, delayMs),
     logInfo: (message: string) => deps.logInfo(message),
+    logDebug: (message: string) => deps.logDebug(message),
     logWarn: (message: string) => deps.logWarn(message),
     logError: (message: string, err: unknown) => deps.logError(message, err),
   });

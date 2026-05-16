@@ -110,6 +110,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
       return setTimeout(() => {}, 0);
     },
     logInfo: (message) => calls.push(`info:${message}`),
+    logDebug: (message) => calls.push(`debug:${message}`),
     logWarn: (message) => calls.push(`warn:${message}`),
     logError: (message) => calls.push(`error:${message}`),
   });

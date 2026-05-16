@@ -29,6 +29,54 @@ export interface YomitanExtensionLoaderDeps {
   setYomitanSession: (session: Session | null) => void;
 }
 
+type WarningProcess = Pick<NodeJS.Process, 'emitWarning'>;
+
+function getWarningType(warning: string | Error, args: unknown[]): string | undefined {
+  if (typeof warning !== 'string') {
+    return warning.name;
+  }
+  const firstArg = args[0];
+  if (typeof firstArg === 'string') {
+    return firstArg;
+  }
+  if (firstArg && typeof firstArg === 'object' && 'type' in firstArg) {
+    const type = (firstArg as { type?: unknown }).type;
+    return typeof type === 'string' ? type : undefined;
+  }
+  return undefined;
+}
+
+function shouldSuppressYomitanExtensionWarning(warning: string | Error, args: unknown[]): boolean {
+  const message = warning instanceof Error ? warning.message : warning;
+  return (
+    getWarningType(warning, args) === 'ExtensionLoadWarning' &&
+    message.includes("Permission 'contextMenus' is unknown.")
+  );
+}
+
+export async function withSuppressedYomitanExtensionWarnings<T>(
+  run: () => Promise<T>,
+  warningProcess: WarningProcess = process,
+): Promise<T> {
+  const originalEmitWarning = warningProcess.emitWarning;
+  warningProcess.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
+    if (shouldSuppressYomitanExtensionWarning(warning, args)) {
+      return;
+    }
+    return (originalEmitWarning as (...emitArgs: unknown[]) => void).call(
+      warningProcess,
+      warning,
+      ...args,
+    );
+  }) as typeof process.emitWarning;
+
+  try {
+    return await run();
+  } finally {
+    warningProcess.emitWarning = originalEmitWarning;
+  }
+}
+
 export async function loadYomitanExtension(
   deps: YomitanExtensionLoaderDeps,
 ): Promise<Extension | null> {
@@ -81,7 +129,7 @@ export async function loadYomitanExtension(
 
     const extensionCopy = await ensureExtensionCopyAsync(extPath, deps.userDataPath);
     if (extensionCopy.copied) {
-      logger.info(`Copied yomitan extension to ${extensionCopy.targetDir}`);
+      logger.debug(`Copied yomitan extension to ${extensionCopy.targetDir}`);
     }
     extPath = extensionCopy.targetDir;
   }
@@ -91,13 +139,15 @@ export async function loadYomitanExtension(
 
   try {
     const extensions = targetSession.extensions;
-    const extension = extensions
-      ? await extensions.loadExtension(extPath, {
-          allowFileAccess: true,
-        })
-      : await targetSession.loadExtension(extPath, {
-          allowFileAccess: true,
-        });
+    const extension = await withSuppressedYomitanExtensionWarnings(() =>
+      extensions
+        ? extensions.loadExtension(extPath, {
+            allowFileAccess: true,
+          })
+        : targetSession.loadExtension(extPath, {
+            allowFileAccess: true,
+          }),
+    );
     deps.setYomitanExtension(extension);
     return extension;
   } catch (err) {

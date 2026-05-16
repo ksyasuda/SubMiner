@@ -81,6 +81,7 @@ test('build cli command context deps maps handlers and values', () => {
       return setTimeout(() => {}, 0);
     },
     logInfo: (message) => calls.push(`info:${message}`),
+    logDebug: (message) => calls.push(`debug:${message}`),
     logWarn: (message) => calls.push(`warn:${message}`),
     logError: (message) => calls.push(`error:${message}`),
   });

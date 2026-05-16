@@ -365,6 +365,7 @@ import { toggleStatsOverlay as toggleStatsOverlayWindow } from './core/services/
 import {
   createFirstRunSetupService,
   getFirstRunSetupCompletionMessage,
+  isStandaloneFirstRunSetupCommand,
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
 import { createYoutubeFlowRuntime } from './main/runtime/youtube-flow';
@@ -850,6 +851,9 @@ notifyAnilistTokenStoreWarning = (message: string) => {
 const appLogger = {
   logInfo: (message: string) => {
     logger.info(message);
+  },
+  logDebug: (message: string) => {
+    logger.debug(message);
   },
   logWarning: (message: string) => {
     logger.warn(message);
@@ -2906,6 +2910,8 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
   },
   isSetupCompleted: () => firstRunSetupService.isSetupCompleted(),
   shouldQuitWhenClosedIncomplete: () => !appState.backgroundMode,
+  shouldQuitWhenClosedCompleted: () =>
+    Boolean(appState.initialArgs && isStandaloneFirstRunSetupCommand(appState.initialArgs)),
   quitApp: () => requestAppQuit(),
   clearSetupWindow: () => {
     appState.firstRunSetupWindow = null;
@@ -3737,6 +3743,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
   reloadConfigMainDeps: {
     reloadConfigStrict: () => configService.reloadConfigStrict(),
     logInfo: (message) => appLogger.logInfo(message),
+    logDebug: (message) => appLogger.logDebug(message),
     logWarning: (message) => appLogger.logWarning(message),
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
     startConfigHotReload: () => configHotReloadRuntime.start(),
@@ -5382,6 +5389,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
     schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
     logInfo: (message: string) => logger.info(message),
+    logDebug: (message: string) => logger.debug(message),
     logWarn: (message: string) => logger.warn(message),
     logError: (message: string, err: unknown) => logger.error(message, err),
   },

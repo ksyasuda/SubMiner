@@ -20,6 +20,7 @@ test('createReloadConfigHandler runs success flow with warnings', async () => {
       ],
     }),
     logInfo: (message) => calls.push(`info:${message}`),
+    logDebug: (message) => calls.push(`debug:${message}`),
     logWarning: (message) => calls.push(`warn:${message}`),
     showDesktopNotification: (title, options) => calls.push(`notify:${title}:${options.body}`),
     startConfigHotReload: () => calls.push('hotReload:start'),
@@ -36,7 +37,11 @@ test('createReloadConfigHandler runs success flow with warnings', async () => {
   reloadConfig();
   await Promise.resolve();
 
-  assert.ok(calls.some((entry) => entry.startsWith('info:Using config file: /tmp/config.jsonc')));
+  assert.ok(calls.some((entry) => entry.startsWith('debug:Using config file: /tmp/config.jsonc')));
+  assert.equal(
+    calls.some((entry) => entry.startsWith('info:Using config file: /tmp/config.jsonc')),
+    false,
+  );
   assert.ok(calls.some((entry) => entry.startsWith('warn:[config] Validation found 1 issue(s)')));
   assert.ok(
     calls.some((entry) => entry.includes('notify:SubMiner:1 config validation issue(s) detected.')),
@@ -64,6 +69,7 @@ test('createReloadConfigHandler fails startup for parse errors', () => {
       error: 'unexpected token',
     }),
     logInfo: (message) => calls.push(`info:${message}`),
+    logDebug: (message) => calls.push(`debug:${message}`),
     logWarning: (message) => calls.push(`warn:${message}`),
     showDesktopNotification: (title, options) => calls.push(`notify:${title}:${options.body}`),
     startConfigHotReload: () => calls.push('hotReload:start'),
@@ -102,6 +108,7 @@ test('createReloadConfigHandler can skip AniList refresh for headless commands',
       warnings: [],
     }),
     logInfo: (message) => calls.push(`info:${message}`),
+    logDebug: (message) => calls.push(`debug:${message}`),
     logWarning: (message) => calls.push(`warn:${message}`),
     showDesktopNotification: (title, options) => calls.push(`notify:${title}:${options.body}`),
     startConfigHotReload: () => calls.push('hotReload:start'),

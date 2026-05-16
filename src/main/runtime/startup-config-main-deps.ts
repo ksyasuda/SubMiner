@@ -7,6 +7,7 @@ export function createBuildReloadConfigMainDepsHandler(deps: ReloadConfigMainDep
   return (): ReloadConfigMainDeps => ({
     reloadConfigStrict: () => deps.reloadConfigStrict(),
     logInfo: (message: string) => deps.logInfo(message),
+    logDebug: (message: string) => deps.logDebug(message),
     logWarning: (message: string) => deps.logWarning(message),
     showDesktopNotification: (title: string, options: { body: string }) =>
       deps.showDesktopNotification(title, options),

@@ -176,6 +176,8 @@ subminer --update
 
 SubMiner verifies launcher/support asset downloads against `SHA256SUMS.txt`. If the launcher is installed in a protected path such as `/usr/local/bin/subminer`, SubMiner does not elevate itself; it shows the exact `sudo curl ... && sudo chmod +x ...` command to run instead.
 
+On Linux, `subminer -u` performs this update from the launcher process, so it does not need to start or IPC into the tray app.
+
 ### From Source
 
 ```bash

@@ -129,6 +129,10 @@ export function shouldAutoOpenFirstRunSetup(args: CliArgs): boolean {
   return !hasAnyStartupCommandBeyondSetup(args);
 }
 
+export function isStandaloneFirstRunSetupCommand(args: CliArgs): boolean {
+  return args.setup && !args.start && !hasAnyStartupCommandBeyondSetup(args);
+}
+
 function getPluginStatus(
   state: SetupState,
   pluginInstalled: boolean,

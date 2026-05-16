@@ -247,6 +247,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     log: (message) => {
       calls.push(`log:${message}`);
     },
+    logDebug: (message) => {
+      calls.push(`debug:${message}`);
+    },
     warn: (message) => {
       calls.push(`warn:${message}`);
     },
@@ -364,7 +367,8 @@ test('handleCliCommand opens first-run setup window for --setup', () => {
   handleCliCommand(makeArgs({ setup: true }), 'initial', deps);
 
   assert.ok(calls.includes('openFirstRunSetup'));
-  assert.ok(calls.includes('log:Opened first-run setup flow.'));
+  assert.ok(calls.includes('debug:Opened first-run setup flow.'));
+  assert.equal(calls.includes('log:Opened first-run setup flow.'), false);
   assert.equal(calls.includes('openYomitanSettingsDelayed:1000'), false);
 });
 

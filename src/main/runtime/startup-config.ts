@@ -24,6 +24,7 @@ type ReloadConfigStrictResult = ReloadConfigFailure | ReloadConfigSuccess;
 export type ReloadConfigRuntimeDeps = {
   reloadConfigStrict: () => ReloadConfigStrictResult;
   logInfo: (message: string) => void;
+  logDebug: (message: string) => void;
   logWarning: (message: string) => void;
   showDesktopNotification: (title: string, options: { body: string }) => void;
   startConfigHotReload: () => void;
@@ -61,7 +62,7 @@ export function createReloadConfigHandler(deps: ReloadConfigRuntimeDeps): () => 
       );
     }
 
-    deps.logInfo(`Using config file: ${result.path}`);
+    deps.logDebug(`Using config file: ${result.path}`);
     if (result.warnings.length > 0) {
       deps.logWarning(buildConfigWarningSummary(result.path, result.warnings));
       deps.showDesktopNotification('SubMiner', {

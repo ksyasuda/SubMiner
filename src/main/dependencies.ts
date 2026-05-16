@@ -198,6 +198,7 @@ export interface CliCommandRuntimeServiceDepsParams {
   getMultiCopyTimeoutMs: CliCommandDepsRuntimeOptions['getMultiCopyTimeoutMs'];
   schedule: CliCommandDepsRuntimeOptions['schedule'];
   log: CliCommandDepsRuntimeOptions['log'];
+  logDebug: CliCommandDepsRuntimeOptions['logDebug'];
   warn: CliCommandDepsRuntimeOptions['warn'];
   error: CliCommandDepsRuntimeOptions['error'];
 }
@@ -377,6 +378,7 @@ export function createCliCommandRuntimeServiceDeps(
     getMultiCopyTimeoutMs: params.getMultiCopyTimeoutMs,
     schedule: params.schedule,
     log: params.log,
+    logDebug: params.logDebug,
     warn: params.warn,
     error: params.error,
   };

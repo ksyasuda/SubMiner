@@ -57,6 +57,7 @@ export type CliCommandContextFactoryDeps = {
   getMultiCopyTimeoutMs: () => number;
   schedule: (fn: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   logInfo: (message: string) => void;
+  logDebug: (message: string) => void;
   logWarn: (message: string) => void;
   logError: (message: string, err: unknown) => void;
 };
@@ -133,6 +134,7 @@ export function createCliCommandContext(
     getMultiCopyTimeoutMs: deps.getMultiCopyTimeoutMs,
     schedule: deps.schedule,
     log: deps.logInfo,
+    logDebug: deps.logDebug,
     warn: deps.logWarn,
     error: deps.logError,
   };

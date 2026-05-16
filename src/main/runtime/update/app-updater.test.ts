@@ -61,6 +61,33 @@ test('configureAutoUpdater allows prereleases only for the prerelease channel', 
   assert.equal(updater.allowPrerelease, false);
 });
 
+test('configureAutoUpdater handles late updater error events', () => {
+  const logged: string[] = [];
+  const errorListeners: Array<(error: unknown) => void> = [];
+  const updater: ElectronAutoUpdaterLike & {
+    on: (event: string, listener: (error: unknown) => void) => typeof updater;
+  } = {
+    autoDownload: true,
+    allowPrerelease: false,
+    allowDowngrade: true,
+    logger: null,
+    checkForUpdates: async () => null,
+    downloadUpdate: async () => [],
+    quitAndInstall: () => {},
+    on: (event, listener) => {
+      if (event === 'error') errorListeners.push(listener);
+      return updater;
+    },
+  };
+
+  configureAutoUpdater(updater, (message) => logged.push(message));
+
+  const [errorListener] = errorListeners;
+  assert.ok(errorListener);
+  errorListener(new Error('APPIMAGE env is not defined'));
+  assert.deepEqual(logged, ['Updater error event: APPIMAGE env is not defined']);
+});
+
 test('app updater skips native update checks when native updater is unsupported', async () => {
   let checked = false;
   const updater: ElectronAutoUpdaterLike = {
@@ -165,7 +192,8 @@ test('mac native updater is supported for Developer ID signed app bundles', () =
   assert.equal(supported, true);
 });
 
-test('linux native updater is supported for writable direct AppImage installs', () => {
+test('linux native updater is unsupported even for writable direct AppImage installs', () => {
+  const logged: string[] = [];
   const supported = isNativeUpdaterSupported({
     platform: 'linux',
     isPackaged: true,
@@ -173,11 +201,13 @@ test('linux native updater is supported for writable direct AppImage installs', 
     env: {
       APPIMAGE: '/home/tester/.local/bin/SubMiner.AppImage',
     },
-    canWriteAppImage: (appImagePath) =>
-      appImagePath === '/home/tester/.local/bin/SubMiner.AppImage',
+    log: (message) => logged.push(message),
   });
 
-  assert.equal(supported, true);
+  assert.equal(supported, false);
+  assert.deepEqual(logged, [
+    'Skipping native Linux updater because Linux tray checks use GitHub release assets.',
+  ]);
 });
 
 test('linux native updater is unsupported when APPIMAGE is missing', () => {
@@ -191,7 +221,9 @@ test('linux native updater is unsupported when APPIMAGE is missing', () => {
   });
 
   assert.equal(supported, false);
-  assert.deepEqual(logged, ['Skipping native Linux updater because APPIMAGE is not set.']);
+  assert.deepEqual(logged, [
+    'Skipping native Linux updater because Linux tray checks use GitHub release assets.',
+  ]);
 });
 
 test('linux native updater is unsupported for non-writable AppImage installs', () => {
@@ -203,13 +235,12 @@ test('linux native updater is unsupported for non-writable AppImage installs', (
     env: {
       APPIMAGE: '/home/tester/.local/bin/SubMiner.AppImage',
     },
-    canWriteAppImage: () => false,
     log: (message) => logged.push(message),
   });
 
   assert.equal(supported, false);
   assert.deepEqual(logged, [
-    'Skipping native Linux updater because the running AppImage is not writable.',
+    'Skipping native Linux updater because Linux tray checks use GitHub release assets.',
   ]);
 });
 
@@ -222,13 +253,12 @@ test('linux native updater is unsupported for package-managed AppImage installs'
     env: {
       APPIMAGE: '/opt/SubMiner/SubMiner.AppImage',
     },
-    canWriteAppImage: () => true,
     log: (message) => logged.push(message),
   });
 
   assert.equal(supported, false);
   assert.deepEqual(logged, [
-    'Skipping native Linux updater because this AppImage is managed by the system package manager.',
+    'Skipping native Linux updater because Linux tray checks use GitHub release assets.',
   ]);
 });
 
