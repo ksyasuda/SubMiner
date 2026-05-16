@@ -47,3 +47,24 @@ test('notifyUpdateAvailable logs osd fallback when overlay notification fails', 
 
   assert.deepEqual(calls, ['Update OSD notification failed: mpv disconnected']);
 });
+
+test('notifyUpdateAvailable logs non-error osd failures with thrown value', async () => {
+  const calls: string[] = [];
+
+  await notifyUpdateAvailable(
+    { notificationType: 'osd', version: '0.15.0' },
+    {
+      showSystemNotification: () => {
+        calls.push('system');
+      },
+      showOsdNotification: async () => {
+        throw 'mpv disconnected';
+      },
+      log: (message) => {
+        calls.push(message);
+      },
+    },
+  );
+
+  assert.deepEqual(calls, ['Update OSD notification failed: mpv disconnected']);
+});

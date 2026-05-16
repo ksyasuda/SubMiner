@@ -124,7 +124,9 @@ function getLauncherTone(
   return 'muted';
 }
 
-function renderCommandLineLauncherSection(commandLineLauncher: CommandLineLauncherSnapshot): string {
+function renderCommandLineLauncherSection(
+  commandLineLauncher: CommandLineLauncherSnapshot,
+): string {
   if (!commandLineLauncher.supported) {
     return '';
   }
@@ -154,7 +156,7 @@ function renderCommandLineLauncherSection(commandLineLauncher: CommandLineLaunch
     bun.status === 'missing' || bun.status === 'failed'
       ? `<button onclick="window.location.href='subminer://first-run-setup?action=install-bun'">Install Bun</button>`
       : '';
-  const launcherButtonDisabled = launcher.status === 'failed' ? '' : '';
+  const launcherButtonDisabled = launcher.status === 'not_installable' ? 'disabled' : '';
 
   return `
     <section class="setup-section">

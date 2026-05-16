@@ -305,7 +305,47 @@ test('buildFirstRunSetupHtml renders command-line launcher section and actions',
   assert.match(html, /Installed, Bun missing/);
   assert.match(html, /\/home\/tester\/\.local\/bin\/subminer/);
   assert.match(html, /action=install-command-line-launcher/);
-  assert.match(html, /<button class="primary"  onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=finish'">Finish setup<\/button>/);
+  assert.match(
+    html,
+    /<button class="primary"  onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=finish'">Finish setup<\/button>/,
+  );
+});
+
+test('buildFirstRunSetupHtml disables launcher install when no target is installable', () => {
+  const html = buildFirstRunSetupHtml({
+    configReady: true,
+    dictionaryCount: 1,
+    canFinish: true,
+    externalYomitanConfigured: false,
+    pluginStatus: 'installed',
+    pluginInstallPathSummary: null,
+    mpvExecutablePath: '',
+    mpvExecutablePathStatus: 'blank',
+    windowsMpvShortcuts: {
+      supported: false,
+      startMenuEnabled: true,
+      desktopEnabled: true,
+      startMenuInstalled: false,
+      desktopInstalled: false,
+      status: 'optional',
+    },
+    commandLineLauncher: createCommandLineLauncherSnapshot({
+      launcher: {
+        status: 'not_installable',
+        commandPath: null,
+        installPath: null,
+        pathDir: null,
+        shadowedBy: null,
+        message: 'No writable PATH directory found.',
+      },
+    }),
+    message: null,
+  });
+
+  assert.match(
+    html,
+    /<button disabled onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=install-command-line-launcher'">Install launcher<\/button>/,
+  );
 });
 
 test('first-run setup window handler focuses existing window', () => {

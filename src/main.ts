@@ -518,6 +518,7 @@ import {
   fetchReleaseAssetText,
   findReleaseAsset,
   parseSha256Sums,
+  type GitHubRelease,
 } from './main/runtime/update/release-assets';
 import { updateLauncherFromRelease } from './main/runtime/update/launcher-updater';
 import { notifyUpdateAvailable } from './main/runtime/update/update-notifications';
@@ -4619,12 +4620,12 @@ function getFetchForUpdater() {
   return globalThis.fetch.bind(globalThis);
 }
 
-async function updateLauncherFromLatestRelease(
+async function updateLauncherFromSelectedRelease(
   launcherPath?: string,
   channel: UpdateChannel = getResolvedConfig().updates.channel,
+  release: GitHubRelease | null = null,
 ) {
   const fetchForUpdater = getFetchForUpdater();
-  const release = await fetchLatestStableRelease({ fetch: fetchForUpdater, channel });
   if (!release) {
     return { status: 'missing-asset', message: `No ${channel} GitHub release found.` };
   }
@@ -4681,8 +4682,8 @@ function getUpdateService() {
     checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
     fetchLatestStableRelease: (channel) =>
       fetchLatestStableRelease({ fetch: getFetchForUpdater(), channel }),
-    updateLauncher: (launcherPath, channel) =>
-      updateLauncherFromLatestRelease(launcherPath, channel),
+    updateLauncher: (launcherPath, channel, release) =>
+      updateLauncherFromSelectedRelease(launcherPath, channel, release),
     showNoUpdateDialog: (version) =>
       showNoUpdateDialog((options) => dialog.showMessageBox(options), version),
     showUpdateAvailableDialog: (version) =>

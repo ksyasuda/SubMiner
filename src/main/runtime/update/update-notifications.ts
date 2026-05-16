@@ -20,7 +20,8 @@ export async function notifyUpdateAvailable(
     try {
       await deps.showOsdNotification(message);
     } catch (error) {
-      deps.log(`Update OSD notification failed: ${(error as Error).message}`);
+      const reason = error instanceof Error ? error.message : String(error);
+      deps.log(`Update OSD notification failed: ${reason}`);
     }
   }
 }

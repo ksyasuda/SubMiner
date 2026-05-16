@@ -110,6 +110,21 @@ test('resolveBunInstallCommand uses Homebrew on macOS when available', () => {
   );
 });
 
+test('detectBun reports homebrew install method from POSIX brew path', async () => {
+  const snapshot = await detectBun({
+    platform: 'darwin',
+    env: { PATH: '/opt/homebrew/bin:/usr/bin' },
+    existsSync: (candidate) => candidate === '/opt/homebrew/bin/brew',
+    accessSync: (candidate) => {
+      if (candidate !== '/opt/homebrew/bin/brew') throw new Error('not executable');
+    },
+    runCommand: async () => ({ exitCode: 127, stdout: '', stderr: 'missing' }),
+  });
+
+  assert.equal(snapshot.status, 'missing');
+  assert.equal(snapshot.installMethod, 'homebrew');
+});
+
 test('resolveLauncherInstallTarget prefers writable user bin on Linux', async () => {
   const target = await resolveLauncherInstallTarget({
     platform: 'linux',

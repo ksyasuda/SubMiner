@@ -90,7 +90,7 @@ test('manual update check falls back to GitHub release when app metadata is unav
   assert.deepEqual(calls, ['available-dialog:0.15.0']);
 });
 
-test('manual update check updates launcher without native download when native updater is unavailable', async () => {
+test('manual update check reports available when no update asset was applied', async () => {
   const { deps, calls } = createDeps({
     checkAppUpdate: async () => ({ available: false, version: '0.14.0', canUpdate: false }),
     fetchLatestStableRelease: async () => ({
@@ -112,8 +112,8 @@ test('manual update check updates launcher without native download when native u
 
   const result = await service.checkForUpdates({ source: 'manual' });
 
-  assert.equal(result.status, 'updated');
-  assert.deepEqual(calls, ['available-dialog:0.15.0', 'launcher:stable', 'restart-dialog']);
+  assert.equal(result.status, 'update-available');
+  assert.deepEqual(calls, ['available-dialog:0.15.0', 'launcher:stable']);
 });
 
 test('automatic update check skips inside configured interval', async () => {
@@ -165,6 +165,57 @@ test('concurrent update checks share one in-flight check', async () => {
   await Promise.all([first, second]);
 
   assert.equal(checkCount, 1);
+});
+
+test('manual update check does not reuse in-flight automatic check', async () => {
+  let checkCount = 0;
+  const resolveChecks: Array<(value: { available: boolean; version: string }) => void> = [];
+  const { deps } = createDeps({
+    checkAppUpdate: () =>
+      new Promise((resolve) => {
+        checkCount += 1;
+        resolveChecks.push(resolve);
+      }),
+  });
+  const service = createUpdateService(deps);
+  const automatic = service.checkForUpdates({ source: 'automatic', force: true });
+  const manual = service.checkForUpdates({ source: 'manual' });
+
+  await Promise.resolve();
+  assert.equal(checkCount, 2);
+  for (const resolve of resolveChecks) {
+    resolve({ available: false, version: '0.14.0' });
+  }
+  await Promise.all([automatic, manual]);
+});
+
+test('manual update check passes selected GitHub release to launcher update', async () => {
+  const selectedRelease = {
+    tag_name: 'v0.15.0',
+    prerelease: false,
+    draft: false,
+    assets: [],
+  };
+  let forwardedRelease: unknown;
+  const { deps, calls } = createDeps({
+    checkAppUpdate: async () => ({ available: true, version: '0.15.0' }),
+    fetchLatestStableRelease: async () => selectedRelease,
+    showUpdateAvailableDialog: async (version) => {
+      calls.push(`available-dialog:${version}`);
+      return 'update';
+    },
+    updateLauncher: (async (...args: unknown[]) => {
+      calls.push(`launcher:${args[1]}`);
+      forwardedRelease = args[2];
+      return { status: 'updated' };
+    }) as UpdateServiceDeps['updateLauncher'],
+  });
+  const service = createUpdateService(deps);
+
+  const result = await service.checkForUpdates({ source: 'manual' });
+
+  assert.equal(result.status, 'updated');
+  assert.equal(forwardedRelease, selectedRelease);
 });
 
 test('manual prerelease update check uses prerelease release and launcher channel', async () => {
