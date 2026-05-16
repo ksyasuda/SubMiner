@@ -90,6 +90,32 @@ test('manual update check falls back to GitHub release when app metadata is unav
   assert.deepEqual(calls, ['available-dialog:0.15.0']);
 });
 
+test('manual update check updates launcher without native download when native updater is unavailable', async () => {
+  const { deps, calls } = createDeps({
+    checkAppUpdate: async () => ({ available: false, version: '0.14.0', canUpdate: false }),
+    fetchLatestStableRelease: async () => ({
+      tag_name: 'v0.15.0',
+      prerelease: false,
+      draft: false,
+      assets: [],
+    }),
+    showUpdateAvailableDialog: async (version) => {
+      calls.push(`available-dialog:${version}`);
+      return 'update';
+    },
+    updateLauncher: async (_launcherPath, channel) => {
+      calls.push(`launcher:${channel}`);
+      return { status: 'skipped' };
+    },
+  });
+  const service = createUpdateService(deps);
+
+  const result = await service.checkForUpdates({ source: 'manual' });
+
+  assert.equal(result.status, 'updated');
+  assert.deepEqual(calls, ['available-dialog:0.15.0', 'launcher:stable', 'restart-dialog']);
+});
+
 test('automatic update check skips inside configured interval', async () => {
   const { deps, calls, setState } = createDeps();
   setState({ lastAutomaticCheckAt: 1_000_000 - 60 * 60 * 1000 });

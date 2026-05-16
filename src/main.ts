@@ -508,7 +508,10 @@ import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/charac
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
-import { createElectronAppUpdater } from './main/runtime/update/app-updater';
+import {
+  createElectronAppUpdater,
+  isNativeUpdaterSupported,
+} from './main/runtime/update/app-updater';
 import {
   fetchLatestStableRelease,
   fetchReleaseAssetBuffer,
@@ -4660,6 +4663,14 @@ function getUpdateService() {
     isPackaged: app.isPackaged,
     log: (message) => logger.info(message),
     getChannel: () => getResolvedConfig().updates.channel,
+    isNativeUpdaterSupported: () =>
+      isNativeUpdaterSupported({
+        platform: process.platform,
+        isPackaged: app.isPackaged,
+        execPath: process.execPath,
+        env: process.env,
+        log: (message) => logger.warn(message),
+      }),
   });
   updateService = createUpdateService({
     getConfig: () => getResolvedConfig().updates,
