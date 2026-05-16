@@ -15,7 +15,10 @@ import {
   getMergedZipPath,
   getSnapshotPath,
   normalizeMergedMediaIds,
+  readCachedMediaResolution,
+  readCachedSnapshots,
   readSnapshot,
+  writeCachedMediaResolution,
   writeSnapshot,
 } from './character-dictionary-runtime/cache';
 import {
@@ -41,6 +44,7 @@ import type {
   CharacterDictionaryManualSelectionResult,
   CharacterDictionaryManualSelectionSnapshot,
   CharacterDictionaryRuntimeDeps,
+  CharacterDictionarySnapshot,
   CharacterDictionarySnapshotImage,
   CharacterDictionarySnapshotProgress,
   CharacterDictionarySnapshotProgressCallbacks,
@@ -204,6 +208,26 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     };
   };
 
+  const findCachedSnapshotForSeriesKey = (
+    seriesKey: string,
+  ): CharacterDictionarySnapshot | null => {
+    return (
+      readCachedSnapshots(outputDir).find((snapshot) => {
+        const snapshotSeriesKey = buildCharacterDictionarySeriesKey({
+          mediaPath: null,
+          mediaTitle: snapshot.mediaTitle,
+          guess: {
+            title: snapshot.mediaTitle,
+            season: null,
+            episode: null,
+            source: 'fallback',
+          },
+        });
+        return snapshotSeriesKey === seriesKey;
+      }) ?? null
+    );
+  };
+
   const resolveCurrentMedia = async (
     targetPath?: string,
     beforeRequest?: () => Promise<void>,
@@ -228,7 +252,43 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         staleMediaIds: override.staleMediaIds,
       };
     }
+
+    const cachedResolution = readCachedMediaResolution(outputDir, seriesKey);
+    if (cachedResolution) {
+      const cachedSnapshot = readSnapshot(getSnapshotPath(outputDir, cachedResolution.mediaId));
+      if (cachedSnapshot) {
+        deps.logInfo?.(
+          `[dictionary] cached AniList match: ${cachedSnapshot.mediaTitle} -> AniList ${cachedSnapshot.mediaId}`,
+        );
+        return {
+          id: cachedSnapshot.mediaId,
+          title: cachedSnapshot.mediaTitle,
+        };
+      }
+    }
+
+    const cachedSnapshot = findCachedSnapshotForSeriesKey(seriesKey);
+    if (cachedSnapshot) {
+      writeCachedMediaResolution(outputDir, {
+        seriesKey,
+        mediaId: cachedSnapshot.mediaId,
+        mediaTitle: cachedSnapshot.mediaTitle,
+      });
+      deps.logInfo?.(
+        `[dictionary] cached snapshot match: ${cachedSnapshot.mediaTitle} -> AniList ${cachedSnapshot.mediaId}`,
+      );
+      return {
+        id: cachedSnapshot.mediaId,
+        title: cachedSnapshot.mediaTitle,
+      };
+    }
+
     const resolved = await resolveAniListMediaIdFromGuess(guessed, beforeRequest);
+    writeCachedMediaResolution(outputDir, {
+      seriesKey,
+      mediaId: resolved.id,
+      mediaTitle: resolved.title,
+    });
     deps.logInfo?.(`[dictionary] AniList match: ${resolved.title} -> AniList ${resolved.id}`);
     return resolved;
   };
