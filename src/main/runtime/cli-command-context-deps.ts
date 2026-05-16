@@ -18,7 +18,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   initializeOverlay: () => void;
   toggleVisibleOverlay: () => void;
   togglePrimarySubtitleBar: () => void;
-  openFirstRunSetup: () => void;
+  openFirstRunSetup: (force?: boolean) => void;
   setVisibleOverlay: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
   startPendingMultiCopy: (timeoutMs: number) => void;

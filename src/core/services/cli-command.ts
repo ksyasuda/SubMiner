@@ -41,7 +41,7 @@ export interface CliCommandServiceDeps {
   initializeOverlayRuntime: () => void;
   toggleVisibleOverlay: () => void;
   togglePrimarySubtitleBar: () => void;
-  openFirstRunSetup: () => void;
+  openFirstRunSetup: (force?: boolean) => void;
   openYomitanSettingsDelayed: (delayMs: number) => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
@@ -158,7 +158,7 @@ interface MiningCliRuntime {
 }
 
 interface UiCliRuntime {
-  openFirstRunSetup: () => void;
+  openFirstRunSetup: (force?: boolean) => void;
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
@@ -381,7 +381,7 @@ export function handleCliCommand(
   } else if (args.togglePrimarySubtitleBar) {
     deps.togglePrimarySubtitleBar();
   } else if (args.setup) {
-    deps.openFirstRunSetup();
+    deps.openFirstRunSetup(true);
     deps.logDebug('Opened first-run setup flow.');
   } else if (args.settings) {
     deps.openYomitanSettingsDelayed(1000);
