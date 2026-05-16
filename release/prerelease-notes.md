@@ -3,21 +3,25 @@
 ## Highlights
 ### Added
 
-- **Auto-Update:** Tray and `subminer -u` command-line update checks for new SubMiner releases, with app and launcher update prompts, checksum verification, configurable update notifications, and an opt-in prerelease channel for beta and RC builds.
-- **First-Run Setup:** Guided setup flow to install Bun and the `subminer` command-line launcher on Linux, macOS, and Windows. On Windows, a `subminer.cmd` PATH shim is installed so you can type `subminer` in any terminal without adding the main executable to PATH.
+**Auto-Update:** The tray and `subminer -u` now check for SubMiner releases and prompt you to install updates, covering the app itself, the command-line launcher, and Linux rofi themes. Update notifications are configurable, downloads are checksum-verified, and an opt-in prerelease channel lets you receive beta and RC builds.
+
+**First-Run Setup:** The app can now install Bun and the `subminer` command-line launcher during first run on Linux, macOS, and Windows. On Windows, a `subminer.cmd` PATH shim lets you type `subminer` in any terminal without manually adding `SubMiner.exe` to PATH.
 
 ### Fixed
 
-- **macOS Overlay:** Transient mpv window appearances no longer incorrectly hide the subtitle overlay; minimizing mpv still hides it as expected. mpv controls are also now clickable before hovering a subtitle bar.
-- **Subtitle Sync Modal:** Opening the subtitle sync panel on macOS no longer flashes and dismisses on the first attempt, and no longer leaves stale modal state after syncing.
-- **Updater Stability:** Linux tray and background update checks now use GitHub release metadata instead of the native Electron updater, preventing crashes. Unsafe native updater paths are avoided on all platforms.
-- **Linux Launcher Update:** `subminer -u` on Linux now performs release updates directly from the launcher without requiring the tray app to be running. When already on the latest version it reports up to date without downloading assets. Support asset updates are limited to the Linux rofi theme.
-- **Linux Launcher Install:** First-run launcher installs on Linux now use a valid Bun shebang so the installed launcher executes correctly.
-- **macOS Setup:** First-run setup now correctly recognizes launchers already installed via Homebrew or user PATH directories, and manual installs avoid writing to Homebrew-managed locations.
-- **Update Dialog:** macOS update dialogs are brought to the front when `subminer --update` is run from the command line.
-- **Setup Flow:** `subminer app --setup` now correctly opens the setup window when SubMiner is already running in the background. The standalone setup process also quits after first-run completes, returning the terminal prompt instead of leaving the app open.
-- **Build:** One-shot `make clean build install` flows now correctly pick up the AppImage produced by the current build rather than a stale previous one.
-- **Tray Settings:** Closing Yomitan settings launched from the tray no longer quits the tray app, and loading settings no longer blocks other tray actions. A close button is shown within the Yomitan settings page on Hyprland where native window controls are unavailable. The embedded Yomitan popup preview is disabled in the tray settings window to prevent renderer hangs. Extension refreshes are now serialized to prevent startup race conditions, and session help modals can close correctly without mpv running.
+**macOS Overlay:** Controls on the mpv window are now clickable before you hover the subtitle bars. Transient mpv window focus misses no longer hide the overlay; minimizing mpv still hides it as expected.
+
+**Subtitle Sync:** The subtitle sync modal on macOS now opens reliably: no more flash-and-hide on the first attempt or stale modal state left after syncing.
+
+**Updater:** Update checks on Linux now use GitHub release metadata instead of the native Electron updater, preventing tray app crashes. macOS builds that cannot auto-install updates show a manual install prompt instead of a non-functional restart prompt. macOS update dialogs are brought to the front when `subminer --update` is run from the launcher.
+
+**Linux Command-Line Updater:** `subminer -u` now performs release updates directly from the launcher without requiring the tray app, and reports "up to date" without downloading assets when already on the latest version.
+
+**Launcher Setup:** Linux first-run launcher installs now build with a valid Bun shebang. `subminer app --setup` correctly opens the setup flow even when SubMiner is already running in the background. On macOS, first-run setup recognizes existing launchers in Homebrew or user PATH directories, and manual installs avoid Homebrew-managed locations. The setup window now quits automatically after first-run setup completes, returning control to the terminal.
+
+**Tray App:** Fixed several issues with tray-launched Yomitan settings: closing the window no longer quits the tray app, a close-only menu replaces the default native menu, and settings loading no longer blocks other tray actions. An in-page close button is now available on Hyprland, where native window controls may be absent. Disabled the embedded popup preview in the settings window to prevent renderer hangs. Fixed a startup race condition that could leave extension loading in an error state, and corrected focus handling for the session help modal when mpv is not running.
+
+**Build:** One-shot `make clean build install` flows now correctly pick up the AppImage built in the same invocation.
 
 ## Installation
 

@@ -4697,6 +4697,8 @@ function getUpdateService() {
     showUpdateAvailableDialog: (version) =>
       updateDialogPresenter.showUpdateAvailableDialog(version),
     showUpdateFailedDialog: (message) => updateDialogPresenter.showUpdateFailedDialog(message),
+    showManualUpdateRequiredDialog: (version) =>
+      updateDialogPresenter.showManualUpdateRequiredDialog(version),
     downloadAppUpdate: () => appUpdater.downloadUpdate(),
     showRestartDialog: () => updateDialogPresenter.showRestartDialog(),
     quitAndInstall: () => appUpdater.quitAndInstall(),

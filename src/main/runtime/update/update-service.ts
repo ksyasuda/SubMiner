@@ -48,6 +48,7 @@ export interface UpdateServiceDeps {
   showNoUpdateDialog: (version: string) => Promise<void>;
   showUpdateAvailableDialog: (version: string) => Promise<'update' | 'close'>;
   showUpdateFailedDialog: (message: string) => Promise<void>;
+  showManualUpdateRequiredDialog: (version: string) => Promise<void>;
   downloadAppUpdate: () => Promise<void>;
   showRestartDialog: () => Promise<'restart' | 'later'>;
   quitAndInstall: () => void | Promise<void>;
@@ -158,8 +159,9 @@ export function createUpdateService(deps: UpdateServiceDeps) {
         return { status: 'update-available', version: latest.version };
       }
 
+      const canInstallAppUpdate = appUpdate.available && appUpdate.canUpdate !== false;
       let appUpdateApplied = false;
-      if (appUpdate.available && appUpdate.canUpdate !== false) {
+      if (canInstallAppUpdate) {
         await deps.downloadAppUpdate();
         appUpdateApplied = true;
       }
@@ -168,8 +170,8 @@ export function createUpdateService(deps: UpdateServiceDeps) {
         deps.log(`Launcher update requires manual command: ${launcherResult.command}`);
       }
 
-      const launcherUpdateApplied = launcherResult.status === 'updated';
-      if (!appUpdateApplied && !launcherUpdateApplied) {
+      if (!appUpdateApplied) {
+        await deps.showManualUpdateRequiredDialog(latest.version);
         return { status: 'update-available', version: latest.version };
       }
 

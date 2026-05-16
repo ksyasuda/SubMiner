@@ -37,6 +37,9 @@ function createDeps(overrides: Partial<UpdateServiceDeps> = {}) {
     showUpdateFailedDialog: async (message) => {
       calls.push(`failed:${message}`);
     },
+    showManualUpdateRequiredDialog: async (version) => {
+      calls.push(`manual-install:${version}`);
+    },
     downloadAppUpdate: async () => {
       calls.push('download');
     },
@@ -115,7 +118,44 @@ test('manual update check reports available when no update asset was applied', a
   const result = await service.checkForUpdates({ source: 'manual' });
 
   assert.equal(result.status, 'update-available');
-  assert.deepEqual(calls, ['available-dialog:0.15.0', 'launcher:stable']);
+  assert.deepEqual(calls, ['available-dialog:0.15.0', 'launcher:stable', 'manual-install:0.15.0']);
+});
+
+test('manual update check does not prompt restart when only launcher updates', async () => {
+  const { deps, calls } = createDeps({
+    checkAppUpdate: async () => ({ available: false, version: '0.14.0', canUpdate: false }),
+    fetchLatestStableRelease: async () => ({
+      tag_name: 'v0.15.0',
+      prerelease: false,
+      draft: false,
+      assets: [],
+    }),
+    showUpdateAvailableDialog: async (version) => {
+      calls.push(`available-dialog:${version}`);
+      return 'update';
+    },
+    updateLauncher: async (_launcherPath, channel) => {
+      calls.push(`launcher:${channel}`);
+      return { status: 'updated' };
+    },
+    showRestartDialog: async () => {
+      calls.push('restart-dialog');
+      return 'restart';
+    },
+    quitAndInstall: () => {
+      calls.push('quit-install');
+    },
+  });
+  const service = createUpdateService(deps);
+
+  const result = await service.checkForUpdates({ source: 'manual' });
+
+  assert.equal(result.status, 'update-available');
+  assert.deepEqual(calls, [
+    'available-dialog:0.15.0',
+    'launcher:stable',
+    'manual-install:0.15.0',
+  ]);
 });
 
 test('automatic update check skips inside configured interval', async () => {

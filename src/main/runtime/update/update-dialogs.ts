@@ -50,6 +50,8 @@ export function createUpdateDialogPresenter(deps: UpdateDialogPresenterDeps) {
       showUpdateAvailableDialog(showFocusedMessageBox, version),
     showUpdateFailedDialog: (message: string) =>
       showUpdateFailedDialog(showFocusedMessageBox, message),
+    showManualUpdateRequiredDialog: (version: string) =>
+      showManualUpdateRequiredDialog(showFocusedMessageBox, version),
     showRestartDialog: () => showRestartDialog(showFocusedMessageBox),
   };
 }
@@ -79,6 +81,19 @@ export async function showRestartDialog(showMessageBox: ShowMessageBox): Promise
     cancelId: 1,
   });
   return result.response === 0 ? 'restart' : 'later';
+}
+
+export async function showManualUpdateRequiredDialog(
+  showMessageBox: ShowMessageBox,
+  version: string,
+): Promise<void> {
+  await showMessageBox({
+    type: 'warning',
+    title: 'SubMiner Updates',
+    message: 'Manual install required',
+    detail: `SubMiner v${version} is available, but this build cannot install app updates automatically. Download and install the latest release, then reopen SubMiner.`,
+    buttons: ['Close'],
+  });
 }
 
 export async function showUpdateFailedDialog(
