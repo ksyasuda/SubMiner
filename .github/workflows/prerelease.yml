@@ -369,8 +369,12 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate prerelease notes from pending fragments
-        run: bun run changelog:prerelease-notes --version "${{ steps.version.outputs.VERSION }}"
+      - name: Verify committed prerelease notes
+        run: |
+          if [ ! -s release/prerelease-notes.md ]; then
+            echo "::error::release/prerelease-notes.md is missing or empty. Run 'bun run changelog:prerelease-notes --version <version>' locally and commit the file before tagging."
+            exit 1
+          fi
 
       - name: Publish Prerelease
         env:

@@ -10,6 +10,7 @@ dist/
 release/*
 !release/
 !release/release-notes.md
+!release/prerelease-notes.md
 build/yomitan/
 coverage/
 

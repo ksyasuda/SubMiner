@@ -55,7 +55,10 @@
    `bun run build`
    When validating packaged updater output, confirm the platform build writes
    `*.yml` and `*.blockmap` files under `release/`.
-5. Commit the prerelease prep. Do not run `bun run changelog:build`.
+5. Commit the prerelease prep (package.json version bump + the generated
+   `release/prerelease-notes.md`). CI does not regenerate notes — it uses the
+   committed file — so review it before committing. Do not run
+   `bun run changelog:build`.
 6. Tag the commit: `git tag v<version>`.
 7. Push commit + tag.
 

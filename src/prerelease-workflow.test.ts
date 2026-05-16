@@ -27,9 +27,10 @@ test('package scripts expose prerelease notes generation separately from stable 
   );
 });
 
-test('prerelease workflow generates prerelease notes from pending fragments', () => {
-  assert.match(prereleaseWorkflow, /bun run changelog:prerelease-notes --version/);
-  assert.doesNotMatch(prereleaseWorkflow, /bun run changelog:build --version/);
+test('prerelease workflow uses committed prerelease notes and never calls claude in CI', () => {
+  assert.match(prereleaseWorkflow, /--notes-file release\/prerelease-notes\.md/);
+  assert.doesNotMatch(prereleaseWorkflow, /run: bun run changelog:prerelease-notes/);
+  assert.doesNotMatch(prereleaseWorkflow, /run: bun run changelog:build/);
 });
 
 test('prerelease workflow includes the environment suite in the gate sequence', () => {
