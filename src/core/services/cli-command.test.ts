@@ -130,8 +130,8 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     openYomitanSettingsDelayed: (delayMs) => {
       calls.push(`openYomitanSettingsDelayed:${delayMs}`);
     },
-    openFirstRunSetup: () => {
-      calls.push('openFirstRunSetup');
+    openFirstRunSetup: (force?: boolean) => {
+      calls.push(`openFirstRunSetup:${force === true ? 'force' : 'default'}`);
     },
     setVisibleOverlayVisible: (visible) => {
       calls.push(`setVisibleOverlayVisible:${visible}`);
@@ -361,12 +361,21 @@ test('handleCliCommand processes --start for second-instance when overlay runtim
   );
 });
 
+test('handleCliCommand forces setup open for second-instance setup command', () => {
+  const { deps, calls } = createDeps();
+
+  handleCliCommand(makeArgs({ setup: true }), 'second-instance', deps);
+
+  assert.ok(calls.includes('openFirstRunSetup:force'));
+  assert.ok(calls.includes('debug:Opened first-run setup flow.'));
+});
+
 test('handleCliCommand opens first-run setup window for --setup', () => {
   const { deps, calls } = createDeps();
 
   handleCliCommand(makeArgs({ setup: true }), 'initial', deps);
 
-  assert.ok(calls.includes('openFirstRunSetup'));
+  assert.ok(calls.includes('openFirstRunSetup:force'));
   assert.ok(calls.includes('debug:Opened first-run setup flow.'));
   assert.equal(calls.includes('log:Opened first-run setup flow.'), false);
   assert.equal(calls.includes('openYomitanSettingsDelayed:1000'), false);
