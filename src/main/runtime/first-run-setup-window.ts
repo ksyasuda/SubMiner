@@ -348,13 +348,20 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       --yellow: #eed49f;
       --red: #ed8796;
     }
+    html,
+    body {
+      min-height: 100%;
+    }
     body {
       margin: 0;
+      min-height: 100vh;
       background: linear-gradient(180deg, var(--mantle), var(--base));
       color: var(--text);
       font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     main {
+      box-sizing: border-box;
+      min-height: 100vh;
       padding: 18px;
     }
     h1 {

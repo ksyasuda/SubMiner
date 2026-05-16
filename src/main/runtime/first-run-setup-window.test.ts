@@ -65,6 +65,9 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
   assert.match(html, /Open Yomitan Settings/);
   assert.match(html, /Finish setup/);
   assert.match(html, /disabled/);
+  assert.match(html, /html,\s*body\s*{\s*min-height:\s*100%;/);
+  assert.match(html, /min-height:\s*100vh;/);
+  assert.match(html, /box-sizing:\s*border-box;/);
 });
 
 test('buildFirstRunSetupHtml switches plugin action to reinstall when already installed', () => {
@@ -466,15 +469,7 @@ test('opening first-run setup shows and focuses window after content loads', asy
   handler();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.deepEqual(calls, [
-    'set',
-    'show',
-    'focus',
-    'in-progress',
-    'load',
-    'show',
-    'focus',
-  ]);
+  assert.deepEqual(calls, ['set', 'show', 'focus', 'in-progress', 'load', 'show', 'focus']);
 });
 
 test('closing incomplete first-run setup quits app outside background mode', async () => {

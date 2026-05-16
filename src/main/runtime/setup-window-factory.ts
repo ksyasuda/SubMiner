@@ -33,7 +33,7 @@ export function createCreateFirstRunSetupWindowHandler<TWindow>(deps: {
 }) {
   return createSetupWindowHandler(deps, {
     width: 720,
-    height: 760,
+    height: 860,
     title: 'SubMiner Setup',
     resizable: false,
     minimizable: false,
