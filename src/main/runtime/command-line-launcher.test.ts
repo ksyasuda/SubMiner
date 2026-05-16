@@ -110,6 +110,21 @@ test('resolveBunInstallCommand uses Homebrew on macOS when available', () => {
   );
 });
 
+test('detectBun reports homebrew install method from POSIX brew path', async () => {
+  const snapshot = await detectBun({
+    platform: 'darwin',
+    env: { PATH: '/opt/homebrew/bin:/usr/bin' },
+    existsSync: (candidate) => candidate === '/opt/homebrew/bin/brew',
+    accessSync: (candidate) => {
+      if (candidate !== '/opt/homebrew/bin/brew') throw new Error('not executable');
+    },
+    runCommand: async () => ({ exitCode: 127, stdout: '', stderr: 'missing' }),
+  });
+
+  assert.equal(snapshot.status, 'missing');
+  assert.equal(snapshot.installMethod, 'homebrew');
+});
+
 test('resolveLauncherInstallTarget prefers writable user bin on Linux', async () => {
   const target = await resolveLauncherInstallTarget({
     platform: 'linux',
@@ -142,6 +157,53 @@ test('resolveLauncherInstallTarget returns not_installable without writable PATH
 
   assert.equal(target.status, 'not_installable');
   assert.equal(target.installPath, null);
+});
+
+test('resolveLauncherInstallTarget skips Homebrew bin for empty macOS manual installs', async () => {
+  const target = await resolveLauncherInstallTarget({
+    platform: 'darwin',
+    homeDir: '/Users/tester',
+    env: { PATH: '/opt/homebrew/bin:/usr/local/bin:/Users/tester/.local/bin:/usr/bin' },
+    existsSync: (candidate) =>
+      candidate === '/opt/homebrew/bin' ||
+      candidate === '/usr/local/bin' ||
+      candidate === '/Users/tester/.local/bin' ||
+      candidate === '/usr/bin',
+    accessSync: (candidate) => {
+      if (
+        candidate !== '/opt/homebrew/bin' &&
+        candidate !== '/usr/local/bin' &&
+        candidate !== '/Users/tester/.local/bin'
+      ) {
+        throw new Error('not writable');
+      }
+    },
+  });
+
+  assert.equal(target.status, 'not_installed');
+  assert.equal(target.pathDir, '/Users/tester/.local/bin');
+  assert.equal(target.installPath, '/Users/tester/.local/bin/subminer');
+});
+
+test('resolveLauncherInstallTarget uses usr local bin for macOS manual install when user bin is absent', async () => {
+  const target = await resolveLauncherInstallTarget({
+    platform: 'darwin',
+    homeDir: '/Users/tester',
+    env: { PATH: '/opt/homebrew/bin:/usr/local/bin:/usr/bin' },
+    existsSync: (candidate) =>
+      candidate === '/opt/homebrew/bin' ||
+      candidate === '/usr/local/bin' ||
+      candidate === '/usr/bin',
+    accessSync: (candidate) => {
+      if (candidate !== '/opt/homebrew/bin' && candidate !== '/usr/local/bin') {
+        throw new Error('not writable');
+      }
+    },
+  });
+
+  assert.equal(target.status, 'not_installed');
+  assert.equal(target.pathDir, '/usr/local/bin');
+  assert.equal(target.installPath, '/usr/local/bin/subminer');
 });
 
 test('installLauncher writes Windows cmd shim and appends user PATH once', async () => {
@@ -207,6 +269,54 @@ test('detectLauncher reports shadowed when another subminer appears earlier on P
   assert.equal(snapshot.status, 'shadowed');
   assert.equal(snapshot.shadowedBy, '/tmp/bin/subminer');
   assert.equal(snapshot.installPath, '/home/tester/.local/bin/subminer');
+});
+
+test('detectLauncher accepts installed macOS launcher from user local bin before Homebrew target', async () => {
+  const snapshot = await detectLauncher({
+    platform: 'darwin',
+    homeDir: '/Users/tester',
+    env: { PATH: '/Users/tester/.local/bin:/opt/homebrew/bin:/usr/bin' },
+    existsSync: (candidate) =>
+      candidate === '/Users/tester/.local/bin' ||
+      candidate === '/opt/homebrew/bin' ||
+      candidate === '/Users/tester/.local/bin/subminer',
+    accessSync: () => undefined,
+    runCommand: async (command, args) => {
+      assert.equal(command, '/Users/tester/.local/bin/subminer');
+      assert.deepEqual(args, ['--help']);
+      return { exitCode: 0, stdout: 'help', stderr: '' };
+    },
+    bunSnapshot: createBunSnapshot('ready'),
+  });
+
+  assert.equal(snapshot.status, 'ready');
+  assert.equal(snapshot.commandPath, '/Users/tester/.local/bin/subminer');
+  assert.equal(snapshot.installPath, '/Users/tester/.local/bin/subminer');
+  assert.equal(snapshot.pathDir, '/Users/tester/.local/bin');
+  assert.equal(snapshot.shadowedBy, null);
+});
+
+test('detectLauncher accepts installed macOS launcher from Homebrew bin', async () => {
+  const snapshot = await detectLauncher({
+    platform: 'darwin',
+    homeDir: '/Users/tester',
+    env: { PATH: '/opt/homebrew/bin:/usr/bin' },
+    existsSync: (candidate) =>
+      candidate === '/opt/homebrew/bin' || candidate === '/opt/homebrew/bin/subminer',
+    accessSync: () => undefined,
+    runCommand: async (command, args) => {
+      assert.equal(command, '/opt/homebrew/bin/subminer');
+      assert.deepEqual(args, ['--help']);
+      return { exitCode: 0, stdout: 'help', stderr: '' };
+    },
+    bunSnapshot: createBunSnapshot('ready'),
+  });
+
+  assert.equal(snapshot.status, 'ready');
+  assert.equal(snapshot.commandPath, '/opt/homebrew/bin/subminer');
+  assert.equal(snapshot.installPath, '/opt/homebrew/bin/subminer');
+  assert.equal(snapshot.pathDir, '/opt/homebrew/bin');
+  assert.equal(snapshot.shadowedBy, null);
 });
 
 test('detectLauncher reports installed_bun_missing when launcher exists but bun is missing', async () => {

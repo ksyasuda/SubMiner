@@ -119,6 +119,7 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.jellyfinRemoteAnnounce ||
     args.jellyfinPreviewAuth ||
     args.texthooker ||
+    args.update ||
     args.help,
   );
 }
@@ -127,6 +128,10 @@ export function shouldAutoOpenFirstRunSetup(args: CliArgs): boolean {
   if (args.setup) return true;
   if (!args.start && !args.background) return false;
   return !hasAnyStartupCommandBeyondSetup(args);
+}
+
+export function isStandaloneFirstRunSetupCommand(args: CliArgs): boolean {
+  return args.setup && !args.start && !hasAnyStartupCommandBeyondSetup(args);
 }
 
 function getPluginStatus(

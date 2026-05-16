@@ -58,6 +58,7 @@ test('composeCliStartupHandlers returns callable CLI startup handlers', () => {
       getMultiCopyTimeoutMs: () => 0,
       schedule: () => 0 as never,
       logInfo: () => {},
+      logDebug: () => {},
       logWarn: () => {},
       logError: () => {},
     },

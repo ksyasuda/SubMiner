@@ -11,6 +11,7 @@ test('composeAppReadyRuntime returns reload/critical/app-ready handlers', () => 
         return { ok: true, path: '/tmp/config.jsonc', warnings: [] };
       },
       logInfo: () => {},
+      logDebug: () => {},
       logWarning: () => {},
       showDesktopNotification: () => {},
       startConfigHotReload: () => {},

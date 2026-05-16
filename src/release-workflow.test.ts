@@ -164,6 +164,7 @@ test('release packaging stages generated launcher as an app resource', () => {
     ),
   );
   assert.match(packageJson.scripts.build ?? '', /bun run build:launcher/);
+  assert.match(packageJson.scripts['build:launcher'] ?? '', /--banner='#!\/usr\/bin\/env bun'/);
 });
 
 test('config example generation runs directly from source without unrelated bundle prerequisites', () => {

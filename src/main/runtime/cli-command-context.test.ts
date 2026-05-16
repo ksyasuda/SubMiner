@@ -66,6 +66,9 @@ function createDeps() {
       logInfo: (message: string) => {
         logs.push(`i:${message}`);
       },
+      logDebug: (message: string) => {
+        logs.push(`d:${message}`);
+      },
       logWarn: (message: string) => {
         logs.push(`w:${message}`);
       },
@@ -102,7 +105,8 @@ test('cli command context log methods map to deps loggers', () => {
   const { deps, getLogs } = createDeps();
   const context = createCliCommandContext(deps);
   context.log('info');
+  context.logDebug('debug');
   context.warn('warn');
   context.error('error', new Error('x'));
-  assert.deepEqual(getLogs(), ['i:info', 'w:warn', 'e:error']);
+  assert.deepEqual(getLogs(), ['i:info', 'd:debug', 'w:warn', 'e:error']);
 });

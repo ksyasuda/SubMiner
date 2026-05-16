@@ -43,13 +43,14 @@ export interface UpdateServiceDeps {
   updateLauncher: (
     launcherPath?: string,
     channel?: UpdateChannel,
+    release?: GitHubRelease | null,
   ) => Promise<{ status: string; command?: string }>;
   showNoUpdateDialog: (version: string) => Promise<void>;
   showUpdateAvailableDialog: (version: string) => Promise<'update' | 'close'>;
   showUpdateFailedDialog: (message: string) => Promise<void>;
   downloadAppUpdate: () => Promise<void>;
   showRestartDialog: () => Promise<'restart' | 'later'>;
-  quitAndInstall: () => void;
+  quitAndInstall: () => void | Promise<void>;
   notifyUpdateAvailable: (version: string) => Promise<void>;
   log: (message: string) => void;
   setTimeout?: (callback: () => void, delayMs: number) => unknown;
@@ -96,7 +97,7 @@ function summarizeError(error: unknown): string {
 }
 
 export function createUpdateService(deps: UpdateServiceDeps) {
-  let inFlight: Promise<UpdateCheckResult> | null = null;
+  const inFlightBySource = new Map<UpdateCheckSource, Promise<UpdateCheckResult>>();
 
   async function runCheck(request: UpdateCheckRequest): Promise<UpdateCheckResult> {
     const now = deps.now();
@@ -157,17 +158,24 @@ export function createUpdateService(deps: UpdateServiceDeps) {
         return { status: 'update-available', version: latest.version };
       }
 
+      let appUpdateApplied = false;
       if (appUpdate.available && appUpdate.canUpdate !== false) {
         await deps.downloadAppUpdate();
+        appUpdateApplied = true;
       }
-      const launcherResult = await deps.updateLauncher(request.launcherPath, channel);
+      const launcherResult = await deps.updateLauncher(request.launcherPath, channel, release);
       if (launcherResult.status === 'protected' && launcherResult.command) {
         deps.log(`Launcher update requires manual command: ${launcherResult.command}`);
       }
 
+      const launcherUpdateApplied = launcherResult.status === 'updated';
+      if (!appUpdateApplied && !launcherUpdateApplied) {
+        return { status: 'update-available', version: latest.version };
+      }
+
       const restartChoice = await deps.showRestartDialog();
       if (restartChoice === 'restart') {
-        deps.quitAndInstall();
+        await deps.quitAndInstall();
       }
       return { status: 'updated', version: latest.version };
     } catch (error) {
@@ -183,11 +191,13 @@ export function createUpdateService(deps: UpdateServiceDeps) {
 
   return {
     checkForUpdates(request: UpdateCheckRequest): Promise<UpdateCheckResult> {
+      const inFlight = inFlightBySource.get(request.source);
       if (inFlight) return inFlight;
-      inFlight = runCheck(request).finally(() => {
-        inFlight = null;
+      const nextInFlight = runCheck(request).finally(() => {
+        inFlightBySource.delete(request.source);
       });
-      return inFlight;
+      inFlightBySource.set(request.source, nextInFlight);
+      return nextInFlight;
     },
     startAutomaticChecks(options: { startupDelayMs?: number; pollIntervalMs?: number } = {}): void {
       const setTimeoutFn = deps.setTimeout ?? setTimeout;

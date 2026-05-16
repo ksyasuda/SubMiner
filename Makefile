@@ -20,9 +20,9 @@ MACOS_APP_DIR ?= $(HOME)/Applications
 MACOS_APP_DEST ?= $(MACOS_APP_DIR)/SubMiner.app
 
 # If building from source, the AppImage will typically land in release/.
-APPIMAGE_SRC := $(firstword $(wildcard release/SubMiner-*.AppImage))
-MACOS_APP_SRC := $(firstword $(wildcard release/*.app release/*/*.app))
-MACOS_ZIP_SRC := $(firstword $(wildcard release/SubMiner-*.zip))
+APPIMAGE_SRC = $(firstword $(wildcard release/SubMiner-*.AppImage))
+MACOS_APP_SRC = $(firstword $(wildcard release/*.app release/*/*.app))
+MACOS_ZIP_SRC = $(firstword $(wildcard release/SubMiner-*.zip))
 
 UNAME_S := $(shell uname -s 2>/dev/null || echo Unknown)
 ifeq ($(OS),Windows_NT)

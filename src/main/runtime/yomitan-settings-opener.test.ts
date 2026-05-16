@@ -119,9 +119,9 @@ test('yomitan opener uses loaded extension from app state without calling loader
   assert.equal(forwardedExtension, appStateExtension);
 });
 
-test('yomitan opener warns instead of starting a settings-triggered load when extension is not ready', async () => {
+test('yomitan opener lazy-loads extension when app state is empty and no load is in flight', async () => {
   let ensureCalled = false;
-  const logs: string[] = [];
+  let forwardedExtension: { id: string } | null = null;
   const openSettings = createOpenYomitanSettingsHandler({
     ensureYomitanExtensionLoaded: async () => {
       ensureCalled = true;
@@ -129,19 +129,19 @@ test('yomitan opener warns instead of starting a settings-triggered load when ex
     },
     getYomitanExtension: () => null,
     getYomitanExtensionLoadInFlight: () => null,
-    openYomitanSettingsWindow: () => {
-      throw new Error('should not open before extension is ready');
+    openYomitanSettingsWindow: ({ yomitanExt }) => {
+      forwardedExtension = yomitanExt as { id: string };
     },
     getExistingWindow: () => null,
     setWindow: () => {},
-    logWarn: (message) => logs.push(message),
-    logError: () => logs.push('error'),
+    logWarn: () => {},
+    logError: () => {},
   });
 
   openSettings();
   await Promise.resolve();
   await Promise.resolve();
 
-  assert.equal(ensureCalled, false);
-  assert.deepEqual(logs, ['Unable to open Yomitan settings: extension is not loaded yet.']);
+  assert.equal(ensureCalled, true);
+  assert.deepEqual(forwardedExtension, { id: 'ext' });
 });

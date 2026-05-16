@@ -27,6 +27,7 @@ export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeD
     createImmersionTracker: deps.createImmersionTracker,
     startJellyfinRemoteSession: deps.startJellyfinRemoteSession,
     loadYomitanExtension: deps.loadYomitanExtension,
+    ensureYomitanExtensionLoaded: deps.ensureYomitanExtensionLoaded,
     handleFirstRunSetup: deps.handleFirstRunSetup,
     prewarmSubtitleDictionaries: deps.prewarmSubtitleDictionaries,
     startBackgroundWarmups: deps.startBackgroundWarmups,

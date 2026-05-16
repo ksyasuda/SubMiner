@@ -82,6 +82,7 @@ function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
   return {
     shouldUseMinimalStartup: Boolean(
       (initialArgs && isStandaloneTexthookerCommand(initialArgs)) ||
+      initialArgs?.update ||
       (initialArgs?.stats &&
         (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
     ),
@@ -90,6 +91,7 @@ function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
       (shouldRunSettingsOnlyStartup(initialArgs) ||
         initialArgs.stats ||
         initialArgs.dictionary ||
+        initialArgs.update ||
         initialArgs.setup),
     ),
   };
@@ -365,6 +367,7 @@ import { toggleStatsOverlay as toggleStatsOverlayWindow } from './core/services/
 import {
   createFirstRunSetupService,
   getFirstRunSetupCompletionMessage,
+  isStandaloneFirstRunSetupCommand,
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
 import { createYoutubeFlowRuntime } from './main/runtime/youtube-flow';
@@ -508,22 +511,21 @@ import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/charac
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
-import { createElectronAppUpdater } from './main/runtime/update/app-updater';
+import {
+  createElectronAppUpdater,
+  isNativeUpdaterSupported,
+} from './main/runtime/update/app-updater';
 import {
   fetchLatestStableRelease,
   fetchReleaseAssetBuffer,
   fetchReleaseAssetText,
   findReleaseAsset,
   parseSha256Sums,
+  type GitHubRelease,
 } from './main/runtime/update/release-assets';
 import { updateLauncherFromRelease } from './main/runtime/update/launcher-updater';
 import { notifyUpdateAvailable } from './main/runtime/update/update-notifications';
-import {
-  showNoUpdateDialog,
-  showRestartDialog,
-  showUpdateAvailableDialog,
-  showUpdateFailedDialog,
-} from './main/runtime/update/update-dialogs';
+import { createUpdateDialogPresenter } from './main/runtime/update/update-dialogs';
 import {
   runUpdateCliCommand,
   writeUpdateCliCommandResponse,
@@ -846,6 +848,9 @@ notifyAnilistTokenStoreWarning = (message: string) => {
 const appLogger = {
   logInfo: (message: string) => {
     logger.info(message);
+  },
+  logDebug: (message: string) => {
+    logger.debug(message);
   },
   logWarning: (message: string) => {
     logger.warn(message);
@@ -2902,6 +2907,8 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
   },
   isSetupCompleted: () => firstRunSetupService.isSetupCompleted(),
   shouldQuitWhenClosedIncomplete: () => !appState.backgroundMode,
+  shouldQuitWhenClosedCompleted: () =>
+    Boolean(appState.initialArgs && isStandaloneFirstRunSetupCommand(appState.initialArgs)),
   quitApp: () => requestAppQuit(),
   clearSetupWindow: () => {
     appState.firstRunSetupWindow = null;
@@ -3733,6 +3740,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
   reloadConfigMainDeps: {
     reloadConfigStrict: () => configService.reloadConfigStrict(),
     logInfo: (message) => appLogger.logInfo(message),
+    logDebug: (message) => appLogger.logDebug(message),
     logWarning: (message) => appLogger.logWarning(message),
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
     startConfigHotReload: () => configHotReloadRuntime.start(),
@@ -3855,6 +3863,9 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     },
     loadYomitanExtension: async () => {
       await loadYomitanExtension();
+    },
+    ensureYomitanExtensionLoaded: async () => {
+      await ensureYomitanExtensionLoaded();
     },
     handleFirstRunSetup: async () => {
       const snapshot = await firstRunSetupService.ensureSetupStateInitialized();
@@ -4613,12 +4624,12 @@ function getFetchForUpdater() {
   return globalThis.fetch.bind(globalThis);
 }
 
-async function updateLauncherFromLatestRelease(
+async function updateLauncherFromSelectedRelease(
   launcherPath?: string,
   channel: UpdateChannel = getResolvedConfig().updates.channel,
+  release: GitHubRelease | null = null,
 ) {
   const fetchForUpdater = getFetchForUpdater();
-  const release = await fetchLatestStableRelease({ fetch: fetchForUpdater, channel });
   if (!release) {
     return { status: 'missing-asset', message: `No ${channel} GitHub release found.` };
   }
@@ -4642,9 +4653,9 @@ async function updateLauncherFromLatestRelease(
   });
   for (const result of supportResults) {
     if (result.status === 'protected' && result.command) {
-      logger.warn(`Support assets update requires manual command: ${result.command}`);
+      logger.warn(`Rofi theme update requires manual command: ${result.command}`);
     } else if (result.status === 'hash-mismatch' || result.status === 'missing-asset') {
-      logger.warn(`Support assets update skipped: ${result.message ?? result.status}`);
+      logger.warn(`Rofi theme update skipped: ${result.message ?? result.status}`);
     }
   }
   return launcherResult;
@@ -4657,6 +4668,19 @@ function getUpdateService() {
     isPackaged: app.isPackaged,
     log: (message) => logger.info(message),
     getChannel: () => getResolvedConfig().updates.channel,
+    isNativeUpdaterSupported: () =>
+      isNativeUpdaterSupported({
+        platform: process.platform,
+        isPackaged: app.isPackaged,
+        execPath: process.execPath,
+        env: process.env,
+        log: (message) => logger.warn(message),
+      }),
+  });
+  const updateDialogPresenter = createUpdateDialogPresenter({
+    platform: process.platform,
+    focusApp: () => app.focus({ steal: true }),
+    showMessageBox: (options) => dialog.showMessageBox(options),
   });
   updateService = createUpdateService({
     getConfig: () => getResolvedConfig().updates,
@@ -4667,16 +4691,14 @@ function getUpdateService() {
     checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
     fetchLatestStableRelease: (channel) =>
       fetchLatestStableRelease({ fetch: getFetchForUpdater(), channel }),
-    updateLauncher: (launcherPath, channel) =>
-      updateLauncherFromLatestRelease(launcherPath, channel),
-    showNoUpdateDialog: (version) =>
-      showNoUpdateDialog((options) => dialog.showMessageBox(options), version),
+    updateLauncher: (launcherPath, channel, release) =>
+      updateLauncherFromSelectedRelease(launcherPath, channel, release),
+    showNoUpdateDialog: (version) => updateDialogPresenter.showNoUpdateDialog(version),
     showUpdateAvailableDialog: (version) =>
-      showUpdateAvailableDialog((options) => dialog.showMessageBox(options), version),
-    showUpdateFailedDialog: (message) =>
-      showUpdateFailedDialog((options) => dialog.showMessageBox(options), message),
+      updateDialogPresenter.showUpdateAvailableDialog(version),
+    showUpdateFailedDialog: (message) => updateDialogPresenter.showUpdateFailedDialog(message),
     downloadAppUpdate: () => appUpdater.downloadUpdate(),
-    showRestartDialog: () => showRestartDialog((options) => dialog.showMessageBox(options)),
+    showRestartDialog: () => updateDialogPresenter.showRestartDialog(),
     quitAndInstall: () => appUpdater.quitAndInstall(),
     notifyUpdateAvailable: (version) =>
       notifyUpdateAvailable(
@@ -5309,7 +5331,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
     togglePrimarySubtitleBar: () => togglePrimarySubtitleBar(),
-    openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
+    openFirstRunSetupWindow: (force?: boolean) => openFirstRunSetupWindow(force),
     setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
     copyCurrentSubtitle: () => copyCurrentSubtitle(),
     startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
@@ -5367,6 +5389,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
     schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
     logInfo: (message: string) => logger.info(message),
+    logDebug: (message: string) => logger.debug(message),
     logWarn: (message: string) => logger.warn(message),
     logError: (message: string, err: unknown) => logger.error(message, err),
   },

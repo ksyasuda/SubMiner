@@ -29,6 +29,85 @@ export interface YomitanExtensionLoaderDeps {
   setYomitanSession: (session: Session | null) => void;
 }
 
+type WarningProcess = Pick<NodeJS.Process, 'emitWarning'>;
+
+const suppressedWarningState = new WeakMap<
+  WarningProcess,
+  {
+    count: number;
+    originalEmitWarning: WarningProcess['emitWarning'];
+  }
+>();
+
+function getWarningType(warning: string | Error, args: unknown[]): string | undefined {
+  if (typeof warning !== 'string') {
+    return warning.name;
+  }
+  const firstArg = args[0];
+  if (typeof firstArg === 'string') {
+    return firstArg;
+  }
+  if (firstArg && typeof firstArg === 'object' && 'type' in firstArg) {
+    const type = (firstArg as { type?: unknown }).type;
+    return typeof type === 'string' ? type : undefined;
+  }
+  return undefined;
+}
+
+function shouldSuppressYomitanExtensionWarning(warning: string | Error, args: unknown[]): boolean {
+  const message = warning instanceof Error ? warning.message : warning;
+  return (
+    getWarningType(warning, args) === 'ExtensionLoadWarning' &&
+    message.includes("Permission 'contextMenus' is unknown.")
+  );
+}
+
+export async function withSuppressedYomitanExtensionWarnings<T>(
+  run: () => Promise<T>,
+  warningProcess: WarningProcess = process,
+): Promise<T> {
+  const existingState = suppressedWarningState.get(warningProcess);
+  if (existingState) {
+    existingState.count++;
+    try {
+      return await run();
+    } finally {
+      existingState.count--;
+      if (existingState.count === 0) {
+        warningProcess.emitWarning = existingState.originalEmitWarning;
+        suppressedWarningState.delete(warningProcess);
+      }
+    }
+  }
+
+  const originalEmitWarning = warningProcess.emitWarning;
+  const state = {
+    count: 1,
+    originalEmitWarning,
+  };
+  suppressedWarningState.set(warningProcess, state);
+  warningProcess.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
+    if (shouldSuppressYomitanExtensionWarning(warning, args)) {
+      return;
+    }
+    return (originalEmitWarning as (...emitArgs: unknown[]) => void).call(
+      warningProcess,
+      warning,
+      ...args,
+    );
+  }) as typeof process.emitWarning;
+
+  try {
+    return await run();
+  } finally {
+    state.count--;
+    if (state.count === 0) {
+      warningProcess.emitWarning = originalEmitWarning;
+      suppressedWarningState.delete(warningProcess);
+    }
+  }
+}
+
 export async function loadYomitanExtension(
   deps: YomitanExtensionLoaderDeps,
 ): Promise<Extension | null> {
@@ -79,9 +158,20 @@ export async function loadYomitanExtension(
       return null;
     }
 
-    const extensionCopy = await ensureExtensionCopyAsync(extPath, deps.userDataPath);
+    let extensionCopy: { copied: boolean; targetDir: string };
+    try {
+      extensionCopy = await ensureExtensionCopyAsync(extPath, deps.userDataPath);
+    } catch (error) {
+      logger.error('Failed to copy Yomitan extension:', {
+        error,
+        extensionPath: extPath,
+        userDataPath: deps.userDataPath,
+      });
+      clearRuntimeState();
+      return null;
+    }
     if (extensionCopy.copied) {
-      logger.info(`Copied yomitan extension to ${extensionCopy.targetDir}`);
+      logger.debug(`Copied yomitan extension to ${extensionCopy.targetDir}`);
     }
     extPath = extensionCopy.targetDir;
   }
@@ -91,13 +181,15 @@ export async function loadYomitanExtension(
 
   try {
     const extensions = targetSession.extensions;
-    const extension = extensions
-      ? await extensions.loadExtension(extPath, {
-          allowFileAccess: true,
-        })
-      : await targetSession.loadExtension(extPath, {
-          allowFileAccess: true,
-        });
+    const extension = await withSuppressedYomitanExtensionWarnings(() =>
+      extensions
+        ? extensions.loadExtension(extPath, {
+            allowFileAccess: true,
+          })
+        : targetSession.loadExtension(extPath, {
+            allowFileAccess: true,
+          }),
+    );
     deps.setYomitanExtension(extension);
     return extension;
   } catch (err) {

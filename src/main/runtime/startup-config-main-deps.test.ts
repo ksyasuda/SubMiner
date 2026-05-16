@@ -10,6 +10,7 @@ test('reload config main deps builder maps callbacks and fail handlers', async (
   const deps = createBuildReloadConfigMainDepsHandler({
     reloadConfigStrict: () => ({ ok: true, path: '/tmp/config.jsonc', warnings: [] }),
     logInfo: (message) => calls.push(`info:${message}`),
+    logDebug: (message) => calls.push(`debug:${message}`),
     logWarning: (message) => calls.push(`warn:${message}`),
     showDesktopNotification: (title, options) => calls.push(`notify:${title}:${options.body}`),
     startConfigHotReload: () => calls.push('start-hot-reload'),
@@ -30,6 +31,7 @@ test('reload config main deps builder maps callbacks and fail handlers', async (
     warnings: [],
   });
   deps.logInfo('x');
+  deps.logDebug('debug');
   deps.logWarning('y');
   deps.showDesktopNotification('SubMiner', { body: 'warn' });
   deps.startConfigHotReload();
@@ -39,6 +41,7 @@ test('reload config main deps builder maps callbacks and fail handlers', async (
   deps.failHandlers.quit();
   assert.deepEqual(calls, [
     'info:x',
+    'debug:debug',
     'warn:y',
     'notify:SubMiner:warn',
     'start-hot-reload',

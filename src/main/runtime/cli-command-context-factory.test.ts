@@ -82,6 +82,7 @@ test('cli command context factory composes main deps and context handlers', () =
     getMultiCopyTimeoutMs: () => 5000,
     schedule: (fn) => setTimeout(fn, 0),
     logInfo: () => {},
+    logDebug: () => {},
     logWarn: () => {},
     logError: () => {},
   });

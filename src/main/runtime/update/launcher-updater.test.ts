@@ -15,13 +15,13 @@ test('looksLikeSubminerLauncher rejects unrelated executable content', () => {
   assert.equal(looksLikeSubminerLauncher(Buffer.from('SubMiner launcher binary payload')), true);
 });
 
-test('buildProtectedLauncherUpdateCommand uses sudo curl and chmod for protected paths', () => {
+test('buildProtectedLauncherUpdateCommand quotes sudo curl and chmod paths', () => {
   assert.equal(
     buildProtectedLauncherUpdateCommand(
-      'https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer',
-      '/usr/local/bin/subminer',
+      "https://github.com/ksyasuda/SubMiner/releases/latest/download/sub miner?sig='abc'",
+      "/usr/local/bin/subminer's launcher",
     ),
-    'sudo curl -fSL https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -o /usr/local/bin/subminer && sudo chmod +x /usr/local/bin/subminer',
+    "sudo curl -fSL 'https://github.com/ksyasuda/SubMiner/releases/latest/download/sub miner?sig='\\''abc'\\''' -o '/usr/local/bin/subminer'\\''s launcher' && sudo chmod +x '/usr/local/bin/subminer'\\''s launcher'",
   );
 });
 
@@ -84,7 +84,7 @@ test('updateLauncherAtPath reports protected command without replacing non-writa
   });
 
   assert.equal(result.status, 'protected');
-  assert.match(result.command ?? '', /^sudo curl -fSL https:\/\/example\.test\/subminer/);
+  assert.match(result.command ?? '', /^sudo curl -fSL 'https:\/\/example\.test\/subminer'/);
 });
 
 test('updateLauncherAtPath aborts on hash mismatch and suspicious launcher content', async () => {

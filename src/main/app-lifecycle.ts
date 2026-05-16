@@ -44,6 +44,7 @@ export interface AppReadyRuntimeDepsFactoryInput {
   createImmersionTracker?: AppReadyRuntimeDeps['createImmersionTracker'];
   startJellyfinRemoteSession?: AppReadyRuntimeDeps['startJellyfinRemoteSession'];
   loadYomitanExtension: AppReadyRuntimeDeps['loadYomitanExtension'];
+  ensureYomitanExtensionLoaded?: AppReadyRuntimeDeps['ensureYomitanExtensionLoaded'];
   handleFirstRunSetup: AppReadyRuntimeDeps['handleFirstRunSetup'];
   prewarmSubtitleDictionaries?: AppReadyRuntimeDeps['prewarmSubtitleDictionaries'];
   startBackgroundWarmups: AppReadyRuntimeDeps['startBackgroundWarmups'];
@@ -109,6 +110,7 @@ export function createAppReadyRuntimeDeps(
     createImmersionTracker: params.createImmersionTracker,
     startJellyfinRemoteSession: params.startJellyfinRemoteSession,
     loadYomitanExtension: params.loadYomitanExtension,
+    ensureYomitanExtensionLoaded: params.ensureYomitanExtensionLoaded,
     handleFirstRunSetup: params.handleFirstRunSetup,
     prewarmSubtitleDictionaries: params.prewarmSubtitleDictionaries,
     startBackgroundWarmups: params.startBackgroundWarmups,

@@ -72,21 +72,23 @@ const BUN_OFFICIAL_WINDOWS_COMMAND = [
 ];
 const INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
 const COMMAND_TIMEOUT_MS = 15 * 1000;
+const MACOS_HOMEBREW_PATH_DIRS = ['/opt/homebrew/bin'];
 
-function installMethodForCommand(
-  command: string[] | null,
-): BunSnapshot['installMethod'] {
+function installMethodForCommand(command: string[] | null): BunSnapshot['installMethod'] {
   if (!command) return null;
   const executablePath = command[0];
   if (!executablePath) return null;
-  const executable = path.win32.basename(executablePath).toLowerCase();
-  if (executable === 'winget.exe') return 'winget';
-  if (executable === 'scoop.cmd') return 'scoop';
-  if (executable === 'brew') return 'homebrew';
+  const executable = path.basename(executablePath).toLowerCase();
+  const windowsExecutable = path.win32.basename(executablePath).toLowerCase();
+  if (windowsExecutable === 'winget.exe') return 'winget';
+  if (windowsExecutable === 'scoop.cmd') return 'scoop';
+  if (executable === 'brew' || windowsExecutable === 'brew') return 'homebrew';
   return 'official-script';
 }
 
-export function resolveBunInstallCommand(options: CommonOptions = {}): BunSnapshot['installCommand'] {
+export function resolveBunInstallCommand(
+  options: CommonOptions = {},
+): BunSnapshot['installCommand'] {
   const platform = platformOf(options);
   if (platform === 'win32') {
     const winget = findCommand('winget.exe', options);
@@ -154,7 +156,8 @@ export async function detectBun(options: CommonOptions = {}): Promise<BunSnapsho
 function resolveLauncherResourcePath(options: CommonOptions): string {
   const platformPath = pathModuleFor(platformOf(options));
   if (options.launcherResourcePath) return options.launcherResourcePath;
-  const resourcesPath = options.resourcesPath ?? (process as typeof process & { resourcesPath?: string }).resourcesPath;
+  const resourcesPath =
+    options.resourcesPath ?? (process as typeof process & { resourcesPath?: string }).resourcesPath;
   const packaged = resourcesPath ? platformPath.join(resourcesPath, 'launcher', 'subminer') : null;
   if (packaged && existsSyncOf(options)(packaged)) return packaged;
   return platformPath.join(options.cwd ?? process.cwd(), 'dist', 'launcher', 'subminer');
@@ -206,11 +209,47 @@ export async function resolveLauncherInstallTarget(
           path.posix.join(homeDir, '.local', 'bin'),
           path.posix.join(homeDir, 'bin'),
         ]
-      : [path.posix.join(homeDir, '.local', 'bin'), path.posix.join(homeDir, 'bin'), '/usr/local/bin'];
-  const candidates = [...preferred, ...pathDirs].filter((dir, index, all) =>
-    all.findIndex((other) => normalizePathForCompare(other, platform) === normalizePathForCompare(dir, platform)) === index,
+      : [
+          path.posix.join(homeDir, '.local', 'bin'),
+          path.posix.join(homeDir, 'bin'),
+          '/usr/local/bin',
+        ];
+  const manualPreferred =
+    platform === 'darwin'
+      ? [
+          path.posix.join(homeDir, '.local', 'bin'),
+          path.posix.join(homeDir, 'bin'),
+          '/usr/local/bin',
+        ]
+      : preferred;
+  const installCandidates = [...manualPreferred, ...pathDirs].filter(
+    (dir, index, all) =>
+      all.findIndex(
+        (other) =>
+          normalizePathForCompare(other, platform) === normalizePathForCompare(dir, platform),
+      ) === index,
   );
-  const selected = candidates.find((dir) => pathEntriesContain(pathDirs, dir, platform) && isWritableDir(dir, options));
+  const installedPreferred = pathDirs.find((dir) => {
+    if (!pathEntriesContain(preferred, dir, platform)) return false;
+    return existsSyncOf(options)(path.posix.join(dir, 'subminer'));
+  });
+  if (installedPreferred) {
+    const installPath = path.posix.join(installedPreferred, 'subminer');
+    return {
+      status: 'ready',
+      commandPath: installPath,
+      installPath,
+      pathDir: installedPreferred,
+      shadowedBy: null,
+      message: null,
+    };
+  }
+  const selected = installCandidates.find(
+    (dir) =>
+      (platform !== 'darwin' || !pathEntriesContain(MACOS_HOMEBREW_PATH_DIRS, dir, platform)) &&
+      pathEntriesContain(pathDirs, dir, platform) &&
+      isWritableDir(dir, options),
+  );
   if (!selected) {
     return {
       status: 'not_installable',
@@ -258,10 +297,14 @@ export async function detectLauncher(
 
   const commandPath = findCommand('subminer', options);
   const expectedNormalized = normalizePathForCompare(expectedPath, platform, platformPath);
-  if (commandPath && normalizePathForCompare(commandPath, platform, platformPath) !== expectedNormalized) {
+  if (
+    commandPath &&
+    normalizePathForCompare(commandPath, platform, platformPath) !== expectedNormalized
+  ) {
     return { ...target, status: 'shadowed', commandPath: expectedPath, shadowedBy: commandPath };
   }
-  if (!existsSyncOf(options)(expectedPath)) return { ...target, status: 'not_installed', commandPath: null };
+  if (!existsSyncOf(options)(expectedPath))
+    return { ...target, status: 'not_installed', commandPath: null };
   if (!commandPath) {
     return {
       ...target,

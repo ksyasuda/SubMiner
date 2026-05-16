@@ -241,36 +241,36 @@ test('dictionary command returns after app handoff starts', () => {
   assert.equal(handled, true);
 });
 
-test('update command forwards launcher path and waits for response', async () => {
+test('update command runs direct Linux release update without launching Electron', async () => {
   const context = createContext();
   context.args.update = true;
-  const forwarded: string[][] = [];
-  const responses: string[] = [];
+  const calls: string[] = [];
 
   const handled = await runUpdateCommand(context, {
-    createTempDir: () => '/tmp/subminer-update-test',
-    joinPath: (...parts) => parts.join('/'),
-    runAppCommandCaptureOutput: (_appPath, appArgs) => {
-      forwarded.push(appArgs);
-      return { status: 0, stdout: '', stderr: '' };
+    runAppCommandCaptureOutput: () => {
+      throw new Error('unexpected Electron launch');
     },
-    waitForUpdateResponse: async (responsePath) => {
-      responses.push(responsePath);
-      return { ok: true, status: 'up-to-date', version: '0.15.0' };
+    runDirectReleaseUpdate: async (request) => {
+      calls.push(`direct:${request.appPath}:${request.launcherPath}:${request.channel}`);
+      return {
+        appImage: { status: 'not-found' },
+        launcher: { status: 'updated' },
+        supportAssets: [{ status: 'skipped' }],
+      };
+    },
+    readMainConfig: () => null,
+    log: (level, _configured, message) => {
+      calls.push(`${level}:${message}`);
     },
   });
 
   assert.equal(handled, true);
-  assert.deepEqual(forwarded, [
-    [
-      '--update',
-      '--update-launcher-path',
-      '/tmp/subminer',
-      '--update-response-path',
-      '/tmp/subminer-update-test/response.json',
-    ],
+  assert.deepEqual(calls, [
+    'direct:/tmp/subminer.app:/tmp/subminer:stable',
+    'info:AppImage update: not-found',
+    'info:Launcher update: updated',
+    'info:Rofi theme update: skipped',
   ]);
-  assert.deepEqual(responses, ['/tmp/subminer-update-test/response.json']);
 });
 
 test('stats command launches attached app command with response path', async () => {

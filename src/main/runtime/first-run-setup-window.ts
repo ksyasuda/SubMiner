@@ -7,6 +7,7 @@ import type {
 
 type FocusableWindowLike = {
   focus: () => void;
+  show?: () => void;
 };
 
 type FirstRunSetupWebContentsLike = {
@@ -124,7 +125,9 @@ function getLauncherTone(
   return 'muted';
 }
 
-function renderCommandLineLauncherSection(commandLineLauncher: CommandLineLauncherSnapshot): string {
+function renderCommandLineLauncherSection(
+  commandLineLauncher: CommandLineLauncherSnapshot,
+): string {
   if (!commandLineLauncher.supported) {
     return '';
   }
@@ -154,7 +157,7 @@ function renderCommandLineLauncherSection(commandLineLauncher: CommandLineLaunch
     bun.status === 'missing' || bun.status === 'failed'
       ? `<button onclick="window.location.href='subminer://first-run-setup?action=install-bun'">Install Bun</button>`
       : '';
-  const launcherButtonDisabled = launcher.status === 'failed' ? '' : '';
+  const launcherButtonDisabled = launcher.status === 'not_installable' ? 'disabled' : '';
 
   return `
     <section class="setup-section">
@@ -345,13 +348,20 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       --yellow: #eed49f;
       --red: #ed8796;
     }
+    html,
+    body {
+      min-height: 100%;
+    }
     body {
       margin: 0;
+      min-height: 100vh;
       background: linear-gradient(180deg, var(--mantle), var(--base));
       color: var(--text);
       font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     main {
+      box-sizing: border-box;
+      min-height: 100vh;
       padding: 18px;
     }
     h1 {
@@ -583,6 +593,7 @@ export function createMaybeFocusExistingFirstRunSetupWindowHandler(deps: {
   return (): boolean => {
     const window = deps.getSetupWindow();
     if (!window) return false;
+    window.show?.();
     window.focus();
     return true;
   };
@@ -626,6 +637,7 @@ export function createOpenFirstRunSetupWindowHandler<
   markSetupCancelled: () => Promise<unknown>;
   isSetupCompleted: () => boolean;
   shouldQuitWhenClosedIncomplete: () => boolean;
+  shouldQuitWhenClosedCompleted?: () => boolean;
   quitApp: () => void;
   clearSetupWindow: () => void;
   setSetupWindow: (window: TWindow) => void;
@@ -639,11 +651,23 @@ export function createOpenFirstRunSetupWindowHandler<
 
     const setupWindow = deps.createSetupWindow();
     deps.setSetupWindow(setupWindow);
+    setupWindow.show?.();
+    setupWindow.focus();
 
     const render = async (): Promise<void> => {
       const model = await deps.getSetupSnapshot();
+      if (setupWindow.isDestroyed()) {
+        return;
+      }
       const html = deps.buildSetupHtml(model);
+      if (setupWindow.isDestroyed()) {
+        return;
+      }
       await setupWindow.loadURL(`data:text/html;charset=utf-8,${deps.encodeURIComponent(html)}`);
+      if (!setupWindow.isDestroyed()) {
+        setupWindow.show?.();
+        setupWindow.focus();
+      }
     };
 
     const handleNavigation = createHandleFirstRunSetupNavigationHandler({
@@ -682,7 +706,10 @@ export function createOpenFirstRunSetupWindowHandler<
         });
       }
       deps.clearSetupWindow();
-      if (!setupCompleted && deps.shouldQuitWhenClosedIncomplete()) {
+      if (
+        (setupCompleted && deps.shouldQuitWhenClosedCompleted?.()) ||
+        (!setupCompleted && deps.shouldQuitWhenClosedIncomplete())
+      ) {
         deps.quitApp();
       }
     });

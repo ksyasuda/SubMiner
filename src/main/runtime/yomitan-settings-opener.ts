@@ -22,7 +22,7 @@ export function createOpenYomitanSettingsHandler(deps: {
   return (): void => {
     void (async () => {
       if (deps.getYomitanExtension) {
-        const loadedExtension = deps.getYomitanExtension();
+        let loadedExtension = deps.getYomitanExtension();
         if (!loadedExtension) {
           if (deps.getYomitanExtensionLoadInFlight?.()) {
             deps.logWarn(
@@ -30,8 +30,11 @@ export function createOpenYomitanSettingsHandler(deps: {
             );
             return;
           }
-          deps.logWarn('Unable to open Yomitan settings: extension is not loaded yet.');
-          return;
+          loadedExtension = await deps.ensureYomitanExtensionLoaded();
+          if (!loadedExtension) {
+            deps.logWarn('Unable to open Yomitan settings: extension failed to load.');
+            return;
+          }
         }
 
         const yomitanSession = deps.getYomitanSession?.() ?? null;

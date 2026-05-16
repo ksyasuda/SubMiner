@@ -36,6 +36,9 @@ test('app-ready main deps builder returns mapped app-ready runtime deps', async 
     loadYomitanExtension: async () => {
       calls.push('load-yomitan');
     },
+    ensureYomitanExtensionLoaded: async () => {
+      calls.push('ensure-yomitan');
+    },
     handleFirstRunSetup: async () => {
       calls.push('handle-first-run-setup');
     },
@@ -67,6 +70,7 @@ test('app-ready main deps builder returns mapped app-ready runtime deps', async 
   onReady.createMpvClient();
   await onReady.createMecabTokenizerAndCheck();
   await onReady.loadYomitanExtension();
+  await onReady.ensureYomitanExtensionLoaded?.();
   await onReady.handleFirstRunSetup();
   await onReady.prewarmSubtitleDictionaries?.();
   onReady.startBackgroundWarmups();
@@ -79,6 +83,7 @@ test('app-ready main deps builder returns mapped app-ready runtime deps', async 
     'create-mpv-client',
     'create-mecab',
     'load-yomitan',
+    'ensure-yomitan',
     'handle-first-run-setup',
     'prewarm-dicts',
     'start-warmups',

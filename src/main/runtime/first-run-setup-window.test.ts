@@ -65,6 +65,9 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
   assert.match(html, /Open Yomitan Settings/);
   assert.match(html, /Finish setup/);
   assert.match(html, /disabled/);
+  assert.match(html, /html,\s*body\s*{\s*min-height:\s*100%;/);
+  assert.match(html, /min-height:\s*100vh;/);
+  assert.match(html, /box-sizing:\s*border-box;/);
 });
 
 test('buildFirstRunSetupHtml switches plugin action to reinstall when already installed', () => {
@@ -305,19 +308,60 @@ test('buildFirstRunSetupHtml renders command-line launcher section and actions',
   assert.match(html, /Installed, Bun missing/);
   assert.match(html, /\/home\/tester\/\.local\/bin\/subminer/);
   assert.match(html, /action=install-command-line-launcher/);
-  assert.match(html, /<button class="primary"  onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=finish'">Finish setup<\/button>/);
+  assert.match(
+    html,
+    /<button class="primary"  onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=finish'">Finish setup<\/button>/,
+  );
+});
+
+test('buildFirstRunSetupHtml disables launcher install when no target is installable', () => {
+  const html = buildFirstRunSetupHtml({
+    configReady: true,
+    dictionaryCount: 1,
+    canFinish: true,
+    externalYomitanConfigured: false,
+    pluginStatus: 'installed',
+    pluginInstallPathSummary: null,
+    mpvExecutablePath: '',
+    mpvExecutablePathStatus: 'blank',
+    windowsMpvShortcuts: {
+      supported: false,
+      startMenuEnabled: true,
+      desktopEnabled: true,
+      startMenuInstalled: false,
+      desktopInstalled: false,
+      status: 'optional',
+    },
+    commandLineLauncher: createCommandLineLauncherSnapshot({
+      launcher: {
+        status: 'not_installable',
+        commandPath: null,
+        installPath: null,
+        pathDir: null,
+        shadowedBy: null,
+        message: 'No writable PATH directory found.',
+      },
+    }),
+    message: null,
+  });
+
+  assert.match(
+    html,
+    /<button disabled onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=install-command-line-launcher'">Install launcher<\/button>/,
+  );
 });
 
 test('first-run setup window handler focuses existing window', () => {
   const calls: string[] = [];
   const maybeFocus = createMaybeFocusExistingFirstRunSetupWindowHandler({
     getSetupWindow: () => ({
+      show: () => calls.push('show'),
       focus: () => calls.push('focus'),
     }),
   });
 
   assert.equal(maybeFocus(), true);
-  assert.deepEqual(calls, ['focus']);
+  assert.deepEqual(calls, ['show', 'focus']);
 });
 
 test('first-run setup navigation handler prevents default and dispatches supported action', async () => {
@@ -364,6 +408,138 @@ test('first-run setup navigation handler swallows stale custom-scheme actions', 
 
   assert.equal(prevented, true);
   assert.deepEqual(calls, ['preventDefault']);
+});
+
+test('opening first-run setup shows and focuses window after content loads', async () => {
+  const calls: string[] = [];
+  const handler = createOpenFirstRunSetupWindowHandler({
+    maybeFocusExistingSetupWindow: () => false,
+    createSetupWindow: () =>
+      ({
+        webContents: {
+          on: () => {},
+        },
+        loadURL: async () => {
+          calls.push('load');
+        },
+        on: () => {},
+        isDestroyed: () => false,
+        close: () => {},
+        show: () => calls.push('show'),
+        focus: () => calls.push('focus'),
+      }) as never,
+    getSetupSnapshot: async () => ({
+      configReady: true,
+      dictionaryCount: 1,
+      canFinish: true,
+      externalYomitanConfigured: false,
+      pluginStatus: 'installed',
+      pluginInstallPathSummary: null,
+      mpvExecutablePath: '',
+      mpvExecutablePathStatus: 'blank',
+      windowsMpvShortcuts: {
+        supported: false,
+        startMenuEnabled: true,
+        desktopEnabled: true,
+        startMenuInstalled: false,
+        desktopInstalled: false,
+        status: 'optional',
+      },
+      commandLineLauncher: createCommandLineLauncherSnapshot(),
+      message: null,
+    }),
+    buildSetupHtml: () => '<html></html>',
+    parseSubmissionUrl: () => null,
+    handleAction: async () => undefined,
+    markSetupInProgress: async () => {
+      calls.push('in-progress');
+    },
+    markSetupCancelled: async () => undefined,
+    isSetupCompleted: () => true,
+    shouldQuitWhenClosedIncomplete: () => false,
+    quitApp: () => {},
+    clearSetupWindow: () => {},
+    setSetupWindow: () => {
+      calls.push('set');
+    },
+    encodeURIComponent: (value) => value,
+    logError: () => {},
+  });
+
+  handler();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(calls, ['set', 'show', 'focus', 'in-progress', 'load', 'show', 'focus']);
+});
+
+test('opening first-run setup skips rendering if window is destroyed after snapshot', async () => {
+  const calls: string[] = [];
+  let destroyed = false;
+  const handler = createOpenFirstRunSetupWindowHandler({
+    maybeFocusExistingSetupWindow: () => false,
+    createSetupWindow: () =>
+      ({
+        webContents: {
+          on: () => {},
+        },
+        loadURL: async () => {
+          calls.push('load');
+        },
+        on: () => {},
+        isDestroyed: () => destroyed,
+        close: () => {},
+        show: () => calls.push('show'),
+        focus: () => calls.push('focus'),
+      }) as never,
+    getSetupSnapshot: async () => {
+      calls.push('snapshot');
+      destroyed = true;
+      return {
+        configReady: true,
+        dictionaryCount: 1,
+        canFinish: true,
+        externalYomitanConfigured: false,
+        pluginStatus: 'installed',
+        pluginInstallPathSummary: null,
+        mpvExecutablePath: '',
+        mpvExecutablePathStatus: 'blank',
+        windowsMpvShortcuts: {
+          supported: false,
+          startMenuEnabled: true,
+          desktopEnabled: true,
+          startMenuInstalled: false,
+          desktopInstalled: false,
+          status: 'optional',
+        },
+        commandLineLauncher: createCommandLineLauncherSnapshot(),
+        message: null,
+      };
+    },
+    buildSetupHtml: () => {
+      calls.push('build');
+      return '<html></html>';
+    },
+    parseSubmissionUrl: () => null,
+    handleAction: async () => undefined,
+    markSetupInProgress: async () => {
+      calls.push('in-progress');
+    },
+    markSetupCancelled: async () => undefined,
+    isSetupCompleted: () => true,
+    shouldQuitWhenClosedIncomplete: () => false,
+    quitApp: () => {},
+    clearSetupWindow: () => {},
+    setSetupWindow: () => {
+      calls.push('set');
+    },
+    encodeURIComponent: (value) => value,
+    logError: () => {},
+  });
+
+  handler();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(calls, ['set', 'show', 'focus', 'in-progress', 'snapshot']);
 });
 
 test('closing incomplete first-run setup quits app outside background mode', async () => {
@@ -436,4 +612,77 @@ test('closing incomplete first-run setup quits app outside background mode', asy
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.deepEqual(calls, ['set', 'cancelled', 'clear', 'quit']);
+});
+
+test('closing completed first-run setup quits app when completion policy allows it', async () => {
+  const calls: string[] = [];
+  let closedHandler: (() => void) | undefined;
+  const handler = createOpenFirstRunSetupWindowHandler({
+    maybeFocusExistingSetupWindow: () => false,
+    createSetupWindow: () =>
+      ({
+        webContents: {
+          on: () => {},
+        },
+        loadURL: async () => undefined,
+        on: (event: 'closed', callback: () => void) => {
+          if (event === 'closed') {
+            closedHandler = callback;
+          }
+        },
+        isDestroyed: () => false,
+        close: () => calls.push('close-window'),
+        focus: () => {},
+      }) as never,
+    getSetupSnapshot: async () => ({
+      configReady: true,
+      dictionaryCount: 1,
+      canFinish: true,
+      externalYomitanConfigured: false,
+      pluginStatus: 'installed',
+      pluginInstallPathSummary: null,
+      mpvExecutablePath: '',
+      mpvExecutablePathStatus: 'blank',
+      windowsMpvShortcuts: {
+        supported: false,
+        startMenuEnabled: true,
+        desktopEnabled: true,
+        startMenuInstalled: false,
+        desktopInstalled: false,
+        status: 'optional',
+      },
+      commandLineLauncher: createCommandLineLauncherSnapshot(),
+      message: null,
+    }),
+    buildSetupHtml: () => '<html></html>',
+    parseSubmissionUrl: () => null,
+    handleAction: async () => undefined,
+    markSetupInProgress: async () => undefined,
+    markSetupCancelled: async () => {
+      calls.push('cancelled');
+    },
+    isSetupCompleted: () => true,
+    shouldQuitWhenClosedIncomplete: () => true,
+    shouldQuitWhenClosedCompleted: () => true,
+    quitApp: () => {
+      calls.push('quit');
+    },
+    clearSetupWindow: () => {
+      calls.push('clear');
+    },
+    setSetupWindow: () => {
+      calls.push('set');
+    },
+    encodeURIComponent: (value) => value,
+    logError: () => {},
+  });
+
+  handler();
+  if (typeof closedHandler !== 'function') {
+    throw new Error('expected closed handler');
+  }
+  closedHandler();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(calls, ['set', 'clear', 'quit']);
 });

@@ -9,6 +9,7 @@ import {
   ensureExtensionCopyAsync,
   shouldCopyYomitanExtension,
 } from './yomitan-extension-copy';
+import { withSuppressedYomitanExtensionWarnings } from './yomitan-extension-loader';
 
 function makeTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -18,6 +19,66 @@ function writeFile(filePath: string, content: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content, 'utf-8');
 }
+
+test('suppresses Yomitan contextMenus extension load warnings only while loading', async () => {
+  const emitted: string[] = [];
+  const warningProcess = {
+    emitWarning: (warning: string | Error, options?: { type?: string }) => {
+      const message = warning instanceof Error ? warning.message : warning;
+      emitted.push(`${options?.type ?? ''}:${message}`);
+    },
+  } as Pick<NodeJS.Process, 'emitWarning'>;
+
+  await withSuppressedYomitanExtensionWarnings(async () => {
+    warningProcess.emitWarning(
+      "Warnings loading extension:\nPermission 'contextMenus' is unknown.",
+      {
+        type: 'ExtensionLoadWarning',
+      },
+    );
+    warningProcess.emitWarning('Other extension warning', { type: 'ExtensionLoadWarning' });
+    return null;
+  }, warningProcess);
+
+  warningProcess.emitWarning("Permission 'contextMenus' is unknown.", {
+    type: 'ExtensionLoadWarning',
+  });
+
+  assert.deepEqual(emitted, [
+    'ExtensionLoadWarning:Other extension warning',
+    "ExtensionLoadWarning:Permission 'contextMenus' is unknown.",
+  ]);
+});
+
+test('suppressed Yomitan warning wrapper is re-entrant safe', async () => {
+  const emitted: string[] = [];
+  const warningProcess = {
+    emitWarning: (warning: string | Error, options?: { type?: string }) => {
+      const message = warning instanceof Error ? warning.message : warning;
+      emitted.push(`${options?.type ?? ''}:${message}`);
+    },
+  } as Pick<NodeJS.Process, 'emitWarning'>;
+  const originalEmitWarning = warningProcess.emitWarning;
+
+  await withSuppressedYomitanExtensionWarnings(async () => {
+    await withSuppressedYomitanExtensionWarnings(async () => {
+      warningProcess.emitWarning("Permission 'contextMenus' is unknown.", {
+        type: 'ExtensionLoadWarning',
+      });
+      warningProcess.emitWarning('Nested warning', { type: 'ExtensionLoadWarning' });
+    }, warningProcess);
+    warningProcess.emitWarning("Permission 'contextMenus' is unknown.", {
+      type: 'ExtensionLoadWarning',
+    });
+    warningProcess.emitWarning('Outer warning', { type: 'ExtensionLoadWarning' });
+  }, warningProcess);
+
+  assert.equal(warningProcess.emitWarning, originalEmitWarning);
+  assert.deepEqual(emitted, [
+    'ExtensionLoadWarning:Nested warning',
+    'ExtensionLoadWarning:Outer warning',
+  ]);
+});
 
 test('shouldCopyYomitanExtension detects popup runtime script drift', () => {
   const tempRoot = makeTempDir('subminer-yomitan-copy-');
@@ -185,10 +246,7 @@ test('ensureExtensionCopyAsync shares an in-flight refresh for the same copied e
     assert.equal(results[0].copied, true);
     assert.equal(results[1].copied, true);
     assert.equal(
-      fs.readFileSync(
-        path.join(targetDir, 'js', 'pages', 'settings', 'settings-main.js'),
-        'utf8',
-      ),
+      fs.readFileSync(path.join(targetDir, 'js', 'pages', 'settings', 'settings-main.js'), 'utf8'),
       'new settings code',
     );
   } finally {
