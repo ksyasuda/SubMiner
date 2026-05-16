@@ -822,6 +822,7 @@ test('default keybindings dispatch through overlay keyboard handling', async () 
       testGlobals.sessionActions.map((action) => action.actionId).sort(),
       expectedSessionActions.sort(),
     );
+    testGlobals.dispatchKeydown({ key: 'Escape', code: 'Escape' });
   } finally {
     testGlobals.restore();
   }

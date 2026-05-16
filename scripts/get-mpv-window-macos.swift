@@ -25,6 +25,11 @@ private struct WindowState {
     let focused: Bool
 }
 
+private enum WindowLookupResult {
+    case visible(WindowState)
+    case minimized
+}
+
 private let targetMpvSocketPath: String? = {
     guard CommandLine.arguments.count > 1 else {
         return nil
@@ -145,7 +150,7 @@ private func frontmostApplicationPid() -> pid_t? {
     NSWorkspace.shared.frontmostApplication?.processIdentifier
 }
 
-private func windowStateFromAccessibilityAPI() -> WindowState? {
+private func windowStateFromAccessibilityAPI() -> WindowLookupResult? {
     let runningApps = NSWorkspace.shared.runningApplications.filter { app in
         guard let name = app.localizedName else {
             return false
@@ -154,6 +159,7 @@ private func windowStateFromAccessibilityAPI() -> WindowState? {
     }
 
     let frontmostPid = frontmostApplicationPid()
+    var foundMinimizedTargetWindow = false
 
     for app in runningApps {
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
@@ -168,14 +174,12 @@ private func windowStateFromAccessibilityAPI() -> WindowState? {
         }
 
         for window in windows {
-            var minimizedRef: CFTypeRef?
-            let minimizedStatus = AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minimizedRef)
-            if minimizedStatus == .success, let minimized = minimizedRef as? Bool, minimized {
+            var windowPid: pid_t = 0
+            if AXUIElementGetPid(window, &windowPid) != .success {
                 continue
             }
 
-            var windowPid: pid_t = 0
-            if AXUIElementGetPid(window, &windowPid) != .success {
+            if windowPid != app.processIdentifier {
                 continue
             }
 
@@ -183,13 +187,26 @@ private func windowStateFromAccessibilityAPI() -> WindowState? {
                 continue
             }
 
+            var minimizedRef: CFTypeRef?
+            let minimizedStatus = AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minimizedRef)
+            if minimizedStatus == .success, let minimized = minimizedRef as? Bool, minimized {
+                foundMinimizedTargetWindow = true
+                continue
+            }
+
             if let geometry = geometryFromAXWindow(window) {
-                return WindowState(
-                    geometry: geometry,
-                    focused: frontmostPid == windowPid
+                return .visible(
+                    WindowState(
+                        geometry: geometry,
+                        focused: frontmostPid == windowPid
+                    )
                 )
             }
         }
+    }
+
+    if foundMinimizedTargetWindow {
+        return .minimized
     }
 
     return nil
@@ -250,10 +267,25 @@ private func windowStateFromCoreGraphics() -> WindowState? {
     return nil
 }
 
-if let window = windowStateFromAccessibilityAPI() ?? windowStateFromCoreGraphics() {
-    print(
-        "\(window.geometry.x),\(window.geometry.y),\(window.geometry.width),\(window.geometry.height),\(window.focused ? 1 : 0)"
-    )
+private let lookupResult: WindowLookupResult? = {
+    if let axResult = windowStateFromAccessibilityAPI() {
+        return axResult
+    }
+    if let cgWindow = windowStateFromCoreGraphics() {
+        return .visible(cgWindow)
+    }
+    return nil
+}()
+
+if let result = lookupResult {
+    switch result {
+    case .visible(let window):
+        print(
+            "\(window.geometry.x),\(window.geometry.y),\(window.geometry.width),\(window.geometry.height),\(window.focused ? 1 : 0)"
+        )
+    case .minimized:
+        print("minimized")
+    }
 } else {
     print("not-found")
 }

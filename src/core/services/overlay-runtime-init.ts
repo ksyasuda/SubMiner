@@ -105,10 +105,14 @@ export function initializeOverlayRuntime(options: {
     };
     windowTracker.onWindowLost = () => {
       options.releaseOverlayOwner?.();
-      for (const window of options.getOverlayWindows()) {
-        window.hide();
+      if (windowTracker.isTargetWindowMinimized()) {
+        for (const window of options.getOverlayWindows()) {
+          window.hide();
+        }
+        options.syncOverlayShortcuts();
+        return;
       }
-      options.syncOverlayShortcuts();
+      options.updateVisibleOverlayVisibility();
     };
     windowTracker.onWindowFocusChange = () => {
       if (options.isVisibleOverlayVisible()) {
