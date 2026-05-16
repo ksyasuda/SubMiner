@@ -119,6 +119,7 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.jellyfinRemoteAnnounce ||
     args.jellyfinPreviewAuth ||
     args.texthooker ||
+    args.update ||
     args.help,
   );
 }

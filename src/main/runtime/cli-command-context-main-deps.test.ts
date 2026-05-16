@@ -130,6 +130,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
   deps.openFirstRunSetup(true);
   deps.setVisibleOverlay(true);
   deps.printHelp();
+  await deps.runUpdateCommand({ update: true } as never, 'initial');
 
   assert.deepEqual(calls, [
     'osd:hello',
@@ -137,6 +138,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
     'open-setup:force',
     'set-visible:true',
     'help',
+    'run-update',
   ]);
 
   const retry = await deps.retryAnilistQueueNow();

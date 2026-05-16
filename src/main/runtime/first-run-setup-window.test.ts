@@ -472,6 +472,76 @@ test('opening first-run setup shows and focuses window after content loads', asy
   assert.deepEqual(calls, ['set', 'show', 'focus', 'in-progress', 'load', 'show', 'focus']);
 });
 
+test('opening first-run setup skips rendering if window is destroyed after snapshot', async () => {
+  const calls: string[] = [];
+  let destroyed = false;
+  const handler = createOpenFirstRunSetupWindowHandler({
+    maybeFocusExistingSetupWindow: () => false,
+    createSetupWindow: () =>
+      ({
+        webContents: {
+          on: () => {},
+        },
+        loadURL: async () => {
+          calls.push('load');
+        },
+        on: () => {},
+        isDestroyed: () => destroyed,
+        close: () => {},
+        show: () => calls.push('show'),
+        focus: () => calls.push('focus'),
+      }) as never,
+    getSetupSnapshot: async () => {
+      calls.push('snapshot');
+      destroyed = true;
+      return {
+        configReady: true,
+        dictionaryCount: 1,
+        canFinish: true,
+        externalYomitanConfigured: false,
+        pluginStatus: 'installed',
+        pluginInstallPathSummary: null,
+        mpvExecutablePath: '',
+        mpvExecutablePathStatus: 'blank',
+        windowsMpvShortcuts: {
+          supported: false,
+          startMenuEnabled: true,
+          desktopEnabled: true,
+          startMenuInstalled: false,
+          desktopInstalled: false,
+          status: 'optional',
+        },
+        commandLineLauncher: createCommandLineLauncherSnapshot(),
+        message: null,
+      };
+    },
+    buildSetupHtml: () => {
+      calls.push('build');
+      return '<html></html>';
+    },
+    parseSubmissionUrl: () => null,
+    handleAction: async () => undefined,
+    markSetupInProgress: async () => {
+      calls.push('in-progress');
+    },
+    markSetupCancelled: async () => undefined,
+    isSetupCompleted: () => true,
+    shouldQuitWhenClosedIncomplete: () => false,
+    quitApp: () => {},
+    clearSetupWindow: () => {},
+    setSetupWindow: () => {
+      calls.push('set');
+    },
+    encodeURIComponent: (value) => value,
+    logError: () => {},
+  });
+
+  handler();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(calls, ['set', 'show', 'focus', 'in-progress', 'snapshot']);
+});
+
 test('closing incomplete first-run setup quits app outside background mode', async () => {
   const calls: string[] = [];
   let closedHandler: (() => void) | undefined;

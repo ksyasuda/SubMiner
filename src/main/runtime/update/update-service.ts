@@ -50,7 +50,7 @@ export interface UpdateServiceDeps {
   showUpdateFailedDialog: (message: string) => Promise<void>;
   downloadAppUpdate: () => Promise<void>;
   showRestartDialog: () => Promise<'restart' | 'later'>;
-  quitAndInstall: () => void;
+  quitAndInstall: () => void | Promise<void>;
   notifyUpdateAvailable: (version: string) => Promise<void>;
   log: (message: string) => void;
   setTimeout?: (callback: () => void, delayMs: number) => unknown;
@@ -175,7 +175,7 @@ export function createUpdateService(deps: UpdateServiceDeps) {
 
       const restartChoice = await deps.showRestartDialog();
       if (restartChoice === 'restart') {
-        deps.quitAndInstall();
+        await deps.quitAndInstall();
       }
       return { status: 'updated', version: latest.version };
     } catch (error) {

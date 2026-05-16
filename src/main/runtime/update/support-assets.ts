@@ -40,6 +40,7 @@ export function buildProtectedSupportAssetsCommand(assetUrl: string, dataDir: st
   const quotedDir = shellQuote(dataDir);
   return [
     'tmp=$(mktemp -d)',
+    'trap \'rm -rf "$tmp"\' EXIT',
     `curl -fSL ${shellQuote(assetUrl)} -o "$tmp/subminer-assets.tar.gz"`,
     'tar -xzf "$tmp/subminer-assets.tar.gz" -C "$tmp"',
     `sudo mkdir -p ${quotedDir}/themes`,
@@ -136,7 +137,6 @@ export async function updateSupportAssetsFromRelease(options: {
     for (const dataDir of writableDataDirs) {
       const targetThemePath = path.join(dataDir, 'themes/subminer.rasi');
       if (await pathExists(targetThemePath)) {
-        await fs.promises.mkdir(path.dirname(targetThemePath), { recursive: true });
         await fs.promises.copyFile(
           path.join(tempDir, 'assets/themes/subminer.rasi'),
           targetThemePath,

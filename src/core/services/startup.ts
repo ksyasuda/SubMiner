@@ -240,14 +240,6 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
     return;
   }
 
-  if (deps.shouldSkipHeavyStartup?.()) {
-    await ensureYomitanExtensionReady();
-    deps.reloadConfig();
-    await deps.handleFirstRunSetup();
-    deps.handleInitialArgs();
-    return;
-  }
-
   deps.logDebug?.('App-ready critical path started.');
 
   if (deps.shouldSkipHeavyStartup?.()) {

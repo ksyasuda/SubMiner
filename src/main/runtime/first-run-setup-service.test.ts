@@ -82,6 +82,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     jellyfinPreviewAuth: false,
     texthooker: false,
     texthookerOpenBrowser: false,
+    update: false,
     help: false,
     autoStartOverlay: false,
     generateConfig: false,
@@ -124,6 +125,7 @@ test('shouldAutoOpenFirstRunSetup only for startup/setup intents', () => {
     false,
   );
   assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ settings: true })), false);
+  assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, update: true })), false);
 });
 
 test('shouldAutoOpenFirstRunSetup treats numeric startup counts as explicit commands', () => {

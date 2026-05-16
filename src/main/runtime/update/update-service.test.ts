@@ -44,7 +44,9 @@ function createDeps(overrides: Partial<UpdateServiceDeps> = {}) {
       calls.push('restart-dialog');
       return 'later';
     },
-    quitAndInstall: () => calls.push('quit-install'),
+    quitAndInstall: () => {
+      calls.push('quit-install');
+    },
     notifyUpdateAvailable: async (version) => {
       calls.push(`notify:${version}`);
     },

@@ -1,5 +1,6 @@
 import { realpathSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { autoUpdater as electronAutoUpdater } from 'electron-updater';
 import type { UpdateChannel } from '../../../types/config';
 import { compareSemverLike } from './release-assets';
@@ -35,6 +36,7 @@ export interface ElectronAutoUpdaterLike {
 }
 
 const updaterErrorListeners = new WeakMap<object, (error: unknown) => void>();
+const execFileAsync = promisify(execFile);
 
 export function resolveMacAppBundlePath(execPath: string): string | null {
   const marker = '.app/Contents/MacOS/';
@@ -43,13 +45,15 @@ export function resolveMacAppBundlePath(execPath: string): string | null {
   return execPath.slice(0, markerIndex + '.app'.length);
 }
 
-function readMacCodeSignature(appBundlePath: string): string | null {
-  const result = spawnSync('/usr/bin/codesign', ['-dv', '--verbose=4', appBundlePath], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  if (result.error || result.status !== 0) return null;
-  return `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+async function readMacCodeSignature(appBundlePath: string): Promise<string | null> {
+  try {
+    const result = await execFileAsync('/usr/bin/codesign', ['-dv', '--verbose=4', appBundlePath], {
+      encoding: 'utf8',
+    });
+    return `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  } catch {
+    return null;
+  }
 }
 
 function realpathOrOriginal(filePath: string): string {
@@ -64,14 +68,14 @@ export function isKnownLinuxPackageManagedAppImage(appImagePath: string): boolea
   return realpathOrOriginal(appImagePath) === '/opt/SubMiner/SubMiner.AppImage';
 }
 
-export function isNativeUpdaterSupported(options: {
+export async function isNativeUpdaterSupported(options: {
   platform: NodeJS.Platform;
   isPackaged: boolean;
   execPath: string;
   env?: NodeJS.ProcessEnv;
-  readCodeSignature?: (appBundlePath: string) => string | null;
+  readCodeSignature?: (appBundlePath: string) => string | null | Promise<string | null>;
   log?: (message: string) => void;
-}): boolean {
+}): Promise<boolean> {
   if (!options.isPackaged) {
     options.log?.('Skipping native updater because this build is not packaged.');
     return false;
@@ -95,7 +99,7 @@ export function isNativeUpdaterSupported(options: {
     return false;
   }
 
-  const signature = (options.readCodeSignature ?? readMacCodeSignature)(appBundlePath);
+  const signature = await (options.readCodeSignature ?? readMacCodeSignature)(appBundlePath);
   if (!signature) {
     options.log?.(
       'Skipping native macOS updater because the app code signature could not be read.',
@@ -149,7 +153,7 @@ export function createElectronAppUpdater(options: {
   updater?: ElectronAutoUpdaterLike;
   log: (message: string) => void;
   getChannel?: () => UpdateChannel;
-  isNativeUpdaterSupported?: () => boolean;
+  isNativeUpdaterSupported?: () => boolean | Promise<boolean>;
 }) {
   const getChannel = options.getChannel ?? (() => 'stable' as const);
   const updater = configureAutoUpdater(
@@ -157,12 +161,12 @@ export function createElectronAppUpdater(options: {
     options.log,
     getChannel(),
   );
-  let nativeUpdaterSupported: boolean | null = null;
+  let nativeUpdaterSupported: Promise<boolean> | null = null;
 
-  function isNativeUpdaterSupported(): boolean {
+  async function getNativeUpdaterSupported(): Promise<boolean> {
     if (!options.isNativeUpdaterSupported) return true;
     if (nativeUpdaterSupported === null) {
-      nativeUpdaterSupported = options.isNativeUpdaterSupported();
+      nativeUpdaterSupported = Promise.resolve(options.isNativeUpdaterSupported());
     }
     return nativeUpdaterSupported;
   }
@@ -176,7 +180,7 @@ export function createElectronAppUpdater(options: {
           canUpdate: false,
         };
       }
-      if (!isNativeUpdaterSupported()) {
+      if (!(await getNativeUpdaterSupported())) {
         options.log('Skipping native app update check because native updater is unsupported.');
         return {
           available: false,
@@ -198,18 +202,18 @@ export function createElectronAppUpdater(options: {
         options.log('Skipping app update download because this build is not packaged.');
         return;
       }
-      if (!isNativeUpdaterSupported()) {
+      if (!(await getNativeUpdaterSupported())) {
         options.log('Skipping app update download because native updater is unsupported.');
         return;
       }
       await updater.downloadUpdate();
     },
-    quitAndInstall(): void {
+    async quitAndInstall(): Promise<void> {
       if (!options.isPackaged) {
         options.log('Skipping app update install because this build is not packaged.');
         return;
       }
-      if (!isNativeUpdaterSupported()) {
+      if (!(await getNativeUpdaterSupported())) {
         options.log('Skipping app update install because native updater is unsupported.');
         return;
       }

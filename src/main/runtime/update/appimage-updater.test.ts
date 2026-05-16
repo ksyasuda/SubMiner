@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { updateAppImageFromRelease } from './appimage-updater';
+import { buildProtectedAppImageUpdateCommand, updateAppImageFromRelease } from './appimage-updater';
 
 const appImageBytes = Buffer.from('appimage');
 const appImageHash = createHash('sha256').update(appImageBytes).digest('hex');
@@ -88,7 +88,26 @@ test('updateAppImageFromRelease reports protected command without replacing non-
 
   assert.equal(result.status, 'protected');
   assert.equal(result.path, '/opt/SubMiner/SubMiner.AppImage');
-  assert.match(result.command ?? '', /^sudo curl -fSL https:\/\/example\.test\/app -o /);
+  assert.match(result.command ?? '', /curl -fSL 'https:\/\/example\.test\/app' -o "\$tmp"/);
+  assert.match(result.command ?? '', /sha256sum -c -/);
+  assert.match(result.command ?? '', /sudo mv "\$tmp" '\/opt\/SubMiner\/SubMiner\.AppImage'/);
+});
+
+test('buildProtectedAppImageUpdateCommand quotes inputs and verifies checksum before sudo move', () => {
+  const command = buildProtectedAppImageUpdateCommand(
+    "https://example.test/Sub Miner.AppImage?sig='abc'",
+    "/opt/Sub Miner/SubMiner's.AppImage",
+    'ABCDEF',
+  );
+
+  assert.match(command, /trap 'rm -f "\$tmp"' EXIT/);
+  assert.match(
+    command,
+    /curl -fSL 'https:\/\/example\.test\/Sub Miner\.AppImage\?sig='\\''abc'\\''' -o "\$tmp"/,
+  );
+  assert.match(command, /printf '%s  %s\\n' 'abcdef' "\$tmp" \| sha256sum -c -/);
+  assert.match(command, /sudo mv "\$tmp" '\/opt\/Sub Miner\/SubMiner'\\''s\.AppImage'/);
+  assert.match(command, /sudo chmod \+x '\/opt\/Sub Miner\/SubMiner'\\''s\.AppImage'/);
 });
 
 test('updateAppImageFromRelease aborts on hash mismatch', async () => {

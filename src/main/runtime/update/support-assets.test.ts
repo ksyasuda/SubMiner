@@ -5,7 +5,11 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { detectSupportAssetDataDirs, updateSupportAssetsFromRelease } from './support-assets';
+import {
+  buildProtectedSupportAssetsCommand,
+  detectSupportAssetDataDirs,
+  updateSupportAssetsFromRelease,
+} from './support-assets';
 
 function sha256(data: Buffer): string {
   return createHash('sha256').update(data).digest('hex');
@@ -40,6 +44,21 @@ test('detectSupportAssetDataDirs only returns Linux rofi theme locations', () =>
     }),
     ['/tmp/xdg-data/SubMiner', '/usr/local/share/SubMiner', '/usr/share/SubMiner'],
   );
+});
+
+test('buildProtectedSupportAssetsCommand cleans up temporary extraction directory', () => {
+  const command = buildProtectedSupportAssetsCommand(
+    "https://example.test/subminer assets.tar.gz?sig='abc'",
+    "/usr/local/share/SubMiner's data",
+  );
+
+  assert.match(command, /tmp=\$\(mktemp -d\)/);
+  assert.match(command, /trap 'rm -rf "\$tmp"' EXIT/);
+  assert.match(
+    command,
+    /curl -fSL 'https:\/\/example\.test\/subminer assets\.tar\.gz\?sig='\\''abc'\\''' -o "\$tmp\/subminer-assets\.tar\.gz"/,
+  );
+  assert.match(command, /sudo mkdir -p '\/usr\/local\/share\/SubMiner'\\''s data'\/themes/);
 });
 
 test('updateSupportAssetsFromRelease updates only the Linux rofi theme', async () => {

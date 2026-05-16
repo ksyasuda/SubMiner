@@ -82,6 +82,7 @@ function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
   return {
     shouldUseMinimalStartup: Boolean(
       (initialArgs && isStandaloneTexthookerCommand(initialArgs)) ||
+      initialArgs?.update ||
       (initialArgs?.stats &&
         (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
     ),
@@ -90,6 +91,7 @@ function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
       (shouldRunSettingsOnlyStartup(initialArgs) ||
         initialArgs.stats ||
         initialArgs.dictionary ||
+        initialArgs.update ||
         initialArgs.setup),
     ),
   };

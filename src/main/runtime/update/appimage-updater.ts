@@ -59,8 +59,19 @@ function shellQuote(value: string): string {
 export function buildProtectedAppImageUpdateCommand(
   assetUrl: string,
   appImagePath: string,
+  expectedSha256: string,
 ): string {
-  return `sudo curl -fSL ${assetUrl} -o ${shellQuote(appImagePath)} && sudo chmod +x ${shellQuote(appImagePath)}`;
+  const quotedUrl = shellQuote(assetUrl);
+  const quotedPath = shellQuote(appImagePath);
+  const quotedSha256 = shellQuote(expectedSha256.toLowerCase());
+  return [
+    'tmp=$(mktemp)',
+    'trap \'rm -f "$tmp"\' EXIT',
+    `curl -fSL ${quotedUrl} -o "$tmp"`,
+    `printf '%s  %s\\n' ${quotedSha256} "$tmp" | sha256sum -c -`,
+    `sudo mv "$tmp" ${quotedPath}`,
+    `sudo chmod +x ${quotedPath}`,
+  ].join(' && ');
 }
 
 function selectAppImageAsset(release: GitHubRelease, appImagePath: string) {
@@ -113,6 +124,7 @@ export async function updateAppImageFromRelease(options: {
       command: buildProtectedAppImageUpdateCommand(
         asset.browser_download_url,
         options.appImagePath,
+        expectedSha256,
       ),
     };
   }

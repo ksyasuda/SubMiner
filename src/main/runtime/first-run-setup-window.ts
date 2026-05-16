@@ -656,7 +656,13 @@ export function createOpenFirstRunSetupWindowHandler<
 
     const render = async (): Promise<void> => {
       const model = await deps.getSetupSnapshot();
+      if (setupWindow.isDestroyed()) {
+        return;
+      }
       const html = deps.buildSetupHtml(model);
+      if (setupWindow.isDestroyed()) {
+        return;
+      }
       await setupWindow.loadURL(`data:text/html;charset=utf-8,${deps.encodeURIComponent(html)}`);
       if (!setupWindow.isDestroyed()) {
         setupWindow.show?.();

@@ -165,9 +165,9 @@ test('resolveMacAppBundlePath resolves packaged macOS executable path', () => {
   assert.equal(resolveMacAppBundlePath('/usr/local/bin/SubMiner'), null);
 });
 
-test('mac native updater is unsupported for ad-hoc signed app bundles', () => {
+test('mac native updater is unsupported for ad-hoc signed app bundles', async () => {
   const logged: string[] = [];
-  const supported = isNativeUpdaterSupported({
+  const supported = await isNativeUpdaterSupported({
     platform: 'darwin',
     isPackaged: true,
     execPath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
@@ -180,8 +180,8 @@ test('mac native updater is unsupported for ad-hoc signed app bundles', () => {
   assert.deepEqual(logged, ['Skipping native macOS updater because this build is ad-hoc signed.']);
 });
 
-test('mac native updater is supported for Developer ID signed app bundles', () => {
-  const supported = isNativeUpdaterSupported({
+test('mac native updater is supported for Developer ID signed app bundles', async () => {
+  const supported = await isNativeUpdaterSupported({
     platform: 'darwin',
     isPackaged: true,
     execPath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
@@ -192,9 +192,9 @@ test('mac native updater is supported for Developer ID signed app bundles', () =
   assert.equal(supported, true);
 });
 
-test('linux native updater is unsupported even for writable direct AppImage installs', () => {
+test('linux native updater is unsupported even for writable direct AppImage installs', async () => {
   const logged: string[] = [];
-  const supported = isNativeUpdaterSupported({
+  const supported = await isNativeUpdaterSupported({
     platform: 'linux',
     isPackaged: true,
     execPath: '/tmp/.mount_SubMiner/SubMiner',
@@ -210,9 +210,9 @@ test('linux native updater is unsupported even for writable direct AppImage inst
   ]);
 });
 
-test('linux native updater is unsupported when APPIMAGE is missing', () => {
+test('linux native updater is unsupported when APPIMAGE is missing', async () => {
   const logged: string[] = [];
-  const supported = isNativeUpdaterSupported({
+  const supported = await isNativeUpdaterSupported({
     platform: 'linux',
     isPackaged: true,
     execPath: '/tmp/.mount_SubMiner/SubMiner',
@@ -226,9 +226,9 @@ test('linux native updater is unsupported when APPIMAGE is missing', () => {
   ]);
 });
 
-test('linux native updater is unsupported for non-writable AppImage installs', () => {
+test('linux native updater is unsupported for non-writable AppImage installs', async () => {
   const logged: string[] = [];
-  const supported = isNativeUpdaterSupported({
+  const supported = await isNativeUpdaterSupported({
     platform: 'linux',
     isPackaged: true,
     execPath: '/tmp/.mount_SubMiner/SubMiner',
@@ -244,9 +244,9 @@ test('linux native updater is unsupported for non-writable AppImage installs', (
   ]);
 });
 
-test('linux native updater is unsupported for package-managed AppImage installs', () => {
+test('linux native updater is unsupported for package-managed AppImage installs', async () => {
   const logged: string[] = [];
-  const supported = isNativeUpdaterSupported({
+  const supported = await isNativeUpdaterSupported({
     platform: 'linux',
     isPackaged: true,
     execPath: '/tmp/.mount_SubMiner/SubMiner',
@@ -270,8 +270,8 @@ test('known Linux package-managed AppImage detection follows the canonical AUR p
   );
 });
 
-test('native updater is unsupported on Windows by default', () => {
-  const supported = isNativeUpdaterSupported({
+test('native updater is unsupported on Windows by default', async () => {
+  const supported = await isNativeUpdaterSupported({
     platform: 'win32',
     isPackaged: true,
     execPath: 'C:\\Program Files\\SubMiner\\SubMiner.exe',

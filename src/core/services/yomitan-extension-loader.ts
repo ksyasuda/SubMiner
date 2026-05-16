@@ -31,6 +31,14 @@ export interface YomitanExtensionLoaderDeps {
 
 type WarningProcess = Pick<NodeJS.Process, 'emitWarning'>;
 
+const suppressedWarningState = new WeakMap<
+  WarningProcess,
+  {
+    count: number;
+    originalEmitWarning: WarningProcess['emitWarning'];
+  }
+>();
+
 function getWarningType(warning: string | Error, args: unknown[]): string | undefined {
   if (typeof warning !== 'string') {
     return warning.name;
@@ -58,7 +66,26 @@ export async function withSuppressedYomitanExtensionWarnings<T>(
   run: () => Promise<T>,
   warningProcess: WarningProcess = process,
 ): Promise<T> {
+  const existingState = suppressedWarningState.get(warningProcess);
+  if (existingState) {
+    existingState.count++;
+    try {
+      return await run();
+    } finally {
+      existingState.count--;
+      if (existingState.count === 0) {
+        warningProcess.emitWarning = existingState.originalEmitWarning;
+        suppressedWarningState.delete(warningProcess);
+      }
+    }
+  }
+
   const originalEmitWarning = warningProcess.emitWarning;
+  const state = {
+    count: 1,
+    originalEmitWarning,
+  };
+  suppressedWarningState.set(warningProcess, state);
   warningProcess.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
     if (shouldSuppressYomitanExtensionWarning(warning, args)) {
       return;
@@ -73,7 +100,11 @@ export async function withSuppressedYomitanExtensionWarnings<T>(
   try {
     return await run();
   } finally {
-    warningProcess.emitWarning = originalEmitWarning;
+    state.count--;
+    if (state.count === 0) {
+      warningProcess.emitWarning = originalEmitWarning;
+      suppressedWarningState.delete(warningProcess);
+    }
   }
 }
 
@@ -127,7 +158,18 @@ export async function loadYomitanExtension(
       return null;
     }
 
-    const extensionCopy = await ensureExtensionCopyAsync(extPath, deps.userDataPath);
+    let extensionCopy: { copied: boolean; targetDir: string };
+    try {
+      extensionCopy = await ensureExtensionCopyAsync(extPath, deps.userDataPath);
+    } catch (error) {
+      logger.error('Failed to copy Yomitan extension:', {
+        error,
+        extensionPath: extPath,
+        userDataPath: deps.userDataPath,
+      });
+      clearRuntimeState();
+      return null;
+    }
     if (extensionCopy.copied) {
       logger.debug(`Copied yomitan extension to ${extensionCopy.targetDir}`);
     }

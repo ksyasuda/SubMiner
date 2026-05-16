@@ -50,11 +50,15 @@ export function buildProtectedLauncherUpdateCommand(
   assetUrl: string,
   launcherPath: string,
 ): string {
-  return `sudo curl -fSL ${assetUrl} -o ${launcherPath} && sudo chmod +x ${launcherPath}`;
+  return `sudo curl -fSL ${shellQuote(assetUrl)} -o ${shellQuote(launcherPath)} && sudo chmod +x ${shellQuote(launcherPath)}`;
 }
 
 function sha256(data: Buffer): string {
   return createHash('sha256').update(data).digest('hex');
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 function defaultFs(): LauncherUpdateFileSystem {
