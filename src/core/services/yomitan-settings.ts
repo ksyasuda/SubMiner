@@ -15,6 +15,22 @@ export interface OpenYomitanSettingsWindowOptions {
 
 type YomitanSettingsWindowMenuOwner = Pick<BrowserWindow, 'close' | 'isDestroyed'>;
 
+type HyprlandSessionEnv = {
+  HYPRLAND_INSTANCE_SIGNATURE?: string;
+};
+
+export interface InstallYomitanSettingsCloseButtonOptions {
+  platform?: NodeJS.Platform;
+  env?: HyprlandSessionEnv;
+}
+
+export function shouldInstallYomitanSettingsCloseButton(
+  platform: NodeJS.Platform = process.platform,
+  env: HyprlandSessionEnv = process.env,
+): boolean {
+  return platform === 'linux' && Boolean(env.HYPRLAND_INSTANCE_SIGNATURE);
+}
+
 export function buildYomitanSettingsWindowMenuTemplate(
   settingsWindow: YomitanSettingsWindowMenuOwner,
 ): MenuItemConstructorOptions[] {
@@ -92,8 +108,12 @@ export function buildYomitanSettingsCloseButtonScript(): string {
 
 export function installYomitanSettingsCloseButton(
   settingsWindow: Pick<BrowserWindow, 'isDestroyed' | 'webContents'>,
+  options: InstallYomitanSettingsCloseButtonOptions = {},
 ): void {
   if (settingsWindow.isDestroyed()) {
+    return;
+  }
+  if (!shouldInstallYomitanSettingsCloseButton(options.platform, options.env)) {
     return;
   }
   settingsWindow.webContents

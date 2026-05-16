@@ -525,12 +525,7 @@ import {
 } from './main/runtime/update/release-assets';
 import { updateLauncherFromRelease } from './main/runtime/update/launcher-updater';
 import { notifyUpdateAvailable } from './main/runtime/update/update-notifications';
-import {
-  showNoUpdateDialog,
-  showRestartDialog,
-  showUpdateAvailableDialog,
-  showUpdateFailedDialog,
-} from './main/runtime/update/update-dialogs';
+import { createUpdateDialogPresenter } from './main/runtime/update/update-dialogs';
 import {
   runUpdateCliCommand,
   writeUpdateCliCommandResponse,
@@ -4682,6 +4677,11 @@ function getUpdateService() {
         log: (message) => logger.warn(message),
       }),
   });
+  const updateDialogPresenter = createUpdateDialogPresenter({
+    platform: process.platform,
+    focusApp: () => app.focus({ steal: true }),
+    showMessageBox: (options) => dialog.showMessageBox(options),
+  });
   updateService = createUpdateService({
     getConfig: () => getResolvedConfig().updates,
     getCurrentVersion: () => app.getVersion(),
@@ -4693,14 +4693,12 @@ function getUpdateService() {
       fetchLatestStableRelease({ fetch: getFetchForUpdater(), channel }),
     updateLauncher: (launcherPath, channel, release) =>
       updateLauncherFromSelectedRelease(launcherPath, channel, release),
-    showNoUpdateDialog: (version) =>
-      showNoUpdateDialog((options) => dialog.showMessageBox(options), version),
+    showNoUpdateDialog: (version) => updateDialogPresenter.showNoUpdateDialog(version),
     showUpdateAvailableDialog: (version) =>
-      showUpdateAvailableDialog((options) => dialog.showMessageBox(options), version),
-    showUpdateFailedDialog: (message) =>
-      showUpdateFailedDialog((options) => dialog.showMessageBox(options), message),
+      updateDialogPresenter.showUpdateAvailableDialog(version),
+    showUpdateFailedDialog: (message) => updateDialogPresenter.showUpdateFailedDialog(message),
     downloadAppUpdate: () => appUpdater.downloadUpdate(),
-    showRestartDialog: () => showRestartDialog((options) => dialog.showMessageBox(options)),
+    showRestartDialog: () => updateDialogPresenter.showRestartDialog(),
     quitAndInstall: () => appUpdater.quitAndInstall(),
     notifyUpdateAvailable: (version) =>
       notifyUpdateAvailable(

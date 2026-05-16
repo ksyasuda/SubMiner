@@ -7,7 +7,9 @@ import {
   buildYomitanSettingsUrl,
   configureYomitanSettingsWindowChrome,
   destroyYomitanSettingsWindow,
+  installYomitanSettingsCloseButton,
   showYomitanSettingsWindow,
+  shouldInstallYomitanSettingsCloseButton,
 } from './yomitan-settings';
 
 test('yomitan settings window uses a close-only menu without app quit', () => {
@@ -51,6 +53,44 @@ test('yomitan settings close button script installs an idempotent in-page close 
   assert.match(script, /aria-label', 'Close Yomitan settings'/);
   assert.match(script, /window\.close\(\)/);
   assert.match(script, /getElementById\(buttonId\)/);
+});
+
+test('yomitan settings close button only installs for Hyprland sessions', () => {
+  assert.equal(
+    shouldInstallYomitanSettingsCloseButton('linux', { HYPRLAND_INSTANCE_SIGNATURE: 'hypr' }),
+    true,
+  );
+  assert.equal(
+    shouldInstallYomitanSettingsCloseButton('linux', { HYPRLAND_INSTANCE_SIGNATURE: '' }),
+    false,
+  );
+  assert.equal(
+    shouldInstallYomitanSettingsCloseButton('darwin', { HYPRLAND_INSTANCE_SIGNATURE: 'hypr' }),
+    false,
+  );
+  assert.equal(
+    shouldInstallYomitanSettingsCloseButton('win32', { HYPRLAND_INSTANCE_SIGNATURE: 'hypr' }),
+    false,
+  );
+});
+
+test('yomitan settings close button injection skips non-Hyprland windows', () => {
+  const calls: string[] = [];
+
+  installYomitanSettingsCloseButton(
+    {
+      isDestroyed: () => false,
+      webContents: {
+        executeJavaScript: () => {
+          calls.push('execute');
+          return Promise.resolve();
+        },
+      },
+    } as never,
+    { platform: 'darwin', env: { HYPRLAND_INSTANCE_SIGNATURE: 'hypr' } },
+  );
+
+  assert.deepEqual(calls, []);
 });
 
 test('yomitan settings URL disables the embedded popup preview', () => {

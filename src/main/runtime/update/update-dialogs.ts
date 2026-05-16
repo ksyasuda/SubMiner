@@ -15,6 +15,12 @@ export type ShowMessageBox = (options: {
   cancelId?: number;
 }) => Promise<MessageBoxResultLike>;
 
+export interface UpdateDialogPresenterDeps {
+  showMessageBox: ShowMessageBox;
+  focusApp?: () => void;
+  platform?: NodeJS.Platform;
+}
+
 export async function showNoUpdateDialog(
   showMessageBox: ShowMessageBox,
   version: string,
@@ -25,6 +31,27 @@ export async function showNoUpdateDialog(
     message: `SubMiner is up to date (v${version})`,
     buttons: ['Close'],
   });
+}
+
+function maybeFocusAppForDialog(deps: UpdateDialogPresenterDeps): void {
+  if ((deps.platform ?? process.platform) !== 'darwin') return;
+  deps.focusApp?.();
+}
+
+export function createUpdateDialogPresenter(deps: UpdateDialogPresenterDeps) {
+  const showFocusedMessageBox: ShowMessageBox = async (options) => {
+    maybeFocusAppForDialog(deps);
+    return deps.showMessageBox(options);
+  };
+
+  return {
+    showNoUpdateDialog: (version: string) => showNoUpdateDialog(showFocusedMessageBox, version),
+    showUpdateAvailableDialog: (version: string) =>
+      showUpdateAvailableDialog(showFocusedMessageBox, version),
+    showUpdateFailedDialog: (message: string) =>
+      showUpdateFailedDialog(showFocusedMessageBox, message),
+    showRestartDialog: () => showRestartDialog(showFocusedMessageBox),
+  };
 }
 
 export async function showUpdateAvailableDialog(

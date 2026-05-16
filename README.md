@@ -217,12 +217,13 @@ Download the latest DMG or ZIP from [GitHub Releases](https://github.com/ksyasud
 Also download the `subminer` launcher (recommended):
 
 ```bash
-sudo curl -fSL https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -o /usr/local/bin/subminer \
-	&& sudo chmod +x /usr/local/bin/subminer
+mkdir -p ~/.local/bin
+curl -fSL https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -o ~/.local/bin/subminer \
+	&& chmod +x ~/.local/bin/subminer
 ```
 
 > [!NOTE]
-> The `subminer` launcher uses a [Bun](https://bun.sh) shebang. First-run setup can optionally install Bun and the launcher into an existing writable PATH directory.
+> The `subminer` launcher uses a [Bun](https://bun.sh) shebang. First-run setup can optionally install Bun and the launcher into an existing writable PATH directory. Make sure `~/.local/bin` is on your PATH before installing there.
 
 </details>
 

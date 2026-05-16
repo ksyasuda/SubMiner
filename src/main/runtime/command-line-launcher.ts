@@ -72,6 +72,7 @@ const BUN_OFFICIAL_WINDOWS_COMMAND = [
 ];
 const INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
 const COMMAND_TIMEOUT_MS = 15 * 1000;
+const MACOS_HOMEBREW_PATH_DIRS = ['/opt/homebrew/bin'];
 
 function installMethodForCommand(command: string[] | null): BunSnapshot['installMethod'] {
   if (!command) return null;
@@ -213,15 +214,41 @@ export async function resolveLauncherInstallTarget(
           path.posix.join(homeDir, 'bin'),
           '/usr/local/bin',
         ];
-  const candidates = [...preferred, ...pathDirs].filter(
+  const manualPreferred =
+    platform === 'darwin'
+      ? [
+          path.posix.join(homeDir, '.local', 'bin'),
+          path.posix.join(homeDir, 'bin'),
+          '/usr/local/bin',
+        ]
+      : preferred;
+  const installCandidates = [...manualPreferred, ...pathDirs].filter(
     (dir, index, all) =>
       all.findIndex(
         (other) =>
           normalizePathForCompare(other, platform) === normalizePathForCompare(dir, platform),
       ) === index,
   );
-  const selected = candidates.find(
-    (dir) => pathEntriesContain(pathDirs, dir, platform) && isWritableDir(dir, options),
+  const installedPreferred = pathDirs.find((dir) => {
+    if (!pathEntriesContain(preferred, dir, platform)) return false;
+    return existsSyncOf(options)(path.posix.join(dir, 'subminer'));
+  });
+  if (installedPreferred) {
+    const installPath = path.posix.join(installedPreferred, 'subminer');
+    return {
+      status: 'ready',
+      commandPath: installPath,
+      installPath,
+      pathDir: installedPreferred,
+      shadowedBy: null,
+      message: null,
+    };
+  }
+  const selected = installCandidates.find(
+    (dir) =>
+      (platform !== 'darwin' || !pathEntriesContain(MACOS_HOMEBREW_PATH_DIRS, dir, platform)) &&
+      pathEntriesContain(pathDirs, dir, platform) &&
+      isWritableDir(dir, options),
   );
   if (!selected) {
     return {
