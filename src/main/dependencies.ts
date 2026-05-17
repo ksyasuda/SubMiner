@@ -57,6 +57,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getVisibleOverlayVisibility: IpcDepsRuntimeOptions['getVisibleOverlayVisibility'];
   onOverlayModalClosed: IpcDepsRuntimeOptions['onOverlayModalClosed'];
   onOverlayModalOpened?: IpcDepsRuntimeOptions['onOverlayModalOpened'];
+  onOverlayMouseInteractionChanged?: IpcDepsRuntimeOptions['onOverlayMouseInteractionChanged'];
   onYoutubePickerResolve: IpcDepsRuntimeOptions['onYoutubePickerResolve'];
   openYomitanSettings: IpcDepsRuntimeOptions['openYomitanSettings'];
   quitApp: IpcDepsRuntimeOptions['quitApp'];
@@ -229,6 +230,7 @@ export function createMainIpcRuntimeServiceDeps(
     getVisibleOverlayVisibility: params.getVisibleOverlayVisibility,
     onOverlayModalClosed: params.onOverlayModalClosed,
     onOverlayModalOpened: params.onOverlayModalOpened,
+    onOverlayMouseInteractionChanged: params.onOverlayMouseInteractionChanged,
     onYoutubePickerResolve: params.onYoutubePickerResolve,
     openYomitanSettings: params.openYomitanSettings,
     quitApp: params.quitApp,

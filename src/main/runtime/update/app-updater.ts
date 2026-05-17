@@ -20,6 +20,7 @@ export interface ElectronUpdaterLoggerLike {
 
 export interface ElectronAutoUpdaterLike {
   autoDownload: boolean;
+  autoInstallOnAppQuit?: boolean;
   allowPrerelease: boolean;
   allowDowngrade: boolean;
   logger?: ElectronUpdaterLoggerLike | null;
@@ -120,6 +121,8 @@ export function configureAutoUpdater(
   channel: UpdateChannel = 'stable',
 ): ElectronAutoUpdaterLike {
   updater.autoDownload = false;
+  // On macOS this avoids invoking Squirrel until the explicit restart/install step.
+  updater.autoInstallOnAppQuit = false;
   updater.allowPrerelease = channel === 'prerelease';
   updater.allowDowngrade = false;
   updater.logger = {

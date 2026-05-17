@@ -18,8 +18,12 @@ type UpdaterLogger = {
 
 test('configureAutoUpdater disables eager update behavior and suppresses info logging', () => {
   const logged: string[] = [];
-  const updater: ElectronAutoUpdaterLike & { logger?: UpdaterLogger | null } = {
+  const updater: ElectronAutoUpdaterLike & {
+    autoInstallOnAppQuit: boolean;
+    logger?: UpdaterLogger | null;
+  } = {
     autoDownload: true,
+    autoInstallOnAppQuit: true,
     allowPrerelease: true,
     allowDowngrade: true,
     logger: null,
@@ -31,6 +35,7 @@ test('configureAutoUpdater disables eager update behavior and suppresses info lo
   configureAutoUpdater(updater, (message) => logged.push(message));
 
   assert.equal(updater.autoDownload, false);
+  assert.equal(updater.autoInstallOnAppQuit, false);
   assert.equal(updater.allowPrerelease, false);
   assert.equal(updater.allowDowngrade, false);
   assert.ok(updater.logger);
@@ -180,16 +185,18 @@ test('mac native updater is unsupported for ad-hoc signed app bundles', async ()
   assert.deepEqual(logged, ['Skipping native macOS updater because this build is ad-hoc signed.']);
 });
 
-test('mac native updater is supported for Developer ID signed app bundles', async () => {
+test('mac native updater supports Developer ID signed packaged app bundles', async () => {
+  const logged: string[] = [];
   const supported = await isNativeUpdaterSupported({
     platform: 'darwin',
     isPackaged: true,
     execPath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
-    readCodeSignature: () =>
-      ['Authority=Developer ID Application: Example', 'TeamIdentifier=ABCDE12345'].join('\n'),
+    log: (message) => logged.push(message),
+    readCodeSignature: async () => 'Authority=Developer ID Application: Kyle Yasuda (EPJ9P4RWTC)',
   });
 
   assert.equal(supported, true);
+  assert.deepEqual(logged, []);
 });
 
 test('linux native updater is unsupported even for writable direct AppImage installs', async () => {

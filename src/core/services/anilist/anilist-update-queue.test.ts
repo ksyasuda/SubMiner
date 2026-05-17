@@ -32,10 +32,16 @@ test('anilist update queue enqueues, snapshots, and dequeues success', () => {
   const loggerState = createLogger();
   const queue = createAnilistUpdateQueue(queueFile, loggerState.logger);
 
-  queue.enqueue('k1', 'Demo', 1);
+  queue.enqueue('k1', 'Demo', 1, 2);
   const snapshot = queue.getSnapshot(Number.MAX_SAFE_INTEGER);
   assert.deepEqual(snapshot, { pending: 1, ready: 1, deadLetter: 0 });
-  assert.equal(queue.nextReady(Number.MAX_SAFE_INTEGER)?.key, 'k1');
+  assert.deepEqual(
+    {
+      key: queue.nextReady(Number.MAX_SAFE_INTEGER)?.key,
+      season: queue.nextReady(Number.MAX_SAFE_INTEGER)?.season,
+    },
+    { key: 'k1', season: 2 },
+  );
 
   queue.markSuccess('k1');
   assert.deepEqual(queue.getSnapshot(Number.MAX_SAFE_INTEGER), {

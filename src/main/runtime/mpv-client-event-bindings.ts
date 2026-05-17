@@ -19,6 +19,10 @@ type MpvEventClient = {
   on: <K extends MpvBindingEventName>(event: K, handler: (payload: any) => void) => void;
 };
 
+type AnilistPostWatchRunOptions = {
+  watchedSeconds?: number;
+};
+
 export function createHandleMpvConnectionChangeHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
   refreshDiscordPresence: () => void;
@@ -57,15 +61,22 @@ export function createHandleMpvSubtitleTimingHandler(deps: {
   recordImmersionSubtitleLine: (text: string, start: number, end: number) => void;
   hasSubtitleTimingTracker: () => boolean;
   recordSubtitleTiming: (text: string, start: number, end: number) => void;
-  maybeRunAnilistPostWatchUpdate: () => Promise<void>;
+  maybeRunAnilistPostWatchUpdate: (options?: AnilistPostWatchRunOptions) => Promise<void>;
   logError: (message: string, error: unknown) => void;
 }) {
   return ({ text, start, end }: { text: string; start: number; end: number }): void => {
-    if (!text.trim()) return;
-    deps.recordImmersionSubtitleLine(text, start, end);
-    if (!deps.hasSubtitleTimingTracker()) return;
-    deps.recordSubtitleTiming(text, start, end);
-    void deps.maybeRunAnilistPostWatchUpdate().catch((error) => {
+    const watchedSeconds = Math.max(
+      Number.isFinite(start) ? start : 0,
+      Number.isFinite(end) ? end : 0,
+    );
+    const options = watchedSeconds > 0 ? { watchedSeconds } : undefined;
+    if (text.trim()) {
+      deps.recordImmersionSubtitleLine(text, start, end);
+      if (deps.hasSubtitleTimingTracker()) {
+        deps.recordSubtitleTiming(text, start, end);
+      }
+    }
+    void deps.maybeRunAnilistPostWatchUpdate(options).catch((error) => {
       deps.logError('AniList post-watch update failed unexpectedly', error);
     });
   };

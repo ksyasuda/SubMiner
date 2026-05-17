@@ -16,6 +16,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
       recordSubtitleLine: (text: string) => calls.push(`immersion-sub:${text}`),
       handleMediaTitleUpdate: (title: string) => calls.push(`immersion-title:${title}`),
       recordPlaybackPosition: (time: number) => calls.push(`immersion-time:${time}`),
+      recordMediaDuration: (durationSec: number) => calls.push(`immersion-duration:${durationSec}`),
       recordPauseState: (paused: boolean) => calls.push(`immersion-pause:${paused}`),
     },
     subtitleTimingTracker: {
@@ -40,6 +41,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     maybeRunAnilistPostWatchUpdate: async () => {
       calls.push('anilist-post-watch');
     },
+    recordAnilistMediaDuration: (durationSec) => calls.push(`anilist-duration:${durationSec}`),
     logSubtitleTimingError: (message) => calls.push(`subtitle-error:${message}`),
     broadcastToOverlayWindows: (channel, payload) =>
       calls.push(`broadcast:${channel}:${String(payload)}`),
@@ -95,6 +97,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.resetAnilistMediaGuessState();
   deps.notifyImmersionTitleUpdate('title');
   deps.recordPlaybackPosition(10);
+  deps.recordMediaDuration(1234);
   deps.reportJellyfinRemoteProgress(true);
   deps.onFullscreenChange?.(true);
   deps.recordPauseState(true);
@@ -118,6 +121,8 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.ok(calls.includes('presence-refresh'));
   assert.ok(calls.includes('restore-mpv-sub'));
   assert.ok(calls.includes('reset-sidebar-layout'));
+  assert.ok(calls.includes('immersion-duration:1234'));
+  assert.ok(calls.includes('anilist-duration:1234'));
 });
 
 test('mpv main event main deps wire subtitle callbacks without suppression gate', () => {

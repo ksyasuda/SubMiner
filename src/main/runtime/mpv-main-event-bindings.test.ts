@@ -23,8 +23,8 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     recordImmersionSubtitleLine: (text) => calls.push(`immersion:${text}`),
     hasSubtitleTimingTracker: () => false,
     recordSubtitleTiming: () => calls.push('record-timing'),
-    maybeRunAnilistPostWatchUpdate: async () => {
-      calls.push('post-watch');
+    maybeRunAnilistPostWatchUpdate: async (options) => {
+      calls.push(`post-watch:${options?.watchedSeconds ?? 'none'}`);
     },
     logSubtitleTimingError: () => calls.push('subtitle-error'),
     setCurrentSubText: (text) => calls.push(`set-sub:${text}`),
@@ -74,6 +74,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   handlers.get('subtitle-track-list-change')?.({ trackList: [] });
   handlers.get('media-path-change')?.({ path: '' });
   handlers.get('media-title-change')?.({ title: 'Episode 1' });
+  handlers.get('subtitle-timing')?.({ text: 'timed line', start: 899, end: 901 });
   handlers.get('time-pos-change')?.({ time: 2.5 });
   handlers.get('pause-change')?.({ paused: true });
 
@@ -87,6 +88,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   assert.ok(calls.includes('restore-mpv-sub'));
   assert.ok(calls.includes('reset-guess-state'));
   assert.ok(calls.includes('notify-title:Episode 1'));
+  assert.ok(calls.includes('post-watch:901'));
   assert.ok(calls.includes('progress:normal'));
   assert.ok(calls.includes('progress:force'));
   assert.ok(calls.includes('presence-refresh'));

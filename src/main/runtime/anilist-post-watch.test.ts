@@ -20,12 +20,15 @@ test('rememberAnilistAttemptedUpdateKey evicts oldest beyond max size', () => {
 test('createProcessNextAnilistRetryUpdateHandler handles successful retry', async () => {
   const calls: string[] = [];
   const handler = createProcessNextAnilistRetryUpdateHandler({
-    nextReady: () => ({ key: 'k1', title: 'Show', season: null, episode: 1 }),
+    nextReady: () => ({ key: 'k1', title: 'Show', season: 2, episode: 1 }),
     refreshRetryQueueState: () => calls.push('refresh'),
     setLastAttemptAt: () => calls.push('attempt'),
     setLastError: (value) => calls.push(`error:${value ?? 'null'}`),
     refreshAnilistClientSecretState: async () => 'token',
-    updateAnilistPostWatchProgress: async () => ({ status: 'updated', message: 'updated ok' }),
+    updateAnilistPostWatchProgress: async (_accessToken, _title, _episode, season) => ({
+      status: 'updated',
+      message: `updated ok:${season}`,
+    }),
     markSuccess: () => calls.push('success'),
     rememberAttemptedUpdateKey: () => calls.push('remember'),
     markFailure: () => calls.push('failure'),
@@ -34,7 +37,7 @@ test('createProcessNextAnilistRetryUpdateHandler handles successful retry', asyn
   });
 
   const result = await handler();
-  assert.deepEqual(result, { ok: true, message: 'updated ok' });
+  assert.deepEqual(result, { ok: true, message: 'updated ok:2' });
   assert.ok(calls.includes('success'));
   assert.ok(calls.includes('remember'));
 });
@@ -93,7 +96,7 @@ test('createMaybeRunAnilistPostWatchUpdateHandler force-runs manual watched upda
       calls.push('probe');
       return 1000;
     },
-    ensureAnilistMediaGuess: async () => ({ title: 'Show', episode: 3 }),
+    ensureAnilistMediaGuess: async () => ({ title: 'Show', season: null, episode: 3 }),
     hasAttemptedUpdateKey: () => false,
     processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'noop' }),
     refreshAnilistClientSecretState: async () => 'token',
@@ -117,6 +120,106 @@ test('createMaybeRunAnilistPostWatchUpdateHandler force-runs manual watched upda
 
   assert.equal(calls.includes('probe'), false);
   assert.ok(calls.includes('update'));
+  assert.ok(calls.includes('remember'));
+  assert.ok(calls.includes('osd:updated ok'));
+});
+
+test('createMaybeRunAnilistPostWatchUpdateHandler shows permanent AniList update errors without queueing retry', async () => {
+  const calls: string[] = [];
+  const attemptedKeys = new Set<string>();
+  let updateCalls = 0;
+  const handler = createMaybeRunAnilistPostWatchUpdateHandler({
+    getInFlight: () => false,
+    setInFlight: (value) => calls.push(`inflight:${value}`),
+    getResolvedConfig: () => ({}),
+    isAnilistTrackingEnabled: () => true,
+    getCurrentMediaKey: () => '/tmp/video.mkv',
+    hasMpvClient: () => true,
+    getTrackedMediaKey: () => '/tmp/video.mkv',
+    resetTrackedMedia: () => {},
+    getWatchedSeconds: () => 1000,
+    maybeProbeAnilistDuration: async () => 1000,
+    ensureAnilistMediaGuess: async () => ({ title: 'Show', season: null, episode: 2 }),
+    hasAttemptedUpdateKey: (key) => attemptedKeys.has(key),
+    processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'noop' }),
+    refreshAnilistClientSecretState: async () => 'token',
+    enqueueRetry: () => calls.push('enqueue'),
+    markRetryFailure: () => calls.push('mark-failure'),
+    markRetrySuccess: () => calls.push('mark-success'),
+    refreshRetryQueueState: () => calls.push('refresh'),
+    updateAnilistPostWatchProgress: async () => {
+      updateCalls += 1;
+      return {
+        status: 'error',
+        retryable: false,
+        message:
+          'AniList update not possible: Show is not in your AniList Planning or Watching list.',
+      };
+    },
+    rememberAttemptedUpdateKey: (key) => {
+      attemptedKeys.add(key);
+      calls.push(`remember:${key}`);
+    },
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    logInfo: (message) => calls.push(`info:${message}`),
+    logWarn: (message) => calls.push(`warn:${message}`),
+    minWatchSeconds: 600,
+    minWatchRatio: 0.85,
+  });
+
+  await handler();
+  await handler();
+
+  assert.equal(updateCalls, 1);
+  assert.equal(calls.includes('enqueue'), false);
+  assert.equal(calls.includes('mark-failure'), false);
+  assert.ok(calls.some((call) => call.startsWith('remember:')));
+  assert.ok(calls.includes('refresh'));
+  assert.ok(calls.some((call) => call.startsWith('osd:AniList update not possible')));
+  assert.ok(calls.some((call) => call.startsWith('warn:AniList update not possible')));
+});
+
+test('createMaybeRunAnilistPostWatchUpdateHandler uses provided watched seconds from time-position events', async () => {
+  const calls: string[] = [];
+  let durationProbeOptions: unknown = null;
+  const handler = createMaybeRunAnilistPostWatchUpdateHandler({
+    getInFlight: () => false,
+    setInFlight: (value) => calls.push(`inflight:${value}`),
+    getResolvedConfig: () => ({}),
+    isAnilistTrackingEnabled: () => true,
+    getCurrentMediaKey: () => '/tmp/video.mkv',
+    hasMpvClient: () => true,
+    getTrackedMediaKey: () => '/tmp/video.mkv',
+    resetTrackedMedia: () => {},
+    getWatchedSeconds: () => 0,
+    maybeProbeAnilistDuration: async (_mediaKey, options) => {
+      durationProbeOptions = options;
+      return 1000;
+    },
+    ensureAnilistMediaGuess: async () => ({ title: 'Show', season: 2, episode: 8 }),
+    hasAttemptedUpdateKey: () => false,
+    processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'noop' }),
+    refreshAnilistClientSecretState: async () => 'token',
+    enqueueRetry: () => calls.push('enqueue'),
+    markRetryFailure: () => calls.push('mark-failure'),
+    markRetrySuccess: () => calls.push('mark-success'),
+    refreshRetryQueueState: () => calls.push('refresh'),
+    updateAnilistPostWatchProgress: async (_accessToken, _title, _episode, season) => {
+      calls.push(`update:${season}`);
+      return { status: 'updated', message: 'updated ok' };
+    },
+    rememberAttemptedUpdateKey: () => calls.push('remember'),
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    logInfo: (message) => calls.push(`info:${message}`),
+    logWarn: (message) => calls.push(`warn:${message}`),
+    minWatchSeconds: 600,
+    minWatchRatio: 0.85,
+  });
+
+  await handler({ watchedSeconds: 850 });
+
+  assert.deepEqual(durationProbeOptions, { force: true });
+  assert.ok(calls.includes('update:2'));
   assert.ok(calls.includes('remember'));
   assert.ok(calls.includes('osd:updated ok'));
 });

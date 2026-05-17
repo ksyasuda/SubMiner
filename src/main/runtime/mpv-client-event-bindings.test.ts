@@ -97,20 +97,38 @@ test('mpv connection handler keeps overlay-initialized non-youtube sessions aliv
   assert.deepEqual(calls, ['presence-refresh', 'report-stop']);
 });
 
-test('mpv subtitle timing handler ignores blank subtitle lines', () => {
+test('mpv subtitle timing handler skips blank subtitle recording but still checks AniList time', () => {
   const calls: string[] = [];
   const handler = createHandleMpvSubtitleTimingHandler({
     recordImmersionSubtitleLine: () => calls.push('immersion'),
     hasSubtitleTimingTracker: () => true,
     recordSubtitleTiming: () => calls.push('timing'),
-    maybeRunAnilistPostWatchUpdate: async () => {
-      calls.push('post-watch');
+    maybeRunAnilistPostWatchUpdate: async (options) => {
+      calls.push(`post-watch:${options?.watchedSeconds}`);
     },
     logError: () => calls.push('error'),
   });
 
   handler({ text: '   ', start: 1, end: 2 });
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, ['post-watch:2']);
+});
+
+test('mpv subtitle timing handler runs AniList without timing tracker and passes subtitle time', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvSubtitleTimingHandler({
+    recordImmersionSubtitleLine: (text, start, end) =>
+      calls.push(`immersion:${text}:${start}:${end}`),
+    hasSubtitleTimingTracker: () => false,
+    recordSubtitleTiming: () => calls.push('timing'),
+    maybeRunAnilistPostWatchUpdate: async (options) => {
+      calls.push(`post-watch:${options?.watchedSeconds}`);
+    },
+    logError: () => calls.push('error'),
+  });
+
+  handler({ text: 'line', start: 899, end: 901 });
+
+  assert.deepEqual(calls, ['immersion:line:899:901', 'post-watch:901']);
 });
 
 test('mpv event bindings register all expected events', () => {

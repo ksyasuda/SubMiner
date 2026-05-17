@@ -14,6 +14,10 @@ type GuessAnilistMediaInfo = (
   mediaTitle: string | null,
 ) => Promise<AnilistMediaGuess | null>;
 
+type AnilistDurationProbeOptions = {
+  force?: boolean;
+};
+
 export function createMaybeProbeAnilistDurationHandler(deps: {
   getState: () => AnilistMediaGuessRuntimeState;
   setState: (state: AnilistMediaGuessRuntimeState) => void;
@@ -22,7 +26,10 @@ export function createMaybeProbeAnilistDurationHandler(deps: {
   requestMpvDuration: () => Promise<unknown>;
   logWarn: (message: string, error: unknown) => void;
 }) {
-  return async (mediaKey: string): Promise<number | null> => {
+  return async (
+    mediaKey: string,
+    options: AnilistDurationProbeOptions = {},
+  ): Promise<number | null> => {
     const state = deps.getState();
     if (state.mediaKey !== mediaKey) {
       return null;
@@ -34,7 +41,7 @@ export function createMaybeProbeAnilistDurationHandler(deps: {
       return state.mediaDurationSec;
     }
     const now = deps.now();
-    if (now - state.lastDurationProbeAtMs < deps.durationRetryIntervalMs) {
+    if (!options.force && now - state.lastDurationProbeAtMs < deps.durationRetryIntervalMs) {
       return null;
     }
 

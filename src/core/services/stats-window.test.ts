@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildStatsWindowLoadFileOptions,
   buildStatsWindowOptions,
+  presentStatsWindow,
   promoteStatsWindowLevel,
   resolveStatsWindowOuterBoundsForContent,
   shouldHideStatsWindowForInput,
@@ -229,4 +230,46 @@ test('promoteStatsWindowLevel raises stats above overlay level on Windows', () =
   );
 
   assert.deepEqual(calls, ['always-on-top:true:screen-saver:2', 'move-top']);
+});
+
+test('presentStatsWindow shows inactive on macOS to stay on the fullscreen mpv Space', () => {
+  const calls: string[] = [];
+
+  presentStatsWindow(
+    {
+      show: () => {
+        calls.push('show');
+      },
+      showInactive: () => {
+        calls.push('show-inactive');
+      },
+      focus: () => {
+        calls.push('focus');
+      },
+    } as never,
+    'darwin',
+  );
+
+  assert.deepEqual(calls, ['show-inactive']);
+});
+
+test('presentStatsWindow shows and focuses on non-macOS platforms', () => {
+  const calls: string[] = [];
+
+  presentStatsWindow(
+    {
+      show: () => {
+        calls.push('show');
+      },
+      showInactive: () => {
+        calls.push('show-inactive');
+      },
+      focus: () => {
+        calls.push('focus');
+      },
+    } as never,
+    'linux',
+  );
+
+  assert.deepEqual(calls, ['show', 'focus']);
 });

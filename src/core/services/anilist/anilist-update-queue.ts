@@ -9,6 +9,7 @@ const MAX_ITEMS = 500;
 export interface AnilistQueuedUpdate {
   key: string;
   title: string;
+  season?: number | null;
   episode: number;
   createdAt: number;
   attemptCount: number;
@@ -28,7 +29,7 @@ export interface AnilistRetryQueueSnapshot {
 }
 
 export interface AnilistUpdateQueue {
-  enqueue: (key: string, title: string, episode: number) => void;
+  enqueue: (key: string, title: string, episode: number, season?: number | null) => void;
   nextReady: (nowMs?: number) => AnilistQueuedUpdate | null;
   markSuccess: (key: string) => void;
   markFailure: (key: string, reason: string, nowMs?: number) => void;
@@ -106,7 +107,7 @@ export function createAnilistUpdateQueue(
   load();
 
   return {
-    enqueue(key: string, title: string, episode: number): void {
+    enqueue(key: string, title: string, episode: number, season: number | null = null): void {
       const existing = pending.find((item) => item.key === key);
       if (existing) {
         return;
@@ -117,6 +118,7 @@ export function createAnilistUpdateQueue(
       pending.push({
         key,
         title,
+        season,
         episode,
         createdAt: Date.now(),
         attemptCount: 0,

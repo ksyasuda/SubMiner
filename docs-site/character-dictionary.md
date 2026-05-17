@@ -35,7 +35,7 @@ Character dictionary sync is disabled by default. To turn it on:
 ```
 
 ::: tip
-The first sync for a media title takes a few seconds while character data and portraits are fetched from AniList. Subsequent launches reuse the cached snapshot.
+The first sync for a media title takes a few seconds while character data and portraits are fetched from AniList. Subsequent launches reuse the cached media match and snapshot without a fresh AniList lookup.
 :::
 
 ::: warning
@@ -139,7 +139,7 @@ When `characterDictionary.enabled` is `true`, SubMiner runs an auto-sync routine
 5. **importing** — Push the ZIP into Yomitan. Waits for Yomitan mutation readiness (7-second timeout per operation).
 6. **ready** — Dictionary is live. Character names will match on the next subtitle line.
 
-**State tracking** is persisted in `character-dictionaries/auto-sync-state.json`:
+**State tracking** is persisted in `character-dictionaries/auto-sync-state.json`. AniList media matches are cached separately in `character-dictionaries/anilist-resolution-cache.json` so snapshot hits do not need another AniList search.
 
 ```jsonc
 {

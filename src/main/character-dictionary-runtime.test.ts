@@ -1459,7 +1459,7 @@ test('generateForCurrentMedia preserves duplicate surface forms across different
   }
 });
 
-test('getOrCreateCurrentSnapshot persists and reuses normalized snapshot data', async () => {
+test('getOrCreateCurrentSnapshot reuses cached media resolution without AniList requests', async () => {
   const userDataPath = makeTempDir();
   const originalFetch = globalThis.fetch;
   let searchQueryCount = 0;
@@ -1567,11 +1567,18 @@ test('getOrCreateCurrentSnapshot persists and reuses normalized snapshot data', 
     });
 
     const first = await runtime.getOrCreateCurrentSnapshot();
+    assert.equal(searchQueryCount, 1);
+    assert.equal(characterQueryCount, 1);
+
+    fs.rmSync(path.join(userDataPath, 'character-dictionaries', 'anilist-resolution-cache.json'), {
+      force: true,
+    });
+
     const second = await runtime.getOrCreateCurrentSnapshot();
 
     assert.equal(first.fromCache, false);
     assert.equal(second.fromCache, true);
-    assert.equal(searchQueryCount, 2);
+    assert.equal(searchQueryCount, 1);
     assert.equal(characterQueryCount, 1);
     assert.equal(
       fs.existsSync(path.join(userDataPath, 'character-dictionaries', 'cache.json')),

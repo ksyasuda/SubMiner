@@ -61,6 +61,37 @@ export function createSetAnilistMediaGuessRuntimeStateHandler(deps: {
   };
 }
 
+export function createRecordAnilistMediaDurationHandler(deps: {
+  getCurrentMediaKey: () => string | null;
+  getState: () => AnilistMediaGuessRuntimeState;
+  setState: (state: AnilistMediaGuessRuntimeState) => void;
+}) {
+  return (durationSec: number): void => {
+    if (!Number.isFinite(durationSec) || durationSec <= 0) {
+      return;
+    }
+    const mediaKey = deps.getCurrentMediaKey();
+    if (!mediaKey) {
+      return;
+    }
+    const state = deps.getState();
+    if (state.mediaKey === mediaKey) {
+      deps.setState({
+        ...state,
+        mediaDurationSec: durationSec,
+      });
+      return;
+    }
+    deps.setState({
+      mediaKey,
+      mediaDurationSec: durationSec,
+      mediaGuess: null,
+      mediaGuessPromise: null,
+      lastDurationProbeAtMs: 0,
+    });
+  };
+}
+
 export function createResetAnilistMediaGuessStateHandler(deps: {
   setMediaGuess: (value: AnilistMediaGuessRuntimeState['mediaGuess']) => void;
   setMediaGuessPromise: (value: AnilistMediaGuessRuntimeState['mediaGuessPromise']) => void;

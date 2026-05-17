@@ -136,14 +136,14 @@ test('handleOverlayWindowBlurred notifies Windows visible overlay blur callback 
     moveWindowTop: () => {
       calls.push('move-top');
     },
-    onWindowsVisibleOverlayBlur: () => {
-      calls.push('windows-visible-blur');
+    onVisibleOverlayBlur: () => {
+      calls.push('visible-blur');
     },
     platform: 'win32',
   });
 
   assert.equal(handled, false);
-  assert.deepEqual(calls, ['windows-visible-blur']);
+  assert.deepEqual(calls, ['visible-blur']);
 });
 
 test('handleOverlayWindowBlurred skips macOS visible overlay restacking after focus loss', () => {
@@ -166,7 +166,7 @@ test('handleOverlayWindowBlurred skips macOS visible overlay restacking after fo
   assert.deepEqual(calls, []);
 });
 
-test('handleOverlayWindowBlurred leaves Windows callback inactive on macOS visible overlay blur', () => {
+test('handleOverlayWindowBlurred notifies macOS visible overlay blur callback without restacking', () => {
   const calls: string[] = [];
 
   const handled = handleOverlayWindowBlurred({
@@ -179,14 +179,14 @@ test('handleOverlayWindowBlurred leaves Windows callback inactive on macOS visib
     moveWindowTop: () => {
       calls.push('move-top');
     },
-    onWindowsVisibleOverlayBlur: () => {
-      calls.push('windows-visible-blur');
+    onVisibleOverlayBlur: () => {
+      calls.push('visible-blur');
     },
     platform: 'darwin',
   });
 
   assert.equal(handled, false);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, ['visible-blur']);
 });
 
 test('handleOverlayWindowBlurred preserves active visible/modal window stacking', () => {

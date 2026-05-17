@@ -5,6 +5,7 @@ import {
   createBuildMaybeProbeAnilistDurationMainDepsHandler,
   createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler,
   createBuildProcessNextAnilistRetryUpdateMainDepsHandler,
+  createBuildRecordAnilistMediaDurationMainDepsHandler,
   createBuildRefreshAnilistClientSecretStateMainDepsHandler,
   createBuildResetAnilistMediaGuessStateMainDepsHandler,
   createBuildResetAnilistMediaTrackingMainDepsHandler,
@@ -15,6 +16,7 @@ import {
   createMaybeProbeAnilistDurationHandler,
   createMaybeRunAnilistPostWatchUpdateHandler,
   createProcessNextAnilistRetryUpdateHandler,
+  createRecordAnilistMediaDurationHandler,
   createRefreshAnilistClientSecretStateHandler,
   createResetAnilistMediaGuessStateHandler,
   createResetAnilistMediaTrackingHandler,
@@ -37,6 +39,9 @@ export type AnilistTrackingComposerOptions = ComposerInputs<{
   >[0];
   setMediaGuessRuntimeStateMainDeps: Parameters<
     typeof createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler
+  >[0];
+  recordMediaDurationMainDeps: Parameters<
+    typeof createBuildRecordAnilistMediaDurationMainDepsHandler
   >[0];
   resetMediaGuessStateMainDeps: Parameters<
     typeof createBuildResetAnilistMediaGuessStateMainDepsHandler
@@ -63,6 +68,7 @@ export type AnilistTrackingComposerResult = ComposerOutputs<{
   setAnilistMediaGuessRuntimeState: ReturnType<
     typeof createSetAnilistMediaGuessRuntimeStateHandler
   >;
+  recordAnilistMediaDuration: ReturnType<typeof createRecordAnilistMediaDurationHandler>;
   resetAnilistMediaGuessState: ReturnType<typeof createResetAnilistMediaGuessStateHandler>;
   maybeProbeAnilistDuration: ReturnType<typeof createMaybeProbeAnilistDurationHandler>;
   ensureAnilistMediaGuess: ReturnType<typeof createEnsureAnilistMediaGuessHandler>;
@@ -94,6 +100,9 @@ export function composeAnilistTrackingHandlers(
       options.setMediaGuessRuntimeStateMainDeps,
     )(),
   );
+  const recordAnilistMediaDuration = createRecordAnilistMediaDurationHandler(
+    createBuildRecordAnilistMediaDurationMainDepsHandler(options.recordMediaDurationMainDeps)(),
+  );
   const resetAnilistMediaGuessState = createResetAnilistMediaGuessStateHandler(
     createBuildResetAnilistMediaGuessStateMainDepsHandler(options.resetMediaGuessStateMainDeps)(),
   );
@@ -120,6 +129,7 @@ export function composeAnilistTrackingHandlers(
     resetAnilistMediaTracking,
     getAnilistMediaGuessRuntimeState,
     setAnilistMediaGuessRuntimeState,
+    recordAnilistMediaDuration,
     resetAnilistMediaGuessState,
     maybeProbeAnilistDuration,
     ensureAnilistMediaGuess,

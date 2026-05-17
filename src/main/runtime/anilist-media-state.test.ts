@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   createGetAnilistMediaGuessRuntimeStateHandler,
   createGetCurrentAnilistMediaKeyHandler,
+  createRecordAnilistMediaDurationHandler,
   createResetAnilistMediaGuessStateHandler,
   createResetAnilistMediaTrackingHandler,
   createSetAnilistMediaGuessRuntimeStateHandler,
@@ -175,4 +176,58 @@ test('reset anilist media guess state clears guess and in-flight promise', () =>
   assert.equal(state.mediaKey, '/tmp/video.mkv');
   assert.equal(state.mediaDurationSec, 240);
   assert.equal(state.lastDurationProbeAtMs, 321);
+});
+
+test('record anilist media duration stores observed mpv duration for current media', () => {
+  const existingPromise = Promise.resolve(null);
+  let state = {
+    mediaKey: '/tmp/video.mkv' as string | null,
+    mediaDurationSec: null as number | null,
+    mediaGuess: { title: 'guess' } as { title: string } | null,
+    mediaGuessPromise: existingPromise as Promise<unknown> | null,
+    lastDurationProbeAtMs: 321,
+  };
+
+  const recordDuration = createRecordAnilistMediaDurationHandler({
+    getCurrentMediaKey: () => '/tmp/video.mkv',
+    getState: () => state as never,
+    setState: (nextState) => {
+      state = nextState as never;
+    },
+  });
+
+  recordDuration(1440);
+
+  assert.equal(state.mediaDurationSec, 1440);
+  assert.deepEqual(state.mediaGuess, { title: 'guess' });
+  assert.equal(state.mediaGuessPromise, existingPromise);
+  assert.equal(state.lastDurationProbeAtMs, 321);
+});
+
+test('record anilist media duration resets stale media state when media key changes', () => {
+  let state = {
+    mediaKey: '/tmp/old.mkv' as string | null,
+    mediaDurationSec: 120 as number | null,
+    mediaGuess: { title: 'old' } as { title: string } | null,
+    mediaGuessPromise: Promise.resolve(null) as Promise<unknown> | null,
+    lastDurationProbeAtMs: 321,
+  };
+
+  const recordDuration = createRecordAnilistMediaDurationHandler({
+    getCurrentMediaKey: () => '/tmp/new.mkv',
+    getState: () => state as never,
+    setState: (nextState) => {
+      state = nextState as never;
+    },
+  });
+
+  recordDuration(1440);
+
+  assert.deepEqual(state, {
+    mediaKey: '/tmp/new.mkv',
+    mediaDurationSec: 1440,
+    mediaGuess: null,
+    mediaGuessPromise: null,
+    lastDurationProbeAtMs: 0,
+  });
 });

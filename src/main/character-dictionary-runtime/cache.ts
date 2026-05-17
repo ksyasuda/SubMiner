@@ -21,6 +21,102 @@ export function getMergedZipPath(outputDir: string): string {
   return path.join(outputDir, 'merged.zip');
 }
 
+type MediaResolutionCacheEntry = {
+  seriesKey: string;
+  mediaId: number;
+  mediaTitle: string;
+};
+
+type MediaResolutionCacheFile = {
+  entries?: MediaResolutionCacheEntry[];
+};
+
+function getMediaResolutionCachePath(outputDir: string): string {
+  return path.join(outputDir, 'anilist-resolution-cache.json');
+}
+
+function normalizeMediaResolutionEntry(value: unknown): MediaResolutionCacheEntry | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Partial<MediaResolutionCacheEntry>;
+  const seriesKey = typeof raw.seriesKey === 'string' ? raw.seriesKey.trim() : '';
+  const mediaTitle = typeof raw.mediaTitle === 'string' ? raw.mediaTitle.trim() : '';
+  if (typeof raw.mediaId !== 'number' || !Number.isFinite(raw.mediaId)) return null;
+  const mediaId = Math.floor(raw.mediaId);
+  if (!seriesKey || mediaId <= 0 || !mediaTitle) return null;
+  return {
+    seriesKey,
+    mediaId,
+    mediaTitle,
+  };
+}
+
+function readMediaResolutionEntries(outputDir: string): MediaResolutionCacheEntry[] {
+  try {
+    const parsed = JSON.parse(
+      fs.readFileSync(getMediaResolutionCachePath(outputDir), 'utf8'),
+    ) as MediaResolutionCacheFile;
+    if (!Array.isArray(parsed.entries)) return [];
+    const byKey = new Map<string, MediaResolutionCacheEntry>();
+    for (const value of parsed.entries) {
+      const normalized = normalizeMediaResolutionEntry(value);
+      if (normalized) byKey.set(normalized.seriesKey, normalized);
+    }
+    return [...byKey.values()];
+  } catch {
+    return [];
+  }
+}
+
+function writeMediaResolutionEntries(
+  outputDir: string,
+  entries: MediaResolutionCacheEntry[],
+): void {
+  ensureDir(outputDir);
+  fs.writeFileSync(
+    getMediaResolutionCachePath(outputDir),
+    JSON.stringify({ entries }, null, 2),
+    'utf8',
+  );
+}
+
+export function readCachedMediaResolution(
+  outputDir: string,
+  seriesKey: string,
+): MediaResolutionCacheEntry | null {
+  const normalizedKey = seriesKey.trim();
+  if (!normalizedKey) return null;
+  return (
+    readMediaResolutionEntries(outputDir).find((entry) => entry.seriesKey === normalizedKey) ?? null
+  );
+}
+
+export function writeCachedMediaResolution(
+  outputDir: string,
+  entry: MediaResolutionCacheEntry,
+): void {
+  const normalized = normalizeMediaResolutionEntry(entry);
+  if (!normalized) return;
+  const remaining = readMediaResolutionEntries(outputDir).filter(
+    (existing) => existing.seriesKey !== normalized.seriesKey,
+  );
+  writeMediaResolutionEntries(outputDir, [...remaining, normalized]);
+}
+
+export function readCachedSnapshots(outputDir: string): CharacterDictionarySnapshot[] {
+  let entries: fs.Dirent[] = [];
+  try {
+    entries = fs.readdirSync(getSnapshotsDir(outputDir), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  return entries
+    .filter((entry) => entry.isFile() && /^anilist-\d+\.json$/.test(entry.name))
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((entry) => readSnapshot(path.join(getSnapshotsDir(outputDir), entry.name)))
+    .filter((snapshot): snapshot is CharacterDictionarySnapshot => snapshot !== null);
+}
+
 export function readSnapshot(snapshotPath: string): CharacterDictionarySnapshot | null {
   try {
     const raw = fs.readFileSync(snapshotPath, 'utf8');

@@ -25,6 +25,8 @@ import { createLogger } from '../logger';
 import type { WindowGeometry } from '../types';
 
 const log = createLogger('tracker').child('macos');
+const MACOS_FAST_POLL_INTERVAL_MS = 250;
+const MACOS_STABLE_FOCUSED_POLL_INTERVAL_MS = 1_000;
 
 type MacOSTrackerRunnerResult = {
   stdout: string;
@@ -42,6 +44,10 @@ type MacOSTrackerDeps = {
   trackingLossGraceMs?: number;
   minimizedTrackingLossGraceMs?: number;
   now?: () => number;
+  fastPollIntervalMs?: number;
+  stablePollIntervalMs?: number;
+  setPollTimeout?: typeof setTimeout;
+  clearPollTimeout?: typeof clearTimeout;
 };
 
 export type MacOSHelperWindowState =
@@ -49,11 +55,29 @@ export type MacOSHelperWindowState =
       geometry: WindowGeometry;
       focused: boolean;
       minimized?: false;
+      active?: false;
+      inactive?: false;
+    }
+  | {
+      geometry: null;
+      focused: true;
+      active: true;
+      minimized?: false;
+      inactive?: false;
+    }
+  | {
+      geometry: null;
+      focused: false;
+      inactive: true;
+      active?: false;
+      minimized?: false;
     }
   | {
       geometry: null;
       focused: false;
       minimized: true;
+      active?: false;
+      inactive?: false;
     };
 
 function runHelperWithExecFile(
@@ -90,6 +114,25 @@ function runHelperWithExecFile(
   });
 }
 
+export function isCompiledMacOSHelperCurrent(
+  binaryPath: string,
+  sourcePath: string,
+  helperFs: Pick<typeof fs, 'existsSync' | 'statSync'> = fs,
+): boolean {
+  if (!helperFs.existsSync(binaryPath)) {
+    return false;
+  }
+  if (!helperFs.existsSync(sourcePath)) {
+    return true;
+  }
+
+  try {
+    return helperFs.statSync(binaryPath).mtimeMs >= helperFs.statSync(sourcePath).mtimeMs;
+  } catch {
+    return false;
+  }
+}
+
 export function parseMacOSHelperOutput(result: string): MacOSHelperWindowState | null {
   const trimmed = result.trim();
   if (trimmed === 'minimized') {
@@ -97,6 +140,20 @@ export function parseMacOSHelperOutput(result: string): MacOSHelperWindowState |
       geometry: null,
       focused: false,
       minimized: true,
+    };
+  }
+  if (trimmed === 'active') {
+    return {
+      geometry: null,
+      focused: true,
+      active: true,
+    };
+  }
+  if (trimmed === 'inactive') {
+    return {
+      geometry: null,
+      focused: false,
+      inactive: true,
     };
   }
   if (!trimmed || trimmed === 'not-found') {
@@ -138,8 +195,9 @@ export function parseMacOSHelperOutput(result: string): MacOSHelperWindowState |
 }
 
 export class MacOSWindowTracker extends BaseWindowTracker {
-  private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private pollTimeout: ReturnType<typeof setTimeout> | null = null;
   private pollInFlight = false;
+  private started = false;
   private helperPath: string | null = null;
   private helperType: 'binary' | 'swift' | null = null;
   private lastExecErrorFingerprint: string | null = null;
@@ -154,6 +212,10 @@ export class MacOSWindowTracker extends BaseWindowTracker {
   private readonly trackingLossGraceMs: number;
   private readonly minimizedTrackingLossGraceMs: number;
   private readonly now: () => number;
+  private readonly fastPollIntervalMs: number;
+  private readonly stablePollIntervalMs: number;
+  private readonly setPollTimeout: typeof setTimeout;
+  private readonly clearPollTimeout: typeof clearTimeout;
   private consecutiveMisses = 0;
   private trackingLossStartedAtMs: number | null = null;
   private targetWindowMinimized = false;
@@ -169,6 +231,16 @@ export class MacOSWindowTracker extends BaseWindowTracker {
       Math.floor(deps.minimizedTrackingLossGraceMs ?? 500),
     );
     this.now = deps.now ?? (() => Date.now());
+    this.fastPollIntervalMs = Math.max(
+      50,
+      Math.floor(deps.fastPollIntervalMs ?? MACOS_FAST_POLL_INTERVAL_MS),
+    );
+    this.stablePollIntervalMs = Math.max(
+      this.fastPollIntervalMs,
+      Math.floor(deps.stablePollIntervalMs ?? MACOS_STABLE_FOCUSED_POLL_INTERVAL_MS),
+    );
+    this.setPollTimeout = deps.setPollTimeout ?? setTimeout;
+    this.clearPollTimeout = deps.clearPollTimeout ?? clearTimeout;
     const resolvedHelper = deps.resolveHelper?.() ?? null;
     if (resolvedHelper) {
       this.helperPath = resolvedHelper.helperPath;
@@ -216,15 +288,15 @@ export class MacOSWindowTracker extends BaseWindowTracker {
     return true;
   }
 
-  private detectHelper(): void {
-    const shouldFilterBySocket = this.targetMpvSocketPath !== null;
-
-    // Fall back to Swift helper first when filtering by socket path to avoid
-    // stale prebuilt binaries that don't support the new socket filter argument.
-    const swiftPath = path.join(__dirname, '..', '..', 'scripts', 'get-mpv-window-macos.swift');
-    if (shouldFilterBySocket && this.tryUseHelper(swiftPath, 'swift')) {
-      return;
+  private tryUseCompiledHelper(candidatePath: string, sourcePath: string): boolean {
+    if (!isCompiledMacOSHelperCurrent(candidatePath, sourcePath)) {
+      return false;
     }
+    return this.tryUseHelper(candidatePath, 'binary');
+  }
+
+  private detectHelper(): void {
+    const swiftPath = path.join(__dirname, '..', '..', 'scripts', 'get-mpv-window-macos.swift');
 
     // Prefer resources path (outside asar) in packaged apps.
     const resourcesPath = process.resourcesPath;
@@ -235,9 +307,21 @@ export class MacOSWindowTracker extends BaseWindowTracker {
       }
     }
 
-    // Dist binary path (development / unpacked installs).
-    const distBinaryPath = path.join(__dirname, '..', '..', 'scripts', 'get-mpv-window-macos');
-    if (this.tryUseHelper(distBinaryPath, 'binary')) {
+    // Built source runs from dist/window-trackers, so the compiled helper is a sibling of dist.
+    const bundledBinaryPath = path.join(__dirname, '..', 'scripts', 'get-mpv-window-macos');
+    if (this.tryUseCompiledHelper(bundledBinaryPath, swiftPath)) {
+      return;
+    }
+
+    // Source-tree/manual helper build path.
+    const sourceTreeBinaryPath = path.join(
+      __dirname,
+      '..',
+      '..',
+      'scripts',
+      'get-mpv-window-macos',
+    );
+    if (this.tryUseCompiledHelper(sourceTreeBinaryPath, swiftPath)) {
       return;
     }
 
@@ -269,15 +353,16 @@ export class MacOSWindowTracker extends BaseWindowTracker {
   }
 
   start(): void {
-    this.pollInterval = setInterval(() => this.pollGeometry(), 250);
+    if (this.started) {
+      return;
+    }
+    this.started = true;
     this.pollGeometry();
   }
 
   stop(): void {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-      this.pollInterval = null;
-    }
+    this.started = false;
+    this.clearScheduledPoll();
   }
 
   override isTargetWindowMinimized(): boolean {
@@ -303,12 +388,59 @@ export class MacOSWindowTracker extends BaseWindowTracker {
     return this.now() - this.trackingLossStartedAtMs > graceMs;
   }
 
+  private shouldPreserveFocusedTargetOnMiss(): boolean {
+    return this.isTracking() && this.isTargetWindowFocused() && this.getGeometry() !== null;
+  }
+
   private registerTrackingMiss(graceMs = this.trackingLossGraceMs): void {
+    if (this.shouldPreserveFocusedTargetOnMiss()) {
+      if (this.trackingLossStartedAtMs === null) {
+        this.trackingLossStartedAtMs = this.now();
+        return;
+      }
+      if (this.now() - this.trackingLossStartedAtMs <= graceMs) {
+        return;
+      }
+    }
+
     this.consecutiveMisses += 1;
     if (this.shouldDropTracking(graceMs)) {
       this.updateGeometry(null);
       this.resetTrackingLossState();
     }
+  }
+
+  private resolveNextPollIntervalMs(): number {
+    if (
+      this.isTracking() &&
+      this.isTargetWindowFocused() &&
+      !this.targetWindowMinimized &&
+      this.getGeometry() !== null
+    ) {
+      return this.stablePollIntervalMs;
+    }
+
+    return this.fastPollIntervalMs;
+  }
+
+  private clearScheduledPoll(): void {
+    if (!this.pollTimeout) {
+      return;
+    }
+
+    this.clearPollTimeout(this.pollTimeout);
+    this.pollTimeout = null;
+  }
+
+  private scheduleNextPoll(): void {
+    if (!this.started || this.pollTimeout) {
+      return;
+    }
+
+    this.pollTimeout = this.setPollTimeout(() => {
+      this.pollTimeout = null;
+      this.pollGeometry();
+    }, this.resolveNextPollIntervalMs());
   }
 
   private pollGeometry(): void {
@@ -327,10 +459,22 @@ export class MacOSWindowTracker extends BaseWindowTracker {
             this.registerTrackingMiss(this.minimizedTrackingLossGraceMs);
             return;
           }
+          if (parsed.active) {
+            this.resetTrackingLossState();
+            this.targetWindowMinimized = false;
+            this.updateTargetWindowFocused(true);
+            return;
+          }
+          if (parsed.inactive) {
+            this.targetWindowMinimized = false;
+            this.updateTargetWindowFocused(false);
+            this.registerTrackingMiss();
+            return;
+          }
           this.resetTrackingLossState();
           this.targetWindowMinimized = false;
-          this.updateFocus(parsed.focused);
-          this.updateGeometry(parsed.geometry);
+          this.updateGeometry(parsed.geometry, parsed.focused);
+          this.updateTargetWindowFocused(parsed.focused);
           return;
         }
 
@@ -352,6 +496,7 @@ export class MacOSWindowTracker extends BaseWindowTracker {
       })
       .finally(() => {
         this.pollInFlight = false;
+        this.scheduleNextPoll();
       });
   }
 }

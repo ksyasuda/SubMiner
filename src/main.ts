@@ -2069,6 +2069,7 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getModalActive: () => overlayModalInputState.getModalInputExclusive(),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => appState.statsOverlayVisible,
+    getOverlayInteractionActive: () => visibleOverlayInteractionActive,
     getWindowTracker: () => appState.windowTracker,
     getLastKnownWindowsForegroundProcessName: () => lastWindowsVisibleOverlayForegroundProcessName,
     getWindowsOverlayProcessName: () => path.parse(process.execPath).name.toLowerCase(),
@@ -2112,23 +2113,24 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   })(),
 );
 
-const WINDOWS_VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
+const VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
 const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] as const;
 const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
 const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
-let windowsVisibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
+let visibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderSyncInFlight = false;
 let windowsVisibleOverlayZOrderSyncQueued = false;
 let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
 let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
 let lastWindowsVisibleOverlayBlurredAtMs = 0;
+let visibleOverlayInteractionActive = false;
 
-function clearWindowsVisibleOverlayBlurRefreshTimeouts(): void {
-  for (const timeout of windowsVisibleOverlayBlurRefreshTimeouts) {
+function clearVisibleOverlayBlurRefreshTimeouts(): void {
+  for (const timeout of visibleOverlayBlurRefreshTimeouts) {
     clearTimeout(timeout);
   }
-  windowsVisibleOverlayBlurRefreshTimeouts = [];
+  visibleOverlayBlurRefreshTimeouts = [];
 }
 
 function clearWindowsVisibleOverlayZOrderRetryTimeouts(): void {
@@ -2329,20 +2331,22 @@ function clearWindowsVisibleOverlayForegroundPollLoop(): void {
 }
 
 function scheduleVisibleOverlayBlurRefresh(): void {
-  if (process.platform !== 'win32') {
+  if (process.platform !== 'win32' && process.platform !== 'darwin') {
     return;
   }
 
-  lastWindowsVisibleOverlayBlurredAtMs = Date.now();
-  clearWindowsVisibleOverlayBlurRefreshTimeouts();
-  for (const delayMs of WINDOWS_VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS) {
+  if (process.platform === 'win32') {
+    lastWindowsVisibleOverlayBlurredAtMs = Date.now();
+  }
+  clearVisibleOverlayBlurRefreshTimeouts();
+  for (const delayMs of VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS) {
     const refreshTimeout = setTimeout(() => {
-      windowsVisibleOverlayBlurRefreshTimeouts = windowsVisibleOverlayBlurRefreshTimeouts.filter(
+      visibleOverlayBlurRefreshTimeouts = visibleOverlayBlurRefreshTimeouts.filter(
         (timeout) => timeout !== refreshTimeout,
       );
       overlayVisibilityRuntime.updateVisibleOverlayVisibility();
     }, delayMs);
-    windowsVisibleOverlayBlurRefreshTimeouts.push(refreshTimeout);
+    visibleOverlayBlurRefreshTimeouts.push(refreshTimeout);
   }
 }
 
@@ -3043,6 +3047,7 @@ const {
   resetAnilistMediaTracking,
   getAnilistMediaGuessRuntimeState,
   setAnilistMediaGuessRuntimeState,
+  recordAnilistMediaDuration,
   resetAnilistMediaGuessState,
   maybeProbeAnilistDuration,
   ensureAnilistMediaGuess,
@@ -3146,6 +3151,13 @@ const {
       );
     },
   },
+  recordMediaDurationMainDeps: {
+    getCurrentMediaKey: () => getCurrentAnilistMediaKey(),
+    getState: () => getAnilistMediaGuessRuntimeState(),
+    setState: (state) => {
+      setAnilistMediaGuessRuntimeState(state);
+    },
+  },
   resetMediaGuessStateMainDeps: {
     setMediaGuess: (value) => {
       anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
@@ -3197,9 +3209,10 @@ const {
       );
     },
     refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
-    updateAnilistPostWatchProgress: (accessToken, title, episode) =>
+    updateAnilistPostWatchProgress: (accessToken, title, episode, season) =>
       updateAnilistPostWatchProgress(accessToken, title, episode, {
         rateLimiter: anilistRateLimiter,
+        season,
       }),
     markSuccess: (key) => {
       anilistUpdateQueue.markSuccess(key);
@@ -3230,13 +3243,13 @@ const {
       resetAnilistMediaTracking(mediaKey);
     },
     getWatchedSeconds: () => appState.mpvClient?.currentTimePos ?? Number.NaN,
-    maybeProbeAnilistDuration: (mediaKey) => maybeProbeAnilistDuration(mediaKey),
+    maybeProbeAnilistDuration: (mediaKey, options) => maybeProbeAnilistDuration(mediaKey, options),
     ensureAnilistMediaGuess: (mediaKey) => ensureAnilistMediaGuess(mediaKey),
     hasAttemptedUpdateKey: (key) => anilistAttemptedUpdateKeys.has(key),
     processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
     refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
-    enqueueRetry: (key, title, episode) => {
-      anilistUpdateQueue.enqueue(key, title, episode);
+    enqueueRetry: (key, title, episode, season) => {
+      anilistUpdateQueue.enqueue(key, title, episode, season);
     },
     markRetryFailure: (key, message) => {
       anilistUpdateQueue.markFailure(key, message);
@@ -3245,9 +3258,10 @@ const {
       anilistUpdateQueue.markSuccess(key);
     },
     refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
-    updateAnilistPostWatchProgress: (accessToken, title, episode) =>
+    updateAnilistPostWatchProgress: (accessToken, title, episode, season) =>
       updateAnilistPostWatchProgress(accessToken, title, episode, {
         rateLimiter: anilistRateLimiter,
+        season,
       }),
     rememberAttemptedUpdateKey: (key) => {
       rememberAnilistAttemptedUpdate(key);
@@ -3984,7 +3998,10 @@ const {
     reportJellyfinRemoteStopped: () => {
       void reportJellyfinRemoteStopped();
     },
-    maybeRunAnilistPostWatchUpdate: () => maybeRunAnilistPostWatchUpdate(),
+    maybeRunAnilistPostWatchUpdate: (options) => maybeRunAnilistPostWatchUpdate(options),
+    recordAnilistMediaDuration: (durationSec) => {
+      recordAnilistMediaDuration(durationSec);
+    },
     logSubtitleTimingError: (message, error) => logger.error(message, error),
     broadcastToOverlayWindows: (channel, payload) => {
       broadcastToOverlayWindows(channel, payload);
@@ -5125,6 +5142,20 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       },
       onOverlayModalOpened: (modal) => {
         overlayModalRuntime.notifyOverlayModalOpened(modal);
+      },
+      onOverlayMouseInteractionChanged: (active, senderWindow) => {
+        const mainWindow = overlayManager.getMainWindow();
+        if (!mainWindow || senderWindow !== mainWindow) {
+          return;
+        }
+        if (visibleOverlayInteractionActive === active) {
+          if (active && process.platform === 'darwin' && !mainWindow.isFocused()) {
+            overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+          }
+          return;
+        }
+        visibleOverlayInteractionActive = active;
+        overlayVisibilityRuntime.updateVisibleOverlayVisibility();
       },
       onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
       openYomitanSettings: () => openYomitanSettings(),

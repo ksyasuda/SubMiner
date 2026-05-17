@@ -223,6 +223,23 @@ test('time-pos and pause handlers report progress with correct urgency', () => {
   ]);
 });
 
+test('time-pos handler passes fresh playback time to AniList post-watch', async () => {
+  const watchedSeconds: unknown[] = [];
+  const timeHandler = createHandleMpvTimePosChangeHandler({
+    recordPlaybackPosition: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    refreshDiscordPresence: () => {},
+    maybeRunAnilistPostWatchUpdate: async (options) => {
+      watchedSeconds.push(options?.watchedSeconds);
+    },
+  });
+
+  timeHandler({ time: 850 });
+  await Promise.resolve();
+
+  assert.deepEqual(watchedSeconds, [850]);
+});
+
 test('time-pos handler logs post-watch update rejection without blocking later handlers', async () => {
   const calls: string[] = [];
   const timeHandler = createHandleMpvTimePosChangeHandler({

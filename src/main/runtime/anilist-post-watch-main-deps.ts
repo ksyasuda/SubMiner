@@ -19,8 +19,12 @@ export function createBuildProcessNextAnilistRetryUpdateMainDepsHandler(
     setLastAttemptAt: (value: number) => deps.setLastAttemptAt(value),
     setLastError: (value: string | null) => deps.setLastError(value),
     refreshAnilistClientSecretState: () => deps.refreshAnilistClientSecretState(),
-    updateAnilistPostWatchProgress: (accessToken: string, title: string, episode: number) =>
-      deps.updateAnilistPostWatchProgress(accessToken, title, episode),
+    updateAnilistPostWatchProgress: (
+      accessToken: string,
+      title: string,
+      episode: number,
+      season?: number | null,
+    ) => deps.updateAnilistPostWatchProgress(accessToken, title, episode, season),
     markSuccess: (key: string) => deps.markSuccess(key),
     rememberAttemptedUpdateKey: (key: string) => deps.rememberAttemptedUpdateKey(key),
     markFailure: (key: string, message: string) => deps.markFailure(key, message),
@@ -42,18 +46,23 @@ export function createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler(
     getTrackedMediaKey: () => deps.getTrackedMediaKey(),
     resetTrackedMedia: (mediaKey) => deps.resetTrackedMedia(mediaKey),
     getWatchedSeconds: () => deps.getWatchedSeconds(),
-    maybeProbeAnilistDuration: (mediaKey: string) => deps.maybeProbeAnilistDuration(mediaKey),
+    maybeProbeAnilistDuration: (mediaKey: string, options) =>
+      deps.maybeProbeAnilistDuration(mediaKey, options),
     ensureAnilistMediaGuess: (mediaKey: string) => deps.ensureAnilistMediaGuess(mediaKey),
     hasAttemptedUpdateKey: (key: string) => deps.hasAttemptedUpdateKey(key),
     processNextAnilistRetryUpdate: () => deps.processNextAnilistRetryUpdate(),
     refreshAnilistClientSecretState: () => deps.refreshAnilistClientSecretState(),
-    enqueueRetry: (key: string, title: string, episode: number) =>
-      deps.enqueueRetry(key, title, episode),
+    enqueueRetry: (key: string, title: string, episode: number, season?: number | null) =>
+      deps.enqueueRetry(key, title, episode, season),
     markRetryFailure: (key: string, message: string) => deps.markRetryFailure(key, message),
     markRetrySuccess: (key: string) => deps.markRetrySuccess(key),
     refreshRetryQueueState: () => deps.refreshRetryQueueState(),
-    updateAnilistPostWatchProgress: (accessToken: string, title: string, episode: number) =>
-      deps.updateAnilistPostWatchProgress(accessToken, title, episode),
+    updateAnilistPostWatchProgress: (
+      accessToken: string,
+      title: string,
+      episode: number,
+      season?: number | null,
+    ) => deps.updateAnilistPostWatchProgress(accessToken, title, episode, season),
     rememberAttemptedUpdateKey: (key: string) => deps.rememberAttemptedUpdateKey(key),
     showMpvOsd: (message: string) => deps.showMpvOsd(message),
     logInfo: (message: string) => deps.logInfo(message),

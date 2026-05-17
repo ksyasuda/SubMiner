@@ -1,4 +1,4 @@
 type: fixed
 area: updates
 
-- Avoided native `electron-updater` checks where they are unsafe, so tray and background update checks continue through GitHub release metadata without crashing the app.
+- Kept signed macOS app updates on the native updater path while preventing eager Squirrel install checks before the user confirms restart.
