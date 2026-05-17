@@ -65,7 +65,7 @@ With a gamepad connected and keyboard-only mode enabled, the full mining loop wo
 6. **Close** — press `B` to dismiss the Yomitan popup and return to subtitle navigation.
 7. **Pause/resume** — press `L3` (left stick click) to toggle mpv pause at any time.
 
-The controller and keyboard can be used interchangeably — switching mid-session is seamless. Toggle keyboard-only mode on or off with `Y` on the controller.
+After controller support is enabled, the controller and keyboard can be used interchangeably — switching mid-session is seamless. Toggle keyboard-only mode on or off with `Y` on the controller.
 
 See [Usage — Controller Support](/usage#controller-support) for setup details and [Configuration — Controller Support](/configuration#controller-support) for the full mapping and tuning options.
 

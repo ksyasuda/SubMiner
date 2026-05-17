@@ -278,6 +278,17 @@ export function createControllerConfigForm(options: {
       formatFriendlyBindingLabel(binding),
       binding.kind === 'none',
       isExpanded,
+      `Learn ${definition.label}`,
+      (e) => {
+        e.stopPropagation();
+        expandedRowKey = rowKey;
+        options.onLearn(definition.id, definition.bindingType);
+      },
+      `Reset ${definition.label}`,
+      (e) => {
+        e.stopPropagation();
+        options.onReset(definition.id);
+      },
     );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
@@ -321,6 +332,17 @@ export function createControllerConfigForm(options: {
       formatFriendlyStickLabel(binding),
       binding.kind === 'none',
       isExpanded,
+      `Learn ${definition.label} stick`,
+      (e) => {
+        e.stopPropagation();
+        expandedRowKey = rowKey;
+        options.onLearn(definition.id, 'axis');
+      },
+      `Reset ${definition.label} stick`,
+      (e) => {
+        e.stopPropagation();
+        options.onReset(definition.id);
+      },
     );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
@@ -366,6 +388,17 @@ export function createControllerConfigForm(options: {
       badgeText,
       dpadFallback === 'none',
       isExpanded,
+      `Learn ${definition.label} D-pad`,
+      (e) => {
+        e.stopPropagation();
+        expandedRowKey = rowKey;
+        options.onDpadLearn(definition.id);
+      },
+      `Reset ${definition.label} D-pad`,
+      (e) => {
+        e.stopPropagation();
+        options.onDpadReset(definition.id);
+      },
     );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
@@ -400,6 +433,10 @@ export function createControllerConfigForm(options: {
     badgeText: string,
     isDisabled: boolean,
     isExpanded: boolean,
+    editLabel: string,
+    onEdit: (e: Event) => void,
+    resetLabel: string,
+    onReset: (e: Event) => void,
   ): HTMLDivElement {
     const row = document.createElement('div');
     row.className = 'controller-config-row';
@@ -412,16 +449,33 @@ export function createControllerConfigForm(options: {
     const right = document.createElement('div');
     right.className = 'controller-config-right';
 
-    const badge = document.createElement('span');
+    const badge = document.createElement('button');
+    badge.type = 'button';
     badge.className = 'controller-config-badge';
     if (isDisabled) badge.classList.add('disabled');
+    badge.setAttribute('aria-label', editLabel);
+    badge.title = editLabel;
     badge.textContent = badgeText;
+    badge.addEventListener('click', onEdit);
 
-    const editIcon = document.createElement('span');
+    const resetIcon = document.createElement('button');
+    resetIcon.type = 'button';
+    resetIcon.className = 'controller-config-reset-icon';
+    resetIcon.setAttribute('aria-label', resetLabel);
+    resetIcon.title = resetLabel;
+    resetIcon.textContent = '\u21ba';
+    resetIcon.addEventListener('click', onReset);
+
+    const editIcon = document.createElement('button');
+    editIcon.type = 'button';
     editIcon.className = 'controller-config-edit-icon';
+    editIcon.setAttribute('aria-label', editLabel);
+    editIcon.title = editLabel;
     editIcon.textContent = '\u270E';
+    editIcon.addEventListener('click', onEdit);
 
     right.appendChild(badge);
+    right.appendChild(resetIcon);
     right.appendChild(editIcon);
     row.appendChild(label);
     row.appendChild(right);

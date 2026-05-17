@@ -76,6 +76,7 @@ test('controller debug modal renders active controller axes, buttons, and config
         rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
         rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       },
+      profiles: {},
     };
 
     const ctx = {
@@ -99,6 +100,7 @@ test('controller debug modal renders active controller axes, buttons, and config
     const modal = createControllerDebugModal(ctx as never, {
       modalStateReader: { isAnyModalOpen: () => false },
       syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
     });
 
     modal.openControllerDebugModal();
@@ -189,6 +191,7 @@ test('controller debug modal copies buttonIndices config to clipboard', async ()
         rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
         rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       },
+      profiles: {},
     };
 
     const ctx = {
@@ -217,6 +220,7 @@ test('controller debug modal copies buttonIndices config to clipboard', async ()
     const modal = createControllerDebugModal(ctx as never, {
       modalStateReader: { isAnyModalOpen: () => false },
       syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
     });
 
     modal.wireDomEvents();
@@ -242,5 +246,99 @@ test('controller debug modal copies buttonIndices config to clipboard', async ()
       configurable: true,
       value: previousNavigator,
     });
+  }
+});
+
+test('controller debug modal stays closed and notifies when controller support is disabled', () => {
+  const globals = globalThis as typeof globalThis & { window?: unknown };
+  const previousWindow = globals.window;
+  let disabledNotices = 0;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    state.controllerConfig = {
+      enabled: false,
+      preferredGamepadId: '',
+      preferredGamepadLabel: '',
+      smoothScroll: true,
+      scrollPixelsPerSecond: 900,
+      horizontalJumpPixels: 160,
+      stickDeadzone: 0.2,
+      triggerInputMode: 'auto',
+      triggerDeadzone: 0.5,
+      repeatDelayMs: 320,
+      repeatIntervalMs: 120,
+      buttonIndices: {
+        select: 6,
+        buttonSouth: 0,
+        buttonEast: 1,
+        buttonWest: 2,
+        buttonNorth: 3,
+        leftShoulder: 4,
+        rightShoulder: 5,
+        leftStickPress: 9,
+        rightStickPress: 10,
+        leftTrigger: 6,
+        rightTrigger: 7,
+      },
+      bindings: {
+        toggleLookup: { kind: 'button', buttonIndex: 0 },
+        closeLookup: { kind: 'button', buttonIndex: 1 },
+        toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+        mineCard: { kind: 'button', buttonIndex: 2 },
+        quitMpv: { kind: 'button', buttonIndex: 6 },
+        previousAudio: { kind: 'none' },
+        nextAudio: { kind: 'button', buttonIndex: 5 },
+        playCurrentAudio: { kind: 'button', buttonIndex: 4 },
+        toggleMpvPause: { kind: 'button', buttonIndex: 9 },
+        leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
+        leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
+        rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
+        rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
+      },
+      profiles: {},
+    };
+    const ctx = {
+      dom: {
+        overlay: { classList: createClassList() },
+        controllerDebugModal: {
+          classList: createClassList(['hidden']),
+          setAttribute: () => {},
+        },
+        controllerDebugClose: { addEventListener: () => {} },
+        controllerDebugCopy: { addEventListener: () => {} },
+        controllerDebugToast: { textContent: '', classList: createClassList(['hidden']) },
+        controllerDebugStatus: { textContent: '', classList: createClassList() },
+        controllerDebugSummary: { textContent: '' },
+        controllerDebugAxes: { textContent: '' },
+        controllerDebugButtons: { textContent: '' },
+        controllerDebugButtonIndices: { textContent: '' },
+      },
+      state,
+    };
+    const modal = createControllerDebugModal(ctx as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {
+        disabledNotices += 1;
+      },
+    });
+
+    assert.equal(modal.openControllerDebugModal(), false);
+
+    assert.equal(state.controllerDebugModalOpen, false);
+    assert.equal(ctx.dom.controllerDebugModal.classList.contains('hidden'), true);
+    assert.equal(disabledNotices, 1);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
   }
 });

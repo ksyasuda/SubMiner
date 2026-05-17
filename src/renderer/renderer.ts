@@ -128,10 +128,12 @@ const subsyncModal = createSubsyncModal(ctx, {
 const controllerSelectModal = createControllerSelectModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
+  notifyControllerDisabled: showControllerDisabledNotice,
 });
 const controllerDebugModal = createControllerDebugModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
+  notifyControllerDisabled: showControllerDisabledNotice,
 });
 const controllerStatusIndicator = createControllerStatusIndicator(ctx.dom);
 const sessionHelpModal = createSessionHelpModal(ctx, {
@@ -183,10 +185,14 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
   openSessionHelpModal: sessionHelpModal.openSessionHelpModal,
   openControllerSelectModal: () => {
-    controllerSelectModal.openControllerSelectModal();
+    if (controllerSelectModal.openControllerSelectModal()) {
+      window.electronAPI.notifyOverlayModalOpened('controller-select');
+    }
   },
   openControllerDebugModal: () => {
-    controllerDebugModal.openControllerDebugModal();
+    if (controllerDebugModal.openControllerDebugModal()) {
+      window.electronAPI.notifyOverlayModalOpened('controller-debug');
+    }
   },
   appendClipboardVideoToQueue: () => {
     void window.electronAPI.appendClipboardVideoToQueue();
@@ -291,6 +297,12 @@ function applyControllerSnapshot(snapshot: {
   controllerDebugModal.updateSnapshot();
 }
 
+function showControllerDisabledNotice(): void {
+  controllerStatusIndicator.show(
+    'Controller support disabled. Set controller.enabled to true in config to use controller tools.',
+  );
+}
+
 function emitControllerPopupScroll(deltaPixels: number): void {
   if (deltaPixels === 0) return;
   keyboardHandlers.scrollPopupByController(0, deltaPixels);
@@ -311,7 +323,7 @@ function startControllerPolling(): void {
     getGamepads: () => Array.from(navigator.getGamepads?.() ?? []),
     getConfig: () =>
       ctx.state.controllerConfig ?? {
-        enabled: true,
+        enabled: false,
         preferredGamepadId: '',
         preferredGamepadLabel: '',
         smoothScroll: true,
@@ -350,6 +362,7 @@ function startControllerPolling(): void {
           rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
           rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
         },
+        profiles: {},
       },
     getKeyboardModeEnabled: () => ctx.state.keyboardDrivenModeEnabled,
     getLookupWindowOpen: () => ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document),
@@ -461,14 +474,16 @@ function registerModalOpenHandlers(): void {
   });
   window.electronAPI.onOpenControllerSelect(() => {
     runGuarded('controller-select:open', () => {
-      controllerSelectModal.openControllerSelectModal();
-      window.electronAPI.notifyOverlayModalOpened('controller-select');
+      if (controllerSelectModal.openControllerSelectModal()) {
+        window.electronAPI.notifyOverlayModalOpened('controller-select');
+      }
     });
   });
   window.electronAPI.onOpenControllerDebug(() => {
     runGuarded('controller-debug:open', () => {
-      controllerDebugModal.openControllerDebugModal();
-      window.electronAPI.notifyOverlayModalOpened('controller-debug');
+      if (controllerDebugModal.openControllerDebugModal()) {
+        window.electronAPI.notifyOverlayModalOpened('controller-debug');
+      }
     });
   });
   window.electronAPI.onOpenJimaku(() => {

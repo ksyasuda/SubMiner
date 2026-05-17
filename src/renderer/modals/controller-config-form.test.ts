@@ -144,3 +144,69 @@ test('controller config form renders rows and dispatches learn clear reset callb
     }
   }
 });
+
+test('controller config form starts learn from badge or edit and resets from row button', () => {
+  const previousDocumentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createFakeElement(),
+    },
+  });
+
+  try {
+    const calls: string[] = [];
+    const container = createFakeElement();
+    const form = createControllerConfigForm({
+      container: container as never,
+      getBindings: () =>
+        ({
+          toggleLookup: { kind: 'button', buttonIndex: 0 },
+          closeLookup: { kind: 'button', buttonIndex: 1 },
+          toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+          mineCard: { kind: 'button', buttonIndex: 2 },
+          quitMpv: { kind: 'button', buttonIndex: 6 },
+          previousAudio: { kind: 'none' },
+          nextAudio: { kind: 'button', buttonIndex: 5 },
+          playCurrentAudio: { kind: 'button', buttonIndex: 4 },
+          toggleMpvPause: { kind: 'button', buttonIndex: 9 },
+          leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
+          leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
+          rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
+          rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
+        }) as never,
+      getLearningActionId: () => null,
+      getDpadLearningActionId: () => null,
+      onLearn: (actionId, bindingType) => calls.push(`learn:${actionId}:${bindingType}`),
+      onClear: (actionId) => calls.push(`clear:${actionId}`),
+      onReset: (actionId) => calls.push(`reset:${actionId}`),
+      onDpadLearn: (actionId) => calls.push(`dpadLearn:${actionId}`),
+      onDpadClear: (actionId) => calls.push(`dpadClear:${actionId}`),
+      onDpadReset: (actionId) => calls.push(`dpadReset:${actionId}`),
+    });
+
+    form.render();
+
+    const firstRow = container.children[1];
+    const right = firstRow.children[1];
+    const badge = right.children[0];
+    const resetButton = right.children[1];
+    const editButton = right.children[2];
+
+    badge.dispatch('click');
+    resetButton.dispatch('click');
+    editButton.dispatch('click');
+
+    assert.deepEqual(calls, [
+      'learn:toggleLookup:discrete',
+      'reset:toggleLookup',
+      'learn:toggleLookup:discrete',
+    ]);
+  } finally {
+    if (previousDocumentDescriptor) {
+      Object.defineProperty(globalThis, 'document', previousDocumentDescriptor);
+    } else {
+      Reflect.deleteProperty(globalThis, 'document');
+    }
+  }
+});

@@ -75,3 +75,67 @@ test('applyControllerConfigUpdate detaches updated binding values from the patch
 
   assert.deepEqual(next.bindings?.toggleLookup, { kind: 'button', buttonIndex: 7 });
 });
+
+test('applyControllerConfigUpdate merges per-controller profile binding leaves', () => {
+  const next = applyControllerConfigUpdate(
+    {
+      profiles: {
+        'pad-1': {
+          label: 'Pad 1',
+          bindings: {
+            toggleLookup: { kind: 'button', buttonIndex: 0 },
+            closeLookup: { kind: 'button', buttonIndex: 1 },
+          },
+        },
+      },
+    },
+    {
+      profiles: {
+        'pad-1': {
+          bindings: {
+            toggleLookup: { kind: 'button', buttonIndex: 11 },
+          },
+        },
+        'pad-2': {
+          label: 'Pad 2',
+          bindings: {
+            mineCard: { kind: 'button', buttonIndex: 8 },
+          },
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(next.profiles?.['pad-1']?.bindings?.toggleLookup, {
+    kind: 'button',
+    buttonIndex: 11,
+  });
+  assert.deepEqual(next.profiles?.['pad-1']?.bindings?.closeLookup, {
+    kind: 'button',
+    buttonIndex: 1,
+  });
+  assert.deepEqual(next.profiles?.['pad-2']?.bindings?.mineCard, {
+    kind: 'button',
+    buttonIndex: 8,
+  });
+});
+
+test('applyControllerConfigUpdate ignores reserved profile ids', () => {
+  const reservedProfiles = Object.create(null) as NonNullable<
+    Parameters<typeof applyControllerConfigUpdate>[1]['profiles']
+  >;
+  reservedProfiles.__proto__ = { label: 'polluted' };
+  reservedProfiles['constructor'] = { label: 'ctor' };
+  reservedProfiles['prototype'] = { label: 'proto' };
+  reservedProfiles['pad-1'] = { label: 'Pad 1' };
+
+  const next = applyControllerConfigUpdate(undefined, {
+    profiles: reservedProfiles,
+  });
+
+  assert.equal(Object.getPrototypeOf(next.profiles), Object.prototype);
+  assert.equal(Object.hasOwn(next.profiles ?? {}, '__proto__'), false);
+  assert.equal(Object.hasOwn(next.profiles ?? {}, 'constructor'), false);
+  assert.equal(Object.hasOwn(next.profiles ?? {}, 'prototype'), false);
+  assert.equal(next.profiles?.['pad-1']?.label, 'Pad 1');
+});

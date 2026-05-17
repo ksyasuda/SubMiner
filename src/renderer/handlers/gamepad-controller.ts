@@ -5,6 +5,7 @@ import type {
   ResolvedControllerConfig,
   ResolvedControllerDiscreteBinding,
 } from '../../types';
+import { resolveControllerConfigForGamepad } from '../controller-profile-config.js';
 
 type ControllerButtonState = {
   value: number;
@@ -410,87 +411,101 @@ export function createGamepadController(options: GamepadControllerOptions) {
       resetHeldAction(jumpHold);
     }
 
-    let interactionAllowed =
-      config.enabled && options.getKeyboardModeEnabled() && !options.getInteractionBlocked();
-    if (config.enabled) {
+    const activeConfig = resolveControllerConfigForGamepad(config, activeGamepad.id);
+
+    if (activeConfig.enabled) {
       handleActionEdge(
         'toggleKeyboardOnlyMode',
-        config.bindings.toggleKeyboardOnlyMode,
+        activeConfig.bindings.toggleKeyboardOnlyMode,
         activeGamepad,
-        config,
+        activeConfig,
         options.toggleKeyboardMode,
       );
     }
 
-    interactionAllowed =
-      config.enabled && options.getKeyboardModeEnabled() && !options.getInteractionBlocked();
+    const interactionAllowed =
+      activeConfig.enabled && options.getKeyboardModeEnabled() && !options.getInteractionBlocked();
 
     if (!interactionAllowed) {
-      syncBlockedInteractionState(activeGamepad, config, now);
+      syncBlockedInteractionState(activeGamepad, activeConfig, now);
       return;
     }
 
     handleActionEdge(
       'toggleLookup',
-      config.bindings.toggleLookup,
+      activeConfig.bindings.toggleLookup,
       activeGamepad,
-      config,
+      activeConfig,
       options.toggleLookup,
     );
     handleActionEdge(
       'closeLookup',
-      config.bindings.closeLookup,
+      activeConfig.bindings.closeLookup,
       activeGamepad,
-      config,
+      activeConfig,
       options.closeLookup,
     );
-    handleActionEdge('mineCard', config.bindings.mineCard, activeGamepad, config, options.mineCard);
-    handleActionEdge('quitMpv', config.bindings.quitMpv, activeGamepad, config, options.quitMpv);
+    handleActionEdge(
+      'mineCard',
+      activeConfig.bindings.mineCard,
+      activeGamepad,
+      activeConfig,
+      options.mineCard,
+    );
+    handleActionEdge(
+      'quitMpv',
+      activeConfig.bindings.quitMpv,
+      activeGamepad,
+      activeConfig,
+      options.quitMpv,
+    );
 
-    const activationThreshold = Math.max(config.stickDeadzone, 0.55);
+    const activationThreshold = Math.max(activeConfig.stickDeadzone, 0.55);
 
     if (options.getLookupWindowOpen()) {
       handleActionEdge(
         'previousAudio',
-        config.bindings.previousAudio,
+        activeConfig.bindings.previousAudio,
         activeGamepad,
-        config,
+        activeConfig,
         options.previousAudio,
       );
       handleActionEdge(
         'nextAudio',
-        config.bindings.nextAudio,
+        activeConfig.bindings.nextAudio,
         activeGamepad,
-        config,
+        activeConfig,
         options.nextAudio,
       );
       handleActionEdge(
         'playCurrentAudio',
-        config.bindings.playCurrentAudio,
+        activeConfig.bindings.playCurrentAudio,
         activeGamepad,
-        config,
+        activeConfig,
         options.playCurrentAudio,
       );
 
       const primaryScroll = resolveAxisBindingValue(
         activeGamepad,
-        config.bindings.leftStickVertical,
-        config.triggerDeadzone,
-        config.stickDeadzone,
+        activeConfig.bindings.leftStickVertical,
+        activeConfig.triggerDeadzone,
+        activeConfig.stickDeadzone,
       );
-      if (elapsedMs > 0 && Math.abs(primaryScroll) >= config.stickDeadzone) {
-        options.scrollPopup((primaryScroll * config.scrollPixelsPerSecond * elapsedMs) / 1000);
+      if (elapsedMs > 0 && Math.abs(primaryScroll) >= activeConfig.stickDeadzone) {
+        options.scrollPopup(
+          (primaryScroll * activeConfig.scrollPixelsPerSecond * elapsedMs) / 1000,
+        );
       }
 
       handleJumpAxis(
         resolveAxisBindingValue(
           activeGamepad,
-          config.bindings.rightStickVertical,
-          config.triggerDeadzone,
+          activeConfig.bindings.rightStickVertical,
+          activeConfig.triggerDeadzone,
           activationThreshold,
         ),
         now,
-        config,
+        activeConfig,
       );
     } else {
       resetHeldAction(jumpHold);
@@ -498,21 +513,21 @@ export function createGamepadController(options: GamepadControllerOptions) {
 
     handleActionEdge(
       'toggleMpvPause',
-      config.bindings.toggleMpvPause,
+      activeConfig.bindings.toggleMpvPause,
       activeGamepad,
-      config,
+      activeConfig,
       options.toggleMpvPause,
     );
 
     handleSelectionAxis(
       resolveAxisBindingValue(
         activeGamepad,
-        config.bindings.leftStickHorizontal,
-        config.triggerDeadzone,
+        activeConfig.bindings.leftStickHorizontal,
+        activeConfig.triggerDeadzone,
         activationThreshold,
       ),
       now,
-      config,
+      activeConfig,
     );
   }
 

@@ -1,4 +1,5 @@
 import type { ModalStateReader, RendererContext } from '../context';
+import { resolveControllerConfigForGamepad } from '../controller-profile-config.js';
 
 function formatAxes(values: number[]): string {
   if (values.length === 0) return 'No controller axes available.';
@@ -50,6 +51,7 @@ export function createControllerDebugModal(
   options: {
     modalStateReader: Pick<ModalStateReader, 'isAnyModalOpen'>;
     syncSettingsModalSubtitleSuppression: () => void;
+    notifyControllerDisabled: () => void;
   },
 ) {
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -114,8 +116,11 @@ export function createControllerDebugModal(
         : 'Connect a controller and press any button to populate raw input values.';
     ctx.dom.controllerDebugAxes.textContent = formatAxes(ctx.state.controllerRawAxes);
     ctx.dom.controllerDebugButtons.textContent = formatButtons(ctx.state.controllerRawButtons);
+    const activeConfig = ctx.state.controllerConfig
+      ? resolveControllerConfigForGamepad(ctx.state.controllerConfig, ctx.state.activeGamepadId)
+      : null;
     ctx.dom.controllerDebugButtonIndices.textContent = formatButtonIndices(
-      ctx.state.controllerConfig?.buttonIndices ?? null,
+      activeConfig?.buttonIndices ?? null,
     );
   }
 
@@ -136,7 +141,11 @@ export function createControllerDebugModal(
     }
   }
 
-  function openControllerDebugModal(): void {
+  function openControllerDebugModal(): boolean {
+    if (ctx.state.controllerConfig?.enabled !== true) {
+      options.notifyControllerDisabled();
+      return false;
+    }
     ctx.state.controllerDebugModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.overlay.classList.add('interactive');
@@ -144,6 +153,7 @@ export function createControllerDebugModal(
     ctx.dom.controllerDebugModal.setAttribute('aria-hidden', 'false');
     hideToast();
     render();
+    return true;
   }
 
   function closeControllerDebugModal(): void {

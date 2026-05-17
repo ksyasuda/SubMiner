@@ -1,4 +1,5 @@
 import type { ModalStateReader, RendererContext } from '../context';
+import { resolveControllerConfigForGamepad } from '../controller-profile-config.js';
 import { createControllerBindingCapture } from '../handlers/controller-binding-capture.js';
 import {
   createControllerConfigForm,
@@ -24,6 +25,7 @@ export function createControllerSelectModal(
   options: {
     modalStateReader: Pick<ModalStateReader, 'isAnyModalOpen'>;
     syncSettingsModalSubtitleSuppression: () => void;
+    notifyControllerDisabled: () => void;
   },
 ) {
   let selectedControllerKey: string | null = null;
@@ -38,10 +40,24 @@ export function createControllerSelectModal(
   let dpadLearningActionId: ControllerBindingKey | null = null;
   let bindingCapture: ReturnType<typeof createControllerBindingCapture> | null = null;
 
+  function getSelectedController() {
+    return ctx.state.connectedGamepads[ctx.state.controllerDeviceSelectedIndex] ?? null;
+  }
+
+  function getSelectedControllerId(): string | null {
+    return getSelectedController()?.id ?? null;
+  }
+
+  function getSelectedControllerConfig() {
+    const config = ctx.state.controllerConfig;
+    if (!config) return null;
+    return resolveControllerConfigForGamepad(config, getSelectedControllerId());
+  }
+
   const controllerConfigForm = createControllerConfigForm({
     container: ctx.dom.controllerConfigList,
     getBindings: () =>
-      ctx.state.controllerConfig?.bindings ?? {
+      getSelectedControllerConfig()?.bindings ?? {
         toggleLookup: { kind: 'button', buttonIndex: 0 },
         closeLookup: { kind: 'button', buttonIndex: 1 },
         toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
@@ -67,7 +83,7 @@ export function createControllerSelectModal(
         triggerDeadzone: config?.triggerDeadzone ?? 0.5,
         stickDeadzone: config?.stickDeadzone ?? 0.2,
       });
-      const currentBinding = config?.bindings[actionId];
+      const currentBinding = getSelectedControllerConfig()?.bindings[actionId];
       const currentDpadFallback =
         currentBinding && currentBinding.kind === 'axis' && 'dpadFallback' in currentBinding
           ? currentBinding.dpadFallback
@@ -216,6 +232,51 @@ export function createControllerSelectModal(
         ...update.bindings,
       } as typeof ctx.state.controllerConfig.bindings;
     }
+    if (update.profiles) {
+      ctx.state.controllerConfig.profiles = ctx.state.controllerConfig.profiles ?? {};
+      for (const [profileId, profileUpdate] of Object.entries(update.profiles)) {
+        const currentProfile = ctx.state.controllerConfig.profiles[profileId];
+        const baseProfile = currentProfile ?? {
+          label: profileUpdate.label ?? profileId,
+          buttonIndices: ctx.state.controllerConfig.buttonIndices,
+          bindings: ctx.state.controllerConfig.bindings,
+        };
+        ctx.state.controllerConfig.profiles[profileId] = {
+          label: profileUpdate.label ?? baseProfile.label,
+          buttonIndices: {
+            ...baseProfile.buttonIndices,
+            ...(profileUpdate.buttonIndices ?? {}),
+          },
+          bindings: {
+            ...baseProfile.bindings,
+            ...(profileUpdate.bindings ?? {}),
+          },
+        } as (typeof ctx.state.controllerConfig.profiles)[string];
+      }
+    }
+  }
+
+  function buildBindingConfigUpdate(
+    actionId: ControllerBindingKey,
+    binding: ControllerBindingValue,
+  ): Parameters<typeof window.electronAPI.saveControllerConfig>[0] {
+    const selected = getSelectedController();
+    if (!selected) {
+      return {
+        bindings: {
+          [actionId]: binding,
+        },
+      };
+    }
+    return {
+      profiles: {
+        [selected.id]: {
+          bindings: {
+            [actionId]: binding,
+          },
+        },
+      },
+    };
   }
 
   async function saveBinding(
@@ -224,11 +285,7 @@ export function createControllerSelectModal(
   ): Promise<void> {
     const definition = getControllerBindingDefinition(actionId);
     try {
-      await saveControllerConfig({
-        bindings: {
-          [actionId]: binding,
-        },
-      });
+      await saveControllerConfig(buildBindingConfigUpdate(actionId, binding));
       learningActionId = null;
       dpadLearningActionId = null;
       bindingCapture = null;
@@ -245,11 +302,11 @@ export function createControllerSelectModal(
     dpadFallback: import('../../types').ControllerDpadFallback,
   ): Promise<void> {
     const definition = getControllerBindingDefinition(actionId);
-    const currentBinding = ctx.state.controllerConfig?.bindings[actionId];
+    const currentBinding = getSelectedControllerConfig()?.bindings[actionId];
     if (!currentBinding || currentBinding.kind !== 'axis') return;
     const updated = { ...currentBinding, dpadFallback };
     try {
-      await saveControllerConfig({ bindings: { [actionId]: updated } });
+      await saveControllerConfig(buildBindingConfigUpdate(actionId, updated));
       dpadLearningActionId = null;
       bindingCapture = null;
       controllerConfigForm.render();
@@ -330,7 +387,11 @@ export function createControllerSelectModal(
     }
   }
 
-  function openControllerSelectModal(): void {
+  function openControllerSelectModal(): boolean {
+    if (ctx.state.controllerConfig?.enabled !== true) {
+      options.notifyControllerDisabled();
+      return false;
+    }
     ctx.state.controllerSelectModalOpen = true;
     syncSelectedIndexToCurrentController();
     options.syncSettingsModalSubtitleSuppression();
@@ -346,6 +407,7 @@ export function createControllerSelectModal(
     } else {
       setStatus('Choose a controller or click Learn to remap an action.');
     }
+    return true;
   }
 
   function closeControllerSelectModal(): void {
@@ -387,6 +449,7 @@ export function createControllerSelectModal(
         );
         syncSelectedControllerId();
         renderPicker();
+        controllerConfigForm.render();
       }
       return true;
     }
@@ -400,6 +463,7 @@ export function createControllerSelectModal(
         );
         syncSelectedControllerId();
         renderPicker();
+        controllerConfigForm.render();
       }
       return true;
     }
@@ -429,6 +493,7 @@ export function createControllerSelectModal(
         ctx.state.controllerDeviceSelectedIndex = selectedIndex;
         syncSelectedControllerId();
         renderPicker();
+        controllerConfigForm.render();
       }
     });
   }

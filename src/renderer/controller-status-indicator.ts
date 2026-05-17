@@ -67,5 +67,5 @@ export function createControllerStatusIndicator(
     previousConnectedIds = new Set(snapshot.connectedGamepads.map((device) => device.id));
   }
 
-  return { update };
+  return { show, update };
 }

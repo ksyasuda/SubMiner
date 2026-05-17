@@ -608,8 +608,12 @@ Important behavior:
 - Controller input is only active while keyboard-only mode is enabled.
 - Keyboard-only mode continues to work normally without a controller.
 - By default SubMiner uses the first connected controller.
+- Fresh installs keep controller support disabled until you set `controller.enabled` to `true`.
 - `Alt+C` opens the controller config modal by default, and you can remap that shortcut through `shortcuts.openControllerSelect`.
-- Click `Learn`, then press the next fresh button, trigger, or stick direction you want to bind for that overlay action.
+- The `Alt+C` config modal and `Alt+Shift+C` debug modal stay closed while controller support is disabled.
+- Click the binding badge, edit pencil, or `Learn`, then press the next fresh button, trigger, or stick direction you want to bind for that overlay action.
+- Click the reset button beside the edit pencil to restore one binding to the built-in default.
+- Learned bindings are saved under `controller.profiles` for the selected controller id. Global `controller.bindings` remains the fallback for controllers without a profile.
 - `Alt+Shift+C` opens the debug modal by default, and you can remap that shortcut through `shortcuts.openControllerDebug`.
 - The debug modal shows raw axes/button values plus a ready-to-copy `buttonIndices` config block.
 - `controller.buttonIndices` is a semantic reference/legacy mapping. Changing it does not rewrite the raw numeric descriptor values already stored under `controller.bindings`.
@@ -658,6 +662,15 @@ Important behavior:
       "rightStickHorizontal": { "kind": "axis", "axisIndex": 3, "dpadFallback": "none" },
       "rightStickVertical": { "kind": "axis", "axisIndex": 4, "dpadFallback": "none" },
     },
+    "profiles": {
+      "Xbox Wireless Controller": {
+        "label": "Xbox Wireless Controller",
+        "bindings": {
+          "toggleLookup": { "kind": "button", "buttonIndex": 0 },
+          "mineCard": { "kind": "button", "buttonIndex": 2 },
+        },
+      },
+    },
   },
 }
 ```
@@ -678,7 +691,7 @@ Default logical mapping:
 - `L3`: toggle mpv pause
 - `L2` / `R2`: unbound by default
 
-Discrete bindings may use raw button indices or raw axis directions, and analog bindings use raw axis indices with optional D-pad fallback. The `Alt+C` learn flow writes those descriptors for you, so manual edits are only needed when you want to script or copy exact mappings.
+Discrete bindings may use raw button indices or raw axis directions, and analog bindings use raw axis indices with optional D-pad fallback. The `Alt+C` learn flow writes those descriptors under `controller.profiles["<controller id>"]` for the selected controller. Manual edits are only needed when you want to script or copy exact mappings.
 
 If you bind a discrete action to an axis manually, include `direction`:
 
@@ -692,15 +705,15 @@ If you bind a discrete action to an axis manually, include `direction`:
 }
 ```
 
-Treat `controller.buttonIndices` as reference-only unless you are still using legacy semantic bindings or copying values from the debug modal. Updating `controller.buttonIndices` alone does not rewrite the hardcoded raw numeric values already present in `controller.bindings`. If you need a real remap, prefer the `Alt+C` learn flow so both the source and the descriptor shape stay correct.
+Treat `controller.buttonIndices` as reference-only unless you are still using legacy semantic bindings or copying values from the debug modal. Updating `controller.buttonIndices` alone does not rewrite the hardcoded raw numeric values already present in `controller.bindings` or `controller.profiles.*.bindings`. If you need a real remap, prefer the `Alt+C` learn flow so both the source and the descriptor shape stay correct.
 
 If you choose to bind `L2` or `R2` manually, set `triggerInputMode` to `analog` and tune `triggerDeadzone` when your controller reports triggers as analog values instead of digital pressed/not-pressed buttons. `auto` accepts either style and remains the default.
 
-If your controller reports non-standard raw button numbers, override `controller.buttonIndices` using values from the `Alt+Shift+C` debug modal.
+If one controller reports non-standard raw button numbers, override `controller.profiles["<controller id>"].buttonIndices` using values from the `Alt+Shift+C` debug modal. Use global `controller.buttonIndices` only when the mapping should apply to every controller without a profile.
 
 If you update this controller documentation or the generated controller examples, run `bun run docs:test` and `bun run docs:build` before merging.
 
-Tune `scrollPixelsPerSecond`, `horizontalJumpPixels`, deadzones, repeat timing, and `buttonIndices` to match your controller. See [config.example.jsonc](/config.example.jsonc) for the full generated comments for every controller field.
+Tune `scrollPixelsPerSecond`, `horizontalJumpPixels`, deadzones, repeat timing, and profile `buttonIndices` to match your controller. See [config.example.jsonc](/config.example.jsonc) for the full generated comments for every controller field.
 
 ### Manual Card Update Shortcuts
 

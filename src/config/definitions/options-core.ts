@@ -239,6 +239,13 @@ export function buildCoreConfigOptionRegistry(
       description:
         'Raw controller binding descriptors saved by Alt+C learn mode. For discrete axis bindings, kind "axis" requires axisIndex and direction.',
     },
+    {
+      path: 'controller.profiles',
+      kind: 'object',
+      defaultValue: defaultConfig.controller.profiles,
+      description:
+        'Per-controller binding and button-index overrides keyed by the controller id reported by the Gamepad API.',
+    },
     ...discreteBindings.flatMap((binding) => [
       {
         path: `controller.bindings.${binding.id}`,
