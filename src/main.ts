@@ -508,6 +508,7 @@ import {
   parseSha256Sums,
   type GitHubRelease,
 } from './main/runtime/update/release-assets';
+import { shouldFetchReleaseMetadataForPlatform } from './main/runtime/update/release-metadata-policy';
 import { updateLauncherFromRelease } from './main/runtime/update/launcher-updater';
 import { notifyUpdateAvailable } from './main/runtime/update/update-notifications';
 import { createUpdateDialogPresenter } from './main/runtime/update/update-dialogs';
@@ -4728,7 +4729,8 @@ function getUpdateService() {
     readState: () => updateStateStore.readState(),
     writeState: (state) => updateStateStore.writeState(state),
     checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
-    shouldFetchReleaseMetadata: () => process.platform !== 'darwin',
+    shouldFetchReleaseMetadata: ({ appUpdate }) =>
+      shouldFetchReleaseMetadataForPlatform(process.platform, appUpdate),
     fetchLatestStableRelease: (channel) =>
       fetchLatestStableRelease({ fetch: getFetchForUpdater(), channel }),
     updateLauncher: (launcherPath, channel, release) =>

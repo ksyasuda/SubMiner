@@ -124,6 +124,13 @@ function configureAutoUpdater(updater, log = () => { }, channel = 'stable') {
 function createElectronAppUpdater(options) {
     const getChannel = options.getChannel ?? (() => 'stable');
     const updater = configureAutoUpdater(options.updater ?? electron_updater_1.autoUpdater, options.log, getChannel());
+    if (options.configureHttpExecutor) {
+        // electron-updater has no public executor hook; keep the macOS cURL override localized.
+        updater.httpExecutor = options.configureHttpExecutor();
+    }
+    if (options.disableDifferentialDownload !== undefined) {
+        updater.disableDifferentialDownload = options.disableDifferentialDownload;
+    }
     let nativeUpdaterSupported = null;
     async function getNativeUpdaterSupported() {
         if (!options.isNativeUpdaterSupported)
