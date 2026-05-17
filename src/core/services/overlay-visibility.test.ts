@@ -1598,6 +1598,55 @@ test('macOS hides visible overlay during tracker loss after mpv loses foreground
   assert.ok(!calls.includes('loading-osd'));
 });
 
+test('macOS keeps a focused overlay visible during tracker loss', () => {
+  const { window, calls, setFocused } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => false,
+    getGeometry: () => null,
+    isTargetWindowFocused: () => false,
+    isTargetWindowMinimized: () => false,
+  };
+
+  window.show();
+  setFocused(true);
+  calls.length = 0;
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: true,
+    showOverlayLoadingOsd: () => {
+      calls.push('loading-osd');
+    },
+  } as never);
+
+  assert.ok(calls.includes('sync-layer'));
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('ensure-level'));
+  assert.ok(calls.includes('enforce-order'));
+  assert.ok(calls.includes('sync-shortcuts'));
+  assert.ok(!calls.includes('hide'));
+  assert.ok(!calls.includes('loading-osd'));
+});
+
 test('macOS suppresses immediate repeat loading OSD after tracker recovery until cooldown expires', () => {
   const { window } = createMainWindowRecorder();
   const osdMessages: string[] = [];

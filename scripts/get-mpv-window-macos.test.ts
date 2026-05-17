@@ -59,16 +59,36 @@ test('focused mpv window follows the frontmost mpv app signal', () => {
 
 test('frontmost mpv app emits active state when geometry lookup misses', () => {
   assert.ok(
-    source.includes('case active'),
+    /case\s+\.active:/.test(source),
     'helper should expose an active state without window geometry',
   );
   assert.ok(
-    source.includes('frontmost.isMpv && windowHasTargetSocket(frontmost.pid)'),
-    'active state should be limited to the frontmost target mpv process',
+    source.includes('if windowHasTargetSocket(frontmost.pid)'),
+    'active state should still accept a matching target socket when available',
+  );
+  assert.ok(
+    source.includes('return targetMpvSocketPath != nil'),
+    'active state should preserve frontmost mpv even if command-line socket detection fails',
   );
   assert.ok(
     source.includes('return .active'),
     'lookup should preserve active mpv state after geometry lookup misses',
   );
   assert.ok(source.includes('print("active")'), 'active state should be printed for the tracker');
+});
+
+test('frontmost non-mpv app emits inactive state when geometry lookup misses', () => {
+  assert.ok(
+    /case\s+\.inactive:/.test(source),
+    'helper should expose an inactive state without window geometry',
+  );
+  assert.ok(
+    source.includes('if frontmost != nil'),
+    'helper should distinguish a known non-mpv frontmost app from an unknown miss',
+  );
+  assert.ok(source.includes('return .inactive'), 'known non-mpv focus should return inactive');
+  assert.ok(
+    source.includes('print("inactive")'),
+    'inactive state should be printed for the tracker',
+  );
 });

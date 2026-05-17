@@ -7,7 +7,7 @@
 //  It works with both bundled and unbundled mpv installations.
 //
 //  Usage: swift get-mpv-window-macos.swift
-//  Output: "x,y,width,height,focused", "minimized", "active", or "not-found"
+//  Output: "x,y,width,height,focused", "minimized", "active", "inactive", or "not-found"
 //
 
 import Cocoa
@@ -34,6 +34,7 @@ private enum WindowLookupResult {
     case visible(WindowState)
     case minimized
     case active
+    case inactive
 }
 
 private let targetMpvSocketPath: String? = {
@@ -176,11 +177,17 @@ private func isFocusedMpvWindow(ownerPid: pid_t, frontmost: FrontmostApplication
 }
 
 private func isFrontmostTargetMpv(_ frontmost: FrontmostApplicationState?) -> Bool {
-    guard let frontmost = frontmost else {
+    guard let frontmost = frontmost, frontmost.isMpv else {
         return false
     }
 
-    return frontmost.isMpv && windowHasTargetSocket(frontmost.pid)
+    if windowHasTargetSocket(frontmost.pid) {
+        return true
+    }
+
+    // When macOS says mpv is frontmost but geometry APIs miss, keep the
+    // overlay stable even if ps cannot expose the socket argument.
+    return targetMpvSocketPath != nil
 }
 
 private func windowStateFromAccessibilityAPI() -> WindowLookupResult? {
@@ -307,8 +314,12 @@ private let lookupResult: WindowLookupResult? = {
     if let cgWindow = windowStateFromCoreGraphics() {
         return .visible(cgWindow)
     }
-    if isFrontmostTargetMpv(frontmostApplicationState()) {
+    let frontmost = frontmostApplicationState()
+    if isFrontmostTargetMpv(frontmost) {
         return .active
+    }
+    if frontmost != nil {
+        return .inactive
     }
     return nil
 }()
@@ -323,6 +334,8 @@ if let result = lookupResult {
         print("minimized")
     case .active:
         print("active")
+    case .inactive:
+        print("inactive")
     }
 } else {
     print("not-found")
