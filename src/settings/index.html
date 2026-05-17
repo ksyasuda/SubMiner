@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';"
+      content="default-src 'self'; script-src 'self'; style-src 'self';"
     />
     <title>SubMiner Configuration</title>
     <link rel="stylesheet" href="style.css" />
@@ -26,7 +26,13 @@
             <div id="categoryMeta" class="toolbar-meta"></div>
           </div>
           <div class="toolbar-actions">
-            <input id="searchInput" class="search-input" type="search" placeholder="Search" />
+            <input
+              id="searchInput"
+              class="search-input"
+              type="search"
+              placeholder="Search"
+              aria-label="Search settings"
+            />
             <button id="openFileButton" class="secondary-button" type="button">Open File</button>
             <button id="saveButton" class="primary-button" type="button" disabled>Save</button>
           </div>
