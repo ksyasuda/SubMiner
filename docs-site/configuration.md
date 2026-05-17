@@ -67,7 +67,8 @@ On macOS, these validation warnings also open a native dialog with full details 
 
 SubMiner also includes a dedicated **Configuration** window from the tray menu, the app `--config` flag, or launcher commands such as `subminer --config` and `subminer config`. It groups settings by workflow instead of mirroring the raw config-file shape:
 
-- Viewing
+- Appearance
+- Behavior
 - Mining & Anki
 - Playback & Sources
 - Input
@@ -75,13 +76,13 @@ SubMiner also includes a dedicated **Configuration** window from the tray menu, 
 - Tracking & App
 - Advanced
 
-Each field still writes to its current `config.jsonc` path. For example, subtitle hover pause appears under **Viewing** / playback behavior, but saves to `subtitleStyle.autoPauseVideoOnHover`.
+Each field still writes to its current `config.jsonc` path. For example, subtitle hover pause appears under **Behavior** / playback behavior, but saves to `subtitleStyle.autoPauseVideoOnHover`. Anki-aware fields can query AnkiConnect for deck names, note types, and field names, and keybinding fields use click-to-learn controls instead of raw text boxes.
 
 The settings window preserves existing JSONC comments, trailing commas, unrelated keys, and unsupported legacy options. Resetting a field removes the explicit config path so the built-in default applies.
 
 Secret fields do not display stored values. They show whether a value is configured; entering a new value writes it, and reset clears the explicit path. Prefer command-based secret options such as `ai.apiKeyCommand` when available.
 
-Some compatibility-only or ignored legacy keys are intentionally hidden from the normal field list, including legacy top-level Anki migration fields, old N+1 aliases, the removed YouTube subtitle-generation primary-language key, `anilist.characterDictionary.refreshTtlHours`, `anilist.characterDictionary.evictionPolicy`, `jellyfin.accessToken`, `jellyfin.userId`, and normal editing for `controller.buttonIndices`. Advanced/raw JSON editing remains the escape hatch for unsupported or legacy keys.
+Some compatibility-only or ignored legacy keys are intentionally hidden from the normal field list, including legacy top-level Anki migration fields, old N+1 aliases, YouTube subtitle-generation settings, `anilist.characterDictionary.refreshTtlHours`, `anilist.characterDictionary.evictionPolicy`, `jellyfin.accessToken`, `jellyfin.userId`, Jellyfin client identity/library defaults, and controller binding/profile internals that are edited in-app. Advanced/raw JSON editing remains the escape hatch for unsupported or legacy keys.
 
 Saving validates the candidate config before writing. Live-reloadable changes are applied immediately; other changes return a restart-required banner in the window.
 
@@ -363,6 +364,8 @@ See `config.example.jsonc` for detailed configuration options.
 | `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight; `hoverBackground` is accepted as an alias                  |
 | `nameMatchEnabled`                 | boolean     | Enable subtitle token coloring for matches from the SubMiner character dictionary (`true` by default)                      |
 | `nameMatchColor`                   | string      | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                     |
+| `knownWordColor`                   | string      | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                    |
+| `nPlusOneColor`                    | string      | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                          |
 | `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                                 |
 | `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths. |
 | `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                                    |
@@ -370,8 +373,6 @@ See `config.example.jsonc` for detailed configuration options.
 | `frequencyDictionary.matchMode`    | string      | `"headword"` or `"surface"` (`"headword"` by default)                                                                      |
 | `frequencyDictionary.singleColor`  | string      | Color used for all highlighted tokens in single mode                                                                       |
 | `frequencyDictionary.bandedColors` | string[]    | Array of five hex colors used for ranked bands in banded mode                                                              |
-| `nPlusOneColor`                    | string      | Existing n+1 highlight color (default: `#c6a0f6`)                                                                          |
-| `knownWordColor`                   | string      | Existing known-word highlight color (default: `#a6da95`)                                                                   |
 | `jlptColors`                       | object      | JLPT level underline colors object (`N1`..`N5`)                                                                            |
 | `secondary`                        | object      | Override any of the above for secondary subtitles (optional)                                                               |
 
@@ -963,11 +964,9 @@ This example is intentionally compact. The option table below documents availabl
 | `behavior.highlightWord`                          | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                                                                            |
 | `ankiConnect.knownWords.highlightEnabled`         | `true`, `false`                         | Enable fast local highlighting for words already known in Anki (default: `false`)                                                                                                                   |
 | `ankiConnect.knownWords.addMinedWordsImmediately` | `true`, `false`                         | Add words from successful mines into the local known-word cache immediately (default: `true`)                                                                                                       |
-| `ankiConnect.knownWords.color`                    | hex color string                        | Text color for tokens already found in the local known-word cache (default: `"#a6da95"`).                                                                                                           |
 | `ankiConnect.knownWords.matchMode`                | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text.                                                       |
 | `ankiConnect.knownWords.refreshMinutes`           | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                                                                        |
 | `ankiConnect.knownWords.decks`                    | object                                  | Deck→fields mapping used for known-word cache query scope (e.g. `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                                                                                     |
-| `ankiConnect.nPlusOne.nPlusOne`                   | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`).                                                                     |
 | `ankiConnect.nPlusOne.minSentenceWords`           | number                                  | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                                                                              |
 | `behavior.notificationType`                       | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                                                                                 |
 | `behavior.autoUpdateNewCards`                     | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                                                                            |
@@ -1009,9 +1008,9 @@ Known-word cache policy:
 
 - Initial sync runs when the integration starts if the cache is missing or stale.
 - `ankiConnect.knownWords.refreshMinutes` controls the minimum time between refreshes; between refreshes, cached words are reused without querying Anki.
-- `ankiConnect.nPlusOne.nPlusOne` sets the color for the single target token when exactly one eligible unknown word exists.
+- `subtitleStyle.nPlusOneColor` sets the color for the single target token when exactly one eligible unknown word exists.
 - `ankiConnect.nPlusOne.minSentenceWords` sets the minimum token count required in a sentence for N+1 highlighting (default: `3`).
-- `ankiConnect.knownWords.color` sets the known-word highlight color for tokens already in Anki.
+- `subtitleStyle.knownWordColor` sets the known-word highlight color for tokens already in Anki.
 - `ankiConnect.knownWords.decks` accepts an object keyed by deck name. If omitted or empty, it falls back to the legacy `ankiConnect.deck` single-deck scope.
 - Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
 - The cache is automatically invalidated when the configured scope changes (for example, when deck changes).
@@ -1255,7 +1254,7 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | `directPlayContainers`     | string[]        | Container allowlist for direct play decisions                                                                |
 | `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                                                   |
 
-Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup. The legacy `jellyfin.accessToken` and `jellyfin.userId` config keys are not resolver-backed settings in the current runtime and are hidden from the configuration window.
+Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup. The legacy `jellyfin.accessToken` and `jellyfin.userId` config keys are not resolver-backed settings in the current runtime. The configuration window also hides low-level client identity and default library fields (`deviceId`, `clientName`, `clientVersion`, and `defaultLibraryId`) so normal setup stays focused on server, auth, playback, and remote-control behavior.
 
 - On Linux, token storage defaults to `gnome-libsecret` for `safeStorage`. Override with `--password-store=<backend>` on launcher/app invocations when needed.
 

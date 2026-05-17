@@ -157,6 +157,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       resolved.subtitleStyle.hoverTokenBackgroundColor;
     const fallbackSubtitleStyleNameMatchEnabled = resolved.subtitleStyle.nameMatchEnabled;
     const fallbackSubtitleStyleNameMatchColor = resolved.subtitleStyle.nameMatchColor;
+    const fallbackSubtitleStyleKnownWordColor = resolved.subtitleStyle.knownWordColor;
+    const fallbackSubtitleStyleNPlusOneColor = resolved.subtitleStyle.nPlusOneColor;
     const fallbackFrequencyDictionary = {
       ...resolved.subtitleStyle.frequencyDictionary,
     };
@@ -329,6 +331,36 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         'subtitleStyle.nameMatchColor',
         (src.subtitleStyle as { nameMatchColor?: unknown }).nameMatchColor,
         resolved.subtitleStyle.nameMatchColor,
+        'Expected hex color.',
+      );
+    }
+
+    const knownWordColor = asColor(
+      (src.subtitleStyle as { knownWordColor?: unknown }).knownWordColor,
+    );
+    if (knownWordColor !== undefined) {
+      resolved.subtitleStyle.knownWordColor = knownWordColor;
+    } else if ((src.subtitleStyle as { knownWordColor?: unknown }).knownWordColor !== undefined) {
+      resolved.subtitleStyle.knownWordColor = fallbackSubtitleStyleKnownWordColor;
+      warn(
+        'subtitleStyle.knownWordColor',
+        (src.subtitleStyle as { knownWordColor?: unknown }).knownWordColor,
+        resolved.subtitleStyle.knownWordColor,
+        'Expected hex color.',
+      );
+    }
+
+    const nPlusOneColor = asColor(
+      (src.subtitleStyle as { nPlusOneColor?: unknown }).nPlusOneColor,
+    );
+    if (nPlusOneColor !== undefined) {
+      resolved.subtitleStyle.nPlusOneColor = nPlusOneColor;
+    } else if ((src.subtitleStyle as { nPlusOneColor?: unknown }).nPlusOneColor !== undefined) {
+      resolved.subtitleStyle.nPlusOneColor = fallbackSubtitleStyleNPlusOneColor;
+      warn(
+        'subtitleStyle.nPlusOneColor',
+        (src.subtitleStyle as { nPlusOneColor?: unknown }).nPlusOneColor,
+        resolved.subtitleStyle.nPlusOneColor,
         'Expected hex color.',
       );
     }

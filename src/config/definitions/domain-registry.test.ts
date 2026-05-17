@@ -63,10 +63,8 @@ const UNDOCUMENTED_LEAVES: ReadonlySet<string> = new Set([
   'subtitleStyle.jlptColors.N3',
   'subtitleStyle.jlptColors.N4',
   'subtitleStyle.jlptColors.N5',
-  'subtitleStyle.knownWordColor',
   'subtitleStyle.letterSpacing',
   'subtitleStyle.lineHeight',
-  'subtitleStyle.nPlusOneColor',
   'subtitleStyle.secondary.backdropFilter',
   'subtitleStyle.secondary.backgroundColor',
   'subtitleStyle.secondary.fontColor',
@@ -110,6 +108,20 @@ test('config option registry includes critical paths and has unique entries', ()
   }
 
   assert.equal(new Set(paths).size, paths.length);
+});
+
+test('known-word annotation color has one public config path', () => {
+  const leaves = collectConfigLeafPaths(DEFAULT_CONFIG);
+
+  assert.ok(leaves.includes('subtitleStyle.knownWordColor'));
+  assert.ok(!leaves.includes('ankiConnect.knownWords.color'));
+});
+
+test('n+1 annotation color has one public config path', () => {
+  const leaves = collectConfigLeafPaths(DEFAULT_CONFIG);
+
+  assert.ok(leaves.includes('subtitleStyle.nPlusOneColor'));
+  assert.ok(!leaves.includes('ankiConnect.nPlusOne.nPlusOne'));
 });
 
 test('every DEFAULT_CONFIG leaf is in CONFIG_OPTION_REGISTRY or UNDOCUMENTED_LEAVES', () => {

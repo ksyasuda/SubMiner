@@ -946,47 +946,68 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
     }
   }
 
+  const rawSubtitleStyle = isObject(context.src.subtitleStyle)
+    ? (context.src.subtitleStyle as Record<string, unknown>)
+    : {};
+  const hasCanonicalNPlusOneColor = rawSubtitleStyle.nPlusOneColor !== undefined;
+  const hasCanonicalKnownWordColor = rawSubtitleStyle.knownWordColor !== undefined;
+
   const nPlusOneHighlightColor = asColor(nPlusOneConfig.nPlusOne);
   if (nPlusOneHighlightColor !== undefined) {
-    context.resolved.ankiConnect.nPlusOne.nPlusOne = nPlusOneHighlightColor;
+    if (!hasCanonicalNPlusOneColor) {
+      context.resolved.subtitleStyle.nPlusOneColor = nPlusOneHighlightColor;
+    }
+    context.warn(
+      'ankiConnect.nPlusOne.nPlusOne',
+      nPlusOneConfig.nPlusOne,
+      context.resolved.subtitleStyle.nPlusOneColor,
+      'Legacy key is deprecated; use subtitleStyle.nPlusOneColor',
+    );
   } else if (nPlusOneConfig.nPlusOne !== undefined) {
     context.warn(
       'ankiConnect.nPlusOne.nPlusOne',
       nPlusOneConfig.nPlusOne,
-      context.resolved.ankiConnect.nPlusOne.nPlusOne,
+      context.resolved.subtitleStyle.nPlusOneColor,
       'Expected a hex color value.',
     );
-    context.resolved.ankiConnect.nPlusOne.nPlusOne = DEFAULT_CONFIG.ankiConnect.nPlusOne.nPlusOne;
   }
 
   const knownWordsColor = asColor(knownWordsConfig.color);
   const legacyNPlusOneKnownWordColor = asColor(nPlusOneConfig.knownWord);
   if (knownWordsColor !== undefined) {
-    context.resolved.ankiConnect.knownWords.color = knownWordsColor;
+    if (!hasCanonicalKnownWordColor) {
+      context.resolved.subtitleStyle.knownWordColor = knownWordsColor;
+    }
+    context.warn(
+      'ankiConnect.knownWords.color',
+      knownWordsConfig.color,
+      context.resolved.subtitleStyle.knownWordColor,
+      'Legacy key is deprecated; use subtitleStyle.knownWordColor',
+    );
   } else if (knownWordsConfig.color !== undefined) {
     context.warn(
       'ankiConnect.knownWords.color',
       knownWordsConfig.color,
-      context.resolved.ankiConnect.knownWords.color,
+      context.resolved.subtitleStyle.knownWordColor,
       'Expected a hex color value.',
     );
-    context.resolved.ankiConnect.knownWords.color = DEFAULT_CONFIG.ankiConnect.knownWords.color;
   } else if (legacyNPlusOneKnownWordColor !== undefined) {
-    context.resolved.ankiConnect.knownWords.color = legacyNPlusOneKnownWordColor;
+    if (!hasCanonicalKnownWordColor) {
+      context.resolved.subtitleStyle.knownWordColor = legacyNPlusOneKnownWordColor;
+    }
     context.warn(
       'ankiConnect.nPlusOne.knownWord',
       nPlusOneConfig.knownWord,
-      DEFAULT_CONFIG.ankiConnect.knownWords.color,
-      'Legacy key is deprecated; use ankiConnect.knownWords.color',
+      context.resolved.subtitleStyle.knownWordColor,
+      'Legacy key is deprecated; use subtitleStyle.knownWordColor',
     );
   } else if (nPlusOneConfig.knownWord !== undefined) {
     context.warn(
       'ankiConnect.nPlusOne.knownWord',
       nPlusOneConfig.knownWord,
-      context.resolved.ankiConnect.knownWords.color,
+      context.resolved.subtitleStyle.knownWordColor,
       'Expected a hex color value.',
     );
-    context.resolved.ankiConnect.knownWords.color = DEFAULT_CONFIG.ankiConnect.knownWords.color;
   }
 
   if (

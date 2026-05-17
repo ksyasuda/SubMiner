@@ -118,7 +118,6 @@ test('createCreateConfigSettingsWindowHandler builds configuration settings wind
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
       preload: '/tmp/preload-settings.js',
     },
   });

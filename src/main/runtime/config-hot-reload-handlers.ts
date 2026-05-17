@@ -30,8 +30,8 @@ export function resolveSubtitleStyleForRenderer(config: ResolvedConfig) {
   }
   return {
     ...config.subtitleStyle,
-    nPlusOneColor: config.ankiConnect.nPlusOne.nPlusOne,
-    knownWordColor: config.ankiConnect.knownWords.color,
+    nPlusOneColor: config.subtitleStyle.nPlusOneColor,
+    knownWordColor: config.subtitleStyle.knownWordColor,
     nameMatchColor: config.subtitleStyle.nameMatchColor,
     enableJlpt: config.subtitleStyle.enableJlpt,
     frequencyDictionary: config.subtitleStyle.frequencyDictionary,

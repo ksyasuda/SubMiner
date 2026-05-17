@@ -381,8 +381,8 @@
     "fontStyle": "normal", // Font style setting.
     "backgroundColor": "transparent", // Background color setting.
     "backdropFilter": "blur(6px)", // Backdrop filter setting.
-    "nPlusOneColor": "#c6a0f6", // N plus one color setting.
-    "knownWordColor": "#a6da95", // Known word color setting.
+    "nPlusOneColor": "#c6a0f6", // Color used for the single N+1 target token subtitle highlight.
+    "knownWordColor": "#a6da95", // Color used for known-word subtitle highlights.
     "jlptColors": {
       "N1": "#ed8796", // N1 setting.
       "N2": "#f5a97f", // N2 setting.
@@ -512,8 +512,7 @@
       "refreshMinutes": 1440, // Minutes between known-word cache refreshes.
       "addMinedWordsImmediately": true, // Immediately append newly mined card words into the known-word cache. Values: true | false
       "matchMode": "headword", // Known-word matching strategy for subtitle annotations. Values: headword | surface
-      "decks": {}, // Decks and fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word", "Word Reading"] }.
-      "color": "#a6da95" // Color used for known-word highlights.
+      "decks": {} // Decks and fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word", "Word Reading"] }.
     }, // Known words setting.
     "behavior": {
       "overwriteAudio": true, // When updating an existing card, overwrite the audio field instead of skipping it. Values: true | false
@@ -524,8 +523,7 @@
       "autoUpdateNewCards": true // Automatically update newly added cards. Values: true | false
     }, // Behavior setting.
     "nPlusOne": {
-      "minSentenceWords": 3, // Minimum sentence word count required for N+1 targeting (default: 3).
-      "nPlusOne": "#c6a0f6" // Color used for the single N+1 target token highlight.
+      "minSentenceWords": 3 // Minimum sentence word count required for N+1 targeting (default: 3).
     }, // N plus one setting.
     "metadata": {
       "pattern": "[SubMiner] %f (%t)" // Template used to render the miscInfo field. Placeholders include %f (filename) and %t (timestamp).
@@ -648,7 +646,7 @@
   // ==========================================
   "discordPresence": {
     "enabled": true, // Enable optional Discord Rich Presence updates. Values: true | false
-    "presenceStyle": "default", // Presence card text preset: "default" (clean bilingual), "meme" (Mining and crafting), "japanese" (fully JP), or "minimal".
+    "presenceStyle": "default", // Presence card text preset: "default" (clean bilingual), "meme" (Mining and crafting), "japanese" (fully JP), or "minimal". Values: default | meme | japanese | minimal
     "updateIntervalMs": 3000, // Minimum interval between presence payload updates.
     "debounceMs": 750 // Debounce delay used to collapse bursty presence updates.
   }, // Optional Discord Rich Presence activity card updates for current playback/study session.

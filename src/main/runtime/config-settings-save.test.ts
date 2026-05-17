@@ -14,7 +14,7 @@ function snapshot(): ConfigSettingsSnapshot {
   };
 }
 
-test('config settings save applies hot-reloadable diff live', () => {
+test('config settings save returns hot-reloadable diff for watcher path', () => {
   const calls: string[] = [];
   const previous = DEFAULT_CONFIG;
   const next: ResolvedConfig = {
@@ -46,7 +46,6 @@ test('config settings save applies hot-reloadable diff live', () => {
       hotReloadFields: ['subtitleStyle'],
       restartRequiredFields: [],
     }),
-    applyHotReload: (diff) => calls.push(`hot:${diff.hotReloadFields.join(',')}`),
     getRestartRequiredSections: () => [],
   });
 
@@ -62,7 +61,7 @@ test('config settings save applies hot-reloadable diff live', () => {
 
   assert.equal(result.ok, true);
   assert.match(written, /autoPauseVideoOnHover/);
-  assert.deepEqual(calls, ['write', 'hot:subtitleStyle']);
+  assert.deepEqual(calls, ['write']);
   assert.deepEqual(result.hotReloadFields, ['subtitleStyle']);
   assert.deepEqual(result.restartRequiredFields, []);
 });
@@ -95,7 +94,6 @@ test('config settings save returns restart-required sections without applying ho
       hotReloadFields: [],
       restartRequiredFields: ['mpv'],
     }),
-    applyHotReload: () => calls.push('hot'),
     getRestartRequiredSections: () => ['mpv launcher'],
   });
 
@@ -129,9 +127,6 @@ test('config settings save restores previous file content when strict reload fai
     }),
     classifyDiff: () => {
       throw new Error('Should not classify invalid config.');
-    },
-    applyHotReload: () => {
-      throw new Error('Should not hot reload invalid config.');
     },
     getRestartRequiredSections: () => [],
   });

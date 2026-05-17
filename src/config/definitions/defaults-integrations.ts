@@ -59,7 +59,6 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       addMinedWordsImmediately: true,
       matchMode: 'headword',
       decks: {},
-      color: '#a6da95',
     },
     behavior: {
       overwriteAudio: true,
@@ -71,7 +70,6 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     },
     nPlusOne: {
       minSentenceWords: 3,
-      nPlusOne: '#c6a0f6',
     },
     metadata: {
       pattern: '[SubMiner] %f (%t)',

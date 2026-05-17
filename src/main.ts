@@ -140,6 +140,7 @@ import {
 } from './cli/args';
 import { printHelp } from './cli/help';
 import { IPC_CHANNELS, type OverlayHostedModal } from './shared/ipc/contracts';
+import { AnkiConnectClient } from './anki-connect';
 import {
   getStartupModeFlags,
   shouldRefreshAnilistOnConfigReload,
@@ -682,8 +683,8 @@ const texthookerService = new Texthooker(() => {
       config.subtitleStyle.enableJlpt,
     ),
     characterDictionaryEnabled,
-    knownWordColor: config.ankiConnect.knownWords.color,
-    nPlusOneColor: config.ankiConnect.nPlusOne.nPlusOne,
+    knownWordColor: config.subtitleStyle.knownWordColor,
+    nPlusOneColor: config.subtitleStyle.nPlusOneColor,
     nameMatchColor: config.subtitleStyle.nameMatchColor,
     hoverTokenColor: config.subtitleStyle.hoverTokenColor,
     hoverTokenBackgroundColor: config.subtitleStyle.hoverTokenBackgroundColor,
@@ -1813,7 +1814,8 @@ const configSettingsRuntime = createConfigSettingsRuntime({
   getConfig: () => configService.getConfig(),
   getWarnings: () => configService.getWarnings(),
   reloadConfigStrict: () => configService.reloadConfigStrict(),
-  applyHotReload: (diff, config) => applyConfigHotReloadDiff(diff, config),
+  defaultAnkiConnectUrl: DEFAULT_CONFIG.ankiConnect.url,
+  createAnkiClient: (url) => new AnkiConnectClient(url),
   getSettingsWindow: () => appState.configSettingsWindow,
   setSettingsWindow: (window) => {
     appState.configSettingsWindow = window as BrowserWindow | null;

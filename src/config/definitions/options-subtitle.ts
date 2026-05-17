@@ -70,6 +70,18 @@ export function buildSubtitleConfigOptionRegistry(
         'Hex color used when a subtitle token matches an entry from the SubMiner character dictionary.',
     },
     {
+      path: 'subtitleStyle.knownWordColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.knownWordColor,
+      description: 'Color used for known-word subtitle highlights.',
+    },
+    {
+      path: 'subtitleStyle.nPlusOneColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.nPlusOneColor,
+      description: 'Color used for the single N+1 target token subtitle highlight.',
+    },
+    {
       path: 'subtitleStyle.frequencyDictionary.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.subtitleStyle.frequencyDictionary.enabled,

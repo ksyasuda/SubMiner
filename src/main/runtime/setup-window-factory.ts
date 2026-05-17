@@ -79,7 +79,6 @@ export function createCreateConfigSettingsWindowHandler<TWindow>(deps: {
     title: 'SubMiner Configuration',
     resizable: true,
     preloadPath: deps.preloadPath,
-    sandbox: false,
     backgroundColor: '#24273a',
   });
 }

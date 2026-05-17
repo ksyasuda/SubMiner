@@ -155,6 +155,56 @@ test('subtitleStyle nameMatchColor accepts valid values and warns on invalid', (
   );
 });
 
+test('subtitleStyle knownWordColor accepts valid values and warns on invalid', () => {
+  const valid = createResolveContext({
+    subtitleStyle: {
+      knownWordColor: '#ed8796',
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.equal(valid.context.resolved.subtitleStyle.knownWordColor, '#ed8796');
+
+  const invalid = createResolveContext({
+    subtitleStyle: {
+      knownWordColor: 'pink',
+    },
+  });
+  applySubtitleDomainConfig(invalid.context);
+  assert.equal(invalid.context.resolved.subtitleStyle.knownWordColor, '#a6da95');
+  assert.ok(
+    invalid.warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.knownWordColor' &&
+        warning.message === 'Expected hex color.',
+    ),
+  );
+});
+
+test('subtitleStyle nPlusOneColor accepts valid values and warns on invalid', () => {
+  const valid = createResolveContext({
+    subtitleStyle: {
+      nPlusOneColor: '#ed8796',
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.equal(valid.context.resolved.subtitleStyle.nPlusOneColor, '#ed8796');
+
+  const invalid = createResolveContext({
+    subtitleStyle: {
+      nPlusOneColor: 'pink',
+    },
+  });
+  applySubtitleDomainConfig(invalid.context);
+  assert.equal(invalid.context.resolved.subtitleStyle.nPlusOneColor, '#c6a0f6');
+  assert.ok(
+    invalid.warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.nPlusOneColor' &&
+        warning.message === 'Expected hex color.',
+    ),
+  );
+});
+
 test('subtitleStyle frequencyDictionary.matchMode accepts valid values and warns on invalid', () => {
   const valid = createResolveContext({
     subtitleStyle: {

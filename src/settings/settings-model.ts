@@ -41,6 +41,7 @@ export function filterSettingsFields(
       field.description,
       field.configPath,
       field.section,
+      field.subsection ?? '',
       field.enumValues?.join(' ') ?? '',
     ]
       .join(' ')

@@ -292,18 +292,6 @@ export function buildIntegrationConfigOptionRegistry(
         'Decks and fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word", "Word Reading"] }.',
     },
     {
-      path: 'ankiConnect.nPlusOne.nPlusOne',
-      kind: 'string',
-      defaultValue: defaultConfig.ankiConnect.nPlusOne.nPlusOne,
-      description: 'Color used for the single N+1 target token highlight.',
-    },
-    {
-      path: 'ankiConnect.knownWords.color',
-      kind: 'string',
-      defaultValue: defaultConfig.ankiConnect.knownWords.color,
-      description: 'Color used for known-word highlights.',
-    },
-    {
       path: 'ankiConnect.isKiku.fieldGrouping',
       kind: 'enum',
       enumValues: ['auto', 'manual', 'disabled'],
@@ -567,7 +555,8 @@ export function buildIntegrationConfigOptionRegistry(
     },
     {
       path: 'discordPresence.presenceStyle',
-      kind: 'string',
+      kind: 'enum',
+      enumValues: ['default', 'meme', 'japanese', 'minimal'],
       defaultValue: defaultConfig.discordPresence.presenceStyle,
       description:
         'Presence card text preset: "default" (clean bilingual), "meme" (Mining and crafting), "japanese" (fully JP), or "minimal".',

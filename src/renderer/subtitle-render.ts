@@ -3,7 +3,7 @@ import type {
   PrimarySubMode,
   SecondarySubMode,
   SubtitleData,
-  SubtitleStyleConfig,
+  SubtitleRendererStyleConfig,
 } from '../types';
 import type { RendererContext } from './context';
 
@@ -635,7 +635,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     document.documentElement.style.setProperty('--subtitle-font-size', `${clampedSize}px`);
   }
 
-  function applySubtitleStyle(style: SubtitleStyleConfig | null): void {
+  function applySubtitleStyle(style: SubtitleRendererStyleConfig | null): void {
     if (!style) return;
 
     const styleDeclarations = style as Record<string, unknown>;

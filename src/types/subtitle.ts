@@ -126,6 +126,8 @@ export interface SubtitleStyleConfig {
   };
 }
 
+export type SubtitleRendererStyleConfig = SubtitleStyleConfig;
+
 export interface TokenPos1ExclusionConfig {
   defaults?: string[];
   add?: string[];

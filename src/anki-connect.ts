@@ -156,6 +156,48 @@ export class AnkiConnectClient {
     return (result as number[]) || [];
   }
 
+  async deckNames(): Promise<string[]> {
+    const result = await this.invoke('deckNames');
+    return Array.isArray(result)
+      ? result.filter((value): value is string => typeof value === 'string').sort()
+      : [];
+  }
+
+  async modelNames(): Promise<string[]> {
+    const result = await this.invoke('modelNames');
+    return Array.isArray(result)
+      ? result.filter((value): value is string => typeof value === 'string').sort()
+      : [];
+  }
+
+  async modelFieldNames(modelName: string): Promise<string[]> {
+    const result = await this.invoke('modelFieldNames', { modelName });
+    return Array.isArray(result)
+      ? result.filter((value): value is string => typeof value === 'string').sort()
+      : [];
+  }
+
+  async fieldNamesForDeck(deckName: string, sampleSize = 100): Promise<string[]> {
+    const escapedDeckName = deckName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const noteIds = await this.findNotes(`deck:"${escapedDeckName}"`, { maxRetries: 0 });
+    if (noteIds.length === 0) {
+      return [];
+    }
+
+    const noteInfos = await this.notesInfo(noteIds.slice(0, sampleSize));
+    const fields = new Set<string>();
+    for (const noteInfo of noteInfos) {
+      const noteFields = noteInfo.fields;
+      if (!noteFields || typeof noteFields !== 'object' || Array.isArray(noteFields)) {
+        continue;
+      }
+      for (const fieldName of Object.keys(noteFields)) {
+        fields.add(fieldName);
+      }
+    }
+    return [...fields].sort();
+  }
+
   async notesInfo(noteIds: number[]): Promise<Record<string, unknown>[]> {
     const result = await this.invoke('notesInfo', { notes: noteIds });
     return (result as Record<string, unknown>[]) || [];

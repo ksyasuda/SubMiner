@@ -3,15 +3,13 @@ import path from 'node:path';
 import { buildConfigSettingsSnapshot } from '../../config/settings/jsonc-edit';
 import type { ConfigValidationWarning, RawConfig, ResolvedConfig } from '../../types/config';
 import type {
+  ConfigSettingsAnkiListResult,
   ConfigSettingsField,
   ConfigSettingsSaveResult,
   ConfigSettingsSnapshot,
 } from '../../types/settings';
 import type { ReloadConfigStrictResult } from '../../config';
-import {
-  classifyConfigHotReloadDiff,
-  type ConfigHotReloadDiff,
-} from '../../core/services/config-hot-reload';
+import { classifyConfigHotReloadDiff } from '../../core/services/config-hot-reload';
 import { createSaveConfigSettingsPatchHandler } from './config-settings-save';
 import {
   createOpenConfigSettingsWindowHandler,
@@ -28,6 +26,17 @@ export interface ConfigSettingsIpcChannels {
   saveConfigSettingsPatch: string;
   openConfigSettingsFile: string;
   openConfigSettingsWindow: string;
+  getConfigSettingsAnkiDeckNames: string;
+  getConfigSettingsAnkiDeckFieldNames: string;
+  getConfigSettingsAnkiModelNames: string;
+  getConfigSettingsAnkiModelFieldNames: string;
+}
+
+export interface ConfigSettingsAnkiClient {
+  deckNames(): Promise<string[]>;
+  fieldNamesForDeck(deckName: string): Promise<string[]>;
+  modelNames(): Promise<string[]>;
+  modelFieldNames(modelName: string): Promise<string[]>;
 }
 
 export interface ConfigSettingsRuntimeDeps<TWindow extends ConfigSettingsWindowLike> {
@@ -37,12 +46,13 @@ export interface ConfigSettingsRuntimeDeps<TWindow extends ConfigSettingsWindowL
   getConfig(): ResolvedConfig;
   getWarnings(): ConfigValidationWarning[];
   reloadConfigStrict(): ReloadConfigStrictResult;
-  applyHotReload(diff: ConfigHotReloadDiff, config: ResolvedConfig): void;
   getSettingsWindow(): TWindow | null;
   setSettingsWindow(window: TWindow | null): void;
   createSettingsWindow(): TWindow;
   settingsHtmlPath: string;
   openPath(path: string): Promise<string>;
+  defaultAnkiConnectUrl: string;
+  createAnkiClient(url: string): ConfigSettingsAnkiClient;
   ipcMain: ConfigSettingsIpcMainLike;
   ipcChannels: ConfigSettingsIpcChannels;
   log?: (message: string) => void;
@@ -111,7 +121,6 @@ export function createConfigSettingsRuntime<TWindow extends ConfigSettingsWindow
     deleteFile: (targetPath) => fs.rmSync(targetPath, { force: true }),
     reloadConfigStrict: () => deps.reloadConfigStrict(),
     classifyDiff: (previous, next) => classifyConfigHotReloadDiff(previous, next),
-    applyHotReload: (diff, config) => deps.applyHotReload(diff, config),
     getRestartRequiredSections: (fields) => getRestartRequiredSettingsSections(deps.fields, fields),
   });
 
@@ -142,6 +151,36 @@ export function createConfigSettingsRuntime<TWindow extends ConfigSettingsWindow
     };
   }
 
+  function getAnkiConnectUrl(draftUrl: unknown): string {
+    return typeof draftUrl === 'string' && draftUrl.trim().length > 0
+      ? draftUrl.trim()
+      : deps.getConfig().ankiConnect.url || deps.defaultAnkiConnectUrl;
+  }
+
+  async function getAnkiList(
+    draftUrl: unknown,
+    lookup: (client: ConfigSettingsAnkiClient) => Promise<string[]>,
+  ): Promise<ConfigSettingsAnkiListResult> {
+    try {
+      const client = deps.createAnkiClient(getAnkiConnectUrl(draftUrl));
+      return { ok: true, values: await lookup(client) };
+    } catch (error) {
+      return {
+        ok: false,
+        values: [],
+        error: error instanceof Error ? error.message : 'Failed to query AnkiConnect.',
+      };
+    }
+  }
+
+  function invalidAnkiListResult(error: string): ConfigSettingsAnkiListResult {
+    return {
+      ok: false,
+      values: [],
+      error,
+    };
+  }
+
   function registerHandlers(): void {
     deps.ipcMain.handle(deps.ipcChannels.getConfigSettingsSnapshot, () => getSnapshot());
     deps.ipcMain.handle(deps.ipcChannels.saveConfigSettingsPatch, (_event, patch: unknown) => {
@@ -155,6 +194,26 @@ export function createConfigSettingsRuntime<TWindow extends ConfigSettingsWindow
       return openError.length === 0;
     });
     deps.ipcMain.handle(deps.ipcChannels.openConfigSettingsWindow, () => openWindow());
+    deps.ipcMain.handle(deps.ipcChannels.getConfigSettingsAnkiDeckNames, (_event, draftUrl) =>
+      getAnkiList(draftUrl, (client) => client.deckNames()),
+    );
+    deps.ipcMain.handle(
+      deps.ipcChannels.getConfigSettingsAnkiDeckFieldNames,
+      (_event, deckName, draftUrl) =>
+        typeof deckName === 'string'
+          ? getAnkiList(draftUrl, (client) => client.fieldNamesForDeck(deckName))
+          : invalidAnkiListResult('Deck name is required.'),
+    );
+    deps.ipcMain.handle(deps.ipcChannels.getConfigSettingsAnkiModelNames, (_event, draftUrl) =>
+      getAnkiList(draftUrl, (client) => client.modelNames()),
+    );
+    deps.ipcMain.handle(
+      deps.ipcChannels.getConfigSettingsAnkiModelFieldNames,
+      (_event, modelName, draftUrl) =>
+        typeof modelName === 'string'
+          ? getAnkiList(draftUrl, (client) => client.modelFieldNames(modelName))
+          : invalidAnkiListResult('Note type is required.'),
+    );
   }
 
   return {

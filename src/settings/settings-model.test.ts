@@ -14,8 +14,8 @@ const fields: ConfigSettingsField[] = [
     label: 'Pause on subtitle hover',
     description: 'Pause while hovering subtitles.',
     configPath: 'subtitleStyle.autoPauseVideoOnHover',
-    category: 'viewing',
-    section: 'Playback pause behavior',
+    category: 'behavior',
+    section: 'Playback Pause Behavior',
     control: 'boolean',
     defaultValue: true,
     restartBehavior: 'hot-reload',
@@ -35,12 +35,12 @@ const fields: ConfigSettingsField[] = [
 
 test('filterSettingsFields searches label, section, and config path', () => {
   assert.deepEqual(
-    filterSettingsFields(fields, { category: 'viewing', query: 'hover' }).map(
+    filterSettingsFields(fields, { category: 'behavior', query: 'hover' }).map(
       (field) => field.configPath,
     ),
     ['subtitleStyle.autoPauseVideoOnHover'],
   );
-  assert.deepEqual(filterSettingsFields(fields, { category: 'viewing', query: 'anki' }), []);
+  assert.deepEqual(filterSettingsFields(fields, { category: 'behavior', query: 'anki' }), []);
 });
 
 test('settings draft tracks dirty set and emits save operations', () => {

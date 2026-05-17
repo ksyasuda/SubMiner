@@ -212,10 +212,8 @@ export interface ResolvedConfig {
       addMinedWordsImmediately: boolean;
       matchMode: NPlusOneMatchMode;
       decks: Record<string, string[]>;
-      color: string;
     };
     nPlusOne: {
-      nPlusOne: string;
       minSentenceWords: number;
     };
     behavior: {

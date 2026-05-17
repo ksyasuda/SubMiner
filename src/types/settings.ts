@@ -1,7 +1,8 @@
 import type { ConfigValidationWarning } from './config';
 
 export type ConfigSettingsCategory =
-  | 'viewing'
+  | 'appearance'
+  | 'behavior'
   | 'mining-anki'
   | 'playback-sources'
   | 'input'
@@ -18,7 +19,14 @@ export type ConfigSettingsControl =
   | 'color'
   | 'string-list'
   | 'json'
-  | 'secret';
+  | 'secret'
+  | 'keyboard-shortcut'
+  | 'key-code'
+  | 'known-words-decks'
+  | 'anki-note-type'
+  | 'anki-field'
+  | 'mpv-keybindings'
+  | 'color-list';
 
 export type ConfigSettingsRestartBehavior = 'hot-reload' | 'restart';
 
@@ -29,6 +37,7 @@ export interface ConfigSettingsField {
   configPath: string;
   category: ConfigSettingsCategory;
   section: string;
+  subsection?: string;
   control: ConfigSettingsControl;
   defaultValue: unknown;
   enumValues?: readonly string[];
@@ -77,4 +86,20 @@ export interface ConfigSettingsAPI {
   savePatch(patch: ConfigSettingsPatch): Promise<ConfigSettingsSaveResult>;
   openSettingsFile(): Promise<boolean>;
   openSettingsWindow(): Promise<boolean>;
+  getAnkiDeckNames(draftUrl?: string): Promise<ConfigSettingsAnkiListResult>;
+  getAnkiDeckFieldNames(
+    deckName: string,
+    draftUrl?: string,
+  ): Promise<ConfigSettingsAnkiListResult>;
+  getAnkiModelNames(draftUrl?: string): Promise<ConfigSettingsAnkiListResult>;
+  getAnkiModelFieldNames(
+    modelName: string,
+    draftUrl?: string,
+  ): Promise<ConfigSettingsAnkiListResult>;
+}
+
+export interface ConfigSettingsAnkiListResult {
+  ok: boolean;
+  values: string[];
+  error?: string;
 }

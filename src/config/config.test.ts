@@ -1846,7 +1846,7 @@ test('accepts valid ankiConnect knownWords match mode values', () => {
   assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
 });
 
-test('validates ankiConnect knownWords and n+1 color values', () => {
+test('validates legacy ankiConnect knownWords and n+1 color values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
@@ -1867,13 +1867,13 @@ test('validates ankiConnect knownWords and n+1 color values', () => {
   const config = service.getConfig();
   const warnings = service.getWarnings();
 
-  assert.equal(config.ankiConnect.nPlusOne.nPlusOne, DEFAULT_CONFIG.ankiConnect.nPlusOne.nPlusOne);
-  assert.equal(config.ankiConnect.knownWords.color, DEFAULT_CONFIG.ankiConnect.knownWords.color);
+  assert.equal(config.subtitleStyle.nPlusOneColor, DEFAULT_CONFIG.subtitleStyle.nPlusOneColor);
+  assert.equal(config.subtitleStyle.knownWordColor, DEFAULT_CONFIG.subtitleStyle.knownWordColor);
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.nPlusOne'));
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.color'));
 });
 
-test('accepts valid ankiConnect knownWords and n+1 color values', () => {
+test('maps legacy ankiConnect knownWords and n+1 color values to subtitleStyle', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
@@ -1893,8 +1893,8 @@ test('accepts valid ankiConnect knownWords and n+1 color values', () => {
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
-  assert.equal(config.ankiConnect.nPlusOne.nPlusOne, '#c6a0f6');
-  assert.equal(config.ankiConnect.knownWords.color, '#a6da95');
+  assert.equal(config.subtitleStyle.nPlusOneColor, '#c6a0f6');
+  assert.equal(config.subtitleStyle.knownWordColor, '#a6da95');
 });
 
 test('supports legacy ankiConnect nPlusOne known-word settings as fallback', () => {
@@ -1926,7 +1926,7 @@ test('supports legacy ankiConnect nPlusOne known-word settings as fallback', () 
     Mining: ['Expression', 'Word', 'Reading', 'Word Reading'],
     'Kaishi 1.5k': ['Expression', 'Word', 'Reading', 'Word Reading'],
   });
-  assert.equal(config.ankiConnect.knownWords.color, '#a6da95');
+  assert.equal(config.subtitleStyle.knownWordColor, '#a6da95');
   assert.ok(
     warnings.some(
       (warning) =>
@@ -2280,9 +2280,9 @@ test('template generator includes known keys', () => {
   assert.match(output, /"characterDictionary":\s*\{/);
   assert.match(output, /"preserveLineBreaks": false/);
   assert.match(output, /"knownWords"\s*:\s*\{/);
-  assert.match(output, /"color": "#a6da95"/);
+  assert.match(output, /"knownWordColor": "#a6da95"/);
+  assert.match(output, /"nPlusOneColor": "#c6a0f6"/);
   assert.match(output, /"nPlusOne"\s*:\s*\{/);
-  assert.match(output, /"nPlusOne": "#c6a0f6"/);
   assert.match(output, /"minSentenceWords": 3/);
   assert.match(output, /auto-generated from src\/config\/definitions.ts/);
   assert.match(

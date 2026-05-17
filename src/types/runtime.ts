@@ -31,6 +31,7 @@ import type {
   SubtitlePosition,
   SubtitleSidebarConfig,
   SubtitleSidebarSnapshot,
+  SubtitleRendererStyleConfig,
   SubtitleStyleConfig,
 } from './subtitle';
 import type {
@@ -343,7 +344,7 @@ export interface ConfigHotReloadPayload {
   keybindings: Keybinding[];
   sessionBindings: CompiledSessionBinding[];
   sessionBindingWarnings: SessionBindingWarning[];
-  subtitleStyle: SubtitleStyleConfig | null;
+  subtitleStyle: SubtitleRendererStyleConfig | null;
   subtitleSidebar: Required<SubtitleSidebarConfig>;
   primarySubMode: PrimarySubMode;
   secondarySubMode: SecondarySubMode;
@@ -426,7 +427,7 @@ export interface ElectronAPI {
   getSecondarySubMode: () => Promise<SecondarySubMode>;
   getCurrentSecondarySub: () => Promise<string>;
   focusMainWindow: () => Promise<void>;
-  getSubtitleStyle: () => Promise<SubtitleStyleConfig | null>;
+  getSubtitleStyle: () => Promise<SubtitleRendererStyleConfig | null>;
   onSubsyncManualOpen: (callback: (payload: SubsyncManualPayload) => void) => void;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
   onKikuFieldGroupingRequest: (callback: (data: KikuFieldGroupingRequestData) => void) => void;
