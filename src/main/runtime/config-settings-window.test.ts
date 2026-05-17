@@ -49,3 +49,35 @@ test('createOpenConfigSettingsWindowHandler creates window and clears closed sta
   handlers.closed();
   assert.equal(calls.at(-1), 'set:null');
 });
+
+test('createOpenConfigSettingsWindowHandler clears failed load window state', async () => {
+  const calls: string[] = [];
+  const created = {
+    isDestroyed: () => false,
+    focus: () => calls.push('focus'),
+    loadFile: (path: string) => {
+      calls.push(`load:${path}`);
+      return Promise.reject(new Error('missing settings html'));
+    },
+    on: () => {},
+    destroy: () => calls.push('destroy'),
+  };
+
+  const open = createOpenConfigSettingsWindowHandler({
+    getSettingsWindow: () => null,
+    setSettingsWindow: (window) => calls.push(window ? 'set:window' : 'set:null'),
+    createSettingsWindow: () => created,
+    settingsHtmlPath: '/tmp/missing-settings.html',
+  });
+
+  assert.equal(open(), true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(calls, [
+    'load:/tmp/missing-settings.html',
+    'set:window',
+    'focus',
+    'set:null',
+    'destroy',
+  ]);
+});

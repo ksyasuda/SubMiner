@@ -581,7 +581,8 @@ export function buildCoreConfigOptionRegistry(
       path: 'shortcuts.openControllerDebug',
       kind: 'string',
       defaultValue: defaultConfig.shortcuts.openControllerDebug,
-      description: 'Accelerator that opens the controller debug modal with live axis/button readouts.',
+      description:
+        'Accelerator that opens the controller debug modal with live axis/button readouts.',
     },
     {
       path: 'shortcuts.toggleSubtitleSidebar',

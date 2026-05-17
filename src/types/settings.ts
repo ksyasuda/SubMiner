@@ -38,7 +38,7 @@ export interface ConfigSettingsField {
   legacyHidden?: boolean;
 }
 
-export type ConfigSettingsSnapshotValue = unknown | { configured: boolean };
+export type ConfigSettingsSnapshotValue = unknown;
 
 export interface ConfigSettingsSnapshot {
   configPath: string;

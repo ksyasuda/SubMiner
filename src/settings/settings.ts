@@ -6,6 +6,7 @@ import type {
   ConfigSettingsSnapshot,
   ConfigSettingsSnapshotValue,
 } from '../types/settings';
+import { parseOptionalNumberInputValue } from './input-values';
 import {
   createSettingsDraft,
   filterSettingsFields,
@@ -207,11 +208,11 @@ function renderControl(field: ConfigSettingsField): HTMLElement {
     input.type = 'number';
     input.value = typeof value === 'number' ? String(value) : '';
     input.addEventListener('input', () => {
-      const next = Number(input.value);
-      if (Number.isFinite(next)) {
+      const next = parseOptionalNumberInputValue(input.value);
+      if (next.ok) {
         input.classList.remove('invalid');
         setFieldError(field.configPath, null);
-        updateDraft(field.configPath, next);
+        updateDraft(field.configPath, next.value);
       } else {
         input.classList.add('invalid');
         setFieldError(field.configPath, 'Invalid number');
@@ -405,29 +406,34 @@ async function save(): Promise<void> {
 
   dom.saveButton.disabled = true;
   setStatus('Saving...', 'info');
-  const result = await window.configSettingsAPI.savePatch({ operations });
-  if (!result.ok || !result.snapshot) {
-    const message =
-      result.error ??
-      result.warnings?.map((warning) => `${warning.path}: ${warning.message}`).join('\n') ??
-      'Save failed';
-    setStatus(message, 'error');
-    syncSaveButton();
-    return;
-  }
+  try {
+    const result = await window.configSettingsAPI.savePatch({ operations });
+    if (!result.ok || !result.snapshot) {
+      const message =
+        result.error ??
+        result.warnings?.map((warning) => `${warning.path}: ${warning.message}`).join('\n') ??
+        'Save failed';
+      setStatus(message, 'error');
+      return;
+    }
 
-  state.snapshot = result.snapshot;
-  state.draft = createSettingsDraft(result.snapshot.values);
-  state.inputErrors.clear();
-  const restartSections = result.restartRequiredSections ?? [];
-  if (restartSections.length > 0) {
-    setStatus(`Saved. Restart required: ${restartSections.join(', ')}`, 'info');
-  } else if (result.hotReloadFields.length > 0) {
-    setStatus('Saved. Live settings applied.', 'success');
-  } else {
-    setStatus('Saved.', 'success');
+    state.snapshot = result.snapshot;
+    state.draft = createSettingsDraft(result.snapshot.values);
+    state.inputErrors.clear();
+    const restartSections = result.restartRequiredSections ?? [];
+    if (restartSections.length > 0) {
+      setStatus(`Saved. Restart required: ${restartSections.join(', ')}`, 'info');
+    } else if (result.hotReloadFields.length > 0) {
+      setStatus('Saved. Live settings applied.', 'success');
+    } else {
+      setStatus('Saved.', 'success');
+    }
+    render();
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : 'Save failed', 'error');
+  } finally {
+    syncSaveButton();
   }
-  render();
 }
 
 dom.searchInput.addEventListener('input', () => {

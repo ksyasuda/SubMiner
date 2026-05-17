@@ -117,3 +117,28 @@ test('curl HTTP executor verifies downloaded updater asset hashes', async () => 
     /sha512 mismatch/,
   );
 });
+
+test('curl HTTP executor does not expose command arguments when stderr is empty', async () => {
+  const execFile: CurlExecFile = (_file, _args, _options, callback) => {
+    const error = new Error('--header Authorization: Bearer secret-token');
+    Object.assign(error, { code: 'ENOENT' });
+    queueMicrotask(() => callback(error, '', ''));
+    return { kill: () => true };
+  };
+  const executor = createCurlHttpExecutor({ execFile, curlPath: '/usr/bin/curl' });
+
+  await assert.rejects(
+    () =>
+      executor.request({
+        protocol: 'https:',
+        hostname: 'api.github.com',
+        path: '/repos/ksyasuda/SubMiner/releases',
+      }),
+    (error) => {
+      assert.ok(error instanceof Error);
+      assert.equal(error.message, 'curl failed (ENOENT)');
+      assert.doesNotMatch(error.message, /secret-token|Authorization/);
+      return true;
+    },
+  );
+});

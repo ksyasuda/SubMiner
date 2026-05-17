@@ -106,8 +106,10 @@ function runCurl<T>(options: {
       },
       (error, stdout, stderr) => {
         if (error) {
-          const message = Buffer.isBuffer(stderr) ? stderr.toString('utf8') : stderr;
-          reject(new Error(message.trim() || error.message));
+          const stderrMessage = Buffer.isBuffer(stderr) ? stderr.toString('utf8') : stderr;
+          const errno = (error as NodeJS.ErrnoException).code;
+          const safeFallback = errno ? `curl failed (${errno})` : 'curl failed';
+          reject(new Error(stderrMessage.trim() || safeFallback));
           return;
         }
         resolve(stdout as T);

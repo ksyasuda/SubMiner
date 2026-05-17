@@ -23,24 +23,22 @@ function copyFile(sourcePath, outputPath) {
   fs.copyFileSync(sourcePath, outputPath);
 }
 
-function copyRendererAssets() {
-  copyFile(path.join(rendererSourceDir, 'index.html'), path.join(rendererOutputDir, 'index.html'));
-  copyFile(path.join(rendererSourceDir, 'style.css'), path.join(rendererOutputDir, 'style.css'));
-  fs.cpSync(path.join(rendererSourceDir, 'fonts'), path.join(rendererOutputDir, 'fonts'), {
+function copyAssets(sourceDir, outputDir, label) {
+  copyFile(path.join(sourceDir, 'index.html'), path.join(outputDir, 'index.html'));
+  copyFile(path.join(sourceDir, 'style.css'), path.join(outputDir, 'style.css'));
+  fs.cpSync(path.join(rendererSourceDir, 'fonts'), path.join(outputDir, 'fonts'), {
     recursive: true,
     force: true,
   });
-  process.stdout.write(`Staged renderer assets in ${rendererOutputDir}\n`);
+  process.stdout.write(`Staged ${label} assets in ${outputDir}\n`);
+}
+
+function copyRendererAssets() {
+  copyAssets(rendererSourceDir, rendererOutputDir, 'renderer');
 }
 
 function copySettingsAssets() {
-  copyFile(path.join(settingsSourceDir, 'index.html'), path.join(settingsOutputDir, 'index.html'));
-  copyFile(path.join(settingsSourceDir, 'style.css'), path.join(settingsOutputDir, 'style.css'));
-  fs.cpSync(path.join(rendererSourceDir, 'fonts'), path.join(settingsOutputDir, 'fonts'), {
-    recursive: true,
-    force: true,
-  });
-  process.stdout.write(`Staged settings assets in ${settingsOutputDir}\n`);
+  copyAssets(settingsSourceDir, settingsOutputDir, 'settings');
 }
 
 function fallbackToMacosSource() {

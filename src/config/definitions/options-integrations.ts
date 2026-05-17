@@ -124,13 +124,15 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'ankiConnect.behavior.overwriteAudio',
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.behavior.overwriteAudio,
-      description: 'When updating an existing card, overwrite the audio field instead of skipping it.',
+      description:
+        'When updating an existing card, overwrite the audio field instead of skipping it.',
     },
     {
       path: 'ankiConnect.behavior.overwriteImage',
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.behavior.overwriteImage,
-      description: 'When updating an existing card, overwrite the image field instead of skipping it.',
+      description:
+        'When updating an existing card, overwrite the image field instead of skipping it.',
     },
     {
       path: 'ankiConnect.behavior.mediaInsertMode',
@@ -230,7 +232,8 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'ankiConnect.media.animatedCrf',
       kind: 'number',
       defaultValue: defaultConfig.ankiConnect.media.animatedCrf,
-      description: 'Animated AVIF CRF quality target. Lower values produce larger, higher-quality files.',
+      description:
+        'Animated AVIF CRF quality target. Lower values produce larger, higher-quality files.',
     },
     {
       path: 'ankiConnect.media.audioPadding',
@@ -242,8 +245,7 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'ankiConnect.media.fallbackDuration',
       kind: 'number',
       defaultValue: defaultConfig.ankiConnect.media.fallbackDuration,
-      description:
-        'Fallback clip duration in seconds when subtitle timing data is unavailable.',
+      description: 'Fallback clip duration in seconds when subtitle timing data is unavailable.',
     },
     {
       path: 'ankiConnect.media.maxMediaDuration',
@@ -487,8 +489,7 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'jellyfin.clientName',
       kind: 'string',
       defaultValue: defaultConfig.jellyfin.clientName,
-      description:
-        'Client name sent on the Jellyfin authentication handshake; primarily internal.',
+      description: 'Client name sent on the Jellyfin authentication handshake; primarily internal.',
     },
     {
       path: 'jellyfin.clientVersion',

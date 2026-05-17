@@ -3,6 +3,7 @@ export interface ConfigSettingsWindowLike {
   focus(): void;
   loadFile(path: string): unknown;
   on(event: 'closed', handler: () => void): unknown;
+  destroy?(): unknown;
 }
 
 export interface OpenConfigSettingsWindowDeps<TWindow extends ConfigSettingsWindowLike> {
@@ -10,6 +11,7 @@ export interface OpenConfigSettingsWindowDeps<TWindow extends ConfigSettingsWind
   setSettingsWindow(window: TWindow | null): void;
   createSettingsWindow(): TWindow;
   settingsHtmlPath: string;
+  log?: (message: string) => void;
 }
 
 export function createOpenConfigSettingsWindowHandler<TWindow extends ConfigSettingsWindowLike>(
@@ -23,7 +25,12 @@ export function createOpenConfigSettingsWindowHandler<TWindow extends ConfigSett
     }
 
     const window = deps.createSettingsWindow();
-    window.loadFile(deps.settingsHtmlPath);
+    void Promise.resolve(window.loadFile(deps.settingsHtmlPath)).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      deps.log?.(`Failed to load configuration settings window: ${message}`);
+      deps.setSettingsWindow(null);
+      window.destroy?.();
+    });
     deps.setSettingsWindow(window);
     window.on('closed', () => {
       deps.setSettingsWindow(null);

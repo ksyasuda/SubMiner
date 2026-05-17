@@ -121,6 +121,7 @@ function createCommandLineLauncherSnapshot(
 test('shouldAutoOpenFirstRunSetup only for startup/setup intents', () => {
   assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, background: true })), true);
   assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ background: true, setup: true })), true);
+  assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, configSettings: true })), false);
   assert.equal(
     shouldAutoOpenFirstRunSetup(makeArgs({ background: true, jellyfinRemoteAnnounce: true })),
     false,

@@ -121,21 +121,20 @@ export function createUpdateService(deps: UpdateServiceDeps) {
     }
 
     try {
-      const appUpdate = await deps.checkAppUpdate(channel).catch((error) => {
+      const appUpdate: AppUpdateMetadata = await deps.checkAppUpdate(channel).catch((error) => {
         if (isAutomatic) {
           deps.log(`App update metadata check failed: ${summarizeError(error)}`);
         }
         return {
           available: false,
           version: deps.getCurrentVersion(),
-          canUpdate: false,
         };
       });
       const shouldFetchReleaseMetadata =
         deps.shouldFetchReleaseMetadata?.({ request, channel, appUpdate }) ?? true;
       const release = shouldFetchReleaseMetadata
         ? await deps.fetchLatestStableRelease(channel).catch((error) => {
-            deps.log(`GitHub release update check failed: ${(error as Error).message}`);
+            deps.log(`GitHub release update check failed: ${summarizeError(error)}`);
             return null;
           })
         : null;
@@ -192,7 +191,7 @@ export function createUpdateService(deps: UpdateServiceDeps) {
       }
       return { status: 'updated', version: latest.version };
     } catch (error) {
-      const message = (error as Error).message;
+      const message = summarizeError(error);
       if (isAutomatic) {
         deps.log(`Automatic update check failed: ${message}`);
       } else {

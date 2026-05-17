@@ -20,6 +20,7 @@ export interface ConfigSettingsSaveDeps {
   fileExists(path: string): boolean;
   readText(path: string): string;
   writeTextAtomically(path: string, content: string): void;
+  deleteFile?(path: string): void;
   reloadConfigStrict(): ReloadConfigStrictResult;
   classifyDiff(prev: ResolvedConfig, next: ResolvedConfig): ConfigSettingsHotReloadDiff;
   applyHotReload(diff: ConfigSettingsHotReloadDiff, config: ResolvedConfig): void;
@@ -41,7 +42,8 @@ export function createSaveConfigSettingsPatchHandler(deps: ConfigSettingsSaveDep
     const configPath = deps.getConfigPath();
     const previousConfig = deps.getCurrentConfig();
     const previousWarnings = deps.getWarnings();
-    const content = deps.fileExists(configPath) ? deps.readText(configPath) : '{}\n';
+    const hadExistingConfig = deps.fileExists(configPath);
+    const content = hadExistingConfig ? deps.readText(configPath) : '{}\n';
     const candidate = applyConfigSettingsPatchToContent({
       content,
       operations: patch.operations,
@@ -62,6 +64,13 @@ export function createSaveConfigSettingsPatchHandler(deps: ConfigSettingsSaveDep
     deps.writeTextAtomically(configPath, candidate.content);
     const reloadResult = deps.reloadConfigStrict();
     if (!reloadResult.ok) {
+      if (hadExistingConfig) {
+        deps.writeTextAtomically(configPath, content);
+      } else if (deps.deleteFile) {
+        deps.deleteFile(configPath);
+      } else {
+        deps.writeTextAtomically(configPath, content);
+      }
       return {
         ok: false,
         warnings: [],

@@ -84,8 +84,7 @@ export function createBuildOpenYomitanSettingsMainDepsHandler<TYomitanExt, TWind
       : {}),
     ...(deps.getYomitanExtensionLoadInFlight
       ? {
-          getYomitanExtensionLoadInFlight: () =>
-            deps.getYomitanExtensionLoadInFlight?.() ?? null,
+          getYomitanExtensionLoadInFlight: () => deps.getYomitanExtensionLoadInFlight?.() ?? null,
         }
       : {}),
     openYomitanSettingsWindow: (params: {

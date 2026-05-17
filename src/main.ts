@@ -325,7 +325,6 @@ import {
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
   addYomitanNoteViaSearch,
-  classifyConfigHotReloadDiff,
   clearYomitanParserCachesForWindow,
   syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore,
   sendMpvCommandRuntime,
@@ -531,8 +530,7 @@ import {
   createCreateFirstRunSetupWindowHandler,
   createCreateJellyfinSetupWindowHandler,
 } from './main/runtime/setup-window-factory';
-import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-settings-window';
-import { createSaveConfigSettingsPatchHandler } from './main/runtime/config-settings-save';
+import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
 import { isYoutubePlaybackActive } from './main/runtime/youtube-playback';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
@@ -566,13 +564,7 @@ import {
   generateConfigTemplate,
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
-import { buildConfigSettingsSnapshot } from './config/settings/jsonc-edit';
 import { buildConfigSettingsRegistry } from './config/settings/registry';
-import type {
-  ConfigSettingsPatch,
-  ConfigSettingsSaveResult,
-  ConfigSettingsSnapshot,
-} from './types/settings';
 import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
 import {
   createSubtitlePrefetchService,
@@ -1806,96 +1798,14 @@ const configHotReloadRuntime = createConfigHotReloadRuntime(
   buildConfigHotReloadRuntimeMainDepsHandler(),
 );
 
-function getConfigSettingsSnapshot(): ConfigSettingsSnapshot {
-  return buildConfigSettingsSnapshot({
-    configPath: configService.getConfigPath(),
-    rawConfig: configService.getRawConfig(),
-    resolvedConfig: configService.getConfig(),
-    warnings: configService.getWarnings(),
-    fields: configSettingsFields,
-  });
-}
-
-function isConfigSettingsPatch(value: unknown): value is ConfigSettingsPatch {
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
-  const operations = (value as { operations?: unknown }).operations;
-  return (
-    Array.isArray(operations) &&
-    operations.every((operation) => {
-      if (!operation || typeof operation !== 'object') {
-        return false;
-      }
-      const candidate = operation as { op?: unknown; path?: unknown };
-      return (
-        (candidate.op === 'set' || candidate.op === 'reset') &&
-        typeof candidate.path === 'string' &&
-        configSettingsFields.some((field) => field.configPath === candidate.path)
-      );
-    })
-  );
-}
-
-function writeTextFileAtomically(targetPath: string, content: string): void {
-  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  const tempPath = path.join(
-    path.dirname(targetPath),
-    `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.tmp`,
-  );
-  try {
-    fs.writeFileSync(tempPath, content, 'utf-8');
-    fs.renameSync(tempPath, targetPath);
-  } catch (error) {
-    try {
-      fs.rmSync(tempPath, { force: true });
-    } catch {
-      // Best effort cleanup after a failed atomic write.
-    }
-    throw error;
-  }
-}
-
-function getRestartRequiredSettingsSections(restartRequiredFields: string[]): string[] {
-  const sections = new Set<string>();
-  for (const field of configSettingsFields) {
-    if (
-      restartRequiredFields.some(
-        (restartField) =>
-          field.configPath === restartField ||
-          field.configPath.startsWith(`${restartField}.`) ||
-          restartField.startsWith(`${field.configPath}.`),
-      )
-    ) {
-      sections.add(field.section);
-    }
-  }
-  return [...sections].sort();
-}
-
-const saveConfigSettingsPatch = createSaveConfigSettingsPatchHandler({
+const configSettingsRuntime = createConfigSettingsRuntime({
+  fields: configSettingsFields,
   getConfigPath: () => configService.getConfigPath(),
-  getCurrentConfig: () => configService.getConfig(),
+  getRawConfig: () => configService.getRawConfig(),
+  getConfig: () => configService.getConfig(),
   getWarnings: () => configService.getWarnings(),
-  getSnapshot: () => getConfigSettingsSnapshot(),
-  fileExists: (targetPath) => fs.existsSync(targetPath),
-  readText: (targetPath) => fs.readFileSync(targetPath, 'utf-8'),
-  writeTextAtomically: (targetPath, content) => writeTextFileAtomically(targetPath, content),
   reloadConfigStrict: () => configService.reloadConfigStrict(),
-  classifyDiff: (previous, next) => classifyConfigHotReloadDiff(previous, next),
   applyHotReload: (diff, config) => applyConfigHotReloadDiff(diff, config),
-  getRestartRequiredSections: (fields) => getRestartRequiredSettingsSections(fields),
-});
-
-function ensureConfigSettingsFileExists(): string {
-  const configPath = configService.getConfigPath();
-  if (!fs.existsSync(configPath)) {
-    writeTextFileAtomically(configPath, '{}\n');
-  }
-  return configPath;
-}
-
-const openConfigSettingsWindow = createOpenConfigSettingsWindowHandler({
   getSettingsWindow: () => appState.configSettingsWindow,
   setSettingsWindow: (window) => {
     appState.configSettingsWindow = window as BrowserWindow | null;
@@ -1905,27 +1815,14 @@ const openConfigSettingsWindow = createOpenConfigSettingsWindowHandler({
     preloadPath: path.join(__dirname, 'preload-settings.js'),
   }),
   settingsHtmlPath: path.join(__dirname, 'settings', 'index.html'),
+  openPath: (targetPath) => shell.openPath(targetPath),
+  ipcMain,
+  ipcChannels: IPC_CHANNELS.request,
+  log: (message) => logger.error(message),
 });
 
-ipcMain.handle(IPC_CHANNELS.request.getConfigSettingsSnapshot, () => getConfigSettingsSnapshot());
-ipcMain.handle(IPC_CHANNELS.request.saveConfigSettingsPatch, (_event, patch: unknown) => {
-  if (!isConfigSettingsPatch(patch)) {
-    return {
-      ok: false,
-      warnings: [],
-      error: 'Invalid config settings patch.',
-      hotReloadFields: [],
-      restartRequiredFields: [],
-      restartRequiredSections: [],
-    } satisfies ConfigSettingsSaveResult;
-  }
-  return saveConfigSettingsPatch(patch);
-});
-ipcMain.handle(IPC_CHANNELS.request.openConfigSettingsFile, async () => {
-  const openError = await shell.openPath(ensureConfigSettingsFileExists());
-  return openError.length === 0;
-});
-ipcMain.handle(IPC_CHANNELS.request.openConfigSettingsWindow, () => openConfigSettingsWindow());
+configSettingsRuntime.registerHandlers();
+const openConfigSettingsWindow = () => configSettingsRuntime.openWindow();
 
 const buildDictionaryRootsHandler = createBuildDictionaryRootsMainHandler({
   platform: process.platform,

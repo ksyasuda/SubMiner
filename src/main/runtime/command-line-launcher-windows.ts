@@ -47,10 +47,7 @@ export function getUserPath(options: CommonOptions & WindowsPathOptions): string
   return options.getUserPath?.() ?? envOf(options).Path ?? envOf(options).PATH ?? '';
 }
 
-async function setWindowsUserPath(
-  options: CommonOptions & WindowsPathOptions,
-  nextPath: string,
-) {
+async function setWindowsUserPath(options: CommonOptions & WindowsPathOptions, nextPath: string) {
   if (options.setUserPath) {
     await options.setUserPath(nextPath);
     return;
@@ -96,6 +93,7 @@ export async function appendWindowsUserPathDir(
 }
 
 export function defaultBunRepairPath(options: CommonOptions & WindowsPathOptions): string {
-  const userProfile = options.userProfile ?? envOf(options).USERPROFILE ?? options.homeDir ?? os.homedir();
+  const userProfile =
+    options.userProfile ?? envOf(options).USERPROFILE ?? options.homeDir ?? os.homedir();
   return path.win32.join(userProfile, '.bun', 'bin');
 }

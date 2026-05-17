@@ -36,12 +36,15 @@ export interface ElectronAutoUpdaterLike {
   } | null>;
   downloadUpdate: () => Promise<unknown>;
   quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void;
-  httpExecutor?: unknown;
   disableDifferentialDownload?: boolean;
 }
 
 const updaterErrorListeners = new WeakMap<object, (error: unknown) => void>();
 const execFileAsync = promisify(execFile);
+
+type ElectronAutoUpdaterWithHttpExecutor = ElectronAutoUpdaterLike & {
+  httpExecutor?: unknown;
+};
 
 export function resolveMacAppBundlePath(execPath: string): string | null {
   const marker = '.app/Contents/MacOS/';
@@ -198,7 +201,8 @@ export function createElectronAppUpdater(options: {
     getChannel(),
   );
   if (options.configureHttpExecutor) {
-    updater.httpExecutor = options.configureHttpExecutor();
+    // electron-updater has no public executor hook; keep the macOS cURL override localized.
+    (updater as ElectronAutoUpdaterWithHttpExecutor).httpExecutor = options.configureHttpExecutor();
   }
   if (options.disableDifferentialDownload !== undefined) {
     updater.disableDifferentialDownload = options.disableDifferentialDownload;

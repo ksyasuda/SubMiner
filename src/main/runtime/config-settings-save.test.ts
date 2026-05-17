@@ -109,3 +109,40 @@ test('config settings save returns restart-required sections without applying ho
   assert.deepEqual(result.restartRequiredFields, ['mpv']);
   assert.deepEqual(result.restartRequiredSections, ['mpv launcher']);
 });
+
+test('config settings save restores previous file content when strict reload fails', () => {
+  const writes: string[] = [];
+  const save = createSaveConfigSettingsPatchHandler({
+    getConfigPath: () => '/tmp/config.jsonc',
+    getCurrentConfig: () => DEFAULT_CONFIG,
+    getWarnings: () => [],
+    getSnapshot: () => snapshot(),
+    fileExists: () => true,
+    readText: () => '{"mpv":{"launchMode":"normal"}}\n',
+    writeTextAtomically: (_path, content) => {
+      writes.push(content);
+    },
+    reloadConfigStrict: (): ReloadConfigStrictResult => ({
+      ok: false,
+      error: 'invalid config',
+      path: '/tmp/config.jsonc',
+    }),
+    classifyDiff: () => {
+      throw new Error('Should not classify invalid config.');
+    },
+    applyHotReload: () => {
+      throw new Error('Should not hot reload invalid config.');
+    },
+    getRestartRequiredSections: () => [],
+  });
+
+  const result = save({
+    operations: [{ op: 'set', path: 'mpv.launchMode', value: 'fullscreen' }],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'invalid config');
+  assert.equal(writes.length, 2);
+  assert.match(writes[0] ?? '', /fullscreen/);
+  assert.equal(writes[1], '{"mpv":{"launchMode":"normal"}}\n');
+});
