@@ -280,6 +280,34 @@ test('launcher config command forwards app configuration window command', () => 
   });
 });
 
+test('launcher config command suppresses known Electron macOS menu diagnostics', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    fs.writeFileSync(
+      appPath,
+      [
+        '#!/bin/sh',
+        'printf "%s\\n" "2026-05-17 02:59:52.141 SubMiner[29060:305323] representedObject is not a WeakPtrToElectronMenuModelAsNSObject" >&2',
+        'printf "%s\\n" "real stderr line" >&2',
+        'exit 0',
+        '',
+      ].join('\n'),
+    );
+    fs.chmodSync(appPath, 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      SUBMINER_APPIMAGE_PATH: appPath,
+    };
+    const result = runLauncher(['config'], env);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, 'real stderr line\n');
+  });
+});
+
 test('launcher forwards --args to mpv as parsed tokens', { timeout: 15000 }, () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');

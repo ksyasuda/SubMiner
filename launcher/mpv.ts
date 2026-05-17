@@ -1229,6 +1229,14 @@ function appendCapturedAppOutput(kind: 'STDOUT' | 'STDERR', chunk: string): void
   }
 }
 
+const KNOWN_ELECTRON_MENU_DIAGNOSTIC =
+  'representedObject is not a WeakPtrToElectronMenuModelAsNSObject';
+
+function filterKnownElectronDiagnostics(chunk: string): string {
+  const lines = chunk.match(/[^\n]*\n|[^\n]+/g) ?? [];
+  return lines.filter((line) => !line.includes(KNOWN_ELECTRON_MENU_DIAGNOSTIC)).join('');
+}
+
 function attachAppProcessLogging(
   proc: ReturnType<typeof spawn>,
   options?: {
@@ -1243,8 +1251,12 @@ function attachAppProcessLogging(
     if (options?.mirrorStdout) process.stdout.write(chunk);
   });
   proc.stderr?.on('data', (chunk: string) => {
-    appendCapturedAppOutput('STDERR', chunk);
-    if (options?.mirrorStderr) process.stderr.write(chunk);
+    const filteredChunk = filterKnownElectronDiagnostics(chunk);
+    if (!filteredChunk) {
+      return;
+    }
+    appendCapturedAppOutput('STDERR', filteredChunk);
+    if (options?.mirrorStderr) process.stderr.write(filteredChunk);
   });
 }
 
@@ -1268,13 +1280,16 @@ function runSyncAppCommand(
     if (mirrorOutput) process.stdout.write(result.stdout);
   }
   if (result.stderr) {
-    appendCapturedAppOutput('STDERR', result.stderr);
-    if (mirrorOutput) process.stderr.write(result.stderr);
+    const filteredStderr = filterKnownElectronDiagnostics(result.stderr);
+    if (filteredStderr) {
+      appendCapturedAppOutput('STDERR', filteredStderr);
+      if (mirrorOutput) process.stderr.write(filteredStderr);
+    }
   }
   return {
     status: result.status ?? 1,
     stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
+    stderr: result.stderr ? filterKnownElectronDiagnostics(result.stderr) : '',
     error: result.error ?? undefined,
   };
 }
