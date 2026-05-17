@@ -394,8 +394,13 @@ export class MacOSWindowTracker extends BaseWindowTracker {
 
   private registerTrackingMiss(graceMs = this.trackingLossGraceMs): void {
     if (this.shouldPreserveFocusedTargetOnMiss()) {
-      this.resetTrackingLossState();
-      return;
+      if (this.trackingLossStartedAtMs === null) {
+        this.trackingLossStartedAtMs = this.now();
+        return;
+      }
+      if (this.now() - this.trackingLossStartedAtMs <= graceMs) {
+        return;
+      }
     }
 
     this.consecutiveMisses += 1;

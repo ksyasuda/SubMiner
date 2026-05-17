@@ -311,6 +311,28 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
   assert.equal(deps.getPlaybackPaused(), true);
 });
 
+test('registerIpcHandlers maps setIgnoreMouseEvents to overlay interaction active state', () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: string[] = [];
+
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      onOverlayMouseInteractionChanged: (active) => {
+        calls.push(`overlay-interaction:${active}`);
+      },
+    }),
+    registrar,
+  );
+
+  const handler = handlers.on.get(IPC_CHANNELS.command.setIgnoreMouseEvents);
+  assert.equal(typeof handler, 'function');
+
+  handler?.({}, true, { forward: true });
+  handler?.({}, false, {});
+
+  assert.deepEqual(calls, ['overlay-interaction:false', 'overlay-interaction:true']);
+});
+
 test('registerIpcHandlers runs AniList update after manual mark watched succeeds', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const calls: string[] = [];

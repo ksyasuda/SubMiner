@@ -236,13 +236,12 @@ test('MacOSWindowTracker keeps focused fullscreen target through active helper m
   });
 });
 
-test('MacOSWindowTracker keeps previously focused target through repeated not-found misses after grace', async () => {
+test('MacOSWindowTracker drops previously focused target after repeated not-found misses exceed grace', async () => {
   let callIndex = 0;
   let now = 1_000;
   const focusChanges: boolean[] = [];
   const outputs = [
     { stdout: '10,20,1280,720,1', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
     { stdout: 'not-found', stderr: '' },
     { stdout: 'not-found', stderr: '' },
   ];
@@ -269,14 +268,6 @@ test('MacOSWindowTracker keeps previously focused target through repeated not-fo
   (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  now += 1_000;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  now += 1_000;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
   assert.equal(tracker.isTracking(), true);
   assert.equal(tracker.isTargetWindowFocused(), true);
   assert.deepEqual(tracker.getGeometry(), {
@@ -286,9 +277,18 @@ test('MacOSWindowTracker keeps previously focused target through repeated not-fo
     height: 720,
   });
   assert.deepEqual(focusChanges, [true]);
+
+  now += 1_000;
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(tracker.isTracking(), false);
+  assert.equal(tracker.isTargetWindowFocused(), false);
+  assert.equal(tracker.getGeometry(), null);
+  assert.deepEqual(focusChanges, [true, false]);
 });
 
-test('MacOSWindowTracker keeps previously focused target through repeated helper execution failures', async () => {
+test('MacOSWindowTracker drops previously focused target after repeated helper execution failures exceed grace', async () => {
   let callIndex = 0;
   let now = 1_000;
   const focusChanges: boolean[] = [];
@@ -323,15 +323,10 @@ test('MacOSWindowTracker keeps previously focused target through repeated helper
   (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.equal(tracker.isTracking(), true);
-  assert.equal(tracker.isTargetWindowFocused(), true);
-  assert.deepEqual(tracker.getGeometry(), {
-    x: 10,
-    y: 20,
-    width: 1280,
-    height: 720,
-  });
-  assert.deepEqual(focusChanges, [true]);
+  assert.equal(tracker.isTracking(), false);
+  assert.equal(tracker.isTargetWindowFocused(), false);
+  assert.equal(tracker.getGeometry(), null);
+  assert.deepEqual(focusChanges, [true, false]);
 });
 
 test('MacOSWindowTracker marks target unfocused on explicit inactive helper signal', async () => {
