@@ -1,5 +1,9 @@
 import type { MergedToken, SubtitleData } from '../../types';
 
+type AnilistPostWatchRunOptions = {
+  watchedSeconds?: number;
+};
+
 export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   appState: {
     initialArgs?: {
@@ -42,7 +46,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   quitApp: () => void;
   reportJellyfinRemoteStopped: () => void;
   syncOverlayMpvSubtitleSuppression: () => void;
-  maybeRunAnilistPostWatchUpdate: () => Promise<void>;
+  maybeRunAnilistPostWatchUpdate: (options?: AnilistPostWatchRunOptions) => Promise<void>;
   logSubtitleTimingError: (message: string, error: unknown) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
@@ -126,7 +130,8 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     hasSubtitleTimingTracker: () => Boolean(deps.appState.subtitleTimingTracker),
     recordSubtitleTiming: (text: string, start: number, end: number) =>
       deps.appState.subtitleTimingTracker?.recordSubtitle?.(text, start, end),
-    maybeRunAnilistPostWatchUpdate: () => deps.maybeRunAnilistPostWatchUpdate(),
+    maybeRunAnilistPostWatchUpdate: (options?: AnilistPostWatchRunOptions) =>
+      deps.maybeRunAnilistPostWatchUpdate(options),
     logSubtitleTimingError: (message: string, error: unknown) =>
       deps.logSubtitleTimingError(message, error),
     setCurrentSubText: (text: string) => {

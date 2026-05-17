@@ -121,6 +121,46 @@ test('createMaybeRunAnilistPostWatchUpdateHandler force-runs manual watched upda
   assert.ok(calls.includes('osd:updated ok'));
 });
 
+test('createMaybeRunAnilistPostWatchUpdateHandler uses provided watched seconds from time-position events', async () => {
+  const calls: string[] = [];
+  const handler = createMaybeRunAnilistPostWatchUpdateHandler({
+    getInFlight: () => false,
+    setInFlight: (value) => calls.push(`inflight:${value}`),
+    getResolvedConfig: () => ({}),
+    isAnilistTrackingEnabled: () => true,
+    getCurrentMediaKey: () => '/tmp/video.mkv',
+    hasMpvClient: () => true,
+    getTrackedMediaKey: () => '/tmp/video.mkv',
+    resetTrackedMedia: () => {},
+    getWatchedSeconds: () => 0,
+    maybeProbeAnilistDuration: async () => 1000,
+    ensureAnilistMediaGuess: async () => ({ title: 'Show', season: null, episode: 8 }),
+    hasAttemptedUpdateKey: () => false,
+    processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'noop' }),
+    refreshAnilistClientSecretState: async () => 'token',
+    enqueueRetry: () => calls.push('enqueue'),
+    markRetryFailure: () => calls.push('mark-failure'),
+    markRetrySuccess: () => calls.push('mark-success'),
+    refreshRetryQueueState: () => calls.push('refresh'),
+    updateAnilistPostWatchProgress: async () => {
+      calls.push('update');
+      return { status: 'updated', message: 'updated ok' };
+    },
+    rememberAttemptedUpdateKey: () => calls.push('remember'),
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    logInfo: (message) => calls.push(`info:${message}`),
+    logWarn: (message) => calls.push(`warn:${message}`),
+    minWatchSeconds: 600,
+    minWatchRatio: 0.85,
+  });
+
+  await handler({ watchedSeconds: 850 });
+
+  assert.ok(calls.includes('update'));
+  assert.ok(calls.includes('remember'));
+  assert.ok(calls.includes('osd:updated ok'));
+});
+
 test('createMaybeRunAnilistPostWatchUpdateHandler blocks concurrent runs before async gating', async () => {
   const calls: string[] = [];
   let inFlight = false;

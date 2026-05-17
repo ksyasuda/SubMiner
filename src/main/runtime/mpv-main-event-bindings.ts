@@ -18,6 +18,10 @@ import {
 
 type MpvEventClient = Parameters<ReturnType<typeof createBindMpvClientEventHandlers>>[0];
 
+type AnilistPostWatchRunOptions = {
+  watchedSeconds?: number;
+};
+
 export function createBindMpvMainEventHandlersHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
   syncOverlayMpvSubtitleSuppression: () => void;
@@ -34,7 +38,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   recordImmersionSubtitleLine: (text: string, start: number, end: number) => void;
   hasSubtitleTimingTracker: () => boolean;
   recordSubtitleTiming: (text: string, start: number, end: number) => void;
-  maybeRunAnilistPostWatchUpdate: () => Promise<void>;
+  maybeRunAnilistPostWatchUpdate: (options?: AnilistPostWatchRunOptions) => Promise<void>;
   logSubtitleTimingError: (message: string, error: unknown) => void;
 
   setCurrentSubText: (text: string) => void;
@@ -149,7 +153,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       reportJellyfinRemoteProgress: (forceImmediate) =>
         deps.reportJellyfinRemoteProgress(forceImmediate),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
-      maybeRunAnilistPostWatchUpdate: () => deps.maybeRunAnilistPostWatchUpdate(),
+      maybeRunAnilistPostWatchUpdate: (options) => deps.maybeRunAnilistPostWatchUpdate(options),
       logError: (message, error) => deps.logSubtitleTimingError(message, error),
       onTimePosUpdate: (time) => deps.onTimePosUpdate?.(time),
     });

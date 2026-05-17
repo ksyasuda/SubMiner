@@ -3986,7 +3986,7 @@ const {
     reportJellyfinRemoteStopped: () => {
       void reportJellyfinRemoteStopped();
     },
-    maybeRunAnilistPostWatchUpdate: () => maybeRunAnilistPostWatchUpdate(),
+    maybeRunAnilistPostWatchUpdate: (options) => maybeRunAnilistPostWatchUpdate(options),
     logSubtitleTimingError: (message, error) => logger.error(message, error),
     broadcastToOverlayWindows: (channel, payload) => {
       broadcastToOverlayWindows(channel, payload);

@@ -18,6 +18,7 @@ type RetryQueueItem = {
 
 type AnilistPostWatchRunOptions = {
   force?: boolean;
+  watchedSeconds?: number;
 };
 
 export function buildAnilistAttemptKey(mediaKey: string, episode: number): string {
@@ -146,7 +147,10 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
 
     let watchedSeconds = 0;
     if (!force) {
-      watchedSeconds = deps.getWatchedSeconds();
+      watchedSeconds =
+        typeof options.watchedSeconds === 'number' && Number.isFinite(options.watchedSeconds)
+          ? options.watchedSeconds
+          : deps.getWatchedSeconds();
       if (!Number.isFinite(watchedSeconds) || watchedSeconds < deps.minWatchSeconds) {
         return;
       }
