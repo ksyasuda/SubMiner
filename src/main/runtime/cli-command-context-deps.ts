@@ -44,6 +44,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   runUpdateCommand: CliCommandContextFactoryDeps['runUpdateCommand'];
   runYoutubePlaybackFlow: CliCommandContextFactoryDeps['runYoutubePlaybackFlow'];
   openYomitanSettings: () => void;
+  openConfigSettingsWindow: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
   printHelp: () => void;
@@ -99,6 +100,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     runUpdateCommand: deps.runUpdateCommand,
     runYoutubePlaybackFlow: deps.runYoutubePlaybackFlow,
     openYomitanSettings: deps.openYomitanSettings,
+    openConfigSettingsWindow: deps.openConfigSettingsWindow,
     cycleSecondarySubMode: deps.cycleSecondarySubMode,
     openRuntimeOptionsPalette: deps.openRuntimeOptionsPalette,
     printHelp: deps.printHelp,

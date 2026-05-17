@@ -72,6 +72,7 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.togglePrimarySubtitleBar ||
     args.launchMpv ||
     args.settings ||
+    args.configSettings ||
     args.show ||
     args.hide ||
     args.showVisibleOverlay ||

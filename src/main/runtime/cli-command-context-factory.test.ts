@@ -74,6 +74,7 @@ test('cli command context factory composes main deps and context handlers', () =
     runUpdateCommand: async () => {},
     runYoutubePlaybackFlow: async () => {},
     openYomitanSettings: () => {},
+    openConfigSettingsWindow: () => {},
     cycleSecondarySubMode: () => {},
     openRuntimeOptionsPalette: () => {},
     printHelp: () => {},

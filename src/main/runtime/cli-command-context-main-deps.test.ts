@@ -100,6 +100,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
       calls.push('run-youtube-playback');
     },
     openYomitanSettings: () => calls.push('open-yomitan'),
+    openConfigSettingsWindow: () => calls.push('open-config-settings'),
     cycleSecondarySubMode: () => calls.push('cycle-secondary'),
     openRuntimeOptionsPalette: () => calls.push('open-runtime-options'),
     printHelp: () => calls.push('help'),
@@ -129,6 +130,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
   deps.initializeOverlay();
   deps.openFirstRunSetup(true);
   deps.setVisibleOverlay(true);
+  deps.openConfigSettingsWindow();
   deps.printHelp();
   await deps.runUpdateCommand({ update: true } as never, 'initial');
 
@@ -137,6 +139,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
     'init-overlay',
     'open-setup:force',
     'set-visible:true',
+    'open-config-settings',
     'help',
     'run-update',
   ]);

@@ -70,6 +70,7 @@ test('build cli command context deps maps handlers and values', () => {
       calls.push('run-youtube-playback');
     },
     openYomitanSettings: () => calls.push('yomitan'),
+    openConfigSettingsWindow: () => calls.push('config-settings'),
     cycleSecondarySubMode: () => calls.push('cycle-secondary'),
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     printHelp: () => calls.push('help'),

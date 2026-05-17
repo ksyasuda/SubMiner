@@ -7,6 +7,8 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const rendererSourceDir = path.join(repoRoot, 'src', 'renderer');
 const rendererOutputDir = path.join(repoRoot, 'dist', 'renderer');
+const settingsSourceDir = path.join(repoRoot, 'src', 'settings');
+const settingsOutputDir = path.join(repoRoot, 'dist', 'settings');
 const scriptsOutputDir = path.join(repoRoot, 'dist', 'scripts');
 const macosHelperSourcePath = path.join(scriptDir, 'get-mpv-window-macos.swift');
 const macosHelperBinaryPath = path.join(scriptsOutputDir, 'get-mpv-window-macos');
@@ -21,14 +23,22 @@ function copyFile(sourcePath, outputPath) {
   fs.copyFileSync(sourcePath, outputPath);
 }
 
-function copyRendererAssets() {
-  copyFile(path.join(rendererSourceDir, 'index.html'), path.join(rendererOutputDir, 'index.html'));
-  copyFile(path.join(rendererSourceDir, 'style.css'), path.join(rendererOutputDir, 'style.css'));
-  fs.cpSync(path.join(rendererSourceDir, 'fonts'), path.join(rendererOutputDir, 'fonts'), {
+function copyAssets(sourceDir, outputDir, label) {
+  copyFile(path.join(sourceDir, 'index.html'), path.join(outputDir, 'index.html'));
+  copyFile(path.join(sourceDir, 'style.css'), path.join(outputDir, 'style.css'));
+  fs.cpSync(path.join(rendererSourceDir, 'fonts'), path.join(outputDir, 'fonts'), {
     recursive: true,
     force: true,
   });
-  process.stdout.write(`Staged renderer assets in ${rendererOutputDir}\n`);
+  process.stdout.write(`Staged ${label} assets in ${outputDir}\n`);
+}
+
+function copyRendererAssets() {
+  copyAssets(rendererSourceDir, rendererOutputDir, 'renderer');
+}
+
+function copySettingsAssets() {
+  copyAssets(settingsSourceDir, settingsOutputDir, 'settings');
 }
 
 function fallbackToMacosSource() {
@@ -70,6 +80,7 @@ function buildMacosHelper() {
 
 function main() {
   copyRendererAssets();
+  copySettingsAssets();
   buildMacosHelper();
 }
 

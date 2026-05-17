@@ -212,6 +212,14 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(shouldStartApp(settings), true);
   assert.equal(shouldRunSettingsOnlyStartup(settings), true);
 
+  const configSettings = parseArgs(['--config']);
+  assert.equal(configSettings.configSettings, true);
+  assert.equal(hasExplicitCommand(configSettings), true);
+  assert.equal(shouldStartApp(configSettings), true);
+  assert.equal(shouldRunSettingsOnlyStartup(configSettings), false);
+  assert.equal(commandNeedsOverlayRuntime(configSettings), false);
+  assert.equal(commandNeedsOverlayStartupPrereqs(configSettings), false);
+
   const settingsWithOverlay = parseArgs(['--settings', '--toggle-visible-overlay']);
   assert.equal(settingsWithOverlay.settings, true);
   assert.equal(settingsWithOverlay.toggleVisibleOverlay, true);

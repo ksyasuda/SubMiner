@@ -15,7 +15,7 @@ export interface JellyfinInvocation {
 }
 
 export interface CommandActionInvocation {
-  action: string;
+  action?: string;
   logLevel?: string;
 }
 
@@ -58,6 +58,7 @@ function applyRootOptions(program: Command): void {
     .option('--start', 'Explicitly start overlay')
     .option('--log-level <level>', 'Log level')
     .option('-v, --version', 'Show SubMiner version')
+    .option('--config', 'Open configuration window')
     .option('-u, --update', 'Check for updates')
     .option('-R, --rofi', 'Use rofi picker')
     .option('-S, --start-overlay', 'Auto-start overlay')
@@ -293,9 +294,9 @@ export function parseCliPrograms(
   commandProgram
     .command('config')
     .description('Config helpers')
-    .argument('[action]', 'path|show', 'path')
+    .argument('[action]', 'path|show')
     .option('--log-level <level>', 'Log level')
-    .action((action: string, options: Record<string, unknown>) => {
+    .action((action: string | undefined, options: Record<string, unknown>) => {
       configInvocation = {
         action,
         logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,

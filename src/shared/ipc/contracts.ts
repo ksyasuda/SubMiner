@@ -97,6 +97,10 @@ export const IPC_CHANNELS = {
     statsGetMediaSessions: 'stats:get-media-sessions',
     statsGetMediaDailyRollups: 'stats:get-media-daily-rollups',
     statsGetMediaCover: 'stats:get-media-cover',
+    getConfigSettingsSnapshot: 'config:get-settings-snapshot',
+    saveConfigSettingsPatch: 'config:save-settings-patch',
+    openConfigSettingsFile: 'config:open-settings-file',
+    openConfigSettingsWindow: 'config:open-settings-window',
   },
   event: {
     subtitleSet: 'subtitle:set',

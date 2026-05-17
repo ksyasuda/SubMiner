@@ -16,6 +16,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     settings: false,
+    configSettings: false,
     setup: false,
     show: false,
     hide: false,
@@ -129,6 +130,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     openYomitanSettingsDelayed: (delayMs) => {
       calls.push(`openYomitanSettingsDelayed:${delayMs}`);
+    },
+    openConfigSettingsWindow: () => {
+      calls.push('openConfigSettingsWindow');
     },
     openFirstRunSetup: (force?: boolean) => {
       calls.push(`openFirstRunSetup:${force === true ? 'force' : 'default'}`);
@@ -582,6 +586,7 @@ test('handleCliCommand handles visibility and utility command dispatches', () =>
     expected: string;
   }> = [
     { args: { settings: true }, expected: 'openYomitanSettingsDelayed:1000' },
+    { args: { configSettings: true }, expected: 'openConfigSettingsWindow' },
     {
       args: { showVisibleOverlay: true },
       expected: 'setVisibleOverlayVisible:true',

@@ -158,6 +158,7 @@ export function createDefaultArgs(
     doctorRefreshKnownWords: false,
     version: false,
     update: false,
+    configSettings: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,
@@ -221,6 +222,7 @@ export function applyRootOptionsToArgs(
   if (options.rofi === true) parsed.useRofi = true;
   if (options.update === true) parsed.update = true;
   if (options.version === true) parsed.version = true;
+  if (options.config === true) parsed.configSettings = true;
   if (options.startOverlay === true) parsed.autoStartOverlay = true;
   if (options.texthooker === false) parsed.useTexthooker = false;
   if (typeof options.args === 'string') parsed.mpvArgs = options.args;
@@ -308,8 +310,9 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
     if (invocations.configInvocation.logLevel) {
       parsed.logLevel = parseLogLevel(invocations.configInvocation.logLevel);
     }
-    const action = (invocations.configInvocation.action || 'path').toLowerCase();
-    if (action === 'path') parsed.configPath = true;
+    const action = (invocations.configInvocation.action || '').toLowerCase();
+    if (!action) parsed.configSettings = true;
+    else if (action === 'path') parsed.configPath = true;
     else if (action === 'show') parsed.configShow = true;
     else fail(`Unknown config action: ${invocations.configInvocation.action}`);
   }

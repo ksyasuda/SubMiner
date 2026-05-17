@@ -11,6 +11,7 @@ export interface CliArgs {
   toggleVisibleOverlay: boolean;
   togglePrimarySubtitleBar: boolean;
   settings: boolean;
+  configSettings: boolean;
   setup: boolean;
   show: boolean;
   hide: boolean;
@@ -115,6 +116,7 @@ export function parseArgs(argv: string[]): CliArgs {
     toggleVisibleOverlay: false,
     togglePrimarySubtitleBar: false,
     settings: false,
+    configSettings: false,
     setup: false,
     show: false,
     hide: false,
@@ -234,6 +236,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
     else if (arg === '--toggle-primary-subtitle-bar') args.togglePrimarySubtitleBar = true;
     else if (arg === '--settings' || arg === '--yomitan') args.settings = true;
+    else if (arg === '--config') args.configSettings = true;
     else if (arg === '--setup') args.setup = true;
     else if (arg === '--show') args.show = true;
     else if (arg === '--hide') args.hide = true;
@@ -486,6 +489,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.toggleVisibleOverlay ||
     args.togglePrimarySubtitleBar ||
     args.settings ||
+    args.configSettings ||
     args.setup ||
     args.show ||
     args.hide ||
@@ -558,6 +562,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.toggleVisibleOverlay &&
     !args.togglePrimarySubtitleBar &&
     !args.settings &&
+    !args.configSettings &&
     !args.setup &&
     !args.show &&
     !args.hide &&
@@ -625,6 +630,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.toggleVisibleOverlay ||
     args.togglePrimarySubtitleBar ||
     args.settings ||
+    args.configSettings ||
     args.setup ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
@@ -679,6 +685,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.toggle &&
     !args.toggleVisibleOverlay &&
     !args.togglePrimarySubtitleBar &&
+    !args.configSettings &&
     !args.show &&
     !args.hide &&
     !args.setup &&

@@ -20,6 +20,8 @@ import {
   BrowserWindow,
   clipboard,
   globalShortcut,
+  ipcMain,
+  net,
   shell,
   protocol,
   Extension,
@@ -73,28 +75,6 @@ function normalizePasswordStoreArg(value: string): string {
 
 function getDefaultPasswordStore(): string {
   return 'gnome-libsecret';
-}
-
-function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
-  shouldUseMinimalStartup: boolean;
-  shouldSkipHeavyStartup: boolean;
-} {
-  return {
-    shouldUseMinimalStartup: Boolean(
-      (initialArgs && isStandaloneTexthookerCommand(initialArgs)) ||
-      initialArgs?.update ||
-      (initialArgs?.stats &&
-        (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
-    ),
-    shouldSkipHeavyStartup: Boolean(
-      initialArgs &&
-      (shouldRunSettingsOnlyStartup(initialArgs) ||
-        initialArgs.stats ||
-        initialArgs.dictionary ||
-        initialArgs.update ||
-        initialArgs.setup),
-    ),
-  };
 }
 
 protocol.registerSchemesAsPrivileged([
@@ -152,15 +132,18 @@ import {
   commandNeedsOverlayStartupPrereqs,
   commandNeedsOverlayRuntime,
   isHeadlessInitialCommand,
-  isStandaloneTexthookerCommand,
   parseArgs,
-  shouldRunSettingsOnlyStartup,
   shouldStartApp,
   type CliArgs,
   type CliCommandSource,
 } from './cli/args';
 import { printHelp } from './cli/help';
 import { IPC_CHANNELS, type OverlayHostedModal } from './shared/ipc/contracts';
+import {
+  getStartupModeFlags,
+  shouldRefreshAnilistOnConfigReload,
+  shouldStartAutomaticUpdateChecks,
+} from './main/runtime/startup-mode-flags';
 import {
   buildConfigParseErrorDetails,
   buildConfigWarningDialogDetails,
@@ -515,6 +498,8 @@ import {
   createElectronAppUpdater,
   isNativeUpdaterSupported,
 } from './main/runtime/update/app-updater';
+import { createElectronNetFetch } from './main/runtime/update/fetch-adapter';
+import { createCurlHttpExecutor } from './main/runtime/update/curl-http-executor';
 import {
   fetchLatestStableRelease,
   fetchReleaseAssetBuffer,
@@ -523,6 +508,7 @@ import {
   parseSha256Sums,
   type GitHubRelease,
 } from './main/runtime/update/release-assets';
+import { shouldFetchReleaseMetadataForPlatform } from './main/runtime/update/release-metadata-policy';
 import { updateLauncherFromRelease } from './main/runtime/update/launcher-updater';
 import { notifyUpdateAvailable } from './main/runtime/update/update-notifications';
 import { createUpdateDialogPresenter } from './main/runtime/update/update-dialogs';
@@ -541,9 +527,11 @@ import {
 } from './main/runtime/subtitle-prefetch-runtime';
 import {
   createCreateAnilistSetupWindowHandler,
+  createCreateConfigSettingsWindowHandler,
   createCreateFirstRunSetupWindowHandler,
   createCreateJellyfinSetupWindowHandler,
 } from './main/runtime/setup-window-factory';
+import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
 import { isYoutubePlaybackActive } from './main/runtime/youtube-playback';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
@@ -577,6 +565,7 @@ import {
   generateConfigTemplate,
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
+import { buildConfigSettingsRegistry } from './config/settings/registry';
 import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
 import {
   createSubtitlePrefetchService,
@@ -835,6 +824,7 @@ const {
   appState,
   appLifecycleApp,
 } = bootServices;
+const configSettingsFields = buildConfigSettingsRegistry(DEFAULT_CONFIG);
 notifyAnilistTokenStoreWarning = (message: string) => {
   logger.warn(`[AniList] ${message}`);
   try {
@@ -1777,6 +1767,9 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
     },
   },
 );
+const applyConfigHotReloadDiff = createConfigHotReloadAppliedHandler(
+  buildConfigHotReloadAppliedMainDepsHandler(),
+);
 const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRuntimeMainDepsHandler(
   {
     getCurrentConfig: () => getResolvedConfig(),
@@ -1785,9 +1778,7 @@ const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRun
     setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
     clearTimeout: (timeout) => clearTimeout(timeout),
     debounceMs: 250,
-    onHotReloadApplied: createConfigHotReloadAppliedHandler(
-      buildConfigHotReloadAppliedMainDepsHandler(),
-    ),
+    onHotReloadApplied: applyConfigHotReloadDiff,
     onRestartRequired: (fields) =>
       notifyConfigHotReloadMessage(buildRestartRequiredConfigMessage(fields)),
     onInvalidConfig: notifyConfigHotReloadMessage,
@@ -1807,6 +1798,32 @@ const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRun
 const configHotReloadRuntime = createConfigHotReloadRuntime(
   buildConfigHotReloadRuntimeMainDepsHandler(),
 );
+
+const configSettingsRuntime = createConfigSettingsRuntime({
+  fields: configSettingsFields,
+  getConfigPath: () => configService.getConfigPath(),
+  getRawConfig: () => configService.getRawConfig(),
+  getConfig: () => configService.getConfig(),
+  getWarnings: () => configService.getWarnings(),
+  reloadConfigStrict: () => configService.reloadConfigStrict(),
+  applyHotReload: (diff, config) => applyConfigHotReloadDiff(diff, config),
+  getSettingsWindow: () => appState.configSettingsWindow,
+  setSettingsWindow: (window) => {
+    appState.configSettingsWindow = window as BrowserWindow | null;
+  },
+  createSettingsWindow: createCreateConfigSettingsWindowHandler({
+    createBrowserWindow: (options) => new BrowserWindow(options),
+    preloadPath: path.join(__dirname, 'preload-settings.js'),
+  }),
+  settingsHtmlPath: path.join(__dirname, 'settings', 'index.html'),
+  openPath: (targetPath) => shell.openPath(targetPath),
+  ipcMain,
+  ipcChannels: IPC_CHANNELS.request,
+  log: (message) => logger.error(message),
+});
+
+configSettingsRuntime.registerHandlers();
+const openConfigSettingsWindow = () => configSettingsRuntime.openWindow();
 
 const buildDictionaryRootsHandler = createBuildDictionaryRootsMainHandler({
   platform: process.platform,
@@ -3759,7 +3776,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
     startConfigHotReload: () => configHotReloadRuntime.start(),
     shouldRefreshAnilistClientSecretState: () =>
-      !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
+      shouldRefreshAnilistOnConfigReload(appState.initialArgs),
     refreshAnilistClientSecretState: (options) => refreshAnilistClientSecretStateIfEnabled(options),
     failHandlers: {
       logError: (details) => logger.error(details),
@@ -4636,9 +4653,12 @@ flushPendingMpvLogWrites = () => {
 
 const updateStateStore = createFileUpdateStateStore(path.join(USER_DATA_PATH, 'update-state.json'));
 let updateService: ReturnType<typeof createUpdateService> | null = null;
+const electronNetFetch = createElectronNetFetch({
+  fetch: (url, init) => net.fetch(url, init as RequestInit),
+});
 
 function getFetchForUpdater() {
-  return globalThis.fetch.bind(globalThis);
+  return electronNetFetch;
 }
 
 async function updateLauncherFromSelectedRelease(
@@ -4685,6 +4705,9 @@ function getUpdateService() {
     isPackaged: app.isPackaged,
     log: (message) => logger.info(message),
     getChannel: () => getResolvedConfig().updates.channel,
+    configureHttpExecutor:
+      process.platform === 'darwin' ? () => createCurlHttpExecutor() : undefined,
+    disableDifferentialDownload: process.platform === 'darwin',
     isNativeUpdaterSupported: () =>
       isNativeUpdaterSupported({
         platform: process.platform,
@@ -4706,6 +4729,8 @@ function getUpdateService() {
     readState: () => updateStateStore.readState(),
     writeState: (state) => updateStateStore.writeState(state),
     checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
+    shouldFetchReleaseMetadata: ({ appUpdate }) =>
+      shouldFetchReleaseMetadataForPlatform(process.platform, appUpdate),
     fetchLatestStableRelease: (channel) =>
       fetchLatestStableRelease({ fetch: getFetchForUpdater(), channel }),
     updateLauncher: (launcherPath, channel, release) =>
@@ -5412,6 +5437,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     },
     runYoutubePlaybackFlow: (request) => youtubePlaybackRuntime.runYoutubePlaybackFlow(request),
     openYomitanSettings: () => openYomitanSettings(),
+    openConfigSettingsWindow: () => openConfigSettingsWindow(),
     cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
@@ -5526,7 +5552,7 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
 
 runAndApplyStartupState();
 void app.whenReady().then(() => {
-  if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+  if (!shouldStartAutomaticUpdateChecks(appState.initialArgs)) {
     return;
   }
   getUpdateService().startAutomaticChecks();
@@ -5621,6 +5647,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
       openYomitanSettings: () => openYomitanSettings(),
       openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+      openConfigSettingsWindow: () => openConfigSettingsWindow(),
       openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
       isJellyfinConfigured: () =>
         isJellyfinConfiguredForTrayRuntime(getJellyfinTrayDiscoveryDeps()),

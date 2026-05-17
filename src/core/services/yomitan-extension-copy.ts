@@ -142,10 +142,7 @@ export function shouldCopyYomitanExtension(sourceDir: string, targetDir: string)
   return sourceHash === null || targetHash === null || sourceHash !== targetHash;
 }
 
-export function ensureExtensionCopy(
-  sourceDir: string,
-  userDataPath: string,
-): ExtensionCopyResult {
+export function ensureExtensionCopy(sourceDir: string, userDataPath: string): ExtensionCopyResult {
   if (process.platform === 'win32') {
     return { targetDir: sourceDir, copied: false };
   }

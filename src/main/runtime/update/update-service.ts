@@ -30,15 +30,24 @@ export interface UpdateCheckResult {
   error?: string;
 }
 
+type AppUpdateMetadata = {
+  available: boolean;
+  version: string;
+  canUpdate?: boolean;
+};
+
 export interface UpdateServiceDeps {
   getConfig: () => Required<UpdatesConfig>;
   getCurrentVersion: () => string;
   now: () => number;
   readState: () => Promise<UpdateState>;
   writeState: (state: UpdateState) => Promise<void>;
-  checkAppUpdate: (
-    channel: UpdateChannel,
-  ) => Promise<{ available: boolean; version: string; canUpdate?: boolean }>;
+  checkAppUpdate: (channel: UpdateChannel) => Promise<AppUpdateMetadata>;
+  shouldFetchReleaseMetadata?: (input: {
+    request: UpdateCheckRequest;
+    channel: UpdateChannel;
+    appUpdate: AppUpdateMetadata;
+  }) => boolean;
   fetchLatestStableRelease: (channel: UpdateChannel) => Promise<GitHubRelease | null>;
   updateLauncher: (
     launcherPath?: string,
@@ -112,22 +121,23 @@ export function createUpdateService(deps: UpdateServiceDeps) {
     }
 
     try {
-      const [appUpdate, release] = await Promise.all([
-        deps.checkAppUpdate(channel).catch((error) => {
-          if (isAutomatic) {
-            deps.log(`App update metadata check failed: ${summarizeError(error)}`);
-          }
-          return {
-            available: false,
-            version: deps.getCurrentVersion(),
-            canUpdate: false,
-          };
-        }),
-        deps.fetchLatestStableRelease(channel).catch((error) => {
-          deps.log(`GitHub release update check failed: ${(error as Error).message}`);
-          return null;
-        }),
-      ]);
+      const appUpdate: AppUpdateMetadata = await deps.checkAppUpdate(channel).catch((error) => {
+        if (isAutomatic) {
+          deps.log(`App update metadata check failed: ${summarizeError(error)}`);
+        }
+        return {
+          available: false,
+          version: deps.getCurrentVersion(),
+        };
+      });
+      const shouldFetchReleaseMetadata =
+        deps.shouldFetchReleaseMetadata?.({ request, channel, appUpdate }) ?? true;
+      const release = shouldFetchReleaseMetadata
+        ? await deps.fetchLatestStableRelease(channel).catch((error) => {
+            deps.log(`GitHub release update check failed: ${summarizeError(error)}`);
+            return null;
+          })
+        : null;
       const currentVersion = deps.getCurrentVersion();
       const latest = getBestLatestVersion(currentVersion, appUpdate, release);
 
@@ -181,7 +191,7 @@ export function createUpdateService(deps: UpdateServiceDeps) {
       }
       return { status: 'updated', version: latest.version };
     } catch (error) {
-      const message = (error as Error).message;
+      const message = summarizeError(error);
       if (isAutomatic) {
         deps.log(`Automatic update check failed: ${message}`);
       } else {

@@ -46,6 +46,7 @@ export interface CliCommandRuntimeServiceContext {
   runUpdateCommand: CliCommandRuntimeServiceDepsParams['app']['runUpdateCommand'];
   runYoutubePlaybackFlow: CliCommandRuntimeServiceDepsParams['app']['runYoutubePlaybackFlow'];
   openYomitanSettings: () => void;
+  openConfigSettingsWindow: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
   printHelp: () => void;
@@ -127,6 +128,7 @@ function createCliCommandDepsFromContext(
     ui: {
       openFirstRunSetup: context.openFirstRunSetup,
       openYomitanSettings: context.openYomitanSettings,
+      openConfigSettingsWindow: context.openConfigSettingsWindow,
       cycleSecondarySubMode: context.cycleSecondarySubMode,
       openRuntimeOptionsPalette: context.openRuntimeOptionsPalette,
       printHelp: context.printHelp,

@@ -192,6 +192,7 @@ export interface CliCommandRuntimeServiceDepsParams {
   ui: {
     openFirstRunSetup: CliCommandDepsRuntimeOptions['ui']['openFirstRunSetup'];
     openYomitanSettings: CliCommandDepsRuntimeOptions['ui']['openYomitanSettings'];
+    openConfigSettingsWindow: CliCommandDepsRuntimeOptions['ui']['openConfigSettingsWindow'];
     cycleSecondarySubMode: CliCommandDepsRuntimeOptions['ui']['cycleSecondarySubMode'];
     openRuntimeOptionsPalette: CliCommandDepsRuntimeOptions['ui']['openRuntimeOptionsPalette'];
     printHelp: CliCommandDepsRuntimeOptions['ui']['printHelp'];
@@ -373,6 +374,7 @@ export function createCliCommandRuntimeServiceDeps(
     ui: {
       openFirstRunSetup: params.ui.openFirstRunSetup,
       openYomitanSettings: params.ui.openYomitanSettings,
+      openConfigSettingsWindow: params.ui.openConfigSettingsWindow,
       cycleSecondarySubMode: params.ui.cycleSecondarySubMode,
       openRuntimeOptionsPalette: params.ui.openRuntimeOptionsPalette,
       printHelp: params.ui.printHelp,

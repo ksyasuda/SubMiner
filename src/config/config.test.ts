@@ -2324,7 +2324,10 @@ test('template generator includes known keys', () => {
     /"dpadFallback": "horizontal",? \/\/ Optional D-pad fallback used when this analog controller action should also read D-pad input\. Values: none \| horizontal \| vertical/,
   );
   assert.match(output, /"port": 6678,? \/\/ Annotated subtitle websocket server port\./);
-  assert.match(output, /"openBrowser": false,? \/\/ Open browser setting\. Values: true \| false/);
+  assert.match(
+    output,
+    /"openBrowser": false,? \/\/ Open the texthooker page in the default browser when the server starts\. Values: true \| false/,
+  );
   assert.match(
     output,
     /"enabled": false,? \/\/ Enable overlay controller support through the Chrome Gamepad API\. Values: true \| false/,

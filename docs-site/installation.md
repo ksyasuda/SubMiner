@@ -174,9 +174,9 @@ subminer -u
 subminer --update
 ```
 
-SubMiner verifies launcher and Linux rofi theme downloads against `SHA256SUMS.txt`. If the launcher is installed in a protected path such as `/usr/local/bin/subminer`, SubMiner does not elevate itself; it shows the exact `sudo curl ... && sudo chmod +x ...` command to run instead.
+SubMiner verifies AppImage, launcher, and Linux rofi theme downloads against `SHA256SUMS.txt`. If the AppImage or launcher is installed in a protected path, SubMiner does not elevate itself; it shows the exact sudo command to run instead.
 
-On Linux, `subminer -u` performs this update from the launcher process, so it does not need to start or IPC into the tray app.
+On Linux, `subminer -u` performs the AppImage update from the launcher process, so it does not need to start or IPC into the tray app.
 
 ### From Source
 
@@ -205,6 +205,8 @@ If you prefer Make wrappers for local install flows, `make build-launcher` still
 Download the **DMG** artifact from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Open it and drag `SubMiner.app` into `/Applications`.
 
 A **ZIP** artifact is also available as a fallback — unzip and drag `SubMiner.app` into `/Applications`.
+
+After the first updater-enabled install, tray update checks can update the macOS app automatically through Electron's standard macOS updater. The updater uses the release ZIP as its payload even when the DMG remains the normal first-install artifact.
 
 Install dependencies using Homebrew:
 

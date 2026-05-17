@@ -84,5 +84,8 @@ Notes:
 - AUR publish is best-effort: the workflow retries transient SSH clone/push failures, then warns and leaves the GitHub Release green if AUR still fails. Follow up with a manual `git push aur master` from the AUR checkout when needed.
 - Required GitHub Actions secret: `AUR_SSH_PRIVATE_KEY`. Add the matching public key to your AUR account before relying on the automation.
 - Release and prerelease workflows upload updater metadata (`*.yml`) and blockmaps (`*.blockmap`) alongside platform artifacts. Do not remove those files while `electron-updater` is enabled.
+- macOS tray app updates use the standard `electron-updater`/Squirrel path. Keep `latest-mac.yml`, the macOS ZIP, and ZIP blockmap published; Squirrel uses the ZIP payload even when the DMG remains the user-facing installer.
+- macOS update metadata and full ZIP downloads are routed through `/usr/bin/curl` before Squirrel installation to avoid Electron main-process network crashes on update checks.
+- Local macOS build-output apps outside `/Applications` or `~/Applications` skip native update checks. To validate auto-update end to end, install the signed and notarized app bundle into one of those Applications folders and point it at a published updater feed.
 - The first updater-enabled release cannot update older installs automatically. Users need one manual install to get the updater code.
 - Stable auto-update checks ignore beta/RC prereleases by default. Set `updates.channel` to `"prerelease"` on a test install when validating beta/RC updater behavior.
