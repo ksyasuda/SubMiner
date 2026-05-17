@@ -3209,9 +3209,10 @@ const {
       );
     },
     refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
-    updateAnilistPostWatchProgress: (accessToken, title, episode) =>
+    updateAnilistPostWatchProgress: (accessToken, title, episode, season) =>
       updateAnilistPostWatchProgress(accessToken, title, episode, {
         rateLimiter: anilistRateLimiter,
+        season,
       }),
     markSuccess: (key) => {
       anilistUpdateQueue.markSuccess(key);
@@ -3242,13 +3243,13 @@ const {
       resetAnilistMediaTracking(mediaKey);
     },
     getWatchedSeconds: () => appState.mpvClient?.currentTimePos ?? Number.NaN,
-    maybeProbeAnilistDuration: (mediaKey) => maybeProbeAnilistDuration(mediaKey),
+    maybeProbeAnilistDuration: (mediaKey, options) => maybeProbeAnilistDuration(mediaKey, options),
     ensureAnilistMediaGuess: (mediaKey) => ensureAnilistMediaGuess(mediaKey),
     hasAttemptedUpdateKey: (key) => anilistAttemptedUpdateKeys.has(key),
     processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
     refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
-    enqueueRetry: (key, title, episode) => {
-      anilistUpdateQueue.enqueue(key, title, episode);
+    enqueueRetry: (key, title, episode, season) => {
+      anilistUpdateQueue.enqueue(key, title, episode, season);
     },
     markRetryFailure: (key, message) => {
       anilistUpdateQueue.markFailure(key, message);
@@ -3257,9 +3258,10 @@ const {
       anilistUpdateQueue.markSuccess(key);
     },
     refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
-    updateAnilistPostWatchProgress: (accessToken, title, episode) =>
+    updateAnilistPostWatchProgress: (accessToken, title, episode, season) =>
       updateAnilistPostWatchProgress(accessToken, title, episode, {
         rateLimiter: anilistRateLimiter,
+        season,
       }),
     rememberAttemptedUpdateKey: (key) => {
       rememberAnilistAttemptedUpdate(key);

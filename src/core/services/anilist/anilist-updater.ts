@@ -18,10 +18,12 @@ export interface AnilistMediaGuess {
 export interface AnilistPostWatchUpdateResult {
   status: 'updated' | 'skipped' | 'error';
   message: string;
+  retryable?: boolean;
 }
 
 export interface AnilistPostWatchUpdateOptions {
   rateLimiter?: AnilistRateLimiter;
+  season?: number | null;
 }
 
 interface AnilistGraphQlError {
@@ -156,6 +158,28 @@ function normalizeTitle(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function titleMentionsSeason(title: string, season: number): boolean {
+  const normalized = normalizeTitle(title);
+  return (
+    normalized.includes(`season ${season}`) ||
+    normalized.includes(`s${String(season).padStart(2, '0')}`) ||
+    normalized.includes(`s${season}`)
+  );
+}
+
+function buildSearchCandidates(title: string, season: number | null | undefined): string[] {
+  const trimmed = title.trim();
+  if (!trimmed) return [];
+  const candidates =
+    typeof season === 'number' &&
+    Number.isInteger(season) &&
+    season > 1 &&
+    !titleMentionsSeason(trimmed, season)
+      ? [`${trimmed} Season ${season}`, trimmed]
+      : [trimmed];
+  return candidates.filter((candidate, index, all) => all.indexOf(candidate) === index);
+}
+
 async function anilistGraphQl<T>(
   accessToken: string,
   query: string,
@@ -226,6 +250,15 @@ function pickBestSearchResult(
   return { id: selected.id, title: selectedTitle };
 }
 
+function isUpdateableListStatus(status: string | null | undefined): boolean {
+  return status === 'CURRENT' || status === 'PLANNING';
+}
+
+function formatListStatus(status: string | null | undefined): string {
+  if (!status) return 'not in your AniList Planning or Watching list';
+  return `marked ${status.toLowerCase().replace(/_/g, ' ')} on AniList`;
+}
+
 export async function guessAnilistMediaInfo(
   mediaPath: string | null,
   mediaTitle: string | null,
@@ -279,27 +312,42 @@ export async function updateAnilistPostWatchProgress(
   episode: number,
   options: AnilistPostWatchUpdateOptions = {},
 ): Promise<AnilistPostWatchUpdateResult> {
-  const searchResponse = await anilistGraphQl<AnilistSearchData>(
-    accessToken,
-    `
-      query ($search: String!) {
-        Page(perPage: 5) {
-          media(search: $search, type: ANIME) {
-            id
-            episodes
-            title {
-              romaji
-              english
-              native
+  let media: NonNullable<NonNullable<AnilistSearchData['Page']>['media']> = [];
+  let searchError: string | null = null;
+  let pickTitle = title;
+  const searchCandidates = buildSearchCandidates(title, options.season);
+  for (const search of searchCandidates) {
+    const searchResponse = await anilistGraphQl<AnilistSearchData>(
+      accessToken,
+      `
+        query ($search: String!) {
+          Page(perPage: 5) {
+            media(search: $search, type: ANIME) {
+              id
+              episodes
+              title {
+                romaji
+                english
+                native
+              }
             }
           }
         }
-      }
-    `,
-    { search: title },
-    options,
-  );
-  const searchError = firstErrorMessage(searchResponse);
+      `,
+      { search },
+      options,
+    );
+    searchError = firstErrorMessage(searchResponse);
+    if (searchError) {
+      break;
+    }
+    media = searchResponse.data?.Page?.media ?? [];
+    if (media.length > 0) {
+      pickTitle = search;
+      break;
+    }
+  }
+
   if (searchError) {
     return {
       status: 'error',
@@ -307,8 +355,7 @@ export async function updateAnilistPostWatchProgress(
     };
   }
 
-  const media = searchResponse.data?.Page?.media ?? [];
-  const picked = pickBestSearchResult(title, episode, media);
+  const picked = pickBestSearchResult(pickTitle, episode, media);
   if (!picked) {
     return { status: 'error', message: 'AniList search returned no matches.' };
   }
@@ -337,7 +384,16 @@ export async function updateAnilistPostWatchProgress(
     };
   }
 
-  const currentProgress = entryResponse.data?.Media?.mediaListEntry?.progress ?? 0;
+  const entry = entryResponse.data?.Media?.mediaListEntry ?? null;
+  if (!entry || !isUpdateableListStatus(entry.status)) {
+    return {
+      status: 'error',
+      retryable: false,
+      message: `AniList update not possible: "${picked.title}" is ${formatListStatus(entry?.status)}. Add it to Planning or Watching, then mark watched again.`,
+    };
+  }
+
+  const currentProgress = entry.progress ?? 0;
   if (typeof currentProgress === 'number' && currentProgress >= episode) {
     return {
       status: 'skipped',

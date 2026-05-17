@@ -2,23 +2,30 @@ import { isYoutubeMediaPath } from './youtube-playback';
 
 type AnilistGuess = {
   title: string;
+  season: number | null;
   episode: number | null;
 };
 
 type AnilistUpdateResult = {
   status: 'updated' | 'skipped' | 'error';
   message: string;
+  retryable?: boolean;
 };
 
 type RetryQueueItem = {
   key: string;
   title: string;
+  season?: number | null;
   episode: number;
 };
 
 type AnilistPostWatchRunOptions = {
   force?: boolean;
   watchedSeconds?: number;
+};
+
+type AnilistDurationProbeOptions = {
+  force?: boolean;
 };
 
 export function buildAnilistAttemptKey(mediaKey: string, episode: number): string {
@@ -50,6 +57,7 @@ export function createProcessNextAnilistRetryUpdateHandler(deps: {
     accessToken: string,
     title: string,
     episode: number,
+    season?: number | null,
   ) => Promise<AnilistUpdateResult>;
   markSuccess: (key: string) => void;
   rememberAttemptedUpdateKey: (key: string) => void;
@@ -75,6 +83,7 @@ export function createProcessNextAnilistRetryUpdateHandler(deps: {
       accessToken,
       queued.title,
       queued.episode,
+      queued.season ?? null,
     );
     if (result.status === 'updated' || result.status === 'skipped') {
       deps.markSuccess(queued.key);
@@ -102,12 +111,15 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
   getTrackedMediaKey: () => string | null;
   resetTrackedMedia: (mediaKey: string | null) => void;
   getWatchedSeconds: () => number;
-  maybeProbeAnilistDuration: (mediaKey: string) => Promise<number | null>;
+  maybeProbeAnilistDuration: (
+    mediaKey: string,
+    options?: AnilistDurationProbeOptions,
+  ) => Promise<number | null>;
   ensureAnilistMediaGuess: (mediaKey: string) => Promise<AnilistGuess | null>;
   hasAttemptedUpdateKey: (key: string) => boolean;
   processNextAnilistRetryUpdate: () => Promise<{ ok: boolean; message: string }>;
   refreshAnilistClientSecretState: () => Promise<string | null>;
-  enqueueRetry: (key: string, title: string, episode: number) => void;
+  enqueueRetry: (key: string, title: string, episode: number, season?: number | null) => void;
   markRetryFailure: (key: string, message: string) => void;
   markRetrySuccess: (key: string) => void;
   refreshRetryQueueState: () => void;
@@ -115,6 +127,7 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
     accessToken: string,
     title: string,
     episode: number,
+    season?: number | null,
   ) => Promise<AnilistUpdateResult>;
   rememberAttemptedUpdateKey: (key: string) => void;
   showMpvOsd: (message: string) => void;
@@ -159,7 +172,10 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
     deps.setInFlight(true);
     try {
       if (!force) {
-        const duration = await deps.maybeProbeAnilistDuration(mediaKey);
+        const duration = await deps.maybeProbeAnilistDuration(mediaKey, {
+          force:
+            typeof options.watchedSeconds === 'number' && Number.isFinite(options.watchedSeconds),
+        });
         if (!duration || duration <= 0) {
           return;
         }
@@ -185,7 +201,7 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
 
       const accessToken = await deps.refreshAnilistClientSecretState();
       if (!accessToken) {
-        deps.enqueueRetry(attemptKey, guess.title, guess.episode);
+        deps.enqueueRetry(attemptKey, guess.title, guess.episode, guess.season);
         deps.markRetryFailure(attemptKey, 'cannot authenticate without anilist.accessToken');
         deps.refreshRetryQueueState();
         deps.showMpvOsd('AniList: access token not configured');
@@ -196,6 +212,7 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
         accessToken,
         guess.title,
         guess.episode,
+        guess.season,
       );
       if (result.status === 'updated') {
         deps.rememberAttemptedUpdateKey(attemptKey);
@@ -213,7 +230,14 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
         return;
       }
 
-      deps.enqueueRetry(attemptKey, guess.title, guess.episode);
+      if (result.retryable === false) {
+        deps.refreshRetryQueueState();
+        deps.showMpvOsd(result.message);
+        deps.logWarn(result.message);
+        return;
+      }
+
+      deps.enqueueRetry(attemptKey, guess.title, guess.episode, guess.season);
       deps.markRetryFailure(attemptKey, result.message);
       deps.refreshRetryQueueState();
       deps.showMpvOsd(`AniList: ${result.message}`);

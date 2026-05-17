@@ -13,7 +13,10 @@ test('process next anilist retry update main deps builder maps callbacks', async
     setLastAttemptAt: () => calls.push('attempt'),
     setLastError: () => calls.push('error'),
     refreshAnilistClientSecretState: async () => 'token',
-    updateAnilistPostWatchProgress: async () => ({ status: 'updated', message: 'ok' }),
+    updateAnilistPostWatchProgress: async (_accessToken, _title, _episode, season) => ({
+      status: 'updated',
+      message: `ok:${season}`,
+    }),
     markSuccess: () => calls.push('success'),
     rememberAttemptedUpdateKey: () => calls.push('remember'),
     markFailure: () => calls.push('failure'),
@@ -26,9 +29,9 @@ test('process next anilist retry update main deps builder maps callbacks', async
   deps.setLastAttemptAt(1);
   deps.setLastError('x');
   assert.equal(await deps.refreshAnilistClientSecretState(), 'token');
-  assert.deepEqual(await deps.updateAnilistPostWatchProgress('token', 't', 1), {
+  assert.deepEqual(await deps.updateAnilistPostWatchProgress('token', 't', 1, 2), {
     status: 'updated',
-    message: 'ok',
+    message: 'ok:2',
   });
   deps.markSuccess('k');
   deps.rememberAttemptedUpdateKey('k');
@@ -58,16 +61,22 @@ test('maybe run anilist post watch update main deps builder maps callbacks', asy
     getTrackedMediaKey: () => 'media',
     resetTrackedMedia: () => calls.push('reset'),
     getWatchedSeconds: () => 100,
-    maybeProbeAnilistDuration: async () => 120,
+    maybeProbeAnilistDuration: async (_mediaKey, options) => {
+      calls.push(`probe:${options?.force === true}`);
+      return 120;
+    },
     ensureAnilistMediaGuess: async () => ({ title: 'x', season: null, episode: 1 }),
     hasAttemptedUpdateKey: () => false,
     processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'ok' }),
     refreshAnilistClientSecretState: async () => 'token',
-    enqueueRetry: () => calls.push('enqueue'),
+    enqueueRetry: (_key, _title, _episode, season) => calls.push(`enqueue:${season}`),
     markRetryFailure: () => calls.push('retry-fail'),
     markRetrySuccess: () => calls.push('retry-ok'),
     refreshRetryQueueState: () => calls.push('refresh'),
-    updateAnilistPostWatchProgress: async () => ({ status: 'updated', message: 'done' }),
+    updateAnilistPostWatchProgress: async (_accessToken, _title, _episode, season) => ({
+      status: 'updated',
+      message: `done:${season}`,
+    }),
     rememberAttemptedUpdateKey: () => calls.push('remember'),
     showMpvOsd: () => calls.push('osd'),
     logInfo: (message) => calls.push(`info:${message}`),
@@ -84,7 +93,7 @@ test('maybe run anilist post watch update main deps builder maps callbacks', asy
   assert.equal(deps.getTrackedMediaKey(), 'media');
   deps.resetTrackedMedia('media');
   assert.equal(deps.getWatchedSeconds(), 100);
-  assert.equal(await deps.maybeProbeAnilistDuration('media'), 120);
+  assert.equal(await deps.maybeProbeAnilistDuration('media', { force: true }), 120);
   assert.deepEqual(await deps.ensureAnilistMediaGuess('media'), {
     title: 'x',
     season: null,
@@ -93,13 +102,13 @@ test('maybe run anilist post watch update main deps builder maps callbacks', asy
   assert.equal(deps.hasAttemptedUpdateKey('k'), false);
   assert.deepEqual(await deps.processNextAnilistRetryUpdate(), { ok: true, message: 'ok' });
   assert.equal(await deps.refreshAnilistClientSecretState(), 'token');
-  deps.enqueueRetry('k', 't', 1);
+  deps.enqueueRetry('k', 't', 1, 2);
   deps.markRetryFailure('k', 'bad');
   deps.markRetrySuccess('k');
   deps.refreshRetryQueueState();
-  assert.deepEqual(await deps.updateAnilistPostWatchProgress('token', 't', 1), {
+  assert.deepEqual(await deps.updateAnilistPostWatchProgress('token', 't', 1, 2), {
     status: 'updated',
-    message: 'done',
+    message: 'done:2',
   });
   deps.rememberAttemptedUpdateKey('k');
   deps.showMpvOsd('ok');
@@ -110,7 +119,8 @@ test('maybe run anilist post watch update main deps builder maps callbacks', asy
   assert.deepEqual(calls, [
     'in-flight',
     'reset',
-    'enqueue',
+    'probe:true',
+    'enqueue:2',
     'retry-fail',
     'retry-ok',
     'refresh',

@@ -17,8 +17,8 @@ AniList integration is opt-in. To enable it:
 {
   "anilist": {
     "enabled": true,
-    "accessToken": ""
-  }
+    "accessToken": "",
+  },
 }
 ```
 
@@ -37,20 +37,20 @@ SubMiner monitors playback and triggers an AniList progress update when an episo
 The update flow:
 
 1. **Title detection** -- SubMiner extracts the anime title, season, and episode number from the media filename. It tries [`guessit`](https://github.com/guessit-io/guessit) first for accurate parsing, then falls back to an internal filename parser if guessit is unavailable.
-2. **AniList search** -- The detected title is searched against the AniList GraphQL API. SubMiner picks the best match by comparing titles (romaji, English, native) and filtering by episode count.
-3. **Progress check** -- SubMiner fetches your current list entry for the matched media. If your recorded progress already meets or exceeds the detected episode, the update is skipped.
+2. **AniList search** -- The detected title is searched against the AniList GraphQL API. For season 2 and later files, SubMiner searches the season-specific title first, then falls back to the base title. SubMiner picks the best match by comparing titles (romaji, English, native) and filtering by episode count.
+3. **Progress check** -- SubMiner fetches your current list entry for the matched media. The media must already be in Planning or Watching; otherwise SubMiner shows an MPV message explaining that the update is not possible. If your recorded progress already meets or exceeds the detected episode, the update is skipped.
 4. **Mutation** -- A `SaveMediaListEntry` mutation sets the new progress and marks the entry as `CURRENT`.
 
 ## Update Queue and Retry
 
 Failed AniList updates are persisted to a retry queue on disk and retried with exponential backoff.
 
-| Parameter | Value |
-| --- | --- |
-| Initial backoff | 30 seconds |
-| Maximum backoff | 6 hours |
-| Maximum attempts | 8 |
-| Queue capacity | 500 items |
+| Parameter        | Value      |
+| ---------------- | ---------- |
+| Initial backoff  | 30 seconds |
+| Maximum backoff  | 6 hours    |
+| Maximum attempts | 8          |
+| Queue capacity   | 500 items  |
 
 After 8 failed attempts, the update is moved to a dead-letter queue and no longer retried automatically. The queue is persisted across restarts so no updates are lost if SubMiner exits before a retry succeeds.
 
@@ -85,36 +85,37 @@ All AniList API calls go through a shared rate limiter that enforces a sliding w
       "collapsibleSections": {
         "description": false,
         "characterInformation": false,
-        "voicedBy": false
-      }
-    }
-  }
+        "voicedBy": false,
+      },
+    },
+  },
 }
 ```
 
-| Option | Values | Description |
-| --- | --- | --- |
-| `enabled` | `true`, `false` | Enable AniList post-watch progress updates (default: `false`) |
-| `accessToken` | string | Explicit AniList access token override; when blank, SubMiner uses the stored encrypted token (default: `""`) |
-| `characterDictionary.enabled` | `true`, `false` | Enable auto-sync of the merged character dictionary from AniList (default: `false`) |
-| `characterDictionary.maxLoaded` | number | Number of recent media snapshots kept in the merged dictionary (default: `3`) |
-| `characterDictionary.profileScope` | `"all"`, `"active"` | Apply dictionary to all Yomitan profiles or only the active one |
-| `characterDictionary.collapsibleSections.*` | `true`, `false` | Control which dictionary entry sections start expanded |
+| Option                                      | Values              | Description                                                                                                  |
+| ------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `enabled`                                   | `true`, `false`     | Enable AniList post-watch progress updates (default: `false`)                                                |
+| `accessToken`                               | string              | Explicit AniList access token override; when blank, SubMiner uses the stored encrypted token (default: `""`) |
+| `characterDictionary.enabled`               | `true`, `false`     | Enable auto-sync of the merged character dictionary from AniList (default: `false`)                          |
+| `characterDictionary.maxLoaded`             | number              | Number of recent media snapshots kept in the merged dictionary (default: `3`)                                |
+| `characterDictionary.profileScope`          | `"all"`, `"active"` | Apply dictionary to all Yomitan profiles or only the active one                                              |
+| `characterDictionary.collapsibleSections.*` | `true`, `false`     | Control which dictionary entry sections start expanded                                                       |
 
 See the [Character Dictionary](/character-dictionary) page for full details on the character dictionary feature, including name generation, matching, auto-sync lifecycle, and dictionary entry format.
 
 ## CLI Commands
 
-| Command | Description |
-| --- | --- |
-| `--anilist-setup` | Open AniList setup/auth flow helper window |
-| `--anilist-status` | Print current token resolution state and retry queue counters |
-| `--anilist-logout` | Clear stored AniList token from local persisted state |
-| `--anilist-retry-queue` | Process one ready retry queue item immediately |
+| Command                 | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `--anilist-setup`       | Open AniList setup/auth flow helper window                    |
+| `--anilist-status`      | Print current token resolution state and retry queue counters |
+| `--anilist-logout`      | Clear stored AniList token from local persisted state         |
+| `--anilist-retry-queue` | Process one ready retry queue item immediately                |
 
 ## Troubleshooting
 
 - **Updates not triggering:** Confirm `anilist.enabled` is `true`. SubMiner requires at least 85% of the episode watched and a minimum of 10 minutes. Short episodes or partial watches will not trigger an update.
+- **Update not possible:** Add the season to your AniList Planning or Watching list first. SubMiner will not create new AniList list entries automatically.
 - **Wrong episode or title matched:** Detection quality is best when `guessit` is installed and on your `PATH`. Without it, SubMiner falls back to internal filename parsing which can be less accurate with unusual naming conventions.
 - **Token issues:** Run `--anilist-status` to check token state. If the token is invalid or expired, run `--anilist-setup` or `--anilist-logout` and re-authenticate.
 - **Updates failing repeatedly:** Run `--anilist-status` to see retry queue counters. Items that fail 8 times are moved to the dead-letter queue. Check network connectivity and AniList API status.

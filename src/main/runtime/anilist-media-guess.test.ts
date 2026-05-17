@@ -30,6 +30,36 @@ test('maybeProbeAnilistDuration updates state with probed duration', async () =>
   assert.equal(state.mediaDurationSec, 321);
 });
 
+test('maybeProbeAnilistDuration force option bypasses retry interval', async () => {
+  let state: AnilistMediaGuessRuntimeState = {
+    mediaKey: '/tmp/video.mkv',
+    mediaDurationSec: null,
+    mediaGuess: null,
+    mediaGuessPromise: null,
+    lastDurationProbeAtMs: 1900,
+  };
+  let requestCount = 0;
+  const probe = createMaybeProbeAnilistDurationHandler({
+    getState: () => state,
+    setState: (next) => {
+      state = next;
+    },
+    durationRetryIntervalMs: 1000,
+    now: () => 2000,
+    requestMpvDuration: async () => {
+      requestCount += 1;
+      return 321;
+    },
+    logWarn: () => {},
+  });
+
+  const duration = await probe('/tmp/video.mkv', { force: true });
+
+  assert.equal(duration, 321);
+  assert.equal(requestCount, 1);
+  assert.equal(state.mediaDurationSec, 321);
+});
+
 test('ensureAnilistMediaGuess memoizes in-flight guess promise', async () => {
   let state: AnilistMediaGuessRuntimeState = {
     mediaKey: '/tmp/video.mkv',

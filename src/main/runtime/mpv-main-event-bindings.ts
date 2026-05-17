@@ -107,7 +107,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
         deps.recordImmersionSubtitleLine(text, start, end),
       hasSubtitleTimingTracker: () => deps.hasSubtitleTimingTracker(),
       recordSubtitleTiming: (text, start, end) => deps.recordSubtitleTiming(text, start, end),
-      maybeRunAnilistPostWatchUpdate: () => deps.maybeRunAnilistPostWatchUpdate(),
+      maybeRunAnilistPostWatchUpdate: (options) => deps.maybeRunAnilistPostWatchUpdate(options),
       logError: (message, error) => deps.logSubtitleTimingError(message, error),
     });
     const handleMpvSubtitleChange = createHandleMpvSubtitleChangeHandler({
