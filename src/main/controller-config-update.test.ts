@@ -119,3 +119,23 @@ test('applyControllerConfigUpdate merges per-controller profile binding leaves',
     buttonIndex: 8,
   });
 });
+
+test('applyControllerConfigUpdate ignores reserved profile ids', () => {
+  const reservedProfiles = Object.create(null) as NonNullable<
+    Parameters<typeof applyControllerConfigUpdate>[1]['profiles']
+  >;
+  reservedProfiles.__proto__ = { label: 'polluted' };
+  reservedProfiles['constructor'] = { label: 'ctor' };
+  reservedProfiles['prototype'] = { label: 'proto' };
+  reservedProfiles['pad-1'] = { label: 'Pad 1' };
+
+  const next = applyControllerConfigUpdate(undefined, {
+    profiles: reservedProfiles,
+  });
+
+  assert.equal(Object.getPrototypeOf(next.profiles), Object.prototype);
+  assert.equal(Object.hasOwn(next.profiles ?? {}, '__proto__'), false);
+  assert.equal(Object.hasOwn(next.profiles ?? {}, 'constructor'), false);
+  assert.equal(Object.hasOwn(next.profiles ?? {}, 'prototype'), false);
+  assert.equal(next.profiles?.['pad-1']?.label, 'Pad 1');
+});

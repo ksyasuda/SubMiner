@@ -97,6 +97,8 @@ const CONTROLLER_AXIS_BINDING_KEYS = [
   'rightStickVertical',
 ] as const;
 
+const RESERVED_CONTROLLER_PROFILE_IDS = new Set(['__proto__', 'constructor', 'prototype']);
+
 type ControllerBindingsTarget = Required<ResolvedControllerBindingsConfig>;
 type ControllerButtonIndicesTarget = Required<ControllerButtonIndicesConfig>;
 
@@ -368,6 +370,15 @@ export function applyControllerConfig(context: ResolveContext): void {
 
   if (isObject(src.controller.profiles)) {
     for (const [profileId, rawProfile] of Object.entries(src.controller.profiles)) {
+      if (RESERVED_CONTROLLER_PROFILE_IDS.has(profileId)) {
+        warn(
+          `controller.profiles.${profileId}`,
+          rawProfile,
+          undefined,
+          'Reserved profile id is not allowed.',
+        );
+        continue;
+      }
       if (!isObject(rawProfile)) {
         warn(
           `controller.profiles.${profileId}`,

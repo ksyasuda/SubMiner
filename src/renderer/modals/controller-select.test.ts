@@ -282,7 +282,6 @@ test('controller select modal learn mode captures fresh button input and persist
     assert.deepEqual(saved.at(-1), {
       profiles: {
         'pad-1': {
-          label: 'pad-1',
           bindings: {
             toggleLookup: { kind: 'button', buttonIndex: 11 },
           },
@@ -348,7 +347,6 @@ test('controller select modal reset control stores the default binding in the se
     assert.deepEqual(saved.at(-1), {
       profiles: {
         'pad-1': {
-          label: 'pad-1',
           bindings: {
             toggleLookup: { kind: 'button', buttonIndex: 0 },
           },
@@ -410,7 +408,6 @@ test('controller select modal binding badge starts learn mode and persists bindi
     assert.deepEqual(saved.at(-1), {
       profiles: {
         'pad-1': {
-          label: 'pad-1',
           bindings: {
             toggleLookup: { kind: 'button', buttonIndex: 11 },
           },
@@ -528,7 +525,6 @@ test('controller select modal edit control starts learn mode and persists bindin
     assert.deepEqual(saved.at(-1), {
       profiles: {
         'pad-1': {
-          label: 'pad-1',
           bindings: {
             toggleLookup: { kind: 'button', buttonIndex: 11 },
           },

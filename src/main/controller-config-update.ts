@@ -6,6 +6,8 @@ type RawControllerButtonIndices = NonNullable<RawControllerConfig['buttonIndices
 type RawControllerProfiles = NonNullable<RawControllerConfig['profiles']>;
 type RawControllerProfile = NonNullable<RawControllerProfiles[string]>;
 
+const RESERVED_CONTROLLER_PROFILE_IDS = new Set(['__proto__', 'constructor', 'prototype']);
+
 function mergeBindingPatch(
   currentBindings: RawControllerBindings | undefined,
   updateBindings: RawControllerBindings | undefined,
@@ -84,12 +86,17 @@ export function applyControllerConfigUpdate(
   }
 
   if (currentController?.profiles || update.profiles) {
-    const nextProfiles: RawControllerProfiles = {
-      ...(currentController?.profiles ?? {}),
-    };
+    const nextProfiles: RawControllerProfiles = {};
+    for (const [profileId, profile] of Object.entries(currentController?.profiles ?? {}) as Array<
+      [string, RawControllerProfile]
+    >) {
+      if (RESERVED_CONTROLLER_PROFILE_IDS.has(profileId)) continue;
+      nextProfiles[profileId] = profile;
+    }
     for (const [profileId, profileUpdate] of Object.entries(update.profiles ?? {}) as Array<
       [string, RawControllerProfile | undefined]
     >) {
+      if (RESERVED_CONTROLLER_PROFILE_IDS.has(profileId)) continue;
       if (profileUpdate === undefined) continue;
       nextProfiles[profileId] = mergeControllerProfile(
         currentController?.profiles?.[profileId],

@@ -1516,6 +1516,41 @@ test('parses controller profiles as per-gamepad binding overrides', () => {
   assert.deepEqual(config.controller.bindings.quitMpv, { kind: 'button', buttonIndex: 6 });
 });
 
+test('rejects reserved controller profile ids from config', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "controller": {
+        "profiles": {
+          "__proto__": { "label": "polluted" },
+          "constructor": { "label": "ctor" },
+          "prototype": { "label": "proto" },
+          "pad-1": { "label": "Pad 1" }
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(Object.hasOwn(config.controller.profiles, '__proto__'), false);
+  assert.equal(Object.hasOwn(config.controller.profiles, 'constructor'), false);
+  assert.equal(Object.hasOwn(config.controller.profiles, 'prototype'), false);
+  assert.equal(config.controller.profiles['pad-1']?.label, 'Pad 1');
+  assert.equal(
+    warnings.some((warning) => warning.path === 'controller.profiles.constructor'),
+    true,
+  );
+  assert.equal(
+    warnings.some((warning) => warning.path === 'controller.profiles.prototype'),
+    true,
+  );
+});
+
 test('controller descriptor config rejects malformed binding objects', () => {
   const dir = makeTempDir();
   fs.writeFileSync(

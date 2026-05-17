@@ -991,6 +991,10 @@ test('registerIpcHandlers accepts per-controller profile config updates', async 
       },
     );
   }, /Invalid controller config payload/);
+
+  await assert.rejects(async () => {
+    await saveHandler({}, JSON.parse('{"profiles":{"__proto__":{"label":"polluted"}}}'));
+  }, /Invalid controller config payload/);
 });
 
 test('registerIpcHandlers validates dispatchSessionAction payloads', async () => {

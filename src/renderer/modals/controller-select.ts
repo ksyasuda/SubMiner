@@ -271,7 +271,6 @@ export function createControllerSelectModal(
     return {
       profiles: {
         [selected.id]: {
-          label: selected.id,
           bindings: {
             [actionId]: binding,
           },

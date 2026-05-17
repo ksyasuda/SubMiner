@@ -16,6 +16,8 @@ import type { SessionActionId, SessionActionPayload } from '../../types/session-
 import type { SubtitlePosition } from '../../types/subtitle';
 import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
 
+const RESERVED_CONTROLLER_PROFILE_IDS = new Set(['__proto__', 'constructor', 'prototype']);
+
 const SESSION_ACTION_IDS: SessionActionId[] = [
   'toggleStatsOverlay',
   'toggleVisibleOverlay',
@@ -257,8 +259,9 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
 
   if (value.profiles !== undefined) {
     if (!isObject(value.profiles)) return null;
-    const profiles: NonNullable<ControllerConfigUpdate['profiles']> = {};
+    const profiles: NonNullable<ControllerConfigUpdate['profiles']> = Object.create(null);
     for (const [profileId, rawProfile] of Object.entries(value.profiles)) {
+      if (RESERVED_CONTROLLER_PROFILE_IDS.has(profileId)) return null;
       if (!isObject(rawProfile)) return null;
       const profile: NonNullable<ControllerConfigUpdate['profiles']>[string] = {};
       if (rawProfile.label !== undefined) {
