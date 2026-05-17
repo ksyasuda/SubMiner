@@ -100,6 +100,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
       calls.push('run-youtube-playback');
     },
     openYomitanSettings: () => calls.push('open-yomitan'),
+    openConfigSettingsWindow: () => calls.push('open-config-settings'),
     cycleSecondarySubMode: () => calls.push('cycle-secondary'),
     openRuntimeOptionsPalette: () => calls.push('open-runtime-options'),
     printHelp: () => calls.push('help'),

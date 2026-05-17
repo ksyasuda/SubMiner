@@ -5,6 +5,9 @@ interface SetupWindowConfig {
   resizable?: boolean;
   minimizable?: boolean;
   maximizable?: boolean;
+  preloadPath?: string;
+  sandbox?: boolean;
+  backgroundColor?: string;
 }
 
 function createSetupWindowHandler<TWindow>(
@@ -21,9 +24,12 @@ function createSetupWindowHandler<TWindow>(
       ...(config.resizable === undefined ? {} : { resizable: config.resizable }),
       ...(config.minimizable === undefined ? {} : { minimizable: config.minimizable }),
       ...(config.maximizable === undefined ? {} : { maximizable: config.maximizable }),
+      ...(config.backgroundColor === undefined ? {} : { backgroundColor: config.backgroundColor }),
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        ...(config.sandbox === undefined ? {} : { sandbox: config.sandbox }),
+        ...(config.preloadPath ? { preload: config.preloadPath } : {}),
       },
     });
 }
@@ -58,5 +64,20 @@ export function createCreateAnilistSetupWindowHandler<TWindow>(deps: {
     width: 1000,
     height: 760,
     title: 'Anilist Setup',
+  });
+}
+
+export function createCreateConfigSettingsWindowHandler<TWindow>(deps: {
+  createBrowserWindow: (options: Electron.BrowserWindowConstructorOptions) => TWindow;
+  preloadPath: string;
+}) {
+  return createSetupWindowHandler(deps, {
+    width: 1040,
+    height: 760,
+    title: 'SubMiner Configuration',
+    resizable: true,
+    preloadPath: deps.preloadPath,
+    sandbox: false,
+    backgroundColor: '#24273a',
   });
 }

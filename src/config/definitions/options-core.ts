@@ -323,6 +323,46 @@ export function buildCoreConfigOptionRegistry(
       description: 'Launch texthooker server automatically when SubMiner starts.',
     },
     {
+      path: 'texthooker.openBrowser',
+      kind: 'boolean',
+      defaultValue: defaultConfig.texthooker.openBrowser,
+      description: 'Open the texthooker page in the default browser when the server starts.',
+    },
+    {
+      path: 'subtitlePosition.yPercent',
+      kind: 'number',
+      defaultValue: defaultConfig.subtitlePosition.yPercent,
+      description:
+        'Vertical position of the subtitle overlay expressed as a percentage from the bottom of the screen.',
+    },
+    {
+      path: 'auto_start_overlay',
+      kind: 'boolean',
+      defaultValue: defaultConfig.auto_start_overlay,
+      description: 'Auto-start the subtitle overlay window when SubMiner launches.',
+    },
+    {
+      path: 'secondarySub.secondarySubLanguages',
+      kind: 'array',
+      defaultValue: defaultConfig.secondarySub.secondarySubLanguages,
+      description:
+        'Language code priority list used to auto-select a secondary subtitle track when available.',
+    },
+    {
+      path: 'secondarySub.autoLoadSecondarySub',
+      kind: 'boolean',
+      defaultValue: defaultConfig.secondarySub.autoLoadSecondarySub,
+      description:
+        'Automatically load a matching secondary subtitle when the primary subtitle loads.',
+    },
+    {
+      path: 'secondarySub.defaultMode',
+      kind: 'enum',
+      enumValues: ['hidden', 'visible', 'hover'],
+      defaultValue: defaultConfig.secondarySub.defaultMode,
+      description: 'Default visibility mode for the secondary subtitle bar.',
+    },
+    {
       path: 'websocket.enabled',
       kind: 'enum',
       enumValues: ['auto', 'true', 'false'],
@@ -359,6 +399,27 @@ export function buildCoreConfigOptionRegistry(
       kind: 'boolean',
       defaultValue: defaultConfig.subsync.replace,
       description: 'Replace the active subtitle file when sync completes.',
+    },
+    {
+      path: 'subsync.alass_path',
+      kind: 'string',
+      defaultValue: defaultConfig.subsync.alass_path,
+      description:
+        'Optional absolute path to the alass binary used by subsync. Leave empty to auto-discover from PATH.',
+    },
+    {
+      path: 'subsync.ffsubsync_path',
+      kind: 'string',
+      defaultValue: defaultConfig.subsync.ffsubsync_path,
+      description:
+        'Optional absolute path to the ffsubsync binary used by subsync. Leave empty to auto-discover from PATH.',
+    },
+    {
+      path: 'subsync.ffmpeg_path',
+      kind: 'string',
+      defaultValue: defaultConfig.subsync.ffmpeg_path,
+      description:
+        'Optional absolute path to the ffmpeg binary used by subsync. Leave empty to auto-discover from PATH.',
     },
     {
       path: 'startupWarmups.lowPowerMode',
@@ -421,6 +482,112 @@ export function buildCoreConfigOptionRegistry(
       kind: 'number',
       defaultValue: defaultConfig.shortcuts.multiCopyTimeoutMs,
       description: 'Timeout for multi-copy/mine modes.',
+    },
+    {
+      path: 'shortcuts.toggleVisibleOverlayGlobal',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.toggleVisibleOverlayGlobal,
+      description:
+        'Global accelerator that toggles overlay visibility from anywhere on the system. Use null to disable.',
+    },
+    {
+      path: 'shortcuts.copySubtitle',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.copySubtitle,
+      description: 'Accelerator that copies the current subtitle line to the clipboard.',
+    },
+    {
+      path: 'shortcuts.copySubtitleMultiple',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.copySubtitleMultiple,
+      description:
+        'Accelerator that copies consecutive subtitle lines while the multi-copy window stays open.',
+    },
+    {
+      path: 'shortcuts.updateLastCardFromClipboard',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.updateLastCardFromClipboard,
+      description:
+        'Accelerator that updates the last mined Anki card using the current clipboard contents.',
+    },
+    {
+      path: 'shortcuts.triggerFieldGrouping',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.triggerFieldGrouping,
+      description: 'Accelerator that triggers Kiku field grouping on duplicate cards.',
+    },
+    {
+      path: 'shortcuts.triggerSubsync',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.triggerSubsync,
+      description: 'Accelerator that triggers subsync against the active subtitle file.',
+    },
+    {
+      path: 'shortcuts.mineSentence',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.mineSentence,
+      description: 'Accelerator that mines the current sentence as a new Anki card.',
+    },
+    {
+      path: 'shortcuts.mineSentenceMultiple',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.mineSentenceMultiple,
+      description:
+        'Accelerator that mines consecutive sentences while the multi-mine window stays open.',
+    },
+    {
+      path: 'shortcuts.toggleSecondarySub',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.toggleSecondarySub,
+      description: 'Accelerator that toggles the secondary subtitle bar visibility.',
+    },
+    {
+      path: 'shortcuts.markAudioCard',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.markAudioCard,
+      description: 'Accelerator that marks the last mined card as an audio card.',
+    },
+    {
+      path: 'shortcuts.openCharacterDictionary',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.openCharacterDictionary,
+      description: 'Accelerator that opens the character dictionary modal.',
+    },
+    {
+      path: 'shortcuts.openRuntimeOptions',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.openRuntimeOptions,
+      description: 'Accelerator that opens the runtime options modal.',
+    },
+    {
+      path: 'shortcuts.openJimaku',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.openJimaku,
+      description: 'Accelerator that opens the Jimaku subtitle search modal.',
+    },
+    {
+      path: 'shortcuts.openSessionHelp',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.openSessionHelp,
+      description: 'Accelerator that opens the session help / keybinding cheatsheet.',
+    },
+    {
+      path: 'shortcuts.openControllerSelect',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.openControllerSelect,
+      description: 'Accelerator that opens the controller selection and learn-mode modal.',
+    },
+    {
+      path: 'shortcuts.openControllerDebug',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.openControllerDebug,
+      description: 'Accelerator that opens the controller debug modal with live axis/button readouts.',
+    },
+    {
+      path: 'shortcuts.toggleSubtitleSidebar',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.toggleSubtitleSidebar,
+      description: 'Accelerator that toggles the subtitle sidebar visibility.',
     },
   ];
 }

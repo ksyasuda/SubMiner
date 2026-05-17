@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createCreateAnilistSetupWindowHandler,
+  createCreateConfigSettingsWindowHandler,
   createCreateFirstRunSetupWindowHandler,
   createCreateJellyfinSetupWindowHandler,
 } from './setup-window-factory';
@@ -74,6 +75,34 @@ test('createCreateAnilistSetupWindowHandler builds anilist setup window', () => 
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+    },
+  });
+});
+
+test('createCreateConfigSettingsWindowHandler builds configuration settings window', () => {
+  let options: Electron.BrowserWindowConstructorOptions | null = null;
+  const createSettingsWindow = createCreateConfigSettingsWindowHandler({
+    preloadPath: '/tmp/preload-settings.js',
+    createBrowserWindow: (nextOptions) => {
+      options = nextOptions;
+      return { id: 'config-settings' } as never;
+    },
+  });
+
+  assert.deepEqual(createSettingsWindow(), { id: 'config-settings' });
+  assert.deepEqual(options, {
+    width: 1040,
+    height: 760,
+    title: 'SubMiner Configuration',
+    show: true,
+    autoHideMenuBar: true,
+    resizable: true,
+    backgroundColor: '#24273a',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: false,
+      preload: '/tmp/preload-settings.js',
     },
   });
 });

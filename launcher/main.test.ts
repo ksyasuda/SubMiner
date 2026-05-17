@@ -232,6 +232,54 @@ test('doctor refresh-known-words forwards app refresh command without requiring 
   });
 });
 
+test('launcher config option forwards app configuration window command', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const capturePath = path.join(root, 'captured-args.txt');
+    fs.writeFileSync(
+      appPath,
+      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+    );
+    fs.chmodSync(appPath, 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_CAPTURE: capturePath,
+    };
+    const result = runLauncher(['--config'], env);
+
+    assert.equal(result.status, 0);
+    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--config\n');
+  });
+});
+
+test('launcher config command forwards app configuration window command', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const capturePath = path.join(root, 'captured-args.txt');
+    fs.writeFileSync(
+      appPath,
+      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+    );
+    fs.chmodSync(appPath, 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_CAPTURE: capturePath,
+    };
+    const result = runLauncher(['config'], env);
+
+    assert.equal(result.status, 0);
+    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--config\n');
+  });
+});
+
 test('launcher forwards --args to mpv as parsed tokens', { timeout: 15000 }, () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');

@@ -25,6 +25,7 @@ ${B}Overlay${R}
   --show-visible-overlay         Show subtitle overlay
   --hide-visible-overlay         Hide subtitle overlay
   --settings                     Open Yomitan settings window
+  --config                       Open configuration window
   --setup                        Open first-run setup window
   --auto-start-overlay           Auto-hide mpv subs, show overlay on connect
 

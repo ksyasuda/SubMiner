@@ -56,6 +56,7 @@ function createDeps() {
       runUpdateCommand: async () => {},
       runYoutubePlaybackFlow: async () => {},
       openYomitanSettings: () => {},
+      openConfigSettingsWindow: () => {},
       cycleSecondarySubMode: () => {},
       openRuntimeOptionsPalette: () => {},
       printHelp: () => {},

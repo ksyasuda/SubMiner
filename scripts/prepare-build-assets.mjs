@@ -7,6 +7,8 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const rendererSourceDir = path.join(repoRoot, 'src', 'renderer');
 const rendererOutputDir = path.join(repoRoot, 'dist', 'renderer');
+const settingsSourceDir = path.join(repoRoot, 'src', 'settings');
+const settingsOutputDir = path.join(repoRoot, 'dist', 'settings');
 const scriptsOutputDir = path.join(repoRoot, 'dist', 'scripts');
 const macosHelperSourcePath = path.join(scriptDir, 'get-mpv-window-macos.swift');
 const macosHelperBinaryPath = path.join(scriptsOutputDir, 'get-mpv-window-macos');
@@ -29,6 +31,16 @@ function copyRendererAssets() {
     force: true,
   });
   process.stdout.write(`Staged renderer assets in ${rendererOutputDir}\n`);
+}
+
+function copySettingsAssets() {
+  copyFile(path.join(settingsSourceDir, 'index.html'), path.join(settingsOutputDir, 'index.html'));
+  copyFile(path.join(settingsSourceDir, 'style.css'), path.join(settingsOutputDir, 'style.css'));
+  fs.cpSync(path.join(rendererSourceDir, 'fonts'), path.join(settingsOutputDir, 'fonts'), {
+    recursive: true,
+    force: true,
+  });
+  process.stdout.write(`Staged settings assets in ${settingsOutputDir}\n`);
 }
 
 function fallbackToMacosSource() {
@@ -70,6 +82,7 @@ function buildMacosHelper() {
 
 function main() {
   copyRendererAssets();
+  copySettingsAssets();
   buildMacosHelper();
 }
 

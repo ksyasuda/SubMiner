@@ -48,6 +48,7 @@ test('build tray template handler wires actions and init guards', () => {
       handlers.openWindowsMpvLauncherSetup();
       handlers.openYomitanSettings();
       handlers.openRuntimeOptions();
+      handlers.openConfigSettings();
       handlers.openJellyfinSetup();
       handlers.toggleJellyfinDiscovery();
       handlers.openAnilistSetup();
@@ -68,6 +69,7 @@ test('build tray template handler wires actions and init guards', () => {
     showWindowsMpvLauncherSetup: () => true,
     openYomitanSettings: () => calls.push('yomitan'),
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
+    openConfigSettingsWindow: () => calls.push('configuration'),
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
     isJellyfinConfigured: () => true,
     isJellyfinDiscoveryActive: () => false,
@@ -90,6 +92,7 @@ test('build tray template handler wires actions and init guards', () => {
     'setup',
     'yomitan',
     'runtime-options',
+    'configuration',
     'jellyfin',
     'jellyfin-discovery',
     'anilist',

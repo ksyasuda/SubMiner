@@ -20,6 +20,7 @@ import {
   BrowserWindow,
   clipboard,
   globalShortcut,
+  ipcMain,
   shell,
   protocol,
   Extension,
@@ -73,28 +74,6 @@ function normalizePasswordStoreArg(value: string): string {
 
 function getDefaultPasswordStore(): string {
   return 'gnome-libsecret';
-}
-
-function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
-  shouldUseMinimalStartup: boolean;
-  shouldSkipHeavyStartup: boolean;
-} {
-  return {
-    shouldUseMinimalStartup: Boolean(
-      (initialArgs && isStandaloneTexthookerCommand(initialArgs)) ||
-      initialArgs?.update ||
-      (initialArgs?.stats &&
-        (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
-    ),
-    shouldSkipHeavyStartup: Boolean(
-      initialArgs &&
-      (shouldRunSettingsOnlyStartup(initialArgs) ||
-        initialArgs.stats ||
-        initialArgs.dictionary ||
-        initialArgs.update ||
-        initialArgs.setup),
-    ),
-  };
 }
 
 protocol.registerSchemesAsPrivileged([
@@ -152,15 +131,18 @@ import {
   commandNeedsOverlayStartupPrereqs,
   commandNeedsOverlayRuntime,
   isHeadlessInitialCommand,
-  isStandaloneTexthookerCommand,
   parseArgs,
-  shouldRunSettingsOnlyStartup,
   shouldStartApp,
   type CliArgs,
   type CliCommandSource,
 } from './cli/args';
 import { printHelp } from './cli/help';
 import { IPC_CHANNELS, type OverlayHostedModal } from './shared/ipc/contracts';
+import {
+  getStartupModeFlags,
+  shouldRefreshAnilistOnConfigReload,
+  shouldStartAutomaticUpdateChecks,
+} from './main/runtime/startup-mode-flags';
 import {
   buildConfigParseErrorDetails,
   buildConfigWarningDialogDetails,
@@ -342,6 +324,7 @@ import {
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
   addYomitanNoteViaSearch,
+  classifyConfigHotReloadDiff,
   clearYomitanParserCachesForWindow,
   syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore,
   sendMpvCommandRuntime,
@@ -541,9 +524,12 @@ import {
 } from './main/runtime/subtitle-prefetch-runtime';
 import {
   createCreateAnilistSetupWindowHandler,
+  createCreateConfigSettingsWindowHandler,
   createCreateFirstRunSetupWindowHandler,
   createCreateJellyfinSetupWindowHandler,
 } from './main/runtime/setup-window-factory';
+import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-settings-window';
+import { createSaveConfigSettingsPatchHandler } from './main/runtime/config-settings-save';
 import { isYoutubePlaybackActive } from './main/runtime/youtube-playback';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
@@ -577,6 +563,13 @@ import {
   generateConfigTemplate,
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
+import { buildConfigSettingsSnapshot } from './config/settings/jsonc-edit';
+import { buildConfigSettingsRegistry } from './config/settings/registry';
+import type {
+  ConfigSettingsPatch,
+  ConfigSettingsSaveResult,
+  ConfigSettingsSnapshot,
+} from './types/settings';
 import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
 import {
   createSubtitlePrefetchService,
@@ -835,6 +828,7 @@ const {
   appState,
   appLifecycleApp,
 } = bootServices;
+const configSettingsFields = buildConfigSettingsRegistry(DEFAULT_CONFIG);
 notifyAnilistTokenStoreWarning = (message: string) => {
   logger.warn(`[AniList] ${message}`);
   try {
@@ -1777,6 +1771,9 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
     },
   },
 );
+const applyConfigHotReloadDiff = createConfigHotReloadAppliedHandler(
+  buildConfigHotReloadAppliedMainDepsHandler(),
+);
 const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRuntimeMainDepsHandler(
   {
     getCurrentConfig: () => getResolvedConfig(),
@@ -1785,9 +1782,7 @@ const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRun
     setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
     clearTimeout: (timeout) => clearTimeout(timeout),
     debounceMs: 250,
-    onHotReloadApplied: createConfigHotReloadAppliedHandler(
-      buildConfigHotReloadAppliedMainDepsHandler(),
-    ),
+    onHotReloadApplied: applyConfigHotReloadDiff,
     onRestartRequired: (fields) =>
       notifyConfigHotReloadMessage(buildRestartRequiredConfigMessage(fields)),
     onInvalidConfig: notifyConfigHotReloadMessage,
@@ -1807,6 +1802,127 @@ const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRun
 const configHotReloadRuntime = createConfigHotReloadRuntime(
   buildConfigHotReloadRuntimeMainDepsHandler(),
 );
+
+function getConfigSettingsSnapshot(): ConfigSettingsSnapshot {
+  return buildConfigSettingsSnapshot({
+    configPath: configService.getConfigPath(),
+    rawConfig: configService.getRawConfig(),
+    resolvedConfig: configService.getConfig(),
+    warnings: configService.getWarnings(),
+    fields: configSettingsFields,
+  });
+}
+
+function isConfigSettingsPatch(value: unknown): value is ConfigSettingsPatch {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const operations = (value as { operations?: unknown }).operations;
+  return (
+    Array.isArray(operations) &&
+    operations.every((operation) => {
+      if (!operation || typeof operation !== 'object') {
+        return false;
+      }
+      const candidate = operation as { op?: unknown; path?: unknown };
+      return (
+        (candidate.op === 'set' || candidate.op === 'reset') &&
+        typeof candidate.path === 'string' &&
+        configSettingsFields.some((field) => field.configPath === candidate.path)
+      );
+    })
+  );
+}
+
+function writeTextFileAtomically(targetPath: string, content: string): void {
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  const tempPath = path.join(
+    path.dirname(targetPath),
+    `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.tmp`,
+  );
+  try {
+    fs.writeFileSync(tempPath, content, 'utf-8');
+    fs.renameSync(tempPath, targetPath);
+  } catch (error) {
+    try {
+      fs.rmSync(tempPath, { force: true });
+    } catch {
+      // Best effort cleanup after a failed atomic write.
+    }
+    throw error;
+  }
+}
+
+function getRestartRequiredSettingsSections(restartRequiredFields: string[]): string[] {
+  const sections = new Set<string>();
+  for (const field of configSettingsFields) {
+    if (
+      restartRequiredFields.some(
+        (restartField) =>
+          field.configPath === restartField ||
+          field.configPath.startsWith(`${restartField}.`) ||
+          restartField.startsWith(`${field.configPath}.`),
+      )
+    ) {
+      sections.add(field.section);
+    }
+  }
+  return [...sections].sort();
+}
+
+const saveConfigSettingsPatch = createSaveConfigSettingsPatchHandler({
+  getConfigPath: () => configService.getConfigPath(),
+  getCurrentConfig: () => configService.getConfig(),
+  getWarnings: () => configService.getWarnings(),
+  getSnapshot: () => getConfigSettingsSnapshot(),
+  fileExists: (targetPath) => fs.existsSync(targetPath),
+  readText: (targetPath) => fs.readFileSync(targetPath, 'utf-8'),
+  writeTextAtomically: (targetPath, content) => writeTextFileAtomically(targetPath, content),
+  reloadConfigStrict: () => configService.reloadConfigStrict(),
+  classifyDiff: (previous, next) => classifyConfigHotReloadDiff(previous, next),
+  applyHotReload: (diff, config) => applyConfigHotReloadDiff(diff, config),
+  getRestartRequiredSections: (fields) => getRestartRequiredSettingsSections(fields),
+});
+
+function ensureConfigSettingsFileExists(): string {
+  const configPath = configService.getConfigPath();
+  if (!fs.existsSync(configPath)) {
+    writeTextFileAtomically(configPath, '{}\n');
+  }
+  return configPath;
+}
+
+const openConfigSettingsWindow = createOpenConfigSettingsWindowHandler({
+  getSettingsWindow: () => appState.configSettingsWindow,
+  setSettingsWindow: (window) => {
+    appState.configSettingsWindow = window as BrowserWindow | null;
+  },
+  createSettingsWindow: createCreateConfigSettingsWindowHandler({
+    createBrowserWindow: (options) => new BrowserWindow(options),
+    preloadPath: path.join(__dirname, 'preload-settings.js'),
+  }),
+  settingsHtmlPath: path.join(__dirname, 'settings', 'index.html'),
+});
+
+ipcMain.handle(IPC_CHANNELS.request.getConfigSettingsSnapshot, () => getConfigSettingsSnapshot());
+ipcMain.handle(IPC_CHANNELS.request.saveConfigSettingsPatch, (_event, patch: unknown) => {
+  if (!isConfigSettingsPatch(patch)) {
+    return {
+      ok: false,
+      warnings: [],
+      error: 'Invalid config settings patch.',
+      hotReloadFields: [],
+      restartRequiredFields: [],
+      restartRequiredSections: [],
+    } satisfies ConfigSettingsSaveResult;
+  }
+  return saveConfigSettingsPatch(patch);
+});
+ipcMain.handle(IPC_CHANNELS.request.openConfigSettingsFile, async () => {
+  const openError = await shell.openPath(ensureConfigSettingsFileExists());
+  return openError.length === 0;
+});
+ipcMain.handle(IPC_CHANNELS.request.openConfigSettingsWindow, () => openConfigSettingsWindow());
 
 const buildDictionaryRootsHandler = createBuildDictionaryRootsMainHandler({
   platform: process.platform,
@@ -3759,7 +3875,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
     startConfigHotReload: () => configHotReloadRuntime.start(),
     shouldRefreshAnilistClientSecretState: () =>
-      !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
+      shouldRefreshAnilistOnConfigReload(appState.initialArgs),
     refreshAnilistClientSecretState: (options) => refreshAnilistClientSecretStateIfEnabled(options),
     failHandlers: {
       logError: (details) => logger.error(details),
@@ -4636,7 +4752,6 @@ flushPendingMpvLogWrites = () => {
 
 const updateStateStore = createFileUpdateStateStore(path.join(USER_DATA_PATH, 'update-state.json'));
 let updateService: ReturnType<typeof createUpdateService> | null = null;
-
 function getFetchForUpdater() {
   return globalThis.fetch.bind(globalThis);
 }
@@ -5412,6 +5527,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     },
     runYoutubePlaybackFlow: (request) => youtubePlaybackRuntime.runYoutubePlaybackFlow(request),
     openYomitanSettings: () => openYomitanSettings(),
+    openConfigSettingsWindow: () => openConfigSettingsWindow(),
     cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
@@ -5526,7 +5642,7 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
 
 runAndApplyStartupState();
 void app.whenReady().then(() => {
-  if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+  if (!shouldStartAutomaticUpdateChecks(appState.initialArgs)) {
     return;
   }
   getUpdateService().startAutomaticChecks();
@@ -5621,6 +5737,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
       openYomitanSettings: () => openYomitanSettings(),
       openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+      openConfigSettingsWindow: () => openConfigSettingsWindow(),
       openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
       isJellyfinConfigured: () =>
         isJellyfinConfiguredForTrayRuntime(getJellyfinTrayDiscoveryDeps()),

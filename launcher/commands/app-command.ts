@@ -3,7 +3,14 @@ import type { LauncherCommandContext } from './context.js';
 
 export function runAppPassthroughCommand(context: LauncherCommandContext): boolean {
   const { args, appPath } = context;
-  if (!args.appPassthrough || !appPath) {
+  if (!appPath) {
+    return false;
+  }
+  if (args.configSettings) {
+    runAppCommandWithInherit(appPath, ['--config']);
+    return true;
+  }
+  if (!args.appPassthrough) {
     return false;
   }
   runAppCommandWithInherit(appPath, args.appArgs);

@@ -30,6 +30,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggleVisibleOverlay: false,
     togglePrimarySubtitleBar: false,
     settings: false,
+    configSettings: false,
     setup: false,
     show: false,
     hide: false,

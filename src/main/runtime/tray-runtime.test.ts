@@ -38,6 +38,7 @@ test('tray menu template contains expected entries and handlers', () => {
     showWindowsMpvLauncherSetup: true,
     openYomitanSettings: () => calls.push('yomitan'),
     openRuntimeOptions: () => calls.push('runtime'),
+    openConfigSettings: () => calls.push('configuration'),
     openJellyfinSetup: () => calls.push('jellyfin'),
     showJellyfinDiscovery: true,
     jellyfinDiscoveryActive: false,
@@ -47,7 +48,7 @@ test('tray menu template contains expected entries and handlers', () => {
     quitApp: () => calls.push('quit'),
   });
 
-  assert.equal(template.length, 12);
+  assert.equal(template.length, 13);
   assert.equal(
     template.some((entry) => entry.label === 'Open Overlay'),
     false,
@@ -60,10 +61,10 @@ test('tray menu template contains expected entries and handlers', () => {
   template[0]!.click?.();
   assert.equal(template[1]!.label, 'Open Texthooker');
   template[1]!.click?.();
-  assert.equal(template[9]!.label, 'Check for Updates');
-  template[9]!.click?.();
-  template[10]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
-  template[11]!.click?.();
+  assert.equal(template[10]!.label, 'Check for Updates');
+  template[10]!.click?.();
+  template[11]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
+  template[12]!.click?.();
   assert.deepEqual(calls, [
     'jellyfin-discovery',
     'help',
@@ -85,6 +86,7 @@ test('tray menu template omits first-run setup entry when setup is complete', ()
     showWindowsMpvLauncherSetup: false,
     openYomitanSettings: () => undefined,
     openRuntimeOptions: () => undefined,
+    openConfigSettings: () => undefined,
     openJellyfinSetup: () => undefined,
     showJellyfinDiscovery: false,
     jellyfinDiscoveryActive: false,
@@ -112,6 +114,7 @@ test('tray menu template omits texthooker entry when texthooker page is disabled
     showWindowsMpvLauncherSetup: false,
     openYomitanSettings: () => undefined,
     openRuntimeOptions: () => undefined,
+    openConfigSettings: () => undefined,
     openJellyfinSetup: () => undefined,
     showJellyfinDiscovery: false,
     jellyfinDiscoveryActive: false,
@@ -137,6 +140,7 @@ test('tray menu template renders active jellyfin discovery checkbox', () => {
     showWindowsMpvLauncherSetup: false,
     openYomitanSettings: () => undefined,
     openRuntimeOptions: () => undefined,
+    openConfigSettings: () => undefined,
     openJellyfinSetup: () => undefined,
     showJellyfinDiscovery: true,
     jellyfinDiscoveryActive: true,

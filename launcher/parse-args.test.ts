@@ -57,6 +57,12 @@ test('parseArgs captures mpv args string', () => {
   assert.equal(parsed.mpvArgs, '--pause=yes --title="movie night"');
 });
 
+test('parseArgs maps root config window option', () => {
+  const parsed = parseArgs(['--config'], 'subminer', {});
+
+  assert.equal(parsed.configSettings, true);
+});
+
 test('parseArgs maps root update flags without conflicting with jellyfin username', () => {
   const shortParsed = parseArgs(['-u'], 'subminer', {});
   const longParsed = parseArgs(['--update'], 'subminer', {});
@@ -99,6 +105,33 @@ test('parseArgs maps config show action', () => {
 
   assert.equal(parsed.configShow, true);
   assert.equal(parsed.configPath, false);
+});
+
+test('parseArgs maps bare config command to settings window', () => {
+  const parsed = parseArgs(['config'], 'subminer', {});
+
+  assert.equal(parsed.configSettings, true);
+  assert.equal(parsed.configPath, false);
+  assert.equal(parsed.configShow, false);
+});
+
+test('parseArgs maps config path action to config path output', () => {
+  const parsed = parseArgs(['config', 'path'], 'subminer', {});
+
+  assert.equal(parsed.configPath, true);
+  assert.equal(parsed.configSettings, false);
+});
+
+test('parseArgs rejects removed config open and launch actions', () => {
+  const openExit = withProcessExitIntercept(() => {
+    parseArgs(['config', 'open'], 'subminer', {});
+  });
+  const exit = withProcessExitIntercept(() => {
+    parseArgs(['config', 'launch'], 'subminer', {});
+  });
+
+  assert.equal(openExit.code, 1);
+  assert.equal(exit.code, 1);
 });
 
 test('parseArgs maps mpv idle action', () => {

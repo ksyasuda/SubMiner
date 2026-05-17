@@ -159,6 +159,41 @@ test('applyInvocationsToArgs maps config and jellyfin invocation state', () => {
   assert.equal(parsed.logLevel, 'warn');
 });
 
+test('applyInvocationsToArgs maps bare config invocation to settings window', () => {
+  const parsed = createDefaultArgs({});
+
+  applyInvocationsToArgs(parsed, {
+    jellyfinInvocation: null,
+    configInvocation: {
+      action: undefined,
+    },
+    mpvInvocation: null,
+    appInvocation: null,
+    dictionaryTriggered: false,
+    dictionaryTarget: null,
+    dictionaryLogLevel: null,
+    dictionaryCandidates: false,
+    dictionarySelect: false,
+    dictionaryAnilistId: null,
+    statsTriggered: false,
+    statsBackground: false,
+    statsStop: false,
+    statsCleanup: false,
+    statsCleanupVocab: false,
+    statsCleanupLifetime: false,
+    statsLogLevel: null,
+    doctorTriggered: false,
+    doctorLogLevel: null,
+    doctorRefreshKnownWords: false,
+    texthookerTriggered: false,
+    texthookerLogLevel: null,
+    texthookerOpenBrowser: false,
+  });
+
+  assert.equal(parsed.configSettings, true);
+  assert.equal(parsed.configPath, false);
+});
+
 test('applyInvocationsToArgs maps texthooker browser-open request', () => {
   const parsed = createDefaultArgs({});
 

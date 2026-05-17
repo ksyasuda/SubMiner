@@ -50,6 +50,7 @@ test('composeCliStartupHandlers returns callable CLI startup handlers', () => {
       runUpdateCommand: async () => {},
       runYoutubePlaybackFlow: async () => {},
       openYomitanSettings: () => {},
+      openConfigSettingsWindow: () => {},
       cycleSecondarySubMode: () => {},
       openRuntimeOptionsPalette: () => {},
       printHelp: () => {},

@@ -16,6 +16,12 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Enable AnkiConnect integration.',
     },
     {
+      path: 'ankiConnect.url',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.url,
+      description: 'Base URL of the AnkiConnect HTTP server.',
+    },
+    {
       path: 'ankiConnect.pollingRate',
       kind: 'number',
       defaultValue: defaultConfig.ankiConnect.pollingRate,
@@ -59,6 +65,37 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Card field for the mined word or expression text.',
     },
     {
+      path: 'ankiConnect.fields.audio',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.fields.audio,
+      description: 'Card field that receives generated sentence audio.',
+    },
+    {
+      path: 'ankiConnect.fields.image',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.fields.image,
+      description: 'Card field that receives the captured screenshot or animated image.',
+    },
+    {
+      path: 'ankiConnect.fields.sentence',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.fields.sentence,
+      description: 'Card field that receives the source sentence text.',
+    },
+    {
+      path: 'ankiConnect.fields.miscInfo',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.fields.miscInfo,
+      description:
+        'Card field that receives the miscellaneous info pattern (see ankiConnect.metadata.pattern).',
+    },
+    {
+      path: 'ankiConnect.fields.translation',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.fields.translation,
+      description: 'Card field that receives the current selection or translated text.',
+    },
+    {
       path: 'ankiConnect.ai.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.ai.enabled,
@@ -84,11 +121,135 @@ export function buildIntegrationConfigOptionRegistry(
       runtime: runtimeOptionById.get('anki.autoUpdateNewCards'),
     },
     {
+      path: 'ankiConnect.behavior.overwriteAudio',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.behavior.overwriteAudio,
+      description: 'When updating an existing card, overwrite the audio field instead of skipping it.',
+    },
+    {
+      path: 'ankiConnect.behavior.overwriteImage',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.behavior.overwriteImage,
+      description: 'When updating an existing card, overwrite the image field instead of skipping it.',
+    },
+    {
+      path: 'ankiConnect.behavior.mediaInsertMode',
+      kind: 'enum',
+      enumValues: ['append', 'prepend'],
+      defaultValue: defaultConfig.ankiConnect.behavior.mediaInsertMode,
+      description:
+        'Whether new media is appended after or prepended before existing field contents on update.',
+    },
+    {
+      path: 'ankiConnect.behavior.highlightWord',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.behavior.highlightWord,
+      description: 'Bold the mined word inside the sentence field on the saved Anki card.',
+    },
+    {
+      path: 'ankiConnect.behavior.notificationType',
+      kind: 'enum',
+      enumValues: ['osd', 'system', 'both', 'none'],
+      defaultValue: defaultConfig.ankiConnect.behavior.notificationType,
+      description: 'Notification surface used to announce mining and update outcomes.',
+    },
+    {
       path: 'ankiConnect.media.syncAnimatedImageToWordAudio',
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.media.syncAnimatedImageToWordAudio,
       description:
         'For animated AVIF images, prepend a frozen first frame matching the existing word-audio duration so motion starts with sentence audio.',
+    },
+    {
+      path: 'ankiConnect.media.generateAudio',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.media.generateAudio,
+      description: 'Generate sentence audio for mined cards.',
+    },
+    {
+      path: 'ankiConnect.media.generateImage',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.media.generateImage,
+      description: 'Generate screenshot or animated image for mined cards.',
+    },
+    {
+      path: 'ankiConnect.media.imageType',
+      kind: 'enum',
+      enumValues: ['static', 'avif'],
+      defaultValue: defaultConfig.ankiConnect.media.imageType,
+      description:
+        'Image capture type: "static" for a single still frame, "avif" for an animated AVIF.',
+    },
+    {
+      path: 'ankiConnect.media.imageFormat',
+      kind: 'enum',
+      enumValues: ['jpg', 'png', 'webp'],
+      defaultValue: defaultConfig.ankiConnect.media.imageFormat,
+      description: 'Encoding format used when imageType is "static".',
+    },
+    {
+      path: 'ankiConnect.media.imageQuality',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.media.imageQuality,
+      description: 'Quality (0-100) used for lossy static image encoders.',
+    },
+    {
+      path: 'ankiConnect.media.imageMaxWidth',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.media.imageMaxWidth,
+      description:
+        'Optional maximum width for static images. Leave unset to preserve the source resolution.',
+    },
+    {
+      path: 'ankiConnect.media.imageMaxHeight',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.media.imageMaxHeight,
+      description:
+        'Optional maximum height for static images. Leave unset to preserve the source resolution.',
+    },
+    {
+      path: 'ankiConnect.media.animatedFps',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.media.animatedFps,
+      description: 'Target frame rate for animated AVIF captures.',
+    },
+    {
+      path: 'ankiConnect.media.animatedMaxWidth',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.media.animatedMaxWidth,
+      description: 'Maximum width applied to animated AVIF captures.',
+    },
+    {
+      path: 'ankiConnect.media.animatedMaxHeight',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.media.animatedMaxHeight,
+      description:
+        'Optional maximum height for animated AVIF captures. Leave unset to preserve aspect ratio.',
+    },
+    {
+      path: 'ankiConnect.media.animatedCrf',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.media.animatedCrf,
+      description: 'Animated AVIF CRF quality target. Lower values produce larger, higher-quality files.',
+    },
+    {
+      path: 'ankiConnect.media.audioPadding',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.media.audioPadding,
+      description: 'Seconds of padding appended to both ends of generated sentence audio.',
+    },
+    {
+      path: 'ankiConnect.media.fallbackDuration',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.media.fallbackDuration,
+      description:
+        'Fallback clip duration in seconds when subtitle timing data is unavailable.',
+    },
+    {
+      path: 'ankiConnect.media.maxMediaDuration',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.media.maxMediaDuration,
+      description: 'Maximum allowed media clip duration in seconds.',
     },
     {
       path: 'ankiConnect.knownWords.matchMode',
@@ -147,6 +308,44 @@ export function buildIntegrationConfigOptionRegistry(
       defaultValue: defaultConfig.ankiConnect.isKiku.fieldGrouping,
       description: 'Kiku duplicate-card field grouping mode.',
       runtime: runtimeOptionById.get('anki.kikuFieldGrouping'),
+    },
+    {
+      path: 'ankiConnect.isKiku.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.isKiku.enabled,
+      description: 'Enable Kiku-specific mining behaviors (duplicate handling, field grouping).',
+    },
+    {
+      path: 'ankiConnect.isKiku.deleteDuplicateInAuto',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.isKiku.deleteDuplicateInAuto,
+      description:
+        'When Kiku field grouping is "auto", delete the duplicate source card after grouping completes.',
+    },
+    {
+      path: 'ankiConnect.isLapis.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.isLapis.enabled,
+      description: 'Enable Lapis-specific mining behaviors and sentence card model targeting.',
+    },
+    {
+      path: 'ankiConnect.isLapis.sentenceCardModel',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.isLapis.sentenceCardModel,
+      description: 'Note type name used by Lapis sentence cards.',
+    },
+    {
+      path: 'ankiConnect.metadata.pattern',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.metadata.pattern,
+      description:
+        'Template used to render the miscInfo field. Placeholders include %f (filename) and %t (timestamp).',
+    },
+    {
+      path: 'jimaku.apiBaseUrl',
+      kind: 'string',
+      defaultValue: defaultConfig.jimaku.apiBaseUrl,
+      description: 'Base URL of the Jimaku subtitle search API.',
     },
     {
       path: 'jimaku.languagePreference',
@@ -278,6 +477,27 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Default Jellyfin username used during CLI login.',
     },
     {
+      path: 'jellyfin.deviceId',
+      kind: 'string',
+      defaultValue: defaultConfig.jellyfin.deviceId,
+      description:
+        'Stable device identifier sent on the Jellyfin authentication handshake; primarily internal.',
+    },
+    {
+      path: 'jellyfin.clientName',
+      kind: 'string',
+      defaultValue: defaultConfig.jellyfin.clientName,
+      description:
+        'Client name sent on the Jellyfin authentication handshake; primarily internal.',
+    },
+    {
+      path: 'jellyfin.clientVersion',
+      kind: 'string',
+      defaultValue: defaultConfig.jellyfin.clientVersion,
+      description:
+        'Client version sent on the Jellyfin authentication handshake; primarily internal.',
+    },
+    {
       path: 'jellyfin.defaultLibraryId',
       kind: 'string',
       defaultValue: defaultConfig.jellyfin.defaultLibraryId,
@@ -386,6 +606,18 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'string',
       defaultValue: defaultConfig.ai.baseUrl,
       description: 'Base URL for the shared OpenAI-compatible AI provider.',
+    },
+    {
+      path: 'ai.model',
+      kind: 'string',
+      defaultValue: defaultConfig.ai.model,
+      description: 'Default model identifier requested from the shared AI provider.',
+    },
+    {
+      path: 'ai.systemPrompt',
+      kind: 'string',
+      defaultValue: defaultConfig.ai.systemPrompt,
+      description: 'Default system prompt sent with shared AI provider requests.',
     },
     {
       path: 'ai.requestTimeoutMs',

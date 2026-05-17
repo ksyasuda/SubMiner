@@ -151,6 +151,7 @@ export interface AppState {
   anilistSetupWindow: BrowserWindow | null;
   jellyfinSetupWindow: BrowserWindow | null;
   firstRunSetupWindow: BrowserWindow | null;
+  configSettingsWindow: BrowserWindow | null;
   yomitanParserReadyPromise: Promise<void> | null;
   yomitanParserInitPromise: Promise<boolean> | null;
   mpvClient: MpvIpcClient | null;
@@ -235,6 +236,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     anilistSetupWindow: null,
     jellyfinSetupWindow: null,
     firstRunSetupWindow: null,
+    configSettingsWindow: null,
     yomitanParserReadyPromise: null,
     yomitanParserInitPromise: null,
     mpvClient: null,
