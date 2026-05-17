@@ -47,6 +47,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
   syncOverlayMpvSubtitleSuppression: () => void;
   maybeRunAnilistPostWatchUpdate: (options?: AnilistPostWatchRunOptions) => Promise<void>;
+  recordAnilistMediaDuration?: (durationSec: number) => void;
   logSubtitleTimingError: (message: string, error: unknown) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
@@ -184,6 +185,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     recordMediaDuration: (durationSec: number) => {
       deps.ensureImmersionTrackerInitialized();
       deps.appState.immersionTracker?.recordMediaDuration?.(durationSec);
+      deps.recordAnilistMediaDuration?.(durationSec);
     },
     reportJellyfinRemoteProgress: (forceImmediate: boolean) =>
       deps.reportJellyfinRemoteProgress(forceImmediate),

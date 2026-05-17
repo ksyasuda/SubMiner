@@ -2069,6 +2069,7 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getModalActive: () => overlayModalInputState.getModalInputExclusive(),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => appState.statsOverlayVisible,
+    getOverlayInteractionActive: () => visibleOverlayInteractionActive,
     getWindowTracker: () => appState.windowTracker,
     getLastKnownWindowsForegroundProcessName: () => lastWindowsVisibleOverlayForegroundProcessName,
     getWindowsOverlayProcessName: () => path.parse(process.execPath).name.toLowerCase(),
@@ -2123,6 +2124,7 @@ let windowsVisibleOverlayZOrderSyncQueued = false;
 let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
 let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
 let lastWindowsVisibleOverlayBlurredAtMs = 0;
+let visibleOverlayInteractionActive = false;
 
 function clearVisibleOverlayBlurRefreshTimeouts(): void {
   for (const timeout of visibleOverlayBlurRefreshTimeouts) {
@@ -3045,6 +3047,7 @@ const {
   resetAnilistMediaTracking,
   getAnilistMediaGuessRuntimeState,
   setAnilistMediaGuessRuntimeState,
+  recordAnilistMediaDuration,
   resetAnilistMediaGuessState,
   maybeProbeAnilistDuration,
   ensureAnilistMediaGuess,
@@ -3146,6 +3149,13 @@ const {
         anilistMediaGuessRuntimeState,
         { lastDurationProbeAtMs: value },
       );
+    },
+  },
+  recordMediaDurationMainDeps: {
+    getCurrentMediaKey: () => getCurrentAnilistMediaKey(),
+    getState: () => getAnilistMediaGuessRuntimeState(),
+    setState: (state) => {
+      setAnilistMediaGuessRuntimeState(state);
     },
   },
   resetMediaGuessStateMainDeps: {
@@ -3987,6 +3997,9 @@ const {
       void reportJellyfinRemoteStopped();
     },
     maybeRunAnilistPostWatchUpdate: (options) => maybeRunAnilistPostWatchUpdate(options),
+    recordAnilistMediaDuration: (durationSec) => {
+      recordAnilistMediaDuration(durationSec);
+    },
     logSubtitleTimingError: (message, error) => logger.error(message, error),
     broadcastToOverlayWindows: (channel, payload) => {
       broadcastToOverlayWindows(channel, payload);
@@ -5127,6 +5140,20 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       },
       onOverlayModalOpened: (modal) => {
         overlayModalRuntime.notifyOverlayModalOpened(modal);
+      },
+      onOverlayMouseInteractionChanged: (active, senderWindow) => {
+        const mainWindow = overlayManager.getMainWindow();
+        if (!mainWindow || senderWindow !== mainWindow) {
+          return;
+        }
+        if (visibleOverlayInteractionActive === active) {
+          if (active && process.platform === 'darwin' && !mainWindow.isFocused()) {
+            overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+          }
+          return;
+        }
+        visibleOverlayInteractionActive = active;
+        overlayVisibilityRuntime.updateVisibleOverlayVisibility();
       },
       onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
       openYomitanSettings: () => openYomitanSettings(),

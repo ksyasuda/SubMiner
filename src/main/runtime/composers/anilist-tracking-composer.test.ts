@@ -80,6 +80,23 @@ test('composeAnilistTrackingHandlers returns callable handlers and forwards call
         lastDurationProbeAtMsState = value;
       },
     },
+    recordMediaDurationMainDeps: {
+      getCurrentMediaKey: () => 'media-key',
+      getState: () => ({
+        mediaKey: mediaKeyState,
+        mediaDurationSec: mediaDurationSecState,
+        mediaGuess: mediaGuessState,
+        mediaGuessPromise: mediaGuessPromiseState,
+        lastDurationProbeAtMs: lastDurationProbeAtMsState,
+      }),
+      setState: (state) => {
+        mediaKeyState = state.mediaKey;
+        mediaDurationSecState = state.mediaDurationSec;
+        mediaGuessState = state.mediaGuess;
+        mediaGuessPromiseState = state.mediaGuessPromise;
+        lastDurationProbeAtMsState = state.lastDurationProbeAtMs;
+      },
+    },
     resetMediaGuessStateMainDeps: {
       setMediaGuess: (value) => {
         mediaGuessState = value;
@@ -192,6 +209,7 @@ test('composeAnilistTrackingHandlers returns callable handlers and forwards call
   assert.equal(typeof composed.resetAnilistMediaTracking, 'function');
   assert.equal(typeof composed.getAnilistMediaGuessRuntimeState, 'function');
   assert.equal(typeof composed.setAnilistMediaGuessRuntimeState, 'function');
+  assert.equal(typeof composed.recordAnilistMediaDuration, 'function');
   assert.equal(typeof composed.resetAnilistMediaGuessState, 'function');
   assert.equal(typeof composed.maybeProbeAnilistDuration, 'function');
   assert.equal(typeof composed.ensureAnilistMediaGuess, 'function');
@@ -215,6 +233,9 @@ test('composeAnilistTrackingHandlers returns callable handlers and forwards call
     lastDurationProbeAtMs: 11,
   });
   assert.equal(composed.getAnilistMediaGuessRuntimeState().mediaDurationSec, 90);
+
+  composed.recordAnilistMediaDuration(180);
+  assert.equal(composed.getAnilistMediaGuessRuntimeState().mediaDurationSec, 180);
 
   composed.resetAnilistMediaGuessState();
   assert.equal(composed.getAnilistMediaGuessRuntimeState().mediaGuess, null);

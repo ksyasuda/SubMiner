@@ -44,6 +44,10 @@ export interface IpcServiceDeps {
     modal: OverlayHostedModal,
     senderWindow: ElectronBrowserWindow | null,
   ) => void;
+  onOverlayMouseInteractionChanged?: (
+    active: boolean,
+    senderWindow: ElectronBrowserWindow | null,
+  ) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleDevTools: () => void;
@@ -175,6 +179,10 @@ export interface IpcDepsRuntimeOptions {
     modal: OverlayHostedModal,
     senderWindow: ElectronBrowserWindow | null,
   ) => void;
+  onOverlayMouseInteractionChanged?: (
+    active: boolean,
+    senderWindow: ElectronBrowserWindow | null,
+  ) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleVisibleOverlay: () => void;
@@ -233,6 +241,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
   return {
     onOverlayModalClosed: options.onOverlayModalClosed,
     onOverlayModalOpened: options.onOverlayModalOpened,
+    onOverlayMouseInteractionChanged: options.onOverlayMouseInteractionChanged,
     openYomitanSettings: options.openYomitanSettings,
     quitApp: options.quitApp,
     toggleDevTools: () => {
@@ -349,6 +358,7 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
       if (senderWindow && !senderWindow.isDestroyed()) {
         senderWindow.setIgnoreMouseEvents(ignore, parsedOptions);
       }
+      deps.onOverlayMouseInteractionChanged?.(!ignore, senderWindow);
     },
   );
 

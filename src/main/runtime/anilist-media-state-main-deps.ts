@@ -1,6 +1,7 @@
 import type {
   createGetAnilistMediaGuessRuntimeStateHandler,
   createGetCurrentAnilistMediaKeyHandler,
+  createRecordAnilistMediaDurationHandler,
   createResetAnilistMediaGuessStateHandler,
   createResetAnilistMediaTrackingHandler,
   createSetAnilistMediaGuessRuntimeStateHandler,
@@ -17,6 +18,9 @@ type GetAnilistMediaGuessRuntimeStateMainDeps = Parameters<
 >[0];
 type SetAnilistMediaGuessRuntimeStateMainDeps = Parameters<
   typeof createSetAnilistMediaGuessRuntimeStateHandler
+>[0];
+type RecordAnilistMediaDurationMainDeps = Parameters<
+  typeof createRecordAnilistMediaDurationHandler
 >[0];
 type ResetAnilistMediaGuessStateMainDeps = Parameters<
   typeof createResetAnilistMediaGuessStateHandler
@@ -63,6 +67,16 @@ export function createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler(
     setMediaGuess: (value) => deps.setMediaGuess(value),
     setMediaGuessPromise: (value) => deps.setMediaGuessPromise(value),
     setLastDurationProbeAtMs: (value: number) => deps.setLastDurationProbeAtMs(value),
+  });
+}
+
+export function createBuildRecordAnilistMediaDurationMainDepsHandler(
+  deps: RecordAnilistMediaDurationMainDeps,
+) {
+  return (): RecordAnilistMediaDurationMainDeps => ({
+    getCurrentMediaKey: () => deps.getCurrentMediaKey(),
+    getState: () => deps.getState(),
+    setState: (state) => deps.setState(state),
   });
 }
 

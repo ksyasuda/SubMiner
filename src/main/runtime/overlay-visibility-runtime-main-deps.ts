@@ -10,6 +10,7 @@ export function createBuildOverlayVisibilityRuntimeMainDepsHandler(
     getModalActive: () => deps.getModalActive(),
     getVisibleOverlayVisible: () => deps.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => deps.getForceMousePassthrough(),
+    getOverlayInteractionActive: () => deps.getOverlayInteractionActive?.() ?? false,
     getWindowTracker: () => deps.getWindowTracker(),
     getLastKnownWindowsForegroundProcessName: () =>
       deps.getLastKnownWindowsForegroundProcessName?.() ?? null,

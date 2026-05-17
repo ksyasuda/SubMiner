@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   createBuildGetAnilistMediaGuessRuntimeStateMainDepsHandler,
   createBuildGetCurrentAnilistMediaKeyMainDepsHandler,
+  createBuildRecordAnilistMediaDurationMainDepsHandler,
   createBuildResetAnilistMediaGuessStateMainDepsHandler,
   createBuildResetAnilistMediaTrackingMainDepsHandler,
   createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler,
@@ -69,4 +70,33 @@ test('reset anilist media guess state main deps builder maps callbacks', () => {
   deps.setMediaGuess(null);
   deps.setMediaGuessPromise(null);
   assert.deepEqual(calls, ['guess', 'promise']);
+});
+
+test('record anilist media duration main deps builder maps callbacks', () => {
+  const calls: string[] = [];
+  const state = {
+    mediaKey: '/tmp/video.mkv',
+    mediaDurationSec: null,
+    mediaGuess: null,
+    mediaGuessPromise: null,
+    lastDurationProbeAtMs: 0,
+  };
+  const deps = createBuildRecordAnilistMediaDurationMainDepsHandler({
+    getCurrentMediaKey: () => {
+      calls.push('key');
+      return '/tmp/video.mkv';
+    },
+    getState: () => {
+      calls.push('get');
+      return state;
+    },
+    setState: () => {
+      calls.push('set');
+    },
+  })();
+
+  assert.equal(deps.getCurrentMediaKey(), '/tmp/video.mkv');
+  deps.getState();
+  deps.setState(state);
+  assert.deepEqual(calls, ['key', 'get', 'set']);
 });

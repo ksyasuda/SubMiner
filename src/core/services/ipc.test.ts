@@ -218,6 +218,9 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     getMainWindow: () => null,
     getVisibleOverlayVisibility: () => false,
     onOverlayModalClosed: () => {},
+    onOverlayMouseInteractionChanged: (active) => {
+      calls.push(`overlay-interaction:${active}`);
+    },
     openYomitanSettings: () => {},
     quitApp: () => {},
     toggleVisibleOverlay: () => {},
@@ -281,6 +284,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
   assert.deepEqual(deps.getAnilistStatus(), { tokenStatus: 'resolved' });
   deps.clearAnilistToken();
   deps.openAnilistSetup();
+  deps.onOverlayMouseInteractionChanged?.(true, null);
   assert.deepEqual(deps.getAnilistQueueStatus(), {
     pending: 1,
     ready: 0,
@@ -298,7 +302,12 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
   assert.deepEqual(await deps.playPlaylistBrowserIndex(2), { ok: true, message: 'play' });
   assert.deepEqual(await deps.removePlaylistBrowserIndex(2), { ok: true, message: 'remove' });
   assert.deepEqual(await deps.movePlaylistBrowserIndex(2, -1), { ok: true, message: 'move' });
-  assert.deepEqual(calls, ['clearAnilistToken', 'openAnilistSetup', 'retryAnilistQueueNow']);
+  assert.deepEqual(calls, [
+    'clearAnilistToken',
+    'openAnilistSetup',
+    'overlay-interaction:true',
+    'retryAnilistQueueNow',
+  ]);
   assert.equal(deps.getPlaybackPaused(), true);
 });
 

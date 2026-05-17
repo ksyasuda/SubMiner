@@ -63,6 +63,7 @@ export function updateVisibleOverlayVisibility(args: {
   visibleOverlayVisible: boolean;
   modalActive?: boolean;
   forceMousePassthrough?: boolean;
+  overlayInteractionActive?: boolean;
   mainWindow: BrowserWindow | null;
   windowTracker: BaseWindowTracker | null;
   lastKnownWindowsForegroundProcessName?: string | null;
@@ -89,6 +90,7 @@ export function updateVisibleOverlayVisibility(args: {
   }
 
   const mainWindow = args.mainWindow;
+  const overlayInteractionActive = args.overlayInteractionActive === true;
 
   if (args.modalActive) {
     if (args.isWindowsPlatform) {
@@ -104,7 +106,8 @@ export function updateVisibleOverlayVisibility(args: {
     const forceMousePassthrough = args.forceMousePassthrough === true;
     const wasVisible = mainWindow.isVisible();
     const isVisibleOverlayFocused =
-      typeof mainWindow.isFocused === 'function' && mainWindow.isFocused();
+      overlayInteractionActive ||
+      (typeof mainWindow.isFocused === 'function' && mainWindow.isFocused());
     const windowTracker = args.windowTracker;
     const canReportMacOSTargetMinimized =
       args.isMacOSPlatform && typeof windowTracker?.isTargetWindowMinimized === 'function';
@@ -130,7 +133,7 @@ export function updateVisibleOverlayVisibility(args: {
       !isVisibleOverlayFocused &&
       !isTrackedMacOSTargetFocused;
     // Renderer hover tracking temporarily disables this for subtitle and popup interaction.
-    const shouldUseMacOSMousePassthrough = args.isMacOSPlatform;
+    const shouldUseMacOSMousePassthrough = args.isMacOSPlatform && !overlayInteractionActive;
     const shouldDefaultToPassthrough =
       args.isWindowsPlatform || forceMousePassthrough || shouldReleaseMacOSOverlayLevel;
     const windowsForegroundProcessName =
@@ -234,6 +237,16 @@ export function updateVisibleOverlayVisibility(args: {
       args.syncWindowsOverlayToMpvZOrder?.(mainWindow);
     }
 
+    if (
+      args.isMacOSPlatform &&
+      overlayInteractionActive &&
+      !forceMousePassthrough &&
+      typeof mainWindow.isFocused === 'function' &&
+      !mainWindow.isFocused()
+    ) {
+      mainWindow.focus();
+    }
+
     if (!args.isWindowsPlatform && !args.isMacOSPlatform && !forceMousePassthrough) {
       mainWindow.focus();
     }
@@ -320,6 +333,7 @@ export function updateVisibleOverlayVisibility(args: {
   const hasRetainedTrackedGeometry = args.windowTracker.getGeometry() !== null;
   const hasActiveMacOSTargetSignal =
     args.isMacOSPlatform && (args.windowTracker.isTargetWindowFocused?.() ?? false);
+  const hasActiveMacOSOverlaySignal = args.isMacOSPlatform && overlayInteractionActive;
   const canReportMacOSTargetMinimized =
     args.isMacOSPlatform && typeof args.windowTracker.isTargetWindowMinimized === 'function';
   const isTrackedMacOSTargetMinimized =
@@ -328,6 +342,7 @@ export function updateVisibleOverlayVisibility(args: {
     (args.isMacOSPlatform &&
       !isTrackedMacOSTargetMinimized &&
       (hasRetainedTrackedGeometry ||
+        (mainWindow.isVisible() && hasActiveMacOSOverlaySignal) ||
         (mainWindow.isVisible() && hasActiveMacOSTargetSignal) ||
         (canReportMacOSTargetMinimized && mainWindow.isVisible()))) ||
     (args.isWindowsPlatform &&
