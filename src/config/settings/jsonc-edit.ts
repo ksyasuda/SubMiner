@@ -188,7 +188,7 @@ export function buildConfigSettingsSnapshot(
       continue;
     }
 
-    values[field.configPath] = structuredClone(rawValue !== undefined ? rawValue : resolvedValue);
+    values[field.configPath] = structuredClone(rawValue != null ? rawValue : resolvedValue);
   }
 
   return {

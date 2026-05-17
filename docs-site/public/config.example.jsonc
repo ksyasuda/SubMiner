@@ -360,6 +360,7 @@
   // ==========================================
   "subtitleStyle": {
     "primaryDefaultMode": "visible", // Default primary subtitle bar visibility mode. hidden hides it, visible shows it, hover reveals it on hover. Values: hidden | visible | hover
+    "css": {}, // CSS declaration object applied to primary subtitles after normal subtitle style defaults.
     "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
     "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false
@@ -406,6 +407,7 @@
       ] // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
     }, // Frequency dictionary setting.
     "secondary": {
+      "css": {}, // CSS declaration object applied to secondary subtitles after normal subtitle style defaults.
       "fontFamily": "Inter, Noto Sans, Helvetica Neue, sans-serif", // Font family setting.
       "fontSize": 24, // Font size setting.
       "fontColor": "#cad3f5", // Font color setting.
@@ -523,6 +525,7 @@
       "autoUpdateNewCards": true // Automatically update newly added cards. Values: true | false
     }, // Behavior setting.
     "nPlusOne": {
+      "enabled": false, // Enable N+1 subtitle highlighting (highlights the one unknown word in a sentence). Requires known-word cache data. Values: true | false
       "minSentenceWords": 3 // Minimum sentence word count required for N+1 targeting (default: 3).
     }, // N plus one setting.
     "metadata": {
@@ -530,7 +533,7 @@
     }, // Metadata setting.
     "isLapis": {
       "enabled": false, // Enable Lapis-specific mining behaviors and sentence card model targeting. Values: true | false
-      "sentenceCardModel": "Japanese sentences" // Note type name used by Lapis sentence cards.
+      "sentenceCardModel": "Lapis" // Note type name used by Lapis sentence cards.
     }, // Is lapis setting.
     "isKiku": {
       "enabled": false, // Enable Kiku-specific mining behaviors (duplicate handling, field grouping). Values: true | false

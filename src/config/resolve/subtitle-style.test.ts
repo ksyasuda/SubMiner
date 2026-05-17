@@ -28,6 +28,46 @@ test('subtitleStyle preserveLineBreaks falls back while merge is preserved', () 
   );
 });
 
+test('subtitleStyle css declarations accept string declaration maps and warn on invalid values', () => {
+  const valid = createResolveContext({
+    subtitleStyle: {
+      css: {
+        'font-size': '42px',
+        'text-wrap': 'balance',
+      },
+      secondary: {
+        css: {
+          'text-transform': 'uppercase',
+        },
+      },
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.deepEqual(valid.context.resolved.subtitleStyle.css, {
+    'font-size': '42px',
+    'text-wrap': 'balance',
+  });
+  assert.deepEqual(valid.context.resolved.subtitleStyle.secondary.css, {
+    'text-transform': 'uppercase',
+  });
+
+  const invalid = createResolveContext({
+    subtitleStyle: {
+      css: {
+        'font-size': 42,
+      } as never,
+      secondary: {
+        css: 'font-size: 28px;' as never,
+      },
+    },
+  });
+  applySubtitleDomainConfig(invalid.context);
+  assert.deepEqual(invalid.context.resolved.subtitleStyle.css, {});
+  assert.deepEqual(invalid.context.resolved.subtitleStyle.secondary.css, {});
+  assert.ok(invalid.warnings.some((warning) => warning.path === 'subtitleStyle.css'));
+  assert.ok(invalid.warnings.some((warning) => warning.path === 'subtitleStyle.secondary.css'));
+});
+
 test('subtitleStyle autoPauseVideoOnHover falls back on invalid value', () => {
   const { context, warnings } = createResolveContext({
     subtitleStyle: {

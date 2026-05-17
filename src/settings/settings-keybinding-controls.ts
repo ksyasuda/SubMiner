@@ -12,6 +12,11 @@ import type { SettingsControlContext } from './settings-control-context';
 import { createElement } from './settings-control-dom';
 
 let activeKeyLearningStop: (() => void) | null = null;
+let requestRender = (): void => undefined;
+
+export function configureKeybindingControls(options: { requestRender: () => void }): void {
+  requestRender = options.requestRender;
+}
 
 function startKeyLearning(
   button: HTMLButtonElement,
@@ -107,7 +112,8 @@ export function renderMpvKeybindingsInput(
   const rows = createMpvKeybindingRows(DEFAULT_KEYBINDINGS, context.valueForField(field));
   const container = createElement('div', 'keybinding-editor');
 
-  for (const row of rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
     const item = createElement('div', 'keybinding-row');
     const keyButton = renderKeyLearnButton(row.key, 'dom-code', (next) => {
       row.key = next;
@@ -130,9 +136,27 @@ export function renderMpvKeybindingsInput(
       row.commandText = command.value;
       applyMpvRows(context, field, rows);
     });
-    item.append(keyButton, command);
+    const removeButton = createElement('button', 'reset-button icon-button') as HTMLButtonElement;
+    removeButton.type = 'button';
+    removeButton.textContent = 'Remove';
+    removeButton.addEventListener('click', () => {
+      rows.splice(i, 1);
+      applyMpvRows(context, field, rows);
+      requestRender();
+    });
+    item.append(keyButton, command, removeButton);
     container.append(item);
   }
+
+  const addButton = createElement('button', 'secondary-button compact-button') as HTMLButtonElement;
+  addButton.type = 'button';
+  addButton.textContent = 'Add Binding';
+  addButton.addEventListener('click', () => {
+    rows.push({ defaultKey: '', key: '', command: null, commandText: '', isDefault: false });
+    applyMpvRows(context, field, rows);
+    requestRender();
+  });
+  container.append(addButton);
 
   return container;
 }

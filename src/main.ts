@@ -2583,7 +2583,7 @@ function shouldInitializeMecabForAnnotations(): boolean {
   const config = getResolvedConfig();
   const nPlusOneEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.nPlusOne',
-    config.ankiConnect.knownWords.highlightEnabled,
+    config.ankiConnect.nPlusOne.enabled,
   );
   const jlptEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.jlpt',
@@ -4227,7 +4227,7 @@ const {
       getNPlusOneEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.nPlusOne',
-          getResolvedConfig().ankiConnect.knownWords.highlightEnabled,
+          getResolvedConfig().ankiConnect.nPlusOne.enabled,
         ),
       getMinSentenceWordsForNPlusOne: () =>
         getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,

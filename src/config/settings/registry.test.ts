@@ -28,15 +28,58 @@ test('settings registry groups annotation display fields by config group', () =>
   assert.equal(field('subtitleStyle.jlptColors.N1').control, 'color');
 });
 
+test('settings registry routes known words sync, n+1, and frequency config to behavior', () => {
+  assert.equal(field('ankiConnect.knownWords.addMinedWordsImmediately').category, 'behavior');
+  assert.equal(field('ankiConnect.knownWords.addMinedWordsImmediately').section, 'Known Words');
+  assert.equal(field('ankiConnect.knownWords.decks').category, 'behavior');
+  assert.equal(field('ankiConnect.knownWords.decks').section, 'Known Words');
+  assert.equal(field('ankiConnect.knownWords.matchMode').category, 'behavior');
+  assert.equal(field('ankiConnect.knownWords.matchMode').section, 'Known Words');
+  assert.equal(field('ankiConnect.knownWords.refreshMinutes').category, 'behavior');
+  assert.equal(field('ankiConnect.knownWords.refreshMinutes').section, 'Known Words');
+  assert.equal(field('ankiConnect.nPlusOne.minSentenceWords').category, 'behavior');
+  assert.equal(field('ankiConnect.nPlusOne.minSentenceWords').section, 'N+1');
+  assert.equal(field('subtitleStyle.frequencyDictionary.sourcePath').category, 'behavior');
+  assert.equal(field('subtitleStyle.frequencyDictionary.sourcePath').section, 'Frequency Highlighting');
+  assert.equal(field('subtitleStyle.frequencyDictionary.mode').category, 'behavior');
+  assert.equal(field('subtitleStyle.frequencyDictionary.matchMode').category, 'behavior');
+  assert.equal(field('subtitleStyle.frequencyDictionary.topX').category, 'behavior');
+});
+
 test('settings registry exposes specialized controls for config-assisted inputs', () => {
   assert.equal(field('ankiConnect.knownWords.decks').control, 'known-words-decks');
   assert.equal(field('ankiConnect.isLapis.sentenceCardModel').control, 'anki-note-type');
   assert.equal(field('ankiConnect.fields.word').control, 'anki-field');
   assert.equal(field('keybindings').control, 'mpv-keybindings');
+  assert.equal(field('subtitleStyle.css').control, 'css-declarations');
+  assert.equal(field('subtitleStyle.secondary.css').control, 'css-declarations');
   assert.equal(field('shortcuts.copySubtitle').control, 'keyboard-shortcut');
-  assert.equal(field('subtitleSidebar.toggleKey').control, 'key-code');
   assert.equal(field('stats.toggleKey').control, 'key-code');
   assert.equal(field('discordPresence.presenceStyle').control, 'select');
+});
+
+test('settings registry exposes css declaration editor for primary and secondary subtitle appearance', () => {
+  const primaryVisible = fields
+    .filter(
+      (candidate) =>
+        candidate.section === 'Primary Subtitle Appearance' && !candidate.settingsHidden,
+    )
+    .map((candidate) => candidate.configPath);
+  const secondaryVisible = fields
+    .filter(
+      (candidate) =>
+        candidate.section === 'Secondary Subtitle Appearance' && !candidate.settingsHidden,
+    )
+    .map((candidate) => candidate.configPath);
+
+  assert.deepEqual(primaryVisible, ['subtitleStyle.css']);
+  assert.deepEqual(secondaryVisible, ['subtitleStyle.secondary.css']);
+  assert.equal(field('subtitleStyle.fontSize').settingsHidden, true);
+  assert.equal(field('subtitleStyle.secondary.fontSize').settingsHidden, true);
+  assert.equal(field('subtitleStyle.fontColor').settingsHidden, true);
+  assert.equal(field('subtitleStyle.backgroundColor').settingsHidden, true);
+  assert.equal(field('subtitleStyle.hoverTokenColor').settingsHidden, true);
+  assert.equal(field('subtitleStyle.hoverTokenBackgroundColor').settingsHidden, true);
 });
 
 test('settings registry puts feature toggles first, then other toggles alphabetically', () => {
@@ -48,7 +91,7 @@ test('settings registry puts feature toggles first, then other toggles alphabeti
   );
 
   const kikuLapis = fields.filter(
-    (candidate) => candidate.section === 'Kiku Features And Lapis Features',
+    (candidate) => candidate.section === 'Kiku/Lapis Features',
   );
   assert.deepEqual(
     kikuLapis.slice(0, 2).map((candidate) => candidate.configPath),
@@ -68,6 +111,8 @@ test('settings registry hides app-managed and inactive config surfaces', () => {
     'jellyfin.defaultLibraryId',
     'jellyfin.deviceId',
     'jellyfin.clientName',
+    'subtitleSidebar.toggleKey',
+    'jellyfin.recentServers',
   ]) {
     assert.equal(paths.has(hiddenPath), false, `${hiddenPath} should be hidden`);
   }

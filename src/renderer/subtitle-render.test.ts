@@ -426,6 +426,55 @@ test('applySubtitleStyle stores secondary background styles in hover-aware css v
   }
 });
 
+test('applySubtitleStyle applies primary and secondary css declaration objects', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({
+      fontSize: 35,
+      css: {
+        'font-size': '42px',
+        'text-wrap': 'balance',
+        '--subtitle-outline': '1px',
+      },
+      secondary: {
+        fontSize: 24,
+        css: {
+          'font-size': '28px',
+          'text-transform': 'uppercase',
+        },
+      },
+    } as never);
+
+    const primaryValues = (subtitleRoot.style as unknown as { values?: Map<string, string> })
+      .values;
+    const secondaryValues = (secondarySubRoot.style as unknown as { values?: Map<string, string> })
+      .values;
+
+    assert.equal(primaryValues?.get('font-size'), '42px');
+    assert.equal(primaryValues?.get('text-wrap'), 'balance');
+    assert.equal(primaryValues?.get('--subtitle-outline'), '1px');
+    assert.equal(secondaryValues?.get('font-size'), '28px');
+    assert.equal(secondaryValues?.get('text-transform'), 'uppercase');
+  } finally {
+    restoreDocument();
+  }
+});
+
 test('annotated subtitle tokens inherit configured base subtitle typography', () => {
   const restoreDocument = installFakeDocument();
   try {

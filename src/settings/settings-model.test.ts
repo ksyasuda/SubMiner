@@ -4,6 +4,7 @@ import {
   createSettingsDraft,
   filterSettingsFields,
   setDraftValue,
+  resetDraftPath,
   getDirtyOperations,
 } from './settings-model';
 import type { ConfigSettingsField } from '../types/settings';
@@ -31,6 +32,18 @@ const fields: ConfigSettingsField[] = [
     defaultValue: true,
     restartBehavior: 'restart',
   },
+  {
+    id: 'subtitleStyle.fontSize',
+    label: 'Font Size',
+    description: 'Hidden behind CSS editor.',
+    configPath: 'subtitleStyle.fontSize',
+    category: 'appearance',
+    section: 'Primary Subtitle Appearance',
+    control: 'number',
+    defaultValue: 35,
+    restartBehavior: 'hot-reload',
+    settingsHidden: true,
+  },
 ];
 
 test('filterSettingsFields searches label, section, and config path', () => {
@@ -41,6 +54,16 @@ test('filterSettingsFields searches label, section, and config path', () => {
     ['subtitleStyle.autoPauseVideoOnHover'],
   );
   assert.deepEqual(filterSettingsFields(fields, { category: 'behavior', query: 'anki' }), []);
+  assert.deepEqual(
+    filterSettingsFields(fields, { query: 'anki' }).map((field) => field.configPath),
+    ['ankiConnect.enabled'],
+  );
+  assert.deepEqual(
+    filterSettingsFields(fields, { query: 'pause hover' }).map((field) => field.configPath),
+    ['subtitleStyle.autoPauseVideoOnHover'],
+  );
+  assert.deepEqual(filterSettingsFields(fields, { query: 'pause anki' }), []);
+  assert.deepEqual(filterSettingsFields(fields, { category: 'appearance', query: '' }), []);
 });
 
 test('settings draft tracks dirty set and emits save operations', () => {
@@ -59,4 +82,26 @@ test('settings draft tracks dirty set and emits save operations', () => {
 
   setDraftValue(draft, 'subtitleStyle.autoPauseVideoOnHover', true);
   assert.deepEqual(getDirtyOperations(draft), []);
+});
+
+test('settings draft emits reset operations for css-editor-owned legacy style paths', () => {
+  const draft = createSettingsDraft({
+    'subtitleStyle.css': {},
+    'subtitleStyle.fontSize': 35,
+  });
+
+  setDraftValue(draft, 'subtitleStyle.css', { 'font-size': '42px' });
+  resetDraftPath(draft, 'subtitleStyle.fontSize', undefined);
+
+  assert.deepEqual(getDirtyOperations(draft), [
+    {
+      op: 'set',
+      path: 'subtitleStyle.css',
+      value: { 'font-size': '42px' },
+    },
+    {
+      op: 'reset',
+      path: 'subtitleStyle.fontSize',
+    },
+  ]);
 });

@@ -20,6 +20,7 @@ import {
   setDraftValue,
   type SettingsDraft,
 } from './settings-model';
+import { getSubtitleCssManagedConfigPaths, getSubtitleCssScopeForPath } from './subtitle-style-css';
 
 declare global {
   interface Window {
@@ -76,7 +77,6 @@ const dom = {
   categoryTitle: getElement<HTMLHeadingElement>('categoryTitle'),
   categoryMeta: getElement<HTMLElement>('categoryMeta'),
   searchInput: getElement<HTMLInputElement>('searchInput'),
-  openFileButton: getElement<HTMLButtonElement>('openFileButton'),
   saveButton: getElement<HTMLButtonElement>('saveButton'),
   statusBanner: getElement<HTMLElement>('statusBanner'),
   warningsPanel: getElement<HTMLElement>('warningsPanel'),
@@ -163,6 +163,13 @@ function updateDraft(path: string, value: ConfigSettingsSnapshotValue): void {
   syncSaveButton();
 }
 
+function resetDraftPathContext(path: string, defaultValue?: ConfigSettingsSnapshotValue): void {
+  if (!state.draft) return;
+  resetDraftPath(state.draft, path, defaultValue);
+  state.inputErrors.delete(path);
+  syncSaveButton();
+}
+
 function renderWarnings(snapshot: ConfigSettingsSnapshot): void {
   dom.warningsPanel.replaceChildren();
   if (snapshot.warnings.length === 0) {
@@ -192,7 +199,7 @@ function renderCategoryNav(snapshot: ConfigSettingsSnapshot): void {
   dom.categoryNav.replaceChildren();
   for (const category of CATEGORY_ORDER) {
     const count = snapshot.fields.filter(
-      (field) => field.category === category && !field.legacyHidden,
+      (field) => field.category === category && !field.legacyHidden && !field.settingsHidden,
     ).length;
     if (count === 0) continue;
     const button = createElement('button', 'category-button') as HTMLButtonElement;
@@ -206,6 +213,7 @@ function renderCategoryNav(snapshot: ConfigSettingsSnapshot): void {
     button.addEventListener('click', () => {
       state.category = category;
       render();
+      dom.settingsContent.scrollTop = 0;
     });
     dom.categoryNav.append(button);
   }
@@ -222,7 +230,13 @@ function renderField(field: ConfigSettingsField): HTMLElement {
 
   const controlWrap = createElement('div', 'field-control');
   controlWrap.append(
-    renderControl(field, { setFieldError, updateDraft, valueForField, valueForPath }),
+    renderControl(field, {
+      setFieldError,
+      resetDraftPath: resetDraftPathContext,
+      updateDraft,
+      valueForField,
+      valueForPath,
+    }),
   );
   const resetButton = createElement('button', 'reset-button') as HTMLButtonElement;
   resetButton.type = 'button';
@@ -230,6 +244,12 @@ function renderField(field: ConfigSettingsField): HTMLElement {
   resetButton.addEventListener('click', () => {
     if (!state.draft) return;
     resetDraftPath(state.draft, field.configPath, field.defaultValue);
+    const cssScope = getSubtitleCssScopeForPath(field.configPath);
+    if (cssScope) {
+      for (const path of getSubtitleCssManagedConfigPaths(cssScope)) {
+        resetDraftPath(state.draft, path, undefined);
+      }
+    }
     state.inputErrors.delete(field.configPath);
     render();
   });
@@ -240,13 +260,24 @@ function renderField(field: ConfigSettingsField): HTMLElement {
 
 function renderSettingsContent(snapshot: ConfigSettingsSnapshot): void {
   dom.settingsContent.replaceChildren();
+  const query = state.query.trim();
   const fields = filterSettingsFields(snapshot.fields, {
-    category: state.category,
-    query: state.query,
+    category: query ? undefined : state.category,
+    query,
   });
 
-  dom.categoryTitle.textContent = CATEGORY_LABELS[state.category];
-  dom.categoryMeta.textContent = `${fields.length} setting${fields.length === 1 ? '' : 's'}`;
+  if (query) {
+    const categoryCount = new Set(fields.map((field) => field.category)).size;
+    dom.categoryTitle.textContent = 'Search results';
+    dom.categoryMeta.textContent = `${fields.length} setting${fields.length === 1 ? '' : 's'}${
+      categoryCount > 0
+        ? ` across ${categoryCount} categor${categoryCount === 1 ? 'y' : 'ies'}`
+        : ''
+    }`;
+  } else {
+    dom.categoryTitle.textContent = CATEGORY_LABELS[state.category];
+    dom.categoryMeta.textContent = `${fields.length} setting${fields.length === 1 ? '' : 's'}`;
+  }
 
   if (fields.length === 0) {
     const empty = createElement('div', 'empty-state');
@@ -255,25 +286,35 @@ function renderSettingsContent(snapshot: ConfigSettingsSnapshot): void {
     return;
   }
 
-  const sections = new Map<string, ConfigSettingsField[]>();
+  const sections = new Map<
+    string,
+    { title: string; rawSection: string; fields: ConfigSettingsField[] }
+  >();
   for (const field of fields) {
-    const sectionFields = sections.get(field.section) ?? [];
-    sectionFields.push(field);
-    sections.set(field.section, sectionFields);
+    const title = query ? `${CATEGORY_LABELS[field.category]} / ${field.section}` : field.section;
+    const section = sections.get(title) ?? { title, rawSection: field.section, fields: [] };
+    section.fields.push(field);
+    sections.set(title, section);
   }
 
-  for (const [section, sectionFields] of sections) {
+  for (const section of sections.values()) {
     const sectionEl = createElement('section', 'settings-section');
     const title = createElement('h2');
-    title.textContent = section;
+    title.textContent = section.title;
     sectionEl.append(title);
-    if (section === 'Note Fields') {
+    if (section.rawSection === 'Note Fields') {
       sectionEl.append(
-        renderNoteFieldModelPicker({ setFieldError, updateDraft, valueForField, valueForPath }),
+        renderNoteFieldModelPicker({
+          setFieldError,
+          resetDraftPath: resetDraftPathContext,
+          updateDraft,
+          valueForField,
+          valueForPath,
+        }),
       );
     }
     let currentSubsection = '';
-    for (const field of sectionFields) {
+    for (const field of section.fields) {
       if (field.subsection && field.subsection !== currentSubsection) {
         currentSubsection = field.subsection;
         const subsectionTitle = createElement('h3', 'settings-subsection-title');
@@ -352,11 +393,6 @@ dom.searchInput.addEventListener('input', () => {
 });
 dom.saveButton.addEventListener('click', () => {
   void save();
-});
-dom.openFileButton.addEventListener('click', () => {
-  void window.configSettingsAPI.openSettingsFile().catch((error) => {
-    setStatus(error instanceof Error ? error.message : 'Failed to open settings file', 'error');
-  });
 });
 
 void loadSnapshot().catch((error) => {

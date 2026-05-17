@@ -17,6 +17,7 @@ const state: {
   modelFieldNamesErrors: Map<string, string>;
   noteFieldModelName: string;
   ankiConnectUrl: string;
+  noteFieldModelNameManuallySelected: boolean;
 } = {
   deckNames: null,
   deckNamesLoading: false,
@@ -32,6 +33,7 @@ const state: {
   modelFieldNamesErrors: new Map(),
   noteFieldModelName: '',
   ankiConnectUrl: '',
+  noteFieldModelNameManuallySelected: false,
 };
 
 let requestRender = (): void => undefined;
@@ -42,9 +44,30 @@ export function configureAnkiControls(options: { requestRender: () => void }): v
 
 export function initializeAnkiControls(values: Record<string, ConfigSettingsSnapshotValue>): void {
   const configuredNoteType = values['ankiConnect.isLapis.sentenceCardModel'];
-  if (!state.noteFieldModelName && typeof configuredNoteType === 'string') {
+  if (
+    !state.noteFieldModelName &&
+    !state.noteFieldModelNameManuallySelected &&
+    typeof configuredNoteType === 'string'
+  ) {
     state.noteFieldModelName = configuredNoteType;
   }
+}
+
+export function selectPreferredNoteFieldModelName(
+  modelNames: readonly string[],
+  _currentModelName = '',
+): string {
+  const exactKiku = modelNames.find((name) => name.toLowerCase() === 'kiku');
+  if (exactKiku) {
+    return exactKiku;
+  }
+
+  const lapis = modelNames.find((name) => name.toLowerCase().includes('lapis'));
+  if (lapis) {
+    return lapis;
+  }
+
+  return '';
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -168,8 +191,11 @@ async function loadAnkiModelNames(draftUrl?: string): Promise<void> {
     if (result.ok) {
       state.modelNames = uniqueSorted(result.values);
       state.modelNamesError = null;
-      if (!state.noteFieldModelName && state.modelNames[0]) {
-        state.noteFieldModelName = state.modelNames[0];
+      if (!state.noteFieldModelNameManuallySelected) {
+        state.noteFieldModelName = selectPreferredNoteFieldModelName(
+          state.modelNames,
+          state.noteFieldModelName,
+        );
       }
     } else {
       state.modelNames = [];
@@ -318,6 +344,7 @@ export function renderNoteFieldModelPicker(context: SettingsControlContext): HTM
   select.value = state.noteFieldModelName;
   select.addEventListener('change', () => {
     state.noteFieldModelName = select.value;
+    state.noteFieldModelNameManuallySelected = true;
     requestRender();
   });
   control.append(select);

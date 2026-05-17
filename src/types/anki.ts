@@ -86,6 +86,7 @@ export interface AnkiConnectConfig {
     color?: string;
   };
   nPlusOne?: {
+    enabled?: boolean;
     nPlusOne?: string;
     minSentenceWords?: number;
   };

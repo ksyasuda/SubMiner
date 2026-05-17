@@ -26,7 +26,8 @@ export type ConfigSettingsControl =
   | 'anki-note-type'
   | 'anki-field'
   | 'mpv-keybindings'
-  | 'color-list';
+  | 'color-list'
+  | 'css-declarations';
 
 export type ConfigSettingsRestartBehavior = 'hot-reload' | 'restart';
 
@@ -45,6 +46,7 @@ export interface ConfigSettingsField {
   advanced?: boolean;
   secret?: boolean;
   legacyHidden?: boolean;
+  settingsHidden?: boolean;
 }
 
 export type ConfigSettingsSnapshotValue = unknown;

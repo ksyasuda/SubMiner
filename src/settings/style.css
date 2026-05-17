@@ -262,7 +262,7 @@ h1 {
 }
 
 .search-input {
-  width: 210px;
+  width: min(360px, 34vw);
   height: 36px;
   padding: 0 12px;
 }
@@ -294,6 +294,12 @@ h1 {
 
 .config-textarea.compact {
   min-height: 86px;
+}
+
+.config-textarea.css-declarations {
+  width: min(560px, 100%);
+  min-height: 188px;
+  tab-size: 2;
 }
 
 .search-input:hover,
@@ -675,7 +681,7 @@ code {
 
 .keybinding-row {
   display: grid;
-  grid-template-columns: minmax(146px, 0.78fr) minmax(220px, 1.22fr);
+  grid-template-columns: minmax(146px, 0.78fr) minmax(180px, 1.22fr) auto;
   gap: 8px;
   align-items: start;
 }

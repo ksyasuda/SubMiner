@@ -10,12 +10,23 @@ import {
 } from './settings-anki-controls';
 import type { SettingsControlContext } from './settings-control-context';
 import { createElement, isSecretSnapshotValue } from './settings-control-dom';
-import { renderKeyboardInput, renderMpvKeybindingsInput } from './settings-keybinding-controls';
+import {
+  configureKeybindingControls,
+  renderKeyboardInput,
+  renderMpvKeybindingsInput,
+} from './settings-keybinding-controls';
+import {
+  getSubtitleCssManagedConfigPaths,
+  getSubtitleCssScopeForPath,
+  parseSubtitleCssDeclarations,
+  serializeSubtitleCssDeclarations,
+} from './subtitle-style-css';
 
 export { renderNoteFieldModelPicker };
 
 export function configureSettingsControls(options: { requestRender: () => void }): void {
   configureAnkiControls(options);
+  configureKeybindingControls(options);
 }
 
 export function initializeSettingsControls(
@@ -90,6 +101,44 @@ function renderStringListInput(
   return textarea;
 }
 
+function renderCssDeclarationsInput(
+  context: SettingsControlContext,
+  field: ConfigSettingsField,
+): HTMLElement {
+  const scope = getSubtitleCssScopeForPath(field.configPath);
+  const textarea = createElement(
+    'textarea',
+    'config-textarea css-declarations',
+  ) as HTMLTextAreaElement;
+  textarea.spellcheck = false;
+  if (!scope) return textarea;
+
+  const managedPaths = getSubtitleCssManagedConfigPaths(scope);
+  const values: Record<string, ConfigSettingsSnapshotValue | undefined> = {
+    [field.configPath]: context.valueForPath(field.configPath),
+  };
+  for (const path of managedPaths) {
+    values[path] = context.valueForPath(path);
+  }
+  textarea.value = serializeSubtitleCssDeclarations(scope, values);
+  textarea.addEventListener('input', () => {
+    const parsed = parseSubtitleCssDeclarations(textarea.value);
+    if (!parsed.ok) {
+      textarea.classList.add('invalid');
+      context.setFieldError(field.configPath, parsed.error);
+      return;
+    }
+
+    textarea.classList.remove('invalid');
+    context.setFieldError(field.configPath, null);
+    context.updateDraft(field.configPath, parsed.declarations);
+    for (const path of managedPaths) {
+      context.resetDraftPath(path, undefined);
+    }
+  });
+  return textarea;
+}
+
 export function renderControl(
   field: ConfigSettingsField,
   context: SettingsControlContext,
@@ -134,7 +183,13 @@ export function renderControl(
   if (field.control === 'number') {
     const input = createElement('input', 'config-input') as HTMLInputElement;
     input.type = 'number';
-    input.value = typeof value === 'number' ? String(value) : '';
+    const numericValue =
+      typeof value === 'number'
+        ? value
+        : typeof field.defaultValue === 'number'
+          ? field.defaultValue
+          : NaN;
+    input.value = Number.isFinite(numericValue) ? String(numericValue) : '';
     input.addEventListener('input', () => {
       const next = parseOptionalNumberInputValue(input.value);
       if (next.ok) {
@@ -172,6 +227,10 @@ export function renderControl(
 
   if (field.control === 'json') {
     return renderJsonInput(context, field, value);
+  }
+
+  if (field.control === 'css-declarations') {
+    return renderCssDeclarationsInput(context, field);
   }
 
   if (field.control === 'textarea') {

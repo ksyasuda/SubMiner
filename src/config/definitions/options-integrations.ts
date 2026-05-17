@@ -279,6 +279,12 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Immediately append newly mined card words into the known-word cache.',
     },
     {
+      path: 'ankiConnect.nPlusOne.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.nPlusOne.enabled,
+      description: 'Enable N+1 subtitle highlighting (highlights the one unknown word in a sentence). Requires known-word cache data.',
+    },
+    {
       path: 'ankiConnect.nPlusOne.minSentenceWords',
       kind: 'number',
       defaultValue: defaultConfig.ankiConnect.nPlusOne.minSentenceWords,

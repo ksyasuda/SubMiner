@@ -14,6 +14,20 @@ export function buildSubtitleConfigOptionRegistry(
         'Default primary subtitle bar visibility mode. hidden hides it, visible shows it, hover reveals it on hover.',
     },
     {
+      path: 'subtitleStyle.css',
+      kind: 'object',
+      defaultValue: defaultConfig.subtitleStyle.css,
+      description:
+        'CSS declaration object applied to primary subtitles after normal subtitle style defaults.',
+    },
+    {
+      path: 'subtitleStyle.secondary.css',
+      kind: 'object',
+      defaultValue: defaultConfig.subtitleStyle.secondary.css,
+      description:
+        'CSS declaration object applied to secondary subtitles after normal subtitle style defaults.',
+    },
+    {
       path: 'subtitleStyle.enableJlpt',
       kind: 'boolean',
       defaultValue: defaultConfig.subtitleStyle.enableJlpt,

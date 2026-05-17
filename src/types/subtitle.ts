@@ -70,6 +70,7 @@ export type FrequencyDictionaryMatchMode = 'headword' | 'surface';
 
 export interface SubtitleStyleConfig {
   primaryDefaultMode?: PrimarySubMode;
+  css?: Record<string, string>;
   enableJlpt?: boolean;
   preserveLineBreaks?: boolean;
   autoPauseVideoOnHover?: boolean;
@@ -110,6 +111,7 @@ export interface SubtitleStyleConfig {
     bandedColors?: [string, string, string, string, string];
   };
   secondary?: {
+    css?: Record<string, string>;
     fontFamily?: string;
     fontSize?: number;
     fontColor?: string;

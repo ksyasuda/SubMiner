@@ -6,7 +6,7 @@ import type {
 } from '../types/settings';
 
 export interface SettingsFilter {
-  category: ConfigSettingsCategory;
+  category?: ConfigSettingsCategory;
   query?: string;
 }
 
@@ -20,6 +20,15 @@ function normalizeQuery(query: string | undefined): string {
   return (query ?? '').trim().toLowerCase();
 }
 
+function searchableText(parts: Array<string | undefined>): string {
+  return parts
+    .filter(Boolean)
+    .join(' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .toLowerCase();
+}
+
 function valuesEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -29,24 +38,26 @@ export function filterSettingsFields(
   filter: SettingsFilter,
 ): ConfigSettingsField[] {
   const query = normalizeQuery(filter.query);
+  const terms = query.length > 0 ? query.split(/\s+/) : [];
   return fields.filter((field) => {
-    if (field.category !== filter.category || field.legacyHidden) {
+    if (field.legacyHidden || field.settingsHidden) {
+      return false;
+    }
+    if (filter.category && field.category !== filter.category) {
       return false;
     }
     if (!query) {
       return true;
     }
-    const haystack = [
+    const haystack = searchableText([
       field.label,
       field.description,
       field.configPath,
       field.section,
       field.subsection ?? '',
       field.enumValues?.join(' ') ?? '',
-    ]
-      .join(' ')
-      .toLowerCase();
-    return haystack.includes(query);
+    ]);
+    return terms.every((term) => haystack.includes(term));
   });
 }
 

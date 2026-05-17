@@ -6,6 +6,10 @@ import type {
   ConfigSettingsRestartBehavior,
 } from '../../types/settings';
 import { CONFIG_OPTION_REGISTRY, DEFAULT_CONFIG } from '../definitions';
+import {
+  getSubtitleCssManagedConfigPaths,
+  getSubtitleCssScopeForPath,
+} from '../../settings/subtitle-style-css';
 
 type Leaf = {
   path: string;
@@ -67,6 +71,8 @@ export const LEGACY_HIDDEN_CONFIG_PATHS = [
   'jellyfin.defaultLibraryId',
   'jellyfin.deviceId',
   'controller.buttonIndices',
+  'subtitleSidebar.toggleKey',
+  'jellyfin.recentServers',
 ] as const;
 
 const EXCLUDED_PREFIXES = ['controller.buttonIndices', 'youtubeSubgen'] as const;
@@ -76,11 +82,19 @@ const JSON_OBJECT_FIELDS = new Set([
   'controller.bindings',
   'controller.profiles',
   'ankiConnect.knownWords.decks',
+  'subtitleStyle.css',
+  'subtitleStyle.secondary.css',
 ]);
 
 const SECRET_PATHS = new Set(['ai.apiKey', 'jimaku.apiKey', 'anilist.accessToken']);
 
 const COLOR_SUFFIXES = new Set(['Color', 'color', 'backgroundColor', 'singleColor', 'nPlusOne']);
+const SUBTITLE_CSS_MANAGED_CONFIG_PATHS = new Set([
+  ...getSubtitleCssManagedConfigPaths('primary'),
+  ...getSubtitleCssManagedConfigPaths('secondary'),
+  'subtitleStyle.hoverTokenColor',
+  'subtitleStyle.hoverTokenBackgroundColor',
+]);
 
 const OPTION_BY_PATH = new Map(CONFIG_OPTION_REGISTRY.map((entry) => [entry.path, entry]));
 
@@ -106,7 +120,7 @@ const SECTION_ORDER = new Map<string, number>(
     'Subtitle Sidebar Behavior',
     'Note Fields',
     'Media Capture',
-    'Kiku Features And Lapis Features',
+    'Kiku/Lapis Features',
     'Anki AI',
     'AnkiConnect Proxy',
     'AnkiConnect',
@@ -123,20 +137,48 @@ const PATH_ORDER = new Map<string, number>(
     'ankiConnect.proxy.enabled',
     'ankiConnect.isLapis.enabled',
     'ankiConnect.isKiku.enabled',
+    'subtitleStyle.fontColor',
+    'subtitleStyle.backgroundColor',
+    'subtitleStyle.hoverTokenColor',
+    'subtitleStyle.hoverTokenBackgroundColor',
+    'subtitleStyle.css',
+    'subtitleStyle.secondary.fontColor',
+    'subtitleStyle.secondary.backgroundColor',
+    'subtitleStyle.secondary.css',
+    'secondarySub.defaultMode',
+    'secondarySub.secondarySubLanguages',
   ].map((path, index) => [path, index]),
 );
 
 const SUBSECTION_ORDER = new Map<string, number>(
-  ['Known Words', 'N+1', 'JLPT', 'Frequency Dictionary', 'Character Names'].map(
-    (subsection, index) => [subsection, index],
-  ),
+  [
+    'Known Words',
+    'N+1',
+    'JLPT',
+    'Frequency Highlighting',
+    'Character Names',
+    'Mining & Clipboard',
+    'Toggle & Visibility',
+    'Open Panels',
+    'Playback',
+    'Timing',
+    'Default Fold State',
+  ].map((subsection, index) => [subsection, index]),
 );
 
 const LABEL_OVERRIDES: Record<string, string> = {
+  'ankiConnect.knownWords.highlightEnabled': 'Enabled',
+  'ankiConnect.nPlusOne.enabled': 'Enabled',
+  'ankiConnect.isLapis.enabled': 'Enable Lapis Features',
+  'ankiConnect.isKiku.enabled': 'Enable Kiku Features',
+  'stats.toggleKey': 'Toggle Stats Overlay',
+  'shortcuts.openCharacterDictionary': 'Open AniList Override',
   'subtitleSidebar.pauseVideoOnHover': 'Pause Video On Hover - Sidebar',
   'subtitleStyle.autoPauseVideoOnHover': 'Pause Video On Hover - Subtitles',
   'subtitleStyle.autoPauseVideoOnYomitanPopup': 'Pause Video On Yomitan Popup',
   'subtitleStyle.primaryDefaultMode': 'Primary Subtitle Visibility Mode',
+  'subtitleStyle.css': 'CSS Declarations',
+  'subtitleStyle.secondary.css': 'CSS Declarations',
   'secondarySub.defaultMode': 'Secondary Subtitle Visibility Mode',
   'subtitlePosition.yPercent': 'Subtitle Position',
 };
@@ -150,6 +192,10 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
     'Enable Lapis-specific mining behavior and sentence-card model targeting. When Kiku is enabled, Lapis features still work and Kiku-specific features are added on top.',
   'ankiConnect.isLapis.sentenceCardModel':
     'Anki note type used for Lapis sentence cards. Select from note types reported by AnkiConnect.',
+  'subtitleStyle.css':
+    'CSS declarations applied to primary subtitles. Includes color, background-color, and all font properties.',
+  'subtitleStyle.secondary.css':
+    'CSS declarations applied to secondary subtitles. Includes color, background-color, and all font properties.',
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -215,6 +261,28 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   ) {
     return { category: 'behavior', section: 'Playback Pause Behavior' };
   }
+  if (path === 'subtitleStyle.preserveLineBreaks') {
+    return { category: 'behavior', section: 'Subtitle Behavior' };
+  }
+  if (
+    path === 'ankiConnect.knownWords.addMinedWordsImmediately' ||
+    path === 'ankiConnect.knownWords.decks' ||
+    path === 'ankiConnect.knownWords.matchMode' ||
+    path === 'ankiConnect.knownWords.refreshMinutes'
+  ) {
+    return { category: 'behavior', section: 'Known Words' };
+  }
+  if (path === 'ankiConnect.nPlusOne.minSentenceWords') {
+    return { category: 'behavior', section: 'N+1' };
+  }
+  if (
+    path === 'subtitleStyle.frequencyDictionary.matchMode' ||
+    path === 'subtitleStyle.frequencyDictionary.mode' ||
+    path === 'subtitleStyle.frequencyDictionary.sourcePath' ||
+    path === 'subtitleStyle.frequencyDictionary.topX'
+  ) {
+    return { category: 'behavior', section: 'Frequency Highlighting' };
+  }
   if (
     path.startsWith('ankiConnect.knownWords.') ||
     path.startsWith('ankiConnect.nPlusOne.') ||
@@ -243,7 +311,6 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
       'subtitleSidebar.autoOpen',
       'subtitleSidebar.autoScroll',
       'subtitleSidebar.layout',
-      'subtitleSidebar.toggleKey',
     ]);
     return sidebarBehaviorPaths.has(path)
       ? { category: 'behavior', section: 'Subtitle Sidebar Behavior' }
@@ -259,7 +326,7 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
     return { category: 'mining-anki', section: 'Media Capture' };
   }
   if (path.startsWith('ankiConnect.isKiku.') || path.startsWith('ankiConnect.isLapis.')) {
-    return { category: 'mining-anki', section: 'Kiku Features And Lapis Features' };
+    return { category: 'mining-anki', section: 'Kiku/Lapis Features' };
   }
   if (path.startsWith('ankiConnect.ai.')) {
     return { category: 'mining-anki', section: 'Anki AI' };
@@ -278,6 +345,9 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
     path.startsWith('subsync.')
   ) {
     return { category: 'playback-sources', section: topSection(path) };
+  }
+  if (path === 'stats.toggleKey' || path === 'stats.markWatchedKey') {
+    return { category: 'input', section: 'Overlay Shortcuts' };
   }
   if (path.startsWith('shortcuts.')) {
     return { category: 'input', section: 'Overlay Shortcuts' };
@@ -346,6 +416,7 @@ function topSection(path: string): string {
 
 function controlForPath(path: string, value: unknown): ConfigSettingsControl {
   if (SECRET_PATHS.has(path)) return 'secret';
+  if (getSubtitleCssScopeForPath(path)) return 'css-declarations';
   if (path === 'keybindings') return 'mpv-keybindings';
   if (path === 'ankiConnect.knownWords.decks') return 'known-words-decks';
   if (path === 'ankiConnect.isLapis.sentenceCardModel') return 'anki-note-type';
@@ -376,16 +447,70 @@ function controlForPath(path: string, value: unknown): ConfigSettingsControl {
 }
 
 function subsectionForPath(path: string): string | undefined {
-  if (path.startsWith('ankiConnect.knownWords.')) return 'Known Words';
-  if (path.startsWith('ankiConnect.nPlusOne.')) return 'N+1';
+  if (path === 'ankiConnect.knownWords.highlightEnabled') return 'Known Words';
+  if (path === 'ankiConnect.nPlusOne.enabled') return 'N+1';
   if (path === 'subtitleStyle.knownWordColor') return 'Known Words';
   if (path === 'subtitleStyle.nPlusOneColor') return 'N+1';
   if (path === 'subtitleStyle.enableJlpt' || path.startsWith('subtitleStyle.jlptColors.')) {
     return 'JLPT';
   }
-  if (path.startsWith('subtitleStyle.frequencyDictionary.')) return 'Frequency Dictionary';
+  if (
+    path === 'subtitleStyle.frequencyDictionary.enabled' ||
+    path === 'subtitleStyle.frequencyDictionary.singleColor' ||
+    path === 'subtitleStyle.frequencyDictionary.bandedColors'
+  ) {
+    return 'Frequency Highlighting';
+  }
   if (path === 'subtitleStyle.nameMatchEnabled' || path === 'subtitleStyle.nameMatchColor') {
     return 'Character Names';
+  }
+  if (path === 'anilist.characterDictionary.collapsibleSections.description') {
+    return 'Default Fold State';
+  }
+  if (path === 'anilist.characterDictionary.collapsibleSections.characterInformation') {
+    return 'Default Fold State';
+  }
+  if (path === 'anilist.characterDictionary.collapsibleSections.voicedBy') {
+    return 'Default Fold State';
+  }
+  if (path === 'stats.toggleKey' || path === 'stats.markWatchedKey') {
+    return 'Toggle & Visibility';
+  }
+  if (path.startsWith('shortcuts.')) {
+    const leaf = path.split('.').at(-1) ?? '';
+    if (leaf === 'multiCopyTimeoutMs') return 'Timing';
+    if (
+      leaf === 'copySubtitle' ||
+      leaf === 'copySubtitleMultiple' ||
+      leaf === 'mineSentence' ||
+      leaf === 'mineSentenceMultiple' ||
+      leaf === 'updateLastCardFromClipboard' ||
+      leaf === 'triggerFieldGrouping' ||
+      leaf === 'markAudioCard'
+    ) {
+      return 'Mining & Clipboard';
+    }
+    if (
+      leaf === 'toggleVisibleOverlayGlobal' ||
+      leaf === 'toggleSubtitleSidebar' ||
+      leaf === 'toggleSecondarySub' ||
+      leaf === 'toggleStatsOverlay' ||
+      leaf === 'markWatched'
+    ) {
+      return 'Toggle & Visibility';
+    }
+    if (
+      leaf === 'openCharacterDictionary' ||
+      leaf === 'openRuntimeOptions' ||
+      leaf === 'openJimaku' ||
+      leaf === 'openSessionHelp' ||
+      leaf === 'openControllerSelect' ||
+      leaf === 'openControllerDebug'
+    ) {
+      return 'Open Panels';
+    }
+    if (leaf === 'triggerSubsync') return 'Playback';
+    return undefined;
   }
   return undefined;
 }
@@ -418,9 +543,9 @@ function compareFields(a: ConfigSettingsField, b: ConfigSettingsField): number {
   const sectionName = a.section.localeCompare(b.section);
   if (sectionName !== 0) return sectionName;
 
-  const subsection =
-    (SUBSECTION_ORDER.get(a.subsection ?? '') ?? Number.MAX_SAFE_INTEGER) -
-    (SUBSECTION_ORDER.get(b.subsection ?? '') ?? Number.MAX_SAFE_INTEGER);
+  const aSubOrder = a.subsection === undefined ? -1 : (SUBSECTION_ORDER.get(a.subsection) ?? Number.MAX_SAFE_INTEGER);
+  const bSubOrder = b.subsection === undefined ? -1 : (SUBSECTION_ORDER.get(b.subsection) ?? Number.MAX_SAFE_INTEGER);
+  const subsection = aSubOrder - bSubOrder;
   if (subsection !== 0) return subsection;
 
   const subsectionName = (a.subsection ?? '').localeCompare(b.subsection ?? '');
@@ -446,7 +571,9 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     pathStartsWith(path, 'subtitleStyle') ||
     pathStartsWith(path, 'subtitleSidebar') ||
     path === 'secondarySub.defaultMode' ||
-    pathStartsWith(path, 'ankiConnect.ai')
+    pathStartsWith(path, 'ankiConnect.ai') ||
+    path === 'stats.toggleKey' ||
+    path === 'stats.markWatchedKey'
   ) {
     return 'hot-reload';
   }
@@ -474,6 +601,7 @@ function fieldForLeaf(leaf: Leaf): ConfigSettingsField {
       leaf.path.startsWith('immersionTracking.retention.') ||
       leaf.path.startsWith('youtubeSubgen.'),
     secret: SECRET_PATHS.has(leaf.path),
+    settingsHidden: SUBTITLE_CSS_MANAGED_CONFIG_PATHS.has(leaf.path),
   };
 }
 

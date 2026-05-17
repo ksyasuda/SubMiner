@@ -10,6 +10,21 @@ import {
   isObject,
 } from './shared';
 
+function asCssDeclarations(value: unknown): Record<string, string> | undefined {
+  if (!isObject(value)) return undefined;
+
+  const declarations: Record<string, string> = {};
+  for (const [property, declarationValue] of Object.entries(value)) {
+    if (typeof declarationValue !== 'string') {
+      return undefined;
+    }
+    if (declarationValue.trim().length > 0) {
+      declarations[property] = declarationValue.trim();
+    }
+  }
+  return declarations;
+}
+
 export function applySubtitleDomainConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
 
@@ -159,6 +174,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     const fallbackSubtitleStyleNameMatchColor = resolved.subtitleStyle.nameMatchColor;
     const fallbackSubtitleStyleKnownWordColor = resolved.subtitleStyle.knownWordColor;
     const fallbackSubtitleStyleNPlusOneColor = resolved.subtitleStyle.nPlusOneColor;
+    const fallbackSubtitleStyleCss = { ...resolved.subtitleStyle.css };
+    const fallbackSubtitleStyleSecondaryCss = { ...resolved.subtitleStyle.secondary.css };
     const fallbackFrequencyDictionary = {
       ...resolved.subtitleStyle.frequencyDictionary,
     };
@@ -208,6 +225,35 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         primaryDefaultMode,
         resolved.subtitleStyle.primaryDefaultMode,
         'Expected hidden, visible, or hover.',
+      );
+    }
+
+    const css = asCssDeclarations((src.subtitleStyle as { css?: unknown }).css);
+    if (css !== undefined) {
+      resolved.subtitleStyle.css = css;
+    } else if ((src.subtitleStyle as { css?: unknown }).css !== undefined) {
+      resolved.subtitleStyle.css = fallbackSubtitleStyleCss;
+      warn(
+        'subtitleStyle.css',
+        (src.subtitleStyle as { css?: unknown }).css,
+        resolved.subtitleStyle.css,
+        'Expected an object whose values are CSS declaration strings.',
+      );
+    }
+
+    const rawSecondary = isObject(src.subtitleStyle.secondary)
+      ? (src.subtitleStyle.secondary as { css?: unknown })
+      : undefined;
+    const secondaryCss = asCssDeclarations(rawSecondary?.css);
+    if (secondaryCss !== undefined) {
+      resolved.subtitleStyle.secondary.css = secondaryCss;
+    } else if (rawSecondary?.css !== undefined) {
+      resolved.subtitleStyle.secondary.css = fallbackSubtitleStyleSecondaryCss;
+      warn(
+        'subtitleStyle.secondary.css',
+        rawSecondary.css,
+        resolved.subtitleStyle.secondary.css,
+        'Expected an object whose values are CSS declaration strings.',
       );
     }
 

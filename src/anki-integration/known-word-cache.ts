@@ -277,7 +277,8 @@ export class KnownWordCacheManager {
   }
 
   private isKnownWordCacheEnabled(): boolean {
-    return this.deps.getConfig().knownWords?.highlightEnabled === true;
+    const config = this.deps.getConfig();
+    return config.knownWords?.highlightEnabled === true || config.nPlusOne?.enabled === true;
   }
 
   private shouldAddMinedWordsImmediately(): boolean {

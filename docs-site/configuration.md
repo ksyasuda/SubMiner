@@ -324,25 +324,29 @@ See `config.example.jsonc` for detailed configuration options.
 ```json
 {
   "subtitleStyle": {
-    "fontFamily": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP",
-    "fontSize": 35,
     "fontColor": "#cad3f5",
-    "fontWeight": "600",
-    "lineHeight": 1.35,
-    "letterSpacing": "-0.01em",
-    "wordSpacing": 0,
-    "fontKerning": "normal",
-    "textRendering": "geometricPrecision",
-    "textShadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)",
-    "fontStyle": "normal",
     "backgroundColor": "transparent",
-    "backdropFilter": "blur(6px)",
+    "css": {
+      "font-family": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP",
+      "font-size": "35px",
+      "font-weight": "600",
+      "line-height": "1.35",
+      "letter-spacing": "-0.01em",
+      "word-spacing": "0",
+      "font-kerning": "normal",
+      "text-rendering": "geometricPrecision",
+      "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)",
+      "font-style": "normal",
+      "backdrop-filter": "blur(6px)"
+    },
     "secondary": {
-      "fontFamily": "Inter, Noto Sans, Helvetica Neue, sans-serif",
-      "fontSize": 24,
       "fontColor": "#cad3f5",
-      "textShadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)",
-      "backgroundColor": "transparent"
+      "backgroundColor": "transparent",
+      "css": {
+        "font-family": "Inter, Noto Sans, Helvetica Neue, sans-serif",
+        "font-size": "24px",
+        "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)"
+      }
     }
   }
 }
@@ -353,6 +357,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `fontFamily`                       | string      | CSS font-family value (default: `"Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP"`)                         |
 | `fontSize`                         | number (px) | Font size in pixels (default: `35`)                                                                                        |
 | `fontColor`                        | string      | Any CSS color value (default: `"#cad3f5"`)                                                                                 |
+| `css`                              | object      | CSS declarations applied to subtitles after normal style defaults; the settings window writes textbox edits here            |
 | `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"600"`)                                                     |
 | `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                             |
 | `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"transparent"`)                                                        |
@@ -374,7 +379,9 @@ See `config.example.jsonc` for detailed configuration options.
 | `frequencyDictionary.singleColor`  | string      | Color used for all highlighted tokens in single mode                                                                       |
 | `frequencyDictionary.bandedColors` | string[]    | Array of five hex colors used for ranked bands in banded mode                                                              |
 | `jlptColors`                       | object      | JLPT level underline colors object (`N1`..`N5`)                                                                            |
-| `secondary`                        | object      | Override any of the above for secondary subtitles (optional)                                                               |
+| `secondary`                        | object      | Override any of the above for secondary subtitles (optional), including `secondary.css` declarations                       |
+
+The configuration window keeps subtitle color controls separate, then saves the CSS textbox to `subtitleStyle.css` and `subtitleStyle.secondary.css`. Existing top-level style keys such as `fontSize` and `textShadow` remain supported for hand-written configs.
 
 Frequency dictionary highlighting uses the same dictionary file format as JLPT bundle lookups (`term_meta_bank_*.json` under discovered dictionary directories). A token is highlighted when it has a positive integer `frequencyRank` (lower is more common) and the rank is within `topX`.
 
@@ -967,6 +974,7 @@ This example is intentionally compact. The option table below documents availabl
 | `ankiConnect.knownWords.matchMode`                | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text.                                                       |
 | `ankiConnect.knownWords.refreshMinutes`           | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                                                                        |
 | `ankiConnect.knownWords.decks`                    | object                                  | Deck→fields mapping used for known-word cache query scope (e.g. `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                                                                                     |
+| `ankiConnect.nPlusOne.enabled`                    | `true`, `false`                         | Enable N+1 subtitle highlighting (highlights the one unknown word in a sentence). Independent from `knownWords.highlightEnabled`. Requires known-word cache data (default: `false`).               |
 | `ankiConnect.nPlusOne.minSentenceWords`           | number                                  | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                                                                              |
 | `behavior.notificationType`                       | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                                                                                 |
 | `behavior.autoUpdateNewCards`                     | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                                                                            |

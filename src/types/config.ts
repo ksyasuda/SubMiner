@@ -214,6 +214,7 @@ export interface ResolvedConfig {
       decks: Record<string, string[]>;
     };
     nPlusOne: {
+      enabled: boolean;
       minSentenceWords: number;
     };
     behavior: {

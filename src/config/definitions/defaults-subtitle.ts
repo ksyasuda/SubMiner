@@ -3,6 +3,7 @@ import { ResolvedConfig } from '../../types/config';
 export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'subtitleSidebar'> = {
   subtitleStyle: {
     primaryDefaultMode: 'visible',
+    css: {},
     enableJlpt: false,
     preserveLineBreaks: false,
     autoPauseVideoOnHover: true,
@@ -43,6 +44,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
       bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#8bd5ca', '#8aadf4'],
     },
     secondary: {
+      css: {},
       fontFamily: 'Inter, Noto Sans, Helvetica Neue, sans-serif',
       fontSize: 24,
       fontColor: '#cad3f5',
