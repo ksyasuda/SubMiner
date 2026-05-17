@@ -69,6 +69,17 @@ test('parseArgs maps root update flags without conflicting with jellyfin usernam
   assert.equal(jellyfinParsed.jellyfinUsername, 'kyle');
 });
 
+test('parseArgs maps root version flags without conflicting with stats vocab flag', () => {
+  const shortParsed = parseArgs(['-v'], 'subminer', {});
+  const longParsed = parseArgs(['--version'], 'subminer', {});
+  const statsParsed = parseArgs(['stats', 'cleanup', '-v'], 'subminer', {});
+
+  assert.equal(shortParsed.version, true);
+  assert.equal(longParsed.version, true);
+  assert.equal(statsParsed.version, false);
+  assert.equal(statsParsed.statsCleanupVocab, true);
+});
+
 test('parseArgs maps jellyfin play action and log-level override', () => {
   const parsed = parseArgs(['jellyfin', 'play', '--log-level', 'debug'], 'subminer', {});
 

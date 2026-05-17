@@ -99,6 +99,30 @@ test('config discovery ignores lowercase subminer candidate', () => {
   assert.equal(resolved, expected);
 });
 
+test('version flag prints installed app version without requiring app binary', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const result = runLauncher(['--version'], makeTestEnv(homeDir, xdgConfigHome));
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout.trim(), /^SubMiner \d+\.\d+\.\d+/);
+    assert.equal(result.stderr, '');
+  });
+});
+
+test('short version flag prints installed app version without requiring app binary', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const result = runLauncher(['-v'], makeTestEnv(homeDir, xdgConfigHome));
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout.trim(), /^SubMiner \d+\.\d+\.\d+/);
+    assert.equal(result.stderr, '');
+  });
+});
+
 test('config path prefers jsonc over json for same directory', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');

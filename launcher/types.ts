@@ -134,6 +134,7 @@ export interface Args {
   dictionaryTarget?: string;
   doctor: boolean;
   doctorRefreshKnownWords: boolean;
+  version: boolean;
   update?: boolean;
   configPath: boolean;
   configShow: boolean;

@@ -57,6 +57,7 @@ function applyRootOptions(program: Command): void {
     .option('-p, --profile <profile>', 'MPV profile')
     .option('--start', 'Explicitly start overlay')
     .option('--log-level <level>', 'Log level')
+    .option('-v, --version', 'Show SubMiner version')
     .option('-u, --update', 'Check for updates')
     .option('-R, --rofi', 'Use rofi picker')
     .option('-S, --start-overlay', 'Auto-start overlay')

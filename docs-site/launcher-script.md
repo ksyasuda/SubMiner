@@ -99,6 +99,7 @@ Use `subminer <subcommand> -h` for command-specific help.
 | `-r, --recursive`     | Search directories recursively                                       |
 | `-R, --rofi`          | Use rofi instead of fzf                                              |
 | `--setup`             | Open first-run setup popup manually                                  |
+| `-v, --version`       | Print installed SubMiner version                                     |
 | `-u, --update`        | Check for SubMiner updates and update the app/launcher when possible |
 | `--start`             | Explicitly start overlay after mpv launches                          |
 | `-S, --start-overlay` | Explicitly start overlay after mpv launches                          |

@@ -52,6 +52,7 @@ function createContext(): LauncherCommandContext {
       stats: false,
       doctor: false,
       doctorRefreshKnownWords: false,
+      version: false,
       configPath: false,
       configShow: false,
       mpvIdle: false,

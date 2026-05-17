@@ -529,6 +529,7 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     stats: false,
     doctor: false,
     doctorRefreshKnownWords: false,
+    version: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,

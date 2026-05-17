@@ -78,6 +78,8 @@ subminer -S video.mkv             # Same as above via --start-overlay
 subminer https://youtu.be/...     # Play a YouTube URL
 subminer ytsearch:"jp news"       # Play first YouTube search result
 subminer --setup                  # Open first-run setup popup
+subminer --version                # Print installed SubMiner version
+subminer -v                       # Same as above
 subminer --log-level debug video.mkv # Enable verbose logs for launch/debugging
 subminer --log-level warn video.mkv  # Set logging level explicitly
 subminer --args '--fs=opengl-hq --ytdl-format=bestvideo*+bestaudio/best' video.mkv  # Pass extra mpv args

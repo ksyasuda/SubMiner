@@ -1,4 +1,5 @@
 import path from 'node:path';
+import packageJson from '../package.json';
 import {
   loadLauncherJellyfinConfig,
   loadLauncherMpvConfig,
@@ -19,6 +20,11 @@ import { runStatsCommand } from './commands/stats-command.js';
 import { runJellyfinCommand } from './commands/jellyfin-command.js';
 import { runPlaybackCommand } from './commands/playback-command.js';
 import { runUpdateCommand } from './commands/update-command.js';
+
+const APP_VERSION =
+  typeof packageJson.version === 'string' && packageJson.version.trim()
+    ? packageJson.version
+    : 'unknown';
 
 function createCommandContext(
   args: ReturnType<typeof parseArgs>,
@@ -56,6 +62,12 @@ async function main(): Promise<void> {
   const launcherConfig = loadLauncherYoutubeSubgenConfig();
   const launcherMpvConfig = loadLauncherMpvConfig();
   const args = parseArgs(process.argv.slice(2), scriptName, launcherConfig, launcherMpvConfig);
+
+  if (args.version) {
+    console.log(`SubMiner ${APP_VERSION}`);
+    return;
+  }
+
   const pluginRuntimeConfig = readPluginRuntimeConfig(args.logLevel);
   const appPath = findAppBinary(scriptPath);
 
