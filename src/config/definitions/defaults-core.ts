@@ -74,6 +74,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
       rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
       rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
     },
+    profiles: {},
   },
   shortcuts: {
     toggleVisibleOverlayGlobal: 'Alt+Shift+O',

@@ -75,3 +75,47 @@ test('applyControllerConfigUpdate detaches updated binding values from the patch
 
   assert.deepEqual(next.bindings?.toggleLookup, { kind: 'button', buttonIndex: 7 });
 });
+
+test('applyControllerConfigUpdate merges per-controller profile binding leaves', () => {
+  const next = applyControllerConfigUpdate(
+    {
+      profiles: {
+        'pad-1': {
+          label: 'Pad 1',
+          bindings: {
+            toggleLookup: { kind: 'button', buttonIndex: 0 },
+            closeLookup: { kind: 'button', buttonIndex: 1 },
+          },
+        },
+      },
+    },
+    {
+      profiles: {
+        'pad-1': {
+          bindings: {
+            toggleLookup: { kind: 'button', buttonIndex: 11 },
+          },
+        },
+        'pad-2': {
+          label: 'Pad 2',
+          bindings: {
+            mineCard: { kind: 'button', buttonIndex: 8 },
+          },
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(next.profiles?.['pad-1']?.bindings?.toggleLookup, {
+    kind: 'button',
+    buttonIndex: 11,
+  });
+  assert.deepEqual(next.profiles?.['pad-1']?.bindings?.closeLookup, {
+    kind: 'button',
+    buttonIndex: 1,
+  });
+  assert.deepEqual(next.profiles?.['pad-2']?.bindings?.mineCard, {
+    kind: 'button',
+    buttonIndex: 8,
+  });
+});

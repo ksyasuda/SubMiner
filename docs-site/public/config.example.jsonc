@@ -138,7 +138,8 @@
         "axisIndex": 4, // Raw axis index captured for this analog controller action.
         "dpadFallback": "none" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
       } // Axis binding descriptor used for popup page jumps. Use Alt+C learn mode or set a raw axis descriptor manually.
-    } // Raw controller binding descriptors saved by Alt+C learn mode. For discrete axis bindings, kind "axis" requires axisIndex and direction.
+    }, // Raw controller binding descriptors saved by Alt+C learn mode. For discrete axis bindings, kind "axis" requires axisIndex and direction.
+    "profiles": {} // Per-controller binding and button-index overrides keyed by the controller id reported by the Gamepad API.
   }, // Gamepad support for the visible overlay while keyboard-only mode is active.
 
   // ==========================================

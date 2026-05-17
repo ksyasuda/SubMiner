@@ -227,6 +227,18 @@ export interface ControllerButtonIndicesConfig {
   rightTrigger?: number;
 }
 
+export interface ControllerProfileConfig {
+  label?: string;
+  buttonIndices?: ControllerButtonIndicesConfig;
+  bindings?: ControllerBindingsConfig;
+}
+
+export interface ResolvedControllerProfileConfig {
+  label: string;
+  buttonIndices: Required<ControllerButtonIndicesConfig>;
+  bindings: Required<ResolvedControllerBindingsConfig>;
+}
+
 export interface ControllerConfig {
   enabled?: boolean;
   preferredGamepadId?: string;
@@ -241,6 +253,7 @@ export interface ControllerConfig {
   repeatIntervalMs?: number;
   buttonIndices?: ControllerButtonIndicesConfig;
   bindings?: ControllerBindingsConfig;
+  profiles?: Record<string, ControllerProfileConfig>;
 }
 
 export interface ControllerPreferenceUpdate {

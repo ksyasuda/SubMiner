@@ -93,6 +93,7 @@ function createControllerConfig(
         ...(buttonIndexOverrides ?? {}),
       }),
     },
+    profiles: {},
     ...restOverrides,
   };
 }
@@ -447,6 +448,60 @@ test('gamepad controller maps left stick horizontal movement to token selection 
   controller.poll(380);
 
   assert.deepEqual(calls, [1, 1, -1]);
+});
+
+test('gamepad controller uses active controller profile bindings before global bindings', () => {
+  let lookupToggles = 0;
+  const buttons = Array.from({ length: 12 }, () => ({
+    value: 0,
+    pressed: false,
+    touched: false,
+  }));
+  buttons[11] = { value: 1, pressed: true, touched: true };
+
+  const controller = createGamepadController({
+    getGamepads: () => [createGamepad('pad-profile', { buttons })],
+    getConfig: () =>
+      ({
+        ...createControllerConfig({
+          bindings: {
+            toggleLookup: { kind: 'button', buttonIndex: 0 },
+          },
+        }),
+        profiles: {
+          'pad-profile': {
+            label: 'Profile Pad',
+            buttonIndices: DEFAULT_BUTTON_INDICES,
+            bindings: {
+              ...createControllerConfig().bindings,
+              toggleLookup: { kind: 'button', buttonIndex: 11 },
+            },
+          },
+        },
+      }) as ResolvedControllerConfig,
+    getKeyboardModeEnabled: () => true,
+    getLookupWindowOpen: () => false,
+    getInteractionBlocked: () => false,
+    toggleKeyboardMode: () => {},
+    toggleLookup: () => {
+      lookupToggles += 1;
+    },
+    closeLookup: () => {},
+    moveSelection: () => {},
+    mineCard: () => {},
+    quitMpv: () => {},
+    previousAudio: () => {},
+    nextAudio: () => {},
+    playCurrentAudio: () => {},
+    toggleMpvPause: () => {},
+    scrollPopup: () => {},
+    jumpPopup: () => {},
+    onState: () => {},
+  });
+
+  controller.poll(0);
+
+  assert.equal(lookupToggles, 1);
 });
 
 test('gamepad controller maps L1 play-current, R1 next-audio, and popup navigation', () => {

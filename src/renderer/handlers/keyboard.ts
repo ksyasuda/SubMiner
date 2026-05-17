@@ -203,13 +203,11 @@ export function createKeyboardHandlers(
     }
 
     if (binding.actionType === 'session-action' && binding.actionId === 'openControllerSelect') {
-      window.electronAPI.notifyOverlayModalOpened('controller-select');
       options.openControllerSelectModal?.();
       return;
     }
 
     if (binding.actionType === 'session-action' && binding.actionId === 'openControllerDebug') {
-      window.electronAPI.notifyOverlayModalOpened('controller-debug');
       options.openControllerDebugModal?.();
       return;
     }

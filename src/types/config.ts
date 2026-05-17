@@ -21,6 +21,7 @@ import type {
 import type {
   ControllerButtonIndicesConfig,
   ControllerConfig,
+  ResolvedControllerProfileConfig,
   ControllerTriggerInputMode,
   Keybinding,
   ResolvedControllerBindingsConfig,
@@ -164,6 +165,7 @@ export interface ResolvedConfig {
     repeatIntervalMs: number;
     buttonIndices: Required<ControllerButtonIndicesConfig>;
     bindings: Required<ResolvedControllerBindingsConfig>;
+    profiles: Record<string, ResolvedControllerProfileConfig>;
   };
   ankiConnect: AnkiConnectConfig & {
     enabled: boolean;

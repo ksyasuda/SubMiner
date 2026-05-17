@@ -166,6 +166,67 @@ function parseAxisBinding(value: unknown) {
   };
 }
 
+function parseControllerButtonIndices(
+  value: unknown,
+): ControllerConfigUpdate['buttonIndices'] | null {
+  if (!isObject(value)) return null;
+  const buttonIndices: NonNullable<ControllerConfigUpdate['buttonIndices']> = {};
+  const keys = [
+    'select',
+    'buttonSouth',
+    'buttonEast',
+    'buttonNorth',
+    'buttonWest',
+    'leftShoulder',
+    'rightShoulder',
+    'leftStickPress',
+    'rightStickPress',
+    'leftTrigger',
+    'rightTrigger',
+  ] as const;
+  for (const key of keys) {
+    if (value[key] === undefined) continue;
+    if (!isInteger(value[key]) || value[key] < 0) return null;
+    buttonIndices[key] = value[key];
+  }
+  return buttonIndices;
+}
+
+function parseControllerBindings(value: unknown): ControllerConfigUpdate['bindings'] | null {
+  if (!isObject(value)) return null;
+  const bindings: NonNullable<ControllerConfigUpdate['bindings']> = {};
+  const discreteKeys = [
+    'toggleLookup',
+    'closeLookup',
+    'toggleKeyboardOnlyMode',
+    'mineCard',
+    'quitMpv',
+    'previousAudio',
+    'nextAudio',
+    'playCurrentAudio',
+    'toggleMpvPause',
+  ] as const;
+  for (const key of discreteKeys) {
+    if (value[key] === undefined) continue;
+    const parsed = parseDiscreteBinding(value[key]);
+    if (!parsed) return null;
+    bindings[key] = parsed as NonNullable<ControllerConfigUpdate['bindings']>[typeof key];
+  }
+  const axisKeys = [
+    'leftStickHorizontal',
+    'leftStickVertical',
+    'rightStickHorizontal',
+    'rightStickVertical',
+  ] as const;
+  for (const key of axisKeys) {
+    if (value[key] === undefined) continue;
+    const parsed = parseAxisBinding(value[key]);
+    if (!parsed) return null;
+    bindings[key] = parsed as NonNullable<ControllerConfigUpdate['bindings']>[typeof key];
+  }
+  return bindings;
+}
+
 export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpdate | null {
   if (!isObject(value)) return null;
   const update: ControllerConfigUpdate = {};
@@ -182,40 +243,41 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
     if (typeof value.preferredGamepadLabel !== 'string') return null;
     update.preferredGamepadLabel = value.preferredGamepadLabel;
   }
+  if (value.buttonIndices !== undefined) {
+    const parsed = parseControllerButtonIndices(value.buttonIndices);
+    if (!parsed) return null;
+    update.buttonIndices = parsed;
+  }
 
   if (value.bindings !== undefined) {
-    if (!isObject(value.bindings)) return null;
-    const bindings: NonNullable<ControllerConfigUpdate['bindings']> = {};
-    const discreteKeys = [
-      'toggleLookup',
-      'closeLookup',
-      'toggleKeyboardOnlyMode',
-      'mineCard',
-      'quitMpv',
-      'previousAudio',
-      'nextAudio',
-      'playCurrentAudio',
-      'toggleMpvPause',
-    ] as const;
-    for (const key of discreteKeys) {
-      if (value.bindings[key] === undefined) continue;
-      const parsed = parseDiscreteBinding(value.bindings[key]);
-      if (!parsed) return null;
-      bindings[key] = parsed as NonNullable<ControllerConfigUpdate['bindings']>[typeof key];
+    const parsed = parseControllerBindings(value.bindings);
+    if (!parsed) return null;
+    update.bindings = parsed;
+  }
+
+  if (value.profiles !== undefined) {
+    if (!isObject(value.profiles)) return null;
+    const profiles: NonNullable<ControllerConfigUpdate['profiles']> = {};
+    for (const [profileId, rawProfile] of Object.entries(value.profiles)) {
+      if (!isObject(rawProfile)) return null;
+      const profile: NonNullable<ControllerConfigUpdate['profiles']>[string] = {};
+      if (rawProfile.label !== undefined) {
+        if (typeof rawProfile.label !== 'string') return null;
+        profile.label = rawProfile.label;
+      }
+      if (rawProfile.buttonIndices !== undefined) {
+        const parsed = parseControllerButtonIndices(rawProfile.buttonIndices);
+        if (!parsed) return null;
+        profile.buttonIndices = parsed;
+      }
+      if (rawProfile.bindings !== undefined) {
+        const parsed = parseControllerBindings(rawProfile.bindings);
+        if (!parsed) return null;
+        profile.bindings = parsed;
+      }
+      profiles[profileId] = profile;
     }
-    const axisKeys = [
-      'leftStickHorizontal',
-      'leftStickVertical',
-      'rightStickHorizontal',
-      'rightStickVertical',
-    ] as const;
-    for (const key of axisKeys) {
-      if (value.bindings[key] === undefined) continue;
-      const parsed = parseAxisBinding(value.bindings[key]);
-      if (!parsed) return null;
-      bindings[key] = parsed as NonNullable<ControllerConfigUpdate['bindings']>[typeof key];
-    }
-    update.bindings = bindings;
+    update.profiles = profiles;
   }
 
   return update;

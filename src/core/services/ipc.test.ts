@@ -83,6 +83,7 @@ function createControllerConfigFixture() {
       rightStickHorizontal: { kind: 'axis' as const, axisIndex: 3, dpadFallback: 'none' as const },
       rightStickVertical: { kind: 'axis' as const, axisIndex: 4, dpadFallback: 'none' as const },
     },
+    profiles: {},
   };
 }
 
@@ -942,6 +943,54 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
       preferredGamepadLabel: 'Pad 1',
     },
   ]);
+});
+
+test('registerIpcHandlers accepts per-controller profile config updates', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const controllerSaves: unknown[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      saveControllerConfig: async (update) => {
+        controllerSaves.push(update);
+      },
+    }),
+    registrar,
+  );
+
+  const saveHandler = handlers.handle.get(IPC_CHANNELS.command.saveControllerConfig);
+  assert.ok(saveHandler);
+
+  const update = {
+    profiles: {
+      'pad-1': {
+        label: 'Pad One',
+        buttonIndices: {
+          buttonSouth: 11,
+        },
+        bindings: {
+          toggleLookup: { kind: 'button', buttonIndex: 11 },
+          leftStickHorizontal: { kind: 'axis', axisIndex: 6, dpadFallback: 'horizontal' },
+        },
+      },
+    },
+  };
+  await saveHandler({}, update);
+  assert.deepEqual(controllerSaves, [update]);
+
+  await assert.rejects(async () => {
+    await saveHandler(
+      {},
+      {
+        profiles: {
+          'pad-1': {
+            bindings: {
+              toggleLookup: { kind: 'axis', axisIndex: 0 },
+            },
+          },
+        },
+      },
+    );
+  }, /Invalid controller config payload/);
 });
 
 test('registerIpcHandlers validates dispatchSessionAction payloads', async () => {

@@ -283,13 +283,14 @@ SubMiner supports gamepad/controller input for couch-friendly usage via the Chro
 ### Getting Started
 
 1. Connect a controller before or after launching SubMiner.
-2. Enable keyboard-only mode — press `Y` on the controller (default binding) or use the overlay keybinding.
+2. Set `controller.enabled` to `true` in your config.
 3. Press `Alt+C` in the overlay by default to pick the controller you want to save and remap any action inline.
-4. Click `Learn` on the overlay action you want, then press the matching button, trigger, or stick direction on the controller.
-5. Use the left stick to navigate subtitle tokens and scroll the popup; use the right stick vertically for popup page jumps.
-6. Press `A` to look up the selected word, `X` to mine a card, `B` to close the popup.
+4. Enable keyboard-only mode — press `Y` on the controller (default binding) or use the overlay keybinding.
+5. Click the binding badge, edit pencil, or `Learn` on the overlay action you want, then press the matching button, trigger, or stick direction on the controller.
+6. Use the left stick to navigate subtitle tokens and scroll the popup; use the right stick vertically for popup page jumps.
+7. Press `A` to look up the selected word, `X` to mine a card, `B` to close the popup.
 
-By default SubMiner uses the first connected controller. `Alt+C` opens the controller config modal, where you can save the preferred controller and remap bindings inline, and `Alt+Shift+C` opens the live debug modal with raw axes/button values for non-standard pads. Both shortcuts can be changed through `shortcuts.openControllerSelect` and `shortcuts.openControllerDebug`.
+By default SubMiner uses the first connected controller after controller support is enabled. `Alt+C` opens the controller config modal, where you can save the preferred controller and remap bindings inline per controller. The reset button beside each edit pencil restores that binding to its built-in default for the selected controller. `Alt+Shift+C` opens the live debug modal with raw axes/button values for non-standard pads. Both modals stay closed while `controller.enabled` is false, and both shortcuts can be changed through `shortcuts.openControllerSelect` and `shortcuts.openControllerDebug`.
 
 ### Default Button Mapping
 
@@ -316,7 +317,7 @@ By default SubMiner uses the first connected controller. `Alt+C` opens the contr
 
 Learn mode ignores already-held inputs and waits for the next fresh button press or axis direction, which avoids accidental captures when you open the modal mid-input.
 
-All button and axis mappings are configurable under the `controller` config block. See [Configuration — Controller Support](/configuration#controller-support) for the full options.
+All button and axis mappings are configurable under the `controller` config block. Learned remaps are saved under `controller.profiles` for the selected controller id. See [Configuration — Controller Support](/configuration#controller-support) for the full options.
 
 ## Keybindings
 

@@ -1453,6 +1453,69 @@ test('parses descriptor-based controller bindings', () => {
   });
 });
 
+test('parses controller profiles as per-gamepad binding overrides', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "controller": {
+        "buttonIndices": {
+          "buttonSouth": 0,
+          "leftTrigger": 6
+        },
+        "bindings": {
+          "toggleLookup": { "kind": "button", "buttonIndex": 0 },
+          "quitMpv": "leftTrigger"
+        },
+        "profiles": {
+          "8BitDo SN30": {
+            "label": "8BitDo SN30",
+            "bindings": {
+              "toggleLookup": { "kind": "button", "buttonIndex": 11 },
+              "leftStickVertical": { "kind": "axis", "axisIndex": 7, "dpadFallback": "none" }
+            }
+          },
+          "Xbox Wireless Controller": {
+            "buttonIndices": {
+              "leftTrigger": 8
+            },
+            "bindings": {
+              "quitMpv": "leftTrigger"
+            }
+          }
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.deepEqual(config.controller.profiles['8BitDo SN30']?.bindings.toggleLookup, {
+    kind: 'button',
+    buttonIndex: 11,
+  });
+  assert.deepEqual(config.controller.profiles['8BitDo SN30']?.bindings.closeLookup, {
+    kind: 'button',
+    buttonIndex: 1,
+  });
+  assert.deepEqual(config.controller.profiles['8BitDo SN30']?.bindings.leftStickVertical, {
+    kind: 'axis',
+    axisIndex: 7,
+    dpadFallback: 'none',
+  });
+  assert.deepEqual(config.controller.profiles['Xbox Wireless Controller']?.bindings.quitMpv, {
+    kind: 'button',
+    buttonIndex: 8,
+  });
+  assert.equal(
+    config.controller.profiles['Xbox Wireless Controller']?.buttonIndices.leftTrigger,
+    8,
+  );
+  assert.deepEqual(config.controller.bindings.quitMpv, { kind: 'button', buttonIndex: 6 });
+});
+
 test('controller descriptor config rejects malformed binding objects', () => {
   const dir = makeTempDir();
   fs.writeFileSync(

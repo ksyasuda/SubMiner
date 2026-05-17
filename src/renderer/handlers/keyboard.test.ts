@@ -987,7 +987,7 @@ test('keyboard mode: configured controller select binding opens locally without 
 
     assert.equal(openControllerSelectCount(), 1);
     assert.deepEqual(testGlobals.sessionActions, []);
-    assert.deepEqual(testGlobals.openedModalNotifications, ['controller-select']);
+    assert.deepEqual(testGlobals.openedModalNotifications, []);
   } finally {
     testGlobals.restore();
   }
@@ -1017,7 +1017,7 @@ test('keyboard mode: configured controller debug binding opens locally without d
 
     assert.equal(openControllerDebugCount(), 1);
     assert.deepEqual(testGlobals.sessionActions, []);
-    assert.deepEqual(testGlobals.openedModalNotifications, ['controller-debug']);
+    assert.deepEqual(testGlobals.openedModalNotifications, []);
   } finally {
     testGlobals.restore();
   }
@@ -1049,7 +1049,7 @@ test('keyboard mode: configured controller debug binding is not swallowed while 
 
     assert.equal(openControllerDebugCount(), 1);
     assert.deepEqual(testGlobals.sessionActions, []);
-    assert.deepEqual(testGlobals.openedModalNotifications, ['controller-debug']);
+    assert.deepEqual(testGlobals.openedModalNotifications, []);
   } finally {
     testGlobals.restore();
   }

@@ -158,6 +158,7 @@ function buildContext() {
       rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
       rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
     },
+    profiles: {},
   };
   state.connectedGamepads = [
     { id: 'pad-1', index: 0, mapping: 'standard', connected: true },
@@ -201,6 +202,7 @@ test('controller select modal saves preferred controller from dropdown selection
     const modal = createControllerSelectModal({ state, dom } as never, {
       modalStateReader: { isAnyModalOpen: () => false },
       syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
     });
 
     modal.wireDomEvents();
@@ -246,6 +248,7 @@ test('controller select modal learn mode captures fresh button input and persist
     const modal = createControllerSelectModal({ state, dom } as never, {
       modalStateReader: { isAnyModalOpen: () => false },
       syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
     });
 
     modal.wireDomEvents();
@@ -277,6 +280,195 @@ test('controller select modal learn mode captures fresh button input and persist
     await Promise.resolve();
 
     assert.deepEqual(saved.at(-1), {
+      profiles: {
+        'pad-1': {
+          label: 'pad-1',
+          bindings: {
+            toggleLookup: { kind: 'button', buttonIndex: 11 },
+          },
+        },
+      },
+    });
+    assert.deepEqual(state.controllerConfig?.profiles['pad-1']?.bindings.toggleLookup, {
+      kind: 'button',
+      buttonIndex: 11,
+    });
+  } finally {
+    domHandle.restore();
+  }
+});
+
+test('controller select modal reset control stores the default binding in the selected profile', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    if (state.controllerConfig) {
+      state.controllerConfig.profiles = {
+        'pad-1': {
+          label: 'pad-1',
+          buttonIndices: state.controllerConfig.buttonIndices,
+          bindings: {
+            ...state.controllerConfig.bindings,
+            toggleLookup: { kind: 'button', buttonIndex: 11 },
+          },
+        },
+      };
+    }
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    const firstRow = dom.controllerConfigList.children[1];
+    const right = firstRow.children[1];
+    const resetButton = right.children[1];
+    resetButton.dispatch('click');
+
+    await Promise.resolve();
+
+    assert.deepEqual(saved.at(-1), {
+      profiles: {
+        'pad-1': {
+          label: 'pad-1',
+          bindings: {
+            toggleLookup: { kind: 'button', buttonIndex: 0 },
+          },
+        },
+      },
+    });
+    assert.deepEqual(state.controllerConfig?.profiles['pad-1']?.bindings.toggleLookup, {
+      kind: 'button',
+      buttonIndex: 0,
+    });
+  } finally {
+    domHandle.restore();
+  }
+});
+
+test('controller select modal binding badge starts learn mode and persists binding', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    const firstRow = dom.controllerConfigList.children[1];
+    const right = firstRow.children[1];
+    const badge = right.children[0];
+    badge.dispatch('click');
+
+    state.controllerRawButtons = Array.from({ length: 12 }, () => ({
+      value: 0,
+      pressed: false,
+      touched: false,
+    }));
+    state.controllerRawButtons[11] = { value: 1, pressed: true, touched: true };
+    modal.updateDevices();
+
+    await Promise.resolve();
+
+    assert.deepEqual(saved.at(-1), {
+      profiles: {
+        'pad-1': {
+          label: 'pad-1',
+          bindings: {
+            toggleLookup: { kind: 'button', buttonIndex: 11 },
+          },
+        },
+      },
+    });
+  } finally {
+    domHandle.restore();
+  }
+});
+
+test('controller select modal learn mode falls back to global bindings without a controller', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    state.connectedGamepads = [];
+    state.activeGamepadId = null;
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    const firstRow = dom.controllerConfigList.children[1];
+    firstRow.dispatch('click');
+    const editPanel = dom.controllerConfigList.children[2];
+    const learnButton = editPanel.children[0].children[1].children[0];
+    learnButton.dispatch('click');
+
+    state.controllerRawButtons = Array.from({ length: 12 }, () => ({
+      value: 0,
+      pressed: false,
+      touched: false,
+    }));
+    state.controllerRawButtons[11] = { value: 1, pressed: true, touched: true };
+    modal.updateDevices();
+
+    await Promise.resolve();
+
+    assert.deepEqual(saved.at(-1), {
       bindings: {
         toggleLookup: { kind: 'button', buttonIndex: 11 },
       },
@@ -285,6 +477,100 @@ test('controller select modal learn mode captures fresh button input and persist
       kind: 'button',
       buttonIndex: 11,
     });
+  } finally {
+    domHandle.restore();
+  }
+});
+
+test('controller select modal edit control starts learn mode and persists binding', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    const firstRow = dom.controllerConfigList.children[1];
+    const right = firstRow.children[1];
+    const editButton = right.children[2];
+    editButton.dispatch('click');
+
+    state.controllerRawButtons = Array.from({ length: 12 }, () => ({
+      value: 0,
+      pressed: false,
+      touched: false,
+    }));
+    state.controllerRawButtons[11] = { value: 1, pressed: true, touched: true };
+    modal.updateDevices();
+
+    await Promise.resolve();
+
+    assert.deepEqual(saved.at(-1), {
+      profiles: {
+        'pad-1': {
+          label: 'pad-1',
+          bindings: {
+            toggleLookup: { kind: 'button', buttonIndex: 11 },
+          },
+        },
+      },
+    });
+  } finally {
+    domHandle.restore();
+  }
+});
+
+test('controller select modal stays closed and notifies when controller support is disabled', async () => {
+  const domHandle = installFakeDom();
+  let disabledNotices = 0;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async () => {},
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    if (state.controllerConfig) state.controllerConfig.enabled = false;
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {
+        disabledNotices += 1;
+      },
+    });
+
+    assert.equal(modal.openControllerSelectModal(), false);
+
+    assert.equal(state.controllerSelectModalOpen, false);
+    assert.equal(dom.controllerSelectModal.classList.contains('hidden'), true);
+    assert.equal(disabledNotices, 1);
   } finally {
     domHandle.restore();
   }
@@ -315,6 +601,7 @@ test('controller select modal uses unique picker values for duplicate controller
     const modal = createControllerSelectModal({ state, dom } as never, {
       modalStateReader: { isAnyModalOpen: () => false },
       syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
     });
 
     modal.wireDomEvents();
