@@ -27,8 +27,8 @@ export function isSecretSnapshotValue(
 ): value is { configured: boolean } {
   return Boolean(
     value &&
-      typeof value === 'object' &&
-      'configured' in value &&
-      typeof (value as { configured?: unknown }).configured === 'boolean',
+    typeof value === 'object' &&
+    'configured' in value &&
+    typeof (value as { configured?: unknown }).configured === 'boolean',
   );
 }

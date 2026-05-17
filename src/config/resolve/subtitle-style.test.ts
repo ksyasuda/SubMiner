@@ -199,8 +199,7 @@ test('subtitleStyle nPlusOneColor accepts valid values and warns on invalid', ()
   assert.ok(
     invalid.warnings.some(
       (warning) =>
-        warning.path === 'subtitleStyle.nPlusOneColor' &&
-        warning.message === 'Expected hex color.',
+        warning.path === 'subtitleStyle.nPlusOneColor' && warning.message === 'Expected hex color.',
     ),
   );
 });

@@ -221,7 +221,9 @@ function renderField(field: ConfigSettingsField): HTMLElement {
   header.append(label, description, createFieldMeta(field));
 
   const controlWrap = createElement('div', 'field-control');
-  controlWrap.append(renderControl(field, { setFieldError, updateDraft, valueForField, valueForPath }));
+  controlWrap.append(
+    renderControl(field, { setFieldError, updateDraft, valueForField, valueForPath }),
+  );
   const resetButton = createElement('button', 'reset-button') as HTMLButtonElement;
   resetButton.type = 'button';
   resetButton.textContent = 'Reset';

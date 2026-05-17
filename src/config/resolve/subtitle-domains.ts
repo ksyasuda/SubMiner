@@ -350,9 +350,7 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       );
     }
 
-    const nPlusOneColor = asColor(
-      (src.subtitleStyle as { nPlusOneColor?: unknown }).nPlusOneColor,
-    );
+    const nPlusOneColor = asColor((src.subtitleStyle as { nPlusOneColor?: unknown }).nPlusOneColor);
     if (nPlusOneColor !== undefined) {
       resolved.subtitleStyle.nPlusOneColor = nPlusOneColor;
     } else if ((src.subtitleStyle as { nPlusOneColor?: unknown }).nPlusOneColor !== undefined) {

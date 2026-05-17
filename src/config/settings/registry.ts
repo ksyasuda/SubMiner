@@ -80,13 +80,7 @@ const JSON_OBJECT_FIELDS = new Set([
 
 const SECRET_PATHS = new Set(['ai.apiKey', 'jimaku.apiKey', 'anilist.accessToken']);
 
-const COLOR_SUFFIXES = new Set([
-  'Color',
-  'color',
-  'backgroundColor',
-  'singleColor',
-  'nPlusOne',
-]);
+const COLOR_SUFFIXES = new Set(['Color', 'color', 'backgroundColor', 'singleColor', 'nPlusOne']);
 
 const OPTION_BY_PATH = new Map(CONFIG_OPTION_REGISTRY.map((entry) => [entry.path, entry]));
 
