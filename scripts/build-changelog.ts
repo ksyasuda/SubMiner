@@ -290,6 +290,7 @@ function serializeFragmentsForPrompt(
   mode: PolishMode,
   version: string,
   date?: string,
+  existingReleaseNotes?: string,
 ): string {
   const header: string[] = [`MODE: ${mode}`, `VERSION: ${version}`];
   if (date) {
@@ -307,7 +308,11 @@ function serializeFragmentsForPrompt(
     ].join('\n');
   });
 
-  return [...header, '', ...fragmentBlocks].join('\n\n');
+  const existingNotesBlock = existingReleaseNotes?.trim()
+    ? ['EXISTING PRERELEASE NOTES', existingReleaseNotes.trim()]
+    : [];
+
+  return [...header, '', ...existingNotesBlock, '', ...fragmentBlocks].join('\n\n');
 }
 
 function validatePolishedOutput(
@@ -340,10 +345,11 @@ function polishFragmentsWithClaude(
     mode: PolishMode;
     version: string;
     date?: string;
+    existingReleaseNotes?: string;
     deps?: ChangelogFsDeps;
   },
 ): string {
-  const { mode, version, date } = options;
+  const { mode, version, date, existingReleaseNotes } = options;
   const runClaude = options.deps?.runClaude ?? defaultRunClaude;
 
   const filtered =
@@ -361,8 +367,18 @@ function polishFragmentsWithClaude(
     );
   }
 
+  const reuseInstructions = existingReleaseNotes?.trim()
+    ? [
+        '## Existing Prerelease Notes',
+        '',
+        'The input includes EXISTING PRERELEASE NOTES before the fragment list. Reuse those highlight bullets as the baseline, preserve their meaning and wording where possible, then merge in only new or changed fragment material. Deduplicate instead of restating existing bullets. Output only the final highlights body using the section headings above; do not include the prerelease disclaimer, Installation, or Assets sections.',
+        '',
+      ].join('\n')
+    : '';
   const prompt =
-    POLISH_PROMPT_INSTRUCTIONS + serializeFragmentsForPrompt(filtered, mode, version, date);
+    POLISH_PROMPT_INSTRUCTIONS +
+    reuseInstructions +
+    serializeFragmentsForPrompt(filtered, mode, version, date, existingReleaseNotes);
   const output = runClaude(prompt, CLAUDE_CLI_ARGS);
   return validatePolishedOutput(output, mode, hasInternalFragments);
 }
@@ -780,6 +796,8 @@ export function writePrereleaseNotesForVersion(options?: ChangelogOptions): stri
   verifyRequestedVersionMatchesPackageVersion(options ?? {});
 
   const cwd = options?.cwd ?? process.cwd();
+  const existsSync = options?.deps?.existsSync ?? fs.existsSync;
+  const readFileSync = options?.deps?.readFileSync ?? fs.readFileSync;
   const version = resolveVersion(options ?? {});
   if (!isSupportedPrereleaseVersion(version)) {
     throw new Error(
@@ -792,9 +810,14 @@ export function writePrereleaseNotesForVersion(options?: ChangelogOptions): stri
     throw new Error('No changelog fragments found in changes/.');
   }
 
+  const prereleaseNotesPath = path.join(cwd, PRERELEASE_NOTES_PATH);
+  const existingReleaseNotes = existsSync(prereleaseNotesPath)
+    ? readFileSync(prereleaseNotesPath, 'utf8')
+    : undefined;
   const changes = polishFragmentsWithClaude(fragments, {
     mode: 'release-notes',
     version,
+    existingReleaseNotes,
     deps: options?.deps,
   });
   return writeReleaseNotesFile(cwd, changes, options?.deps, {

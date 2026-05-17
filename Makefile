@@ -23,6 +23,7 @@ MACOS_APP_DEST ?= $(MACOS_APP_DIR)/SubMiner.app
 APPIMAGE_SRC = $(firstword $(wildcard release/SubMiner-*.AppImage))
 MACOS_APP_SRC = $(firstword $(wildcard release/*.app release/*/*.app))
 MACOS_ZIP_SRC = $(firstword $(wildcard release/SubMiner-*.zip))
+PRERELEASE_NOTES := release/prerelease-notes.md
 
 UNAME_S := $(shell uname -s 2>/dev/null || echo Unknown)
 ifeq ($(OS),Windows_NT)
@@ -161,7 +162,15 @@ build-launcher:
 
 clean:
 	@printf '%s\n' "[INFO] Removing build artifacts"
-	@rm -rf dist release
+	@if [ -f "$(PRERELEASE_NOTES)" ]; then \
+		PRERELEASE_NOTES_BACKUP="$$(mktemp -t subminer-prerelease-notes.XXXXXX)" && \
+		cp "$(PRERELEASE_NOTES)" "$$PRERELEASE_NOTES_BACKUP" && \
+		rm -rf dist release && \
+		install -d release && \
+		mv "$$PRERELEASE_NOTES_BACKUP" "$(PRERELEASE_NOTES)"; \
+	else \
+		rm -rf dist release; \
+	fi
 	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
 
 generate-config: ensure-bun

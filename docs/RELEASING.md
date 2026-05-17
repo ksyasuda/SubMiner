@@ -57,8 +57,11 @@
    `*.yml` and `*.blockmap` files under `release/`.
 5. Commit the prerelease prep (package.json version bump + the generated
    `release/prerelease-notes.md`). CI does not regenerate notes — it uses the
-   committed file — so review it before committing. Do not run
-   `bun run changelog:build`.
+   committed file — so review it before committing. If you add more
+   `changes/*.md` fragments for a later beta/RC, rerun
+   `bun run changelog:prerelease-notes --version <version>`; the generator uses
+   the existing prerelease notes as the baseline and asks Claude to merge only
+   the new fragment material. Do not run `bun run changelog:build`.
 6. Tag the commit: `git tag v<version>`.
 7. Push commit + tag.
 
@@ -70,11 +73,11 @@ Notes:
 - Supported prerelease channels are `beta` and `rc`, with versions like `0.11.3-beta.1` and `0.11.3-rc.1`.
 - Pass `--date` explicitly when you want the release stamped with the local cut date; otherwise the generator uses the current ISO date, which can roll over to the next UTC day late at night.
 - `changelog:check` now rejects tag/package version mismatches.
-- `changelog:prerelease-notes` also rejects tag/package version mismatches and writes `release/prerelease-notes.md` without mutating tracked changelog files.
+- `changelog:prerelease-notes` also rejects tag/package version mismatches and writes `release/prerelease-notes.md` without mutating tracked changelog files. When that file already exists, the generator includes it in the Claude prompt so later beta/RC notes reuse the reviewed text instead of starting over.
 - `changelog:build` generates `CHANGELOG.md` + `release/release-notes.md` (both polished by `claude -p`) and removes the released `changes/*.md` fragments. The CHANGELOG keeps internal notes inside a `<details><summary>Internal changes</summary>` collapse; the release notes drop them entirely.
 - The release workflow no longer auto-runs `changelog:build`. If pending `changes/*.md` fragments are present on a tag-based run, CI exits with a clear `::error::` pointing at the local fix. Run `bun run changelog:build --version <version>` locally, commit the polished output, then tag.
 - Do not tag while `changes/*.md` fragments still exist.
-- Prerelease tags intentionally keep `changes/*.md` fragments in place so multiple prereleases can reuse the same cumulative pending notes until the final stable cut.
+- Prerelease tags intentionally keep `changes/*.md` fragments in place so multiple prereleases can reuse the same cumulative pending notes until the final stable cut. `make clean` preserves `release/prerelease-notes.md` while deleting generated build artifacts.
 - If you need to repair a published release body (for example, a prior version’s section was omitted), regenerate notes from `CHANGELOG.md` and re-edit the release with `gh release edit --notes-file`.
 - Prerelease tags are handled by `.github/workflows/prerelease.yml`, which always publishes a GitHub prerelease with all current release platforms and never runs the AUR sync job.
 - Tagged release workflow now also attempts to update `subminer-bin` on the AUR after GitHub Release publication.

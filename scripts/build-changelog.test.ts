@@ -509,6 +509,72 @@ test('writePrereleaseNotesForVersion writes cumulative beta notes without mutati
   }
 });
 
+test('writePrereleaseNotesForVersion reuses existing prerelease notes when adding new fragments', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-reuse-existing-notes');
+  const projectRoot = path.join(workspace, 'SubMiner');
+  const existingNotes = [
+    '> This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.',
+    '',
+    '## Highlights',
+    '### Added',
+    '- Overlay: Previous beta entry.',
+    '',
+    '## Installation',
+    '',
+    'See the README and docs/installation guide for full setup steps.',
+    '',
+    '## Assets',
+    '',
+    '- Linux: `SubMiner.AppImage`',
+    '',
+  ].join('\n');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'release'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.11.3-beta.2' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(path.join(projectRoot, 'release', 'prerelease-notes.md'), existingNotes, 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: fixed', 'area: launcher', '', '- Fixed launcher prerelease packaging.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const stub = recordingRunClaude((input) => {
+      if (!input.includes('Overlay: Previous beta entry.')) {
+        return '### Fixed\n- Launcher: Added only the latest fix.';
+      }
+      return [
+        '### Added',
+        '- Overlay: Previous beta entry.',
+        '',
+        '### Fixed',
+        '- Launcher: Added only the latest fix.',
+      ].join('\n');
+    });
+
+    const outputPath = writePrereleaseNotesForVersion({
+      cwd: projectRoot,
+      version: '0.11.3-beta.2',
+      deps: { runClaude: stub.runClaude },
+    });
+
+    assert.equal(stub.calls.length, 1, 'prerelease should issue exactly one Claude call');
+    assert.match(stub.calls[0]!.input, /EXISTING PRERELEASE NOTES/);
+
+    const prereleaseNotes = fs.readFileSync(outputPath, 'utf8');
+    assert.match(prereleaseNotes, /- Overlay: Previous beta entry\./);
+    assert.match(prereleaseNotes, /- Launcher: Added only the latest fix\./);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test('writePrereleaseNotesForVersion supports rc prereleases', async () => {
   const { writePrereleaseNotesForVersion } = await loadModule();
   const workspace = createWorkspace('prerelease-rc-notes');

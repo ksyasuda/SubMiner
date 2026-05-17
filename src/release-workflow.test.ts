@@ -167,6 +167,12 @@ test('release packaging stages generated launcher as an app resource', () => {
   assert.match(packageJson.scripts['build:launcher'] ?? '', /--banner='#!\/usr\/bin\/env bun'/);
 });
 
+test('Makefile clean preserves committed prerelease notes', () => {
+  assert.match(makefile, /PRERELEASE_NOTES_BACKUP/);
+  assert.match(makefile, /release\/prerelease-notes\.md/);
+  assert.doesNotMatch(makefile, /clean:[\s\S]*@rm -rf dist release\n/);
+});
+
 test('config example generation runs directly from source without unrelated bundle prerequisites', () => {
   assert.equal(
     packageJson.scripts['generate:config-example'],
