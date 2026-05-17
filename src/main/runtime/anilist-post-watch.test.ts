@@ -126,6 +126,8 @@ test('createMaybeRunAnilistPostWatchUpdateHandler force-runs manual watched upda
 
 test('createMaybeRunAnilistPostWatchUpdateHandler shows permanent AniList update errors without queueing retry', async () => {
   const calls: string[] = [];
+  const attemptedKeys = new Set<string>();
+  let updateCalls = 0;
   const handler = createMaybeRunAnilistPostWatchUpdateHandler({
     getInFlight: () => false,
     setInFlight: (value) => calls.push(`inflight:${value}`),
@@ -138,20 +140,26 @@ test('createMaybeRunAnilistPostWatchUpdateHandler shows permanent AniList update
     getWatchedSeconds: () => 1000,
     maybeProbeAnilistDuration: async () => 1000,
     ensureAnilistMediaGuess: async () => ({ title: 'Show', season: null, episode: 2 }),
-    hasAttemptedUpdateKey: () => false,
+    hasAttemptedUpdateKey: (key) => attemptedKeys.has(key),
     processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'noop' }),
     refreshAnilistClientSecretState: async () => 'token',
     enqueueRetry: () => calls.push('enqueue'),
     markRetryFailure: () => calls.push('mark-failure'),
     markRetrySuccess: () => calls.push('mark-success'),
     refreshRetryQueueState: () => calls.push('refresh'),
-    updateAnilistPostWatchProgress: async () => ({
-      status: 'error',
-      retryable: false,
-      message:
-        'AniList update not possible: Show is not in your AniList Planning or Watching list.',
-    }),
-    rememberAttemptedUpdateKey: () => calls.push('remember'),
+    updateAnilistPostWatchProgress: async () => {
+      updateCalls += 1;
+      return {
+        status: 'error',
+        retryable: false,
+        message:
+          'AniList update not possible: Show is not in your AniList Planning or Watching list.',
+      };
+    },
+    rememberAttemptedUpdateKey: (key) => {
+      attemptedKeys.add(key);
+      calls.push(`remember:${key}`);
+    },
     showMpvOsd: (message) => calls.push(`osd:${message}`),
     logInfo: (message) => calls.push(`info:${message}`),
     logWarn: (message) => calls.push(`warn:${message}`),
@@ -160,9 +168,12 @@ test('createMaybeRunAnilistPostWatchUpdateHandler shows permanent AniList update
   });
 
   await handler();
+  await handler();
 
+  assert.equal(updateCalls, 1);
   assert.equal(calls.includes('enqueue'), false);
   assert.equal(calls.includes('mark-failure'), false);
+  assert.ok(calls.some((call) => call.startsWith('remember:')));
   assert.ok(calls.includes('refresh'));
   assert.ok(calls.some((call) => call.startsWith('osd:AniList update not possible')));
   assert.ok(calls.some((call) => call.startsWith('warn:AniList update not possible')));

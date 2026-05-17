@@ -231,6 +231,7 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
       }
 
       if (result.retryable === false) {
+        deps.rememberAttemptedUpdateKey(attemptKey);
         deps.refreshRetryQueueState();
         deps.showMpvOsd(result.message);
         deps.logWarn(result.message);
