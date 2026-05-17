@@ -162,6 +162,46 @@ test('app updater skips native downloads when native updater is unsupported', as
   assert.deepEqual(logged, ['Skipping app update download because native updater is unsupported.']);
 });
 
+test('app updater installs a custom HTTP executor before native checks', async () => {
+  const httpExecutor = { request: async () => null };
+  let executorDuringCheck: unknown;
+  let differentialDownloadDuringCheck: unknown;
+  const updater: ElectronAutoUpdaterLike & {
+    httpExecutor?: unknown;
+    disableDifferentialDownload?: boolean;
+  } = {
+    autoDownload: true,
+    allowPrerelease: false,
+    allowDowngrade: true,
+    logger: null,
+    checkForUpdates: async () => {
+      executorDuringCheck = updater.httpExecutor;
+      differentialDownloadDuringCheck = updater.disableDifferentialDownload;
+      return {
+        updateInfo: {
+          version: '0.15.0',
+        },
+      };
+    },
+    downloadUpdate: async () => [],
+    quitAndInstall: () => {},
+  };
+  const appUpdater = createElectronAppUpdater({
+    currentVersion: '0.14.0',
+    isPackaged: true,
+    updater,
+    log: () => {},
+    configureHttpExecutor: () => httpExecutor,
+    disableDifferentialDownload: true,
+  });
+
+  const result = await appUpdater.checkForUpdates('stable');
+
+  assert.equal(result.available, true);
+  assert.equal(executorDuringCheck, httpExecutor);
+  assert.equal(differentialDownloadDuringCheck, true);
+});
+
 test('resolveMacAppBundlePath resolves packaged macOS executable path', () => {
   assert.equal(
     resolveMacAppBundlePath('/Applications/SubMiner.app/Contents/MacOS/SubMiner'),
@@ -183,6 +223,25 @@ test('mac native updater is unsupported for ad-hoc signed app bundles', async ()
 
   assert.equal(supported, false);
   assert.deepEqual(logged, ['Skipping native macOS updater because this build is ad-hoc signed.']);
+});
+
+test('mac native updater is unsupported outside Applications folders before signature probing', async () => {
+  const logged: string[] = [];
+  const supported = await isNativeUpdaterSupported({
+    platform: 'darwin',
+    isPackaged: true,
+    execPath: '/Users/tester/build/SubMiner.app/Contents/MacOS/SubMiner',
+    homeDir: '/Users/tester',
+    readCodeSignature: () => {
+      throw new Error('signature should not be read');
+    },
+    log: (message) => logged.push(message),
+  });
+
+  assert.equal(supported, false);
+  assert.deepEqual(logged, [
+    'Skipping native macOS updater because the app is not installed in an Applications folder.',
+  ]);
 });
 
 test('mac native updater supports Developer ID signed packaged app bundles', async () => {

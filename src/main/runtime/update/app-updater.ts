@@ -1,5 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { execFile } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
 import { promisify } from 'node:util';
 import { autoUpdater as electronAutoUpdater } from 'electron-updater';
 import type { UpdateChannel } from '../../../types/config';
@@ -34,6 +36,8 @@ export interface ElectronAutoUpdaterLike {
   } | null>;
   downloadUpdate: () => Promise<unknown>;
   quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void;
+  httpExecutor?: unknown;
+  disableDifferentialDownload?: boolean;
 }
 
 const updaterErrorListeners = new WeakMap<object, (error: unknown) => void>();
@@ -65,6 +69,25 @@ function realpathOrOriginal(filePath: string): string {
   }
 }
 
+function isSameOrInsideDirectory(parentPath: string, candidatePath: string): boolean {
+  const relative = path.relative(parentPath, candidatePath);
+  return (
+    relative === '' ||
+    (relative.length > 0 && !relative.startsWith('..') && !path.isAbsolute(relative))
+  );
+}
+
+export function isMacApplicationsFolderBundle(
+  appBundlePath: string,
+  homeDir: string = os.homedir(),
+): boolean {
+  const resolvedBundlePath = path.resolve(appBundlePath);
+  return (
+    isSameOrInsideDirectory('/Applications', resolvedBundlePath) ||
+    isSameOrInsideDirectory(path.join(homeDir, 'Applications'), resolvedBundlePath)
+  );
+}
+
 export function isKnownLinuxPackageManagedAppImage(appImagePath: string): boolean {
   return realpathOrOriginal(appImagePath) === '/opt/SubMiner/SubMiner.AppImage';
 }
@@ -74,6 +97,7 @@ export async function isNativeUpdaterSupported(options: {
   isPackaged: boolean;
   execPath: string;
   env?: NodeJS.ProcessEnv;
+  homeDir?: string;
   readCodeSignature?: (appBundlePath: string) => string | null | Promise<string | null>;
   log?: (message: string) => void;
 }): Promise<boolean> {
@@ -96,6 +120,13 @@ export async function isNativeUpdaterSupported(options: {
   if (!appBundlePath) {
     options.log?.(
       'Skipping native macOS updater because the app bundle path could not be resolved.',
+    );
+    return false;
+  }
+
+  if (!isMacApplicationsFolderBundle(appBundlePath, options.homeDir)) {
+    options.log?.(
+      'Skipping native macOS updater because the app is not installed in an Applications folder.',
     );
     return false;
   }
@@ -157,6 +188,8 @@ export function createElectronAppUpdater(options: {
   log: (message: string) => void;
   getChannel?: () => UpdateChannel;
   isNativeUpdaterSupported?: () => boolean | Promise<boolean>;
+  configureHttpExecutor?: () => unknown;
+  disableDifferentialDownload?: boolean;
 }) {
   const getChannel = options.getChannel ?? (() => 'stable' as const);
   const updater = configureAutoUpdater(
@@ -164,6 +197,12 @@ export function createElectronAppUpdater(options: {
     options.log,
     getChannel(),
   );
+  if (options.configureHttpExecutor) {
+    updater.httpExecutor = options.configureHttpExecutor();
+  }
+  if (options.disableDifferentialDownload !== undefined) {
+    updater.disableDifferentialDownload = options.disableDifferentialDownload;
+  }
   let nativeUpdaterSupported: Promise<boolean> | null = null;
 
   async function getNativeUpdaterSupported(): Promise<boolean> {

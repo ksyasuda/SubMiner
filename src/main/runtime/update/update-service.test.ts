@@ -151,11 +151,29 @@ test('manual update check does not prompt restart when only launcher updates', a
   const result = await service.checkForUpdates({ source: 'manual' });
 
   assert.equal(result.status, 'update-available');
-  assert.deepEqual(calls, [
-    'available-dialog:0.15.0',
-    'launcher:stable',
-    'manual-install:0.15.0',
-  ]);
+  assert.deepEqual(calls, ['available-dialog:0.15.0', 'launcher:stable', 'manual-install:0.15.0']);
+});
+
+test('manual update check can skip release metadata after unsupported app updater', async () => {
+  const { deps, calls } = createDeps({
+    checkAppUpdate: async () => ({ available: false, version: '0.14.0', canUpdate: false }),
+    shouldFetchReleaseMetadata: ({ appUpdate }) => appUpdate.canUpdate !== false,
+    fetchLatestStableRelease: async () => {
+      calls.push('fetch-release');
+      return {
+        tag_name: 'v0.15.0',
+        prerelease: false,
+        draft: false,
+        assets: [],
+      };
+    },
+  } as Partial<UpdateServiceDeps>);
+  const service = createUpdateService(deps);
+
+  const result = await service.checkForUpdates({ source: 'manual' });
+
+  assert.equal(result.status, 'up-to-date');
+  assert.deepEqual(calls, ['no-update:0.14.0']);
 });
 
 test('automatic update check skips inside configured interval', async () => {

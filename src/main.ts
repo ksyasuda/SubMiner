@@ -21,6 +21,7 @@ import {
   clipboard,
   globalShortcut,
   ipcMain,
+  net,
   shell,
   protocol,
   Extension,
@@ -498,6 +499,8 @@ import {
   createElectronAppUpdater,
   isNativeUpdaterSupported,
 } from './main/runtime/update/app-updater';
+import { createElectronNetFetch } from './main/runtime/update/fetch-adapter';
+import { createCurlHttpExecutor } from './main/runtime/update/curl-http-executor';
 import {
   fetchLatestStableRelease,
   fetchReleaseAssetBuffer,
@@ -4752,8 +4755,12 @@ flushPendingMpvLogWrites = () => {
 
 const updateStateStore = createFileUpdateStateStore(path.join(USER_DATA_PATH, 'update-state.json'));
 let updateService: ReturnType<typeof createUpdateService> | null = null;
+const electronNetFetch = createElectronNetFetch({
+  fetch: (url, init) => net.fetch(url, init as RequestInit),
+});
+
 function getFetchForUpdater() {
-  return globalThis.fetch.bind(globalThis);
+  return electronNetFetch;
 }
 
 async function updateLauncherFromSelectedRelease(
@@ -4800,6 +4807,9 @@ function getUpdateService() {
     isPackaged: app.isPackaged,
     log: (message) => logger.info(message),
     getChannel: () => getResolvedConfig().updates.channel,
+    configureHttpExecutor:
+      process.platform === 'darwin' ? () => createCurlHttpExecutor() : undefined,
+    disableDifferentialDownload: process.platform === 'darwin',
     isNativeUpdaterSupported: () =>
       isNativeUpdaterSupported({
         platform: process.platform,
@@ -4821,6 +4831,7 @@ function getUpdateService() {
     readState: () => updateStateStore.readState(),
     writeState: (state) => updateStateStore.writeState(state),
     checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
+    shouldFetchReleaseMetadata: () => process.platform !== 'darwin',
     fetchLatestStableRelease: (channel) =>
       fetchLatestStableRelease({ fetch: getFetchForUpdater(), channel }),
     updateLauncher: (launcherPath, channel, release) =>
