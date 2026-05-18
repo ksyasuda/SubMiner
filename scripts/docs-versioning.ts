@@ -49,6 +49,10 @@ export function versionPath(version: string): string {
   return `/v/${version.replace(/^v/, '')}/`;
 }
 
+export function versionArchiveCacheName(version: string, sharedInternalsHash: string): string {
+  return `${sharedInternalsHash.slice(0, 12)}-${version}`;
+}
+
 export function stableTagsWithDocs(
   tags: string[],
   hasDocsSite: (tag: string) => boolean,

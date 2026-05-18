@@ -49,3 +49,10 @@ test('main docs deploy exists, serializes deploys, and uses Cloudflare credentia
   assert.match(docsPagesWorkflow, /pages deploy \.tmp\/docs-versioned-site/);
   assert.match(docsPagesWorkflow, /--branch main/);
 });
+
+test('docs deploy caches stable archive builds between runs', () => {
+  assert.match(docsPagesWorkflow, /actions\/cache@v4/);
+  assert.match(docsPagesWorkflow, /\.tmp\/docs-versioned-archive-cache/);
+  assert.match(docsPagesWorkflow, /docs-versioned-archives-/);
+  assert.match(docsPagesWorkflow, /docs-site\/\.vitepress\/\*\*/);
+});

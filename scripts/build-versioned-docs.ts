@@ -1,9 +1,11 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   buildVersionManifest,
   stableTagsWithDocs,
+  versionArchiveCacheName,
   versionPath,
 } from './docs-versioning';
 
@@ -11,6 +13,7 @@ const repoRoot = resolve(__dirname, '..');
 const currentDocsSite = join(repoRoot, 'docs-site');
 const buildRoot = join(repoRoot, '.tmp/docs-versioned-build');
 const aggregateOutDir = join(repoRoot, '.tmp/docs-versioned-site');
+const archiveCacheRoot = join(repoRoot, '.tmp/docs-versioned-archive-cache');
 const maxCloudflareFiles = 20_000;
 const maxCloudflareFileBytes = 25 * 1024 * 1024;
 
@@ -75,7 +78,10 @@ function copyCurrentDocsSite(targetDir: string) {
 function overlayCurrentVitePress(snapshotDocsSite: string) {
   const targetVitePress = join(snapshotDocsSite, '.vitepress');
   rmSync(targetVitePress, { recursive: true, force: true });
-  cpSync(join(currentDocsSite, '.vitepress'), targetVitePress, { recursive: true });
+  cpSync(join(currentDocsSite, '.vitepress'), targetVitePress, {
+    recursive: true,
+    filter: (source) => !isGeneratedVitePressPath(source),
+  });
 
   const currentThemeFonts = join(currentDocsSite, 'public/assets/fonts');
   if (existsSync(currentThemeFonts)) {
@@ -152,6 +158,82 @@ function buildDocs(options: {
   });
 }
 
+function updateHashWithPath(hash: ReturnType<typeof createHash>, path: string) {
+  if (isGeneratedVitePressPath(path)) {
+    return;
+  }
+
+  const stat = lstatSync(path);
+  hash.update(path.replace(repoRoot, ''));
+  hash.update(String(stat.mode));
+
+  if (stat.isSymbolicLink()) {
+    return;
+  }
+
+  if (stat.isDirectory()) {
+    for (const entry of readdirSync(path).sort()) {
+      updateHashWithPath(hash, join(path, entry));
+    }
+    return;
+  }
+
+  hash.update(readFileSync(path));
+}
+
+function isGeneratedVitePressPath(path: string): boolean {
+  return /[\\/]\\.vitepress[\\/](cache|dist)([\\/]|$)/.test(path);
+}
+
+function computeSharedInternalsHash(): string {
+  const hash = createHash('sha256');
+  const paths = [
+    join(currentDocsSite, '.vitepress'),
+    join(currentDocsSite, 'public/assets/fonts'),
+    join(currentDocsSite, 'package.json'),
+    join(currentDocsSite, 'bun.lock'),
+    join(repoRoot, 'scripts/build-versioned-docs.ts'),
+    join(repoRoot, 'scripts/docs-versioning.ts'),
+  ];
+
+  for (const path of paths) {
+    if (existsSync(path)) {
+      updateHashWithPath(hash, path);
+    }
+  }
+
+  return hash.digest('hex');
+}
+
+function archiveCachePath(version: string, sharedInternalsHash: string): string {
+  return join(archiveCacheRoot, versionArchiveCacheName(version, sharedInternalsHash));
+}
+
+function restoreCachedArchive(version: string, sharedInternalsHash: string): boolean {
+  const cachedArchive = archiveCachePath(version, sharedInternalsHash);
+  if (!existsSync(cachedArchive)) {
+    return false;
+  }
+
+  cpSync(cachedArchive, join(aggregateOutDir, versionPath(version)), {
+    recursive: true,
+    force: true,
+  });
+  return true;
+}
+
+function saveArchiveCache(version: string, sharedInternalsHash: string) {
+  const outputPath = join(aggregateOutDir, versionPath(version));
+  if (!existsSync(outputPath)) {
+    return;
+  }
+
+  const cachedArchive = archiveCachePath(version, sharedInternalsHash);
+  rmSync(cachedArchive, { recursive: true, force: true });
+  mkdirSync(archiveCacheRoot, { recursive: true });
+  cpSync(outputPath, cachedArchive, { recursive: true, force: true });
+}
+
 function assertCloudflarePagesLimits(root: string) {
   let fileCount = 0;
   const oversizedFiles: string[] = [];
@@ -200,6 +282,7 @@ function main() {
 
   const manifest = buildVersionManifest({ latestStable, stableVersions });
   const manifestJson = JSON.stringify(manifest);
+  const sharedInternalsHash = computeSharedInternalsHash();
 
   rmSync(buildRoot, { recursive: true, force: true });
   rmSync(aggregateOutDir, { recursive: true, force: true });
@@ -218,6 +301,10 @@ function main() {
   });
 
   for (const version of stableVersions) {
+    if (restoreCachedArchive(version, sharedInternalsHash)) {
+      continue;
+    }
+
     const snapshot = version === latestStable ? latestStableSnapshot : prepareSnapshot(version, version);
     buildDocs({
       snapshotDocsSite: snapshot,
@@ -228,6 +315,7 @@ function main() {
       latestStable,
       manifestJson,
     });
+    saveArchiveCache(version, sharedInternalsHash);
   }
 
   const mainSnapshot = prepareSnapshot('main');

@@ -47,6 +47,12 @@ jobs:
           bun install --frozen-lockfile
           cd docs-site && bun install --frozen-lockfile
 
+      - name: Cache versioned docs archives
+        uses: actions/cache@v4
+        with:
+          path: .tmp/docs-versioned-archive-cache
+          key: docs-versioned-archives-${{ runner.os }}-${{ hashFiles('docs-site/.vitepress/**', 'docs-site/public/assets/fonts/**', 'docs-site/package.json', 'docs-site/bun.lock', 'scripts/build-versioned-docs.ts', 'scripts/docs-versioning.ts') }}
+
       - name: Test docs
         run: bun run docs:test
 
