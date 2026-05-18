@@ -17,7 +17,7 @@ export interface SettingsDraft {
 }
 
 function normalizeQuery(query: string | undefined): string {
-  return (query ?? '').trim().toLowerCase();
+  return (query ?? '').trim().toLocaleLowerCase();
 }
 
 function searchableText(parts: Array<string | undefined>): string {
@@ -25,8 +25,8 @@ function searchableText(parts: Array<string | undefined>): string {
     .filter(Boolean)
     .join(' ')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[^a-zA-Z0-9]+/g, ' ')
-    .toLowerCase();
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .toLocaleLowerCase();
 }
 
 function valuesEqual(a: unknown, b: unknown): boolean {

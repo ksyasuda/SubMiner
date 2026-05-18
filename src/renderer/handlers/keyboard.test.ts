@@ -521,13 +521,42 @@ test('mpv input forwarding installs local key handling when session binding IPC 
     testGlobals.setGetSessionBindings(() => new Promise<CompiledSessionBinding[]>(() => {}));
     const setupResult = await Promise.race([
       handlers.setupMpvInputForwarding().then(() => 'resolved'),
-      wait(25).then(() => 'pending'),
+      wait(75).then(() => 'pending'),
     ]);
 
     assert.equal(setupResult, 'resolved');
     testGlobals.dispatchKeydown({ key: '`', code: 'Backquote' });
 
     assert.equal(testGlobals.statsToggleOverlayCalls(), 1);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('mpv input forwarding waits for session bindings before resolving setup', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    testGlobals.setGetSessionBindings(async () => {
+      await wait(20);
+      return [
+        {
+          sourcePath: 'keybindings[0].key',
+          originalKey: 'KeyH',
+          key: { code: 'KeyH', modifiers: [] },
+          actionType: 'mpv-command',
+          command: ['cycle', 'pause'],
+        },
+      ] as CompiledSessionBinding[];
+    });
+
+    await handlers.setupMpvInputForwarding();
+
+    assert.deepEqual(handlers.getSessionHelpOpeningInfo(), {
+      bindingKey: 'KeyK',
+      fallbackUsed: true,
+      fallbackUnavailable: false,
+    });
   } finally {
     testGlobals.restore();
   }

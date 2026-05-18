@@ -138,6 +138,14 @@ test('applySidebarCssDeclarations clears declarations removed by config reload',
   assert.equal(style.color, '#ffffff');
   assert.equal(style.backgroundColor, '');
   assert.deepEqual(removed, ['background-color']);
+
+  applySidebarCssDeclarations(target, {
+    color: '',
+    'background-color': '',
+  });
+
+  assert.equal(style.color, '');
+  assert.deepEqual(removed, ['background-color', 'background-color']);
 });
 
 test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback', async () => {

@@ -295,10 +295,11 @@ const texthookerService = new services_1.Texthooker(() => {
     const config = getResolvedConfig();
     const characterDictionaryEnabled = config.anilist.characterDictionary.enabled &&
         yomitanProfilePolicy.isCharacterDictionaryEnabled();
-    const knownAndNPlusOneEnabled = getRuntimeBooleanOption('subtitle.annotation.nPlusOne', config.ankiConnect.nPlusOne.enabled);
+    const knownWordColoringEnabled = getRuntimeBooleanOption('subtitle.annotation.knownWords.highlightEnabled', config.ankiConnect.knownWords.highlightEnabled);
+    const nPlusOneColoringEnabled = getRuntimeBooleanOption('subtitle.annotation.nPlusOne', config.ankiConnect.nPlusOne.enabled);
     return {
-        enableKnownWordColoring: knownAndNPlusOneEnabled,
-        enableNPlusOneColoring: knownAndNPlusOneEnabled,
+        enableKnownWordColoring: knownWordColoringEnabled,
+        enableNPlusOneColoring: nPlusOneColoringEnabled,
         enableNameMatchColoring: config.subtitleStyle.nameMatchEnabled && characterDictionaryEnabled,
         enableFrequencyColoring: getRuntimeBooleanOption('subtitle.annotation.frequency', config.subtitleStyle.frequencyDictionary.enabled),
         enableJlptColoring: getRuntimeBooleanOption('subtitle.annotation.jlpt', config.subtitleStyle.enableJlpt),
@@ -1819,10 +1820,11 @@ function getRuntimeBooleanOption(id, fallback) {
 }
 function shouldInitializeMecabForAnnotations() {
     const config = getResolvedConfig();
+    const knownWordsEnabled = getRuntimeBooleanOption('subtitle.annotation.knownWords.highlightEnabled', config.ankiConnect.knownWords.highlightEnabled);
     const nPlusOneEnabled = getRuntimeBooleanOption('subtitle.annotation.nPlusOne', config.ankiConnect.nPlusOne.enabled);
     const jlptEnabled = getRuntimeBooleanOption('subtitle.annotation.jlpt', config.subtitleStyle.enableJlpt);
     const frequencyEnabled = getRuntimeBooleanOption('subtitle.annotation.frequency', config.subtitleStyle.frequencyDictionary.enabled);
-    return nPlusOneEnabled || jlptEnabled || frequencyEnabled;
+    return knownWordsEnabled || nPlusOneEnabled || jlptEnabled || frequencyEnabled;
 }
 const { getResolvedJellyfinConfig, reportJellyfinRemoteProgress, reportJellyfinRemoteStopped, startJellyfinRemoteSession, stopJellyfinRemoteSession, runJellyfinCommand, openJellyfinSetupWindow, getJellyfinClientInfo, } = (0, composers_1.composeJellyfinRuntimeHandlers)({
     getResolvedJellyfinConfigMainDeps: {

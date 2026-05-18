@@ -504,7 +504,14 @@ function M.create(ctx)
 		subminer_log("info", "process", "Restarting overlay...")
 		show_osd("Restarting...")
 
-		run_control_command_async("stop", nil, function()
+		run_control_command_async("stop", nil, function(ok, result)
+			if not ok then
+				local reason = result and result.stderr or "unknown error"
+				subminer_log("warn", "process", "Restart stop command failed: " .. reason)
+				show_osd("Restart failed")
+				return
+			end
+
 			state.overlay_running = false
 			state.texthooker_running = false
 			disarm_auto_play_ready_gate()

@@ -77,7 +77,14 @@ export function applySidebarCssDeclarations(
 
   for (const [property, rawValue] of Object.entries(declarations)) {
     const value = rawValue.trim();
-    if (value.length === 0) continue;
+    if (value.length === 0) {
+      if (property.includes('-')) {
+        targetStyle.removeProperty(property);
+      } else {
+        styleTarget[property] = '';
+      }
+      continue;
+    }
     if (property.includes('-')) {
       targetStyle.setProperty(property, value);
     } else {

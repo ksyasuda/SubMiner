@@ -89,7 +89,7 @@ const JSON_OBJECT_FIELDS = new Set([
 
 const SECRET_PATHS = new Set(['ai.apiKey', 'jimaku.apiKey', 'anilist.accessToken']);
 
-const COLOR_SUFFIXES = new Set(['Color', 'color', 'backgroundColor', 'singleColor', 'nPlusOne']);
+const COLOR_SUFFIXES = new Set(['Color', 'color', 'backgroundColor', 'singleColor']);
 const SUBTITLE_CSS_MANAGED_CONFIG_PATHS = new Set([
   ...getSubtitleCssManagedConfigPaths('primary'),
   ...getSubtitleCssManagedConfigPaths('secondary'),
@@ -111,6 +111,9 @@ const CATEGORY_ORDER: ConfigSettingsCategory[] = [
 const SECTION_ORDER = new Map<string, number>(
   [
     'Annotation Display',
+    'Known Words',
+    'N+1',
+    'Frequency Highlighting',
     'Primary Subtitle Appearance',
     'Secondary Subtitle Appearance',
     'Subtitle Sidebar Appearance',

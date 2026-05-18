@@ -35,6 +35,7 @@ export function createKeyboardHandlers(
 ) {
   // Timeout for the modal chord capture window (e.g. Y followed by H/K).
   const CHORD_TIMEOUT_MS = 1000;
+  const MPV_INPUT_FORWARDING_CONFIG_LOAD_TIMEOUT_MS = 50;
   const KEYBOARD_SELECTED_WORD_CLASS = 'keyboard-selected';
   let pendingSelectionAnchorAfterSubtitleSeek: 'start' | 'end' | null = null;
   let pendingLookupRefreshAfterSubtitleSeek = false;
@@ -975,26 +976,21 @@ export function createKeyboardHandlers(
     installMpvInputForwardingListeners();
     syncKeyboardTokenSelection();
 
-    let configLoadSettled = false;
     let configLoadError: unknown = null;
     const configLoad = loadMpvInputForwardingConfigWithRetry().then(
-      () => {
-        configLoadSettled = true;
-      },
+      () => {},
       (error) => {
-        configLoadSettled = true;
         configLoadError = error;
         console.error('Failed to load overlay keyboard configuration.', error);
       },
     );
 
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 0);
-    });
-    if (!configLoadSettled) {
-      void configLoad;
-      return;
-    }
+    await Promise.race([
+      configLoad,
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, MPV_INPUT_FORWARDING_CONFIG_LOAD_TIMEOUT_MS);
+      }),
+    ]);
     if (configLoadError) {
       return;
     }

@@ -20,9 +20,9 @@ export function buildRuntimeOptionRegistry(
       }),
     },
     {
-      id: 'subtitle.annotation.nPlusOne',
+      id: 'subtitle.annotation.knownWords.highlightEnabled',
       path: 'ankiConnect.knownWords.highlightEnabled',
-      label: 'N+1 Annotation',
+      label: 'Known Word Annotation',
       scope: 'subtitle',
       valueType: 'boolean',
       allowedValues: [true, false],
@@ -32,6 +32,22 @@ export function buildRuntimeOptionRegistry(
       toAnkiPatch: (value) => ({
         knownWords: {
           highlightEnabled: value === true,
+        },
+      }),
+    },
+    {
+      id: 'subtitle.annotation.nPlusOne',
+      path: 'ankiConnect.nPlusOne.enabled',
+      label: 'N+1 Annotation',
+      scope: 'subtitle',
+      valueType: 'boolean',
+      allowedValues: [true, false],
+      defaultValue: defaultConfig.ankiConnect.nPlusOne.enabled,
+      requiresRestart: false,
+      formatValueForOsd: (value) => (value === true ? 'On' : 'Off'),
+      toAnkiPatch: (value) => ({
+        nPlusOne: {
+          enabled: value === true,
         },
       }),
     },

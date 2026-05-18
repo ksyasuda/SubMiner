@@ -321,7 +321,6 @@ test('launcher forwards --args to mpv as parsed tokens', { timeout: 15000 }, () 
 
     fs.mkdirSync(binDir, { recursive: true });
     fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
-    fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
     fs.writeFileSync(videoPath, 'fake video content');
     fs.writeFileSync(
       path.join(xdgConfigHome, 'SubMiner', 'setup-state.json'),
@@ -408,7 +407,6 @@ test('launcher forwards non-info log level into mpv plugin script opts', { timeo
 
     fs.mkdirSync(binDir, { recursive: true });
     fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
-    fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
     fs.writeFileSync(videoPath, 'fake video content');
     fs.writeFileSync(
       path.join(xdgConfigHome, 'SubMiner', 'setup-state.json'),
@@ -484,7 +482,6 @@ test('launcher routes youtube urls through regular playback startup', { timeout:
     const bunBinary = JSON.stringify(process.execPath.replace(/\\/g, '/'));
 
     fs.mkdirSync(binDir, { recursive: true });
-    fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
     fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
     fs.writeFileSync(
       path.join(xdgConfigHome, 'SubMiner', 'setup-state.json'),

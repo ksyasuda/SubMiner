@@ -108,6 +108,13 @@ local function run_plugin_scenario(config)
 						return
 					end
 				end
+				for _, value in ipairs(args) do
+					if value == "--stop" and config.stop_command_fails then
+						local stderr = config.stop_command_stderr or "stop failed"
+						callback(false, { status = 1, stdout = "", stderr = stderr }, stderr)
+						return
+					end
+				end
 				callback(true, { status = 0, stdout = "", stderr = "" }, nil)
 			end
 		end
@@ -590,6 +597,28 @@ do
 	assert_true(
 		not call_has_arg(start_call, "--hide-visible-overlay"),
 		"manual restart should not restart into hidden visible-overlay state"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		stop_command_fails = true,
+		stop_command_stderr = "stop refused",
+		option_overrides = {
+			binary_path = binary_path,
+		},
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for failed restart-stop scenario: " .. tostring(err))
+	recorded.script_messages["subminer-restart"]()
+	assert_true(find_control_call(recorded.async_calls, "--stop") ~= nil, "restart should attempt stop")
+	assert_true(count_start_calls(recorded.async_calls) == 0, "restart should not start overlay when stop fails")
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Restart failed"),
+		"restart stop failure should show failure OSD"
 	)
 end
 

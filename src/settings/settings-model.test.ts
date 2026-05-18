@@ -87,6 +87,27 @@ test('filterSettingsFields normalizes punctuation in query terms', () => {
   );
 });
 
+test('filterSettingsFields preserves non-Latin query terms', () => {
+  const japaneseFields: ConfigSettingsField[] = [
+    {
+      id: 'subtitleStyle.japaneseFontFamily',
+      label: '日本語フォント',
+      description: '字幕の表示に使う書体。',
+      configPath: 'subtitleStyle.japaneseFontFamily',
+      category: 'appearance',
+      section: 'Primary Subtitle Appearance',
+      control: 'text',
+      defaultValue: '',
+      restartBehavior: 'hot-reload',
+    },
+  ];
+
+  assert.deepEqual(
+    filterSettingsFields(japaneseFields, { query: '日本語' }).map((field) => field.configPath),
+    ['subtitleStyle.japaneseFontFamily'],
+  );
+});
+
 test('settings draft tracks dirty set and emits save operations', () => {
   const draft = createSettingsDraft({
     'subtitleStyle.autoPauseVideoOnHover': true,

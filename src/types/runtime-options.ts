@@ -1,5 +1,6 @@
 export type RuntimeOptionId =
   | 'anki.autoUpdateNewCards'
+  | 'subtitle.annotation.knownWords.highlightEnabled'
   | 'subtitle.annotation.nPlusOne'
   | 'subtitle.annotation.jlpt'
   | 'subtitle.annotation.frequency'

@@ -140,8 +140,8 @@ export function renderMpvKeybindingsInput(
     removeButton.type = 'button';
     removeButton.textContent = 'Remove';
     removeButton.addEventListener('click', () => {
-      rows.splice(i, 1);
-      applyMpvRows(context, field, rows);
+      const nextRows = rows.filter((_, index) => index !== i);
+      applyMpvRows(context, field, nextRows);
       requestRender();
     });
     item.append(keyButton, command, removeButton);

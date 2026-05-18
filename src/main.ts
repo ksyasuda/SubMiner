@@ -665,14 +665,18 @@ const texthookerService = new Texthooker(() => {
   const characterDictionaryEnabled =
     config.anilist.characterDictionary.enabled &&
     yomitanProfilePolicy.isCharacterDictionaryEnabled();
-  const knownAndNPlusOneEnabled = getRuntimeBooleanOption(
+  const knownWordColoringEnabled = getRuntimeBooleanOption(
+    'subtitle.annotation.knownWords.highlightEnabled',
+    config.ankiConnect.knownWords.highlightEnabled,
+  );
+  const nPlusOneColoringEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.nPlusOne',
     config.ankiConnect.nPlusOne.enabled,
   );
 
   return {
-    enableKnownWordColoring: knownAndNPlusOneEnabled,
-    enableNPlusOneColoring: knownAndNPlusOneEnabled,
+    enableKnownWordColoring: knownWordColoringEnabled,
+    enableNPlusOneColoring: nPlusOneColoringEnabled,
     enableNameMatchColoring: config.subtitleStyle.nameMatchEnabled && characterDictionaryEnabled,
     enableFrequencyColoring: getRuntimeBooleanOption(
       'subtitle.annotation.frequency',
@@ -2578,7 +2582,11 @@ function getResolvedConfig() {
 }
 
 function getRuntimeBooleanOption(
-  id: 'subtitle.annotation.nPlusOne' | 'subtitle.annotation.jlpt' | 'subtitle.annotation.frequency',
+  id:
+    | 'subtitle.annotation.knownWords.highlightEnabled'
+    | 'subtitle.annotation.nPlusOne'
+    | 'subtitle.annotation.jlpt'
+    | 'subtitle.annotation.frequency',
   fallback: boolean,
 ): boolean {
   const value = appState.runtimeOptionsManager?.getOptionValue(id);
@@ -2587,6 +2595,10 @@ function getRuntimeBooleanOption(
 
 function shouldInitializeMecabForAnnotations(): boolean {
   const config = getResolvedConfig();
+  const knownWordsEnabled = getRuntimeBooleanOption(
+    'subtitle.annotation.knownWords.highlightEnabled',
+    config.ankiConnect.knownWords.highlightEnabled,
+  );
   const nPlusOneEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.nPlusOne',
     config.ankiConnect.nPlusOne.enabled,
@@ -2599,7 +2611,7 @@ function shouldInitializeMecabForAnnotations(): boolean {
     'subtitle.annotation.frequency',
     config.subtitleStyle.frequencyDictionary.enabled,
   );
-  return nPlusOneEnabled || jlptEnabled || frequencyEnabled;
+  return knownWordsEnabled || nPlusOneEnabled || jlptEnabled || frequencyEnabled;
 }
 
 const {
