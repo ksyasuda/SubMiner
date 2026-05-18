@@ -732,6 +732,7 @@ type BootServices = MainBootServicesResult<
   {
     requestSingleInstanceLock: () => boolean;
     quit: () => void;
+    exit: (code?: number) => void;
     on: (event: string, listener: (...args: unknown[]) => void) => unknown;
     whenReady: () => Promise<void>;
   }
@@ -3435,7 +3436,7 @@ const {
     stopConfigHotReload: () => configHotReloadRuntime.stop(),
     restorePreviousSecondarySubVisibility: () => restorePreviousSecondarySubVisibility(),
     restoreMpvSubVisibility: () => {
-      restoreOverlayMpvSubtitles();
+      restoreOverlayMpvSubtitles({ force: true });
     },
     unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
     stopSubtitleWebsocket: () => {

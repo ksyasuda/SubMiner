@@ -74,6 +74,7 @@ export interface CliArgs {
   texthooker: boolean;
   texthookerOpenBrowser: boolean;
   help: boolean;
+  appPing?: boolean;
   update?: boolean;
   updateLauncherPath?: string;
   updateResponsePath?: string;
@@ -172,6 +173,7 @@ export function parseArgs(argv: string[]): CliArgs {
     texthooker: false,
     texthookerOpenBrowser: false,
     help: false,
+    appPing: false,
     update: false,
     updateLauncherPath: undefined,
     updateResponsePath: undefined,
@@ -339,6 +341,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--jellyfin-preview-auth') args.jellyfinPreviewAuth = true;
     else if (arg === '--texthooker') args.texthooker = true;
     else if (arg === '--open-browser') args.texthookerOpenBrowser = true;
+    else if (arg === '--app-ping') args.appPing = true;
     else if (arg === '--update') args.update = true;
     else if (arg.startsWith('--update-launcher-path=')) {
       const value = arg.split('=', 2)[1];
@@ -540,6 +543,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.jellyfinRemoteAnnounce ||
     args.jellyfinPreviewAuth ||
     args.texthooker ||
+    args.appPing ||
     args.update ||
     args.generateConfig ||
     args.help
@@ -612,6 +616,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.jellyfinPlay &&
     !args.jellyfinRemoteAnnounce &&
     !args.jellyfinPreviewAuth &&
+    !args.appPing &&
     !args.update &&
     !args.help &&
     !args.autoStartOverlay &&
@@ -737,6 +742,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.jellyfinRemoteAnnounce &&
     !args.jellyfinPreviewAuth &&
     !args.texthooker &&
+    !args.appPing &&
     !args.update &&
     !args.help &&
     !args.autoStartOverlay &&

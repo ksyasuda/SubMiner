@@ -4,6 +4,7 @@ import { ConfigStartupParseError } from '../../config';
 export interface AppLifecycleShape {
   requestSingleInstanceLock: () => boolean;
   quit: () => void;
+  exit: (code?: number) => void;
   on: (event: string, listener: (...args: unknown[]) => void) => unknown;
   whenReady: () => Promise<void>;
 }
@@ -50,6 +51,7 @@ export interface MainBootServicesParams<
   app: {
     setPath: (name: string, value: string) => void;
     quit: () => void;
+    exit: (code?: number) => void;
     // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type -- Electron App.on has 50+ overloaded signatures
     on: Function;
     whenReady: () => Promise<void>;
@@ -260,6 +262,7 @@ export function createMainBootServices<
     requestSingleInstanceLock: () =>
       params.shouldBypassSingleInstanceLock() ? true : params.requestSingleInstanceLockEarly(),
     quit: () => params.app.quit(),
+    exit: (code?: number) => params.app.exit(code),
     on: (event: string, listener: (...args: unknown[]) => void) => {
       if (event === 'second-instance') {
         params.registerSecondInstanceHandlerEarly(

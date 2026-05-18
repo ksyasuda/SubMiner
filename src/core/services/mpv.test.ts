@@ -385,6 +385,41 @@ test('MpvIpcClient connect does not force primary subtitle visibility from bindi
   assert.equal(hasPrimaryVisibilityMutation, false);
 });
 
+test('MpvIpcClient snapshots current subtitles before connection side effects can hide them', () => {
+  const commands: unknown[] = [];
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  (client as any).send = (command: unknown) => {
+    commands.push(command);
+    return true;
+  };
+  client.on('connection-change', ({ connected }) => {
+    if (connected) {
+      client.setSubVisibility(false);
+    }
+  });
+
+  const callbacks = (client as any).transport.callbacks;
+  callbacks.onConnect();
+
+  const firstSubTextSnapshot = commands.findIndex((command) => {
+    const args = (command as { command?: unknown[] }).command;
+    return Array.isArray(args) && args[0] === 'get_property' && args[1] === 'sub-text';
+  });
+  const firstPrimaryHide = commands.findIndex((command) => {
+    const args = (command as { command?: unknown[] }).command;
+    return (
+      Array.isArray(args) &&
+      args[0] === 'set_property' &&
+      args[1] === 'sub-visibility' &&
+      (args[2] === false || args[2] === 'no')
+    );
+  });
+
+  assert.notEqual(firstSubTextSnapshot, -1);
+  assert.notEqual(firstPrimaryHide, -1);
+  assert.ok(firstSubTextSnapshot < firstPrimaryHide);
+});
+
 test('MpvIpcClient setSubVisibility writes compatibility commands for visibility toggle', () => {
   const commands: unknown[] = [];
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());

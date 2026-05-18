@@ -6,6 +6,7 @@ test('createMainBootServices builds boot-phase service bundle', () => {
   type MockAppLifecycleApp = {
     requestSingleInstanceLock: () => boolean;
     quit: () => void;
+    exit: (code?: number) => void;
     on: (event: string, listener: (...args: unknown[]) => void) => MockAppLifecycleApp;
     whenReady: () => Promise<void>;
   };
@@ -54,6 +55,9 @@ test('createMainBootServices builds boot-phase service bundle', () => {
         setPathValue = value;
       },
       quit: () => {},
+      exit: (code?: number) => {
+        calls.push(`exit:${code ?? 0}`);
+      },
       on: (event: string) => {
         appOnCalls.push(event);
         return {};
@@ -123,8 +127,9 @@ test('createMainBootServices builds boot-phase service bundle', () => {
     services.appLifecycleApp.on('second-instance', () => {}),
     services.appLifecycleApp,
   );
+  services.appLifecycleApp.exit(7);
   assert.deepEqual(appOnCalls, ['ready']);
   assert.equal(secondInstanceHandlerRegistered, true);
-  assert.deepEqual(calls, ['mkdir:/tmp/subminer-config']);
+  assert.deepEqual(calls, ['mkdir:/tmp/subminer-config', 'exit:7']);
   assert.equal(setPathValue, '/tmp/subminer-config');
 });

@@ -8,6 +8,7 @@ export interface AppLifecycleServiceDeps {
   parseArgs: (argv: string[]) => CliArgs;
   requestSingleInstanceLock: () => boolean;
   quitApp: () => void;
+  exitApp: (code: number) => void;
   onSecondInstance: (handler: (_event: unknown, argv: string[]) => void) => void;
   handleCliCommand: (args: CliArgs, source: CliCommandSource) => void;
   printHelp: () => void;
@@ -27,6 +28,7 @@ export interface AppLifecycleServiceDeps {
 interface AppLike {
   requestSingleInstanceLock: () => boolean;
   quit: () => void;
+  exit?: (exitCode?: number) => void;
   on: (...args: any[]) => unknown;
   whenReady: () => Promise<void>;
 }
@@ -54,6 +56,14 @@ export function createAppLifecycleDepsRuntime(
     parseArgs: options.parseArgs,
     requestSingleInstanceLock: () => options.app.requestSingleInstanceLock(),
     quitApp: () => options.app.quit(),
+    exitApp: (code) => {
+      if (options.app.exit) {
+        options.app.exit(code);
+        return;
+      }
+      process.exitCode = code;
+      options.app.quit();
+    },
     onSecondInstance: (handler) => {
       options.app.on('second-instance', handler as (...args: unknown[]) => void);
     },
@@ -94,6 +104,11 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
   }
 
   const gotTheLock = deps.requestSingleInstanceLock();
+  if (initialArgs.appPing) {
+    deps.exitApp(gotTheLock ? 1 : 0);
+    return;
+  }
+
   if (!gotTheLock) {
     deps.quitApp();
     return;

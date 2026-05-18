@@ -236,6 +236,11 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(shouldStartApp(help), false);
   assert.equal(shouldRunSettingsOnlyStartup(help), false);
 
+  const appPing = parseArgs(['--app-ping']);
+  assert.equal(appPing.appPing, true);
+  assert.equal(hasExplicitCommand(appPing), true);
+  assert.equal(shouldStartApp(appPing), false);
+
   const youtubePlay = parseArgs(['--youtube-play', 'https://youtube.com/watch?v=abc']);
   assert.equal(commandNeedsOverlayStartupPrereqs(youtubePlay), true);
 

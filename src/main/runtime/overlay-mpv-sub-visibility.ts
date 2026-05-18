@@ -3,6 +3,10 @@ type MpvVisibilityClient = {
   requestProperty: (name: string) => Promise<unknown>;
 };
 
+type RestoreOverlayMpvSubtitlesOptions = {
+  force?: boolean;
+};
+
 function parseSubVisibility(value: unknown): boolean {
   if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase();
@@ -81,11 +85,11 @@ export function createRestoreOverlayMpvSubtitlesHandler(deps: {
   shouldKeepSuppressedFromVisibleOverlayBinding: () => boolean;
   setMpvSubVisibility: (visible: boolean) => void;
 }) {
-  return (): void => {
+  return (options: RestoreOverlayMpvSubtitlesOptions = {}): void => {
     deps.setRevision(deps.getRevision() + 1);
 
     const savedVisibility = deps.getSavedSubVisibility();
-    if (deps.shouldKeepSuppressedFromVisibleOverlayBinding()) {
+    if (!options.force && deps.shouldKeepSuppressedFromVisibleOverlayBinding()) {
       deps.setMpvSubVisibility(false);
       return;
     }

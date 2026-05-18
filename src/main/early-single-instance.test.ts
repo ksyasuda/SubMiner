@@ -9,22 +9,40 @@ import * as earlySingleInstance from './early-single-instance';
 
 function createFakeApp(lockValue = true) {
   let requestCalls = 0;
-  let secondInstanceListener: ((_event: unknown, argv: string[]) => void) | null = null;
+  let requestData: unknown = null;
+  let secondInstanceListener:
+    | ((
+        _event: unknown,
+        argv: string[],
+        workingDirectory?: string,
+        additionalData?: unknown,
+      ) => void)
+    | null = null;
 
   return {
     app: {
-      requestSingleInstanceLock: () => {
+      requestSingleInstanceLock: (additionalData?: unknown) => {
         requestCalls += 1;
+        requestData = additionalData ?? null;
         return lockValue;
       },
-      on: (_event: 'second-instance', listener: (_event: unknown, argv: string[]) => void) => {
+      on: (
+        _event: 'second-instance',
+        listener: (
+          _event: unknown,
+          argv: string[],
+          workingDirectory?: string,
+          additionalData?: unknown,
+        ) => void,
+      ) => {
         secondInstanceListener = listener;
       },
     },
-    emitSecondInstance: (argv: string[]) => {
-      secondInstanceListener?.({}, argv);
+    emitSecondInstance: (argv: string[], additionalData?: unknown) => {
+      secondInstanceListener?.({}, argv, '/tmp', additionalData);
     },
     getRequestCalls: () => requestCalls,
+    getRequestData: () => requestData,
   };
 }
 
@@ -54,6 +72,23 @@ test('registerSecondInstanceHandlerEarly replays queued argv and forwards new ev
     ['SubMiner.exe', '--start', '--socket', '\\\\.\\pipe\\subminer'],
     ['SubMiner.exe', '--start', '--show-visible-overlay'],
   ]);
+});
+
+test('requestSingleInstanceLockEarly sends normalized argv through second-instance data', () => {
+  resetEarlySingleInstanceStateForTests();
+  const fake = createFakeApp(true);
+  const primaryArgv = ['SubMiner.AppImage', '--start'];
+  const transportedArgv = ['SubMiner.AppImage', '--stop'];
+  const calls: string[][] = [];
+
+  assert.equal(requestSingleInstanceLockEarly(fake.app, primaryArgv), true);
+  registerSecondInstanceHandlerEarly(fake.app, (_event, argv) => {
+    calls.push(argv);
+  });
+  fake.emitSecondInstance(['SubMiner.AppImage'], { subminerArgv: transportedArgv });
+
+  assert.deepEqual(fake.getRequestData(), { subminerArgv: primaryArgv });
+  assert.deepEqual(calls, [transportedArgv]);
 });
 
 test('stats daemon args bypass the normal single-instance lock path', () => {

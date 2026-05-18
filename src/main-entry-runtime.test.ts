@@ -14,6 +14,7 @@ import {
   shouldHandleHelpOnlyAtEntry,
   shouldHandleLaunchMpvAtEntry,
   shouldHandleStatsDaemonCommandAtEntry,
+  hasTransportedStartupArgs,
 } from './main-entry-runtime';
 
 test('normalizeStartupArgv defaults no-arg startup to --start --background on non-Windows', () => {
@@ -53,6 +54,22 @@ test('normalizeStartupArgv defaults no-arg Windows startup to --start only', () 
   } finally {
     Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
   }
+});
+
+test('normalizeStartupArgv uses transported AppImage args instead of raw Electron args', () => {
+  assert.deepEqual(
+    normalizeStartupArgv(['SubMiner.AppImage', '--background'], {
+      SUBMINER_APP_ARGC: '2',
+      SUBMINER_APP_ARG_0: '--stop',
+      SUBMINER_APP_ARG_1: '--socket',
+    }),
+    ['SubMiner.AppImage', '--stop', '--socket'],
+  );
+});
+
+test('hasTransportedStartupArgs detects env-carried app args', () => {
+  assert.equal(hasTransportedStartupArgs({ SUBMINER_APP_ARGC: '1' }), true);
+  assert.equal(hasTransportedStartupArgs({}), false);
 });
 
 test('shouldHandleHelpOnlyAtEntry detects help-only invocation', () => {

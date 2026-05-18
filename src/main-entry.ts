@@ -13,6 +13,7 @@ import {
   sanitizeBackgroundEnv,
   sanitizeHelpEnv,
   sanitizeLaunchMpvEnv,
+  hasTransportedStartupArgs,
   shouldDetachBackgroundLaunch,
   shouldHandleHelpOnlyAtEntry,
   shouldHandleLaunchMpvAtEntry,
@@ -184,7 +185,8 @@ registerFatalErrorHandlers({
 });
 
 if (shouldDetachBackgroundLaunch(process.argv, process.env)) {
-  const child = spawn(process.execPath, process.argv.slice(1), {
+  const childArgs = hasTransportedStartupArgs(process.env) ? [] : process.argv.slice(1);
+  const child = spawn(process.execPath, childArgs, {
     detached: true,
     stdio: 'ignore',
     env: sanitizeBackgroundEnv(process.env),

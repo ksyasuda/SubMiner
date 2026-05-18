@@ -270,6 +270,23 @@ export function updateVisibleOverlayVisibility(args: {
     args.markOverlayLoadingOsdShown?.();
   };
 
+  const refreshNonNativeOverlayBoundsAfterFirstShow = (geometry: WindowGeometry | null): void => {
+    if (
+      geometry === null ||
+      args.isMacOSPlatform ||
+      args.isWindowsPlatform ||
+      mainWindow.isVisible()
+    ) {
+      return;
+    }
+    mainWindow.once('show', () => {
+      if (mainWindow.isDestroyed() || !mainWindow.isVisible()) {
+        return;
+      }
+      args.updateVisibleOverlayBounds(geometry);
+    });
+  };
+
   if (!args.visibleOverlayVisible) {
     args.setTrackerNotReadyWarningShown(false);
     args.resetOverlayLoadingOsdSuppression?.();
@@ -298,6 +315,7 @@ export function updateVisibleOverlayVisibility(args: {
     const geometry = args.windowTracker.getGeometry();
     if (geometry) {
       args.updateVisibleOverlayBounds(geometry);
+      refreshNonNativeOverlayBoundsAfterFirstShow(geometry);
     }
     args.syncPrimaryOverlayWindowLayer('visible');
     const shouldEnforceLayerOrder = showPassiveVisibleOverlay();

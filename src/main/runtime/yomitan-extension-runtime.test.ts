@@ -165,3 +165,32 @@ test('yomitan extension runtime notifies once after concurrent ensure load resol
   assert.equal(await second, fakeExtension);
   assert.deepEqual(notifications, [fakeExtension]);
 });
+
+test('yomitan extension runtime retries notification after callback failure', async () => {
+  const fakeExtension = { id: 'yomitan' } as Extension;
+  let calls = 0;
+
+  const runtime = createYomitanExtensionRuntime({
+    loadYomitanExtensionCore: async () => fakeExtension,
+    userDataPath: '/tmp',
+    getYomitanParserWindow: () => null,
+    setYomitanParserWindow: () => {},
+    setYomitanParserReadyPromise: () => {},
+    setYomitanParserInitPromise: () => {},
+    setYomitanExtension: () => {},
+    setYomitanSession: () => {},
+    getYomitanExtension: () => fakeExtension,
+    getLoadInFlight: () => null,
+    setLoadInFlight: () => {},
+    onYomitanExtensionLoaded: () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new Error('overlay reload failed');
+      }
+    },
+  });
+
+  await assert.rejects(runtime.ensureYomitanExtensionLoaded(), /overlay reload failed/);
+  assert.equal(await runtime.ensureYomitanExtensionLoaded(), fakeExtension);
+  assert.equal(calls, 2);
+});

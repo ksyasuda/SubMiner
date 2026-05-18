@@ -114,6 +114,36 @@ test('runAppCommandCaptureOutput strips ELECTRON_RUN_AS_NODE from app child env'
   }
 });
 
+test('runAppCommandCaptureOutput transports Linux AppImage args through environment', () => {
+  if (process.platform !== 'linux') return;
+  const { dir } = createTempSocketPath();
+  const appPath = path.join(dir, 'SubMiner.AppImage');
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      'printf "args:%s\\n" "$*"',
+      'printf "argc:%s\\n" "$SUBMINER_APP_ARGC"',
+      'printf "arg0:%s\\n" "$SUBMINER_APP_ARG_0"',
+      'printf "arg1:%s\\n" "$SUBMINER_APP_ARG_1"',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+
+  try {
+    const result = runAppCommandCaptureOutput(appPath, ['--app-ping', '--socket']);
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /^args:\n/m);
+    assert.match(result.stdout, /^argc:2\n/m);
+    assert.match(result.stdout, /^arg0:--app-ping\n/m);
+    assert.match(result.stdout, /^arg1:--socket\n/m);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('parseMpvArgString preserves empty quoted tokens', () => {
   assert.deepEqual(parseMpvArgString('--title "" --force-media-title \'\' --pause'), [
     '--title',

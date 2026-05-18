@@ -69,6 +69,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     texthooker: false,
     texthookerOpenBrowser: false,
     help: false,
+    appPing: false,
     autoStartOverlay: false,
     generateConfig: false,
     backupOverwrite: false,
@@ -90,6 +91,9 @@ function createDeps(overrides: Partial<AppLifecycleServiceDeps> = {}) {
     },
     quitApp: () => {
       calls.push('quitApp');
+    },
+    exitApp: (code) => {
+      calls.push(`exit:${code}`);
     },
     onSecondInstance: () => {},
     handleCliCommand: () => {},
@@ -135,4 +139,31 @@ test('startAppLifecycle still acquires lock for startup commands', () => {
   startAppLifecycle(makeArgs({ start: true }), deps);
 
   assert.equal(getLockCalls(), 1);
+});
+
+test('startAppLifecycle app ping exits non-zero immediately when no running instance owns the lock', () => {
+  const { deps, calls, getLockCalls } = createDeps({
+    shouldStartApp: () => false,
+  });
+
+  startAppLifecycle(makeArgs({ appPing: true }), deps);
+
+  assert.equal(getLockCalls(), 1);
+  assert.deepEqual(calls, ['exit:1']);
+});
+
+test('startAppLifecycle app ping exits zero immediately when another instance owns the lock', () => {
+  let lockCalls = 0;
+  const { deps, calls } = createDeps({
+    shouldStartApp: () => false,
+    requestSingleInstanceLock: () => {
+      lockCalls += 1;
+      return false;
+    },
+  });
+
+  startAppLifecycle(makeArgs({ appPing: true }), deps);
+
+  assert.equal(lockCalls, 1);
+  assert.deepEqual(calls, ['exit:0']);
 });

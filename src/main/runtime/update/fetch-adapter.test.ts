@@ -101,6 +101,8 @@ test('createCurlFetch requests updater metadata without Electron networking', as
     '--show-error',
     '--connect-timeout',
     '30',
+    '--max-time',
+    '60',
     '--header',
     'Accept: application/vnd.github+json',
     '--header',
@@ -108,4 +110,5 @@ test('createCurlFetch requests updater metadata without Electron networking', as
     'https://api.github.com/repos/ksyasuda/SubMiner/releases',
   ]);
   assert.equal(calls[0]?.options.encoding, 'buffer');
+  assert.equal(calls[0]?.options.timeout, 65_000);
 });

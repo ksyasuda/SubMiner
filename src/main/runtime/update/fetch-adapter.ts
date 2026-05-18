@@ -67,7 +67,16 @@ export function createCurlFetch(options: CurlFetchOptions = {}): FetchLike {
   const curlPath = options.curlPath ?? '/usr/bin/curl';
 
   return async (url, init = {}) => {
-    const args = ['--fail', '--location', '--silent', '--show-error', '--connect-timeout', '30'];
+    const args = [
+      '--fail',
+      '--location',
+      '--silent',
+      '--show-error',
+      '--connect-timeout',
+      '30',
+      '--max-time',
+      '60',
+    ];
     addHeaderArgs(args, init.headers);
     args.push(url);
     const body = await new Promise<Buffer>((resolve, reject) => {
@@ -77,6 +86,7 @@ export function createCurlFetch(options: CurlFetchOptions = {}): FetchLike {
         {
           encoding: 'buffer',
           maxBuffer: 600 * 1024 * 1024,
+          timeout: 65_000,
         },
         (error, stdout, stderr) => {
           if (error) {

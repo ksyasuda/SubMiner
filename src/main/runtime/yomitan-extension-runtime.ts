@@ -50,12 +50,29 @@ export function createYomitanExtensionRuntime(deps: YomitanExtensionRuntimeDeps)
   );
 
   let lastNotifiedExtension: Extension | null = null;
+  let notifyingExtension: Extension | null = null;
+  let notificationPromise: Promise<void> | null = null;
   async function notifyYomitanExtensionLoaded(extension: Extension | null): Promise<void> {
     if (!extension || extension === lastNotifiedExtension) {
       return;
     }
-    lastNotifiedExtension = extension;
-    await deps.onYomitanExtensionLoaded?.(extension);
+    if (extension === notifyingExtension && notificationPromise) {
+      await notificationPromise;
+      return;
+    }
+    notifyingExtension = extension;
+    notificationPromise = (async () => {
+      await deps.onYomitanExtensionLoaded?.(extension);
+      lastNotifiedExtension = extension;
+    })();
+    try {
+      await notificationPromise;
+    } finally {
+      if (notifyingExtension === extension) {
+        notifyingExtension = null;
+        notificationPromise = null;
+      }
+    }
   }
 
   return {

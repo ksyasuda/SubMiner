@@ -13,15 +13,26 @@ type WindowTrackerStub = {
 
 function createMainWindowRecorder() {
   const calls: string[] = [];
+  const listeners = new Map<string, Array<() => void>>();
   let visible = false;
   let focused = false;
   let opacity = 1;
   let contentReady = true;
+  const emit = (event: string): void => {
+    const handlers = listeners.get(event) ?? [];
+    listeners.delete(event);
+    for (const handler of handlers) {
+      handler();
+    }
+  };
   const window = {
     webContents: {},
     isDestroyed: () => false,
     isVisible: () => visible,
     isFocused: () => focused,
+    once: (event: string, handler: () => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), handler]);
+    },
     hide: () => {
       visible = false;
       focused = false;
@@ -30,10 +41,12 @@ function createMainWindowRecorder() {
     show: () => {
       visible = true;
       calls.push('show');
+      emit('show');
     },
     showInactive: () => {
       visible = true;
       calls.push('show-inactive');
+      emit('show');
     },
     focus: () => {
       focused = true;
@@ -214,6 +227,44 @@ test('untracked non-macOS overlay keeps fallback visible behavior when no tracke
   assert.ok(calls.includes('show'));
   assert.ok(calls.includes('focus'));
   assert.ok(!calls.includes('osd'));
+});
+
+test('tracked non-macOS overlay reapplies bounds after first show', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+  };
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: false,
+    isWindowsPlatform: false,
+  } as never);
+
+  assert.deepEqual(
+    calls.filter((call) => call === 'update-bounds' || call === 'show'),
+    ['update-bounds', 'show', 'update-bounds'],
+  );
 });
 
 test('Windows visible overlay stays click-through and binds to mpv while tracked', () => {

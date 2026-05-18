@@ -122,6 +122,35 @@ test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 ex
   assert.equal(result[3]?.frequencyRank, 11);
 });
 
+test('annotateTokens keeps frequency for determiner-led content noun compounds', () => {
+  const tokens = [
+    makeToken({
+      surface: 'その場',
+      headword: 'その場',
+      reading: 'そのば',
+      partOfSpeech: PartOfSpeech.noun,
+      pos1: '連体詞|名詞',
+      pos2: '*|一般',
+      startPos: 0,
+      endPos: 3,
+      frequencyRank: 879,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'その場',
+      getJlptLevel: (text) => (text === 'その場' ? 'N4' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.frequencyRank, 879);
+  assert.equal(result[0]?.jlptLevel, 'N4');
+});
+
 test('annotateTokens preserves existing frequency rank when frequency is enabled', () => {
   const tokens = [makeToken({ surface: '猫', headword: '猫', frequencyRank: 42 })];
 

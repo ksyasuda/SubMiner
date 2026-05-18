@@ -39,6 +39,7 @@ export const state = {
 type SpawnTarget = {
   command: string;
   args: string[];
+  env?: NodeJS.ProcessEnv;
 };
 
 type PathModule = Pick<typeof path, 'join' | 'extname' | 'delimiter' | 'sep' | 'resolve'>;
@@ -46,6 +47,8 @@ type PathModule = Pick<typeof path, 'join' | 'extname' | 'delimiter' | 'sep' | '
 const DETACHED_IDLE_MPV_PID_FILE = path.join(os.tmpdir(), 'subminer-idle-mpv.pid');
 const OVERLAY_START_SOCKET_READY_TIMEOUT_MS = 900;
 const OVERLAY_START_COMMAND_SETTLE_TIMEOUT_MS = 700;
+const TRANSPORTED_APP_ARGC_ENV = 'SUBMINER_APP_ARGC';
+const TRANSPORTED_APP_ARG_PREFIX = 'SUBMINER_APP_ARG_';
 
 export interface LauncherRuntimePluginPlan {
   scriptPath: string | null;
@@ -1009,7 +1012,7 @@ export async function startOverlay(
   const target = resolveAppSpawnTarget(appPath, overlayArgs);
   state.overlayProc = spawn(target.command, target.args, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: buildAppEnv(),
+    env: buildAppEnv(process.env, target.env),
   });
   attachAppProcessLogging(state.overlayProc);
   markOverlayManagedByLauncher(appPath);
@@ -1146,7 +1149,7 @@ function stopManagedOverlayApp(args: Args): void {
   const target = resolveAppSpawnTarget(state.appPath, stopArgs);
   const result = spawnSync(target.command, target.args, {
     stdio: 'ignore',
-    env: buildAppEnv(),
+    env: buildAppEnv(process.env, target.env),
   });
   if (result.error) {
     log('warn', args.logLevel, `Failed to stop SubMiner overlay: ${result.error.message}`);
@@ -1163,13 +1166,40 @@ function stopManagedOverlayApp(args: Args): void {
   }
 }
 
-function buildAppEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+function clearTransportedAppArgs(env: Record<string, string | undefined>): void {
+  for (const key of Object.keys(env)) {
+    if (key === TRANSPORTED_APP_ARGC_ENV || /^SUBMINER_APP_ARG_\d+$/.test(key)) {
+      delete env[key];
+    }
+  }
+}
+
+function buildTransportedAppArgsEnv(appArgs: string[]): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    [TRANSPORTED_APP_ARGC_ENV]: String(appArgs.length),
+  };
+  appArgs.forEach((arg, index) => {
+    env[`${TRANSPORTED_APP_ARG_PREFIX}${index}`] = arg;
+  });
+  return env;
+}
+
+function shouldTransportAppArgsForAppImage(appPath: string): boolean {
+  return process.platform === 'linux' && /\.AppImage$/i.test(appPath);
+}
+
+function buildAppEnv(
+  baseEnv: NodeJS.ProcessEnv = process.env,
+  extraEnv: NodeJS.ProcessEnv = {},
+): NodeJS.ProcessEnv {
   const env: Record<string, string | undefined> = {
     ...baseEnv,
     SUBMINER_APP_LOG: getAppLogPath(),
     SUBMINER_MPV_LOG: getMpvLogPath(),
   };
   delete env.ELECTRON_RUN_AS_NODE;
+  clearTransportedAppArgs(env);
+  Object.assign(env, extraEnv);
   const layers = env.VK_INSTANCE_LAYERS;
   if (typeof layers === 'string' && layers.trim().length > 0) {
     const filtered = layers
@@ -1274,7 +1304,7 @@ function runSyncAppCommand(
 } {
   const target = resolveAppSpawnTarget(appPath, appArgs);
   const result = spawnSync(target.command, target.args, {
-    env: buildAppEnv(),
+    env: buildAppEnv(process.env, target.env),
     encoding: 'utf8',
   });
   if (result.stdout) {
@@ -1307,6 +1337,13 @@ function maybeCaptureAppArgs(appArgs: string[]): boolean {
 }
 
 function resolveAppSpawnTarget(appPath: string, appArgs: string[]): SpawnTarget {
+  if (shouldTransportAppArgsForAppImage(appPath)) {
+    return {
+      command: appPath,
+      args: [],
+      env: buildTransportedAppArgsEnv(appArgs),
+    };
+  }
   if (process.platform !== 'win32') {
     return { command: appPath, args: appArgs };
   }
@@ -1321,7 +1358,7 @@ export function runAppCommandWithInherit(appPath: string, appArgs: string[]): vo
   const target = resolveAppSpawnTarget(appPath, appArgs);
   const proc = spawn(target.command, target.args, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: buildAppEnv(),
+    env: buildAppEnv(process.env, target.env),
   });
   attachAppProcessLogging(proc, { mirrorStdout: true, mirrorStderr: true });
   proc.once('error', (error) => {
@@ -1340,7 +1377,7 @@ export function runAppCommandSilently(appPath: string, appArgs: string[]): void 
   const target = resolveAppSpawnTarget(appPath, appArgs);
   const proc = spawn(target.command, target.args, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: buildAppEnv(),
+    env: buildAppEnv(process.env, target.env),
   });
   attachAppProcessLogging(proc);
   proc.once('error', (error) => {
@@ -1391,7 +1428,7 @@ export function runAppCommandAttached(
   return new Promise((resolve, reject) => {
     const proc = spawn(target.command, target.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: buildAppEnv(),
+      env: buildAppEnv(process.env, target.env),
     });
     attachAppProcessLogging(proc, { mirrorStdout: true, mirrorStderr: true });
     proc.once('error', (error) => {
@@ -1462,7 +1499,7 @@ export function launchAppCommandDetached(
     const proc = spawn(target.command, target.args, {
       stdio: ['ignore', stdoutFd, stderrFd],
       detached: true,
-      env: buildAppEnv(),
+      env: buildAppEnv(process.env, target.env),
     });
     proc.once('error', (error) => {
       log('warn', logLevel, `${label}: failed to launch detached app: ${error.message}`);
