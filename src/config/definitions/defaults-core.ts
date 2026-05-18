@@ -124,5 +124,5 @@ export const CORE_DEFAULT_CONFIG: Pick<
     notificationType: 'system',
     channel: 'stable',
   },
-  auto_start_overlay: false,
+  auto_start_overlay: true,
 };

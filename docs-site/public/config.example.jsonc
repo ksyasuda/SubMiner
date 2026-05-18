@@ -11,7 +11,7 @@
   // Show the visible subtitle overlay automatically after managed mpv playback starts SubMiner.
   // SubMiner can still auto-start in the background when this is false.
   // ==========================================
-  "auto_start_overlay": false, // Show the visible subtitle overlay automatically when the bundled mpv plugin starts SubMiner. Values: true | false
+  "auto_start_overlay": true, // Show the visible subtitle overlay automatically when the bundled mpv plugin starts SubMiner. Values: true | false
 
   // ==========================================
   // Texthooker Server
@@ -361,30 +361,29 @@
   // ==========================================
   "subtitleStyle": {
     "primaryDefaultMode": "visible", // Default primary subtitle bar visibility mode. hidden hides it, visible shows it, hover reveals it on hover. Values: hidden | visible | hover
-    "css": {}, // CSS declaration object applied to primary subtitles after normal subtitle style defaults.
+    "css": {
+      "font-family": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.
+      "color": "#cad3f5", // Color setting.
+      "background-color": "transparent", // Background color setting.
+      "font-size": "35px", // Font size setting.
+      "font-weight": "600", // Font weight setting.
+      "font-style": "normal", // Font style setting.
+      "line-height": "1.35", // Line height setting.
+      "letter-spacing": "-0.01em", // Letter spacing setting.
+      "word-spacing": "0", // Word spacing setting.
+      "font-kerning": "normal", // Font kerning setting.
+      "text-rendering": "geometricPrecision", // Text rendering setting.
+      "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
+      "backdrop-filter": "blur(6px)", // Backdrop filter setting.
+      "--subtitle-hover-token-color": "#f4dbd6", // Subtitle hover token color setting.
+      "--subtitle-hover-token-background-color": "rgba(54, 58, 79, 0.84)" // Subtitle hover token background color setting.
+    }, // CSS declaration object applied to primary subtitles after normal subtitle style defaults.
     "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
     "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false
     "autoPauseVideoOnYomitanPopup": true, // Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes. Values: true | false
-    "hoverTokenColor": "#f4dbd6", // Hex color used for hovered subtitle token highlight in mpv.
-    "hoverTokenBackgroundColor": "rgba(54, 58, 79, 0.84)", // CSS color used for hovered subtitle token background highlight in mpv.
     "nameMatchEnabled": true, // Enable subtitle token coloring for matches from the SubMiner character dictionary. Values: true | false
     "nameMatchColor": "#f5bde6", // Hex color used when a subtitle token matches an entry from the SubMiner character dictionary.
-    "fontFamily": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.
-    "fontSize": 35, // Font size setting.
-    "fontColor": "#cad3f5", // Font color setting.
-    "fontWeight": "600", // Font weight setting.
-    "lineHeight": 1.35, // Line height setting.
-    "letterSpacing": "-0.01em", // Letter spacing setting.
-    "wordSpacing": 0, // Word spacing setting.
-    "fontKerning": "normal", // Font kerning setting.
-    "textRendering": "geometricPrecision", // Text rendering setting.
-    "textShadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
-    "paintOrder": "", // Paint order setting.
-    "WebkitTextStroke": "", // Webkit text stroke setting.
-    "fontStyle": "normal", // Font style setting.
-    "backgroundColor": "transparent", // Background color setting.
-    "backdropFilter": "blur(6px)", // Backdrop filter setting.
     "nPlusOneColor": "#c6a0f6", // Color used for the single N+1 target token subtitle highlight.
     "knownWordColor": "#a6da95", // Color used for known-word subtitle highlights.
     "jlptColors": {
@@ -410,22 +409,21 @@
       ] // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
     }, // Frequency dictionary setting.
     "secondary": {
-      "css": {}, // CSS declaration object applied to secondary subtitles after normal subtitle style defaults.
-      "fontFamily": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.
-      "fontSize": 24, // Font size setting.
-      "fontColor": "#cad3f5", // Font color setting.
-      "lineHeight": 1.35, // Line height setting.
-      "letterSpacing": "-0.01em", // Letter spacing setting.
-      "wordSpacing": 0, // Word spacing setting.
-      "fontKerning": "normal", // Font kerning setting.
-      "textRendering": "geometricPrecision", // Text rendering setting.
-      "textShadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
-      "paintOrder": "", // Paint order setting.
-      "WebkitTextStroke": "", // Webkit text stroke setting.
-      "backgroundColor": "transparent", // Background color setting.
-      "backdropFilter": "blur(6px)", // Backdrop filter setting.
-      "fontWeight": "600", // Font weight setting.
-      "fontStyle": "normal" // Font style setting.
+      "css": {
+        "font-family": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.
+        "color": "#cad3f5", // Color setting.
+        "background-color": "transparent", // Background color setting.
+        "font-size": "24px", // Font size setting.
+        "font-weight": "600", // Font weight setting.
+        "font-style": "normal", // Font style setting.
+        "line-height": "1.35", // Line height setting.
+        "letter-spacing": "-0.01em", // Letter spacing setting.
+        "word-spacing": "0", // Word spacing setting.
+        "font-kerning": "normal", // Font kerning setting.
+        "text-rendering": "geometricPrecision", // Text rendering setting.
+        "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
+        "backdrop-filter": "blur(6px)" // Backdrop filter setting.
+      } // CSS declaration object applied to secondary subtitles after normal subtitle style defaults.
     } // Secondary setting.
   }, // Primary and secondary subtitle styling.
 
@@ -441,17 +439,18 @@
     "toggleKey": "Backslash", // KeyboardEvent.code used to toggle the subtitle sidebar open and closed.
     "pauseVideoOnHover": false, // Pause mpv while hovering the subtitle sidebar, then resume on leave. Values: true | false
     "autoScroll": true, // Auto-scroll the active subtitle cue into view while playback advances. Values: true | false
-    "css": {}, // CSS declaration object applied to the subtitle sidebar. Includes color, background-color, and all font properties.
-    "maxWidth": 420, // Maximum sidebar width in CSS pixels.
-    "opacity": 0.95, // Base opacity applied to the sidebar shell.
-    "backgroundColor": "rgba(73, 77, 100, 0.9)", // Background color for the subtitle sidebar shell.
-    "textColor": "#cad3f5", // Default cue text color in the subtitle sidebar.
-    "fontFamily": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP", // Font family used for subtitle sidebar cue text.
-    "fontSize": 16, // Base font size for subtitle sidebar cue text in CSS pixels.
-    "timestampColor": "#a5adcb", // Timestamp color in the subtitle sidebar.
-    "activeLineColor": "#f5bde6", // Text color for the active subtitle cue.
-    "activeLineBackgroundColor": "rgba(138, 173, 244, 0.22)", // Background color for the active subtitle cue.
-    "hoverLineBackgroundColor": "rgba(54, 58, 79, 0.84)" // Background color for hovered subtitle cues.
+    "css": {
+      "font-family": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.
+      "color": "#cad3f5", // Color setting.
+      "background-color": "rgba(73, 77, 100, 0.9)", // Background color setting.
+      "font-size": "16px", // Font size setting.
+      "opacity": "0.95", // Opacity setting.
+      "--subtitle-sidebar-max-width": "420px", // Subtitle sidebar max width setting.
+      "--subtitle-sidebar-timestamp-color": "#a5adcb", // Subtitle sidebar timestamp color setting.
+      "--subtitle-sidebar-active-line-color": "#f5bde6", // Subtitle sidebar active line color setting.
+      "--subtitle-sidebar-active-background-color": "rgba(138, 173, 244, 0.22)", // Subtitle sidebar active background color setting.
+      "--subtitle-sidebar-hover-background-color": "rgba(54, 58, 79, 0.84)" // Subtitle sidebar hover background color setting.
+    } // CSS declaration object applied to the subtitle sidebar. Includes color, background-color, and all font properties.
   }, // Parsed-subtitle sidebar cue list styling, behavior, and toggle key.
 
   // ==========================================

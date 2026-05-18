@@ -46,39 +46,25 @@ export function configureAnkiControls(options: { requestRender: () => void }): v
   requestRender = options.requestRender;
 }
 
-export function initializeAnkiControls(values: Record<string, ConfigSettingsSnapshotValue>): void {
-  const configuredNoteType = values['ankiConnect.isLapis.sentenceCardModel'];
-  if (
-    !state.noteFieldModelName &&
-    !state.noteFieldModelNameManuallySelected &&
-    typeof configuredNoteType === 'string'
-  ) {
-    state.noteFieldModelName = configuredNoteType;
-  }
+export function initializeAnkiControls(_values: Record<string, ConfigSettingsSnapshotValue>): void {
+  state.noteFieldModelName = '';
+  state.noteFieldModelNameManuallySelected = false;
 }
 
 export function selectPreferredNoteFieldModelName(
   modelNames: readonly string[],
   currentModelName = '',
 ): string {
-  const normalizedCurrentModelName = currentModelName.trim().toLowerCase();
-  if (normalizedCurrentModelName) {
-    const currentModel = modelNames.find(
-      (name) => name.toLowerCase() === normalizedCurrentModelName,
-    );
-    if (currentModel) {
-      return currentModel;
-    }
-  }
+  void currentModelName;
 
-  const exactKiku = modelNames.find((name) => name.toLowerCase() === 'kiku');
+  const exactKiku = modelNames.find((name) => name.trim().toLowerCase() === 'kiku');
   if (exactKiku) {
     return exactKiku;
   }
 
-  const lapis = modelNames.find((name) => name.toLowerCase().includes('lapis'));
-  if (lapis) {
-    return lapis;
+  const exactLapis = modelNames.find((name) => name.trim().toLowerCase() === 'lapis');
+  if (exactLapis) {
+    return exactLapis;
   }
 
   return '';

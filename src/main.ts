@@ -4270,6 +4270,11 @@ const {
       getKnownWordMatchMode: () =>
         appState.ankiIntegration?.getKnownWordMatchMode() ??
         getResolvedConfig().ankiConnect.knownWords.matchMode,
+      getKnownWordsEnabled: () =>
+        getRuntimeBooleanOption(
+          'subtitle.annotation.knownWords.highlightEnabled',
+          getResolvedConfig().ankiConnect.knownWords.highlightEnabled,
+        ),
       getNPlusOneEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.nPlusOne',
@@ -5292,12 +5297,17 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       openYomitanSettings: () => openYomitanSettings(),
       quitApp: () => requestAppQuit(),
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
-      tokenizeCurrentSubtitle: async () =>
-        resolveCurrentSubtitleForRenderer({
+      tokenizeCurrentSubtitle: async () => {
+        const tokenizeSubtitleForCurrent = tokenizeSubtitleDeferred;
+        return resolveCurrentSubtitleForRenderer({
           currentSubText: appState.currentSubText,
           currentSubtitleData: appState.currentSubtitleData,
           withCurrentSubtitleTiming: (payload) => withCurrentSubtitleTiming(payload),
-        }),
+          tokenizeSubtitle: tokenizeSubtitleForCurrent
+            ? (text) => tokenizeSubtitleForCurrent(text)
+            : undefined,
+        });
+      },
       getCurrentSubtitleRaw: () => appState.currentSubText,
       getCurrentSubtitleAss: () => appState.currentSubAssText,
       getSubtitleSidebarSnapshot: async () => {

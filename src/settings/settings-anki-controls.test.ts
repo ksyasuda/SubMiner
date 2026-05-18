@@ -2,17 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as ankiControls from './settings-anki-controls';
 
-test('note field model preference keeps a matching configured model before Kiku fallback', () => {
+test('note field model preference ignores configured sentence-card model before Kiku fallback', () => {
   assert.equal(
     ankiControls.selectPreferredNoteFieldModelName(['Lapis Morph', 'Kiku'], 'Lapis Morph'),
-    'Lapis Morph',
+    'Kiku',
   );
 });
 
-test('note field model preference matches configured model case-insensitively', () => {
+test('note field model preference ignores configured sentence-card model case-insensitively', () => {
   assert.equal(
     ankiControls.selectPreferredNoteFieldModelName(['Lapis Morph', 'Kiku'], 'lapis morph'),
-    'Lapis Morph',
+    'Kiku',
   );
 });
 
@@ -28,10 +28,10 @@ test('note field model preference does not treat partial Kiku matches as Kiku', 
   assert.equal(ankiControls.selectPreferredNoteFieldModelName(['Kikuchi', 'Mining'], ''), '');
 });
 
-test('note field model preference accepts partial Lapis matches', () => {
+test('note field model preference does not treat partial Lapis matches as Lapis', () => {
   assert.equal(
     ankiControls.selectPreferredNoteFieldModelName(['Mining', 'Lapis Morph'], ''),
-    'Lapis Morph',
+    '',
   );
 });
 

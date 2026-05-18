@@ -34,6 +34,8 @@ test('subtitleStyle css declarations accept string declaration maps and warn on 
       css: {
         'font-size': '42px',
         'text-wrap': 'balance',
+        '--subtitle-hover-token-color': '#c6a0f6',
+        '--subtitle-hover-token-background-color': 'transparent',
       },
       secondary: {
         css: {
@@ -46,7 +48,11 @@ test('subtitleStyle css declarations accept string declaration maps and warn on 
   assert.deepEqual(valid.context.resolved.subtitleStyle.css, {
     'font-size': '42px',
     'text-wrap': 'balance',
+    '--subtitle-hover-token-color': '#c6a0f6',
+    '--subtitle-hover-token-background-color': 'transparent',
   });
+  assert.equal(valid.context.resolved.subtitleStyle.hoverTokenColor, '#c6a0f6');
+  assert.equal(valid.context.resolved.subtitleStyle.hoverTokenBackgroundColor, 'transparent');
   assert.deepEqual(valid.context.resolved.subtitleStyle.secondary.css, {
     'text-transform': 'uppercase',
   });

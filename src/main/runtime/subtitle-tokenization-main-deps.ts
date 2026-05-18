@@ -38,6 +38,11 @@ export function createBuildTokenizerDepsMainHandler(deps: TokenizerMainDeps) {
       return hit;
     },
     getKnownWordMatchMode: () => deps.getKnownWordMatchMode(),
+    ...(deps.getKnownWordsEnabled
+      ? {
+          getKnownWordsEnabled: () => deps.getKnownWordsEnabled!(),
+        }
+      : {}),
     ...(deps.getNPlusOneEnabled
       ? {
           getNPlusOneEnabled: () => deps.getNPlusOneEnabled!(),

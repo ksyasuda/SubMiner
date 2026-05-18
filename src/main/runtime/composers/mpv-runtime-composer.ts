@@ -137,10 +137,13 @@ export function composeMpvRuntimeHandlers<
   const shouldInitializeMecabForAnnotations = (): boolean => {
     const nPlusOneEnabled =
       options.tokenizer.buildTokenizerDepsMainDeps.getNPlusOneEnabled?.() !== false;
+    const knownWordsEnabled = options.tokenizer.buildTokenizerDepsMainDeps.getKnownWordsEnabled
+      ? options.tokenizer.buildTokenizerDepsMainDeps.getKnownWordsEnabled() !== false
+      : nPlusOneEnabled;
     const jlptEnabled = options.tokenizer.buildTokenizerDepsMainDeps.getJlptEnabled() !== false;
     const frequencyEnabled =
       options.tokenizer.buildTokenizerDepsMainDeps.getFrequencyDictionaryEnabled() !== false;
-    return nPlusOneEnabled || jlptEnabled || frequencyEnabled;
+    return knownWordsEnabled || nPlusOneEnabled || jlptEnabled || frequencyEnabled;
   };
   const shouldWarmupAnnotationDictionaries = (): boolean => {
     const jlptEnabled = options.tokenizer.buildTokenizerDepsMainDeps.getJlptEnabled() !== false;

@@ -738,6 +738,41 @@ end
 do
 	local recorded, err = run_plugin_scenario({
 		process_list = "",
+		app_ping_statuses = { 0, 2, 1, 0 },
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+			auto_start_visible_overlay = "no",
+		},
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(
+		recorded ~= nil,
+		"plugin failed to load for transient app-ping failure restart scenario: " .. tostring(err)
+	)
+	recorded.script_messages["subminer-restart"]()
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(start_call ~= nil, "manual restart should start after app-ping reports stopped")
+	local start_index = find_call_index(recorded.async_calls, start_call) or 0
+	local failed_ping = find_nth_control_call(recorded.async_calls, "--app-ping", 2)
+	local stopped_ping = find_nth_control_call(recorded.async_calls, "--app-ping", 3)
+	assert_true(failed_ping ~= nil, "manual restart should retry after transient app-ping failure")
+	assert_true(stopped_ping ~= nil, "manual restart should observe stopped app-ping status")
+	assert_true(
+		(find_call_index(recorded.async_calls, failed_ping) or 0) < start_index,
+		"manual restart should not treat app-ping status 2 as stopped"
+	)
+	assert_true(
+		(find_call_index(recorded.async_calls, stopped_ping) or 0) < start_index,
+		"manual restart should wait for explicit stopped app-ping status"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
 		app_ping_statuses = { 0, 1, 0 },
 		option_overrides = {
 			binary_path = binary_path,

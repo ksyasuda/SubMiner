@@ -11,7 +11,8 @@ type WindowTrackerStub = {
   isTargetWindowMinimized?: () => boolean;
 };
 
-function createMainWindowRecorder() {
+function createMainWindowRecorder(options: { emitShowImmediately?: boolean } = {}) {
+  const emitShowImmediately = options.emitShowImmediately ?? true;
   const calls: string[] = [];
   const listeners = new Map<string, Array<() => void>>();
   let visible = false;
@@ -24,6 +25,10 @@ function createMainWindowRecorder() {
     for (const handler of handlers) {
       handler();
     }
+  };
+  const emitShow = (): void => {
+    visible = true;
+    emit('show');
   };
   const window = {
     webContents: {},
@@ -39,14 +44,16 @@ function createMainWindowRecorder() {
       calls.push('hide');
     },
     show: () => {
-      visible = true;
       calls.push('show');
-      emit('show');
+      if (emitShowImmediately) {
+        emitShow();
+      }
     },
     showInactive: () => {
-      visible = true;
       calls.push('show-inactive');
-      emit('show');
+      if (emitShowImmediately) {
+        emitShow();
+      }
     },
     focus: () => {
       focused = true;
@@ -81,6 +88,7 @@ function createMainWindowRecorder() {
     window,
     calls,
     getOpacity: () => opacity,
+    emitShow,
     setContentReady: (nextContentReady: boolean) => {
       contentReady = nextContentReady;
       (
@@ -264,6 +272,50 @@ test('tracked non-macOS overlay reapplies bounds after first show', () => {
   assert.deepEqual(
     calls.filter((call) => call === 'update-bounds' || call === 'show'),
     ['update-bounds', 'show', 'update-bounds'],
+  );
+});
+
+test('tracked non-macOS overlay queues only one first-show bounds refresh', () => {
+  const { window, calls, emitShow } = createMainWindowRecorder({ emitShowImmediately: false });
+  let width = 1280;
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width, height: 720 }),
+  };
+  const run = () =>
+    updateVisibleOverlayVisibility({
+      visibleOverlayVisible: true,
+      mainWindow: window as never,
+      windowTracker: tracker as never,
+      trackerNotReadyWarningShown: false,
+      setTrackerNotReadyWarningShown: () => {},
+      updateVisibleOverlayBounds: (geometry: { width: number }) => {
+        calls.push(`update-bounds:${geometry.width}`);
+      },
+      ensureOverlayWindowLevel: () => {
+        calls.push('ensure-level');
+      },
+      syncPrimaryOverlayWindowLayer: () => {
+        calls.push('sync-layer');
+      },
+      enforceOverlayLayerOrder: () => {
+        calls.push('enforce-order');
+      },
+      syncOverlayShortcuts: () => {
+        calls.push('sync-shortcuts');
+      },
+      isMacOSPlatform: false,
+      isWindowsPlatform: false,
+    } as never);
+
+  run();
+  width = 1440;
+  run();
+  emitShow();
+
+  assert.deepEqual(
+    calls.filter((call) => call.startsWith('update-bounds:')),
+    ['update-bounds:1280', 'update-bounds:1440', 'update-bounds:1440'],
   );
 });
 

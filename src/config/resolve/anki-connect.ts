@@ -654,30 +654,12 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
   const nPlusOneConfig = isObject(ac.nPlusOne) ? (ac.nPlusOne as Record<string, unknown>) : {};
 
   const knownWordsHighlightEnabled = asBoolean(knownWordsConfig.highlightEnabled);
-  const legacyNPlusOneHighlightEnabled = asBoolean(nPlusOneConfig.highlightEnabled);
   if (knownWordsHighlightEnabled !== undefined) {
     context.resolved.ankiConnect.knownWords.highlightEnabled = knownWordsHighlightEnabled;
   } else if (knownWordsConfig.highlightEnabled !== undefined) {
     context.warn(
       'ankiConnect.knownWords.highlightEnabled',
       knownWordsConfig.highlightEnabled,
-      context.resolved.ankiConnect.knownWords.highlightEnabled,
-      'Expected boolean.',
-    );
-    context.resolved.ankiConnect.knownWords.highlightEnabled =
-      DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled;
-  } else if (legacyNPlusOneHighlightEnabled !== undefined) {
-    context.resolved.ankiConnect.knownWords.highlightEnabled = legacyNPlusOneHighlightEnabled;
-    context.warn(
-      'ankiConnect.nPlusOne.highlightEnabled',
-      nPlusOneConfig.highlightEnabled,
-      DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled,
-      'Legacy key is deprecated; use ankiConnect.knownWords.highlightEnabled',
-    );
-  } else if (nPlusOneConfig.highlightEnabled !== undefined) {
-    context.warn(
-      'ankiConnect.nPlusOne.highlightEnabled',
-      nPlusOneConfig.highlightEnabled,
       context.resolved.ankiConnect.knownWords.highlightEnabled,
       'Expected boolean.',
     );
@@ -701,15 +683,10 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
   }
 
   const knownWordsRefreshMinutes = asNumber(knownWordsConfig.refreshMinutes);
-  const legacyNPlusOneRefreshMinutes = asNumber(nPlusOneConfig.refreshMinutes);
   const hasValidKnownWordsRefreshMinutes =
     knownWordsRefreshMinutes !== undefined &&
     Number.isInteger(knownWordsRefreshMinutes) &&
     knownWordsRefreshMinutes > 0;
-  const hasValidLegacyNPlusOneRefreshMinutes =
-    legacyNPlusOneRefreshMinutes !== undefined &&
-    Number.isInteger(legacyNPlusOneRefreshMinutes) &&
-    legacyNPlusOneRefreshMinutes > 0;
   if (knownWordsRefreshMinutes !== undefined) {
     if (hasValidKnownWordsRefreshMinutes) {
       context.resolved.ankiConnect.knownWords.refreshMinutes = knownWordsRefreshMinutes;
@@ -717,25 +694,6 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
       context.warn(
         'ankiConnect.knownWords.refreshMinutes',
         knownWordsConfig.refreshMinutes,
-        context.resolved.ankiConnect.knownWords.refreshMinutes,
-        'Expected a positive integer.',
-      );
-      context.resolved.ankiConnect.knownWords.refreshMinutes =
-        DEFAULT_CONFIG.ankiConnect.knownWords.refreshMinutes;
-    }
-  } else if (legacyNPlusOneRefreshMinutes !== undefined) {
-    if (hasValidLegacyNPlusOneRefreshMinutes) {
-      context.resolved.ankiConnect.knownWords.refreshMinutes = legacyNPlusOneRefreshMinutes;
-      context.warn(
-        'ankiConnect.nPlusOne.refreshMinutes',
-        nPlusOneConfig.refreshMinutes,
-        DEFAULT_CONFIG.ankiConnect.knownWords.refreshMinutes,
-        'Legacy key is deprecated; use ankiConnect.knownWords.refreshMinutes',
-      );
-    } else {
-      context.warn(
-        'ankiConnect.nPlusOne.refreshMinutes',
-        nPlusOneConfig.refreshMinutes,
         context.resolved.ankiConnect.knownWords.refreshMinutes,
         'Expected a positive integer.',
       );
@@ -828,12 +786,9 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
   }
 
   const knownWordsMatchMode = asString(knownWordsConfig.matchMode);
-  const legacyNPlusOneMatchMode = asString(nPlusOneConfig.matchMode);
   const legacyBehaviorNPlusOneMatchMode = asString(behavior.nPlusOneMatchMode);
   const hasValidKnownWordsMatchMode =
     knownWordsMatchMode === 'headword' || knownWordsMatchMode === 'surface';
-  const hasValidLegacyNPlusOneMatchMode =
-    legacyNPlusOneMatchMode === 'headword' || legacyNPlusOneMatchMode === 'surface';
   const hasValidLegacyMatchMode =
     legacyBehaviorNPlusOneMatchMode === 'headword' || legacyBehaviorNPlusOneMatchMode === 'surface';
   if (hasValidKnownWordsMatchMode) {
@@ -847,25 +802,6 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
     );
     context.resolved.ankiConnect.knownWords.matchMode =
       DEFAULT_CONFIG.ankiConnect.knownWords.matchMode;
-  } else if (legacyNPlusOneMatchMode !== undefined) {
-    if (hasValidLegacyNPlusOneMatchMode) {
-      context.resolved.ankiConnect.knownWords.matchMode = legacyNPlusOneMatchMode;
-      context.warn(
-        'ankiConnect.nPlusOne.matchMode',
-        nPlusOneConfig.matchMode,
-        DEFAULT_CONFIG.ankiConnect.knownWords.matchMode,
-        'Legacy key is deprecated; use ankiConnect.knownWords.matchMode',
-      );
-    } else {
-      context.warn(
-        'ankiConnect.nPlusOne.matchMode',
-        nPlusOneConfig.matchMode,
-        context.resolved.ankiConnect.knownWords.matchMode,
-        "Expected 'headword' or 'surface'.",
-      );
-      context.resolved.ankiConnect.knownWords.matchMode =
-        DEFAULT_CONFIG.ankiConnect.knownWords.matchMode;
-    }
   } else if (legacyBehaviorNPlusOneMatchMode !== undefined) {
     if (hasValidLegacyMatchMode) {
       context.resolved.ankiConnect.knownWords.matchMode = legacyBehaviorNPlusOneMatchMode;
@@ -897,7 +833,6 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
     'Word Reading',
   ];
   const knownWordsDecks = knownWordsConfig.decks;
-  const legacyNPlusOneDecks = nPlusOneConfig.decks;
   if (isObject(knownWordsDecks)) {
     const resolved: Record<string, string[]> = {};
     for (const [deck, fields] of Object.entries(knownWordsDecks as Record<string, unknown>)) {
@@ -941,54 +876,14 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
       context.resolved.ankiConnect.knownWords.decks,
       'Expected an object mapping deck names to field arrays.',
     );
-  } else if (Array.isArray(legacyNPlusOneDecks)) {
-    const normalized = legacyNPlusOneDecks
-      .filter((entry): entry is string => typeof entry === 'string')
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
-    const resolved: Record<string, string[]> = {};
-    for (const deck of new Set(normalized)) {
-      resolved[deck] = DEFAULT_FIELDS;
-    }
-    context.resolved.ankiConnect.knownWords.decks = resolved;
-    if (normalized.length > 0) {
-      context.warn(
-        'ankiConnect.nPlusOne.decks',
-        legacyNPlusOneDecks,
-        DEFAULT_CONFIG.ankiConnect.knownWords.decks,
-        'Legacy key is deprecated; use ankiConnect.knownWords.decks with object format',
-      );
-    }
   }
 
   const rawSubtitleStyle = isObject(context.src.subtitleStyle)
     ? (context.src.subtitleStyle as Record<string, unknown>)
     : {};
-  const hasCanonicalNPlusOneColor = rawSubtitleStyle.nPlusOneColor !== undefined;
   const hasCanonicalKnownWordColor = rawSubtitleStyle.knownWordColor !== undefined;
 
-  const nPlusOneHighlightColor = asColor(nPlusOneConfig.nPlusOne);
-  if (nPlusOneHighlightColor !== undefined) {
-    if (!hasCanonicalNPlusOneColor) {
-      context.resolved.subtitleStyle.nPlusOneColor = nPlusOneHighlightColor;
-    }
-    context.warn(
-      'ankiConnect.nPlusOne.nPlusOne',
-      nPlusOneConfig.nPlusOne,
-      context.resolved.subtitleStyle.nPlusOneColor,
-      'Legacy key is deprecated; use subtitleStyle.nPlusOneColor',
-    );
-  } else if (nPlusOneConfig.nPlusOne !== undefined) {
-    context.warn(
-      'ankiConnect.nPlusOne.nPlusOne',
-      nPlusOneConfig.nPlusOne,
-      context.resolved.subtitleStyle.nPlusOneColor,
-      'Expected a hex color value.',
-    );
-  }
-
   const knownWordsColor = asColor(knownWordsConfig.color);
-  const legacyNPlusOneKnownWordColor = asColor(nPlusOneConfig.knownWord);
   if (knownWordsColor !== undefined) {
     if (!hasCanonicalKnownWordColor) {
       context.resolved.subtitleStyle.knownWordColor = knownWordsColor;
@@ -1003,23 +898,6 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
     context.warn(
       'ankiConnect.knownWords.color',
       knownWordsConfig.color,
-      context.resolved.subtitleStyle.knownWordColor,
-      'Expected a hex color value.',
-    );
-  } else if (legacyNPlusOneKnownWordColor !== undefined) {
-    if (!hasCanonicalKnownWordColor) {
-      context.resolved.subtitleStyle.knownWordColor = legacyNPlusOneKnownWordColor;
-    }
-    context.warn(
-      'ankiConnect.nPlusOne.knownWord',
-      nPlusOneConfig.knownWord,
-      context.resolved.subtitleStyle.knownWordColor,
-      'Legacy key is deprecated; use subtitleStyle.knownWordColor',
-    );
-  } else if (nPlusOneConfig.knownWord !== undefined) {
-    context.warn(
-      'ankiConnect.nPlusOne.knownWord',
-      nPlusOneConfig.knownWord,
       context.resolved.subtitleStyle.knownWordColor,
       'Expected a hex color value.',
     );

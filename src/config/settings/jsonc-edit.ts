@@ -2,6 +2,9 @@ import {
   applyEdits,
   modify,
   parse as parseJsonc,
+  parseTree as parseJsoncTree,
+  type Edit,
+  type Node as JsoncNode,
   type FormattingOptions,
   type ParseError,
 } from 'jsonc-parser';
@@ -91,6 +94,7 @@ function normalizeContent(content: string): string {
 }
 
 function applySingleOperation(content: string, operation: ConfigSettingsPatchOperation): string {
+  content = removeDuplicatePropertiesAlongPath(content, operation.path);
   const edits = modify(
     content,
     pathToSegments(operation.path),
@@ -101,6 +105,109 @@ function applySingleOperation(content: string, operation: ConfigSettingsPatchOpe
     },
   );
   return applyEdits(content, edits);
+}
+
+function propertyKey(propertyNode: JsoncNode): string | undefined {
+  return propertyNode.children?.[0]?.value;
+}
+
+function propertyValue(propertyNode: JsoncNode): JsoncNode | undefined {
+  return propertyNode.children?.[1];
+}
+
+function objectProperties(node: JsoncNode | undefined): JsoncNode[] {
+  return node?.type === 'object' ? (node.children ?? []) : [];
+}
+
+function isWhitespace(value: string | undefined): boolean {
+  return value === ' ' || value === '\t' || value === '\r' || value === '\n';
+}
+
+function nextNonWhitespaceOffset(content: string, offset: number): number {
+  let index = offset;
+  while (index < content.length && isWhitespace(content[index])) {
+    index += 1;
+  }
+  return index;
+}
+
+function previousNonWhitespaceOffset(content: string, offset: number): number {
+  let index = offset;
+  while (index >= 0 && isWhitespace(content[index])) {
+    index -= 1;
+  }
+  return index;
+}
+
+function lineStartOffset(content: string, offset: number): number {
+  return content.lastIndexOf('\n', Math.max(0, offset - 1)) + 1;
+}
+
+function removalEditForProperty(content: string, propertyNode: JsoncNode): Edit {
+  let offset = propertyNode.offset;
+  let end = propertyNode.offset + propertyNode.length;
+  const next = nextNonWhitespaceOffset(content, end);
+
+  if (content[next] === ',') {
+    end = next + 1;
+    const lineStart = lineStartOffset(content, offset);
+    if (/^[ \t]*$/.test(content.slice(lineStart, offset))) {
+      offset = lineStart;
+    }
+  } else {
+    const previous = previousNonWhitespaceOffset(content, offset - 1);
+    if (content[previous] === ',') {
+      offset = previous;
+    }
+  }
+
+  return {
+    offset,
+    length: Math.max(0, end - offset),
+    content: '',
+  };
+}
+
+function collectDuplicatePropertyRemovalEdits(content: string, path: string): Edit[] {
+  const errors: ParseError[] = [];
+  let node = parseJsoncTree(content, errors, {
+    allowTrailingComma: true,
+    disallowComments: false,
+  });
+  if (!node || errors.length > 0) {
+    return [];
+  }
+
+  const edits: Edit[] = [];
+  for (const segment of pathToSegments(path)) {
+    const matches = objectProperties(node).filter((property) => propertyKey(property) === segment);
+    if (matches.length === 0) {
+      break;
+    }
+
+    for (const duplicate of matches.slice(0, -1)) {
+      edits.push(removalEditForProperty(content, duplicate));
+    }
+
+    node = propertyValue(matches[matches.length - 1]!);
+  }
+
+  return edits;
+}
+
+function applyRemovalEdits(content: string, edits: Edit[]): string {
+  return [...edits]
+    .sort((left, right) => right.offset - left.offset)
+    .reduce(
+      (current, edit) =>
+        `${current.slice(0, edit.offset)}${edit.content}${current.slice(edit.offset + edit.length)}`,
+      content,
+    );
+}
+
+function removeDuplicatePropertiesAlongPath(content: string, path: string): string {
+  const edits = collectDuplicatePropertyRemovalEdits(content, path);
+  return edits.length > 0 ? applyRemovalEdits(content, edits) : content;
 }
 
 function collectModifiedWarnings(

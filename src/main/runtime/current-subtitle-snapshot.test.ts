@@ -45,3 +45,16 @@ test('renderer current subtitle snapshot falls back to raw text for uncached sub
   assert.equal(payload.startTime, 1);
   assert.equal(payload.tokens, null);
 });
+
+test('renderer current subtitle snapshot tokenizes uncached subtitles when tokenizer is available', async () => {
+  const payload = await resolveCurrentSubtitleForRenderer({
+    currentSubText: '新しい字幕',
+    currentSubtitleData: null,
+    withCurrentSubtitleTiming: withTiming,
+    tokenizeSubtitle: async (text) => ({ text, tokens: [{ text: '新' } as never] }),
+  });
+
+  assert.equal(payload.text, '新しい字幕');
+  assert.equal(payload.startTime, 1);
+  assert.deepEqual(payload.tokens, [{ text: '新' }]);
+});

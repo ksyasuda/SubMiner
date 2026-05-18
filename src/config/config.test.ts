@@ -12,14 +12,42 @@ import {
 } from './definitions';
 import { parseConfigContent } from './parse';
 import { generateConfigTemplate } from './template';
+import {
+  buildSubtitleCssDeclarationObject,
+  getSubtitleCssManagedConfigPaths,
+  getSubtitleCssPath,
+  type SubtitleCssScope,
+} from '../settings/subtitle-style-css';
 
 const DEFAULT_SUBTITLE_FONT_FAMILY =
   'Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP';
 const DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY = DEFAULT_SUBTITLE_FONT_FAMILY;
 const DEFAULT_SUBTITLE_TEXT_SHADOW = '0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)';
+const SUBTITLE_CSS_SCOPES: SubtitleCssScope[] = ['primary', 'secondary', 'sidebar'];
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-config-test-'));
+}
+
+function getValueAtPath(root: unknown, path: string): unknown {
+  let current = root;
+  for (const segment of path.split('.')) {
+    if (current === null || typeof current !== 'object' || Array.isArray(current)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+function buildDefaultSubtitleCssDeclarations(scope: SubtitleCssScope): Record<string, string> {
+  const values: Record<string, unknown> = {
+    [getSubtitleCssPath(scope)]: getValueAtPath(DEFAULT_CONFIG, getSubtitleCssPath(scope)),
+  };
+  for (const path of getSubtitleCssManagedConfigPaths(scope)) {
+    values[path] = getValueAtPath(DEFAULT_CONFIG, path);
+  }
+  return buildSubtitleCssDeclarationObject(scope, values);
 }
 
 test('loads defaults when config is missing', () => {
@@ -203,6 +231,8 @@ test('migrates legacy subtitle appearance options into css declaration objects o
       "subtitleStyle": {
         "fontSize": 42,
         "fontColor": "#ffffff",
+        "hoverTokenColor": "#abcdef",
+        "hoverTokenBackgroundColor": "transparent",
         "css": {
           "font-size": "44px",
           "text-wrap": "balance"
@@ -230,6 +260,8 @@ test('migrates legacy subtitle appearance options into css declaration objects o
     subtitleStyle: {
       fontSize?: unknown;
       fontColor?: unknown;
+      hoverTokenColor?: unknown;
+      hoverTokenBackgroundColor?: unknown;
       css?: Record<string, string>;
       secondary?: {
         fontSize?: unknown;
@@ -249,10 +281,14 @@ test('migrates legacy subtitle appearance options into css declaration objects o
   assert.deepEqual(parsed.subtitleStyle.css, {
     color: '#ffffff',
     'font-size': '44px',
+    '--subtitle-hover-token-color': '#abcdef',
+    '--subtitle-hover-token-background-color': 'transparent',
     'text-wrap': 'balance',
   });
   assert.equal(Object.hasOwn(parsed.subtitleStyle, 'fontSize'), false);
   assert.equal(Object.hasOwn(parsed.subtitleStyle, 'fontColor'), false);
+  assert.equal(Object.hasOwn(parsed.subtitleStyle, 'hoverTokenColor'), false);
+  assert.equal(Object.hasOwn(parsed.subtitleStyle, 'hoverTokenBackgroundColor'), false);
   assert.deepEqual(parsed.subtitleStyle.secondary?.css, {
     color: '#bbbbbb',
     'font-size': '28px',
@@ -2004,7 +2040,7 @@ test('accepts valid ankiConnect knownWords match mode values', () => {
   assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
 });
 
-test('validates legacy ankiConnect knownWords and n+1 color values', () => {
+test('ignores invalid legacy ankiConnect n+1 color value after migration attempt', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
@@ -2027,14 +2063,15 @@ test('validates legacy ankiConnect knownWords and n+1 color values', () => {
 
   assert.equal(config.subtitleStyle.nPlusOneColor, DEFAULT_CONFIG.subtitleStyle.nPlusOneColor);
   assert.equal(config.subtitleStyle.knownWordColor, DEFAULT_CONFIG.subtitleStyle.knownWordColor);
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.nPlusOne'));
+  assert.ok(warnings.every((warning) => warning.path !== 'ankiConnect.nPlusOne.nPlusOne'));
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.color'));
 });
 
-test('maps legacy ankiConnect knownWords and n+1 color values to subtitleStyle', () => {
+test('migrates legacy ankiConnect n+1 color value to subtitleStyle', () => {
   const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.jsonc');
   fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
+    configPath,
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -2053,12 +2090,21 @@ test('maps legacy ankiConnect knownWords and n+1 color values to subtitleStyle',
 
   assert.equal(config.subtitleStyle.nPlusOneColor, '#c6a0f6');
   assert.equal(config.subtitleStyle.knownWordColor, '#a6da95');
+
+  const parsed = parseConfigContent(configPath, fs.readFileSync(configPath, 'utf-8')) as {
+    ankiConnect: { nPlusOne?: Record<string, unknown> };
+    subtitleStyle: { nPlusOneColor?: string; knownWordColor?: string };
+  };
+  assert.equal(parsed.subtitleStyle.nPlusOneColor, '#c6a0f6');
+  assert.equal(config.subtitleStyle.knownWordColor, '#a6da95');
+  assert.equal(Object.hasOwn(parsed.ankiConnect.nPlusOne ?? {}, 'nPlusOne'), false);
 });
 
-test('supports legacy ankiConnect nPlusOne known-word settings as fallback', () => {
+test('migrates legacy ankiConnect nPlusOne known-word settings to knownWords', () => {
   const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.jsonc');
   fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
+    configPath,
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -2076,6 +2122,13 @@ test('supports legacy ankiConnect nPlusOne known-word settings as fallback', () 
   const service = new ConfigService(dir);
   const config = service.getConfig();
   const warnings = service.getWarnings();
+  const parsed = parseConfigContent(configPath, fs.readFileSync(configPath, 'utf-8')) as {
+    ankiConnect: {
+      knownWords: Record<string, unknown>;
+      nPlusOne?: Record<string, unknown>;
+    };
+    subtitleStyle: { knownWordColor?: string };
+  };
 
   assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
   assert.equal(config.ankiConnect.knownWords.refreshMinutes, 90);
@@ -2085,16 +2138,53 @@ test('supports legacy ankiConnect nPlusOne known-word settings as fallback', () 
     'Kaishi 1.5k': ['Expression', 'Word', 'Reading', 'Word Reading'],
   });
   assert.equal(config.subtitleStyle.knownWordColor, '#a6da95');
+  assert.equal(parsed.ankiConnect.knownWords.highlightEnabled, true);
+  assert.equal(parsed.ankiConnect.knownWords.refreshMinutes, 90);
+  assert.equal(parsed.ankiConnect.knownWords.matchMode, 'surface');
+  assert.deepEqual(parsed.ankiConnect.knownWords.decks, {
+    Mining: ['Expression', 'Word', 'Reading', 'Word Reading'],
+    'Kaishi 1.5k': ['Expression', 'Word', 'Reading', 'Word Reading'],
+  });
+  assert.equal(parsed.subtitleStyle.knownWordColor, '#a6da95');
   assert.ok(
-    warnings.some(
-      (warning) =>
-        warning.path === 'ankiConnect.nPlusOne.highlightEnabled' ||
-        warning.path === 'ankiConnect.nPlusOne.refreshMinutes' ||
-        warning.path === 'ankiConnect.nPlusOne.matchMode' ||
-        warning.path === 'ankiConnect.nPlusOne.decks' ||
-        warning.path === 'ankiConnect.nPlusOne.knownWord',
+    ['highlightEnabled', 'refreshMinutes', 'matchMode', 'decks', 'knownWord'].every(
+      (key) => !Object.hasOwn(parsed.ankiConnect.nPlusOne ?? {}, key),
     ),
   );
+  assert.ok(warnings.every((warning) => !warning.path.startsWith('ankiConnect.nPlusOne.')));
+});
+
+test('migrates duplicate ankiConnect nPlusOne objects to the modal path', () => {
+  const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.jsonc');
+  fs.writeFileSync(
+    configPath,
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "enabled": true,
+          "minSentenceWords": 3
+        },
+        "knownWords": {
+          "highlightEnabled": true
+        },
+        "nPlusOne": {
+          "minSentenceWords": "3"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const parsed = parseConfigContent(configPath, fs.readFileSync(configPath, 'utf-8')) as {
+    ankiConnect: { nPlusOne: Record<string, unknown> };
+  };
+
+  assert.equal(config.ankiConnect.nPlusOne.enabled, true);
+  assert.equal(parsed.ankiConnect.nPlusOne.enabled, true);
+  assert.equal(parsed.ankiConnect.nPlusOne.minSentenceWords, '3');
 });
 
 test('supports legacy ankiConnect.behavior N+1 settings as fallback', () => {
@@ -2541,6 +2631,34 @@ test('template generator includes known keys', () => {
     output,
     /"launchAtStartup": false,? \/\/ Launch texthooker server automatically when SubMiner starts\. Values: true \| false/,
   );
+});
+
+test('template generator uses settings CSS declaration paths for appearance fields', () => {
+  const output = generateConfigTemplate(DEFAULT_CONFIG);
+  const parsed = parseConfigContent('config.example.jsonc', output);
+
+  assert.deepEqual(
+    getValueAtPath(parsed, 'subtitleStyle.css'),
+    buildDefaultSubtitleCssDeclarations('primary'),
+  );
+  assert.deepEqual(
+    getValueAtPath(parsed, 'subtitleStyle.secondary.css'),
+    buildDefaultSubtitleCssDeclarations('secondary'),
+  );
+  assert.deepEqual(
+    getValueAtPath(parsed, 'subtitleSidebar.css'),
+    buildDefaultSubtitleCssDeclarations('sidebar'),
+  );
+
+  for (const scope of SUBTITLE_CSS_SCOPES) {
+    for (const path of getSubtitleCssManagedConfigPaths(scope)) {
+      assert.equal(
+        getValueAtPath(parsed, path),
+        undefined,
+        `${path} should be represented by ${getSubtitleCssPath(scope)} in the generated template`,
+      );
+    }
+  }
 });
 
 test('template generator shows built-in default keybindings in the keybindings array', () => {

@@ -8,6 +8,7 @@ const pendingWindowsOverlayRevealTimeoutByWindow = new WeakMap<
   BrowserWindow,
   ReturnType<typeof setTimeout>
 >();
+const pendingFirstShowBoundsRefreshGeometry = new WeakMap<BrowserWindow, WindowGeometry>();
 function setOverlayWindowOpacity(window: BrowserWindow, opacity: number): void {
   const opacityCapableWindow = window as BrowserWindow & {
     setOpacity?: (opacity: number) => void;
@@ -279,11 +280,20 @@ export function updateVisibleOverlayVisibility(args: {
     ) {
       return;
     }
+    if (pendingFirstShowBoundsRefreshGeometry.has(mainWindow)) {
+      pendingFirstShowBoundsRefreshGeometry.set(mainWindow, geometry);
+      return;
+    }
+    pendingFirstShowBoundsRefreshGeometry.set(mainWindow, geometry);
     mainWindow.once('show', () => {
+      const pendingGeometry = pendingFirstShowBoundsRefreshGeometry.get(mainWindow);
+      pendingFirstShowBoundsRefreshGeometry.delete(mainWindow);
       if (mainWindow.isDestroyed() || !mainWindow.isVisible()) {
         return;
       }
-      args.updateVisibleOverlayBounds(geometry);
+      if (pendingGeometry) {
+        args.updateVisibleOverlayBounds(pendingGeometry);
+      }
     });
   };
 

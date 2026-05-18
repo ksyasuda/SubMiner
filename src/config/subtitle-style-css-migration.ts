@@ -9,10 +9,7 @@ import {
 import { applyConfigSettingsPatchToContent } from './settings/jsonc-edit';
 
 const SUBTITLE_CSS_SCOPES: SubtitleCssScope[] = ['primary', 'secondary', 'sidebar'];
-const STARTUP_MIGRATION_EXCLUDED_PATHS = new Set([
-  'subtitleStyle.hoverTokenColor',
-  'subtitleStyle.hoverTokenBackgroundColor',
-]);
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
 export type LegacySubtitleStyleCssMigrationResult =
   | {
@@ -54,6 +51,16 @@ function hasPath(root: unknown, path: string): boolean {
   return false;
 }
 
+function isMigratableLegacySubtitleCssValue(path: string, value: unknown): boolean {
+  if (path === 'subtitleStyle.hoverTokenColor') {
+    return typeof value === 'string' && HEX_COLOR_PATTERN.test(value.trim());
+  }
+  if (path === 'subtitleStyle.hoverTokenBackgroundColor') {
+    return typeof value === 'string';
+  }
+  return true;
+}
+
 export function buildLegacySubtitleStyleCssMigrationOperations(
   rawConfig: RawConfig,
 ): ConfigSettingsPatchOperation[] {
@@ -66,7 +73,8 @@ export function buildLegacySubtitleStyleCssMigrationOperations(
     };
     const legacyPaths = getSubtitleCssManagedConfigPaths(scope).filter(
       (legacyPath) =>
-        !STARTUP_MIGRATION_EXCLUDED_PATHS.has(legacyPath) && hasPath(rawConfig, legacyPath),
+        hasPath(rawConfig, legacyPath) &&
+        isMigratableLegacySubtitleCssValue(legacyPath, getValueAtPath(rawConfig, legacyPath)),
     );
     if (legacyPaths.length === 0) continue;
 

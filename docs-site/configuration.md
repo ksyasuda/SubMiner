@@ -8,10 +8,6 @@ outline: [2, 3]
 import { withBase } from 'vitepress';
 </script>
 
-Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` when `XDG_CONFIG_HOME` is unset).
-On Windows, the default path is `%APPDATA%\SubMiner\config.jsonc`.
-When both files exist, SubMiner prefers `config.jsonc` over `config.json`.
-
 ## Quick Start
 
 For most users, start with this minimal configuration:
@@ -39,9 +35,38 @@ For most users, start with this minimal configuration:
 
 Then customize as needed using the sections below.
 
+## Settings
+
+SubMiner includes a dedicated **Settings** window accessible from the tray menu, the app `--config` flag, or launcher commands such as `subminer --config` and `subminer config`. It is the primary way to configure SubMiner — all changes are written directly to `config.jsonc`, so manual file editing is not required for most users.
+
+The Settings window groups options by workflow instead of mirroring the raw config-file shape:
+
+- Appearance
+- Behavior
+- Mining & Anki
+- Playback & Sources
+- Input
+- Integrations
+- Tracking & App
+- Advanced
+
+Each field still writes to its current `config.jsonc` path. For example, subtitle hover pause appears under **Behavior** / playback behavior, but saves to `subtitleStyle.autoPauseVideoOnHover`. Anki-aware fields can query AnkiConnect for deck names, note types, and field names, and keybinding fields use click-to-learn controls instead of raw text boxes.
+
+The Settings window preserves existing JSONC comments, trailing commas, unrelated keys, and unsupported legacy options. Resetting a field removes the explicit config path so the built-in default applies.
+
+Secret fields do not display stored values. They show whether a value is configured; entering a new value writes it, and reset clears the explicit path. Prefer command-based secret options such as `ai.apiKeyCommand` when available.
+
+Saving validates the candidate config before writing. Live-reloadable changes are applied immediately; other changes return a restart-required banner in the window.
+
 ## Configuration File
 
-See [config.example.jsonc](/config.example.jsonc) for a comprehensive example configuration file with all available options, default values, and detailed comments. Only include the options you want to customize in your config file.
+The Settings window writes to `config.jsonc` directly, so most users do not need to edit the file by hand. The config file and the option reference below are provided for advanced use, scripting, or cases where you prefer editing config directly.
+
+Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` when `XDG_CONFIG_HOME` is unset).
+On Windows, the default path is `%APPDATA%\SubMiner\config.jsonc`.
+When both files exist, SubMiner prefers `config.jsonc` over `config.json`.
+
+See [config.example.jsonc](/config.example.jsonc) for a comprehensive example with all available options, default values, and detailed comments. Only include the options you want to customize in your config file.
 
 Generate a fresh default config from the centralized config registry:
 
@@ -62,29 +87,6 @@ Malformed config syntax (invalid JSON/JSONC) is startup-blocking: SubMiner shows
 For valid JSON/JSONC with invalid option values, SubMiner uses warn-and-fallback behavior: it logs the bad key/value and continues with the default for that option.
 
 On macOS, these validation warnings also open a native dialog with full details (desktop notification banners can truncate long messages).
-
-### Configuration Window
-
-SubMiner also includes a dedicated **Configuration** window from the tray menu, the app `--config` flag, or launcher commands such as `subminer --config` and `subminer config`. It groups settings by workflow instead of mirroring the raw config-file shape:
-
-- Appearance
-- Behavior
-- Mining & Anki
-- Playback & Sources
-- Input
-- Integrations
-- Tracking & App
-- Advanced
-
-Each field still writes to its current `config.jsonc` path. For example, subtitle hover pause appears under **Behavior** / playback behavior, but saves to `subtitleStyle.autoPauseVideoOnHover`. Anki-aware fields can query AnkiConnect for deck names, note types, and field names, and keybinding fields use click-to-learn controls instead of raw text boxes.
-
-The settings window preserves existing JSONC comments, trailing commas, unrelated keys, and unsupported legacy options. Resetting a field removes the explicit config path so the built-in default applies.
-
-Secret fields do not display stored values. They show whether a value is configured; entering a new value writes it, and reset clears the explicit path. Prefer command-based secret options such as `ai.apiKeyCommand` when available.
-
-Some compatibility-only or ignored legacy keys are intentionally hidden from the normal field list, including legacy top-level Anki migration fields, old N+1 aliases, YouTube subtitle-generation settings, `anilist.characterDictionary.refreshTtlHours`, `anilist.characterDictionary.evictionPolicy`, `jellyfin.accessToken`, `jellyfin.userId`, Jellyfin client identity/library defaults, and controller binding/profile internals that are edited in-app. Advanced/raw JSON editing remains the escape hatch for unsupported or legacy keys.
-
-Saving validates the candidate config before writing. Live-reloadable changes are applied immediately; other changes return a restart-required banner in the window.
 
 ### Hot-Reload Behavior
 
@@ -357,7 +359,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `fontFamily`                       | string      | CSS font-family value (default: `"Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP"`)                         |
 | `fontSize`                         | number (px) | Font size in pixels (default: `35`)                                                                                        |
 | `fontColor`                        | string      | Any CSS color value (default: `"#cad3f5"`)                                                                                 |
-| `css`                              | object      | CSS declarations applied to subtitles after normal style defaults; the settings window writes textbox edits here            |
+| `css`                              | object      | CSS declarations applied to subtitles after normal style defaults; the settings window writes textbox edits here           |
 | `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"600"`)                                                     |
 | `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                             |
 | `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"transparent"`)                                                        |
@@ -369,8 +371,8 @@ See `config.example.jsonc` for detailed configuration options.
 | `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight; `hoverBackground` is accepted as an alias                  |
 | `nameMatchEnabled`                 | boolean     | Enable subtitle token coloring for matches from the SubMiner character dictionary (`true` by default)                      |
 | `nameMatchColor`                   | string      | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                     |
-| `knownWordColor`                   | string      | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                    |
-| `nPlusOneColor`                    | string      | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                          |
+| `knownWordColor`                   | string      | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                     |
+| `nPlusOneColor`                    | string      | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                           |
 | `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                                 |
 | `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths. |
 | `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                                    |
@@ -381,7 +383,10 @@ See `config.example.jsonc` for detailed configuration options.
 | `jlptColors`                       | object      | JLPT level underline colors object (`N1`..`N5`)                                                                            |
 | `secondary`                        | object      | Override any of the above for secondary subtitles (optional), including `secondary.css` declarations                       |
 
-The configuration window keeps subtitle color controls separate, then saves the CSS textbox to `subtitleStyle.css` and `subtitleStyle.secondary.css`. Existing top-level style keys such as `fontSize` and `textShadow` remain supported for hand-written configs.
+The Settings window keeps subtitle color controls separate, then saves CSS textboxes to
+`subtitleStyle.css`, `subtitleStyle.secondary.css`, and `subtitleSidebar.css`. The generated example
+uses that same CSS declaration shape; existing top-level style keys such as `fontSize` and
+`textShadow` remain supported for hand-written or older configs.
 
 Frequency dictionary highlighting uses the same dictionary file format as JLPT bundle lookups (`term_meta_bank_*.json` under discovered dictionary directories). A token is highlighted when it has a positive integer `frequencyRank` (lower is more common) and the rank is within `topX`.
 
@@ -974,7 +979,7 @@ This example is intentionally compact. The option table below documents availabl
 | `ankiConnect.knownWords.matchMode`                | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text.                                                       |
 | `ankiConnect.knownWords.refreshMinutes`           | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                                                                        |
 | `ankiConnect.knownWords.decks`                    | object                                  | Deck→fields mapping used for known-word cache query scope (e.g. `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                                                                                     |
-| `ankiConnect.nPlusOne.enabled`                    | `true`, `false`                         | Enable N+1 subtitle highlighting (highlights the one unknown word in a sentence). Independent from `knownWords.highlightEnabled`. Requires known-word cache data (default: `false`).               |
+| `ankiConnect.nPlusOne.enabled`                    | `true`, `false`                         | Enable N+1 subtitle highlighting (highlights the one unknown word in a sentence). Independent from `knownWords.highlightEnabled`. Requires known-word cache data (default: `false`).                |
 | `ankiConnect.nPlusOne.minSentenceWords`           | number                                  | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                                                                              |
 | `behavior.notificationType`                       | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                                                                                 |
 | `behavior.autoUpdateNewCards`                     | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                                                                            |
@@ -1262,7 +1267,7 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | `directPlayContainers`     | string[]        | Container allowlist for direct play decisions                                                                |
 | `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                                                   |
 
-Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup. The legacy `jellyfin.accessToken` and `jellyfin.userId` config keys are not resolver-backed settings in the current runtime. The configuration window also hides low-level client identity and default library fields (`deviceId`, `clientName`, `clientVersion`, and `defaultLibraryId`) so normal setup stays focused on server, auth, playback, and remote-control behavior.
+Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup. The legacy `jellyfin.accessToken` and `jellyfin.userId` config keys are not resolver-backed settings in the current runtime. The Settings window also hides low-level client identity and default library fields (`deviceId`, `clientName`, `clientVersion`, and `defaultLibraryId`) so normal setup stays focused on server, auth, playback, and remote-control behavior.
 
 - On Linux, token storage defaults to `gnome-libsecret` for `safeStorage`. Override with `--password-store=<backend>` on launcher/app invocations when needed.
 

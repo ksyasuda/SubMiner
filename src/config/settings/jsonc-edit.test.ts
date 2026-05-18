@@ -32,6 +32,39 @@ test('applyConfigSettingsPatchToContent preserves JSONC comments while setting n
   assert.equal(parsed.subtitleStyle.fontSize, 35);
 });
 
+test('applyConfigSettingsPatchToContent updates effective duplicate object path', () => {
+  const input = `{
+  "ankiConnect": {
+    "nPlusOne": {
+      "enabled": true
+    },
+    "knownWords": {
+      "highlightEnabled": true
+    },
+    "nPlusOne": {
+      "minSentenceWords": 3
+    }
+  }
+}`;
+
+  const result = applyConfigSettingsPatchToContent({
+    content: input,
+    operations: [
+      {
+        op: 'set',
+        path: 'ankiConnect.nPlusOne.enabled',
+        value: true,
+      },
+    ],
+    previousWarnings: [],
+  });
+
+  assert.equal(result.ok, true);
+  const parsed = parse(result.content);
+  assert.equal(parsed.ankiConnect.nPlusOne.enabled, true);
+  assert.equal(parsed.ankiConnect.nPlusOne.minSentenceWords, 3);
+});
+
 test('applyConfigSettingsPatchToContent reset removes explicit path', () => {
   const input = `{
   "subtitleStyle": {

@@ -25,6 +25,23 @@ function asCssDeclarations(value: unknown): Record<string, string> | undefined {
   return declarations;
 }
 
+const SUBTITLE_HOVER_TOKEN_COLOR_CSS_PROPERTY = '--subtitle-hover-token-color';
+const SUBTITLE_HOVER_TOKEN_BACKGROUND_CSS_PROPERTY = '--subtitle-hover-token-background-color';
+
+function applySubtitleHoverTokenCssCompatibility(
+  subtitleStyle: ResolvedConfig['subtitleStyle'],
+): void {
+  const hoverTokenColor = subtitleStyle.css[SUBTITLE_HOVER_TOKEN_COLOR_CSS_PROPERTY];
+  if (hoverTokenColor !== undefined) {
+    subtitleStyle.hoverTokenColor = hoverTokenColor;
+  }
+
+  const hoverTokenBackgroundColor = subtitleStyle.css[SUBTITLE_HOVER_TOKEN_BACKGROUND_CSS_PROPERTY];
+  if (hoverTokenBackgroundColor !== undefined) {
+    subtitleStyle.hoverTokenBackgroundColor = hoverTokenBackgroundColor;
+  }
+}
+
 export function applySubtitleDomainConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
 
@@ -348,6 +365,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         'Expected a CSS color value (hex, rgba/hsl/hsla, named color, or var()).',
       );
     }
+
+    applySubtitleHoverTokenCssCompatibility(resolved.subtitleStyle);
 
     const nameMatchColor = asColor(
       (src.subtitleStyle as { nameMatchColor?: unknown }).nameMatchColor,

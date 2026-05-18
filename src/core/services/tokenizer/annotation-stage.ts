@@ -31,6 +31,7 @@ export interface AnnotationStageDeps {
 }
 
 export interface AnnotationStageOptions {
+  knownWordsEnabled?: boolean;
   nPlusOneEnabled?: boolean;
   nameMatchEnabled?: boolean;
   jlptEnabled?: boolean;
@@ -669,13 +670,16 @@ export function annotateTokens(
 ): MergedToken[] {
   const pos1Exclusions = resolvePos1Exclusions(options);
   const pos2Exclusions = resolvePos2Exclusions(options);
+  const knownWordsEnabled = options.knownWordsEnabled !== false;
   const nPlusOneEnabled = options.nPlusOneEnabled !== false;
   const nameMatchEnabled = options.nameMatchEnabled !== false;
   const frequencyEnabled = options.frequencyEnabled !== false;
   const jlptEnabled = options.jlptEnabled !== false;
+  const shouldComputeKnownStatus = knownWordsEnabled || nPlusOneEnabled;
+  const nPlusOneKnownStatuses: boolean[] = [];
 
   // Single pass: compute known word status, frequency filtering, and JLPT level together
-  const annotated = tokens.map((token) => {
+  const annotated = tokens.map((token, index) => {
     if (
       sharedShouldExcludeTokenFromSubtitleAnnotations(token, {
         pos1Exclusions,
@@ -686,6 +690,7 @@ export function annotateTokens(
         pos1Exclusions,
         pos2Exclusions,
       });
+      nPlusOneKnownStatuses[index] = false;
       return {
         ...strippedToken,
         isKnown: false,
@@ -693,9 +698,10 @@ export function annotateTokens(
     }
 
     const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
-    const isKnown = nPlusOneEnabled
+    const isKnownForMatching = shouldComputeKnownStatus
       ? computeTokenKnownStatus(token, deps.isKnownWord, deps.knownWordMatchMode)
       : false;
+    nPlusOneKnownStatuses[index] = isKnownForMatching;
 
     const frequencyRank =
       frequencyEnabled && !prioritizedNameMatch
@@ -709,7 +715,7 @@ export function annotateTokens(
 
     return {
       ...token,
-      isKnown,
+      isKnown: knownWordsEnabled ? isKnownForMatching : false,
       isNPlusOneTarget: nPlusOneEnabled && !prioritizedNameMatch ? token.isNPlusOneTarget : false,
       frequencyRank,
       jlptLevel,
@@ -728,13 +734,21 @@ export function annotateTokens(
       ? minSentenceWordsForNPlusOne
       : 3;
 
-  const nPlusOneMarked = markNPlusOneTargets(
-    annotated,
-    sanitizedMinSentenceWordsForNPlusOne,
-    pos1Exclusions,
-    pos2Exclusions,
-    options.sourceText,
-  );
+  const nPlusOneMarked = nPlusOneEnabled
+    ? markNPlusOneTargets(
+        annotated.map((token, index) => ({
+          ...token,
+          isKnown: nPlusOneKnownStatuses[index] ?? false,
+        })),
+        sanitizedMinSentenceWordsForNPlusOne,
+        pos1Exclusions,
+        pos2Exclusions,
+        options.sourceText,
+      ).map((token, index) => ({
+        ...annotated[index]!,
+        isNPlusOneTarget: token.isNPlusOneTarget,
+      }))
+    : annotated;
 
   if (!nameMatchEnabled) {
     return nPlusOneMarked;

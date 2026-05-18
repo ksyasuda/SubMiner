@@ -321,8 +321,11 @@ function M.create(ctx)
 
 	local function wait_for_app_ping_state(expected_running, label, on_ready, on_timeout, attempt)
 		attempt = attempt or 1
-		run_control_command_async("app-ping", nil, function(ok)
-			if ok == expected_running then
+		run_control_command_async("app-ping", nil, function(_ok, result)
+			local status = result and result.status
+			local is_running = status == 0
+			local is_not_running = status == 1
+			if (expected_running and is_running) or ((not expected_running) and is_not_running) then
 				on_ready()
 				return
 			end

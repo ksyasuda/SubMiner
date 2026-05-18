@@ -4,6 +4,7 @@ import { ConfigValidationWarning, RawConfig, ResolvedConfig } from '../types/con
 import { DEFAULT_CONFIG, deepCloneConfig, deepMergeRawConfig } from './definitions';
 import { ConfigPaths, loadRawConfig, loadRawConfigStrict } from './load';
 import { resolveConfig } from './resolve';
+import { applyLegacyAnkiConnectNPlusOneMigrationToContent } from './anki-connect-nplusone-migration';
 import { applyLegacySubtitleStyleCssMigrationToContent } from './subtitle-style-css-migration';
 
 export type ReloadConfigStrictResult =
@@ -51,7 +52,7 @@ export class ConfigService {
       throw new ConfigStartupParseError(loadResult.path, loadResult.error);
     }
     this.applyResolvedConfig(
-      this.migrateLegacySubtitleStyleCssConfig(loadResult.config, loadResult.path),
+      this.migrateLegacyConfig(loadResult.config, loadResult.path),
       loadResult.path,
     );
   }
@@ -74,10 +75,7 @@ export class ConfigService {
 
   reloadConfig(): ResolvedConfig {
     const { config, path: configPath } = loadRawConfig(this.configPaths);
-    return this.applyResolvedConfig(
-      this.migrateLegacySubtitleStyleCssConfig(config, configPath),
-      configPath,
-    );
+    return this.applyResolvedConfig(this.migrateLegacyConfig(config, configPath), configPath);
   }
 
   reloadConfigStrict(): ReloadConfigStrictResult {
@@ -88,7 +86,7 @@ export class ConfigService {
 
     const { config, path: configPath } = loadResult;
     const resolvedConfig = this.applyResolvedConfig(
-      this.migrateLegacySubtitleStyleCssConfig(config, configPath),
+      this.migrateLegacyConfig(config, configPath),
       configPath,
     );
     return {
@@ -124,22 +122,35 @@ export class ConfigService {
     return this.getConfig();
   }
 
-  private migrateLegacySubtitleStyleCssConfig(config: RawConfig, configPath: string): RawConfig {
+  private migrateLegacyConfig(config: RawConfig, configPath: string): RawConfig {
     if (!fs.existsSync(configPath)) {
       return config;
     }
 
     try {
-      const content = fs.readFileSync(configPath, 'utf-8');
-      const migration = applyLegacySubtitleStyleCssMigrationToContent({
-        content,
-        rawConfig: config,
-      });
-      if (!migration.migrated) {
-        return config;
+      let content = fs.readFileSync(configPath, 'utf-8');
+      let rawConfig = config;
+      let migrated = false;
+      for (const applyMigration of [
+        applyLegacyAnkiConnectNPlusOneMigrationToContent,
+        applyLegacySubtitleStyleCssMigrationToContent,
+      ]) {
+        const migration = applyMigration({
+          content,
+          rawConfig,
+        });
+        if (!migration.migrated) {
+          continue;
+        }
+        content = migration.content;
+        rawConfig = migration.rawConfig;
+        migrated = true;
       }
-      fs.writeFileSync(configPath, migration.content, 'utf-8');
-      return migration.rawConfig;
+      if (!migrated) {
+        return rawConfig;
+      }
+      fs.writeFileSync(configPath, content, 'utf-8');
+      return rawConfig;
     } catch {
       return config;
     }
