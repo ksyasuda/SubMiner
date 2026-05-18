@@ -1,6 +1,17 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   buildVersionManifest,
@@ -18,7 +29,11 @@ const archiveCacheRoot = join(repoRoot, '.tmp/docs-versioned-archive-cache');
 const maxCloudflareFiles = 20_000;
 const maxCloudflareFileBytes = 25 * 1024 * 1024;
 
-function run(command: string, args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}) {
+function run(
+  command: string,
+  args: string[],
+  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? repoRoot,
     env: options.env ?? process.env,
@@ -144,12 +159,14 @@ function buildDocs(options: {
   latestStable: string;
   manifestJson: string;
 }) {
+  console.info(`[docs] building ${options.version ?? options.channel} -> ${options.base}`);
   run('bun', ['run', '--cwd', currentDocsSite, 'vitepress', 'build', options.snapshotDocsSite], {
     cwd: repoRoot,
     env: {
       ...process.env,
       SUBMINER_DOCS_BASE: options.base,
       SUBMINER_DOCS_OUT_DIR: options.outDir,
+      SUBMINER_DOCS_SOURCE_DIR: options.snapshotDocsSite,
       SUBMINER_DOCS_CHANNEL: options.channel,
       SUBMINER_DOCS_VERSION: options.version ?? '',
       SUBMINER_DOCS_LATEST_STABLE: options.latestStable,
@@ -160,25 +177,28 @@ function buildDocs(options: {
 }
 
 function updateHashWithPath(hash: ReturnType<typeof createHash>, path: string) {
-  if (isGeneratedVitePressPath(path)) {
+  if (isSharedInternalsHashIgnoredPath(path)) {
     return;
   }
 
   const stat = lstatSync(path);
-  hash.update(path.replace(repoRoot, ''));
-  hash.update(String(stat.mode));
+  const relativePath = path.replace(repoRoot, '');
 
   if (stat.isSymbolicLink()) {
+    hash.update(`symlink:${relativePath}`);
+    hash.update(readlinkSync(path));
     return;
   }
 
   if (stat.isDirectory()) {
+    hash.update(`dir:${relativePath}`);
     for (const entry of readdirSync(path).sort()) {
       updateHashWithPath(hash, join(path, entry));
     }
     return;
   }
 
+  hash.update(`file:${relativePath}`);
   hash.update(readFileSync(path));
 }
 
@@ -186,8 +206,15 @@ function isGeneratedVitePressPath(path: string): boolean {
   return /[\\/]\\.vitepress[\\/](cache|dist)([\\/]|$)/.test(path);
 }
 
+function isSharedInternalsHashIgnoredPath(path: string): boolean {
+  return isGeneratedVitePressPath(path) || /\.test\.[cm]?[jt]s$/.test(path);
+}
+
 function computeSharedInternalsHash(): string {
   const hash = createHash('sha256');
+  hash.update(
+    `version-link-origin:${process.env.SUBMINER_DOCS_VERSION_LINK_ORIGIN === 'local' ? 'local' : 'production'}`,
+  );
   const paths = [
     join(currentDocsSite, '.vitepress'),
     join(currentDocsSite, 'public/assets/fonts'),
@@ -216,6 +243,7 @@ function restoreCachedArchive(version: string, sharedInternalsHash: string): boo
     return false;
   }
 
+  console.info(`[docs] cache hit ${version}`);
   cpSync(cachedArchive, join(aggregateOutDir, versionOutputPath(version)), {
     recursive: true,
     force: true,
@@ -267,9 +295,7 @@ function assertCloudflarePagesLimits(root: string) {
   }
 
   if (oversizedFiles.length > 0) {
-    throw new Error(
-      `Versioned docs output has files over 25 MiB:\n${oversizedFiles.join('\n')}`,
-    );
+    throw new Error(`Versioned docs output has files over 25 MiB:\n${oversizedFiles.join('\n')}`);
   }
 }
 
@@ -284,6 +310,7 @@ function main() {
   const manifest = buildVersionManifest({ latestStable, stableVersions });
   const manifestJson = JSON.stringify(manifest);
   const sharedInternalsHash = computeSharedInternalsHash();
+  console.info(`[docs] archive cache key ${sharedInternalsHash.slice(0, 12)}`);
 
   rmSync(buildRoot, { recursive: true, force: true });
   rmSync(aggregateOutDir, { recursive: true, force: true });
@@ -306,7 +333,9 @@ function main() {
       continue;
     }
 
-    const snapshot = version === latestStable ? latestStableSnapshot : prepareSnapshot(version, version);
+    console.info(`[docs] rebuilding archive ${version}`);
+    const snapshot =
+      version === latestStable ? latestStableSnapshot : prepareSnapshot(version, version);
     buildDocs({
       snapshotDocsSite: snapshot,
       base: versionPath(version),

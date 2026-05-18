@@ -1,4 +1,4 @@
-.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-windows uninstall uninstall-linux uninstall-macos uninstall-windows print-dirs pretty lint ensure-bun generate-config generate-example-config dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop
+.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-windows uninstall uninstall-linux uninstall-macos uninstall-windows print-dirs pretty lint ensure-bun generate-config generate-example-config dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop docs-test docs-build docs-build-versioned docs-dev
 
 APP_NAME := subminer
 THEME_SOURCE := assets/themes/subminer.rasi
@@ -62,6 +62,10 @@ help:
 		"  dev-watch-macos  Start watch loop with forced macOS tracker backend" \
 		"  dev-toggle       Toggle overlay in a running local Electron app" \
 		"  dev-stop         Stop a running local Electron app" \
+		"  docs-test        Run docs tests" \
+		"  docs-build       Build the docs site" \
+		"  docs-build-versioned Build production versioned docs site" \
+		"  docs-dev         Start the docs dev server" \
 		"  install-linux    Install Linux wrapper/theme/app artifacts" \
 		"  install-macos    Install macOS wrapper/theme/app artifacts" \
 		"  install-windows  Print Windows packaging/install guidance" \
@@ -199,6 +203,18 @@ dev-toggle: ensure-bun
 
 dev-stop: ensure-bun
 	@bun run electron . --stop
+
+docs-test: ensure-bun
+	@bun run docs:test
+
+docs-build: ensure-bun
+	@bun run docs:build
+
+docs-build-versioned: ensure-bun
+	@bun run docs:build:versioned
+
+docs-dev: ensure-bun
+	@bun run docs:dev
 
 
 install-linux: build-launcher

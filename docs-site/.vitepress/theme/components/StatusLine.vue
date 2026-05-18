@@ -1,6 +1,7 @@
 <script setup>
 import { useRoute, useData } from 'vitepress';
 import { computed } from 'vue';
+import { formatStatusLineFilePath } from '../status-line';
 
 const route = useRoute();
 const { page, frontmatter } = useData();
@@ -12,8 +13,7 @@ const mode = computed(() => {
 });
 
 const filePath = computed(() => {
-  const path = route.path;
-  return path === '/' ? 'index.md' : `${path.replace(/^\//, '')}.md`;
+  return formatStatusLineFilePath(route.path);
 });
 
 const section = computed(() => {

@@ -61,10 +61,7 @@ export function stableTagsWithDocs(
   tags: string[],
   hasDocsSite: (tag: string) => boolean,
 ): string[] {
-  return tags
-    .filter(isStableReleaseTag)
-    .filter(hasDocsSite)
-    .sort(compareStableVersionsDesc);
+  return tags.filter(isStableReleaseTag).filter(hasDocsSite).sort(compareStableVersionsDesc);
 }
 
 export function buildVersionManifest(options: {

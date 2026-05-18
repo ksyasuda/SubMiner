@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { extname, join, posix, resolve, sep } from 'node:path';
 import type { DefaultTheme, HeadConfig, TransformContext, UserConfig } from 'vitepress';
 
 const DOCS_HOSTNAME = 'https://docs.subminer.moe';
@@ -21,10 +21,16 @@ type VersionManifest = {
 
 const base = normalizeBase(process.env.SUBMINER_DOCS_BASE ?? '/');
 const outDir = process.env.SUBMINER_DOCS_OUT_DIR;
+const docsSourceDir = process.env.SUBMINER_DOCS_SOURCE_DIR ?? process.cwd();
+const localArchiveDir = resolve(
+  process.env.SUBMINER_DOCS_LOCAL_ARCHIVE_DIR ??
+    join(docsSourceDir, '..', '.tmp/docs-versioned-site'),
+);
 const channel = normalizeChannel(process.env.SUBMINER_DOCS_CHANNEL);
 const docsVersion = process.env.SUBMINER_DOCS_VERSION;
 const latestStable = process.env.SUBMINER_DOCS_LATEST_STABLE ?? 'v0.14.0';
 const versionManifest = parseVersionManifest(process.env.SUBMINER_DOCS_VERSION_MANIFEST);
+const versionLinkOrigin = process.env.SUBMINER_DOCS_VERSION_LINK_ORIGIN ?? 'production';
 
 function normalizeBase(value: string): string {
   if (!value || value === '/') return '/';
@@ -113,7 +119,7 @@ function linkToPagePath(link: string): string | null {
 function hasPageForLink(link: string): boolean {
   const pagePath = linkToPagePath(link);
   if (!pagePath) return true;
-  return existsSync(join(process.cwd(), pagePath));
+  return existsSync(join(docsSourceDir, pagePath));
 }
 
 function filterNav(items: DefaultTheme.NavItem[]): DefaultTheme.NavItem[] {
@@ -141,17 +147,130 @@ function filterSidebar(items: DefaultTheme.SidebarItem[]): DefaultTheme.SidebarI
     .filter((item): item is DefaultTheme.SidebarItem => Boolean(item));
 }
 
+function versionSwitchLink(path: string): string {
+  if (/^[a-z]+:\/\//i.test(path)) return path;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  if (versionLinkOrigin === 'local') return localVersionSwitchLink(normalizedPath);
+  return `${DOCS_HOSTNAME}${normalizedPath}`;
+}
+
+function localVersionSwitchLink(path: string): string {
+  if (base === '/') return path;
+
+  const basePath = base.replace(/\/$/, '');
+  const targetPath = path === '/' ? '/' : path.replace(/\/$/, '');
+  const relativePath = posix.relative(basePath, targetPath) || '.';
+
+  return path.endsWith('/') ? `${relativePath}/` : relativePath;
+}
+
+function shouldHandleLocalVersionRoute(pathname: string): boolean {
+  if (base !== '/' || channel !== 'stable-root') return false;
+  return /^\/main(?:\/|$)/.test(pathname) || /^\/v\/[^/]+(?:\/|$)/.test(pathname);
+}
+
+function contentTypeForPath(path: string): string {
+  switch (extname(path)) {
+    case '.css':
+      return 'text/css; charset=utf-8';
+    case '.gif':
+      return 'image/gif';
+    case '.ico':
+      return 'image/x-icon';
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.js':
+    case '.mjs':
+      return 'text/javascript; charset=utf-8';
+    case '.json':
+    case '.jsonc':
+      return 'application/json; charset=utf-8';
+    case '.mp4':
+      return 'video/mp4';
+    case '.png':
+      return 'image/png';
+    case '.svg':
+      return 'image/svg+xml';
+    case '.ttf':
+      return 'font/ttf';
+    case '.webm':
+      return 'video/webm';
+    case '.woff':
+      return 'font/woff';
+    case '.woff2':
+      return 'font/woff2';
+    case '.xml':
+      return 'application/xml; charset=utf-8';
+    default:
+      return 'text/html; charset=utf-8';
+  }
+}
+
+function isFile(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function archiveFileForPathname(pathname: string): string | null {
+  if (!shouldHandleLocalVersionRoute(pathname)) return null;
+
+  const routePath = decodeURIComponent(pathname).replace(/^\/+/, '');
+  const filePath = resolve(localArchiveDir, routePath);
+  if (filePath !== localArchiveDir && !filePath.startsWith(`${localArchiveDir}${sep}`)) {
+    return null;
+  }
+
+  const candidates = pathname.endsWith('/')
+    ? [join(filePath, 'index.html')]
+    : extname(filePath)
+      ? [filePath]
+      : [`${filePath}.html`, join(filePath, 'index.html')];
+
+  return candidates.find(isFile) ?? null;
+}
+
+function serveLocalArchiveRoute(pathname: string, response: DevServerResponse): boolean {
+  if (versionLinkOrigin !== 'local') return false;
+
+  const filePath = archiveFileForPathname(pathname);
+  if (!filePath) return false;
+
+  response.statusCode = 200;
+  response.setHeader('Content-Type', contentTypeForPath(filePath));
+  response.end(readFileSync(filePath));
+  return true;
+}
+
+type DevServerResponse = {
+  statusCode: number;
+  setHeader(name: string, value: string): void;
+  end(chunk?: string | Uint8Array): void;
+};
+
 const versionItems = [
   {
     text: `Latest stable (${versionManifest.latestStable})`,
-    link: '/',
+    link: versionSwitchLink('/'),
+    target: '_self',
+    noIcon: true,
   },
   ...versionManifest.channels
     .filter((entry) => entry.label !== 'Latest stable')
-    .map((entry) => ({ text: entry.label, link: entry.path })),
+    .map((entry) => ({
+      text: entry.label,
+      link: versionSwitchLink(entry.path),
+      target: '_self',
+      noIcon: true,
+    })),
   ...versionManifest.versions.map((entry) => ({
     text: entry.version,
-    link: entry.path,
+    link: versionSwitchLink(entry.path),
+    target: '_self',
+    noIcon: true,
   })),
 ];
 
@@ -217,6 +336,33 @@ const config: UserConfig = {
     'SubMiner: an MPV immersion-mining overlay with Yomitan and AnkiConnect integration.',
   base,
   ...(outDir ? { outDir } : {}),
+  vite: {
+    plugins: [
+      {
+        name: 'subminer-docs-local-version-redirects',
+        configureServer(server) {
+          server.middlewares.use((request, response, next) => {
+            const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+            if (serveLocalArchiveRoute(requestUrl.pathname, response)) {
+              return;
+            }
+
+            if (!shouldHandleLocalVersionRoute(requestUrl.pathname)) {
+              next();
+              return;
+            }
+
+            response.statusCode = 302;
+            response.setHeader(
+              'Location',
+              `${DOCS_HOSTNAME}${requestUrl.pathname}${requestUrl.search}`,
+            );
+            response.end();
+          });
+        },
+      },
+    ],
+  },
   head: [
     ['link', { rel: 'preconnect', href: PLAUSIBLE_PROXY_HOSTNAME }],
     [
@@ -268,7 +414,7 @@ const config: UserConfig = {
   },
   transformHead: transformPageHead,
   lastUpdated: true,
-  srcExclude: ['subagents/**'],
+  srcExclude: ['subagents/**', 'README.md'],
   markdown: {
     theme: {
       light: 'catppuccin-latte',
@@ -277,8 +423,8 @@ const config: UserConfig = {
   },
   themeConfig: {
     logo: {
-      light: withDocsBase('/assets/SubMiner.png'),
-      dark: withDocsBase('/assets/SubMiner.png'),
+      light: '/assets/SubMiner.png',
+      dark: '/assets/SubMiner.png',
     },
     siteTitle: 'SubMiner Docs',
     nav: filterNav(nav),

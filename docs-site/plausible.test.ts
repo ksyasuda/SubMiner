@@ -41,3 +41,22 @@ test('versioned docs reuse current VitePress internals for old page snapshots', 
   expect(versionedBuildContents).toContain("cpSync(join(currentDocsSite, '.vitepress')");
   expect(versionedBuildContents).toContain('overlayCurrentVitePress(snapshotDocsSite)');
 });
+
+test('versioned docs build reports archive cache hits and rebuilds', () => {
+  expect(versionedBuildContents).toContain(
+    'console.info(`[docs] archive cache key ${sharedInternalsHash.slice(0, 12)}`)',
+  );
+  expect(versionedBuildContents).toContain('console.info(`[docs] cache hit ${version}`)');
+  expect(versionedBuildContents).toContain('console.info(`[docs] rebuilding archive ${version}`)');
+});
+
+test('versioned docs archive cache key ignores generated and test-only files', () => {
+  expect(versionedBuildContents).toContain('isSharedInternalsHashIgnoredPath(path)');
+  expect(versionedBuildContents).toContain('|| /\\.test\\.[cm]?[jt]s$/.test(path)');
+  expect(versionedBuildContents).toContain('process.env.SUBMINER_DOCS_VERSION_LINK_ORIGIN');
+  expect(versionedBuildContents).not.toContain('hash.update(String(stat.mode))');
+});
+
+test('docs builds exclude the internal README from VitePress page entries', () => {
+  expect(docsConfigContents).toContain("srcExclude: ['subagents/**', 'README.md']");
+});
