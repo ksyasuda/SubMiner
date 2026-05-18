@@ -15,13 +15,17 @@ function tempDir() {
 
 describe('docs versioned asset dedupe', () => {
   test('rewrites version-scoped public asset references to shared root assets', () => {
-    expect(
-      rewriteSharedAssetReferences(
-        '<link href="/v/0.14.0/assets/style.hash.css"><source src="/v/0.14.0/assets/minecard.webm">',
-        '/v/0.14.0/',
-        new Set(['minecard.webm']),
-      ),
-    ).toBe('<link href="/v/0.14.0/assets/style.hash.css"><source src="/assets/minecard.webm">');
+    const html =
+      '<link href="/v/0.14.0/assets/style.hash.css"><source src="/v/0.14.0/assets/minecard.webm">';
+    const expected =
+      '<link href="/v/0.14.0/assets/style.hash.css"><source src="/assets/minecard.webm">';
+
+    expect(rewriteSharedAssetReferences(html, '/v/0.14.0/', new Set(['minecard.webm']))).toBe(
+      expected,
+    );
+    expect(rewriteSharedAssetReferences(html, '/v/0.14.0', new Set(['minecard.webm']))).toBe(
+      expected,
+    );
   });
 
   test('removes duplicated version public assets while preserving generated VitePress assets', async () => {
@@ -38,7 +42,7 @@ describe('docs versioned asset dedupe', () => {
 
       const result = dedupeVersionedPublicAssets({
         outDir: dir,
-        base: '/v/0.14.0/',
+        base: '/v/0.14.0',
         sharedAssetPaths: new Set(['minecard.webm']),
       });
 

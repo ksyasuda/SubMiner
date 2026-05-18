@@ -3,6 +3,10 @@ import { join, relative } from 'node:path';
 
 const textOutputPattern = /\.(?:css|html|js|json|map|mjs|txt|xml)$/;
 
+function normalizeBase(base: string): string {
+  return base === '/' ? '/' : `${base.replace(/\/+$/, '')}/`;
+}
+
 export function collectSharedAssetPaths(publicAssetsDir: string): Set<string> {
   if (!existsSync(publicAssetsDir)) {
     return new Set();
@@ -18,13 +22,16 @@ export function rewriteSharedAssetReferences(
   base: string,
   sharedAssetPaths: Set<string>,
 ): string {
-  if (base === '/') {
+  const normalizedBase = normalizeBase(base);
+  if (normalizedBase === '/') {
     return content;
   }
 
   let rewritten = content;
   for (const assetPath of sharedAssetPaths) {
-    rewritten = rewritten.split(`${base}assets/${assetPath}`).join(`/assets/${assetPath}`);
+    rewritten = rewritten
+      .split(`${normalizedBase}assets/${assetPath}`)
+      .join(`/assets/${assetPath}`);
   }
   return rewritten;
 }
@@ -59,6 +66,7 @@ export function dedupeVersionedPublicAssets(options: {
   removedAssetsDir: boolean;
   rewrittenFiles: string[];
 } {
+  const normalizedBase = normalizeBase(options.base);
   const rewrittenFiles: string[] = [];
 
   for (const file of walkFiles(options.outDir)) {
@@ -67,7 +75,7 @@ export function dedupeVersionedPublicAssets(options: {
     }
 
     const before = readFileSync(file, 'utf8');
-    const after = rewriteSharedAssetReferences(before, options.base, options.sharedAssetPaths);
+    const after = rewriteSharedAssetReferences(before, normalizedBase, options.sharedAssetPaths);
     if (after === before) {
       continue;
     }
@@ -77,7 +85,7 @@ export function dedupeVersionedPublicAssets(options: {
   }
 
   const assetsDir = join(options.outDir, 'assets');
-  if (options.base !== '/') {
+  if (normalizedBase !== '/') {
     for (const assetPath of options.sharedAssetPaths) {
       rmSync(join(assetsDir, assetPath), { force: true });
     }
