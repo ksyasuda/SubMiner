@@ -187,7 +187,13 @@ export class AnkiConnectClient {
       return [];
     }
 
-    return this.notesInfo(noteIds.slice(0, sampleSize));
+    const finiteSampleSize = Number.isFinite(sampleSize) ? sampleSize : 0;
+    const normalizedSampleSize = Math.min(noteIds.length, Math.max(0, Math.floor(finiteSampleSize)));
+    if (normalizedSampleSize === 0) {
+      return [];
+    }
+
+    return this.notesInfo(noteIds.slice(0, normalizedSampleSize));
   }
 
   async fieldNamesForDeck(deckName: string, sampleSize = 100): Promise<string[]> {
