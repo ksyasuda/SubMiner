@@ -3,7 +3,11 @@ import test from 'node:test';
 
 import type { ElectronAPI, SubtitleSidebarSnapshot } from '../../types';
 import { createRendererState } from '../state.js';
-import { createSubtitleSidebarModal, findActiveSubtitleCueIndex } from './subtitle-sidebar.js';
+import {
+  applySidebarCssDeclarations,
+  createSubtitleSidebarModal,
+  findActiveSubtitleCueIndex,
+} from './subtitle-sidebar.js';
 
 function createClassList(initialTokens: string[] = []) {
   const tokens = new Set(initialTokens);
@@ -106,6 +110,34 @@ test('findActiveSubtitleCueIndex prefers current subtitle timing over near-futur
   ];
 
   assert.equal(findActiveSubtitleCueIndex(cues, { text: 'previous', startTime: 231 }, 233, 0), 0);
+});
+
+test('applySidebarCssDeclarations clears declarations removed by config reload', () => {
+  const removed: string[] = [];
+  const style = {
+    color: '',
+    backgroundColor: '',
+    setProperty(property: string, value: string) {
+      (this as unknown as Record<string, string>)[property] = value;
+    },
+    removeProperty(property: string) {
+      removed.push(property);
+      delete (this as unknown as Record<string, string>)[property];
+    },
+  };
+  const target = { style } as unknown as HTMLElement;
+
+  applySidebarCssDeclarations(target, {
+    color: '#cad3f5',
+    'background-color': '#181926',
+  });
+  applySidebarCssDeclarations(target, {
+    color: '#ffffff',
+  });
+
+  assert.equal(style.color, '#ffffff');
+  assert.equal(style.backgroundColor, '');
+  assert.deepEqual(removed, ['background-color']);
 });
 
 test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback', async () => {

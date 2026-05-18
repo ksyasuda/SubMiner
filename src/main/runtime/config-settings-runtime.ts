@@ -31,6 +31,7 @@ export interface ConfigSettingsIpcChannels {
   openConfigSettingsWindow: string;
   getConfigSettingsAnkiDeckNames: string;
   getConfigSettingsAnkiDeckFieldNames: string;
+  getConfigSettingsAnkiDeckModelNames: string;
   getConfigSettingsAnkiModelNames: string;
   getConfigSettingsAnkiModelFieldNames: string;
 }
@@ -38,6 +39,7 @@ export interface ConfigSettingsIpcChannels {
 export interface ConfigSettingsAnkiClient {
   deckNames(): Promise<string[]>;
   fieldNamesForDeck(deckName: string): Promise<string[]>;
+  modelNamesForDeck(deckName: string): Promise<string[]>;
   modelNames(): Promise<string[]>;
   modelFieldNames(modelName: string): Promise<string[]>;
 }
@@ -208,6 +210,15 @@ export function createConfigSettingsRuntime<TWindow extends ConfigSettingsWindow
         const normalizedDeckName = typeof deckName === 'string' ? deckName.trim() : '';
         return normalizedDeckName
           ? getAnkiList(draftUrl, (client) => client.fieldNamesForDeck(normalizedDeckName))
+          : invalidAnkiListResult('Deck name is required.');
+      },
+    );
+    deps.ipcMain.handle(
+      deps.ipcChannels.getConfigSettingsAnkiDeckModelNames,
+      (_event, deckName, draftUrl) => {
+        const normalizedDeckName = typeof deckName === 'string' ? deckName.trim() : '';
+        return normalizedDeckName
+          ? getAnkiList(draftUrl, (client) => client.modelNamesForDeck(normalizedDeckName))
           : invalidAnkiListResult('Deck name is required.');
       },
     );

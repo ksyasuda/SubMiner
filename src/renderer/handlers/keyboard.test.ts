@@ -533,6 +533,28 @@ test('mpv input forwarding installs local key handling when session binding IPC 
   }
 });
 
+test('mpv input forwarding retries a transient keyboard config IPC failure', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  let calls = 0;
+
+  try {
+    testGlobals.setGetSessionBindings(async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new Error('transient');
+      }
+      return [];
+    });
+
+    await handlers.setupMpvInputForwarding();
+    await wait(25);
+
+    assert.equal(calls, 2);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('session help chord resolver follows remapped session bindings', async () => {
   const { handlers, testGlobals } = createKeyboardHandlerHarness();
 

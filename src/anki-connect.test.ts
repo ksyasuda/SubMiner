@@ -123,3 +123,36 @@ test('AnkiConnectClient derives field names from sampled notes in a deck', async
     params: { notes: [3, 1, 2] },
   });
 });
+
+test('AnkiConnectClient derives model names from sampled notes in a deck', async () => {
+  const client = new AnkiConnectClient('http://127.0.0.1:8765') as unknown as {
+    client: { post: (url: string, body: { action: string; params: unknown }) => Promise<unknown> };
+  };
+  const calls: Array<{ action: string; params: unknown }> = [];
+  client.client = {
+    post: async (_url, body) => {
+      calls.push({ action: body.action, params: body.params });
+      if (body.action === 'findNotes') {
+        return { data: { result: [5, 4], error: null } };
+      }
+      if (body.action === 'notesInfo') {
+        return {
+          data: {
+            result: [{ modelName: 'Lapis Morph' }, { modelName: 'Kiku' }],
+            error: null,
+          },
+        };
+      }
+      return { data: { result: [], error: null } };
+    },
+  };
+
+  assert.deepEqual(await (client as unknown as AnkiConnectClient).modelNamesForDeck('Mining'), [
+    'Kiku',
+    'Lapis Morph',
+  ]);
+  assert.deepEqual(
+    calls.map((call) => call.action),
+    ['findNotes', 'notesInfo'],
+  );
+});

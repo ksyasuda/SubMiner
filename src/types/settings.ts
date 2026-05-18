@@ -90,6 +90,7 @@ export interface ConfigSettingsAPI {
   openSettingsWindow(): Promise<boolean>;
   getAnkiDeckNames(draftUrl?: string): Promise<ConfigSettingsAnkiListResult>;
   getAnkiDeckFieldNames(deckName: string, draftUrl?: string): Promise<ConfigSettingsAnkiListResult>;
+  getAnkiDeckModelNames(deckName: string, draftUrl?: string): Promise<ConfigSettingsAnkiListResult>;
   getAnkiModelNames(draftUrl?: string): Promise<ConfigSettingsAnkiListResult>;
   getAnkiModelFieldNames(
     modelName: string,

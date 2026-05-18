@@ -185,6 +185,36 @@ test('buildPluginRuntimeScriptOptParts emits config values that override plugin 
   );
 });
 
+test('buildPluginRuntimeScriptOptParts strips script-option delimiters from string values', () => {
+  assert.deepEqual(
+    buildPluginRuntimeScriptOptParts(
+      {
+        socketPath: '/tmp/config.sock,subminer-auto_start=no\nother=yes',
+        binaryPath: '/opt/SubMiner,\nSubMiner.AppImage',
+        backend: 'x11',
+        autoStart: true,
+        autoStartVisibleOverlay: false,
+        autoStartPauseUntilReady: true,
+        texthookerEnabled: false,
+        aniskipEnabled: false,
+        aniskipButtonKey: 'F8,\nF9',
+      },
+      '/fallback/SubMiner.AppImage',
+    ),
+    [
+      'subminer-binary_path=/opt/SubMiner SubMiner.AppImage',
+      'subminer-socket_path=/tmp/config.sock subminer-auto_start=no other=yes',
+      'subminer-backend=x11',
+      'subminer-auto_start=yes',
+      'subminer-auto_start_visible_overlay=no',
+      'subminer-auto_start_pause_until_ready=yes',
+      'subminer-texthooker_enabled=no',
+      'subminer-aniskip_enabled=no',
+      'subminer-aniskip_button_key=F8 F9',
+    ],
+  );
+});
+
 test('getDefaultSocketPath returns Windows named pipe default', () => {
   assert.equal(getDefaultSocketPath('win32'), '\\\\.\\pipe\\subminer-socket');
 });

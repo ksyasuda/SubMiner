@@ -14,6 +14,7 @@ const SETTINGS_IPC_CHANNELS = {
   openWindow: 'config:open-settings-window',
   getAnkiDeckNames: 'config-settings:anki-deck-names',
   getAnkiDeckFieldNames: 'config-settings:anki-deck-field-names',
+  getAnkiDeckModelNames: 'config-settings:anki-deck-model-names',
   getAnkiModelNames: 'config-settings:anki-model-names',
   getAnkiModelFieldNames: 'config-settings:anki-model-field-names',
 } as const;
@@ -32,6 +33,11 @@ const configSettingsAPI: ConfigSettingsAPI = {
     draftUrl?: string,
   ): Promise<ConfigSettingsAnkiListResult> =>
     ipcRenderer.invoke(SETTINGS_IPC_CHANNELS.getAnkiDeckFieldNames, deckName, draftUrl),
+  getAnkiDeckModelNames: (
+    deckName: string,
+    draftUrl?: string,
+  ): Promise<ConfigSettingsAnkiListResult> =>
+    ipcRenderer.invoke(SETTINGS_IPC_CHANNELS.getAnkiDeckModelNames, deckName, draftUrl),
   getAnkiModelNames: (draftUrl?: string): Promise<ConfigSettingsAnkiListResult> =>
     ipcRenderer.invoke(SETTINGS_IPC_CHANNELS.getAnkiModelNames, draftUrl),
   getAnkiModelFieldNames: (

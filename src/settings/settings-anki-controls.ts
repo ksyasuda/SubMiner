@@ -9,6 +9,8 @@ const state: {
   deckFieldNames: Map<string, string[]>;
   deckFieldNamesLoading: Set<string>;
   deckFieldNamesErrors: Map<string, string>;
+  deckModelNames: Map<string, string[]>;
+  deckModelNamesLoading: Map<string, Promise<string[]>>;
   modelNames: string[] | null;
   modelNamesLoading: boolean;
   modelNamesError: string | null;
@@ -25,6 +27,8 @@ const state: {
   deckFieldNames: new Map(),
   deckFieldNamesLoading: new Set(),
   deckFieldNamesErrors: new Map(),
+  deckModelNames: new Map(),
+  deckModelNamesLoading: new Map(),
   modelNames: null,
   modelNamesLoading: false,
   modelNamesError: null,
@@ -55,16 +59,26 @@ export function initializeAnkiControls(values: Record<string, ConfigSettingsSnap
 
 export function selectPreferredNoteFieldModelName(
   modelNames: readonly string[],
-  _currentModelName = '',
+  currentModelName = '',
 ): string {
+  const normalizedCurrentModelName = currentModelName.trim().toLowerCase();
+  if (normalizedCurrentModelName) {
+    const currentModel = modelNames.find(
+      (name) => name.toLowerCase() === normalizedCurrentModelName,
+    );
+    if (currentModel) {
+      return currentModel;
+    }
+  }
+
   const exactKiku = modelNames.find((name) => name.toLowerCase() === 'kiku');
   if (exactKiku) {
     return exactKiku;
   }
 
-  const exactLapis = modelNames.find((name) => name.toLowerCase() === 'lapis');
-  if (exactLapis) {
-    return exactLapis;
+  const lapis = modelNames.find((name) => name.toLowerCase().includes('lapis'));
+  if (lapis) {
+    return lapis;
   }
 
   return '';
@@ -106,6 +120,11 @@ function getDraftAnkiConnectUrl(context: SettingsControlContext): string | undef
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+function getDraftAnkiDeckName(context: SettingsControlContext): string {
+  const value = context.valueForPath('ankiConnect.deck');
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function syncAnkiConnectUrl(draftUrl: string | undefined): void {
   const nextUrl = draftUrl ?? '';
   if (state.ankiConnectUrl === nextUrl) {
@@ -116,6 +135,8 @@ function syncAnkiConnectUrl(draftUrl: string | undefined): void {
     state.deckNamesLoading ||
     state.deckFieldNames.size > 0 ||
     state.deckFieldNamesLoading.size > 0 ||
+    state.deckModelNames.size > 0 ||
+    state.deckModelNamesLoading.size > 0 ||
     state.modelNames !== null ||
     state.modelNamesLoading ||
     state.modelFieldNames.size > 0 ||
@@ -131,6 +152,8 @@ function syncAnkiConnectUrl(draftUrl: string | undefined): void {
   state.deckFieldNames.clear();
   state.deckFieldNamesLoading.clear();
   state.deckFieldNamesErrors.clear();
+  state.deckModelNames.clear();
+  state.deckModelNamesLoading.clear();
   state.modelNames = null;
   state.modelNamesLoading = false;
   state.modelNamesError = null;
@@ -205,9 +228,85 @@ async function loadAnkiDeckFieldNames(deckName: string, draftUrl?: string): Prom
   }
 }
 
-async function loadAnkiModelNames(draftUrl?: string): Promise<void> {
+async function loadAnkiDeckModelNames(deckName: string, draftUrl?: string): Promise<string[]> {
   syncAnkiConnectUrl(draftUrl);
-  if (state.modelNames || state.modelNamesLoading) return;
+  if (!deckName) return [];
+  const cached = state.deckModelNames.get(deckName);
+  if (cached) return cached;
+  const loading = state.deckModelNamesLoading.get(deckName);
+  if (loading) return loading;
+
+  const requestUrl = state.ankiConnectUrl;
+  const request = window.configSettingsAPI
+    .getAnkiDeckModelNames(deckName, draftUrl)
+    .then((result) => {
+      if (state.ankiConnectUrl !== requestUrl) return [];
+      const values = result.ok ? uniqueSorted(result.values) : [];
+      state.deckModelNames.set(deckName, values);
+      return values;
+    })
+    .catch(() => {
+      if (state.ankiConnectUrl === requestUrl) {
+        state.deckModelNames.set(deckName, []);
+      }
+      return [];
+    })
+    .finally(() => {
+      if (state.ankiConnectUrl === requestUrl) {
+        state.deckModelNamesLoading.delete(deckName);
+        requestRender();
+      }
+    });
+
+  state.deckModelNamesLoading.set(deckName, request);
+  return request;
+}
+
+function findModelName(modelNames: readonly string[], modelName: string): string {
+  const normalizedModelName = modelName.trim().toLowerCase();
+  return normalizedModelName
+    ? (modelNames.find((name) => name.toLowerCase() === normalizedModelName) ?? '')
+    : '';
+}
+
+async function updatePreferredNoteFieldModelName(
+  modelNames: readonly string[],
+  deckName: string,
+  draftUrl: string | undefined,
+  requestUrl: string,
+): Promise<void> {
+  const deckModelNames = await loadAnkiDeckModelNames(deckName, draftUrl);
+  if (state.ankiConnectUrl !== requestUrl || state.noteFieldModelNameManuallySelected) {
+    return;
+  }
+
+  let nextModelName = '';
+  for (const deckModelName of deckModelNames) {
+    nextModelName = findModelName(modelNames, deckModelName);
+    if (nextModelName) break;
+  }
+  nextModelName ||= selectPreferredNoteFieldModelName(modelNames, state.noteFieldModelName);
+
+  if (state.noteFieldModelName !== nextModelName) {
+    state.noteFieldModelName = nextModelName;
+    requestRender();
+  }
+}
+
+async function loadAnkiModelNames(draftUrl?: string, deckName = ''): Promise<void> {
+  syncAnkiConnectUrl(draftUrl);
+  if (state.modelNames) {
+    if (!state.noteFieldModelNameManuallySelected) {
+      void updatePreferredNoteFieldModelName(
+        state.modelNames,
+        deckName,
+        draftUrl,
+        state.ankiConnectUrl,
+      );
+    }
+    return;
+  }
+  if (state.modelNamesLoading) return;
   const requestUrl = state.ankiConnectUrl;
   state.modelNamesLoading = true;
   try {
@@ -217,10 +316,7 @@ async function loadAnkiModelNames(draftUrl?: string): Promise<void> {
       state.modelNames = uniqueSorted(result.values);
       state.modelNamesError = null;
       if (!state.noteFieldModelNameManuallySelected) {
-        state.noteFieldModelName = selectPreferredNoteFieldModelName(
-          state.modelNames,
-          state.noteFieldModelName,
-        );
+        await updatePreferredNoteFieldModelName(state.modelNames, deckName, draftUrl, requestUrl);
       }
     } else {
       state.modelNames = [];
@@ -283,7 +379,7 @@ export function renderAnkiNoteTypeInput(
   field: ConfigSettingsField,
 ): HTMLElement {
   const draftUrl = getDraftAnkiConnectUrl(context);
-  void loadAnkiModelNames(draftUrl);
+  void loadAnkiModelNames(draftUrl, getDraftAnkiDeckName(context));
   const currentValue = context.valueForField(field);
   const current = typeof currentValue === 'string' ? currentValue : '';
   const select = createElement('select', 'config-input') as HTMLSelectElement;
@@ -312,7 +408,7 @@ export function renderAnkiFieldInput(
   field: ConfigSettingsField,
 ): HTMLElement {
   const draftUrl = getDraftAnkiConnectUrl(context);
-  void loadAnkiModelNames(draftUrl);
+  void loadAnkiModelNames(draftUrl, getDraftAnkiDeckName(context));
   if (state.noteFieldModelName) {
     void loadAnkiModelFieldNames(state.noteFieldModelName, draftUrl);
   }
@@ -350,7 +446,7 @@ export function renderAnkiFieldInput(
 
 export function renderNoteFieldModelPicker(context: SettingsControlContext): HTMLElement {
   const draftUrl = getDraftAnkiConnectUrl(context);
-  void loadAnkiModelNames(draftUrl);
+  void loadAnkiModelNames(draftUrl, getDraftAnkiDeckName(context));
   if (state.noteFieldModelName) {
     void loadAnkiModelFieldNames(state.noteFieldModelName, draftUrl);
   }

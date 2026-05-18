@@ -16,15 +16,26 @@ function boolScriptOpt(value: boolean): 'yes' | 'no' {
   return value ? 'yes' : 'no';
 }
 
+function sanitizeScriptOptValue(value: string): string {
+  return value
+    .replace(/,/g, ' ')
+    .replace(/[\r\n]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function buildSubminerPluginRuntimeScriptOptParts(
   runtimeConfig: SubminerPluginRuntimeScriptOptConfig,
   fallbackAppPath: string,
 ): string[] {
-  const binaryPath = runtimeConfig.binaryPath?.trim() || fallbackAppPath;
+  const binaryPath = sanitizeScriptOptValue(runtimeConfig.binaryPath?.trim() || fallbackAppPath);
+  const socketPath = sanitizeScriptOptValue(runtimeConfig.socketPath);
+  const backend = sanitizeScriptOptValue(runtimeConfig.backend);
+  const aniskipButtonKey = sanitizeScriptOptValue(runtimeConfig.aniskipButtonKey);
   return [
     `subminer-binary_path=${binaryPath}`,
-    `subminer-socket_path=${runtimeConfig.socketPath}`,
-    `subminer-backend=${runtimeConfig.backend}`,
+    `subminer-socket_path=${socketPath}`,
+    `subminer-backend=${backend}`,
     `subminer-auto_start=${boolScriptOpt(runtimeConfig.autoStart)}`,
     `subminer-auto_start_visible_overlay=${boolScriptOpt(runtimeConfig.autoStartVisibleOverlay)}`,
     `subminer-auto_start_pause_until_ready=${boolScriptOpt(
@@ -32,6 +43,6 @@ export function buildSubminerPluginRuntimeScriptOptParts(
     )}`,
     `subminer-texthooker_enabled=${boolScriptOpt(runtimeConfig.texthookerEnabled)}`,
     `subminer-aniskip_enabled=${boolScriptOpt(runtimeConfig.aniskipEnabled)}`,
-    `subminer-aniskip_button_key=${runtimeConfig.aniskipButtonKey}`,
+    `subminer-aniskip_button_key=${aniskipButtonKey}`,
   ];
 }

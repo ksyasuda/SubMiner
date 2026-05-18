@@ -15,6 +15,7 @@ test('settings preload exposes Anki lookup helpers', () => {
   for (const method of [
     'getAnkiDeckNames',
     'getAnkiDeckFieldNames',
+    'getAnkiDeckModelNames',
     'getAnkiModelNames',
     'getAnkiModelFieldNames',
   ]) {

@@ -2,12 +2,11 @@ import path from 'node:path';
 import os from 'node:os';
 import type { MpvBackend, MpvLaunchMode } from '../src/types/config.js';
 import { resolveDefaultLogFilePath } from '../src/shared/log-files.js';
-import { getDefaultMpvSocketPath } from '../src/shared/mpv-socket-path.js';
 export { VIDEO_EXTENSIONS } from '../src/shared/video-extensions.js';
 
 export const ROFI_THEME_FILE = 'subminer.rasi';
 export function getDefaultSocketPath(platform: NodeJS.Platform = process.platform): string {
-  return getDefaultMpvSocketPath(platform);
+  return platform === 'win32' ? '\\\\.\\pipe\\subminer-socket' : '/tmp/subminer-socket';
 }
 
 export const DEFAULT_SOCKET_PATH = getDefaultSocketPath();

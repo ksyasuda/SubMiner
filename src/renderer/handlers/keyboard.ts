@@ -953,13 +953,31 @@ export function createKeyboardHandlers(
     syncKeyboardTokenSelection();
   }
 
+  async function loadMpvInputForwardingConfigWithRetry(): Promise<void> {
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await loadMpvInputForwardingConfig();
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 10 * (attempt + 1));
+          });
+        }
+      }
+    }
+    throw lastError;
+  }
+
   async function setupMpvInputForwarding(): Promise<void> {
     installMpvInputForwardingListeners();
     syncKeyboardTokenSelection();
 
     let configLoadSettled = false;
     let configLoadError: unknown = null;
-    const configLoad = loadMpvInputForwardingConfig().then(
+    const configLoad = loadMpvInputForwardingConfigWithRetry().then(
       () => {
         configLoadSettled = true;
       },
