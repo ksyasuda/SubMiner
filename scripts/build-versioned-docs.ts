@@ -14,6 +14,11 @@ import {
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
+  collectSharedAssetPaths,
+  dedupeVersionedPublicAssets,
+  pruneArchiveCacheGenerations,
+} from './docs-versioned-assets';
+import {
   buildVersionManifest,
   stableTagsWithDocs,
   versionArchiveCacheKey,
@@ -312,6 +317,7 @@ function main() {
   const manifestJson = JSON.stringify(manifest);
   const sharedInternalsHash = computeSharedInternalsHash();
   const archiveCacheKey = versionArchiveCacheKey({ sharedInternalsHash, manifestJson });
+  const sharedAssetPaths = collectSharedAssetPaths(join(currentDocsSite, 'public/assets'));
   console.info(`[docs] archive cache key ${archiveCacheKey.slice(0, 12)}`);
 
   rmSync(buildRoot, { recursive: true, force: true });
@@ -347,6 +353,11 @@ function main() {
       latestStable,
       manifestJson,
     });
+    dedupeVersionedPublicAssets({
+      outDir: join(aggregateOutDir, versionOutputPath(version)),
+      base: versionPath(version),
+      sharedAssetPaths,
+    });
     saveArchiveCache(version, archiveCacheKey);
   }
 
@@ -360,9 +371,22 @@ function main() {
     latestStable,
     manifestJson,
   });
+  dedupeVersionedPublicAssets({
+    outDir: join(aggregateOutDir, 'main'),
+    base: '/main/',
+    sharedAssetPaths,
+  });
 
   writeFileSync(join(aggregateOutDir, 'versions.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   assertCloudflarePagesLimits(aggregateOutDir);
+  const prunedArchives = pruneArchiveCacheGenerations({
+    cacheRoot: archiveCacheRoot,
+    activeCacheKey: archiveCacheKey,
+  });
+  if (prunedArchives.length > 0) {
+    console.info(`[docs] pruned ${prunedArchives.length} stale archive cache directories`);
+  }
+  rmSync(buildRoot, { recursive: true, force: true });
 }
 
 main();

@@ -119,7 +119,7 @@ For production docs routing, run the versioned build:
 bun run docs:build:versioned
 ```
 
-The versioned build writes `.tmp/docs-versioned-site` with latest stable docs at `/`, development docs at `/main/`, and stable archives under `/v/<version>/`. Prerelease tags are skipped.
+The versioned build writes `.tmp/docs-versioned-site` with latest stable docs at `/`, development docs at `/main/`, and stable archives under `/v/<version>/`. Prerelease tags are skipped. Public assets from `docs-site/public/assets` are shared from root `/assets/` so large demo media is not duplicated into every version archive; generated VitePress CSS and JS assets stay under each version route. Stale `.tmp/docs-versioned-archive-cache` generations are pruned after a successful build, and intermediate `.tmp/docs-versioned-build` workspaces are removed.
 
 Focused commands:
 
@@ -162,6 +162,7 @@ bun run format:check:src
 - `make pretty` runs the maintained Prettier allowlist only (`format:src`).
 - `bun run format:check:src` checks the same scoped set without writing changes.
 - `bun run format` remains the broad repo-wide Prettier command; use it intentionally.
+
 ## Config Generation
 
 ```bash
@@ -205,17 +206,17 @@ Use Cloudflare's single `*` wildcard syntax for watch paths. `docs-site/*` cover
 
 Run `make help` for a full list of targets. Key ones:
 
-| Target                 | Description                                                      |
-| ---------------------- | ---------------------------------------------------------------- |
-| `make build`           | Build platform package for detected OS                           |
-| `make build-launcher`  | Generate Bun launcher wrapper at `dist/launcher/subminer`        |
-| `make install`         | Install platform artifacts (wrapper, theme, AppImage/app bundle) |
-| `make deps`            | Install JS dependencies (root + stats + texthooker-ui)           |
-| `make pretty`          | Run scoped Prettier formatting for maintained source/config files |
-| `make generate-config` | Generate default config from centralized registry                |
-| `make build-linux`     | Convenience wrapper for Linux packaging                          |
-| `make build-macos`     | Convenience wrapper for signed macOS packaging                   |
-| `make build-macos-unsigned` | Convenience wrapper for unsigned macOS packaging            |
+| Target                      | Description                                                       |
+| --------------------------- | ----------------------------------------------------------------- |
+| `make build`                | Build platform package for detected OS                            |
+| `make build-launcher`       | Generate Bun launcher wrapper at `dist/launcher/subminer`         |
+| `make install`              | Install platform artifacts (wrapper, theme, AppImage/app bundle)  |
+| `make deps`                 | Install JS dependencies (root + stats + texthooker-ui)            |
+| `make pretty`               | Run scoped Prettier formatting for maintained source/config files |
+| `make generate-config`      | Generate default config from centralized registry                 |
+| `make build-linux`          | Convenience wrapper for Linux packaging                           |
+| `make build-macos`          | Convenience wrapper for signed macOS packaging                    |
+| `make build-macos-unsigned` | Convenience wrapper for unsigned macOS packaging                  |
 
 ## Contributor Notes
 

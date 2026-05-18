@@ -44,10 +44,16 @@ test('versioned docs reuse current VitePress internals for old page snapshots', 
 
 test('versioned docs build reports archive cache hits and rebuilds', () => {
   expect(versionedBuildContents).toContain(
-    'console.info(`[docs] archive cache key ${sharedInternalsHash.slice(0, 12)}`)',
+    'console.info(`[docs] archive cache key ${archiveCacheKey.slice(0, 12)}`)',
   );
   expect(versionedBuildContents).toContain('console.info(`[docs] cache hit ${version}`)');
   expect(versionedBuildContents).toContain('console.info(`[docs] rebuilding archive ${version}`)');
+});
+
+test('versioned docs build deduplicates public assets and prunes stale workspaces', () => {
+  expect(versionedBuildContents).toContain('dedupeVersionedPublicAssets({');
+  expect(versionedBuildContents).toContain('pruneArchiveCacheGenerations({');
+  expect(versionedBuildContents).toContain('rmSync(buildRoot, { recursive: true, force: true });');
 });
 
 test('versioned docs archive cache key ignores generated and test-only files', () => {
