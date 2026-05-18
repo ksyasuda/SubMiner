@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readdirSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   buildVersionManifest,
@@ -66,7 +66,9 @@ function copyCurrentDocsSite(targetDir: string) {
   cpSync(currentDocsSite, join(targetDir, 'docs-site'), {
     recursive: true,
     dereference: false,
-    filter: (source) => !source.includes('/node_modules') && !source.includes('/.vitepress/dist'),
+    filter: (source) =>
+      !/[\\/]node_modules([\\/]|$)/.test(source) &&
+      !/[\\/]\\.vitepress[\\/]dist([\\/]|$)/.test(source),
   });
 }
 
@@ -157,13 +159,12 @@ function assertCloudflarePagesLimits(root: string) {
   function walk(dir: string) {
     for (const entry of readdirSync(dir)) {
       const path = join(dir, entry);
-      const stat = statSync(path);
-      if (stat.isDirectory()) {
-        walk(path);
+      const stat = lstatSync(path);
+      if (stat.isSymbolicLink()) {
         continue;
       }
-      if (stat.isSymbolicLink()) {
-        readlinkSync(path);
+      if (stat.isDirectory()) {
+        walk(path);
         continue;
       }
 
