@@ -603,6 +603,40 @@ end
 do
 	local recorded, err = run_plugin_scenario({
 		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+			auto_start_visible_overlay = "no",
+		},
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for restart ready restore scenario: " .. tostring(err))
+	assert_true(
+		recorded.script_messages["subminer-toggle"] ~= nil,
+		"subminer-toggle script message not registered"
+	)
+	assert_true(
+		recorded.script_messages["subminer-restart"] ~= nil,
+		"subminer-restart script message not registered"
+	)
+	assert_true(
+		recorded.script_messages["subminer-autoplay-ready"] ~= nil,
+		"subminer-autoplay-ready script message not registered"
+	)
+	recorded.script_messages["subminer-toggle"]()
+	recorded.script_messages["subminer-restart"]()
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		"manual restart should re-assert visible overlay on readiness even when auto-start visibility is disabled"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
 		stop_command_fails = true,
 		stop_command_stderr = "stop refused",
 		option_overrides = {

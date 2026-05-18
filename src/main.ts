@@ -500,7 +500,11 @@ import {
   createElectronAppUpdater,
   isNativeUpdaterSupported,
 } from './main/runtime/update/app-updater';
-import { createElectronNetFetch, createGlobalFetch } from './main/runtime/update/fetch-adapter';
+import {
+  createCurlFetch,
+  createElectronNetFetch,
+  createGlobalFetch,
+} from './main/runtime/update/fetch-adapter';
 import { createCurlHttpExecutor } from './main/runtime/update/curl-http-executor';
 import { createFetchHttpExecutor } from './main/runtime/update/fetch-http-executor';
 import {
@@ -537,6 +541,7 @@ import {
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
 import { isYoutubePlaybackActive } from './main/runtime/youtube-playback';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
+import { reloadOverlayWindowsForYomitanContentScripts } from './main/runtime/yomitan-extension-overlay-reload';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
 import {
   getPreferredYomitanAnkiServerUrl as getPreferredYomitanAnkiServerUrlRuntime,
@@ -4739,6 +4744,7 @@ const electronNetFetch = createElectronNetFetch({
   fetch: (url, init) => net.fetch(url, init as RequestInit),
 });
 const globalFetchForUpdater = createGlobalFetch();
+const curlFetch = createCurlFetch();
 
 function createNativeUpdaterHttpExecutor() {
   if (process.platform === 'darwin') {
@@ -4754,6 +4760,7 @@ function getFetchForUpdater() {
   if (process.platform === 'win32') {
     return globalFetchForUpdater;
   }
+  if (process.platform === 'linux') return curlFetch;
   return electronNetFetch;
 }
 
@@ -5819,6 +5826,15 @@ const yomitanExtensionRuntime = createYomitanExtensionRuntime({
   getLoadInFlight: () => yomitanLoadInFlight,
   setLoadInFlight: (promise) => {
     yomitanLoadInFlight = promise;
+  },
+  onYomitanExtensionLoaded: () => {
+    const reloaded = reloadOverlayWindowsForYomitanContentScripts(
+      getOverlayWindows(),
+      (message, error) => logger.warn(message, error),
+    );
+    if (reloaded > 0) {
+      logger.debug(`Reloaded ${reloaded} overlay window(s) after Yomitan extension load.`);
+    }
   },
 });
 const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =

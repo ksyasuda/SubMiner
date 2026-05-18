@@ -164,10 +164,15 @@ function M.create(ctx)
 
 	local function notify_auto_play_ready()
 		release_auto_play_ready_gate("tokenization-ready")
-		if state.suppress_ready_overlay_restore then
+		local force_ready_overlay_restore = state.force_ready_overlay_restore == true
+		state.force_ready_overlay_restore = false
+		if state.suppress_ready_overlay_restore and not force_ready_overlay_restore then
 			return
 		end
-		if state.overlay_running and resolve_visible_overlay_startup() then
+		if force_ready_overlay_restore then
+			state.suppress_ready_overlay_restore = false
+		end
+		if state.overlay_running and (force_ready_overlay_restore or resolve_visible_overlay_startup()) then
 			run_control_command_async("show-visible-overlay", {
 				socket_path = opts.socket_path,
 			})
@@ -514,6 +519,8 @@ function M.create(ctx)
 
 			state.overlay_running = false
 			state.texthooker_running = false
+			state.suppress_ready_overlay_restore = false
+			state.force_ready_overlay_restore = true
 			disarm_auto_play_ready_gate()
 
 			local start_args = build_command_args("start", {
