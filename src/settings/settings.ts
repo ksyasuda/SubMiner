@@ -20,6 +20,7 @@ import {
   setDraftValue,
   type SettingsDraft,
 } from './settings-model';
+import { getFieldTitleBadges } from './settings-field-layout';
 import { getSubtitleCssManagedConfigPaths, getSubtitleCssScopeForPath } from './subtitle-style-css';
 
 declare global {
@@ -110,24 +111,6 @@ function createElement<K extends keyof HTMLElementTagNameMap>(
     element.className = className;
   }
   return element;
-}
-
-function createFieldMeta(field: ConfigSettingsField): HTMLElement {
-  const meta = createElement('div', 'field-meta');
-  const path = createElement('code');
-  path.textContent = field.configPath;
-  meta.append(path);
-
-  const restart = createElement('span', `restart-chip ${field.restartBehavior}`);
-  restart.textContent = field.restartBehavior === 'hot-reload' ? 'Live' : 'Restart';
-  meta.append(restart);
-
-  if (field.advanced) {
-    const advanced = createElement('span', 'advanced-chip');
-    advanced.textContent = 'Advanced';
-    meta.append(advanced);
-  }
-  return meta;
 }
 
 function valueForField(field: ConfigSettingsField): ConfigSettingsSnapshotValue {
@@ -221,10 +204,17 @@ function renderField(field: ConfigSettingsField): HTMLElement {
   const row = createElement('article', 'field-row');
   const header = createElement('div', 'field-copy');
   const label = createElement('h3');
-  label.textContent = field.label;
+  const labelText = createElement('span', 'field-title-text');
+  labelText.textContent = field.label;
+  label.append(labelText);
+  for (const badge of getFieldTitleBadges(field)) {
+    const badgeEl = createElement('span', badge.className);
+    badgeEl.textContent = badge.text;
+    label.append(badgeEl);
+  }
   const description = createElement('p');
   description.textContent = field.description;
-  header.append(label, description, createFieldMeta(field));
+  header.append(label, description);
 
   const controlWrap = createElement('div', 'field-control');
   controlWrap.append(

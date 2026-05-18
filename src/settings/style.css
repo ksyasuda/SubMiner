@@ -546,11 +546,19 @@ code {
 }
 
 .field-copy h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 5px;
   font-size: 14px;
   font-weight: 700;
   color: var(--ctp-text);
   letter-spacing: -0.005em;
+}
+
+.field-title-text {
+  min-width: 0;
 }
 
 .field-copy p {
@@ -561,16 +569,10 @@ code {
   line-height: 1.55;
 }
 
-.field-meta {
-  display: flex;
-  flex-wrap: wrap;
+.restart-chip {
+  display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.restart-chip,
-.advanced-chip {
   padding: 2px 8px;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -592,12 +594,6 @@ code {
   border-color: rgba(245, 169, 127, 0.42);
   background: rgba(245, 169, 127, 0.1);
   color: var(--ctp-peach);
-}
-
-.advanced-chip {
-  border-color: rgba(198, 160, 246, 0.4);
-  background: rgba(198, 160, 246, 0.1);
-  color: var(--ctp-mauve);
 }
 
 .field-control {
