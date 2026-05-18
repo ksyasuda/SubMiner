@@ -72,9 +72,14 @@ function createContext(): LauncherCommandContext {
     mpvSocketPath: '/tmp/subminer.sock',
     pluginRuntimeConfig: {
       socketPath: '/tmp/subminer.sock',
+      binaryPath: '',
+      backend: 'auto',
       autoStart: true,
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
+      texthookerEnabled: false,
+      aniskipEnabled: true,
+      aniskipButtonKey: 'TAB',
     },
     appPath: '/tmp/SubMiner.AppImage',
     launcherJellyfinConfig: {},
@@ -140,7 +145,7 @@ test('youtube playback launches overlay with app-owned youtube flow args', async
   assert.equal(receivedStartMpvOptions[0]?.disableYoutubeSubtitleAutoLoad, true);
 });
 
-test('plugin auto-start playback marks background app for cleanup when mpv exits', async () => {
+test('plugin auto-start playback leaves app lifetime to managed-playback owner', async () => {
   const context = createContext();
   context.args = {
     ...context.args,
@@ -149,9 +154,14 @@ test('plugin auto-start playback marks background app for cleanup when mpv exits
   };
   context.pluginRuntimeConfig = {
     socketPath: '/tmp/subminer.sock',
+    binaryPath: '',
+    backend: 'auto',
     autoStart: true,
     autoStartVisibleOverlay: false,
     autoStartPauseUntilReady: false,
+    texthookerEnabled: false,
+    aniskipEnabled: true,
+    aniskipButtonKey: 'TAB',
   };
   const appPath = context.appPath ?? '';
   state.appPath = appPath;
@@ -164,7 +174,7 @@ test('plugin auto-start playback marks background app for cleanup when mpv exits
   mpvProc.exitCode = null;
   mpvProc.killed = false;
   mpvProc.kill = () => true;
-  let cleanupSawManagedOverlay = false;
+  let cleanupSawManagedOverlay = true;
 
   try {
     await runPlaybackCommandWithDeps(context, {
@@ -190,7 +200,7 @@ test('plugin auto-start playback marks background app for cleanup when mpv exits
       getMpvProc: () => mpvProc as NonNullable<typeof state.mpvProc>,
     });
 
-    assert.equal(cleanupSawManagedOverlay, true);
+    assert.equal(cleanupSawManagedOverlay, false);
   } finally {
     state.appPath = '';
     state.overlayManagedByLauncher = false;

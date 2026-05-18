@@ -10,7 +10,10 @@ import type {
 } from '../../types/settings';
 import type { ReloadConfigStrictResult } from '../../config';
 import { classifyConfigHotReloadDiff } from '../../core/services/config-hot-reload';
-import { createSaveConfigSettingsPatchHandler } from './config-settings-save';
+import {
+  createSaveConfigSettingsPatchHandler,
+  type ConfigSettingsHotReloadDiff,
+} from './config-settings-save';
 import {
   createOpenConfigSettingsWindowHandler,
   type ConfigSettingsWindowLike,
@@ -46,6 +49,7 @@ export interface ConfigSettingsRuntimeDeps<TWindow extends ConfigSettingsWindowL
   getConfig(): ResolvedConfig;
   getWarnings(): ConfigValidationWarning[];
   reloadConfigStrict(): ReloadConfigStrictResult;
+  onHotReloadApplied?: (diff: ConfigSettingsHotReloadDiff, config: ResolvedConfig) => void;
   getSettingsWindow(): TWindow | null;
   setSettingsWindow(window: TWindow | null): void;
   createSettingsWindow(): TWindow;
@@ -122,6 +126,7 @@ export function createConfigSettingsRuntime<TWindow extends ConfigSettingsWindow
     reloadConfigStrict: () => deps.reloadConfigStrict(),
     classifyDiff: (previous, next) => classifyConfigHotReloadDiff(previous, next),
     getRestartRequiredSections: (fields) => getRestartRequiredSettingsSections(deps.fields, fields),
+    onHotReloadApplied: deps.onHotReloadApplied,
   });
 
   function ensureConfigFileExists(): string {
@@ -199,20 +204,24 @@ export function createConfigSettingsRuntime<TWindow extends ConfigSettingsWindow
     );
     deps.ipcMain.handle(
       deps.ipcChannels.getConfigSettingsAnkiDeckFieldNames,
-      (_event, deckName, draftUrl) =>
-        typeof deckName === 'string'
-          ? getAnkiList(draftUrl, (client) => client.fieldNamesForDeck(deckName))
-          : invalidAnkiListResult('Deck name is required.'),
+      (_event, deckName, draftUrl) => {
+        const normalizedDeckName = typeof deckName === 'string' ? deckName.trim() : '';
+        return normalizedDeckName
+          ? getAnkiList(draftUrl, (client) => client.fieldNamesForDeck(normalizedDeckName))
+          : invalidAnkiListResult('Deck name is required.');
+      },
     );
     deps.ipcMain.handle(deps.ipcChannels.getConfigSettingsAnkiModelNames, (_event, draftUrl) =>
       getAnkiList(draftUrl, (client) => client.modelNames()),
     );
     deps.ipcMain.handle(
       deps.ipcChannels.getConfigSettingsAnkiModelFieldNames,
-      (_event, modelName, draftUrl) =>
-        typeof modelName === 'string'
-          ? getAnkiList(draftUrl, (client) => client.modelFieldNames(modelName))
-          : invalidAnkiListResult('Note type is required.'),
+      (_event, modelName, draftUrl) => {
+        const normalizedModelName = typeof modelName === 'string' ? modelName.trim() : '';
+        return normalizedModelName
+          ? getAnkiList(draftUrl, (client) => client.modelFieldNames(normalizedModelName))
+          : invalidAnkiListResult('Note type is required.');
+      },
     );
   }
 

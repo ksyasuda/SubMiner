@@ -1912,10 +1912,10 @@ body.subtitle-sidebar-embedded-open .subtitle-sidebar-modal {
   margin-left: auto;
   font-family: var(
     --subtitle-sidebar-font-family,
-    'M PLUS 1',
-    'Noto Sans CJK JP',
-    'Hiragino Sans',
-    sans-serif
+    Hiragino Sans,
+    M PLUS 1,
+    Source Han Sans JP,
+    Noto Sans CJK JP
   );
   font-size: var(--subtitle-sidebar-font-size, 16px);
   background: var(--subtitle-sidebar-background-color, rgba(73, 77, 100, 0.9));
@@ -2062,7 +2062,7 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
 }
 
 .subtitle-sidebar-timestamp {
-  font-size: calc(var(--subtitle-sidebar-font-size, 16px) * 0.72);
+  font-size: 0.72em;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.03em;

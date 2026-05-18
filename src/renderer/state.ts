@@ -14,7 +14,7 @@ import type {
   CharacterDictionarySelectionSnapshot,
   PrimarySubMode,
   SubtitlePosition,
-  SubtitleSidebarConfig,
+  SubtitleSidebarSnapshotConfig,
   SubtitleCue,
   SubsyncSourceTrack,
   YoutubePickerOpenPayload,
@@ -98,7 +98,7 @@ export type RendererState = {
   subtitleSidebarToggleKey: string;
   subtitleSidebarPauseVideoOnHover: boolean;
   subtitleSidebarAutoScroll: boolean;
-  subtitleSidebarConfig: Required<SubtitleSidebarConfig> | null;
+  subtitleSidebarConfig: SubtitleSidebarSnapshotConfig | null;
   subtitleSidebarManualScrollUntilMs: number;
   subtitleSidebarPausedByHover: boolean;
 

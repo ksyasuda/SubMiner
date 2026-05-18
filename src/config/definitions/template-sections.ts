@@ -2,9 +2,10 @@ import { ConfigTemplateSection } from './shared';
 
 const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
-    title: 'Overlay Auto-Start',
+    title: 'Visible Overlay Auto-Start',
     description: [
-      'When overlay connects to mpv, automatically show overlay and hide mpv subtitles.',
+      'Show the visible subtitle overlay automatically after managed mpv playback starts SubMiner.',
+      'SubMiner can still auto-start in the background when this is false.',
     ],
     key: 'auto_start_overlay',
   },
@@ -166,7 +167,9 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'MPV Launcher',
     description: [
-      'Optional mpv.exe override for Windows playback entry points.',
+      'SubMiner-managed mpv launch and bundled plugin options.',
+      'Set mpv.socketPath to the IPC socket used by the launcher, Electron app, and bundled plugin.',
+      'autoStartSubMiner starts SubMiner in the background; auto_start_overlay only controls visible overlay display.',
       'Set mpv.launchMode to choose normal, maximized, or fullscreen SubMiner-managed mpv playback.',
       'Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.',
     ],

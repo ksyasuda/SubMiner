@@ -56,6 +56,51 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
   assert.ok(logs.some((entry) => entry.includes('Launched mpv for Jellyfin playback')));
 });
 
+test('createLaunchMpvIdleForJellyfinPlaybackHandler forwards runtime plugin config', () => {
+  const spawnedArgs: string[][] = [];
+  const launch = createLaunchMpvIdleForJellyfinPlaybackHandler({
+    getSocketPath: () => '/tmp/subminer.sock',
+    getLaunchMode: () => 'normal',
+    platform: 'linux',
+    execPath: '/opt/SubMiner/SubMiner.AppImage',
+    getPluginRuntimeConfig: () => ({
+      socketPath: '/tmp/ignored-config.sock',
+      binaryPath: '/custom/SubMiner.AppImage',
+      backend: 'x11',
+      autoStart: true,
+      autoStartVisibleOverlay: false,
+      autoStartPauseUntilReady: false,
+      texthookerEnabled: false,
+      aniskipEnabled: true,
+      aniskipButtonKey: 'F8',
+    }),
+    defaultMpvLogPath: '/tmp/mp.log',
+    defaultMpvArgs: ['--sid=auto'],
+    removeSocketPath: () => {},
+    spawnMpv: (args) => {
+      spawnedArgs.push(args);
+      return {
+        on: () => {},
+        unref: () => {},
+      };
+    },
+    logWarn: () => {},
+    logInfo: () => {},
+  });
+
+  launch();
+  const scriptOpts = spawnedArgs[0]?.find((arg) => arg.startsWith('--script-opts='));
+  assert.match(scriptOpts ?? '', /subminer-binary_path=\/custom\/SubMiner\.AppImage/);
+  assert.match(scriptOpts ?? '', /subminer-socket_path=\/tmp\/subminer\.sock/);
+  assert.match(scriptOpts ?? '', /subminer-backend=x11/);
+  assert.match(scriptOpts ?? '', /subminer-auto_start=yes/);
+  assert.match(scriptOpts ?? '', /subminer-auto_start_visible_overlay=no/);
+  assert.match(scriptOpts ?? '', /subminer-auto_start_pause_until_ready=no/);
+  assert.match(scriptOpts ?? '', /subminer-texthooker_enabled=no/);
+  assert.match(scriptOpts ?? '', /subminer-aniskip_enabled=yes/);
+  assert.match(scriptOpts ?? '', /subminer-aniskip_button_key=F8/);
+});
+
 test('createEnsureMpvConnectedForJellyfinPlaybackHandler auto-launches once', async () => {
   let autoLaunchInFlight: Promise<boolean> | null = null;
   let launchCalls = 0;

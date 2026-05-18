@@ -182,6 +182,13 @@ export function buildSubtitleConfigOptionRegistry(
       description: 'Auto-scroll the active subtitle cue into view while playback advances.',
     },
     {
+      path: 'subtitleSidebar.css',
+      kind: 'object',
+      defaultValue: defaultConfig.subtitleSidebar.css,
+      description:
+        'CSS declaration object applied to the subtitle sidebar. Includes color, background-color, and all font properties.',
+    },
+    {
       path: 'subtitleSidebar.maxWidth',
       kind: 'number',
       defaultValue: defaultConfig.subtitleSidebar.maxWidth,

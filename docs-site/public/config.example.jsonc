@@ -7,10 +7,11 @@
 {
 
   // ==========================================
-  // Overlay Auto-Start
-  // When overlay connects to mpv, automatically show overlay and hide mpv subtitles.
+  // Visible Overlay Auto-Start
+  // Show the visible subtitle overlay automatically after managed mpv playback starts SubMiner.
+  // SubMiner can still auto-start in the background when this is false.
   // ==========================================
-  "auto_start_overlay": false, // Auto-start the subtitle overlay window when SubMiner launches. Values: true | false
+  "auto_start_overlay": false, // Show the visible subtitle overlay automatically when the bundled mpv plugin starts SubMiner. Values: true | false
 
   // ==========================================
   // Texthooker Server
@@ -379,6 +380,8 @@
     "fontKerning": "normal", // Font kerning setting.
     "textRendering": "geometricPrecision", // Text rendering setting.
     "textShadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
+    "paintOrder": "", // Paint order setting.
+    "WebkitTextStroke": "", // Webkit text stroke setting.
     "fontStyle": "normal", // Font style setting.
     "backgroundColor": "transparent", // Background color setting.
     "backdropFilter": "blur(6px)", // Backdrop filter setting.
@@ -408,7 +411,7 @@
     }, // Frequency dictionary setting.
     "secondary": {
       "css": {}, // CSS declaration object applied to secondary subtitles after normal subtitle style defaults.
-      "fontFamily": "Inter, Noto Sans, Helvetica Neue, sans-serif", // Font family setting.
+      "fontFamily": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.
       "fontSize": 24, // Font size setting.
       "fontColor": "#cad3f5", // Font color setting.
       "lineHeight": 1.35, // Line height setting.
@@ -417,6 +420,8 @@
       "fontKerning": "normal", // Font kerning setting.
       "textRendering": "geometricPrecision", // Text rendering setting.
       "textShadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
+      "paintOrder": "", // Paint order setting.
+      "WebkitTextStroke": "", // Webkit text stroke setting.
       "backgroundColor": "transparent", // Background color setting.
       "backdropFilter": "blur(6px)", // Backdrop filter setting.
       "fontWeight": "600", // Font weight setting.
@@ -436,11 +441,12 @@
     "toggleKey": "Backslash", // KeyboardEvent.code used to toggle the subtitle sidebar open and closed.
     "pauseVideoOnHover": false, // Pause mpv while hovering the subtitle sidebar, then resume on leave. Values: true | false
     "autoScroll": true, // Auto-scroll the active subtitle cue into view while playback advances. Values: true | false
+    "css": {}, // CSS declaration object applied to the subtitle sidebar. Includes color, background-color, and all font properties.
     "maxWidth": 420, // Maximum sidebar width in CSS pixels.
     "opacity": 0.95, // Base opacity applied to the sidebar shell.
     "backgroundColor": "rgba(73, 77, 100, 0.9)", // Background color for the subtitle sidebar shell.
     "textColor": "#cad3f5", // Default cue text color in the subtitle sidebar.
-    "fontFamily": "\"M PLUS 1\", \"Noto Sans CJK JP\", sans-serif", // Font family used for subtitle sidebar cue text.
+    "fontFamily": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP", // Font family used for subtitle sidebar cue text.
     "fontSize": 16, // Base font size for subtitle sidebar cue text in CSS pixels.
     "timestampColor": "#a5adcb", // Timestamp color in the subtitle sidebar.
     "activeLineColor": "#f5bde6", // Text color for the active subtitle cue.
@@ -599,14 +605,23 @@
 
   // ==========================================
   // MPV Launcher
-  // Optional mpv.exe override for Windows playback entry points.
+  // SubMiner-managed mpv launch and bundled plugin options.
+  // Set mpv.socketPath to the IPC socket used by the launcher, Electron app, and bundled plugin.
+  // autoStartSubMiner starts SubMiner in the background; auto_start_overlay only controls visible overlay display.
   // Set mpv.launchMode to choose normal, maximized, or fullscreen SubMiner-managed mpv playback.
   // Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.
   // ==========================================
   "mpv": {
     "executablePath": "", // Optional absolute path to mpv.exe for Windows launch flows. Leave empty to auto-discover from SUBMINER_MPV_PATH or PATH.
-    "launchMode": "normal" // Default window state for SubMiner-managed mpv launches. Values: normal | maximized | fullscreen
-  }, // Optional mpv.exe override for Windows playback entry points.
+    "launchMode": "normal", // Default window state for SubMiner-managed mpv launches. Values: normal | maximized | fullscreen
+    "socketPath": "/tmp/subminer-socket", // mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin.
+    "backend": "auto", // Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform. Values: auto | hyprland | sway | x11 | macos | windows
+    "autoStartSubMiner": true, // Start SubMiner in the background when SubMiner-managed mpv loads a file. Values: true | false
+    "pauseUntilOverlayReady": true, // Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness. Values: true | false
+    "subminerBinaryPath": "", // Optional SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path.
+    "aniskipEnabled": true, // Enable AniSkip intro detection and skip markers in the bundled mpv plugin. Values: true | false
+    "aniskipButtonKey": "TAB" // mpv key used to trigger the AniSkip button while the skip marker is visible.
+  }, // SubMiner-managed mpv launch and bundled plugin options.
 
   // ==========================================
   // Jellyfin

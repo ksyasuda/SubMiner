@@ -1,6 +1,6 @@
 import type { Keybinding } from '../../types';
 import type { ShortcutsConfig } from '../../types';
-import { SPECIAL_COMMANDS } from '../../config/definitions';
+import { SPECIAL_COMMANDS } from '../../config/definitions/shared';
 import type { ModalStateReader, RendererContext } from '../context';
 
 type SessionHelpBindingInfo = {

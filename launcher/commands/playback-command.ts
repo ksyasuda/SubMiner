@@ -7,7 +7,6 @@ import { collectVideos, showFzfMenu, showRofiMenu } from '../picker.js';
 import {
   cleanupPlaybackSession,
   launchAppCommandDetached,
-  markOverlayManagedByLauncher,
   resolveLauncherRuntimePluginPath,
   startMpv,
   startOverlay,
@@ -238,6 +237,11 @@ export async function runPlaybackCommandWithDeps(
       startPaused: shouldPauseUntilOverlayReady || isAppOwnedYoutubeFlow,
       disableYoutubeSubtitleAutoLoad: isAppOwnedYoutubeFlow,
       runtimePluginPath: resolveLauncherRuntimePluginPath({ appPath, scriptPath }),
+      runtimePluginConfig: {
+        ...pluginRuntimeConfig,
+        backend: args.backend,
+        texthookerEnabled: args.useTexthooker && pluginRuntimeConfig.texthookerEnabled,
+      },
     },
   );
 
@@ -263,7 +267,6 @@ export async function runPlaybackCommandWithDeps(
         : [],
     );
   } else if (pluginAutoStartEnabled) {
-    markOverlayManagedByLauncher(appPath);
     if (ready) {
       deps.log('info', args.logLevel, 'MPV IPC socket ready, relying on mpv plugin auto-start');
     } else {

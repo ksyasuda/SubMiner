@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import type { PathLike } from 'node:fs';
 import test from 'node:test';
 import {
   isCompiledMacOSHelperCurrent,
@@ -34,27 +32,22 @@ test('parseMacOSHelperOutput parses inactive state without geometry', () => {
 });
 
 test('isCompiledMacOSHelperCurrent rejects binaries older than the Swift source', () => {
-  const tempDir = mkdtempSync(join(tmpdir(), 'subminer-macos-helper-'));
-  try {
-    const binaryPath = join(tempDir, 'get-mpv-window-macos');
-    const sourcePath = join(tempDir, 'get-mpv-window-macos.swift');
-    writeFileSync(binaryPath, 'binary');
-    writeFileSync(sourcePath, 'source');
+  const binaryPath = '/tmp/get-mpv-window-macos';
+  const sourcePath = '/tmp/get-mpv-window-macos.swift';
+  const statSync = (binaryMtimeMs: number, sourceMtimeMs: number) => (targetPath: PathLike) =>
+    ({
+      mtimeMs: String(targetPath) === binaryPath ? binaryMtimeMs : sourceMtimeMs,
+    }) as never;
+  const helperFs = {
+    existsSync: () => true,
+    statSync: statSync(1_000, 2_000),
+  };
 
-    const older = new Date('2026-01-01T00:00:00Z');
-    const newer = new Date('2026-01-01T00:00:05Z');
-    utimesSync(binaryPath, older, older);
-    utimesSync(sourcePath, newer, newer);
+  assert.equal(isCompiledMacOSHelperCurrent(binaryPath, sourcePath, helperFs), false);
 
-    assert.equal(isCompiledMacOSHelperCurrent(binaryPath, sourcePath), false);
+  helperFs.statSync = statSync(2_000, 1_000);
 
-    utimesSync(binaryPath, newer, newer);
-    utimesSync(sourcePath, older, older);
-
-    assert.equal(isCompiledMacOSHelperCurrent(binaryPath, sourcePath), true);
-  } finally {
-    rmSync(tempDir, { recursive: true, force: true });
-  }
+  assert.equal(isCompiledMacOSHelperCurrent(binaryPath, sourcePath, helperFs), true);
 });
 
 test('MacOSWindowTracker slows polling while focused target is stable', async () => {

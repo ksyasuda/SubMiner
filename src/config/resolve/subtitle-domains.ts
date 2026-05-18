@@ -521,6 +521,19 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       ...(src.subtitleSidebar as ResolvedConfig['subtitleSidebar']),
     };
 
+    const css = asCssDeclarations((src.subtitleSidebar as { css?: unknown }).css);
+    if (css !== undefined) {
+      resolved.subtitleSidebar.css = css;
+    } else if ((src.subtitleSidebar as { css?: unknown }).css !== undefined) {
+      resolved.subtitleSidebar.css = fallback.css;
+      warn(
+        'subtitleSidebar.css',
+        (src.subtitleSidebar as { css?: unknown }).css,
+        resolved.subtitleSidebar.css,
+        'Expected an object whose values are CSS declaration strings.',
+      );
+    }
+
     const enabled = asBoolean((src.subtitleSidebar as { enabled?: unknown }).enabled);
     if (enabled !== undefined) {
       resolved.subtitleSidebar.enabled = enabled;

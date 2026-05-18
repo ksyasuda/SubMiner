@@ -58,14 +58,11 @@ function createSmokeCase(name: string): SmokeCase {
 
   fs.mkdirSync(artifactsDir, { recursive: true });
   fs.mkdirSync(binDir, { recursive: true });
-  fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
   fs.writeFileSync(videoPath, 'fake video fixture');
-  fs.writeFileSync(
-    path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
-    `socket_path=${socketPath}\n`,
-  );
 
   const configDir = getDefaultConfigDir({ xdgConfigHome, homeDir });
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(path.join(configDir, 'config.jsonc'), JSON.stringify({ mpv: { socketPath } }));
   const setupState = createDefaultSetupState();
   setupState.status = 'completed';
   setupState.completedAt = '2026-03-07T00:00:00.000Z';
@@ -356,14 +353,15 @@ test(
   async () => {
     await withSmokeCase('autoplay-ready-gate', async (smokeCase) => {
       fs.writeFileSync(
-        path.join(smokeCase.xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
-        [
-          `socket_path=${smokeCase.socketPath}`,
-          'auto_start=yes',
-          'auto_start_visible_overlay=yes',
-          'auto_start_pause_until_ready=yes',
-          '',
-        ].join('\n'),
+        path.join(getDefaultConfigDir(smokeCase), 'config.jsonc'),
+        JSON.stringify({
+          auto_start_overlay: true,
+          mpv: {
+            socketPath: smokeCase.socketPath,
+            autoStartSubMiner: true,
+            pauseUntilOverlayReady: true,
+          },
+        }),
       );
 
       const env = makeTestEnv(smokeCase);

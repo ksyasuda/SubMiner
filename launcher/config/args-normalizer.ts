@@ -118,7 +118,7 @@ export function createDefaultArgs(
   const youtubeAudioLangs = uniqueNormalizedLangCodes([...primarySubLangs, ...secondarySubLangs]);
 
   const parsed: Args = {
-    backend: 'auto',
+    backend: mpvConfig.backend ?? 'auto',
     directory: '.',
     recursive: false,
     profile: '',

@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { buildMpvLaunchModeArgs } from '../../shared/mpv-launch-mode';
+import { buildSubminerPluginRuntimeScriptOptParts } from '../../shared/subminer-plugin-script-opts';
 import type { MpvLaunchMode } from '../../types/config';
+import type { SubminerPluginRuntimeScriptOptConfig } from '../../shared/subminer-plugin-script-opts';
 import type { InstalledMpvPluginDetection } from './first-run-setup-plugin';
 
 export interface WindowsMpvLaunchDeps {
@@ -102,6 +104,7 @@ export function buildWindowsMpvLaunchArgs(
   binaryPath?: string,
   pluginEntrypointPath?: string,
   launchMode: MpvLaunchMode = 'normal',
+  pluginRuntimeConfig?: SubminerPluginRuntimeScriptOptConfig,
 ): string[] {
   const launchIdle = targets.length === 0;
   const inputIpcServer =
@@ -112,10 +115,18 @@ export function buildWindowsMpvLaunchArgs(
       : null;
   const hasBinaryPath = typeof binaryPath === 'string' && binaryPath.trim().length > 0;
   const shouldPassSubminerScriptOpts = scriptEntrypoint || hasBinaryPath;
-  const scriptOptPairs = shouldPassSubminerScriptOpts
-    ? [`subminer-socket_path=${inputIpcServer.replace(/,/g, '\\,')}`]
-    : [];
-  if (hasBinaryPath) {
+  const scriptOptPairs = pluginRuntimeConfig
+    ? buildSubminerPluginRuntimeScriptOptParts(
+        {
+          ...pluginRuntimeConfig,
+          socketPath: inputIpcServer,
+        },
+        binaryPath ?? '',
+      )
+    : shouldPassSubminerScriptOpts
+      ? [`subminer-socket_path=${inputIpcServer.replace(/,/g, '\\,')}`]
+      : [];
+  if (!pluginRuntimeConfig && hasBinaryPath) {
     scriptOptPairs.unshift(`subminer-binary_path=${binaryPath.trim().replace(/,/g, '\\,')}`);
   }
   const scriptOpts = scriptOptPairs.length > 0 ? `--script-opts=${scriptOptPairs.join(',')}` : null;
@@ -149,6 +160,7 @@ export async function launchWindowsMpv(
   configuredMpvPath?: string,
   launchMode: MpvLaunchMode = 'normal',
   runtimePluginPolicy?: WindowsMpvRuntimePluginPolicy,
+  pluginRuntimeConfig?: SubminerPluginRuntimeScriptOptConfig,
 ): Promise<{ ok: boolean; mpvPath: string }> {
   const normalizedConfiguredPath = normalizeCandidate(configuredMpvPath);
   const mpvPath = resolveWindowsMpvPath(deps, normalizedConfiguredPath);
@@ -192,6 +204,7 @@ export async function launchWindowsMpv(
         binaryPath,
         runtimePluginEntrypointPath,
         launchMode,
+        pluginRuntimeConfig,
       ),
     );
     return { ok: true, mpvPath };

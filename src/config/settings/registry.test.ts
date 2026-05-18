@@ -17,6 +17,17 @@ test('settings registry splits viewing into appearance and behavior categories',
   assert.equal(field('subtitleStyle.primaryDefaultMode').section, 'Subtitle Behavior');
   assert.equal(field('secondarySub.defaultMode').category, 'behavior');
   assert.equal(field('subtitlePosition.yPercent').label, 'Subtitle Position');
+  assert.equal(field('subtitleStyle.frequencyDictionary.mode').label, 'Frequency Mode');
+  assert.equal(field('auto_start_overlay').category, 'behavior');
+  assert.equal(field('auto_start_overlay').section, 'Visible Overlay Auto-Start');
+  assert.equal(field('youtube.primarySubLanguages').category, 'behavior');
+  assert.equal(field('youtube.primarySubLanguages').section, 'YouTube Playback Settings');
+  assert.equal(field('mpv.launchMode').category, 'behavior');
+  assert.equal(field('mpv.launchMode').section, 'MPV Launcher');
+  assert.ok(
+    fields.findIndex((candidate) => candidate.configPath === 'subtitleStyle.primaryDefaultMode') <
+      fields.findIndex((candidate) => candidate.configPath === 'secondarySub.defaultMode'),
+  );
 });
 
 test('settings registry groups annotation display fields by config group', () => {
@@ -40,10 +51,17 @@ test('settings registry routes known words sync, n+1, and frequency config to be
   assert.equal(field('ankiConnect.nPlusOne.minSentenceWords').category, 'behavior');
   assert.equal(field('ankiConnect.nPlusOne.minSentenceWords').section, 'N+1');
   assert.equal(field('subtitleStyle.frequencyDictionary.sourcePath').category, 'behavior');
-  assert.equal(field('subtitleStyle.frequencyDictionary.sourcePath').section, 'Frequency Highlighting');
+  assert.equal(
+    field('subtitleStyle.frequencyDictionary.sourcePath').section,
+    'Frequency Highlighting',
+  );
   assert.equal(field('subtitleStyle.frequencyDictionary.mode').category, 'behavior');
   assert.equal(field('subtitleStyle.frequencyDictionary.matchMode').category, 'behavior');
   assert.equal(field('subtitleStyle.frequencyDictionary.topX').category, 'behavior');
+});
+
+test('settings registry exposes mpv aniskip button as an mpv key learn control', () => {
+  assert.equal(field('mpv.aniskipButtonKey').control, 'mpv-key');
 });
 
 test('settings registry exposes specialized controls for config-assisted inputs', () => {
@@ -54,6 +72,8 @@ test('settings registry exposes specialized controls for config-assisted inputs'
   assert.equal(field('subtitleStyle.css').control, 'css-declarations');
   assert.equal(field('subtitleStyle.secondary.css').control, 'css-declarations');
   assert.equal(field('shortcuts.copySubtitle').control, 'keyboard-shortcut');
+  assert.equal(field('mpv.aniskipButtonKey').control, 'mpv-key');
+  assert.equal(field('subtitleSidebar.css').control, 'css-declarations');
   assert.equal(field('stats.toggleKey').control, 'key-code');
   assert.equal(field('discordPresence.presenceStyle').control, 'select');
 });
@@ -80,6 +100,42 @@ test('settings registry exposes css declaration editor for primary and secondary
   assert.equal(field('subtitleStyle.backgroundColor').settingsHidden, true);
   assert.equal(field('subtitleStyle.hoverTokenColor').settingsHidden, true);
   assert.equal(field('subtitleStyle.hoverTokenBackgroundColor').settingsHidden, true);
+  assert.equal(field('subtitleStyle.paintOrder').settingsHidden, true);
+  assert.equal(field('subtitleStyle.WebkitTextStroke').settingsHidden, true);
+  assert.equal(field('subtitleStyle.knownWordColor').settingsHidden, false);
+  assert.equal(field('subtitleStyle.nPlusOneColor').settingsHidden, false);
+  assert.equal(field('subtitleStyle.nameMatchColor').settingsHidden, false);
+  assert.equal(field('subtitleStyle.jlptColors.N1').settingsHidden, false);
+  assert.equal(field('subtitleStyle.frequencyDictionary.singleColor').settingsHidden, false);
+  assert.equal(field('subtitleStyle.frequencyDictionary.bandedColors').settingsHidden, false);
+});
+
+test('settings registry exposes css declaration editor for subtitle sidebar appearance', () => {
+  const sidebarVisible = fields
+    .filter(
+      (candidate) =>
+        candidate.section === 'Subtitle Sidebar Appearance' && !candidate.settingsHidden,
+    )
+    .map((candidate) => candidate.configPath);
+
+  assert.deepEqual(sidebarVisible, ['subtitleSidebar.css']);
+  assert.equal(field('subtitleSidebar.fontFamily').settingsHidden, true);
+  assert.equal(field('subtitleSidebar.fontSize').settingsHidden, true);
+  assert.equal(field('subtitleSidebar.textColor').settingsHidden, true);
+  assert.equal(field('subtitleSidebar.backgroundColor').settingsHidden, true);
+  assert.equal(field('subtitleSidebar.timestampColor').settingsHidden, true);
+  assert.equal(field('subtitleSidebar.activeLineColor').settingsHidden, true);
+  assert.equal(field('subtitleSidebar.activeLineBackgroundColor').settingsHidden, true);
+  assert.equal(field('subtitleSidebar.hoverLineBackgroundColor').settingsHidden, true);
+  assert.equal(field('subtitleSidebar.enabled').settingsHidden, false);
+  assert.equal(field('subtitleSidebar.layout').settingsHidden, false);
+});
+
+test('settings registry routes playback-related integrations into integrations', () => {
+  assert.equal(field('jimaku.apiBaseUrl').category, 'integrations');
+  assert.equal(field('jimaku.apiBaseUrl').section, 'Jimaku');
+  assert.equal(field('subsync.defaultMode').category, 'integrations');
+  assert.equal(field('subsync.defaultMode').section, 'Subtitle Sync');
 });
 
 test('settings registry puts feature toggles first, then other toggles alphabetically', () => {
@@ -89,10 +145,12 @@ test('settings registry puts feature toggles first, then other toggles alphabeti
     ankiConnect.findIndex((candidate) => candidate.configPath === 'ankiConnect.enabled') <
       ankiConnect.findIndex((candidate) => candidate.configPath === 'ankiConnect.pollingRate'),
   );
-
-  const kikuLapis = fields.filter(
-    (candidate) => candidate.section === 'Kiku/Lapis Features',
+  assert.ok(
+    fields.findIndex((candidate) => candidate.section === 'AnkiConnect') <
+      fields.findIndex((candidate) => candidate.section === 'AnkiConnect Proxy'),
   );
+
+  const kikuLapis = fields.filter((candidate) => candidate.section === 'Kiku/Lapis Features');
   assert.deepEqual(
     kikuLapis.slice(0, 2).map((candidate) => candidate.configPath),
     ['ankiConnect.isLapis.enabled', 'ankiConnect.isKiku.enabled'],

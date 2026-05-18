@@ -153,6 +153,10 @@ export function renderControl(
     return renderKeyboardInput(context, field, 'code');
   }
 
+  if (field.control === 'mpv-key') {
+    return renderKeyboardInput(context, field, 'mpv-key');
+  }
+
   if (field.control === 'known-words-decks') {
     return renderKnownWordsDecksInput(context, field);
   }

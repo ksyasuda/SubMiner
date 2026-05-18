@@ -113,6 +113,7 @@ const windows_helper_1 = require("./window-trackers/windows-helper");
 const args_1 = require("./cli/args");
 const help_1 = require("./cli/help");
 const contracts_1 = require("./shared/ipc/contracts");
+const anki_connect_1 = require("./anki-connect");
 const startup_mode_flags_1 = require("./main/runtime/startup-mode-flags");
 const config_validation_1 = require("./main/config-validation");
 const anilist_1 = require("./main/runtime/domains/anilist");
@@ -197,10 +198,13 @@ const character_dictionary_auto_sync_1 = require("./main/runtime/character-dicti
 const character_dictionary_auto_sync_completion_1 = require("./main/runtime/character-dictionary-auto-sync-completion");
 const character_dictionary_auto_sync_notifications_1 = require("./main/runtime/character-dictionary-auto-sync-notifications");
 const current_media_tokenization_gate_1 = require("./main/runtime/current-media-tokenization-gate");
+const current_subtitle_snapshot_1 = require("./main/runtime/current-subtitle-snapshot");
 const startup_osd_sequencer_1 = require("./main/runtime/startup-osd-sequencer");
 const app_updater_1 = require("./main/runtime/update/app-updater");
 const fetch_adapter_1 = require("./main/runtime/update/fetch-adapter");
+const curl_http_executor_1 = require("./main/runtime/update/curl-http-executor");
 const release_assets_1 = require("./main/runtime/update/release-assets");
+const release_metadata_policy_1 = require("./main/runtime/update/release-metadata-policy");
 const launcher_updater_1 = require("./main/runtime/update/launcher-updater");
 const update_notifications_1 = require("./main/runtime/update/update-notifications");
 const update_dialogs_1 = require("./main/runtime/update/update-dialogs");
@@ -209,8 +213,7 @@ const update_service_1 = require("./main/runtime/update/update-service");
 const support_assets_1 = require("./main/runtime/update/support-assets");
 const subtitle_prefetch_runtime_1 = require("./main/runtime/subtitle-prefetch-runtime");
 const setup_window_factory_1 = require("./main/runtime/setup-window-factory");
-const config_settings_window_1 = require("./main/runtime/config-settings-window");
-const config_settings_save_1 = require("./main/runtime/config-settings-save");
+const config_settings_runtime_1 = require("./main/runtime/config-settings-runtime");
 const youtube_playback_1 = require("./main/runtime/youtube-playback");
 const yomitan_profile_policy_1 = require("./main/runtime/yomitan-profile-policy");
 const yomitan_read_only_log_1 = require("./main/runtime/yomitan-read-only-log");
@@ -219,7 +222,6 @@ const state_1 = require("./main/state");
 const anilist_url_guard_1 = require("./main/anilist-url-guard");
 const config_2 = require("./config");
 const path_resolution_1 = require("./config/path-resolution");
-const jsonc_edit_1 = require("./config/settings/jsonc-edit");
 const registry_2 = require("./config/settings/registry");
 const subtitle_cue_parser_1 = require("./core/services/subtitle-cue-parser");
 const subtitle_prefetch_1 = require("./core/services/subtitle-prefetch");
@@ -293,7 +295,7 @@ const texthookerService = new services_1.Texthooker(() => {
     const config = getResolvedConfig();
     const characterDictionaryEnabled = config.anilist.characterDictionary.enabled &&
         yomitanProfilePolicy.isCharacterDictionaryEnabled();
-    const knownAndNPlusOneEnabled = getRuntimeBooleanOption('subtitle.annotation.nPlusOne', config.ankiConnect.knownWords.highlightEnabled);
+    const knownAndNPlusOneEnabled = getRuntimeBooleanOption('subtitle.annotation.nPlusOne', config.ankiConnect.nPlusOne.enabled);
     return {
         enableKnownWordColoring: knownAndNPlusOneEnabled,
         enableNPlusOneColoring: knownAndNPlusOneEnabled,
@@ -301,8 +303,8 @@ const texthookerService = new services_1.Texthooker(() => {
         enableFrequencyColoring: getRuntimeBooleanOption('subtitle.annotation.frequency', config.subtitleStyle.frequencyDictionary.enabled),
         enableJlptColoring: getRuntimeBooleanOption('subtitle.annotation.jlpt', config.subtitleStyle.enableJlpt),
         characterDictionaryEnabled,
-        knownWordColor: config.ankiConnect.knownWords.color,
-        nPlusOneColor: config.ankiConnect.nPlusOne.nPlusOne,
+        knownWordColor: config.subtitleStyle.knownWordColor,
+        nPlusOneColor: config.subtitleStyle.nPlusOneColor,
         nameMatchColor: config.subtitleStyle.nameMatchColor,
         hoverTokenColor: config.subtitleStyle.hoverTokenColor,
         hoverTokenBackgroundColor: config.subtitleStyle.hoverTokenBackgroundColor,
@@ -732,6 +734,16 @@ const youtubePlaybackRuntime = (0, youtube_playback_runtime_1.createYoutubePlayb
         detectInstalledMpvPlugin: detectWindowsInstalledMpvPlugin,
         notifyInstalledPluginDetected: logInstalledMpvPluginDetected,
         resolveInstalledPluginBeforeLaunch: (detection, mpvPath) => promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(mpvPath, detection),
+    }, {
+        socketPath: appState.mpvSocketPath,
+        binaryPath: getResolvedConfig().mpv.subminerBinaryPath,
+        backend: getResolvedConfig().mpv.backend,
+        autoStart: getResolvedConfig().mpv.autoStartSubMiner,
+        autoStartVisibleOverlay: getResolvedConfig().auto_start_overlay,
+        autoStartPauseUntilReady: getResolvedConfig().mpv.pauseUntilOverlayReady,
+        texthookerEnabled: getResolvedConfig().texthooker.launchAtStartup,
+        aniskipEnabled: getResolvedConfig().mpv.aniskipEnabled,
+        aniskipButtonKey: getResolvedConfig().mpv.aniskipButtonKey,
     }),
     waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
     prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
@@ -755,12 +767,6 @@ const createCommandLineLauncherRuntimeOptions = () => ({
     cwd: process.cwd(),
     resourcesPath: process.resourcesPath,
     appExePath: process.execPath,
-});
-(0, first_run_setup_plugin_1.syncInstalledFirstRunPluginBinaryPath)({
-    platform: process.platform,
-    homeDir: os.homedir(),
-    xdgConfigHome: process.env.XDG_CONFIG_HOME,
-    binaryPath: process.execPath,
 });
 const firstRunSetupService = (0, first_run_setup_service_1.createFirstRunSetupService)({
     platform: process.platform,
@@ -1233,80 +1239,15 @@ const buildConfigHotReloadRuntimeMainDepsHandler = (0, overlay_1.createBuildConf
     },
 });
 const configHotReloadRuntime = (0, services_1.createConfigHotReloadRuntime)(buildConfigHotReloadRuntimeMainDepsHandler());
-function getConfigSettingsSnapshot() {
-    return (0, jsonc_edit_1.buildConfigSettingsSnapshot)({
-        configPath: configService.getConfigPath(),
-        rawConfig: configService.getRawConfig(),
-        resolvedConfig: configService.getConfig(),
-        warnings: configService.getWarnings(),
-        fields: configSettingsFields,
-    });
-}
-function isConfigSettingsPatch(value) {
-    if (!value || typeof value !== 'object') {
-        return false;
-    }
-    const operations = value.operations;
-    return (Array.isArray(operations) &&
-        operations.every((operation) => {
-            if (!operation || typeof operation !== 'object') {
-                return false;
-            }
-            const candidate = operation;
-            return ((candidate.op === 'set' || candidate.op === 'reset') &&
-                typeof candidate.path === 'string' &&
-                configSettingsFields.some((field) => field.configPath === candidate.path));
-        }));
-}
-function writeTextFileAtomically(targetPath, content) {
-    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-    const tempPath = path.join(path.dirname(targetPath), `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.tmp`);
-    try {
-        fs.writeFileSync(tempPath, content, 'utf-8');
-        fs.renameSync(tempPath, targetPath);
-    }
-    catch (error) {
-        try {
-            fs.rmSync(tempPath, { force: true });
-        }
-        catch {
-            // Best effort cleanup after a failed atomic write.
-        }
-        throw error;
-    }
-}
-function getRestartRequiredSettingsSections(restartRequiredFields) {
-    const sections = new Set();
-    for (const field of configSettingsFields) {
-        if (restartRequiredFields.some((restartField) => field.configPath === restartField ||
-            field.configPath.startsWith(`${restartField}.`) ||
-            restartField.startsWith(`${field.configPath}.`))) {
-            sections.add(field.section);
-        }
-    }
-    return [...sections].sort();
-}
-const saveConfigSettingsPatch = (0, config_settings_save_1.createSaveConfigSettingsPatchHandler)({
+const configSettingsRuntime = (0, config_settings_runtime_1.createConfigSettingsRuntime)({
+    fields: configSettingsFields,
     getConfigPath: () => configService.getConfigPath(),
-    getCurrentConfig: () => configService.getConfig(),
+    getRawConfig: () => configService.getRawConfig(),
+    getConfig: () => configService.getConfig(),
     getWarnings: () => configService.getWarnings(),
-    getSnapshot: () => getConfigSettingsSnapshot(),
-    fileExists: (targetPath) => fs.existsSync(targetPath),
-    readText: (targetPath) => fs.readFileSync(targetPath, 'utf-8'),
-    writeTextAtomically: (targetPath, content) => writeTextFileAtomically(targetPath, content),
     reloadConfigStrict: () => configService.reloadConfigStrict(),
-    classifyDiff: (previous, next) => (0, services_1.classifyConfigHotReloadDiff)(previous, next),
-    applyHotReload: (diff, config) => applyConfigHotReloadDiff(diff, config),
-    getRestartRequiredSections: (fields) => getRestartRequiredSettingsSections(fields),
-});
-function ensureConfigSettingsFileExists() {
-    const configPath = configService.getConfigPath();
-    if (!fs.existsSync(configPath)) {
-        writeTextFileAtomically(configPath, '{}\n');
-    }
-    return configPath;
-}
-const openConfigSettingsWindow = (0, config_settings_window_1.createOpenConfigSettingsWindowHandler)({
+    defaultAnkiConnectUrl: config_2.DEFAULT_CONFIG.ankiConnect.url,
+    createAnkiClient: (url) => new anki_connect_1.AnkiConnectClient(url),
     getSettingsWindow: () => appState.configSettingsWindow,
     setSettingsWindow: (window) => {
         appState.configSettingsWindow = window;
@@ -1316,26 +1257,13 @@ const openConfigSettingsWindow = (0, config_settings_window_1.createOpenConfigSe
         preloadPath: path.join(__dirname, 'preload-settings.js'),
     }),
     settingsHtmlPath: path.join(__dirname, 'settings', 'index.html'),
+    openPath: (targetPath) => electron_1.shell.openPath(targetPath),
+    ipcMain: electron_1.ipcMain,
+    ipcChannels: contracts_1.IPC_CHANNELS.request,
+    log: (message) => logger.error(message),
 });
-electron_1.ipcMain.handle(contracts_1.IPC_CHANNELS.request.getConfigSettingsSnapshot, () => getConfigSettingsSnapshot());
-electron_1.ipcMain.handle(contracts_1.IPC_CHANNELS.request.saveConfigSettingsPatch, (_event, patch) => {
-    if (!isConfigSettingsPatch(patch)) {
-        return {
-            ok: false,
-            warnings: [],
-            error: 'Invalid config settings patch.',
-            hotReloadFields: [],
-            restartRequiredFields: [],
-            restartRequiredSections: [],
-        };
-    }
-    return saveConfigSettingsPatch(patch);
-});
-electron_1.ipcMain.handle(contracts_1.IPC_CHANNELS.request.openConfigSettingsFile, async () => {
-    const openError = await electron_1.shell.openPath(ensureConfigSettingsFileExists());
-    return openError.length === 0;
-});
-electron_1.ipcMain.handle(contracts_1.IPC_CHANNELS.request.openConfigSettingsWindow, () => openConfigSettingsWindow());
+configSettingsRuntime.registerHandlers();
+const openConfigSettingsWindow = () => configSettingsRuntime.openWindow();
 const buildDictionaryRootsHandler = (0, startup_1.createBuildDictionaryRootsMainHandler)({
     platform: process.platform,
     dirname: __dirname,
@@ -1891,7 +1819,7 @@ function getRuntimeBooleanOption(id, fallback) {
 }
 function shouldInitializeMecabForAnnotations() {
     const config = getResolvedConfig();
-    const nPlusOneEnabled = getRuntimeBooleanOption('subtitle.annotation.nPlusOne', config.ankiConnect.knownWords.highlightEnabled);
+    const nPlusOneEnabled = getRuntimeBooleanOption('subtitle.annotation.nPlusOne', config.ankiConnect.nPlusOne.enabled);
     const jlptEnabled = getRuntimeBooleanOption('subtitle.annotation.jlpt', config.subtitleStyle.enableJlpt);
     const frequencyEnabled = getRuntimeBooleanOption('subtitle.annotation.frequency', config.subtitleStyle.frequencyDictionary.enabled);
     return nPlusOneEnabled || jlptEnabled || frequencyEnabled;
@@ -1916,6 +1844,17 @@ const { getResolvedJellyfinConfig, reportJellyfinRemoteProgress, reportJellyfinR
         getLaunchMode: () => getResolvedConfig().mpv.launchMode,
         platform: process.platform,
         execPath: process.execPath,
+        getPluginRuntimeConfig: () => ({
+            socketPath: appState.mpvSocketPath,
+            binaryPath: getResolvedConfig().mpv.subminerBinaryPath,
+            backend: getResolvedConfig().mpv.backend,
+            autoStart: getResolvedConfig().mpv.autoStartSubMiner,
+            autoStartVisibleOverlay: getResolvedConfig().auto_start_overlay,
+            autoStartPauseUntilReady: getResolvedConfig().mpv.pauseUntilOverlayReady,
+            texthookerEnabled: getResolvedConfig().texthooker.launchAtStartup,
+            aniskipEnabled: getResolvedConfig().mpv.aniskipEnabled,
+            aniskipButtonKey: getResolvedConfig().mpv.aniskipButtonKey,
+        }),
         defaultMpvLogPath: DEFAULT_MPV_LOG_PATH,
         defaultMpvArgs: MPV_JELLYFIN_DEFAULT_ARGS,
         removeSocketPath: (socketPath) => {
@@ -3114,6 +3053,17 @@ const { createMpvClientRuntimeService: createMpvClientRuntimeServiceHandler, upd
         reportJellyfinRemoteStopped: () => {
             void reportJellyfinRemoteStopped();
         },
+        onMpvConnected: () => {
+            if (appState.sessionBindingsInitialized) {
+                (0, services_1.sendMpvCommandRuntime)(appState.mpvClient, [
+                    'script-message',
+                    'subminer-reload-session-bindings',
+                ]);
+            }
+            if (appState.currentSubText.trim()) {
+                subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+            }
+        },
         maybeRunAnilistPostWatchUpdate: (options) => maybeRunAnilistPostWatchUpdate(options),
         recordAnilistMediaDuration: (durationSec) => {
             recordAnilistMediaDuration(durationSec);
@@ -3272,7 +3222,7 @@ const { createMpvClientRuntimeService: createMpvClientRuntimeServiceHandler, upd
             },
             getKnownWordMatchMode: () => appState.ankiIntegration?.getKnownWordMatchMode() ??
                 getResolvedConfig().ankiConnect.knownWords.matchMode,
-            getNPlusOneEnabled: () => getRuntimeBooleanOption('subtitle.annotation.nPlusOne', getResolvedConfig().ankiConnect.knownWords.highlightEnabled),
+            getNPlusOneEnabled: () => getRuntimeBooleanOption('subtitle.annotation.nPlusOne', getResolvedConfig().ankiConnect.nPlusOne.enabled),
             getMinSentenceWordsForNPlusOne: () => getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,
             getJlptLevel: (text) => appState.jlptLevelLookup(text),
             getJlptEnabled: () => getRuntimeBooleanOption('subtitle.annotation.jlpt', getResolvedConfig().subtitleStyle.enableJlpt),
@@ -3698,6 +3648,8 @@ function getUpdateService() {
         isPackaged: electron_1.app.isPackaged,
         log: (message) => logger.info(message),
         getChannel: () => getResolvedConfig().updates.channel,
+        configureHttpExecutor: process.platform === 'darwin' ? () => (0, curl_http_executor_1.createCurlHttpExecutor)() : undefined,
+        disableDifferentialDownload: process.platform === 'darwin',
         isNativeUpdaterSupported: () => (0, app_updater_1.isNativeUpdaterSupported)({
             platform: process.platform,
             isPackaged: electron_1.app.isPackaged,
@@ -3718,7 +3670,7 @@ function getUpdateService() {
         readState: () => updateStateStore.readState(),
         writeState: (state) => updateStateStore.writeState(state),
         checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
-        shouldFetchReleaseMetadata: () => process.platform !== 'darwin',
+        shouldFetchReleaseMetadata: ({ appUpdate }) => (0, release_metadata_policy_1.shouldFetchReleaseMetadataForPlatform)(process.platform, appUpdate),
         fetchLatestStableRelease: (channel) => (0, release_assets_1.fetchLatestStableRelease)({ fetch: getFetchForUpdater(), channel }),
         updateLauncher: (launcherPath, channel, release) => updateLauncherFromSelectedRelease(launcherPath, channel, release),
         showNoUpdateDialog: (version) => updateDialogPresenter.showNoUpdateDialog(version),
@@ -4083,7 +4035,11 @@ const { registerIpcRuntimeHandlers } = (0, composers_1.composeIpcRuntimeHandlers
             openYomitanSettings: () => openYomitanSettings(),
             quitApp: () => requestAppQuit(),
             toggleVisibleOverlay: () => toggleVisibleOverlay(),
-            tokenizeCurrentSubtitle: async () => withCurrentSubtitleTiming(await tokenizeSubtitle(appState.currentSubText)),
+            tokenizeCurrentSubtitle: async () => (0, current_subtitle_snapshot_1.resolveCurrentSubtitleForRenderer)({
+                currentSubText: appState.currentSubText,
+                currentSubtitleData: appState.currentSubtitleData,
+                withCurrentSubtitleTiming: (payload) => withCurrentSubtitleTiming(payload),
+            }),
             getCurrentSubtitleRaw: () => appState.currentSubText,
             getCurrentSubtitleAss: () => appState.currentSubAssText,
             getSubtitleSidebarSnapshot: async () => {
@@ -4387,7 +4343,7 @@ const { runAndApplyStartupState } = (0, composers_1.composeHeadlessStartupHandle
                 (0, utils_2.enforceUnsupportedWaylandMode)(args);
             },
             shouldStartApp: (args) => (0, args_1.shouldStartApp)(args),
-            getDefaultSocketPath: () => getDefaultSocketPath(),
+            getDefaultSocketPath: () => getResolvedConfig().mpv.socketPath || getDefaultSocketPath(),
             defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
             configDir: CONFIG_DIR,
             defaultConfig: config_2.DEFAULT_CONFIG,
@@ -4441,7 +4397,12 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
         tryHandleOverlayShortcutLocalFallback: (input) => overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
         forwardTabToMpv: () => (0, services_1.sendMpvCommandRuntime)(appState.mpvClient, ['keypress', 'TAB']),
         onVisibleWindowBlurred: () => scheduleVisibleOverlayBlurRefresh(),
-        onWindowContentReady: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+        onWindowContentReady: () => {
+            overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+            if (appState.currentSubText.trim()) {
+                subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+            }
+        },
         onWindowClosed: (windowKind) => {
             if (windowKind === 'visible') {
                 cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();

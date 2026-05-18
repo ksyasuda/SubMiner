@@ -44,6 +44,7 @@ export function createKeyboardHandlers(
     actionId: 'copySubtitleMultiple' | 'mineSentenceMultiple';
     timeout: ReturnType<typeof setTimeout> | null;
   } | null = null;
+  let mpvInputForwardingListenersInstalled = false;
 
   const CHORD_MAP = new Map<
     string,
@@ -940,7 +941,7 @@ export function createKeyboardHandlers(
     }
   }
 
-  async function setupMpvInputForwarding(): Promise<void> {
+  async function loadMpvInputForwardingConfig(): Promise<void> {
     const [sessionBindings, shortcuts, statsToggleKey, markWatchedKey] = await Promise.all([
       window.electronAPI.getSessionBindings(),
       window.electronAPI.getConfiguredShortcuts(),
@@ -950,6 +951,42 @@ export function createKeyboardHandlers(
     updateSessionBindings(sessionBindings);
     updateConfiguredShortcuts(shortcuts, statsToggleKey, markWatchedKey);
     syncKeyboardTokenSelection();
+  }
+
+  async function setupMpvInputForwarding(): Promise<void> {
+    installMpvInputForwardingListeners();
+    syncKeyboardTokenSelection();
+
+    let configLoadSettled = false;
+    let configLoadError: unknown = null;
+    const configLoad = loadMpvInputForwardingConfig().then(
+      () => {
+        configLoadSettled = true;
+      },
+      (error) => {
+        configLoadSettled = true;
+        configLoadError = error;
+        console.error('Failed to load overlay keyboard configuration.', error);
+      },
+    );
+
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    if (!configLoadSettled) {
+      void configLoad;
+      return;
+    }
+    if (configLoadError) {
+      return;
+    }
+  }
+
+  function installMpvInputForwardingListeners(): void {
+    if (mpvInputForwardingListenersInstalled) {
+      return;
+    }
+    mpvInputForwardingListenersInstalled = true;
 
     const subtitleMutationObserver = new MutationObserver(() => {
       syncKeyboardTokenSelection();

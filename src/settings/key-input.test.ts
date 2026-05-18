@@ -58,6 +58,23 @@ test('keyboardEventToConfigKey formats bare key-code fields without modifiers', 
   );
 });
 
+test('keyboardEventToConfigKey formats mpv key bindings from learned input', () => {
+  assert.equal(
+    keyboardEventToConfigKey(
+      { code: 'Tab', key: 'Tab', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false },
+      'mpv-key',
+    ),
+    'TAB',
+  );
+  assert.equal(
+    keyboardEventToConfigKey(
+      { code: 'KeyK', key: 'K', ctrlKey: true, altKey: false, shiftKey: true, metaKey: false },
+      'mpv-key',
+    ),
+    'Ctrl+Shift+K',
+  );
+});
+
 test('MPV keybinding rows save default key moves as a disable plus replacement', () => {
   const defaults: Keybinding[] = [{ key: 'Space', command: ['cycle', 'pause'] }];
   const rows = createMpvKeybindingRows(defaults, []);

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
-import { SPECIAL_COMMANDS } from '../../config/definitions';
+import { SPECIAL_COMMANDS } from '../../config/definitions/shared';
 import { createRendererState } from '../state.js';
 import {
   createSessionHelpModal,
@@ -28,6 +30,16 @@ test('session help describes subtitle-delay shift special commands separately fr
 test('session help formats bracket keybindings as physical keys', () => {
   assert.equal(formatSessionHelpKeybinding('Shift+BracketRight'), 'Shift + ]');
   assert.equal(formatSessionHelpKeybinding('Shift+BracketLeft'), 'Shift + [');
+});
+
+test('session help imports browser-safe special command constants', () => {
+  const source = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'renderer', 'modals', 'session-help.ts'),
+    'utf8',
+  );
+
+  assert.match(source, /from ['"]\.\.\/\.\.\/config\/definitions\/shared['"]/);
+  assert.doesNotMatch(source, /from ['"]\.\.\/\.\.\/config\/definitions['"]/);
 });
 
 function createClassList(initialTokens: string[] = []) {

@@ -66,6 +66,27 @@ test('filterSettingsFields searches label, section, and config path', () => {
   assert.deepEqual(filterSettingsFields(fields, { category: 'appearance', query: '' }), []);
 });
 
+test('filterSettingsFields normalizes punctuation in query terms', () => {
+  const nPlusOneFields: ConfigSettingsField[] = [
+    {
+      id: 'ankiConnect.nPlusOne.enabled',
+      label: 'Enable N+1',
+      description: 'Highlight N+1 cards.',
+      configPath: 'ankiConnect.nPlusOne.enabled',
+      category: 'mining-anki',
+      section: 'N+1',
+      control: 'boolean',
+      defaultValue: true,
+      restartBehavior: 'hot-reload',
+    },
+  ];
+
+  assert.deepEqual(
+    filterSettingsFields(nPlusOneFields, { query: 'n+1' }).map((field) => field.configPath),
+    ['ankiConnect.nPlusOne.enabled'],
+  );
+});
+
 test('settings draft tracks dirty set and emits save operations', () => {
   const draft = createSettingsDraft({
     'subtitleStyle.autoPauseVideoOnHover': true,

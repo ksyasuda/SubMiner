@@ -24,6 +24,7 @@ export interface ConfigSettingsSaveDeps {
   reloadConfigStrict(): ReloadConfigStrictResult;
   classifyDiff(prev: ResolvedConfig, next: ResolvedConfig): ConfigSettingsHotReloadDiff;
   getRestartRequiredSections(restartRequiredFields: string[]): string[];
+  onHotReloadApplied?: (diff: ConfigSettingsHotReloadDiff, config: ResolvedConfig) => void;
 }
 
 export function createSaveConfigSettingsPatchHandler(deps: ConfigSettingsSaveDeps) {
@@ -86,6 +87,9 @@ export function createSaveConfigSettingsPatchHandler(deps: ConfigSettingsSaveDep
     }
 
     const diff = deps.classifyDiff(previousConfig, reloadResult.config);
+    if (diff.hotReloadFields.length > 0) {
+      deps.onHotReloadApplied?.(diff, reloadResult.config);
+    }
 
     return {
       ok: true,

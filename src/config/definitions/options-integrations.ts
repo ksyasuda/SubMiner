@@ -282,7 +282,8 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'ankiConnect.nPlusOne.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.nPlusOne.enabled,
-      description: 'Enable N+1 subtitle highlighting (highlights the one unknown word in a sentence). Requires known-word cache data.',
+      description:
+        'Enable N+1 subtitle highlighting (highlights the one unknown word in a sentence). Requires known-word cache data.',
     },
     {
       path: 'ankiConnect.nPlusOne.minSentenceWords',
@@ -447,6 +448,53 @@ export function buildIntegrationConfigOptionRegistry(
       enumValues: MPV_LAUNCH_MODE_VALUES,
       defaultValue: defaultConfig.mpv.launchMode,
       description: 'Default window state for SubMiner-managed mpv launches.',
+    },
+    {
+      path: 'mpv.socketPath',
+      kind: 'string',
+      defaultValue: defaultConfig.mpv.socketPath,
+      description:
+        'mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin.',
+    },
+    {
+      path: 'mpv.backend',
+      kind: 'enum',
+      enumValues: ['auto', 'hyprland', 'sway', 'x11', 'macos', 'windows'],
+      defaultValue: defaultConfig.mpv.backend,
+      description:
+        'Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform.',
+    },
+    {
+      path: 'mpv.autoStartSubMiner',
+      kind: 'boolean',
+      defaultValue: defaultConfig.mpv.autoStartSubMiner,
+      description: 'Start SubMiner in the background when SubMiner-managed mpv loads a file.',
+    },
+    {
+      path: 'mpv.pauseUntilOverlayReady',
+      kind: 'boolean',
+      defaultValue: defaultConfig.mpv.pauseUntilOverlayReady,
+      description:
+        'Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness.',
+    },
+    {
+      path: 'mpv.subminerBinaryPath',
+      kind: 'string',
+      defaultValue: defaultConfig.mpv.subminerBinaryPath,
+      description:
+        'Optional SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path.',
+    },
+    {
+      path: 'mpv.aniskipEnabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.mpv.aniskipEnabled,
+      description: 'Enable AniSkip intro detection and skip markers in the bundled mpv plugin.',
+    },
+    {
+      path: 'mpv.aniskipButtonKey',
+      kind: 'string',
+      defaultValue: defaultConfig.mpv.aniskipButtonKey,
+      description: 'mpv key used to trigger the AniSkip button while the skip marker is visible.',
     },
     {
       path: 'jellyfin.enabled',

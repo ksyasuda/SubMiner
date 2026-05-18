@@ -84,6 +84,7 @@ const JSON_OBJECT_FIELDS = new Set([
   'ankiConnect.knownWords.decks',
   'subtitleStyle.css',
   'subtitleStyle.secondary.css',
+  'subtitleSidebar.css',
 ]);
 
 const SECRET_PATHS = new Set(['ai.apiKey', 'jimaku.apiKey', 'anilist.accessToken']);
@@ -92,8 +93,7 @@ const COLOR_SUFFIXES = new Set(['Color', 'color', 'backgroundColor', 'singleColo
 const SUBTITLE_CSS_MANAGED_CONFIG_PATHS = new Set([
   ...getSubtitleCssManagedConfigPaths('primary'),
   ...getSubtitleCssManagedConfigPaths('secondary'),
-  'subtitleStyle.hoverTokenColor',
-  'subtitleStyle.hoverTokenBackgroundColor',
+  ...getSubtitleCssManagedConfigPaths('sidebar'),
 ]);
 
 const OPTION_BY_PATH = new Map(CONFIG_OPTION_REGISTRY.map((entry) => [entry.path, entry]));
@@ -102,7 +102,6 @@ const CATEGORY_ORDER: ConfigSettingsCategory[] = [
   'appearance',
   'behavior',
   'mining-anki',
-  'playback-sources',
   'input',
   'integrations',
   'tracking-app',
@@ -118,12 +117,17 @@ const SECTION_ORDER = new Map<string, number>(
     'Playback Pause Behavior',
     'Subtitle Behavior',
     'Subtitle Sidebar Behavior',
+    'Visible Overlay Auto-Start',
+    'YouTube Playback Settings',
+    'MPV Launcher',
     'Note Fields',
     'Media Capture',
     'Kiku/Lapis Features',
     'Anki AI',
-    'AnkiConnect Proxy',
     'AnkiConnect',
+    'AnkiConnect Proxy',
+    'Jimaku',
+    'Subtitle Sync',
     'MPV Keybindings',
     'Overlay Shortcuts',
     'Controller',
@@ -142,11 +146,23 @@ const PATH_ORDER = new Map<string, number>(
     'subtitleStyle.hoverTokenColor',
     'subtitleStyle.hoverTokenBackgroundColor',
     'subtitleStyle.css',
+    'subtitleStyle.primaryDefaultMode',
     'subtitleStyle.secondary.fontColor',
     'subtitleStyle.secondary.backgroundColor',
     'subtitleStyle.secondary.css',
+    'subtitleSidebar.css',
     'secondarySub.defaultMode',
     'secondarySub.secondarySubLanguages',
+    'mpv.autoStartSubMiner',
+    'auto_start_overlay',
+    'mpv.pauseUntilOverlayReady',
+    'mpv.socketPath',
+    'mpv.backend',
+    'mpv.subminerBinaryPath',
+    'mpv.aniskipEnabled',
+    'mpv.aniskipButtonKey',
+    'mpv.launchMode',
+    'mpv.executablePath',
   ].map((path, index) => [path, index]),
 );
 
@@ -177,10 +193,19 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'subtitleStyle.autoPauseVideoOnHover': 'Pause Video On Hover - Subtitles',
   'subtitleStyle.autoPauseVideoOnYomitanPopup': 'Pause Video On Yomitan Popup',
   'subtitleStyle.primaryDefaultMode': 'Primary Subtitle Visibility Mode',
+  'subtitleStyle.frequencyDictionary.mode': 'Frequency Mode',
   'subtitleStyle.css': 'CSS Declarations',
   'subtitleStyle.secondary.css': 'CSS Declarations',
+  'subtitleSidebar.css': 'CSS Declarations',
   'secondarySub.defaultMode': 'Secondary Subtitle Visibility Mode',
   'subtitlePosition.yPercent': 'Subtitle Position',
+  'mpv.executablePath': 'mpv Executable Path',
+  'mpv.subminerBinaryPath': 'SubMiner Binary Path',
+  'mpv.socketPath': 'mpv IPC Socket Path',
+  'mpv.autoStartSubMiner': 'Auto-start SubMiner',
+  'mpv.pauseUntilOverlayReady': 'Pause Until Overlay Ready',
+  'mpv.aniskipEnabled': 'Enable AniSkip',
+  'mpv.aniskipButtonKey': 'AniSkip Button Key',
 };
 
 const DESCRIPTION_OVERRIDES: Record<string, string> = {
@@ -196,6 +221,8 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
     'CSS declarations applied to primary subtitles. Includes color, background-color, and all font properties.',
   'subtitleStyle.secondary.css':
     'CSS declarations applied to secondary subtitles. Includes color, background-color, and all font properties.',
+  'subtitleSidebar.css':
+    'CSS declarations applied to the subtitle sidebar. Includes color, background-color, all font properties, and sidebar CSS variables.',
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -337,14 +364,17 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (path.startsWith('ankiConnect.')) {
     return { category: 'mining-anki', section: 'AnkiConnect' };
   }
-  if (
-    path.startsWith('mpv.') ||
-    path.startsWith('youtube.') ||
-    path.startsWith('youtubeSubgen.') ||
-    path.startsWith('jimaku.') ||
-    path.startsWith('subsync.')
-  ) {
-    return { category: 'playback-sources', section: topSection(path) };
+  if (path === 'auto_start_overlay') {
+    return { category: 'behavior', section: topSection(path) };
+  }
+  if (path.startsWith('mpv.') || path.startsWith('youtube.')) {
+    return { category: 'behavior', section: topSection(path) };
+  }
+  if (path.startsWith('jimaku.')) {
+    return { category: 'integrations', section: topSection(path) };
+  }
+  if (path.startsWith('subsync.')) {
+    return { category: 'integrations', section: topSection(path) };
   }
   if (path === 'stats.toggleKey' || path === 'stats.markWatchedKey') {
     return { category: 'input', section: 'Overlay Shortcuts' };
@@ -380,8 +410,7 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
     path.startsWith('stats.') ||
     path.startsWith('updates.') ||
     path.startsWith('startupWarmups.') ||
-    path.startsWith('logging.') ||
-    path === 'auto_start_overlay'
+    path.startsWith('logging.')
   ) {
     return { category: 'tracking-app', section: topSection(path) };
   }
@@ -399,17 +428,17 @@ function topSection(path: string): string {
     jimaku: 'Jimaku',
     jellyfin: 'Jellyfin',
     logging: 'Logging',
-    mpv: 'mpv launcher',
+    mpv: 'MPV Launcher',
     stats: 'Stats dashboard',
     startupWarmups: 'Startup warmups',
-    subsync: 'Auto subtitle sync',
+    subsync: 'Subtitle Sync',
     texthooker: 'Texthooker',
     updates: 'Updates',
     websocket: 'WebSocket server',
     yomitan: 'Yomitan',
-    youtube: 'YouTube playback',
+    youtube: 'YouTube Playback Settings',
     youtubeSubgen: 'YouTube subtitle generation',
-    auto_start_overlay: 'Overlay startup',
+    auto_start_overlay: 'Visible Overlay Auto-Start',
   };
   return labels[top] ?? humanizePath(top);
 }
@@ -423,6 +452,7 @@ function controlForPath(path: string, value: unknown): ConfigSettingsControl {
   if (path.startsWith('ankiConnect.fields.')) return 'anki-field';
   if (path.startsWith('shortcuts.'))
     return path.endsWith('multiCopyTimeoutMs') ? 'number' : 'keyboard-shortcut';
+  if (path === 'mpv.aniskipButtonKey') return 'mpv-key';
   if (
     path === 'subtitleSidebar.toggleKey' ||
     path === 'stats.toggleKey' ||
@@ -543,8 +573,14 @@ function compareFields(a: ConfigSettingsField, b: ConfigSettingsField): number {
   const sectionName = a.section.localeCompare(b.section);
   if (sectionName !== 0) return sectionName;
 
-  const aSubOrder = a.subsection === undefined ? -1 : (SUBSECTION_ORDER.get(a.subsection) ?? Number.MAX_SAFE_INTEGER);
-  const bSubOrder = b.subsection === undefined ? -1 : (SUBSECTION_ORDER.get(b.subsection) ?? Number.MAX_SAFE_INTEGER);
+  const aSubOrder =
+    a.subsection === undefined
+      ? -1
+      : (SUBSECTION_ORDER.get(a.subsection) ?? Number.MAX_SAFE_INTEGER);
+  const bSubOrder =
+    b.subsection === undefined
+      ? -1
+      : (SUBSECTION_ORDER.get(b.subsection) ?? Number.MAX_SAFE_INTEGER);
   const subsection = aSubOrder - bSubOrder;
   if (subsection !== 0) return subsection;
 

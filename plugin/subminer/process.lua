@@ -199,7 +199,10 @@ function M.create(ctx)
 			table.insert(args, "--socket")
 			table.insert(args, socket_path)
 
-			local should_show_visible = resolve_visible_overlay_startup()
+			local should_show_visible = overrides.show_visible_overlay
+			if should_show_visible == nil then
+				should_show_visible = resolve_visible_overlay_startup()
+			end
 			if should_show_visible then
 				table.insert(args, "--show-visible-overlay")
 			else
@@ -506,7 +509,9 @@ function M.create(ctx)
 			state.texthooker_running = false
 			disarm_auto_play_ready_gate()
 
-			local start_args = build_command_args("start")
+			local start_args = build_command_args("start", {
+				show_visible_overlay = true,
+			})
 			subminer_log("info", "process", "Starting overlay: " .. table.concat(start_args, " "))
 
 			state.overlay_running = true

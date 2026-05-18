@@ -26,10 +26,10 @@ import type {
 } from './integrations';
 import type {
   PrimarySubMode,
+  ResolvedSubtitleSidebarConfig,
   SecondarySubMode,
   SubtitleData,
   SubtitlePosition,
-  SubtitleSidebarConfig,
   SubtitleSidebarSnapshot,
   SubtitleRendererStyleConfig,
   SubtitleStyleConfig,
@@ -345,7 +345,7 @@ export interface ConfigHotReloadPayload {
   sessionBindings: CompiledSessionBinding[];
   sessionBindingWarnings: SessionBindingWarning[];
   subtitleStyle: SubtitleRendererStyleConfig | null;
-  subtitleSidebar: Required<SubtitleSidebarConfig>;
+  subtitleSidebar: ResolvedSubtitleSidebarConfig;
   primarySubMode: PrimarySubMode;
   secondarySubMode: SecondarySubMode;
 }

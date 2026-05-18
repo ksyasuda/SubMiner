@@ -30,6 +30,7 @@ import type {
   FrequencyDictionaryMatchMode,
   FrequencyDictionaryMode,
   NPlusOneMatchMode,
+  ResolvedSubtitleSidebarConfig,
   SecondarySubConfig,
   SubtitlePosition,
   SubtitleSidebarConfig,
@@ -52,10 +53,18 @@ export interface TexthookerConfig {
 }
 
 export type MpvLaunchMode = 'normal' | 'maximized' | 'fullscreen';
+export type MpvBackend = 'auto' | 'hyprland' | 'sway' | 'x11' | 'macos' | 'windows';
 
 export interface MpvConfig {
   executablePath?: string;
   launchMode?: MpvLaunchMode;
+  socketPath?: string;
+  backend?: MpvBackend;
+  autoStartSubMiner?: boolean;
+  pauseUntilOverlayReady?: boolean;
+  subminerBinaryPath?: string;
+  aniskipEnabled?: boolean;
+  aniskipButtonKey?: string;
 }
 
 export type SubsyncMode = 'auto' | 'manual';
@@ -150,6 +159,13 @@ export interface ResolvedConfig {
   mpv: {
     executablePath: string;
     launchMode: MpvLaunchMode;
+    socketPath: string;
+    backend: MpvBackend;
+    autoStartSubMiner: boolean;
+    pauseUntilOverlayReady: boolean;
+    subminerBinaryPath: string;
+    aniskipEnabled: boolean;
+    aniskipButtonKey: string;
   };
   controller: {
     enabled: boolean;
@@ -260,7 +276,7 @@ export interface ResolvedConfig {
       bandedColors: [string, string, string, string, string];
     };
   };
-  subtitleSidebar: Required<SubtitleSidebarConfig>;
+  subtitleSidebar: ResolvedSubtitleSidebarConfig;
   auto_start_overlay: boolean;
   jimaku: JimakuConfig & {
     apiBaseUrl: string;

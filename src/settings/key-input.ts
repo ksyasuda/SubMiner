@@ -1,6 +1,6 @@
 import type { Keybinding } from '../types/runtime';
 
-export type KeyInputMode = 'accelerator' | 'dom-code' | 'code';
+export type KeyInputMode = 'accelerator' | 'dom-code' | 'code' | 'mpv-key';
 
 export interface KeyboardInputLike {
   code: string;
@@ -54,6 +54,31 @@ const ELECTRON_KEY_BY_CODE: Record<string, string> = {
   Tab: 'Tab',
 };
 
+const MPV_KEY_BY_CODE: Record<string, string> = {
+  Backspace: 'BS',
+  Backquote: '`',
+  Backslash: '\\',
+  BracketLeft: '[',
+  BracketRight: ']',
+  Comma: ',',
+  Delete: 'DEL',
+  End: 'END',
+  Enter: 'ENTER',
+  Equal: '=',
+  Escape: 'ESC',
+  Home: 'HOME',
+  Insert: 'INS',
+  Minus: '-',
+  PageDown: 'PGDWN',
+  PageUp: 'PGUP',
+  Period: '.',
+  Quote: "'",
+  Semicolon: ';',
+  Slash: '/',
+  Space: 'SPACE',
+  Tab: 'TAB',
+};
+
 function commandEquals(a: Keybinding['command'], b: Keybinding['command']): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -79,6 +104,17 @@ function electronKeyToken(input: KeyboardInputLike): string | null {
   return ELECTRON_KEY_BY_CODE[input.code] ?? null;
 }
 
+function mpvKeyToken(input: KeyboardInputLike): string | null {
+  if (/^Key[A-Z]$/.test(input.code)) {
+    return input.key.length === 1 ? input.key : input.code.slice(3).toLowerCase();
+  }
+  if (/^Digit[0-9]$/.test(input.code)) return input.code.slice(5);
+  if (/^Numpad[0-9]$/.test(input.code)) return `KP${input.code.slice(6)}`;
+  if (/^F\d{1,2}$/.test(input.code)) return input.code;
+  if (input.code.startsWith('Arrow')) return input.code.replace('Arrow', '').toUpperCase();
+  return MPV_KEY_BY_CODE[input.code] ?? null;
+}
+
 export function keyboardEventToConfigKey(
   input: KeyboardInputLike,
   mode: KeyInputMode,
@@ -92,6 +128,15 @@ export function keyboardEventToConfigKey(
   }
 
   const parts: string[] = [];
+  if (mode === 'mpv-key') {
+    if (input.ctrlKey) parts.push('Ctrl');
+    if (input.altKey) parts.push('Alt');
+    if (input.shiftKey) parts.push('Shift');
+    if (input.metaKey) parts.push('Meta');
+    const key = mpvKeyToken(input);
+    return key ? [...parts, key].join('+') : null;
+  }
+
   if (mode === 'accelerator') {
     if (input.ctrlKey || input.metaKey) parts.push('CommandOrControl');
     if (input.altKey) parts.push('Alt');

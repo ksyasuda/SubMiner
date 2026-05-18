@@ -564,9 +564,44 @@ do
 		process_list = "",
 		option_overrides = {
 			binary_path = binary_path,
+			auto_start = "no",
+			auto_start_visible_overlay = "no",
+		},
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for manual visible restart scenario: " .. tostring(err))
+	local restart_binding = nil
+	for _, candidate in ipairs(recorded.key_bindings) do
+		if candidate.name == "subminer-restart" then
+			restart_binding = candidate
+			break
+		end
+	end
+	assert_true(restart_binding ~= nil, "restart binding should be registered")
+	restart_binding.fn()
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(start_call ~= nil, "manual restart should issue --start command")
+	assert_true(
+		call_has_arg(start_call, "--show-visible-overlay"),
+		"manual restart should bring the visible overlay back after process reload"
+	)
+	assert_true(
+		not call_has_arg(start_call, "--hide-visible-overlay"),
+		"manual restart should not restart into hidden visible-overlay state"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "yes",
+			aniskip_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -608,6 +643,7 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
+			aniskip_enabled = "yes",
 		},
 		files = {
 			[binary_path] = true,
@@ -644,6 +680,7 @@ do
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "yes",
+			aniskip_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -682,6 +719,7 @@ do
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "no",
+			texthooker_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -737,6 +775,7 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
+			aniskip_enabled = "yes",
 		},
 		media_title = "Random Movie",
 		files = {
@@ -765,6 +804,7 @@ do
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "no",
+			texthooker_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -793,6 +833,7 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
+			aniskip_enabled = "yes",
 		},
 		media_title = "Sample Show S01E01",
 		mal_lookup_stdout = "__MAL_FOUND__",
@@ -818,6 +859,7 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
+			aniskip_enabled = "yes",
 		},
 		media_title = "Sample Show S01E01",
 		time_pos = 13,
@@ -852,6 +894,7 @@ do
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "no",
+			texthooker_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -1233,6 +1276,27 @@ do
 	assert_true(
 		not has_property_set(recorded.property_sets, "pause", true),
 		"pause-until-ready gate should not arm when socket_path does not match"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for default config scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(
+		start_call == nil,
+		"plugin should not auto-start from built-in defaults without managed config script opts"
 	)
 end
 

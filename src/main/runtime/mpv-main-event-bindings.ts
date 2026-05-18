@@ -25,6 +25,7 @@ type AnilistPostWatchRunOptions = {
 export function createBindMpvMainEventHandlersHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
   syncOverlayMpvSubtitleSuppression: () => void;
+  onMpvConnected?: () => void;
   resetSubtitleSidebarEmbeddedLayout: () => void;
   scheduleCharacterDictionarySync?: () => void;
   hasInitialPlaybackQuitOnDisconnectArg: () => boolean;
@@ -83,6 +84,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
       syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
+      onConnected: () => deps.onMpvConnected?.(),
       hasInitialPlaybackQuitOnDisconnectArg: () => deps.hasInitialPlaybackQuitOnDisconnectArg(),
       isOverlayRuntimeInitialized: () => deps.isOverlayRuntimeInitialized(),
       shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () =>

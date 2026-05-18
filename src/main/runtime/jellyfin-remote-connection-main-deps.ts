@@ -20,6 +20,7 @@ export function createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler(
     getLaunchMode: () => deps.getLaunchMode(),
     platform: deps.platform,
     execPath: deps.execPath,
+    getPluginRuntimeConfig: deps.getPluginRuntimeConfig,
     defaultMpvLogPath: deps.defaultMpvLogPath,
     defaultMpvArgs: deps.defaultMpvArgs,
     removeSocketPath: (socketPath: string) => deps.removeSocketPath(socketPath),

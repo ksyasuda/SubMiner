@@ -567,9 +567,11 @@ export function buildSubminerScriptOpts(
   logLevel: LogLevel = 'info',
   extraParts: string[] = [],
 ): string {
+  const hasBinaryPath = extraParts.some((part) => part.startsWith('subminer-binary_path='));
+  const hasSocketPath = extraParts.some((part) => part.startsWith('subminer-socket_path='));
   const parts = [
-    `subminer-binary_path=${sanitizeScriptOptValue(appPath)}`,
-    `subminer-socket_path=${sanitizeScriptOptValue(socketPath)}`,
+    ...(hasBinaryPath ? [] : [`subminer-binary_path=${sanitizeScriptOptValue(appPath)}`]),
+    ...(hasSocketPath ? [] : [`subminer-socket_path=${sanitizeScriptOptValue(socketPath)}`]),
     ...extraParts.map(sanitizeScriptOptValue),
   ];
   if (logLevel !== 'info') {

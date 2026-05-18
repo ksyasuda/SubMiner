@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
 import { createKeyboardHandlers } from './keyboard.js';
@@ -108,6 +110,7 @@ function installKeyboardTestGlobals() {
   const mpvCommands: Array<Array<string | number>> = [];
   const sessionActions: Array<{ actionId: string; payload?: unknown }> = [];
   let sessionBindings: CompiledSessionBinding[] = [];
+  let getSessionBindingsImpl: () => Promise<CompiledSessionBinding[]> = async () => sessionBindings;
   let playbackPausedResponse: boolean | null = false;
   let statsToggleKey = 'Backquote';
   let markWatchedKey = 'KeyW';
@@ -216,7 +219,7 @@ function installKeyboardTestGlobals() {
       },
       electronAPI: {
         getKeybindings: async () => [],
-        getSessionBindings: async () => sessionBindings,
+        getSessionBindings: () => getSessionBindingsImpl(),
         getConfiguredShortcuts: async () => configuredShortcuts,
         sendMpvCommand: (command: Array<string | number>) => {
           mpvCommands.push(command);
@@ -366,6 +369,9 @@ function installKeyboardTestGlobals() {
     setSessionBindings: (value: CompiledSessionBinding[]) => {
       sessionBindings = value;
     },
+    setGetSessionBindings: (value: () => Promise<CompiledSessionBinding[]>) => {
+      getSessionBindingsImpl = value;
+    },
     setMarkActiveVideoWatchedResult: (value: boolean) => {
       markActiveVideoWatchedResult = value;
     },
@@ -462,6 +468,16 @@ function createKeyboardHandlerHarness() {
   };
 }
 
+test('renderer installs keyboard forwarding before startup subtitle IPC awaits', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'src', 'renderer', 'renderer.ts'), 'utf8');
+  const keyboardSetupIndex = source.indexOf('await keyboardHandlers.setupMpvInputForwarding();');
+  const subtitleRequestIndex = source.indexOf('await window.electronAPI.getCurrentSubtitle();');
+
+  assert.notEqual(keyboardSetupIndex, -1);
+  assert.notEqual(subtitleRequestIndex, -1);
+  assert.equal(keyboardSetupIndex < subtitleRequestIndex, true);
+});
+
 test('primary subtitle visibility key cycles modes with primary OSD without mpv sub-visibility', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
@@ -493,6 +509,25 @@ test('primary subtitle visibility key cycles modes with primary OSD without mpv 
         ['show-text', 'Primary subtitle: visible', '1500'],
       ],
     );
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('mpv input forwarding installs local key handling when session binding IPC stalls', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    testGlobals.setGetSessionBindings(() => new Promise<CompiledSessionBinding[]>(() => {}));
+    const setupResult = await Promise.race([
+      handlers.setupMpvInputForwarding().then(() => 'resolved'),
+      wait(25).then(() => 'pending'),
+    ]);
+
+    assert.equal(setupResult, 'resolved');
+    testGlobals.dispatchKeydown({ key: '`', code: 'Backquote' });
+
+    assert.equal(testGlobals.statsToggleOverlayCalls(), 1);
   } finally {
     testGlobals.restore();
   }

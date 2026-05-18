@@ -62,9 +62,9 @@ export function selectPreferredNoteFieldModelName(
     return exactKiku;
   }
 
-  const lapis = modelNames.find((name) => name.toLowerCase().includes('lapis'));
-  if (lapis) {
-    return lapis;
+  const exactLapis = modelNames.find((name) => name.toLowerCase() === 'lapis');
+  if (exactLapis) {
+    return exactLapis;
   }
 
   return '';
@@ -111,7 +111,20 @@ function syncAnkiConnectUrl(draftUrl: string | undefined): void {
   if (state.ankiConnectUrl === nextUrl) {
     return;
   }
+  const hasAnkiMetadata =
+    state.deckNames !== null ||
+    state.deckNamesLoading ||
+    state.deckFieldNames.size > 0 ||
+    state.deckFieldNamesLoading.size > 0 ||
+    state.modelNames !== null ||
+    state.modelNamesLoading ||
+    state.modelFieldNames.size > 0 ||
+    state.modelFieldNamesLoading.size > 0;
   state.ankiConnectUrl = nextUrl;
+  if (hasAnkiMetadata) {
+    state.noteFieldModelName = '';
+    state.noteFieldModelNameManuallySelected = false;
+  }
   state.deckNames = null;
   state.deckNamesLoading = false;
   state.deckNamesError = null;
@@ -129,9 +142,11 @@ function syncAnkiConnectUrl(draftUrl: string | undefined): void {
 async function loadAnkiDeckNames(draftUrl?: string): Promise<void> {
   syncAnkiConnectUrl(draftUrl);
   if (state.deckNames || state.deckNamesLoading) return;
+  const requestUrl = state.ankiConnectUrl;
   state.deckNamesLoading = true;
   try {
     const result = await window.configSettingsAPI.getAnkiDeckNames(draftUrl);
+    if (state.ankiConnectUrl !== requestUrl) return;
     if (result.ok) {
       state.deckNames = uniqueSorted(result.values);
       state.deckNamesError = null;
@@ -140,11 +155,14 @@ async function loadAnkiDeckNames(draftUrl?: string): Promise<void> {
       state.deckNamesError = result.error ?? 'Failed to load Anki decks.';
     }
   } catch (error) {
+    if (state.ankiConnectUrl !== requestUrl) return;
     state.deckNames = [];
     state.deckNamesError = error instanceof Error ? error.message : 'Failed to load Anki decks.';
   } finally {
-    state.deckNamesLoading = false;
-    requestRender();
+    if (state.ankiConnectUrl === requestUrl) {
+      state.deckNamesLoading = false;
+      requestRender();
+    }
   }
 }
 
@@ -157,9 +175,11 @@ async function loadAnkiDeckFieldNames(deckName: string, draftUrl?: string): Prom
   ) {
     return;
   }
+  const requestUrl = state.ankiConnectUrl;
   state.deckFieldNamesLoading.add(deckName);
   try {
     const result = await window.configSettingsAPI.getAnkiDeckFieldNames(deckName, draftUrl);
+    if (state.ankiConnectUrl !== requestUrl) return;
     if (result.ok) {
       state.deckFieldNames.set(deckName, uniqueSorted(result.values));
       state.deckFieldNamesErrors.delete(deckName);
@@ -171,23 +191,28 @@ async function loadAnkiDeckFieldNames(deckName: string, draftUrl?: string): Prom
       );
     }
   } catch (error) {
+    if (state.ankiConnectUrl !== requestUrl) return;
     state.deckFieldNames.set(deckName, []);
     state.deckFieldNamesErrors.set(
       deckName,
       error instanceof Error ? error.message : `Failed to load fields for ${deckName}.`,
     );
   } finally {
-    state.deckFieldNamesLoading.delete(deckName);
-    requestRender();
+    if (state.ankiConnectUrl === requestUrl) {
+      state.deckFieldNamesLoading.delete(deckName);
+      requestRender();
+    }
   }
 }
 
 async function loadAnkiModelNames(draftUrl?: string): Promise<void> {
   syncAnkiConnectUrl(draftUrl);
   if (state.modelNames || state.modelNamesLoading) return;
+  const requestUrl = state.ankiConnectUrl;
   state.modelNamesLoading = true;
   try {
     const result = await window.configSettingsAPI.getAnkiModelNames(draftUrl);
+    if (state.ankiConnectUrl !== requestUrl) return;
     if (result.ok) {
       state.modelNames = uniqueSorted(result.values);
       state.modelNamesError = null;
@@ -202,12 +227,15 @@ async function loadAnkiModelNames(draftUrl?: string): Promise<void> {
       state.modelNamesError = result.error ?? 'Failed to load Anki note types.';
     }
   } catch (error) {
+    if (state.ankiConnectUrl !== requestUrl) return;
     state.modelNames = [];
     state.modelNamesError =
       error instanceof Error ? error.message : 'Failed to load Anki note types.';
   } finally {
-    state.modelNamesLoading = false;
-    requestRender();
+    if (state.ankiConnectUrl === requestUrl) {
+      state.modelNamesLoading = false;
+      requestRender();
+    }
   }
 }
 
@@ -220,9 +248,11 @@ async function loadAnkiModelFieldNames(modelName: string, draftUrl?: string): Pr
   ) {
     return;
   }
+  const requestUrl = state.ankiConnectUrl;
   state.modelFieldNamesLoading.add(modelName);
   try {
     const result = await window.configSettingsAPI.getAnkiModelFieldNames(modelName, draftUrl);
+    if (state.ankiConnectUrl !== requestUrl) return;
     if (result.ok) {
       state.modelFieldNames.set(modelName, uniqueSorted(result.values));
       state.modelFieldNamesErrors.delete(modelName);
@@ -234,14 +264,17 @@ async function loadAnkiModelFieldNames(modelName: string, draftUrl?: string): Pr
       );
     }
   } catch (error) {
+    if (state.ankiConnectUrl !== requestUrl) return;
     state.modelFieldNames.set(modelName, []);
     state.modelFieldNamesErrors.set(
       modelName,
       error instanceof Error ? error.message : `Failed to load fields for ${modelName}.`,
     );
   } finally {
-    state.modelFieldNamesLoading.delete(modelName);
-    requestRender();
+    if (state.ankiConnectUrl === requestUrl) {
+      state.modelFieldNamesLoading.delete(modelName);
+      requestRender();
+    }
   }
 }
 

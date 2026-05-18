@@ -5,8 +5,8 @@ import { parseLauncherJellyfinConfig } from './config/jellyfin-config.js';
 import { parseLauncherMpvConfig } from './config/mpv-config.js';
 import { readExternalYomitanProfilePath } from './config.js';
 import {
-  getPluginConfigCandidates,
-  parsePluginRuntimeConfigContent,
+  buildPluginRuntimeScriptOptParts,
+  parsePluginRuntimeConfigFromMainConfig,
 } from './config/plugin-runtime-config.js';
 import { getDefaultSocketPath } from './types.js';
 
@@ -86,10 +86,24 @@ test('parseLauncherMpvConfig reads launch mode preference', () => {
     mpv: {
       launchMode: ' maximized ',
       executablePath: 'ignored-here',
+      socketPath: '/tmp/custom.sock',
+      backend: 'x11',
+      autoStartSubMiner: false,
+      pauseUntilOverlayReady: false,
+      subminerBinaryPath: '/opt/SubMiner/SubMiner.AppImage',
+      aniskipEnabled: false,
+      aniskipButtonKey: 'F8',
     },
   });
 
   assert.equal(parsed.launchMode, 'maximized');
+  assert.equal(parsed.socketPath, '/tmp/custom.sock');
+  assert.equal(parsed.backend, 'x11');
+  assert.equal(parsed.autoStartSubMiner, false);
+  assert.equal(parsed.pauseUntilOverlayReady, false);
+  assert.equal(parsed.subminerBinaryPath, '/opt/SubMiner/SubMiner.AppImage');
+  assert.equal(parsed.aniskipEnabled, false);
+  assert.equal(parsed.aniskipButtonKey, 'F8');
 });
 
 test('parseLauncherMpvConfig ignores invalid launch mode values', () => {
@@ -102,39 +116,72 @@ test('parseLauncherMpvConfig ignores invalid launch mode values', () => {
   assert.equal(parsed.launchMode, undefined);
 });
 
-test('parsePluginRuntimeConfigContent reads socket path and startup gate options', () => {
-  const parsed = parsePluginRuntimeConfigContent(`
-# comment
-socket_path = /tmp/custom.sock # trailing comment
-auto_start = yes
-auto_start_visible_overlay = true
-auto_start_pause_until_ready = 1
-`);
-  assert.equal(parsed.socketPath, '/tmp/custom.sock');
+test('parsePluginRuntimeConfigFromMainConfig maps config.jsonc values over plugin defaults', () => {
+  const parsed = parsePluginRuntimeConfigFromMainConfig({
+    auto_start_overlay: false,
+    texthooker: {
+      launchAtStartup: false,
+    },
+    mpv: {
+      socketPath: '/tmp/config.sock',
+      backend: 'sway',
+      autoStartSubMiner: true,
+      pauseUntilOverlayReady: true,
+      subminerBinaryPath: '/opt/SubMiner/SubMiner.AppImage',
+      aniskipEnabled: false,
+      aniskipButtonKey: 'F8',
+    },
+  });
+
+  assert.equal(parsed.socketPath, '/tmp/config.sock');
+  assert.equal(parsed.backend, 'sway');
   assert.equal(parsed.autoStart, true);
-  assert.equal(parsed.autoStartVisibleOverlay, true);
-  assert.equal(parsed.autoStartPauseUntilReady, true);
-});
-
-test('parsePluginRuntimeConfigContent falls back to disabled startup gate options', () => {
-  const parsed = parsePluginRuntimeConfigContent(`
-auto_start = maybe
-auto_start_visible_overlay = no
-auto_start_pause_until_ready = off
-`);
-  assert.equal(parsed.autoStart, false);
   assert.equal(parsed.autoStartVisibleOverlay, false);
-  assert.equal(parsed.autoStartPauseUntilReady, false);
+  assert.equal(parsed.autoStartPauseUntilReady, true);
+  assert.equal(parsed.binaryPath, '/opt/SubMiner/SubMiner.AppImage');
+  assert.equal(parsed.texthookerEnabled, false);
+  assert.equal(parsed.aniskipEnabled, false);
+  assert.equal(parsed.aniskipButtonKey, 'F8');
 });
 
-test('getPluginConfigCandidates resolves Windows mpv script-opts path', () => {
+test('parsePluginRuntimeConfigFromMainConfig defaults to background-only managed startup', () => {
+  const parsed = parsePluginRuntimeConfigFromMainConfig(null);
+
+  assert.equal(parsed.autoStart, true);
+  assert.equal(parsed.autoStartVisibleOverlay, false);
+  assert.equal(parsed.autoStartPauseUntilReady, true);
+  assert.equal(parsed.texthookerEnabled, false);
+  assert.equal(parsed.aniskipEnabled, true);
+  assert.equal(parsed.aniskipButtonKey, 'TAB');
+});
+
+test('buildPluginRuntimeScriptOptParts emits config values that override plugin defaults', () => {
   assert.deepEqual(
-    getPluginConfigCandidates({
-      platform: 'win32',
-      homeDir: 'C:\\Users\\tester',
-      appDataDir: 'C:\\Users\\tester\\AppData\\Roaming',
-    }),
-    ['C:\\Users\\tester\\AppData\\Roaming\\mpv\\script-opts\\subminer.conf'],
+    buildPluginRuntimeScriptOptParts(
+      {
+        socketPath: '/tmp/config.sock',
+        binaryPath: '/opt/SubMiner/SubMiner.AppImage',
+        backend: 'x11',
+        autoStart: true,
+        autoStartVisibleOverlay: false,
+        autoStartPauseUntilReady: true,
+        texthookerEnabled: false,
+        aniskipEnabled: false,
+        aniskipButtonKey: 'F8',
+      },
+      '/fallback/SubMiner.AppImage',
+    ),
+    [
+      'subminer-binary_path=/opt/SubMiner/SubMiner.AppImage',
+      'subminer-socket_path=/tmp/config.sock',
+      'subminer-backend=x11',
+      'subminer-auto_start=yes',
+      'subminer-auto_start_visible_overlay=no',
+      'subminer-auto_start_pause_until_ready=yes',
+      'subminer-texthooker_enabled=no',
+      'subminer-aniskip_enabled=no',
+      'subminer-aniskip_button_key=F8',
+    ],
   );
 });
 

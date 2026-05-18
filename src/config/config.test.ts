@@ -15,7 +15,7 @@ import { generateConfigTemplate } from './template';
 
 const DEFAULT_SUBTITLE_FONT_FAMILY =
   'Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP';
-const DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY = 'Inter, Noto Sans, Helvetica Neue, sans-serif';
+const DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY = DEFAULT_SUBTITLE_FONT_FAMILY;
 const DEFAULT_SUBTITLE_TEXT_SHADOW = '0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)';
 
 function makeTempDir(): string {
@@ -83,13 +83,19 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.subtitleStyle.fontKerning, 'normal');
   assert.equal(config.subtitleStyle.textRendering, 'geometricPrecision');
   assert.equal(config.subtitleStyle.textShadow, DEFAULT_SUBTITLE_TEXT_SHADOW);
+  assert.equal(config.subtitleStyle.paintOrder, '');
+  assert.equal(config.subtitleStyle.WebkitTextStroke, '');
   assert.equal(config.subtitleStyle.backdropFilter, 'blur(6px)');
   assert.equal(config.subtitleStyle.jlptColors.N4, '#8bd5ca');
   assert.equal(config.subtitleStyle.secondary.fontFamily, DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY);
   assert.equal(config.subtitleStyle.secondary.fontColor, '#cad3f5');
   assert.equal(config.subtitleStyle.secondary.fontWeight, '600');
   assert.equal(config.subtitleStyle.secondary.textShadow, DEFAULT_SUBTITLE_TEXT_SHADOW);
+  assert.equal(config.subtitleStyle.secondary.paintOrder, '');
+  assert.equal(config.subtitleStyle.secondary.WebkitTextStroke, '');
   assert.equal(config.subtitleStyle.secondary.backgroundColor, 'transparent');
+  assert.deepEqual(config.subtitleSidebar.css, {});
+  assert.equal(config.subtitleSidebar.fontFamily, DEFAULT_SUBTITLE_FONT_FAMILY);
   assert.equal(config.immersionTracking.enabled, true);
   assert.equal(config.immersionTracking.dbPath, '');
   assert.equal(config.immersionTracking.batchSize, 25);
@@ -113,6 +119,13 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.updates.checkIntervalHours, 24);
   assert.equal(config.updates.notificationType, 'system');
   assert.equal(config.updates.channel, 'stable');
+  assert.equal(config.mpv.socketPath, '/tmp/subminer-socket');
+  assert.equal(config.mpv.backend, 'auto');
+  assert.equal(config.mpv.autoStartSubMiner, true);
+  assert.equal(config.mpv.pauseUntilOverlayReady, true);
+  assert.equal(config.mpv.subminerBinaryPath, '');
+  assert.equal(config.mpv.aniskipEnabled, true);
+  assert.equal(config.mpv.aniskipButtonKey, 'TAB');
 });
 
 test('parses updates config and warns on invalid values', () => {
@@ -179,6 +192,86 @@ test('throws actionable startup parse error for malformed config at construction
       return true;
     },
   );
+});
+
+test('migrates legacy subtitle appearance options into css declaration objects on load', () => {
+  const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.jsonc');
+  fs.writeFileSync(
+    configPath,
+    `{
+      "subtitleStyle": {
+        "fontSize": 42,
+        "fontColor": "#ffffff",
+        "css": {
+          "font-size": "44px",
+          "text-wrap": "balance"
+        },
+        "secondary": {
+          "fontSize": 28,
+          "fontColor": "#bbbbbb"
+        }
+      },
+      "subtitleSidebar": {
+        "fontFamily": "M PLUS 1, sans-serif",
+        "fontSize": 18,
+        "textColor": "#dddddd",
+        "timestampColor": "#aaaaaa",
+        "css": {
+          "font-size": "19px"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const parsed = parseConfigContent(configPath, fs.readFileSync(configPath, 'utf-8')) as {
+    subtitleStyle: {
+      fontSize?: unknown;
+      fontColor?: unknown;
+      css?: Record<string, string>;
+      secondary?: {
+        fontSize?: unknown;
+        fontColor?: unknown;
+        css?: Record<string, string>;
+      };
+    };
+    subtitleSidebar: {
+      fontFamily?: unknown;
+      fontSize?: unknown;
+      textColor?: unknown;
+      timestampColor?: unknown;
+      css?: Record<string, string>;
+    };
+  };
+
+  assert.deepEqual(parsed.subtitleStyle.css, {
+    color: '#ffffff',
+    'font-size': '44px',
+    'text-wrap': 'balance',
+  });
+  assert.equal(Object.hasOwn(parsed.subtitleStyle, 'fontSize'), false);
+  assert.equal(Object.hasOwn(parsed.subtitleStyle, 'fontColor'), false);
+  assert.deepEqual(parsed.subtitleStyle.secondary?.css, {
+    color: '#bbbbbb',
+    'font-size': '28px',
+  });
+  assert.equal(Object.hasOwn(parsed.subtitleStyle.secondary ?? {}, 'fontSize'), false);
+  assert.equal(Object.hasOwn(parsed.subtitleStyle.secondary ?? {}, 'fontColor'), false);
+  assert.deepEqual(parsed.subtitleSidebar.css, {
+    'font-family': 'M PLUS 1, sans-serif',
+    color: '#dddddd',
+    'font-size': '19px',
+    '--subtitle-sidebar-timestamp-color': '#aaaaaa',
+  });
+  assert.equal(Object.hasOwn(parsed.subtitleSidebar, 'fontFamily'), false);
+  assert.equal(Object.hasOwn(parsed.subtitleSidebar, 'fontSize'), false);
+  assert.equal(Object.hasOwn(parsed.subtitleSidebar, 'textColor'), false);
+  assert.equal(Object.hasOwn(parsed.subtitleSidebar, 'timestampColor'), false);
+  assert.equal(service.getConfig().subtitleStyle.css['font-size'], '44px');
+  assert.equal(service.getConfig().subtitleStyle.secondary.css['font-size'], '28px');
+  assert.equal(service.getConfig().subtitleSidebar.css['font-size'], '19px');
 });
 
 test('parses subtitleStyle.preserveLineBreaks and warns on invalid values', () => {
@@ -253,6 +346,70 @@ test('parses texthooker.launchAtStartup and warns on invalid values', () => {
   assert.ok(
     invalidService.getWarnings().some((warning) => warning.path === 'texthooker.launchAtStartup'),
   );
+});
+
+test('parses managed mpv plugin runtime settings from config', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "mpv": {
+        "socketPath": "/tmp/custom-subminer.sock",
+        "backend": "x11",
+        "autoStartSubMiner": false,
+        "pauseUntilOverlayReady": false,
+        "subminerBinaryPath": "/opt/SubMiner/SubMiner.AppImage",
+        "aniskipEnabled": false,
+        "aniskipButtonKey": "F8"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  const config = validService.getConfig();
+  assert.equal(config.mpv.socketPath, '/tmp/custom-subminer.sock');
+  assert.equal(config.mpv.backend, 'x11');
+  assert.equal(config.mpv.autoStartSubMiner, false);
+  assert.equal(config.mpv.pauseUntilOverlayReady, false);
+  assert.equal(config.mpv.subminerBinaryPath, '/opt/SubMiner/SubMiner.AppImage');
+  assert.equal(config.mpv.aniskipEnabled, false);
+  assert.equal(config.mpv.aniskipButtonKey, 'F8');
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "mpv": {
+        "socketPath": "",
+        "backend": "weston",
+        "autoStartSubMiner": "yes",
+        "pauseUntilOverlayReady": "no",
+        "subminerBinaryPath": 42,
+        "aniskipEnabled": "disabled",
+        "aniskipButtonKey": ""
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  const invalidConfig = invalidService.getConfig();
+  const warnings = invalidService.getWarnings();
+  assert.equal(invalidConfig.mpv.socketPath, DEFAULT_CONFIG.mpv.socketPath);
+  assert.equal(invalidConfig.mpv.backend, DEFAULT_CONFIG.mpv.backend);
+  assert.equal(invalidConfig.mpv.autoStartSubMiner, DEFAULT_CONFIG.mpv.autoStartSubMiner);
+  assert.equal(invalidConfig.mpv.pauseUntilOverlayReady, DEFAULT_CONFIG.mpv.pauseUntilOverlayReady);
+  assert.equal(invalidConfig.mpv.subminerBinaryPath, DEFAULT_CONFIG.mpv.subminerBinaryPath);
+  assert.equal(invalidConfig.mpv.aniskipEnabled, DEFAULT_CONFIG.mpv.aniskipEnabled);
+  assert.equal(invalidConfig.mpv.aniskipButtonKey, DEFAULT_CONFIG.mpv.aniskipButtonKey);
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.socketPath'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.backend'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.autoStartSubMiner'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.pauseUntilOverlayReady'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.subminerBinaryPath'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.aniskipEnabled'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.aniskipButtonKey'));
 });
 
 test('parses annotationWebsocket settings and warns on invalid values', () => {

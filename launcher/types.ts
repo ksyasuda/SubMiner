@@ -1,15 +1,13 @@
 import path from 'node:path';
 import os from 'node:os';
-import type { MpvLaunchMode } from '../src/types/config.js';
+import type { MpvBackend, MpvLaunchMode } from '../src/types/config.js';
 import { resolveDefaultLogFilePath } from '../src/shared/log-files.js';
+import { getDefaultMpvSocketPath } from '../src/shared/mpv-socket-path.js';
 export { VIDEO_EXTENSIONS } from '../src/shared/video-extensions.js';
 
 export const ROFI_THEME_FILE = 'subminer.rasi';
 export function getDefaultSocketPath(platform: NodeJS.Platform = process.platform): string {
-  if (platform === 'win32') {
-    return '\\\\.\\pipe\\subminer-socket';
-  }
-  return '/tmp/subminer-socket';
+  return getDefaultMpvSocketPath(platform);
 }
 
 export const DEFAULT_SOCKET_PATH = getDefaultSocketPath();
@@ -178,13 +176,25 @@ export interface LauncherJellyfinConfig {
 
 export interface LauncherMpvConfig {
   launchMode?: MpvLaunchMode;
+  socketPath?: string;
+  backend?: MpvBackend;
+  autoStartSubMiner?: boolean;
+  pauseUntilOverlayReady?: boolean;
+  subminerBinaryPath?: string;
+  aniskipEnabled?: boolean;
+  aniskipButtonKey?: string;
 }
 
 export interface PluginRuntimeConfig {
   socketPath: string;
+  binaryPath: string;
+  backend: Backend;
   autoStart: boolean;
   autoStartVisibleOverlay: boolean;
   autoStartPauseUntilReady: boolean;
+  texthookerEnabled: boolean;
+  aniskipEnabled: boolean;
+  aniskipButtonKey: string;
 }
 
 export interface CommandExecOptions {

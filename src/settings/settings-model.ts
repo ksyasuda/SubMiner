@@ -38,7 +38,7 @@ export function filterSettingsFields(
   filter: SettingsFilter,
 ): ConfigSettingsField[] {
   const query = normalizeQuery(filter.query);
-  const terms = query.length > 0 ? query.split(/\s+/) : [];
+  const terms = query.length > 0 ? searchableText([query]).split(/\s+/).filter(Boolean) : [];
   return fields.filter((field) => {
     if (field.legacyHidden || field.settingsHidden) {
       return false;
@@ -46,7 +46,7 @@ export function filterSettingsFields(
     if (filter.category && field.category !== filter.category) {
       return false;
     }
-    if (!query) {
+    if (!query || terms.length === 0) {
       return true;
     }
     const haystack = searchableText([

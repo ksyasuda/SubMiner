@@ -376,7 +376,6 @@ import {
   detectInstalledMpvPlugin,
   removeLegacyMpvPluginCandidates,
   resolvePackagedRuntimePluginPath,
-  syncInstalledFirstRunPluginBinaryPath,
 } from './main/runtime/first-run-setup-plugin';
 import {
   applyWindowsMpvShortcuts,
@@ -495,6 +494,7 @@ import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/
 import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/character-dictionary-auto-sync-completion';
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
+import { resolveCurrentSubtitleForRenderer } from './main/runtime/current-subtitle-snapshot';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import {
   createElectronAppUpdater,
@@ -667,7 +667,7 @@ const texthookerService = new Texthooker(() => {
     yomitanProfilePolicy.isCharacterDictionaryEnabled();
   const knownAndNPlusOneEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.nPlusOne',
-    config.ankiConnect.knownWords.highlightEnabled,
+    config.ankiConnect.nPlusOne.enabled,
   );
 
   return {
@@ -1223,6 +1223,17 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
         resolveInstalledPluginBeforeLaunch: (detection, mpvPath) =>
           promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(mpvPath, detection),
       },
+      {
+        socketPath: appState.mpvSocketPath,
+        binaryPath: getResolvedConfig().mpv.subminerBinaryPath,
+        backend: getResolvedConfig().mpv.backend,
+        autoStart: getResolvedConfig().mpv.autoStartSubMiner,
+        autoStartVisibleOverlay: getResolvedConfig().auto_start_overlay,
+        autoStartPauseUntilReady: getResolvedConfig().mpv.pauseUntilOverlayReady,
+        texthookerEnabled: getResolvedConfig().texthooker.launchAtStartup,
+        aniskipEnabled: getResolvedConfig().mpv.aniskipEnabled,
+        aniskipButtonKey: getResolvedConfig().mpv.aniskipButtonKey,
+      },
     ),
   waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
   prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
@@ -1248,12 +1259,6 @@ const createCommandLineLauncherRuntimeOptions = () => ({
   cwd: process.cwd(),
   resourcesPath: process.resourcesPath,
   appExePath: process.execPath,
-});
-syncInstalledFirstRunPluginBinaryPath({
-  platform: process.platform,
-  homeDir: os.homedir(),
-  xdgConfigHome: process.env.XDG_CONFIG_HOME,
-  binaryPath: process.execPath,
 });
 const firstRunSetupService = createFirstRunSetupService({
   platform: process.platform,
@@ -1814,6 +1819,7 @@ const configSettingsRuntime = createConfigSettingsRuntime({
   getConfig: () => configService.getConfig(),
   getWarnings: () => configService.getWarnings(),
   reloadConfigStrict: () => configService.reloadConfigStrict(),
+  onHotReloadApplied: applyConfigHotReloadDiff,
   defaultAnkiConnectUrl: DEFAULT_CONFIG.ankiConnect.url,
   createAnkiClient: (url) => new AnkiConnectClient(url),
   getSettingsWindow: () => appState.configSettingsWindow,
@@ -2625,6 +2631,17 @@ const {
     getLaunchMode: () => getResolvedConfig().mpv.launchMode,
     platform: process.platform,
     execPath: process.execPath,
+    getPluginRuntimeConfig: () => ({
+      socketPath: appState.mpvSocketPath,
+      binaryPath: getResolvedConfig().mpv.subminerBinaryPath,
+      backend: getResolvedConfig().mpv.backend,
+      autoStart: getResolvedConfig().mpv.autoStartSubMiner,
+      autoStartVisibleOverlay: getResolvedConfig().auto_start_overlay,
+      autoStartPauseUntilReady: getResolvedConfig().mpv.pauseUntilOverlayReady,
+      texthookerEnabled: getResolvedConfig().texthooker.launchAtStartup,
+      aniskipEnabled: getResolvedConfig().mpv.aniskipEnabled,
+      aniskipButtonKey: getResolvedConfig().mpv.aniskipButtonKey,
+    }),
     defaultMpvLogPath: DEFAULT_MPV_LOG_PATH,
     defaultMpvArgs: MPV_JELLYFIN_DEFAULT_ARGS,
     removeSocketPath: (socketPath) => {
@@ -4057,6 +4074,17 @@ const {
     reportJellyfinRemoteStopped: () => {
       void reportJellyfinRemoteStopped();
     },
+    onMpvConnected: () => {
+      if (appState.sessionBindingsInitialized) {
+        sendMpvCommandRuntime(appState.mpvClient, [
+          'script-message',
+          'subminer-reload-session-bindings',
+        ]);
+      }
+      if (appState.currentSubText.trim()) {
+        subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+      }
+    },
     maybeRunAnilistPostWatchUpdate: (options) => maybeRunAnilistPostWatchUpdate(options),
     recordAnilistMediaDuration: (durationSec) => {
       recordAnilistMediaDuration(durationSec);
@@ -5245,7 +5273,11 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       quitApp: () => requestAppQuit(),
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
       tokenizeCurrentSubtitle: async () =>
-        withCurrentSubtitleTiming(await tokenizeSubtitle(appState.currentSubText)),
+        resolveCurrentSubtitleForRenderer({
+          currentSubText: appState.currentSubText,
+          currentSubtitleData: appState.currentSubtitleData,
+          withCurrentSubtitleTiming: (payload) => withCurrentSubtitleTiming(payload),
+        }),
       getCurrentSubtitleRaw: () => appState.currentSubText,
       getCurrentSubtitleAss: () => appState.currentSubAssText,
       getSubtitleSidebarSnapshot: async () => {
@@ -5582,7 +5614,7 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
         enforceUnsupportedWaylandMode(args);
       },
       shouldStartApp: (args: CliArgs) => shouldStartApp(args),
-      getDefaultSocketPath: () => getDefaultSocketPath(),
+      getDefaultSocketPath: () => getResolvedConfig().mpv.socketPath || getDefaultSocketPath(),
       defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
       configDir: CONFIG_DIR,
       defaultConfig: DEFAULT_CONFIG,
@@ -5648,7 +5680,12 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
         overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
       forwardTabToMpv: () => sendMpvCommandRuntime(appState.mpvClient, ['keypress', 'TAB']),
       onVisibleWindowBlurred: () => scheduleVisibleOverlayBlurRefresh(),
-      onWindowContentReady: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+      onWindowContentReady: () => {
+        overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+        if (appState.currentSubText.trim()) {
+          subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+        }
+      },
       onWindowClosed: (windowKind) => {
         if (windowKind === 'visible') {
           cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();

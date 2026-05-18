@@ -66,6 +66,76 @@ test('config settings save returns hot-reloadable diff for watcher path', () => 
   assert.deepEqual(result.restartRequiredFields, []);
 });
 
+test('config settings save immediately applies hot-reloadable subtitle CSS changes', () => {
+  const previous = DEFAULT_CONFIG;
+  const next: ResolvedConfig = {
+    ...DEFAULT_CONFIG,
+    subtitleStyle: {
+      ...DEFAULT_CONFIG.subtitleStyle,
+      css: {
+        'font-size': '50px',
+      },
+      secondary: {
+        ...DEFAULT_CONFIG.subtitleStyle.secondary,
+        css: {
+          'font-size': '28px',
+        },
+      },
+    },
+  };
+  const applied: Array<{
+    hotReloadFields: string[];
+    config: ResolvedConfig;
+  }> = [];
+  const save = createSaveConfigSettingsPatchHandler({
+    getConfigPath: () => '/tmp/config.jsonc',
+    getCurrentConfig: () => previous,
+    getWarnings: () => [],
+    getSnapshot: () => snapshot(),
+    fileExists: () => true,
+    readText: () => '{}',
+    writeTextAtomically: () => {},
+    reloadConfigStrict: (): ReloadConfigStrictResult => ({
+      ok: true,
+      config: next,
+      warnings: [],
+      path: '/tmp/config.jsonc',
+    }),
+    classifyDiff: () => ({
+      hotReloadFields: ['subtitleStyle'],
+      restartRequiredFields: [],
+    }),
+    getRestartRequiredSections: () => [],
+    onHotReloadApplied: (diff, config) => {
+      applied.push({
+        hotReloadFields: diff.hotReloadFields,
+        config,
+      });
+    },
+  });
+
+  const result = save({
+    operations: [
+      {
+        op: 'set',
+        path: 'subtitleStyle.css',
+        value: { 'font-size': '50px' },
+      },
+      {
+        op: 'set',
+        path: 'subtitleStyle.secondary.css',
+        value: { 'font-size': '28px' },
+      },
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(applied.length, 1);
+  assert.deepEqual(applied[0]?.hotReloadFields, ['subtitleStyle']);
+  assert.equal(applied[0]?.config.subtitleStyle.css['font-size'], '50px');
+  assert.equal(applied[0]?.config.subtitleStyle.secondary.css['font-size'], '28px');
+});
+
 test('config settings save returns restart-required sections without applying hot reload', () => {
   const calls: string[] = [];
   const previous = DEFAULT_CONFIG;

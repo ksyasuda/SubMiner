@@ -55,6 +55,24 @@ function formatCueTimestamp(seconds: number): string {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
+function applySidebarCssDeclarations(
+  target: HTMLElement,
+  declarations: Record<string, string>,
+): void {
+  const targetStyle = (target as HTMLElement & { style?: CSSStyleDeclaration }).style;
+  if (!targetStyle) return;
+  for (const [property, rawValue] of Object.entries(declarations)) {
+    const value = rawValue.trim();
+    if (value.length === 0) continue;
+    if (property.includes('-')) {
+      targetStyle.setProperty(property, value);
+      continue;
+    }
+    const styleTarget = targetStyle as unknown as Record<string, string>;
+    styleTarget[property] = value;
+  }
+}
+
 export function findActiveSubtitleCueIndex(
   cues: SubtitleCue[],
   current: { text: string; startTime?: number | null } | null,
@@ -266,6 +284,7 @@ export function createSubtitleSidebarModal(
       '--subtitle-sidebar-hover-background-color',
       snapshot.config.hoverLineBackgroundColor,
     );
+    applySidebarCssDeclarations(ctx.dom.subtitleSidebarContent, snapshot.config.css ?? {});
   }
 
   function seekToCue(cue: SubtitleCue): void {

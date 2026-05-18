@@ -1,11 +1,10 @@
 import type { ConfigSettingsSnapshotValue } from '../types/settings';
 
-export type SubtitleCssScope = 'primary' | 'secondary';
+export type SubtitleCssScope = 'primary' | 'secondary' | 'sidebar';
 
 type LegacyCssDeclaration = {
   property: string;
-  primaryPath: string;
-  secondaryPath: string;
+  paths: Partial<Record<SubtitleCssScope, string>>;
   format?: (value: unknown) => string | undefined;
 };
 
@@ -16,87 +15,187 @@ export type SubtitleCssParseResult =
 const LEGACY_CSS_DECLARATIONS: LegacyCssDeclaration[] = [
   {
     property: 'font-family',
-    primaryPath: 'subtitleStyle.fontFamily',
-    secondaryPath: 'subtitleStyle.secondary.fontFamily',
+    paths: {
+      primary: 'subtitleStyle.fontFamily',
+      secondary: 'subtitleStyle.secondary.fontFamily',
+      sidebar: 'subtitleSidebar.fontFamily',
+    },
+  },
+  {
+    property: 'color',
+    paths: {
+      primary: 'subtitleStyle.fontColor',
+      secondary: 'subtitleStyle.secondary.fontColor',
+      sidebar: 'subtitleSidebar.textColor',
+    },
+  },
+  {
+    property: 'background-color',
+    paths: {
+      primary: 'subtitleStyle.backgroundColor',
+      secondary: 'subtitleStyle.secondary.backgroundColor',
+      sidebar: 'subtitleSidebar.backgroundColor',
+    },
   },
   {
     property: 'font-size',
-    primaryPath: 'subtitleStyle.fontSize',
-    secondaryPath: 'subtitleStyle.secondary.fontSize',
+    paths: {
+      primary: 'subtitleStyle.fontSize',
+      secondary: 'subtitleStyle.secondary.fontSize',
+      sidebar: 'subtitleSidebar.fontSize',
+    },
     format: formatCssLengthLikeValue,
   },
   {
     property: 'font-weight',
-    primaryPath: 'subtitleStyle.fontWeight',
-    secondaryPath: 'subtitleStyle.secondary.fontWeight',
+    paths: {
+      primary: 'subtitleStyle.fontWeight',
+      secondary: 'subtitleStyle.secondary.fontWeight',
+    },
   },
   {
     property: 'font-style',
-    primaryPath: 'subtitleStyle.fontStyle',
-    secondaryPath: 'subtitleStyle.secondary.fontStyle',
+    paths: {
+      primary: 'subtitleStyle.fontStyle',
+      secondary: 'subtitleStyle.secondary.fontStyle',
+    },
   },
   {
     property: 'line-height',
-    primaryPath: 'subtitleStyle.lineHeight',
-    secondaryPath: 'subtitleStyle.secondary.lineHeight',
+    paths: {
+      primary: 'subtitleStyle.lineHeight',
+      secondary: 'subtitleStyle.secondary.lineHeight',
+    },
   },
   {
     property: 'letter-spacing',
-    primaryPath: 'subtitleStyle.letterSpacing',
-    secondaryPath: 'subtitleStyle.secondary.letterSpacing',
+    paths: {
+      primary: 'subtitleStyle.letterSpacing',
+      secondary: 'subtitleStyle.secondary.letterSpacing',
+    },
   },
   {
     property: 'word-spacing',
-    primaryPath: 'subtitleStyle.wordSpacing',
-    secondaryPath: 'subtitleStyle.secondary.wordSpacing',
+    paths: {
+      primary: 'subtitleStyle.wordSpacing',
+      secondary: 'subtitleStyle.secondary.wordSpacing',
+    },
   },
   {
     property: 'font-kerning',
-    primaryPath: 'subtitleStyle.fontKerning',
-    secondaryPath: 'subtitleStyle.secondary.fontKerning',
+    paths: {
+      primary: 'subtitleStyle.fontKerning',
+      secondary: 'subtitleStyle.secondary.fontKerning',
+    },
   },
   {
     property: 'text-rendering',
-    primaryPath: 'subtitleStyle.textRendering',
-    secondaryPath: 'subtitleStyle.secondary.textRendering',
+    paths: {
+      primary: 'subtitleStyle.textRendering',
+      secondary: 'subtitleStyle.secondary.textRendering',
+    },
   },
   {
     property: 'text-shadow',
-    primaryPath: 'subtitleStyle.textShadow',
-    secondaryPath: 'subtitleStyle.secondary.textShadow',
+    paths: {
+      primary: 'subtitleStyle.textShadow',
+      secondary: 'subtitleStyle.secondary.textShadow',
+    },
+  },
+  {
+    property: 'paint-order',
+    paths: {
+      primary: 'subtitleStyle.paintOrder',
+      secondary: 'subtitleStyle.secondary.paintOrder',
+    },
+  },
+  {
+    property: '-webkit-text-stroke',
+    paths: {
+      primary: 'subtitleStyle.WebkitTextStroke',
+      secondary: 'subtitleStyle.secondary.WebkitTextStroke',
+    },
   },
   {
     property: 'backdrop-filter',
-    primaryPath: 'subtitleStyle.backdropFilter',
-    secondaryPath: 'subtitleStyle.secondary.backdropFilter',
+    paths: {
+      primary: 'subtitleStyle.backdropFilter',
+      secondary: 'subtitleStyle.secondary.backdropFilter',
+    },
   },
   {
-    property: 'color',
-    primaryPath: 'subtitleStyle.fontColor',
-    secondaryPath: 'subtitleStyle.secondary.fontColor',
+    property: '--subtitle-hover-token-color',
+    paths: {
+      primary: 'subtitleStyle.hoverTokenColor',
+    },
   },
   {
-    property: 'background-color',
-    primaryPath: 'subtitleStyle.backgroundColor',
-    secondaryPath: 'subtitleStyle.secondary.backgroundColor',
+    property: '--subtitle-hover-token-background-color',
+    paths: {
+      primary: 'subtitleStyle.hoverTokenBackgroundColor',
+    },
+  },
+  {
+    property: 'opacity',
+    paths: {
+      sidebar: 'subtitleSidebar.opacity',
+    },
+  },
+  {
+    property: '--subtitle-sidebar-max-width',
+    paths: {
+      sidebar: 'subtitleSidebar.maxWidth',
+    },
+    format: formatCssLengthLikeValue,
+  },
+  {
+    property: '--subtitle-sidebar-timestamp-color',
+    paths: {
+      sidebar: 'subtitleSidebar.timestampColor',
+    },
+  },
+  {
+    property: '--subtitle-sidebar-active-line-color',
+    paths: {
+      sidebar: 'subtitleSidebar.activeLineColor',
+    },
+  },
+  {
+    property: '--subtitle-sidebar-active-background-color',
+    paths: {
+      sidebar: 'subtitleSidebar.activeLineBackgroundColor',
+    },
+  },
+  {
+    property: '--subtitle-sidebar-hover-background-color',
+    paths: {
+      sidebar: 'subtitleSidebar.hoverLineBackgroundColor',
+    },
   },
 ];
 
 const CSS_PROPERTY_PATTERN = /^(?:--[A-Za-z0-9_-]+|-?[A-Za-z][A-Za-z0-9_-]*)$/;
 
 export function getSubtitleCssPath(scope: SubtitleCssScope): string {
-  return scope === 'primary' ? 'subtitleStyle.css' : 'subtitleStyle.secondary.css';
+  if (scope === 'primary') return 'subtitleStyle.css';
+  if (scope === 'secondary') return 'subtitleStyle.secondary.css';
+  return 'subtitleSidebar.css';
 }
 
 export function getSubtitleCssManagedConfigPaths(scope: SubtitleCssScope): string[] {
-  return LEGACY_CSS_DECLARATIONS.map((declaration) =>
-    scope === 'primary' ? declaration.primaryPath : declaration.secondaryPath,
-  );
+  return [
+    ...new Set(
+      LEGACY_CSS_DECLARATIONS.map((declaration) => declaration.paths[scope]).filter(
+        (path): path is string => typeof path === 'string' && path.length > 0,
+      ),
+    ),
+  ];
 }
 
 export function getSubtitleCssScopeForPath(path: string): SubtitleCssScope | null {
   if (path === 'subtitleStyle.css') return 'primary';
   if (path === 'subtitleStyle.secondary.css') return 'secondary';
+  if (path === 'subtitleSidebar.css') return 'sidebar';
   return null;
 }
 
@@ -104,10 +203,20 @@ export function serializeSubtitleCssDeclarations(
   scope: SubtitleCssScope,
   values: Record<string, ConfigSettingsSnapshotValue | undefined>,
 ): string {
+  return Object.entries(buildSubtitleCssDeclarationObject(scope, values))
+    .map(([property, value]) => `${property}: ${value};`)
+    .join('\n');
+}
+
+export function buildSubtitleCssDeclarationObject(
+  scope: SubtitleCssScope,
+  values: Record<string, ConfigSettingsSnapshotValue | undefined>,
+): Record<string, string> {
   const declarations = new Map<string, string>();
 
   for (const declaration of LEGACY_CSS_DECLARATIONS) {
-    const path = scope === 'primary' ? declaration.primaryPath : declaration.secondaryPath;
+    const path = declaration.paths[scope];
+    if (typeof path !== 'string' || path.length === 0) continue;
     const formatted = (declaration.format ?? formatCssPrimitiveValue)(values[path]);
     if (formatted !== undefined) {
       declarations.set(declaration.property, formatted);
@@ -119,9 +228,7 @@ export function serializeSubtitleCssDeclarations(
     declarations.set(normalizeCssPropertyName(property), value);
   }
 
-  return [...declarations.entries()]
-    .map(([property, value]) => `${property}: ${value};`)
-    .join('\n');
+  return Object.fromEntries(declarations.entries());
 }
 
 export function parseSubtitleCssDeclarations(text: string): SubtitleCssParseResult {

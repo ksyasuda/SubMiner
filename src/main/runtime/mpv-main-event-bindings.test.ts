@@ -95,3 +95,66 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   assert.ok(calls.includes('sync-immersion'));
   assert.ok(calls.includes('flush-playback'));
 });
+
+test('main mpv event binder runs mpv-connected callback on connection', () => {
+  const handlers = new Map<string, (payload: unknown) => void>();
+  const calls: string[] = [];
+
+  const bind = createBindMpvMainEventHandlersHandler({
+    reportJellyfinRemoteStopped: () => calls.push('remote-stopped'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
+    onMpvConnected: () => calls.push('mpv-connected'),
+    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
+    hasInitialPlaybackQuitOnDisconnectArg: () => false,
+    isOverlayRuntimeInitialized: () => false,
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => false,
+    isQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    isMpvConnected: () => true,
+    quitApp: () => {},
+
+    recordImmersionSubtitleLine: () => {},
+    hasSubtitleTimingTracker: () => false,
+    recordSubtitleTiming: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    setCurrentSubText: () => {},
+    broadcastSubtitle: () => {},
+    onSubtitleChange: () => {},
+    refreshDiscordPresence: () => calls.push('presence-refresh'),
+
+    setCurrentSubAssText: () => {},
+    broadcastSubtitleAss: () => {},
+    broadcastSecondarySubtitle: () => {},
+
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    notifyImmersionTitleUpdate: () => {},
+
+    recordPlaybackPosition: () => {},
+    recordMediaDuration: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    recordPauseState: () => {},
+
+    updateSubtitleRenderMetrics: () => {},
+    setPreviousSecondarySubVisibility: () => {},
+  });
+
+  bind({
+    on: (event, handler) => {
+      handlers.set(event, handler as (payload: unknown) => void);
+    },
+  });
+
+  handlers.get('connection-change')?.({ connected: true });
+
+  assert.ok(calls.includes('mpv-connected'));
+});

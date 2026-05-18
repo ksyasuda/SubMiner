@@ -21,3 +21,13 @@ test('settings preload exposes Anki lookup helpers', () => {
     assert.match(source, new RegExp(`${method}:`));
   }
 });
+
+test('overlay preload queues subtitle updates until renderer listener registration', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'src', 'preload.ts'), 'utf8');
+
+  assert.match(
+    source,
+    /const onSubtitleSetEvent =\s*createQueuedIpcListenerWithPayload<SubtitleData>\(\s*IPC_CHANNELS\.event\.subtitleSet,/,
+  );
+  assert.match(source, /onSubtitle:\s*\(callback:[\s\S]+?onSubtitleSetEvent\(callback\);/);
+});

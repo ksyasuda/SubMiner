@@ -8,10 +8,11 @@ import {
   detectInstalledMpvPlugin,
   type InstalledMpvPluginDetection,
 } from '../src/main/runtime/first-run-setup-plugin.js';
-import type { LogLevel, Backend, Args, MpvTrack } from './types.js';
+import type { LogLevel, Backend, Args, MpvTrack, PluginRuntimeConfig } from './types.js';
 import { DEFAULT_MPV_SUBMINER_ARGS, DEFAULT_YOUTUBE_YTDL_FORMAT } from './types.js';
 import { appendToAppLog, getAppLogPath, log, fail, getMpvLogPath } from './log.js';
 import { buildSubminerScriptOpts, resolveAniSkipMetadataForFile } from './aniskip-metadata.js';
+import { buildPluginRuntimeScriptOptParts } from './config/plugin-runtime-config.js';
 import { nowMs } from './time.js';
 import {
   commandExists,
@@ -849,6 +850,7 @@ export async function startMpv(
     startPaused?: boolean;
     disableYoutubeSubtitleAutoLoad?: boolean;
     runtimePluginPath?: string | null;
+    runtimePluginConfig?: PluginRuntimeConfig;
   },
 ): Promise<void> {
   if (targetKind === 'file' && (!fs.existsSync(target) || !fs.statSync(target).isFile())) {
@@ -916,13 +918,13 @@ export async function startMpv(
     options?.disableYoutubeSubtitleAutoLoad === true
       ? ['subminer-auto_start_pause_until_ready=no']
       : [];
-  const scriptOpts = buildSubminerScriptOpts(
-    appPath,
-    socketPath,
-    aniSkipMetadata,
-    args.logLevel,
-    extraScriptOpts,
-  );
+  const runtimeScriptOpts = options?.runtimePluginConfig
+    ? buildPluginRuntimeScriptOptParts(options.runtimePluginConfig, appPath)
+    : [`subminer-binary_path=${appPath}`, `subminer-socket_path=${socketPath}`];
+  const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata, args.logLevel, [
+    ...runtimeScriptOpts,
+    ...extraScriptOpts,
+  ]);
   if (aniSkipMetadata) {
     log(
       'debug',
@@ -1477,6 +1479,7 @@ export function launchMpvIdleDetached(
   appPath: string,
   args: Args,
   runtimePluginPath?: string | null,
+  runtimePluginConfig?: PluginRuntimeConfig,
 ): Promise<void> {
   return (async () => {
     await terminateTrackedDetachedMpv(args.logLevel);
@@ -1498,8 +1501,17 @@ export function launchMpvIdleDetached(
       mpvArgs.push(...parseMpvArgString(args.mpvArgs));
     }
     mpvArgs.push('--idle=yes');
+    const runtimeScriptOpts = runtimePluginConfig
+      ? buildPluginRuntimeScriptOptParts(runtimePluginConfig, appPath)
+      : [`subminer-binary_path=${appPath}`, `subminer-socket_path=${socketPath}`];
     mpvArgs.push(
-      `--script-opts=${buildSubminerScriptOpts(appPath, socketPath, null, args.logLevel)}`,
+      `--script-opts=${buildSubminerScriptOpts(
+        appPath,
+        socketPath,
+        null,
+        args.logLevel,
+        runtimeScriptOpts,
+      )}`,
     );
     mpvArgs.push(`--log-file=${getMpvLogPath()}`);
     mpvArgs.push(`--input-ipc-server=${socketPath}`);

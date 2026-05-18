@@ -161,29 +161,39 @@ const onKikuFieldGroupingRequestEvent =
     IPC_CHANNELS.event.kikuFieldGroupingRequest,
     (payload) => payload as KikuFieldGroupingRequestData,
   );
+const onSubtitleSetEvent = createQueuedIpcListenerWithPayload<SubtitleData>(
+  IPC_CHANNELS.event.subtitleSet,
+  (payload) => payload as SubtitleData,
+);
+const onSubtitleVisibilityEvent = createQueuedIpcListenerWithPayload<boolean>(
+  IPC_CHANNELS.event.subtitleVisibility,
+  (payload) => payload === true,
+);
+const onSubtitlePositionSetEvent = createQueuedIpcListenerWithPayload<SubtitlePosition | null>(
+  IPC_CHANNELS.event.subtitlePositionSet,
+  (payload) => payload as SubtitlePosition | null,
+);
+const onSecondarySubtitleSetEvent = createQueuedIpcListenerWithPayload<string>(
+  IPC_CHANNELS.event.secondarySubtitleSet,
+  (payload) => (typeof payload === 'string' ? payload : ''),
+);
+const onSecondarySubtitleModeEvent = createQueuedIpcListenerWithPayload<SecondarySubMode>(
+  IPC_CHANNELS.event.secondarySubtitleMode,
+  (payload) => payload as SecondarySubMode,
+);
 
 const electronAPI: ElectronAPI = {
   getOverlayLayer: () => overlayLayer,
   onSubtitle: (callback: (data: SubtitleData) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.event.subtitleSet, (_event: IpcRendererEvent, data: SubtitleData) =>
-      callback(data),
-    );
+    onSubtitleSetEvent(callback);
   },
 
   onVisibility: (callback: (visible: boolean) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.subtitleVisibility,
-      (_event: IpcRendererEvent, visible: boolean) => callback(visible),
-    );
+    onSubtitleVisibilityEvent(callback);
   },
 
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.subtitlePositionSet,
-      (_event: IpcRendererEvent, position: SubtitlePosition | null) => {
-        callback(position);
-      },
-    );
+    onSubtitlePositionSetEvent(callback);
   },
 
   getOverlayVisibility: (): Promise<boolean> =>
@@ -290,17 +300,11 @@ const electronAPI: ElectronAPI = {
   },
 
   onSecondarySub: (callback: (text: string) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.secondarySubtitleSet,
-      (_event: IpcRendererEvent, text: string) => callback(text),
-    );
+    onSecondarySubtitleSetEvent(callback);
   },
 
   onSecondarySubMode: (callback: (mode: SecondarySubMode) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.secondarySubtitleMode,
-      (_event: IpcRendererEvent, mode: SecondarySubMode) => callback(mode),
-    );
+    onSecondarySubtitleModeEvent(callback);
   },
 
   getSecondarySubMode: (): Promise<SecondarySubMode> =>

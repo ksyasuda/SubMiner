@@ -339,7 +339,8 @@ export function buildCoreConfigOptionRegistry(
       path: 'auto_start_overlay',
       kind: 'boolean',
       defaultValue: defaultConfig.auto_start_overlay,
-      description: 'Auto-start the subtitle overlay window when SubMiner launches.',
+      description:
+        'Show the visible subtitle overlay automatically when the bundled mpv plugin starts SubMiner.',
     },
     {
       path: 'secondarySub.secondarySubLanguages',

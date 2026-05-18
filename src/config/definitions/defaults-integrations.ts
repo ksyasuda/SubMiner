@@ -1,4 +1,5 @@
 import { ResolvedConfig } from '../../types/config';
+import { getDefaultMpvSocketPath } from '../../shared/mpv-socket-path';
 
 export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   ResolvedConfig,
@@ -93,6 +94,13 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   mpv: {
     executablePath: '',
     launchMode: 'normal',
+    socketPath: getDefaultMpvSocketPath(),
+    backend: 'auto',
+    autoStartSubMiner: true,
+    pauseUntilOverlayReady: true,
+    subminerBinaryPath: '',
+    aniskipEnabled: true,
+    aniskipButtonKey: 'TAB',
   },
   anilist: {
     enabled: false,

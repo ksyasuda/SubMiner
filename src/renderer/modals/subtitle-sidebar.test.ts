@@ -141,6 +141,11 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
       activeLineColor: '#f5bde6',
       activeLineBackgroundColor: 'rgba(138, 173, 244, 0.22)',
       hoverLineBackgroundColor: 'rgba(54, 58, 79, 0.84)',
+      css: {
+        'font-size': '22px',
+        color: '#ffffff',
+        '--subtitle-sidebar-timestamp-color': '#aaaaaa',
+      },
     },
   };
 
@@ -175,6 +180,12 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
     const overlayClassList = createClassList();
     const modalClassList = createClassList(['hidden']);
     const cueList = createListStub();
+    const contentStyleValues = new Map<string, string>();
+    const contentStyle = {
+      setProperty: (name: string, value: string) => {
+        contentStyleValues.set(name, value);
+      },
+    } as CSSStyleDeclaration & { color?: string };
     const ctx = {
       dom: {
         overlay: { classList: overlayClassList },
@@ -187,6 +198,7 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
         subtitleSidebarContent: {
           classList: createClassList(),
           getBoundingClientRect: () => ({ width: 420 }),
+          style: contentStyle,
         },
         subtitleSidebarClose: { addEventListener: () => {} },
         subtitleSidebarStatus: { textContent: '' },
@@ -207,6 +219,9 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
     assert.equal(cueList.children.length, 2);
     assert.equal(cueList.scrollTop, 0);
     assert.deepEqual(cueList.scrollToCalls, []);
+    assert.equal(contentStyleValues.get('font-size'), '22px');
+    assert.equal(contentStyle.color, '#ffffff');
+    assert.equal(contentStyleValues.get('--subtitle-sidebar-timestamp-color'), '#aaaaaa');
 
     modal.seekToCue(snapshot.cues[0]!);
     assert.deepEqual(mpvCommands.at(-1), ['seek', 1.08, 'absolute+exact']);
