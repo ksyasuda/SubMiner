@@ -56,3 +56,10 @@ test('docs deploy caches stable archive builds between runs', () => {
   assert.match(docsPagesWorkflow, /docs-versioned-archives-/);
   assert.match(docsPagesWorkflow, /docs-site\/\.vitepress\/\*\*/);
 });
+
+test('docs deploy skips invalid release tags without failing the workflow', () => {
+  assert.match(docsPagesWorkflow, /id:\s*tag_guard/);
+  assert.match(docsPagesWorkflow, /stable_tag=false/);
+  assert.doesNotMatch(docsPagesWorkflow, /exit 78/);
+  assert.match(docsPagesWorkflow, /if:\s*steps\.tag_guard\.outputs\.stable_tag != 'false'/);
+});

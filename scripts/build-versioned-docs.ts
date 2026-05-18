@@ -6,6 +6,7 @@ import {
   buildVersionManifest,
   stableTagsWithDocs,
   versionArchiveCacheName,
+  versionOutputPath,
   versionPath,
 } from './docs-versioning';
 
@@ -215,7 +216,7 @@ function restoreCachedArchive(version: string, sharedInternalsHash: string): boo
     return false;
   }
 
-  cpSync(cachedArchive, join(aggregateOutDir, versionPath(version)), {
+  cpSync(cachedArchive, join(aggregateOutDir, versionOutputPath(version)), {
     recursive: true,
     force: true,
   });
@@ -223,7 +224,7 @@ function restoreCachedArchive(version: string, sharedInternalsHash: string): boo
 }
 
 function saveArchiveCache(version: string, sharedInternalsHash: string) {
-  const outputPath = join(aggregateOutDir, versionPath(version));
+  const outputPath = join(aggregateOutDir, versionOutputPath(version));
   if (!existsSync(outputPath)) {
     return;
   }
@@ -309,7 +310,7 @@ function main() {
     buildDocs({
       snapshotDocsSite: snapshot,
       base: versionPath(version),
-      outDir: join(aggregateOutDir, versionPath(version)),
+      outDir: join(aggregateOutDir, versionOutputPath(version)),
       channel: 'stable-archive',
       version,
       latestStable,

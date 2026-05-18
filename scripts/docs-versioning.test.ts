@@ -5,6 +5,7 @@ import {
   isStableReleaseTag,
   stableTagsWithDocs,
   versionArchiveCacheName,
+  versionOutputPath,
   versionPath,
 } from './docs-versioning';
 
@@ -47,5 +48,9 @@ describe('docs versioning helpers', () => {
 
   test('archive cache names are normalized by version and shared internals hash', () => {
     expect(versionArchiveCacheName('v0.14.0', 'abcdef1234567890')).toBe('abcdef123456-v0.14.0');
+  });
+
+  test('archive output paths stay relative for filesystem joins', () => {
+    expect(versionOutputPath('v0.14.0')).toBe('v/0.14.0');
   });
 });
