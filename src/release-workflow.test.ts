@@ -5,6 +5,8 @@ import { resolve } from 'node:path';
 
 const releaseWorkflowPath = resolve(__dirname, '../.github/workflows/release.yml');
 const releaseWorkflow = readFileSync(releaseWorkflowPath, 'utf8');
+const docsPagesWorkflowPath = resolve(__dirname, '../.github/workflows/docs-pages.yml');
+const docsPagesWorkflow = readFileSync(docsPagesWorkflowPath, 'utf8');
 const makefilePath = resolve(__dirname, '../Makefile');
 const makefile = readFileSync(makefilePath, 'utf8');
 const packageJsonPath = resolve(__dirname, '../package.json');
@@ -36,6 +38,14 @@ test('stable release workflow excludes prerelease beta and rc tags', () => {
   assert.match(releaseWorkflow, /tags:\s*\n\s*-\s*'v\*'/);
   assert.match(releaseWorkflow, /tags:\s*\n(?:.*\n)*\s*-\s*'!v\*-beta\.\*'/);
   assert.match(releaseWorkflow, /tags:\s*\n(?:.*\n)*\s*-\s*'!v\*-rc\.\*'/);
+});
+
+test('stable release tags publish docs and prereleases do not update stable docs', () => {
+  assert.match(docsPagesWorkflow, /tags:\s*\n\s*-\s*'v\*'/);
+  assert.match(docsPagesWorkflow, /github\.ref_name/);
+  assert.match(docsPagesWorkflow, /\^v\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+\$/);
+  assert.match(docsPagesWorkflow, /bun run docs:build:versioned/);
+  assert.doesNotMatch(docsPagesWorkflow, /beta/);
 });
 
 test('publish release forces an existing draft tag release to become public', () => {

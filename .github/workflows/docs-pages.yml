@@ -1,0 +1,76 @@
+name: Docs Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    paths:
+      - 'docs-site/**'
+      - 'scripts/docs-versioning.ts'
+      - 'scripts/build-versioned-docs.ts'
+      - '.github/workflows/docs-pages.yml'
+      - 'package.json'
+      - 'bun.lock'
+
+concurrency:
+  group: docs-pages-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.ref_type != 'tag' || !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard stable docs tag shape
+        id: tag_guard
+        if: github.ref_type == 'tag'
+        run: |
+          if [[ ! "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::notice::Skipping non-stable docs tag ${{ github.ref_name }}"
+            echo "stable_tag=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "stable_tag=true" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Bun
+        if: steps.tag_guard.outputs.stable_tag != 'false'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Install dependencies
+        if: steps.tag_guard.outputs.stable_tag != 'false'
+        run: |
+          bun install --frozen-lockfile
+          cd docs-site && bun install --frozen-lockfile
+
+      - name: Cache versioned docs archives
+        if: steps.tag_guard.outputs.stable_tag != 'false'
+        uses: actions/cache@v4
+        with:
+          path: .tmp/docs-versioned-archive-cache
+          key: docs-versioned-archives-${{ runner.os }}-${{ hashFiles('docs-site/.vitepress/**', 'docs-site/public/assets/fonts/**', 'docs-site/package.json', 'docs-site/bun.lock', 'scripts/build-versioned-docs.ts', 'scripts/docs-versioning.ts') }}
+
+      - name: Test docs
+        if: steps.tag_guard.outputs.stable_tag != 'false'
+        run: bun run docs:test
+
+      - name: Build versioned docs
+        if: steps.tag_guard.outputs.stable_tag != 'false'
+        run: bun run docs:build:versioned
+
+      - name: Deploy docs to Cloudflare Pages
+        if: steps.tag_guard.outputs.stable_tag != 'false'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy .tmp/docs-versioned-site --project-name "${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}" --branch main

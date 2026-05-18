@@ -4,9 +4,11 @@ import { readFileSync } from 'node:fs';
 const docsConfigPath = new URL('./.vitepress/config.ts', import.meta.url);
 const docsThemePath = new URL('./.vitepress/theme/index.ts', import.meta.url);
 const docsPackagePath = new URL('./package.json', import.meta.url);
+const versionedBuildPath = new URL('../scripts/build-versioned-docs.ts', import.meta.url);
 const docsConfigContents = readFileSync(docsConfigPath, 'utf8');
 const docsThemeContents = readFileSync(docsThemePath, 'utf8');
 const docsPackageContents = readFileSync(docsPackagePath, 'utf8');
+const versionedBuildContents = readFileSync(versionedBuildPath, 'utf8');
 
 test('docs site loads the docs.subminer.moe Plausible script through the analytics proxy', () => {
   expect(docsConfigContents).toContain("const DOCS_HOSTNAME = 'https://docs.subminer.moe'");
@@ -33,4 +35,9 @@ test('docs site loads the docs.subminer.moe Plausible script through the analyti
   expect(docsThemeContents).not.toContain('@plausible-analytics/tracker');
   expect(docsThemeContents).not.toContain('initPlausibleTracker');
   expect(docsPackageContents).not.toContain('@plausible-analytics/tracker');
+});
+
+test('versioned docs reuse current VitePress internals for old page snapshots', () => {
+  expect(versionedBuildContents).toContain("cpSync(join(currentDocsSite, '.vitepress')");
+  expect(versionedBuildContents).toContain('overlayCurrentVitePress(snapshotDocsSite)');
 });

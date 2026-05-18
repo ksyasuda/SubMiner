@@ -37,13 +37,13 @@ test('docs reflect current launcher and release surfaces', () => {
 
   expect(mpvPluginContents).toContain('\\\\.\\pipe\\subminer-socket');
 
-  expect(readmeContents).toContain('Root directory: `docs-site`');
-  expect(readmeContents).toContain('Build output directory: `.vitepress/dist`');
-  expect(readmeContents).toContain('Build watch paths: `docs-site/*`');
+  expect(readmeContents).toContain('Automatic production and preview deployments: disabled');
+  expect(readmeContents).toContain('/main/');
+  expect(readmeContents).toContain('GitHub Actions direct upload with Wrangler');
   expect(developmentContents).not.toContain('../subminer-docs');
   expect(developmentContents).toContain('bun run docs:build');
   expect(developmentContents).toContain('bun run docs:test');
-  expect(developmentContents).toContain('Build watch paths: `docs-site/*`');
+  expect(developmentContents).toContain('bun run docs:build:versioned');
   expect(developmentContents).not.toContain('test:subtitle:dist');
   expect(developmentContents).toContain('bun run build:win');
 

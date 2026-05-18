@@ -37,6 +37,7 @@
 8. If `docs-site/` changed, also run:
    `bun run docs:test`
    `bun run docs:build`
+   `bun run docs:build:versioned`
 9. Commit release prep.
 10. Tag the commit: `git tag v<version>`.
 11. Push commit + tag.
@@ -66,6 +67,7 @@
 7. Push commit + tag.
 
 Prerelease tags publish a GitHub prerelease only. They do not update `CHANGELOG.md`, `docs-site/changelog.md`, or the AUR package, and they do not consume `changes/*.md` fragments. The final stable release is still the point where `bun run changelog:build` consumes fragments into `CHANGELOG.md` and regenerates stable release notes.
+Prerelease tags also do not update `https://docs.subminer.moe/`.
 
 Notes:
 
@@ -81,6 +83,8 @@ Notes:
 - If you need to repair a published release body (for example, a prior version’s section was omitted), regenerate notes from `CHANGELOG.md` and re-edit the release with `gh release edit --notes-file`.
 - Prerelease tags are handled by `.github/workflows/prerelease.yml`, which always publishes a GitHub prerelease with all current release platforms and never runs the AUR sync job.
 - Tagged release workflow now also attempts to update `subminer-bin` on the AUR after GitHub Release publication.
+- Stable release tags update `https://docs.subminer.moe/` and `https://docs.subminer.moe/v/<version>/` through `.github/workflows/docs-pages.yml`; `/main/` continues to show development docs from `main`.
+- Keep Cloudflare Pages Git auto-deploy disabled for `docs.subminer.moe`. Production docs are direct-uploaded by Wrangler from GitHub Actions with `--branch main`.
 - AUR publish is best-effort: the workflow retries transient SSH clone/push failures, then warns and leaves the GitHub Release green if AUR still fails. Follow up with a manual `git push aur master` from the AUR checkout when needed.
 - Required GitHub Actions secret: `AUR_SSH_PRIVATE_KEY`. Add the matching public key to your AUR account before relying on the automation.
 - Release and prerelease workflows upload updater metadata (`*.yml`) and blockmaps (`*.blockmap`) alongside platform artifacts. Do not remove those files while `electron-updater` is enabled.

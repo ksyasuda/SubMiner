@@ -113,6 +113,14 @@ bun run docs:test
 bun run docs:build
 ```
 
+For production docs routing, run the versioned build:
+
+```bash
+bun run docs:build:versioned
+```
+
+The versioned build writes `.tmp/docs-versioned-site` with latest stable docs at `/`, development docs at `/main/`, and stable archives under `/v/<version>/`. Prerelease tags are skipped.
+
 Focused commands:
 
 ```bash
