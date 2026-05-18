@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 import {
   buildVersionManifest,
   stableTagsWithDocs,
+  versionArchiveCacheKey,
   versionArchiveCacheName,
   versionOutputPath,
   versionPath,
@@ -310,7 +311,8 @@ function main() {
   const manifest = buildVersionManifest({ latestStable, stableVersions });
   const manifestJson = JSON.stringify(manifest);
   const sharedInternalsHash = computeSharedInternalsHash();
-  console.info(`[docs] archive cache key ${sharedInternalsHash.slice(0, 12)}`);
+  const archiveCacheKey = versionArchiveCacheKey({ sharedInternalsHash, manifestJson });
+  console.info(`[docs] archive cache key ${archiveCacheKey.slice(0, 12)}`);
 
   rmSync(buildRoot, { recursive: true, force: true });
   rmSync(aggregateOutDir, { recursive: true, force: true });
@@ -329,7 +331,7 @@ function main() {
   });
 
   for (const version of stableVersions) {
-    if (restoreCachedArchive(version, sharedInternalsHash)) {
+    if (restoreCachedArchive(version, archiveCacheKey)) {
       continue;
     }
 
@@ -345,7 +347,7 @@ function main() {
       latestStable,
       manifestJson,
     });
-    saveArchiveCache(version, sharedInternalsHash);
+    saveArchiveCache(version, archiveCacheKey);
   }
 
   const mainSnapshot = prepareSnapshot('main');

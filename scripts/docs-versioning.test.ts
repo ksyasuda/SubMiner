@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   buildVersionManifest,
   compareStableVersionsDesc,
+  versionArchiveCacheKey,
   isStableReleaseTag,
   stableTagsWithDocs,
   versionArchiveCacheName,
@@ -48,6 +49,19 @@ describe('docs versioning helpers', () => {
 
   test('archive cache names are normalized by version and shared internals hash', () => {
     expect(versionArchiveCacheName('v0.14.0', 'abcdef1234567890')).toBe('abcdef123456-v0.14.0');
+  });
+
+  test('archive cache keys change when manifest contents change', () => {
+    const firstKey = versionArchiveCacheKey({
+      sharedInternalsHash: 'abcdef1234567890',
+      manifestJson: '{"latestStable":"v0.14.0"}',
+    });
+    const secondKey = versionArchiveCacheKey({
+      sharedInternalsHash: 'abcdef1234567890',
+      manifestJson: '{"latestStable":"v0.15.0"}',
+    });
+
+    expect(firstKey).not.toBe(secondKey);
   });
 
   test('archive output paths stay relative for filesystem joins', () => {

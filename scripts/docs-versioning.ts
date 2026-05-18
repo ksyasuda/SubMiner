@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 export type DocsVersionEntry = {
   version: string;
   path: string;
@@ -55,6 +57,18 @@ export function versionOutputPath(version: string): string {
 
 export function versionArchiveCacheName(version: string, sharedInternalsHash: string): string {
   return `${sharedInternalsHash.slice(0, 12)}-${version}`;
+}
+
+export function versionArchiveCacheKey(options: {
+  sharedInternalsHash: string;
+  manifestJson: string;
+}): string {
+  const hash = createHash('sha256');
+  hash.update('shared-internals:');
+  hash.update(options.sharedInternalsHash);
+  hash.update('\nmanifest:');
+  hash.update(options.manifestJson);
+  return hash.digest('hex');
 }
 
 export function stableTagsWithDocs(
