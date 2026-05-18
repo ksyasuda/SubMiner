@@ -7,7 +7,7 @@ import {
   versionPath,
 } from './docs-versioning';
 
-const repoRoot = resolve(import.meta.dir, '..');
+const repoRoot = resolve(__dirname, '..');
 const currentDocsSite = join(repoRoot, 'docs-site');
 const buildRoot = join(repoRoot, '.tmp/docs-versioned-build');
 const aggregateOutDir = join(repoRoot, '.tmp/docs-versioned-site');

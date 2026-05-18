@@ -38,7 +38,7 @@ export function compareStableVersionsDesc(a: string, b: string): number {
   const parsedB = parseStableVersion(b);
 
   for (let index = 0; index < parsedA.length; index += 1) {
-    const difference = parsedB[index] - parsedA[index];
+    const difference = parsedB[index]! - parsedA[index]!;
     if (difference !== 0) return difference;
   }
 
