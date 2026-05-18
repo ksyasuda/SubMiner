@@ -86,6 +86,8 @@ features:
 ---
 
 <script setup>
+import { withBase } from 'vitepress';
+
 const demoAssetVersion = '20260223-2';
 </script>
 
@@ -135,11 +137,11 @@ const demoAssetVersion = '20260223-2';
         <span class="demo-window__dot"></span>
         <span class="demo-window__title">subminer -- playback</span>
       </div>
-      <video controls playsinline preload="metadata" :poster="`/assets/minecard-poster.jpg?v=${demoAssetVersion}`">
-        <source :src="`/assets/minecard.webm?v=${demoAssetVersion}`" type="video/webm" />
-        <source :src="`/assets/minecard.mp4?v=${demoAssetVersion}`" type="video/mp4" />
-        <a :href="`/assets/minecard.webm?v=${demoAssetVersion}`" target="_blank" rel="noreferrer">
-          <img :src="`/assets/minecard.webp?v=${demoAssetVersion}`" alt="SubMiner demo Animated fallback" style="width: 100%; height: auto;" />
+      <video controls playsinline preload="metadata" :poster="withBase(`/assets/minecard-poster.jpg?v=${demoAssetVersion}`)">
+        <source :src="withBase(`/assets/minecard.webm?v=${demoAssetVersion}`)" type="video/webm" />
+        <source :src="withBase(`/assets/minecard.mp4?v=${demoAssetVersion}`)" type="video/mp4" />
+        <a :href="withBase(`/assets/minecard.webm?v=${demoAssetVersion}`)" target="_blank" rel="noreferrer">
+          <img :src="withBase(`/assets/minecard.webp?v=${demoAssetVersion}`)" alt="SubMiner demo Animated fallback" style="width: 100%; height: auto;" />
         </a>
       </video>
     </div>

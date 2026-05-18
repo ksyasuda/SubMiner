@@ -4,6 +4,10 @@ outline: [2, 3]
 
 # Configuration
 
+<script setup>
+import { withBase } from 'vitepress';
+</script>
+
 Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` when `XDG_CONFIG_HOME` is unset).
 On Windows, the default path is `%APPDATA%\SubMiner\config.jsonc`.
 When both files exist, SubMiner prefers `config.jsonc` over `config.json`.
@@ -1044,12 +1048,12 @@ To refresh roughly once per day, set:
 `deleteDuplicateInAuto` controls whether `auto` mode deletes the duplicate after merge (default: `true`). In `manual` mode, the popup asks each time whether to delete the duplicate.
 When the manual merge popup opens, SubMiner pauses playback and closes any open Yomitan popup first so the merge flow can take focus.
 
-<video controls playsinline preload="metadata" poster="/assets/kiku-integration-poster.jpg" style="width: 100%; max-width: 960px;">
-  <source :src="'/assets/kiku-integration.webm'" type="video/webm" />
+<video controls playsinline preload="metadata" :poster="withBase('/assets/kiku-integration-poster.jpg')" style="width: 100%; max-width: 960px;">
+  <source :src="withBase('/assets/kiku-integration.webm')" type="video/webm" />
   Your browser does not support the video tag.
 </video>
 
-<a :href="'/assets/kiku-integration.webm'" target="_blank" rel="noreferrer">Open demo in a new tab</a>
+<a :href="withBase('/assets/kiku-integration.webm')" target="_blank" rel="noreferrer">Open demo in a new tab</a>
 
 ## External Integrations
 

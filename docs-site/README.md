@@ -30,9 +30,16 @@ bun run docs:dev
 ## Cloudflare Pages
 
 - Git repo: `ksyasuda/SubMiner`
-- Root directory: `docs-site`
-- Build command: `bun run docs:build`
-- Build output directory: `.vitepress/dist`
-- Build watch paths: `docs-site/*`
+- Production branch: `main`
+- Automatic production and preview deployments: disabled
+- Custom domain: `docs.subminer.moe` attached to Production
+- Deployment path: GitHub Actions direct upload with Wrangler
 
-Cloudflare Pages watch paths use a single `*` wildcard for monorepo subdirectories. `docs-site/*` matches nested files under the docs site; `docs-site/**` can cause docs-only pushes to be skipped.
+The public docs root is stable-only:
+
+- `/` serves the latest stable release docs.
+- `/main/` serves development docs from `main` and is marked `noindex,follow`.
+- `/v/<version>/` serves stable release archives.
+- Prerelease tags do not update the docs site.
+
+Keep Cloudflare Git auto-deploy disabled. The production deploy is `.github/workflows/docs-pages.yml`, which uploads `.tmp/docs-versioned-site` with `--branch main` so tag-triggered runs update Production instead of creating preview deployments.
