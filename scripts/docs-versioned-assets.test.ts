@@ -28,6 +28,26 @@ describe('docs versioned asset dedupe', () => {
     );
   });
 
+  test('does not rewrite longer asset paths with a shared asset prefix', () => {
+    expect(
+      rewriteSharedAssetReferences(
+        [
+          '<script src="/v/0.14.0/assets/foo.js"></script>',
+          '<script src="/v/0.14.0/assets/foo.js?v=1"></script>',
+          '<script src="/v/0.14.0/assets/foo.js.map"></script>',
+        ].join(''),
+        '/v/0.14.0/',
+        new Set(['foo.js']),
+      ),
+    ).toBe(
+      [
+        '<script src="/assets/foo.js"></script>',
+        '<script src="/assets/foo.js?v=1"></script>',
+        '<script src="/v/0.14.0/assets/foo.js.map"></script>',
+      ].join(''),
+    );
+  });
+
   test('removes duplicated version public assets while preserving generated VitePress assets', async () => {
     const dir = tempDir();
     try {

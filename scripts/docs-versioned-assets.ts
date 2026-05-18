@@ -7,6 +7,10 @@ function normalizeBase(base: string): string {
   return base === '/' ? '/' : `${base.replace(/\/+$/, '')}/`;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export function collectSharedAssetPaths(publicAssetsDir: string): Set<string> {
   if (!existsSync(publicAssetsDir)) {
     return new Set();
@@ -28,10 +32,13 @@ export function rewriteSharedAssetReferences(
   }
 
   let rewritten = content;
+  const escapedBase = escapeRegExp(normalizedBase);
   for (const assetPath of sharedAssetPaths) {
-    rewritten = rewritten
-      .split(`${normalizedBase}assets/${assetPath}`)
-      .join(`/assets/${assetPath}`);
+    const escapedAssetPath = escapeRegExp(assetPath);
+    rewritten = rewritten.replace(
+      new RegExp(`${escapedBase}assets/${escapedAssetPath}(?=$|[?#"'()\\s<])`, 'g'),
+      `/assets/${assetPath}`,
+    );
   }
   return rewritten;
 }
