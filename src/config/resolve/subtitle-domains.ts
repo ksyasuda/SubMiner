@@ -31,12 +31,14 @@ const SUBTITLE_HOVER_TOKEN_BACKGROUND_CSS_PROPERTY = '--subtitle-hover-token-bac
 function applySubtitleHoverTokenCssCompatibility(
   subtitleStyle: ResolvedConfig['subtitleStyle'],
 ): void {
-  const hoverTokenColor = subtitleStyle.css[SUBTITLE_HOVER_TOKEN_COLOR_CSS_PROPERTY];
+  const hoverTokenColor = asCssColor(subtitleStyle.css[SUBTITLE_HOVER_TOKEN_COLOR_CSS_PROPERTY]);
   if (hoverTokenColor !== undefined) {
     subtitleStyle.hoverTokenColor = hoverTokenColor;
   }
 
-  const hoverTokenBackgroundColor = subtitleStyle.css[SUBTITLE_HOVER_TOKEN_BACKGROUND_CSS_PROPERTY];
+  const hoverTokenBackgroundColor = asCssColor(
+    subtitleStyle.css[SUBTITLE_HOVER_TOKEN_BACKGROUND_CSS_PROPERTY],
+  );
   if (hoverTokenBackgroundColor !== undefined) {
     subtitleStyle.hoverTokenBackgroundColor = hoverTokenBackgroundColor;
   }

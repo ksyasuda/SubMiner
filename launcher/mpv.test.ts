@@ -294,6 +294,15 @@ test('buildConfiguredMpvDefaultArgs appends maximized launch mode to configured 
   });
 });
 
+test('buildConfiguredMpvDefaultArgs disables macOS menu shortcuts so SubMiner bindings reach mpv', () => {
+  withPlatform('darwin', () => {
+    assert.equal(
+      buildConfiguredMpvDefaultArgs(makeArgs()).includes('--macos-menu-shortcuts=no'),
+      true,
+    );
+  });
+});
+
 test('resolveLauncherRuntimePluginPath finds bundled plugin from explicit environment path', () => {
   const pluginDir = '/opt/SubMiner/plugin/subminer';
   assert.equal(

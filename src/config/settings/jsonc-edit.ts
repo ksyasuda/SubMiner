@@ -125,16 +125,55 @@ function isWhitespace(value: string | undefined): boolean {
 
 function nextNonWhitespaceOffset(content: string, offset: number): number {
   let index = offset;
-  while (index < content.length && isWhitespace(content[index])) {
-    index += 1;
+  while (index < content.length) {
+    if (isWhitespace(content[index])) {
+      index += 1;
+      continue;
+    }
+    if (content[index] === '/' && content[index + 1] === '/') {
+      index += 2;
+      while (index < content.length && content[index] !== '\n') index += 1;
+      continue;
+    }
+    if (content[index] === '/' && content[index + 1] === '*') {
+      index += 2;
+      while (
+        index + 1 < content.length &&
+        !(content[index] === '*' && content[index + 1] === '/')
+      ) {
+        index += 1;
+      }
+      index = Math.min(content.length, index + 2);
+      continue;
+    }
+    break;
   }
   return index;
 }
 
 function previousNonWhitespaceOffset(content: string, offset: number): number {
   let index = offset;
-  while (index >= 0 && isWhitespace(content[index])) {
-    index -= 1;
+  while (index >= 0) {
+    if (isWhitespace(content[index])) {
+      index -= 1;
+      continue;
+    }
+    const lineStart = content.lastIndexOf('\n', index) + 1;
+    const linePrefix = content.slice(lineStart, index + 1);
+    const lineCommentStart = linePrefix.lastIndexOf('//');
+    if (lineCommentStart >= 0 && /^[ \t]*$/.test(linePrefix.slice(0, lineCommentStart))) {
+      index = lineStart - 1;
+      continue;
+    }
+    if (content[index] === '/' && content[index - 1] === '*') {
+      index -= 2;
+      while (index > 0 && !(content[index - 1] === '/' && content[index] === '*')) {
+        index -= 1;
+      }
+      index -= 2;
+      continue;
+    }
+    break;
   }
   return index;
 }

@@ -55,7 +55,13 @@ export function selectPreferredNoteFieldModelName(
   modelNames: readonly string[],
   currentModelName = '',
 ): string {
-  void currentModelName;
+  const normalizedCurrent = currentModelName.trim().toLowerCase();
+  if (normalizedCurrent) {
+    const current = modelNames.find((name) => name.trim().toLowerCase() === normalizedCurrent);
+    if (current) {
+      return current;
+    }
+  }
 
   const exactKiku = modelNames.find((name) => name.trim().toLowerCase() === 'kiku');
   if (exactKiku) {
@@ -68,6 +74,20 @@ export function selectPreferredNoteFieldModelName(
   }
 
   return '';
+}
+
+export function chooseKnownWordsDeckRenameValue(
+  decks: Record<string, string[]>,
+  currentDeckName: string,
+  nextDeckName: string,
+): string {
+  if (
+    nextDeckName !== currentDeckName &&
+    Object.prototype.hasOwnProperty.call(decks, nextDeckName)
+  ) {
+    return currentDeckName;
+  }
+  return nextDeckName;
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -491,16 +511,23 @@ export function renderKnownWordsDecksInput(
       void loadAnkiDeckFieldNames(deckName, draftUrl);
     }
     const row = createElement('div', 'deck-field-row');
+    const usedDeckNames = new Set(Object.keys(currentDecks));
     const deckSelect = createElement('select', 'config-input') as HTMLSelectElement;
     for (const candidateDeck of uniqueSorted([...deckNames, deckName])) {
+      if (candidateDeck !== deckName && usedDeckNames.has(candidateDeck)) continue;
       addOption(deckSelect, candidateDeck);
     }
     deckSelect.value = deckName;
     deckSelect.addEventListener('change', () => {
       const nextDecks = normalizeKnownWordsDecks(context.valueForField(field));
+      const nextDeckName = chooseKnownWordsDeckRenameValue(nextDecks, deckName, deckSelect.value);
+      if (nextDeckName !== deckSelect.value) {
+        deckSelect.value = nextDeckName;
+        return;
+      }
       const fields = nextDecks[deckName] ?? [];
       delete nextDecks[deckName];
-      nextDecks[deckSelect.value] = fields;
+      nextDecks[nextDeckName] = fields;
       setKnownWordsDecks(context, field.configPath, nextDecks);
       requestRender();
     });

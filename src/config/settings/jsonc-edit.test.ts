@@ -65,6 +65,37 @@ test('applyConfigSettingsPatchToContent updates effective duplicate object path'
   assert.equal(parsed.ankiConnect.nPlusOne.minSentenceWords, 3);
 });
 
+test('applyConfigSettingsPatchToContent removes duplicate properties across JSONC trivia', () => {
+  const input = `{
+  "ankiConnect": {
+    "nPlusOne": {
+      "enabled": false
+    } /* old value */ ,
+    // effective value follows
+    "nPlusOne": {
+      "minSentenceWords": 3
+    }
+  }
+}`;
+
+  const result = applyConfigSettingsPatchToContent({
+    content: input,
+    operations: [
+      {
+        op: 'set',
+        path: 'ankiConnect.nPlusOne.enabled',
+        value: true,
+      },
+    ],
+    previousWarnings: [],
+  });
+
+  assert.equal(result.ok, true);
+  const parsed = parse(result.content);
+  assert.equal(parsed.ankiConnect.nPlusOne.enabled, true);
+  assert.equal(parsed.ankiConnect.nPlusOne.minSentenceWords, 3);
+});
+
 test('applyConfigSettingsPatchToContent reset removes explicit path', () => {
   const input = `{
   "subtitleStyle": {

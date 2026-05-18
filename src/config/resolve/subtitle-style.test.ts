@@ -74,6 +74,22 @@ test('subtitleStyle css declarations accept string declaration maps and warn on 
   assert.ok(invalid.warnings.some((warning) => warning.path === 'subtitleStyle.secondary.css'));
 });
 
+test('subtitleStyle hover css compatibility ignores invalid color declarations', () => {
+  const { context } = createResolveContext({
+    subtitleStyle: {
+      css: {
+        '--subtitle-hover-token-color': 'purple',
+        '--subtitle-hover-token-background-color': '#363a4fd6',
+      },
+    },
+  });
+
+  applySubtitleDomainConfig(context);
+
+  assert.equal(context.resolved.subtitleStyle.hoverTokenColor, '#f4dbd6');
+  assert.equal(context.resolved.subtitleStyle.hoverTokenBackgroundColor, '#363a4fd6');
+});
+
 test('subtitleStyle autoPauseVideoOnHover falls back on invalid value', () => {
   const { context, warnings } = createResolveContext({
     subtitleStyle: {

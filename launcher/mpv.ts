@@ -1248,6 +1248,10 @@ export function buildConfiguredMpvDefaultArgs(
   const mpvArgs: string[] = [];
   if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
   mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
+  if (process.platform === 'darwin') {
+    // macOS menu accelerators do not reach mpv script bindings unless disabled.
+    mpvArgs.push('--macos-menu-shortcuts=no');
+  }
   mpvArgs.push(...buildMpvBackendArgs(args, baseEnv));
   mpvArgs.push(...buildMpvLaunchModeArgs(args.launchMode));
   return mpvArgs;
