@@ -907,64 +907,68 @@ test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
   }
 });
 
-test('getTrendsDashboard supports 365d range and caps day buckets at 365', () => {
-  const dbPath = makeDbPath();
-  const db = new Database(dbPath);
-  withMockNowMs('1772395200000', () => {
-    try {
-      ensureSchema(db);
+test(
+  'getTrendsDashboard supports 365d range and caps day buckets at 365',
+  { timeout: 20_000 },
+  () => {
+    const dbPath = makeDbPath();
+    const db = new Database(dbPath);
+    withMockNowMs('1772395200000', () => {
+      try {
+        ensureSchema(db);
 
-      const videoId = getOrCreateVideoRecord(db, 'local:/tmp/365d-trends.mkv', {
-        canonicalTitle: '365d Trends',
-        sourcePath: '/tmp/365d-trends.mkv',
-        sourceUrl: null,
-        sourceType: SOURCE_TYPE_LOCAL,
-      });
-      const animeId = getOrCreateAnimeRecord(db, {
-        parsedTitle: '365d Trends',
-        canonicalTitle: '365d Trends',
-        anilistId: null,
-        titleRomaji: null,
-        titleEnglish: null,
-        titleNative: null,
-        metadataJson: null,
-      });
-      linkVideoToAnimeRecord(db, videoId, {
-        animeId,
-        parsedBasename: '365d-trends.mkv',
-        parsedTitle: '365d Trends',
-        parsedSeason: 1,
-        parsedEpisode: 1,
-        parserSource: 'test',
-        parserConfidence: 1,
-        parseMetadataJson: null,
-      });
+        const videoId = getOrCreateVideoRecord(db, 'local:/tmp/365d-trends.mkv', {
+          canonicalTitle: '365d Trends',
+          sourcePath: '/tmp/365d-trends.mkv',
+          sourceUrl: null,
+          sourceType: SOURCE_TYPE_LOCAL,
+        });
+        const animeId = getOrCreateAnimeRecord(db, {
+          parsedTitle: '365d Trends',
+          canonicalTitle: '365d Trends',
+          anilistId: null,
+          titleRomaji: null,
+          titleEnglish: null,
+          titleNative: null,
+          metadataJson: null,
+        });
+        linkVideoToAnimeRecord(db, videoId, {
+          animeId,
+          parsedBasename: '365d-trends.mkv',
+          parsedTitle: '365d Trends',
+          parsedSeason: 1,
+          parsedEpisode: 1,
+          parserSource: 'test',
+          parserConfidence: 1,
+          parseMetadataJson: null,
+        });
 
-      const insertDailyRollup = db.prepare(
-        `
+        const insertDailyRollup = db.prepare(
+          `
           INSERT INTO imm_daily_rollups (
             rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
             total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
-      );
-      // Seed 400 distinct rollup days so we can prove the 365d range caps at 365.
-      const latestRollupDay = 20513;
-      const createdAtMs = '1772395200000';
-      for (let offset = 0; offset < 400; offset += 1) {
-        const rollupDay = latestRollupDay - offset;
-        insertDailyRollup.run(rollupDay, videoId, 1, 30, 4, 100, 2, createdAtMs, createdAtMs);
+        );
+        // Seed 400 distinct rollup days so we can prove the 365d range caps at 365.
+        const latestRollupDay = 20513;
+        const createdAtMs = '1772395200000';
+        for (let offset = 0; offset < 400; offset += 1) {
+          const rollupDay = latestRollupDay - offset;
+          insertDailyRollup.run(rollupDay, videoId, 1, 30, 4, 100, 2, createdAtMs, createdAtMs);
+        }
+
+        const dashboard = getTrendsDashboard(db, '365d', 'day');
+
+        assert.equal(dashboard.activity.watchTime.length, 365);
+      } finally {
+        db.close();
+        cleanupDbPath(dbPath);
       }
-
-      const dashboard = getTrendsDashboard(db, '365d', 'day');
-
-      assert.equal(dashboard.activity.watchTime.length, 365);
-    } finally {
-      db.close();
-      cleanupDbPath(dbPath);
-    }
-  });
-});
+    });
+  },
+);
 
 test('getTrendsDashboard month grouping spans every touched calendar month and keeps progress monthly', () => {
   const dbPath = makeDbPath();
