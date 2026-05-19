@@ -32,6 +32,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     triggerSubsync: false,
     markAudioCard: false,
     toggleStatsOverlay: false,
+    markWatched: false,
     toggleSubtitleSidebar: false,
     openRuntimeOptions: false,
     openSessionHelp: false,

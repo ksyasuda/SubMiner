@@ -4699,6 +4699,7 @@ function compileCurrentSessionBindings(): {
     keybindings: appState.keybindings,
     shortcuts: getConfiguredShortcuts(),
     statsToggleKey: getResolvedConfig().stats.toggleKey,
+    statsMarkWatchedKey: getResolvedConfig().stats.markWatchedKey,
     platform: resolveSessionBindingPlatform(),
     rawConfig: getResolvedConfig(),
   });
@@ -5201,6 +5202,17 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     toggleSecondarySub: () => handleCycleSecondarySubMode(),
     toggleSubtitleSidebar: () => toggleSubtitleSidebar(),
     markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+    markActiveVideoWatched: async () => {
+      const marked = (await appState.immersionTracker?.markActiveVideoWatched()) ?? false;
+      if (marked) {
+        try {
+          await maybeRunAnilistPostWatchUpdate({ force: true });
+        } catch (error) {
+          logger.warn('Failed to run AniList post-watch update after manual watched mark:', error);
+        }
+      }
+      return marked;
+    },
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJimaku: () => openJimakuOverlay(),
     openSessionHelp: () => openSessionHelpOverlay(),
@@ -5222,6 +5234,8 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
         (text) => showMpvOsd(text),
       );
     },
+    playNextPlaylistItem: () =>
+      sendMpvCommandRuntime(appState.mpvClient, ['playlist-next', 'force']),
     showMpvOsd: (text) => showMpvOsd(text),
   });
 }

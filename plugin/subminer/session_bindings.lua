@@ -151,6 +151,8 @@ function M.create(ctx)
 			return { "--toggle-subtitle-sidebar" }
 		elseif action_id == "markAudioCard" then
 			return { "--mark-audio-card" }
+		elseif action_id == "markWatched" then
+			return { "--mark-watched" }
 		elseif action_id == "openRuntimeOptions" then
 			return { "--open-runtime-options" }
 		elseif action_id == "openJimaku" then

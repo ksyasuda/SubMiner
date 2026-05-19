@@ -90,6 +90,7 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.toggleStatsOverlay ||
+    args.markWatched ||
     args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||

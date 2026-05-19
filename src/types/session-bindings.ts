@@ -2,6 +2,7 @@ export type SessionKeyModifier = 'ctrl' | 'alt' | 'shift' | 'meta';
 
 export type SessionActionId =
   | 'toggleStatsOverlay'
+  | 'markWatched'
   | 'toggleVisibleOverlay'
   | 'copySubtitle'
   | 'copySubtitleMultiple'

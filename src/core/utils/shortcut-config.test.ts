@@ -76,3 +76,28 @@ test('normalizes fallback shortcuts when AnkiConnect flag is unset', () => {
   assert.equal(resolved.openRuntimeOptions, '9');
   assert.equal(resolved.openCharacterDictionary, 'Ctrl+Shift+A');
 });
+
+test('preserves null shortcut overrides so defaults can be disabled', () => {
+  const config: Config = {
+    shortcuts: {
+      copySubtitle: null,
+      openJimaku: null,
+      toggleSubtitleSidebar: null,
+    },
+  };
+  const defaults: Config = {
+    shortcuts: {
+      copySubtitle: 'Ctrl+KeyC',
+      openJimaku: 'Ctrl+Shift+KeyJ',
+      toggleSubtitleSidebar: 'Backslash',
+      openRuntimeOptions: 'Digit9',
+    },
+  };
+
+  const resolved = resolveConfiguredShortcuts(config, defaults);
+
+  assert.equal(resolved.copySubtitle, null);
+  assert.equal(resolved.openJimaku, null);
+  assert.equal(resolved.toggleSubtitleSidebar, null);
+  assert.equal(resolved.openRuntimeOptions, '9');
+});

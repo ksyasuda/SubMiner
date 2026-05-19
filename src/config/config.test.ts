@@ -2131,6 +2131,7 @@ test('migrates legacy ankiConnect nPlusOne known-word settings to knownWords', (
   };
 
   assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
+  assert.equal(config.ankiConnect.nPlusOne.enabled, true);
   assert.equal(config.ankiConnect.knownWords.refreshMinutes, 90);
   assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
   assert.deepEqual(config.ankiConnect.knownWords.decks, {
@@ -2208,6 +2209,7 @@ test('supports legacy ankiConnect.behavior N+1 settings as fallback', () => {
   const warnings = service.getWarnings();
 
   assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
+  assert.equal(config.ankiConnect.nPlusOne.enabled, true);
   assert.equal(config.ankiConnect.knownWords.refreshMinutes, 90);
   assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
   assert.ok(

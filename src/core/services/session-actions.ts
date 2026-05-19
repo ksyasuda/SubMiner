@@ -15,6 +15,7 @@ export interface SessionActionExecutorDeps {
   toggleSecondarySub: () => void;
   toggleSubtitleSidebar: () => void;
   markLastCardAsAudioCard: () => Promise<void>;
+  markActiveVideoWatched: () => Promise<boolean>;
   openRuntimeOptionsPalette: () => void;
   openSessionHelp: () => void;
   openCharacterDictionary: () => void;
@@ -27,6 +28,7 @@ export interface SessionActionExecutorDeps {
   playNextSubtitle: () => void;
   shiftSubDelayToAdjacentSubtitle: (direction: 'next' | 'previous') => Promise<void>;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
+  playNextPlaylistItem: () => void;
   showMpvOsd: (text: string) => void;
 }
 
@@ -80,6 +82,14 @@ export async function dispatchSessionAction(
     case 'markAudioCard':
       await deps.markLastCardAsAudioCard();
       return;
+    case 'markWatched': {
+      const marked = await deps.markActiveVideoWatched();
+      if (marked) {
+        deps.showMpvOsd('Marked as watched');
+        deps.playNextPlaylistItem();
+      }
+      return;
+    }
     case 'openRuntimeOptions':
       deps.openRuntimeOptionsPalette();
       return;

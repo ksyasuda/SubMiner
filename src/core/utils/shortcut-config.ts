@@ -26,77 +26,44 @@ export function resolveConfiguredShortcuts(
   defaultConfig: Config,
 ): ConfiguredShortcuts {
   const isAnkiConnectDisabled = config.ankiConnect?.enabled === false;
+  type ShortcutKey = keyof Omit<ConfiguredShortcuts, 'multiCopyTimeoutMs'> &
+    keyof NonNullable<Config['shortcuts']>;
 
   const normalizeShortcut = (value: string | null | undefined): string | null | undefined => {
     if (typeof value !== 'string') return value;
     return value.replace(/\bKey([A-Z])\b/g, '$1').replace(/\bDigit([0-9])\b/g, '$1');
   };
 
+  const shortcutValue = (key: ShortcutKey): string | null | undefined =>
+    Object.prototype.hasOwnProperty.call(config.shortcuts ?? {}, key)
+      ? config.shortcuts?.[key]
+      : defaultConfig.shortcuts?.[key];
+
   return {
-    toggleVisibleOverlayGlobal: normalizeShortcut(
-      config.shortcuts?.toggleVisibleOverlayGlobal ??
-        defaultConfig.shortcuts?.toggleVisibleOverlayGlobal,
-    ),
-    copySubtitle: normalizeShortcut(
-      config.shortcuts?.copySubtitle ?? defaultConfig.shortcuts?.copySubtitle,
-    ),
-    copySubtitleMultiple: normalizeShortcut(
-      config.shortcuts?.copySubtitleMultiple ?? defaultConfig.shortcuts?.copySubtitleMultiple,
-    ),
+    toggleVisibleOverlayGlobal: normalizeShortcut(shortcutValue('toggleVisibleOverlayGlobal')),
+    copySubtitle: normalizeShortcut(shortcutValue('copySubtitle')),
+    copySubtitleMultiple: normalizeShortcut(shortcutValue('copySubtitleMultiple')),
     updateLastCardFromClipboard: normalizeShortcut(
-      isAnkiConnectDisabled
-        ? null
-        : (config.shortcuts?.updateLastCardFromClipboard ??
-            defaultConfig.shortcuts?.updateLastCardFromClipboard),
+      isAnkiConnectDisabled ? null : shortcutValue('updateLastCardFromClipboard'),
     ),
     triggerFieldGrouping: normalizeShortcut(
-      isAnkiConnectDisabled
-        ? null
-        : (config.shortcuts?.triggerFieldGrouping ?? defaultConfig.shortcuts?.triggerFieldGrouping),
+      isAnkiConnectDisabled ? null : shortcutValue('triggerFieldGrouping'),
     ),
-    triggerSubsync: normalizeShortcut(
-      config.shortcuts?.triggerSubsync ?? defaultConfig.shortcuts?.triggerSubsync,
-    ),
-    mineSentence: normalizeShortcut(
-      isAnkiConnectDisabled
-        ? null
-        : (config.shortcuts?.mineSentence ?? defaultConfig.shortcuts?.mineSentence),
-    ),
+    triggerSubsync: normalizeShortcut(shortcutValue('triggerSubsync')),
+    mineSentence: normalizeShortcut(isAnkiConnectDisabled ? null : shortcutValue('mineSentence')),
     mineSentenceMultiple: normalizeShortcut(
-      isAnkiConnectDisabled
-        ? null
-        : (config.shortcuts?.mineSentenceMultiple ?? defaultConfig.shortcuts?.mineSentenceMultiple),
+      isAnkiConnectDisabled ? null : shortcutValue('mineSentenceMultiple'),
     ),
     multiCopyTimeoutMs:
       config.shortcuts?.multiCopyTimeoutMs ?? defaultConfig.shortcuts?.multiCopyTimeoutMs ?? 5000,
-    toggleSecondarySub: normalizeShortcut(
-      config.shortcuts?.toggleSecondarySub ?? defaultConfig.shortcuts?.toggleSecondarySub,
-    ),
-    markAudioCard: normalizeShortcut(
-      isAnkiConnectDisabled
-        ? null
-        : (config.shortcuts?.markAudioCard ?? defaultConfig.shortcuts?.markAudioCard),
-    ),
-    openCharacterDictionary: normalizeShortcut(
-      config.shortcuts?.openCharacterDictionary ?? defaultConfig.shortcuts?.openCharacterDictionary,
-    ),
-    openRuntimeOptions: normalizeShortcut(
-      config.shortcuts?.openRuntimeOptions ?? defaultConfig.shortcuts?.openRuntimeOptions,
-    ),
-    openJimaku: normalizeShortcut(
-      config.shortcuts?.openJimaku ?? defaultConfig.shortcuts?.openJimaku,
-    ),
-    openSessionHelp: normalizeShortcut(
-      config.shortcuts?.openSessionHelp ?? defaultConfig.shortcuts?.openSessionHelp,
-    ),
-    openControllerSelect: normalizeShortcut(
-      config.shortcuts?.openControllerSelect ?? defaultConfig.shortcuts?.openControllerSelect,
-    ),
-    openControllerDebug: normalizeShortcut(
-      config.shortcuts?.openControllerDebug ?? defaultConfig.shortcuts?.openControllerDebug,
-    ),
-    toggleSubtitleSidebar: normalizeShortcut(
-      config.shortcuts?.toggleSubtitleSidebar ?? defaultConfig.shortcuts?.toggleSubtitleSidebar,
-    ),
+    toggleSecondarySub: normalizeShortcut(shortcutValue('toggleSecondarySub')),
+    markAudioCard: normalizeShortcut(isAnkiConnectDisabled ? null : shortcutValue('markAudioCard')),
+    openCharacterDictionary: normalizeShortcut(shortcutValue('openCharacterDictionary')),
+    openRuntimeOptions: normalizeShortcut(shortcutValue('openRuntimeOptions')),
+    openJimaku: normalizeShortcut(shortcutValue('openJimaku')),
+    openSessionHelp: normalizeShortcut(shortcutValue('openSessionHelp')),
+    openControllerSelect: normalizeShortcut(shortcutValue('openControllerSelect')),
+    openControllerDebug: normalizeShortcut(shortcutValue('openControllerDebug')),
+    toggleSubtitleSidebar: normalizeShortcut(shortcutValue('toggleSubtitleSidebar')),
   };
 }

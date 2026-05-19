@@ -47,6 +47,7 @@ export function buildConfigHotReloadPayload(config: ResolvedConfig): ConfigHotRe
     keybindings,
     shortcuts: resolveConfiguredShortcuts(config, DEFAULT_CONFIG),
     statsToggleKey: config.stats.toggleKey,
+    statsMarkWatchedKey: config.stats.markWatchedKey,
     platform:
       process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux',
     rawConfig: config,

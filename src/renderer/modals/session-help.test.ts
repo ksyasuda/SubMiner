@@ -6,6 +6,7 @@ import test from 'node:test';
 import { SPECIAL_COMMANDS } from '../../config/definitions/shared';
 import { createRendererState } from '../state.js';
 import {
+  buildSessionHelpSections,
   createSessionHelpModal,
   describeSessionHelpCommand,
   formatSessionHelpKeybinding,
@@ -34,12 +35,73 @@ test('session help formats bracket keybindings as physical keys', () => {
 
 test('session help imports browser-safe special command constants', () => {
   const source = fs.readFileSync(
-    path.join(process.cwd(), 'src', 'renderer', 'modals', 'session-help.ts'),
+    path.join(process.cwd(), 'src', 'renderer', 'modals', 'session-help-sections.ts'),
     'utf8',
   );
 
   assert.match(source, /from ['"]\.\.\/\.\.\/config\/definitions\/shared['"]/);
   assert.doesNotMatch(source, /from ['"]\.\.\/\.\.\/config\/definitions['"]/);
+});
+
+test('session help builds rows from canonical session bindings and fixed overlay affordances', () => {
+  const sections = buildSessionHelpSections({
+    sessionBindings: [
+      {
+        sourcePath: 'stats.toggleKey',
+        originalKey: 'Backquote',
+        key: { code: 'Backquote', modifiers: [] },
+        actionType: 'session-action',
+        actionId: 'toggleStatsOverlay',
+      },
+      {
+        sourcePath: 'shortcuts.openSessionHelp',
+        originalKey: 'CommandOrControl+Slash',
+        key: { code: 'Slash', modifiers: ['ctrl'] },
+        actionType: 'session-action',
+        actionId: 'openSessionHelp',
+      },
+      {
+        sourcePath: 'shortcuts.toggleSubtitleSidebar',
+        originalKey: 'Backslash',
+        key: { code: 'Backslash', modifiers: [] },
+        actionType: 'session-action',
+        actionId: 'toggleSubtitleSidebar',
+      },
+      {
+        sourcePath: 'stats.markWatchedKey',
+        originalKey: 'KeyW',
+        key: { code: 'KeyW', modifiers: [] },
+        actionType: 'session-action',
+        actionId: 'markWatched',
+      },
+      {
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'Space',
+        key: { code: 'Space', modifiers: [] },
+        actionType: 'mpv-command',
+        command: ['cycle', 'pause'],
+      },
+    ],
+    markWatchedKey: 'KeyW',
+    subtitleSidebarToggleKey: 'KeyB',
+    subtitleStyle: {},
+  });
+
+  const rows = sections.flatMap((section) => section.rows);
+  assert.ok(rows.some((row) => row.shortcut === '`' && row.action === 'Toggle stats overlay'));
+  assert.ok(rows.some((row) => row.shortcut === 'W' && row.action === 'Mark video watched'));
+  assert.equal(rows.filter((row) => row.action === 'Mark video watched').length, 1);
+  assert.equal(sections.filter((section) => section.title === 'Stats and progress').length, 1);
+  assert.ok(rows.some((row) => row.shortcut === 'B' && row.action === 'Toggle subtitle sidebar'));
+  assert.equal(rows.filter((row) => row.action === 'Toggle subtitle sidebar').length, 1);
+  assert.ok(rows.some((row) => row.shortcut === 'Ctrl + /' && row.action === 'Open session help'));
+  assert.ok(rows.some((row) => row.shortcut === 'Space' && row.action === 'Toggle playback'));
+  assert.ok(
+    rows.some(
+      (row) => row.shortcut === 'V' && row.action === 'Toggle primary subtitle bar visibility',
+    ),
+  );
+  assert.ok(rows.some((row) => row.shortcut === 'Y then D' && row.action === 'Toggle DevTools'));
 });
 
 function createClassList(initialTokens: string[] = []) {
@@ -108,11 +170,12 @@ test('modal-layer session help does not focus hidden main overlay and still clos
           notifyOverlayModalClosed: (modal: string) => {
             notifications.push(modal);
           },
-          getKeybindings: async () => {
-            throw new Error('mpv unavailable');
-          },
+          getSessionBindings: async () => [],
           getSubtitleStyle: async () => ({}),
-          getConfiguredShortcuts: async () => ({}),
+          getMarkWatchedKey: async () => 'KeyW',
+          getSubtitleSidebarSnapshot: async () => ({
+            config: { toggleKey: 'Backslash' },
+          }),
         },
         focus: () => {},
         addEventListener: () => {},

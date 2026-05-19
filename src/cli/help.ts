@@ -39,6 +39,7 @@ ${B}Mining${R}
   --trigger-field-grouping       Run Kiku field grouping
   --trigger-subsync              Run subtitle sync
   --toggle-secondary-sub         Cycle secondary subtitle mode
+  --mark-watched                 Mark current video watched and advance playlist
   --toggle-subtitle-sidebar      Toggle subtitle sidebar panel
   --open-runtime-options         Open runtime options palette
   --open-session-help            Open session help modal

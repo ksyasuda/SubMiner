@@ -469,6 +469,8 @@ export function handleCliCommand(
       'toggleStatsOverlay',
       'Stats toggle failed',
     );
+  } else if (args.markWatched) {
+    dispatchCliSessionAction({ actionId: 'markWatched' }, 'markWatched', 'Mark watched failed');
   } else if (args.toggleSubtitleSidebar) {
     dispatchCliSessionAction(
       { actionId: 'toggleSubtitleSidebar' },

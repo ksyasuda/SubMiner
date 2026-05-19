@@ -117,6 +117,12 @@ export function normalizeStartupArgv(argv: string[], env: NodeJS.ProcessEnv): st
 
   const transportedArgs = readTransportedStartupArgs(env);
   if (transportedArgs) {
+    if (removePassiveStartupArgs(transportedArgs).length === 0) {
+      if (process.platform === 'win32') {
+        return [argv[0] ?? APP_NAME, ...transportedArgs, START_ARG];
+      }
+      return [argv[0] ?? APP_NAME, ...transportedArgs, START_ARG, BACKGROUND_ARG];
+    }
     return [argv[0] ?? APP_NAME, ...transportedArgs];
   }
 

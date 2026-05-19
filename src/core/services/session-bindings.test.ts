@@ -375,3 +375,64 @@ test('compileSessionBindings includes stats toggle in the shared session binding
     },
   ]);
 });
+
+test('compileSessionBindings includes mark-watched in the shared session binding artifact', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts(),
+    keybindings: [],
+    statsMarkWatchedKey: 'Ctrl+Shift+KeyW',
+    platform: 'darwin',
+  });
+
+  assert.equal(result.warnings.length, 0);
+  assert.deepEqual(result.bindings, [
+    {
+      sourcePath: 'stats.markWatchedKey',
+      originalKey: 'Ctrl+Shift+KeyW',
+      key: {
+        code: 'KeyW',
+        modifiers: ['ctrl', 'shift'],
+      },
+      actionType: 'session-action',
+      actionId: 'markWatched',
+    },
+  ]);
+});
+
+test('compileSessionBindings wires every configured shortcut key into the shared artifact', () => {
+  const shortcutKeys: Array<keyof Omit<ConfiguredShortcuts, 'multiCopyTimeoutMs'>> = [
+    'toggleVisibleOverlayGlobal',
+    'copySubtitle',
+    'copySubtitleMultiple',
+    'updateLastCardFromClipboard',
+    'triggerFieldGrouping',
+    'triggerSubsync',
+    'mineSentence',
+    'mineSentenceMultiple',
+    'toggleSecondarySub',
+    'markAudioCard',
+    'openCharacterDictionary',
+    'openRuntimeOptions',
+    'openJimaku',
+    'openSessionHelp',
+    'openControllerSelect',
+    'openControllerDebug',
+    'toggleSubtitleSidebar',
+  ];
+  const shortcuts = createShortcuts();
+  shortcutKeys.forEach((key, index) => {
+    shortcuts[key] = `Ctrl+Alt+F${index + 1}`;
+  });
+
+  const result = compileSessionBindings({
+    shortcuts,
+    keybindings: [],
+    platform: 'linux',
+  });
+
+  assert.deepEqual(result.warnings, []);
+  assert.deepEqual(
+    result.bindings.map((binding) => binding.sourcePath).sort(),
+    shortcutKeys.map((key) => `shortcuts.${key}`).sort(),
+  );
+});

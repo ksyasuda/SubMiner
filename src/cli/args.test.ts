@@ -94,6 +94,7 @@ test('parseArgs captures youtube startup forwarding flags', () => {
 test('parseArgs captures session action forwarding flags', () => {
   const args = parseArgs([
     '--toggle-stats-overlay',
+    '--mark-watched',
     '--open-jimaku',
     '--open-youtube-picker',
     '--open-playlist-browser',
@@ -110,6 +111,7 @@ test('parseArgs captures session action forwarding flags', () => {
   ]);
 
   assert.equal(args.toggleStatsOverlay, true);
+  assert.equal(args.markWatched, true);
   assert.equal(args.openJimaku, true);
   assert.equal(args.openYoutubePicker, true);
   assert.equal(args.openPlaylistBrowser, true);
@@ -284,6 +286,12 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
 
   const toggleStatsOverlayRuntime = parseArgs(['--toggle-stats-overlay']);
   assert.equal(commandNeedsOverlayRuntime(toggleStatsOverlayRuntime), true);
+
+  const markWatched = parseArgs(['--mark-watched']);
+  assert.equal(markWatched.markWatched, true);
+  assert.equal(hasExplicitCommand(markWatched), true);
+  assert.equal(shouldStartApp(markWatched), true);
+  assert.equal(commandNeedsOverlayRuntime(markWatched), true);
 
   const dictionary = parseArgs(['--dictionary']);
   assert.equal(dictionary.dictionary, true);

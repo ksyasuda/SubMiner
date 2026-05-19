@@ -23,6 +23,7 @@ test('printHelp includes configured texthooker port', () => {
   assert.doesNotMatch(output, /--refresh-known-words/);
   assert.match(output, /--setup\s+Open first-run setup window/);
   assert.match(output, /--config\s+Open configuration window/);
+  assert.match(output, /--mark-watched\s+Mark current video watched and advance playlist/);
   assert.match(output, /--anilist-status/);
   assert.match(output, /--anilist-retry-queue/);
   assert.match(output, /--dictionary/);

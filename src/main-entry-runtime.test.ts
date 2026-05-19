@@ -67,6 +67,40 @@ test('normalizeStartupArgv uses transported AppImage args instead of raw Electro
   );
 });
 
+test('normalizeStartupArgv defaults empty transported AppImage args to background startup', () => {
+  const originalPlatform = process.platform;
+  try {
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+
+    assert.deepEqual(
+      normalizeStartupArgv(['SubMiner.AppImage', '--background'], {
+        SUBMINER_APP_ARGC: '0',
+      }),
+      ['SubMiner.AppImage', '--start', '--background'],
+    );
+  } finally {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+  }
+});
+
+test('normalizeStartupArgv defaults passive-only transported AppImage args to background startup', () => {
+  const originalPlatform = process.platform;
+  try {
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+
+    assert.deepEqual(
+      normalizeStartupArgv(['SubMiner.AppImage'], {
+        SUBMINER_APP_ARGC: '2',
+        SUBMINER_APP_ARG_0: '--password-store',
+        SUBMINER_APP_ARG_1: 'gnome-libsecret',
+      }),
+      ['SubMiner.AppImage', '--password-store', 'gnome-libsecret', '--start', '--background'],
+    );
+  } finally {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+  }
+});
+
 test('hasTransportedStartupArgs detects env-carried app args', () => {
   assert.equal(hasTransportedStartupArgs({ SUBMINER_APP_ARGC: '1' }), true);
   assert.equal(hasTransportedStartupArgs({}), false);

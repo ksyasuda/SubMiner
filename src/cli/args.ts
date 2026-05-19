@@ -28,6 +28,7 @@ export interface CliArgs {
   triggerSubsync: boolean;
   markAudioCard: boolean;
   toggleStatsOverlay: boolean;
+  markWatched: boolean;
   toggleSubtitleSidebar: boolean;
   openRuntimeOptions: boolean;
   openSessionHelp: boolean;
@@ -134,6 +135,7 @@ export function parseArgs(argv: string[]): CliArgs {
     triggerSubsync: false,
     markAudioCard: false,
     toggleStatsOverlay: false,
+    markWatched: false,
     toggleSubtitleSidebar: false,
     openRuntimeOptions: false,
     openSessionHelp: false,
@@ -255,6 +257,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--trigger-subsync') args.triggerSubsync = true;
     else if (arg === '--mark-audio-card') args.markAudioCard = true;
     else if (arg === '--toggle-stats-overlay') args.toggleStatsOverlay = true;
+    else if (arg === '--mark-watched') args.markWatched = true;
     else if (arg === '--toggle-subtitle-sidebar') args.toggleSubtitleSidebar = true;
     else if (arg === '--open-runtime-options') args.openRuntimeOptions = true;
     else if (arg === '--open-session-help') args.openSessionHelp = true;
@@ -509,6 +512,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.toggleStatsOverlay ||
+    args.markWatched ||
     args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||
@@ -583,6 +587,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.triggerSubsync &&
     !args.markAudioCard &&
     !args.toggleStatsOverlay &&
+    !args.markWatched &&
     !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
     !args.openSessionHelp &&
@@ -648,6 +653,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.toggleStatsOverlay ||
+    args.markWatched ||
     args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||
@@ -707,6 +713,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.triggerSubsync &&
     !args.markAudioCard &&
     !args.toggleStatsOverlay &&
+    !args.markWatched &&
     !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
     !args.openSessionHelp &&
@@ -768,6 +775,7 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.updateLastCardFromClipboard ||
     args.toggleSecondarySub ||
     args.toggleStatsOverlay ||
+    args.markWatched ||
     args.toggleSubtitleSidebar ||
     args.triggerFieldGrouping ||
     args.triggerSubsync ||

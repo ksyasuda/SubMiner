@@ -47,6 +47,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     triggerSubsync: false,
     markAudioCard: false,
     toggleStatsOverlay: false,
+    markWatched: false,
     toggleSubtitleSidebar: false,
     openRuntimeOptions: false,
     openSessionHelp: false,
@@ -155,6 +156,7 @@ test('shouldAutoOpenFirstRunSetup treats session and stats startup commands as e
     shouldAutoOpenFirstRunSetup(makeArgs({ background: true, openControllerDebug: true })),
     false,
   );
+  assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, markWatched: true })), false);
   assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, stats: true })), false);
   assert.equal(
     shouldAutoOpenFirstRunSetup(makeArgs({ background: true, jellyfinSubtitleUrlsOnly: true })),

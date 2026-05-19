@@ -18,6 +18,7 @@ type CompileSessionBindingsInput = {
   keybindings: Keybinding[];
   shortcuts: ConfiguredShortcuts;
   statsToggleKey?: string | null;
+  statsMarkWatchedKey?: string | null;
   platform: PlatformKeyModel;
   rawConfig?: ResolvedConfig | null;
 };
@@ -353,6 +354,8 @@ export function compileSessionBindings(input: CompileSessionBindingsInput): {
     input.rawConfig?.shortcuts as Record<string, unknown> | undefined
   )?.toggleVisibleOverlayGlobal;
   const statsToggleKey = input.statsToggleKey ?? input.rawConfig?.stats?.toggleKey ?? null;
+  const statsMarkWatchedKey =
+    input.statsMarkWatchedKey ?? input.rawConfig?.stats?.markWatchedKey ?? null;
 
   if (legacyToggleVisibleOverlayGlobal !== undefined) {
     warnings.push({
@@ -408,6 +411,33 @@ export function compileSessionBindings(input: CompileSessionBindingsInput): {
         key: parsed.key,
         actionType: 'session-action',
         actionId: 'toggleStatsOverlay',
+      };
+      const signature = getSessionKeySpecSignature(parsed.key);
+      const draft = candidates.get(signature) ?? [];
+      draft.push({
+        binding,
+        actionFingerprint: getBindingFingerprint(binding),
+      });
+      candidates.set(signature, draft);
+    }
+  }
+
+  if (statsMarkWatchedKey) {
+    const parsed = parseDomKeyString(statsMarkWatchedKey, input.platform);
+    if (!parsed.key) {
+      warnings.push({
+        kind: 'unsupported',
+        path: 'stats.markWatchedKey',
+        value: statsMarkWatchedKey,
+        message: parsed.message ?? 'Unsupported stats mark-watched key syntax.',
+      });
+    } else {
+      const binding: CompiledSessionActionBinding = {
+        sourcePath: 'stats.markWatchedKey',
+        originalKey: statsMarkWatchedKey,
+        key: parsed.key,
+        actionType: 'session-action',
+        actionId: 'markWatched',
       };
       const signature = getSessionKeySpecSignature(parsed.key);
       const draft = candidates.get(signature) ?? [];

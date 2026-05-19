@@ -133,6 +133,9 @@ if (entry.argv.includes('--start')) {
 if (entry.argv.includes('--stop')) {
   fs.appendFileSync(stopPath, JSON.stringify(entry) + '\\n');
 }
+if (entry.argv.includes('--app-ping')) {
+  process.exit(process.env.SUBMINER_FAKE_APP_RUNNING === '1' ? 0 : 1);
+}
 
 process.exit(0);
 `,
@@ -343,6 +346,49 @@ test(
         true,
       );
       assert.equal((mpvFirstArgs as string[]).includes(smokeCase.videoPath), true);
+    });
+  },
+);
+
+test(
+  'launcher start-overlay borrows a running background app and does not stop it after mpv exits',
+  { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
+  async () => {
+    await withSmokeCase('overlay-borrow-background', async (smokeCase) => {
+      const env = {
+        ...makeTestEnv(smokeCase),
+        SUBMINER_FAKE_APP_RUNNING: '1',
+      };
+      const result = runLauncher(
+        smokeCase,
+        ['--backend', 'x11', '--start-overlay', smokeCase.videoPath],
+        env,
+        'overlay-borrow-background',
+      );
+
+      const appLogPath = path.join(smokeCase.artifactsDir, 'fake-app.log');
+      const appStartPath = path.join(smokeCase.artifactsDir, 'fake-app-start.log');
+      const appStopPath = path.join(smokeCase.artifactsDir, 'fake-app-stop.log');
+      await waitForJsonLines(appStartPath, 1);
+
+      const appEntries = readJsonLines(appLogPath);
+      const appStartEntries = readJsonLines(appStartPath);
+      const appStopEntries = readJsonLines(appStopPath);
+      const mpvEntries = readJsonLines(path.join(smokeCase.artifactsDir, 'fake-mpv.log'));
+      const mpvError = mpvEntries.find(
+        (entry): entry is { error: string } => typeof entry.error === 'string',
+      )?.error;
+      const unixSocketDenied =
+        typeof mpvError === 'string' && /eperm|operation not permitted/i.test(mpvError);
+
+      assert.equal(result.status, unixSocketDenied ? 3 : 0);
+      assert.ok(
+        appEntries.some(
+          (entry) => Array.isArray(entry.argv) && (entry.argv as string[]).includes('--app-ping'),
+        ),
+      );
+      assert.equal(appStartEntries.length, 1);
+      assert.equal(appStopEntries.length, 0);
     });
   },
 );

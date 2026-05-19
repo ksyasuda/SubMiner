@@ -149,6 +149,48 @@ test('buildConfigHotReloadPayload includes independent primary subtitle mode', (
   assert.equal(payload.secondarySubMode, 'hidden');
 });
 
+test('buildConfigHotReloadPayload reflects added, removed, and remapped session bindings', () => {
+  const config = deepCloneConfig(DEFAULT_CONFIG);
+  config.stats.markWatchedKey = 'Ctrl+Shift+KeyW';
+  config.shortcuts.openJimaku = null;
+  config.keybindings = [
+    { key: 'KeyF', command: null },
+    { key: 'Ctrl+Alt+KeyM', command: ['show-text', 'custom'] },
+  ];
+
+  const payload = buildConfigHotReloadPayload(config);
+
+  assert.equal(
+    payload.sessionBindings.some(
+      (binding) =>
+        binding.sourcePath === 'stats.markWatchedKey' &&
+        binding.originalKey === 'Ctrl+Shift+KeyW' &&
+        binding.actionType === 'session-action' &&
+        binding.actionId === 'markWatched',
+    ),
+    true,
+  );
+  assert.equal(
+    payload.sessionBindings.some(
+      (binding) =>
+        binding.originalKey === 'Ctrl+Alt+KeyM' &&
+        binding.actionType === 'mpv-command' &&
+        binding.command.join(' ') === 'show-text custom',
+    ),
+    true,
+  );
+  assert.equal(
+    payload.sessionBindings.some((binding) => binding.originalKey === 'KeyF'),
+    false,
+  );
+  assert.equal(
+    payload.sessionBindings.some(
+      (binding) => binding.actionType === 'session-action' && binding.actionId === 'openJimaku',
+    ),
+    false,
+  );
+});
+
 test('createConfigHotReloadAppliedHandler skips optional effects when no hot fields', () => {
   const config = deepCloneConfig(DEFAULT_CONFIG);
   const calls: string[] = [];

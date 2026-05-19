@@ -469,7 +469,10 @@ function createKeyboardHandlerHarness() {
 }
 
 test('renderer installs keyboard forwarding before startup subtitle IPC awaits', () => {
-  const source = fs.readFileSync(path.join(process.cwd(), 'src', 'renderer', 'renderer.ts'), 'utf8');
+  const source = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'renderer', 'renderer.ts'),
+    'utf8',
+  );
   const keyboardSetupIndex = source.indexOf('await keyboardHandlers.setupMpvInputForwarding();');
   const subtitleRequestIndex = source.indexOf('await window.electronAPI.getCurrentSubtitle();');
 
@@ -1376,6 +1379,30 @@ test('session binding: Ctrl+Shift+O dispatches runtime options locally', async (
     assert.deepEqual(testGlobals.sessionActions, [
       { actionId: 'openRuntimeOptions', payload: undefined },
     ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('session binding: remapped mark watched dispatches locally with modifiers', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'stats.markWatchedKey',
+        originalKey: 'Ctrl+Shift+KeyW',
+        key: { code: 'KeyW', modifiers: ['ctrl', 'shift'] },
+        actionType: 'session-action',
+        actionId: 'markWatched',
+      },
+    ] as never);
+
+    testGlobals.dispatchKeydown({ key: 'W', code: 'KeyW', ctrlKey: true, shiftKey: true });
+
+    assert.deepEqual(testGlobals.sessionActions, [{ actionId: 'markWatched', payload: undefined }]);
+    assert.equal(testGlobals.markActiveVideoWatchedCalls(), 0);
   } finally {
     testGlobals.restore();
   }

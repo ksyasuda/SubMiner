@@ -1004,6 +1004,7 @@ export async function startOverlay(
 ): Promise<void> {
   const backend = detectBackend(args.backend);
   log('info', args.logLevel, `Starting SubMiner overlay (backend: ${backend})...`);
+  const appAlreadyRunning = isAppAlreadyRunning(appPath, args.logLevel);
 
   const overlayArgs = ['--start', '--backend', backend, '--socket', socketPath, ...extraAppArgs];
   if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
@@ -1015,7 +1016,16 @@ export async function startOverlay(
     env: buildAppEnv(process.env, target.env),
   });
   attachAppProcessLogging(state.overlayProc);
-  markOverlayManagedByLauncher(appPath);
+  if (appAlreadyRunning) {
+    log(
+      'debug',
+      args.logLevel,
+      'SubMiner app is already running; launcher will not stop it after playback',
+    );
+    clearOverlayManagedByLauncher();
+  } else {
+    markOverlayManagedByLauncher(appPath);
+  }
 
   const [socketReady] = await Promise.all([
     waitForUnixSocketReady(socketPath, OVERLAY_START_SOCKET_READY_TIMEOUT_MS),
@@ -1040,6 +1050,20 @@ export function markOverlayManagedByLauncher(appPath?: string): void {
     state.appPath = appPath;
   }
   state.overlayManagedByLauncher = true;
+}
+
+function clearOverlayManagedByLauncher(): void {
+  state.appPath = '';
+  state.overlayManagedByLauncher = false;
+}
+
+function isAppAlreadyRunning(appPath: string, logLevel: LogLevel): boolean {
+  const result = runSyncAppCommand(appPath, ['--app-ping'], false);
+  if (result.error) {
+    log('debug', logLevel, `App ping failed before overlay start: ${result.error.message}`);
+    return false;
+  }
+  return result.status === 0;
 }
 
 export function openUrlInDefaultBrowser(url: string, logLevel: LogLevel): void {

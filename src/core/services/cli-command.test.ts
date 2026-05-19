@@ -32,6 +32,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     triggerSubsync: false,
     markAudioCard: false,
     toggleStatsOverlay: false,
+    markWatched: false,
     toggleSubtitleSidebar: false,
     refreshKnownWords: false,
     openRuntimeOptions: false,
@@ -607,6 +608,7 @@ test('handleCliCommand handles visibility and utility command dispatches', () =>
     { args: { toggleSecondarySub: true }, expected: 'cycleSecondarySubMode' },
     { args: { togglePrimarySubtitleBar: true }, expected: 'togglePrimarySubtitleBar' },
     { args: { toggleStatsOverlay: true }, expected: 'dispatchSessionAction' },
+    { args: { markWatched: true }, expected: 'dispatchSessionAction' },
     {
       args: { openRuntimeOptions: true },
       expected: 'openRuntimeOptionsPalette',
@@ -650,6 +652,22 @@ test('handleCliCommand dispatches cycle-runtime-option session action', async ()
       runtimeOptionId: 'anki.autoUpdateNewCards',
       direction: -1,
     },
+  });
+});
+
+test('handleCliCommand dispatches mark-watched session action', async () => {
+  let request: unknown = null;
+  const { deps } = createDeps({
+    dispatchSessionAction: async (nextRequest) => {
+      request = nextRequest;
+    },
+  });
+
+  handleCliCommand(makeArgs({ markWatched: true }), 'initial', deps);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(request, {
+    actionId: 'markWatched',
   });
 });
 
