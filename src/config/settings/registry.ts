@@ -57,6 +57,7 @@ export const LEGACY_HIDDEN_CONFIG_PATHS = [
   'ankiConnect.behavior.nPlusOneMatchMode',
   'ankiConnect.isLapis.sentenceCardSentenceField',
   'ankiConnect.isLapis.sentenceCardAudioField',
+  'ankiConnect.fields.translation',
   'controller.bindings',
   'controller.preferredGamepadId',
   'controller.preferredGamepadLabel',
@@ -75,7 +76,12 @@ export const LEGACY_HIDDEN_CONFIG_PATHS = [
   'jellyfin.recentServers',
 ] as const;
 
-const EXCLUDED_PREFIXES = ['controller.buttonIndices', 'youtubeSubgen'] as const;
+const EXCLUDED_PREFIXES = [
+  'ai',
+  'ankiConnect.ai',
+  'controller.buttonIndices',
+  'youtubeSubgen',
+] as const;
 
 const JSON_OBJECT_FIELDS = new Set([
   'keybindings',
@@ -610,9 +616,28 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     pathStartsWith(path, 'subtitleStyle') ||
     pathStartsWith(path, 'subtitleSidebar') ||
     path === 'secondarySub.defaultMode' ||
-    pathStartsWith(path, 'ankiConnect.ai') ||
+    path === 'ankiConnect.ai.enabled' ||
+    path === 'ankiConnect.behavior.autoUpdateNewCards' ||
+    path === 'ankiConnect.knownWords.highlightEnabled' ||
+    path === 'ankiConnect.knownWords.refreshMinutes' ||
+    path === 'ankiConnect.knownWords.addMinedWordsImmediately' ||
+    path === 'ankiConnect.knownWords.matchMode' ||
+    path === 'ankiConnect.knownWords.decks' ||
+    path === 'ankiConnect.nPlusOne.enabled' ||
+    path === 'ankiConnect.nPlusOne.minSentenceWords' ||
+    path === 'ankiConnect.fields.word' ||
+    path === 'ankiConnect.fields.audio' ||
+    path === 'ankiConnect.fields.image' ||
+    path === 'ankiConnect.fields.sentence' ||
+    path === 'ankiConnect.fields.miscInfo' ||
+    path === 'ankiConnect.isLapis.sentenceCardModel' ||
+    path === 'ankiConnect.isKiku.fieldGrouping' ||
     path === 'stats.toggleKey' ||
-    path === 'stats.markWatchedKey'
+    path === 'stats.markWatchedKey' ||
+    path === 'logging.level' ||
+    path === 'youtube.primarySubLanguages' ||
+    pathStartsWith(path, 'jimaku') ||
+    pathStartsWith(path, 'subsync')
   ) {
     return 'hot-reload';
   }

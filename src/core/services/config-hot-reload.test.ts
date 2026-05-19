@@ -18,6 +18,78 @@ test('classifyConfigHotReloadDiff separates hot and restart-required fields', ()
   assert.deepEqual(diff.restartRequiredFields, ['websocket']);
 });
 
+test('classifyConfigHotReloadDiff treats safe nested config paths as hot-reloadable', () => {
+  const prev = deepCloneConfig(DEFAULT_CONFIG);
+  const next = deepCloneConfig(DEFAULT_CONFIG);
+  next.stats.toggleKey = 'F8';
+  next.stats.markWatchedKey = 'F9';
+  next.logging.level = 'debug';
+  next.youtube.primarySubLanguages = ['ja', 'en'];
+  next.jimaku.maxEntryResults = prev.jimaku.maxEntryResults + 1;
+  next.subsync.defaultMode = prev.subsync.defaultMode === 'auto' ? 'manual' : 'auto';
+  next.ankiConnect.behavior.autoUpdateNewCards = !prev.ankiConnect.behavior.autoUpdateNewCards;
+  next.ankiConnect.knownWords.highlightEnabled = !prev.ankiConnect.knownWords.highlightEnabled;
+  next.ankiConnect.knownWords.refreshMinutes = prev.ankiConnect.knownWords.refreshMinutes + 5;
+  next.ankiConnect.knownWords.addMinedWordsImmediately =
+    !prev.ankiConnect.knownWords.addMinedWordsImmediately;
+  next.ankiConnect.knownWords.matchMode =
+    prev.ankiConnect.knownWords.matchMode === 'headword' ? 'surface' : 'headword';
+  next.ankiConnect.knownWords.decks = { Anime: ['Mining'] };
+  next.ankiConnect.nPlusOne.enabled = !prev.ankiConnect.nPlusOne.enabled;
+  next.ankiConnect.nPlusOne.minSentenceWords = prev.ankiConnect.nPlusOne.minSentenceWords + 1;
+  next.ankiConnect.fields.word = 'Vocabulary';
+  next.ankiConnect.fields.audio = 'SentenceAudioCustom';
+  next.ankiConnect.fields.image = 'ScreenshotCustom';
+  next.ankiConnect.fields.sentence = 'SentenceCustom';
+  next.ankiConnect.fields.miscInfo = 'MiscInfoCustom';
+  next.ankiConnect.isLapis.sentenceCardModel = 'Sentence Card Custom';
+  next.ankiConnect.isKiku.fieldGrouping =
+    prev.ankiConnect.isKiku.fieldGrouping === 'auto' ? 'manual' : 'auto';
+
+  const diff = classifyConfigHotReloadDiff(prev, next);
+
+  assert.deepEqual(
+    new Set(diff.hotReloadFields),
+    new Set([
+      'stats.toggleKey',
+      'stats.markWatchedKey',
+      'logging.level',
+      'youtube.primarySubLanguages',
+      'jimaku.maxEntryResults',
+      'subsync.defaultMode',
+      'ankiConnect.behavior.autoUpdateNewCards',
+      'ankiConnect.knownWords.highlightEnabled',
+      'ankiConnect.knownWords.refreshMinutes',
+      'ankiConnect.knownWords.addMinedWordsImmediately',
+      'ankiConnect.knownWords.matchMode',
+      'ankiConnect.knownWords.decks',
+      'ankiConnect.nPlusOne.enabled',
+      'ankiConnect.nPlusOne.minSentenceWords',
+      'ankiConnect.fields.word',
+      'ankiConnect.fields.audio',
+      'ankiConnect.fields.image',
+      'ankiConnect.fields.sentence',
+      'ankiConnect.fields.miscInfo',
+      'ankiConnect.isLapis.sentenceCardModel',
+      'ankiConnect.isKiku.fieldGrouping',
+    ]),
+  );
+  assert.deepEqual(diff.restartRequiredFields, []);
+});
+
+test('classifyConfigHotReloadDiff keeps unsafe nested siblings restart-required', () => {
+  const prev = deepCloneConfig(DEFAULT_CONFIG);
+  const next = deepCloneConfig(DEFAULT_CONFIG);
+  next.stats.serverPort = prev.stats.serverPort + 1;
+  next.ankiConnect.url = 'http://127.0.0.1:9999';
+  next.ankiConnect.ai.model = 'openrouter/new-model';
+
+  const diff = classifyConfigHotReloadDiff(prev, next);
+
+  assert.deepEqual(diff.hotReloadFields, []);
+  assert.deepEqual(diff.restartRequiredFields, ['ankiConnect', 'stats']);
+});
+
 test('config hot reload runtime debounces rapid watch events', () => {
   let watchedChangeCallback: (() => void) | null = null;
   const pendingTimers = new Map<number, () => void>();

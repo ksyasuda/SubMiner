@@ -160,6 +160,17 @@ test('settings registry puts feature toggles first, then other toggles alphabeti
 test('settings registry hides app-managed and inactive config surfaces', () => {
   const paths = new Set(fields.map((candidate) => candidate.configPath));
   for (const hiddenPath of [
+    'ai.enabled',
+    'ai.apiKey',
+    'ai.apiKeyCommand',
+    'ai.model',
+    'ai.baseUrl',
+    'ai.systemPrompt',
+    'ai.requestTimeoutMs',
+    'ankiConnect.ai.enabled',
+    'ankiConnect.ai.model',
+    'ankiConnect.ai.systemPrompt',
+    'ankiConnect.fields.translation',
     'controller.bindings',
     'controller.preferredGamepadId',
     'controller.preferredGamepadLabel',
@@ -175,4 +186,46 @@ test('settings registry hides app-managed and inactive config surfaces', () => {
     assert.equal(paths.has(hiddenPath), false, `${hiddenPath} should be hidden`);
   }
   assert.equal(field('anilist.characterDictionary.enabled').section, 'Character Dictionary');
+});
+
+test('settings registry marks safe live config paths as hot-reloadable', () => {
+  for (const path of [
+    'stats.toggleKey',
+    'stats.markWatchedKey',
+    'logging.level',
+    'youtube.primarySubLanguages',
+    'jimaku.apiBaseUrl',
+    'jimaku.languagePreference',
+    'jimaku.maxEntryResults',
+    'subsync.defaultMode',
+    'ankiConnect.behavior.autoUpdateNewCards',
+    'ankiConnect.knownWords.highlightEnabled',
+    'ankiConnect.knownWords.refreshMinutes',
+    'ankiConnect.knownWords.addMinedWordsImmediately',
+    'ankiConnect.knownWords.matchMode',
+    'ankiConnect.knownWords.decks',
+    'ankiConnect.nPlusOne.enabled',
+    'ankiConnect.nPlusOne.minSentenceWords',
+    'ankiConnect.fields.word',
+    'ankiConnect.fields.audio',
+    'ankiConnect.fields.image',
+    'ankiConnect.fields.sentence',
+    'ankiConnect.fields.miscInfo',
+    'ankiConnect.isLapis.sentenceCardModel',
+    'ankiConnect.isKiku.fieldGrouping',
+  ]) {
+    assert.equal(field(path).restartBehavior, 'hot-reload', path);
+  }
+});
+
+test('settings registry keeps unsafe config siblings restart-required', () => {
+  for (const path of [
+    'stats.serverPort',
+    'ankiConnect.url',
+    'ankiConnect.proxy.enabled',
+    'mpv.socketPath',
+    'websocket.port',
+  ]) {
+    assert.equal(field(path).restartBehavior, 'restart', path);
+  }
 });

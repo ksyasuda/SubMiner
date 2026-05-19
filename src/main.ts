@@ -1788,6 +1788,18 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
         appState.ankiIntegration.applyRuntimeConfigPatch(patch);
       }
     },
+    invalidateTokenizationCache: () => {
+      subtitleProcessingController.invalidateTokenizationCache();
+    },
+    refreshSubtitlePrefetch: () => {
+      subtitlePrefetchService?.onSeek(lastObservedTimePos);
+    },
+    refreshCurrentSubtitle: () => {
+      subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+    },
+    setLogLevel: (level) => {
+      setLogLevel(level, 'config');
+    },
   },
 );
 const applyConfigHotReloadDiff = createConfigHotReloadAppliedHandler(

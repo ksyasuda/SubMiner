@@ -3,6 +3,7 @@ import type {
   ConfigHotReloadRuntimeDeps,
 } from '../../core/services/config-hot-reload';
 import type { ReloadConfigStrictResult } from '../../config';
+import type { AnkiConnectConfig } from '../../types/anki';
 import type {
   ConfigHotReloadPayload,
   ConfigValidationWarning,
@@ -69,9 +70,11 @@ export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
   refreshGlobalAndOverlayShortcuts: () => void;
   setSecondarySubMode: (mode: SecondarySubMode) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
-  applyAnkiRuntimeConfigPatch: (patch: {
-    ai: ResolvedConfig['ankiConnect']['ai']['enabled'];
-  }) => void;
+  applyAnkiRuntimeConfigPatch: (patch: Partial<AnkiConnectConfig>) => void;
+  invalidateTokenizationCache?: () => void;
+  refreshSubtitlePrefetch?: () => void;
+  refreshCurrentSubtitle?: () => void;
+  setLogLevel?: (level: ResolvedConfig['logging']['level']) => void;
 }) {
   return () => ({
     setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) =>
@@ -84,8 +87,12 @@ export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
     setSecondarySubMode: (mode: SecondarySubMode) => deps.setSecondarySubMode(mode),
     broadcastToOverlayWindows: (channel: string, payload: unknown) =>
       deps.broadcastToOverlayWindows(channel, payload),
-    applyAnkiRuntimeConfigPatch: (patch: { ai: ResolvedConfig['ankiConnect']['ai']['enabled'] }) =>
+    applyAnkiRuntimeConfigPatch: (patch: Partial<AnkiConnectConfig>) =>
       deps.applyAnkiRuntimeConfigPatch(patch),
+    invalidateTokenizationCache: () => deps.invalidateTokenizationCache?.(),
+    refreshSubtitlePrefetch: () => deps.refreshSubtitlePrefetch?.(),
+    refreshCurrentSubtitle: () => deps.refreshCurrentSubtitle?.(),
+    setLogLevel: (level: ResolvedConfig['logging']['level']) => deps.setLogLevel?.(level),
   });
 }
 

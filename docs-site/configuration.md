@@ -99,7 +99,28 @@ Hot-reloadable fields:
 - `keybindings`
 - `shortcuts`
 - `secondarySub.defaultMode`
-- `ankiConnect.ai`
+- `stats.toggleKey`
+- `stats.markWatchedKey`
+- `logging.level`
+- `youtube.primarySubLanguages`
+- `jimaku.*`
+- `subsync.*`
+- `ankiConnect.ai.enabled`
+- `ankiConnect.behavior.autoUpdateNewCards`
+- `ankiConnect.knownWords.highlightEnabled`
+- `ankiConnect.knownWords.refreshMinutes`
+- `ankiConnect.knownWords.addMinedWordsImmediately`
+- `ankiConnect.knownWords.matchMode`
+- `ankiConnect.knownWords.decks`
+- `ankiConnect.nPlusOne.enabled`
+- `ankiConnect.nPlusOne.minSentenceWords`
+- `ankiConnect.fields.word`
+- `ankiConnect.fields.audio`
+- `ankiConnect.fields.image`
+- `ankiConnect.fields.sentence`
+- `ankiConnect.fields.miscInfo`
+- `ankiConnect.isLapis.sentenceCardModel`
+- `ankiConnect.isKiku.fieldGrouping`
 
 When these values change, SubMiner applies them live. Invalid config edits are rejected and the previous valid runtime config remains active.
 
@@ -107,6 +128,7 @@ Restart-required changes:
 
 - Any other config sections still require restart.
 - Shared top-level `ai` provider settings still require restart.
+- AnkiConnect transport/proxy/media/deck/tag fields still require restart unless listed above.
 - SubMiner shows an on-screen/system notification listing restart-required sections when they change.
 
 ### Configuration Options Overview

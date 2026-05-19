@@ -33,6 +33,7 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'Logging',
     description: ['Controls logging verbosity.', 'Set to debug for full runtime diagnostics.'],
+    notes: ['Hot-reload: logging.level applies live while SubMiner is running.'],
     key: 'logging',
   },
   {
@@ -91,6 +92,7 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'Auto Subtitle Sync',
     description: ['Subsync engine and executable paths.'],
+    notes: ['Hot-reload: subsync changes apply to the next subtitle sync run.'],
     key: 'subsync',
   },
   {
@@ -127,7 +129,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     title: 'AnkiConnect Integration',
     description: ['Automatic Anki updates and media generation options.'],
     notes: [
-      'Hot-reload: ankiConnect.ai.enabled updates live while SubMiner is running.',
+      'Hot-reload: ankiConnect.ai.enabled, knownWords, nPlusOne, fields.word/audio/image/sentence/miscInfo, behavior.autoUpdateNewCards, isLapis.sentenceCardModel, and isKiku.fieldGrouping update live while SubMiner is running.',
       'Shared AI provider transport settings are read from top-level ai and typically require restart.',
       'Most other AnkiConnect settings still require restart.',
     ],
@@ -136,6 +138,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'Jimaku',
     description: ['Jimaku API configuration and defaults.'],
+    notes: ['Hot-reload: Jimaku changes apply to the next Jimaku request.'],
     key: 'jimaku',
   },
   {
@@ -143,6 +146,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     description: [
       'Defaults for managed subtitle language preferences and YouTube subtitle loading.',
     ],
+    notes: ['Hot-reload: primarySubLanguages applies to the next YouTube subtitle load.'],
     key: 'youtube',
   },
   {
