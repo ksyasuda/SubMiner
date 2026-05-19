@@ -210,6 +210,8 @@ On **Windows**, just run `SubMiner.exe` — setup opens automatically on first l
 ```bash
 subminer video.mkv          # play video with overlay
 subminer stats              # open immersion dashboard
+subminer config             # open configuration window
+subminer --config           # open configuration window via flag
 ```
 
 On **Windows**, use the **SubMiner mpv** shortcut created during setup — double-click it or drag a video file onto it.
