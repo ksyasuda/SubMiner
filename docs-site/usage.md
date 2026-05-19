@@ -1,11 +1,23 @@
 # Usage
 
+## Quick Start
+
+Play a video with SubMiner:
+
+```bash
+subminer video.mkv
+```
+
+On **Windows**, use the **SubMiner mpv** shortcut created during first-run setup — double-click it, or drag a video file onto it.
+
+That's the simplest way to get started. The `subminer` launcher handles mpv, the IPC socket, and the overlay automatically.
+
 > [!IMPORTANT]
 > SubMiner requires the bundled Yomitan instance to have at least one dictionary imported for lookups to work.
 > See [Yomitan setup](#yomitan-setup) for details.
 
-::: tip Just finished first-run setup?
-If you want Anki card enrichment (sentence, audio, screenshot), the only config you need is `ankiConnect` with your deck name and field names. Here is a minimal working example:
+::: tip Anki card enrichment
+If you want sentence, audio, and screenshot fields on your Anki cards, add this to your config:
 
 ```jsonc
 {
@@ -27,25 +39,22 @@ Field names must match your Anki note type exactly (case-sensitive). See [Anki I
 ## How It Works
 
 1. SubMiner starts the overlay app in the background
-2. MPV runs with an IPC socket at `/tmp/subminer-socket`
+2. mpv runs with an IPC socket at `/tmp/subminer-socket`
 3. The overlay connects and subscribes to subtitle changes
 4. Subtitles are tokenized with Yomitan's internal parser
 5. Words are displayed as interactive spans in the overlay
 6. Hover a word, then trigger Yomitan lookup with your configured lookup key/modifier to open the Yomitan popup
 7. Optional [subtitle annotations](/subtitle-annotations) (N+1, character-name, frequency, JLPT) highlight useful cues in real time
 
-There are several ways to use SubMiner:
-
-> [!TIP]
-> **New users on Linux/macOS: start with the `subminer` wrapper script.** On Windows, use the **SubMiner mpv** shortcut created during first-run setup. Both handle mpv launch, IPC socket setup, and overlay lifecycle automatically so you don't need to configure anything in `mpv.conf`.
+### Ways to Launch
 
 | Approach                            | Use when                                                                                                                                            | How                                                                   |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| **`subminer` script**               | You want SubMiner to handle everything — launch mpv, set up the socket, start the overlay. **The simplest path and recommended starting point.**    | `subminer video.mkv`                                                  |
-| **SubMiner mpv shortcut** (Windows) | The recommended Windows entry point. Created during first-run setup, launches mpv with SubMiner's defaults directly.                                | Double-click, drag a file onto it, or run `SubMiner.exe --launch-mpv` |
-| **MPV plugin** (all platforms)      | You launch mpv yourself or from another tool (file manager, Jellyfin, etc.). Requires `--input-ipc-server=/tmp/subminer-socket` in your mpv config. | Use `y` chord keybindings inside mpv                                  |
+| **`subminer` launcher**             | You want SubMiner to handle everything — launch mpv, set up the socket, start the overlay. **Recommended for most users.**                          | `subminer video.mkv`                                                  |
+| **SubMiner mpv shortcut** (Windows) | The recommended Windows entry point. Created during first-run setup, launches mpv with SubMiner's defaults.                                         | Double-click, drag a file onto it, or run `SubMiner.exe --launch-mpv` |
+| **mpv plugin** (all platforms)      | Bundled and injected at runtime. Provides `y` chord keybindings for controlling the overlay from within mpv. No manual install needed. | Automatic when using the launcher or shortcut                         |
 
-You can use both — the plugin provides in-player controls, while the `subminer` script (Linux/macOS) or the SubMiner mpv shortcut (Windows) is convenient for direct playback.
+The mpv plugin is always available — it's bundled with SubMiner and injected at runtime. If you launch mpv yourself (without the launcher), pass `--input-ipc-server=/tmp/subminer-socket` in your mpv config for the overlay to connect.
 
 ## Live Config Reload
 
@@ -72,8 +81,8 @@ subminer                          # Current directory (uses fzf)
 subminer -R                       # Use rofi instead of fzf
 subminer -d ~/Videos              # Specific directory
 subminer -r -d ~/Anime            # Recursive search
-subminer video.mkv                # Play specific file (default plugin config auto-starts visible overlay)
-subminer --start video.mkv        # Optional explicit overlay start (use when plugin auto_start=no)
+subminer video.mkv                # Play specific file (overlay auto-starts)
+subminer --start video.mkv        # Explicit overlay start (use when auto_start=no in config)
 subminer -S video.mkv             # Same as above via --start-overlay
 subminer https://youtu.be/...     # Play a YouTube URL
 subminer ytsearch:"jp news"       # Play first YouTube search result
@@ -128,7 +137,7 @@ SubMiner.AppImage --jellyfin-login --jellyfin-server http://127.0.0.1:8096 --jel
 SubMiner.AppImage --jellyfin-logout       # Clear stored Jellyfin token/session data
 SubMiner.AppImage --jellyfin-libraries
 SubMiner.AppImage --jellyfin-items --jellyfin-library-id LIBRARY_ID --jellyfin-search anime --jellyfin-limit 20
-SubMiner.AppImage --jellyfin-play --jellyfin-item-id ITEM_ID --jellyfin-audio-stream-index 1 --jellyfin-subtitle-stream-index 2  # Requires connected mpv IPC (--start or plugin workflow)
+SubMiner.AppImage --jellyfin-play --jellyfin-item-id ITEM_ID --jellyfin-audio-stream-index 1 --jellyfin-subtitle-stream-index 2  # Requires connected mpv IPC (--start)
 SubMiner.AppImage --jellyfin-remote-announce  # Force cast-target capability announce + visibility check
 SubMiner.AppImage --dictionary             # Generate character dictionary ZIP for current anime
 SubMiner.AppImage --dictionary-candidates  # List AniList candidates for current character dictionary series
@@ -153,7 +162,7 @@ Once Jellyfin is configured, the tray menu includes `Jellyfin Discovery` for sta
 
 ### Windows mpv Shortcut
 
-First-run setup creates the config file, then requires Yomitan dictionaries before it can finish. The global mpv plugin install is optional because SubMiner-managed mpv launches inject the bundled runtime plugin.
+First-run setup creates the config file, then requires Yomitan dictionaries before it can finish.
 
 If you enabled the optional Windows shortcut during install, SubMiner creates a `SubMiner mpv` shortcut in the Start menu and/or on the desktop. On Windows, that shortcut is the recommended way to launch local files with SubMiner because it starts `mpv.exe` with the right defaults directly.
 After setup completes, the shortcut is the normal Windows playback entry point.
@@ -197,13 +206,12 @@ SubMiner.AppImage --setup
 Setup flow:
 
 - config file: create the default config directory and prefer `config.jsonc`
-- plugin compatibility: optionally install the legacy global mpv plugin; managed launches use the bundled runtime plugin without it
-- legacy plugin cleanup: remove detected global SubMiner mpv plugin files from mpv script directories via the OS trash when you do not want regular mpv to load SubMiner
+- legacy plugin cleanup: remove detected older global SubMiner mpv plugin files if present (the bundled plugin is injected at runtime automatically)
 - Yomitan shortcut: open bundled Yomitan settings directly from the setup window
 - dictionary check: ensure at least one bundled Yomitan dictionary is available, unless an external Yomitan profile is configured
 - Windows: optionally create or remove `SubMiner mpv` Start Menu/Desktop shortcuts (`SubMiner.exe --launch-mpv`)
 - Windows: optionally set `mpv.executablePath` if `mpv.exe` is not on `PATH`
-- refresh: re-check plugin + dictionary state without restarting
+- refresh: re-check dictionary state without restarting
 - `Finish setup` stays disabled until the config and dictionary gates are satisfied
 - finish action writes setup completion state and suppresses future auto-open prompts
 
@@ -336,9 +344,9 @@ See [Keyboard Shortcuts](/shortcuts) for the full reference, including mining sh
 
 Useful overlay-local default keybinding: `Ctrl+Alt+P` opens the playlist browser for the current video's parent directory and the live mpv queue so you can append, reorder, remove, or jump between episodes without leaving playback.
 
-Press `V` to hide or restore the primary SubMiner subtitle bar. The mpv plugin also binds bare `v` to the same action, overriding mpv's native primary subtitle visibility toggle.
+Press `V` to hide or restore the primary SubMiner subtitle bar. The bundled mpv plugin also binds bare `v` to the same action (injected at runtime).
 
-`Ctrl/Cmd+/` opens the session help modal with the current overlay and mpv keybindings. If you use the mpv plugin, the same help view is also available through the `y-h` chord.
+`Ctrl/Cmd+/` opens the session help modal with the current overlay and mpv keybindings. The same help view is also available through the `y-h` chord in mpv.
 
 Hovering over subtitle text pauses mpv by default; leaving resumes it. Yomitan popups also pause playback by default. Set `subtitleStyle.autoPauseVideoOnHover: false` or `subtitleStyle.autoPauseVideoOnYomitanPopup: false` to disable either behavior.
 
