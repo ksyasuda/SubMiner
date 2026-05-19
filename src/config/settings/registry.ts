@@ -93,7 +93,7 @@ const JSON_OBJECT_FIELDS = new Set([
   'subtitleSidebar.css',
 ]);
 
-const SECRET_PATHS = new Set(['ai.apiKey', 'jimaku.apiKey', 'anilist.accessToken']);
+export const SECRET_PATHS = new Set(['ai.apiKey', 'jimaku.apiKey', 'anilist.accessToken']);
 
 const COLOR_SUFFIXES = new Set(['Color', 'color', 'backgroundColor', 'singleColor']);
 const SUBTITLE_CSS_MANAGED_CONFIG_PATHS = new Set([

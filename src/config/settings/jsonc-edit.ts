@@ -15,7 +15,7 @@ import type {
   ConfigSettingsSnapshot,
 } from '../../types/settings';
 import { resolveConfig } from '../resolve';
-import { getConfigValueAtPath } from './registry';
+import { getConfigValueAtPath, SECRET_PATHS } from './registry';
 
 const JSONC_FORMATTING_OPTIONS: FormattingOptions = {
   insertSpaces: true,
@@ -335,6 +335,20 @@ export function buildConfigSettingsSnapshot(
     }
 
     values[field.configPath] = structuredClone(rawValue != null ? rawValue : resolvedValue);
+  }
+
+  for (const secretPath of SECRET_PATHS) {
+    if (Object.hasOwn(values, secretPath)) {
+      continue;
+    }
+    const rawValue = getConfigValueAtPath(options.rawConfig, secretPath);
+    const resolvedValue = getConfigValueAtPath(options.resolvedConfig, secretPath);
+    if (
+      (typeof rawValue === 'string' && rawValue.length > 0) ||
+      (typeof resolvedValue === 'string' && resolvedValue.length > 0)
+    ) {
+      values[secretPath] = { configured: true };
+    }
   }
 
   return {
