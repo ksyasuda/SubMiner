@@ -40,6 +40,20 @@ test('renderer stylesheet only hides visible focus chrome on top-level overlay f
   );
 });
 
+test('subtitle sidebar stylesheet keeps quoted font fallbacks and generic family', () => {
+  const cssSource = readWorkspaceFile('src/renderer/style.css');
+  const sidebarContentBlock = cssSource.match(
+    /\.subtitle-sidebar-content\s*\{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(sidebarContentBlock);
+  assert.match(sidebarContentBlock, /'Hiragino Sans'/);
+  assert.match(sidebarContentBlock, /'M PLUS 1'/);
+  assert.match(sidebarContentBlock, /'Source Han Sans JP'/);
+  assert.match(sidebarContentBlock, /'Noto Sans CJK JP'/);
+  assert.match(sidebarContentBlock, /sans-serif/);
+});
+
 test('top-level readme avoids stale overlay-layers wording', () => {
   const readmeSource = readWorkspaceFile('README.md');
   assert.doesNotMatch(readmeSource, /overlay layers/i);

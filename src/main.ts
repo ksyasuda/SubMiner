@@ -1233,17 +1233,7 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
         resolveInstalledPluginBeforeLaunch: (detection, mpvPath) =>
           promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(mpvPath, detection),
       },
-      {
-        socketPath: appState.mpvSocketPath,
-        binaryPath: getResolvedConfig().mpv.subminerBinaryPath,
-        backend: getResolvedConfig().mpv.backend,
-        autoStart: getResolvedConfig().mpv.autoStartSubMiner,
-        autoStartVisibleOverlay: getResolvedConfig().auto_start_overlay,
-        autoStartPauseUntilReady: getResolvedConfig().mpv.pauseUntilOverlayReady,
-        texthookerEnabled: getResolvedConfig().texthooker.launchAtStartup,
-        aniskipEnabled: getResolvedConfig().mpv.aniskipEnabled,
-        aniskipButtonKey: getResolvedConfig().mpv.aniskipButtonKey,
-      },
+      getMpvPluginRuntimeConfig(),
     ),
   waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
   prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
@@ -1253,6 +1243,21 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
   clearScheduled: (timer) => clearTimeout(timer),
 });
+
+function getMpvPluginRuntimeConfig() {
+  const config = getResolvedConfig();
+  return {
+    socketPath: appState.mpvSocketPath,
+    binaryPath: config.mpv.subminerBinaryPath,
+    backend: config.mpv.backend,
+    autoStart: config.mpv.autoStartSubMiner,
+    autoStartVisibleOverlay: config.auto_start_overlay,
+    autoStartPauseUntilReady: config.mpv.pauseUntilOverlayReady,
+    texthookerEnabled: config.texthooker.launchAtStartup,
+    aniskipEnabled: config.mpv.aniskipEnabled,
+    aniskipButtonKey: config.mpv.aniskipButtonKey,
+  };
+}
 
 let firstRunSetupMessage: string | null = null;
 const resolveWindowsMpvShortcutRuntimePaths = () =>
@@ -2661,17 +2666,7 @@ const {
     getLaunchMode: () => getResolvedConfig().mpv.launchMode,
     platform: process.platform,
     execPath: process.execPath,
-    getPluginRuntimeConfig: () => ({
-      socketPath: appState.mpvSocketPath,
-      binaryPath: getResolvedConfig().mpv.subminerBinaryPath,
-      backend: getResolvedConfig().mpv.backend,
-      autoStart: getResolvedConfig().mpv.autoStartSubMiner,
-      autoStartVisibleOverlay: getResolvedConfig().auto_start_overlay,
-      autoStartPauseUntilReady: getResolvedConfig().mpv.pauseUntilOverlayReady,
-      texthookerEnabled: getResolvedConfig().texthooker.launchAtStartup,
-      aniskipEnabled: getResolvedConfig().mpv.aniskipEnabled,
-      aniskipButtonKey: getResolvedConfig().mpv.aniskipButtonKey,
-    }),
+    getPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
     defaultMpvLogPath: DEFAULT_MPV_LOG_PATH,
     defaultMpvArgs: MPV_JELLYFIN_DEFAULT_ARGS,
     removeSocketPath: (socketPath) => {
@@ -5203,6 +5198,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     toggleSubtitleSidebar: () => toggleSubtitleSidebar(),
     markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
     markActiveVideoWatched: async () => {
+      ensureImmersionTrackerStarted();
       const marked = (await appState.immersionTracker?.markActiveVideoWatched()) ?? false;
       if (marked) {
         try {

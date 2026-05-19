@@ -1912,10 +1912,11 @@ body.subtitle-sidebar-embedded-open .subtitle-sidebar-modal {
   margin-left: auto;
   font-family: var(
     --subtitle-sidebar-font-family,
-    Hiragino Sans,
-    M PLUS 1,
-    Source Han Sans JP,
-    Noto Sans CJK JP
+    'Hiragino Sans',
+    'M PLUS 1',
+    'Source Han Sans JP',
+    'Noto Sans CJK JP',
+    sans-serif
   );
   font-size: var(--subtitle-sidebar-font-size, 16px);
   background: var(--subtitle-sidebar-background-color, rgba(73, 77, 100, 0.9));
