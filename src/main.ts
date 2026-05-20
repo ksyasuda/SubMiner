@@ -104,6 +104,7 @@ import type {
   RuntimeOptionState,
   SessionActionDispatchRequest,
   SecondarySubMode,
+  SubtitleCue,
   SubtitleData,
   SubtitlePosition,
   UpdateChannel,
@@ -363,6 +364,7 @@ import {
   createYoutubePrimarySubtitleNotificationRuntime,
 } from './main/runtime/youtube-primary-subtitle-notification';
 import { createAutoplayReadyGate } from './main/runtime/autoplay-ready-gate';
+import { selectAutoplayStartupCue } from './main/runtime/autoplay-subtitle-primer';
 import { createAutoplayTokenizationWarmRelease } from './main/runtime/autoplay-tokenization-warm-release';
 import { createManagedLocalSubtitleSelectionRuntime } from './main/runtime/local-subtitle-selection';
 import {
@@ -1625,6 +1627,88 @@ let lastObservedTimePos = 0;
 let cancelLinuxMpvFullscreenOverlayRefreshBurst: CancelLinuxMpvFullscreenOverlayRefreshBurst | null =
   null;
 const SEEK_THRESHOLD_SECONDS = 3;
+const AUTOPLAY_SUBTITLE_PRIME_LOOKAHEAD_SECONDS = 2;
+let autoplaySubtitlePrimedMediaPath: string | null = null;
+
+function getCurrentAutoplayMediaPath(): string | null {
+  return appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null;
+}
+
+function isCurrentAutoplayMediaPath(mediaPath: string): boolean {
+  return getCurrentAutoplayMediaPath() === mediaPath;
+}
+
+function markAutoplaySubtitlePrimeConsumed(mediaPath: string): boolean {
+  if (autoplaySubtitlePrimedMediaPath === mediaPath) {
+    return false;
+  }
+  autoplaySubtitlePrimedMediaPath = mediaPath;
+  return true;
+}
+
+function emitAutoplayPrimedSubtitle(mediaPath: string, text: string): boolean {
+  if (!text.trim() || !isCurrentAutoplayMediaPath(mediaPath)) {
+    return false;
+  }
+  if (!markAutoplaySubtitlePrimeConsumed(mediaPath)) {
+    return false;
+  }
+
+  appState.currentSubText = text;
+  const rawPayload = withCurrentSubtitleTiming({ text, tokens: null });
+  appState.currentSubtitleData = rawPayload;
+  broadcastToOverlayWindows('subtitle:set', rawPayload);
+  subtitlePrefetchService?.pause();
+  subtitleProcessingController.onSubtitleChange(text);
+  return true;
+}
+
+async function primeCurrentSubtitleForAutoplay(mediaPath: string): Promise<void> {
+  const client = appState.mpvClient;
+  if (!client?.connected || !isCurrentAutoplayMediaPath(mediaPath)) {
+    return;
+  }
+
+  const subTextRaw = await client.requestProperty('sub-text').catch((error) => {
+    logger.debug(
+      `[autoplay-subtitle-prime] failed to read sub-text: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return null;
+  });
+  const text = typeof subTextRaw === 'string' ? subTextRaw : '';
+  emitAutoplayPrimedSubtitle(mediaPath, text);
+}
+
+async function primeAutoplaySubtitleFromParsedCues(
+  mediaPath: string,
+  cues: SubtitleCue[],
+): Promise<void> {
+  if (
+    cues.length === 0 ||
+    autoplaySubtitlePrimedMediaPath === mediaPath ||
+    !isCurrentAutoplayMediaPath(mediaPath)
+  ) {
+    return;
+  }
+
+  const client = appState.mpvClient;
+  const timePosRaw = await client?.requestProperty('time-pos').catch(() => null);
+  const currentTimeSeconds = Number(
+    timePosRaw ?? client?.currentTimePos ?? lastObservedTimePos ?? 0,
+  );
+  const cue = selectAutoplayStartupCue(
+    cues,
+    Number.isFinite(currentTimeSeconds) ? currentTimeSeconds : 0,
+    AUTOPLAY_SUBTITLE_PRIME_LOOKAHEAD_SECONDS,
+  );
+  if (!cue) {
+    return;
+  }
+
+  emitAutoplayPrimedSubtitle(mediaPath, cue.text);
+}
 
 function clearScheduledSubtitlePrefetchRefresh(): void {
   if (subtitlePrefetchRefreshTimer) {
@@ -1657,6 +1741,16 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
   onParsedSubtitleCuesChanged: (cues, sourceKey) => {
     appState.activeParsedSubtitleCues = cues ?? [];
     appState.activeParsedSubtitleSource = sourceKey;
+    const mediaPath = getCurrentAutoplayMediaPath();
+    if (mediaPath && cues?.length) {
+      void primeAutoplaySubtitleFromParsedCues(mediaPath, cues).catch((error) => {
+        logger.debug(
+          `[autoplay-subtitle-prime] failed to prime from parsed cues: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+    }
   },
 });
 const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler({
@@ -4150,6 +4244,14 @@ const {
     tokenizeSubtitleForImmersion: async (text): Promise<SubtitleData | null> =>
       tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : null,
     updateCurrentMediaPath: (path) => {
+      const normalizedPath = path.trim();
+      const previousPath = appState.currentMediaPath?.trim() || null;
+      if ((normalizedPath || null) !== previousPath) {
+        autoplaySubtitlePrimedMediaPath = null;
+        appState.currentSubText = '';
+        appState.currentSubAssText = '';
+        appState.currentSubtitleData = null;
+      }
       autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks();
       currentMediaTokenizationGate.updateCurrentMediaPath(path);
       managedLocalSubtitleSelectionRuntime.handleMediaPathChange(path);
@@ -4159,7 +4261,8 @@ const {
       youtubePrimarySubtitleNotificationRuntime.handleMediaPathChange(path);
       if (path) {
         ensureImmersionTrackerStarted();
-        // Delay slightly to allow MPV's track-list to be populated.
+        void subtitlePrefetchRuntime.refreshSubtitlePrefetchFromActiveTrack();
+        // Retry after a short delay because MPV can populate track-list after path.
         subtitlePrefetchRuntime.scheduleSubtitlePrefetchRefresh(500);
       }
       mediaRuntime.updateCurrentMediaPath(path);
@@ -4410,6 +4513,7 @@ signalAutoplayReadyFromWarmTokenization = createAutoplayTokenizationWarmRelease(
   },
   getCurrentMediaPath: () =>
     appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
+  primeCurrentSubtitle: (mediaPath) => primeCurrentSubtitleForAutoplay(mediaPath),
   signalAutoplayReady: () => {
     autoplayReadyGate.maybeSignalPluginAutoplayReady(
       { text: '__warm__', tokens: null },
