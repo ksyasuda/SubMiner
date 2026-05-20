@@ -23,6 +23,7 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
   let autoPlayReadySignalMediaPath: string | null = null;
   let autoPlayReadySignalGeneration = 0;
   let pendingAutoplayReadySignal: {
+    mediaPath: string;
     payload: SubtitleData;
     options?: { forceWhilePaused?: boolean };
   } | null = null;
@@ -34,6 +35,9 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
   };
 
   const isSignalTargetReady = (): boolean => deps.isSignalTargetReady?.() ?? true;
+
+  const getSignalMediaPath = (): string =>
+    deps.getCurrentMediaPath()?.trim() || deps.getCurrentVideoPath()?.trim() || '__unknown__';
 
   const maybeSignalPluginAutoplayReady = (
     payload: SubtitleData,
@@ -47,8 +51,7 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
       return;
     }
 
-    const mediaPath =
-      deps.getCurrentMediaPath()?.trim() || deps.getCurrentVideoPath()?.trim() || '__unknown__';
+    const mediaPath = getSignalMediaPath();
     const duplicateMediaSignal = autoPlayReadySignalMediaPath === mediaPath;
     const releaseRetryDelayMs = 200;
     const maxReleaseAttempts = resolveAutoplayReadyMaxReleaseAttempts({
@@ -116,7 +119,7 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
       return;
     }
     if (!isSignalTargetReady()) {
-      pendingAutoplayReadySignal = { payload, options };
+      pendingAutoplayReadySignal = { mediaPath, payload, options };
       deps.logDebug(
         `[autoplay-ready] deferred until signal target is ready for media ${mediaPath}`,
       );
@@ -137,6 +140,12 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
 
     const pendingSignal = pendingAutoplayReadySignal;
     pendingAutoplayReadySignal = null;
+    if (getSignalMediaPath() !== pendingSignal.mediaPath) {
+      deps.logDebug(
+        `[autoplay-ready] dropped deferred signal for stale media ${pendingSignal.mediaPath}`,
+      );
+      return;
+    }
     maybeSignalPluginAutoplayReady(pendingSignal.payload, pendingSignal.options);
   };
 

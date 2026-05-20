@@ -192,3 +192,43 @@ test('autoplay ready gate defers plugin readiness until the signal target is rea
     true,
   );
 });
+
+test('autoplay ready gate drops deferred readiness after media changes before flush', async () => {
+  const commands: Array<Array<string | boolean>> = [];
+  let targetReady = false;
+  let currentMediaPath = '/media/video-1.mkv';
+
+  const gate = createAutoplayReadyGate({
+    isAppOwnedFlowInFlight: () => false,
+    getCurrentMediaPath: () => currentMediaPath,
+    getCurrentVideoPath: () => null,
+    getPlaybackPaused: () => true,
+    getMpvClient: () =>
+      ({
+        connected: true,
+        requestProperty: async () => true,
+        send: ({ command }: { command: Array<string | boolean> }) => {
+          commands.push(command);
+        },
+      }) as never,
+    signalPluginAutoplayReady: () => {
+      commands.push(['script-message', 'subminer-autoplay-ready']);
+    },
+    isSignalTargetReady: () => targetReady,
+    schedule: (callback) => {
+      queueMicrotask(callback);
+      return 1 as never;
+    },
+    logDebug: () => {},
+  });
+
+  gate.maybeSignalPluginAutoplayReady({ text: '字幕', tokens: null }, { forceWhilePaused: true });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  currentMediaPath = '/media/video-2.mkv';
+  targetReady = true;
+  gate.flushPendingAutoplayReadySignal();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(commands, []);
+});

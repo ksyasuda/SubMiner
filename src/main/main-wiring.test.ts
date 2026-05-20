@@ -10,7 +10,7 @@ function readMainSource(): string {
 test('manual watched session action starts immersion tracker before marking watched', () => {
   const source = readMainSource();
   const actionBlock = source.match(
-    /markActiveVideoWatched: async \(\) => \{(?<body>[\s\S]*?)\n    \},/,
+    /markActiveVideoWatched:\s*async\s*\(\)\s*=>\s*\{(?<body>[\s\S]*?)\}\s*,/,
   )?.groups?.body;
 
   assert.ok(actionBlock);

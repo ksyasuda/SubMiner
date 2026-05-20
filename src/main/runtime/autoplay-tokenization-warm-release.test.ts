@@ -67,3 +67,20 @@ test('autoplay tokenization warm release skips stale media after warmup resolves
 
   assert.deepEqual(calls, ['warmup']);
 });
+
+test('autoplay tokenization warm release skips signaling when current media is cleared', () => {
+  const calls: string[] = [];
+  const release = createAutoplayTokenizationWarmRelease({
+    isTokenizationWarmupReady: () => true,
+    startTokenizationWarmups: async () => {
+      calls.push('warmup');
+    },
+    getCurrentMediaPath: () => null,
+    signalAutoplayReady: () => calls.push('signal'),
+    warn: () => {},
+  });
+
+  release('/tmp/video.mkv');
+
+  assert.deepEqual(calls, []);
+});

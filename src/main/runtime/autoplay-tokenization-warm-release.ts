@@ -15,7 +15,7 @@ export function createAutoplayTokenizationWarmRelease(deps: {
 }): (mediaPath: string | null | undefined) => void {
   const signalIfCurrent = (mediaPath: string): void => {
     const currentMediaPath = normalizeMediaPath(deps.getCurrentMediaPath());
-    if (currentMediaPath && currentMediaPath !== mediaPath) {
+    if (!currentMediaPath || currentMediaPath !== mediaPath) {
       return;
     }
     deps.signalAutoplayReady();

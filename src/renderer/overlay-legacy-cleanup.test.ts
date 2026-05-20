@@ -43,7 +43,7 @@ test('renderer stylesheet only hides visible focus chrome on top-level overlay f
 test('subtitle sidebar stylesheet keeps quoted font fallbacks and generic family', () => {
   const cssSource = readWorkspaceFile('src/renderer/style.css');
   const sidebarContentBlock = cssSource.match(
-    /\.subtitle-sidebar-content\s*\{(?<body>[\s\S]*?)\n\}/,
+    /\.subtitle-sidebar-content\s*\{(?<body>[\s\S]*?)\s*\}/,
   )?.groups?.body;
 
   assert.ok(sidebarContentBlock);
