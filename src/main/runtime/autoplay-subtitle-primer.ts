@@ -5,7 +5,7 @@ export function selectAutoplayStartupCue(
   currentTimeSeconds: number,
   lookaheadSeconds: number,
 ): SubtitleCue | null {
-  const currentTime = Number.isFinite(currentTimeSeconds) ? currentTimeSeconds : 0;
+  const currentTime = Math.max(0, Number.isFinite(currentTimeSeconds) ? currentTimeSeconds : 0);
   const lookahead = Math.max(0, Number.isFinite(lookaheadSeconds) ? lookaheadSeconds : 0);
   const latestStartTime = currentTime + lookahead;
 

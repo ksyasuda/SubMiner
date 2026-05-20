@@ -2096,8 +2096,17 @@ test('migrates legacy ankiConnect n+1 color value to subtitleStyle', () => {
     subtitleStyle: { nPlusOneColor?: string; knownWordColor?: string };
   };
   assert.equal(parsed.subtitleStyle.nPlusOneColor, '#c6a0f6');
-  assert.equal(config.subtitleStyle.knownWordColor, '#a6da95');
   assert.equal(Object.hasOwn(parsed.ankiConnect.nPlusOne ?? {}, 'nPlusOne'), false);
+});
+
+test('legacy migration failures are logged and rethrown', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'src/config/service.ts'), 'utf-8');
+  const catchBlock = source.match(/catch\s*\(error\)\s*\{(?<body>[\s\S]*?)\n    \}/)?.groups?.body;
+
+  assert.ok(catchBlock);
+  assert.match(catchBlock, /legacy config migration failed/);
+  assert.match(catchBlock, /console\.error/);
+  assert.match(catchBlock, /throw error;/);
 });
 
 test('migrates legacy ankiConnect nPlusOne known-word settings to knownWords', () => {

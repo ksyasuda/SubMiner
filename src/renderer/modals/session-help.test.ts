@@ -33,6 +33,10 @@ test('session help formats bracket keybindings as physical keys', () => {
   assert.equal(formatSessionHelpKeybinding('Shift+BracketLeft'), 'Shift + [');
 });
 
+test('session help normalizes configured modifier aliases', () => {
+  assert.equal(formatSessionHelpKeybinding('CommandOrControl+KeyS'), 'Cmd/Ctrl + S');
+});
+
 test('session help imports browser-safe special command constants', () => {
   const source = fs.readFileSync(
     path.join(process.cwd(), 'src', 'renderer', 'modals', 'session-help-sections.ts'),

@@ -1016,7 +1016,7 @@ export async function startOverlay(
     env: buildAppEnv(process.env, target.env),
   });
   attachAppProcessLogging(state.overlayProc);
-  if (appAlreadyRunning) {
+  if (appAlreadyRunning && !(state.overlayManagedByLauncher && state.appPath === appPath)) {
     log(
       'debug',
       args.logLevel,

@@ -697,6 +697,47 @@ test('startOverlay borrows an already-running background app instead of owning i
   }
 });
 
+test('startOverlay keeps lifecycle ownership for its already-managed app', async () => {
+  const { dir, socketPath } = createTempSocketPath();
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const appInvocationsPath = path.join(dir, 'app-invocations.log');
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
+      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
+      'exit 0',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+  fs.writeFileSync(socketPath, '');
+  const originalCreateConnection = net.createConnection;
+  try {
+    state.appPath = appPath;
+    state.overlayManagedByLauncher = true;
+    net.createConnection = (() => {
+      const socket = new EventEmitter() as net.Socket;
+      socket.destroy = (() => socket) as net.Socket['destroy'];
+      socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
+      setTimeout(() => socket.emit('connect'), 10);
+      return socket;
+    }) as typeof net.createConnection;
+
+    await startOverlay(appPath, makeArgs(), socketPath);
+
+    assert.equal(state.overlayManagedByLauncher, true);
+    assert.equal(state.appPath, appPath);
+  } finally {
+    net.createConnection = originalCreateConnection;
+    state.overlayProc = null;
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('cleanupPlaybackSession stops launcher-managed overlay app and mpv-owned children', async () => {
   const { dir } = createTempSocketPath();
   const appPath = path.join(dir, 'fake-subminer.sh');

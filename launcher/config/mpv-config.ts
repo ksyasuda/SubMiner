@@ -37,8 +37,7 @@ export function parseLauncherMpvConfig(root: Record<string, unknown>): LauncherM
       typeof mpv.autoStartSubMiner === 'boolean' ? mpv.autoStartSubMiner : undefined,
     pauseUntilOverlayReady:
       typeof mpv.pauseUntilOverlayReady === 'boolean' ? mpv.pauseUntilOverlayReady : undefined,
-    subminerBinaryPath:
-      typeof mpv.subminerBinaryPath === 'string' ? mpv.subminerBinaryPath.trim() : undefined,
+    subminerBinaryPath: parseNonEmptyString(mpv.subminerBinaryPath),
     aniskipEnabled: typeof mpv.aniskipEnabled === 'boolean' ? mpv.aniskipEnabled : undefined,
     aniskipButtonKey: parseNonEmptyString(mpv.aniskipButtonKey),
   };

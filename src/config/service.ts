@@ -151,8 +151,9 @@ export class ConfigService {
       }
       fs.writeFileSync(configPath, content, 'utf-8');
       return rawConfig;
-    } catch {
-      return config;
+    } catch (error) {
+      console.error(`[ConfigService] legacy config migration failed for ${configPath}:`, error);
+      throw error;
     }
   }
 }

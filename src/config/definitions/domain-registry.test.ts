@@ -132,7 +132,7 @@ test('n+1 annotation color has one public config path', () => {
   const leaves = collectConfigLeafPaths(DEFAULT_CONFIG);
 
   assert.ok(leaves.includes('subtitleStyle.nPlusOneColor'));
-  assert.ok(!leaves.includes('ankiConnect.nPlusOne.nPlusOne'));
+  assert.ok(!leaves.includes('ankiConnect.nPlusOne.color'));
 });
 
 test('every DEFAULT_CONFIG leaf is in CONFIG_OPTION_REGISTRY or UNDOCUMENTED_LEAVES', () => {

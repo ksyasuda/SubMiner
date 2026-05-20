@@ -45,6 +45,12 @@ class FakeStyleDeclaration {
   setProperty(name: string, value: string) {
     this.values.set(name, value);
   }
+
+  removeProperty(name: string) {
+    const previous = this.values.get(name) ?? '';
+    this.values.delete(name);
+    return previous;
+  }
 }
 
 class FakeElement {
@@ -470,6 +476,57 @@ test('applySubtitleStyle applies primary and secondary css declaration objects',
     assert.equal(primaryValues?.get('--subtitle-outline'), '1px');
     assert.equal(secondaryValues?.get('font-size'), '28px');
     assert.equal(secondaryValues?.get('text-transform'), 'uppercase');
+  } finally {
+    restoreDocument();
+  }
+});
+
+test('applySubtitleStyle removes css declarations missing from later updates', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({
+      css: {
+        'font-size': '42px',
+        'text-wrap': 'balance',
+      },
+      secondary: {
+        css: {
+          'text-transform': 'uppercase',
+        },
+      },
+    } as never);
+    renderer.applySubtitleStyle({
+      css: {
+        'font-size': '44px',
+      },
+      secondary: {
+        css: {},
+      },
+    } as never);
+
+    const primaryValues = (subtitleRoot.style as unknown as { values?: Map<string, string> })
+      .values;
+    const secondaryValues = (secondarySubRoot.style as unknown as { values?: Map<string, string> })
+      .values;
+
+    assert.equal(primaryValues?.get('font-size'), '44px');
+    assert.equal(primaryValues?.has('text-wrap'), false);
+    assert.equal(secondaryValues?.has('text-transform'), false);
   } finally {
     restoreDocument();
   }

@@ -68,10 +68,13 @@ function normalizeKeyToken(token: string): string {
 }
 
 function formatKeybinding(rawBinding: string): string {
-  const parts = rawBinding.split('+');
+  const parts = rawBinding
+    .split('+')
+    .map((part) => part.trim())
+    .filter(Boolean);
   const key = parts.pop();
   if (!key) return rawBinding;
-  const normalized = [...parts, normalizeKeyToken(key)];
+  const normalized = [...parts.map(normalizeKeyToken), normalizeKeyToken(key)];
   return normalized.join(' + ');
 }
 

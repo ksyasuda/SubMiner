@@ -106,6 +106,16 @@ test('parseLauncherMpvConfig reads launch mode preference', () => {
   assert.equal(parsed.aniskipButtonKey, 'F8');
 });
 
+test('parseLauncherMpvConfig ignores blank subminer binary paths', () => {
+  const parsed = parseLauncherMpvConfig({
+    mpv: {
+      subminerBinaryPath: '   ',
+    },
+  });
+
+  assert.equal(parsed.subminerBinaryPath, undefined);
+});
+
 test('parseLauncherMpvConfig ignores invalid launch mode values', () => {
   const parsed = parseLauncherMpvConfig({
     mpv: {

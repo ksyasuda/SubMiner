@@ -158,6 +158,49 @@ function applyInlineStyleDeclarations(
   }
 }
 
+const appliedCssKeys = new WeakMap<HTMLElement, Set<string>>();
+
+function inlineStyleDeclarationKeys(
+  declarations: Record<string, unknown>,
+  excludedKeys: ReadonlySet<string>,
+): Set<string> {
+  const keys = new Set<string>();
+  for (const [key, value] of Object.entries(declarations)) {
+    if (excludedKeys.has(key)) continue;
+    if (value === null || value === undefined || typeof value === 'object') continue;
+    keys.add(key);
+  }
+  return keys;
+}
+
+function clearInlineStyleDeclaration(target: HTMLElement, key: string): void {
+  if (key.includes('-')) {
+    target.style.removeProperty(key);
+    if (key === '--webkit-text-stroke') {
+      target.style.removeProperty('-webkit-text-stroke');
+    }
+    return;
+  }
+
+  (target.style as unknown as Record<string, string>)[key] = '';
+}
+
+function replaceInlineStyleDeclarations(
+  target: HTMLElement,
+  declarations: Record<string, unknown>,
+  excludedKeys: ReadonlySet<string> = new Set<string>(),
+): void {
+  const nextKeys = inlineStyleDeclarationKeys(declarations, excludedKeys);
+  const previousKeys = appliedCssKeys.get(target) ?? new Set<string>();
+  for (const key of previousKeys) {
+    if (!nextKeys.has(key)) {
+      clearInlineStyleDeclaration(target, key);
+    }
+  }
+  applyInlineStyleDeclarations(target, declarations, excludedKeys);
+  appliedCssKeys.set(target, nextKeys);
+}
+
 function normalizeCssDeclarationObject(value: unknown): Record<string, string> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
@@ -177,8 +220,8 @@ function applySubtitleCssDeclarations(
   container: HTMLElement,
   declarations: Record<string, string>,
 ): void {
-  applyInlineStyleDeclarations(root, declarations, CONTAINER_STYLE_KEYS);
-  applyInlineStyleDeclarations(
+  replaceInlineStyleDeclarations(root, declarations, CONTAINER_STYLE_KEYS);
+  replaceInlineStyleDeclarations(
     container,
     pickInlineStyleDeclarations(declarations, CONTAINER_STYLE_KEYS),
   );

@@ -4251,6 +4251,7 @@ const {
         appState.currentSubText = '';
         appState.currentSubAssText = '';
         appState.currentSubtitleData = null;
+        broadcastToOverlayWindows('subtitle:set', { text: '', tokens: null });
       }
       autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks();
       currentMediaTokenizationGate.updateCurrentMediaPath(path);

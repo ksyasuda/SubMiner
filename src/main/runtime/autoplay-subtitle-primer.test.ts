@@ -30,6 +30,13 @@ test('selectAutoplayStartupCue returns the next imminent cue before playback sta
   );
 });
 
+test('selectAutoplayStartupCue clamps negative current time to startup', () => {
+  assert.deepEqual(
+    selectAutoplayStartupCue([{ startTime: 0, endTime: 1, text: 'startup' }], -0.5, 0),
+    { startTime: 0, endTime: 1, text: 'startup' },
+  );
+});
+
 test('selectAutoplayStartupCue does not reveal far future subtitle text', () => {
   assert.equal(
     selectAutoplayStartupCue([{ startTime: 12, endTime: 15, text: 'later' }], 0, 2),
