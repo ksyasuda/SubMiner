@@ -81,3 +81,49 @@ test('fetch HTTP executor verifies updater asset hashes', async () => {
     /sha2 mismatch/,
   );
 });
+
+test('fetch HTTP executor applies download timeout to updater asset fetches', async () => {
+  const executor = createFetchHttpExecutor({
+    downloadTimeoutMs: 1,
+    fetch: async (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('download aborted')), {
+          once: true,
+        });
+      }),
+    mkdir: async () => undefined,
+    writeFile: async () => {
+      throw new Error('should not write timed-out data');
+    },
+  });
+
+  await assert.rejects(
+    executor.download(new URL('https://example.test/SubMiner.exe'), 'C:\\Temp\\SubMiner.exe', {
+      cancellationToken: {
+        createPromise: neverCancel,
+      },
+    }),
+    /download aborted/,
+  );
+});
+
+test('fetch HTTP executor applies download timeout to buffer fetches', async () => {
+  const executor = createFetchHttpExecutor({
+    downloadTimeoutMs: 1,
+    fetch: async (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('buffer aborted')), {
+          once: true,
+        });
+      }),
+  });
+
+  await assert.rejects(
+    executor.downloadToBuffer(new URL('https://example.test/SubMiner.exe'), {
+      cancellationToken: {
+        createPromise: neverCancel,
+      },
+    }),
+    /buffer aborted/,
+  );
+});

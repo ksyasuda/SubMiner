@@ -233,7 +233,6 @@ export function buildJellyfinSetupFormHtml(state: JellyfinSetupViewState): strin
       if (action === "login") {
         params.set("server", serverValue);
         params.set("username", usernameValue);
-        params.set("password", passwordValue);
         window.__subminerJellyfinPassword = passwordValue;
       }
       window.location.href = "subminer://jellyfin-setup?" + params.toString();

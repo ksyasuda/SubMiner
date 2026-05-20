@@ -18,6 +18,7 @@ type FetchDownloadOptions = {
   sha2?: string | null;
   sha512?: string | null;
   cancellationToken: CancellationTokenLike;
+  timeout?: number;
 };
 
 export type FetchHttpExecutor = {
@@ -31,6 +32,7 @@ export type FetchHttpExecutor = {
 };
 
 type FetchImpl = (url: string, init?: RequestInit) => Promise<Response>;
+const DEFAULT_DOWNLOAD_TIMEOUT_MS = 120_000;
 
 function requestOptionsToUrl(options: RequestOptions): string {
   const protocol = options.protocol ?? 'https:';
@@ -132,6 +134,7 @@ export function createFetchHttpExecutor(
     fetch?: FetchImpl;
     mkdir?: (targetPath: string) => Promise<unknown>;
     writeFile?: (targetPath: string, data: Buffer) => Promise<unknown>;
+    downloadTimeoutMs?: number;
   } = {},
 ): FetchHttpExecutor {
   const fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
@@ -140,6 +143,7 @@ export function createFetchHttpExecutor(
   const writeFile =
     options.writeFile ??
     ((targetPath: string, data: Buffer) => fs.promises.writeFile(targetPath, data));
+  const downloadTimeoutMs = options.downloadTimeoutMs ?? DEFAULT_DOWNLOAD_TIMEOUT_MS;
 
   return {
     async request(requestOptions, cancellationToken, data): Promise<string | null> {
@@ -169,6 +173,7 @@ export function createFetchHttpExecutor(
           redirect: 'follow',
         },
         downloadOptions.cancellationToken,
+        downloadOptions.timeout ?? downloadTimeoutMs,
       );
       verifyDownloadedData(data, downloadOptions);
       await writeFile(destination, data);
@@ -183,6 +188,7 @@ export function createFetchHttpExecutor(
           redirect: 'follow',
         },
         downloadOptions.cancellationToken,
+        downloadOptions.timeout ?? downloadTimeoutMs,
       );
       verifyDownloadedData(data, downloadOptions);
       return data;

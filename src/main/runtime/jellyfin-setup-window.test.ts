@@ -31,7 +31,8 @@ test('buildJellyfinSetupFormHtml escapes default values', () => {
   assert.ok(html.includes('window.subminerJellyfinSetup'));
   assert.ok(html.includes('Logging in to Jellyfin'));
   assert.ok(html.includes('subminer://jellyfin-setup?'));
-  assert.ok(html.includes('params.set("password", passwordValue)'));
+  assert.equal(html.includes('params.set("password", passwordValue)'), false);
+  assert.ok(html.includes('window.__subminerJellyfinPassword = passwordValue'));
 });
 
 test('buildJellyfinSetupViewState prefills configured server URL', () => {

@@ -44,9 +44,9 @@ test('curl HTTP executor requests updater metadata without Electron networking',
 });
 
 test('curl HTTP executor downloads updater assets to the requested destination', async () => {
-  const calls: Array<{ args: readonly string[] }> = [];
-  const execFile: CurlExecFile = (_file, args, _options, callback) => {
-    calls.push({ args });
+  const calls: Array<{ args: readonly string[]; timeout?: number }> = [];
+  const execFile: CurlExecFile = (_file, args, options, callback) => {
+    calls.push({ args, timeout: options.timeout });
     queueMicrotask(() => callback(null, Buffer.alloc(0), Buffer.alloc(0)));
     return { kill: () => true };
   };
@@ -54,6 +54,7 @@ test('curl HTTP executor downloads updater assets to the requested destination',
     execFile,
     curlPath: '/usr/bin/curl',
     mkdir: async () => undefined,
+    downloadTimeoutMs: 120_000,
   });
 
   await executor.download(
@@ -75,12 +76,15 @@ test('curl HTTP executor downloads updater assets to the requested destination',
     '--show-error',
     '--connect-timeout',
     '30',
+    '--max-time',
+    '120',
     '--header',
     'User-Agent: SubMiner updater',
     '--output',
     '/tmp/subminer/update.zip',
     'https://github.com/ksyasuda/SubMiner/releases/download/v1/app.zip',
   ]);
+  assert.equal(calls[0]?.timeout, 120_000);
 });
 
 test('curl HTTP executor verifies downloaded updater asset hashes', async () => {

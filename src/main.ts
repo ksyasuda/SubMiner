@@ -3979,7 +3979,7 @@ async function runAppReadyRuntimeWithFatalReporting(): Promise<void> {
     });
     process.exitCode = 1;
     requestAppQuit();
-    throw error;
+    return;
   }
 }
 
