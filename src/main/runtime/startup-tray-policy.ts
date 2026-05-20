@@ -21,3 +21,14 @@ export function shouldQuitOnWindowAllClosedForTrayState(options: {
   if (options.hasTray) return false;
   return true;
 }
+
+export function shouldQuitOnMpvShutdownForTrayState(options: {
+  managedPlayback: boolean;
+  backgroundMode: boolean;
+  hasTray: boolean;
+}): boolean {
+  if (!options.managedPlayback) return false;
+  if (options.backgroundMode) return false;
+  if (options.hasTray) return false;
+  return true;
+}

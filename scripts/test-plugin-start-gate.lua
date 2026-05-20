@@ -23,6 +23,11 @@ local function run_plugin_scenario(config)
 				return config.platform or "linux"
 			end
 			if name == "input-ipc-server" then
+				if config.input_ipc_server_sequence then
+					config.input_ipc_server_sequence_index = (config.input_ipc_server_sequence_index or 0) + 1
+					local index = config.input_ipc_server_sequence_index
+					return config.input_ipc_server_sequence[index] or config.input_ipc_server_sequence[#config.input_ipc_server_sequence] or ""
+				end
 				return config.input_ipc_server or ""
 			end
 			if name == "filename/no-ext" then
@@ -639,6 +644,97 @@ do
 end
 
 do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/episode-01.mkv",
+		media_title = "Episode 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for new-media rearm scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "/media/episode-02.mkv"
+	scenario.media_title = "Episode 2"
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"new media after prior playback should reuse the running overlay"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 2,
+		"new media after prior playback should re-arm pause-until-ready"
+	)
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 2,
+		"new media after prior playback should resume only after readiness"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server_sequence = { "", "", "/tmp/subminer-socket" },
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for delayed socket auto-start scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(find_start_call(recorded.async_calls) ~= nil, "delayed socket auto-start should eventually issue --start")
+	assert_true(
+		has_property_set(recorded.property_sets, "pause", true),
+		"delayed socket auto-start should arm pause-until-ready once the socket is available"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		platform = "osx",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for macOS platform alias scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(start_call ~= nil, "macOS platform alias auto-start should issue --start")
+	assert_true(
+		call_has_arg(start_call, "macos"),
+		"macOS platform alias auto-start should pass macos backend instead of falling back to x11"
+	)
+end
+
+do
 	local recorded, err = run_plugin_scenario({
 		process_list = "",
 		option_overrides = {
@@ -661,10 +757,17 @@ do
 	assert_true(call ~= nil, "AppImage start should issue an async subprocess")
 	assert_true(#call.args == 1 and call.args[1] == appimage_path, "AppImage subprocess should not receive raw CLI flags")
 	assert_true(env_has(call, "PATH=/usr/bin"), "AppImage subprocess should preserve existing environment")
-	assert_true(env_has(call, "SUBMINER_APP_ARGC=8"), "AppImage subprocess should transport app arg count")
+	assert_true(env_has(call, "SUBMINER_APP_ARGC=7"), "AppImage subprocess should transport app arg count")
 	assert_true(env_has(call, "SUBMINER_APP_ARG_0=--start"), "AppImage subprocess should transport --start")
-	assert_true(env_has(call, "SUBMINER_APP_ARG_1=--background"), "AppImage subprocess should transport --background")
-	assert_true(env_has(call, "SUBMINER_APP_ARG_7=--hide-visible-overlay"), "AppImage subprocess should transport visibility flag")
+	assert_true(
+		env_has(call, "SUBMINER_APP_ARG_1=--managed-playback"),
+		"AppImage subprocess should transport --managed-playback"
+	)
+	assert_true(
+		not env_has(call, "SUBMINER_APP_ARG_1=--background"),
+		"AppImage subprocess should not transport --background for video-owned playback"
+	)
+	assert_true(env_has(call, "SUBMINER_APP_ARG_6=--hide-visible-overlay"), "AppImage subprocess should transport visibility flag")
 	assert_true(env_has_prefix(call, "SUBMINER_APP_LOG="), "AppImage subprocess should include app log env")
 	assert_true(env_has_prefix(call, "SUBMINER_MPV_LOG="), "AppImage subprocess should include mpv log env")
 	assert_true(
@@ -1170,7 +1273,10 @@ do
 	fire_event(recorded, "file-loaded")
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
-	assert_true(call_has_arg(start_call, "--background"), "auto-start should launch SubMiner in background mode")
+	assert_true(
+		not call_has_arg(start_call, "--background"),
+		"auto-start should not mark video-owned playback as background/tray mode"
+	)
 	assert_true(
 		call_has_arg(start_call, "--managed-playback"),
 		"auto-start should mark SubMiner as launcher-managed playback"

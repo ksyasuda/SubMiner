@@ -114,9 +114,34 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
     return;
   }
 
+  let appReadyRuntimeComplete = false;
+  const pendingSecondInstanceCommands: CliArgs[] = [];
+  const handleSecondInstanceCommand = (args: CliArgs): void => {
+    try {
+      deps.handleCliCommand(args, 'second-instance');
+    } catch (error) {
+      logger.error('Failed to handle second-instance CLI command:', error);
+    }
+  };
+
+  const flushPendingSecondInstanceCommands = (): void => {
+    while (pendingSecondInstanceCommands.length > 0) {
+      const nextArgs = pendingSecondInstanceCommands.shift();
+      if (nextArgs) {
+        handleSecondInstanceCommand(nextArgs);
+      }
+    }
+  };
+
   deps.onSecondInstance((_event, argv) => {
     try {
-      deps.handleCliCommand(deps.parseArgs(argv), 'second-instance');
+      const nextArgs = deps.parseArgs(argv);
+      if (!appReadyRuntimeComplete) {
+        pendingSecondInstanceCommands.push(nextArgs);
+        return;
+      }
+
+      handleSecondInstanceCommand(nextArgs);
     } catch (error) {
       logger.error('Failed to handle second-instance CLI command:', error);
     }
@@ -134,6 +159,8 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
 
   deps.whenReady(async () => {
     await deps.onReady();
+    appReadyRuntimeComplete = true;
+    flushPendingSecondInstanceCommands();
   });
 
   deps.onWindowAllClosed(() => {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   shouldEnsureTrayOnStartupForInitialArgs,
+  shouldQuitOnMpvShutdownForTrayState,
   shouldQuitOnWindowAllClosedForTrayState,
 } from './startup-tray-policy';
 
@@ -40,5 +41,27 @@ test('window-all-closed keeps background app alive without tray', () => {
   assert.equal(
     shouldQuitOnWindowAllClosedForTrayState({ backgroundMode: true, hasTray: false }),
     false,
+  );
+});
+
+test('mpv shutdown keeps managed background tray app alive', () => {
+  assert.equal(
+    shouldQuitOnMpvShutdownForTrayState({
+      managedPlayback: true,
+      backgroundMode: true,
+      hasTray: true,
+    }),
+    false,
+  );
+});
+
+test('mpv shutdown quits standalone managed playback without tray residency', () => {
+  assert.equal(
+    shouldQuitOnMpvShutdownForTrayState({
+      managedPlayback: true,
+      backgroundMode: false,
+      hasTray: false,
+    }),
+    true,
   );
 });

@@ -18,8 +18,14 @@ function M.create(ctx)
 
 	local function is_macos()
 		local platform = mp.get_property("platform") or ""
-		if platform == "macos" or platform == "darwin" then
-			return true
+		if platform ~= "" then
+			local normalized = platform:lower()
+			if normalized == "macos" or normalized == "darwin" or normalized == "osx" then
+				return true
+			end
+			if normalized == "windows" or normalized == "win32" or normalized == "linux" then
+				return false
+			end
 		end
 		local ostype = os.getenv("OSTYPE") or ""
 		return ostype:find("darwin") ~= nil

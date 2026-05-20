@@ -168,3 +168,58 @@ test('startAppLifecycle app ping exits zero immediately when another instance ow
   assert.equal(lockCalls, 1);
   assert.deepEqual(calls, ['exit:0']);
 });
+
+test('startAppLifecycle queues second-instance commands until app ready runtime completes', async () => {
+  const handled: string[] = [];
+  let secondInstanceHandler: ((_event: unknown, argv: string[]) => void) | null = null;
+  let readyHandler: (() => Promise<void>) | null = null;
+  let releaseReady: (() => void) | null = null;
+  const readyFinished = new Promise<void>((resolve) => {
+    releaseReady = resolve;
+  });
+
+  const { deps } = createDeps({
+    shouldStartApp: () => true,
+    onSecondInstance: (handler) => {
+      secondInstanceHandler = handler;
+    },
+    parseArgs: (argv) => makeArgs({ start: argv.includes('--start') }),
+    handleCliCommand: (args, source) => {
+      handled.push(`${source}:${args.start ? 'start' : 'other'}`);
+    },
+    whenReady: (handler) => {
+      readyHandler = handler;
+    },
+    onReady: async () => {
+      await readyFinished;
+      handled.push('ready');
+    },
+  });
+
+  startAppLifecycle(makeArgs({ background: true }), deps);
+
+  const runSecondInstance = (argv: string[]) => {
+    assert.ok(secondInstanceHandler);
+    (secondInstanceHandler as (_event: unknown, argv: string[]) => void)({}, argv);
+  };
+  const runReady = () => {
+    assert.ok(readyHandler);
+    return (readyHandler as () => Promise<void>)();
+  };
+
+  runSecondInstance(['SubMiner', '--start']);
+  assert.deepEqual(handled, []);
+
+  const readyRun = runReady();
+  await Promise.resolve();
+  assert.deepEqual(handled, []);
+
+  assert.ok(releaseReady);
+  (releaseReady as () => void)();
+  await readyRun;
+
+  assert.deepEqual(handled, ['ready', 'second-instance:start']);
+
+  runSecondInstance(['SubMiner', '--start']);
+  assert.deepEqual(handled, ['ready', 'second-instance:start', 'second-instance:start']);
+});

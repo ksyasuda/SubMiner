@@ -45,6 +45,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
     ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
     syncImmersionMediaState: () => calls.push('sync-immersion'),
+    signalAutoplayReadyIfWarm: (path) => calls.push(`autoplay:${path}`),
     flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
 
     updateCurrentMediaTitle: (title) => calls.push(`media-title:${title}`),
@@ -72,6 +73,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   handlers.get('subtitle-change')?.({ text: 'line' });
   handlers.get('subtitle-track-change')?.({ sid: 3 });
   handlers.get('subtitle-track-list-change')?.({ trackList: [] });
+  handlers.get('media-path-change')?.({ path: '/tmp/video.mkv' });
   handlers.get('media-path-change')?.({ path: '' });
   handlers.get('media-title-change')?.({ title: 'Episode 1' });
   handlers.get('subtitle-timing')?.({ text: 'timed line', start: 899, end: 901 });
@@ -85,7 +87,8 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   assert.ok(calls.includes('subtitle-track-change'));
   assert.ok(calls.includes('subtitle-track-list-change'));
   assert.ok(calls.includes('media-title:Episode 1'));
-  assert.ok(calls.includes('restore-mpv-sub'));
+  assert.ok(calls.includes('media-path:/tmp/video.mkv'));
+  assert.ok(calls.includes('autoplay:/tmp/video.mkv'));
   assert.ok(calls.includes('reset-guess-state'));
   assert.ok(calls.includes('notify-title:Episode 1'));
   assert.ok(calls.includes('post-watch:901'));

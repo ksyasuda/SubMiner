@@ -311,6 +311,7 @@ import {
   importYomitanDictionaryFromZip,
   initializeOverlayAnkiIntegration as initializeOverlayAnkiIntegrationCore,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
+  isOverlayWindowContentReady,
   jellyfinTicksToSecondsRuntime,
   listJellyfinItemsRuntime,
   listJellyfinLibrariesRuntime,
@@ -362,6 +363,7 @@ import {
   createYoutubePrimarySubtitleNotificationRuntime,
 } from './main/runtime/youtube-primary-subtitle-notification';
 import { createAutoplayReadyGate } from './main/runtime/autoplay-ready-gate';
+import { createAutoplayTokenizationWarmRelease } from './main/runtime/autoplay-tokenization-warm-release';
 import { createManagedLocalSubtitleSelectionRuntime } from './main/runtime/local-subtitle-selection';
 import {
   buildFirstRunSetupHtml,
@@ -401,6 +403,7 @@ import {
 import { createPrepareYoutubePlaybackInMpvHandler } from './main/runtime/youtube-playback-launch';
 import {
   shouldEnsureTrayOnStartupForInitialArgs,
+  shouldQuitOnMpvShutdownForTrayState,
   shouldQuitOnWindowAllClosedForTrayState,
 } from './main/runtime/startup-tray-policy';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
@@ -1102,6 +1105,13 @@ const autoplayReadyGate = createAutoplayReadyGate({
   signalPluginAutoplayReady: () => {
     sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
   },
+  isSignalTargetReady: () => {
+    if (!overlayManager.getVisibleOverlayVisible()) {
+      return true;
+    }
+    const overlayWindow = overlayManager.getMainWindow();
+    return Boolean(overlayWindow && isOverlayWindowContentReady(overlayWindow));
+  },
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
   logDebug: (message) => logger.debug(message),
 });
@@ -1591,6 +1601,7 @@ function emitSubtitlePayload(payload: SubtitleData): void {
     topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
     mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
   });
+  autoplayReadyGate.maybeSignalPluginAutoplayReady(timedPayload, { forceWhilePaused: true });
   subtitlePrefetchService?.resume();
 }
 const buildSubtitleProcessingControllerMainDepsHandler =
@@ -3445,6 +3456,7 @@ const {
     restoreMpvSubVisibility: () => {
       restoreOverlayMpvSubtitles({ force: true });
     },
+    isAppReady: () => app.isReady(),
     unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
     stopSubtitleWebsocket: () => {
       subtitleWsService.stop();
@@ -4074,6 +4086,9 @@ async function ensureYoutubePlaybackRuntimeReady(): Promise<void> {
   ensureOverlayWindowsReadyForVisibilityActions();
 }
 
+let signalAutoplayReadyFromWarmTokenization: ((path: string | null | undefined) => void) | null =
+  null;
+
 const {
   createMpvClientRuntimeService: createMpvClientRuntimeServiceHandler,
   updateMpvSubtitleRenderMetrics: updateMpvSubtitleRenderMetricsHandler,
@@ -4168,15 +4183,7 @@ const {
     syncImmersionMediaState: () => {
       immersionMediaRuntime.syncFromCurrentMediaState();
     },
-    signalAutoplayReadyIfWarm: () => {
-      if (!isTokenizationWarmupReady()) {
-        return;
-      }
-      autoplayReadyGate.maybeSignalPluginAutoplayReady(
-        { text: '__warm__', tokens: null },
-        { forceWhilePaused: true },
-      );
-    },
+    signalAutoplayReadyIfWarm: (path) => signalAutoplayReadyFromWarmTokenization?.(path),
     scheduleCharacterDictionarySync: () => {
       if (!yomitanProfilePolicy.isCharacterDictionaryEnabled() || isYoutubePlaybackActiveNow()) {
         return;
@@ -4240,7 +4247,12 @@ const {
     setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
       appState.reconnectTimer = timer;
     },
-    shouldQuitOnMpvShutdown: () => appState.initialArgs?.managedPlayback === true,
+    shouldQuitOnMpvShutdown: () =>
+      shouldQuitOnMpvShutdownForTrayState({
+        managedPlayback: appState.initialArgs?.managedPlayback === true,
+        backgroundMode: appState.backgroundMode,
+        hasTray: Boolean(appTray),
+      }),
     requestAppQuit: () => requestAppQuit(),
   },
   updateMpvSubtitleRenderMetricsMainDeps: {
@@ -4310,15 +4322,11 @@ const {
       getFrequencyRank: (text) => appState.frequencyRankLookup(text),
       getYomitanGroupDebugEnabled: () => appState.overlayDebugVisualizationEnabled,
       getMecabTokenizer: () => appState.mecabTokenizer,
-      onTokenizationReady: (text) => {
+      onTokenizationReady: () => {
         currentMediaTokenizationGate.markReady(
           appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
         );
         startupOsdSequencer.markTokenizationReady();
-        autoplayReadyGate.maybeSignalPluginAutoplayReady(
-          { text, tokens: null },
-          { forceWhilePaused: true },
-        );
       },
     },
     createTokenizerRuntimeDeps: (deps) =>
@@ -4394,6 +4402,21 @@ const {
       logDebug: (message) => logger.debug(message),
     },
   },
+});
+signalAutoplayReadyFromWarmTokenization = createAutoplayTokenizationWarmRelease({
+  isTokenizationWarmupReady: () => isTokenizationWarmupReady(),
+  startTokenizationWarmups: async () => {
+    await startTokenizationWarmups();
+  },
+  getCurrentMediaPath: () =>
+    appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
+  signalAutoplayReady: () => {
+    autoplayReadyGate.maybeSignalPluginAutoplayReady(
+      { text: '__warm__', tokens: null },
+      { forceWhilePaused: true },
+    );
+  },
+  warn: (message, error) => logger.warn(message, error),
 });
 tokenizeSubtitleDeferred = tokenizeSubtitle;
 
@@ -5737,6 +5760,7 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
         if (appState.currentSubText.trim()) {
           subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
         }
+        autoplayReadyGate.flushPendingAutoplayReadySignal();
       },
       onWindowClosed: (windowKind) => {
         if (windowKind === 'visible') {

@@ -207,7 +207,6 @@ function M.create(ctx)
 		end
 
 		if action == "start" then
-			table.insert(args, "--background")
 			table.insert(args, "--managed-playback")
 
 			local backend = resolve_backend(overrides.backend)
@@ -411,7 +410,15 @@ function M.create(ctx)
 			if overrides.auto_start_trigger == true then
 				subminer_log("debug", "process", "Auto-start ignored because overlay is already running")
 				local socket_path = overrides.socket_path or opts.socket_path
-				if not state.auto_play_ready_gate_armed then
+				local should_pause_until_ready = (
+					overrides.rearm_pause_until_ready == true
+					and resolve_visible_overlay_startup()
+					and resolve_pause_until_ready()
+					and has_matching_mpv_ipc_socket(socket_path)
+				)
+				if should_pause_until_ready then
+					arm_auto_play_ready_gate()
+				elseif not state.auto_play_ready_gate_armed then
 					disarm_auto_play_ready_gate()
 				end
 				local visibility_action = resolve_visible_overlay_startup()

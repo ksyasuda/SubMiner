@@ -147,7 +147,10 @@ test('AnkiConnectClient treats negative deck note sample sizes as empty samples'
     },
   };
 
-  assert.deepEqual(await (client as unknown as AnkiConnectClient).fieldNamesForDeck('Mining', -1), []);
+  assert.deepEqual(
+    await (client as unknown as AnkiConnectClient).fieldNamesForDeck('Mining', -1),
+    [],
+  );
   assert.deepEqual(
     calls.map((call) => call.action),
     ['findNotes'],

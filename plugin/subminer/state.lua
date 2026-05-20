@@ -37,6 +37,7 @@ function M.new()
 		force_ready_overlay_restore = false,
 		current_media_identity = nil,
 		pending_reload_media_identity = nil,
+		auto_start_retry_generation = 0,
 		session_binding_generation = 0,
 		session_binding_names = {},
 		session_numeric_binding_names = {},

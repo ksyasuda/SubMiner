@@ -188,7 +188,10 @@ export class AnkiConnectClient {
     }
 
     const finiteSampleSize = Number.isFinite(sampleSize) ? sampleSize : 0;
-    const normalizedSampleSize = Math.min(noteIds.length, Math.max(0, Math.floor(finiteSampleSize)));
+    const normalizedSampleSize = Math.min(
+      noteIds.length,
+      Math.max(0, Math.floor(finiteSampleSize)),
+    );
     if (normalizedSampleSize === 0) {
       return [];
     }
