@@ -1066,10 +1066,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
 
   const subtitleRootBlock = extractClassBlock(cssText, '#subtitleRoot');
   assert.match(subtitleRootBlock, /--subtitle-hover-token-color:\s*#f4dbd6;/);
-  assert.match(
-    subtitleRootBlock,
-    /--subtitle-hover-token-background-color:\s*rgba\(54,\s*58,\s*79,\s*0\.84\);/,
-  );
+  assert.match(subtitleRootBlock, /--subtitle-hover-token-background-color:\s*transparent;/);
   assert.match(subtitleRootBlock, /-webkit-text-fill-color:\s*currentColor;/);
 
   const charBlock = extractClassBlock(cssText, '#subtitleRoot .c');
@@ -1123,7 +1120,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   );
   assert.match(
     plainWordHoverBlock,
-    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*transparent\);/,
   );
   assert.match(
     plainWordHoverBlock,
@@ -1137,7 +1134,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   const coloredWordHoverBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known:hover');
   assert.match(
     coloredWordHoverBlock,
-    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*transparent\);/,
   );
   assert.match(coloredWordHoverBlock, /border-radius:\s*3px;/);
   assert.match(coloredWordHoverBlock, /filter:\s*brightness\(1\.18\) saturate\(1\.08\);/);
@@ -1246,7 +1243,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   const selectionBlock = extractClassBlock(cssText, '#subtitleRoot::selection');
   assert.match(
     selectionBlock,
-    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*transparent\);/,
   );
   assert.match(
     selectionBlock,
@@ -1260,7 +1257,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   const descendantSelectionBlock = extractClassBlock(cssText, '#subtitleRoot *::selection');
   assert.match(
     descendantSelectionBlock,
-    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\)\s*!important;/,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*transparent\)\s*!important;/,
   );
   assert.match(
     descendantSelectionBlock,

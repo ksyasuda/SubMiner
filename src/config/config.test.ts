@@ -102,7 +102,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.subtitleStyle.autoPauseVideoOnYomitanPopup, true);
   assert.equal(config.subtitleSidebar.enabled, true);
   assert.equal(config.subtitleStyle.hoverTokenColor, '#f4dbd6');
-  assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, 'rgba(54, 58, 79, 0.84)');
+  assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, 'transparent');
   assert.equal(config.subtitleStyle.fontFamily, DEFAULT_SUBTITLE_FONT_FAMILY);
   assert.equal(config.subtitleStyle.fontWeight, '600');
   assert.equal(config.subtitleStyle.lineHeight, 1.35);

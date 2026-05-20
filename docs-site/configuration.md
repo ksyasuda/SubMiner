@@ -390,7 +390,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                 |
 | `autoPauseVideoOnYomitanPopup`     | boolean     | Pause playback while the Yomitan popup is open, then resume when the popup closes (`true` by default).                     |
 | `hoverTokenColor`                  | string      | Hex color used for hovered subtitle token highlight in mpv (default: catppuccin mauve)                                     |
-| `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight; `hoverBackground` is accepted as an alias                  |
+| `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight (default: `"transparent"`); `hoverBackground` is accepted as an alias |
 | `nameMatchEnabled`                 | boolean     | Enable subtitle token coloring for matches from the SubMiner character dictionary (`true` by default)                      |
 | `nameMatchColor`                   | string      | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                     |
 | `knownWordColor`                   | string      | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                     |

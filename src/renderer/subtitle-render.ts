@@ -80,12 +80,10 @@ export function sanitizeSubtitleHoverTokenColor(value: unknown): string {
 
 function sanitizeSubtitleHoverTokenBackgroundColor(value: unknown): string {
   if (typeof value !== 'string') {
-    return 'rgba(54, 58, 79, 0.84)';
+    return 'transparent';
   }
   const trimmed = value.trim();
-  return trimmed.length > 0 && SAFE_CSS_COLOR_PATTERN.test(trimmed)
-    ? trimmed
-    : 'rgba(54, 58, 79, 0.84)';
+  return trimmed.length > 0 && SAFE_CSS_COLOR_PATTERN.test(trimmed) ? trimmed : 'transparent';
 }
 
 const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {

@@ -14,7 +14,7 @@ test('serializeSubtitleCssDeclarations builds primary CSS from all managed appea
     'subtitleStyle.fontColor': '#cad3f5',
     'subtitleStyle.backgroundColor': 'transparent',
     'subtitleStyle.hoverTokenColor': '#f4dbd6',
-    'subtitleStyle.hoverTokenBackgroundColor': 'rgba(54, 58, 79, 0.84)',
+    'subtitleStyle.hoverTokenBackgroundColor': 'transparent',
     'subtitleStyle.paintOrder': 'stroke fill',
     'subtitleStyle.WebkitTextStroke': '1.5px #000',
     'subtitleStyle.textShadow': '0 2px 6px rgba(0,0,0,0.9)',
@@ -29,7 +29,7 @@ test('serializeSubtitleCssDeclarations builds primary CSS from all managed appea
   assert.match(css, /color: #cad3f5;/);
   assert.match(css, /background-color: transparent;/);
   assert.match(css, /--subtitle-hover-token-color: #f4dbd6;/);
-  assert.match(css, /--subtitle-hover-token-background-color: rgba\(54, 58, 79, 0.84\);/);
+  assert.match(css, /--subtitle-hover-token-background-color: transparent;/);
   assert.match(css, /paint-order: stroke fill;/);
   assert.match(css, /-webkit-text-stroke: 1.5px #000;/);
   assert.doesNotMatch(css, /--subtitle-known-word-color:/);
