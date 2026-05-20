@@ -4247,11 +4247,23 @@ const {
       const normalizedPath = path.trim();
       const previousPath = appState.currentMediaPath?.trim() || null;
       if ((normalizedPath || null) !== previousPath) {
+        const resetSubtitlePayload = { text: '', tokens: null };
+        const frequencyDictionary = getResolvedConfig().subtitleStyle.frequencyDictionary;
+        const frequencyOptions = {
+          enabled: frequencyDictionary.enabled,
+          topX: frequencyDictionary.topX,
+          mode: frequencyDictionary.mode,
+        };
         autoplaySubtitlePrimedMediaPath = null;
+        lastObservedTimePos = 0;
         appState.currentSubText = '';
         appState.currentSubAssText = '';
         appState.currentSubtitleData = null;
-        broadcastToOverlayWindows('subtitle:set', { text: '', tokens: null });
+        appState.activeParsedSubtitleCues = [];
+        appState.activeParsedSubtitleSource = null;
+        broadcastToOverlayWindows('subtitle:set', resetSubtitlePayload);
+        subtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
+        annotationSubtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
       }
       autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks();
       currentMediaTokenizationGate.updateCurrentMediaPath(path);

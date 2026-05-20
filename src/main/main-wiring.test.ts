@@ -31,7 +31,12 @@ test('media path changes clear rendered subtitle state', () => {
   assert.match(actionBlock, /appState\.currentSubText = '';/);
   assert.match(actionBlock, /appState\.currentSubAssText = '';/);
   assert.match(actionBlock, /appState\.currentSubtitleData = null;/);
+  assert.match(actionBlock, /appState\.activeParsedSubtitleCues = \[\];/);
+  assert.match(actionBlock, /appState\.activeParsedSubtitleSource = null;/);
+  assert.match(actionBlock, /lastObservedTimePos = 0;/);
   assert.match(actionBlock, /broadcastToOverlayWindows\('subtitle:set',/);
+  assert.match(actionBlock, /subtitleWsService\.broadcast\(/);
+  assert.match(actionBlock, /annotationSubtitleWsService\.broadcast\(/);
   assert.ok(
     actionBlock.indexOf('appState.currentSubtitleData = null;') <
       actionBlock.indexOf("broadcastToOverlayWindows('subtitle:set'"),
