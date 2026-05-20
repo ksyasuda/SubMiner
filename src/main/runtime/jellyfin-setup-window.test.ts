@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildJellyfinSetupSubmissionUrl,
   buildJellyfinSetupFormHtml,
   buildJellyfinSetupViewState,
   createHandleJellyfinSetupWindowClosedHandler,
@@ -9,18 +10,12 @@ import {
   createHandleJellyfinSetupWindowOpenedHandler,
   createMaybeFocusExistingJellyfinSetupWindowHandler,
   createOpenJellyfinSetupWindowHandler,
+  normalizeJellyfinSetupIpcSubmission,
   parseJellyfinSetupSubmissionUrl,
 } from './jellyfin-setup-window';
 
 test('buildJellyfinSetupFormHtml escapes default values', () => {
   const html = buildJellyfinSetupFormHtml({
-    servers: [
-      {
-        serverUrl: 'http://host/"x"',
-        label: 'Configured "Server"',
-        source: 'config',
-      },
-    ],
     selectedServerUrl: 'http://host/"x"',
     username: 'user"name',
     hasStoredSession: true,
@@ -31,11 +26,16 @@ test('buildJellyfinSetupFormHtml escapes default values', () => {
   assert.ok(html.includes('user&quot;name'));
   assert.ok(html.includes('Ready &quot;now&quot;'));
   assert.ok(html.includes('Logout'));
+  assert.equal(html.includes('Server presets'), false);
+  assert.equal(html.includes('serverSelect'), false);
+  assert.ok(html.includes('window.subminerJellyfinSetup'));
+  assert.ok(html.includes('Logging in to Jellyfin'));
   assert.ok(html.includes('subminer://jellyfin-setup?'));
-  assert.equal(html.includes('params.set("password"'), false);
+  assert.equal(html.includes('params.set("password", passwordValue)'), false);
+  assert.ok(html.includes('window.__subminerJellyfinPassword = passwordValue'));
 });
 
-test('buildJellyfinSetupViewState composes config, recent, and default servers', () => {
+test('buildJellyfinSetupViewState prefills configured server URL', () => {
   const state = buildJellyfinSetupViewState({
     config: {
       serverUrl: ' http://configured:8096/ ',
@@ -46,17 +46,23 @@ test('buildJellyfinSetupViewState composes config, recent, and default servers',
     hasStoredSession: false,
   });
 
-  assert.deepEqual(
-    state.servers.map((server) => [server.serverUrl, server.source]),
-    [
-      ['http://configured:8096', 'config'],
-      ['http://recent:8096', 'recent'],
-      ['http://127.0.0.1:8096', 'default'],
-    ],
-  );
   assert.equal(state.selectedServerUrl, 'http://configured:8096');
   assert.equal(state.username, 'alice');
   assert.equal(state.statusKind, 'idle');
+});
+
+test('buildJellyfinSetupViewState falls back to recent server URL', () => {
+  const state = buildJellyfinSetupViewState({
+    config: {
+      serverUrl: '',
+      username: 'alice',
+      recentServers: ['http://recent:8096'],
+    },
+    defaultServerUrl: 'http://127.0.0.1:8096',
+    hasStoredSession: false,
+  });
+
+  assert.equal(state.selectedServerUrl, 'http://recent:8096');
 });
 
 test('maybe focus jellyfin setup window no-ops without window', () => {
@@ -90,6 +96,38 @@ test('parseJellyfinSetupSubmissionUrl parses setup url parameters', () => {
     password: '',
   });
   assert.equal(parseJellyfinSetupSubmissionUrl('https://example.com'), null);
+});
+
+test('jellyfin setup ipc submissions normalize to password-free setup urls', () => {
+  const submission = normalizeJellyfinSetupIpcSubmission({
+    action: 'login',
+    server: 'http://localhost:8096',
+    username: 'alice',
+    password: 'secret',
+  });
+
+  assert.deepEqual(submission, {
+    action: 'login',
+    server: 'http://localhost:8096',
+    username: 'alice',
+    password: 'secret',
+  });
+  if (!submission) {
+    throw new Error('missing normalized submission');
+  }
+  const setupUrl = buildJellyfinSetupSubmissionUrl(submission);
+  assert.equal(
+    setupUrl,
+    'subminer://jellyfin-setup?action=login&server=http%3A%2F%2Flocalhost%3A8096&username=alice',
+  );
+  assert.equal(setupUrl.includes('secret'), false);
+  assert.deepEqual(normalizeJellyfinSetupIpcSubmission({ action: 'done' }), {
+    action: 'done',
+    server: '',
+    username: '',
+    password: '',
+  });
+  assert.equal(normalizeJellyfinSetupIpcSubmission('bad'), null);
 });
 
 test('createHandleJellyfinSetupSubmissionHandler applies successful login', async () => {
@@ -510,5 +548,106 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
     throw new Error('missing closed handler');
   }
   onClosed();
+  assert.ok(calls.includes('clear-window'));
+});
+
+test('createOpenJellyfinSetupWindowHandler handles ipc bridge submissions', async () => {
+  const bridge: { handler?: (payload: unknown) => Promise<{ handled: boolean }> } = {};
+  let closedHandler: (() => void) | null = null;
+  const calls: string[] = [];
+  const fakeWindow = {
+    focus: () => {},
+    webContents: {
+      on: () => {},
+      executeJavaScript: async () => {
+        throw new Error('bridge path should not read from page');
+      },
+    },
+    loadURL: () => {
+      calls.push('load');
+    },
+    on: (event: 'closed', handler: () => void) => {
+      if (event === 'closed') {
+        closedHandler = handler;
+      }
+    },
+    isDestroyed: () => false,
+    close: () => calls.push('close'),
+  };
+
+  const handler = createOpenJellyfinSetupWindowHandler({
+    maybeFocusExistingSetupWindow: () => false,
+    createSetupWindow: () => fakeWindow,
+    getResolvedJellyfinConfig: () => ({
+      serverUrl: 'http://localhost:8096',
+      username: 'alice',
+      recentServers: [],
+    }),
+    buildSetupFormHtml: () => '<html></html>',
+    parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
+    authenticateWithPassword: async (_server, _username, password) => {
+      calls.push(`password:${password}`);
+      return {
+        serverUrl: 'http://localhost:8096',
+        username: 'alice',
+        accessToken: 'token',
+        userId: 'uid',
+      };
+    },
+    getJellyfinClientInfo: () => ({
+      clientName: 'SubMiner',
+      clientVersion: '1.0',
+      deviceId: 'did',
+    }),
+    saveStoredSession: () => calls.push('save'),
+    clearStoredSession: () => calls.push('clear'),
+    patchJellyfinConfig: () => calls.push('patch'),
+    logInfo: () => calls.push('info'),
+    logError: () => calls.push('error'),
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    clearSetupWindow: () => calls.push('clear-window'),
+    setSetupWindow: () => calls.push('set-window'),
+    registerSetupIpcHandler: (nextHandler) => {
+      bridge.handler = nextHandler;
+      calls.push('register-ipc');
+      return () => calls.push('unregister-ipc');
+    },
+    encodeURIComponent: (value) => encodeURIComponent(value),
+    defaultServerUrl: 'http://127.0.0.1:8096',
+    hasStoredSession: () => false,
+  });
+
+  handler();
+  const bridgeHandler = bridge.handler;
+  if (!bridgeHandler) {
+    throw new Error('missing bridge handler');
+  }
+  assert.deepEqual(await bridgeHandler('bad'), {
+    handled: false,
+    statusMessage: 'Invalid Jellyfin setup request.',
+    statusKind: 'error',
+  });
+  assert.equal(calls.includes('password:'), false);
+
+  calls.length = 0;
+  assert.deepEqual(
+    await bridgeHandler({
+      action: 'login',
+      server: 'http://localhost:8096',
+      username: 'alice',
+      password: 'secret',
+    }),
+    { handled: true },
+  );
+  assert.ok(calls.includes('password:secret'));
+  assert.ok(calls.includes('save'));
+  assert.ok(calls.includes('patch'));
+
+  const onClosed = closedHandler as (() => void) | null;
+  if (!onClosed) {
+    throw new Error('missing closed handler');
+  }
+  onClosed();
+  assert.ok(calls.includes('unregister-ipc'));
   assert.ok(calls.includes('clear-window'));
 });

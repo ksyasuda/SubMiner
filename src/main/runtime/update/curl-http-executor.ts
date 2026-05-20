@@ -30,6 +30,7 @@ type CurlDownloadOptions = {
   sha2?: string | null;
   sha512?: string | null;
   cancellationToken: CancellationTokenLike;
+  timeout?: number;
 };
 
 export type CurlHttpExecutor = {
@@ -132,6 +133,7 @@ export function createCurlHttpExecutor(
     curlPath?: string;
     mkdir?: (targetPath: string) => Promise<unknown>;
     readFile?: (targetPath: string) => Promise<Buffer>;
+    downloadTimeoutMs?: number;
   } = {},
 ): CurlHttpExecutor {
   const execFile = options.execFile ?? (defaultExecFile as unknown as CurlExecFile);
@@ -139,6 +141,7 @@ export function createCurlHttpExecutor(
   const mkdir =
     options.mkdir ?? ((targetPath: string) => fs.promises.mkdir(targetPath, { recursive: true }));
   const readFile = options.readFile ?? ((targetPath: string) => fs.promises.readFile(targetPath));
+  const downloadTimeoutMs = options.downloadTimeoutMs ?? 120_000;
 
   async function verifyDownloadedFile(destination: string, downloadOptions: CurlDownloadOptions) {
     if (!downloadOptions.sha512 && !downloadOptions.sha2) return;
@@ -181,7 +184,8 @@ export function createCurlHttpExecutor(
     },
     async download(url, destination, downloadOptions): Promise<string> {
       await mkdir(path.dirname(destination));
-      const args = buildBaseArgs();
+      const timeout = downloadOptions.timeout ?? downloadTimeoutMs;
+      const args = buildBaseArgs(timeout);
       addHeaderArgs(args, downloadOptions.headers);
       args.push('--output', destination, url.href);
       await runCurl<Buffer>({
@@ -190,13 +194,15 @@ export function createCurlHttpExecutor(
         args,
         encoding: 'buffer',
         maxBuffer: 1024 * 1024,
+        timeout,
         cancellationToken: downloadOptions.cancellationToken,
       });
       await verifyDownloadedFile(destination, downloadOptions);
       return destination;
     },
     async downloadToBuffer(url, downloadOptions): Promise<Buffer> {
-      const args = buildBaseArgs();
+      const timeout = downloadOptions.timeout ?? downloadTimeoutMs;
+      const args = buildBaseArgs(timeout);
       addHeaderArgs(args, downloadOptions.headers);
       args.push(url.href);
       return await runCurl<Buffer>({
@@ -205,6 +211,7 @@ export function createCurlHttpExecutor(
         args,
         encoding: 'buffer',
         maxBuffer: 600 * 1024 * 1024,
+        timeout,
         cancellationToken: downloadOptions.cancellationToken,
       });
     },

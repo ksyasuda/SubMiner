@@ -32,15 +32,14 @@ type JellyfinSetupWindowLike = FocusableWindowLike & {
 
 export type JellyfinSetupAction = 'login' | 'logout' | 'done';
 
-export type JellyfinSetupServerOption = {
-  serverUrl: string;
-  label: string;
-  source: 'config' | 'recent' | 'default';
-  username?: string;
+export type JellyfinSetupSubmission = {
+  action: JellyfinSetupAction;
+  server: string;
+  username: string;
+  password: string;
 };
 
 export type JellyfinSetupViewState = {
-  servers: JellyfinSetupServerOption[];
   selectedServerUrl: string;
   username: string;
   hasStoredSession: boolean;
@@ -55,6 +54,16 @@ type JellyfinSetupViewOverrides = {
   statusKind?: JellyfinSetupViewState['statusKind'];
 };
 
+export type JellyfinSetupIpcResult = {
+  handled: boolean;
+  statusMessage?: string;
+  statusKind?: JellyfinSetupViewState['statusKind'];
+};
+
+type RegisterJellyfinSetupIpcHandler = (
+  handler: (submission: unknown) => Promise<JellyfinSetupIpcResult>,
+) => () => void;
+
 function escapeHtmlAttr(value: string): string {
   return value.replace(/"/g, '&quot;');
 }
@@ -65,6 +74,18 @@ function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function normalizeSetupAction(value: unknown): JellyfinSetupAction {
+  return value === 'logout' || value === 'done' ? value : 'login';
+}
+
+function normalizeString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
 }
 
 export function createMaybeFocusExistingJellyfinSetupWindowHandler(deps: {
@@ -96,27 +117,6 @@ export function buildJellyfinSetupViewState(input: {
   const configServer = normalizeJellyfinRecentServers([input.config.serverUrl || ''])[0] || '';
   const recentServers = normalizeJellyfinRecentServers(input.config.recentServers || []);
   const defaultServer = normalizeJellyfinRecentServers([input.defaultServerUrl])[0] || '';
-  const seen = new Set<string>();
-  const servers: JellyfinSetupServerOption[] = [];
-
-  const addServer = (serverUrl: string, source: JellyfinSetupServerOption['source']) => {
-    if (!serverUrl || seen.has(serverUrl)) return;
-    seen.add(serverUrl);
-    servers.push({
-      serverUrl,
-      label:
-        source === 'config'
-          ? `${serverUrl} (configured)`
-          : source === 'default'
-            ? `${serverUrl} (default)`
-            : serverUrl,
-      source,
-    });
-  };
-
-  addServer(configServer, 'config');
-  for (const recent of recentServers) addServer(recent, 'recent');
-  addServer(defaultServer, 'default');
 
   const selectedServerUrl =
     normalizeJellyfinRecentServers([input.selectedServerUrl || ''])[0] ||
@@ -125,7 +125,6 @@ export function buildJellyfinSetupViewState(input: {
     defaultServer;
 
   return {
-    servers,
     selectedServerUrl,
     username: input.username ?? input.config.username ?? '',
     hasStoredSession: input.hasStoredSession,
@@ -135,14 +134,6 @@ export function buildJellyfinSetupViewState(input: {
 }
 
 export function buildJellyfinSetupFormHtml(state: JellyfinSetupViewState): string {
-  const options = state.servers
-    .map(
-      (server) =>
-        `<option value="${escapeHtmlAttr(server.serverUrl)}"${
-          server.serverUrl === state.selectedServerUrl ? ' selected' : ''
-        }>${escapeHtml(server.label)}</option>`,
-    )
-    .join('');
   const statusClass = `status ${state.statusKind}`;
   return `<!doctype html>
 <html>
@@ -156,8 +147,9 @@ export function buildJellyfinSetupFormHtml(state: JellyfinSetupViewState): strin
     h1 { margin: 0 0 8px; font-size: 24px; letter-spacing: 0; }
     p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.45; }
     label { display: block; margin: 12px 0 5px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-    input, select { width: 100%; box-sizing: border-box; padding: 10px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font: inherit; }
+    input { width: 100%; box-sizing: border-box; padding: 10px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font: inherit; }
     button { padding: 10px 12px; border: 1px solid #6f831f; border-radius: 6px; font-weight: 700; cursor: pointer; background: var(--accent); color: #14170f; }
+    button:disabled { cursor: wait; opacity: .68; }
     button.secondary { background: transparent; color: var(--text); border-color: var(--line); }
     button.danger { background: transparent; color: var(--danger); border-color: #6b332f; }
     .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
@@ -171,17 +163,15 @@ export function buildJellyfinSetupFormHtml(state: JellyfinSetupViewState): strin
 <body>
   <main>
     <h1>Jellyfin Setup</h1>
-    <p>Choose a server, sign in, and SubMiner will save a session token for Jellyfin commands and cast discovery.</p>
+    <p>Enter your Jellyfin server URL, sign in, and SubMiner will save a session token for Jellyfin commands and cast discovery.</p>
     <form id="form">
-      <label for="serverSelect">Known servers</label>
-      <select id="serverSelect">${options}</select>
       <label for="server">Server URL</label>
       <input id="server" name="server" value="${escapeHtmlAttr(state.selectedServerUrl)}" required />
       <label for="username">Username</label>
       <input id="username" name="username" value="${escapeHtmlAttr(state.username)}" required />
       <label for="password">Password</label>
       <input id="password" name="password" type="password" required />
-      <div id="status" class="${statusClass}">${escapeHtml(state.statusMessage)}</div>
+      <div id="status" class="${statusClass}" aria-live="polite">${escapeHtml(state.statusMessage)}</div>
       <div class="actions">
         <button class="primary" type="submit">Login</button>
         ${
@@ -196,19 +186,54 @@ export function buildJellyfinSetupFormHtml(state: JellyfinSetupViewState): strin
   </main>
   <script>
     const form = document.getElementById("form");
-    const select = document.getElementById("serverSelect");
     const server = document.getElementById("server");
-    select?.addEventListener("change", () => {
-      server.value = select.value || server.value;
-    });
-    function submitAction(action) {
+    const username = document.getElementById("username");
+    const password = document.getElementById("password");
+    const status = document.getElementById("status");
+    const buttons = Array.from(document.querySelectorAll("button"));
+    function setBusy(message) {
+      if (status) {
+        status.textContent = message;
+        status.className = "status loading";
+      }
+      for (const button of buttons) button.disabled = true;
+    }
+    function setStatus(message, kind) {
+      if (status) {
+        status.textContent = message;
+        status.className = "status " + kind;
+      }
+      for (const button of buttons) button.disabled = false;
+    }
+    async function submitAction(action) {
+      const serverValue = String(server?.value || "");
+      const usernameValue = String(username?.value || "");
+      const passwordValue = String(password?.value || "");
+      setBusy(action === "login" ? "Logging in to Jellyfin..." : action === "logout" ? "Logging out..." : "Closing...");
+      const bridge = window.subminerJellyfinSetup;
+      if (bridge?.submit) {
+        try {
+          const result = await bridge.submit({
+            action,
+            server: serverValue,
+            username: usernameValue,
+            password: passwordValue,
+          });
+          if (result?.handled === false) {
+            setStatus(result.statusMessage || "Jellyfin setup action was not accepted.", result.statusKind || "error");
+          }
+        } catch (error) {
+          const message = error && typeof error === "object" && "message" in error ? String(error.message) : String(error || "Unknown error");
+          setStatus("Jellyfin setup action failed: " + message, "error");
+        }
+        return;
+      }
       const params = new URLSearchParams();
       params.set("action", action);
       if (action === "login") {
-        const data = new FormData(form);
-        params.set("server", String(data.get("server") || ""));
-        params.set("username", String(data.get("username") || ""));
-        window.__subminerJellyfinPassword = String(data.get("password") || "");
+        params.set("server", serverValue);
+        params.set("username", usernameValue);
+        window.__subminerJellyfinPassword = passwordValue;
       }
       window.location.href = "subminer://jellyfin-setup?" + params.toString();
     }
@@ -242,6 +267,30 @@ export function parseJellyfinSetupSubmissionUrl(rawUrl: string): {
     username: parsed.searchParams.get('username') || '',
     password: parsed.searchParams.get('password') || '',
   };
+}
+
+export function normalizeJellyfinSetupIpcSubmission(
+  value: unknown,
+): JellyfinSetupSubmission | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  return {
+    action: normalizeSetupAction(value.action),
+    server: normalizeString(value.server),
+    username: normalizeString(value.username),
+    password: normalizeString(value.password),
+  };
+}
+
+export function buildJellyfinSetupSubmissionUrl(submission: JellyfinSetupSubmission): string {
+  const params = new URLSearchParams();
+  params.set('action', submission.action);
+  if (submission.action === 'login') {
+    params.set('server', submission.server);
+    params.set('username', submission.username);
+  }
+  return `subminer://jellyfin-setup?${params.toString()}`;
 }
 
 export function createHandleJellyfinSetupSubmissionHandler(deps: {
@@ -432,6 +481,7 @@ export function createOpenJellyfinSetupWindowHandler<
   showMpvOsd: (message: string) => void;
   clearSetupWindow: () => void;
   setSetupWindow: (window: TWindow) => void;
+  registerSetupIpcHandler?: RegisterJellyfinSetupIpcHandler;
   encodeURIComponent: (value: string) => string;
   defaultServerUrl: string;
   hasStoredSession: () => boolean;
@@ -480,14 +530,34 @@ export function createOpenJellyfinSetupWindowHandler<
         }
       },
     });
+    const unregisterSetupIpcHandler = deps.registerSetupIpcHandler?.(async (payload) => {
+      const submission = normalizeJellyfinSetupIpcSubmission(payload);
+      if (!submission) {
+        return {
+          handled: false,
+          statusMessage: 'Invalid Jellyfin setup request.',
+          statusKind: 'error',
+        };
+      }
+      const handled = await handleSubmission(
+        buildJellyfinSetupSubmissionUrl(submission),
+        submission.password,
+      );
+      return { handled };
+    });
     const handleNavigation = createHandleJellyfinSetupNavigationHandler({
       setupSchemePrefix: 'subminer://jellyfin-setup',
       handleSubmission: async (rawUrl) => {
         const submission = deps.parseSubmissionUrl(rawUrl);
-        const password =
-          submission?.action === 'login' && !submission.password
-            ? await readJellyfinSetupPasswordFromWindow(setupWindow)
-            : undefined;
+        let password: string | undefined;
+        if (submission?.action === 'login' && !submission.password) {
+          try {
+            password = await readJellyfinSetupPasswordFromWindow(setupWindow);
+          } catch (error) {
+            deps.logError('Failed reading Jellyfin setup password', error);
+            password = '';
+          }
+        }
         return handleSubmission(rawUrl, password);
       },
       logError: (message, error) => deps.logError(message, error),
@@ -512,6 +582,7 @@ export function createOpenJellyfinSetupWindowHandler<
     });
     loadSetupForm();
     setupWindow.on('closed', () => {
+      unregisterSetupIpcHandler?.();
       handleWindowClosed();
     });
     handleWindowOpened();

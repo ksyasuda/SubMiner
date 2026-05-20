@@ -6,7 +6,7 @@ SubMiner includes an optional Jellyfin CLI integration for:
 - listing libraries and media items
 - launching item playback in the connected mpv instance
 - receiving Jellyfin remote cast-to-device playback events in-app
-- opening an in-app setup window for server selection and authentication
+- opening an in-app setup window for server URL and authentication
 - toggling Jellyfin cast discovery from the tray once configured
 
 ## Requirements
@@ -50,7 +50,7 @@ subminer jellyfin -l \
   --password 'your-password'
 ```
 
-`subminer jellyfin` opens the setup window. It offers the configured server, recent servers, and a manual server URL field. Successful login keeps the window open, stores the Jellyfin session token in encrypted storage, updates the configured server/username/client metadata, and refreshes recent servers. Passwords are never stored.
+`subminer jellyfin` opens the setup window. It pre-fills the server URL from the configured server, a recent successful server, or the local default. Successful login keeps the window open, stores the Jellyfin session token in encrypted storage, updates the configured server/username/client metadata, and refreshes recent servers. Passwords are never stored.
 
 3. List libraries:
 

@@ -119,6 +119,7 @@ import {
   resolveDefaultLogFilePath,
   type LogLevelSource,
 } from './logger';
+import { createFatalErrorReporter } from './main/fatal-error';
 import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
 import {
   bindWindowsOverlayAboveMpv,
@@ -498,8 +499,9 @@ import {
   createElectronAppUpdater,
   isNativeUpdaterSupported,
 } from './main/runtime/update/app-updater';
-import { createElectronNetFetch } from './main/runtime/update/fetch-adapter';
+import { createElectronNetFetch, createGlobalFetch } from './main/runtime/update/fetch-adapter';
 import { createCurlHttpExecutor } from './main/runtime/update/curl-http-executor';
+import { createFetchHttpExecutor } from './main/runtime/update/fetch-http-executor';
 import {
   fetchLatestStableRelease,
   fetchReleaseAssetBuffer,
@@ -605,6 +607,7 @@ const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
 const TRAY_TOOLTIP = 'SubMiner';
+const JELLYFIN_SETUP_PRELOAD_PATH = path.join(__dirname, 'preload-jellyfin-setup.js');
 
 let anilistMediaGuessRuntimeState: AnilistMediaGuessRuntimeState =
   createInitialAnilistMediaGuessRuntimeState();
@@ -862,6 +865,10 @@ const appLogger = {
     );
   },
 };
+const reportFatalError = createFatalErrorReporter({
+  showErrorBox: (title, details) => dialog.showErrorBox(title, details),
+  consoleError: (message, error) => logger.error(message, error),
+});
 
 let forceQuitTimer: ReturnType<typeof setTimeout> | null = null;
 let statsServer: ReturnType<typeof startStatsServer> | null = null;
@@ -2775,6 +2782,7 @@ const {
   openJellyfinSetupWindowMainDeps: {
     createSetupWindow: createCreateJellyfinSetupWindowHandler({
       createBrowserWindow: (options) => new BrowserWindow(options),
+      preloadPath: JELLYFIN_SETUP_PRELOAD_PATH,
     }),
     buildSetupFormHtml: (state) => buildJellyfinSetupFormHtml(state),
     parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
@@ -2821,6 +2829,24 @@ const {
     },
     setSetupWindow: (window) => {
       appState.jellyfinSetupWindow = window as BrowserWindow;
+    },
+    registerSetupIpcHandler: (handler) => {
+      const channel = IPC_CHANNELS.request.jellyfinSetupSubmit;
+      ipcMain.removeHandler(channel);
+      ipcMain.handle(channel, async (event, payload) => {
+        const setupWindow = appState.jellyfinSetupWindow;
+        if (!setupWindow || event.sender !== setupWindow.webContents) {
+          return {
+            handled: false,
+            statusMessage: 'This Jellyfin setup window is no longer active.',
+            statusKind: 'error',
+          };
+        }
+        return handler(payload);
+      });
+      return () => {
+        ipcMain.removeHandler(channel);
+      };
     },
     encodeURIComponent: (value) => encodeURIComponent(value),
     defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl || 'http://127.0.0.1:8096',
@@ -3943,6 +3969,20 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
   immersionTrackerStartupMainDeps,
 });
 
+async function runAppReadyRuntimeWithFatalReporting(): Promise<void> {
+  try {
+    await appReadyRuntimeRunner();
+  } catch (error) {
+    reportFatalError(error, {
+      title: 'SubMiner startup failed',
+      context: 'SubMiner failed during app-ready startup.',
+    });
+    process.exitCode = 1;
+    requestAppQuit();
+    return;
+  }
+}
+
 function ensureOverlayStartupPrereqs(): void {
   if (appState.subtitlePosition === null) {
     loadSubtitlePosition();
@@ -4656,8 +4696,22 @@ let updateService: ReturnType<typeof createUpdateService> | null = null;
 const electronNetFetch = createElectronNetFetch({
   fetch: (url, init) => net.fetch(url, init as RequestInit),
 });
+const globalFetchForUpdater = createGlobalFetch();
+
+function createNativeUpdaterHttpExecutor() {
+  if (process.platform === 'darwin') {
+    return createCurlHttpExecutor();
+  }
+  if (process.platform === 'win32') {
+    return createFetchHttpExecutor();
+  }
+  return undefined;
+}
 
 function getFetchForUpdater() {
+  if (process.platform === 'win32') {
+    return globalFetchForUpdater;
+  }
   return electronNetFetch;
 }
 
@@ -4706,8 +4760,10 @@ function getUpdateService() {
     log: (message) => logger.info(message),
     getChannel: () => getResolvedConfig().updates.channel,
     configureHttpExecutor:
-      process.platform === 'darwin' ? () => createCurlHttpExecutor() : undefined,
-    disableDifferentialDownload: process.platform === 'darwin',
+      process.platform === 'darwin' || process.platform === 'win32'
+        ? createNativeUpdaterHttpExecutor
+        : undefined,
+    disableDifferentialDownload: process.platform === 'darwin' || process.platform === 'win32',
     isNativeUpdaterSupported: () =>
       isNativeUpdaterSupported({
         platform: process.platform,
@@ -5500,7 +5556,7 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
         handleCliCommand(nextArgs, source),
       printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
       logNoRunningInstance: () => appLogger.logNoRunningInstance(),
-      onReady: appReadyRuntimeRunner,
+      onReady: runAppReadyRuntimeWithFatalReporting,
       onWillQuitCleanup: () => onWillQuitCleanupHandler(),
       shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
       restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),

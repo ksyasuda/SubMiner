@@ -114,6 +114,9 @@ export async function isNativeUpdaterSupported(options: {
     );
     return false;
   }
+  if (options.platform === 'win32') {
+    return true;
+  }
   if (options.platform !== 'darwin') {
     options.log?.('Skipping native updater because this platform uses GitHub metadata checks.');
     return false;

@@ -336,12 +336,12 @@ test('known Linux package-managed AppImage detection follows the canonical AUR p
   );
 });
 
-test('native updater is unsupported on Windows by default', async () => {
+test('windows native updater is supported for packaged builds', async () => {
   const supported = await isNativeUpdaterSupported({
     platform: 'win32',
     isPackaged: true,
     execPath: 'C:\\Program Files\\SubMiner\\SubMiner.exe',
   });
 
-  assert.equal(supported, false);
+  assert.equal(supported, true);
 });

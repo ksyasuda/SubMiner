@@ -90,6 +90,7 @@ Notes:
 - Release and prerelease workflows upload updater metadata (`*.yml`) and blockmaps (`*.blockmap`) alongside platform artifacts. Do not remove those files while `electron-updater` is enabled.
 - macOS tray app updates use the standard `electron-updater`/Squirrel path. Keep `latest-mac.yml`, the macOS ZIP, and ZIP blockmap published; Squirrel uses the ZIP payload even when the DMG remains the user-facing installer.
 - macOS update metadata and full ZIP downloads are routed through `/usr/bin/curl` before Squirrel installation to avoid Electron main-process network crashes on update checks.
+- Windows tray app updates use the standard `electron-updater`/NSIS path. Keep `latest.yml`, the Windows NSIS installer, and installer blockmap published; updater HTTP is routed through main-process fetch to avoid Electron main-process network crashes during update checks.
 - Local macOS build-output apps outside `/Applications` or `~/Applications` skip native update checks. To validate auto-update end to end, install the signed and notarized app bundle into one of those Applications folders and point it at a published updater feed.
 - The first updater-enabled release cannot update older installs automatically. Users need one manual install to get the updater code.
 - Stable auto-update checks ignore beta/RC prereleases by default. Set `updates.channel` to `"prerelease"` on a test install when validating beta/RC updater behavior.

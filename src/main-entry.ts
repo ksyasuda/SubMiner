@@ -28,6 +28,7 @@ import {
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
 import { parseMpvLaunchMode } from './shared/mpv-launch-mode';
 import { runStatsDaemonControlFromProcess } from './stats-daemon-entry';
+import { createFatalErrorReporter, registerFatalErrorHandlers } from './main/fatal-error';
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
 
@@ -173,6 +174,14 @@ function readConfiguredWindowsMpvLaunch(configDir: string): {
 process.argv = normalizeStartupArgv(process.argv, process.env);
 applySanitizedEnv(sanitizeStartupEnv(process.env));
 const userDataPath = configureEarlyAppPaths(app);
+const reportFatalError = createFatalErrorReporter({
+  showErrorBox: (title, details) => dialog.showErrorBox(title, details),
+  consoleError: (message, error) => console.error(message, error),
+});
+registerFatalErrorHandlers({
+  reportFatalError,
+  exit: (code) => app.exit(code),
+});
 
 if (shouldDetachBackgroundLaunch(process.argv, process.env)) {
   const child = spawn(process.execPath, process.argv.slice(1), {
@@ -226,5 +235,13 @@ if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
   if (!gotSingleInstanceLock) {
     app.exit(0);
   }
-  require('./main.js');
+  try {
+    require('./main.js');
+  } catch (error) {
+    reportFatalError(error, {
+      title: 'SubMiner startup failed',
+      context: 'SubMiner failed while loading the main process.',
+    });
+    app.exit(1);
+  }
 }

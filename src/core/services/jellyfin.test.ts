@@ -654,6 +654,40 @@ test('authenticateWithPassword surfaces invalid credentials and server status fa
   }
 });
 
+test('authenticateWithPassword surfaces unreachable server failures', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    throw new TypeError('fetch failed');
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => authenticateWithPassword('http://jellyfin.local:8096/', 'kyle', 'pw', clientInfo),
+      /Could not reach Jellyfin server \(fetch failed\)\./,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('authenticateWithPassword surfaces login timeouts', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    const error = new Error('aborted') as Error & { name: string };
+    error.name = 'AbortError';
+    throw error;
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => authenticateWithPassword('http://jellyfin.local:8096/', 'kyle', 'pw', clientInfo),
+      /Jellyfin login timed out\./,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('listLibraries surfaces token-expiry auth errors', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () =>
