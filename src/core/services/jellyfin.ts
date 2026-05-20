@@ -1,6 +1,7 @@
 import { JellyfinConfig } from '../../types';
 
 const JELLYFIN_TICKS_PER_SECOND = 10_000_000;
+const JELLYFIN_LOGIN_TIMEOUT_MS = 15_000;
 
 export interface JellyfinAuthSession {
   serverUrl: string;
@@ -114,6 +115,21 @@ function ensureString(value: unknown, fallback = ''): string {
 
 function asIntegerOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isInteger(value) ? value : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isAbortError(error: unknown): boolean {
+  return isRecord(error) && error.name === 'AbortError';
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return String(error || 'unknown error');
 }
 
 function resolveDeliveryUrl(
@@ -309,17 +325,30 @@ export async function authenticateWithPassword(
   if (!username.trim()) throw new Error('Missing Jellyfin username.');
   if (!password) throw new Error('Missing Jellyfin password.');
 
-  const response = await fetch(`${normalizedUrl}/Users/AuthenticateByName`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: createAuthorizationHeader(client),
-    },
-    body: JSON.stringify({
-      Username: username,
-      Pw: password,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), JELLYFIN_LOGIN_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`${normalizedUrl}/Users/AuthenticateByName`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: createAuthorizationHeader(client),
+      },
+      body: JSON.stringify({
+        Username: username,
+        Pw: password,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error('Jellyfin login timed out. Check the server URL and network connection.');
+    }
+    throw new Error(`Could not reach Jellyfin server (${getErrorMessage(error)}).`);
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (response.status === 401 || response.status === 403) {
     throw new Error('Invalid Jellyfin username or password.');

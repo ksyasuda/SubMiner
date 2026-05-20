@@ -71,6 +71,7 @@ export const IPC_CHANNELS = {
     openAnilistSetup: 'anilist:open-setup',
     getAnilistQueueStatus: 'anilist:get-queue-status',
     retryAnilistNow: 'anilist:retry-now',
+    jellyfinSetupSubmit: 'jellyfin:setup-submit',
     getCharacterDictionarySelection: 'character-dictionary:get-selection',
     setCharacterDictionarySelection: 'character-dictionary:set-selection',
     appendClipboardVideoToQueue: 'clipboard:append-video-to-queue',

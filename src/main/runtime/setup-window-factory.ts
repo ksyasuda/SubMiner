@@ -49,11 +49,13 @@ export function createCreateFirstRunSetupWindowHandler<TWindow>(deps: {
 
 export function createCreateJellyfinSetupWindowHandler<TWindow>(deps: {
   createBrowserWindow: (options: Electron.BrowserWindowConstructorOptions) => TWindow;
+  preloadPath?: string;
 }) {
   return createSetupWindowHandler(deps, {
     width: 520,
     height: 560,
     title: 'Jellyfin Setup',
+    ...(deps.preloadPath ? { preloadPath: deps.preloadPath, sandbox: true } : {}),
   });
 }
 

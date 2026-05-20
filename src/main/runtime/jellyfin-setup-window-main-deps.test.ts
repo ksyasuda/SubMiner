@@ -5,7 +5,6 @@ import { createBuildOpenJellyfinSetupWindowMainDepsHandler } from './jellyfin-se
 test('open jellyfin setup window main deps builder maps callbacks', async () => {
   const calls: string[] = [];
   const expectedState = {
-    servers: [],
     selectedServerUrl: 'a',
     username: 'b',
     hasStoredSession: false,
@@ -46,6 +45,10 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     showMpvOsd: (message) => calls.push(`osd:${message}`),
     clearSetupWindow: () => calls.push('clear'),
     setSetupWindow: () => calls.push('set-window'),
+    registerSetupIpcHandler: () => {
+      calls.push('register-ipc');
+      return () => calls.push('unregister-ipc');
+    },
     encodeURIComponent: (value) => encodeURIComponent(value),
     defaultServerUrl: 'http://127.0.0.1:8096',
     hasStoredSession: () => true,
@@ -97,6 +100,8 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
   deps.showMpvOsd('toast');
   deps.clearSetupWindow();
   deps.setSetupWindow({} as never);
+  const unregister = deps.registerSetupIpcHandler?.(async () => ({ handled: true }));
+  unregister?.();
   assert.equal(deps.encodeURIComponent('a b'), 'a%20b');
   assert.equal(deps.defaultServerUrl, 'http://127.0.0.1:8096');
   assert.equal(deps.hasStoredSession(), true);
@@ -110,5 +115,7 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     'osd:toast',
     'clear',
     'set-window',
+    'register-ipc',
+    'unregister-ipc',
   ]);
 });

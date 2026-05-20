@@ -25,6 +25,9 @@ export function createBuildOpenJellyfinSetupWindowMainDepsHandler(
     showMpvOsd: (message: string) => deps.showMpvOsd(message),
     clearSetupWindow: () => deps.clearSetupWindow(),
     setSetupWindow: (window) => deps.setSetupWindow(window),
+    registerSetupIpcHandler: deps.registerSetupIpcHandler
+      ? (handler) => deps.registerSetupIpcHandler?.(handler) ?? (() => undefined)
+      : undefined,
     encodeURIComponent: (value: string) => deps.encodeURIComponent(value),
     defaultServerUrl: deps.defaultServerUrl,
     hasStoredSession: () => deps.hasStoredSession(),
