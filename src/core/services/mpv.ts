@@ -277,11 +277,15 @@ export class MpvIpcClient implements MpvClient {
 
   reconnect(): void {
     logger.debug('MPV IPC reconnect requested.');
+    const wasConnected = this.connected;
     this.transport.shutdown();
     this.connected = false;
     this.connecting = false;
     this.socket = null;
     this.playbackPaused = null;
+    if (wasConnected) {
+      this.emit('connection-change', { connected: false });
+    }
     this.failPendingRequests();
     this.connect();
   }

@@ -1006,6 +1006,7 @@ export async function startOverlay(
   args: Args,
   socketPath: string,
   extraAppArgs: string[] = [],
+  configDir: string = getLauncherConfigDir(),
 ): Promise<void> {
   const backend = detectBackend(args.backend);
   log('info', args.logLevel, `Starting SubMiner overlay (backend: ${backend})...`);
@@ -1024,7 +1025,7 @@ export async function startOverlay(
   if (args.useTexthooker) overlayArgs.push('--texthooker');
 
   const controlResult = await sendAppControlCommand(overlayArgs, {
-    configDir: getLauncherConfigDir(),
+    configDir,
   });
   if (controlResult.ok) {
     log('debug', args.logLevel, 'Attached to running SubMiner app via control socket');
@@ -1107,9 +1108,12 @@ function getLauncherConfigDir(): string {
   });
 }
 
-export async function isRunningAppControlServerAvailable(logLevel: LogLevel): Promise<boolean> {
+export async function isRunningAppControlServerAvailable(
+  logLevel: LogLevel,
+  configDir: string = getLauncherConfigDir(),
+): Promise<boolean> {
   const available = await checkAppControlServerAvailable({
-    configDir: getLauncherConfigDir(),
+    configDir,
   });
   if (available) {
     log('debug', logLevel, 'Running SubMiner app control socket detected');

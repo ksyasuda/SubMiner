@@ -30,6 +30,13 @@ import { hasLauncherExternalYomitanProfileConfig } from '../config.js';
 const SETUP_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const SETUP_POLL_INTERVAL_MS = 500;
 
+function getLauncherConfigDir(): string {
+  return getDefaultConfigDir({
+    xdgConfigHome: process.env.XDG_CONFIG_HOME,
+    homeDir: os.homedir(),
+  });
+}
+
 function checkDependencies(args: Args): void {
   const missing: string[] = [];
 
@@ -100,10 +107,7 @@ async function ensurePlaybackSetupReady(context: LauncherCommandContext): Promis
   const { args, appPath } = context;
   if (!appPath) return;
 
-  const configDir = getDefaultConfigDir({
-    xdgConfigHome: process.env.XDG_CONFIG_HOME,
-    homeDir: os.homedir(),
-  });
+  const configDir = getLauncherConfigDir();
   const statePath = getSetupStatePath(configDir);
   const ready = await ensureLauncherSetupReady({
     readSetupState: () => readSetupState(statePath),
@@ -166,7 +170,7 @@ type PlaybackCommandDeps = {
   waitForUnixSocketReady: typeof waitForUnixSocketReady;
   startOverlay: typeof startOverlay;
   launchAppCommandDetached: typeof launchAppCommandDetached;
-  isAppControlServerAvailable?: (logLevel: Args['logLevel']) => Promise<boolean>;
+  isAppControlServerAvailable?: (logLevel: Args['logLevel'], configDir: string) => Promise<boolean>;
   log: typeof log;
   cleanupPlaybackSession: typeof cleanupPlaybackSession;
   getMpvProc: () => typeof state.mpvProc;
@@ -211,6 +215,7 @@ export async function runPlaybackCommandWithDeps(
   const isYoutubeUrl = selectedTarget.kind === 'url' && isYoutubeTarget(selectedTarget.target);
   const isAppOwnedYoutubeFlow = isYoutubeUrl;
   const youtubeMode = args.youtubeMode ?? 'download';
+  const configDir = getLauncherConfigDir();
 
   if (isYoutubeUrl) {
     deps.log('info', args.logLevel, 'YouTube subtitle flow: app-owned picker after mpv bootstrap');
@@ -222,7 +227,7 @@ export async function runPlaybackCommandWithDeps(
     !args.startOverlay &&
     !args.autoStartOverlay &&
     !isAppOwnedYoutubeFlow &&
-    ((await deps.isAppControlServerAvailable?.(args.logLevel)) ?? false);
+    ((await deps.isAppControlServerAvailable?.(args.logLevel, configDir)) ?? false);
   const effectivePluginRuntimeConfig = shouldLauncherAttachRunningApp
     ? { ...pluginRuntimeConfig, autoStart: false }
     : pluginRuntimeConfig;
@@ -287,7 +292,7 @@ export async function runPlaybackCommandWithDeps(
               : []),
           ]
         : [];
-    await deps.startOverlay(appPath, args, mpvSocketPath, extraAppArgs);
+    await deps.startOverlay(appPath, args, mpvSocketPath, extraAppArgs, configDir);
   } else if (pluginAutoStartEnabled) {
     if (ready) {
       deps.log('info', args.logLevel, 'MPV IPC socket ready, relying on mpv plugin auto-start');

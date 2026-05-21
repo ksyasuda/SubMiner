@@ -47,6 +47,13 @@ export function startAppControlServer(options: AppControlServerOptions): AppCont
     let byteCount = 0;
     let handled = false;
 
+    socket.on('error', (error) => {
+      if (handled) return;
+      handled = true;
+      options.logWarn?.('App control client socket error.', error);
+      socket.destroy();
+    });
+
     socket.on('data', (chunk) => {
       if (handled) return;
       byteCount += chunk.length;

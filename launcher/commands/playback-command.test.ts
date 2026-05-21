@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type { LauncherCommandContext } from './context.js';
 import { runPlaybackCommandWithDeps } from './playback-command.js';
 import { state } from '../mpv.js';
@@ -269,6 +272,68 @@ test('plugin auto-start playback attaches a warm background app through the laun
       ?.autoStart,
     false,
   );
+});
+
+test('plugin auto-start attach mode reuses launcher-resolved config dir for app control', async () => {
+  const context = createContext();
+  const originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
+  const xdgConfigHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-xdg-'));
+  const expectedConfigDir = path.join(xdgConfigHome, 'SubMiner');
+  fs.mkdirSync(expectedConfigDir, { recursive: true });
+  fs.writeFileSync(path.join(expectedConfigDir, 'config.jsonc'), '{}');
+  context.args = {
+    ...context.args,
+    target: '/tmp/movie.mkv',
+    targetKind: 'file',
+    useTexthooker: true,
+  };
+  context.pluginRuntimeConfig = {
+    socketPath: '/tmp/subminer.sock',
+    binaryPath: '',
+    backend: 'auto',
+    autoStart: true,
+    autoStartVisibleOverlay: true,
+    autoStartPauseUntilReady: true,
+    texthookerEnabled: true,
+    aniskipEnabled: true,
+    aniskipButtonKey: 'TAB',
+  };
+  let availabilityConfigDir: string | undefined;
+  let overlayConfigDir: string | undefined;
+
+  try {
+    process.env.XDG_CONFIG_HOME = xdgConfigHome;
+
+    await runPlaybackCommandWithDeps(context, {
+      ensurePlaybackSetupReady: async () => {},
+      chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
+      checkDependencies: () => {},
+      registerCleanup: () => {},
+      startMpv: async () => {},
+      waitForUnixSocketReady: async () => true,
+      startOverlay: async (_appPath, _args, _socketPath, _extraAppArgs = [], configDir) => {
+        overlayConfigDir = configDir;
+      },
+      launchAppCommandDetached: () => {},
+      log: () => {},
+      cleanupPlaybackSession: async () => {},
+      getMpvProc: () => null,
+      isAppControlServerAvailable: async (_logLevel, configDir) => {
+        availabilityConfigDir = configDir;
+        return true;
+      },
+    });
+
+    assert.equal(availabilityConfigDir, expectedConfigDir);
+    assert.equal(overlayConfigDir, expectedConfigDir);
+  } finally {
+    if (originalXdgConfigHome === undefined) {
+      delete process.env.XDG_CONFIG_HOME;
+    } else {
+      process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
+    }
+    fs.rmSync(xdgConfigHome, { recursive: true, force: true });
+  }
 });
 
 test('plugin auto-start attach mode omits texthooker flag when CLI texthooker is disabled', async () => {

@@ -6,6 +6,7 @@ import os from 'node:os';
 import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
+import { getAppControlSocketPath } from '../src/shared/app-control';
 import {
   buildConfiguredMpvDefaultArgs,
   buildMpvBackendArgs,
@@ -811,6 +812,87 @@ test('startOverlay attaches through the running app control socket without spawn
     ]);
     assert.equal(state.overlayManagedByLauncher, false);
     assert.equal(state.appPath, '');
+  } finally {
+    if (originalControlSocket === undefined) {
+      delete process.env.SUBMINER_APP_CONTROL_SOCKET;
+    } else {
+      process.env.SUBMINER_APP_CONTROL_SOCKET = originalControlSocket;
+    }
+    await new Promise<void>((resolve) => mpvServer.close(() => resolve()));
+    await new Promise<void>((resolve) => controlServer.close(() => resolve()));
+    state.overlayProc = null;
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('startOverlay uses caller config dir for app control socket discovery', async () => {
+  if (process.platform === 'win32') return;
+
+  const { dir, socketPath } = createTempSocketPath();
+  const configDir = path.join(dir, 'launcher-config');
+  const controlSocketPath = getAppControlSocketPath({ configDir, platform: 'linux' });
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const appInvocationsPath = path.join(dir, 'app-invocations.log');
+  const receivedControlArgv: string[][] = [];
+  const originalControlSocket = process.env.SUBMINER_APP_CONTROL_SOCKET;
+
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
+      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
+      'exit 0',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+
+  const mpvServer = net.createServer((socket) => socket.end());
+  const controlServer = net.createServer((socket) => {
+    let buffer = '';
+    socket.on('data', (chunk) => {
+      buffer += chunk.toString('utf8');
+      const newlineIndex = buffer.indexOf('\n');
+      if (newlineIndex < 0) return;
+      const payload = JSON.parse(buffer.slice(0, newlineIndex)) as { argv?: unknown };
+      if (Array.isArray(payload.argv)) {
+        receivedControlArgv.push(
+          payload.argv.filter((value): value is string => typeof value === 'string'),
+        );
+      }
+      socket.end(JSON.stringify({ ok: true }) + '\n');
+    });
+  });
+
+  try {
+    delete process.env.SUBMINER_APP_CONTROL_SOCKET;
+    await new Promise<void>((resolve, reject) => {
+      mpvServer.once('error', reject);
+      mpvServer.listen(socketPath, resolve);
+    });
+    await new Promise<void>((resolve, reject) => {
+      controlServer.once('error', reject);
+      controlServer.listen(controlSocketPath, resolve);
+    });
+
+    await startOverlay(appPath, makeArgs(), socketPath, [], configDir);
+
+    const invocationText = fs.existsSync(appInvocationsPath)
+      ? fs.readFileSync(appInvocationsPath, 'utf8')
+      : '';
+    assert.equal(invocationText, '');
+    assert.equal(receivedControlArgv.length, 1);
+    assert.deepEqual(receivedControlArgv[0]?.slice(0, 6), [
+      '--start',
+      '--managed-playback',
+      '--backend',
+      'x11',
+      '--socket',
+      socketPath,
+    ]);
   } finally {
     if (originalControlSocket === undefined) {
       delete process.env.SUBMINER_APP_CONTROL_SOCKET;

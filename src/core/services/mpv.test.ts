@@ -171,7 +171,11 @@ test('MpvIpcClient connect logs connect-request at debug level', () => {
 test('MpvIpcClient reconnect clears stale connected state and starts a fresh transport connect', () => {
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
   const calls: string[] = [];
+  const connectionChanges: boolean[] = [];
   const resolved: unknown[] = [];
+  client.on('connection-change', ({ connected }) => {
+    connectionChanges.push(connected);
+  });
   (client as any).connected = true;
   (client as any).connecting = false;
   (client as any).socket = {};
@@ -191,6 +195,7 @@ test('MpvIpcClient reconnect clears stale connected state and starts a fresh tra
   assert.equal(client.connected, false);
   assert.equal((client as any).connecting, true);
   assert.equal((client as any).socket, null);
+  assert.deepEqual(connectionChanges, [false]);
   assert.deepEqual(resolved, [{ request_id: 10, error: 'disconnected' }]);
 });
 

@@ -313,7 +313,10 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
     const action = (invocations.configInvocation.action || '').toLowerCase();
     if (action === 'path') parsed.configPath = true;
     else if (action === 'show') parsed.configShow = true;
-    else fail(`Unknown config action: ${invocations.configInvocation.action || '(none)'}. Expected path or show.`);
+    else
+      fail(
+        `Unknown config action: ${invocations.configInvocation.action || '(none)'}. Expected path or show.`,
+      );
   }
 
   if (invocations.settingsInvocation) {
