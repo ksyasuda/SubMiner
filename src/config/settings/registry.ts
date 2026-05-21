@@ -229,7 +229,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'mpv.pauseUntilOverlayReady': 'Pause Until Overlay Ready',
   'mpv.aniskipEnabled': 'Enable AniSkip',
   'mpv.aniskipButtonKey': 'AniSkip Button Key',
-  'discordPresence.updateIntervalMs': 'Update Interval Seconds',
+  'discordPresence.updateIntervalMs': 'Update Interval (ms)',
 };
 
 const DESCRIPTION_OVERRIDES: Record<string, string> = {
@@ -248,7 +248,7 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
   'subtitleSidebar.css':
     'CSS declarations applied to the subtitle sidebar. Includes color, background-color, all font properties, and sidebar CSS variables.',
   'discordPresence.updateIntervalMs':
-    'Minimum interval between presence payload updates, in seconds.',
+    'Minimum interval between presence payload updates, in milliseconds.',
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

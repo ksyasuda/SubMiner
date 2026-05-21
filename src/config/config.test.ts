@@ -2096,6 +2096,7 @@ test('migrates legacy ankiConnect n+1 color value to subtitleStyle', () => {
     subtitleStyle: { nPlusOneColor?: string; knownWordColor?: string };
   };
   assert.equal(parsed.subtitleStyle.nPlusOneColor, '#c6a0f6');
+  assert.equal(parsed.subtitleStyle.knownWordColor, '#a6da95');
   assert.equal(Object.hasOwn(parsed.ankiConnect.nPlusOne ?? {}, 'nPlusOne'), false);
 });
 

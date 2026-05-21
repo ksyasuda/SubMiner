@@ -30,6 +30,8 @@ const LEGACY_N_PLUS_ONE_PATH_MAP = {
   nPlusOne: 'subtitleStyle.nPlusOneColor',
 } as const;
 
+const hexColorPattern = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
 function propertyKey(propertyNode: JsoncNode): string | undefined {
   return propertyNode.children?.[0]?.value;
 }
@@ -82,6 +84,12 @@ function normalizeLegacyDecks(value: unknown): unknown {
   return normalized;
 }
 
+function asLegacyColor(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
+  return hexColorPattern.test(text) ? text : undefined;
+}
+
 function buildLegacyNPlusOneMigrationOperations(root: JsoncNode | undefined): {
   operations: ConfigSettingsPatchOperation[];
   hasLegacy: boolean;
@@ -90,9 +98,9 @@ function buildLegacyNPlusOneMigrationOperations(root: JsoncNode | undefined): {
   const ankiConnect = propertyValue(findLastProperty(root, 'ankiConnect'));
   const nPlusOneProperties = findProperties(ankiConnect, 'nPlusOne');
   const nPlusOneObjects = nPlusOneProperties.map(propertyValue).filter(Boolean) as JsoncNode[];
-  if (nPlusOneObjects.length === 0) {
-    return { operations, hasLegacy: false };
-  }
+  const knownWords = propertyValue(findLastProperty(ankiConnect, 'knownWords'));
+  const knownWordsColorNode = propertyValue(findLastProperty(knownWords, 'color'));
+  const knownWordsColor = knownWordsColorNode ? getNodeValue(knownWordsColorNode) : undefined;
 
   const canonicalNPlusOneValues = new Map<string, unknown>();
   const legacyValues = new Map<keyof typeof LEGACY_N_PLUS_ONE_PATH_MAP, unknown>();
@@ -141,6 +149,22 @@ function buildLegacyNPlusOneMigrationOperations(root: JsoncNode | undefined): {
     operations.push({
       op: 'reset',
       path: `ankiConnect.nPlusOne.${key}`,
+    });
+  }
+
+  const legacyKnownWordsColor = asLegacyColor(knownWordsColor);
+  if (legacyKnownWordsColor !== undefined) {
+    hasLegacy = true;
+    if (!hasPath(root, 'subtitleStyle.knownWordColor')) {
+      operations.push({
+        op: 'set',
+        path: 'subtitleStyle.knownWordColor',
+        value: legacyKnownWordsColor,
+      });
+    }
+    operations.push({
+      op: 'reset',
+      path: 'ankiConnect.knownWords.color',
     });
   }
 
