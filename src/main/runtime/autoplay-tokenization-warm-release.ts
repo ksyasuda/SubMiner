@@ -22,24 +22,41 @@ export function createAutoplayTokenizationWarmRelease(deps: {
     deps.signalAutoplayReady();
   };
 
+  const primeSubtitleForRelease = (mediaPath: string): Promise<void> | null => {
+    if (!deps.primeCurrentSubtitle) {
+      return null;
+    }
+    try {
+      return Promise.resolve(deps.primeCurrentSubtitle(mediaPath)).catch((error) => {
+        deps.warn('Startup subtitle priming failed before autoplay readiness release:', error);
+      });
+    } catch (error) {
+      deps.warn('Startup subtitle priming failed before autoplay readiness release:', error);
+      return null;
+    }
+  };
+
   return (mediaPath) => {
     const normalizedPath = normalizeMediaPath(mediaPath);
     if (!normalizedPath) {
       return;
     }
-    try {
-      void Promise.resolve(deps.primeCurrentSubtitle?.(normalizedPath)).catch((error) => {
-        deps.warn('Startup subtitle priming failed before autoplay readiness release:', error);
-      });
-    } catch (error) {
-      deps.warn('Startup subtitle priming failed before autoplay readiness release:', error);
-    }
+    const primePromise = primeSubtitleForRelease(normalizedPath);
     if (deps.isTokenizationWarmupReady()) {
-      signalIfCurrent(normalizedPath);
+      if (!primePromise) {
+        signalIfCurrent(normalizedPath);
+        return;
+      }
+      void primePromise.then(() => {
+        signalIfCurrent(normalizedPath);
+      });
       return;
     }
-    void deps
-      .startTokenizationWarmups()
+    const warmupPromise = deps.startTokenizationWarmups();
+    const readinessPromise = primePromise
+      ? Promise.all([primePromise, warmupPromise]).then(() => {})
+      : warmupPromise;
+    void readinessPromise
       .then(() => {
         signalIfCurrent(normalizedPath);
       })

@@ -60,14 +60,28 @@ function M.create(ctx)
 		return state.auto_start_retry_generation
 	end
 
-	local function rearm_managed_subtitle_defaults()
+	local function has_matching_subminer_socket()
 		if not process.has_matching_mpv_ipc_socket(opts.socket_path) then
 			return false
 		end
+		return true
+	end
 
+	local function rearm_managed_subtitle_load_defaults()
+		if not has_matching_subminer_socket() then
+			return false
+		end
 		mp.set_property_native("sub-auto", "fuzzy")
 		mp.set_property_native("sid", "auto")
 		mp.set_property_native("secondary-sid", "auto")
+		return true
+	end
+
+	local function refresh_managed_subtitle_autoloading()
+		if not has_matching_subminer_socket() then
+			return false
+		end
+		mp.set_property_native("sub-auto", "fuzzy")
 		return true
 	end
 
@@ -83,7 +97,7 @@ function M.create(ctx)
 			return
 		end
 
-		local has_matching_socket = rearm_managed_subtitle_defaults()
+		local has_matching_socket = refresh_managed_subtitle_autoloading()
 		if not has_matching_socket then
 			if attempt < AUTO_START_SOCKET_RETRY_MAX_ATTEMPTS then
 				mp.add_timeout(AUTO_START_SOCKET_RETRY_DELAY_SECONDS, function()
@@ -107,6 +121,13 @@ function M.create(ctx)
 		})
 		-- Give the overlay process a moment to initialize before querying AniSkip.
 		schedule_aniskip_fetch("overlay-start", 0.8)
+	end
+
+	local function on_start_file()
+		if state.pending_reload_media_identity ~= nil then
+			return
+		end
+		rearm_managed_subtitle_load_defaults()
 	end
 
 	local function on_file_loaded()
@@ -151,7 +172,7 @@ function M.create(ctx)
 			return
 		end
 
-		rearm_managed_subtitle_defaults()
+		refresh_managed_subtitle_autoloading()
 		schedule_aniskip_fetch("file-loaded", 0)
 	end
 
@@ -165,6 +186,7 @@ function M.create(ctx)
 	end
 
 	local function register_lifecycle_hooks()
+		mp.register_event("start-file", on_start_file)
 		mp.register_event("file-loaded", on_file_loaded)
 		mp.register_event("shutdown", on_shutdown)
 		mp.register_event("file-loaded", function()

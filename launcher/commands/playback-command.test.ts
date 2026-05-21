@@ -261,7 +261,7 @@ test('plugin auto-start playback attaches a warm background app through the laun
   });
 
   assert.deepEqual(calls, ['startMpv', 'startOverlay:--show-visible-overlay --texthooker']);
-  assert.equal(receivedStartMpvOptions[0]?.startPaused, false);
+  assert.equal(receivedStartMpvOptions[0]?.startPaused, true);
   assert.equal(
     (receivedStartMpvOptions[0]?.runtimePluginConfig as { autoStart?: boolean } | undefined)
       ?.autoStart,

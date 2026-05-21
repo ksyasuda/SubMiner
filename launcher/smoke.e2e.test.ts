@@ -244,6 +244,7 @@ async function waitForFile(filePath: string, timeoutMs = 1500): Promise<void> {
     if (fs.existsSync(filePath)) return;
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
   }
+  throw new Error(`Timed out waiting for file ${filePath} after ${timeoutMs}ms`);
 }
 
 async function startFakeControlServer(
@@ -270,10 +271,19 @@ const server = net.createServer((socket) => {
   let buffer = '';
   socket.on('data', (chunk) => {
     buffer += chunk.toString('utf8');
-    const line = buffer.split(/\\r?\\n/, 1)[0];
-    if (!line) return;
-    fs.appendFileSync(logPath, line + '\\n');
-    socket.end(JSON.stringify({ ok: true }) + '\\n');
+    let handledLine = false;
+    while (true) {
+      const newlineMatch = buffer.match(/\\r?\\n/);
+      if (!newlineMatch || newlineMatch.index === undefined) break;
+      const line = buffer.slice(0, newlineMatch.index).trim();
+      buffer = buffer.slice(newlineMatch.index + newlineMatch[0].length);
+      if (!line) continue;
+      fs.appendFileSync(logPath, line + '\\n');
+      handledLine = true;
+    }
+    if (handledLine) {
+      socket.end(JSON.stringify({ ok: true }) + '\\n');
+    }
   });
 });
 

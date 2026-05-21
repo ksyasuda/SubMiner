@@ -7,11 +7,15 @@ import { sendAppControlCommand } from '../../shared/app-control-client';
 import { startAppControlServer } from './app-control-server';
 
 async function waitForSocketPath(socketPath: string): Promise<void> {
-  const deadline = Date.now() + 1000;
+  const timeoutMs = 1000;
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (fs.existsSync(socketPath)) return;
     await new Promise<void>((resolve) => setTimeout(resolve, 10));
   }
+  throw new Error(
+    `Timed out waiting for control socket ${socketPath} after ${timeoutMs}ms`,
+  );
 }
 
 test('app control server dispatches argv requests and replies ok', async () => {

@@ -1095,18 +1095,54 @@ do
 		},
 	})
 	assert_true(recorded ~= nil, "plugin failed to load for subtitle rearm scenario: " .. tostring(err))
-	fire_event(recorded, "file-loaded")
+	fire_event(recorded, "start-file")
 	assert_true(
 		has_property_set(recorded.property_sets, "sub-auto", "fuzzy"),
-		"managed file-loaded should rearm sub-auto for idle mpv sessions"
+		"managed start-file should rearm sub-auto before mpv loads tracks"
 	)
 	assert_true(
 		has_property_set(recorded.property_sets, "sid", "auto"),
-		"managed file-loaded should rearm primary subtitle selection for idle mpv sessions"
+		"managed start-file should rearm primary subtitle selection before mpv loads tracks"
 	)
 	assert_true(
 		has_property_set(recorded.property_sets, "secondary-sid", "auto"),
-		"managed file-loaded should rearm secondary subtitle selection for idle mpv sessions"
+		"managed start-file should rearm secondary subtitle selection before mpv loads tracks"
+	)
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_property_set(recorded.property_sets, "sid", "auto") == 1,
+		"managed file-loaded should not reset primary subtitle selection after mpv loads tracks"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "secondary-sid", "auto") == 1,
+		"managed file-loaded should not reset secondary subtitle selection after mpv loads tracks"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for attached subtitle rearm scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_property_set(recorded.property_sets, "sid", "auto") == 1,
+		"attached background app path should select primary subtitle before load only"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "secondary-sid", "auto") == 1,
+		"attached background app path should select secondary subtitle before load only"
 	)
 end
 

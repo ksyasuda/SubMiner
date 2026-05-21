@@ -228,7 +228,7 @@ export async function runPlaybackCommandWithDeps(
     : pluginRuntimeConfig;
 
   const shouldPauseUntilOverlayReady =
-    effectivePluginRuntimeConfig.autoStart &&
+    pluginRuntimeConfig.autoStart &&
     pluginRuntimeConfig.autoStartVisibleOverlay &&
     pluginRuntimeConfig.autoStartPauseUntilReady;
 

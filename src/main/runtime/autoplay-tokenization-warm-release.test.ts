@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createAutoplayTokenizationWarmRelease } from './autoplay-tokenization-warm-release';
 
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 test('autoplay tokenization warm release signals immediately when warmups are ready', () => {
   const calls: string[] = [];
   const release = createAutoplayTokenizationWarmRelease({
@@ -45,14 +49,17 @@ test('autoplay tokenization warm release primes subtitles before waiting for war
 
   resolveWarmup();
   await warmup;
-  await Promise.resolve();
+  await flushMicrotasks();
 
   assert.deepEqual(calls, ['prime', 'warmup', 'signal']);
 });
 
-test('autoplay tokenization warm release does not await subtitle priming before signaling ready media', async () => {
+test('autoplay tokenization warm release waits for subtitle priming before signaling ready media', async () => {
   const calls: string[] = [];
-  const never = new Promise<void>(() => {});
+  let resolvePrime!: () => void;
+  const prime = new Promise<void>((resolve) => {
+    resolvePrime = resolve;
+  });
   const release = createAutoplayTokenizationWarmRelease({
     isTokenizationWarmupReady: () => true,
     startTokenizationWarmups: async () => {
@@ -61,13 +68,19 @@ test('autoplay tokenization warm release does not await subtitle priming before 
     getCurrentMediaPath: () => '/tmp/video.mkv',
     primeCurrentSubtitle: () => {
       calls.push('prime');
-      return never;
+      return prime;
     },
     signalAutoplayReady: () => calls.push('signal'),
     warn: () => {},
   });
 
   release('/tmp/video.mkv');
+  await Promise.resolve();
+
+  assert.deepEqual(calls, ['prime']);
+
+  resolvePrime();
+  await prime;
   await Promise.resolve();
 
   assert.deepEqual(calls, ['prime', 'signal']);
