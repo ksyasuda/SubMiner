@@ -767,7 +767,10 @@ test('startOverlay attaches through the running app control socket without spawn
     let buffer = '';
     socket.on('data', (chunk) => {
       buffer += chunk.toString('utf8');
-      const line = buffer.split(/\r?\n/, 1)[0];
+      const newlineMatch = buffer.match(/\r?\n/);
+      if (!newlineMatch || newlineMatch.index === undefined) return;
+      const line = buffer.slice(0, newlineMatch.index).trim();
+      buffer = buffer.slice(newlineMatch.index + newlineMatch[0].length);
       if (!line) return;
       const payload = JSON.parse(line) as { argv?: unknown };
       if (Array.isArray(payload.argv)) {
@@ -815,6 +818,59 @@ test('startOverlay attaches through the running app control socket without spawn
       process.env.SUBMINER_APP_CONTROL_SOCKET = originalControlSocket;
     }
     await new Promise<void>((resolve) => mpvServer.close(() => resolve()));
+    await new Promise<void>((resolve) => controlServer.close(() => resolve()));
+    state.overlayProc = null;
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('startOverlay falls back to legacy app startup when control command fails', async () => {
+  if (process.platform === 'win32') return;
+
+  const { dir, socketPath } = createTempSocketPath();
+  const controlSocketPath = path.join(dir, 'control.sock');
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const appInvocationsPath = path.join(dir, 'app-invocations.log');
+  const originalControlSocket = process.env.SUBMINER_APP_CONTROL_SOCKET;
+
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
+      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
+      'exit 0',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+
+  const controlServer = net.createServer((socket) => {
+    socket.on('data', () => {
+      socket.end(JSON.stringify({ ok: false, error: 'boom' }) + '\n');
+    });
+  });
+
+  try {
+    process.env.SUBMINER_APP_CONTROL_SOCKET = controlSocketPath;
+    await new Promise<void>((resolve, reject) => {
+      controlServer.once('error', reject);
+      controlServer.listen(controlSocketPath, resolve);
+    });
+
+    await startOverlay(appPath, makeArgs(), socketPath);
+
+    const invocationText = fs.readFileSync(appInvocationsPath, 'utf8');
+    assert.match(invocationText, /--app-ping/);
+    assert.match(invocationText, /--start/);
+  } finally {
+    if (originalControlSocket === undefined) {
+      delete process.env.SUBMINER_APP_CONTROL_SOCKET;
+    } else {
+      process.env.SUBMINER_APP_CONTROL_SOCKET = originalControlSocket;
+    }
     await new Promise<void>((resolve) => controlServer.close(() => resolve()));
     state.overlayProc = null;
     state.overlayManagedByLauncher = false;

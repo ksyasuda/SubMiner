@@ -151,6 +151,7 @@ test('plugin auto-start playback leaves app lifetime to managed-playback owner',
     ...context.args,
     target: '/tmp/movie.mkv',
     targetKind: 'file',
+    useTexthooker: true,
   };
   context.pluginRuntimeConfig = {
     socketPath: '/tmp/subminer.sock',
@@ -213,6 +214,7 @@ test('plugin auto-start playback attaches a warm background app through the laun
     ...context.args,
     target: '/tmp/movie.mkv',
     targetKind: 'file',
+    useTexthooker: true,
   };
   context.pluginRuntimeConfig = {
     socketPath: '/tmp/subminer.sock',
@@ -267,4 +269,48 @@ test('plugin auto-start playback attaches a warm background app through the laun
       ?.autoStart,
     false,
   );
+});
+
+test('plugin auto-start attach mode omits texthooker flag when CLI texthooker is disabled', async () => {
+  const context = createContext();
+  context.args = {
+    ...context.args,
+    target: '/tmp/movie.mkv',
+    targetKind: 'file',
+  };
+  context.pluginRuntimeConfig = {
+    socketPath: '/tmp/subminer.sock',
+    binaryPath: '',
+    backend: 'auto',
+    autoStart: true,
+    autoStartVisibleOverlay: true,
+    autoStartPauseUntilReady: true,
+    texthookerEnabled: true,
+    aniskipEnabled: true,
+    aniskipButtonKey: 'TAB',
+  };
+  const calls: string[] = [];
+
+  await runPlaybackCommandWithDeps(context, {
+    ensurePlaybackSetupReady: async () => {},
+    chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
+    checkDependencies: () => {},
+    registerCleanup: () => {},
+    startMpv: async () => {
+      calls.push('startMpv');
+    },
+    waitForUnixSocketReady: async () => true,
+    startOverlay: async (_appPath, _args, _socketPath, extraAppArgs = []) => {
+      calls.push(`startOverlay:${extraAppArgs.join(' ')}`);
+    },
+    launchAppCommandDetached: () => {},
+    log: () => {},
+    cleanupPlaybackSession: async () => {},
+    getMpvProc: () => null,
+    isAppControlServerAvailable: async () => true,
+  } as Parameters<typeof runPlaybackCommandWithDeps>[1] & {
+    isAppControlServerAvailable: () => Promise<boolean>;
+  });
+
+  assert.deepEqual(calls, ['startMpv', 'startOverlay:--show-visible-overlay']);
 });

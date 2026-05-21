@@ -1058,7 +1058,6 @@ export async function startOverlay(
       clearOverlayManagedByLauncher();
       state.overlayProc = null;
     }
-    return;
   }
 
   const appAlreadyRunning = isAppAlreadyRunning(appPath, args.logLevel);

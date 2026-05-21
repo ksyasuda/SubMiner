@@ -282,7 +282,9 @@ export async function runPlaybackCommandWithDeps(
             pluginRuntimeConfig.autoStartVisibleOverlay
               ? '--show-visible-overlay'
               : '--hide-visible-overlay',
-            ...(pluginRuntimeConfig.texthookerEnabled ? ['--texthooker'] : []),
+            ...(args.useTexthooker && effectivePluginRuntimeConfig.texthookerEnabled
+              ? ['--texthooker']
+              : []),
           ]
         : [];
     await deps.startOverlay(appPath, args, mpvSocketPath, extraAppArgs);

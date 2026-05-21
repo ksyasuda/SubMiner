@@ -44,12 +44,14 @@ export function startAppControlServer(options: AppControlServerOptions): AppCont
 
   const server = net.createServer((socket) => {
     let buffer = '';
+    let byteCount = 0;
     let handled = false;
 
     socket.on('data', (chunk) => {
       if (handled) return;
+      byteCount += chunk.length;
       buffer += chunk.toString('utf8');
-      if (buffer.length > 65536) {
+      if (byteCount > 65536) {
         handled = true;
         writeResponse(socket, { ok: false, error: 'App control request too large' });
         return;

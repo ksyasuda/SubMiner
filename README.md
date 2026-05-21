@@ -110,7 +110,7 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
 
 ## Requirements
 
-Only **mpv** and Anki+AnkiConnect is required. Everything else is optional but enhances the experience
+Only **mpv** and Anki+AnkiConnect are required. Everything else is optional but enhances the experience.
 
 | Dependency           | Status      | What it does                             |
 | -------------------- | ----------- | ---------------------------------------- |

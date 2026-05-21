@@ -3077,10 +3077,14 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       return;
     }
     if (submission.action === 'open-config-settings') {
-      firstRunSetupMessage = openConfigSettingsWindow()
+      const opened = openConfigSettingsWindow();
+      firstRunSetupMessage = opened
         ? 'Opened SubMiner settings.'
         : 'SubMiner settings are unavailable.';
-      return { skipRender: true };
+      if (opened) {
+        return { skipRender: true };
+      }
+      return;
     }
     if (submission.action === 'refresh') {
       const snapshot = await firstRunSetupService.refreshStatus('Status refreshed.');

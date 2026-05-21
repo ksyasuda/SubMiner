@@ -45,3 +45,31 @@ test('app control server dispatches argv requests and replies ok', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('app control server rejects requests larger than 64KB by UTF-8 byte length', async () => {
+  if (process.platform === 'win32') return;
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-control-test-'));
+  const socketPath = path.join(dir, 'control.sock');
+  const received: string[][] = [];
+  const server = startAppControlServer({
+    socketPath,
+    platform: 'linux',
+    handleArgv: (argv) => {
+      received.push(argv);
+    },
+  });
+
+  try {
+    await waitForSocketPath(socketPath);
+    const result = await sendAppControlCommand(Array.from({ length: 4 }, () => 'あ'.repeat(6000)), {
+      socketPath,
+    });
+
+    assert.deepEqual(result, { ok: false, error: 'App control request too large' });
+    assert.deepEqual(received, []);
+  } finally {
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
