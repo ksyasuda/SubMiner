@@ -27,7 +27,7 @@ test('classifyConfigHotReloadDiff treats safe nested config paths as hot-reloada
   next.logging.level = 'debug';
   next.youtube.primarySubLanguages = ['ja', 'en'];
   next.jimaku.maxEntryResults = prev.jimaku.maxEntryResults + 1;
-  next.subsync.defaultMode = prev.subsync.defaultMode === 'auto' ? 'manual' : 'auto';
+  next.subsync.replace = !prev.subsync.replace;
   next.ankiConnect.behavior.autoUpdateNewCards = !prev.ankiConnect.behavior.autoUpdateNewCards;
   next.ankiConnect.knownWords.highlightEnabled = !prev.ankiConnect.knownWords.highlightEnabled;
   next.ankiConnect.knownWords.refreshMinutes = prev.ankiConnect.knownWords.refreshMinutes + 5;
@@ -58,7 +58,7 @@ test('classifyConfigHotReloadDiff treats safe nested config paths as hot-reloada
       'logging.level',
       'youtube.primarySubLanguages',
       'jimaku.maxEntryResults',
-      'subsync.defaultMode',
+      'subsync.replace',
       'ankiConnect.behavior.autoUpdateNewCards',
       'ankiConnect.knownWords.highlightEnabled',
       'ankiConnect.knownWords.refreshMinutes',

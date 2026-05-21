@@ -10,7 +10,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
     autoPauseVideoOnYomitanPopup: true,
     hoverTokenColor: '#f4dbd6',
     hoverTokenBackgroundColor: 'transparent',
-    nameMatchEnabled: true,
+    nameMatchEnabled: false,
     nameMatchColor: '#f5bde6',
     fontFamily: 'Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP',
     fontSize: 35,

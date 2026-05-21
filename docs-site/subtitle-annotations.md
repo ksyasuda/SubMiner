@@ -49,7 +49,7 @@ Character-name matches are built from the active merged SubMiner character dicti
 
 | Option                           | Default   | Description                              |
 | -------------------------------- | --------- | ---------------------------------------- |
-| `subtitleStyle.nameMatchEnabled` | `true`    | Enable character-name token highlighting |
+| `subtitleStyle.nameMatchEnabled` | `false`   | Enable character-name token highlighting |
 | `subtitleStyle.nameMatchColor`   | `#f5bde6` | Color used for character-name matches    |
 
 For full details on dictionary generation, name variant expansion, auto-sync lifecycle, and configuration, see the dedicated [Character Dictionary](/character-dictionary) page.

@@ -166,7 +166,7 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
   deps.onWindowAllClosed(() => {
     if (
       deps.shouldQuitOnWindowAllClosed() &&
-      (!deps.isDarwinPlatform() || initialArgs.settings)
+      (!deps.isDarwinPlatform() || initialArgs.settings || initialArgs.setup)
     ) {
       deps.quitApp();
     }

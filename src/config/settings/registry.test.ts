@@ -194,8 +194,8 @@ test('settings registry exposes css declaration editor for subtitle sidebar appe
 test('settings registry routes playback-related integrations into integrations', () => {
   assert.equal(field('jimaku.apiBaseUrl').category, 'integrations');
   assert.equal(field('jimaku.apiBaseUrl').section, 'Jimaku');
-  assert.equal(field('subsync.defaultMode').category, 'integrations');
-  assert.equal(field('subsync.defaultMode').section, 'Subtitle Sync');
+  assert.equal(field('subsync.replace').category, 'integrations');
+  assert.equal(field('subsync.replace').section, 'Subtitle Sync');
 });
 
 test('settings registry puts feature toggles first, then other toggles alphabetically', () => {
@@ -258,7 +258,7 @@ test('settings registry marks safe live config paths as hot-reloadable', () => {
     'jimaku.apiBaseUrl',
     'jimaku.languagePreference',
     'jimaku.maxEntryResults',
-    'subsync.defaultMode',
+    'subsync.replace',
     'ankiConnect.behavior.autoUpdateNewCards',
     'ankiConnect.knownWords.highlightEnabled',
     'ankiConnect.knownWords.refreshMinutes',
@@ -277,6 +277,11 @@ test('settings registry marks safe live config paths as hot-reloadable', () => {
   ]) {
     assert.equal(field(path).restartBehavior, 'hot-reload', path);
   }
+});
+
+test('settings registry does not expose removed subsync mode option', () => {
+  const paths = new Set(fields.map((candidate) => candidate.configPath));
+  assert.equal(paths.has('subsync.defaultMode'), false);
 });
 
 test('settings registry keeps unsafe config siblings restart-required', () => {

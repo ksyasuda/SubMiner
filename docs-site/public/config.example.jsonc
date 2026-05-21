@@ -155,7 +155,7 @@
     "mecab": true, // Warm up MeCab tokenizer at startup. Values: true | false
     "yomitanExtension": true, // Warm up Yomitan extension at startup. Values: true | false
     "subtitleDictionaries": true, // Warm up subtitle dictionaries at startup. Values: true | false
-    "jellyfinRemoteSession": true // Warm up Jellyfin remote session at startup. Values: true | false
+    "jellyfinRemoteSession": false // Warm up Jellyfin remote session at startup. Values: true | false
   }, // Background warmup controls for MeCab, Yomitan, dictionaries, and Jellyfin session.
 
   // ==========================================
@@ -336,12 +336,11 @@
   }, // Dual subtitle track options.
 
   // ==========================================
-  // Auto Subtitle Sync
+  // Subtitle Sync
   // Subsync engine and executable paths.
   // Hot-reload: subsync changes apply to the next subtitle sync run.
   // ==========================================
   "subsync": {
-    "defaultMode": "auto", // Subsync default mode. Values: auto | manual
     "alass_path": "", // Optional absolute path to the alass binary used by subsync. Leave empty to auto-discover from PATH.
     "ffsubsync_path": "", // Optional absolute path to the ffsubsync binary used by subsync. Leave empty to auto-discover from PATH.
     "ffmpeg_path": "", // Optional absolute path to the ffmpeg binary used by subsync. Leave empty to auto-discover from PATH.
@@ -384,7 +383,7 @@
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
     "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false
     "autoPauseVideoOnYomitanPopup": true, // Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes. Values: true | false
-    "nameMatchEnabled": true, // Enable subtitle token coloring for matches from the SubMiner character dictionary. Values: true | false
+    "nameMatchEnabled": false, // Enable subtitle token coloring for matches from the SubMiner character dictionary. Values: true | false
     "nameMatchColor": "#f5bde6", // Hex color used when a subtitle token matches an entry from the SubMiner character dictionary.
     "nPlusOneColor": "#c6a0f6", // Color used for the single N+1 target token subtitle highlight.
     "knownWordColor": "#a6da95", // Color used for known-word subtitle highlights.

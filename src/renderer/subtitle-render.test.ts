@@ -258,7 +258,7 @@ test('computeWordClass preserves known and n+1 classes while adding JLPT classes
   assert.equal(computeWordClass(nPlusOneJlpt), 'word word-n-plus-one word-jlpt-n2');
 });
 
-test('computeWordClass applies name-match class ahead of known, n+1, frequency, and JLPT classes', () => {
+test('computeWordClass applies name-match class ahead of known, n+1, frequency, and JLPT classes when enabled', () => {
   const token = createToken({
     isKnown: true,
     isNPlusOneTarget: true,
@@ -270,6 +270,7 @@ test('computeWordClass applies name-match class ahead of known, n+1, frequency, 
 
   assert.equal(
     computeWordClass(token, {
+      nameMatchEnabled: true,
       enabled: true,
       topX: 100,
       mode: 'single',
@@ -278,6 +279,15 @@ test('computeWordClass applies name-match class ahead of known, n+1, frequency, 
     }),
     'word word-name-match',
   );
+});
+
+test('computeWordClass skips name-match class by default', () => {
+  const token = createToken({
+    surface: 'アクア',
+  }) as MergedToken & { isNameMatch?: boolean };
+  token.isNameMatch = true;
+
+  assert.equal(computeWordClass(token), 'word');
 });
 
 test('computeWordClass skips name-match class when disabled', () => {

@@ -88,7 +88,7 @@ Name matching runs inside Yomitan's scanning pipeline during subtitle tokenizati
 1. Yomitan receives subtitle text and scans for dictionary matches.
 2. Entries from "SubMiner Character Dictionary" are checked with exact primary-source matching — the token must match the entry's `originalText` with `isPrimary: true` and `matchType: 'exact'`.
 3. Matched tokens are flagged `isNameMatch: true` and forwarded to the renderer.
-4. The renderer applies the name-match highlight color (default: `#f5bde6`).
+4. If `subtitleStyle.nameMatchEnabled` is enabled, the renderer applies the name-match highlight color (default: `#f5bde6`).
 
 Name matches are visually distinct from [N+1 targeting, frequency highlighting, and JLPT tags](/subtitle-annotations) so you can tell at a glance whether a highlighted word is a character name or a vocabulary target.
 
@@ -96,7 +96,7 @@ Name matches are visually distinct from [N+1 targeting, frequency highlighting, 
 
 | Option                           | Default   | Description                        |
 | -------------------------------- | --------- | ---------------------------------- |
-| `subtitleStyle.nameMatchEnabled` | `true`    | Toggle character-name highlighting |
+| `subtitleStyle.nameMatchEnabled` | `false`   | Toggle character-name highlighting |
 | `subtitleStyle.nameMatchColor`   | `#f5bde6` | Highlight color for matched names  |
 
 ## Dictionary Entries
@@ -228,7 +228,7 @@ merged.zip
 | `anilist.characterDictionary.collapsibleSections.description`          | `false`   | Start Description section expanded                              |
 | `anilist.characterDictionary.collapsibleSections.characterInformation` | `false`   | Start Character Information section expanded                    |
 | `anilist.characterDictionary.collapsibleSections.voicedBy`             | `false`   | Start Voiced By section expanded                                |
-| `subtitleStyle.nameMatchEnabled`                                       | `true`    | Toggle character-name highlighting in subtitles                 |
+| `subtitleStyle.nameMatchEnabled`                                       | `false`   | Toggle character-name highlighting in subtitles                 |
 | `subtitleStyle.nameMatchColor`                                         | `#f5bde6` | Highlight color for character-name matches                      |
 
 ## Reference Implementation

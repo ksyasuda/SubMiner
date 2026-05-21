@@ -296,7 +296,7 @@ Install ffsubsync or configure the path:
 
 **"Subtitle synchronization failed"**
 
-SubMiner tries alass first, then falls back to ffsubsync. If both fail:
+If subtitle sync fails:
 
 - Ensure the reference subtitle track exists in the video (alass requires a source track).
 - Check that `ffmpeg` is available (used to extract the internal subtitle track).

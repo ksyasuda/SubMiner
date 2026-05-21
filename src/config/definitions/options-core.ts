@@ -389,13 +389,6 @@ export function buildCoreConfigOptionRegistry(
       description: 'Annotated subtitle websocket server port.',
     },
     {
-      path: 'subsync.defaultMode',
-      kind: 'enum',
-      enumValues: ['auto', 'manual'],
-      defaultValue: defaultConfig.subsync.defaultMode,
-      description: 'Subsync default mode.',
-    },
-    {
       path: 'subsync.replace',
       kind: 'boolean',
       defaultValue: defaultConfig.subsync.replace,

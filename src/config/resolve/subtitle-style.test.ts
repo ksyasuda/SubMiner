@@ -162,7 +162,7 @@ test('subtitleStyle nameMatchEnabled falls back on invalid value', () => {
 
   applySubtitleDomainConfig(context);
 
-  assert.equal(context.resolved.subtitleStyle.nameMatchEnabled, true);
+  assert.equal(context.resolved.subtitleStyle.nameMatchEnabled, false);
   assert.ok(
     warnings.some(
       (warning) =>

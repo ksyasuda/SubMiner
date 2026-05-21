@@ -93,7 +93,7 @@ const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {
   singleColor: '#f5a97f',
   bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#8bd5ca', '#8aadf4'],
 };
-const DEFAULT_NAME_MATCH_ENABLED = true;
+const DEFAULT_NAME_MATCH_ENABLED = false;
 
 function hasPrioritizedNameMatch(
   token: MergedToken,
@@ -724,7 +724,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     if (style.fontStyle) ctx.dom.subtitleRoot.style.fontStyle = style.fontStyle;
     const knownWordColor = style.knownWordColor ?? ctx.state.knownWordColor ?? '#a6da95';
     const nPlusOneColor = style.nPlusOneColor ?? ctx.state.nPlusOneColor ?? '#c6a0f6';
-    const nameMatchEnabled = style.nameMatchEnabled ?? ctx.state.nameMatchEnabled ?? true;
+    const nameMatchEnabled = style.nameMatchEnabled ?? ctx.state.nameMatchEnabled ?? false;
     const nameMatchColor = style.nameMatchColor ?? ctx.state.nameMatchColor ?? '#f5bde6';
     const hoverTokenColor = sanitizeSubtitleHoverTokenColor(style.hoverTokenColor);
     const hoverTokenBackgroundColor = sanitizeSubtitleHoverTokenBackgroundColor(

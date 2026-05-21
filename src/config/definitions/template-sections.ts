@@ -90,7 +90,7 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'secondarySub',
   },
   {
-    title: 'Auto Subtitle Sync',
+    title: 'Subtitle Sync',
     description: ['Subsync engine and executable paths.'],
     notes: ['Hot-reload: subsync changes apply to the next subtitle sync run.'],
     key: 'subsync',

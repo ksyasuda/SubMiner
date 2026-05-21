@@ -73,6 +73,52 @@ test('update dialog presenter does not focus app or yield before showing non-mac
   assert.deepEqual(calls, ['dialog:SubMiner is up to date (v0.14.0)']);
 });
 
+test('update dialog presenter still shows macOS dialog when focus fails', async () => {
+  const calls: string[] = [];
+  const showMessageBox: ShowMessageBox = async (options) => {
+    calls.push(`dialog:${options.message}`);
+    return { response: 0 };
+  };
+  const presenter = createUpdateDialogPresenter({
+    platform: 'darwin',
+    focusApp: () => {
+      calls.push('focus');
+      throw new Error('focus failed');
+    },
+    yieldToRunLoop: async () => {
+      calls.push('yield');
+    },
+    showMessageBox,
+  });
+
+  await presenter.showNoUpdateDialog('0.14.0');
+
+  assert.deepEqual(calls, ['focus', 'dialog:SubMiner is up to date (v0.14.0)']);
+});
+
+test('update dialog presenter still shows macOS dialog when yielding fails', async () => {
+  const calls: string[] = [];
+  const showMessageBox: ShowMessageBox = async (options) => {
+    calls.push(`dialog:${options.message}`);
+    return { response: 0 };
+  };
+  const presenter = createUpdateDialogPresenter({
+    platform: 'darwin',
+    focusApp: () => {
+      calls.push('focus');
+    },
+    yieldToRunLoop: async () => {
+      calls.push('yield');
+      throw new Error('yield failed');
+    },
+    showMessageBox,
+  });
+
+  await presenter.showNoUpdateDialog('0.14.0');
+
+  assert.deepEqual(calls, ['focus', 'yield', 'dialog:SubMiner is up to date (v0.14.0)']);
+});
+
 test('manual update required dialog explains that automatic install is unavailable', async () => {
   let shown:
     | {

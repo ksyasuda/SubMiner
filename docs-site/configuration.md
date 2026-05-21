@@ -171,7 +171,7 @@ The configuration file includes several main sections:
 **External Integrations**
 
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
-- [**Auto Subtitle Sync**](#auto-subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
+- [**Subtitle Sync**](#subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
 - [**AniList**](#anilist) - Optional post-watch progress updates
 - [**Yomitan**](#yomitan) - Reuse an external read-only Yomitan profile via `yomitan.externalProfilePath`
 - [**Jellyfin**](#jellyfin) - Optional Jellyfin auth, library listing, and playback launch
@@ -258,7 +258,7 @@ Control which startup warmups run in the background versus deferring to first re
     "mecab": true,
     "yomitanExtension": true,
     "subtitleDictionaries": true,
-    "jellyfinRemoteSession": true
+    "jellyfinRemoteSession": false
   }
 }
 ```
@@ -271,7 +271,7 @@ Control which startup warmups run in the background versus deferring to first re
 | `subtitleDictionaries`  | `true`, `false` | Warm up JLPT + frequency dictionaries at startup                                                  |
 | `jellyfinRemoteSession` | `true`, `false` | Warm up Jellyfin remote session at startup (still requires Jellyfin remote auto-connect settings) |
 
-Defaults warm everything (`true` for all toggles, `lowPowerMode: false`). Setting a warmup toggle to `false` defers that work until first usage.
+Defaults warm local tokenizer/dictionary work (`true` for `mecab`, `yomitanExtension`, and `subtitleDictionaries`) with `lowPowerMode: false`; Jellyfin remote session warmup is opt-in (`false` by default). Setting a warmup toggle to `false` defers that work until first usage.
 
 ### WebSocket Server
 
@@ -391,7 +391,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `autoPauseVideoOnYomitanPopup`     | boolean     | Pause playback while the Yomitan popup is open, then resume when the popup closes (`true` by default).                     |
 | `hoverTokenColor`                  | string      | Hex color used for hovered subtitle token highlight in mpv (default: catppuccin mauve)                                     |
 | `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight (default: `"transparent"`); `hoverBackground` is accepted as an alias |
-| `nameMatchEnabled`                 | boolean     | Enable subtitle token coloring for matches from the SubMiner character dictionary (`true` by default)                      |
+| `nameMatchEnabled`                 | boolean     | Enable subtitle token coloring for matches from the SubMiner character dictionary (`false` by default)                     |
 | `nameMatchColor`                   | string      | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                     |
 | `knownWordColor`                   | string      | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                     |
 | `nPlusOneColor`                    | string      | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                           |
@@ -1111,17 +1111,16 @@ Jimaku is rate limited; if you hit a limit, SubMiner will surface the retry dela
 
 Set `openBrowser` to `false` to only print the URL without opening a browser.
 
-### Auto Subtitle Sync
+### Subtitle Sync
 
-Sync the active subtitle track using `alass` (preferred) or `ffsubsync`. Both are **optional external tools** that must be installed separately and available on your `PATH` (or configured via the path options below). Subtitle syncing is silently skipped if neither is found.
+Sync the active subtitle track from the overlay picker using `alass` or `ffsubsync`. Both are **optional external tools** that must be installed separately and available on your `PATH` (or configured via the path options below).
 
 - [`alass`](https://github.com/kaegi/alass) — fast, audio-independent sync using a secondary subtitle as reference
-- [`ffsubsync`](https://github.com/smacke/ffsubsync) — audio-based sync using the video file as reference (fallback)
+- [`ffsubsync`](https://github.com/smacke/ffsubsync) — audio-based sync using the video file as reference
 
 ```json
 {
   "subsync": {
-    "defaultMode": "auto",
     "alass_path": "",
     "ffsubsync_path": "",
     "ffmpeg_path": "",
@@ -1132,7 +1131,6 @@ Sync the active subtitle track using `alass` (preferred) or `ffsubsync`. Both ar
 
 | Option           | Values               | Description                                                                                                               |
 | ---------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `defaultMode`    | `"auto"`, `"manual"` | `auto`: try `alass` against secondary subtitle, then fallback to `ffsubsync`; `manual`: open overlay picker               |
 | `alass_path`     | string path          | Path to `alass` executable. Empty or `null` resolves from `PATH`. `alass` must be installed separately.                   |
 | `ffsubsync_path` | string path          | Path to `ffsubsync` executable. Empty or `null` resolves from `PATH`. `ffsubsync` must be installed separately.           |
 | `ffmpeg_path`    | string path          | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.                |

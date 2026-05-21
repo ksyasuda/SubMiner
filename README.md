@@ -92,7 +92,7 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
   </tr>
   <tr>
     <td><b>alass / ffsubsync</b></td>
-    <td>Automatic subtitle retiming — requires <code>alass</code> or <code>ffsubsync</code> on your <code>PATH</code> (optional; subtitle syncing is disabled without them)</td>
+    <td>Manual subtitle retiming — requires <code>alass</code> or <code>ffsubsync</code> on your <code>PATH</code> (optional; subtitle syncing is disabled without them)</td>
   </tr>
   <tr>
     <td><b>WebSocket</b></td>

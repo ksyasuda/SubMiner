@@ -22,7 +22,7 @@ Only **mpv** is strictly required to run SubMiner. Everything else enhances the 
 | ffmpegthumbnailer    | Optional    | Video thumbnail generation for the picker.                                                                       |
 | guessit              | Optional    | Better AniSkip title/season/episode parsing.                                                                     |
 | alass                | Optional    | Subtitle sync engine (preferred). Disabled without alass or ffsubsync.                                           |
-| ffsubsync            | Optional    | Subtitle sync engine (fallback). Disabled without alass or ffsubsync.                                            |
+| ffsubsync            | Optional    | Audio-based subtitle sync engine. Disabled without alass or ffsubsync.                                           |
 | fuse2                | Linux only  | Required to run the AppImage.                                                                                    |
 
 ### Linux

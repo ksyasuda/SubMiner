@@ -105,7 +105,6 @@ export const CORE_DEFAULT_CONFIG: Pick<
     primarySubLanguages: ['ja', 'jpn'],
   },
   subsync: {
-    defaultMode: 'auto',
     alass_path: '',
     ffsubsync_path: '',
     ffmpeg_path: '',
@@ -116,7 +115,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
     mecab: true,
     yomitanExtension: true,
     subtitleDictionaries: true,
-    jellyfinRemoteSession: true,
+    jellyfinRemoteSession: false,
   },
   updates: {
     enabled: true,

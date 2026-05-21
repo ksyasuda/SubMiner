@@ -215,7 +215,7 @@ export function createRendererState(): RendererState {
 
     knownWordColor: '#a6da95',
     nPlusOneColor: '#c6a0f6',
-    nameMatchEnabled: true,
+    nameMatchEnabled: false,
     nameMatchColor: '#f5bde6',
     jlptN1Color: '#ed8796',
     jlptN2Color: '#f5a97f',

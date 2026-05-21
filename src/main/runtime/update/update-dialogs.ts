@@ -46,7 +46,11 @@ async function maybeFocusAppForDialog(deps: UpdateDialogPresenterDeps): Promise<
 
 export function createUpdateDialogPresenter(deps: UpdateDialogPresenterDeps) {
   const showFocusedMessageBox: ShowMessageBox = async (options) => {
-    await maybeFocusAppForDialog(deps);
+    try {
+      await maybeFocusAppForDialog(deps);
+    } catch {
+      // Best-effort focus only; never block the dialog itself.
+    }
     return deps.showMessageBox(options);
   };
 

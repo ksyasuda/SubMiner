@@ -89,7 +89,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.startupWarmups.mecab, true);
   assert.equal(config.startupWarmups.yomitanExtension, true);
   assert.equal(config.startupWarmups.subtitleDictionaries, true);
-  assert.equal(config.startupWarmups.jellyfinRemoteSession, true);
+  assert.equal(config.startupWarmups.jellyfinRemoteSession, false);
   assert.equal(config.shortcuts.markAudioCard, 'CommandOrControl+Shift+A');
   assert.equal(config.shortcuts.openCharacterDictionary, 'CommandOrControl+Alt+A');
   assert.equal(config.shortcuts.toggleSubtitleSidebar, 'Backslash');
@@ -222,12 +222,10 @@ test('throws actionable startup parse error for malformed config at construction
   );
 });
 
-test('migrates legacy subtitle appearance options into css declaration objects on load', () => {
+test('resolves legacy subtitle appearance options without rewriting config on load', () => {
   const dir = makeTempDir();
   const configPath = path.join(dir, 'config.jsonc');
-  fs.writeFileSync(
-    configPath,
-    `{
+  const originalContent = `{
       "subtitleStyle": {
         "fontSize": 42,
         "fontColor": "#ffffff",
@@ -251,63 +249,29 @@ test('migrates legacy subtitle appearance options into css declaration objects o
           "font-size": "19px"
         }
       }
-    }`,
-    'utf-8',
-  );
+    }`;
+  fs.writeFileSync(configPath, originalContent, 'utf-8');
 
   const service = new ConfigService(dir);
-  const parsed = parseConfigContent(configPath, fs.readFileSync(configPath, 'utf-8')) as {
-    subtitleStyle: {
-      fontSize?: unknown;
-      fontColor?: unknown;
-      hoverTokenColor?: unknown;
-      hoverTokenBackgroundColor?: unknown;
-      css?: Record<string, string>;
-      secondary?: {
-        fontSize?: unknown;
-        fontColor?: unknown;
-        css?: Record<string, string>;
-      };
-    };
-    subtitleSidebar: {
-      fontFamily?: unknown;
-      fontSize?: unknown;
-      textColor?: unknown;
-      timestampColor?: unknown;
-      css?: Record<string, string>;
-    };
-  };
+  assert.equal(fs.readFileSync(configPath, 'utf-8'), originalContent);
 
-  assert.deepEqual(parsed.subtitleStyle.css, {
+  assert.deepEqual(service.getConfig().subtitleStyle.css, {
     color: '#ffffff',
     'font-size': '44px',
     '--subtitle-hover-token-color': '#abcdef',
     '--subtitle-hover-token-background-color': 'transparent',
     'text-wrap': 'balance',
   });
-  assert.equal(Object.hasOwn(parsed.subtitleStyle, 'fontSize'), false);
-  assert.equal(Object.hasOwn(parsed.subtitleStyle, 'fontColor'), false);
-  assert.equal(Object.hasOwn(parsed.subtitleStyle, 'hoverTokenColor'), false);
-  assert.equal(Object.hasOwn(parsed.subtitleStyle, 'hoverTokenBackgroundColor'), false);
-  assert.deepEqual(parsed.subtitleStyle.secondary?.css, {
+  assert.deepEqual(service.getConfig().subtitleStyle.secondary.css, {
     color: '#bbbbbb',
     'font-size': '28px',
   });
-  assert.equal(Object.hasOwn(parsed.subtitleStyle.secondary ?? {}, 'fontSize'), false);
-  assert.equal(Object.hasOwn(parsed.subtitleStyle.secondary ?? {}, 'fontColor'), false);
-  assert.deepEqual(parsed.subtitleSidebar.css, {
+  assert.deepEqual(service.getConfig().subtitleSidebar.css, {
     'font-family': 'M PLUS 1, sans-serif',
     color: '#dddddd',
     'font-size': '19px',
     '--subtitle-sidebar-timestamp-color': '#aaaaaa',
   });
-  assert.equal(Object.hasOwn(parsed.subtitleSidebar, 'fontFamily'), false);
-  assert.equal(Object.hasOwn(parsed.subtitleSidebar, 'fontSize'), false);
-  assert.equal(Object.hasOwn(parsed.subtitleSidebar, 'textColor'), false);
-  assert.equal(Object.hasOwn(parsed.subtitleSidebar, 'timestampColor'), false);
-  assert.equal(service.getConfig().subtitleStyle.css['font-size'], '44px');
-  assert.equal(service.getConfig().subtitleStyle.secondary.css['font-size'], '28px');
-  assert.equal(service.getConfig().subtitleSidebar.css['font-size'], '19px');
 });
 
 test('parses subtitleStyle.preserveLineBreaks and warns on invalid values', () => {
@@ -2067,12 +2031,10 @@ test('ignores invalid legacy ankiConnect n+1 color value after migration attempt
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.color'));
 });
 
-test('migrates legacy ankiConnect n+1 color value to subtitleStyle', () => {
+test('resolves legacy ankiConnect n+1 color value without rewriting config', () => {
   const dir = makeTempDir();
   const configPath = path.join(dir, 'config.jsonc');
-  fs.writeFileSync(
-    configPath,
-    `{
+  const originalContent = `{
       "ankiConnect": {
         "nPlusOne": {
           "nPlusOne": "#c6a0f6"
@@ -2081,23 +2043,15 @@ test('migrates legacy ankiConnect n+1 color value to subtitleStyle', () => {
           "color": "#a6da95"
         }
       }
-    }`,
-    'utf-8',
-  );
+    }`;
+  fs.writeFileSync(configPath, originalContent, 'utf-8');
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
   assert.equal(config.subtitleStyle.nPlusOneColor, '#c6a0f6');
   assert.equal(config.subtitleStyle.knownWordColor, '#a6da95');
-
-  const parsed = parseConfigContent(configPath, fs.readFileSync(configPath, 'utf-8')) as {
-    ankiConnect: { nPlusOne?: Record<string, unknown> };
-    subtitleStyle: { nPlusOneColor?: string; knownWordColor?: string };
-  };
-  assert.equal(parsed.subtitleStyle.nPlusOneColor, '#c6a0f6');
-  assert.equal(parsed.subtitleStyle.knownWordColor, '#a6da95');
-  assert.equal(Object.hasOwn(parsed.ankiConnect.nPlusOne ?? {}, 'nPlusOne'), false);
+  assert.equal(fs.readFileSync(configPath, 'utf-8'), originalContent);
 });
 
 test('legacy migration failures are logged and rethrown', () => {
@@ -2110,12 +2064,10 @@ test('legacy migration failures are logged and rethrown', () => {
   assert.match(catchBlock, /throw error;/);
 });
 
-test('migrates legacy ankiConnect nPlusOne known-word settings to knownWords', () => {
+test('resolves legacy ankiConnect nPlusOne known-word settings without rewriting config', () => {
   const dir = makeTempDir();
   const configPath = path.join(dir, 'config.jsonc');
-  fs.writeFileSync(
-    configPath,
-    `{
+  const originalContent = `{
       "ankiConnect": {
         "nPlusOne": {
           "highlightEnabled": true,
@@ -2125,20 +2077,12 @@ test('migrates legacy ankiConnect nPlusOne known-word settings to knownWords', (
           "knownWord": "#a6da95"
         }
       }
-    }`,
-    'utf-8',
-  );
+    }`;
+  fs.writeFileSync(configPath, originalContent, 'utf-8');
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
   const warnings = service.getWarnings();
-  const parsed = parseConfigContent(configPath, fs.readFileSync(configPath, 'utf-8')) as {
-    ankiConnect: {
-      knownWords: Record<string, unknown>;
-      nPlusOne?: Record<string, unknown>;
-    };
-    subtitleStyle: { knownWordColor?: string };
-  };
 
   assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
   assert.equal(config.ankiConnect.nPlusOne.enabled, true);
@@ -2149,28 +2093,14 @@ test('migrates legacy ankiConnect nPlusOne known-word settings to knownWords', (
     'Kaishi 1.5k': ['Expression', 'Word', 'Reading', 'Word Reading'],
   });
   assert.equal(config.subtitleStyle.knownWordColor, '#a6da95');
-  assert.equal(parsed.ankiConnect.knownWords.highlightEnabled, true);
-  assert.equal(parsed.ankiConnect.knownWords.refreshMinutes, 90);
-  assert.equal(parsed.ankiConnect.knownWords.matchMode, 'surface');
-  assert.deepEqual(parsed.ankiConnect.knownWords.decks, {
-    Mining: ['Expression', 'Word', 'Reading', 'Word Reading'],
-    'Kaishi 1.5k': ['Expression', 'Word', 'Reading', 'Word Reading'],
-  });
-  assert.equal(parsed.subtitleStyle.knownWordColor, '#a6da95');
-  assert.ok(
-    ['highlightEnabled', 'refreshMinutes', 'matchMode', 'decks', 'knownWord'].every(
-      (key) => !Object.hasOwn(parsed.ankiConnect.nPlusOne ?? {}, key),
-    ),
-  );
+  assert.equal(fs.readFileSync(configPath, 'utf-8'), originalContent);
   assert.ok(warnings.every((warning) => !warning.path.startsWith('ankiConnect.nPlusOne.')));
 });
 
-test('migrates duplicate ankiConnect nPlusOne objects to the modal path', () => {
+test('resolves duplicate ankiConnect nPlusOne objects without rewriting config', () => {
   const dir = makeTempDir();
   const configPath = path.join(dir, 'config.jsonc');
-  fs.writeFileSync(
-    configPath,
-    `{
+  const originalContent = `{
       "ankiConnect": {
         "nPlusOne": {
           "enabled": true,
@@ -2183,19 +2113,14 @@ test('migrates duplicate ankiConnect nPlusOne objects to the modal path', () => 
           "minSentenceWords": "3"
         }
       }
-    }`,
-    'utf-8',
-  );
+    }`;
+  fs.writeFileSync(configPath, originalContent, 'utf-8');
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
-  const parsed = parseConfigContent(configPath, fs.readFileSync(configPath, 'utf-8')) as {
-    ankiConnect: { nPlusOne: Record<string, unknown> };
-  };
 
   assert.equal(config.ankiConnect.nPlusOne.enabled, true);
-  assert.equal(parsed.ankiConnect.nPlusOne.enabled, true);
-  assert.equal(parsed.ankiConnect.nPlusOne.minSentenceWords, '3');
+  assert.equal(fs.readFileSync(configPath, 'utf-8'), originalContent);
 });
 
 test('supports legacy ankiConnect.behavior N+1 settings as fallback', () => {

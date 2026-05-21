@@ -242,3 +242,22 @@ test('startAppLifecycle quits macOS config-only launch when all windows close', 
   handler();
   assert.deepEqual(calls, ['quitApp']);
 });
+
+test('startAppLifecycle quits macOS setup-only launch when all windows close', () => {
+  let windowAllClosedHandler: (() => void) | null = null;
+  const { deps, calls } = createDeps({
+    shouldStartApp: () => true,
+    isDarwinPlatform: () => true,
+    shouldQuitOnWindowAllClosed: () => true,
+    onWindowAllClosed: (handler) => {
+      windowAllClosedHandler = handler;
+    },
+  });
+
+  startAppLifecycle(makeArgs({ setup: true }), deps);
+
+  const handler = windowAllClosedHandler as (() => void) | null;
+  assert.ok(handler);
+  handler();
+  assert.deepEqual(calls, ['quitApp']);
+});
