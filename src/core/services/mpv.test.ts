@@ -168,6 +168,32 @@ test('MpvIpcClient connect logs connect-request at debug level', () => {
   assert.equal(requestLogs.length, 1);
 });
 
+test('MpvIpcClient reconnect clears stale connected state and starts a fresh transport connect', () => {
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  const calls: string[] = [];
+  const resolved: unknown[] = [];
+  (client as any).connected = true;
+  (client as any).connecting = false;
+  (client as any).socket = {};
+  (client as any).pendingRequests.set(10, (message: unknown) => {
+    resolved.push(message);
+  });
+  (client as any).transport.shutdown = () => {
+    calls.push('shutdown');
+  };
+  (client as any).transport.connect = () => {
+    calls.push('connect');
+  };
+
+  client.reconnect();
+
+  assert.deepEqual(calls, ['shutdown', 'connect']);
+  assert.equal(client.connected, false);
+  assert.equal((client as any).connecting, true);
+  assert.equal((client as any).socket, null);
+  assert.deepEqual(resolved, [{ request_id: 10, error: 'disconnected' }]);
+});
+
 test('MpvIpcClient failPendingRequests resolves outstanding requests as disconnected', () => {
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
   const resolved: unknown[] = [];

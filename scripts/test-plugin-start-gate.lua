@@ -757,17 +757,17 @@ do
 	assert_true(call ~= nil, "AppImage start should issue an async subprocess")
 	assert_true(#call.args == 1 and call.args[1] == appimage_path, "AppImage subprocess should not receive raw CLI flags")
 	assert_true(env_has(call, "PATH=/usr/bin"), "AppImage subprocess should preserve existing environment")
-	assert_true(env_has(call, "SUBMINER_APP_ARGC=7"), "AppImage subprocess should transport app arg count")
+	assert_true(env_has(call, "SUBMINER_APP_ARGC=8"), "AppImage subprocess should transport app arg count")
 	assert_true(env_has(call, "SUBMINER_APP_ARG_0=--start"), "AppImage subprocess should transport --start")
 	assert_true(
-		env_has(call, "SUBMINER_APP_ARG_1=--managed-playback"),
-		"AppImage subprocess should transport --managed-playback"
+		env_has(call, "SUBMINER_APP_ARG_1=--background"),
+		"AppImage subprocess should transport --background"
 	)
 	assert_true(
-		not env_has(call, "SUBMINER_APP_ARG_1=--background"),
-		"AppImage subprocess should not transport --background for video-owned playback"
+		env_has(call, "SUBMINER_APP_ARG_2=--managed-playback"),
+		"AppImage subprocess should transport --managed-playback"
 	)
-	assert_true(env_has(call, "SUBMINER_APP_ARG_6=--hide-visible-overlay"), "AppImage subprocess should transport visibility flag")
+	assert_true(env_has(call, "SUBMINER_APP_ARG_7=--hide-visible-overlay"), "AppImage subprocess should transport visibility flag")
 	assert_true(env_has_prefix(call, "SUBMINER_APP_LOG="), "AppImage subprocess should include app log env")
 	assert_true(env_has_prefix(call, "SUBMINER_MPV_LOG="), "AppImage subprocess should include mpv log env")
 	assert_true(
@@ -1274,12 +1274,12 @@ do
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
 	assert_true(
-		not call_has_arg(start_call, "--background"),
-		"auto-start should not mark video-owned playback as background/tray mode"
+		call_has_arg(start_call, "--background"),
+		"auto-start should launch SubMiner in background/tray mode"
 	)
 	assert_true(
 		call_has_arg(start_call, "--managed-playback"),
-		"auto-start should mark SubMiner as launcher-managed playback"
+		"auto-start should mark SubMiner as managed playback"
 	)
 	assert_true(call_has_arg(start_call, "--texthooker"), "auto-start should include --texthooker on the main --start command when enabled")
 	assert_true(find_control_call(recorded.async_calls, "--texthooker") == nil, "auto-start should not issue a separate texthooker helper command")
@@ -1596,7 +1596,7 @@ do
 			[binary_path] = true,
 		},
 	})
-	assert_true(recorded ~= nil, "plugin failed to load for shutdown-preserve-background scenario: " .. tostring(err))
+	assert_true(recorded ~= nil, "plugin failed to load for shutdown-managed-background scenario: " .. tostring(err))
 	fire_event(recorded, "file-loaded")
 	fire_event(recorded, "end-file", { reason = "quit" })
 	assert_true(
@@ -1606,11 +1606,46 @@ do
 	fire_event(recorded, "shutdown")
 	assert_true(
 		find_control_call(recorded.async_calls, "--stop") == nil,
-		"mpv shutdown should not stop the background SubMiner process"
+		"mpv shutdown should leave managed-playback ownership to the app process"
 	)
 	assert_true(
 		find_control_call(recorded.async_calls, "--hide-visible-overlay") == nil,
 		"mpv shutdown should not spawn hide-visible-overlay helper commands"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "/opt/SubMiner/subminer --background\n",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for shutdown-borrowed-background scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(start_call ~= nil, "auto-start should attach playback to the existing app")
+	assert_true(
+		not call_has_arg(start_call, "--background"),
+		"borrowed app auto-start should not use the background launch wrapper"
+	)
+	assert_true(
+		call_has_arg(start_call, "--managed-playback"),
+		"borrowed app auto-start should still attach managed playback to the existing app"
+	)
+	fire_event(recorded, "end-file", { reason = "quit" })
+	fire_event(recorded, "shutdown")
+	assert_true(
+		find_control_call(recorded.async_calls, "--stop") == nil,
+		"mpv shutdown should leave a pre-existing background SubMiner process running"
 	)
 end
 
@@ -1633,6 +1668,14 @@ do
 	fire_event(recorded, "file-loaded")
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
+	assert_true(
+		call_has_arg(start_call, "--background"),
+		"auto-start should launch SubMiner in background mode"
+	)
+	assert_true(
+		call_has_arg(start_call, "--managed-playback"),
+		"auto-start should mark SubMiner as managed playback"
+	)
 	assert_true(
 		call_has_arg(start_call, "--hide-visible-overlay"),
 		"auto-start with visible overlay disabled should include --hide-visible-overlay on --start"

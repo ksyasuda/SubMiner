@@ -438,7 +438,7 @@
     "autoOpen": false, // Automatically open the subtitle sidebar once during overlay startup. Values: true | false
     "layout": "overlay", // Render the subtitle sidebar as a floating overlay or reserve space inside mpv. Values: overlay | embedded
     "toggleKey": "Backslash", // KeyboardEvent.code used to toggle the subtitle sidebar open and closed.
-    "pauseVideoOnHover": false, // Pause mpv while hovering the subtitle sidebar, then resume on leave. Values: true | false
+    "pauseVideoOnHover": true, // Pause mpv while hovering the subtitle sidebar, then resume on leave. Values: true | false
     "autoScroll": true, // Auto-scroll the active subtitle cue into view while playback advances. Values: true | false
     "css": {
       "font-family": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.

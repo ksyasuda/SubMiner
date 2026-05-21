@@ -238,6 +238,84 @@ async function waitForJsonLines(
   }
 }
 
+async function waitForFile(filePath: string, timeoutMs = 1500): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(filePath)) return;
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+async function startFakeControlServer(
+  smokeCase: SmokeCase,
+): Promise<{ socketPath: string; logPath: string; stop: () => Promise<void> }> {
+  const socketPath = path.join(smokeCase.socketDir, 'app-control.sock');
+  const logPath = path.join(smokeCase.artifactsDir, 'fake-control.log');
+  const readyPath = path.join(smokeCase.artifactsDir, 'fake-control.ready');
+  const scriptPath = path.join(smokeCase.artifactsDir, 'fake-control-server.js');
+
+  fs.writeFileSync(
+    scriptPath,
+    `const fs = require('node:fs');
+const net = require('node:net');
+const path = require('node:path');
+
+const socketPath = ${JSON.stringify(socketPath)};
+const logPath = ${JSON.stringify(logPath)};
+const readyPath = ${JSON.stringify(readyPath)};
+try { fs.rmSync(socketPath, { force: true }); } catch {}
+fs.mkdirSync(path.dirname(socketPath), { recursive: true });
+
+const server = net.createServer((socket) => {
+  let buffer = '';
+  socket.on('data', (chunk) => {
+    buffer += chunk.toString('utf8');
+    const line = buffer.split(/\\r?\\n/, 1)[0];
+    if (!line) return;
+    fs.appendFileSync(logPath, line + '\\n');
+    socket.end(JSON.stringify({ ok: true }) + '\\n');
+  });
+});
+
+server.listen(socketPath, () => {
+  fs.writeFileSync(readyPath, 'ready');
+});
+
+const shutdown = () => {
+  server.close(() => {
+    try { fs.rmSync(socketPath, { force: true }); } catch {}
+    process.exit(0);
+  });
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+setInterval(() => {}, 1000);
+`,
+  );
+
+  const proc = spawn(process.execPath, [scriptPath], { stdio: 'ignore' });
+  await waitForFile(readyPath);
+
+  return {
+    socketPath,
+    logPath,
+    stop: async () => {
+      if (proc.exitCode !== null || proc.signalCode !== null) return;
+      proc.kill('SIGTERM');
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          proc.kill('SIGKILL');
+          resolve();
+        }, 1000);
+        proc.once('close', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+    },
+  };
+}
+
 test('launcher smoke fixture seeds completed setup state', () => {
   const smokeCase = createSmokeCase('setup-state');
   try {
@@ -295,7 +373,7 @@ test('launcher mpv status returns ready when socket is connectable', async () =>
 });
 
 test(
-  'launcher start-overlay run forwards socket/backend and keeps background app alive after mpv exits',
+  'launcher start-overlay run forwards socket/backend and stops owned background app after mpv exits',
   { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
   async () => {
     await withSmokeCase('overlay-start-stop', async (smokeCase) => {
@@ -330,7 +408,9 @@ test(
 
       const appStartArgs = appStartEntries[0]?.argv;
       assert.equal(Array.isArray(appStartArgs), true);
+      assert.equal((appStartArgs as string[]).includes('--background'), true);
       assert.equal((appStartArgs as string[]).includes('--start'), true);
+      assert.equal((appStartArgs as string[]).includes('--managed-playback'), true);
       assert.equal((appStartArgs as string[]).includes('--backend'), true);
       assert.equal((appStartArgs as string[]).includes('x11'), true);
       assert.equal((appStartArgs as string[]).includes('--socket'), true);
@@ -351,44 +431,53 @@ test(
 );
 
 test(
-  'launcher start-overlay borrows a running background app and does not stop it after mpv exits',
+  'launcher start-overlay attaches to a running background app without spawning another app command',
   { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
   async () => {
     await withSmokeCase('overlay-borrow-background', async (smokeCase) => {
+      const controlServer = await startFakeControlServer(smokeCase);
       const env = {
         ...makeTestEnv(smokeCase),
         SUBMINER_FAKE_APP_RUNNING: '1',
+        SUBMINER_APP_CONTROL_SOCKET: controlServer.socketPath,
       };
-      const result = runLauncher(
-        smokeCase,
-        ['--backend', 'x11', '--start-overlay', smokeCase.videoPath],
-        env,
-        'overlay-borrow-background',
-      );
+      try {
+        const result = runLauncher(
+          smokeCase,
+          ['--backend', 'x11', '--start-overlay', smokeCase.videoPath],
+          env,
+          'overlay-borrow-background',
+        );
 
-      const appLogPath = path.join(smokeCase.artifactsDir, 'fake-app.log');
-      const appStartPath = path.join(smokeCase.artifactsDir, 'fake-app-start.log');
-      const appStopPath = path.join(smokeCase.artifactsDir, 'fake-app-stop.log');
-      await waitForJsonLines(appStartPath, 1);
+        const appLogPath = path.join(smokeCase.artifactsDir, 'fake-app.log');
+        const appStartPath = path.join(smokeCase.artifactsDir, 'fake-app-start.log');
+        const appStopPath = path.join(smokeCase.artifactsDir, 'fake-app-stop.log');
+        await waitForJsonLines(controlServer.logPath, 1);
 
-      const appEntries = readJsonLines(appLogPath);
-      const appStartEntries = readJsonLines(appStartPath);
-      const appStopEntries = readJsonLines(appStopPath);
-      const mpvEntries = readJsonLines(path.join(smokeCase.artifactsDir, 'fake-mpv.log'));
-      const mpvError = mpvEntries.find(
-        (entry): entry is { error: string } => typeof entry.error === 'string',
-      )?.error;
-      const unixSocketDenied =
-        typeof mpvError === 'string' && /eperm|operation not permitted/i.test(mpvError);
+        const appEntries = readJsonLines(appLogPath);
+        const appStartEntries = readJsonLines(appStartPath);
+        const appStopEntries = readJsonLines(appStopPath);
+        const controlEntries = readJsonLines(controlServer.logPath);
+        const mpvEntries = readJsonLines(path.join(smokeCase.artifactsDir, 'fake-mpv.log'));
+        const mpvError = mpvEntries.find(
+          (entry): entry is { error: string } => typeof entry.error === 'string',
+        )?.error;
+        const unixSocketDenied =
+          typeof mpvError === 'string' && /eperm|operation not permitted/i.test(mpvError);
 
-      assert.equal(result.status, unixSocketDenied ? 3 : 0);
-      assert.ok(
-        appEntries.some(
-          (entry) => Array.isArray(entry.argv) && (entry.argv as string[]).includes('--app-ping'),
-        ),
-      );
-      assert.equal(appStartEntries.length, 1);
-      assert.equal(appStopEntries.length, 0);
+        assert.equal(result.status, unixSocketDenied ? 3 : 0);
+        assert.equal(appEntries.length, 0);
+        assert.equal(appStartEntries.length, 0);
+        assert.equal(appStopEntries.length, 0);
+        assert.equal(controlEntries.length, 1);
+        const controlArgs = controlEntries[0]?.argv;
+        assert.equal(Array.isArray(controlArgs), true);
+        assert.equal((controlArgs as string[]).includes('--background'), false);
+        assert.equal((controlArgs as string[]).includes('--start'), true);
+        assert.equal((controlArgs as string[]).includes('--managed-playback'), true);
+      } finally {
+        await controlServer.stop();
+      }
     });
   },
 );

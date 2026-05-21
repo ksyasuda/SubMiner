@@ -224,6 +224,62 @@ test('startAppLifecycle queues second-instance commands until app ready runtime 
   assert.deepEqual(handled, ['ready', 'second-instance:start', 'second-instance:start']);
 });
 
+test('startAppLifecycle routes control socket commands through the second-instance queue', async () => {
+  const handled: string[] = [];
+  let controlArgvHandler: ((argv: string[]) => void) | null = null;
+  let readyHandler: (() => Promise<void>) | null = null;
+  let releaseReady: (() => void) | null = null;
+  const readyFinished = new Promise<void>((resolve) => {
+    releaseReady = resolve;
+  });
+
+  const { deps } = createDeps({
+    shouldStartApp: () => true,
+    parseArgs: (argv) => makeArgs({ start: argv.includes('--start') }),
+    handleCliCommand: (args, source) => {
+      handled.push(`${source}:${args.start ? 'start' : 'other'}`);
+    },
+    startControlServer: (handler) => {
+      controlArgvHandler = handler;
+      return () => {
+        handled.push('control-close');
+      };
+    },
+    whenReady: (handler) => {
+      readyHandler = handler;
+    },
+    onReady: async () => {
+      await readyFinished;
+      handled.push('ready');
+    },
+  });
+
+  let willQuitHandler: (() => void) | null = null;
+  deps.onWillQuit = (handler) => {
+    willQuitHandler = handler;
+  };
+
+  startAppLifecycle(makeArgs({ background: true }), deps);
+
+  assert.ok(controlArgvHandler);
+  (controlArgvHandler as (argv: string[]) => void)(['--start']);
+  assert.deepEqual(handled, []);
+
+  assert.ok(readyHandler);
+  const readyRun = (readyHandler as () => Promise<void>)();
+  await Promise.resolve();
+  assert.deepEqual(handled, []);
+
+  assert.ok(releaseReady);
+  (releaseReady as () => void)();
+  await readyRun;
+  assert.deepEqual(handled, ['ready', 'second-instance:start']);
+
+  assert.ok(willQuitHandler);
+  (willQuitHandler as () => void)();
+  assert.deepEqual(handled, ['ready', 'second-instance:start', 'control-close']);
+});
+
 test('startAppLifecycle quits macOS config-only launch when all windows close', () => {
   let windowAllClosedHandler: (() => void) | null = null;
   const { deps, calls } = createDeps({

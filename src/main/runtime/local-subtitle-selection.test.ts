@@ -144,3 +144,34 @@ test('managed local subtitle selection runtime promotes a single unlabeled exter
     ['set_property', 'secondary-sid', 1],
   ]);
 });
+
+test('managed local subtitle selection keeps waiting for primary after early secondary-only track list', () => {
+  const commands: Array<Array<string | number>> = [];
+  const runtime = createManagedLocalSubtitleSelectionRuntime({
+    getCurrentMediaPath: () => '/videos/example.mkv',
+    getMpvClient: () => null,
+    getPrimarySubtitleLanguages: () => [],
+    getSecondarySubtitleLanguages: () => [],
+    sendMpvCommand: (command) => {
+      commands.push(command);
+    },
+    schedule: () => 1 as never,
+    clearScheduled: () => {},
+  });
+
+  runtime.handleMediaPathChange('/videos/example.mkv');
+  runtime.handleSubtitleTrackListChange([
+    { type: 'sub', id: 1, lang: 'eng', title: 'ASS', external: false },
+    { type: 'sub', id: 2, lang: 'en', title: 'en.srt', external: true },
+  ]);
+  runtime.handleSubtitleTrackListChange([
+    { type: 'sub', id: 1, lang: 'eng', title: 'ASS', external: false },
+    { type: 'sub', id: 2, lang: 'en', title: 'en.srt', external: true },
+    { type: 'sub', id: 3, lang: 'ja', title: 'ja.srt', external: true },
+  ]);
+
+  assert.deepEqual(commands, [
+    ['set_property', 'secondary-sid', 2],
+    ['set_property', 'sid', 3],
+  ]);
+});

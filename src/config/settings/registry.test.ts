@@ -79,6 +79,14 @@ test('settings registry orders websocket server immediately after annotation web
   assert.equal(integrationSections[annotationIndex + 1], 'WebSocket server');
 });
 
+test('settings registry explains websocket auto mode and keeps it disabled by default', () => {
+  assert.equal(field('websocket.enabled').defaultValue, false);
+  assert.equal(
+    field('websocket.enabled').description,
+    'Built-in subtitle WebSocket server mode. Auto starts the built-in server only when mpv_websocket is not detected; otherwise it defers to the plugin.',
+  );
+});
+
 test('settings registry places immersion tracking after other tracking and app sections', () => {
   const trackingSections = [
     ...new Set(

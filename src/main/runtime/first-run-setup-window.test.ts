@@ -59,10 +59,15 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
   assert.match(html, /SubMiner setup/);
   assert.doesNotMatch(html, /Install legacy mpv plugin/);
   assert.doesNotMatch(html, /action=install-plugin/);
-  assert.match(html, /Ready/);
+  assert.doesNotMatch(html, /mpv runtime plugin/);
   assert.doesNotMatch(html, /Bundled ready/);
-  assert.match(html, /Managed mpv launches use the bundled runtime plugin\./);
+  assert.doesNotMatch(html, /Managed mpv launches use the bundled runtime plugin\./);
   assert.match(html, /Open Yomitan Settings/);
+  assert.match(html, /Open SubMiner Settings/);
+  assert.match(
+    html,
+    /action=open-yomitan-settings'">Open Yomitan Settings<\/button>\s*<button class="ghost" onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=refresh'">Refresh status<\/button>\s*<button onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=open-config-settings'">Open SubMiner Settings<\/button>\s*<button class="primary" disabled onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=finish'">Finish setup<\/button>/,
+  );
   assert.match(html, /Finish setup/);
   assert.match(html, /disabled/);
   assert.match(html, /html,\s*body\s*{\s*min-height:\s*100%;/);
@@ -70,7 +75,7 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
   assert.match(html, /box-sizing:\s*border-box;/);
 });
 
-test('buildFirstRunSetupHtml switches plugin action to reinstall when already installed', () => {
+test('buildFirstRunSetupHtml omits bundled mpv plugin readiness when already installed', () => {
   const html = buildFirstRunSetupHtml({
     configReady: true,
     dictionaryCount: 1,
@@ -94,10 +99,11 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
 
   assert.doesNotMatch(html, /Reinstall mpv plugin/);
   assert.doesNotMatch(html, /action=install-plugin/);
+  assert.doesNotMatch(html, /mpv runtime plugin/);
   assert.match(html, /mpv executable path/);
   assert.match(html, /Leave blank to auto-discover mpv\.exe from PATH\./);
   assert.match(html, /aria-label="Path to mpv\.exe"/);
-  assert.match(html, /SubMiner-managed mpv launches use the bundled runtime plugin\./);
+  assert.doesNotMatch(html, /SubMiner-managed mpv launches use the bundled runtime plugin\./);
 });
 
 test('buildFirstRunSetupHtml shows legacy mpv plugin removal action with confirmation', () => {
@@ -124,7 +130,8 @@ test('buildFirstRunSetupHtml shows legacy mpv plugin removal action with confirm
   });
 
   assert.match(html, /Legacy mpv plugin/);
-  assert.match(html, /Legacy detected/);
+  assert.doesNotMatch(html, /mpv runtime plugin/);
+  assert.match(html, /Found/);
   assert.match(html, /\/tmp\/mpv\/scripts\/subminer/);
   assert.match(html, /\/tmp\/mpv\/scripts\/subminer\.lua/);
   assert.match(html, /Remove legacy mpv plugin/);
@@ -249,6 +256,12 @@ test('parseFirstRunSetupSubmissionUrl parses supported custom actions', () => {
     parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=remove-legacy-plugin'),
     {
       action: 'remove-legacy-plugin',
+    },
+  );
+  assert.deepEqual(
+    parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=open-config-settings'),
+    {
+      action: 'open-config-settings',
     },
   );
   assert.equal(
@@ -540,6 +553,89 @@ test('opening first-run setup skips rendering if window is destroyed after snaps
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.deepEqual(calls, ['set', 'show', 'focus', 'in-progress', 'snapshot']);
+});
+
+test('first-run setup action can skip rerender after launching another window', async () => {
+  const calls: string[] = [];
+  let navigateHandler: ((event: unknown, url: string) => void) | undefined;
+  const handler = createOpenFirstRunSetupWindowHandler({
+    maybeFocusExistingSetupWindow: () => false,
+    createSetupWindow: () =>
+      ({
+        webContents: {
+          on: (_event: 'will-navigate', callback: (event: unknown, url: string) => void) => {
+            navigateHandler = callback;
+          },
+        },
+        loadURL: async () => {
+          calls.push('load');
+        },
+        on: () => {},
+        isDestroyed: () => false,
+        close: () => {},
+        show: () => calls.push('show'),
+        focus: () => calls.push('focus'),
+      }) as never,
+    getSetupSnapshot: async () => ({
+      configReady: true,
+      dictionaryCount: 1,
+      canFinish: true,
+      externalYomitanConfigured: false,
+      pluginStatus: 'installed',
+      pluginInstallPathSummary: null,
+      mpvExecutablePath: '',
+      mpvExecutablePathStatus: 'blank',
+      windowsMpvShortcuts: {
+        supported: false,
+        startMenuEnabled: true,
+        desktopEnabled: true,
+        startMenuInstalled: false,
+        desktopInstalled: false,
+        status: 'optional',
+      },
+      commandLineLauncher: createCommandLineLauncherSnapshot(),
+      message: null,
+    }),
+    buildSetupHtml: () => '<html></html>',
+    parseSubmissionUrl: (url) => parseFirstRunSetupSubmissionUrl(url),
+    handleAction: async () => {
+      calls.push('action');
+      return { skipRender: true };
+    },
+    markSetupInProgress: async () => {
+      calls.push('in-progress');
+    },
+    markSetupCancelled: async () => undefined,
+    isSetupCompleted: () => true,
+    shouldQuitWhenClosedIncomplete: () => false,
+    quitApp: () => {},
+    clearSetupWindow: () => {},
+    setSetupWindow: () => {
+      calls.push('set');
+    },
+    encodeURIComponent: (value) => value,
+    logError: () => {},
+  });
+
+  handler();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  navigateHandler?.(
+    { preventDefault: () => calls.push('preventDefault') },
+    'subminer://first-run-setup?action=open-config-settings',
+  );
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(calls, [
+    'set',
+    'show',
+    'focus',
+    'in-progress',
+    'load',
+    'show',
+    'focus',
+    'preventDefault',
+    'action',
+  ]);
 });
 
 test('closing incomplete first-run setup quits app outside background mode', async () => {

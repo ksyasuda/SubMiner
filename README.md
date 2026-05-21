@@ -4,7 +4,7 @@
 
 # SubMiner
 
-Integrates Yomitan with mpv - look up words, mine to Anki, and track your immersion without leaving the player.
+Integrates Yomitan and mpv - on-screen lookups, mine to Anki, and track immersion without leaving the player
 
 [Installation](#quick-start) · [Requirements](#requirements) · [Usage](https://docs.subminer.moe/usage) · [Documentation](https://docs.subminer.moe)
 
@@ -23,7 +23,7 @@ Integrates Yomitan with mpv - look up words, mine to Anki, and track your immers
 
 ### Dictionary Lookups
 
-Yomitan runs inside the overlay. Trigger a lookup on any word for full dictionary popups — definitions, pitch accent, frequency data — without ever leaving mpv.
+Hover over any word and trigger a lookup to get the full Yomitan popup - definitions, pitch accent, and frequency data - without ever leaving mpv.
 
 <div align="center">
   <img src="docs-site/public/screenshots/yomitan-lookup.png" width="800" alt="Yomitan dictionary popup over annotated subtitles in mpv">
@@ -43,7 +43,7 @@ Create an Anki card with the sentence, audio clip, screenshot, and machine trans
 
 ### Reading Annotations
 
-Real-time subtitle annotations with frequency highlighting, JLPT tags, N+1 targeting, and a character name dictionary. Known words fade back; new words stand out. Grammar-only tokens render as plain text so you focus on what matters.
+Real-time subtitle annotations with frequency highlighting, JLPT tags, N+1 targeting, and a character name dictionary. Grammar-only tokens and particles render as plain text so you focus on what matters.
 
 <div align="center">
   <img src="docs-site/public/screenshots/annotations.png" width="800" alt="Annotated subtitles with frequency coloring, JLPT underlines, and N+1 targets">
@@ -53,7 +53,7 @@ Real-time subtitle annotations with frequency highlighting, JLPT tags, N+1 targe
 
 ### Immersion Dashboard
 
-Local stats dashboard — watch time, anime library, vocabulary growth, mining throughput, session history, and trends. All stored locally, no third-party tracking.
+Local stats dashboard tracking watch time, vocabulary growth, mining throughput, session history, and trends. All stored locally, no third-party tracking.
 
 <div align="center">
   <img src="docs-site/public/screenshots/stats-overview.png" width="800" alt="Stats dashboard showing watch time, cards mined, streaks, and tracking data">
@@ -96,7 +96,7 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
   </tr>
   <tr>
     <td><b>WebSocket</b></td>
-    <td>Annotated subtitle feed for external clients (texthooker pages, custom tools)</td>
+    <td>Plain subtitle feed plus a dedicated annotated feed for texthooker pages and custom tools</td>
   </tr>
 </table>
 
@@ -110,16 +110,17 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
 
 ## Requirements
 
-Only **mpv** is required. Everything else is optional but enhances the experience.
+Only **mpv** and Anki+AnkiConnect is required. Everything else is optional but enhances the experience
 
-| Dependency           | Status      | What it does                                      |
-| -------------------- | ----------- | ------------------------------------------------- |
-| mpv                  | Required    | The video player SubMiner overlays on             |
-| ffmpeg               | Recommended | Audio clips & screenshots for Anki cards          |
-| MeCab + mecab-ipadic | Recommended | More precise N+1, JLPT, and frequency annotations |
-| yt-dlp               | Optional    | YouTube playback                                  |
-| fzf / rofi           | Optional    | Video picker in the launcher                      |
-| alass / ffsubsync    | Optional    | Subtitle sync                                     |
+| Dependency           | Status      | What it does                             |
+| -------------------- | ----------- | ---------------------------------------- |
+| mpv                  | Required    | The video player SubMiner overlays on    |
+| Anki + AnkiConnect   | Required    | Card creation from the Yomitan popup     |
+| ffmpeg               | Recommended | Audio clips & screenshots for Anki cards |
+| MeCab + mecab-ipadic | Recommended | More precise annotations and filtering   |
+| yt-dlp               | Optional    | YouTube playback                         |
+| fzf / rofi           | Optional    | Video picker in the launcher             |
+| alass / ffsubsync    | Optional    | Subtitle sync                            |
 
 <details>
 <summary><b>Platform-specific install commands</b></summary>
@@ -196,25 +197,24 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 Run SubMiner and the first-run setup wizard will guide you through importing Yomitan dictionaries and optionally installing the `subminer` command-line launcher.
 
 ```bash
-# Linux (AUR)
+# Linux
 subminer app --setup
 
 # macOS — open SubMiner.app, or:
 subminer app --setup
 ```
 
-On **Windows**, just run `SubMiner.exe` — setup opens automatically on first launch.
+On **Windows**, just run `SubMiner.exe` and the setup will open automatically on first launch.
 
-### 3. Play
+### 3. Mine
 
 ```bash
-subminer video.mkv          # play video with overlay
-subminer stats              # open immersion dashboard
-subminer settings           # open settings window
-subminer --settings         # open settings window via flag
+subminer video.mkv          # launch mpv with SubMiner
+subminer /path/to/dir       # pick a file with fzf
+subminer -R /path/to/dir    # pick a file with rofi (Linux only)
 ```
 
-On **Windows**, use the **SubMiner mpv** shortcut created during setup — double-click it or drag a video file onto it.
+On **Windows**, use the **SubMiner mpv** shortcut created during setup. Double-click it or drag a video file onto it.
 
 ## Documentation
 

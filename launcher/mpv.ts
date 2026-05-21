@@ -5,6 +5,11 @@ import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
 import { buildMpvLaunchModeArgs } from '../src/shared/mpv-launch-mode.js';
 import {
+  isAppControlServerAvailable as checkAppControlServerAvailable,
+  sendAppControlCommand,
+} from '../src/shared/app-control-client.js';
+import { getDefaultConfigDir } from '../src/shared/setup-state.js';
+import {
   detectInstalledMpvPlugin,
   type InstalledMpvPluginDetection,
 } from '../src/main/runtime/first-run-setup-plugin.js';
@@ -1004,19 +1009,70 @@ export async function startOverlay(
 ): Promise<void> {
   const backend = detectBackend(args.backend);
   log('info', args.logLevel, `Starting SubMiner overlay (backend: ${backend})...`);
-  const appAlreadyRunning = isAppAlreadyRunning(appPath, args.logLevel);
+  const alreadyManagedByLauncher = state.overlayManagedByLauncher && state.appPath === appPath;
 
-  const overlayArgs = ['--start', '--backend', backend, '--socket', socketPath, ...extraAppArgs];
+  const overlayArgs = [
+    '--start',
+    '--managed-playback',
+    '--backend',
+    backend,
+    '--socket',
+    socketPath,
+    ...extraAppArgs,
+  ];
   if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
   if (args.useTexthooker) overlayArgs.push('--texthooker');
 
-  const target = resolveAppSpawnTarget(appPath, overlayArgs);
+  const controlResult = await sendAppControlCommand(overlayArgs, {
+    configDir: getLauncherConfigDir(),
+  });
+  if (controlResult.ok) {
+    log('debug', args.logLevel, 'Attached to running SubMiner app via control socket');
+    if (alreadyManagedByLauncher) {
+      markOverlayManagedByLauncher(appPath);
+    } else {
+      clearOverlayManagedByLauncher();
+      state.overlayProc = null;
+    }
+
+    const socketReady = await waitForUnixSocketReady(
+      socketPath,
+      OVERLAY_START_SOCKET_READY_TIMEOUT_MS,
+    );
+    if (!socketReady) {
+      log(
+        'debug',
+        args.logLevel,
+        'Overlay start continuing before mpv socket readiness was confirmed',
+      );
+    }
+    return;
+  }
+  if (controlResult.unavailable !== true) {
+    log(
+      'warn',
+      args.logLevel,
+      `Running SubMiner app control command failed: ${controlResult.error ?? 'unknown error'}`,
+    );
+    if (!alreadyManagedByLauncher) {
+      clearOverlayManagedByLauncher();
+      state.overlayProc = null;
+    }
+    return;
+  }
+
+  const appAlreadyRunning = isAppAlreadyRunning(appPath, args.logLevel);
+  const borrowingExistingApp = appAlreadyRunning && !alreadyManagedByLauncher;
+  const spawnOverlayArgs = [...overlayArgs];
+  if (!borrowingExistingApp) spawnOverlayArgs.unshift('--background');
+
+  const target = resolveAppSpawnTarget(appPath, spawnOverlayArgs);
   state.overlayProc = spawn(target.command, target.args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: buildAppEnv(process.env, target.env),
   });
   attachAppProcessLogging(state.overlayProc);
-  if (appAlreadyRunning && !(state.overlayManagedByLauncher && state.appPath === appPath)) {
+  if (borrowingExistingApp) {
     log(
       'debug',
       args.logLevel,
@@ -1043,6 +1099,23 @@ export async function startOverlay(
       'Overlay start continuing before mpv socket readiness was confirmed',
     );
   }
+}
+
+function getLauncherConfigDir(): string {
+  return getDefaultConfigDir({
+    xdgConfigHome: process.env.XDG_CONFIG_HOME,
+    homeDir: os.homedir(),
+  });
+}
+
+export async function isRunningAppControlServerAvailable(logLevel: LogLevel): Promise<boolean> {
+  const available = await checkAppControlServerAvailable({
+    configDir: getLauncherConfigDir(),
+  });
+  if (available) {
+    log('debug', logLevel, 'Running SubMiner app control socket detected');
+  }
+  return available;
 }
 
 export function markOverlayManagedByLauncher(appPath?: string): void {

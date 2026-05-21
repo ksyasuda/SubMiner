@@ -44,14 +44,14 @@ test('window-all-closed keeps background app alive without tray', () => {
   );
 });
 
-test('mpv shutdown keeps managed background tray app alive', () => {
+test('mpv shutdown quits managed background playback despite tray residency', () => {
   assert.equal(
     shouldQuitOnMpvShutdownForTrayState({
       managedPlayback: true,
       backgroundMode: true,
       hasTray: true,
     }),
-    false,
+    true,
   );
 });
 
@@ -63,5 +63,16 @@ test('mpv shutdown quits standalone managed playback without tray residency', ()
       hasTray: false,
     }),
     true,
+  );
+});
+
+test('mpv shutdown keeps unmanaged background tray app alive', () => {
+  assert.equal(
+    shouldQuitOnMpvShutdownForTrayState({
+      managedPlayback: false,
+      backgroundMode: true,
+      hasTray: true,
+    }),
+    false,
   );
 });

@@ -206,3 +206,65 @@ test('plugin auto-start playback leaves app lifetime to managed-playback owner',
     state.overlayManagedByLauncher = false;
   }
 });
+
+test('plugin auto-start playback attaches a warm background app through the launcher', async () => {
+  const context = createContext();
+  context.args = {
+    ...context.args,
+    target: '/tmp/movie.mkv',
+    targetKind: 'file',
+  };
+  context.pluginRuntimeConfig = {
+    socketPath: '/tmp/subminer.sock',
+    binaryPath: '',
+    backend: 'auto',
+    autoStart: true,
+    autoStartVisibleOverlay: true,
+    autoStartPauseUntilReady: true,
+    texthookerEnabled: true,
+    aniskipEnabled: true,
+    aniskipButtonKey: 'TAB',
+  };
+  const calls: string[] = [];
+  const receivedStartMpvOptions: Record<string, unknown>[] = [];
+
+  await runPlaybackCommandWithDeps(context, {
+    ensurePlaybackSetupReady: async () => {},
+    chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
+    checkDependencies: () => {},
+    registerCleanup: () => {},
+    startMpv: async (
+      _target,
+      _targetKind,
+      _args,
+      _socketPath,
+      _appPath,
+      _preloadedSubtitles,
+      options,
+    ) => {
+      calls.push('startMpv');
+      if (options) {
+        receivedStartMpvOptions.push(options as Record<string, unknown>);
+      }
+    },
+    waitForUnixSocketReady: async () => true,
+    startOverlay: async (_appPath, _args, _socketPath, extraAppArgs = []) => {
+      calls.push(`startOverlay:${extraAppArgs.join(' ')}`);
+    },
+    launchAppCommandDetached: () => {},
+    log: () => {},
+    cleanupPlaybackSession: async () => {},
+    getMpvProc: () => null,
+    isAppControlServerAvailable: async () => true,
+  } as Parameters<typeof runPlaybackCommandWithDeps>[1] & {
+    isAppControlServerAvailable: () => Promise<boolean>;
+  });
+
+  assert.deepEqual(calls, ['startMpv', 'startOverlay:--show-visible-overlay --texthooker']);
+  assert.equal(receivedStartMpvOptions[0]?.startPaused, false);
+  assert.equal(
+    (receivedStartMpvOptions[0]?.runtimePluginConfig as { autoStart?: boolean } | undefined)
+      ?.autoStart,
+    false,
+  );
+});

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createBuildTrayMenuTemplateHandler,
   createResolveTrayIconPathHandler,
+  shouldShowTexthookerTrayEntry,
 } from './tray-main-actions';
 
 test('resolve tray icon path handler forwards runtime dependencies', () => {
@@ -47,7 +48,6 @@ test('build tray template handler wires actions and init guards', () => {
       handlers.openFirstRunSetup();
       handlers.openWindowsMpvLauncherSetup();
       handlers.openYomitanSettings();
-      handlers.openRuntimeOptions();
       handlers.openConfigSettings();
       handlers.openJellyfinSetup();
       handlers.toggleJellyfinDiscovery();
@@ -68,7 +68,6 @@ test('build tray template handler wires actions and init guards', () => {
     openFirstRunSetupWindow: () => calls.push('setup'),
     showWindowsMpvLauncherSetup: () => true,
     openYomitanSettings: () => calls.push('yomitan'),
-    openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     openConfigSettingsWindow: () => calls.push('configuration'),
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
     isJellyfinConfigured: () => true,
@@ -91,7 +90,6 @@ test('build tray template handler wires actions and init guards', () => {
     'setup',
     'setup',
     'yomitan',
-    'runtime-options',
     'configuration',
     'jellyfin',
     'jellyfin-discovery',
@@ -99,4 +97,35 @@ test('build tray template handler wires actions and init guards', () => {
     'updates',
     'quit',
   ]);
+});
+
+test('texthooker tray visibility follows websocket server enabled state', () => {
+  assert.equal(
+    shouldShowTexthookerTrayEntry({
+      websocket: { enabled: false },
+      annotationWebsocket: { enabled: false },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowTexthookerTrayEntry({
+      websocket: { enabled: true },
+      annotationWebsocket: { enabled: false },
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowTexthookerTrayEntry({
+      websocket: { enabled: 'auto' },
+      annotationWebsocket: { enabled: false },
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowTexthookerTrayEntry({
+      websocket: { enabled: false },
+      annotationWebsocket: { enabled: true },
+    }),
+    true,
+  );
 });

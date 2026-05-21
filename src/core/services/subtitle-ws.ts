@@ -18,6 +18,12 @@ export type SubtitleWebsocketFrequencyOptions = {
   mode: 'single' | 'banded';
 };
 
+export type SubtitleWebsocketPayloadMode = 'plain' | 'annotated';
+
+type SubtitleWebsocketMessageOptions = {
+  payloadMode?: SubtitleWebsocketPayloadMode;
+};
+
 type SerializedSubtitleToken = Pick<
   MergedToken,
   | 'surface'
@@ -198,7 +204,17 @@ export function serializeSubtitleMarkup(
 export function serializeSubtitleWebsocketMessage(
   payload: SubtitleData,
   options: SubtitleWebsocketFrequencyOptions,
+  messageOptions: SubtitleWebsocketMessageOptions = {},
 ): string {
+  if (messageOptions.payloadMode === 'plain') {
+    return JSON.stringify({
+      version: 1,
+      text: payload.text,
+      sentence: escapeHtml(payload.text).replaceAll('\n', '<br>'),
+      tokens: [],
+    });
+  }
+
   return JSON.stringify({
     version: 1,
     text: payload.text,
@@ -210,17 +226,20 @@ export function serializeSubtitleWebsocketMessage(
 export function serializeInitialSubtitleWebsocketMessage(
   payload: SubtitleData | null,
   options: SubtitleWebsocketFrequencyOptions,
+  messageOptions: SubtitleWebsocketMessageOptions = {},
 ): string | null {
   if (!payload || !payload.text.trim()) {
     return null;
   }
 
-  return serializeSubtitleWebsocketMessage(payload, options);
+  return serializeSubtitleWebsocketMessage(payload, options, messageOptions);
 }
 
 export class SubtitleWebSocket {
   private server: WebSocket.Server | null = null;
   private latestMessage = '';
+
+  public constructor(private readonly payloadMode: SubtitleWebsocketPayloadMode = 'annotated') {}
 
   public isRunning(): boolean {
     return this.server !== null;
@@ -247,6 +266,7 @@ export class SubtitleWebSocket {
       const currentMessage = serializeInitialSubtitleWebsocketMessage(
         getCurrentSubtitleData(),
         getFrequencyOptions(),
+        { payloadMode: this.payloadMode },
       );
       if (currentMessage) {
         ws.send(currentMessage);
@@ -262,7 +282,9 @@ export class SubtitleWebSocket {
 
   public broadcast(payload: SubtitleData, options: SubtitleWebsocketFrequencyOptions): void {
     if (!this.server) return;
-    const message = serializeSubtitleWebsocketMessage(payload, options);
+    const message = serializeSubtitleWebsocketMessage(payload, options, {
+      payloadMode: this.payloadMode,
+    });
     this.latestMessage = message;
     for (const client of this.server.clients) {
       if (client.readyState === WebSocket.OPEN) {

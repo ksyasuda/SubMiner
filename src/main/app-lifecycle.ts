@@ -11,6 +11,7 @@ export interface AppLifecycleRuntimeDepsFactoryInput {
   handleCliCommand: (nextArgs: CliArgs, source: CliCommandSource) => void;
   printHelp: () => void;
   logNoRunningInstance: () => void;
+  startControlServer?: (handleArgv: (argv: string[]) => void) => (() => void) | void;
   onReady: () => Promise<void>;
   onWillQuitCleanup: () => void;
   shouldRestoreWindowsOnActivate: () => boolean;
@@ -73,6 +74,7 @@ export function createAppLifecycleRuntimeDeps(
     handleCliCommand: params.handleCliCommand,
     printHelp: params.printHelp,
     logNoRunningInstance: params.logNoRunningInstance,
+    startControlServer: params.startControlServer,
     onReady: params.onReady,
     onWillQuitCleanup: params.onWillQuitCleanup,
     shouldRestoreWindowsOnActivate: params.shouldRestoreWindowsOnActivate,

@@ -156,3 +156,11 @@ test('discord presence update interval displays seconds while saving millisecond
   assert.equal(toSettingsDisplayValue(path, 3000), 3);
   assert.equal(toConfigDraftValue(path, 2.5), 2500);
 });
+
+test('websocket enabled select values save booleans instead of strings', () => {
+  assert.equal(toSettingsDisplayValue('websocket.enabled', true), 'true');
+  assert.equal(toSettingsDisplayValue('websocket.enabled', false), 'false');
+  assert.equal(toConfigDraftValue('websocket.enabled', 'true'), true);
+  assert.equal(toConfigDraftValue('websocket.enabled', 'false'), false);
+  assert.equal(toConfigDraftValue('websocket.enabled', 'auto'), 'auto');
+});

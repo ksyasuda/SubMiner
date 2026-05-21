@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CliArgs } from '../../cli/args';
-import { CliCommandServiceDeps, handleCliCommand } from './cli-command';
+import {
+  CliCommandServiceDeps,
+  createCliCommandDepsRuntime,
+  handleCliCommand,
+} from './cli-command';
 
 function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   return {
@@ -499,6 +503,132 @@ test('handleCliCommand applies socket path and connects on start', () => {
   assert.ok(calls.includes('setMpvSocketPath:/tmp/custom.sock'));
   assert.ok(calls.includes('setMpvClientSocketPath:/tmp/custom.sock'));
   assert.ok(calls.includes('connectMpvClient'));
+});
+
+test('createCliCommandDepsRuntime reconnects MPV client when reconnect hook exists', () => {
+  const calls: string[] = [];
+  const client = {
+    setSocketPath: (socketPath: string) => {
+      calls.push(`setSocketPath:${socketPath}`);
+    },
+    connect: () => {
+      calls.push('connect');
+    },
+    reconnect: () => {
+      calls.push('reconnect');
+    },
+  };
+  const deps = createCliCommandDepsRuntime({
+    mpv: {
+      getSocketPath: () => '/tmp/runtime.sock',
+      setSocketPath: () => {},
+      getClient: () => client,
+      showOsd: () => {},
+    },
+    texthooker: {
+      service: { isRunning: () => false, start: () => {} },
+      getPort: () => 5174,
+      setPort: () => {},
+      getWebsocketUrl: () => undefined,
+      shouldOpenBrowser: () => false,
+      openInBrowser: () => {},
+    },
+    overlay: {
+      isInitialized: () => true,
+      initialize: () => {},
+      toggleVisible: () => {},
+      togglePrimarySubtitleBar: () => {},
+      setVisible: () => {},
+    },
+    mining: {
+      copyCurrentSubtitle: () => {},
+      startPendingMultiCopy: () => {},
+      mineSentenceCard: async () => {},
+      startPendingMineSentenceMultiple: () => {},
+      updateLastCardFromClipboard: async () => {},
+      refreshKnownWords: async () => {},
+      triggerFieldGrouping: async () => {},
+      triggerSubsyncFromConfig: async () => {},
+      markLastCardAsAudioCard: async () => {},
+    },
+    anilist: {
+      getStatus: () => ({
+        tokenStatus: 'not_checked',
+        tokenSource: 'none',
+        tokenMessage: null,
+        tokenResolvedAt: null,
+        tokenErrorAt: null,
+        queuePending: 0,
+        queueReady: 0,
+        queueDeadLetter: 0,
+        queueLastAttemptAt: null,
+        queueLastError: null,
+      }),
+      clearToken: () => {},
+      openSetup: () => {},
+      getQueueStatus: () => ({
+        pending: 0,
+        ready: 0,
+        deadLetter: 0,
+        lastAttemptAt: null,
+        lastError: null,
+      }),
+      retryQueueNow: async () => ({ ok: true, message: 'ok' }),
+    },
+    dictionary: {
+      generate: async () => ({
+        zipPath: '/tmp/test.zip',
+        fromCache: false,
+        mediaId: 1,
+        mediaTitle: 'Test',
+        entryCount: 0,
+      }),
+      getSelection: async () => ({
+        seriesKey: 'test',
+        guessTitle: null,
+        current: null,
+        override: null,
+        candidates: [],
+      }),
+      setSelection: async () => ({
+        ok: true,
+        seriesKey: 'test',
+        selected: { id: 1, title: 'Test', episodes: null },
+        staleMediaIds: [],
+      }),
+    },
+    jellyfin: {
+      openSetup: () => {},
+      runStatsCommand: async () => {},
+      runCommand: async () => {},
+    },
+    ui: {
+      openFirstRunSetup: () => {},
+      openYomitanSettings: () => {},
+      openConfigSettingsWindow: () => {},
+      cycleSecondarySubMode: () => {},
+      openRuntimeOptionsPalette: () => {},
+      printHelp: () => {},
+    },
+    app: {
+      stop: () => {},
+      hasMainWindow: () => true,
+      runUpdateCommand: async () => {},
+      runYoutubePlaybackFlow: async () => {},
+    },
+    dispatchSessionAction: async () => {},
+    getMultiCopyTimeoutMs: () => 2500,
+    schedule: () => undefined,
+    log: () => {},
+    logDebug: () => {},
+    warn: () => {},
+    error: () => {},
+  });
+
+  deps.setMpvClientSocketPath('/tmp/runtime.sock');
+  deps.connectMpvClient();
+
+  assert.deepEqual(calls, ['setSocketPath:/tmp/runtime.sock', 'reconnect']);
 });
 
 test('handleCliCommand warns when texthooker port override used while running', () => {

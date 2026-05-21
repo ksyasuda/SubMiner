@@ -34,6 +34,8 @@ import {
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
 import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
+import { startAppControlServer } from './main/runtime/app-control-server';
+import { getAppControlSocketPath } from './shared/app-control';
 import {
   type CancelLinuxMpvFullscreenOverlayRefreshBurst,
   clearLinuxMpvFullscreenOverlayRefreshTimeouts,
@@ -166,6 +168,7 @@ import {
   rememberAnilistAttemptedUpdateKey,
 } from './main/runtime/domains/anilist';
 import { DEFAULT_MIN_WATCH_RATIO } from './shared/watch-threshold';
+import { shouldShowTexthookerTrayEntry } from './main/runtime/tray-main-actions';
 import {
   createApplyJellyfinMpvDefaultsHandler,
   createBuildApplyJellyfinMpvDefaultsMainDepsHandler,
@@ -790,7 +793,7 @@ const bootServices = createMainBootServices({
       warn: (message: string, details?: unknown) => console.warn(message, details),
       error: (message: string, details?: unknown) => console.error(message, details),
     }),
-  createSubtitleWebSocket: () => new SubtitleWebSocket(),
+  createSubtitleWebSocket: (payloadMode) => new SubtitleWebSocket(payloadMode),
   createLogger,
   createMainRuntimeRegistry,
   createOverlayManager,
@@ -3072,6 +3075,12 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
         ? 'Opened Yomitan settings. Install dictionaries, then refresh status.'
         : 'Yomitan settings are unavailable while external read-only profile mode is enabled.';
       return;
+    }
+    if (submission.action === 'open-config-settings') {
+      firstRunSetupMessage = openConfigSettingsWindow()
+        ? 'Opened SubMiner settings.'
+        : 'SubMiner settings are unavailable.';
+      return { skipRender: true };
     }
     if (submission.action === 'refresh') {
       const snapshot = await firstRunSetupService.refreshStatus('Status refreshed.');
@@ -5796,6 +5805,16 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
         handleCliCommand(nextArgs, source),
       printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
       logNoRunningInstance: () => appLogger.logNoRunningInstance(),
+      startControlServer: (handleArgv: (argv: string[]) => void) => {
+        const server = startAppControlServer({
+          socketPath: getAppControlSocketPath({ configDir: CONFIG_DIR }),
+          platform: process.platform,
+          handleArgv,
+          logDebug: (message) => logger.debug(message),
+          logWarn: (message, error) => logger.warn(message, error),
+        });
+        return () => server.close();
+      },
       onReady: runAppReadyRuntimeWithFatalReporting,
       onWillQuitCleanup: () => onWillQuitCleanupHandler(),
       shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
@@ -5943,12 +5962,11 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       openSessionHelpModal: () => openSessionHelpOverlay(),
       openTexthookerInBrowser: () =>
         handleCliCommand(parseArgs(['--texthooker', '--open-browser'])),
-      showTexthookerPage: () => getResolvedConfig().texthooker.launchAtStartup !== false,
+      showTexthookerPage: () => shouldShowTexthookerTrayEntry(getResolvedConfig()),
       showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
       openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
       openYomitanSettings: () => openYomitanSettings(),
-      openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
       openConfigSettingsWindow: () => openConfigSettingsWindow(),
       openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
       isJellyfinConfigured: () =>

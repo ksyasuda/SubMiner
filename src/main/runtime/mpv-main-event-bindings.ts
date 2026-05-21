@@ -101,6 +101,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
     }): void => {
       if (connected) {
         deps.resetSubtitleSidebarEmbeddedLayout();
+      } else {
+        deps.updateCurrentMediaPath('');
       }
       handleMpvConnectionChange({ connected });
     };

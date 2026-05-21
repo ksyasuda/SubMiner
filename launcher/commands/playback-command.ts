@@ -8,6 +8,7 @@ import {
   cleanupPlaybackSession,
   launchAppCommandDetached,
   resolveLauncherRuntimePluginPath,
+  isRunningAppControlServerAvailable,
   startMpv,
   startOverlay,
   state,
@@ -146,6 +147,7 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
     waitForUnixSocketReady,
     startOverlay,
     launchAppCommandDetached,
+    isAppControlServerAvailable: isRunningAppControlServerAvailable,
     log,
     cleanupPlaybackSession,
     getMpvProc: () => state.mpvProc,
@@ -164,6 +166,7 @@ type PlaybackCommandDeps = {
   waitForUnixSocketReady: typeof waitForUnixSocketReady;
   startOverlay: typeof startOverlay;
   launchAppCommandDetached: typeof launchAppCommandDetached;
+  isAppControlServerAvailable?: (logLevel: Args['logLevel']) => Promise<boolean>;
   log: typeof log;
   cleanupPlaybackSession: typeof cleanupPlaybackSession;
   getMpvProc: () => typeof state.mpvProc;
@@ -213,8 +216,19 @@ export async function runPlaybackCommandWithDeps(
     deps.log('info', args.logLevel, 'YouTube subtitle flow: app-owned picker after mpv bootstrap');
   }
 
+  const pluginAutoStartEnabled = pluginRuntimeConfig.autoStart;
+  const shouldLauncherAttachRunningApp =
+    pluginAutoStartEnabled &&
+    !args.startOverlay &&
+    !args.autoStartOverlay &&
+    !isAppOwnedYoutubeFlow &&
+    ((await deps.isAppControlServerAvailable?.(args.logLevel)) ?? false);
+  const effectivePluginRuntimeConfig = shouldLauncherAttachRunningApp
+    ? { ...pluginRuntimeConfig, autoStart: false }
+    : pluginRuntimeConfig;
+
   const shouldPauseUntilOverlayReady =
-    pluginRuntimeConfig.autoStart &&
+    effectivePluginRuntimeConfig.autoStart &&
     pluginRuntimeConfig.autoStartVisibleOverlay &&
     pluginRuntimeConfig.autoStartPauseUntilReady;
 
@@ -238,16 +252,19 @@ export async function runPlaybackCommandWithDeps(
       disableYoutubeSubtitleAutoLoad: isAppOwnedYoutubeFlow,
       runtimePluginPath: resolveLauncherRuntimePluginPath({ appPath, scriptPath }),
       runtimePluginConfig: {
-        ...pluginRuntimeConfig,
+        ...effectivePluginRuntimeConfig,
         backend: args.backend,
-        texthookerEnabled: args.useTexthooker && pluginRuntimeConfig.texthookerEnabled,
+        texthookerEnabled: args.useTexthooker && effectivePluginRuntimeConfig.texthookerEnabled,
       },
     },
   );
 
   const ready = await deps.waitForUnixSocketReady(mpvSocketPath, 10000);
-  const pluginAutoStartEnabled = pluginRuntimeConfig.autoStart;
-  const shouldStartOverlay = args.startOverlay || args.autoStartOverlay || isAppOwnedYoutubeFlow;
+  const shouldStartOverlay =
+    args.startOverlay ||
+    args.autoStartOverlay ||
+    isAppOwnedYoutubeFlow ||
+    shouldLauncherAttachRunningApp;
   if (shouldStartOverlay) {
     if (ready) {
       deps.log('info', args.logLevel, 'MPV IPC socket ready, starting SubMiner overlay');
@@ -258,14 +275,17 @@ export async function runPlaybackCommandWithDeps(
         'MPV IPC socket not ready after timeout, starting SubMiner overlay anyway',
       );
     }
-    await deps.startOverlay(
-      appPath,
-      args,
-      mpvSocketPath,
-      isAppOwnedYoutubeFlow
-        ? ['--youtube-play', selectedTarget.target, '--youtube-mode', youtubeMode]
-        : [],
-    );
+    const extraAppArgs = isAppOwnedYoutubeFlow
+      ? ['--youtube-play', selectedTarget.target, '--youtube-mode', youtubeMode]
+      : shouldLauncherAttachRunningApp
+        ? [
+            pluginRuntimeConfig.autoStartVisibleOverlay
+              ? '--show-visible-overlay'
+              : '--hide-visible-overlay',
+            ...(pluginRuntimeConfig.texthookerEnabled ? ['--texthooker'] : []),
+          ]
+        : [];
+    await deps.startOverlay(appPath, args, mpvSocketPath, extraAppArgs);
   } else if (pluginAutoStartEnabled) {
     if (ready) {
       deps.log('info', args.logLevel, 'MPV IPC socket ready, relying on mpv plugin auto-start');

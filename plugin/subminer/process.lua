@@ -207,6 +207,9 @@ function M.create(ctx)
 		end
 
 		if action == "start" then
+			if overrides.background ~= false then
+				table.insert(args, "--background")
+			end
 			table.insert(args, "--managed-playback")
 
 			local backend = resolve_backend(overrides.backend)
@@ -504,10 +507,13 @@ function M.create(ctx)
 			end)
 		end
 
-		launch_overlay_with_retry(1)
-		if texthooker_enabled then
-			ensure_texthooker_running(function() end)
-		end
+		environment.is_subminer_app_running_async(function(app_running)
+			overrides.background = not app_running
+			launch_overlay_with_retry(1)
+			if texthooker_enabled then
+				ensure_texthooker_running(function() end)
+			end
+		end, { force_refresh = true })
 	end
 
 	local function start_overlay_from_script_message(...)

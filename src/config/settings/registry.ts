@@ -247,6 +247,8 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
     'CSS declarations applied to secondary subtitles. Includes color, background-color, and all font properties.',
   'subtitleSidebar.css':
     'CSS declarations applied to the subtitle sidebar. Includes color, background-color, all font properties, and sidebar CSS variables.',
+  'websocket.enabled':
+    'Built-in subtitle WebSocket server mode. Auto starts the built-in server only when mpv_websocket is not detected; otherwise it defers to the plugin.',
   'discordPresence.updateIntervalMs':
     'Minimum interval between presence payload updates, in milliseconds.',
 };

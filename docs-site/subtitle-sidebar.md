@@ -33,7 +33,7 @@ Enable and configure the sidebar under `subtitleSidebar` in your config file:
     "autoOpen": false,
     "layout": "overlay",
     "toggleKey": "Backslash",
-    "pauseVideoOnHover": false,
+    "pauseVideoOnHover": true,
     "autoScroll": true,
     "fontFamily": "\"M PLUS 1\", \"Noto Sans CJK JP\", sans-serif",
     "fontSize": 16
@@ -47,7 +47,7 @@ Enable and configure the sidebar under `subtitleSidebar` in your config file:
 | `autoOpen`                  | boolean | `false`      | Open the sidebar automatically on overlay startup                                                  |
 | `layout`                    | string  | `"overlay"`  | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space                        |
 | `toggleKey`                 | string  | `"Backslash"` | `KeyboardEvent.code` for the toggle shortcut                                                      |
-| `pauseVideoOnHover`         | boolean | `false`      | Pause playback while hovering the cue list                                                         |
+| `pauseVideoOnHover`         | boolean | `true`       | Pause playback while hovering the cue list                                                         |
 | `autoScroll`                | boolean | `true`       | Keep the active cue in view during playback                                                        |
 | `maxWidth`                  | number  | `420`        | Maximum sidebar width in CSS pixels                                                                |
 | `opacity`                   | number  | `0.95`       | Sidebar opacity between `0` and `1`                                                                |

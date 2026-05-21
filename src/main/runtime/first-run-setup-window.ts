@@ -29,6 +29,7 @@ export type FirstRunSetupAction =
   | 'install-bun'
   | 'install-command-line-launcher'
   | 'open-yomitan-settings'
+  | 'open-config-settings'
   | 'refresh'
   | 'finish';
 
@@ -200,14 +201,6 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     legacyMpvPluginPaths.length > 0 && model.canFinish
       ? 'Continue without removing'
       : 'Finish setup';
-  const pluginLabel =
-    legacyMpvPluginPaths.length > 0
-      ? 'Legacy detected'
-      : model.pluginStatus === 'failed'
-        ? 'Failed'
-        : 'Ready';
-  const pluginTone =
-    legacyMpvPluginPaths.length > 0 ? 'warn' : model.pluginStatus === 'failed' ? 'danger' : 'ready';
   const windowsShortcutLabel =
     model.windowsMpvShortcuts.status === 'installed'
       ? 'Installed'
@@ -326,7 +319,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     : model.canFinish
       ? model.externalYomitanConfigured
         ? 'Finish stays unlocked while SubMiner is reusing an external Yomitan profile. If you later launch without yomitan.externalProfilePath, setup will require at least one internal dictionary.'
-        : 'Finish stays unlocked once Yomitan reports at least one installed dictionary. SubMiner-managed mpv launches use the bundled runtime plugin.'
+        : 'Finish stays unlocked once Yomitan reports at least one installed dictionary.'
       : 'Finish stays locked until Yomitan reports at least one installed dictionary.';
 
   return `<!doctype html>
@@ -524,14 +517,6 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     </div>
     <div class="card">
       <div>
-        <strong>mpv runtime plugin</strong>
-        <div class="meta">${escapeHtml(model.pluginInstallPathSummary ?? 'Default mpv scripts location')}</div>
-        <div class="meta">Managed mpv launches use the bundled runtime plugin.</div>
-      </div>
-      ${renderStatusBadge(pluginLabel, pluginTone)}
-    </div>
-    <div class="card">
-      <div>
         <strong>Yomitan dictionaries</strong>
         <div class="meta">${escapeHtml(yomitanMeta)}</div>
       </div>
@@ -544,6 +529,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     <div class="actions">
       <button onclick="window.location.href='subminer://first-run-setup?action=open-yomitan-settings'">Open Yomitan Settings</button>
       <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh status</button>
+      <button onclick="window.location.href='subminer://first-run-setup?action=open-config-settings'">Open SubMiner Settings</button>
       <button class="primary" ${model.canFinish ? '' : 'disabled'} onclick="window.location.href='subminer://first-run-setup?action=finish'">${finishButtonLabel}</button>
     </div>
     <div class="message">${model.message ? escapeHtml(model.message) : ''}</div>
@@ -566,6 +552,7 @@ export function parseFirstRunSetupSubmissionUrl(rawUrl: string): FirstRunSetupSu
     action !== 'install-bun' &&
     action !== 'install-command-line-launcher' &&
     action !== 'open-yomitan-settings' &&
+    action !== 'open-config-settings' &&
     action !== 'refresh' &&
     action !== 'finish'
   ) {
@@ -632,7 +619,9 @@ export function createOpenFirstRunSetupWindowHandler<
   getSetupSnapshot: () => Promise<FirstRunSetupHtmlModel>;
   buildSetupHtml: (model: FirstRunSetupHtmlModel) => string;
   parseSubmissionUrl: (rawUrl: string) => FirstRunSetupSubmission | null;
-  handleAction: (submission: FirstRunSetupSubmission) => Promise<{ closeWindow?: boolean } | void>;
+  handleAction: (
+    submission: FirstRunSetupSubmission,
+  ) => Promise<{ closeWindow?: boolean; skipRender?: boolean } | void>;
   markSetupInProgress: () => Promise<unknown>;
   markSetupCancelled: () => Promise<unknown>;
   isSetupCompleted: () => boolean;
@@ -678,6 +667,9 @@ export function createOpenFirstRunSetupWindowHandler<
           if (!setupWindow.isDestroyed()) {
             setupWindow.close();
           }
+          return;
+        }
+        if (result?.skipRender) {
           return;
         }
         if (!setupWindow.isDestroyed()) {

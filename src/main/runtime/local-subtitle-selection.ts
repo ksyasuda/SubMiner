@@ -200,7 +200,8 @@ export function createManagedLocalSubtitleSelectionRuntime(deps: {
 }) {
   const delayMs = deps.delayMs ?? 400;
   let currentMediaPath: string | null = null;
-  let appliedMediaPath: string | null = null;
+  let appliedPrimaryMediaPath: string | null = null;
+  let appliedSecondaryMediaPath: string | null = null;
   let pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
   const clearPendingTimer = (): void => {
@@ -212,7 +213,11 @@ export function createManagedLocalSubtitleSelectionRuntime(deps: {
   };
 
   const maybeApplySelection = (trackList: unknown[] | null): void => {
-    if (!currentMediaPath || appliedMediaPath === currentMediaPath) {
+    if (
+      !currentMediaPath ||
+      (appliedPrimaryMediaPath === currentMediaPath &&
+        appliedSecondaryMediaPath === currentMediaPath)
+    ) {
       return;
     }
     const selection = resolveManagedLocalSubtitleSelection({
@@ -223,14 +228,17 @@ export function createManagedLocalSubtitleSelectionRuntime(deps: {
     if (!selection.hasPrimaryMatch && !selection.hasSecondaryMatch) {
       return;
     }
-    if (selection.primaryTrackId !== null) {
+    if (selection.primaryTrackId !== null && appliedPrimaryMediaPath !== currentMediaPath) {
       deps.sendMpvCommand(['set_property', 'sid', selection.primaryTrackId]);
+      appliedPrimaryMediaPath = currentMediaPath;
     }
-    if (selection.secondaryTrackId !== null) {
+    if (selection.secondaryTrackId !== null && appliedSecondaryMediaPath !== currentMediaPath) {
       deps.sendMpvCommand(['set_property', 'secondary-sid', selection.secondaryTrackId]);
+      appliedSecondaryMediaPath = currentMediaPath;
     }
-    appliedMediaPath = currentMediaPath;
-    clearPendingTimer();
+    if (appliedPrimaryMediaPath === currentMediaPath) {
+      clearPendingTimer();
+    }
   };
 
   const refreshFromMpv = async (): Promise<void> => {
@@ -252,7 +260,7 @@ export function createManagedLocalSubtitleSelectionRuntime(deps: {
 
   const scheduleRefresh = (): void => {
     clearPendingTimer();
-    if (!currentMediaPath || appliedMediaPath === currentMediaPath) {
+    if (!currentMediaPath || appliedPrimaryMediaPath === currentMediaPath) {
       return;
     }
     pendingTimer = deps.schedule(() => {
@@ -265,7 +273,8 @@ export function createManagedLocalSubtitleSelectionRuntime(deps: {
     handleMediaPathChange: (mediaPath: string | null | undefined): void => {
       const normalizedPath = normalizeLocalMediaPath(mediaPath);
       if (normalizedPath !== currentMediaPath) {
-        appliedMediaPath = null;
+        appliedPrimaryMediaPath = null;
+        appliedSecondaryMediaPath = null;
       }
       currentMediaPath = normalizedPath;
       if (!currentMediaPath) {

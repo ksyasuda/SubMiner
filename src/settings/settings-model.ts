@@ -75,6 +75,9 @@ export function toSettingsDisplayValue(
   path: string,
   value: ConfigSettingsSnapshotValue,
 ): ConfigSettingsSnapshotValue {
+  if (path === 'websocket.enabled' && typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
   if (path === 'discordPresence.updateIntervalMs' && typeof value === 'number') {
     return value / 1000;
   }
@@ -85,6 +88,10 @@ export function toConfigDraftValue(
   path: string,
   value: ConfigSettingsSnapshotValue,
 ): ConfigSettingsSnapshotValue {
+  if (path === 'websocket.enabled') {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  }
   if (path === 'discordPresence.updateIntervalMs' && typeof value === 'number') {
     return Math.round(value * 1000);
   }

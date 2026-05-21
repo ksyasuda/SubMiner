@@ -13,6 +13,7 @@ export interface AppLifecycleServiceDeps {
   handleCliCommand: (args: CliArgs, source: CliCommandSource) => void;
   printHelp: () => void;
   logNoRunningInstance: () => void;
+  startControlServer?: (handleArgv: (argv: string[]) => void) => (() => void) | void;
   whenReady: (handler: () => Promise<void>) => void;
   onWindowAllClosed: (handler: () => void) => void;
   onWillQuit: (handler: () => void) => void;
@@ -41,6 +42,7 @@ export interface AppLifecycleDepsRuntimeOptions {
   handleCliCommand: (args: CliArgs, source: CliCommandSource) => void;
   printHelp: () => void;
   logNoRunningInstance: () => void;
+  startControlServer?: (handleArgv: (argv: string[]) => void) => (() => void) | void;
   onReady: () => Promise<void>;
   onWillQuitCleanup: () => void;
   shouldRestoreWindowsOnActivate: () => boolean;
@@ -70,6 +72,7 @@ export function createAppLifecycleDepsRuntime(
     handleCliCommand: options.handleCliCommand,
     printHelp: options.printHelp,
     logNoRunningInstance: options.logNoRunningInstance,
+    startControlServer: options.startControlServer,
     whenReady: (handler) => {
       options.app
         .whenReady()
@@ -116,6 +119,7 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
 
   let appReadyRuntimeComplete = false;
   const pendingSecondInstanceCommands: CliArgs[] = [];
+  let stopControlServer: (() => void) | null = null;
   const handleSecondInstanceCommand = (args: CliArgs): void => {
     try {
       deps.handleCliCommand(args, 'second-instance');
@@ -133,7 +137,7 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
     }
   };
 
-  deps.onSecondInstance((_event, argv) => {
+  const dispatchSecondInstanceArgv = (argv: string[]): void => {
     try {
       const nextArgs = deps.parseArgs(argv);
       if (!appReadyRuntimeComplete) {
@@ -145,6 +149,10 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
     } catch (error) {
       logger.error('Failed to handle second-instance CLI command:', error);
     }
+  };
+
+  deps.onSecondInstance((_event, argv) => {
+    dispatchSecondInstanceArgv(argv);
   });
 
   if (!deps.shouldStartApp(initialArgs)) {
@@ -155,6 +163,12 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
       deps.quitApp();
     }
     return;
+  }
+
+  try {
+    stopControlServer = deps.startControlServer?.(dispatchSecondInstanceArgv) ?? null;
+  } catch (error) {
+    logger.error('Failed to start app control socket:', error);
   }
 
   deps.whenReady(async () => {
@@ -173,6 +187,8 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
   });
 
   deps.onWillQuit(() => {
+    stopControlServer?.();
+    stopControlServer = null;
     deps.onWillQuitCleanup();
   });
 

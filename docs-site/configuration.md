@@ -275,7 +275,7 @@ Defaults warm local tokenizer/dictionary work (`true` for `mecab`, `yomitanExten
 
 ### WebSocket Server
 
-The overlay includes a built-in WebSocket server that broadcasts subtitle text to connected clients (such as texthooker-ui) for external processing.
+The overlay includes a built-in WebSocket server that broadcasts plain subtitle text to connected clients for external processing.
 
 For endpoint details, payload examples, and client patterns, see [WebSocket / Texthooker API & Integration](/websocket-texthooker-api).
 
@@ -443,7 +443,7 @@ Configure the parsed-subtitle sidebar modal.
     "autoOpen": false,
     "layout": "overlay",
     "toggleKey": "Backslash",
-    "pauseVideoOnHover": false,
+    "pauseVideoOnHover": true,
     "autoScroll": true,
     "fontFamily": "\"M PLUS 1\", \"Noto Sans CJK JP\", sans-serif",
     "fontSize": 16
@@ -457,7 +457,7 @@ Configure the parsed-subtitle sidebar modal.
 | `autoOpen`                  | boolean   | Open sidebar automatically on overlay startup (`false` by default)                                      |
 | `layout`                    | string    | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space to mimic browser-like layout |
 | `toggleKey`                 | string    | `KeyboardEvent.code` used to open/close the sidebar (default: `"Backslash"`)                            |
-| `pauseVideoOnHover`         | boolean   | Pause playback while hovering the sidebar cue list                                                      |
+| `pauseVideoOnHover`         | boolean   | Pause playback while hovering the sidebar cue list (`true` by default)                                  |
 | `autoScroll`                | boolean   | Keep the active cue in view while playback advances                                                     |
 | `maxWidth`                  | number    | Maximum sidebar width in CSS pixels (default: `420`)                                                    |
 | `opacity`                   | number    | Sidebar opacity between `0` and `1` (default: `0.95`)                                                   |

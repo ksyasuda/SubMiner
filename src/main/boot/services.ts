@@ -64,7 +64,7 @@ export interface MainBootServicesParams<
   createAnilistTokenStore: (targetPath: string) => TAnilistTokenStore;
   createJellyfinTokenStore: (targetPath: string) => TJellyfinTokenStore;
   createAnilistUpdateQueue: (targetPath: string) => TAnilistUpdateQueue;
-  createSubtitleWebSocket: () => TSubtitleWebSocket;
+  createSubtitleWebSocket: (payloadMode: 'plain' | 'annotated') => TSubtitleWebSocket;
   createLogger: (scope: string) => TLogger & {
     warn: (message: string) => void;
     info: (message: string) => void;
@@ -205,8 +205,8 @@ export function createMainBootServices<
   const anilistUpdateQueue = params.createAnilistUpdateQueue(
     params.joinPath(userDataPath, 'anilist-retry-queue.json'),
   );
-  const subtitleWsService = params.createSubtitleWebSocket();
-  const annotationSubtitleWsService = params.createSubtitleWebSocket();
+  const subtitleWsService = params.createSubtitleWebSocket('plain');
+  const annotationSubtitleWsService = params.createSubtitleWebSocket('annotated');
   const logger = params.createLogger('main');
   const runtimeRegistry = params.createMainRuntimeRegistry();
   const overlayManager = params.createOverlayManager();

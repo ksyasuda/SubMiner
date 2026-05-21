@@ -115,6 +115,7 @@ export interface CliCommandServiceDeps {
 interface MpvClientLike {
   setSocketPath: (socketPath: string) => void;
   connect: () => void;
+  reconnect?: () => void;
 }
 
 interface TexthookerServiceLike {
@@ -235,6 +236,10 @@ export function createCliCommandDepsRuntime(
     connectMpvClient: () => {
       const client = options.mpv.getClient();
       if (!client) return;
+      if (client.reconnect) {
+        client.reconnect();
+        return;
+      }
       client.connect();
     },
     isTexthookerRunning: () => options.texthooker.service.isRunning(),

@@ -69,7 +69,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
     autoOpen: false,
     layout: 'overlay',
     toggleKey: 'Backslash',
-    pauseVideoOnHover: false,
+    pauseVideoOnHover: true,
     autoScroll: true,
     css: {},
     maxWidth: 420,

@@ -105,32 +105,37 @@ export class MpvSocketTransport {
     }
 
     this.connecting = true;
-    this.socketRef = this.socketFactory();
-    this.socket = this.socketRef;
+    const socket = this.socketFactory();
+    this.socketRef = socket;
+    this.socket = socket;
 
-    this.socketRef.on('connect', () => {
+    socket.on('connect', () => {
+      if (this.socketRef !== socket) return;
       this.connected = true;
       this.connecting = false;
       this.callbacks.onConnect();
     });
 
-    this.socketRef.on('data', (data: Buffer) => {
+    socket.on('data', (data: Buffer) => {
+      if (this.socketRef !== socket) return;
       this.callbacks.onData(data);
     });
 
-    this.socketRef.on('error', (error: Error) => {
+    socket.on('error', (error: Error) => {
+      if (this.socketRef !== socket) return;
       this.connected = false;
       this.connecting = false;
       this.callbacks.onError(error);
     });
 
-    this.socketRef.on('close', () => {
+    socket.on('close', () => {
+      if (this.socketRef !== socket) return;
       this.connected = false;
       this.connecting = false;
       this.callbacks.onClose();
     });
 
-    this.socketRef.connect(this.socketPath);
+    socket.connect(this.socketPath);
   }
 
   send(payload: MpvSocketMessagePayload): boolean {
@@ -144,13 +149,14 @@ export class MpvSocketTransport {
   }
 
   shutdown(): void {
-    if (this.socketRef) {
-      this.socketRef.destroy();
-    }
+    const socket = this.socketRef;
     this.socketRef = null;
     this.socket = null;
     this.connected = false;
     this.connecting = false;
+    if (socket) {
+      socket.destroy();
+    }
   }
 
   getSocket(): net.Socket | null {
