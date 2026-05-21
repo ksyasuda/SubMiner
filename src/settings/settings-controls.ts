@@ -1,4 +1,5 @@
 import type { ConfigSettingsField, ConfigSettingsSnapshotValue } from '../types/settings';
+import { toConfigDraftValue, toSettingsDisplayValue } from './settings-model';
 import { parseOptionalNumberInputValue } from './input-values';
 import {
   configureAnkiControls,
@@ -143,7 +144,7 @@ export function renderControl(
   field: ConfigSettingsField,
   context: SettingsControlContext,
 ): HTMLElement {
-  const value = context.valueForField(field);
+  const value = toSettingsDisplayValue(field.configPath, context.valueForField(field));
 
   if (field.control === 'keyboard-shortcut') {
     return renderKeyboardInput(context, field, 'accelerator');
@@ -199,7 +200,7 @@ export function renderControl(
       if (next.ok) {
         input.classList.remove('invalid');
         context.setFieldError(field.configPath, null);
-        context.updateDraft(field.configPath, next.value);
+        context.updateDraft(field.configPath, toConfigDraftValue(field.configPath, next.value));
       } else {
         input.classList.add('invalid');
         context.setFieldError(field.configPath, 'Invalid number');

@@ -19,15 +19,75 @@ test('settings registry splits viewing into appearance and behavior categories',
   assert.equal(field('subtitlePosition.yPercent').label, 'Subtitle Position');
   assert.equal(field('subtitleStyle.frequencyDictionary.mode').label, 'Frequency Mode');
   assert.equal(field('auto_start_overlay').category, 'behavior');
-  assert.equal(field('auto_start_overlay').section, 'Visible Overlay Auto-Start');
+  assert.equal(field('auto_start_overlay').section, 'Playback Behavior');
   assert.equal(field('youtube.primarySubLanguages').category, 'behavior');
   assert.equal(field('youtube.primarySubLanguages').section, 'YouTube Playback Settings');
   assert.equal(field('mpv.launchMode').category, 'behavior');
-  assert.equal(field('mpv.launchMode').section, 'MPV Launcher');
+  assert.equal(field('mpv.launchMode').section, 'mpv Playback');
   assert.ok(
     fields.findIndex((candidate) => candidate.configPath === 'subtitleStyle.primaryDefaultMode') <
       fields.findIndex((candidate) => candidate.configPath === 'secondarySub.defaultMode'),
   );
+});
+
+test('settings registry groups playback startup controls under playback behavior', () => {
+  for (const path of [
+    'subtitleStyle.autoPauseVideoOnHover',
+    'subtitleStyle.autoPauseVideoOnYomitanPopup',
+    'subtitleSidebar.pauseVideoOnHover',
+    'mpv.autoStartSubMiner',
+    'auto_start_overlay',
+    'mpv.pauseUntilOverlayReady',
+  ]) {
+    assert.equal(field(path).category, 'behavior', path);
+    assert.equal(field(path).section, 'Playback Behavior', path);
+  }
+});
+
+test('settings registry moves AniSkip button key into input shortcuts and hot reload', () => {
+  assert.equal(field('mpv.aniskipButtonKey').category, 'input');
+  assert.equal(field('mpv.aniskipButtonKey').section, 'Overlay Shortcuts');
+  assert.equal(field('mpv.aniskipButtonKey').subsection, 'Playback');
+  assert.equal(field('mpv.aniskipButtonKey').control, 'mpv-key');
+  assert.equal(field('mpv.aniskipButtonKey').restartBehavior, 'hot-reload');
+});
+
+test('settings registry hides removed modal-only fields', () => {
+  for (const path of [
+    'shortcuts.multiCopyTimeoutMs',
+    'anilist.characterDictionary.profileScope',
+    'jellyfin.directPlayContainers',
+    'jellyfin.remoteControlDeviceName',
+  ]) {
+    assert.equal(
+      fields.some((candidate) => candidate.configPath === path),
+      false,
+      path,
+    );
+  }
+});
+
+test('settings registry orders websocket server immediately after annotation websocket', () => {
+  const integrationSections = [
+    ...new Set(
+      fields
+        .filter((candidate) => candidate.category === 'integrations')
+        .map((candidate) => candidate.section),
+    ),
+  ];
+  const annotationIndex = integrationSections.indexOf('Annotation WebSocket');
+  assert.equal(integrationSections[annotationIndex + 1], 'WebSocket server');
+});
+
+test('settings registry places immersion tracking after other tracking and app sections', () => {
+  const trackingSections = [
+    ...new Set(
+      fields
+        .filter((candidate) => candidate.category === 'tracking-app')
+        .map((candidate) => candidate.section),
+    ),
+  ];
+  assert.equal(trackingSections.at(-1), 'Immersion tracking');
 });
 
 test('settings registry groups annotation display fields by config group', () => {
@@ -190,6 +250,7 @@ test('settings registry hides app-managed and inactive config surfaces', () => {
 
 test('settings registry marks safe live config paths as hot-reloadable', () => {
   for (const path of [
+    'mpv.aniskipButtonKey',
     'stats.toggleKey',
     'stats.markWatchedKey',
     'logging.level',

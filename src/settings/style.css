@@ -615,17 +615,25 @@ code {
 }
 
 .deck-field-row {
-  display: grid;
-  grid-template-columns: minmax(140px, 0.75fr) minmax(220px, 1.25fr) auto;
-  gap: 8px;
-  align-items: start;
-}
-
-.deck-field-fields {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(24, 25, 38, 0.4);
+}
+
+.deck-field-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deck-field-row-name {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .deck-field-actions {
@@ -823,7 +831,6 @@ code {
   .settings-toolbar,
   .field-row,
   .field-control,
-  .deck-field-row,
   .keybinding-row {
     display: flex;
     flex-direction: column;

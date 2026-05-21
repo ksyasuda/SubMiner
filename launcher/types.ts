@@ -133,7 +133,7 @@ export interface Args {
   doctorRefreshKnownWords: boolean;
   version: boolean;
   update?: boolean;
-  configSettings: boolean;
+  settings: boolean;
   configPath: boolean;
   configShow: boolean;
   mpvIdle: boolean;

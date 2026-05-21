@@ -258,7 +258,7 @@ test('mac native updater supports Developer ID signed packaged app bundles', asy
   assert.deepEqual(logged, []);
 });
 
-test('linux native updater is unsupported even for writable direct AppImage installs', async () => {
+test('linux native updater is supported for direct AppImage installs', async () => {
   const logged: string[] = [];
   const supported = await isNativeUpdaterSupported({
     platform: 'linux',
@@ -270,10 +270,8 @@ test('linux native updater is unsupported even for writable direct AppImage inst
     log: (message) => logged.push(message),
   });
 
-  assert.equal(supported, false);
-  assert.deepEqual(logged, [
-    'Skipping native Linux updater because Linux tray checks use GitHub release assets.',
-  ]);
+  assert.equal(supported, true);
+  assert.deepEqual(logged, []);
 });
 
 test('linux native updater is unsupported when APPIMAGE is missing', async () => {
@@ -288,25 +286,7 @@ test('linux native updater is unsupported when APPIMAGE is missing', async () =>
 
   assert.equal(supported, false);
   assert.deepEqual(logged, [
-    'Skipping native Linux updater because Linux tray checks use GitHub release assets.',
-  ]);
-});
-
-test('linux native updater is unsupported for non-writable AppImage installs', async () => {
-  const logged: string[] = [];
-  const supported = await isNativeUpdaterSupported({
-    platform: 'linux',
-    isPackaged: true,
-    execPath: '/tmp/.mount_SubMiner/SubMiner',
-    env: {
-      APPIMAGE: '/home/tester/.local/bin/SubMiner.AppImage',
-    },
-    log: (message) => logged.push(message),
-  });
-
-  assert.equal(supported, false);
-  assert.deepEqual(logged, [
-    'Skipping native Linux updater because Linux tray checks use GitHub release assets.',
+    'Skipping native Linux updater because APPIMAGE is not set (not launched from an AppImage).',
   ]);
 });
 
@@ -324,7 +304,7 @@ test('linux native updater is unsupported for package-managed AppImage installs'
 
   assert.equal(supported, false);
   assert.deepEqual(logged, [
-    'Skipping native Linux updater because Linux tray checks use GitHub release assets.',
+    'Skipping native Linux updater because the AppImage is managed by a system package.',
   ]);
 });
 

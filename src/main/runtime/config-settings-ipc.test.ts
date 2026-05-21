@@ -10,7 +10,7 @@ const fields: ConfigSettingsField[] = [
     description: 'Launch mode setting.',
     configPath: 'mpv.launchMode',
     category: 'behavior',
-    section: 'MPV Launcher',
+    section: 'mpv Playback',
     control: 'select',
     defaultValue: 'windowed',
     restartBehavior: 'restart',

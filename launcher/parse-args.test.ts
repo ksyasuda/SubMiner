@@ -57,10 +57,10 @@ test('parseArgs captures mpv args string', () => {
   assert.equal(parsed.mpvArgs, '--pause=yes --title="movie night"');
 });
 
-test('parseArgs maps root config window option', () => {
-  const parsed = parseArgs(['--config'], 'subminer', {});
+test('parseArgs maps root settings window option', () => {
+  const parsed = parseArgs(['--settings'], 'subminer', {});
 
-  assert.equal(parsed.configSettings, true);
+  assert.equal(parsed.settings, true);
 });
 
 test('parseArgs maps root update flags without conflicting with jellyfin username', () => {
@@ -107,10 +107,10 @@ test('parseArgs maps config show action', () => {
   assert.equal(parsed.configPath, false);
 });
 
-test('parseArgs maps bare config command to settings window', () => {
-  const parsed = parseArgs(['config'], 'subminer', {});
+test('parseArgs maps settings command to settings window', () => {
+  const parsed = parseArgs(['settings'], 'subminer', {});
 
-  assert.equal(parsed.configSettings, true);
+  assert.equal(parsed.settings, true);
   assert.equal(parsed.configPath, false);
   assert.equal(parsed.configShow, false);
 });
@@ -119,7 +119,7 @@ test('parseArgs maps config path action to config path output', () => {
   const parsed = parseArgs(['config', 'path'], 'subminer', {});
 
   assert.equal(parsed.configPath, true);
-  assert.equal(parsed.configSettings, false);
+  assert.equal(parsed.settings, false);
 });
 
 test('parseArgs rejects removed config open and launch actions', () => {
@@ -131,6 +131,14 @@ test('parseArgs rejects removed config open and launch actions', () => {
   });
 
   assert.equal(openExit.code, 1);
+  assert.equal(exit.code, 1);
+});
+
+test('parseArgs requires an explicit action for the config subcommand', () => {
+  const exit = withProcessExitIntercept(() => {
+    parseArgs(['config'], 'subminer', {});
+  });
+
   assert.equal(exit.code, 1);
 });
 

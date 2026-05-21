@@ -2,7 +2,7 @@ import type { CliArgs } from '../../cli/args';
 import {
   isHeadlessInitialCommand,
   isStandaloneTexthookerCommand,
-  shouldRunSettingsOnlyStartup,
+  shouldRunYomitanOnlyStartup,
 } from '../../cli/args';
 
 export function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
@@ -12,15 +12,15 @@ export function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
   return {
     shouldUseMinimalStartup: Boolean(
       (initialArgs && isStandaloneTexthookerCommand(initialArgs)) ||
-      initialArgs?.configSettings ||
+      initialArgs?.settings ||
       initialArgs?.update ||
       (initialArgs?.stats &&
         (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
     ),
     shouldSkipHeavyStartup: Boolean(
       initialArgs &&
-      (shouldRunSettingsOnlyStartup(initialArgs) ||
-        initialArgs.configSettings ||
+      (shouldRunYomitanOnlyStartup(initialArgs) ||
+        initialArgs.settings ||
         initialArgs.stats ||
         initialArgs.dictionary ||
         initialArgs.update ||
@@ -32,9 +32,9 @@ export function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
 export function shouldRefreshAnilistOnConfigReload(
   initialArgs: CliArgs | null | undefined,
 ): boolean {
-  return !(initialArgs && (isHeadlessInitialCommand(initialArgs) || initialArgs.configSettings));
+  return !(initialArgs && (isHeadlessInitialCommand(initialArgs) || initialArgs.settings));
 }
 
 export function shouldStartAutomaticUpdateChecks(initialArgs: CliArgs | null | undefined): boolean {
-  return !(initialArgs && (isHeadlessInitialCommand(initialArgs) || initialArgs.configSettings));
+  return !(initialArgs && (isHeadlessInitialCommand(initialArgs) || initialArgs.settings));
 }

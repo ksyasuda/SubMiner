@@ -131,7 +131,8 @@ SubMiner.AppImage --toggle-primary-subtitle-bar       # Toggle primary subtitle 
 SubMiner.AppImage --start --dev                         # Enable app/dev mode only
 SubMiner.AppImage --start --debug                       # Alias for --dev
 SubMiner.AppImage --start --log-level debug             # Force verbose logging without app/dev mode
-SubMiner.AppImage --settings              # Open Yomitan settings
+SubMiner.AppImage --yomitan               # Open Yomitan settings
+SubMiner.AppImage --settings              # Open SubMiner settings window
 SubMiner.AppImage --jellyfin              # Open Jellyfin setup window
 SubMiner.AppImage --jellyfin-login --jellyfin-server http://127.0.0.1:8096 --jellyfin-username me --jellyfin-password 'secret'
 SubMiner.AppImage --jellyfin-logout       # Clear stored Jellyfin token/session data
@@ -184,7 +185,8 @@ This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blan
 
 - `subminer jellyfin` / `subminer jf`: Jellyfin-focused workflow aliases.
 - `subminer doctor`: health checks for core dependencies and runtime paths.
-- `subminer config`: config helpers (`path`, `show`).
+- `subminer settings`: open the SubMiner settings window (also `subminer --settings`).
+- `subminer config`: config file helpers (`path`, `show`).
 - `subminer mpv`: mpv helpers (`status`, `socket`, `idle`).
 - `subminer dictionary <path>`: generates a Yomitan-importable character dictionary ZIP from a file/directory target.
 - Use `subminer dictionary --candidates <path>` and `subminer dictionary --select <id> <path>` to correct AniList character-dictionary matches for a whole series.
@@ -264,7 +266,7 @@ secondary-sub-visibility=no
 
 SubMiner includes a bundled Yomitan extension for overlay word lookup. This bundled extension is separate from any Yomitan browser extension you may have installed.
 
-For SubMiner overlay lookups to work, open Yomitan settings (`subminer app --settings` or `SubMiner.AppImage --settings`) and import at least one dictionary in the bundled Yomitan instance.
+For SubMiner overlay lookups to work, open Yomitan settings (`subminer app --yomitan` or `SubMiner.AppImage --yomitan`) and import at least one dictionary in the bundled Yomitan instance.
 
 If you also use Yomitan in a browser, configure that browser profile separately; it does not inherit dictionaries or settings from the bundled instance.
 

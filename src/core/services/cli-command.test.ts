@@ -15,8 +15,8 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
+    yomitan: false,
     settings: false,
-    configSettings: false,
     setup: false,
     show: false,
     hide: false,
@@ -586,8 +586,8 @@ test('handleCliCommand handles visibility and utility command dispatches', () =>
     args: Partial<CliArgs>;
     expected: string;
   }> = [
-    { args: { settings: true }, expected: 'openYomitanSettingsDelayed:1000' },
-    { args: { configSettings: true }, expected: 'openConfigSettingsWindow' },
+    { args: { yomitan: true }, expected: 'openYomitanSettingsDelayed:1000' },
+    { args: { settings: true }, expected: 'openConfigSettingsWindow' },
     {
       args: { showVisibleOverlay: true },
       expected: 'setVisibleOverlayVisible:true',

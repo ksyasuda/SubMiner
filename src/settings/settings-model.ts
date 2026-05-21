@@ -71,6 +71,26 @@ export function createSettingsDraft(
   };
 }
 
+export function toSettingsDisplayValue(
+  path: string,
+  value: ConfigSettingsSnapshotValue,
+): ConfigSettingsSnapshotValue {
+  if (path === 'discordPresence.updateIntervalMs' && typeof value === 'number') {
+    return value / 1000;
+  }
+  return value;
+}
+
+export function toConfigDraftValue(
+  path: string,
+  value: ConfigSettingsSnapshotValue,
+): ConfigSettingsSnapshotValue {
+  if (path === 'discordPresence.updateIntervalMs' && typeof value === 'number') {
+    return Math.round(value * 1000);
+  }
+  return value;
+}
+
 export function setDraftValue(
   draft: SettingsDraft,
   path: string,

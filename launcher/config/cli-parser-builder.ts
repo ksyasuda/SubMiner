@@ -22,6 +22,7 @@ export interface CommandActionInvocation {
 export interface CliInvocations {
   jellyfinInvocation: JellyfinInvocation | null;
   configInvocation: CommandActionInvocation | null;
+  settingsInvocation: CommandActionInvocation | null;
   mpvInvocation: CommandActionInvocation | null;
   appInvocation: { appArgs: string[] } | null;
   dictionaryTriggered: boolean;
@@ -58,7 +59,7 @@ function applyRootOptions(program: Command): void {
     .option('--start', 'Explicitly start overlay')
     .option('--log-level <level>', 'Log level')
     .option('-v, --version', 'Show SubMiner version')
-    .option('--config', 'Open configuration window')
+    .option('--settings', 'Open settings window')
     .option('-u, --update', 'Check for updates')
     .option('-R, --rofi', 'Use rofi picker')
     .option('-S, --start-overlay', 'Auto-start overlay')
@@ -88,6 +89,7 @@ function getTopLevelCommand(argv: string[]): { name: string; index: number } | n
     'jf',
     'doctor',
     'config',
+    'settings',
     'mpv',
     'dictionary',
     'dict',
@@ -138,6 +140,7 @@ export function parseCliPrograms(
 } {
   let jellyfinInvocation: JellyfinInvocation | null = null;
   let configInvocation: CommandActionInvocation | null = null;
+  let settingsInvocation: CommandActionInvocation | null = null;
   let mpvInvocation: CommandActionInvocation | null = null;
   let appInvocation: { appArgs: string[] } | null = null;
   let dictionaryTriggered = false;
@@ -293,12 +296,22 @@ export function parseCliPrograms(
 
   commandProgram
     .command('config')
-    .description('Config helpers')
+    .description('Config file helpers (path|show)')
     .argument('[action]', 'path|show')
     .option('--log-level <level>', 'Log level')
     .action((action: string | undefined, options: Record<string, unknown>) => {
       configInvocation = {
         action,
+        logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,
+      };
+    });
+
+  commandProgram
+    .command('settings')
+    .description('Open SubMiner settings window')
+    .option('--log-level <level>', 'Log level')
+    .action((options: Record<string, unknown>) => {
+      settingsInvocation = {
         logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,
       };
     });
@@ -356,6 +369,7 @@ export function parseCliPrograms(
     invocations: {
       jellyfinInvocation,
       configInvocation,
+      settingsInvocation,
       mpvInvocation,
       appInvocation,
       dictionaryTriggered,

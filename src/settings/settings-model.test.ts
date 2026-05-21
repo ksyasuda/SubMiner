@@ -6,6 +6,8 @@ import {
   setDraftValue,
   resetDraftPath,
   getDirtyOperations,
+  toConfigDraftValue,
+  toSettingsDisplayValue,
 } from './settings-model';
 import type { ConfigSettingsField } from '../types/settings';
 
@@ -16,7 +18,7 @@ const fields: ConfigSettingsField[] = [
     description: 'Pause while hovering subtitles.',
     configPath: 'subtitleStyle.autoPauseVideoOnHover',
     category: 'behavior',
-    section: 'Playback Pause Behavior',
+    section: 'Playback Behavior',
     control: 'boolean',
     defaultValue: true,
     restartBehavior: 'hot-reload',
@@ -146,4 +148,11 @@ test('settings draft emits reset operations for css-editor-owned legacy style pa
       path: 'subtitleStyle.fontSize',
     },
   ]);
+});
+
+test('discord presence update interval displays seconds while saving milliseconds', () => {
+  const path = 'discordPresence.updateIntervalMs';
+
+  assert.equal(toSettingsDisplayValue(path, 3000), 3);
+  assert.equal(toConfigDraftValue(path, 2.5), 2500);
 });

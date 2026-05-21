@@ -29,8 +29,8 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     togglePrimarySubtitleBar: false,
+    yomitan: false,
     settings: false,
-    configSettings: false,
     setup: false,
     show: false,
     hide: false,
@@ -122,12 +122,12 @@ function createCommandLineLauncherSnapshot(
 test('shouldAutoOpenFirstRunSetup only for startup/setup intents', () => {
   assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, background: true })), true);
   assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ background: true, setup: true })), true);
-  assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, configSettings: true })), false);
+  assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, settings: true })), false);
   assert.equal(
     shouldAutoOpenFirstRunSetup(makeArgs({ background: true, jellyfinRemoteAnnounce: true })),
     false,
   );
-  assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ settings: true })), false);
+  assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ yomitan: true })), false);
   assert.equal(shouldAutoOpenFirstRunSetup(makeArgs({ start: true, update: true })), false);
 });
 

@@ -17,7 +17,8 @@ export type ShowMessageBox = (options: {
 
 export interface UpdateDialogPresenterDeps {
   showMessageBox: ShowMessageBox;
-  focusApp?: () => void;
+  focusApp?: () => void | Promise<void>;
+  yieldToRunLoop?: () => Promise<void>;
   platform?: NodeJS.Platform;
 }
 
@@ -33,14 +34,19 @@ export async function showNoUpdateDialog(
   });
 }
 
-function maybeFocusAppForDialog(deps: UpdateDialogPresenterDeps): void {
+async function maybeFocusAppForDialog(deps: UpdateDialogPresenterDeps): Promise<void> {
   if ((deps.platform ?? process.platform) !== 'darwin') return;
-  deps.focusApp?.();
+  await deps.focusApp?.();
+  // Yield to the macOS run loop so the activation request is processed before the
+  // modal alert blocks JS execution; without this, the alert often appears behind
+  // other apps when SubMiner is not the active app at dialog-show time.
+  const yieldToRunLoop = deps.yieldToRunLoop ?? (() => new Promise((r) => setTimeout(r, 0)));
+  await yieldToRunLoop();
 }
 
 export function createUpdateDialogPresenter(deps: UpdateDialogPresenterDeps) {
   const showFocusedMessageBox: ShowMessageBox = async (options) => {
-    maybeFocusAppForDialog(deps);
+    await maybeFocusAppForDialog(deps);
     return deps.showMessageBox(options);
   };
 

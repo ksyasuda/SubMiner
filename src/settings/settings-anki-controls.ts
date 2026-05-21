@@ -511,8 +511,12 @@ export function renderKnownWordsDecksInput(
       void loadAnkiDeckFieldNames(deckName, draftUrl);
     }
     const row = createElement('div', 'deck-field-row');
+    const header = createElement('div', 'deck-field-row-header');
     const usedDeckNames = new Set(Object.keys(currentDecks));
-    const deckSelect = createElement('select', 'config-input') as HTMLSelectElement;
+    const deckSelect = createElement(
+      'select',
+      'config-input deck-field-row-name',
+    ) as HTMLSelectElement;
     for (const candidateDeck of uniqueSorted([...deckNames, deckName])) {
       if (candidateDeck !== deckName && usedDeckNames.has(candidateDeck)) continue;
       addOption(deckSelect, candidateDeck);
@@ -534,7 +538,6 @@ export function renderKnownWordsDecksInput(
 
     const availableFields = deckName ? (state.deckFieldNames.get(deckName) ?? []) : [];
     const fieldNames = uniqueSorted([...availableFields, ...selectedFields]);
-    const fieldsWrap = createElement('div', 'deck-field-fields');
     const fieldActions = createElement('div', 'deck-field-actions');
     const checkboxList = createElement('div', 'field-checkbox-list');
 
@@ -569,7 +572,6 @@ export function renderKnownWordsDecksInput(
     });
 
     fieldActions.append(selectAllButton, clearButton);
-    fieldsWrap.append(fieldActions, checkboxList);
 
     if (state.deckFieldNamesLoading.has(deckName)) {
       const hint = createElement('div', 'control-hint');
@@ -609,7 +611,8 @@ export function renderKnownWordsDecksInput(
       requestRender();
     });
 
-    row.append(deckSelect, fieldsWrap, removeButton);
+    header.append(deckSelect, removeButton);
+    row.append(header, fieldActions, checkboxList);
     const error = state.deckFieldNamesErrors.get(deckName);
     if (error) {
       const hint = createElement('div', 'control-hint error');

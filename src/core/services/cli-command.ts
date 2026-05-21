@@ -386,9 +386,9 @@ export function handleCliCommand(
   } else if (args.setup) {
     deps.openFirstRunSetup(true);
     deps.logDebug('Opened first-run setup flow.');
-  } else if (args.settings) {
+  } else if (args.yomitan) {
     deps.openYomitanSettingsDelayed(1000);
-  } else if (args.configSettings) {
+  } else if (args.settings) {
     deps.openConfigSettingsWindow();
   } else if (args.show || args.showVisibleOverlay) {
     deps.setVisibleOverlayVisible(true);

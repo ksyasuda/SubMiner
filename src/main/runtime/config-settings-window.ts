@@ -27,7 +27,7 @@ export function createOpenConfigSettingsWindowHandler<TWindow extends ConfigSett
     const window = deps.createSettingsWindow();
     void Promise.resolve(window.loadFile(deps.settingsHtmlPath)).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
-      deps.log?.(`Failed to load configuration settings window: ${message}`);
+      deps.log?.(`Failed to load settings window: ${message}`);
       deps.setSettingsWindow(null);
       window.destroy?.();
     });

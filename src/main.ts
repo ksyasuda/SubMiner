@@ -21,7 +21,6 @@ import {
   clipboard,
   globalShortcut,
   ipcMain,
-  net,
   shell,
   protocol,
   Extension,
@@ -91,7 +90,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 import * as fs from 'fs';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import * as os from 'os';
 import * as path from 'path';
 import { MecabTokenizer } from './mecab-tokenizer';
@@ -505,11 +504,7 @@ import {
   createElectronAppUpdater,
   isNativeUpdaterSupported,
 } from './main/runtime/update/app-updater';
-import {
-  createCurlFetch,
-  createElectronNetFetch,
-  createGlobalFetch,
-} from './main/runtime/update/fetch-adapter';
+import { createCurlFetch, createGlobalFetch } from './main/runtime/update/fetch-adapter';
 import { createCurlHttpExecutor } from './main/runtime/update/curl-http-executor';
 import { createFetchHttpExecutor } from './main/runtime/update/fetch-http-executor';
 import {
@@ -618,6 +613,7 @@ const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
 const TRAY_TOOLTIP = 'SubMiner';
+const SUBMINER_BUNDLE_ID = 'com.sudacode.SubMiner';
 const JELLYFIN_SETUP_PRELOAD_PATH = path.join(__dirname, 'preload-jellyfin-setup.js');
 
 let anilistMediaGuessRuntimeState: AnilistMediaGuessRuntimeState =
@@ -4894,28 +4890,19 @@ flushPendingMpvLogWrites = () => {
 
 const updateStateStore = createFileUpdateStateStore(path.join(USER_DATA_PATH, 'update-state.json'));
 let updateService: ReturnType<typeof createUpdateService> | null = null;
-const electronNetFetch = createElectronNetFetch({
-  fetch: (url, init) => net.fetch(url, init as RequestInit),
-});
 const globalFetchForUpdater = createGlobalFetch();
 const curlFetch = createCurlFetch();
 
 function createNativeUpdaterHttpExecutor() {
-  if (process.platform === 'darwin') {
-    return createCurlHttpExecutor();
-  }
   if (process.platform === 'win32') {
     return createFetchHttpExecutor();
   }
-  return undefined;
+  return createCurlHttpExecutor();
 }
 
 function getFetchForUpdater() {
-  if (process.platform === 'win32') {
-    return globalFetchForUpdater;
-  }
-  if (process.platform === 'linux') return curlFetch;
-  return electronNetFetch;
+  if (process.platform === 'win32') return globalFetchForUpdater;
+  return curlFetch;
 }
 
 async function updateLauncherFromSelectedRelease(
@@ -4962,11 +4949,8 @@ function getUpdateService() {
     isPackaged: app.isPackaged,
     log: (message) => logger.info(message),
     getChannel: () => getResolvedConfig().updates.channel,
-    configureHttpExecutor:
-      process.platform === 'darwin' || process.platform === 'win32'
-        ? createNativeUpdaterHttpExecutor
-        : undefined,
-    disableDifferentialDownload: process.platform === 'darwin' || process.platform === 'win32',
+    configureHttpExecutor: createNativeUpdaterHttpExecutor,
+    disableDifferentialDownload: true,
     isNativeUpdaterSupported: () =>
       isNativeUpdaterSupported({
         platform: process.platform,
@@ -4978,7 +4962,37 @@ function getUpdateService() {
   });
   const updateDialogPresenter = createUpdateDialogPresenter({
     platform: process.platform,
-    focusApp: () => app.focus({ steal: true }),
+    focusApp: async () => {
+      if (process.platform !== 'darwin') {
+        app.focus({ steal: true });
+        return;
+      }
+      try {
+        await app.dock?.show();
+      } catch (error) {
+        logger.warn('Failed to show macOS dock before update dialog', error);
+      }
+      // app.focus({ steal: true }) alone does not reliably activate the process
+      // when SubMiner was reached via `subminer -u` (single-instance forwarding
+      // from a CLI-spawned child). osascript's `activate` uses LaunchServices,
+      // which is the only path that reliably brings the running app forward.
+      await new Promise<void>((resolve) => {
+        execFile(
+          '/usr/bin/osascript',
+          ['-e', `tell application id "${SUBMINER_BUNDLE_ID}" to activate`],
+          { timeout: 2000 },
+          (error) => {
+            if (error) {
+              logger.warn(
+                `Failed to activate SubMiner via osascript: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+            resolve();
+          },
+        );
+      });
+      app.focus({ steal: true });
+    },
     showMessageBox: (options) => dialog.showMessageBox(options),
   });
   updateService = createUpdateService({

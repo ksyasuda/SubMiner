@@ -37,7 +37,7 @@ Then customize as needed using the sections below.
 
 ## Settings
 
-SubMiner includes a dedicated **Settings** window accessible from the tray menu, the app `--config` flag, or launcher commands such as `subminer --config` and `subminer config`. It is the primary way to configure SubMiner — all changes are written directly to `config.jsonc`, so manual file editing is not required for most users.
+SubMiner includes a dedicated **Settings** window accessible from the tray menu, the app `--settings` flag, or launcher commands such as `subminer --settings` and `subminer settings`. It is the primary way to configure SubMiner — all changes are written directly to `config.jsonc`, so manual file editing is not required for most users.
 
 The Settings window groups options by workflow instead of mirroring the raw config-file shape:
 

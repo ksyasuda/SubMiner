@@ -14,8 +14,8 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     togglePrimarySubtitleBar: false,
+    yomitan: false,
     settings: false,
-    configSettings: false,
     setup: false,
     show: false,
     hide: false,
@@ -222,4 +222,23 @@ test('startAppLifecycle queues second-instance commands until app ready runtime 
 
   runSecondInstance(['SubMiner', '--start']);
   assert.deepEqual(handled, ['ready', 'second-instance:start', 'second-instance:start']);
+});
+
+test('startAppLifecycle quits macOS config-only launch when all windows close', () => {
+  let windowAllClosedHandler: (() => void) | null = null;
+  const { deps, calls } = createDeps({
+    shouldStartApp: () => true,
+    isDarwinPlatform: () => true,
+    shouldQuitOnWindowAllClosed: () => true,
+    onWindowAllClosed: (handler) => {
+      windowAllClosedHandler = handler;
+    },
+  });
+
+  startAppLifecycle(makeArgs({ settings: true }), deps);
+
+  const handler = windowAllClosedHandler as (() => void) | null;
+  assert.ok(handler);
+  handler();
+  assert.deepEqual(calls, ['quitApp']);
 });

@@ -10,8 +10,8 @@ export interface CliArgs {
   toggle: boolean;
   toggleVisibleOverlay: boolean;
   togglePrimarySubtitleBar: boolean;
+  yomitan: boolean;
   settings: boolean;
-  configSettings: boolean;
   setup: boolean;
   show: boolean;
   hide: boolean;
@@ -117,8 +117,8 @@ export function parseArgs(argv: string[]): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     togglePrimarySubtitleBar: false,
+    yomitan: false,
     settings: false,
-    configSettings: false,
     setup: false,
     show: false,
     hide: false,
@@ -239,8 +239,8 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--toggle') args.toggle = true;
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
     else if (arg === '--toggle-primary-subtitle-bar') args.togglePrimarySubtitleBar = true;
-    else if (arg === '--settings' || arg === '--yomitan') args.settings = true;
-    else if (arg === '--config') args.configSettings = true;
+    else if (arg === '--yomitan') args.yomitan = true;
+    else if (arg === '--settings') args.settings = true;
     else if (arg === '--setup') args.setup = true;
     else if (arg === '--show') args.show = true;
     else if (arg === '--hide') args.hide = true;
@@ -494,8 +494,8 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.toggle ||
     args.toggleVisibleOverlay ||
     args.togglePrimarySubtitleBar ||
+    args.yomitan ||
     args.settings ||
-    args.configSettings ||
     args.setup ||
     args.show ||
     args.hide ||
@@ -569,8 +569,8 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.toggle &&
     !args.toggleVisibleOverlay &&
     !args.togglePrimarySubtitleBar &&
+    !args.yomitan &&
     !args.settings &&
-    !args.configSettings &&
     !args.setup &&
     !args.show &&
     !args.hide &&
@@ -639,8 +639,8 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.toggle ||
     args.toggleVisibleOverlay ||
     args.togglePrimarySubtitleBar ||
+    args.yomitan ||
     args.settings ||
-    args.configSettings ||
     args.setup ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
@@ -687,16 +687,16 @@ export function shouldStartApp(args: CliArgs): boolean {
   return false;
 }
 
-export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
+export function shouldRunYomitanOnlyStartup(args: CliArgs): boolean {
   return (
-    args.settings &&
+    args.yomitan &&
     !args.background &&
     !args.start &&
     !args.stop &&
     !args.toggle &&
     !args.toggleVisibleOverlay &&
     !args.togglePrimarySubtitleBar &&
-    !args.configSettings &&
+    !args.settings &&
     !args.show &&
     !args.hide &&
     !args.setup &&

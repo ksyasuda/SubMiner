@@ -7,7 +7,7 @@ import {
   isHeadlessInitialCommand,
   isStandaloneTexthookerCommand,
   parseArgs,
-  shouldRunSettingsOnlyStartup,
+  shouldRunYomitanOnlyStartup,
   shouldStartApp,
 } from './args';
 
@@ -66,7 +66,7 @@ test('parseArgs captures update command and internal launcher paths', () => {
   assert.equal(hasExplicitCommand(args), true);
   assert.equal(shouldStartApp(args), true);
   assert.equal(commandNeedsOverlayRuntime(args), false);
-  assert.equal(shouldRunSettingsOnlyStartup(args), false);
+  assert.equal(shouldRunYomitanOnlyStartup(args), false);
 });
 
 test('parseArgs captures launch-mpv targets and keeps it out of app startup', () => {
@@ -208,35 +208,33 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(shouldStartApp(update), true);
   assert.equal(isHeadlessInitialCommand(update), true);
 
+  const yomitan = parseArgs(['--yomitan']);
+  assert.equal(yomitan.yomitan, true);
+  assert.equal(hasExplicitCommand(yomitan), true);
+  assert.equal(shouldStartApp(yomitan), true);
+  assert.equal(shouldRunYomitanOnlyStartup(yomitan), true);
+
   const settings = parseArgs(['--settings']);
   assert.equal(settings.settings, true);
   assert.equal(hasExplicitCommand(settings), true);
   assert.equal(shouldStartApp(settings), true);
-  assert.equal(shouldRunSettingsOnlyStartup(settings), true);
+  assert.equal(shouldRunYomitanOnlyStartup(settings), false);
+  assert.equal(commandNeedsOverlayRuntime(settings), false);
+  assert.equal(commandNeedsOverlayStartupPrereqs(settings), false);
 
-  const configSettings = parseArgs(['--config']);
-  assert.equal(configSettings.configSettings, true);
-  assert.equal(hasExplicitCommand(configSettings), true);
-  assert.equal(shouldStartApp(configSettings), true);
-  assert.equal(shouldRunSettingsOnlyStartup(configSettings), false);
-  assert.equal(commandNeedsOverlayRuntime(configSettings), false);
-  assert.equal(commandNeedsOverlayStartupPrereqs(configSettings), false);
+  const yomitanWithOverlay = parseArgs(['--yomitan', '--toggle-visible-overlay']);
+  assert.equal(yomitanWithOverlay.yomitan, true);
+  assert.equal(yomitanWithOverlay.toggleVisibleOverlay, true);
+  assert.equal(shouldRunYomitanOnlyStartup(yomitanWithOverlay), false);
 
-  const settingsWithOverlay = parseArgs(['--settings', '--toggle-visible-overlay']);
-  assert.equal(settingsWithOverlay.settings, true);
-  assert.equal(settingsWithOverlay.toggleVisibleOverlay, true);
-  assert.equal(shouldRunSettingsOnlyStartup(settingsWithOverlay), false);
-
-  const yomitanAlias = parseArgs(['--yomitan']);
-  assert.equal(yomitanAlias.settings, true);
-  assert.equal(hasExplicitCommand(yomitanAlias), true);
-  assert.equal(shouldStartApp(yomitanAlias), true);
+  const settingsDoesNotEnableYomitan = parseArgs(['--settings']);
+  assert.equal(settingsDoesNotEnableYomitan.yomitan, false);
 
   const help = parseArgs(['--help']);
   assert.equal(help.help, true);
   assert.equal(hasExplicitCommand(help), true);
   assert.equal(shouldStartApp(help), false);
-  assert.equal(shouldRunSettingsOnlyStartup(help), false);
+  assert.equal(shouldRunYomitanOnlyStartup(help), false);
 
   const appPing = parseArgs(['--app-ping']);
   assert.equal(appPing.appPing, true);

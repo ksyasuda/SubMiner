@@ -94,7 +94,7 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
       click: handlers.openRuntimeOptions,
     },
     {
-      label: 'Open Configuration',
+      label: 'Open Settings',
       click: handlers.openConfigSettings,
     },
     {

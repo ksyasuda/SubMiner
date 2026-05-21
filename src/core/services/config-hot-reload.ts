@@ -56,6 +56,7 @@ const HOT_RELOAD_ROOTS = ['subtitleStyle', 'keybindings', 'shortcuts', 'subtitle
 
 const HOT_RELOAD_EXACT_OR_PREFIX_PATHS = [
   'secondarySub.defaultMode',
+  'mpv.aniskipButtonKey',
   'ankiConnect.ai.enabled',
   'stats.toggleKey',
   'stats.markWatchedKey',

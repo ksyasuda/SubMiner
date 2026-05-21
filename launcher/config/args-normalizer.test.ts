@@ -124,6 +124,7 @@ test('applyInvocationsToArgs maps config and jellyfin invocation state', () => {
       action: 'show',
       logLevel: 'warn',
     },
+    settingsInvocation: null,
     mpvInvocation: null,
     appInvocation: null,
     dictionaryTriggered: false,
@@ -159,13 +160,14 @@ test('applyInvocationsToArgs maps config and jellyfin invocation state', () => {
   assert.equal(parsed.logLevel, 'warn');
 });
 
-test('applyInvocationsToArgs maps bare config invocation to settings window', () => {
+test('applyInvocationsToArgs maps settings invocation to settings window', () => {
   const parsed = createDefaultArgs({});
 
   applyInvocationsToArgs(parsed, {
     jellyfinInvocation: null,
-    configInvocation: {
-      action: undefined,
+    configInvocation: null,
+    settingsInvocation: {
+      logLevel: undefined,
     },
     mpvInvocation: null,
     appInvocation: null,
@@ -190,8 +192,45 @@ test('applyInvocationsToArgs maps bare config invocation to settings window', ()
     texthookerOpenBrowser: false,
   });
 
-  assert.equal(parsed.configSettings, true);
+  assert.equal(parsed.settings, true);
   assert.equal(parsed.configPath, false);
+});
+
+test('applyInvocationsToArgs fails when config invocation has no action', () => {
+  const parsed = createDefaultArgs({});
+
+  const error = withProcessExitIntercept(() => {
+    applyInvocationsToArgs(parsed, {
+      jellyfinInvocation: null,
+      configInvocation: {
+        action: undefined,
+      },
+      settingsInvocation: null,
+      mpvInvocation: null,
+      appInvocation: null,
+      dictionaryTriggered: false,
+      dictionaryTarget: null,
+      dictionaryLogLevel: null,
+      dictionaryCandidates: false,
+      dictionarySelect: false,
+      dictionaryAnilistId: null,
+      statsTriggered: false,
+      statsBackground: false,
+      statsStop: false,
+      statsCleanup: false,
+      statsCleanupVocab: false,
+      statsCleanupLifetime: false,
+      statsLogLevel: null,
+      doctorTriggered: false,
+      doctorLogLevel: null,
+      doctorRefreshKnownWords: false,
+      texthookerTriggered: false,
+      texthookerLogLevel: null,
+      texthookerOpenBrowser: false,
+    });
+  });
+
+  assert.equal(error.code, 1);
 });
 
 test('applyInvocationsToArgs maps texthooker browser-open request', () => {
@@ -200,6 +239,7 @@ test('applyInvocationsToArgs maps texthooker browser-open request', () => {
   applyInvocationsToArgs(parsed, {
     jellyfinInvocation: null,
     configInvocation: null,
+    settingsInvocation: null,
     mpvInvocation: null,
     appInvocation: null,
     dictionaryTriggered: false,

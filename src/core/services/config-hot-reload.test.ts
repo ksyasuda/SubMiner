@@ -21,6 +21,7 @@ test('classifyConfigHotReloadDiff separates hot and restart-required fields', ()
 test('classifyConfigHotReloadDiff treats safe nested config paths as hot-reloadable', () => {
   const prev = deepCloneConfig(DEFAULT_CONFIG);
   const next = deepCloneConfig(DEFAULT_CONFIG);
+  next.mpv.aniskipButtonKey = 'F8';
   next.stats.toggleKey = 'F8';
   next.stats.markWatchedKey = 'F9';
   next.logging.level = 'debug';
@@ -52,6 +53,7 @@ test('classifyConfigHotReloadDiff treats safe nested config paths as hot-reloada
     new Set(diff.hotReloadFields),
     new Set([
       'stats.toggleKey',
+      'mpv.aniskipButtonKey',
       'stats.markWatchedKey',
       'logging.level',
       'youtube.primarySubLanguages',

@@ -232,7 +232,7 @@ test('doctor refresh-known-words forwards app refresh command without requiring 
   });
 });
 
-test('launcher config option forwards app configuration window command', () => {
+test('launcher settings option forwards app settings window command', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
@@ -249,14 +249,14 @@ test('launcher config option forwards app configuration window command', () => {
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_CAPTURE: capturePath,
     };
-    const result = runLauncher(['--config'], env);
+    const result = runLauncher(['--settings'], env);
 
     assert.equal(result.status, 0);
-    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--config\n');
+    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--settings\n');
   });
 });
 
-test('launcher config command forwards app configuration window command', () => {
+test('launcher settings command forwards app settings window command', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
@@ -273,14 +273,14 @@ test('launcher config command forwards app configuration window command', () => 
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_CAPTURE: capturePath,
     };
-    const result = runLauncher(['config'], env);
+    const result = runLauncher(['settings'], env);
 
     assert.equal(result.status, 0);
-    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--config\n');
+    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--settings\n');
   });
 });
 
-test('launcher config command suppresses known Electron macOS menu diagnostics', () => {
+test('launcher settings command suppresses known Electron macOS menu diagnostics', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
@@ -301,7 +301,7 @@ test('launcher config command suppresses known Electron macOS menu diagnostics',
       ...makeTestEnv(homeDir, xdgConfigHome),
       SUBMINER_APPIMAGE_PATH: appPath,
     };
-    const result = runLauncher(['config'], env);
+    const result = runLauncher(['settings'], env);
 
     assert.equal(result.status, 0);
     assert.equal(result.stderr, 'real stderr line\n');

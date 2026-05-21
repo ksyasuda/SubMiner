@@ -300,9 +300,9 @@ subminer --update
 
 SubMiner verifies AppImage, launcher, and rofi theme downloads against `SHA256SUMS.txt`. If the binary is in a protected path, SubMiner shows the exact command to run rather than elevating itself.
 
-On Linux, `subminer -u` performs the AppImage update from the launcher process directly.
+The tray "Check for Updates" entry installs the new app automatically on Linux, macOS, and Windows. On Linux it replaces the running `.AppImage` in place via `electron-updater`; AppImages managed by a system package (for example the AUR `/opt/SubMiner/SubMiner.AppImage`) are skipped so the package manager stays in charge.
 
-On macOS, tray update checks can also update the app automatically through Electron's built-in updater.
+`subminer -u` also performs the AppImage update directly from the launcher process, which is useful when SubMiner is not currently running.
 
 ## How It All Fits Together
 

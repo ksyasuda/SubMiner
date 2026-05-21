@@ -65,13 +65,17 @@ export const LEGACY_HIDDEN_CONFIG_PATHS = [
   'youtubeSubgen.primarySubLanguages',
   'anilist.characterDictionary.refreshTtlHours',
   'anilist.characterDictionary.evictionPolicy',
+  'anilist.characterDictionary.profileScope',
   'jellyfin.accessToken',
   'jellyfin.userId',
   'jellyfin.clientName',
   'jellyfin.clientVersion',
   'jellyfin.defaultLibraryId',
   'jellyfin.deviceId',
+  'jellyfin.directPlayContainers',
+  'jellyfin.remoteControlDeviceName',
   'controller.buttonIndices',
+  'shortcuts.multiCopyTimeoutMs',
   'subtitleSidebar.toggleKey',
   'jellyfin.recentServers',
 ] as const;
@@ -123,12 +127,11 @@ const SECTION_ORDER = new Map<string, number>(
     'Primary Subtitle Appearance',
     'Secondary Subtitle Appearance',
     'Subtitle Sidebar Appearance',
-    'Playback Pause Behavior',
+    'Playback Behavior',
     'Subtitle Behavior',
     'Subtitle Sidebar Behavior',
-    'Visible Overlay Auto-Start',
     'YouTube Playback Settings',
-    'MPV Launcher',
+    'mpv Playback',
     'Note Fields',
     'Media Capture',
     'Kiku/Lapis Features',
@@ -140,7 +143,19 @@ const SECTION_ORDER = new Map<string, number>(
     'MPV Keybindings',
     'Overlay Shortcuts',
     'Controller',
+    'Annotation WebSocket',
+    'WebSocket server',
+    'AniList',
     'Character Dictionary',
+    'Discord Rich Presence',
+    'Jellyfin',
+    'Texthooker',
+    'Yomitan',
+    'Stats dashboard',
+    'Startup warmups',
+    'Logging',
+    'Updates',
+    'Immersion tracking',
   ].map((section, index) => [section, index]),
 );
 
@@ -169,9 +184,9 @@ const PATH_ORDER = new Map<string, number>(
     'mpv.backend',
     'mpv.subminerBinaryPath',
     'mpv.aniskipEnabled',
-    'mpv.aniskipButtonKey',
     'mpv.launchMode',
     'mpv.executablePath',
+    'mpv.aniskipButtonKey',
   ].map((path, index) => [path, index]),
 );
 
@@ -186,7 +201,6 @@ const SUBSECTION_ORDER = new Map<string, number>(
     'Toggle & Visibility',
     'Open Panels',
     'Playback',
-    'Timing',
     'Default Fold State',
   ].map((subsection, index) => [subsection, index]),
 );
@@ -215,6 +229,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'mpv.pauseUntilOverlayReady': 'Pause Until Overlay Ready',
   'mpv.aniskipEnabled': 'Enable AniSkip',
   'mpv.aniskipButtonKey': 'AniSkip Button Key',
+  'discordPresence.updateIntervalMs': 'Update Interval Seconds',
 };
 
 const DESCRIPTION_OVERRIDES: Record<string, string> = {
@@ -232,6 +247,8 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
     'CSS declarations applied to secondary subtitles. Includes color, background-color, and all font properties.',
   'subtitleSidebar.css':
     'CSS declarations applied to the subtitle sidebar. Includes color, background-color, all font properties, and sidebar CSS variables.',
+  'discordPresence.updateIntervalMs':
+    'Minimum interval between presence payload updates, in seconds.',
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -295,7 +312,7 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
     path === 'subtitleStyle.autoPauseVideoOnYomitanPopup' ||
     path === 'subtitleSidebar.pauseVideoOnHover'
   ) {
-    return { category: 'behavior', section: 'Playback Pause Behavior' };
+    return { category: 'behavior', section: 'Playback Behavior' };
   }
   if (path === 'subtitleStyle.preserveLineBreaks') {
     return { category: 'behavior', section: 'Subtitle Behavior' };
@@ -373,8 +390,15 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (path.startsWith('ankiConnect.')) {
     return { category: 'mining-anki', section: 'AnkiConnect' };
   }
-  if (path === 'auto_start_overlay') {
-    return { category: 'behavior', section: topSection(path) };
+  if (
+    path === 'auto_start_overlay' ||
+    path === 'mpv.autoStartSubMiner' ||
+    path === 'mpv.pauseUntilOverlayReady'
+  ) {
+    return { category: 'behavior', section: 'Playback Behavior' };
+  }
+  if (path === 'mpv.aniskipButtonKey') {
+    return { category: 'input', section: 'Overlay Shortcuts' };
   }
   if (path.startsWith('mpv.') || path.startsWith('youtube.')) {
     return { category: 'behavior', section: topSection(path) };
@@ -437,7 +461,7 @@ function topSection(path: string): string {
     jimaku: 'Jimaku',
     jellyfin: 'Jellyfin',
     logging: 'Logging',
-    mpv: 'MPV Launcher',
+    mpv: 'mpv Playback',
     stats: 'Stats dashboard',
     startupWarmups: 'Startup warmups',
     subsync: 'Subtitle Sync',
@@ -447,7 +471,7 @@ function topSection(path: string): string {
     yomitan: 'Yomitan',
     youtube: 'YouTube Playback Settings',
     youtubeSubgen: 'YouTube subtitle generation',
-    auto_start_overlay: 'Visible Overlay Auto-Start',
+    auto_start_overlay: 'Playback Behavior',
   };
   return labels[top] ?? humanizePath(top);
 }
@@ -515,9 +539,11 @@ function subsectionForPath(path: string): string | undefined {
   if (path === 'stats.toggleKey' || path === 'stats.markWatchedKey') {
     return 'Toggle & Visibility';
   }
+  if (path === 'mpv.aniskipButtonKey') {
+    return 'Playback';
+  }
   if (path.startsWith('shortcuts.')) {
     const leaf = path.split('.').at(-1) ?? '';
-    if (leaf === 'multiCopyTimeoutMs') return 'Timing';
     if (
       leaf === 'copySubtitle' ||
       leaf === 'copySubtitleMultiple' ||
@@ -632,6 +658,7 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     path === 'ankiConnect.fields.miscInfo' ||
     path === 'ankiConnect.isLapis.sentenceCardModel' ||
     path === 'ankiConnect.isKiku.fieldGrouping' ||
+    path === 'mpv.aniskipButtonKey' ||
     path === 'stats.toggleKey' ||
     path === 'stats.markWatchedKey' ||
     path === 'logging.level' ||
