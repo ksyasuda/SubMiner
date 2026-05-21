@@ -52,7 +52,7 @@ If you use the [mpv plugin](/mpv-plugin), it can also start a texthooker-only he
 
 ### 1. Subtitle WebSocket
 
-Use the basic subtitle websocket when you only need the current subtitle line and a ready-to-render HTML sentence string.
+Use the basic subtitle websocket when you only need the current subtitle line as plain text.
 
 - **Default URL:** `ws://127.0.0.1:6677`
 - **Transport:** local WebSocket server bound to `127.0.0.1`
@@ -61,6 +61,36 @@ Use the basic subtitle websocket when you only need the current subtitle line an
 - **Reconnects:** client-managed
 
 When a client connects, SubMiner immediately sends the latest subtitle payload if one is available. After that, it pushes a new message each time the current subtitle changes.
+
+#### Message shape
+
+```json
+{
+  "version": 1,
+  "text": "無事",
+  "sentence": "無事",
+  "tokens": []
+}
+```
+
+#### Field reference
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `version` | number | Current websocket payload version. Today this is `1`. |
+| `text` | string | Raw subtitle text. |
+| `sentence` | string | Plain subtitle text with line breaks represented as `<br>`. No annotation spans or attributes. |
+| `tokens` | array | Always empty on the basic subtitle websocket. |
+
+### 2. Annotation WebSocket
+
+Use the annotation websocket for custom clients that want the same structured token payload the bundled texthooker UI consumes.
+
+- **Default URL:** `ws://127.0.0.1:6678`
+- **Payload shape:** JSON payload with `text`, rendered `sentence` HTML, and token metadata
+- **Primary difference:** this stream is intended to stay on even when the basic websocket auto-disables because `mpv_websocket` is installed
+
+In practice, if you are building a new client, prefer `annotationWebsocket` unless you specifically need compatibility with an existing `websocket` consumer.
 
 #### Message shape
 
@@ -91,16 +121,7 @@ When a client connects, SubMiner immediately sends the latest subtitle payload i
 }
 ```
 
-#### Field reference
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `version` | number | Current websocket payload version. Today this is `1`. |
-| `text` | string | Raw subtitle text. |
-| `sentence` | string | HTML string with `<span>` wrappers and `data-*` attributes for client rendering. |
-| `tokens` | array | Token metadata; empty when the subtitle is not tokenized yet. |
-
-Each token may include:
+Each annotation token may include:
 
 | Token field | Type | Notes |
 | --- | --- | --- |
@@ -118,16 +139,6 @@ Each token may include:
 | `className` | string | CSS-ready class list derived from token state |
 | `frequencyRankLabel` | string or `null` | Preformatted rank label for UIs |
 | `jlptLevelLabel` | string or `null` | Preformatted JLPT label for UIs |
-
-### 2. Annotation WebSocket
-
-Use the annotation websocket for custom clients that want the same structured token payload the bundled texthooker UI consumes.
-
-- **Default URL:** `ws://127.0.0.1:6678`
-- **Payload shape:** same JSON contract as the basic subtitle websocket
-- **Primary difference:** this stream is intended to stay on even when the basic websocket auto-disables because `mpv_websocket` is installed
-
-In practice, if you are building a new client, prefer `annotationWebsocket` unless you specifically need compatibility with an existing `websocket` consumer.
 
 ### 3. HTML markup conventions
 

@@ -22,6 +22,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   stopConfigHotReload: () => void;
   restorePreviousSecondarySubVisibility: () => void;
   restoreMpvSubVisibility: () => void;
+  isAppReady: () => boolean;
   unregisterAllGlobalShortcuts: () => void;
   stopSubtitleWebsocket: () => void;
   stopTexthookerService: () => void;
@@ -63,7 +64,10 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     stopConfigHotReload: () => deps.stopConfigHotReload(),
     restorePreviousSecondarySubVisibility: () => deps.restorePreviousSecondarySubVisibility(),
     restoreMpvSubVisibility: () => deps.restoreMpvSubVisibility(),
-    unregisterAllGlobalShortcuts: () => deps.unregisterAllGlobalShortcuts(),
+    unregisterAllGlobalShortcuts: () => {
+      if (!deps.isAppReady()) return;
+      deps.unregisterAllGlobalShortcuts();
+    },
     stopSubtitleWebsocket: () => deps.stopSubtitleWebsocket(),
     stopTexthookerService: () => deps.stopTexthookerService(),
     clearWindowsVisibleOverlayForegroundPollLoop: () =>

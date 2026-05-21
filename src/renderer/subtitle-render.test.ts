@@ -4,11 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import type { MergedToken } from '../types';
-import { PartOfSpeech } from '../types.js';
 import {
   alignTokensToSourceText,
   buildSubtitleTokenHoverRanges,
-  computeWordClass,
   createSubtitleRenderer,
   getFrequencyRankLabelForToken,
   getJlptLevelLabelForToken,
@@ -16,6 +14,7 @@ import {
   sanitizeSubtitleHoverTokenColor,
   shouldRenderTokenizedSubtitle,
 } from './subtitle-render.js';
+import { createToken } from './subtitle-render-test-helpers.js';
 import { createRendererState } from './state.js';
 
 class FakeTextNode {
@@ -44,6 +43,12 @@ class FakeStyleDeclaration {
 
   setProperty(name: string, value: string) {
     this.values.set(name, value);
+  }
+
+  removeProperty(name: string) {
+    const previous = this.values.get(name) ?? '';
+    this.values.delete(name);
+    return previous;
   }
 }
 
@@ -126,21 +131,6 @@ function collectWordNodes(root: FakeElement): FakeElement[] {
     (child): child is FakeElement =>
       child instanceof FakeElement && child.className.includes('word'),
   );
-}
-
-function createToken(overrides: Partial<MergedToken>): MergedToken {
-  return {
-    surface: '',
-    reading: '',
-    headword: '',
-    startPos: 0,
-    endPos: 0,
-    partOfSpeech: PartOfSpeech.other,
-    isMerged: true,
-    isKnown: false,
-    isNPlusOneTarget: false,
-    ...overrides,
-  };
 }
 
 function extractClassBlock(cssText: string, selector: string): string {
@@ -236,111 +226,6 @@ function buildJlptColorSelector(level: number): string {
   return `#subtitleRoot .word.word-jlpt-n${level}:not(:is(${higherPriorityClasses}))`;
 }
 
-test('computeWordClass preserves known and n+1 classes while adding JLPT classes', () => {
-  const knownJlpt = createToken({
-    isKnown: true,
-    jlptLevel: 'N1',
-    surface: '猫',
-  });
-  const nPlusOneJlpt = createToken({
-    isNPlusOneTarget: true,
-    jlptLevel: 'N2',
-    surface: '犬',
-  });
-
-  assert.equal(computeWordClass(knownJlpt), 'word word-known word-jlpt-n1');
-  assert.equal(computeWordClass(nPlusOneJlpt), 'word word-n-plus-one word-jlpt-n2');
-});
-
-test('computeWordClass applies name-match class ahead of known, n+1, frequency, and JLPT classes', () => {
-  const token = createToken({
-    isKnown: true,
-    isNPlusOneTarget: true,
-    jlptLevel: 'N2',
-    frequencyRank: 10,
-    surface: 'アクア',
-  }) as MergedToken & { isNameMatch?: boolean };
-  token.isNameMatch = true;
-
-  assert.equal(
-    computeWordClass(token, {
-      enabled: true,
-      topX: 100,
-      mode: 'single',
-      singleColor: '#000000',
-      bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
-    }),
-    'word word-name-match',
-  );
-});
-
-test('computeWordClass skips name-match class when disabled', () => {
-  const token = createToken({
-    surface: 'アクア',
-  }) as MergedToken & { isNameMatch?: boolean };
-  token.isNameMatch = true;
-
-  assert.equal(
-    computeWordClass(token, {
-      nameMatchEnabled: false,
-      enabled: true,
-      topX: 100,
-      mode: 'single',
-      singleColor: '#000000',
-      bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
-    }),
-    'word',
-  );
-});
-
-test('computeWordClass keeps known and N+1 color classes exclusive over frequency classes', () => {
-  const known = createToken({
-    isKnown: true,
-    frequencyRank: 10,
-    surface: '既知',
-  });
-  const nPlusOne = createToken({
-    isNPlusOneTarget: true,
-    frequencyRank: 10,
-    surface: '目標',
-  });
-  const frequency = createToken({
-    frequencyRank: 10,
-    surface: '頻度',
-  });
-
-  assert.equal(
-    computeWordClass(known, {
-      enabled: true,
-      topX: 100,
-      mode: 'single',
-      singleColor: '#000000',
-      bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
-    }),
-    'word word-known',
-  );
-  assert.equal(
-    computeWordClass(nPlusOne, {
-      enabled: true,
-      topX: 100,
-      mode: 'single',
-      singleColor: '#000000',
-      bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
-    }),
-    'word word-n-plus-one',
-  );
-  assert.equal(
-    computeWordClass(frequency, {
-      enabled: true,
-      topX: 100,
-      mode: 'single',
-      singleColor: '#000000',
-      bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
-    }),
-    'word word-frequency-single',
-  );
-});
-
 test('applySubtitleStyle sets subtitle name-match color variable', () => {
   const restoreDocument = installFakeDocument();
   try {
@@ -421,6 +306,106 @@ test('applySubtitleStyle stores secondary background styles in hover-aware css v
       undefined,
     );
     assert.equal((secondarySubRoot.style as unknown as { fontWeight?: string }).fontWeight, '600');
+  } finally {
+    restoreDocument();
+  }
+});
+
+test('applySubtitleStyle applies primary and secondary css declaration objects', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({
+      fontSize: 35,
+      css: {
+        'font-size': '42px',
+        'text-wrap': 'balance',
+        '--subtitle-outline': '1px',
+      },
+      secondary: {
+        fontSize: 24,
+        css: {
+          'font-size': '28px',
+          'text-transform': 'uppercase',
+        },
+      },
+    } as never);
+
+    const primaryValues = (subtitleRoot.style as unknown as { values?: Map<string, string> })
+      .values;
+    const secondaryValues = (secondarySubRoot.style as unknown as { values?: Map<string, string> })
+      .values;
+
+    assert.equal(primaryValues?.get('font-size'), '42px');
+    assert.equal(primaryValues?.get('text-wrap'), 'balance');
+    assert.equal(primaryValues?.get('--subtitle-outline'), '1px');
+    assert.equal(secondaryValues?.get('font-size'), '28px');
+    assert.equal(secondaryValues?.get('text-transform'), 'uppercase');
+  } finally {
+    restoreDocument();
+  }
+});
+
+test('applySubtitleStyle removes css declarations missing from later updates', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({
+      css: {
+        'font-size': '42px',
+        'text-wrap': 'balance',
+      },
+      secondary: {
+        css: {
+          'text-transform': 'uppercase',
+        },
+      },
+    } as never);
+    renderer.applySubtitleStyle({
+      css: {
+        'font-size': '44px',
+      },
+      secondary: {
+        css: {},
+      },
+    } as never);
+
+    const primaryValues = (subtitleRoot.style as unknown as { values?: Map<string, string> })
+      .values;
+    const secondaryValues = (secondarySubRoot.style as unknown as { values?: Map<string, string> })
+      .values;
+
+    assert.equal(primaryValues?.get('font-size'), '44px');
+    assert.equal(primaryValues?.has('text-wrap'), false);
+    assert.equal(secondaryValues?.has('text-transform'), false);
   } finally {
     restoreDocument();
   }
@@ -514,91 +499,6 @@ test('annotated subtitle tokens inherit configured base subtitle typography', ()
   } finally {
     restoreDocument();
   }
-});
-
-test('computeWordClass adds frequency class for single mode when rank is within topX', () => {
-  const token = createToken({
-    surface: '猫',
-    frequencyRank: 50,
-  });
-
-  const actual = computeWordClass(token, {
-    enabled: true,
-    topX: 100,
-    mode: 'single',
-    singleColor: '#000000',
-    bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
-  });
-
-  assert.equal(actual, 'word word-frequency-single');
-});
-
-test('computeWordClass adds frequency class when rank equals topX', () => {
-  const token = createToken({
-    surface: '水',
-    frequencyRank: 100,
-  });
-
-  const actual = computeWordClass(token, {
-    enabled: true,
-    topX: 100,
-    mode: 'single',
-    singleColor: '#000000',
-    bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
-  });
-
-  assert.equal(actual, 'word word-frequency-single');
-});
-
-test('computeWordClass adds frequency class for banded mode', () => {
-  const token = createToken({
-    surface: '犬',
-    frequencyRank: 250,
-  });
-
-  const actual = computeWordClass(token, {
-    enabled: true,
-    topX: 1000,
-    mode: 'banded',
-    singleColor: '#000000',
-    bandedColors: ['#111111', '#222222', '#333333', '#444444', '#555555'] as const,
-  });
-
-  assert.equal(actual, 'word word-frequency-band-2');
-});
-
-test('computeWordClass uses configured band count for banded mode', () => {
-  const token = createToken({
-    surface: '犬',
-    frequencyRank: 2,
-  });
-
-  const actual = computeWordClass(token, {
-    enabled: true,
-    topX: 4,
-    mode: 'banded',
-    singleColor: '#000000',
-    bandedColors: ['#111111', '#222222', '#333333', '#444444', '#555555'],
-  } as any);
-
-  assert.equal(actual, 'word word-frequency-band-3');
-});
-
-test('computeWordClass skips frequency class when rank is out of topX', () => {
-  const token = createToken({
-    surface: '犬',
-    frequencyRank: 1200,
-  });
-
-  const actual = computeWordClass(token, {
-    enabled: true,
-    topX: 1000,
-    mode: 'single',
-    singleColor: '#000000',
-    bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
-  });
-
-  assert.equal(actual, 'word');
 });
 
 test('getFrequencyRankLabelForToken returns rank only for frequency-colored tokens', () => {
@@ -960,10 +860,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
 
   const subtitleRootBlock = extractClassBlock(cssText, '#subtitleRoot');
   assert.match(subtitleRootBlock, /--subtitle-hover-token-color:\s*#f4dbd6;/);
-  assert.match(
-    subtitleRootBlock,
-    /--subtitle-hover-token-background-color:\s*rgba\(54,\s*58,\s*79,\s*0\.84\);/,
-  );
+  assert.match(subtitleRootBlock, /--subtitle-hover-token-background-color:\s*transparent;/);
   assert.match(subtitleRootBlock, /-webkit-text-fill-color:\s*currentColor;/);
 
   const charBlock = extractClassBlock(cssText, '#subtitleRoot .c');
@@ -1017,7 +914,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   );
   assert.match(
     plainWordHoverBlock,
-    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*transparent\);/,
   );
   assert.match(
     plainWordHoverBlock,
@@ -1031,7 +928,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   const coloredWordHoverBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known:hover');
   assert.match(
     coloredWordHoverBlock,
-    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*transparent\);/,
   );
   assert.match(coloredWordHoverBlock, /border-radius:\s*3px;/);
   assert.match(coloredWordHoverBlock, /filter:\s*brightness\(1\.18\) saturate\(1\.08\);/);
@@ -1140,7 +1037,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   const selectionBlock = extractClassBlock(cssText, '#subtitleRoot::selection');
   assert.match(
     selectionBlock,
-    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*transparent\);/,
   );
   assert.match(
     selectionBlock,
@@ -1154,7 +1051,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   const descendantSelectionBlock = extractClassBlock(cssText, '#subtitleRoot *::selection');
   assert.match(
     descendantSelectionBlock,
-    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\)\s*!important;/,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*transparent\)\s*!important;/,
   );
   assert.match(
     descendantSelectionBlock,

@@ -26,6 +26,15 @@ export function createResolveTrayIconPathHandler(deps: {
   };
 }
 
+export function shouldShowTexthookerTrayEntry(config: {
+  websocket?: { enabled?: boolean | 'auto' };
+  annotationWebsocket?: { enabled?: boolean };
+}): boolean {
+  const websocketEnabled = config.websocket?.enabled ?? false;
+  const annotationWebsocketEnabled = config.annotationWebsocket?.enabled ?? false;
+  return websocketEnabled !== false || annotationWebsocketEnabled !== false;
+}
+
 export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   buildTrayMenuTemplateRuntime: (handlers: {
     openSessionHelp: () => void;
@@ -36,7 +45,6 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
     openWindowsMpvLauncherSetup: () => void;
     showWindowsMpvLauncherSetup: boolean;
     openYomitanSettings: () => void;
-    openRuntimeOptions: () => void;
     openConfigSettings: () => void;
     openJellyfinSetup: () => void;
     showJellyfinDiscovery: boolean;
@@ -55,7 +63,6 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   openFirstRunSetupWindow: () => void;
   showWindowsMpvLauncherSetup: () => boolean;
   openYomitanSettings: () => void;
-  openRuntimeOptionsPalette: () => void;
   openConfigSettingsWindow: () => void;
   openJellyfinSetupWindow: () => void;
   isJellyfinConfigured: () => boolean;
@@ -87,12 +94,6 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
       showWindowsMpvLauncherSetup: deps.showWindowsMpvLauncherSetup(),
       openYomitanSettings: () => {
         deps.openYomitanSettings();
-      },
-      openRuntimeOptions: () => {
-        if (!deps.isOverlayRuntimeInitialized()) {
-          deps.initializeOverlayRuntime();
-        }
-        deps.openRuntimeOptionsPalette();
       },
       openConfigSettings: () => {
         deps.openConfigSettingsWindow();

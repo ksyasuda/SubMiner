@@ -15,9 +15,6 @@ import {
   SubsyncResolvedConfig,
 } from '../../subsync/utils';
 import { isRemoteMediaPath } from '../../jimaku/utils';
-import { createLogger } from '../../logger';
-
-const logger = createLogger('main:subsync');
 
 interface FileExtractionResult {
   path: string;
@@ -340,57 +337,6 @@ function validateFfsubsyncReference(videoPath: string): void {
   }
 }
 
-async function runSubsyncAutoInternal(deps: SubsyncCoreDeps): Promise<SubsyncResult> {
-  const client = getMpvClientForSubsync(deps);
-  const context = await gatherSubsyncContext(client);
-  const resolved = deps.getResolvedConfig();
-  const ffmpegPath = ensureExecutablePath(resolved.ffmpegPath, 'ffmpeg');
-
-  if (context.secondaryTrack) {
-    let secondaryExtraction: FileExtractionResult | null = null;
-    try {
-      secondaryExtraction = await extractSubtitleTrackToFile(
-        ffmpegPath,
-        context.videoPath,
-        context.secondaryTrack,
-      );
-      const alassResult = await subsyncToReference(
-        'alass',
-        secondaryExtraction.path,
-        context,
-        resolved,
-        client,
-      );
-      if (alassResult.ok) {
-        return alassResult;
-      }
-    } catch (error) {
-      logger.warn('Auto alass sync failed, trying ffsubsync fallback:', error);
-    } finally {
-      if (secondaryExtraction) {
-        cleanupTemporaryFile(secondaryExtraction);
-      }
-    }
-  }
-
-  const ffsubsyncPath = ensureExecutablePath(resolved.ffsubsyncPath, 'ffsubsync');
-  if (!ffsubsyncPath) {
-    return {
-      ok: false,
-      message: 'No secondary subtitle for alass and ffsubsync not configured',
-    };
-  }
-  try {
-    validateFfsubsyncReference(context.videoPath);
-  } catch (error) {
-    return {
-      ok: false,
-      message: `ffsubsync synchronization failed: ${(error as Error).message}`,
-    };
-  }
-  return subsyncToReference('ffsubsync', context.videoPath, context, resolved, client);
-}
-
 export async function runSubsyncManual(
   request: SubsyncManualRunRequest,
   deps: SubsyncCoreDeps,
@@ -448,17 +394,9 @@ export async function triggerSubsyncFromConfig(deps: TriggerSubsyncFromConfigDep
     return;
   }
 
-  const resolved = deps.getResolvedConfig();
   try {
-    if (resolved.defaultMode === 'manual') {
-      await openSubsyncManualPicker(deps);
-      deps.showMpvOsd('Subsync: choose engine and source');
-      return;
-    }
-
-    deps.setSubsyncInProgress(true);
-    const result = await deps.runWithSubsyncSpinner(() => runSubsyncAutoInternal(deps));
-    deps.showMpvOsd(result.message);
+    await openSubsyncManualPicker(deps);
+    deps.showMpvOsd('Subsync: choose engine and source');
   } catch (error) {
     deps.showMpvOsd(`Subsync failed: ${(error as Error).message}`);
   } finally {

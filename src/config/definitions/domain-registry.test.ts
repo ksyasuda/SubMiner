@@ -63,10 +63,9 @@ const UNDOCUMENTED_LEAVES: ReadonlySet<string> = new Set([
   'subtitleStyle.jlptColors.N3',
   'subtitleStyle.jlptColors.N4',
   'subtitleStyle.jlptColors.N5',
-  'subtitleStyle.knownWordColor',
   'subtitleStyle.letterSpacing',
   'subtitleStyle.lineHeight',
-  'subtitleStyle.nPlusOneColor',
+  'subtitleStyle.paintOrder',
   'subtitleStyle.secondary.backdropFilter',
   'subtitleStyle.secondary.backgroundColor',
   'subtitleStyle.secondary.fontColor',
@@ -77,11 +76,14 @@ const UNDOCUMENTED_LEAVES: ReadonlySet<string> = new Set([
   'subtitleStyle.secondary.fontWeight',
   'subtitleStyle.secondary.letterSpacing',
   'subtitleStyle.secondary.lineHeight',
+  'subtitleStyle.secondary.paintOrder',
   'subtitleStyle.secondary.textRendering',
   'subtitleStyle.secondary.textShadow',
+  'subtitleStyle.secondary.WebkitTextStroke',
   'subtitleStyle.secondary.wordSpacing',
   'subtitleStyle.textRendering',
   'subtitleStyle.textShadow',
+  'subtitleStyle.WebkitTextStroke',
   'subtitleStyle.wordSpacing',
 ]);
 
@@ -103,6 +105,13 @@ test('config option registry includes critical paths and has unique entries', ()
     'anilist.characterDictionary.collapsibleSections.description',
     'mpv.executablePath',
     'mpv.launchMode',
+    'mpv.socketPath',
+    'mpv.backend',
+    'mpv.autoStartSubMiner',
+    'mpv.pauseUntilOverlayReady',
+    'mpv.subminerBinaryPath',
+    'mpv.aniskipEnabled',
+    'mpv.aniskipButtonKey',
     'yomitan.externalProfilePath',
     'immersionTracking.enabled',
   ]) {
@@ -110,6 +119,20 @@ test('config option registry includes critical paths and has unique entries', ()
   }
 
   assert.equal(new Set(paths).size, paths.length);
+});
+
+test('known-word annotation color has one public config path', () => {
+  const leaves = collectConfigLeafPaths(DEFAULT_CONFIG);
+
+  assert.ok(leaves.includes('subtitleStyle.knownWordColor'));
+  assert.ok(!leaves.includes('ankiConnect.knownWords.color'));
+});
+
+test('n+1 annotation color has one public config path', () => {
+  const leaves = collectConfigLeafPaths(DEFAULT_CONFIG);
+
+  assert.ok(leaves.includes('subtitleStyle.nPlusOneColor'));
+  assert.ok(!leaves.includes('ankiConnect.nPlusOne.color'));
 });
 
 test('every DEFAULT_CONFIG leaf is in CONFIG_OPTION_REGISTRY or UNDOCUMENTED_LEAVES', () => {

@@ -70,6 +70,7 @@ export type FrequencyDictionaryMatchMode = 'headword' | 'surface';
 
 export interface SubtitleStyleConfig {
   primaryDefaultMode?: PrimarySubMode;
+  css?: Record<string, string>;
   enableJlpt?: boolean;
   preserveLineBreaks?: boolean;
   autoPauseVideoOnHover?: boolean;
@@ -89,6 +90,8 @@ export interface SubtitleStyleConfig {
   fontKerning?: string;
   textRendering?: string;
   textShadow?: string;
+  paintOrder?: string;
+  WebkitTextStroke?: string;
   backdropFilter?: string;
   backgroundColor?: string;
   nPlusOneColor?: string;
@@ -110,6 +113,7 @@ export interface SubtitleStyleConfig {
     bandedColors?: [string, string, string, string, string];
   };
   secondary?: {
+    css?: Record<string, string>;
     fontFamily?: string;
     fontSize?: number;
     fontColor?: string;
@@ -121,10 +125,14 @@ export interface SubtitleStyleConfig {
     fontKerning?: string;
     textRendering?: string;
     textShadow?: string;
+    paintOrder?: string;
+    WebkitTextStroke?: string;
     backdropFilter?: string;
     backgroundColor?: string;
   };
 }
+
+export type SubtitleRendererStyleConfig = SubtitleStyleConfig;
 
 export interface TokenPos1ExclusionConfig {
   defaults?: string[];
@@ -163,6 +171,7 @@ export interface SubtitleSidebarConfig {
   toggleKey?: string;
   pauseVideoOnHover?: boolean;
   autoScroll?: boolean;
+  css?: Record<string, string>;
   maxWidth?: number;
   opacity?: number;
   backgroundColor?: string;
@@ -174,6 +183,14 @@ export interface SubtitleSidebarConfig {
   activeLineBackgroundColor?: string;
   hoverLineBackgroundColor?: string;
 }
+
+export type ResolvedSubtitleSidebarConfig = Required<Omit<SubtitleSidebarConfig, 'css'>> & {
+  css: Record<string, string>;
+};
+
+export type SubtitleSidebarSnapshotConfig = Required<Omit<SubtitleSidebarConfig, 'css'>> & {
+  css?: Record<string, string>;
+};
 
 export interface SubtitleData {
   text: string;
@@ -190,7 +207,7 @@ export interface SubtitleSidebarSnapshot {
     startTime: number | null;
     endTime: number | null;
   };
-  config: Required<SubtitleSidebarConfig>;
+  config: SubtitleSidebarSnapshotConfig;
 }
 
 export interface SubtitleHoverTokenPayload {

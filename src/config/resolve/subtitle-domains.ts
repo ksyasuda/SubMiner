@@ -10,6 +10,40 @@ import {
   isObject,
 } from './shared';
 
+function asCssDeclarations(value: unknown): Record<string, string> | undefined {
+  if (!isObject(value)) return undefined;
+
+  const declarations: Record<string, string> = {};
+  for (const [property, declarationValue] of Object.entries(value)) {
+    if (typeof declarationValue !== 'string') {
+      return undefined;
+    }
+    if (declarationValue.trim().length > 0) {
+      declarations[property] = declarationValue.trim();
+    }
+  }
+  return declarations;
+}
+
+const SUBTITLE_HOVER_TOKEN_COLOR_CSS_PROPERTY = '--subtitle-hover-token-color';
+const SUBTITLE_HOVER_TOKEN_BACKGROUND_CSS_PROPERTY = '--subtitle-hover-token-background-color';
+
+function applySubtitleHoverTokenCssCompatibility(
+  subtitleStyle: ResolvedConfig['subtitleStyle'],
+): void {
+  const hoverTokenColor = asCssColor(subtitleStyle.css[SUBTITLE_HOVER_TOKEN_COLOR_CSS_PROPERTY]);
+  if (hoverTokenColor !== undefined) {
+    subtitleStyle.hoverTokenColor = hoverTokenColor;
+  }
+
+  const hoverTokenBackgroundColor = asCssColor(
+    subtitleStyle.css[SUBTITLE_HOVER_TOKEN_BACKGROUND_CSS_PROPERTY],
+  );
+  if (hoverTokenBackgroundColor !== undefined) {
+    subtitleStyle.hoverTokenBackgroundColor = hoverTokenBackgroundColor;
+  }
+}
+
 export function applySubtitleDomainConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
 
@@ -157,6 +191,10 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       resolved.subtitleStyle.hoverTokenBackgroundColor;
     const fallbackSubtitleStyleNameMatchEnabled = resolved.subtitleStyle.nameMatchEnabled;
     const fallbackSubtitleStyleNameMatchColor = resolved.subtitleStyle.nameMatchColor;
+    const fallbackSubtitleStyleKnownWordColor = resolved.subtitleStyle.knownWordColor;
+    const fallbackSubtitleStyleNPlusOneColor = resolved.subtitleStyle.nPlusOneColor;
+    const fallbackSubtitleStyleCss = { ...resolved.subtitleStyle.css };
+    const fallbackSubtitleStyleSecondaryCss = { ...resolved.subtitleStyle.secondary.css };
     const fallbackFrequencyDictionary = {
       ...resolved.subtitleStyle.frequencyDictionary,
     };
@@ -206,6 +244,35 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         primaryDefaultMode,
         resolved.subtitleStyle.primaryDefaultMode,
         'Expected hidden, visible, or hover.',
+      );
+    }
+
+    const css = asCssDeclarations((src.subtitleStyle as { css?: unknown }).css);
+    if (css !== undefined) {
+      resolved.subtitleStyle.css = css;
+    } else if ((src.subtitleStyle as { css?: unknown }).css !== undefined) {
+      resolved.subtitleStyle.css = fallbackSubtitleStyleCss;
+      warn(
+        'subtitleStyle.css',
+        (src.subtitleStyle as { css?: unknown }).css,
+        resolved.subtitleStyle.css,
+        'Expected an object whose values are CSS declaration strings.',
+      );
+    }
+
+    const rawSecondary = isObject(src.subtitleStyle.secondary)
+      ? (src.subtitleStyle.secondary as { css?: unknown })
+      : undefined;
+    const secondaryCss = asCssDeclarations(rawSecondary?.css);
+    if (secondaryCss !== undefined) {
+      resolved.subtitleStyle.secondary.css = secondaryCss;
+    } else if (rawSecondary?.css !== undefined) {
+      resolved.subtitleStyle.secondary.css = fallbackSubtitleStyleSecondaryCss;
+      warn(
+        'subtitleStyle.secondary.css',
+        rawSecondary.css,
+        resolved.subtitleStyle.secondary.css,
+        'Expected an object whose values are CSS declaration strings.',
       );
     }
 
@@ -301,6 +368,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       );
     }
 
+    applySubtitleHoverTokenCssCompatibility(resolved.subtitleStyle);
+
     const nameMatchColor = asColor(
       (src.subtitleStyle as { nameMatchColor?: unknown }).nameMatchColor,
     );
@@ -329,6 +398,34 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         'subtitleStyle.nameMatchColor',
         (src.subtitleStyle as { nameMatchColor?: unknown }).nameMatchColor,
         resolved.subtitleStyle.nameMatchColor,
+        'Expected hex color.',
+      );
+    }
+
+    const knownWordColor = asColor(
+      (src.subtitleStyle as { knownWordColor?: unknown }).knownWordColor,
+    );
+    if (knownWordColor !== undefined) {
+      resolved.subtitleStyle.knownWordColor = knownWordColor;
+    } else if ((src.subtitleStyle as { knownWordColor?: unknown }).knownWordColor !== undefined) {
+      resolved.subtitleStyle.knownWordColor = fallbackSubtitleStyleKnownWordColor;
+      warn(
+        'subtitleStyle.knownWordColor',
+        (src.subtitleStyle as { knownWordColor?: unknown }).knownWordColor,
+        resolved.subtitleStyle.knownWordColor,
+        'Expected hex color.',
+      );
+    }
+
+    const nPlusOneColor = asColor((src.subtitleStyle as { nPlusOneColor?: unknown }).nPlusOneColor);
+    if (nPlusOneColor !== undefined) {
+      resolved.subtitleStyle.nPlusOneColor = nPlusOneColor;
+    } else if ((src.subtitleStyle as { nPlusOneColor?: unknown }).nPlusOneColor !== undefined) {
+      resolved.subtitleStyle.nPlusOneColor = fallbackSubtitleStyleNPlusOneColor;
+      warn(
+        'subtitleStyle.nPlusOneColor',
+        (src.subtitleStyle as { nPlusOneColor?: unknown }).nPlusOneColor,
+        resolved.subtitleStyle.nPlusOneColor,
         'Expected hex color.',
       );
     }
@@ -444,6 +541,19 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       ...resolved.subtitleSidebar,
       ...(src.subtitleSidebar as ResolvedConfig['subtitleSidebar']),
     };
+
+    const css = asCssDeclarations((src.subtitleSidebar as { css?: unknown }).css);
+    if (css !== undefined) {
+      resolved.subtitleSidebar.css = css;
+    } else if ((src.subtitleSidebar as { css?: unknown }).css !== undefined) {
+      resolved.subtitleSidebar.css = fallback.css;
+      warn(
+        'subtitleSidebar.css',
+        (src.subtitleSidebar as { css?: unknown }).css,
+        resolved.subtitleSidebar.css,
+        'Expected an object whose values are CSS declaration strings.',
+      );
+    }
 
     const enabled = asBoolean((src.subtitleSidebar as { enabled?: unknown }).enabled);
     if (enabled !== undefined) {

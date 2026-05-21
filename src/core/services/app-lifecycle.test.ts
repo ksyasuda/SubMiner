@@ -14,8 +14,8 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     togglePrimarySubtitleBar: false,
+    yomitan: false,
     settings: false,
-    configSettings: false,
     setup: false,
     show: false,
     hide: false,
@@ -32,6 +32,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     triggerSubsync: false,
     markAudioCard: false,
     toggleStatsOverlay: false,
+    markWatched: false,
     toggleSubtitleSidebar: false,
     openRuntimeOptions: false,
     openSessionHelp: false,
@@ -69,6 +70,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     texthooker: false,
     texthookerOpenBrowser: false,
     help: false,
+    appPing: false,
     autoStartOverlay: false,
     generateConfig: false,
     backupOverwrite: false,
@@ -90,6 +92,9 @@ function createDeps(overrides: Partial<AppLifecycleServiceDeps> = {}) {
     },
     quitApp: () => {
       calls.push('quitApp');
+    },
+    exitApp: (code) => {
+      calls.push(`exit:${code}`);
     },
     onSecondInstance: () => {},
     handleCliCommand: () => {},
@@ -135,4 +140,180 @@ test('startAppLifecycle still acquires lock for startup commands', () => {
   startAppLifecycle(makeArgs({ start: true }), deps);
 
   assert.equal(getLockCalls(), 1);
+});
+
+test('startAppLifecycle app ping exits non-zero immediately when no running instance owns the lock', () => {
+  const { deps, calls, getLockCalls } = createDeps({
+    shouldStartApp: () => false,
+  });
+
+  startAppLifecycle(makeArgs({ appPing: true }), deps);
+
+  assert.equal(getLockCalls(), 1);
+  assert.deepEqual(calls, ['exit:1']);
+});
+
+test('startAppLifecycle app ping exits zero immediately when another instance owns the lock', () => {
+  let lockCalls = 0;
+  const { deps, calls } = createDeps({
+    shouldStartApp: () => false,
+    requestSingleInstanceLock: () => {
+      lockCalls += 1;
+      return false;
+    },
+  });
+
+  startAppLifecycle(makeArgs({ appPing: true }), deps);
+
+  assert.equal(lockCalls, 1);
+  assert.deepEqual(calls, ['exit:0']);
+});
+
+test('startAppLifecycle queues second-instance commands until app ready runtime completes', async () => {
+  const handled: string[] = [];
+  let secondInstanceHandler: ((_event: unknown, argv: string[]) => void) | null = null;
+  let readyHandler: (() => Promise<void>) | null = null;
+  let releaseReady: (() => void) | null = null;
+  const readyFinished = new Promise<void>((resolve) => {
+    releaseReady = resolve;
+  });
+
+  const { deps } = createDeps({
+    shouldStartApp: () => true,
+    onSecondInstance: (handler) => {
+      secondInstanceHandler = handler;
+    },
+    parseArgs: (argv) => makeArgs({ start: argv.includes('--start') }),
+    handleCliCommand: (args, source) => {
+      handled.push(`${source}:${args.start ? 'start' : 'other'}`);
+    },
+    whenReady: (handler) => {
+      readyHandler = handler;
+    },
+    onReady: async () => {
+      await readyFinished;
+      handled.push('ready');
+    },
+  });
+
+  startAppLifecycle(makeArgs({ background: true }), deps);
+
+  const runSecondInstance = (argv: string[]) => {
+    assert.ok(secondInstanceHandler);
+    (secondInstanceHandler as (_event: unknown, argv: string[]) => void)({}, argv);
+  };
+  const runReady = () => {
+    assert.ok(readyHandler);
+    return (readyHandler as () => Promise<void>)();
+  };
+
+  runSecondInstance(['SubMiner', '--start']);
+  assert.deepEqual(handled, []);
+
+  const readyRun = runReady();
+  await Promise.resolve();
+  assert.deepEqual(handled, []);
+
+  assert.ok(releaseReady);
+  (releaseReady as () => void)();
+  await readyRun;
+
+  assert.deepEqual(handled, ['ready', 'second-instance:start']);
+
+  runSecondInstance(['SubMiner', '--start']);
+  assert.deepEqual(handled, ['ready', 'second-instance:start', 'second-instance:start']);
+});
+
+test('startAppLifecycle routes control socket commands through the second-instance queue', async () => {
+  const handled: string[] = [];
+  let controlArgvHandler: ((argv: string[]) => void) | null = null;
+  let readyHandler: (() => Promise<void>) | null = null;
+  let releaseReady: (() => void) | null = null;
+  const readyFinished = new Promise<void>((resolve) => {
+    releaseReady = resolve;
+  });
+
+  const { deps } = createDeps({
+    shouldStartApp: () => true,
+    parseArgs: (argv) => makeArgs({ start: argv.includes('--start') }),
+    handleCliCommand: (args, source) => {
+      handled.push(`${source}:${args.start ? 'start' : 'other'}`);
+    },
+    startControlServer: (handler) => {
+      controlArgvHandler = handler;
+      return () => {
+        handled.push('control-close');
+      };
+    },
+    whenReady: (handler) => {
+      readyHandler = handler;
+    },
+    onReady: async () => {
+      await readyFinished;
+      handled.push('ready');
+    },
+  });
+
+  let willQuitHandler: (() => void) | null = null;
+  deps.onWillQuit = (handler) => {
+    willQuitHandler = handler;
+  };
+
+  startAppLifecycle(makeArgs({ background: true }), deps);
+
+  assert.ok(controlArgvHandler);
+  (controlArgvHandler as (argv: string[]) => void)(['--start']);
+  assert.deepEqual(handled, []);
+
+  assert.ok(readyHandler);
+  const readyRun = (readyHandler as () => Promise<void>)();
+  await Promise.resolve();
+  assert.deepEqual(handled, []);
+
+  assert.ok(releaseReady);
+  (releaseReady as () => void)();
+  await readyRun;
+  assert.deepEqual(handled, ['ready', 'second-instance:start']);
+
+  assert.ok(willQuitHandler);
+  (willQuitHandler as () => void)();
+  assert.deepEqual(handled, ['ready', 'second-instance:start', 'control-close']);
+});
+
+test('startAppLifecycle quits macOS config-only launch when all windows close', () => {
+  let windowAllClosedHandler: (() => void) | null = null;
+  const { deps, calls } = createDeps({
+    shouldStartApp: () => true,
+    isDarwinPlatform: () => true,
+    shouldQuitOnWindowAllClosed: () => true,
+    onWindowAllClosed: (handler) => {
+      windowAllClosedHandler = handler;
+    },
+  });
+
+  startAppLifecycle(makeArgs({ settings: true }), deps);
+
+  const handler = windowAllClosedHandler as (() => void) | null;
+  assert.ok(handler);
+  handler();
+  assert.deepEqual(calls, ['quitApp']);
+});
+
+test('startAppLifecycle quits macOS setup-only launch when all windows close', () => {
+  let windowAllClosedHandler: (() => void) | null = null;
+  const { deps, calls } = createDeps({
+    shouldStartApp: () => true,
+    isDarwinPlatform: () => true,
+    shouldQuitOnWindowAllClosed: () => true,
+    onWindowAllClosed: (handler) => {
+      windowAllClosedHandler = handler;
+    },
+  });
+
+  startAppLifecycle(makeArgs({ setup: true }), deps);
+
+  const handler = windowAllClosedHandler as (() => void) | null;
+  assert.ok(handler);
+  handler();
+  assert.deepEqual(calls, ['quitApp']);
 });

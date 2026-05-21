@@ -23,8 +23,8 @@ export interface ConfigSettingsSaveDeps {
   deleteFile?(path: string): void;
   reloadConfigStrict(): ReloadConfigStrictResult;
   classifyDiff(prev: ResolvedConfig, next: ResolvedConfig): ConfigSettingsHotReloadDiff;
-  applyHotReload(diff: ConfigSettingsHotReloadDiff, config: ResolvedConfig): void;
   getRestartRequiredSections(restartRequiredFields: string[]): string[];
+  onHotReloadApplied?: (diff: ConfigSettingsHotReloadDiff, config: ResolvedConfig) => void;
 }
 
 export function createSaveConfigSettingsPatchHandler(deps: ConfigSettingsSaveDeps) {
@@ -64,12 +64,17 @@ export function createSaveConfigSettingsPatchHandler(deps: ConfigSettingsSaveDep
     deps.writeTextAtomically(configPath, candidate.content);
     const reloadResult = deps.reloadConfigStrict();
     if (!reloadResult.ok) {
-      if (hadExistingConfig) {
-        deps.writeTextAtomically(configPath, content);
-      } else if (deps.deleteFile) {
-        deps.deleteFile(configPath);
-      } else {
-        deps.writeTextAtomically(configPath, content);
+      try {
+        if (hadExistingConfig) {
+          deps.writeTextAtomically(configPath, content);
+        } else if (deps.deleteFile) {
+          deps.deleteFile(configPath);
+        } else {
+          deps.writeTextAtomically(configPath, content);
+        }
+        deps.reloadConfigStrict();
+      } catch {
+        // Best-effort rollback; preserve original reload error for caller.
       }
       return {
         ok: false,
@@ -83,7 +88,7 @@ export function createSaveConfigSettingsPatchHandler(deps: ConfigSettingsSaveDep
 
     const diff = deps.classifyDiff(previousConfig, reloadResult.config);
     if (diff.hotReloadFields.length > 0) {
-      deps.applyHotReload(diff, reloadResult.config);
+      deps.onHotReloadApplied?.(diff, reloadResult.config);
     }
 
     return {

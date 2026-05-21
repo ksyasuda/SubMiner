@@ -6,7 +6,7 @@ import type {
 } from '../types/settings';
 
 export interface SettingsFilter {
-  category: ConfigSettingsCategory;
+  category?: ConfigSettingsCategory;
   query?: string;
 }
 
@@ -17,7 +17,16 @@ export interface SettingsDraft {
 }
 
 function normalizeQuery(query: string | undefined): string {
-  return (query ?? '').trim().toLowerCase();
+  return (query ?? '').trim().toLocaleLowerCase();
+}
+
+function searchableText(parts: Array<string | undefined>): string {
+  return parts
+    .filter(Boolean)
+    .join(' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .toLocaleLowerCase();
 }
 
 function valuesEqual(a: unknown, b: unknown): boolean {
@@ -29,23 +38,26 @@ export function filterSettingsFields(
   filter: SettingsFilter,
 ): ConfigSettingsField[] {
   const query = normalizeQuery(filter.query);
+  const terms = query.length > 0 ? searchableText([query]).split(/\s+/).filter(Boolean) : [];
   return fields.filter((field) => {
-    if (field.category !== filter.category || field.legacyHidden) {
+    if (field.legacyHidden || field.settingsHidden) {
       return false;
     }
-    if (!query) {
+    if (filter.category && field.category !== filter.category) {
+      return false;
+    }
+    if (!query || terms.length === 0) {
       return true;
     }
-    const haystack = [
+    const haystack = searchableText([
       field.label,
       field.description,
       field.configPath,
       field.section,
+      field.subsection ?? '',
       field.enumValues?.join(' ') ?? '',
-    ]
-      .join(' ')
-      .toLowerCase();
-    return haystack.includes(query);
+    ]);
+    return terms.every((term) => haystack.includes(term));
   });
 }
 
@@ -57,6 +69,33 @@ export function createSettingsDraft(
     values: structuredClone(values),
     resetPaths: new Set(),
   };
+}
+
+export function toSettingsDisplayValue(
+  path: string,
+  value: ConfigSettingsSnapshotValue,
+): ConfigSettingsSnapshotValue {
+  if (path === 'websocket.enabled' && typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  if (path === 'discordPresence.updateIntervalMs' && typeof value === 'number') {
+    return value / 1000;
+  }
+  return value;
+}
+
+export function toConfigDraftValue(
+  path: string,
+  value: ConfigSettingsSnapshotValue,
+): ConfigSettingsSnapshotValue {
+  if (path === 'websocket.enabled') {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  }
+  if (path === 'discordPresence.updateIntervalMs' && typeof value === 'number') {
+    return Math.round(value * 1000);
+  }
+  return value;
 }
 
 export function setDraftValue(

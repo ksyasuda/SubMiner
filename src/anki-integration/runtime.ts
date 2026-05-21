@@ -157,7 +157,8 @@ export class AnkiIntegrationRuntime {
   }
 
   applyRuntimeConfigPatch(patch: Partial<AnkiConnectConfig>): void {
-    const wasKnownWordCacheEnabled = this.config.knownWords?.highlightEnabled === true;
+    const wasKnownWordCacheEnabled =
+      this.config.knownWords?.highlightEnabled === true || this.config.nPlusOne?.enabled === true;
     const previousKnownWordCacheConfig = wasKnownWordCacheEnabled
       ? this.getKnownWordCacheLifecycleConfig(this.config)
       : null;
@@ -207,7 +208,8 @@ export class AnkiIntegrationRuntime {
     };
     this.config = normalizeAnkiIntegrationConfig(mergedConfig);
     this.deps.onConfigChanged?.(this.config);
-    const nextKnownWordCacheEnabled = this.config.knownWords?.highlightEnabled === true;
+    const nextKnownWordCacheEnabled =
+      this.config.knownWords?.highlightEnabled === true || this.config.nPlusOne?.enabled === true;
 
     if (wasKnownWordCacheEnabled && !nextKnownWordCacheEnabled) {
       if (this.started) {

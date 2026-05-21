@@ -12,14 +12,42 @@ import {
 } from './definitions';
 import { parseConfigContent } from './parse';
 import { generateConfigTemplate } from './template';
+import {
+  buildSubtitleCssDeclarationObject,
+  getSubtitleCssManagedConfigPaths,
+  getSubtitleCssPath,
+  type SubtitleCssScope,
+} from '../settings/subtitle-style-css';
 
 const DEFAULT_SUBTITLE_FONT_FAMILY =
   'Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP';
-const DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY = 'Inter, Noto Sans, Helvetica Neue, sans-serif';
+const DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY = DEFAULT_SUBTITLE_FONT_FAMILY;
 const DEFAULT_SUBTITLE_TEXT_SHADOW = '0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)';
+const SUBTITLE_CSS_SCOPES: SubtitleCssScope[] = ['primary', 'secondary', 'sidebar'];
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-config-test-'));
+}
+
+function getValueAtPath(root: unknown, path: string): unknown {
+  let current = root;
+  for (const segment of path.split('.')) {
+    if (current === null || typeof current !== 'object' || Array.isArray(current)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+function buildDefaultSubtitleCssDeclarations(scope: SubtitleCssScope): Record<string, string> {
+  const values: Record<string, unknown> = {
+    [getSubtitleCssPath(scope)]: getValueAtPath(DEFAULT_CONFIG, getSubtitleCssPath(scope)),
+  };
+  for (const path of getSubtitleCssManagedConfigPaths(scope)) {
+    values[path] = getValueAtPath(DEFAULT_CONFIG, path);
+  }
+  return buildSubtitleCssDeclarationObject(scope, values);
 }
 
 test('loads defaults when config is missing', () => {
@@ -61,7 +89,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.startupWarmups.mecab, true);
   assert.equal(config.startupWarmups.yomitanExtension, true);
   assert.equal(config.startupWarmups.subtitleDictionaries, true);
-  assert.equal(config.startupWarmups.jellyfinRemoteSession, true);
+  assert.equal(config.startupWarmups.jellyfinRemoteSession, false);
   assert.equal(config.shortcuts.markAudioCard, 'CommandOrControl+Shift+A');
   assert.equal(config.shortcuts.openCharacterDictionary, 'CommandOrControl+Alt+A');
   assert.equal(config.shortcuts.toggleSubtitleSidebar, 'Backslash');
@@ -73,8 +101,9 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.subtitleStyle.autoPauseVideoOnHover, true);
   assert.equal(config.subtitleStyle.autoPauseVideoOnYomitanPopup, true);
   assert.equal(config.subtitleSidebar.enabled, true);
+  assert.equal(config.subtitleSidebar.pauseVideoOnHover, true);
   assert.equal(config.subtitleStyle.hoverTokenColor, '#f4dbd6');
-  assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, 'rgba(54, 58, 79, 0.84)');
+  assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, 'transparent');
   assert.equal(config.subtitleStyle.fontFamily, DEFAULT_SUBTITLE_FONT_FAMILY);
   assert.equal(config.subtitleStyle.fontWeight, '600');
   assert.equal(config.subtitleStyle.lineHeight, 1.35);
@@ -83,13 +112,19 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.subtitleStyle.fontKerning, 'normal');
   assert.equal(config.subtitleStyle.textRendering, 'geometricPrecision');
   assert.equal(config.subtitleStyle.textShadow, DEFAULT_SUBTITLE_TEXT_SHADOW);
+  assert.equal(config.subtitleStyle.paintOrder, '');
+  assert.equal(config.subtitleStyle.WebkitTextStroke, '');
   assert.equal(config.subtitleStyle.backdropFilter, 'blur(6px)');
   assert.equal(config.subtitleStyle.jlptColors.N4, '#8bd5ca');
   assert.equal(config.subtitleStyle.secondary.fontFamily, DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY);
   assert.equal(config.subtitleStyle.secondary.fontColor, '#cad3f5');
   assert.equal(config.subtitleStyle.secondary.fontWeight, '600');
   assert.equal(config.subtitleStyle.secondary.textShadow, DEFAULT_SUBTITLE_TEXT_SHADOW);
+  assert.equal(config.subtitleStyle.secondary.paintOrder, '');
+  assert.equal(config.subtitleStyle.secondary.WebkitTextStroke, '');
   assert.equal(config.subtitleStyle.secondary.backgroundColor, 'transparent');
+  assert.deepEqual(config.subtitleSidebar.css, {});
+  assert.equal(config.subtitleSidebar.fontFamily, DEFAULT_SUBTITLE_FONT_FAMILY);
   assert.equal(config.immersionTracking.enabled, true);
   assert.equal(config.immersionTracking.dbPath, '');
   assert.equal(config.immersionTracking.batchSize, 25);
@@ -113,6 +148,13 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.updates.checkIntervalHours, 24);
   assert.equal(config.updates.notificationType, 'system');
   assert.equal(config.updates.channel, 'stable');
+  assert.equal(config.mpv.socketPath, '/tmp/subminer-socket');
+  assert.equal(config.mpv.backend, 'auto');
+  assert.equal(config.mpv.autoStartSubMiner, true);
+  assert.equal(config.mpv.pauseUntilOverlayReady, true);
+  assert.equal(config.mpv.subminerBinaryPath, '');
+  assert.equal(config.mpv.aniskipEnabled, true);
+  assert.equal(config.mpv.aniskipButtonKey, 'TAB');
 });
 
 test('parses updates config and warns on invalid values', () => {
@@ -179,6 +221,58 @@ test('throws actionable startup parse error for malformed config at construction
       return true;
     },
   );
+});
+
+test('resolves legacy subtitle appearance options without rewriting config on load', () => {
+  const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.jsonc');
+  const originalContent = `{
+      "subtitleStyle": {
+        "fontSize": 42,
+        "fontColor": "#ffffff",
+        "hoverTokenColor": "#abcdef",
+        "hoverTokenBackgroundColor": "transparent",
+        "css": {
+          "font-size": "44px",
+          "text-wrap": "balance"
+        },
+        "secondary": {
+          "fontSize": 28,
+          "fontColor": "#bbbbbb"
+        }
+      },
+      "subtitleSidebar": {
+        "fontFamily": "M PLUS 1, sans-serif",
+        "fontSize": 18,
+        "textColor": "#dddddd",
+        "timestampColor": "#aaaaaa",
+        "css": {
+          "font-size": "19px"
+        }
+      }
+    }`;
+  fs.writeFileSync(configPath, originalContent, 'utf-8');
+
+  const service = new ConfigService(dir);
+  assert.equal(fs.readFileSync(configPath, 'utf-8'), originalContent);
+
+  assert.deepEqual(service.getConfig().subtitleStyle.css, {
+    color: '#ffffff',
+    'font-size': '44px',
+    '--subtitle-hover-token-color': '#abcdef',
+    '--subtitle-hover-token-background-color': 'transparent',
+    'text-wrap': 'balance',
+  });
+  assert.deepEqual(service.getConfig().subtitleStyle.secondary.css, {
+    color: '#bbbbbb',
+    'font-size': '28px',
+  });
+  assert.deepEqual(service.getConfig().subtitleSidebar.css, {
+    'font-family': 'M PLUS 1, sans-serif',
+    color: '#dddddd',
+    'font-size': '19px',
+    '--subtitle-sidebar-timestamp-color': '#aaaaaa',
+  });
 });
 
 test('parses subtitleStyle.preserveLineBreaks and warns on invalid values', () => {
@@ -253,6 +347,70 @@ test('parses texthooker.launchAtStartup and warns on invalid values', () => {
   assert.ok(
     invalidService.getWarnings().some((warning) => warning.path === 'texthooker.launchAtStartup'),
   );
+});
+
+test('parses managed mpv plugin runtime settings from config', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "mpv": {
+        "socketPath": "/tmp/custom-subminer.sock",
+        "backend": "x11",
+        "autoStartSubMiner": false,
+        "pauseUntilOverlayReady": false,
+        "subminerBinaryPath": "/opt/SubMiner/SubMiner.AppImage",
+        "aniskipEnabled": false,
+        "aniskipButtonKey": "F8"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  const config = validService.getConfig();
+  assert.equal(config.mpv.socketPath, '/tmp/custom-subminer.sock');
+  assert.equal(config.mpv.backend, 'x11');
+  assert.equal(config.mpv.autoStartSubMiner, false);
+  assert.equal(config.mpv.pauseUntilOverlayReady, false);
+  assert.equal(config.mpv.subminerBinaryPath, '/opt/SubMiner/SubMiner.AppImage');
+  assert.equal(config.mpv.aniskipEnabled, false);
+  assert.equal(config.mpv.aniskipButtonKey, 'F8');
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "mpv": {
+        "socketPath": "",
+        "backend": "weston",
+        "autoStartSubMiner": "yes",
+        "pauseUntilOverlayReady": "no",
+        "subminerBinaryPath": 42,
+        "aniskipEnabled": "disabled",
+        "aniskipButtonKey": ""
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  const invalidConfig = invalidService.getConfig();
+  const warnings = invalidService.getWarnings();
+  assert.equal(invalidConfig.mpv.socketPath, DEFAULT_CONFIG.mpv.socketPath);
+  assert.equal(invalidConfig.mpv.backend, DEFAULT_CONFIG.mpv.backend);
+  assert.equal(invalidConfig.mpv.autoStartSubMiner, DEFAULT_CONFIG.mpv.autoStartSubMiner);
+  assert.equal(invalidConfig.mpv.pauseUntilOverlayReady, DEFAULT_CONFIG.mpv.pauseUntilOverlayReady);
+  assert.equal(invalidConfig.mpv.subminerBinaryPath, DEFAULT_CONFIG.mpv.subminerBinaryPath);
+  assert.equal(invalidConfig.mpv.aniskipEnabled, DEFAULT_CONFIG.mpv.aniskipEnabled);
+  assert.equal(invalidConfig.mpv.aniskipButtonKey, DEFAULT_CONFIG.mpv.aniskipButtonKey);
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.socketPath'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.backend'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.autoStartSubMiner'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.pauseUntilOverlayReady'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.subminerBinaryPath'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.aniskipEnabled'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.aniskipButtonKey'));
 });
 
 test('parses annotationWebsocket settings and warns on invalid values', () => {
@@ -1685,6 +1843,7 @@ test('runtime options registry is centralized', () => {
   const ids = RUNTIME_OPTION_REGISTRY.map((entry) => entry.id);
   assert.deepEqual(ids, [
     'anki.autoUpdateNewCards',
+    'subtitle.annotation.knownWords.highlightEnabled',
     'subtitle.annotation.nPlusOne',
     'subtitle.annotation.jlpt',
     'subtitle.annotation.frequency',
@@ -1846,7 +2005,7 @@ test('accepts valid ankiConnect knownWords match mode values', () => {
   assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
 });
 
-test('validates ankiConnect knownWords and n+1 color values', () => {
+test('ignores invalid legacy ankiConnect n+1 color value after migration attempt', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
@@ -1867,17 +2026,16 @@ test('validates ankiConnect knownWords and n+1 color values', () => {
   const config = service.getConfig();
   const warnings = service.getWarnings();
 
-  assert.equal(config.ankiConnect.nPlusOne.nPlusOne, DEFAULT_CONFIG.ankiConnect.nPlusOne.nPlusOne);
-  assert.equal(config.ankiConnect.knownWords.color, DEFAULT_CONFIG.ankiConnect.knownWords.color);
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.nPlusOne'));
+  assert.equal(config.subtitleStyle.nPlusOneColor, DEFAULT_CONFIG.subtitleStyle.nPlusOneColor);
+  assert.equal(config.subtitleStyle.knownWordColor, DEFAULT_CONFIG.subtitleStyle.knownWordColor);
+  assert.ok(warnings.every((warning) => warning.path !== 'ankiConnect.nPlusOne.nPlusOne'));
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.color'));
 });
 
-test('accepts valid ankiConnect knownWords and n+1 color values', () => {
+test('resolves legacy ankiConnect n+1 color value without rewriting config', () => {
   const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
+  const configPath = path.join(dir, 'config.jsonc');
+  const originalContent = `{
       "ankiConnect": {
         "nPlusOne": {
           "nPlusOne": "#c6a0f6"
@@ -1886,22 +2044,31 @@ test('accepts valid ankiConnect knownWords and n+1 color values', () => {
           "color": "#a6da95"
         }
       }
-    }`,
-    'utf-8',
-  );
+    }`;
+  fs.writeFileSync(configPath, originalContent, 'utf-8');
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
-  assert.equal(config.ankiConnect.nPlusOne.nPlusOne, '#c6a0f6');
-  assert.equal(config.ankiConnect.knownWords.color, '#a6da95');
+  assert.equal(config.subtitleStyle.nPlusOneColor, '#c6a0f6');
+  assert.equal(config.subtitleStyle.knownWordColor, '#a6da95');
+  assert.equal(fs.readFileSync(configPath, 'utf-8'), originalContent);
 });
 
-test('supports legacy ankiConnect nPlusOne known-word settings as fallback', () => {
+test('legacy migration failures are logged and rethrown', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'src/config/service.ts'), 'utf-8');
+  const catchBlock = source.match(/catch\s*\(error\)\s*\{(?<body>[\s\S]*?)\n    \}/)?.groups?.body;
+
+  assert.ok(catchBlock);
+  assert.match(catchBlock, /legacy config migration failed/);
+  assert.match(catchBlock, /console\.error/);
+  assert.match(catchBlock, /throw error;/);
+});
+
+test('resolves legacy ankiConnect nPlusOne known-word settings without rewriting config', () => {
   const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
+  const configPath = path.join(dir, 'config.jsonc');
+  const originalContent = `{
       "ankiConnect": {
         "nPlusOne": {
           "highlightEnabled": true,
@@ -1911,32 +2078,50 @@ test('supports legacy ankiConnect nPlusOne known-word settings as fallback', () 
           "knownWord": "#a6da95"
         }
       }
-    }`,
-    'utf-8',
-  );
+    }`;
+  fs.writeFileSync(configPath, originalContent, 'utf-8');
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
   const warnings = service.getWarnings();
 
   assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
+  assert.equal(config.ankiConnect.nPlusOne.enabled, true);
   assert.equal(config.ankiConnect.knownWords.refreshMinutes, 90);
   assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
   assert.deepEqual(config.ankiConnect.knownWords.decks, {
     Mining: ['Expression', 'Word', 'Reading', 'Word Reading'],
     'Kaishi 1.5k': ['Expression', 'Word', 'Reading', 'Word Reading'],
   });
-  assert.equal(config.ankiConnect.knownWords.color, '#a6da95');
-  assert.ok(
-    warnings.some(
-      (warning) =>
-        warning.path === 'ankiConnect.nPlusOne.highlightEnabled' ||
-        warning.path === 'ankiConnect.nPlusOne.refreshMinutes' ||
-        warning.path === 'ankiConnect.nPlusOne.matchMode' ||
-        warning.path === 'ankiConnect.nPlusOne.decks' ||
-        warning.path === 'ankiConnect.nPlusOne.knownWord',
-    ),
-  );
+  assert.equal(config.subtitleStyle.knownWordColor, '#a6da95');
+  assert.equal(fs.readFileSync(configPath, 'utf-8'), originalContent);
+  assert.ok(warnings.every((warning) => !warning.path.startsWith('ankiConnect.nPlusOne.')));
+});
+
+test('resolves duplicate ankiConnect nPlusOne objects without rewriting config', () => {
+  const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.jsonc');
+  const originalContent = `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "enabled": true,
+          "minSentenceWords": 3
+        },
+        "knownWords": {
+          "highlightEnabled": true
+        },
+        "nPlusOne": {
+          "minSentenceWords": "3"
+        }
+      }
+    }`;
+  fs.writeFileSync(configPath, originalContent, 'utf-8');
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.ankiConnect.nPlusOne.enabled, true);
+  assert.equal(fs.readFileSync(configPath, 'utf-8'), originalContent);
 });
 
 test('supports legacy ankiConnect.behavior N+1 settings as fallback', () => {
@@ -1960,6 +2145,7 @@ test('supports legacy ankiConnect.behavior N+1 settings as fallback', () => {
   const warnings = service.getWarnings();
 
   assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
+  assert.equal(config.ankiConnect.nPlusOne.enabled, true);
   assert.equal(config.ankiConnect.knownWords.refreshMinutes, 90);
   assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
   assert.ok(
@@ -2280,9 +2466,9 @@ test('template generator includes known keys', () => {
   assert.match(output, /"characterDictionary":\s*\{/);
   assert.match(output, /"preserveLineBreaks": false/);
   assert.match(output, /"knownWords"\s*:\s*\{/);
-  assert.match(output, /"color": "#a6da95"/);
+  assert.match(output, /"knownWordColor": "#a6da95"/);
+  assert.match(output, /"nPlusOneColor": "#c6a0f6"/);
   assert.match(output, /"nPlusOne"\s*:\s*\{/);
-  assert.match(output, /"nPlusOne": "#c6a0f6"/);
   assert.match(output, /"minSentenceWords": 3/);
   assert.match(output, /auto-generated from src\/config\/definitions.ts/);
   assert.match(
@@ -2383,6 +2569,34 @@ test('template generator includes known keys', () => {
     output,
     /"launchAtStartup": false,? \/\/ Launch texthooker server automatically when SubMiner starts\. Values: true \| false/,
   );
+});
+
+test('template generator uses settings CSS declaration paths for appearance fields', () => {
+  const output = generateConfigTemplate(DEFAULT_CONFIG);
+  const parsed = parseConfigContent('config.example.jsonc', output);
+
+  assert.deepEqual(
+    getValueAtPath(parsed, 'subtitleStyle.css'),
+    buildDefaultSubtitleCssDeclarations('primary'),
+  );
+  assert.deepEqual(
+    getValueAtPath(parsed, 'subtitleStyle.secondary.css'),
+    buildDefaultSubtitleCssDeclarations('secondary'),
+  );
+  assert.deepEqual(
+    getValueAtPath(parsed, 'subtitleSidebar.css'),
+    buildDefaultSubtitleCssDeclarations('sidebar'),
+  );
+
+  for (const scope of SUBTITLE_CSS_SCOPES) {
+    for (const path of getSubtitleCssManagedConfigPaths(scope)) {
+      assert.equal(
+        getValueAtPath(parsed, path),
+        undefined,
+        `${path} should be represented by ${getSubtitleCssPath(scope)} in the generated template`,
+      );
+    }
+  }
 });
 
 test('template generator shows built-in default keybindings in the keybindings array', () => {

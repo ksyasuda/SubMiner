@@ -191,6 +191,38 @@ test('buildWindowsMpvLaunchArgs includes socket script opts when plugin entrypoi
   );
 });
 
+test('buildWindowsMpvLaunchArgs uses runtime plugin config script opts', () => {
+  const args = buildWindowsMpvLaunchArgs(
+    ['C:\\video.mkv'],
+    ['--input-ipc-server', '\\\\.\\pipe\\custom-subminer-socket'],
+    'C:\\SubMiner\\SubMiner.exe',
+    'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    'normal',
+    {
+      socketPath: '\\\\.\\pipe\\ignored-config-socket',
+      binaryPath: 'C:\\Custom\\SubMiner.exe',
+      backend: 'windows',
+      autoStart: true,
+      autoStartVisibleOverlay: false,
+      autoStartPauseUntilReady: false,
+      texthookerEnabled: false,
+      aniskipEnabled: true,
+      aniskipButtonKey: 'F8',
+    },
+  );
+
+  const scriptOpts = args.find((arg) => arg.startsWith('--script-opts='));
+  assert.match(scriptOpts ?? '', /subminer-binary_path=C:\\Custom\\SubMiner\.exe/);
+  assert.match(scriptOpts ?? '', /subminer-socket_path=\\\\\.\\pipe\\custom-subminer-socket/);
+  assert.match(scriptOpts ?? '', /subminer-backend=windows/);
+  assert.match(scriptOpts ?? '', /subminer-auto_start=yes/);
+  assert.match(scriptOpts ?? '', /subminer-auto_start_visible_overlay=no/);
+  assert.match(scriptOpts ?? '', /subminer-auto_start_pause_until_ready=no/);
+  assert.match(scriptOpts ?? '', /subminer-texthooker_enabled=no/);
+  assert.match(scriptOpts ?? '', /subminer-aniskip_enabled=yes/);
+  assert.match(scriptOpts ?? '', /subminer-aniskip_button_key=F8/);
+});
+
 test('launchWindowsMpv reports missing mpv path', async () => {
   const errors: string[] = [];
   const result = await launchWindowsMpv(

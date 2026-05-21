@@ -14,7 +14,7 @@ import type {
   CharacterDictionarySelectionSnapshot,
   PrimarySubMode,
   SubtitlePosition,
-  SubtitleSidebarConfig,
+  SubtitleSidebarSnapshotConfig,
   SubtitleCue,
   SubsyncSourceTrack,
   YoutubePickerOpenPayload,
@@ -98,7 +98,7 @@ export type RendererState = {
   subtitleSidebarToggleKey: string;
   subtitleSidebarPauseVideoOnHover: boolean;
   subtitleSidebarAutoScroll: boolean;
-  subtitleSidebarConfig: Required<SubtitleSidebarConfig> | null;
+  subtitleSidebarConfig: SubtitleSidebarSnapshotConfig | null;
   subtitleSidebarManualScrollUntilMs: number;
   subtitleSidebarPausedByHover: boolean;
 
@@ -215,7 +215,7 @@ export function createRendererState(): RendererState {
 
     knownWordColor: '#a6da95',
     nPlusOneColor: '#c6a0f6',
-    nameMatchEnabled: true,
+    nameMatchEnabled: false,
     nameMatchColor: '#f5bde6',
     jlptN1Color: '#ed8796',
     jlptN2Color: '#f5a97f',

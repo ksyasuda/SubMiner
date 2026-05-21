@@ -92,7 +92,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.maybeProbeAnilistDuration('media-key');
   deps.ensureAnilistMediaGuess('media-key');
   deps.syncImmersionMediaState();
-  deps.signalAutoplayReadyIfWarm('/tmp/video');
+  deps.signalAutoplayReadyIfWarm?.('/tmp/video');
   deps.updateCurrentMediaTitle('title');
   deps.resetAnilistMediaGuessState();
   deps.notifyImmersionTitleUpdate('title');

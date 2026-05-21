@@ -11,7 +11,7 @@ import {
 test('createConfigHotReloadAppliedHandler runs all hot-reload effects', () => {
   const config = deepCloneConfig(DEFAULT_CONFIG);
   const calls: string[] = [];
-  const ankiPatches: Array<{ enabled: boolean }> = [];
+  const ankiPatches: unknown[] = [];
   const sessionBindingWarnings: string[][] = [];
 
   const applyHotReload = createConfigHotReloadAppliedHandler({
@@ -25,7 +25,7 @@ test('createConfigHotReloadAppliedHandler runs all hot-reload effects', () => {
     broadcastToOverlayWindows: (channel, payload) =>
       calls.push(`broadcast:${channel}:${typeof payload === 'string' ? payload : 'object'}`),
     applyAnkiRuntimeConfigPatch: (patch) => {
-      ankiPatches.push({ enabled: patch.ai });
+      ankiPatches.push(patch);
     },
   });
 
@@ -48,13 +48,94 @@ test('createConfigHotReloadAppliedHandler runs all hot-reload effects', () => {
   assert.ok(calls.includes(`set:secondary:${config.secondarySub.defaultMode}`));
   assert.ok(calls.some((entry) => entry.startsWith('broadcast:secondary-subtitle:mode:')));
   assert.ok(calls.includes('broadcast:config:hot-reload:object'));
-  assert.deepEqual(ankiPatches, [{ enabled: config.ankiConnect.ai.enabled }]);
+  assert.deepEqual(ankiPatches, [{ ai: config.ankiConnect.ai.enabled }]);
   assert.equal(sessionBindingWarnings.length, 1);
   assert.ok(
     sessionBindingWarnings[0]?.some((message) =>
       message.includes('Rename shortcuts.toggleVisibleOverlayGlobal'),
     ),
   );
+});
+
+test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and logging changes', () => {
+  const config = deepCloneConfig(DEFAULT_CONFIG);
+  config.ankiConnect.behavior.autoUpdateNewCards = false;
+  config.ankiConnect.knownWords.highlightEnabled = true;
+  config.ankiConnect.knownWords.refreshMinutes = 90;
+  config.ankiConnect.knownWords.decks = { Anime: ['Mining'] };
+  config.ankiConnect.nPlusOne.enabled = true;
+  config.ankiConnect.nPlusOne.minSentenceWords = 4;
+  config.ankiConnect.fields.word = 'Expression';
+  config.ankiConnect.fields.audio = 'SentenceAudioCustom';
+  config.ankiConnect.fields.image = 'ScreenshotCustom';
+  config.ankiConnect.fields.sentence = 'SentenceCustom';
+  config.ankiConnect.fields.miscInfo = 'MiscInfoCustom';
+  config.ankiConnect.isLapis.sentenceCardModel = 'Sentence Card Custom';
+  config.ankiConnect.isKiku.fieldGrouping = 'manual';
+  config.logging.level = 'debug';
+  const calls: string[] = [];
+  const ankiPatches: unknown[] = [];
+
+  const applyHotReload = createConfigHotReloadAppliedHandler({
+    setKeybindings: () => calls.push('set:keybindings'),
+    setSessionBindings: () => calls.push('set:session-bindings'),
+    refreshGlobalAndOverlayShortcuts: () => calls.push('refresh:shortcuts'),
+    setSecondarySubMode: () => calls.push('set:secondary'),
+    broadcastToOverlayWindows: (channel) => calls.push(`broadcast:${channel}`),
+    applyAnkiRuntimeConfigPatch: (patch) => {
+      calls.push('anki:patch');
+      ankiPatches.push(patch);
+    },
+    invalidateTokenizationCache: () => calls.push('invalidate:tokens'),
+    refreshSubtitlePrefetch: () => calls.push('refresh:prefetch'),
+    refreshCurrentSubtitle: () => calls.push('refresh:subtitle'),
+    setLogLevel: (level) => calls.push(`log:${level}`),
+  });
+
+  applyHotReload(
+    {
+      hotReloadFields: [
+        'ankiConnect.behavior.autoUpdateNewCards',
+        'ankiConnect.knownWords.highlightEnabled',
+        'ankiConnect.knownWords.refreshMinutes',
+        'ankiConnect.knownWords.decks',
+        'ankiConnect.nPlusOne.enabled',
+        'ankiConnect.nPlusOne.minSentenceWords',
+        'ankiConnect.fields.word',
+        'ankiConnect.fields.audio',
+        'ankiConnect.fields.image',
+        'ankiConnect.fields.sentence',
+        'ankiConnect.fields.miscInfo',
+        'ankiConnect.isLapis.sentenceCardModel',
+        'ankiConnect.isKiku.fieldGrouping',
+        'logging.level',
+      ],
+      restartRequiredFields: [],
+    },
+    config,
+  );
+
+  assert.deepEqual(ankiPatches, [
+    {
+      behavior: { autoUpdateNewCards: false },
+      knownWords: config.ankiConnect.knownWords,
+      nPlusOne: config.ankiConnect.nPlusOne,
+      fields: {
+        word: 'Expression',
+        audio: 'SentenceAudioCustom',
+        image: 'ScreenshotCustom',
+        sentence: 'SentenceCustom',
+        miscInfo: 'MiscInfoCustom',
+      },
+      isLapis: { sentenceCardModel: 'Sentence Card Custom' },
+      isKiku: { fieldGrouping: 'manual' },
+    },
+  ]);
+  assert.ok(calls.includes('invalidate:tokens'));
+  assert.ok(calls.includes('refresh:prefetch'));
+  assert.ok(calls.includes('refresh:subtitle'));
+  assert.ok(calls.includes('log:debug'));
+  assert.ok(calls.includes('broadcast:config:hot-reload'));
 });
 
 test('buildConfigHotReloadPayload includes independent primary subtitle mode', () => {
@@ -66,6 +147,48 @@ test('buildConfigHotReloadPayload includes independent primary subtitle mode', (
 
   assert.equal(payload.primarySubMode, 'hover');
   assert.equal(payload.secondarySubMode, 'hidden');
+});
+
+test('buildConfigHotReloadPayload reflects added, removed, and remapped session bindings', () => {
+  const config = deepCloneConfig(DEFAULT_CONFIG);
+  config.stats.markWatchedKey = 'Ctrl+Shift+KeyW';
+  config.shortcuts.openJimaku = null;
+  config.keybindings = [
+    { key: 'KeyF', command: null },
+    { key: 'Ctrl+Alt+KeyM', command: ['show-text', 'custom'] },
+  ];
+
+  const payload = buildConfigHotReloadPayload(config);
+
+  assert.equal(
+    payload.sessionBindings.some(
+      (binding) =>
+        binding.sourcePath === 'stats.markWatchedKey' &&
+        binding.originalKey === 'Ctrl+Shift+KeyW' &&
+        binding.actionType === 'session-action' &&
+        binding.actionId === 'markWatched',
+    ),
+    true,
+  );
+  assert.equal(
+    payload.sessionBindings.some(
+      (binding) =>
+        binding.originalKey === 'Ctrl+Alt+KeyM' &&
+        binding.actionType === 'mpv-command' &&
+        binding.command.join(' ') === 'show-text custom',
+    ),
+    true,
+  );
+  assert.equal(
+    payload.sessionBindings.some((binding) => binding.originalKey === 'KeyF'),
+    false,
+  );
+  assert.equal(
+    payload.sessionBindings.some(
+      (binding) => binding.actionType === 'session-action' && binding.actionId === 'openJimaku',
+    ),
+    false,
+  );
 });
 
 test('createConfigHotReloadAppliedHandler skips optional effects when no hot fields', () => {

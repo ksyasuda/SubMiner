@@ -38,7 +38,6 @@ export type TrayMenuActionHandlers = {
   openWindowsMpvLauncherSetup: () => void;
   showWindowsMpvLauncherSetup: boolean;
   openYomitanSettings: () => void;
-  openRuntimeOptions: () => void;
   openConfigSettings: () => void;
   openJellyfinSetup: () => void;
   showJellyfinDiscovery: boolean;
@@ -90,11 +89,7 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
       click: handlers.openYomitanSettings,
     },
     {
-      label: 'Open Runtime Options',
-      click: handlers.openRuntimeOptions,
-    },
-    {
-      label: 'Open Configuration',
+      label: 'Open SubMiner Settings',
       click: handlers.openConfigSettings,
     },
     {

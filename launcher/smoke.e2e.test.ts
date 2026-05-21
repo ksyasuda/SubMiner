@@ -58,14 +58,11 @@ function createSmokeCase(name: string): SmokeCase {
 
   fs.mkdirSync(artifactsDir, { recursive: true });
   fs.mkdirSync(binDir, { recursive: true });
-  fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
   fs.writeFileSync(videoPath, 'fake video fixture');
-  fs.writeFileSync(
-    path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
-    `socket_path=${socketPath}\n`,
-  );
 
   const configDir = getDefaultConfigDir({ xdgConfigHome, homeDir });
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(path.join(configDir, 'config.jsonc'), JSON.stringify({ mpv: { socketPath } }));
   const setupState = createDefaultSetupState();
   setupState.status = 'completed';
   setupState.completedAt = '2026-03-07T00:00:00.000Z';
@@ -135,6 +132,9 @@ if (entry.argv.includes('--start')) {
 }
 if (entry.argv.includes('--stop')) {
   fs.appendFileSync(stopPath, JSON.stringify(entry) + '\\n');
+}
+if (entry.argv.includes('--app-ping')) {
+  process.exit(process.env.SUBMINER_FAKE_APP_RUNNING === '1' ? 0 : 1);
 }
 
 process.exit(0);
@@ -238,6 +238,94 @@ async function waitForJsonLines(
   }
 }
 
+async function waitForFile(filePath: string, timeoutMs = 1500): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(filePath)) return;
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Timed out waiting for file ${filePath} after ${timeoutMs}ms`);
+}
+
+async function startFakeControlServer(
+  smokeCase: SmokeCase,
+): Promise<{ socketPath: string; logPath: string; stop: () => Promise<void> }> {
+  const socketPath = path.join(smokeCase.socketDir, 'app-control.sock');
+  const logPath = path.join(smokeCase.artifactsDir, 'fake-control.log');
+  const readyPath = path.join(smokeCase.artifactsDir, 'fake-control.ready');
+  const scriptPath = path.join(smokeCase.artifactsDir, 'fake-control-server.js');
+
+  fs.writeFileSync(
+    scriptPath,
+    `const fs = require('node:fs');
+const net = require('node:net');
+const path = require('node:path');
+
+const socketPath = ${JSON.stringify(socketPath)};
+const logPath = ${JSON.stringify(logPath)};
+const readyPath = ${JSON.stringify(readyPath)};
+try { fs.rmSync(socketPath, { force: true }); } catch {}
+fs.mkdirSync(path.dirname(socketPath), { recursive: true });
+
+const server = net.createServer((socket) => {
+  let buffer = '';
+  socket.on('data', (chunk) => {
+    buffer += chunk.toString('utf8');
+    let handledLine = false;
+    while (true) {
+      const newlineMatch = buffer.match(/\\r?\\n/);
+      if (!newlineMatch || newlineMatch.index === undefined) break;
+      const line = buffer.slice(0, newlineMatch.index).trim();
+      buffer = buffer.slice(newlineMatch.index + newlineMatch[0].length);
+      if (!line) continue;
+      fs.appendFileSync(logPath, line + '\\n');
+      handledLine = true;
+    }
+    if (handledLine) {
+      socket.end(JSON.stringify({ ok: true }) + '\\n');
+    }
+  });
+});
+
+server.listen(socketPath, () => {
+  fs.writeFileSync(readyPath, 'ready');
+});
+
+const shutdown = () => {
+  server.close(() => {
+    try { fs.rmSync(socketPath, { force: true }); } catch {}
+    process.exit(0);
+  });
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+setInterval(() => {}, 1000);
+`,
+  );
+
+  const proc = spawn(process.execPath, [scriptPath], { stdio: 'ignore' });
+  await waitForFile(readyPath);
+
+  return {
+    socketPath,
+    logPath,
+    stop: async () => {
+      if (proc.exitCode !== null || proc.signalCode !== null) return;
+      proc.kill('SIGTERM');
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          proc.kill('SIGKILL');
+          resolve();
+        }, 1000);
+        proc.once('close', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+    },
+  };
+}
+
 test('launcher smoke fixture seeds completed setup state', () => {
   const smokeCase = createSmokeCase('setup-state');
   try {
@@ -295,7 +383,7 @@ test('launcher mpv status returns ready when socket is connectable', async () =>
 });
 
 test(
-  'launcher start-overlay run forwards socket/backend and keeps background app alive after mpv exits',
+  'launcher start-overlay run forwards socket/backend and stops owned background app after mpv exits',
   { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
   async () => {
     await withSmokeCase('overlay-start-stop', async (smokeCase) => {
@@ -330,7 +418,9 @@ test(
 
       const appStartArgs = appStartEntries[0]?.argv;
       assert.equal(Array.isArray(appStartArgs), true);
+      assert.equal((appStartArgs as string[]).includes('--background'), true);
       assert.equal((appStartArgs as string[]).includes('--start'), true);
+      assert.equal((appStartArgs as string[]).includes('--managed-playback'), true);
       assert.equal((appStartArgs as string[]).includes('--backend'), true);
       assert.equal((appStartArgs as string[]).includes('x11'), true);
       assert.equal((appStartArgs as string[]).includes('--socket'), true);
@@ -351,19 +441,72 @@ test(
 );
 
 test(
+  'launcher start-overlay attaches to a running background app without spawning another app command',
+  { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
+  async () => {
+    await withSmokeCase('overlay-borrow-background', async (smokeCase) => {
+      const controlServer = await startFakeControlServer(smokeCase);
+      const env = {
+        ...makeTestEnv(smokeCase),
+        SUBMINER_FAKE_APP_RUNNING: '1',
+        SUBMINER_APP_CONTROL_SOCKET: controlServer.socketPath,
+      };
+      try {
+        const result = runLauncher(
+          smokeCase,
+          ['--backend', 'x11', '--start-overlay', smokeCase.videoPath],
+          env,
+          'overlay-borrow-background',
+        );
+
+        const appLogPath = path.join(smokeCase.artifactsDir, 'fake-app.log');
+        const appStartPath = path.join(smokeCase.artifactsDir, 'fake-app-start.log');
+        const appStopPath = path.join(smokeCase.artifactsDir, 'fake-app-stop.log');
+        await waitForJsonLines(controlServer.logPath, 1);
+
+        const appEntries = readJsonLines(appLogPath);
+        const appStartEntries = readJsonLines(appStartPath);
+        const appStopEntries = readJsonLines(appStopPath);
+        const controlEntries = readJsonLines(controlServer.logPath);
+        const mpvEntries = readJsonLines(path.join(smokeCase.artifactsDir, 'fake-mpv.log'));
+        const mpvError = mpvEntries.find(
+          (entry): entry is { error: string } => typeof entry.error === 'string',
+        )?.error;
+        const unixSocketDenied =
+          typeof mpvError === 'string' && /eperm|operation not permitted/i.test(mpvError);
+
+        assert.equal(result.status, unixSocketDenied ? 3 : 0);
+        assert.equal(appEntries.length, 0);
+        assert.equal(appStartEntries.length, 0);
+        assert.equal(appStopEntries.length, 0);
+        assert.equal(controlEntries.length, 1);
+        const controlArgs = controlEntries[0]?.argv;
+        assert.equal(Array.isArray(controlArgs), true);
+        assert.equal((controlArgs as string[]).includes('--background'), false);
+        assert.equal((controlArgs as string[]).includes('--start'), true);
+        assert.equal((controlArgs as string[]).includes('--managed-playback'), true);
+      } finally {
+        await controlServer.stop();
+      }
+    });
+  },
+);
+
+test(
   'launcher starts mpv paused when plugin auto-start visible overlay gate is enabled',
   { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
   async () => {
     await withSmokeCase('autoplay-ready-gate', async (smokeCase) => {
       fs.writeFileSync(
-        path.join(smokeCase.xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
-        [
-          `socket_path=${smokeCase.socketPath}`,
-          'auto_start=yes',
-          'auto_start_visible_overlay=yes',
-          'auto_start_pause_until_ready=yes',
-          '',
-        ].join('\n'),
+        path.join(getDefaultConfigDir(smokeCase), 'config.jsonc'),
+        JSON.stringify({
+          auto_start_overlay: true,
+          mpv: {
+            socketPath: smokeCase.socketPath,
+            autoStartSubMiner: true,
+            pauseUntilOverlayReady: true,
+          },
+        }),
       );
 
       const env = makeTestEnv(smokeCase);

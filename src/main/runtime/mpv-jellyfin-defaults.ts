@@ -1,4 +1,5 @@
 import type { MpvRuntimeClientLike } from '../../core/services/mpv';
+import { getDefaultMpvSocketPath } from '../../shared/mpv-socket-path';
 
 export function createApplyJellyfinMpvDefaultsHandler(deps: {
   sendMpvCommandRuntime: (client: MpvRuntimeClientLike, command: [string, string, string]) => void;
@@ -17,9 +18,6 @@ export function createApplyJellyfinMpvDefaultsHandler(deps: {
 
 export function createGetDefaultSocketPathHandler(deps: { platform: string }) {
   return (): string => {
-    if (deps.platform === 'win32') {
-      return '\\\\.\\pipe\\subminer-socket';
-    }
-    return '/tmp/subminer-socket';
+    return getDefaultMpvSocketPath(deps.platform as NodeJS.Platform);
   };
 }

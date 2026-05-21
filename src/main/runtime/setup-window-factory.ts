@@ -76,10 +76,9 @@ export function createCreateConfigSettingsWindowHandler<TWindow>(deps: {
   return createSetupWindowHandler(deps, {
     width: 1040,
     height: 760,
-    title: 'SubMiner Configuration',
+    title: 'SubMiner Settings',
     resizable: true,
     preloadPath: deps.preloadPath,
-    sandbox: false,
     backgroundColor: '#24273a',
   });
 }

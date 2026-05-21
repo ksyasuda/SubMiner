@@ -24,8 +24,8 @@ ${B}Overlay${R}
   --toggle-primary-subtitle-bar  Toggle primary subtitle bar
   --show-visible-overlay         Show subtitle overlay
   --hide-visible-overlay         Hide subtitle overlay
-  --settings                     Open Yomitan settings window
-  --config                       Open configuration window
+  --yomitan                      Open Yomitan settings window
+  --settings                     Open SubMiner settings window
   --setup                        Open first-run setup window
   --auto-start-overlay           Auto-hide mpv subs, show overlay on connect
 
@@ -39,6 +39,7 @@ ${B}Mining${R}
   --trigger-field-grouping       Run Kiku field grouping
   --trigger-subsync              Run subtitle sync
   --toggle-secondary-sub         Cycle secondary subtitle mode
+  --mark-watched                 Mark current video watched and advance playlist
   --toggle-subtitle-sidebar      Toggle subtitle sidebar panel
   --open-runtime-options         Open runtime options palette
   --open-session-help            Open session help modal

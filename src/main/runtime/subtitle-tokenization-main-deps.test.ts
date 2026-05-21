@@ -30,6 +30,7 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
     isKnownWord: (text) => text === 'known',
     recordLookup: (hit) => calls.push(`lookup:${hit}`),
     getKnownWordMatchMode: () => 'surface',
+    getKnownWordsEnabled: () => true,
     getNPlusOneEnabled: () => true,
     getMinSentenceWordsForNPlusOne: () => 3,
     getJlptLevel: () => 'N2',
@@ -47,6 +48,7 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
   deps.setYomitanParserWindow(null);
   deps.setYomitanParserReadyPromise(null);
   deps.setYomitanParserInitPromise(null);
+  assert.equal(deps.getKnownWordsEnabled?.(), true);
   assert.equal(deps.getNPlusOneEnabled?.(), true);
   assert.equal(deps.getMinSentenceWordsForNPlusOne?.(), 3);
   assert.equal(deps.getNameMatchEnabled?.(), false);

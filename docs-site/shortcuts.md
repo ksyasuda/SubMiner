@@ -61,6 +61,8 @@ These control playback and subtitle display. They require overlay window focus.
 
 These keybindings can be overridden or disabled via the `keybindings` config array. The playlist browser opens a split overlay modal with sibling video files on the left and the live mpv playlist on the right.
 
+On macOS managed playback, SubMiner disables mpv's menu-bar shortcuts so configured SubMiner shortcuts like `Cmd+Shift+O` reach the mpv plugin instead of opening native mpv menu actions.
+
 Mouse-hover playback behavior is configured separately from shortcuts: `subtitleStyle.autoPauseVideoOnHover` defaults to `true` (pause on subtitle hover, resume on leave).
 
 ## Subtitle & Feature Shortcuts
@@ -68,7 +70,7 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | Shortcut           | Action                                                   | Config key                          |
 | ------------------ | -------------------------------------------------------- | ----------------------------------- |
 | `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub`      |
-| `Ctrl/Cmd+Alt+A` | Open character dictionary AniList selector                 | `shortcuts.openCharacterDictionary` |
+| `Ctrl/Cmd+Alt+A`   | Open character dictionary AniList selector               | `shortcuts.openCharacterDictionary` |
 | `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions`      |
 | `Ctrl/Cmd+/`       | Open session help modal                                  | `shortcuts.openSessionHelp`         |
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`              |
@@ -96,17 +98,17 @@ Controller input only drives the overlay while keyboard-only mode is enabled. Th
 
 When the mpv plugin is installed, all commands use a `y` chord prefix — press `y`, then the second key within 1 second.
 
-| Chord | Action                   |
-| ----- | ------------------------ |
-| `y-y` | Open SubMiner menu (OSD) |
-| `y-s` | Start overlay            |
-| `y-S` | Stop overlay             |
-| `y-t` | Toggle visible overlay   |
+| Chord | Action                                 |
+| ----- | -------------------------------------- |
+| `y-y` | Open SubMiner menu (OSD)               |
+| `y-s` | Start overlay                          |
+| `y-S` | Stop overlay                           |
+| `y-t` | Toggle visible overlay                 |
 | `v`   | Toggle primary subtitle bar visibility |
-| `y-o` | Open Yomitan settings    |
-| `y-r` | Restart overlay          |
-| `y-c` | Check overlay status     |
-| `y-h` | Open session help        |
+| `y-o` | Open Yomitan settings                  |
+| `y-r` | Restart overlay                        |
+| `y-c` | Check overlay status                   |
+| `y-h` | Open session help                      |
 
 The bare `v` plugin binding intentionally overrides mpv's native primary subtitle visibility toggle so the SubMiner primary subtitle bar is hidden or restored instead.
 

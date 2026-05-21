@@ -14,7 +14,7 @@ function snapshot(): ConfigSettingsSnapshot {
   };
 }
 
-test('config settings save applies hot-reloadable diff live', () => {
+test('config settings save returns hot-reloadable diff for watcher path', () => {
   const calls: string[] = [];
   const previous = DEFAULT_CONFIG;
   const next: ResolvedConfig = {
@@ -46,7 +46,6 @@ test('config settings save applies hot-reloadable diff live', () => {
       hotReloadFields: ['subtitleStyle'],
       restartRequiredFields: [],
     }),
-    applyHotReload: (diff) => calls.push(`hot:${diff.hotReloadFields.join(',')}`),
     getRestartRequiredSections: () => [],
   });
 
@@ -62,9 +61,79 @@ test('config settings save applies hot-reloadable diff live', () => {
 
   assert.equal(result.ok, true);
   assert.match(written, /autoPauseVideoOnHover/);
-  assert.deepEqual(calls, ['write', 'hot:subtitleStyle']);
+  assert.deepEqual(calls, ['write']);
   assert.deepEqual(result.hotReloadFields, ['subtitleStyle']);
   assert.deepEqual(result.restartRequiredFields, []);
+});
+
+test('config settings save immediately applies hot-reloadable subtitle CSS changes', () => {
+  const previous = DEFAULT_CONFIG;
+  const next: ResolvedConfig = {
+    ...DEFAULT_CONFIG,
+    subtitleStyle: {
+      ...DEFAULT_CONFIG.subtitleStyle,
+      css: {
+        'font-size': '50px',
+      },
+      secondary: {
+        ...DEFAULT_CONFIG.subtitleStyle.secondary,
+        css: {
+          'font-size': '28px',
+        },
+      },
+    },
+  };
+  const applied: Array<{
+    hotReloadFields: string[];
+    config: ResolvedConfig;
+  }> = [];
+  const save = createSaveConfigSettingsPatchHandler({
+    getConfigPath: () => '/tmp/config.jsonc',
+    getCurrentConfig: () => previous,
+    getWarnings: () => [],
+    getSnapshot: () => snapshot(),
+    fileExists: () => true,
+    readText: () => '{}',
+    writeTextAtomically: () => {},
+    reloadConfigStrict: (): ReloadConfigStrictResult => ({
+      ok: true,
+      config: next,
+      warnings: [],
+      path: '/tmp/config.jsonc',
+    }),
+    classifyDiff: () => ({
+      hotReloadFields: ['subtitleStyle'],
+      restartRequiredFields: [],
+    }),
+    getRestartRequiredSections: () => [],
+    onHotReloadApplied: (diff, config) => {
+      applied.push({
+        hotReloadFields: diff.hotReloadFields,
+        config,
+      });
+    },
+  });
+
+  const result = save({
+    operations: [
+      {
+        op: 'set',
+        path: 'subtitleStyle.css',
+        value: { 'font-size': '50px' },
+      },
+      {
+        op: 'set',
+        path: 'subtitleStyle.secondary.css',
+        value: { 'font-size': '28px' },
+      },
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(applied.length, 1);
+  assert.deepEqual(applied[0]?.hotReloadFields, ['subtitleStyle']);
+  assert.equal(applied[0]?.config.subtitleStyle.css['font-size'], '50px');
+  assert.equal(applied[0]?.config.subtitleStyle.secondary.css['font-size'], '28px');
 });
 
 test('config settings save returns restart-required sections without applying hot reload', () => {
@@ -95,7 +164,6 @@ test('config settings save returns restart-required sections without applying ho
       hotReloadFields: [],
       restartRequiredFields: ['mpv'],
     }),
-    applyHotReload: () => calls.push('hot'),
     getRestartRequiredSections: () => ['mpv launcher'],
   });
 
@@ -129,9 +197,6 @@ test('config settings save restores previous file content when strict reload fai
     }),
     classifyDiff: () => {
       throw new Error('Should not classify invalid config.');
-    },
-    applyHotReload: () => {
-      throw new Error('Should not hot reload invalid config.');
     },
     getRestartRequiredSections: () => [],
   });

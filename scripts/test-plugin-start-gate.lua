@@ -12,6 +12,7 @@ local function run_plugin_scenario(config)
 		logs = {},
 		property_sets = {},
 		periodic_timers = {},
+		timeouts = {},
 	}
 
 	local function make_mp_stub()
@@ -22,6 +23,11 @@ local function run_plugin_scenario(config)
 				return config.platform or "linux"
 			end
 			if name == "input-ipc-server" then
+				if config.input_ipc_server_sequence then
+					config.input_ipc_server_sequence_index = (config.input_ipc_server_sequence_index or 0) + 1
+					local index = config.input_ipc_server_sequence_index
+					return config.input_ipc_server_sequence[index] or config.input_ipc_server_sequence[#config.input_ipc_server_sequence] or ""
+				end
 				return config.input_ipc_server or ""
 			end
 			if name == "filename/no-ext" then
@@ -40,6 +46,9 @@ local function run_plugin_scenario(config)
 		end
 
 		function mp.get_property_native(name)
+			if name == "pause" then
+				return config.paused == true
+			end
 			if name == "osd-dimensions" then
 				return config.osd_dimensions or {
 					w = 1280,
@@ -108,11 +117,26 @@ local function run_plugin_scenario(config)
 						return
 					end
 				end
+				for _, value in ipairs(args) do
+					if value == "--app-ping" then
+						config.app_ping_index = (config.app_ping_index or 0) + 1
+						local statuses = config.app_ping_statuses or { 1 }
+						local status = statuses[config.app_ping_index] or statuses[#statuses] or 1
+						callback(status == 0, { status = status, stdout = "", stderr = "" }, nil)
+						return
+					end
+					if value == "--stop" and config.stop_command_fails then
+						local stderr = config.stop_command_stderr or "stop failed"
+						callback(false, { status = 1, stdout = "", stderr = stderr }, stderr)
+						return
+					end
+				end
 				callback(true, { status = 0, stdout = "", stderr = "" }, nil)
 			end
 		end
 
 		function mp.add_timeout(seconds, callback)
+			recorded.timeouts[#recorded.timeouts + 1] = seconds
 			local timeout = {
 				killed = false,
 			}
@@ -185,6 +209,9 @@ local function run_plugin_scenario(config)
 				name = name,
 				value = value,
 			}
+			if name == "pause" then
+				config.paused = value == true
+			end
 		end
 		function mp.set_property(name, value)
 			recorded.property_sets[#recorded.property_sets + 1] = {
@@ -220,6 +247,10 @@ local function run_plugin_scenario(config)
 	function utils.join_path(...)
 		local parts = { ... }
 		return table.concat(parts, "/")
+	end
+
+	function utils.get_env_list()
+		return config.env_list or {}
 	end
 
 	function utils.parse_json(json)
@@ -398,6 +429,29 @@ local function find_control_call(async_calls, flag)
 	return nil
 end
 
+local function find_nth_control_call(async_calls, flag, target_count)
+	local count = 0
+	for _, call in ipairs(async_calls) do
+		local args = call.args or {}
+		local has_flag = false
+		local has_start = false
+		for _, value in ipairs(args) do
+			if value == flag then
+				has_flag = true
+			elseif value == "--start" then
+				has_start = true
+			end
+		end
+		if has_flag and not has_start then
+			count = count + 1
+			if count == target_count then
+				return call
+			end
+		end
+	end
+	return nil
+end
+
 local function count_control_calls(async_calls, flag)
 	local count = 0
 	for _, call in ipairs(async_calls) do
@@ -503,6 +557,35 @@ local function count_osd_message(messages, target)
 	return count
 end
 
+local function has_timeout(timeouts, target)
+	for _, seconds in ipairs(timeouts) do
+		if math.abs(seconds - target) < 0.0001 then
+			return true
+		end
+	end
+	return false
+end
+
+local function env_has(call, target)
+	local env = (call and call.env) or {}
+	for _, value in ipairs(env) do
+		if value == target then
+			return true
+		end
+	end
+	return false
+end
+
+local function env_has_prefix(call, target)
+	local env = (call and call.env) or {}
+	for _, value in ipairs(env) do
+		if type(value) == "string" and value:sub(1, #target) == target then
+			return true
+		end
+	end
+	return false
+end
+
 local function count_property_set(property_sets, name, value)
 	local count = 0
 	for _, call in ipairs(property_sets) do
@@ -537,6 +620,7 @@ local function has_key_binding(recorded, keys, name)
 end
 
 local binary_path = "/tmp/subminer-binary"
+local appimage_path = "/tmp/SubMiner.AppImage"
 
 do
 	local recorded, err = run_plugin_scenario({
@@ -560,6 +644,46 @@ do
 end
 
 do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/episode-01.mkv",
+		media_title = "Episode 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for new-media rearm scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "/media/episode-02.mkv"
+	scenario.media_title = "Episode 2"
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"new media after prior playback should reuse the running overlay"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 2,
+		"new media after prior playback should re-arm pause-until-ready"
+	)
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 2,
+		"new media after prior playback should resume only after readiness"
+	)
+end
+
+do
 	local recorded, err = run_plugin_scenario({
 		process_list = "",
 		option_overrides = {
@@ -567,6 +691,283 @@ do
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server_sequence = { "", "", "/tmp/subminer-socket" },
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for delayed socket auto-start scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(find_start_call(recorded.async_calls) ~= nil, "delayed socket auto-start should eventually issue --start")
+	assert_true(
+		has_property_set(recorded.property_sets, "pause", true),
+		"delayed socket auto-start should arm pause-until-ready once the socket is available"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		platform = "osx",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for macOS platform alias scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(start_call ~= nil, "macOS platform alias auto-start should issue --start")
+	assert_true(
+		call_has_arg(start_call, "macos"),
+		"macOS platform alias auto-start should pass macos backend instead of falling back to x11"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = appimage_path,
+			auto_start = "no",
+			socket_path = "/tmp/subminer-socket",
+		},
+		files = {
+			[appimage_path] = true,
+		},
+		env_list = {
+			"PATH=/usr/bin",
+			"SUBMINER_APP_ARGC=stale",
+			"SUBMINER_APP_ARG_0=--stale",
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for AppImage env transport scenario: " .. tostring(err))
+	recorded.script_messages["subminer-start"]("texthooker=no")
+	local call = recorded.async_calls[#recorded.async_calls]
+	assert_true(call ~= nil, "AppImage start should issue an async subprocess")
+	assert_true(#call.args == 1 and call.args[1] == appimage_path, "AppImage subprocess should not receive raw CLI flags")
+	assert_true(env_has(call, "PATH=/usr/bin"), "AppImage subprocess should preserve existing environment")
+	assert_true(env_has(call, "SUBMINER_APP_ARGC=8"), "AppImage subprocess should transport app arg count")
+	assert_true(env_has(call, "SUBMINER_APP_ARG_0=--start"), "AppImage subprocess should transport --start")
+	assert_true(
+		env_has(call, "SUBMINER_APP_ARG_1=--background"),
+		"AppImage subprocess should transport --background"
+	)
+	assert_true(
+		env_has(call, "SUBMINER_APP_ARG_2=--managed-playback"),
+		"AppImage subprocess should transport --managed-playback"
+	)
+	assert_true(env_has(call, "SUBMINER_APP_ARG_7=--hide-visible-overlay"), "AppImage subprocess should transport visibility flag")
+	assert_true(env_has_prefix(call, "SUBMINER_APP_LOG="), "AppImage subprocess should include app log env")
+	assert_true(env_has_prefix(call, "SUBMINER_MPV_LOG="), "AppImage subprocess should include mpv log env")
+	assert_true(
+		not env_has(call, "SUBMINER_APP_ARG_0=--stale"),
+		"AppImage subprocess should remove stale transported args"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		app_ping_statuses = { 0, 1, 0 },
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+			auto_start_visible_overlay = "no",
+		},
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for manual visible restart scenario: " .. tostring(err))
+	local restart_binding = nil
+	for _, candidate in ipairs(recorded.key_bindings) do
+		if candidate.name == "subminer-restart" then
+			restart_binding = candidate
+			break
+		end
+	end
+	assert_true(restart_binding ~= nil, "restart binding should be registered")
+	restart_binding.fn()
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(start_call ~= nil, "manual restart should issue --start command")
+	local start_index = find_call_index(recorded.async_calls, start_call) or 0
+	local old_app_ping = find_nth_control_call(recorded.async_calls, "--app-ping", 1)
+	local old_app_stopped_ping = find_nth_control_call(recorded.async_calls, "--app-ping", 2)
+	local new_app_started_ping = find_nth_control_call(recorded.async_calls, "--app-ping", 3)
+	assert_true(old_app_ping ~= nil, "manual restart should ping before waiting for old app shutdown")
+	assert_true(old_app_stopped_ping ~= nil, "manual restart should keep pinging until old app shutdown")
+	assert_true(new_app_started_ping ~= nil, "manual restart should ping after start until the new app is running")
+	assert_true(
+		(find_call_index(recorded.async_calls, old_app_ping) or 0) < start_index,
+		"manual restart should wait for old app ping before starting"
+	)
+	assert_true(
+		(find_call_index(recorded.async_calls, old_app_stopped_ping) or 0) < start_index,
+		"manual restart should wait for old app stopped ping before starting"
+	)
+	assert_true(
+		start_index < (find_call_index(recorded.async_calls, new_app_started_ping) or 0),
+		"manual restart should wait for new app running ping after starting"
+	)
+	assert_true(
+		call_has_arg(start_call, "--show-visible-overlay"),
+		"manual restart should bring the visible overlay back after process reload"
+	)
+	assert_true(
+		not call_has_arg(start_call, "--hide-visible-overlay"),
+		"manual restart should not restart into hidden visible-overlay state"
+	)
+	assert_true(
+		not has_timeout(recorded.timeouts, 0.5),
+		"manual restart should use app-ping readiness instead of a fixed 0.5s start delay"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		"manual restart should re-assert visible overlay after the restarted app is launched"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		app_ping_statuses = { 0, 2, 1, 0 },
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+			auto_start_visible_overlay = "no",
+		},
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(
+		recorded ~= nil,
+		"plugin failed to load for transient app-ping failure restart scenario: " .. tostring(err)
+	)
+	recorded.script_messages["subminer-restart"]()
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(start_call ~= nil, "manual restart should start after app-ping reports stopped")
+	local start_index = find_call_index(recorded.async_calls, start_call) or 0
+	local failed_ping = find_nth_control_call(recorded.async_calls, "--app-ping", 2)
+	local stopped_ping = find_nth_control_call(recorded.async_calls, "--app-ping", 3)
+	assert_true(failed_ping ~= nil, "manual restart should retry after transient app-ping failure")
+	assert_true(stopped_ping ~= nil, "manual restart should observe stopped app-ping status")
+	assert_true(
+		(find_call_index(recorded.async_calls, failed_ping) or 0) < start_index,
+		"manual restart should not treat app-ping status 2 as stopped"
+	)
+	assert_true(
+		(find_call_index(recorded.async_calls, stopped_ping) or 0) < start_index,
+		"manual restart should wait for explicit stopped app-ping status"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		app_ping_statuses = { 0, 1, 0 },
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for gated restart pause scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 1,
+		"gated restart should start from an armed pause gate"
+	)
+	recorded.script_messages["subminer-restart"]()
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 0,
+		"manual restart should clear a startup gate without resuming playback"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		app_ping_statuses = { 1, 0 },
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+			auto_start_visible_overlay = "no",
+		},
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for restart ready restore scenario: " .. tostring(err))
+	assert_true(
+		recorded.script_messages["subminer-toggle"] ~= nil,
+		"subminer-toggle script message not registered"
+	)
+	assert_true(
+		recorded.script_messages["subminer-restart"] ~= nil,
+		"subminer-restart script message not registered"
+	)
+	assert_true(
+		recorded.script_messages["subminer-autoplay-ready"] ~= nil,
+		"subminer-autoplay-ready script message not registered"
+	)
+	recorded.script_messages["subminer-toggle"]()
+	recorded.script_messages["subminer-restart"]()
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
+		"manual restart should re-assert visible overlay after launch and readiness even when auto-start visibility is disabled"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		stop_command_fails = true,
+		stop_command_stderr = "stop refused",
+		option_overrides = {
+			binary_path = binary_path,
+		},
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for failed restart-stop scenario: " .. tostring(err))
+	recorded.script_messages["subminer-restart"]()
+	assert_true(find_control_call(recorded.async_calls, "--stop") ~= nil, "restart should attempt stop")
+	assert_true(count_start_calls(recorded.async_calls) == 0, "restart should not start overlay when stop fails")
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Restart failed"),
+		"restart stop failure should show failure OSD"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			aniskip_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -608,6 +1009,7 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
+			aniskip_enabled = "yes",
 		},
 		files = {
 			[binary_path] = true,
@@ -644,6 +1046,7 @@ do
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "yes",
+			aniskip_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -682,6 +1085,7 @@ do
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "no",
+			texthooker_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -691,18 +1095,54 @@ do
 		},
 	})
 	assert_true(recorded ~= nil, "plugin failed to load for subtitle rearm scenario: " .. tostring(err))
-	fire_event(recorded, "file-loaded")
+	fire_event(recorded, "start-file")
 	assert_true(
 		has_property_set(recorded.property_sets, "sub-auto", "fuzzy"),
-		"managed file-loaded should rearm sub-auto for idle mpv sessions"
+		"managed start-file should rearm sub-auto before mpv loads tracks"
 	)
 	assert_true(
 		has_property_set(recorded.property_sets, "sid", "auto"),
-		"managed file-loaded should rearm primary subtitle selection for idle mpv sessions"
+		"managed start-file should rearm primary subtitle selection before mpv loads tracks"
 	)
 	assert_true(
 		has_property_set(recorded.property_sets, "secondary-sid", "auto"),
-		"managed file-loaded should rearm secondary subtitle selection for idle mpv sessions"
+		"managed start-file should rearm secondary subtitle selection before mpv loads tracks"
+	)
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_property_set(recorded.property_sets, "sid", "auto") == 1,
+		"managed file-loaded should not reset primary subtitle selection after mpv loads tracks"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "secondary-sid", "auto") == 1,
+		"managed file-loaded should not reset secondary subtitle selection after mpv loads tracks"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for attached subtitle rearm scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_property_set(recorded.property_sets, "sid", "auto") == 1,
+		"attached background app path should select primary subtitle before load only"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "secondary-sid", "auto") == 1,
+		"attached background app path should select secondary subtitle before load only"
 	)
 end
 
@@ -737,6 +1177,7 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
+			aniskip_enabled = "yes",
 		},
 		media_title = "Random Movie",
 		files = {
@@ -765,6 +1206,7 @@ do
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "no",
+			texthooker_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -793,6 +1235,7 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
+			aniskip_enabled = "yes",
 		},
 		media_title = "Sample Show S01E01",
 		mal_lookup_stdout = "__MAL_FOUND__",
@@ -818,6 +1261,7 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
+			aniskip_enabled = "yes",
 		},
 		media_title = "Sample Show S01E01",
 		time_pos = 13,
@@ -852,6 +1296,7 @@ do
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "no",
+			texthooker_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -864,10 +1309,13 @@ do
 	fire_event(recorded, "file-loaded")
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
-	assert_true(call_has_arg(start_call, "--background"), "auto-start should launch SubMiner in background mode")
+	assert_true(
+		call_has_arg(start_call, "--background"),
+		"auto-start should launch SubMiner in background/tray mode"
+	)
 	assert_true(
 		call_has_arg(start_call, "--managed-playback"),
-		"auto-start should mark SubMiner as launcher-managed playback"
+		"auto-start should mark SubMiner as managed playback"
 	)
 	assert_true(call_has_arg(start_call, "--texthooker"), "auto-start should include --texthooker on the main --start command when enabled")
 	assert_true(find_control_call(recorded.async_calls, "--texthooker") == nil, "auto-start should not issue a separate texthooker helper command")
@@ -1035,6 +1483,37 @@ do
 		},
 		input_ipc_server = "/tmp/subminer-socket",
 		media_title = "Random Movie",
+		paused = true,
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for pre-paused pause-until-ready scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 1,
+		"pre-paused pause-until-ready should still arm the gate"
+	)
+	assert_true(recorded.script_messages["subminer-autoplay-ready"] ~= nil, "subminer-autoplay-ready script message not registered")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 0,
+		"pre-paused pause-until-ready should leave playback paused when ready"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
 		files = {
 			[binary_path] = true,
 		},
@@ -1153,7 +1632,7 @@ do
 			[binary_path] = true,
 		},
 	})
-	assert_true(recorded ~= nil, "plugin failed to load for shutdown-preserve-background scenario: " .. tostring(err))
+	assert_true(recorded ~= nil, "plugin failed to load for shutdown-managed-background scenario: " .. tostring(err))
 	fire_event(recorded, "file-loaded")
 	fire_event(recorded, "end-file", { reason = "quit" })
 	assert_true(
@@ -1163,11 +1642,46 @@ do
 	fire_event(recorded, "shutdown")
 	assert_true(
 		find_control_call(recorded.async_calls, "--stop") == nil,
-		"mpv shutdown should not stop the background SubMiner process"
+		"mpv shutdown should leave managed-playback ownership to the app process"
 	)
 	assert_true(
 		find_control_call(recorded.async_calls, "--hide-visible-overlay") == nil,
 		"mpv shutdown should not spawn hide-visible-overlay helper commands"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "/opt/SubMiner/subminer --background\n",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for shutdown-borrowed-background scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(start_call ~= nil, "auto-start should attach playback to the existing app")
+	assert_true(
+		not call_has_arg(start_call, "--background"),
+		"borrowed app auto-start should not use the background launch wrapper"
+	)
+	assert_true(
+		call_has_arg(start_call, "--managed-playback"),
+		"borrowed app auto-start should still attach managed playback to the existing app"
+	)
+	fire_event(recorded, "end-file", { reason = "quit" })
+	fire_event(recorded, "shutdown")
+	assert_true(
+		find_control_call(recorded.async_calls, "--stop") == nil,
+		"mpv shutdown should leave a pre-existing background SubMiner process running"
 	)
 end
 
@@ -1190,6 +1704,14 @@ do
 	fire_event(recorded, "file-loaded")
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
+	assert_true(
+		call_has_arg(start_call, "--background"),
+		"auto-start should launch SubMiner in background mode"
+	)
+	assert_true(
+		call_has_arg(start_call, "--managed-playback"),
+		"auto-start should mark SubMiner as managed playback"
+	)
 	assert_true(
 		call_has_arg(start_call, "--hide-visible-overlay"),
 		"auto-start with visible overlay disabled should include --hide-visible-overlay on --start"
@@ -1233,6 +1755,27 @@ do
 	assert_true(
 		not has_property_set(recorded.property_sets, "pause", true),
 		"pause-until-ready gate should not arm when socket_path does not match"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for default config scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(
+		start_call == nil,
+		"plugin should not auto-start from built-in defaults without managed config script opts"
 	)
 end
 

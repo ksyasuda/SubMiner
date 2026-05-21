@@ -4,6 +4,8 @@ import { ConfigValidationWarning, RawConfig, ResolvedConfig } from '../types/con
 import { DEFAULT_CONFIG, deepCloneConfig, deepMergeRawConfig } from './definitions';
 import { ConfigPaths, loadRawConfig, loadRawConfigStrict } from './load';
 import { resolveConfig } from './resolve';
+import { applyLegacyAnkiConnectNPlusOneMigrationToContent } from './anki-connect-nplusone-migration';
+import { applyLegacySubtitleStyleCssMigrationToContent } from './subtitle-style-css-migration';
 
 export type ReloadConfigStrictResult =
   | {
@@ -49,7 +51,10 @@ export class ConfigService {
     if (!loadResult.ok) {
       throw new ConfigStartupParseError(loadResult.path, loadResult.error);
     }
-    this.applyResolvedConfig(loadResult.config, loadResult.path);
+    this.applyResolvedConfig(
+      this.migrateLegacyConfig(loadResult.config, loadResult.path),
+      loadResult.path,
+    );
   }
 
   getConfigPath(): string {
@@ -70,7 +75,7 @@ export class ConfigService {
 
   reloadConfig(): ResolvedConfig {
     const { config, path: configPath } = loadRawConfig(this.configPaths);
-    return this.applyResolvedConfig(config, configPath);
+    return this.applyResolvedConfig(this.migrateLegacyConfig(config, configPath), configPath);
   }
 
   reloadConfigStrict(): ReloadConfigStrictResult {
@@ -80,7 +85,10 @@ export class ConfigService {
     }
 
     const { config, path: configPath } = loadResult;
-    const resolvedConfig = this.applyResolvedConfig(config, configPath);
+    const resolvedConfig = this.applyResolvedConfig(
+      this.migrateLegacyConfig(config, configPath),
+      configPath,
+    );
     return {
       ok: true,
       config: resolvedConfig,
@@ -112,5 +120,39 @@ export class ConfigService {
     this.resolvedConfig = resolved;
     this.warnings = warnings;
     return this.getConfig();
+  }
+
+  private migrateLegacyConfig(config: RawConfig, configPath: string): RawConfig {
+    if (!fs.existsSync(configPath)) {
+      return config;
+    }
+
+    try {
+      let content = fs.readFileSync(configPath, 'utf-8');
+      let rawConfig = config;
+      let migrated = false;
+      for (const applyMigration of [
+        applyLegacyAnkiConnectNPlusOneMigrationToContent,
+        applyLegacySubtitleStyleCssMigrationToContent,
+      ]) {
+        const migration = applyMigration({
+          content,
+          rawConfig,
+        });
+        if (!migration.migrated) {
+          continue;
+        }
+        content = migration.content;
+        rawConfig = migration.rawConfig;
+        migrated = true;
+      }
+      if (!migrated) {
+        return rawConfig;
+      }
+      return rawConfig;
+    } catch (error) {
+      console.error(`[ConfigService] legacy config migration failed for ${configPath}:`, error);
+      throw error;
+    }
   }
 }

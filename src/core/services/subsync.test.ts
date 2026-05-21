@@ -41,7 +41,6 @@ function makeDeps(
   return {
     getMpvClient: () => mpvClient,
     getResolvedConfig: () => ({
-      defaultMode: 'manual',
       alassPath: '/usr/bin/alass',
       ffsubsyncPath: '/usr/bin/ffsubsync',
       ffmpegPath: '/usr/bin/ffmpeg',
@@ -68,7 +67,7 @@ test('triggerSubsyncFromConfig returns early when already in progress', async ()
   assert.deepEqual(osd, ['Subsync already running']);
 });
 
-test('triggerSubsyncFromConfig opens manual picker in manual mode', async () => {
+test('triggerSubsyncFromConfig opens manual picker', async () => {
   const osd: string[] = [];
   let payloadTrackCount = 0;
   let inProgressState: boolean | null = null;
@@ -90,6 +89,31 @@ test('triggerSubsyncFromConfig opens manual picker in manual mode', async () => 
   assert.equal(payloadTrackCount, 1);
   assert.ok(osd.includes('Subsync: choose engine and source'));
   assert.equal(inProgressState, false);
+});
+
+test('triggerSubsyncFromConfig does not run automatic sync', async () => {
+  const osd: string[] = [];
+  let payloadTrackCount = 0;
+  let spinnerRan = false;
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      openManualPicker: (payload) => {
+        payloadTrackCount = payload.sourceTracks.length;
+      },
+      showMpvOsd: (text) => {
+        osd.push(text);
+      },
+      runWithSubsyncSpinner: async <T>(task: () => Promise<T>) => {
+        spinnerRan = true;
+        return task();
+      },
+    }),
+  );
+
+  assert.equal(payloadTrackCount, 1);
+  assert.equal(spinnerRan, false);
+  assert.deepEqual(osd, ['Subsync: choose engine and source']);
 });
 
 test('triggerSubsyncFromConfig dedupes repeated subtitle source tracks', async () => {
@@ -161,14 +185,14 @@ test('runSubsyncManual requires a source track for alass', async () => {
   });
 });
 
-test('triggerSubsyncFromConfig reports path validation failures', async () => {
+test('triggerSubsyncFromConfig does not validate sync tool paths before manual selection', async () => {
   const osd: string[] = [];
   const inProgress: boolean[] = [];
+  let payloadTrackCount = 0;
 
   await triggerSubsyncFromConfig(
     makeDeps({
       getResolvedConfig: () => ({
-        defaultMode: 'auto',
         alassPath: '/missing/alass',
         ffsubsyncPath: '/missing/ffsubsync',
         ffmpegPath: '/missing/ffmpeg',
@@ -176,16 +200,18 @@ test('triggerSubsyncFromConfig reports path validation failures', async () => {
       setSubsyncInProgress: (value) => {
         inProgress.push(value);
       },
+      openManualPicker: (payload) => {
+        payloadTrackCount = payload.sourceTracks.length;
+      },
       showMpvOsd: (text) => {
         osd.push(text);
       },
     }),
   );
 
-  assert.deepEqual(inProgress, [true, false]);
-  assert.ok(
-    osd.some((line) => line.startsWith('Subsync failed: Configured ffmpeg executable not found')),
-  );
+  assert.deepEqual(inProgress, [false]);
+  assert.equal(payloadTrackCount, 1);
+  assert.deepEqual(osd, ['Subsync: choose engine and source']);
 });
 
 function writeExecutableScript(filePath: string, content: string): void {
@@ -260,7 +286,6 @@ test('runSubsyncManual constructs ffsubsync command and returns success', async 
       },
     }),
     getResolvedConfig: () => ({
-      defaultMode: 'manual',
       alassPath,
       ffsubsyncPath,
       ffmpegPath,
@@ -326,7 +351,6 @@ test('runSubsyncManual writes deterministic _retimed filename when replace is fa
       },
     }),
     getResolvedConfig: () => ({
-      defaultMode: 'manual',
       alassPath,
       ffsubsyncPath,
       ffmpegPath,
@@ -382,7 +406,6 @@ test('runSubsyncManual reports ffsubsync command failures with details', async (
       },
     }),
     getResolvedConfig: () => ({
-      defaultMode: 'manual',
       alassPath,
       ffsubsyncPath,
       ffmpegPath,
@@ -448,7 +471,6 @@ test('runSubsyncManual constructs alass command and returns failure on non-zero 
       },
     }),
     getResolvedConfig: () => ({
-      defaultMode: 'manual',
       alassPath,
       ffsubsyncPath,
       ffmpegPath,
@@ -520,7 +542,6 @@ test('runSubsyncManual keeps internal alass source file alive until sync finishe
       },
     }),
     getResolvedConfig: () => ({
-      defaultMode: 'manual',
       alassPath,
       ffsubsyncPath,
       ffmpegPath,
@@ -577,7 +598,6 @@ test('runSubsyncManual resolves string sid values from mpv stream properties', a
       },
     }),
     getResolvedConfig: () => ({
-      defaultMode: 'manual',
       alassPath,
       ffsubsyncPath,
       ffmpegPath,

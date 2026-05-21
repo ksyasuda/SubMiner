@@ -2,9 +2,10 @@ import { ConfigTemplateSection } from './shared';
 
 const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
-    title: 'Overlay Auto-Start',
+    title: 'Visible Overlay Auto-Start',
     description: [
-      'When overlay connects to mpv, automatically show overlay and hide mpv subtitles.',
+      'Show the visible subtitle overlay automatically after managed mpv playback starts SubMiner.',
+      'SubMiner can still auto-start in the background when this is false.',
     ],
     key: 'auto_start_overlay',
   },
@@ -32,6 +33,7 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'Logging',
     description: ['Controls logging verbosity.', 'Set to debug for full runtime diagnostics.'],
+    notes: ['Hot-reload: logging.level applies live while SubMiner is running.'],
     key: 'logging',
   },
   {
@@ -88,8 +90,9 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'secondarySub',
   },
   {
-    title: 'Auto Subtitle Sync',
+    title: 'Subtitle Sync',
     description: ['Subsync engine and executable paths.'],
+    notes: ['Hot-reload: subsync changes apply to the next subtitle sync run.'],
     key: 'subsync',
   },
   {
@@ -126,7 +129,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     title: 'AnkiConnect Integration',
     description: ['Automatic Anki updates and media generation options.'],
     notes: [
-      'Hot-reload: ankiConnect.ai.enabled updates live while SubMiner is running.',
+      'Hot-reload: ankiConnect.ai.enabled, knownWords, nPlusOne, fields.word/audio/image/sentence/miscInfo, behavior.autoUpdateNewCards, isLapis.sentenceCardModel, and isKiku.fieldGrouping update live while SubMiner is running.',
       'Shared AI provider transport settings are read from top-level ai and typically require restart.',
       'Most other AnkiConnect settings still require restart.',
     ],
@@ -135,6 +138,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'Jimaku',
     description: ['Jimaku API configuration and defaults.'],
+    notes: ['Hot-reload: Jimaku changes apply to the next Jimaku request.'],
     key: 'jimaku',
   },
   {
@@ -142,6 +146,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     description: [
       'Defaults for managed subtitle language preferences and YouTube subtitle loading.',
     ],
+    notes: ['Hot-reload: primarySubLanguages applies to the next YouTube subtitle load.'],
     key: 'youtube',
   },
   {
@@ -166,7 +171,9 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'MPV Launcher',
     description: [
-      'Optional mpv.exe override for Windows playback entry points.',
+      'SubMiner-managed mpv launch and bundled plugin options.',
+      'Set mpv.socketPath to the IPC socket used by the launcher, Electron app, and bundled plugin.',
+      'autoStartSubMiner starts SubMiner in the background; auto_start_overlay only controls visible overlay display.',
       'Set mpv.launchMode to choose normal, maximized, or fullscreen SubMiner-managed mpv playback.',
       'Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.',
     ],

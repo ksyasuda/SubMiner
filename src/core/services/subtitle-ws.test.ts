@@ -217,6 +217,38 @@ test('serializeSubtitleWebsocketMessage emits structured token api payload', () 
   });
 });
 
+test('serializeSubtitleWebsocketMessage can force plain subtitle payloads', () => {
+  const payload: SubtitleData = {
+    text: '無事',
+    tokens: [
+      {
+        surface: '無事',
+        reading: 'ぶじ',
+        headword: '無事',
+        startPos: 0,
+        endPos: 2,
+        partOfSpeech: PartOfSpeech.other,
+        isMerged: false,
+        isKnown: true,
+        isNPlusOneTarget: false,
+        jlptLevel: 'N2',
+        frequencyRank: 745,
+      },
+    ],
+  };
+
+  const raw = serializeSubtitleWebsocketMessage(payload, frequencyOptions, {
+    payloadMode: 'plain',
+  });
+
+  assert.deepEqual(JSON.parse(raw), {
+    version: 1,
+    text: '無事',
+    sentence: '無事',
+    tokens: [],
+  });
+});
+
 test('serializeInitialSubtitleWebsocketMessage keeps annotated current subtitle content', () => {
   const payload: SubtitleData = {
     text: 'ignored fallback',

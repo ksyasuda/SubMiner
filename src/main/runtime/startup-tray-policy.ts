@@ -21,3 +21,12 @@ export function shouldQuitOnWindowAllClosedForTrayState(options: {
   if (options.hasTray) return false;
   return true;
 }
+
+export function shouldQuitOnMpvShutdownForTrayState(options: {
+  managedPlayback: boolean;
+  backgroundMode: boolean;
+  hasTray: boolean;
+}): boolean {
+  // managedPlayback marks process ownership; tray/background only affect window-close policy.
+  return options.managedPlayback;
+}

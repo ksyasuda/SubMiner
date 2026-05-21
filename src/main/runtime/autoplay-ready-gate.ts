@@ -14,6 +14,7 @@ export type AutoplayReadyGateDeps = {
   getPlaybackPaused: () => boolean | null;
   getMpvClient: () => MpvClientLike | null;
   signalPluginAutoplayReady: () => void;
+  isSignalTargetReady?: () => boolean;
   schedule: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   logDebug: (message: string) => void;
 };
@@ -21,11 +22,22 @@ export type AutoplayReadyGateDeps = {
 export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
   let autoPlayReadySignalMediaPath: string | null = null;
   let autoPlayReadySignalGeneration = 0;
+  let pendingAutoplayReadySignal: {
+    mediaPath: string;
+    payload: SubtitleData;
+    options?: { forceWhilePaused?: boolean };
+  } | null = null;
 
   const invalidatePendingAutoplayReadyFallbacks = (): void => {
     autoPlayReadySignalMediaPath = null;
+    pendingAutoplayReadySignal = null;
     autoPlayReadySignalGeneration += 1;
   };
+
+  const isSignalTargetReady = (): boolean => deps.isSignalTargetReady?.() ?? true;
+
+  const getSignalMediaPath = (): string =>
+    deps.getCurrentMediaPath()?.trim() || deps.getCurrentVideoPath()?.trim() || '__unknown__';
 
   const maybeSignalPluginAutoplayReady = (
     payload: SubtitleData,
@@ -39,8 +51,7 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
       return;
     }
 
-    const mediaPath =
-      deps.getCurrentMediaPath()?.trim() || deps.getCurrentVideoPath()?.trim() || '__unknown__';
+    const mediaPath = getSignalMediaPath();
     const duplicateMediaSignal = autoPlayReadySignalMediaPath === mediaPath;
     const releaseRetryDelayMs = 200;
     const maxReleaseAttempts = resolveAutoplayReadyMaxReleaseAttempts({
@@ -104,16 +115,42 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
     };
 
     if (duplicateMediaSignal) {
+      pendingAutoplayReadySignal = null;
+      return;
+    }
+    if (!isSignalTargetReady()) {
+      pendingAutoplayReadySignal = { mediaPath, payload, options };
+      deps.logDebug(
+        `[autoplay-ready] deferred until signal target is ready for media ${mediaPath}`,
+      );
       return;
     }
 
+    pendingAutoplayReadySignal = null;
     autoPlayReadySignalMediaPath = mediaPath;
     const playbackGeneration = ++autoPlayReadySignalGeneration;
     deps.signalPluginAutoplayReady();
     attemptRelease(playbackGeneration, 0);
   };
 
+  const flushPendingAutoplayReadySignal = (): void => {
+    if (!pendingAutoplayReadySignal || !isSignalTargetReady()) {
+      return;
+    }
+
+    const pendingSignal = pendingAutoplayReadySignal;
+    pendingAutoplayReadySignal = null;
+    if (getSignalMediaPath() !== pendingSignal.mediaPath) {
+      deps.logDebug(
+        `[autoplay-ready] dropped deferred signal for stale media ${pendingSignal.mediaPath}`,
+      );
+      return;
+    }
+    maybeSignalPluginAutoplayReady(pendingSignal.payload, pendingSignal.options);
+  };
+
   return {
+    flushPendingAutoplayReadySignal,
     getAutoPlayReadySignalMediaPath: (): string | null => autoPlayReadySignalMediaPath,
     invalidatePendingAutoplayReadyFallbacks,
     maybeSignalPluginAutoplayReady,

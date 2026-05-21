@@ -18,6 +18,7 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       stopConfigHotReload: () => {},
       restorePreviousSecondarySubVisibility: () => {},
       restoreMpvSubVisibility: () => {},
+      isAppReady: () => true,
       unregisterAllGlobalShortcuts: () => {},
       stopSubtitleWebsocket: () => {},
       stopTexthookerService: () => {},

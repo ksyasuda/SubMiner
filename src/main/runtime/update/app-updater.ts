@@ -108,13 +108,23 @@ export async function isNativeUpdaterSupported(options: {
     options.log?.('Skipping native updater because this build is not packaged.');
     return false;
   }
-  if (options.platform === 'linux') {
-    options.log?.(
-      'Skipping native Linux updater because Linux tray checks use GitHub release assets.',
-    );
-    return false;
-  }
   if (options.platform === 'win32') {
+    return true;
+  }
+  if (options.platform === 'linux') {
+    const appImagePath = options.env?.APPIMAGE;
+    if (!appImagePath) {
+      options.log?.(
+        'Skipping native Linux updater because APPIMAGE is not set (not launched from an AppImage).',
+      );
+      return false;
+    }
+    if (isKnownLinuxPackageManagedAppImage(appImagePath)) {
+      options.log?.(
+        'Skipping native Linux updater because the AppImage is managed by a system package.',
+      );
+      return false;
+    }
     return true;
   }
   if (options.platform !== 'darwin') {

@@ -122,6 +122,37 @@ function createQueuedIpcListenerWithPayload<T>(
   };
 }
 
+function createLatestValueIpcListenerWithPayload<T>(
+  channel: string,
+  normalize: (payload: unknown) => T,
+): (listener: PayloadedListener<T>) => void {
+  let pending: T | undefined;
+  const listeners: PayloadedListener<T>[] = [];
+
+  const dispatch = (payload: T): void => {
+    if (listeners.length === 0) {
+      pending = payload;
+      return;
+    }
+    for (const listener of listeners) {
+      listener(payload);
+    }
+  };
+
+  ipcRenderer.on(channel, (_event: IpcRendererEvent, payloadArg: unknown) => {
+    dispatch(normalize(payloadArg));
+  });
+
+  return (listener: PayloadedListener<T>): void => {
+    listeners.push(listener);
+    if (pending !== undefined) {
+      const payload = pending;
+      pending = undefined;
+      listener(payload);
+    }
+  };
+}
+
 const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
 const onOpenSessionHelpEvent = createQueuedIpcListener(IPC_CHANNELS.event.sessionHelpOpen);
 const onOpenCharacterDictionaryEvent = createQueuedIpcListener(
@@ -161,29 +192,39 @@ const onKikuFieldGroupingRequestEvent =
     IPC_CHANNELS.event.kikuFieldGroupingRequest,
     (payload) => payload as KikuFieldGroupingRequestData,
   );
+const onSubtitleSetEvent = createLatestValueIpcListenerWithPayload<SubtitleData>(
+  IPC_CHANNELS.event.subtitleSet,
+  (payload) => payload as SubtitleData,
+);
+const onSubtitleVisibilityEvent = createLatestValueIpcListenerWithPayload<boolean>(
+  IPC_CHANNELS.event.subtitleVisibility,
+  (payload) => payload === true,
+);
+const onSubtitlePositionSetEvent = createLatestValueIpcListenerWithPayload<SubtitlePosition | null>(
+  IPC_CHANNELS.event.subtitlePositionSet,
+  (payload) => payload as SubtitlePosition | null,
+);
+const onSecondarySubtitleSetEvent = createLatestValueIpcListenerWithPayload<string>(
+  IPC_CHANNELS.event.secondarySubtitleSet,
+  (payload) => (typeof payload === 'string' ? payload : ''),
+);
+const onSecondarySubtitleModeEvent = createLatestValueIpcListenerWithPayload<SecondarySubMode>(
+  IPC_CHANNELS.event.secondarySubtitleMode,
+  (payload) => payload as SecondarySubMode,
+);
 
 const electronAPI: ElectronAPI = {
   getOverlayLayer: () => overlayLayer,
   onSubtitle: (callback: (data: SubtitleData) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.event.subtitleSet, (_event: IpcRendererEvent, data: SubtitleData) =>
-      callback(data),
-    );
+    onSubtitleSetEvent(callback);
   },
 
   onVisibility: (callback: (visible: boolean) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.subtitleVisibility,
-      (_event: IpcRendererEvent, visible: boolean) => callback(visible),
-    );
+    onSubtitleVisibilityEvent(callback);
   },
 
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.subtitlePositionSet,
-      (_event: IpcRendererEvent, position: SubtitlePosition | null) => {
-        callback(position);
-      },
-    );
+    onSubtitlePositionSetEvent(callback);
   },
 
   getOverlayVisibility: (): Promise<boolean> =>
@@ -290,17 +331,11 @@ const electronAPI: ElectronAPI = {
   },
 
   onSecondarySub: (callback: (text: string) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.secondarySubtitleSet,
-      (_event: IpcRendererEvent, text: string) => callback(text),
-    );
+    onSecondarySubtitleSetEvent(callback);
   },
 
   onSecondarySubMode: (callback: (mode: SecondarySubMode) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.secondarySubtitleMode,
-      (_event: IpcRendererEvent, mode: SecondarySubMode) => callback(mode),
-    );
+    onSecondarySubtitleModeEvent(callback);
   },
 
   getSecondarySubMode: (): Promise<SecondarySubMode> =>

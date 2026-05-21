@@ -77,6 +77,7 @@ subminer stats -b                       # start background stats daemon
 | `subminer stats -b`                        | Start or reuse background stats daemon (non-blocking)              |
 | `subminer stats cleanup`                   | Backfill vocabulary metadata and prune stale rows                  |
 | `subminer doctor`                          | Dependency + config + socket diagnostics                           |
+| `subminer settings`                        | Open the SubMiner settings window                                  |
 | `subminer config path`                     | Print active config file path                                      |
 | `subminer config show`                     | Print active config contents                                       |
 | `subminer mpv status`                      | Check mpv socket readiness                                         |

@@ -10,8 +10,8 @@ export interface CliArgs {
   toggle: boolean;
   toggleVisibleOverlay: boolean;
   togglePrimarySubtitleBar: boolean;
+  yomitan: boolean;
   settings: boolean;
-  configSettings: boolean;
   setup: boolean;
   show: boolean;
   hide: boolean;
@@ -28,6 +28,7 @@ export interface CliArgs {
   triggerSubsync: boolean;
   markAudioCard: boolean;
   toggleStatsOverlay: boolean;
+  markWatched: boolean;
   toggleSubtitleSidebar: boolean;
   openRuntimeOptions: boolean;
   openSessionHelp: boolean;
@@ -74,6 +75,7 @@ export interface CliArgs {
   texthooker: boolean;
   texthookerOpenBrowser: boolean;
   help: boolean;
+  appPing?: boolean;
   update?: boolean;
   updateLauncherPath?: string;
   updateResponsePath?: string;
@@ -115,8 +117,8 @@ export function parseArgs(argv: string[]): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     togglePrimarySubtitleBar: false,
+    yomitan: false,
     settings: false,
-    configSettings: false,
     setup: false,
     show: false,
     hide: false,
@@ -133,6 +135,7 @@ export function parseArgs(argv: string[]): CliArgs {
     triggerSubsync: false,
     markAudioCard: false,
     toggleStatsOverlay: false,
+    markWatched: false,
     toggleSubtitleSidebar: false,
     openRuntimeOptions: false,
     openSessionHelp: false,
@@ -172,6 +175,7 @@ export function parseArgs(argv: string[]): CliArgs {
     texthooker: false,
     texthookerOpenBrowser: false,
     help: false,
+    appPing: false,
     update: false,
     updateLauncherPath: undefined,
     updateResponsePath: undefined,
@@ -235,8 +239,8 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--toggle') args.toggle = true;
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
     else if (arg === '--toggle-primary-subtitle-bar') args.togglePrimarySubtitleBar = true;
-    else if (arg === '--settings' || arg === '--yomitan') args.settings = true;
-    else if (arg === '--config') args.configSettings = true;
+    else if (arg === '--yomitan') args.yomitan = true;
+    else if (arg === '--settings') args.settings = true;
     else if (arg === '--setup') args.setup = true;
     else if (arg === '--show') args.show = true;
     else if (arg === '--hide') args.hide = true;
@@ -253,6 +257,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--trigger-subsync') args.triggerSubsync = true;
     else if (arg === '--mark-audio-card') args.markAudioCard = true;
     else if (arg === '--toggle-stats-overlay') args.toggleStatsOverlay = true;
+    else if (arg === '--mark-watched') args.markWatched = true;
     else if (arg === '--toggle-subtitle-sidebar') args.toggleSubtitleSidebar = true;
     else if (arg === '--open-runtime-options') args.openRuntimeOptions = true;
     else if (arg === '--open-session-help') args.openSessionHelp = true;
@@ -339,6 +344,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--jellyfin-preview-auth') args.jellyfinPreviewAuth = true;
     else if (arg === '--texthooker') args.texthooker = true;
     else if (arg === '--open-browser') args.texthookerOpenBrowser = true;
+    else if (arg === '--app-ping') args.appPing = true;
     else if (arg === '--update') args.update = true;
     else if (arg.startsWith('--update-launcher-path=')) {
       const value = arg.split('=', 2)[1];
@@ -488,8 +494,8 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.toggle ||
     args.toggleVisibleOverlay ||
     args.togglePrimarySubtitleBar ||
+    args.yomitan ||
     args.settings ||
-    args.configSettings ||
     args.setup ||
     args.show ||
     args.hide ||
@@ -506,6 +512,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.toggleStatsOverlay ||
+    args.markWatched ||
     args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||
@@ -540,6 +547,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.jellyfinRemoteAnnounce ||
     args.jellyfinPreviewAuth ||
     args.texthooker ||
+    args.appPing ||
     args.update ||
     args.generateConfig ||
     args.help
@@ -561,8 +569,8 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.toggle &&
     !args.toggleVisibleOverlay &&
     !args.togglePrimarySubtitleBar &&
+    !args.yomitan &&
     !args.settings &&
-    !args.configSettings &&
     !args.setup &&
     !args.show &&
     !args.hide &&
@@ -579,6 +587,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.triggerSubsync &&
     !args.markAudioCard &&
     !args.toggleStatsOverlay &&
+    !args.markWatched &&
     !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
     !args.openSessionHelp &&
@@ -612,6 +621,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.jellyfinPlay &&
     !args.jellyfinRemoteAnnounce &&
     !args.jellyfinPreviewAuth &&
+    !args.appPing &&
     !args.update &&
     !args.help &&
     !args.autoStartOverlay &&
@@ -629,8 +639,8 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.toggle ||
     args.toggleVisibleOverlay ||
     args.togglePrimarySubtitleBar ||
+    args.yomitan ||
     args.settings ||
-    args.configSettings ||
     args.setup ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
@@ -643,6 +653,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.toggleStatsOverlay ||
+    args.markWatched ||
     args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||
@@ -676,16 +687,16 @@ export function shouldStartApp(args: CliArgs): boolean {
   return false;
 }
 
-export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
+export function shouldRunYomitanOnlyStartup(args: CliArgs): boolean {
   return (
-    args.settings &&
+    args.yomitan &&
     !args.background &&
     !args.start &&
     !args.stop &&
     !args.toggle &&
     !args.toggleVisibleOverlay &&
     !args.togglePrimarySubtitleBar &&
-    !args.configSettings &&
+    !args.settings &&
     !args.show &&
     !args.hide &&
     !args.setup &&
@@ -702,6 +713,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.triggerSubsync &&
     !args.markAudioCard &&
     !args.toggleStatsOverlay &&
+    !args.markWatched &&
     !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
     !args.openSessionHelp &&
@@ -737,6 +749,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.jellyfinRemoteAnnounce &&
     !args.jellyfinPreviewAuth &&
     !args.texthooker &&
+    !args.appPing &&
     !args.update &&
     !args.help &&
     !args.autoStartOverlay &&
@@ -762,6 +775,7 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.updateLastCardFromClipboard ||
     args.toggleSecondarySub ||
     args.toggleStatsOverlay ||
+    args.markWatched ||
     args.toggleSubtitleSidebar ||
     args.triggerFieldGrouping ||
     args.triggerSubsync ||

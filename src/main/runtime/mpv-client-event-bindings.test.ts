@@ -54,6 +54,34 @@ test('mpv connection handler syncs overlay subtitle suppression on connect', () 
   assert.deepEqual(calls, ['presence-refresh', 'sync-overlay-mpv-sub']);
 });
 
+test('mpv connection handler runs connected hook on connect', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvConnectionChangeHandler({
+    reportJellyfinRemoteStopped: () => calls.push('report-stop'),
+    refreshDiscordPresence: () => calls.push('presence-refresh'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
+    onConnected: () => calls.push('connected-hook'),
+    hasInitialPlaybackQuitOnDisconnectArg: () => false,
+    isOverlayRuntimeInitialized: () => false,
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => false,
+    isQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => calls.push('schedule'),
+    isMpvConnected: () => false,
+    quitApp: () => calls.push('quit'),
+  });
+
+  handler({ connected: true });
+  handler({ connected: false });
+
+  assert.deepEqual(calls, [
+    'presence-refresh',
+    'sync-overlay-mpv-sub',
+    'connected-hook',
+    'presence-refresh',
+    'report-stop',
+  ]);
+});
+
 test('mpv connection handler quits standalone youtube playback even after overlay runtime init', () => {
   const calls: string[] = [];
   const handler = createHandleMpvConnectionChangeHandler({

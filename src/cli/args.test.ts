@@ -7,7 +7,7 @@ import {
   isHeadlessInitialCommand,
   isStandaloneTexthookerCommand,
   parseArgs,
-  shouldRunSettingsOnlyStartup,
+  shouldRunYomitanOnlyStartup,
   shouldStartApp,
 } from './args';
 
@@ -66,7 +66,7 @@ test('parseArgs captures update command and internal launcher paths', () => {
   assert.equal(hasExplicitCommand(args), true);
   assert.equal(shouldStartApp(args), true);
   assert.equal(commandNeedsOverlayRuntime(args), false);
-  assert.equal(shouldRunSettingsOnlyStartup(args), false);
+  assert.equal(shouldRunYomitanOnlyStartup(args), false);
 });
 
 test('parseArgs captures launch-mpv targets and keeps it out of app startup', () => {
@@ -94,6 +94,7 @@ test('parseArgs captures youtube startup forwarding flags', () => {
 test('parseArgs captures session action forwarding flags', () => {
   const args = parseArgs([
     '--toggle-stats-overlay',
+    '--mark-watched',
     '--open-jimaku',
     '--open-youtube-picker',
     '--open-playlist-browser',
@@ -110,6 +111,7 @@ test('parseArgs captures session action forwarding flags', () => {
   ]);
 
   assert.equal(args.toggleStatsOverlay, true);
+  assert.equal(args.markWatched, true);
   assert.equal(args.openJimaku, true);
   assert.equal(args.openYoutubePicker, true);
   assert.equal(args.openPlaylistBrowser, true);
@@ -206,35 +208,38 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(shouldStartApp(update), true);
   assert.equal(isHeadlessInitialCommand(update), true);
 
+  const yomitan = parseArgs(['--yomitan']);
+  assert.equal(yomitan.yomitan, true);
+  assert.equal(hasExplicitCommand(yomitan), true);
+  assert.equal(shouldStartApp(yomitan), true);
+  assert.equal(shouldRunYomitanOnlyStartup(yomitan), true);
+
   const settings = parseArgs(['--settings']);
   assert.equal(settings.settings, true);
   assert.equal(hasExplicitCommand(settings), true);
   assert.equal(shouldStartApp(settings), true);
-  assert.equal(shouldRunSettingsOnlyStartup(settings), true);
+  assert.equal(shouldRunYomitanOnlyStartup(settings), false);
+  assert.equal(commandNeedsOverlayRuntime(settings), false);
+  assert.equal(commandNeedsOverlayStartupPrereqs(settings), false);
 
-  const configSettings = parseArgs(['--config']);
-  assert.equal(configSettings.configSettings, true);
-  assert.equal(hasExplicitCommand(configSettings), true);
-  assert.equal(shouldStartApp(configSettings), true);
-  assert.equal(shouldRunSettingsOnlyStartup(configSettings), false);
-  assert.equal(commandNeedsOverlayRuntime(configSettings), false);
-  assert.equal(commandNeedsOverlayStartupPrereqs(configSettings), false);
+  const yomitanWithOverlay = parseArgs(['--yomitan', '--toggle-visible-overlay']);
+  assert.equal(yomitanWithOverlay.yomitan, true);
+  assert.equal(yomitanWithOverlay.toggleVisibleOverlay, true);
+  assert.equal(shouldRunYomitanOnlyStartup(yomitanWithOverlay), false);
 
-  const settingsWithOverlay = parseArgs(['--settings', '--toggle-visible-overlay']);
-  assert.equal(settingsWithOverlay.settings, true);
-  assert.equal(settingsWithOverlay.toggleVisibleOverlay, true);
-  assert.equal(shouldRunSettingsOnlyStartup(settingsWithOverlay), false);
-
-  const yomitanAlias = parseArgs(['--yomitan']);
-  assert.equal(yomitanAlias.settings, true);
-  assert.equal(hasExplicitCommand(yomitanAlias), true);
-  assert.equal(shouldStartApp(yomitanAlias), true);
+  const settingsDoesNotEnableYomitan = parseArgs(['--settings']);
+  assert.equal(settingsDoesNotEnableYomitan.yomitan, false);
 
   const help = parseArgs(['--help']);
   assert.equal(help.help, true);
   assert.equal(hasExplicitCommand(help), true);
   assert.equal(shouldStartApp(help), false);
-  assert.equal(shouldRunSettingsOnlyStartup(help), false);
+  assert.equal(shouldRunYomitanOnlyStartup(help), false);
+
+  const appPing = parseArgs(['--app-ping']);
+  assert.equal(appPing.appPing, true);
+  assert.equal(hasExplicitCommand(appPing), true);
+  assert.equal(shouldStartApp(appPing), false);
 
   const youtubePlay = parseArgs(['--youtube-play', 'https://youtube.com/watch?v=abc']);
   assert.equal(commandNeedsOverlayStartupPrereqs(youtubePlay), true);
@@ -279,6 +284,12 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
 
   const toggleStatsOverlayRuntime = parseArgs(['--toggle-stats-overlay']);
   assert.equal(commandNeedsOverlayRuntime(toggleStatsOverlayRuntime), true);
+
+  const markWatched = parseArgs(['--mark-watched']);
+  assert.equal(markWatched.markWatched, true);
+  assert.equal(hasExplicitCommand(markWatched), true);
+  assert.equal(shouldStartApp(markWatched), true);
+  assert.equal(commandNeedsOverlayRuntime(markWatched), true);
 
   const dictionary = parseArgs(['--dictionary']);
   assert.equal(dictionary.dictionary, true);

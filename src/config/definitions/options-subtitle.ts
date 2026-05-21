@@ -14,6 +14,20 @@ export function buildSubtitleConfigOptionRegistry(
         'Default primary subtitle bar visibility mode. hidden hides it, visible shows it, hover reveals it on hover.',
     },
     {
+      path: 'subtitleStyle.css',
+      kind: 'object',
+      defaultValue: defaultConfig.subtitleStyle.css,
+      description:
+        'CSS declaration object applied to primary subtitles after normal subtitle style defaults.',
+    },
+    {
+      path: 'subtitleStyle.secondary.css',
+      kind: 'object',
+      defaultValue: defaultConfig.subtitleStyle.secondary.css,
+      description:
+        'CSS declaration object applied to secondary subtitles after normal subtitle style defaults.',
+    },
+    {
       path: 'subtitleStyle.enableJlpt',
       kind: 'boolean',
       defaultValue: defaultConfig.subtitleStyle.enableJlpt,
@@ -68,6 +82,18 @@ export function buildSubtitleConfigOptionRegistry(
       defaultValue: defaultConfig.subtitleStyle.nameMatchColor,
       description:
         'Hex color used when a subtitle token matches an entry from the SubMiner character dictionary.',
+    },
+    {
+      path: 'subtitleStyle.knownWordColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.knownWordColor,
+      description: 'Color used for known-word subtitle highlights.',
+    },
+    {
+      path: 'subtitleStyle.nPlusOneColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.nPlusOneColor,
+      description: 'Color used for the single N+1 target token subtitle highlight.',
     },
     {
       path: 'subtitleStyle.frequencyDictionary.enabled',
@@ -154,6 +180,13 @@ export function buildSubtitleConfigOptionRegistry(
       kind: 'boolean',
       defaultValue: defaultConfig.subtitleSidebar.autoScroll,
       description: 'Auto-scroll the active subtitle cue into view while playback advances.',
+    },
+    {
+      path: 'subtitleSidebar.css',
+      kind: 'object',
+      defaultValue: defaultConfig.subtitleSidebar.css,
+      description:
+        'CSS declaration object applied to the subtitle sidebar. Includes color, background-color, and all font properties.',
     },
     {
       path: 'subtitleSidebar.maxWidth',

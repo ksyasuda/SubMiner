@@ -6,8 +6,8 @@ export function runAppPassthroughCommand(context: LauncherCommandContext): boole
   if (!appPath) {
     return false;
   }
-  if (args.configSettings) {
-    runAppCommandWithInherit(appPath, ['--config']);
+  if (args.settings) {
+    runAppCommandWithInherit(appPath, ['--settings']);
     return true;
   }
   if (!args.appPassthrough) {

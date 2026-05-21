@@ -14,6 +14,33 @@ test('overlay window config explicitly disables renderer sandbox for preload com
   assert.equal(options.webPreferences?.backgroundThrottling, false);
 });
 
+test('Linux visible overlay window allows compositor resize for mpv-sized placement', () => {
+  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+
+  Object.defineProperty(process, 'platform', {
+    configurable: true,
+    value: 'linux',
+  });
+
+  try {
+    const visibleOptions = buildOverlayWindowOptions('visible', {
+      isDev: false,
+      yomitanSession: null,
+    });
+    const modalOptions = buildOverlayWindowOptions('modal', {
+      isDev: false,
+      yomitanSession: null,
+    });
+
+    assert.equal(visibleOptions.resizable, true);
+    assert.equal(modalOptions.resizable, false);
+  } finally {
+    if (originalPlatformDescriptor) {
+      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+    }
+  }
+});
+
 test('Windows visible overlay window config does not start as always-on-top', () => {
   const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
 

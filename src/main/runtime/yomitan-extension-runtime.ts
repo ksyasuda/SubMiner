@@ -2,6 +2,7 @@ import {
   createEnsureYomitanExtensionLoadedHandler,
   createLoadYomitanExtensionHandler,
 } from './yomitan-extension-loader';
+import type { Extension } from 'electron';
 import {
   createBuildEnsureYomitanExtensionLoadedMainDepsHandler,
   createBuildLoadYomitanExtensionMainDepsHandler,
@@ -17,7 +18,9 @@ type EnsureYomitanExtensionLoadedMainDeps = Omit<
 >;
 
 export type YomitanExtensionRuntimeDeps = LoadYomitanExtensionMainDeps &
-  EnsureYomitanExtensionLoadedMainDeps;
+  EnsureYomitanExtensionLoadedMainDeps & {
+    onYomitanExtensionLoaded?: (extension: Extension) => void | Promise<void>;
+  };
 
 export function createYomitanExtensionRuntime(deps: YomitanExtensionRuntimeDeps) {
   const buildLoadYomitanExtensionMainDepsHandler = createBuildLoadYomitanExtensionMainDepsHandler({
@@ -46,10 +49,44 @@ export function createYomitanExtensionRuntime(deps: YomitanExtensionRuntimeDeps)
     buildEnsureYomitanExtensionLoadedMainDepsHandler(),
   );
 
+  let lastNotifiedExtension: Extension | null = null;
+  let notifyingExtension: Extension | null = null;
+  let notificationPromise: Promise<void> | null = null;
+  async function notifyYomitanExtensionLoaded(extension: Extension | null): Promise<void> {
+    if (!extension || extension === lastNotifiedExtension) {
+      return;
+    }
+    if (extension === notifyingExtension && notificationPromise) {
+      await notificationPromise;
+      return;
+    }
+    notifyingExtension = extension;
+    notificationPromise = (async () => {
+      await deps.onYomitanExtensionLoaded?.(extension);
+      lastNotifiedExtension = extension;
+    })();
+    try {
+      await notificationPromise;
+    } finally {
+      if (notifyingExtension === extension) {
+        notifyingExtension = null;
+        notificationPromise = null;
+      }
+    }
+  }
+
   return {
-    loadYomitanExtension: (): Promise<ReturnType<typeof deps.getYomitanExtension>> =>
-      loadYomitanExtensionHandler(),
-    ensureYomitanExtensionLoaded: (): Promise<ReturnType<typeof deps.getYomitanExtension>> =>
-      ensureYomitanExtensionLoadedHandler(),
+    loadYomitanExtension: async (): Promise<ReturnType<typeof deps.getYomitanExtension>> => {
+      const extension = await loadYomitanExtensionHandler();
+      await notifyYomitanExtensionLoaded(extension);
+      return extension;
+    },
+    ensureYomitanExtensionLoaded: async (): Promise<
+      ReturnType<typeof deps.getYomitanExtension>
+    > => {
+      const extension = await ensureYomitanExtensionLoadedHandler();
+      await notifyYomitanExtensionLoaded(extension);
+      return extension;
+    },
   };
 }

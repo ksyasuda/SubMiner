@@ -8,10 +8,12 @@ export interface AppLifecycleServiceDeps {
   parseArgs: (argv: string[]) => CliArgs;
   requestSingleInstanceLock: () => boolean;
   quitApp: () => void;
+  exitApp: (code: number) => void;
   onSecondInstance: (handler: (_event: unknown, argv: string[]) => void) => void;
   handleCliCommand: (args: CliArgs, source: CliCommandSource) => void;
   printHelp: () => void;
   logNoRunningInstance: () => void;
+  startControlServer?: (handleArgv: (argv: string[]) => void) => (() => void) | void;
   whenReady: (handler: () => Promise<void>) => void;
   onWindowAllClosed: (handler: () => void) => void;
   onWillQuit: (handler: () => void) => void;
@@ -27,6 +29,7 @@ export interface AppLifecycleServiceDeps {
 interface AppLike {
   requestSingleInstanceLock: () => boolean;
   quit: () => void;
+  exit?: (exitCode?: number) => void;
   on: (...args: any[]) => unknown;
   whenReady: () => Promise<void>;
 }
@@ -39,6 +42,7 @@ export interface AppLifecycleDepsRuntimeOptions {
   handleCliCommand: (args: CliArgs, source: CliCommandSource) => void;
   printHelp: () => void;
   logNoRunningInstance: () => void;
+  startControlServer?: (handleArgv: (argv: string[]) => void) => (() => void) | void;
   onReady: () => Promise<void>;
   onWillQuitCleanup: () => void;
   shouldRestoreWindowsOnActivate: () => boolean;
@@ -54,12 +58,21 @@ export function createAppLifecycleDepsRuntime(
     parseArgs: options.parseArgs,
     requestSingleInstanceLock: () => options.app.requestSingleInstanceLock(),
     quitApp: () => options.app.quit(),
+    exitApp: (code) => {
+      if (options.app.exit) {
+        options.app.exit(code);
+        return;
+      }
+      process.exitCode = code;
+      options.app.quit();
+    },
     onSecondInstance: (handler) => {
       options.app.on('second-instance', handler as (...args: unknown[]) => void);
     },
     handleCliCommand: options.handleCliCommand,
     printHelp: options.printHelp,
     logNoRunningInstance: options.logNoRunningInstance,
+    startControlServer: options.startControlServer,
     whenReady: (handler) => {
       options.app
         .whenReady()
@@ -94,17 +107,52 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
   }
 
   const gotTheLock = deps.requestSingleInstanceLock();
+  if (initialArgs.appPing) {
+    deps.exitApp(gotTheLock ? 1 : 0);
+    return;
+  }
+
   if (!gotTheLock) {
     deps.quitApp();
     return;
   }
 
-  deps.onSecondInstance((_event, argv) => {
+  let appReadyRuntimeComplete = false;
+  const pendingSecondInstanceCommands: CliArgs[] = [];
+  let stopControlServer: (() => void) | null = null;
+  const handleSecondInstanceCommand = (args: CliArgs): void => {
     try {
-      deps.handleCliCommand(deps.parseArgs(argv), 'second-instance');
+      deps.handleCliCommand(args, 'second-instance');
     } catch (error) {
       logger.error('Failed to handle second-instance CLI command:', error);
     }
+  };
+
+  const flushPendingSecondInstanceCommands = (): void => {
+    while (pendingSecondInstanceCommands.length > 0) {
+      const nextArgs = pendingSecondInstanceCommands.shift();
+      if (nextArgs) {
+        handleSecondInstanceCommand(nextArgs);
+      }
+    }
+  };
+
+  const dispatchSecondInstanceArgv = (argv: string[]): void => {
+    try {
+      const nextArgs = deps.parseArgs(argv);
+      if (!appReadyRuntimeComplete) {
+        pendingSecondInstanceCommands.push(nextArgs);
+        return;
+      }
+
+      handleSecondInstanceCommand(nextArgs);
+    } catch (error) {
+      logger.error('Failed to handle second-instance CLI command:', error);
+    }
+  };
+
+  deps.onSecondInstance((_event, argv) => {
+    dispatchSecondInstanceArgv(argv);
   });
 
   if (!deps.shouldStartApp(initialArgs)) {
@@ -117,17 +165,30 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
     return;
   }
 
+  try {
+    stopControlServer = deps.startControlServer?.(dispatchSecondInstanceArgv) ?? null;
+  } catch (error) {
+    logger.error('Failed to start app control socket:', error);
+  }
+
   deps.whenReady(async () => {
     await deps.onReady();
+    appReadyRuntimeComplete = true;
+    flushPendingSecondInstanceCommands();
   });
 
   deps.onWindowAllClosed(() => {
-    if (!deps.isDarwinPlatform() && deps.shouldQuitOnWindowAllClosed()) {
+    if (
+      deps.shouldQuitOnWindowAllClosed() &&
+      (!deps.isDarwinPlatform() || initialArgs.settings || initialArgs.setup)
+    ) {
       deps.quitApp();
     }
   });
 
   deps.onWillQuit(() => {
+    stopControlServer?.();
+    stopControlServer = null;
     deps.onWillQuitCleanup();
   });
 

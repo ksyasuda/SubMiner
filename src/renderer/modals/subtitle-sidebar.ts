@@ -8,6 +8,7 @@ const CLICK_SEEK_OFFSET_SEC = 0.08;
 const SNAPSHOT_POLL_INTERVAL_MS = 80;
 const EMBEDDED_SIDEBAR_MIN_WIDTH_PX = 240;
 const EMBEDDED_SIDEBAR_MAX_RATIO = 0.45;
+const appliedSidebarCssKeys = new WeakMap<HTMLElement, Set<string>>();
 
 function nowForUiTiming(): number {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
@@ -53,6 +54,46 @@ function formatCueTimestamp(seconds: number): string {
     ].join(':');
   }
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+export function applySidebarCssDeclarations(
+  target: HTMLElement,
+  declarations: Record<string, string>,
+): void {
+  const targetStyle = (target as HTMLElement & { style?: CSSStyleDeclaration }).style;
+  if (!targetStyle) return;
+  const styleTarget = targetStyle as unknown as Record<string, string>;
+  const previousKeys = appliedSidebarCssKeys.get(target) ?? new Set<string>();
+  const nextKeys = new Set<string>();
+
+  for (const property of previousKeys) {
+    if (Object.prototype.hasOwnProperty.call(declarations, property)) continue;
+    if (property.includes('-')) {
+      targetStyle.removeProperty(property);
+    } else {
+      styleTarget[property] = '';
+    }
+  }
+
+  for (const [property, rawValue] of Object.entries(declarations)) {
+    const value = rawValue.trim();
+    if (value.length === 0) {
+      if (property.includes('-')) {
+        targetStyle.removeProperty(property);
+      } else {
+        styleTarget[property] = '';
+      }
+      continue;
+    }
+    if (property.includes('-')) {
+      targetStyle.setProperty(property, value);
+    } else {
+      styleTarget[property] = value;
+    }
+    nextKeys.add(property);
+  }
+
+  appliedSidebarCssKeys.set(target, nextKeys);
 }
 
 export function findActiveSubtitleCueIndex(
@@ -266,6 +307,7 @@ export function createSubtitleSidebarModal(
       '--subtitle-sidebar-hover-background-color',
       snapshot.config.hoverLineBackgroundColor,
     );
+    applySidebarCssDeclarations(ctx.dom.subtitleSidebarContent, snapshot.config.css ?? {});
   }
 
   function seekToCue(cue: SubtitleCue): void {

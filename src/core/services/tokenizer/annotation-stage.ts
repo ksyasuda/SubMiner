@@ -31,6 +31,7 @@ export interface AnnotationStageDeps {
 }
 
 export interface AnnotationStageOptions {
+  knownWordsEnabled?: boolean;
   nPlusOneEnabled?: boolean;
   nameMatchEnabled?: boolean;
   jlptEnabled?: boolean;
@@ -188,6 +189,35 @@ function shouldAllowHonorificPrefixNounFrequency(token: MergedToken): boolean {
   );
 }
 
+function shouldAllowDeterminerLedNounFrequency(
+  normalizedPos1: string,
+  normalizedPos2: string,
+  pos1Exclusions: ReadonlySet<string>,
+  pos2Exclusions: ReadonlySet<string>,
+): boolean {
+  const pos1Parts = splitNormalizedTagParts(normalizedPos1);
+  if (pos1Parts.length < 2 || pos1Parts[0] !== '連体詞') {
+    return false;
+  }
+
+  const pos2Parts = splitNormalizedTagParts(normalizedPos2);
+  if (!isExcludedComponent(pos1Parts[0], pos2Parts[0], pos1Exclusions, pos2Exclusions)) {
+    return false;
+  }
+
+  const componentCount = Math.max(pos1Parts.length, pos2Parts.length);
+  for (let index = 1; index < componentCount; index += 1) {
+    if (
+      pos1Parts[index] === '名詞' &&
+      !isExcludedComponent(pos1Parts[index], pos2Parts[index], pos1Exclusions, pos2Exclusions)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function isFrequencyExcludedByPos(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string>,
@@ -207,12 +237,19 @@ function isFrequencyExcludedByPos(
     pos1Exclusions,
     pos2Exclusions,
   );
+  const allowDeterminerLedNounToken = shouldAllowDeterminerLedNounFrequency(
+    normalizedPos1,
+    normalizedPos2,
+    pos1Exclusions,
+    pos2Exclusions,
+  );
   const allowOrdinalPrefixNounToken = shouldAllowOrdinalPrefixNounFrequency(token);
   const allowHonorificPrefixNounToken = shouldAllowHonorificPrefixNounFrequency(token);
 
   if (
     isExcludedByTagSet(normalizedPos1, pos1Exclusions) &&
     !allowContentLedMergedToken &&
+    !allowDeterminerLedNounToken &&
     !allowOrdinalPrefixNounToken &&
     !allowHonorificPrefixNounToken
   ) {
@@ -222,6 +259,7 @@ function isFrequencyExcludedByPos(
   if (
     isExcludedByTagSet(normalizedPos2, pos2Exclusions) &&
     !allowContentLedMergedToken &&
+    !allowDeterminerLedNounToken &&
     !allowOrdinalPrefixNounToken &&
     !allowHonorificPrefixNounToken
   ) {
@@ -632,13 +670,16 @@ export function annotateTokens(
 ): MergedToken[] {
   const pos1Exclusions = resolvePos1Exclusions(options);
   const pos2Exclusions = resolvePos2Exclusions(options);
+  const knownWordsEnabled = options.knownWordsEnabled !== false;
   const nPlusOneEnabled = options.nPlusOneEnabled !== false;
   const nameMatchEnabled = options.nameMatchEnabled !== false;
   const frequencyEnabled = options.frequencyEnabled !== false;
   const jlptEnabled = options.jlptEnabled !== false;
+  const shouldComputeKnownStatus = knownWordsEnabled || nPlusOneEnabled;
+  const nPlusOneKnownStatuses: boolean[] = [];
 
   // Single pass: compute known word status, frequency filtering, and JLPT level together
-  const annotated = tokens.map((token) => {
+  const annotated = tokens.map((token, index) => {
     if (
       sharedShouldExcludeTokenFromSubtitleAnnotations(token, {
         pos1Exclusions,
@@ -649,6 +690,7 @@ export function annotateTokens(
         pos1Exclusions,
         pos2Exclusions,
       });
+      nPlusOneKnownStatuses[index] = false;
       return {
         ...strippedToken,
         isKnown: false,
@@ -656,9 +698,10 @@ export function annotateTokens(
     }
 
     const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
-    const isKnown = nPlusOneEnabled
+    const isKnownForMatching = shouldComputeKnownStatus
       ? computeTokenKnownStatus(token, deps.isKnownWord, deps.knownWordMatchMode)
       : false;
+    nPlusOneKnownStatuses[index] = isKnownForMatching;
 
     const frequencyRank =
       frequencyEnabled && !prioritizedNameMatch
@@ -672,7 +715,7 @@ export function annotateTokens(
 
     return {
       ...token,
-      isKnown,
+      isKnown: knownWordsEnabled ? isKnownForMatching : false,
       isNPlusOneTarget: nPlusOneEnabled && !prioritizedNameMatch ? token.isNPlusOneTarget : false,
       frequencyRank,
       jlptLevel,
@@ -691,13 +734,21 @@ export function annotateTokens(
       ? minSentenceWordsForNPlusOne
       : 3;
 
-  const nPlusOneMarked = markNPlusOneTargets(
-    annotated,
-    sanitizedMinSentenceWordsForNPlusOne,
-    pos1Exclusions,
-    pos2Exclusions,
-    options.sourceText,
-  );
+  const nPlusOneMarked = nPlusOneEnabled
+    ? markNPlusOneTargets(
+        annotated.map((token, index) => ({
+          ...token,
+          isKnown: nPlusOneKnownStatuses[index] ?? false,
+        })),
+        sanitizedMinSentenceWordsForNPlusOne,
+        pos1Exclusions,
+        pos2Exclusions,
+        options.sourceText,
+      ).map((token, index) => ({
+        ...annotated[index]!,
+        isNPlusOneTarget: token.isNPlusOneTarget,
+      }))
+    : annotated;
 
   if (!nameMatchEnabled) {
     return nPlusOneMarked;

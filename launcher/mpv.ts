@@ -5,13 +5,19 @@ import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
 import { buildMpvLaunchModeArgs } from '../src/shared/mpv-launch-mode.js';
 import {
+  isAppControlServerAvailable as checkAppControlServerAvailable,
+  sendAppControlCommand,
+} from '../src/shared/app-control-client.js';
+import { getDefaultConfigDir } from '../src/shared/setup-state.js';
+import {
   detectInstalledMpvPlugin,
   type InstalledMpvPluginDetection,
 } from '../src/main/runtime/first-run-setup-plugin.js';
-import type { LogLevel, Backend, Args, MpvTrack } from './types.js';
+import type { LogLevel, Backend, Args, MpvTrack, PluginRuntimeConfig } from './types.js';
 import { DEFAULT_MPV_SUBMINER_ARGS, DEFAULT_YOUTUBE_YTDL_FORMAT } from './types.js';
 import { appendToAppLog, getAppLogPath, log, fail, getMpvLogPath } from './log.js';
 import { buildSubminerScriptOpts, resolveAniSkipMetadataForFile } from './aniskip-metadata.js';
+import { buildPluginRuntimeScriptOptParts } from './config/plugin-runtime-config.js';
 import { nowMs } from './time.js';
 import {
   commandExists,
@@ -38,6 +44,7 @@ export const state = {
 type SpawnTarget = {
   command: string;
   args: string[];
+  env?: NodeJS.ProcessEnv;
 };
 
 type PathModule = Pick<typeof path, 'join' | 'extname' | 'delimiter' | 'sep' | 'resolve'>;
@@ -45,6 +52,8 @@ type PathModule = Pick<typeof path, 'join' | 'extname' | 'delimiter' | 'sep' | '
 const DETACHED_IDLE_MPV_PID_FILE = path.join(os.tmpdir(), 'subminer-idle-mpv.pid');
 const OVERLAY_START_SOCKET_READY_TIMEOUT_MS = 900;
 const OVERLAY_START_COMMAND_SETTLE_TIMEOUT_MS = 700;
+const TRANSPORTED_APP_ARGC_ENV = 'SUBMINER_APP_ARGC';
+const TRANSPORTED_APP_ARG_PREFIX = 'SUBMINER_APP_ARG_';
 
 export interface LauncherRuntimePluginPlan {
   scriptPath: string | null;
@@ -849,6 +858,7 @@ export async function startMpv(
     startPaused?: boolean;
     disableYoutubeSubtitleAutoLoad?: boolean;
     runtimePluginPath?: string | null;
+    runtimePluginConfig?: PluginRuntimeConfig;
   },
 ): Promise<void> {
   if (targetKind === 'file' && (!fs.existsSync(target) || !fs.statSync(target).isFile())) {
@@ -916,13 +926,13 @@ export async function startMpv(
     options?.disableYoutubeSubtitleAutoLoad === true
       ? ['subminer-auto_start_pause_until_ready=no']
       : [];
-  const scriptOpts = buildSubminerScriptOpts(
-    appPath,
-    socketPath,
-    aniSkipMetadata,
-    args.logLevel,
-    extraScriptOpts,
-  );
+  const runtimeScriptOpts = options?.runtimePluginConfig
+    ? buildPluginRuntimeScriptOptParts(options.runtimePluginConfig, appPath)
+    : [`subminer-binary_path=${appPath}`, `subminer-socket_path=${socketPath}`];
+  const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata, args.logLevel, [
+    ...runtimeScriptOpts,
+    ...extraScriptOpts,
+  ]);
   if (aniSkipMetadata) {
     log(
       'debug',
@@ -996,21 +1006,82 @@ export async function startOverlay(
   args: Args,
   socketPath: string,
   extraAppArgs: string[] = [],
+  configDir: string = getLauncherConfigDir(),
 ): Promise<void> {
   const backend = detectBackend(args.backend);
   log('info', args.logLevel, `Starting SubMiner overlay (backend: ${backend})...`);
+  const alreadyManagedByLauncher = state.overlayManagedByLauncher && state.appPath === appPath;
 
-  const overlayArgs = ['--start', '--backend', backend, '--socket', socketPath, ...extraAppArgs];
+  const overlayArgs = [
+    '--start',
+    '--managed-playback',
+    '--backend',
+    backend,
+    '--socket',
+    socketPath,
+    ...extraAppArgs,
+  ];
   if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
   if (args.useTexthooker) overlayArgs.push('--texthooker');
 
-  const target = resolveAppSpawnTarget(appPath, overlayArgs);
+  const controlResult = await sendAppControlCommand(overlayArgs, {
+    configDir,
+  });
+  if (controlResult.ok) {
+    log('debug', args.logLevel, 'Attached to running SubMiner app via control socket');
+    if (alreadyManagedByLauncher) {
+      markOverlayManagedByLauncher(appPath);
+    } else {
+      clearOverlayManagedByLauncher();
+      state.overlayProc = null;
+    }
+
+    const socketReady = await waitForUnixSocketReady(
+      socketPath,
+      OVERLAY_START_SOCKET_READY_TIMEOUT_MS,
+    );
+    if (!socketReady) {
+      log(
+        'debug',
+        args.logLevel,
+        'Overlay start continuing before mpv socket readiness was confirmed',
+      );
+    }
+    return;
+  }
+  if (controlResult.unavailable !== true) {
+    log(
+      'warn',
+      args.logLevel,
+      `Running SubMiner app control command failed: ${controlResult.error ?? 'unknown error'}`,
+    );
+    if (!alreadyManagedByLauncher) {
+      clearOverlayManagedByLauncher();
+      state.overlayProc = null;
+    }
+  }
+
+  const appAlreadyRunning = isAppAlreadyRunning(appPath, args.logLevel);
+  const borrowingExistingApp = appAlreadyRunning && !alreadyManagedByLauncher;
+  const spawnOverlayArgs = [...overlayArgs];
+  if (!borrowingExistingApp) spawnOverlayArgs.unshift('--background');
+
+  const target = resolveAppSpawnTarget(appPath, spawnOverlayArgs);
   state.overlayProc = spawn(target.command, target.args, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: buildAppEnv(),
+    env: buildAppEnv(process.env, target.env),
   });
   attachAppProcessLogging(state.overlayProc);
-  markOverlayManagedByLauncher(appPath);
+  if (borrowingExistingApp) {
+    log(
+      'debug',
+      args.logLevel,
+      'SubMiner app is already running; launcher will not stop it after playback',
+    );
+    clearOverlayManagedByLauncher();
+  } else {
+    markOverlayManagedByLauncher(appPath);
+  }
 
   const [socketReady] = await Promise.all([
     waitForUnixSocketReady(socketPath, OVERLAY_START_SOCKET_READY_TIMEOUT_MS),
@@ -1030,11 +1101,45 @@ export async function startOverlay(
   }
 }
 
+function getLauncherConfigDir(): string {
+  return getDefaultConfigDir({
+    xdgConfigHome: process.env.XDG_CONFIG_HOME,
+    homeDir: os.homedir(),
+  });
+}
+
+export async function isRunningAppControlServerAvailable(
+  logLevel: LogLevel,
+  configDir: string = getLauncherConfigDir(),
+): Promise<boolean> {
+  const available = await checkAppControlServerAvailable({
+    configDir,
+  });
+  if (available) {
+    log('debug', logLevel, 'Running SubMiner app control socket detected');
+  }
+  return available;
+}
+
 export function markOverlayManagedByLauncher(appPath?: string): void {
   if (appPath) {
     state.appPath = appPath;
   }
   state.overlayManagedByLauncher = true;
+}
+
+function clearOverlayManagedByLauncher(): void {
+  state.appPath = '';
+  state.overlayManagedByLauncher = false;
+}
+
+function isAppAlreadyRunning(appPath: string, logLevel: LogLevel): boolean {
+  const result = runSyncAppCommand(appPath, ['--app-ping'], false);
+  if (result.error) {
+    log('debug', logLevel, `App ping failed before overlay start: ${result.error.message}`);
+    return false;
+  }
+  return result.status === 0;
 }
 
 export function openUrlInDefaultBrowser(url: string, logLevel: LogLevel): void {
@@ -1144,7 +1249,7 @@ function stopManagedOverlayApp(args: Args): void {
   const target = resolveAppSpawnTarget(state.appPath, stopArgs);
   const result = spawnSync(target.command, target.args, {
     stdio: 'ignore',
-    env: buildAppEnv(),
+    env: buildAppEnv(process.env, target.env),
   });
   if (result.error) {
     log('warn', args.logLevel, `Failed to stop SubMiner overlay: ${result.error.message}`);
@@ -1161,13 +1266,40 @@ function stopManagedOverlayApp(args: Args): void {
   }
 }
 
-function buildAppEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+function clearTransportedAppArgs(env: Record<string, string | undefined>): void {
+  for (const key of Object.keys(env)) {
+    if (key === TRANSPORTED_APP_ARGC_ENV || /^SUBMINER_APP_ARG_\d+$/.test(key)) {
+      delete env[key];
+    }
+  }
+}
+
+function buildTransportedAppArgsEnv(appArgs: string[]): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    [TRANSPORTED_APP_ARGC_ENV]: String(appArgs.length),
+  };
+  appArgs.forEach((arg, index) => {
+    env[`${TRANSPORTED_APP_ARG_PREFIX}${index}`] = arg;
+  });
+  return env;
+}
+
+function shouldTransportAppArgsForAppImage(appPath: string): boolean {
+  return process.platform === 'linux' && /\.AppImage$/i.test(appPath);
+}
+
+function buildAppEnv(
+  baseEnv: NodeJS.ProcessEnv = process.env,
+  extraEnv: NodeJS.ProcessEnv = {},
+): NodeJS.ProcessEnv {
   const env: Record<string, string | undefined> = {
     ...baseEnv,
     SUBMINER_APP_LOG: getAppLogPath(),
     SUBMINER_MPV_LOG: getMpvLogPath(),
   };
   delete env.ELECTRON_RUN_AS_NODE;
+  clearTransportedAppArgs(env);
+  Object.assign(env, extraEnv);
   const layers = env.VK_INSTANCE_LAYERS;
   if (typeof layers === 'string' && layers.trim().length > 0) {
     const filtered = layers
@@ -1216,6 +1348,10 @@ export function buildConfiguredMpvDefaultArgs(
   const mpvArgs: string[] = [];
   if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
   mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
+  if (process.platform === 'darwin') {
+    // macOS menu accelerators do not reach mpv script bindings unless disabled.
+    mpvArgs.push('--macos-menu-shortcuts=no');
+  }
   mpvArgs.push(...buildMpvBackendArgs(args, baseEnv));
   mpvArgs.push(...buildMpvLaunchModeArgs(args.launchMode));
   return mpvArgs;
@@ -1227,6 +1363,14 @@ function appendCapturedAppOutput(kind: 'STDOUT' | 'STDERR', chunk: string): void
     if (!line) continue;
     appendToAppLog(`[${kind}] ${line}`);
   }
+}
+
+const KNOWN_ELECTRON_MENU_DIAGNOSTIC =
+  'representedObject is not a WeakPtrToElectronMenuModelAsNSObject';
+
+function filterKnownElectronDiagnostics(chunk: string): string {
+  const lines = chunk.match(/[^\n]*\n|[^\n]+/g) ?? [];
+  return lines.filter((line) => !line.includes(KNOWN_ELECTRON_MENU_DIAGNOSTIC)).join('');
 }
 
 function attachAppProcessLogging(
@@ -1243,8 +1387,12 @@ function attachAppProcessLogging(
     if (options?.mirrorStdout) process.stdout.write(chunk);
   });
   proc.stderr?.on('data', (chunk: string) => {
-    appendCapturedAppOutput('STDERR', chunk);
-    if (options?.mirrorStderr) process.stderr.write(chunk);
+    const filteredChunk = filterKnownElectronDiagnostics(chunk);
+    if (!filteredChunk) {
+      return;
+    }
+    appendCapturedAppOutput('STDERR', filteredChunk);
+    if (options?.mirrorStderr) process.stderr.write(filteredChunk);
   });
 }
 
@@ -1260,7 +1408,7 @@ function runSyncAppCommand(
 } {
   const target = resolveAppSpawnTarget(appPath, appArgs);
   const result = spawnSync(target.command, target.args, {
-    env: buildAppEnv(),
+    env: buildAppEnv(process.env, target.env),
     encoding: 'utf8',
   });
   if (result.stdout) {
@@ -1268,13 +1416,16 @@ function runSyncAppCommand(
     if (mirrorOutput) process.stdout.write(result.stdout);
   }
   if (result.stderr) {
-    appendCapturedAppOutput('STDERR', result.stderr);
-    if (mirrorOutput) process.stderr.write(result.stderr);
+    const filteredStderr = filterKnownElectronDiagnostics(result.stderr);
+    if (filteredStderr) {
+      appendCapturedAppOutput('STDERR', filteredStderr);
+      if (mirrorOutput) process.stderr.write(filteredStderr);
+    }
   }
   return {
     status: result.status ?? 1,
     stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
+    stderr: result.stderr ? filterKnownElectronDiagnostics(result.stderr) : '',
     error: result.error ?? undefined,
   };
 }
@@ -1290,6 +1441,13 @@ function maybeCaptureAppArgs(appArgs: string[]): boolean {
 }
 
 function resolveAppSpawnTarget(appPath: string, appArgs: string[]): SpawnTarget {
+  if (shouldTransportAppArgsForAppImage(appPath)) {
+    return {
+      command: appPath,
+      args: [],
+      env: buildTransportedAppArgsEnv(appArgs),
+    };
+  }
   if (process.platform !== 'win32') {
     return { command: appPath, args: appArgs };
   }
@@ -1304,7 +1462,7 @@ export function runAppCommandWithInherit(appPath: string, appArgs: string[]): vo
   const target = resolveAppSpawnTarget(appPath, appArgs);
   const proc = spawn(target.command, target.args, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: buildAppEnv(),
+    env: buildAppEnv(process.env, target.env),
   });
   attachAppProcessLogging(proc, { mirrorStdout: true, mirrorStderr: true });
   proc.once('error', (error) => {
@@ -1323,7 +1481,7 @@ export function runAppCommandSilently(appPath: string, appArgs: string[]): void 
   const target = resolveAppSpawnTarget(appPath, appArgs);
   const proc = spawn(target.command, target.args, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: buildAppEnv(),
+    env: buildAppEnv(process.env, target.env),
   });
   attachAppProcessLogging(proc);
   proc.once('error', (error) => {
@@ -1374,7 +1532,7 @@ export function runAppCommandAttached(
   return new Promise((resolve, reject) => {
     const proc = spawn(target.command, target.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: buildAppEnv(),
+      env: buildAppEnv(process.env, target.env),
     });
     attachAppProcessLogging(proc, { mirrorStdout: true, mirrorStderr: true });
     proc.once('error', (error) => {
@@ -1445,7 +1603,7 @@ export function launchAppCommandDetached(
     const proc = spawn(target.command, target.args, {
       stdio: ['ignore', stdoutFd, stderrFd],
       detached: true,
-      env: buildAppEnv(),
+      env: buildAppEnv(process.env, target.env),
     });
     proc.once('error', (error) => {
       log('warn', logLevel, `${label}: failed to launch detached app: ${error.message}`);
@@ -1462,6 +1620,7 @@ export function launchMpvIdleDetached(
   appPath: string,
   args: Args,
   runtimePluginPath?: string | null,
+  runtimePluginConfig?: PluginRuntimeConfig,
 ): Promise<void> {
   return (async () => {
     await terminateTrackedDetachedMpv(args.logLevel);
@@ -1483,8 +1642,17 @@ export function launchMpvIdleDetached(
       mpvArgs.push(...parseMpvArgString(args.mpvArgs));
     }
     mpvArgs.push('--idle=yes');
+    const runtimeScriptOpts = runtimePluginConfig
+      ? buildPluginRuntimeScriptOptParts(runtimePluginConfig, appPath)
+      : [`subminer-binary_path=${appPath}`, `subminer-socket_path=${socketPath}`];
     mpvArgs.push(
-      `--script-opts=${buildSubminerScriptOpts(appPath, socketPath, null, args.logLevel)}`,
+      `--script-opts=${buildSubminerScriptOpts(
+        appPath,
+        socketPath,
+        null,
+        args.logLevel,
+        runtimeScriptOpts,
+      )}`,
     );
     mpvArgs.push(`--log-file=${getMpvLogPath()}`);
     mpvArgs.push(`--input-ipc-server=${socketPath}`);

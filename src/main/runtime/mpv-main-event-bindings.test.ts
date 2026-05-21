@@ -45,6 +45,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
     ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
     syncImmersionMediaState: () => calls.push('sync-immersion'),
+    signalAutoplayReadyIfWarm: (path) => calls.push(`autoplay:${path}`),
     flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
 
     updateCurrentMediaTitle: (title) => calls.push(`media-title:${title}`),
@@ -72,6 +73,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   handlers.get('subtitle-change')?.({ text: 'line' });
   handlers.get('subtitle-track-change')?.({ sid: 3 });
   handlers.get('subtitle-track-list-change')?.({ trackList: [] });
+  handlers.get('media-path-change')?.({ path: '/tmp/video.mkv' });
   handlers.get('media-path-change')?.({ path: '' });
   handlers.get('media-title-change')?.({ title: 'Episode 1' });
   handlers.get('subtitle-timing')?.({ text: 'timed line', start: 899, end: 901 });
@@ -85,7 +87,8 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   assert.ok(calls.includes('subtitle-track-change'));
   assert.ok(calls.includes('subtitle-track-list-change'));
   assert.ok(calls.includes('media-title:Episode 1'));
-  assert.ok(calls.includes('restore-mpv-sub'));
+  assert.ok(calls.includes('media-path:/tmp/video.mkv'));
+  assert.ok(calls.includes('autoplay:/tmp/video.mkv'));
   assert.ok(calls.includes('reset-guess-state'));
   assert.ok(calls.includes('notify-title:Episode 1'));
   assert.ok(calls.includes('post-watch:901'));
@@ -94,4 +97,131 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   assert.ok(calls.includes('presence-refresh'));
   assert.ok(calls.includes('sync-immersion'));
   assert.ok(calls.includes('flush-playback'));
+});
+
+test('main mpv event binder runs mpv-connected callback on connection', () => {
+  const handlers = new Map<string, (payload: unknown) => void>();
+  const calls: string[] = [];
+
+  const bind = createBindMpvMainEventHandlersHandler({
+    reportJellyfinRemoteStopped: () => calls.push('remote-stopped'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
+    onMpvConnected: () => calls.push('mpv-connected'),
+    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
+    hasInitialPlaybackQuitOnDisconnectArg: () => false,
+    isOverlayRuntimeInitialized: () => false,
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => false,
+    isQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    isMpvConnected: () => true,
+    quitApp: () => {},
+
+    recordImmersionSubtitleLine: () => {},
+    hasSubtitleTimingTracker: () => false,
+    recordSubtitleTiming: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    setCurrentSubText: () => {},
+    broadcastSubtitle: () => {},
+    onSubtitleChange: () => {},
+    refreshDiscordPresence: () => calls.push('presence-refresh'),
+
+    setCurrentSubAssText: () => {},
+    broadcastSubtitleAss: () => {},
+    broadcastSecondarySubtitle: () => {},
+
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    notifyImmersionTitleUpdate: () => {},
+
+    recordPlaybackPosition: () => {},
+    recordMediaDuration: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    recordPauseState: () => {},
+
+    updateSubtitleRenderMetrics: () => {},
+    setPreviousSecondarySubVisibility: () => {},
+  });
+
+  bind({
+    on: (event, handler) => {
+      handlers.set(event, handler as (payload: unknown) => void);
+    },
+  });
+
+  handlers.get('connection-change')?.({ connected: true });
+
+  assert.ok(calls.includes('mpv-connected'));
+});
+
+test('main mpv event binder clears media path on disconnect', () => {
+  const handlers = new Map<string, (payload: unknown) => void>();
+  const calls: string[] = [];
+
+  const bind = createBindMpvMainEventHandlersHandler({
+    reportJellyfinRemoteStopped: () => calls.push('remote-stopped'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
+    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
+    hasInitialPlaybackQuitOnDisconnectArg: () => false,
+    isOverlayRuntimeInitialized: () => true,
+    shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => false,
+    isQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    isMpvConnected: () => false,
+    quitApp: () => {},
+
+    recordImmersionSubtitleLine: () => {},
+    hasSubtitleTimingTracker: () => false,
+    recordSubtitleTiming: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    setCurrentSubText: () => {},
+    broadcastSubtitle: () => {},
+    onSubtitleChange: () => {},
+    refreshDiscordPresence: () => calls.push('presence-refresh'),
+
+    setCurrentSubAssText: () => {},
+    broadcastSubtitleAss: () => {},
+    broadcastSecondarySubtitle: () => {},
+
+    updateCurrentMediaPath: (path) => calls.push(`media-path:${path}`),
+    restoreMpvSubVisibility: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    notifyImmersionTitleUpdate: () => {},
+
+    recordPlaybackPosition: () => {},
+    recordMediaDuration: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    recordPauseState: () => {},
+
+    updateSubtitleRenderMetrics: () => {},
+    setPreviousSecondarySubVisibility: () => {},
+  });
+
+  bind({
+    on: (event, handler) => {
+      handlers.set(event, handler as (payload: unknown) => void);
+    },
+  });
+
+  handlers.get('connection-change')?.({ connected: false });
+
+  assert.ok(calls.includes('media-path:'));
+  assert.ok(calls.includes('remote-stopped'));
+  assert.ok(calls.includes('presence-refresh'));
 });

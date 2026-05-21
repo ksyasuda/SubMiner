@@ -1,4 +1,5 @@
 import { ResolvedConfig } from '../../types/config';
+import { getDefaultMpvSocketPath } from '../../shared/mpv-socket-path';
 
 export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   ResolvedConfig,
@@ -59,7 +60,6 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       addMinedWordsImmediately: true,
       matchMode: 'headword',
       decks: {},
-      color: '#a6da95',
     },
     behavior: {
       overwriteAudio: true,
@@ -70,15 +70,15 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       autoUpdateNewCards: true,
     },
     nPlusOne: {
+      enabled: false,
       minSentenceWords: 3,
-      nPlusOne: '#c6a0f6',
     },
     metadata: {
       pattern: '[SubMiner] %f (%t)',
     },
     isLapis: {
       enabled: false,
-      sentenceCardModel: 'Japanese sentences',
+      sentenceCardModel: 'Lapis',
     },
     isKiku: {
       enabled: false,
@@ -94,6 +94,13 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   mpv: {
     executablePath: '',
     launchMode: 'normal',
+    socketPath: getDefaultMpvSocketPath(),
+    backend: 'auto',
+    autoStartSubMiner: true,
+    pauseUntilOverlayReady: true,
+    subminerBinaryPath: '',
+    aniskipEnabled: true,
+    aniskipButtonKey: 'TAB',
   },
   anilist: {
     enabled: false,

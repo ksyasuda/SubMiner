@@ -6,6 +6,7 @@ test('createMainBootServices builds boot-phase service bundle', () => {
   type MockAppLifecycleApp = {
     requestSingleInstanceLock: () => boolean;
     quit: () => void;
+    exit: (code?: number) => void;
     on: (event: string, listener: (...args: unknown[]) => void) => MockAppLifecycleApp;
     whenReady: () => Promise<void>;
   };
@@ -20,7 +21,7 @@ test('createMainBootServices builds boot-phase service bundle', () => {
     { targetPath: string },
     { targetPath: string },
     { targetPath: string },
-    { kind: string },
+    { kind: string; payloadMode: 'plain' | 'annotated' },
     { scope: string; warn: () => void; info: () => void; error: () => void },
     { registry: boolean },
     { getMainWindow: () => null; getModalWindow: () => null },
@@ -54,6 +55,9 @@ test('createMainBootServices builds boot-phase service bundle', () => {
         setPathValue = value;
       },
       quit: () => {},
+      exit: (code?: number) => {
+        calls.push(`exit:${code ?? 0}`);
+      },
       on: (event: string) => {
         appOnCalls.push(event);
         return {};
@@ -72,7 +76,7 @@ test('createMainBootServices builds boot-phase service bundle', () => {
     createAnilistTokenStore: (targetPath) => ({ targetPath }),
     createJellyfinTokenStore: (targetPath) => ({ targetPath }),
     createAnilistUpdateQueue: (targetPath) => ({ targetPath }),
-    createSubtitleWebSocket: () => ({ kind: 'ws' }),
+    createSubtitleWebSocket: (payloadMode) => ({ kind: 'ws', payloadMode }),
     createLogger: (scope) =>
       ({
         scope,
@@ -111,6 +115,11 @@ test('createMainBootServices builds boot-phase service bundle', () => {
   assert.deepEqual(services.anilistUpdateQueue, {
     targetPath: '/tmp/subminer-config/anilist-retry-queue.json',
   });
+  assert.deepEqual(services.subtitleWsService, { kind: 'ws', payloadMode: 'plain' });
+  assert.deepEqual(services.annotationSubtitleWsService, {
+    kind: 'ws',
+    payloadMode: 'annotated',
+  });
   assert.deepEqual(services.appState, {
     mpvSocketPath: '/tmp/subminer.sock',
     texthookerPort: 5174,
@@ -123,8 +132,9 @@ test('createMainBootServices builds boot-phase service bundle', () => {
     services.appLifecycleApp.on('second-instance', () => {}),
     services.appLifecycleApp,
   );
+  services.appLifecycleApp.exit(7);
   assert.deepEqual(appOnCalls, ['ready']);
   assert.equal(secondInstanceHandlerRegistered, true);
-  assert.deepEqual(calls, ['mkdir:/tmp/subminer-config']);
+  assert.deepEqual(calls, ['mkdir:/tmp/subminer-config', 'exit:7']);
   assert.equal(setPathValue, '/tmp/subminer-config');
 });

@@ -2,6 +2,9 @@ import {
   applyEdits,
   modify,
   parse as parseJsonc,
+  parseTree as parseJsoncTree,
+  type Edit,
+  type Node as JsoncNode,
   type FormattingOptions,
   type ParseError,
 } from 'jsonc-parser';
@@ -12,7 +15,7 @@ import type {
   ConfigSettingsSnapshot,
 } from '../../types/settings';
 import { resolveConfig } from '../resolve';
-import { getConfigValueAtPath } from './registry';
+import { getConfigValueAtPath, SECRET_PATHS } from './registry';
 
 const JSONC_FORMATTING_OPTIONS: FormattingOptions = {
   insertSpaces: true,
@@ -91,6 +94,7 @@ function normalizeContent(content: string): string {
 }
 
 function applySingleOperation(content: string, operation: ConfigSettingsPatchOperation): string {
+  content = removeDuplicatePropertiesAlongPath(content, operation.path);
   const edits = modify(
     content,
     pathToSegments(operation.path),
@@ -101,6 +105,148 @@ function applySingleOperation(content: string, operation: ConfigSettingsPatchOpe
     },
   );
   return applyEdits(content, edits);
+}
+
+function propertyKey(propertyNode: JsoncNode): string | undefined {
+  return propertyNode.children?.[0]?.value;
+}
+
+function propertyValue(propertyNode: JsoncNode): JsoncNode | undefined {
+  return propertyNode.children?.[1];
+}
+
+function objectProperties(node: JsoncNode | undefined): JsoncNode[] {
+  return node?.type === 'object' ? (node.children ?? []) : [];
+}
+
+function isWhitespace(value: string | undefined): boolean {
+  return value === ' ' || value === '\t' || value === '\r' || value === '\n';
+}
+
+function nextNonWhitespaceOffset(content: string, offset: number): number {
+  let index = offset;
+  while (index < content.length) {
+    if (isWhitespace(content[index])) {
+      index += 1;
+      continue;
+    }
+    if (content[index] === '/' && content[index + 1] === '/') {
+      index += 2;
+      while (index < content.length && content[index] !== '\n') index += 1;
+      continue;
+    }
+    if (content[index] === '/' && content[index + 1] === '*') {
+      index += 2;
+      while (
+        index + 1 < content.length &&
+        !(content[index] === '*' && content[index + 1] === '/')
+      ) {
+        index += 1;
+      }
+      index = Math.min(content.length, index + 2);
+      continue;
+    }
+    break;
+  }
+  return index;
+}
+
+function previousNonWhitespaceOffset(content: string, offset: number): number {
+  let index = offset;
+  while (index >= 0) {
+    if (isWhitespace(content[index])) {
+      index -= 1;
+      continue;
+    }
+    const lineStart = content.lastIndexOf('\n', index) + 1;
+    const linePrefix = content.slice(lineStart, index + 1);
+    const lineCommentStart = linePrefix.lastIndexOf('//');
+    if (lineCommentStart >= 0 && /^[ \t]*$/.test(linePrefix.slice(0, lineCommentStart))) {
+      index = lineStart - 1;
+      continue;
+    }
+    if (content[index] === '/' && content[index - 1] === '*') {
+      index -= 2;
+      while (index > 0 && !(content[index - 1] === '/' && content[index] === '*')) {
+        index -= 1;
+      }
+      index -= 2;
+      continue;
+    }
+    break;
+  }
+  return index;
+}
+
+function lineStartOffset(content: string, offset: number): number {
+  return content.lastIndexOf('\n', Math.max(0, offset - 1)) + 1;
+}
+
+function removalEditForProperty(content: string, propertyNode: JsoncNode): Edit {
+  let offset = propertyNode.offset;
+  let end = propertyNode.offset + propertyNode.length;
+  const next = nextNonWhitespaceOffset(content, end);
+
+  if (content[next] === ',') {
+    end = next + 1;
+    const lineStart = lineStartOffset(content, offset);
+    if (/^[ \t]*$/.test(content.slice(lineStart, offset))) {
+      offset = lineStart;
+    }
+  } else {
+    const previous = previousNonWhitespaceOffset(content, offset - 1);
+    if (content[previous] === ',') {
+      offset = previous;
+    }
+  }
+
+  return {
+    offset,
+    length: Math.max(0, end - offset),
+    content: '',
+  };
+}
+
+function collectDuplicatePropertyRemovalEdits(content: string, path: string): Edit[] {
+  const errors: ParseError[] = [];
+  let node = parseJsoncTree(content, errors, {
+    allowTrailingComma: true,
+    disallowComments: false,
+  });
+  if (!node || errors.length > 0) {
+    return [];
+  }
+
+  const edits: Edit[] = [];
+  for (const segment of pathToSegments(path)) {
+    const matches = objectProperties(node).filter((property) => propertyKey(property) === segment);
+    if (matches.length === 0) {
+      break;
+    }
+
+    for (const duplicate of matches.slice(0, -1)) {
+      edits.push(removalEditForProperty(content, duplicate));
+    }
+
+    node = propertyValue(matches[matches.length - 1]!);
+  }
+
+  return edits;
+}
+
+function applyRemovalEdits(content: string, edits: Edit[]): string {
+  return [...edits]
+    .sort((left, right) => right.offset - left.offset)
+    .reduce(
+      (current, edit) =>
+        `${current.slice(0, edit.offset)}${edit.content}${current.slice(edit.offset + edit.length)}`,
+      content,
+    );
+}
+
+function removeDuplicatePropertiesAlongPath(content: string, path: string): string {
+  const edits = collectDuplicatePropertyRemovalEdits(content, path);
+  return edits.length > 0 ? applyRemovalEdits(content, edits) : content;
 }
 
 function collectModifiedWarnings(
@@ -188,7 +334,21 @@ export function buildConfigSettingsSnapshot(
       continue;
     }
 
-    values[field.configPath] = structuredClone(rawValue !== undefined ? rawValue : resolvedValue);
+    values[field.configPath] = structuredClone(rawValue != null ? rawValue : resolvedValue);
+  }
+
+  for (const secretPath of SECRET_PATHS) {
+    if (Object.hasOwn(values, secretPath)) {
+      continue;
+    }
+    const rawValue = getConfigValueAtPath(options.rawConfig, secretPath);
+    const resolvedValue = getConfigValueAtPath(options.resolvedConfig, secretPath);
+    if (
+      (typeof rawValue === 'string' && rawValue.length > 0) ||
+      (typeof resolvedValue === 'string' && resolvedValue.length > 0)
+    ) {
+      values[secretPath] = { configured: true };
+    }
   }
 
   return {

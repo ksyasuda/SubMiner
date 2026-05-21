@@ -56,6 +56,50 @@ test('annotateTokens known-word match mode uses headword vs surface', () => {
   assert.equal(surfaceResult[0]?.isKnown, false);
 });
 
+test('annotateTokens marks known words when N+1 is disabled', () => {
+  const tokens = [
+    makeToken({ surface: '私', headword: '私', startPos: 0, endPos: 1 }),
+    makeToken({ surface: '猫', headword: '猫', startPos: 1, endPos: 2 }),
+    makeToken({ surface: '犬', headword: '犬', startPos: 2, endPos: 3 }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === '私' || text === '猫',
+    }),
+    { nPlusOneEnabled: false, knownWordsEnabled: true },
+  );
+
+  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[1]?.isKnown, true);
+  assert.equal(result[1]?.isNPlusOneTarget, false);
+  assert.equal(result[2]?.isKnown, false);
+  assert.equal(result[2]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens hides known-word marks while still using known words for N+1', () => {
+  const tokens = [
+    makeToken({ surface: '私', headword: '私', startPos: 0, endPos: 1 }),
+    makeToken({ surface: '猫', headword: '猫', startPos: 1, endPos: 2 }),
+    makeToken({ surface: '犬', headword: '犬', startPos: 2, endPos: 3 }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === '私' || text === '猫',
+    }),
+    { nPlusOneEnabled: true, knownWordsEnabled: false, minSentenceWordsForNPlusOne: 3 },
+  );
+
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[1]?.isKnown, false);
+  assert.equal(result[2]?.isKnown, false);
+  assert.equal(result[2]?.isNPlusOneTarget, true);
+});
+
 test('annotateTokens falls back to reading for known-word matches when headword lookup misses', () => {
   const tokens = [
     makeToken({
@@ -120,6 +164,35 @@ test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 ex
   assert.equal(result[1]?.frequencyRank, undefined);
   assert.equal(result[2]?.frequencyRank, undefined);
   assert.equal(result[3]?.frequencyRank, 11);
+});
+
+test('annotateTokens keeps frequency for determiner-led content noun compounds', () => {
+  const tokens = [
+    makeToken({
+      surface: 'その場',
+      headword: 'その場',
+      reading: 'そのば',
+      partOfSpeech: PartOfSpeech.noun,
+      pos1: '連体詞|名詞',
+      pos2: '*|一般',
+      startPos: 0,
+      endPos: 3,
+      frequencyRank: 879,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'その場',
+      getJlptLevel: (text) => (text === 'その場' ? 'N4' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.frequencyRank, 879);
+  assert.equal(result[0]?.jlptLevel, 'N4');
 });
 
 test('annotateTokens preserves existing frequency rank when frequency is enabled', () => {

@@ -71,8 +71,8 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.toggleVisibleOverlay ||
     args.togglePrimarySubtitleBar ||
     args.launchMpv ||
+    args.yomitan ||
     args.settings ||
-    args.configSettings ||
     args.show ||
     args.hide ||
     args.showVisibleOverlay ||
@@ -90,6 +90,7 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.toggleStatsOverlay ||
+    args.markWatched ||
     args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||

@@ -613,6 +613,8 @@ async function init(): Promise<void> {
     });
   });
 
+  await keyboardHandlers.setupMpvInputForwarding();
+
   let initialSubtitle: SubtitleData | string = '';
   try {
     initialSubtitle = await window.electronAPI.getCurrentSubtitle();
@@ -698,8 +700,6 @@ async function init(): Promise<void> {
     });
   });
   mouseHandlers.setupDragging();
-
-  await keyboardHandlers.setupMpvInputForwarding();
   try {
     ctx.state.controllerConfig = await window.electronAPI.getControllerConfig();
   } catch (error) {

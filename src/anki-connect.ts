@@ -156,6 +156,76 @@ export class AnkiConnectClient {
     return (result as number[]) || [];
   }
 
+  async deckNames(): Promise<string[]> {
+    const result = await this.invoke('deckNames');
+    return Array.isArray(result)
+      ? result.filter((value): value is string => typeof value === 'string').sort()
+      : [];
+  }
+
+  async modelNames(): Promise<string[]> {
+    const result = await this.invoke('modelNames');
+    return Array.isArray(result)
+      ? result.filter((value): value is string => typeof value === 'string').sort()
+      : [];
+  }
+
+  async modelFieldNames(modelName: string): Promise<string[]> {
+    const result = await this.invoke('modelFieldNames', { modelName });
+    return Array.isArray(result)
+      ? result.filter((value): value is string => typeof value === 'string').sort()
+      : [];
+  }
+
+  private async noteInfosForDeck(
+    deckName: string,
+    sampleSize = 100,
+  ): Promise<Record<string, unknown>[]> {
+    const escapedDeckName = deckName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const noteIds = await this.findNotes(`deck:"${escapedDeckName}"`, { maxRetries: 0 });
+    if (noteIds.length === 0) {
+      return [];
+    }
+
+    const finiteSampleSize = Number.isFinite(sampleSize) ? sampleSize : 0;
+    const normalizedSampleSize = Math.min(
+      noteIds.length,
+      Math.max(0, Math.floor(finiteSampleSize)),
+    );
+    if (normalizedSampleSize === 0) {
+      return [];
+    }
+
+    return this.notesInfo(noteIds.slice(0, normalizedSampleSize));
+  }
+
+  async fieldNamesForDeck(deckName: string, sampleSize = 100): Promise<string[]> {
+    const noteInfos = await this.noteInfosForDeck(deckName, sampleSize);
+    const fields = new Set<string>();
+    for (const noteInfo of noteInfos) {
+      const noteFields = noteInfo.fields;
+      if (!noteFields || typeof noteFields !== 'object' || Array.isArray(noteFields)) {
+        continue;
+      }
+      for (const fieldName of Object.keys(noteFields)) {
+        fields.add(fieldName);
+      }
+    }
+    return [...fields].sort();
+  }
+
+  async modelNamesForDeck(deckName: string, sampleSize = 100): Promise<string[]> {
+    const noteInfos = await this.noteInfosForDeck(deckName, sampleSize);
+    const modelNames = new Set<string>();
+    for (const noteInfo of noteInfos) {
+      const modelName = noteInfo.modelName;
+      if (typeof modelName === 'string' && modelName.length > 0) {
+        modelNames.add(modelName);
+      }
+    }
+    return [...modelNames].sort();
+  }
+
   async notesInfo(noteIds: number[]): Promise<Record<string, unknown>[]> {
     const result = await this.invoke('notesInfo', { notes: noteIds });
     return (result as Record<string, unknown>[]) || [];

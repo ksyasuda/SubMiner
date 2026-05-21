@@ -16,6 +16,7 @@ export function buildOverlayWindowOptions(
 ): BrowserWindowConstructorOptions {
   const showNativeDebugFrame = process.platform === 'win32' && options.isDev;
   const shouldStartAlwaysOnTop = !(process.platform === 'win32' && kind === 'visible');
+  const shouldAllowCompositorResize = process.platform === 'linux' && kind === 'visible';
 
   return {
     show: false,
@@ -29,7 +30,7 @@ export function buildOverlayWindowOptions(
     frame: false,
     alwaysOnTop: shouldStartAlwaysOnTop,
     skipTaskbar: true,
-    resizable: false,
+    resizable: shouldAllowCompositorResize,
     hasShadow: false,
     focusable: true,
     acceptFirstMouse: true,

@@ -13,6 +13,7 @@ interface MpvCommandDeps {
     appPath: string,
     args: LauncherCommandContext['args'],
     runtimePluginPath?: string | null,
+    runtimePluginConfig?: LauncherCommandContext['pluginRuntimeConfig'],
   ): Promise<void>;
 }
 
@@ -49,7 +50,7 @@ export async function runMpvPostAppCommand(
   context: LauncherCommandContext,
   deps: MpvCommandDeps = defaultDeps,
 ): Promise<boolean> {
-  const { args, appPath, scriptPath, mpvSocketPath } = context;
+  const { args, appPath, scriptPath, mpvSocketPath, pluginRuntimeConfig } = context;
   if (!args.mpvIdle) {
     return false;
   }
@@ -62,6 +63,11 @@ export async function runMpvPostAppCommand(
     appPath,
     args,
     resolveLauncherRuntimePluginPath({ appPath, scriptPath }),
+    {
+      ...pluginRuntimeConfig,
+      backend: args.backend,
+      texthookerEnabled: args.useTexthooker && pluginRuntimeConfig.texthookerEnabled,
+    },
   );
   const ready = await deps.waitForUnixSocketReady(mpvSocketPath, 8000);
   if (!ready) {

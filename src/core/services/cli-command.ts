@@ -115,6 +115,7 @@ export interface CliCommandServiceDeps {
 interface MpvClientLike {
   setSocketPath: (socketPath: string) => void;
   connect: () => void;
+  reconnect?: () => void;
 }
 
 interface TexthookerServiceLike {
@@ -235,6 +236,10 @@ export function createCliCommandDepsRuntime(
     connectMpvClient: () => {
       const client = options.mpv.getClient();
       if (!client) return;
+      if (client.reconnect) {
+        client.reconnect();
+        return;
+      }
       client.connect();
     },
     isTexthookerRunning: () => options.texthooker.service.isRunning(),
@@ -386,9 +391,9 @@ export function handleCliCommand(
   } else if (args.setup) {
     deps.openFirstRunSetup(true);
     deps.logDebug('Opened first-run setup flow.');
-  } else if (args.settings) {
+  } else if (args.yomitan) {
     deps.openYomitanSettingsDelayed(1000);
-  } else if (args.configSettings) {
+  } else if (args.settings) {
     deps.openConfigSettingsWindow();
   } else if (args.show || args.showVisibleOverlay) {
     deps.setVisibleOverlayVisible(true);
@@ -469,6 +474,8 @@ export function handleCliCommand(
       'toggleStatsOverlay',
       'Stats toggle failed',
     );
+  } else if (args.markWatched) {
+    dispatchCliSessionAction({ actionId: 'markWatched' }, 'markWatched', 'Mark watched failed');
   } else if (args.toggleSubtitleSidebar) {
     dispatchCliSessionAction(
       { actionId: 'toggleSubtitleSidebar' },

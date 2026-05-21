@@ -6,6 +6,7 @@ import os from 'node:os';
 import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
+import { getAppControlSocketPath } from '../src/shared/app-control';
 import {
   buildConfiguredMpvDefaultArgs,
   buildMpvBackendArgs,
@@ -111,6 +112,36 @@ test('runAppCommandCaptureOutput strips ELECTRON_RUN_AS_NODE from app child env'
     } else {
       process.env.ELECTRON_RUN_AS_NODE = original;
     }
+  }
+});
+
+test('runAppCommandCaptureOutput transports Linux AppImage args through environment', () => {
+  if (process.platform !== 'linux') return;
+  const { dir } = createTempSocketPath();
+  const appPath = path.join(dir, 'SubMiner.AppImage');
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      'printf "args:%s\\n" "$*"',
+      'printf "argc:%s\\n" "$SUBMINER_APP_ARGC"',
+      'printf "arg0:%s\\n" "$SUBMINER_APP_ARG_0"',
+      'printf "arg1:%s\\n" "$SUBMINER_APP_ARG_1"',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+
+  try {
+    const result = runAppCommandCaptureOutput(appPath, ['--app-ping', '--socket']);
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /^args:\n/m);
+    assert.match(result.stdout, /^argc:2\n/m);
+    assert.match(result.stdout, /^arg0:--app-ping\n/m);
+    assert.match(result.stdout, /^arg1:--socket\n/m);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
@@ -260,6 +291,15 @@ test('buildConfiguredMpvDefaultArgs appends maximized launch mode to configured 
         '--gpu-context=x11egl,x11',
         '--window-maximized=yes',
       ],
+    );
+  });
+});
+
+test('buildConfiguredMpvDefaultArgs disables macOS menu shortcuts so SubMiner bindings reach mpv', () => {
+  withPlatform('darwin', () => {
+    assert.equal(
+      buildConfiguredMpvDefaultArgs(makeArgs()).includes('--macos-menu-shortcuts=no'),
+      true,
     );
   });
 });
@@ -530,7 +570,7 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     doctor: false,
     doctorRefreshKnownWords: false,
     version: false,
-    configSettings: false,
+    settings: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,
@@ -612,6 +652,352 @@ test('startOverlay captures app stdout and stderr into app log', async () => {
     } else {
       process.env.SUBMINER_APP_LOG = originalAppLog;
     }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('startOverlay starts launcher-owned playback in background managed mode', async () => {
+  const { dir, socketPath } = createTempSocketPath();
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const appInvocationsPath = path.join(dir, 'app-invocations.log');
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
+      'if [ "$1" = "--app-ping" ]; then exit 1; fi',
+      'exit 0',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+  fs.writeFileSync(socketPath, '');
+  const originalCreateConnection = net.createConnection;
+  try {
+    net.createConnection = (() => {
+      const socket = new EventEmitter() as net.Socket;
+      socket.destroy = (() => socket) as net.Socket['destroy'];
+      socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
+      setTimeout(() => socket.emit('connect'), 10);
+      return socket;
+    }) as typeof net.createConnection;
+
+    await startOverlay(appPath, makeArgs(), socketPath);
+
+    const invocationText = fs.readFileSync(appInvocationsPath, 'utf8');
+    assert.match(invocationText, /--background/);
+    assert.match(invocationText, /--managed-playback/);
+    assert.equal(state.overlayManagedByLauncher, true);
+    assert.equal(state.appPath, appPath);
+  } finally {
+    net.createConnection = originalCreateConnection;
+    state.overlayProc = null;
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('startOverlay borrows an already-running background app instead of owning its lifecycle', async () => {
+  const { dir, socketPath } = createTempSocketPath();
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const appInvocationsPath = path.join(dir, 'app-invocations.log');
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
+      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
+      'exit 0',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+  fs.writeFileSync(socketPath, '');
+  const originalCreateConnection = net.createConnection;
+  try {
+    net.createConnection = (() => {
+      const socket = new EventEmitter() as net.Socket;
+      socket.destroy = (() => socket) as net.Socket['destroy'];
+      socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
+      setTimeout(() => socket.emit('connect'), 10);
+      return socket;
+    }) as typeof net.createConnection;
+
+    await startOverlay(appPath, makeArgs(), socketPath);
+
+    const invocationText = fs.readFileSync(appInvocationsPath, 'utf8');
+    assert.match(invocationText, /--app-ping/);
+    assert.match(invocationText, /--start/);
+    assert.doesNotMatch(invocationText, /--background/);
+    assert.equal(state.overlayManagedByLauncher, false);
+    assert.equal(state.appPath, '');
+  } finally {
+    net.createConnection = originalCreateConnection;
+    state.overlayProc = null;
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('startOverlay attaches through the running app control socket without spawning another app command', async () => {
+  if (process.platform === 'win32') return;
+
+  const { dir, socketPath } = createTempSocketPath();
+  const controlSocketPath = path.join(dir, 'control.sock');
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const appInvocationsPath = path.join(dir, 'app-invocations.log');
+  const receivedControlArgv: string[][] = [];
+  const originalControlSocket = process.env.SUBMINER_APP_CONTROL_SOCKET;
+
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
+      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
+      'exit 0',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+
+  const mpvServer = net.createServer((socket) => socket.end());
+  const controlServer = net.createServer((socket) => {
+    let buffer = '';
+    socket.on('data', (chunk) => {
+      buffer += chunk.toString('utf8');
+      const newlineMatch = buffer.match(/\r?\n/);
+      if (!newlineMatch || newlineMatch.index === undefined) return;
+      const line = buffer.slice(0, newlineMatch.index).trim();
+      buffer = buffer.slice(newlineMatch.index + newlineMatch[0].length);
+      if (!line) return;
+      const payload = JSON.parse(line) as { argv?: unknown };
+      if (Array.isArray(payload.argv)) {
+        receivedControlArgv.push(
+          payload.argv.filter((value): value is string => typeof value === 'string'),
+        );
+      }
+      socket.end(JSON.stringify({ ok: true }) + '\n');
+    });
+  });
+
+  try {
+    process.env.SUBMINER_APP_CONTROL_SOCKET = controlSocketPath;
+    await new Promise<void>((resolve, reject) => {
+      mpvServer.once('error', reject);
+      mpvServer.listen(socketPath, resolve);
+    });
+    await new Promise<void>((resolve, reject) => {
+      controlServer.once('error', reject);
+      controlServer.listen(controlSocketPath, resolve);
+    });
+
+    await startOverlay(appPath, makeArgs(), socketPath);
+
+    const invocationText = fs.existsSync(appInvocationsPath)
+      ? fs.readFileSync(appInvocationsPath, 'utf8')
+      : '';
+    assert.equal(invocationText, '');
+    assert.equal(receivedControlArgv.length, 1);
+    assert.deepEqual(receivedControlArgv[0]?.slice(0, 7), [
+      '--start',
+      '--managed-playback',
+      '--backend',
+      'x11',
+      '--socket',
+      socketPath,
+      '--log-level',
+    ]);
+    assert.equal(state.overlayManagedByLauncher, false);
+    assert.equal(state.appPath, '');
+  } finally {
+    if (originalControlSocket === undefined) {
+      delete process.env.SUBMINER_APP_CONTROL_SOCKET;
+    } else {
+      process.env.SUBMINER_APP_CONTROL_SOCKET = originalControlSocket;
+    }
+    await new Promise<void>((resolve) => mpvServer.close(() => resolve()));
+    await new Promise<void>((resolve) => controlServer.close(() => resolve()));
+    state.overlayProc = null;
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('startOverlay uses caller config dir for app control socket discovery', async () => {
+  if (process.platform === 'win32') return;
+
+  const { dir, socketPath } = createTempSocketPath();
+  const configDir = path.join(dir, 'launcher-config');
+  const controlSocketPath = getAppControlSocketPath({ configDir, platform: 'linux' });
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const appInvocationsPath = path.join(dir, 'app-invocations.log');
+  const receivedControlArgv: string[][] = [];
+  const originalControlSocket = process.env.SUBMINER_APP_CONTROL_SOCKET;
+
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
+      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
+      'exit 0',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+
+  const mpvServer = net.createServer((socket) => socket.end());
+  const controlServer = net.createServer((socket) => {
+    let buffer = '';
+    socket.on('data', (chunk) => {
+      buffer += chunk.toString('utf8');
+      const newlineIndex = buffer.indexOf('\n');
+      if (newlineIndex < 0) return;
+      const payload = JSON.parse(buffer.slice(0, newlineIndex)) as { argv?: unknown };
+      if (Array.isArray(payload.argv)) {
+        receivedControlArgv.push(
+          payload.argv.filter((value): value is string => typeof value === 'string'),
+        );
+      }
+      socket.end(JSON.stringify({ ok: true }) + '\n');
+    });
+  });
+
+  try {
+    delete process.env.SUBMINER_APP_CONTROL_SOCKET;
+    await new Promise<void>((resolve, reject) => {
+      mpvServer.once('error', reject);
+      mpvServer.listen(socketPath, resolve);
+    });
+    await new Promise<void>((resolve, reject) => {
+      controlServer.once('error', reject);
+      controlServer.listen(controlSocketPath, resolve);
+    });
+
+    await startOverlay(appPath, makeArgs(), socketPath, [], configDir);
+
+    const invocationText = fs.existsSync(appInvocationsPath)
+      ? fs.readFileSync(appInvocationsPath, 'utf8')
+      : '';
+    assert.equal(invocationText, '');
+    assert.equal(receivedControlArgv.length, 1);
+    assert.deepEqual(receivedControlArgv[0]?.slice(0, 6), [
+      '--start',
+      '--managed-playback',
+      '--backend',
+      'x11',
+      '--socket',
+      socketPath,
+    ]);
+  } finally {
+    if (originalControlSocket === undefined) {
+      delete process.env.SUBMINER_APP_CONTROL_SOCKET;
+    } else {
+      process.env.SUBMINER_APP_CONTROL_SOCKET = originalControlSocket;
+    }
+    await new Promise<void>((resolve) => mpvServer.close(() => resolve()));
+    await new Promise<void>((resolve) => controlServer.close(() => resolve()));
+    state.overlayProc = null;
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('startOverlay falls back to legacy app startup when control command fails', async () => {
+  if (process.platform === 'win32') return;
+
+  const { dir, socketPath } = createTempSocketPath();
+  const controlSocketPath = path.join(dir, 'control.sock');
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const appInvocationsPath = path.join(dir, 'app-invocations.log');
+  const originalControlSocket = process.env.SUBMINER_APP_CONTROL_SOCKET;
+
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
+      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
+      'exit 0',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+
+  const controlServer = net.createServer((socket) => {
+    socket.on('data', () => {
+      socket.end(JSON.stringify({ ok: false, error: 'boom' }) + '\n');
+    });
+  });
+
+  try {
+    process.env.SUBMINER_APP_CONTROL_SOCKET = controlSocketPath;
+    await new Promise<void>((resolve, reject) => {
+      controlServer.once('error', reject);
+      controlServer.listen(controlSocketPath, resolve);
+    });
+
+    await startOverlay(appPath, makeArgs(), socketPath);
+
+    const invocationText = fs.readFileSync(appInvocationsPath, 'utf8');
+    assert.match(invocationText, /--app-ping/);
+    assert.match(invocationText, /--start/);
+  } finally {
+    if (originalControlSocket === undefined) {
+      delete process.env.SUBMINER_APP_CONTROL_SOCKET;
+    } else {
+      process.env.SUBMINER_APP_CONTROL_SOCKET = originalControlSocket;
+    }
+    await new Promise<void>((resolve) => controlServer.close(() => resolve()));
+    state.overlayProc = null;
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('startOverlay keeps lifecycle ownership for its already-managed app', async () => {
+  const { dir, socketPath } = createTempSocketPath();
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const appInvocationsPath = path.join(dir, 'app-invocations.log');
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
+      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
+      'exit 0',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+  fs.writeFileSync(socketPath, '');
+  const originalCreateConnection = net.createConnection;
+  try {
+    state.appPath = appPath;
+    state.overlayManagedByLauncher = true;
+    net.createConnection = (() => {
+      const socket = new EventEmitter() as net.Socket;
+      socket.destroy = (() => socket) as net.Socket['destroy'];
+      socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
+      setTimeout(() => socket.emit('connect'), 10);
+      return socket;
+    }) as typeof net.createConnection;
+
+    await startOverlay(appPath, makeArgs(), socketPath);
+
+    assert.equal(state.overlayManagedByLauncher, true);
+    assert.equal(state.appPath, appPath);
+  } finally {
+    net.createConnection = originalCreateConnection;
+    state.overlayProc = null;
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

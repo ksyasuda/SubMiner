@@ -22,7 +22,9 @@ test('printHelp includes configured texthooker port', () => {
   assert.match(output, /--open-browser\s+Open texthooker in your default browser/);
   assert.doesNotMatch(output, /--refresh-known-words/);
   assert.match(output, /--setup\s+Open first-run setup window/);
-  assert.match(output, /--config\s+Open configuration window/);
+  assert.match(output, /--settings\s+Open SubMiner settings window/);
+  assert.match(output, /--yomitan\s+Open Yomitan settings window/);
+  assert.match(output, /--mark-watched\s+Mark current video watched and advance playlist/);
   assert.match(output, /--anilist-status/);
   assert.match(output, /--anilist-retry-queue/);
   assert.match(output, /--dictionary/);

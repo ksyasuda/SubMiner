@@ -35,6 +35,7 @@ export function createKeyboardHandlers(
 ) {
   // Timeout for the modal chord capture window (e.g. Y followed by H/K).
   const CHORD_TIMEOUT_MS = 1000;
+  const MPV_INPUT_FORWARDING_CONFIG_LOAD_TIMEOUT_MS = 50;
   const KEYBOARD_SELECTED_WORD_CLASS = 'keyboard-selected';
   let pendingSelectionAnchorAfterSubtitleSeek: 'start' | 'end' | null = null;
   let pendingLookupRefreshAfterSubtitleSeek = false;
@@ -44,6 +45,7 @@ export function createKeyboardHandlers(
     actionId: 'copySubtitleMultiple' | 'mineSentenceMultiple';
     timeout: ReturnType<typeof setTimeout> | null;
   } | null = null;
+  let mpvInputForwardingListenersInstalled = false;
 
   const CHORD_MAP = new Map<
     string,
@@ -940,7 +942,7 @@ export function createKeyboardHandlers(
     }
   }
 
-  async function setupMpvInputForwarding(): Promise<void> {
+  async function loadMpvInputForwardingConfig(): Promise<void> {
     const [sessionBindings, shortcuts, statsToggleKey, markWatchedKey] = await Promise.all([
       window.electronAPI.getSessionBindings(),
       window.electronAPI.getConfiguredShortcuts(),
@@ -950,6 +952,55 @@ export function createKeyboardHandlers(
     updateSessionBindings(sessionBindings);
     updateConfiguredShortcuts(shortcuts, statsToggleKey, markWatchedKey);
     syncKeyboardTokenSelection();
+  }
+
+  async function loadMpvInputForwardingConfigWithRetry(): Promise<void> {
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await loadMpvInputForwardingConfig();
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 10 * (attempt + 1));
+          });
+        }
+      }
+    }
+    throw lastError;
+  }
+
+  async function setupMpvInputForwarding(): Promise<void> {
+    installMpvInputForwardingListeners();
+    syncKeyboardTokenSelection();
+
+    let configLoadError: unknown = null;
+    const configLoad = loadMpvInputForwardingConfigWithRetry().then(
+      () => {},
+      (error) => {
+        configLoadError = error;
+        console.error('Failed to load overlay keyboard configuration.', error);
+      },
+    );
+
+    await Promise.race([
+      configLoad,
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, MPV_INPUT_FORWARDING_CONFIG_LOAD_TIMEOUT_MS);
+      }),
+    ]);
+    if (configLoadError) {
+      return;
+    }
+  }
+
+  function installMpvInputForwardingListeners(): void {
+    if (mpvInputForwardingListenersInstalled) {
+      return;
+    }
+    mpvInputForwardingListenersInstalled = true;
 
     const subtitleMutationObserver = new MutationObserver(() => {
       syncKeyboardTokenSelection();

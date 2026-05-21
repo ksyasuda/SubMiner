@@ -262,7 +262,7 @@ h1 {
 }
 
 .search-input {
-  width: 210px;
+  width: min(360px, 34vw);
   height: 36px;
   padding: 0 12px;
 }
@@ -271,6 +271,13 @@ h1 {
   width: min(320px, 100%);
   min-height: 36px;
   padding: 7px 10px;
+}
+
+.mono-input {
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'M PLUS 1', 'Avenir Next', ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  font-size: 12px;
 }
 
 .config-textarea {
@@ -287,6 +294,12 @@ h1 {
 
 .config-textarea.compact {
   min-height: 86px;
+}
+
+.config-textarea.css-declarations {
+  width: min(560px, 100%);
+  min-height: 188px;
+  tab-size: 2;
 }
 
 .search-input:hover,
@@ -324,7 +337,8 @@ select.config-input option {
 
 .primary-button,
 .secondary-button,
-.reset-button {
+.reset-button,
+.key-learn-button {
   height: 36px;
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -340,7 +354,8 @@ select.config-input option {
 
 .primary-button:active,
 .secondary-button:active,
-.reset-button:active {
+.reset-button:active,
+.key-learn-button:active {
   transform: translateY(1px);
 }
 
@@ -365,17 +380,35 @@ select.config-input option {
 }
 
 .secondary-button,
-.reset-button {
+.reset-button,
+.key-learn-button {
   padding: 0 13px;
   background: rgba(54, 58, 79, 0.5);
   color: var(--text);
 }
 
 .secondary-button:hover,
-.reset-button:hover {
+.reset-button:hover,
+.key-learn-button:hover {
   border-color: rgba(138, 173, 244, 0.45);
   background: rgba(73, 77, 100, 0.6);
   color: var(--ctp-lavender);
+}
+
+.key-learn-button {
+  min-width: 146px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'M PLUS 1', 'Avenir Next', ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  font-size: 12px;
+}
+
+.key-learn-button.learning {
+  border-color: rgba(238, 212, 159, 0.58);
+  background: rgba(238, 212, 159, 0.1);
+  color: var(--ctp-yellow);
 }
 
 .reset-button {
@@ -479,6 +512,18 @@ code {
   text-transform: uppercase;
 }
 
+.settings-subsection-title {
+  margin: 0;
+  padding: 11px 16px 8px;
+  border-top: 1px solid var(--line-soft);
+  background: rgba(24, 25, 38, 0.32);
+  color: var(--ctp-sky);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .field-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 430px);
@@ -492,12 +537,28 @@ code {
   border-top: none;
 }
 
+.settings-subsection-title + .field-row {
+  border-top: none;
+}
+
+.helper-row {
+  background: rgba(138, 173, 244, 0.04);
+}
+
 .field-copy h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 5px;
   font-size: 14px;
   font-weight: 700;
   color: var(--ctp-text);
   letter-spacing: -0.005em;
+}
+
+.field-title-text {
+  min-width: 0;
 }
 
 .field-copy p {
@@ -508,16 +569,10 @@ code {
   line-height: 1.55;
 }
 
-.field-meta {
-  display: flex;
-  flex-wrap: wrap;
+.restart-chip {
+  display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.restart-chip,
-.advanced-chip {
   padding: 2px 8px;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -541,18 +596,122 @@ code {
   color: var(--ctp-peach);
 }
 
-.advanced-chip {
-  border-color: rgba(198, 160, 246, 0.4);
-  background: rgba(198, 160, 246, 0.1);
-  color: var(--ctp-mauve);
-}
-
 .field-control {
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
   gap: 8px;
   min-width: 0;
+}
+
+.stacked-control,
+.deck-field-editor,
+.keybinding-editor {
+  display: flex;
+  width: min(520px, 100%);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.deck-field-row {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(24, 25, 38, 0.4);
+}
+
+.deck-field-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deck-field-row-name {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.deck-field-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.field-checkbox-list {
+  display: flex;
+  max-height: 148px;
+  min-height: 44px;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(24, 25, 38, 0.58);
+}
+
+.field-checkbox-row {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  color: var(--ctp-subtext0);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.field-checkbox-row:hover {
+  background: rgba(138, 173, 244, 0.1);
+}
+
+.field-checkbox-row input {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  accent-color: var(--ctp-lavender);
+}
+
+.field-checkbox-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.keybinding-row {
+  display: grid;
+  grid-template-columns: minmax(146px, 0.78fr) minmax(180px, 1.22fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.multi-select {
+  min-height: 92px;
+  padding-right: 10px;
+  background-image: none !important;
+}
+
+.compact-button {
+  width: fit-content;
+}
+
+.icon-button {
+  white-space: nowrap;
+}
+
+.control-hint {
+  color: var(--ctp-overlay2);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.control-hint.error {
+  color: var(--ctp-red);
 }
 
 .switch-control {
@@ -611,6 +770,39 @@ code {
   box-shadow: 0 0 0 3px rgba(138, 173, 244, 0.22);
 }
 
+.color-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.color-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.color-list-label {
+  min-width: 52px;
+  color: var(--ctp-subtext0);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.color-list-row input[type='color'] {
+  width: 52px;
+  min-height: 32px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(24, 25, 38, 0.85);
+  cursor: pointer;
+}
+
+.color-list-row input[type='color']:hover {
+  border-color: rgba(138, 173, 244, 0.32);
+}
+
 .empty-state {
   padding: 40px;
   border: 1px dashed var(--line);
@@ -638,7 +830,8 @@ code {
 
   .settings-toolbar,
   .field-row,
-  .field-control {
+  .field-control,
+  .keybinding-row {
     display: flex;
     flex-direction: column;
     align-items: stretch;

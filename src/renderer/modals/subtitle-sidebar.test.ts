@@ -3,7 +3,11 @@ import test from 'node:test';
 
 import type { ElectronAPI, SubtitleSidebarSnapshot } from '../../types';
 import { createRendererState } from '../state.js';
-import { createSubtitleSidebarModal, findActiveSubtitleCueIndex } from './subtitle-sidebar.js';
+import {
+  applySidebarCssDeclarations,
+  createSubtitleSidebarModal,
+  findActiveSubtitleCueIndex,
+} from './subtitle-sidebar.js';
 
 function createClassList(initialTokens: string[] = []) {
   const tokens = new Set(initialTokens);
@@ -108,6 +112,42 @@ test('findActiveSubtitleCueIndex prefers current subtitle timing over near-futur
   assert.equal(findActiveSubtitleCueIndex(cues, { text: 'previous', startTime: 231 }, 233, 0), 0);
 });
 
+test('applySidebarCssDeclarations clears declarations removed by config reload', () => {
+  const removed: string[] = [];
+  const style = {
+    color: '',
+    backgroundColor: '',
+    setProperty(property: string, value: string) {
+      (this as unknown as Record<string, string>)[property] = value;
+    },
+    removeProperty(property: string) {
+      removed.push(property);
+      delete (this as unknown as Record<string, string>)[property];
+    },
+  };
+  const target = { style } as unknown as HTMLElement;
+
+  applySidebarCssDeclarations(target, {
+    color: '#cad3f5',
+    'background-color': '#181926',
+  });
+  applySidebarCssDeclarations(target, {
+    color: '#ffffff',
+  });
+
+  assert.equal(style.color, '#ffffff');
+  assert.equal(style.backgroundColor, '');
+  assert.deepEqual(removed, ['background-color']);
+
+  applySidebarCssDeclarations(target, {
+    color: '',
+    'background-color': '',
+  });
+
+  assert.equal(style.color, '');
+  assert.deepEqual(removed, ['background-color', 'background-color']);
+});
+
 test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback', async () => {
   const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
   const previousWindow = globals.window;
@@ -141,6 +181,11 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
       activeLineColor: '#f5bde6',
       activeLineBackgroundColor: 'rgba(138, 173, 244, 0.22)',
       hoverLineBackgroundColor: 'rgba(54, 58, 79, 0.84)',
+      css: {
+        'font-size': '22px',
+        color: '#ffffff',
+        '--subtitle-sidebar-timestamp-color': '#aaaaaa',
+      },
     },
   };
 
@@ -175,6 +220,12 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
     const overlayClassList = createClassList();
     const modalClassList = createClassList(['hidden']);
     const cueList = createListStub();
+    const contentStyleValues = new Map<string, string>();
+    const contentStyle = {
+      setProperty: (name: string, value: string) => {
+        contentStyleValues.set(name, value);
+      },
+    } as CSSStyleDeclaration & { color?: string };
     const ctx = {
       dom: {
         overlay: { classList: overlayClassList },
@@ -187,6 +238,7 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
         subtitleSidebarContent: {
           classList: createClassList(),
           getBoundingClientRect: () => ({ width: 420 }),
+          style: contentStyle,
         },
         subtitleSidebarClose: { addEventListener: () => {} },
         subtitleSidebarStatus: { textContent: '' },
@@ -207,6 +259,9 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
     assert.equal(cueList.children.length, 2);
     assert.equal(cueList.scrollTop, 0);
     assert.deepEqual(cueList.scrollToCalls, []);
+    assert.equal(contentStyleValues.get('font-size'), '22px');
+    assert.equal(contentStyle.color, '#ffffff');
+    assert.equal(contentStyleValues.get('--subtitle-sidebar-timestamp-color'), '#aaaaaa');
 
     modal.seekToCue(snapshot.cues[0]!);
     assert.deepEqual(mpvCommands.at(-1), ['seek', 1.08, 'absolute+exact']);

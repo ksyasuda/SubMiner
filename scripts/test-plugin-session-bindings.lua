@@ -222,6 +222,14 @@ local ctx = {
 					},
 					{
 						key = {
+							code = "KeyW",
+							modifiers = {},
+						},
+						actionType = "session-action",
+						actionId = "markWatched",
+					},
+					{
+						key = {
 							code = "KeyA",
 							modifiers = { "alt", "meta" },
 						},
@@ -307,6 +315,7 @@ local expected_cli_bindings = {
 	{ keys = "Ctrl+Alt+p", flag = "--open-playlist-browser" },
 	{ keys = "Ctrl+H", flag = "--replay-current-subtitle" },
 	{ keys = "Ctrl+L", flag = "--play-next-subtitle" },
+	{ keys = "w", flag = "--mark-watched" },
 }
 
 for _, expected in ipairs(expected_cli_bindings) do

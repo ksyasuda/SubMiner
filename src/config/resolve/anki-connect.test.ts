@@ -84,6 +84,29 @@ test('accepts knownWords.addMinedWordsImmediately boolean override', () => {
   );
 });
 
+test('enables n+1 for existing configs with known-word highlighting enabled', () => {
+  const { context } = makeContext({
+    knownWords: { highlightEnabled: true },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.knownWords.highlightEnabled, true);
+  assert.equal(context.resolved.ankiConnect.nPlusOne.enabled, true);
+});
+
+test('keeps explicit n+1 disabled when known-word highlighting is enabled', () => {
+  const { context } = makeContext({
+    knownWords: { highlightEnabled: true },
+    nPlusOne: { enabled: false },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.knownWords.highlightEnabled, true);
+  assert.equal(context.resolved.ankiConnect.nPlusOne.enabled, false);
+});
+
 test('converts legacy knownWords.decks array to object with default fields', () => {
   const { context, warnings } = makeContext({
     knownWords: { decks: ['Core Deck'] },

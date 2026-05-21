@@ -7,6 +7,9 @@ const BACKGROUND_ARG = '--background';
 const START_ARG = '--start';
 const PASSWORD_STORE_ARG = '--password-store';
 const BACKGROUND_CHILD_ENV = 'SUBMINER_BACKGROUND_CHILD';
+const TRANSPORTED_APP_ARGC_ENV = 'SUBMINER_APP_ARGC';
+const TRANSPORTED_APP_ARG_PREFIX = 'SUBMINER_APP_ARG_';
+const MAX_TRANSPORTED_APP_ARGS = 256;
 const APP_NAME = 'SubMiner';
 const MPV_LONG_OPTIONS_WITH_SEPARATE_VALUES = new Set([
   '--alang',
@@ -83,8 +86,45 @@ function parseCliArgs(argv: string[]): CliArgs {
   return parseArgs(argv);
 }
 
+export function hasTransportedStartupArgs(env: NodeJS.ProcessEnv): boolean {
+  return typeof env[TRANSPORTED_APP_ARGC_ENV] === 'string';
+}
+
+function readTransportedStartupArgs(env: NodeJS.ProcessEnv): string[] | null {
+  const rawCount = env[TRANSPORTED_APP_ARGC_ENV];
+  if (rawCount === undefined) {
+    return null;
+  }
+
+  const count = Number(rawCount);
+  if (!Number.isInteger(count) || count < 0 || count > MAX_TRANSPORTED_APP_ARGS) {
+    return null;
+  }
+
+  const args: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const value = env[`${TRANSPORTED_APP_ARG_PREFIX}${index}`];
+    if (typeof value !== 'string') {
+      return null;
+    }
+    args.push(value);
+  }
+  return args;
+}
+
 export function normalizeStartupArgv(argv: string[], env: NodeJS.ProcessEnv): string[] {
   if (env.ELECTRON_RUN_AS_NODE === '1') return argv;
+
+  const transportedArgs = readTransportedStartupArgs(env);
+  if (transportedArgs) {
+    if (removePassiveStartupArgs(transportedArgs).length === 0) {
+      if (process.platform === 'win32') {
+        return [argv[0] ?? APP_NAME, ...transportedArgs, START_ARG];
+      }
+      return [argv[0] ?? APP_NAME, ...transportedArgs, START_ARG, BACKGROUND_ARG];
+    }
+    return [argv[0] ?? APP_NAME, ...transportedArgs];
+  }
 
   const effectiveArgs = removePassiveStartupArgs(argv.slice(1));
   if (effectiveArgs.length === 0) {

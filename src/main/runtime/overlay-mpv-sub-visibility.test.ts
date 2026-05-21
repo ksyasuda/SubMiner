@@ -104,6 +104,36 @@ test('restore keeps mpv subtitles hidden when visible-overlay binding still requ
   assert.deepEqual(calls, [false]);
 });
 
+test('forced restore ignores visible-overlay suppression during app shutdown', () => {
+  const state: VisibilityState = {
+    savedSubVisibility: true,
+    revision: 9,
+  };
+  const calls: boolean[] = [];
+
+  const restore = createRestoreOverlayMpvSubtitlesHandler({
+    getSavedSubVisibility: () => state.savedSubVisibility,
+    setSavedSubVisibility: (visible) => {
+      state.savedSubVisibility = visible;
+    },
+    getRevision: () => state.revision,
+    setRevision: (revision) => {
+      state.revision = revision;
+    },
+    isMpvConnected: () => true,
+    shouldKeepSuppressedFromVisibleOverlayBinding: () => true,
+    setMpvSubVisibility: (visible) => {
+      calls.push(visible);
+    },
+  });
+
+  restore({ force: true });
+
+  assert.equal(state.savedSubVisibility, null);
+  assert.equal(state.revision, 10);
+  assert.deepEqual(calls, [true]);
+});
+
 test('restore defers mpv subtitle restore while mpv is disconnected', () => {
   const state: VisibilityState = {
     savedSubVisibility: true,

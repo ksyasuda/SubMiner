@@ -253,6 +253,97 @@ export function applyIntegrationConfig(context: ResolveContext): void {
         `Expected one of: ${MPV_LAUNCH_MODE_VALUES.map((value) => `'${value}'`).join(', ')}.`,
       );
     }
+
+    const socketPath = asString(src.mpv.socketPath);
+    if (socketPath !== undefined && socketPath.trim().length > 0) {
+      resolved.mpv.socketPath = socketPath.trim();
+    } else if (src.mpv.socketPath !== undefined) {
+      warn(
+        'mpv.socketPath',
+        src.mpv.socketPath,
+        resolved.mpv.socketPath,
+        'Expected non-empty string.',
+      );
+    }
+
+    const backend = asString(src.mpv.backend);
+    if (
+      backend === 'auto' ||
+      backend === 'hyprland' ||
+      backend === 'sway' ||
+      backend === 'x11' ||
+      backend === 'macos' ||
+      backend === 'windows'
+    ) {
+      resolved.mpv.backend = backend;
+    } else if (src.mpv.backend !== undefined) {
+      warn(
+        'mpv.backend',
+        src.mpv.backend,
+        resolved.mpv.backend,
+        'Expected auto, hyprland, sway, x11, macos, or windows.',
+      );
+    }
+
+    const autoStartSubMiner = asBoolean(src.mpv.autoStartSubMiner);
+    if (autoStartSubMiner !== undefined) {
+      resolved.mpv.autoStartSubMiner = autoStartSubMiner;
+    } else if (src.mpv.autoStartSubMiner !== undefined) {
+      warn(
+        'mpv.autoStartSubMiner',
+        src.mpv.autoStartSubMiner,
+        resolved.mpv.autoStartSubMiner,
+        'Expected boolean.',
+      );
+    }
+
+    const pauseUntilOverlayReady = asBoolean(src.mpv.pauseUntilOverlayReady);
+    if (pauseUntilOverlayReady !== undefined) {
+      resolved.mpv.pauseUntilOverlayReady = pauseUntilOverlayReady;
+    } else if (src.mpv.pauseUntilOverlayReady !== undefined) {
+      warn(
+        'mpv.pauseUntilOverlayReady',
+        src.mpv.pauseUntilOverlayReady,
+        resolved.mpv.pauseUntilOverlayReady,
+        'Expected boolean.',
+      );
+    }
+
+    const subminerBinaryPath = asString(src.mpv.subminerBinaryPath);
+    if (subminerBinaryPath !== undefined) {
+      resolved.mpv.subminerBinaryPath = subminerBinaryPath.trim();
+    } else if (src.mpv.subminerBinaryPath !== undefined) {
+      warn(
+        'mpv.subminerBinaryPath',
+        src.mpv.subminerBinaryPath,
+        resolved.mpv.subminerBinaryPath,
+        'Expected string.',
+      );
+    }
+
+    const aniskipEnabled = asBoolean(src.mpv.aniskipEnabled);
+    if (aniskipEnabled !== undefined) {
+      resolved.mpv.aniskipEnabled = aniskipEnabled;
+    } else if (src.mpv.aniskipEnabled !== undefined) {
+      warn(
+        'mpv.aniskipEnabled',
+        src.mpv.aniskipEnabled,
+        resolved.mpv.aniskipEnabled,
+        'Expected boolean.',
+      );
+    }
+
+    const aniskipButtonKey = asString(src.mpv.aniskipButtonKey);
+    if (aniskipButtonKey !== undefined && aniskipButtonKey.trim().length > 0) {
+      resolved.mpv.aniskipButtonKey = aniskipButtonKey.trim();
+    } else if (src.mpv.aniskipButtonKey !== undefined) {
+      warn(
+        'mpv.aniskipButtonKey',
+        src.mpv.aniskipButtonKey,
+        resolved.mpv.aniskipButtonKey,
+        'Expected non-empty string.',
+      );
+    }
   } else if (src.mpv !== undefined) {
     warn('mpv', src.mpv, resolved.mpv, 'Expected object.');
   }

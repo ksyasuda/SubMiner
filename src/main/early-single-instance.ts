@@ -1,7 +1,17 @@
 interface ElectronSecondInstanceAppLike {
-  requestSingleInstanceLock: () => boolean;
-  on: (event: 'second-instance', listener: (_event: unknown, argv: string[]) => void) => unknown;
+  requestSingleInstanceLock: (additionalData?: Record<string, unknown>) => boolean;
+  on: (
+    event: 'second-instance',
+    listener: (
+      _event: unknown,
+      argv: string[],
+      workingDirectory?: string,
+      additionalData?: unknown,
+    ) => void,
+  ) => unknown;
 }
+
+const SECOND_INSTANCE_ARGV_KEY = 'subminerArgv';
 
 export function shouldBypassSingleInstanceLockForArgv(argv: readonly string[]): boolean {
   return argv.includes('--stats-background') || argv.includes('--stats-stop');
@@ -12,10 +22,24 @@ let secondInstanceListenerAttached = false;
 const secondInstanceArgvHistory: string[][] = [];
 const secondInstanceHandlers = new Set<(_event: unknown, argv: string[]) => void>();
 
+function normalizeSecondInstanceArgv(argv: string[], additionalData: unknown): string[] {
+  if (
+    additionalData &&
+    typeof additionalData === 'object' &&
+    Array.isArray((additionalData as { subminerArgv?: unknown }).subminerArgv) &&
+    (additionalData as { subminerArgv: unknown[] }).subminerArgv.every(
+      (value) => typeof value === 'string',
+    )
+  ) {
+    return [...(additionalData as { subminerArgv: string[] }).subminerArgv];
+  }
+  return [...argv];
+}
+
 function attachSecondInstanceListener(app: ElectronSecondInstanceAppLike): void {
   if (secondInstanceListenerAttached) return;
-  app.on('second-instance', (event, argv) => {
-    const clonedArgv = [...argv];
+  app.on('second-instance', (event, argv, _workingDirectory, additionalData) => {
+    const clonedArgv = normalizeSecondInstanceArgv(argv, additionalData);
     secondInstanceArgvHistory.push(clonedArgv);
     for (const handler of secondInstanceHandlers) {
       handler(event, [...clonedArgv]);
@@ -24,12 +48,17 @@ function attachSecondInstanceListener(app: ElectronSecondInstanceAppLike): void 
   secondInstanceListenerAttached = true;
 }
 
-export function requestSingleInstanceLockEarly(app: ElectronSecondInstanceAppLike): boolean {
+export function requestSingleInstanceLockEarly(
+  app: ElectronSecondInstanceAppLike,
+  argv: readonly string[] = process.argv,
+): boolean {
   attachSecondInstanceListener(app);
   if (cachedSingleInstanceLock !== null) {
     return cachedSingleInstanceLock;
   }
-  cachedSingleInstanceLock = app.requestSingleInstanceLock();
+  cachedSingleInstanceLock = app.requestSingleInstanceLock({
+    [SECOND_INSTANCE_ARGV_KEY]: [...argv],
+  });
   return cachedSingleInstanceLock;
 }
 

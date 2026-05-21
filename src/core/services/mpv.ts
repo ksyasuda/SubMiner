@@ -186,12 +186,12 @@ export class MpvIpcClient implements MpvClient {
         this.connected = true;
         this.connecting = false;
         this.socket = this.transport.getSocket();
-        this.emit('connection-change', { connected: true });
         this.reconnectAttempt = 0;
         this.hasConnectedOnce = true;
         this.setSecondarySubVisibility(false);
         subscribeToMpvProperties(this.send.bind(this));
         requestMpvInitialState(this.send.bind(this));
+        this.emit('connection-change', { connected: true });
 
         const shouldAutoStart =
           this.deps.autoStartOverlay || this.deps.getResolvedConfig().auto_start_overlay === true;
@@ -273,6 +273,21 @@ export class MpvIpcClient implements MpvClient {
     logger.debug('MPV IPC connect requested.');
     this.connecting = true;
     this.transport.connect();
+  }
+
+  reconnect(): void {
+    logger.debug('MPV IPC reconnect requested.');
+    const wasConnected = this.connected;
+    this.transport.shutdown();
+    this.connected = false;
+    this.connecting = false;
+    this.socket = null;
+    this.playbackPaused = null;
+    if (wasConnected) {
+      this.emit('connection-change', { connected: false });
+    }
+    this.failPendingRequests();
+    this.connect();
   }
 
   private scheduleReconnect(): void {

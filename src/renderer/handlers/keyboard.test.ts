@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
 import { createKeyboardHandlers } from './keyboard.js';
@@ -108,6 +110,7 @@ function installKeyboardTestGlobals() {
   const mpvCommands: Array<Array<string | number>> = [];
   const sessionActions: Array<{ actionId: string; payload?: unknown }> = [];
   let sessionBindings: CompiledSessionBinding[] = [];
+  let getSessionBindingsImpl: () => Promise<CompiledSessionBinding[]> = async () => sessionBindings;
   let playbackPausedResponse: boolean | null = false;
   let statsToggleKey = 'Backquote';
   let markWatchedKey = 'KeyW';
@@ -216,7 +219,7 @@ function installKeyboardTestGlobals() {
       },
       electronAPI: {
         getKeybindings: async () => [],
-        getSessionBindings: async () => sessionBindings,
+        getSessionBindings: () => getSessionBindingsImpl(),
         getConfiguredShortcuts: async () => configuredShortcuts,
         sendMpvCommand: (command: Array<string | number>) => {
           mpvCommands.push(command);
@@ -366,6 +369,9 @@ function installKeyboardTestGlobals() {
     setSessionBindings: (value: CompiledSessionBinding[]) => {
       sessionBindings = value;
     },
+    setGetSessionBindings: (value: () => Promise<CompiledSessionBinding[]>) => {
+      getSessionBindingsImpl = value;
+    },
     setMarkActiveVideoWatchedResult: (value: boolean) => {
       markActiveVideoWatchedResult = value;
     },
@@ -462,6 +468,19 @@ function createKeyboardHandlerHarness() {
   };
 }
 
+test('renderer installs keyboard forwarding before startup subtitle IPC awaits', () => {
+  const source = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'renderer', 'renderer.ts'),
+    'utf8',
+  );
+  const keyboardSetupIndex = source.indexOf('await keyboardHandlers.setupMpvInputForwarding();');
+  const subtitleRequestIndex = source.indexOf('await window.electronAPI.getCurrentSubtitle();');
+
+  assert.notEqual(keyboardSetupIndex, -1);
+  assert.notEqual(subtitleRequestIndex, -1);
+  assert.equal(keyboardSetupIndex < subtitleRequestIndex, true);
+});
+
 test('primary subtitle visibility key cycles modes with primary OSD without mpv sub-visibility', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
@@ -493,6 +512,76 @@ test('primary subtitle visibility key cycles modes with primary OSD without mpv 
         ['show-text', 'Primary subtitle: visible', '1500'],
       ],
     );
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('mpv input forwarding installs local key handling when session binding IPC stalls', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    testGlobals.setGetSessionBindings(() => new Promise<CompiledSessionBinding[]>(() => {}));
+    const setupResult = await Promise.race([
+      handlers.setupMpvInputForwarding().then(() => 'resolved'),
+      wait(75).then(() => 'pending'),
+    ]);
+
+    assert.equal(setupResult, 'resolved');
+    testGlobals.dispatchKeydown({ key: '`', code: 'Backquote' });
+
+    assert.equal(testGlobals.statsToggleOverlayCalls(), 1);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('mpv input forwarding waits for session bindings before resolving setup', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    testGlobals.setGetSessionBindings(async () => {
+      await wait(20);
+      return [
+        {
+          sourcePath: 'keybindings[0].key',
+          originalKey: 'KeyH',
+          key: { code: 'KeyH', modifiers: [] },
+          actionType: 'mpv-command',
+          command: ['cycle', 'pause'],
+        },
+      ] as CompiledSessionBinding[];
+    });
+
+    await handlers.setupMpvInputForwarding();
+
+    assert.deepEqual(handlers.getSessionHelpOpeningInfo(), {
+      bindingKey: 'KeyK',
+      fallbackUsed: true,
+      fallbackUnavailable: false,
+    });
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('mpv input forwarding retries a transient keyboard config IPC failure', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  let calls = 0;
+
+  try {
+    testGlobals.setGetSessionBindings(async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new Error('transient');
+      }
+      return [];
+    });
+
+    await handlers.setupMpvInputForwarding();
+    await wait(25);
+
+    assert.equal(calls, 2);
   } finally {
     testGlobals.restore();
   }
@@ -1290,6 +1379,30 @@ test('session binding: Ctrl+Shift+O dispatches runtime options locally', async (
     assert.deepEqual(testGlobals.sessionActions, [
       { actionId: 'openRuntimeOptions', payload: undefined },
     ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('session binding: remapped mark watched dispatches locally with modifiers', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'stats.markWatchedKey',
+        originalKey: 'Ctrl+Shift+KeyW',
+        key: { code: 'KeyW', modifiers: ['ctrl', 'shift'] },
+        actionType: 'session-action',
+        actionId: 'markWatched',
+      },
+    ] as never);
+
+    testGlobals.dispatchKeydown({ key: 'W', code: 'KeyW', ctrlKey: true, shiftKey: true });
+
+    assert.deepEqual(testGlobals.sessionActions, [{ actionId: 'markWatched', payload: undefined }]);
+    assert.equal(testGlobals.markActiveVideoWatchedCalls(), 0);
   } finally {
     testGlobals.restore();
   }

@@ -119,7 +119,6 @@ test('media path change handler reports stop for empty path and probes media key
     syncImmersionMediaState: () => calls.push('sync'),
     flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
     scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
-    signalAutoplayReadyIfWarm: (path) => calls.push(`autoplay:${path}`),
     refreshDiscordPresence: () => calls.push('presence'),
   });
 
@@ -138,7 +137,7 @@ test('media path change handler reports stop for empty path and probes media key
   ]);
 });
 
-test('media path change handler signals autoplay-ready fast path for warm non-empty media', () => {
+test('media path change handler signals autoplay readiness from warm media path', () => {
   const calls: string[] = [];
   const handler = createHandleMpvMediaPathChangeHandler({
     updateCurrentMediaPath: (path) => calls.push(`path:${path}`),

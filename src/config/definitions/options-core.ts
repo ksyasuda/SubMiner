@@ -339,7 +339,8 @@ export function buildCoreConfigOptionRegistry(
       path: 'auto_start_overlay',
       kind: 'boolean',
       defaultValue: defaultConfig.auto_start_overlay,
-      description: 'Auto-start the subtitle overlay window when SubMiner launches.',
+      description:
+        'Show the visible subtitle overlay automatically when the bundled mpv plugin starts SubMiner.',
     },
     {
       path: 'secondarySub.secondarySubLanguages',
@@ -386,13 +387,6 @@ export function buildCoreConfigOptionRegistry(
       kind: 'number',
       defaultValue: defaultConfig.annotationWebsocket.port,
       description: 'Annotated subtitle websocket server port.',
-    },
-    {
-      path: 'subsync.defaultMode',
-      kind: 'enum',
-      enumValues: ['auto', 'manual'],
-      defaultValue: defaultConfig.subsync.defaultMode,
-      description: 'Subsync default mode.',
     },
     {
       path: 'subsync.replace',

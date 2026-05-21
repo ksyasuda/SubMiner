@@ -32,6 +32,12 @@ class FakeSocket extends EventEmitter {
   }
 }
 
+class ManualCloseSocket extends FakeSocket {
+  override destroy(): void {
+    this.destroyed = true;
+  }
+}
+
 const wait = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 test('getMpvReconnectDelay follows existing reconnect ramp', () => {
@@ -203,12 +209,15 @@ test('MpvSocketTransport ignores connect requests while already connecting or co
 });
 
 test('MpvSocketTransport.shutdown clears socket and lifecycle flags', async () => {
+  const events: string[] = [];
   const transport = new MpvSocketTransport({
     socketPath: '/tmp/mpv.sock',
     onConnect: () => {},
     onData: () => {},
     onError: () => {},
-    onClose: () => {},
+    onClose: () => {
+      events.push('close');
+    },
     socketFactory: () => new FakeSocket() as unknown as net.Socket,
   });
 
@@ -220,4 +229,45 @@ test('MpvSocketTransport.shutdown clears socket and lifecycle flags', async () =
   assert.equal(transport.isConnected, false);
   assert.equal(transport.isConnecting, false);
   assert.equal(transport.getSocket(), null);
+  assert.deepEqual(events, []);
+});
+
+test('MpvSocketTransport ignores stale socket events after shutdown and reconnect', async () => {
+  const events: string[] = [];
+  const sockets: ManualCloseSocket[] = [];
+  const transport = new MpvSocketTransport({
+    socketPath: '/tmp/mpv.sock',
+    onConnect: () => {
+      events.push('connect');
+    },
+    onData: () => {
+      events.push('data');
+    },
+    onError: () => {
+      events.push('error');
+    },
+    onClose: () => {
+      events.push('close');
+    },
+    socketFactory: () => {
+      const socket = new ManualCloseSocket();
+      sockets.push(socket);
+      return socket as unknown as net.Socket;
+    },
+  });
+
+  transport.connect();
+  await wait();
+  transport.shutdown();
+  transport.connect();
+  await wait();
+  const eventsBeforeStaleSocket = [...events];
+
+  sockets[0]!.emit('data', Buffer.from('{}'));
+  sockets[0]!.emit('error', new Error('stale'));
+  sockets[0]!.emit('close');
+
+  assert.deepEqual(events, eventsBeforeStaleSocket);
+  assert.equal(transport.isConnected, true);
+  assert.equal(transport.getSocket(), sockets[1]);
 });

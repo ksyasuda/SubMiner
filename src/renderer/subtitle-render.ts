@@ -3,7 +3,7 @@ import type {
   PrimarySubMode,
   SecondarySubMode,
   SubtitleData,
-  SubtitleStyleConfig,
+  SubtitleRendererStyleConfig,
 } from '../types';
 import type { RendererContext } from './context';
 
@@ -80,12 +80,10 @@ export function sanitizeSubtitleHoverTokenColor(value: unknown): string {
 
 function sanitizeSubtitleHoverTokenBackgroundColor(value: unknown): string {
   if (typeof value !== 'string') {
-    return 'rgba(54, 58, 79, 0.84)';
+    return 'transparent';
   }
   const trimmed = value.trim();
-  return trimmed.length > 0 && SAFE_CSS_COLOR_PATTERN.test(trimmed)
-    ? trimmed
-    : 'rgba(54, 58, 79, 0.84)';
+  return trimmed.length > 0 && SAFE_CSS_COLOR_PATTERN.test(trimmed) ? trimmed : 'transparent';
 }
 
 const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {
@@ -95,7 +93,7 @@ const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {
   singleColor: '#f5a97f',
   bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#8bd5ca', '#8aadf4'],
 };
-const DEFAULT_NAME_MATCH_ENABLED = true;
+const DEFAULT_NAME_MATCH_ENABLED = false;
 
 function hasPrioritizedNameMatch(
   token: MergedToken,
@@ -158,6 +156,75 @@ function applyInlineStyleDeclarations(
   }
 }
 
+const appliedCssKeys = new WeakMap<HTMLElement, Set<string>>();
+
+function inlineStyleDeclarationKeys(
+  declarations: Record<string, unknown>,
+  excludedKeys: ReadonlySet<string>,
+): Set<string> {
+  const keys = new Set<string>();
+  for (const [key, value] of Object.entries(declarations)) {
+    if (excludedKeys.has(key)) continue;
+    if (value === null || value === undefined || typeof value === 'object') continue;
+    keys.add(key);
+  }
+  return keys;
+}
+
+function clearInlineStyleDeclaration(target: HTMLElement, key: string): void {
+  if (key.includes('-')) {
+    target.style.removeProperty(key);
+    if (key === '--webkit-text-stroke') {
+      target.style.removeProperty('-webkit-text-stroke');
+    }
+    return;
+  }
+
+  (target.style as unknown as Record<string, string>)[key] = '';
+}
+
+function replaceInlineStyleDeclarations(
+  target: HTMLElement,
+  declarations: Record<string, unknown>,
+  excludedKeys: ReadonlySet<string> = new Set<string>(),
+): void {
+  const nextKeys = inlineStyleDeclarationKeys(declarations, excludedKeys);
+  const previousKeys = appliedCssKeys.get(target) ?? new Set<string>();
+  for (const key of previousKeys) {
+    if (!nextKeys.has(key)) {
+      clearInlineStyleDeclaration(target, key);
+    }
+  }
+  applyInlineStyleDeclarations(target, declarations, excludedKeys);
+  appliedCssKeys.set(target, nextKeys);
+}
+
+function normalizeCssDeclarationObject(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  const declarations: Record<string, string> = {};
+  for (const [key, rawValue] of Object.entries(value)) {
+    if (typeof rawValue !== 'string') continue;
+    const cssValue = rawValue.trim();
+    if (cssValue.length > 0) declarations[key] = cssValue;
+  }
+  return declarations;
+}
+
+function applySubtitleCssDeclarations(
+  root: HTMLElement,
+  container: HTMLElement,
+  declarations: Record<string, string>,
+): void {
+  replaceInlineStyleDeclarations(root, declarations, CONTAINER_STYLE_KEYS);
+  replaceInlineStyleDeclarations(
+    container,
+    pickInlineStyleDeclarations(declarations, CONTAINER_STYLE_KEYS),
+  );
+}
+
 function pickInlineStyleDeclarations(
   declarations: Record<string, unknown>,
   includedKeys: ReadonlySet<string>,
@@ -172,7 +239,9 @@ function pickInlineStyleDeclarations(
 
 const CONTAINER_STYLE_KEYS = new Set<string>([
   'background',
+  'background-color',
   'backgroundColor',
+  'backdrop-filter',
   'backdropFilter',
   'WebkitBackdropFilter',
   'webkitBackdropFilter',
@@ -180,7 +249,7 @@ const CONTAINER_STYLE_KEYS = new Set<string>([
 ]);
 
 function resolveSecondaryBackgroundColor(declarations: Record<string, unknown>): string {
-  for (const key of ['backgroundColor', 'background']) {
+  for (const key of ['backgroundColor', 'background-color', 'background']) {
     const value = declarations[key];
     if (typeof value === 'string' && value.trim().length > 0) {
       return value.trim();
@@ -193,6 +262,7 @@ function resolveSecondaryBackgroundColor(declarations: Record<string, unknown>):
 function resolveSecondaryBackdropFilter(declarations: Record<string, unknown>): string {
   for (const key of [
     'backdropFilter',
+    'backdrop-filter',
     'WebkitBackdropFilter',
     'webkitBackdropFilter',
     '-webkit-backdrop-filter',
@@ -635,7 +705,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     document.documentElement.style.setProperty('--subtitle-font-size', `${clampedSize}px`);
   }
 
-  function applySubtitleStyle(style: SubtitleStyleConfig | null): void {
+  function applySubtitleStyle(style: SubtitleRendererStyleConfig | null): void {
     if (!style) return;
 
     const styleDeclarations = style as Record<string, unknown>;
@@ -654,7 +724,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     if (style.fontStyle) ctx.dom.subtitleRoot.style.fontStyle = style.fontStyle;
     const knownWordColor = style.knownWordColor ?? ctx.state.knownWordColor ?? '#a6da95';
     const nPlusOneColor = style.nPlusOneColor ?? ctx.state.nPlusOneColor ?? '#c6a0f6';
-    const nameMatchEnabled = style.nameMatchEnabled ?? ctx.state.nameMatchEnabled ?? true;
+    const nameMatchEnabled = style.nameMatchEnabled ?? ctx.state.nameMatchEnabled ?? false;
     const nameMatchColor = style.nameMatchColor ?? ctx.state.nameMatchColor ?? '#f5bde6';
     const hoverTokenColor = sanitizeSubtitleHoverTokenColor(style.hoverTokenColor);
     const hoverTokenBackgroundColor = sanitizeSubtitleHoverTokenBackgroundColor(
@@ -762,20 +832,26 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       '--subtitle-frequency-band-5-color',
       frequencyBandedColors[4],
     );
+    applySubtitleCssDeclarations(
+      ctx.dom.subtitleRoot,
+      ctx.dom.subtitleContainer,
+      normalizeCssDeclarationObject(style.css),
+    );
 
     const secondaryStyle = style.secondary;
     if (!secondaryStyle) return;
 
     const secondaryStyleDeclarations = secondaryStyle as Record<string, unknown>;
+    const secondaryCssDeclarations = normalizeCssDeclarationObject(secondaryStyle.css);
     applyInlineStyleDeclarations(
       ctx.dom.secondarySubRoot,
       secondaryStyleDeclarations,
       CONTAINER_STYLE_KEYS,
     );
-    const secondaryContainerStyleDeclarations = pickInlineStyleDeclarations(
-      secondaryStyleDeclarations,
-      CONTAINER_STYLE_KEYS,
-    );
+    const secondaryContainerStyleDeclarations = {
+      ...pickInlineStyleDeclarations(secondaryStyleDeclarations, CONTAINER_STYLE_KEYS),
+      ...pickInlineStyleDeclarations(secondaryCssDeclarations, CONTAINER_STYLE_KEYS),
+    };
     ctx.dom.secondarySubContainer.style.setProperty(
       '--secondary-sub-background-color',
       resolveSecondaryBackgroundColor(secondaryContainerStyleDeclarations),
@@ -800,6 +876,11 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     if (secondaryStyle.fontStyle) {
       ctx.dom.secondarySubRoot.style.fontStyle = secondaryStyle.fontStyle;
     }
+    applySubtitleCssDeclarations(
+      ctx.dom.secondarySubRoot,
+      ctx.dom.secondarySubContainer,
+      secondaryCssDeclarations,
+    );
   }
 
   return {

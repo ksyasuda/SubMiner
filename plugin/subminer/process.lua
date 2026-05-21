@@ -2,12 +2,15 @@ local M = {}
 
 local OVERLAY_START_RETRY_DELAY_SECONDS = 0.2
 local OVERLAY_START_MAX_ATTEMPTS = 6
+local OVERLAY_RESTART_PING_RETRY_DELAY_SECONDS = 0.2
+local OVERLAY_RESTART_PING_MAX_ATTEMPTS = 20
 local AUTO_PLAY_READY_LOADING_OSD = "Loading subtitle tokenization..."
 local AUTO_PLAY_READY_READY_OSD = "Subtitle tokenization ready"
 local DEFAULT_AUTO_PLAY_READY_TIMEOUT_SECONDS = 15
 
 function M.create(ctx)
 	local mp = ctx.mp
+	local utils = ctx.utils
 	local opts = ctx.opts
 	local state = ctx.state
 	local binary = ctx.binary
@@ -17,6 +20,8 @@ function M.create(ctx)
 	local show_osd = ctx.log.show_osd
 	local normalize_log_level = ctx.log.normalize_log_level
 	local run_control_command_async
+	local APP_ARGC_ENV = "SUBMINER_APP_ARGC"
+	local APP_ARG_PREFIX = "SUBMINER_APP_ARG_"
 
 	local function resolve_visible_overlay_startup()
 		local raw_visible_overlay = opts.auto_start_visible_overlay
@@ -112,10 +117,12 @@ function M.create(ctx)
 	local function disarm_auto_play_ready_gate(options)
 		local should_resume = options == nil or options.resume_playback ~= false
 		local was_armed = state.auto_play_ready_gate_armed
+		local should_resume_playback = state.auto_play_ready_should_resume_playback == true
 		clear_auto_play_ready_timeout()
 		clear_auto_play_ready_osd_timer()
 		state.auto_play_ready_gate_armed = false
-		if was_armed and should_resume then
+		state.auto_play_ready_should_resume_playback = false
+		if was_armed and should_resume and should_resume_playback then
 			mp.set_property_native("pause", false)
 		end
 	end
@@ -124,16 +131,25 @@ function M.create(ctx)
 		if not state.auto_play_ready_gate_armed then
 			return
 		end
+		local should_resume_playback = state.auto_play_ready_should_resume_playback == true
 		disarm_auto_play_ready_gate({ resume_playback = false })
-		mp.set_property_native("pause", false)
 		show_osd(AUTO_PLAY_READY_READY_OSD)
-		subminer_log("info", "process", "Resuming playback after startup gate: " .. tostring(reason or "ready"))
+		if should_resume_playback then
+			mp.set_property_native("pause", false)
+			subminer_log("info", "process", "Resuming playback after startup gate: " .. tostring(reason or "ready"))
+		else
+			subminer_log("info", "process", "Startup gate ready; leaving playback paused: " .. tostring(reason or "ready"))
+		end
 	end
 
 	local function arm_auto_play_ready_gate()
-		if state.auto_play_ready_gate_armed then
+		local was_armed = state.auto_play_ready_gate_armed
+		if was_armed then
 			clear_auto_play_ready_timeout()
 			clear_auto_play_ready_osd_timer()
+		end
+		if not was_armed then
+			state.auto_play_ready_should_resume_playback = mp.get_property_native("pause") ~= true
 		end
 		state.auto_play_ready_gate_armed = true
 		mp.set_property_native("pause", true)
@@ -164,10 +180,15 @@ function M.create(ctx)
 
 	local function notify_auto_play_ready()
 		release_auto_play_ready_gate("tokenization-ready")
-		if state.suppress_ready_overlay_restore then
+		local force_ready_overlay_restore = state.force_ready_overlay_restore == true
+		state.force_ready_overlay_restore = false
+		if state.suppress_ready_overlay_restore and not force_ready_overlay_restore then
 			return
 		end
-		if state.overlay_running and resolve_visible_overlay_startup() then
+		if force_ready_overlay_restore then
+			state.suppress_ready_overlay_restore = false
+		end
+		if state.overlay_running and (force_ready_overlay_restore or resolve_visible_overlay_startup()) then
 			run_control_command_async("show-visible-overlay", {
 				socket_path = opts.socket_path,
 			})
@@ -186,7 +207,9 @@ function M.create(ctx)
 		end
 
 		if action == "start" then
-			table.insert(args, "--background")
+			if overrides.background ~= false then
+				table.insert(args, "--background")
+			end
 			table.insert(args, "--managed-playback")
 
 			local backend = resolve_backend(overrides.backend)
@@ -199,7 +222,10 @@ function M.create(ctx)
 			table.insert(args, "--socket")
 			table.insert(args, socket_path)
 
-			local should_show_visible = resolve_visible_overlay_startup()
+			local should_show_visible = overrides.show_visible_overlay
+			if should_show_visible == nil then
+				should_show_visible = resolve_visible_overlay_startup()
+			end
 			if should_show_visible then
 				table.insert(args, "--show-visible-overlay")
 			else
@@ -215,12 +241,75 @@ function M.create(ctx)
 		return args
 	end
 
+	local function is_appimage_binary(path)
+		return environment.is_linux() and type(path) == "string" and path:lower():match("%.appimage$") ~= nil
+	end
+
+	local function append_transport_env(env, args)
+		local count = math.max(#args - 1, 0)
+		env[#env + 1] = APP_ARGC_ENV .. "=" .. tostring(count)
+		for index = 2, #args do
+			env[#env + 1] = APP_ARG_PREFIX .. tostring(index - 2) .. "=" .. tostring(args[index])
+		end
+	end
+
+	local function env_has_name(env, name)
+		local prefix = name .. "="
+		for _, value in ipairs(env) do
+			if type(value) == "string" and value:sub(1, #prefix) == prefix then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function append_default_app_log_env(env)
+		local log_dir = environment.join_path(environment.resolve_subminer_config_dir(), "logs")
+		local date = os.date("%Y-%m-%d")
+		if not env_has_name(env, "SUBMINER_APP_LOG") then
+			env[#env + 1] = "SUBMINER_APP_LOG=" .. environment.join_path(log_dir, "app-" .. date .. ".log")
+		end
+		if not env_has_name(env, "SUBMINER_MPV_LOG") then
+			env[#env + 1] = "SUBMINER_MPV_LOG=" .. environment.join_path(log_dir, "mpv-" .. date .. ".log")
+		end
+	end
+
+	local function build_appimage_subprocess_env(args)
+		local env = {}
+		if utils and type(utils.get_env_list) == "function" then
+			for _, value in ipairs(utils.get_env_list()) do
+				if
+					type(value) == "string"
+					and not value:match("^" .. APP_ARGC_ENV .. "=")
+					and not value:match("^" .. APP_ARG_PREFIX .. "%d+=")
+				then
+					env[#env + 1] = value
+				end
+			end
+		end
+		append_default_app_log_env(env)
+		append_transport_env(env, args)
+		return env
+	end
+
+	local function build_subprocess_command(args)
+		if is_appimage_binary(args[1]) then
+			return {
+				args = { args[1] },
+				env = build_appimage_subprocess_env(args),
+			}
+		end
+		return { args = args }
+	end
+
 	run_control_command_async = function(action, overrides, callback)
 		local args = build_command_args(action, overrides)
+		local command = build_subprocess_command(args)
 		subminer_log("debug", "process", "Control command: " .. table.concat(args, " "))
 		mp.command_native_async({
 			name = "subprocess",
-			args = args,
+			args = command.args,
+			env = command.env,
 			playback_only = false,
 			capture_stdout = true,
 			capture_stderr = true,
@@ -232,11 +321,36 @@ function M.create(ctx)
 		end)
 	end
 
+	local function wait_for_app_ping_state(expected_running, label, on_ready, on_timeout, attempt)
+		attempt = attempt or 1
+		run_control_command_async("app-ping", nil, function(_ok, result)
+			local status = result and result.status
+			local is_running = status == 0
+			local is_not_running = status == 1
+			if (expected_running and is_running) or ((not expected_running) and is_not_running) then
+				on_ready()
+				return
+			end
+			if attempt >= OVERLAY_RESTART_PING_MAX_ATTEMPTS then
+				subminer_log("warn", "process", "Timed out waiting for SubMiner app to " .. label)
+				if on_timeout then
+					on_timeout()
+				end
+				return
+			end
+			mp.add_timeout(OVERLAY_RESTART_PING_RETRY_DELAY_SECONDS, function()
+				wait_for_app_ping_state(expected_running, label, on_ready, on_timeout, attempt + 1)
+			end)
+		end)
+	end
+
 	local function run_binary_command_async(args, callback)
+		local command = build_subprocess_command(args)
 		subminer_log("debug", "process", "Binary command: " .. table.concat(args, " "))
 		mp.command_native_async({
 			name = "subprocess",
-			args = args,
+			args = command.args,
+			env = command.env,
 			playback_only = false,
 			capture_stdout = true,
 			capture_stderr = true,
@@ -299,7 +413,15 @@ function M.create(ctx)
 			if overrides.auto_start_trigger == true then
 				subminer_log("debug", "process", "Auto-start ignored because overlay is already running")
 				local socket_path = overrides.socket_path or opts.socket_path
-				if not state.auto_play_ready_gate_armed then
+				local should_pause_until_ready = (
+					overrides.rearm_pause_until_ready == true
+					and resolve_visible_overlay_startup()
+					and resolve_pause_until_ready()
+					and has_matching_mpv_ipc_socket(socket_path)
+				)
+				if should_pause_until_ready then
+					arm_auto_play_ready_gate()
+				elseif not state.auto_play_ready_gate_armed then
 					disarm_auto_play_ready_gate()
 				end
 				local visibility_action = resolve_visible_overlay_startup()
@@ -347,9 +469,11 @@ function M.create(ctx)
 			end
 			state.overlay_running = true
 
+			local command = build_subprocess_command(args)
 			mp.command_native_async({
 				name = "subprocess",
-				args = args,
+				args = command.args,
+				env = command.env,
 				playback_only = false,
 				capture_stdout = true,
 				capture_stderr = true,
@@ -383,10 +507,13 @@ function M.create(ctx)
 			end)
 		end
 
-		launch_overlay_with_retry(1)
-		if texthooker_enabled then
-			ensure_texthooker_running(function() end)
-		end
+		environment.is_subminer_app_running_async(function(app_running)
+			overrides.background = not app_running
+			launch_overlay_with_retry(1)
+			if texthooker_enabled then
+				ensure_texthooker_running(function() end)
+			end
+		end, { force_refresh = true })
 	end
 
 	local function start_overlay_from_script_message(...)
@@ -501,38 +628,61 @@ function M.create(ctx)
 		subminer_log("info", "process", "Restarting overlay...")
 		show_osd("Restarting...")
 
-		run_control_command_async("stop", nil, function()
+		run_control_command_async("stop", nil, function(ok, result)
+			if not ok then
+				local reason = result and result.stderr or "unknown error"
+				subminer_log("warn", "process", "Restart stop command failed: " .. reason)
+				show_osd("Restart failed")
+				return
+			end
+
 			state.overlay_running = false
 			state.texthooker_running = false
-			disarm_auto_play_ready_gate()
+			state.suppress_ready_overlay_restore = false
+			state.force_ready_overlay_restore = true
+			disarm_auto_play_ready_gate({ resume_playback = false })
 
-			local start_args = build_command_args("start")
-			subminer_log("info", "process", "Starting overlay: " .. table.concat(start_args, " "))
+			wait_for_app_ping_state(false, "release the single-instance lock", function()
+				local start_args = build_command_args("start", {
+					show_visible_overlay = true,
+				})
+				subminer_log("info", "process", "Starting overlay: " .. table.concat(start_args, " "))
 
-			state.overlay_running = true
-			mp.command_native_async({
-				name = "subprocess",
-				args = start_args,
-				playback_only = false,
-				capture_stdout = true,
-				capture_stderr = true,
-			}, function(success, result, error)
-				if not success or (result and result.status ~= 0) then
-					state.overlay_running = false
-					subminer_log(
-						"error",
-						"process",
-						"Overlay start failed: " .. (error or (result and result.stderr) or "unknown error")
-					)
-					show_osd("Restart failed")
-				else
-					show_osd("Restarted successfully")
+				state.overlay_running = true
+				local command = build_subprocess_command(start_args)
+				mp.command_native_async({
+					name = "subprocess",
+					args = command.args,
+					env = command.env,
+					playback_only = false,
+					capture_stdout = true,
+					capture_stderr = true,
+				}, function(success, result, error)
+					if not success or (result and result.status ~= 0) then
+						state.overlay_running = false
+						subminer_log(
+							"error",
+							"process",
+							"Overlay start failed: " .. (error or (result and result.stderr) or "unknown error")
+						)
+						show_osd("Restart failed")
+					else
+						wait_for_app_ping_state(true, "own the single-instance lock", function()
+							run_control_command_async("show-visible-overlay")
+							show_osd("Restarted successfully")
+						end, function()
+							run_control_command_async("show-visible-overlay")
+							show_osd("Restarted successfully")
+						end)
+					end
+				end)
+
+				if resolve_texthooker_enabled(nil) then
+					ensure_texthooker_running(function() end)
 				end
+			end, function()
+				show_osd("Restart failed")
 			end)
-
-			if resolve_texthooker_enabled(nil) then
-				ensure_texthooker_running(function() end)
-			end
 		end)
 	end
 

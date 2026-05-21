@@ -28,6 +28,68 @@ test('subtitleStyle preserveLineBreaks falls back while merge is preserved', () 
   );
 });
 
+test('subtitleStyle css declarations accept string declaration maps and warn on invalid values', () => {
+  const valid = createResolveContext({
+    subtitleStyle: {
+      css: {
+        'font-size': '42px',
+        'text-wrap': 'balance',
+        '--subtitle-hover-token-color': '#c6a0f6',
+        '--subtitle-hover-token-background-color': 'transparent',
+      },
+      secondary: {
+        css: {
+          'text-transform': 'uppercase',
+        },
+      },
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.deepEqual(valid.context.resolved.subtitleStyle.css, {
+    'font-size': '42px',
+    'text-wrap': 'balance',
+    '--subtitle-hover-token-color': '#c6a0f6',
+    '--subtitle-hover-token-background-color': 'transparent',
+  });
+  assert.equal(valid.context.resolved.subtitleStyle.hoverTokenColor, '#c6a0f6');
+  assert.equal(valid.context.resolved.subtitleStyle.hoverTokenBackgroundColor, 'transparent');
+  assert.deepEqual(valid.context.resolved.subtitleStyle.secondary.css, {
+    'text-transform': 'uppercase',
+  });
+
+  const invalid = createResolveContext({
+    subtitleStyle: {
+      css: {
+        'font-size': 42,
+      } as never,
+      secondary: {
+        css: 'font-size: 28px;' as never,
+      },
+    },
+  });
+  applySubtitleDomainConfig(invalid.context);
+  assert.deepEqual(invalid.context.resolved.subtitleStyle.css, {});
+  assert.deepEqual(invalid.context.resolved.subtitleStyle.secondary.css, {});
+  assert.ok(invalid.warnings.some((warning) => warning.path === 'subtitleStyle.css'));
+  assert.ok(invalid.warnings.some((warning) => warning.path === 'subtitleStyle.secondary.css'));
+});
+
+test('subtitleStyle hover css compatibility ignores invalid color declarations', () => {
+  const { context } = createResolveContext({
+    subtitleStyle: {
+      css: {
+        '--subtitle-hover-token-color': 'purple',
+        '--subtitle-hover-token-background-color': '#363a4fd6',
+      },
+    },
+  });
+
+  applySubtitleDomainConfig(context);
+
+  assert.equal(context.resolved.subtitleStyle.hoverTokenColor, '#f4dbd6');
+  assert.equal(context.resolved.subtitleStyle.hoverTokenBackgroundColor, '#363a4fd6');
+});
+
 test('subtitleStyle autoPauseVideoOnHover falls back on invalid value', () => {
   const { context, warnings } = createResolveContext({
     subtitleStyle: {
@@ -100,7 +162,7 @@ test('subtitleStyle nameMatchEnabled falls back on invalid value', () => {
 
   applySubtitleDomainConfig(context);
 
-  assert.equal(context.resolved.subtitleStyle.nameMatchEnabled, true);
+  assert.equal(context.resolved.subtitleStyle.nameMatchEnabled, false);
   assert.ok(
     warnings.some(
       (warning) =>
@@ -151,6 +213,55 @@ test('subtitleStyle nameMatchColor accepts valid values and warns on invalid', (
       (warning) =>
         warning.path === 'subtitleStyle.nameMatchColor' &&
         warning.message === 'Expected hex color.',
+    ),
+  );
+});
+
+test('subtitleStyle knownWordColor accepts valid values and warns on invalid', () => {
+  const valid = createResolveContext({
+    subtitleStyle: {
+      knownWordColor: '#ed8796',
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.equal(valid.context.resolved.subtitleStyle.knownWordColor, '#ed8796');
+
+  const invalid = createResolveContext({
+    subtitleStyle: {
+      knownWordColor: 'pink',
+    },
+  });
+  applySubtitleDomainConfig(invalid.context);
+  assert.equal(invalid.context.resolved.subtitleStyle.knownWordColor, '#a6da95');
+  assert.ok(
+    invalid.warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.knownWordColor' &&
+        warning.message === 'Expected hex color.',
+    ),
+  );
+});
+
+test('subtitleStyle nPlusOneColor accepts valid values and warns on invalid', () => {
+  const valid = createResolveContext({
+    subtitleStyle: {
+      nPlusOneColor: '#ed8796',
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.equal(valid.context.resolved.subtitleStyle.nPlusOneColor, '#ed8796');
+
+  const invalid = createResolveContext({
+    subtitleStyle: {
+      nPlusOneColor: 'pink',
+    },
+  });
+  applySubtitleDomainConfig(invalid.context);
+  assert.equal(invalid.context.resolved.subtitleStyle.nPlusOneColor, '#c6a0f6');
+  assert.ok(
+    invalid.warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.nPlusOneColor' && warning.message === 'Expected hex color.',
     ),
   );
 });

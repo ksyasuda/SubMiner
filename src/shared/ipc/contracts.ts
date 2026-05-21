@@ -102,6 +102,11 @@ export const IPC_CHANNELS = {
     saveConfigSettingsPatch: 'config:save-settings-patch',
     openConfigSettingsFile: 'config:open-settings-file',
     openConfigSettingsWindow: 'config:open-settings-window',
+    getConfigSettingsAnkiDeckNames: 'config-settings:anki-deck-names',
+    getConfigSettingsAnkiDeckFieldNames: 'config-settings:anki-deck-field-names',
+    getConfigSettingsAnkiDeckModelNames: 'config-settings:anki-deck-model-names',
+    getConfigSettingsAnkiModelNames: 'config-settings:anki-model-names',
+    getConfigSettingsAnkiModelFieldNames: 'config-settings:anki-model-field-names',
   },
   event: {
     subtitleSet: 'subtitle:set',

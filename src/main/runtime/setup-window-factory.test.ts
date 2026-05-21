@@ -110,7 +110,7 @@ test('createCreateConfigSettingsWindowHandler builds configuration settings wind
   assert.deepEqual(options, {
     width: 1040,
     height: 760,
-    title: 'SubMiner Configuration',
+    title: 'SubMiner Settings',
     show: true,
     autoHideMenuBar: true,
     resizable: true,
@@ -118,7 +118,6 @@ test('createCreateConfigSettingsWindowHandler builds configuration settings wind
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
       preload: '/tmp/preload-settings.js',
     },
   });

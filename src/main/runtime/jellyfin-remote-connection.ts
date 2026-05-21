@@ -1,4 +1,8 @@
 import { buildMpvLaunchModeArgs } from '../../shared/mpv-launch-mode';
+import {
+  buildSubminerPluginRuntimeScriptOptParts,
+  type SubminerPluginRuntimeScriptOptConfig,
+} from '../../shared/subminer-plugin-script-opts';
 import type { MpvLaunchMode } from '../../types/config';
 
 type MpvClientLike = {
@@ -40,6 +44,7 @@ export type LaunchMpvForJellyfinDeps = {
   getLaunchMode: () => MpvLaunchMode;
   platform: NodeJS.Platform;
   execPath: string;
+  getPluginRuntimeConfig?: () => SubminerPluginRuntimeScriptOptConfig;
   defaultMpvLogPath: string;
   defaultMpvArgs: readonly string[];
   removeSocketPath: (socketPath: string) => void;
@@ -59,7 +64,17 @@ export function createLaunchMpvIdleForJellyfinPlaybackHandler(deps: LaunchMpvFor
       }
     }
 
-    const scriptOpts = `--script-opts=subminer-binary_path=${deps.execPath},subminer-socket_path=${socketPath}`;
+    const pluginRuntimeConfig = deps.getPluginRuntimeConfig?.();
+    const scriptOptParts = pluginRuntimeConfig
+      ? buildSubminerPluginRuntimeScriptOptParts(
+          {
+            ...pluginRuntimeConfig,
+            socketPath,
+          },
+          deps.execPath,
+        )
+      : [`subminer-binary_path=${deps.execPath}`, `subminer-socket_path=${socketPath}`];
+    const scriptOpts = `--script-opts=${scriptOptParts.join(',')}`;
     const mpvArgs = [
       ...deps.defaultMpvArgs,
       ...buildMpvLaunchModeArgs(deps.getLaunchMode()),

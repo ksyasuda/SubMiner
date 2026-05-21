@@ -8,6 +8,7 @@ const pendingWindowsOverlayRevealTimeoutByWindow = new WeakMap<
   BrowserWindow,
   ReturnType<typeof setTimeout>
 >();
+const pendingFirstShowBoundsRefreshGeometry = new WeakMap<BrowserWindow, WindowGeometry>();
 function setOverlayWindowOpacity(window: BrowserWindow, opacity: number): void {
   const opacityCapableWindow = window as BrowserWindow & {
     setOpacity?: (opacity: number) => void;
@@ -270,6 +271,32 @@ export function updateVisibleOverlayVisibility(args: {
     args.markOverlayLoadingOsdShown?.();
   };
 
+  const refreshNonNativeOverlayBoundsAfterFirstShow = (geometry: WindowGeometry | null): void => {
+    if (
+      geometry === null ||
+      args.isMacOSPlatform ||
+      args.isWindowsPlatform ||
+      mainWindow.isVisible()
+    ) {
+      return;
+    }
+    if (pendingFirstShowBoundsRefreshGeometry.has(mainWindow)) {
+      pendingFirstShowBoundsRefreshGeometry.set(mainWindow, geometry);
+      return;
+    }
+    pendingFirstShowBoundsRefreshGeometry.set(mainWindow, geometry);
+    mainWindow.once('show', () => {
+      const pendingGeometry = pendingFirstShowBoundsRefreshGeometry.get(mainWindow);
+      pendingFirstShowBoundsRefreshGeometry.delete(mainWindow);
+      if (mainWindow.isDestroyed() || !mainWindow.isVisible()) {
+        return;
+      }
+      if (pendingGeometry) {
+        args.updateVisibleOverlayBounds(pendingGeometry);
+      }
+    });
+  };
+
   if (!args.visibleOverlayVisible) {
     args.setTrackerNotReadyWarningShown(false);
     args.resetOverlayLoadingOsdSuppression?.();
@@ -298,6 +325,7 @@ export function updateVisibleOverlayVisibility(args: {
     const geometry = args.windowTracker.getGeometry();
     if (geometry) {
       args.updateVisibleOverlayBounds(geometry);
+      refreshNonNativeOverlayBoundsAfterFirstShow(geometry);
     }
     args.syncPrimaryOverlayWindowLayer('visible');
     const shouldEnforceLayerOrder = showPassiveVisibleOverlay();

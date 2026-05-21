@@ -66,7 +66,7 @@ features:
       src: /assets/subtitle-download.svg
       alt: Subtitle download icon
     title: Subtitle Download & Sync
-    details: Search and pull subtitles from Jimaku, then auto-sync timing with alass or ffsubsync — all from the overlay.
+    details: Search and pull subtitles from Jimaku, then retime subtitles with alass or ffsubsync — all from the overlay.
     link: /jimaku-integration
     linkText: Jimaku integration
   - icon:

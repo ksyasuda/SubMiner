@@ -118,7 +118,7 @@ export function createDefaultArgs(
   const youtubeAudioLangs = uniqueNormalizedLangCodes([...primarySubLangs, ...secondarySubLangs]);
 
   const parsed: Args = {
-    backend: 'auto',
+    backend: mpvConfig.backend ?? 'auto',
     directory: '.',
     recursive: false,
     profile: '',
@@ -158,7 +158,7 @@ export function createDefaultArgs(
     doctorRefreshKnownWords: false,
     version: false,
     update: false,
-    configSettings: false,
+    settings: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,
@@ -222,7 +222,7 @@ export function applyRootOptionsToArgs(
   if (options.rofi === true) parsed.useRofi = true;
   if (options.update === true) parsed.update = true;
   if (options.version === true) parsed.version = true;
-  if (options.config === true) parsed.configSettings = true;
+  if (options.settings === true) parsed.settings = true;
   if (options.startOverlay === true) parsed.autoStartOverlay = true;
   if (options.texthooker === false) parsed.useTexthooker = false;
   if (typeof options.args === 'string') parsed.mpvArgs = options.args;
@@ -311,10 +311,19 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
       parsed.logLevel = parseLogLevel(invocations.configInvocation.logLevel);
     }
     const action = (invocations.configInvocation.action || '').toLowerCase();
-    if (!action) parsed.configSettings = true;
-    else if (action === 'path') parsed.configPath = true;
+    if (action === 'path') parsed.configPath = true;
     else if (action === 'show') parsed.configShow = true;
-    else fail(`Unknown config action: ${invocations.configInvocation.action}`);
+    else
+      fail(
+        `Unknown config action: ${invocations.configInvocation.action || '(none)'}. Expected path or show.`,
+      );
+  }
+
+  if (invocations.settingsInvocation) {
+    if (invocations.settingsInvocation.logLevel) {
+      parsed.logLevel = parseLogLevel(invocations.settingsInvocation.logLevel);
+    }
+    parsed.settings = true;
   }
 
   if (invocations.mpvInvocation) {

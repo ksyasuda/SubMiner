@@ -7,8 +7,8 @@ import {
   shouldStartAutomaticUpdateChecks,
 } from './startup-mode-flags';
 
-test('config settings startup uses minimal startup and skips background integrations', () => {
-  const args = parseArgs(['--config']);
+test('settings window startup uses minimal startup and skips background integrations', () => {
+  const args = parseArgs(['--settings']);
   const flags = getStartupModeFlags(args);
 
   assert.equal(flags.shouldUseMinimalStartup, true);

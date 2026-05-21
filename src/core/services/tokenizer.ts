@@ -43,6 +43,7 @@ export interface TokenizerServiceDeps {
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
   isKnownWord: (text: string) => boolean;
   getKnownWordMatchMode: () => NPlusOneMatchMode;
+  getKnownWordsEnabled?: () => boolean;
   getJlptLevel: (text: string) => JlptLevel | null;
   getNPlusOneEnabled?: () => boolean;
   getJlptEnabled?: () => boolean;
@@ -74,6 +75,7 @@ export interface TokenizerDepsRuntimeOptions {
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
   isKnownWord: (text: string) => boolean;
   getKnownWordMatchMode: () => NPlusOneMatchMode;
+  getKnownWordsEnabled?: () => boolean;
   getJlptLevel: (text: string) => JlptLevel | null;
   getNPlusOneEnabled?: () => boolean;
   getJlptEnabled?: () => boolean;
@@ -88,6 +90,7 @@ export interface TokenizerDepsRuntimeOptions {
 }
 
 interface TokenizerAnnotationOptions {
+  knownWordsEnabled: boolean;
   nPlusOneEnabled: boolean;
   jlptEnabled: boolean;
   nameMatchEnabled: boolean;
@@ -119,18 +122,28 @@ function getKnownWordLookup(
   deps: TokenizerServiceDeps,
   options: TokenizerAnnotationOptions,
 ): (text: string) => boolean {
-  if (!options.nPlusOneEnabled) {
+  if (!options.knownWordsEnabled && !options.nPlusOneEnabled) {
     return () => false;
   }
   return deps.isKnownWord;
 }
 
 function needsMecabPosEnrichment(options: TokenizerAnnotationOptions): boolean {
-  return options.nPlusOneEnabled || options.jlptEnabled || options.frequencyEnabled;
+  return (
+    options.knownWordsEnabled ||
+    options.nPlusOneEnabled ||
+    options.jlptEnabled ||
+    options.frequencyEnabled
+  );
 }
 
 function hasAnyAnnotationEnabled(options: TokenizerAnnotationOptions): boolean {
-  return options.nPlusOneEnabled || options.jlptEnabled || options.frequencyEnabled;
+  return (
+    options.knownWordsEnabled ||
+    options.nPlusOneEnabled ||
+    options.jlptEnabled ||
+    options.frequencyEnabled
+  );
 }
 
 async function enrichTokensWithMecabAsync(
@@ -211,6 +224,7 @@ export function createTokenizerDepsRuntime(
     setYomitanParserInitPromise: options.setYomitanParserInitPromise,
     isKnownWord: options.isKnownWord,
     getKnownWordMatchMode: options.getKnownWordMatchMode,
+    getKnownWordsEnabled: options.getKnownWordsEnabled,
     getJlptLevel: options.getJlptLevel,
     getNPlusOneEnabled: options.getNPlusOneEnabled,
     getJlptEnabled: options.getJlptEnabled,
@@ -662,8 +676,12 @@ function applyFrequencyRanks(
 }
 
 function getAnnotationOptions(deps: TokenizerServiceDeps): TokenizerAnnotationOptions {
+  const nPlusOneEnabled = deps.getNPlusOneEnabled?.() !== false;
   return {
-    nPlusOneEnabled: deps.getNPlusOneEnabled?.() !== false,
+    knownWordsEnabled: deps.getKnownWordsEnabled
+      ? deps.getKnownWordsEnabled() !== false
+      : nPlusOneEnabled,
+    nPlusOneEnabled,
     jlptEnabled: deps.getJlptEnabled?.() !== false,
     nameMatchEnabled: deps.getNameMatchEnabled?.() !== false,
     frequencyEnabled: deps.getFrequencyDictionaryEnabled?.() !== false,

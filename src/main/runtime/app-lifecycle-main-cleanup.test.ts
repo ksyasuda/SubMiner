@@ -15,6 +15,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
     stopConfigHotReload: () => calls.push('stop-config'),
     restorePreviousSecondarySubVisibility: () => calls.push('restore-sub'),
     restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
+    isAppReady: () => true,
     unregisterAllGlobalShortcuts: () => calls.push('unregister-shortcuts'),
     stopSubtitleWebsocket: () => calls.push('stop-ws'),
     stopTexthookerService: () => calls.push('stop-texthooker'),
@@ -102,6 +103,7 @@ test('cleanup deps builder skips destroyed yomitan window', () => {
     stopConfigHotReload: () => {},
     restorePreviousSecondarySubVisibility: () => {},
     restoreMpvSubVisibility: () => {},
+    isAppReady: () => true,
     unregisterAllGlobalShortcuts: () => {},
     stopSubtitleWebsocket: () => {},
     stopTexthookerService: () => {},
@@ -147,4 +149,52 @@ test('cleanup deps builder skips destroyed yomitan window', () => {
   cleanup();
 
   assert.deepEqual(calls, []);
+});
+
+test('cleanup deps builder skips global shortcut cleanup before app ready', () => {
+  const calls: string[] = [];
+  const depsFactory = createBuildOnWillQuitCleanupDepsHandler({
+    destroyTray: () => calls.push('destroy-tray'),
+    stopConfigHotReload: () => {},
+    restorePreviousSecondarySubVisibility: () => {},
+    restoreMpvSubVisibility: () => {},
+    isAppReady: () => false,
+    unregisterAllGlobalShortcuts: () => {
+      throw new Error('globalShortcut cannot be used before the app is ready');
+    },
+    stopSubtitleWebsocket: () => {},
+    stopTexthookerService: () => {},
+    clearWindowsVisibleOverlayForegroundPollLoop: () => {},
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {},
+    getMainOverlayWindow: () => null,
+    clearMainOverlayWindow: () => {},
+    getModalOverlayWindow: () => null,
+    clearModalOverlayWindow: () => {},
+    getYomitanParserWindow: () => null,
+    clearYomitanParserState: () => {},
+    getWindowTracker: () => null,
+    flushMpvLog: () => {},
+    getMpvSocket: () => null,
+    getReconnectTimer: () => null,
+    clearReconnectTimerRef: () => {},
+    getSubtitleTimingTracker: () => null,
+    getImmersionTracker: () => null,
+    clearImmersionTracker: () => {},
+    getAnkiIntegration: () => null,
+    getAnilistSetupWindow: () => null,
+    clearAnilistSetupWindow: () => {},
+    getJellyfinSetupWindow: () => null,
+    clearJellyfinSetupWindow: () => {},
+    getFirstRunSetupWindow: () => null,
+    clearFirstRunSetupWindow: () => {},
+    getYomitanSettingsWindow: () => null,
+    clearYomitanSettingsWindow: () => {},
+    stopJellyfinRemoteSession: () => {},
+    stopDiscordPresenceService: () => {},
+  });
+
+  const cleanup = createOnWillQuitCleanupHandler(depsFactory());
+  cleanup();
+
+  assert.deepEqual(calls, ['destroy-tray']);
 });

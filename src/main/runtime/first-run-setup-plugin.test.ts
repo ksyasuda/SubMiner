@@ -10,7 +10,6 @@ import {
   removeLegacyMpvPluginCandidates,
   resolvePackagedFirstRunPluginAssets,
   resolvePackagedRuntimePluginPath,
-  syncInstalledFirstRunPluginBinaryPath,
 } from './first-run-setup-plugin';
 import { resolveDefaultMpvInstallPaths } from '../../shared/setup-state';
 
@@ -62,66 +61,6 @@ test('resolvePackagedRuntimePluginPath returns packaged plugin entrypoint', () =
         resourcesPath,
       }),
       entrypoint,
-    );
-  });
-});
-
-test('syncInstalledFirstRunPluginBinaryPath fills blank binary_path for existing installs', () => {
-  withTempDir((root) => {
-    const homeDir = path.join(root, 'home');
-    const xdgConfigHome = path.join(root, 'xdg');
-    const installPaths = resolveDefaultMpvInstallPaths('linux', homeDir, xdgConfigHome);
-
-    fs.mkdirSync(path.dirname(installPaths.pluginConfigPath), { recursive: true });
-    fs.writeFileSync(
-      installPaths.pluginConfigPath,
-      'binary_path=\nsocket_path=/tmp/subminer-socket\n',
-    );
-
-    const result = syncInstalledFirstRunPluginBinaryPath({
-      platform: 'linux',
-      homeDir,
-      xdgConfigHome,
-      binaryPath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
-    });
-
-    assert.deepEqual(result, {
-      updated: true,
-      configPath: installPaths.pluginConfigPath,
-    });
-    assert.equal(
-      fs.readFileSync(installPaths.pluginConfigPath, 'utf8'),
-      'binary_path=/Applications/SubMiner.app/Contents/MacOS/SubMiner\nsocket_path=/tmp/subminer-socket\n',
-    );
-  });
-});
-
-test('syncInstalledFirstRunPluginBinaryPath preserves explicit binary_path overrides', () => {
-  withTempDir((root) => {
-    const homeDir = path.join(root, 'home');
-    const xdgConfigHome = path.join(root, 'xdg');
-    const installPaths = resolveDefaultMpvInstallPaths('linux', homeDir, xdgConfigHome);
-
-    fs.mkdirSync(path.dirname(installPaths.pluginConfigPath), { recursive: true });
-    fs.writeFileSync(
-      installPaths.pluginConfigPath,
-      'binary_path=/tmp/SubMiner/scripts/subminer-dev.sh\nsocket_path=/tmp/subminer-socket\n',
-    );
-
-    const result = syncInstalledFirstRunPluginBinaryPath({
-      platform: 'linux',
-      homeDir,
-      xdgConfigHome,
-      binaryPath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
-    });
-
-    assert.deepEqual(result, {
-      updated: false,
-      configPath: installPaths.pluginConfigPath,
-    });
-    assert.equal(
-      fs.readFileSync(installPaths.pluginConfigPath, 'utf8'),
-      'binary_path=/tmp/SubMiner/scripts/subminer-dev.sh\nsocket_path=/tmp/subminer-socket\n',
     );
   });
 });

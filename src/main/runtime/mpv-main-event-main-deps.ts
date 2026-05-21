@@ -46,6 +46,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   quitApp: () => void;
   reportJellyfinRemoteStopped: () => void;
   syncOverlayMpvSubtitleSuppression: () => void;
+  onMpvConnected?: () => void;
   maybeRunAnilistPostWatchUpdate: (options?: AnilistPostWatchRunOptions) => Promise<void>;
   recordAnilistMediaDuration?: (durationSec: number) => void;
   logSubtitleTimingError: (message: string, error: unknown) => void;
@@ -93,6 +94,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   return () => ({
     reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
     syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
+    onMpvConnected: deps.onMpvConnected ? () => deps.onMpvConnected!() : undefined,
     hasInitialPlaybackQuitOnDisconnectArg,
     isOverlayRuntimeInitialized: () => deps.appState.overlayRuntimeInitialized,
     shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: hasInitialPlaybackQuitOnDisconnectArg,

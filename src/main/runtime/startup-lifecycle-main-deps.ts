@@ -11,6 +11,7 @@ export function createBuildAppLifecycleRuntimeRunnerMainDepsHandler(
     handleCliCommand: deps.handleCliCommand,
     printHelp: deps.printHelp,
     logNoRunningInstance: deps.logNoRunningInstance,
+    startControlServer: deps.startControlServer,
     onReady: deps.onReady,
     onWillQuitCleanup: deps.onWillQuitCleanup,
     shouldRestoreWindowsOnActivate: deps.shouldRestoreWindowsOnActivate,

@@ -157,10 +157,10 @@ test('mpv socket command returns socket path from plugin runtime config', () => 
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
     const expectedSocket = path.join(root, 'custom', 'subminer.sock');
-    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
+    fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
     fs.writeFileSync(
-      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
-      `socket_path=${expectedSocket}\n`,
+      path.join(xdgConfigHome, 'SubMiner', 'config.jsonc'),
+      JSON.stringify({ mpv: { socketPath: expectedSocket } }),
     );
 
     const result = runLauncher(['mpv', 'socket'], makeTestEnv(homeDir, xdgConfigHome));
@@ -175,10 +175,10 @@ test('mpv status exits non-zero when socket is not ready', () => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
     const socketPath = path.join(root, 'missing.sock');
-    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
+    fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
     fs.writeFileSync(
-      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
-      `socket_path=${socketPath}\n`,
+      path.join(xdgConfigHome, 'SubMiner', 'config.jsonc'),
+      JSON.stringify({ mpv: { socketPath } }),
     );
     const result = runLauncher(['mpv', 'status'], makeTestEnv(homeDir, xdgConfigHome));
 
@@ -232,7 +232,7 @@ test('doctor refresh-known-words forwards app refresh command without requiring 
   });
 });
 
-test('launcher config option forwards app configuration window command', () => {
+test('launcher settings option forwards app settings window command', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
@@ -249,14 +249,14 @@ test('launcher config option forwards app configuration window command', () => {
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_CAPTURE: capturePath,
     };
-    const result = runLauncher(['--config'], env);
+    const result = runLauncher(['--settings'], env);
 
     assert.equal(result.status, 0);
-    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--config\n');
+    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--settings\n');
   });
 });
 
-test('launcher config command forwards app configuration window command', () => {
+test('launcher settings command forwards app settings window command', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
@@ -273,10 +273,38 @@ test('launcher config command forwards app configuration window command', () => 
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_CAPTURE: capturePath,
     };
-    const result = runLauncher(['config'], env);
+    const result = runLauncher(['settings'], env);
 
     assert.equal(result.status, 0);
-    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--config\n');
+    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--settings\n');
+  });
+});
+
+test('launcher settings command suppresses known Electron macOS menu diagnostics', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    fs.writeFileSync(
+      appPath,
+      [
+        '#!/bin/sh',
+        'printf "%s\\n" "2026-05-17 02:59:52.141 SubMiner[29060:305323] representedObject is not a WeakPtrToElectronMenuModelAsNSObject" >&2',
+        'printf "%s\\n" "real stderr line" >&2',
+        'exit 0',
+        '',
+      ].join('\n'),
+    );
+    fs.chmodSync(appPath, 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      SUBMINER_APPIMAGE_PATH: appPath,
+    };
+    const result = runLauncher(['settings'], env);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, 'real stderr line\n');
   });
 });
 
@@ -293,7 +321,6 @@ test('launcher forwards --args to mpv as parsed tokens', { timeout: 15000 }, () 
 
     fs.mkdirSync(binDir, { recursive: true });
     fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
-    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
     fs.writeFileSync(videoPath, 'fake video content');
     fs.writeFileSync(
       path.join(xdgConfigHome, 'SubMiner', 'setup-state.json'),
@@ -308,8 +335,15 @@ test('launcher forwards --args to mpv as parsed tokens', { timeout: 15000 }, () 
       }),
     );
     fs.writeFileSync(
-      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
-      `socket_path=${socketPath}\nauto_start=no\nauto_start_visible_overlay=no\nauto_start_pause_until_ready=no\n`,
+      path.join(xdgConfigHome, 'SubMiner', 'config.jsonc'),
+      JSON.stringify({
+        auto_start_overlay: false,
+        mpv: {
+          socketPath,
+          autoStartSubMiner: false,
+          pauseUntilOverlayReady: false,
+        },
+      }),
     );
     fs.writeFileSync(appPath, '#!/bin/sh\nexit 0\n');
     fs.chmodSync(appPath, 0o755);
@@ -373,7 +407,6 @@ test('launcher forwards non-info log level into mpv plugin script opts', { timeo
 
     fs.mkdirSync(binDir, { recursive: true });
     fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
-    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
     fs.writeFileSync(videoPath, 'fake video content');
     fs.writeFileSync(
       path.join(xdgConfigHome, 'SubMiner', 'setup-state.json'),
@@ -388,8 +421,15 @@ test('launcher forwards non-info log level into mpv plugin script opts', { timeo
       }),
     );
     fs.writeFileSync(
-      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
-      `socket_path=${socketPath}\nauto_start=yes\nauto_start_visible_overlay=yes\nauto_start_pause_until_ready=yes\n`,
+      path.join(xdgConfigHome, 'SubMiner', 'config.jsonc'),
+      JSON.stringify({
+        auto_start_overlay: true,
+        mpv: {
+          socketPath,
+          autoStartSubMiner: true,
+          pauseUntilOverlayReady: true,
+        },
+      }),
     );
     fs.writeFileSync(appPath, '#!/bin/sh\nexit 0\n');
     fs.chmodSync(appPath, 0o755);
@@ -443,7 +483,6 @@ test('launcher routes youtube urls through regular playback startup', { timeout:
 
     fs.mkdirSync(binDir, { recursive: true });
     fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
-    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
     fs.writeFileSync(
       path.join(xdgConfigHome, 'SubMiner', 'setup-state.json'),
       JSON.stringify({
@@ -457,8 +496,15 @@ test('launcher routes youtube urls through regular playback startup', { timeout:
       }),
     );
     fs.writeFileSync(
-      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
-      `socket_path=${socketPath}\nauto_start=yes\nauto_start_visible_overlay=yes\nauto_start_pause_until_ready=yes\n`,
+      path.join(xdgConfigHome, 'SubMiner', 'config.jsonc'),
+      JSON.stringify({
+        auto_start_overlay: true,
+        mpv: {
+          socketPath,
+          autoStartSubMiner: true,
+          pauseUntilOverlayReady: true,
+        },
+      }),
     );
     fs.writeFileSync(
       appPath,

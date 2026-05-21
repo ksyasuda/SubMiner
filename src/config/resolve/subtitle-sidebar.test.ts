@@ -55,6 +55,33 @@ test('subtitleSidebar accepts zero opacity', () => {
   );
 });
 
+test('subtitleSidebar css declarations accept string declaration maps and warn on invalid values', () => {
+  const valid = createResolveContext({
+    subtitleSidebar: {
+      css: {
+        'font-size': '18px',
+        color: '#ffffff',
+      },
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.deepEqual(valid.context.resolved.subtitleSidebar.css, {
+    'font-size': '18px',
+    color: '#ffffff',
+  });
+
+  const invalid = createResolveContext({
+    subtitleSidebar: {
+      css: {
+        color: 42,
+      } as never,
+    },
+  });
+  applySubtitleDomainConfig(invalid.context);
+  assert.deepEqual(invalid.context.resolved.subtitleSidebar.css, {});
+  assert.ok(invalid.warnings.some((warning) => warning.path === 'subtitleSidebar.css'));
+});
+
 test('subtitleSidebar falls back and warns on invalid values', () => {
   const { context, warnings } = createResolveContext({
     subtitleSidebar: {
