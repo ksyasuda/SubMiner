@@ -267,3 +267,46 @@ test('playback handler does not let stats metadata failures block playback start
 
   assert.deepEqual(commands[1], ['loadfile', 'https://stream.example/video.m3u8', 'replace']);
 });
+
+test('playback handler does not let media title failures block playback startup', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const handler = createPlayJellyfinItemInMpvHandler({
+    ensureMpvConnectedForPlayback: async () => true,
+    getMpvClient: () => ({ connected: true, send: () => {} }),
+    resolvePlaybackPlan: async () => ({
+      url: 'https://stream.example/video.m3u8',
+      mode: 'direct',
+      title: 'Episode 4',
+      itemTitle: 'Episode 4',
+      seriesTitle: null,
+      seasonNumber: null,
+      episodeNumber: null,
+      startTimeTicks: 0,
+      audioStreamIndex: null,
+      subtitleStreamIndex: null,
+    }),
+    applyJellyfinMpvDefaults: () => {},
+    showVisibleOverlay: () => {},
+    sendMpvCommand: (command) => commands.push(command),
+    armQuitOnDisconnect: () => {},
+    schedule: () => {},
+    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
+    preloadExternalSubtitles: () => {},
+    setActivePlayback: () => {},
+    setLastProgressAtMs: () => {},
+    reportPlaying: () => {},
+    showMpvOsd: () => {},
+    updateCurrentMediaTitle: () => {
+      throw new Error('title state unavailable');
+    },
+  });
+
+  await handler({
+    session: baseSession,
+    clientInfo: baseClientInfo,
+    jellyfinConfig: {},
+    itemId: 'item-4',
+  });
+
+  assert.deepEqual(commands[1], ['loadfile', 'https://stream.example/video.m3u8', 'replace']);
+});

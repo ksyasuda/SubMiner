@@ -174,9 +174,7 @@ function hasExpectedExternalSubtitleTracks(
     return true;
   }
   const loadedExternalFilenames = new Set(
-    tracks
-      .filter((track) => track.externalFilename)
-      .map((track) => track.externalFilename),
+    tracks.filter((track) => track.externalFilename).map((track) => track.externalFilename),
   );
   return expectedExternalFilenames.every((filePath) => loadedExternalFilenames.has(filePath));
 }
@@ -247,9 +245,8 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
     clientInfo: JellyfinClientInfo;
     itemId: string;
   }): Promise<void> => {
-    cleanupActiveCache();
-
     try {
+      cleanupActiveCache();
       const tracks = await deps.listJellyfinSubtitleTracks(
         params.session,
         params.clientInfo,

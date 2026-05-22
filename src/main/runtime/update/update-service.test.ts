@@ -390,9 +390,5 @@ test('manual update check keeps current prerelease builds on configured stable c
   const result = await service.checkForUpdates({ source: 'manual' });
 
   assert.equal(result.status, 'up-to-date');
-  assert.deepEqual(calls, [
-    'app:stable',
-    'fetch:stable',
-    'no-update:0.15.0-beta.3',
-  ]);
+  assert.deepEqual(calls, ['app:stable', 'fetch:stable', 'no-update:0.15.0-beta.3']);
 });

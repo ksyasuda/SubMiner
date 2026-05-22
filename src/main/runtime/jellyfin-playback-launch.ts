@@ -107,8 +107,8 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     deps.applyJellyfinMpvDefaults(mpvClient);
     deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
     const playbackUrl = applyStartTimeTicksToPlaybackUrl(plan.url, params.startTimeTicksOverride);
-    deps.updateCurrentMediaTitle?.(plan.title);
     try {
+      deps.updateCurrentMediaTitle?.(plan.title);
       deps.recordJellyfinPlaybackMetadata?.({
         mediaPath: playbackUrl,
         displayTitle: plan.title,
@@ -119,7 +119,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
         itemId: params.itemId,
       });
     } catch {
-      // Best-effort stats metadata must not block playback startup.
+      // Best-effort metadata/title hooks must not block playback startup.
     }
     deps.sendMpvCommand(['loadfile', playbackUrl, 'replace']);
     if (params.setQuitOnDisconnectArm !== false) {
