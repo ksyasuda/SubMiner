@@ -265,7 +265,8 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'enum',
       enumValues: ['headword', 'surface'],
       defaultValue: defaultConfig.ankiConnect.knownWords.matchMode,
-      description: 'Known-word matching strategy for subtitle annotations.',
+      description:
+        'Known-word matching strategy for subtitle annotations. Cache matches always receive known-word highlighting even when POS filters suppress other annotation types.',
     },
     {
       path: 'ankiConnect.knownWords.highlightEnabled',

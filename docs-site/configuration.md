@@ -1045,6 +1045,7 @@ Known-word cache policy:
 - Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
 - The cache is automatically invalidated when the configured scope changes (for example, when deck changes).
 - Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set `ankiConnect.knownWords.matchMode` to `"surface"` for raw subtitle text matching.
+- A known-word cache match always receives known-word highlighting, even when part-of-speech filters suppress N+1, frequency, or JLPT annotations for that token.
 - Legacy moved keys under `ankiConnect.nPlusOne` (`highlightEnabled`, `refreshMinutes`, `matchMode`, `decks`, `knownWord`) and older `ankiConnect.behavior.nPlusOne*` keys are deprecated and only kept for backward compatibility.
 - Legacy top-level `ankiConnect` migration keys (for example `audioField`, `generateAudio`, `imageType`) are compatibility-only, validated before mapping, and ignored with a warning when invalid.
 - If AnkiConnect is unreachable, the cache remains in its previous state and an on-screen/system status message is shown.

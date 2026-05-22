@@ -331,7 +331,8 @@ test('preload jellyfin subtitles cleans previous cached subtitles before a new p
   assert.deepEqual(cleanupCalls, [['/tmp/subminer-jellyfin-subtitles-0']]);
 });
 
-test('preload jellyfin subtitles logs cleanup failures without rejecting', async () => {
+test('preload jellyfin subtitles continues after cleanup failures', async () => {
+  const commands: Array<Array<string | number>> = [];
   const logs: string[] = [];
   let cleanupShouldFail = false;
   const preload = createPreloadJellyfinExternalSubtitlesHandler(
@@ -344,6 +345,7 @@ test('preload jellyfin subtitles logs cleanup failures without rejecting', async
         path: `/tmp/subminer-jellyfin-subtitles-${track.index}/track.srt`,
         cleanupDir: `/tmp/subminer-jellyfin-subtitles-${track.index}`,
       }),
+      sendMpvCommand: (command) => commands.push(command),
       cleanupCachedSubtitles: () => {
         if (cleanupShouldFail) {
           throw new Error('cleanup failed');
@@ -357,7 +359,14 @@ test('preload jellyfin subtitles logs cleanup failures without rejecting', async
   cleanupShouldFail = true;
   await assert.doesNotReject(() => preload({ session, clientInfo, itemId: 'item-2' }));
 
-  assert.deepEqual(logs, ['Failed to preload Jellyfin external subtitles']);
+  assert.deepEqual(logs, ['Failed to cleanup Jellyfin cached subtitles']);
+  assert.deepEqual(
+    commands.filter((command) => command[0] === 'sub-add'),
+    [
+      ['sub-add', '/tmp/subminer-jellyfin-subtitles-0/track.srt', 'auto', 'English', 'eng'],
+      ['sub-add', '/tmp/subminer-jellyfin-subtitles-0/track.srt', 'auto', 'English', 'eng'],
+    ],
+  );
 });
 
 test('preload jellyfin subtitles serializes overlapping preload runs', async () => {

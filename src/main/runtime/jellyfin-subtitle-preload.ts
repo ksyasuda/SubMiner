@@ -246,7 +246,11 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
     itemId: string;
   }): Promise<void> => {
     try {
-      cleanupActiveCache();
+      try {
+        cleanupActiveCache();
+      } catch (error) {
+        deps.logDebug('Failed to cleanup Jellyfin cached subtitles', error);
+      }
       const tracks = await deps.listJellyfinSubtitleTracks(
         params.session,
         params.clientInfo,
