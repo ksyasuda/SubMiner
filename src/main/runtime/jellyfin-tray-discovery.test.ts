@@ -194,6 +194,124 @@ test('stops active discovery from tray', async () => {
   ]);
 });
 
+test('uses checked tray state to start discovery instead of blind toggling', async () => {
+  const calls: string[] = [];
+  let session: { advertiseNow: () => Promise<boolean> } | null = null;
+
+  await toggleJellyfinDiscoveryFromTray(
+    {
+      getRemoteSession: () => session,
+      stopRemoteSession: () => calls.push('stop'),
+      startRemoteSession: async (options) => {
+        assert.deepEqual(options, { explicit: true });
+        calls.push('start');
+        session = {
+          advertiseNow: async () => {
+            calls.push('advertise');
+            return true;
+          },
+        };
+      },
+      refreshTrayMenu: () => calls.push('refresh'),
+      logger: {
+        info: (message) => calls.push(`info:${message}`),
+        warn: (message) => calls.push(`warn:${message}`),
+        error: (message) => calls.push(`error:${message}`),
+      },
+      showMpvOsd: (message) => calls.push(`osd:${message}`),
+    },
+    { desiredActive: true },
+  );
+
+  assert.deepEqual(calls, [
+    'start',
+    'advertise',
+    'info:Jellyfin discovery started; cast target is visible in server sessions.',
+    'osd:Jellyfin discovery started',
+    'refresh',
+  ]);
+});
+
+test('uses unchecked tray state to stop discovery without visibility probing', async () => {
+  const calls: string[] = [];
+
+  await toggleJellyfinDiscoveryFromTray(
+    {
+      getRemoteSession: () => ({
+        advertiseNow: async () => {
+          calls.push('advertise');
+          return true;
+        },
+      }),
+      stopRemoteSession: () => calls.push('stop'),
+      startRemoteSession: async () => {
+        calls.push('start');
+      },
+      refreshTrayMenu: () => calls.push('refresh'),
+      logger: {
+        info: (message) => calls.push(`info:${message}`),
+        warn: (message) => calls.push(`warn:${message}`),
+        error: (message) => calls.push(`error:${message}`),
+      },
+      showMpvOsd: (message) => calls.push(`osd:${message}`),
+    },
+    { desiredActive: false },
+  );
+
+  assert.deepEqual(calls, [
+    'stop',
+    'info:Jellyfin discovery stopped.',
+    'osd:Jellyfin discovery stopped',
+    'refresh',
+  ]);
+});
+
+test('restarts active discovery when current session is not visible', async () => {
+  const calls: string[] = [];
+  let session: { advertiseNow: () => Promise<boolean> } | null = {
+    advertiseNow: async () => {
+      calls.push('advertise-stale');
+      return false;
+    },
+  };
+
+  await toggleJellyfinDiscoveryFromTray({
+    getRemoteSession: () => session,
+    stopRemoteSession: () => {
+      calls.push('stop');
+      session = null;
+    },
+    startRemoteSession: async (options) => {
+      assert.deepEqual(options, { explicit: true });
+      calls.push('start');
+      session = {
+        advertiseNow: async () => {
+          calls.push('advertise-fresh');
+          return true;
+        },
+      };
+    },
+    refreshTrayMenu: () => calls.push('refresh'),
+    logger: {
+      info: (message) => calls.push(`info:${message}`),
+      warn: (message) => calls.push(`warn:${message}`),
+      error: (message) => calls.push(`error:${message}`),
+    },
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+  });
+
+  assert.deepEqual(calls, [
+    'advertise-stale',
+    'warn:Jellyfin discovery was active but not visible; restarting.',
+    'stop',
+    'start',
+    'advertise-fresh',
+    'info:Jellyfin discovery started; cast target is visible in server sessions.',
+    'osd:Jellyfin discovery started',
+    'refresh',
+  ]);
+});
+
 test('warns and refreshes tray when explicit discovery cannot create a session', async () => {
   const calls: string[] = [];
 

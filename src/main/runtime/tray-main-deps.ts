@@ -27,6 +27,7 @@ export function createBuildResolveTrayIconPathMainDepsHandler(deps: {
 
 export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
   buildTrayMenuTemplateRuntime: (handlers: {
+    platform?: string;
     openSessionHelp: () => void;
     openTexthookerInBrowser: () => void;
     showTexthookerPage: boolean;
@@ -39,7 +40,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
     openJellyfinSetup: () => void;
     showJellyfinDiscovery: boolean;
     jellyfinDiscoveryActive: boolean;
-    toggleJellyfinDiscovery: () => void;
+    toggleJellyfinDiscovery: (checked: boolean) => void;
     openAnilistSetup: () => void;
     checkForUpdates: () => void;
     quitApp: () => void;
@@ -57,13 +58,15 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
   openJellyfinSetupWindow: () => void;
   isJellyfinConfigured: () => boolean;
   isJellyfinDiscoveryActive: () => boolean;
-  toggleJellyfinDiscovery: () => void | Promise<void>;
+  toggleJellyfinDiscovery: (checked: boolean) => void | Promise<void>;
+  platform?: string;
   openAnilistSetupWindow: () => void;
   checkForUpdates: () => void;
   quitApp: () => void;
 }) {
   return () => ({
     buildTrayMenuTemplateRuntime: deps.buildTrayMenuTemplateRuntime,
+    platform: deps.platform,
     initializeOverlayRuntime: deps.initializeOverlayRuntime,
     isOverlayRuntimeInitialized: deps.isOverlayRuntimeInitialized,
     openSessionHelpModal: deps.openSessionHelpModal,

@@ -23,5 +23,8 @@ export function createBuildPlayJellyfinItemInMpvMainDepsHandler(
     recordJellyfinPlaybackMetadata: deps.recordJellyfinPlaybackMetadata
       ? (metadata) => deps.recordJellyfinPlaybackMetadata!(metadata)
       : undefined,
+    updateCurrentMediaTitle: deps.updateCurrentMediaTitle
+      ? (title) => deps.updateCurrentMediaTitle!(title)
+      : undefined,
   });
 }

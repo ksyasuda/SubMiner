@@ -53,9 +53,6 @@ export function persistJellyfinAuthSession(deps: {
       enabled: boolean;
       serverUrl: string;
       username: string;
-      deviceId: string;
-      clientName: string;
-      clientVersion: string;
       recentServers: string[];
     }>;
   }) => void;
@@ -69,9 +66,6 @@ export function persistJellyfinAuthSession(deps: {
       enabled: true,
       serverUrl: deps.session.serverUrl,
       username: deps.session.username,
-      deviceId: deps.clientInfo.deviceId,
-      clientName: deps.clientInfo.clientName,
-      clientVersion: deps.clientInfo.clientVersion,
       recentServers: mergeJellyfinRecentServers(
         deps.session.serverUrl,
         deps.existingRecentServers || [],
@@ -86,9 +80,6 @@ export function createHandleJellyfinAuthCommands(deps: {
       enabled: boolean;
       serverUrl: string;
       username: string;
-      deviceId: string;
-      clientName: string;
-      clientVersion: string;
     }>;
   }) => void;
   authenticateWithPassword: (

@@ -144,12 +144,21 @@ function M.create(ctx)
 			and previous_media_identity ~= nil
 			and media_identity == previous_media_identity
 		)
+		local new_media_loaded = media_identity ~= nil and not same_media_reload and not same_media_loaded
 		state.pending_reload_media_identity = nil
 		state.current_media_identity = media_identity
+		if new_media_loaded then
+			state.suppress_ready_overlay_restore = false
+		end
 
 		if same_media_reload then
 			subminer_log("debug", "lifecycle", "Skipping startup lifecycle for same-media mpv reload")
-			if state.overlay_running and resolve_auto_start_enabled() and process.has_matching_mpv_ipc_socket(opts.socket_path) then
+			if
+				state.overlay_running
+				and not state.suppress_ready_overlay_restore
+				and resolve_auto_start_enabled()
+				and process.has_matching_mpv_ipc_socket(opts.socket_path)
+			then
 				process.run_control_command_async("show-visible-overlay", {
 					socket_path = opts.socket_path,
 				})

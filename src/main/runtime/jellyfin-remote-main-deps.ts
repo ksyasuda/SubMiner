@@ -15,6 +15,9 @@ export function createBuildHandleJellyfinRemotePlayMainDepsHandler(
     getConfiguredSession: () => deps.getConfiguredSession(),
     getClientInfo: () => deps.getClientInfo(),
     getJellyfinConfig: () => deps.getJellyfinConfig(),
+    ...(deps.getActivePlayback
+      ? { getActivePlayback: () => deps.getActivePlayback?.() ?? null }
+      : {}),
     playJellyfinItem: (params) => deps.playJellyfinItem(params),
     logWarn: (message: string) => deps.logWarn(message),
   });

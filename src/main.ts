@@ -404,6 +404,11 @@ import {
 } from './main/runtime/windows-mpv-launch';
 import { createWaitForMpvConnectedHandler } from './main/runtime/jellyfin-remote-connection';
 import {
+  DEFAULT_JELLYFIN_CLIENT_NAME,
+  DEFAULT_JELLYFIN_CLIENT_VERSION,
+  createHostDerivedJellyfinDeviceId,
+} from './main/runtime/jellyfin-device-identity';
+import {
   clearJellyfinAuthSessionAndRefreshTray as clearJellyfinAuthSessionAndRefreshTrayRuntime,
   isJellyfinConfiguredForTray as isJellyfinConfiguredForTrayRuntime,
   toggleJellyfinDiscoveryFromTray as toggleJellyfinDiscoveryFromTrayRuntime,
@@ -508,6 +513,7 @@ import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/charac
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { resolveCurrentSubtitleForRenderer } from './main/runtime/current-subtitle-snapshot';
+import { createJellyfinSubtitleCacheIo } from './main/runtime/jellyfin-subtitle-cache-io';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import {
   createElectronAppUpdater,
@@ -619,6 +625,15 @@ const DEFAULT_MPV_LOG_FILE = resolveDefaultLogFilePath({
   appDataDir: process.env.APPDATA,
 });
 const ANILIST_SETUP_CLIENT_ID_URL = 'https://anilist.co/api/v2/oauth/authorize';
+const jellyfinSubtitleCacheIo = createJellyfinSubtitleCacheIo({
+  tmpDir: () => os.tmpdir(),
+  makeTempDir: (prefix) => fs.promises.mkdtemp(prefix),
+  writeFile: (filePath, bytes) => fs.promises.writeFile(filePath, bytes),
+  removeDir: (dir, options) => {
+    fs.rmSync(dir, options);
+  },
+  fetch: (url) => fetch(url),
+});
 const ANILIST_SETUP_RESPONSE_TYPE = 'token';
 const ANILIST_DEFAULT_CLIENT_ID = '36084';
 const ANILIST_REDIRECT_URI = 'https://anilist.subminer.moe/';
@@ -2862,7 +2877,9 @@ const {
   },
   getJellyfinClientInfoMainDeps: {
     getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
-    getDefaultJellyfinConfig: () => DEFAULT_CONFIG.jellyfin,
+    getHostName: () => os.hostname(),
+    defaultClientName: DEFAULT_JELLYFIN_CLIENT_NAME,
+    defaultClientVersion: DEFAULT_JELLYFIN_CLIENT_VERSION,
   },
   waitForMpvConnectedMainDeps: {
     getMpvClient: () => appState.mpvClient,
@@ -2918,41 +2935,8 @@ const {
       sendMpvCommandRuntime(appState.mpvClient, command);
     },
     wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-    cacheSubtitleTrack: async (track) => {
-      if (!track.deliveryUrl) {
-        throw new Error('Jellyfin subtitle track has no delivery URL');
-      }
-
-      const cacheDir = await fs.promises.mkdtemp(
-        path.join(os.tmpdir(), 'subminer-jellyfin-subtitles-'),
-      );
-      const urlPath = (() => {
-        try {
-          return new URL(track.deliveryUrl).pathname;
-        } catch {
-          return track.deliveryUrl;
-        }
-      })();
-      const ext = path.extname(urlPath).slice(0, 16) || '.srt';
-      const subtitlePath = path.join(cacheDir, `track-${track.index}${ext}`);
-      try {
-        const response = await fetch(track.deliveryUrl);
-        if (!response.ok) {
-          throw new Error(`Failed to download Jellyfin subtitle (HTTP ${response.status})`);
-        }
-        const bytes = new Uint8Array(await response.arrayBuffer());
-        await fs.promises.writeFile(subtitlePath, bytes);
-      } catch (error) {
-        fs.rmSync(cacheDir, { recursive: true, force: true });
-        throw error;
-      }
-      return { path: subtitlePath, cleanupDir: cacheDir };
-    },
-    cleanupCachedSubtitles: (dirs) => {
-      for (const dir of dirs) {
-        fs.rmSync(dir, { recursive: true, force: true });
-      }
-    },
+    cacheSubtitleTrack: (track) => jellyfinSubtitleCacheIo.cacheSubtitleTrack(track),
+    cleanupCachedSubtitles: (dirs) => jellyfinSubtitleCacheIo.cleanupCachedSubtitles(dirs),
     logDebug: (message, error) => {
       logger.debug(message, error);
     },
@@ -2994,6 +2978,9 @@ const {
     },
     showMpvOsd: (text) => {
       showMpvOsd(text);
+    },
+    updateCurrentMediaTitle: (title) => {
+      mediaRuntime.updateCurrentMediaTitle(title);
     },
     recordJellyfinPlaybackMetadata: (metadata) => {
       ensureImmersionTrackerStarted();
@@ -3059,11 +3046,13 @@ const {
       appState.jellyfinRemoteSession = session as typeof appState.jellyfinRemoteSession;
     },
     createRemoteSessionService: (options) => new JellyfinRemoteSessionService(options),
-    defaultDeviceId: DEFAULT_CONFIG.jellyfin.deviceId,
-    defaultClientName: DEFAULT_CONFIG.jellyfin.clientName,
-    defaultClientVersion: DEFAULT_CONFIG.jellyfin.clientVersion,
+    getHostName: () => os.hostname(),
+    defaultDeviceId: createHostDerivedJellyfinDeviceId(os.hostname()),
+    defaultClientName: DEFAULT_JELLYFIN_CLIENT_NAME,
+    defaultClientVersion: DEFAULT_JELLYFIN_CLIENT_VERSION,
     logInfo: (message) => logger.info(message),
     logWarn: (message, details) => logger.warn(message, details),
+    onSessionStateChanged: () => refreshTrayMenuIfPresent(),
   },
   stopJellyfinRemoteSessionMainDeps: {
     getCurrentSession: () => appState.jellyfinRemoteSession,
@@ -3073,6 +3062,7 @@ const {
     clearActivePlayback: () => {
       activeJellyfinRemotePlayback = null;
     },
+    onSessionStateChanged: () => refreshTrayMenuIfPresent(),
   },
   runJellyfinCommandMainDeps: {
     defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl,
@@ -3093,7 +3083,6 @@ const {
     clearStoredSession: () =>
       clearJellyfinAuthSessionAndRefreshTrayRuntime(getJellyfinTrayDiscoveryDeps()),
     patchJellyfinConfig: (session) => {
-      const clientInfo = getJellyfinClientInfo();
       const recentServers = mergeJellyfinRecentServers(
         session.serverUrl,
         getResolvedConfig().jellyfin.recentServers || [],
@@ -3103,9 +3092,6 @@ const {
           enabled: true,
           serverUrl: session.serverUrl,
           username: session.username,
-          deviceId: clientInfo.deviceId,
-          clientName: clientInfo.clientName,
-          clientVersion: clientInfo.clientVersion,
           recentServers,
         },
       });
@@ -4434,8 +4420,8 @@ const {
         broadcastToOverlayWindows('subtitle:set', resetSubtitlePayload);
         subtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
         annotationSubtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
+        autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks();
       }
-      autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks();
       currentMediaTokenizationGate.updateCurrentMediaPath(path);
       managedLocalSubtitleSelectionRuntime.handleMediaPathChange(path);
       startupOsdSequencer.reset();
@@ -6162,6 +6148,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
     },
     buildTrayMenuTemplateDeps: {
       buildTrayMenuTemplateRuntime,
+      platform: process.platform,
       initializeOverlayRuntime: () => initializeOverlayRuntime(),
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
       openSessionHelpModal: () => openSessionHelpOverlay(),
@@ -6177,8 +6164,10 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       isJellyfinConfigured: () =>
         isJellyfinConfiguredForTrayRuntime(getJellyfinTrayDiscoveryDeps()),
       isJellyfinDiscoveryActive: () => Boolean(appState.jellyfinRemoteSession),
-      toggleJellyfinDiscovery: () =>
-        toggleJellyfinDiscoveryFromTrayRuntime(getJellyfinTrayDiscoveryDeps()),
+      toggleJellyfinDiscovery: (checked: boolean) =>
+        toggleJellyfinDiscoveryFromTrayRuntime(getJellyfinTrayDiscoveryDeps(), {
+          desiredActive: checked,
+        }),
       openAnilistSetupWindow: () => openAnilistSetupWindow(),
       checkForUpdates: () => {
         void getUpdateService().checkForUpdates({ source: 'manual' });
@@ -6410,6 +6399,7 @@ function ensureOverlayWindowsReadyForVisibilityActions(): void {
 function setVisibleOverlayVisible(visible: boolean): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   if (!visible) {
+    autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   }
   if (visible) {
@@ -6421,6 +6411,7 @@ function setVisibleOverlayVisible(visible: boolean): void {
 
 function toggleVisibleOverlay(): void {
   ensureOverlayWindowsReadyForVisibilityActions();
+  autoplayReadyGate.markCurrentMediaAutoplayReady();
   if (overlayManager.getVisibleOverlayVisible()) {
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   } else {
@@ -6431,6 +6422,7 @@ function toggleVisibleOverlay(): void {
 }
 function setOverlayVisible(visible: boolean): void {
   if (!visible) {
+    autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   }
   if (visible) {

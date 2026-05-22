@@ -18,6 +18,8 @@ export function createBuildStartJellyfinRemoteSessionMainDepsHandler(
     getCurrentSession: () => deps.getCurrentSession(),
     setCurrentSession: (session) => deps.setCurrentSession(session),
     createRemoteSessionService: (options) => deps.createRemoteSessionService(options),
+    getClientInfo: () => deps.getClientInfo(),
+    getHostName: () => deps.getHostName(),
     defaultDeviceId: deps.defaultDeviceId,
     defaultClientName: deps.defaultClientName,
     defaultClientVersion: deps.defaultClientVersion,
@@ -26,6 +28,7 @@ export function createBuildStartJellyfinRemoteSessionMainDepsHandler(
     handleGeneralCommand: (payload) => deps.handleGeneralCommand(payload),
     logInfo: (message: string) => deps.logInfo(message),
     logWarn: (message: string, details?: unknown) => deps.logWarn(message, details),
+    onSessionStateChanged: deps.onSessionStateChanged,
   });
 }
 
@@ -36,5 +39,6 @@ export function createBuildStopJellyfinRemoteSessionMainDepsHandler(
     getCurrentSession: () => deps.getCurrentSession(),
     setCurrentSession: (session) => deps.setCurrentSession(session),
     clearActivePlayback: () => deps.clearActivePlayback(),
+    onSessionStateChanged: deps.onSessionStateChanged,
   });
 }

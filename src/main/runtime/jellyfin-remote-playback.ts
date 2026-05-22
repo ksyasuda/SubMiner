@@ -31,6 +31,19 @@ export function secondsToJellyfinTicks(seconds: number, ticksPerSecond: number):
   return Math.max(0, Math.floor(seconds * ticksPerSecond));
 }
 
+function isMpvPauseEnabled(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || normalized === 'no' || normalized === 'false' || normalized === '0') {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
 export type JellyfinRemoteProgressReporterDeps = {
   getActivePlayback: () => ActiveJellyfinRemotePlaybackState | null;
   clearActivePlayback: () => void;
@@ -64,7 +77,7 @@ export function createReportJellyfinRemoteProgressHandler(
         itemId: playback.itemId,
         mediaSourceId: playback.mediaSourceId,
         positionTicks: secondsToJellyfinTicks(Number(position) || 0, deps.ticksPerSecond),
-        isPaused: paused === true,
+        isPaused: isMpvPauseEnabled(paused),
         playMethod: playback.playMethod,
         audioStreamIndex: playback.audioStreamIndex,
         subtitleStreamIndex: playback.subtitleStreamIndex,

@@ -13,11 +13,9 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
     },
     getJellyfinClientInfoMainDeps: {
       getResolvedJellyfinConfig: () => ({}) as never,
-      getDefaultJellyfinConfig: () => ({
-        clientName: 'SubMiner',
-        clientVersion: 'test',
-        deviceId: 'dev',
-      }),
+      getHostName: () => 'workstation',
+      defaultClientName: 'SubMiner',
+      defaultClientVersion: 'test',
     },
     waitForMpvConnectedMainDeps: {
       getMpvClient: () => null,
@@ -140,6 +138,7 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
       defaultDeviceId: 'dev',
       defaultClientName: 'SubMiner',
       defaultClientVersion: 'test',
+      getHostName: () => 'workstation',
       logInfo: () => {},
       logWarn: () => {},
     },

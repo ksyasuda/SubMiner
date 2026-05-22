@@ -105,8 +105,16 @@ export function createSubsyncModal(
 
   async function runSubsyncManualFromModal(): Promise<void> {
     if (ctx.state.subsyncSubmitting) return;
+    if (ctx.dom.subsyncRunButton.disabled) return;
 
-    const engine = ctx.dom.subsyncEngineAlass.checked ? 'alass' : 'ffsubsync';
+    const useAlass = ctx.dom.subsyncEngineAlass.checked;
+    const useFfsubsync = ctx.dom.subsyncEngineFfsubsync.checked;
+    if (!useAlass && !useFfsubsync) {
+      setSubsyncStatus('No sync engine available for current media.', true);
+      return;
+    }
+
+    const engine = useAlass ? 'alass' : 'ffsubsync';
     const sourceTrackId =
       engine === 'alass' && ctx.dom.subsyncSourceSelect.value
         ? Number.parseInt(ctx.dom.subsyncSourceSelect.value, 10)

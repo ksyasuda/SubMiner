@@ -244,3 +244,29 @@ test('subsync modal disables ffsubsync when payload marks it unavailable', () =>
     harness.restoreGlobals();
   }
 });
+
+test('subsync modal ignores enter submission when no sync engine is available', async () => {
+  let runCalls = 0;
+  const harness = createTestHarness(async () => {
+    runCalls += 1;
+    return { ok: true, message: 'ok' };
+  });
+
+  try {
+    harness.modal.openSubsyncModal({
+      sourceTracks: [],
+      ffsubsyncAvailable: false,
+    });
+
+    harness.modal.handleSubsyncKeydown({
+      key: 'Enter',
+      preventDefault: () => {},
+    } as KeyboardEvent);
+    await flushMicrotasks();
+
+    assert.equal(runCalls, 0);
+    assert.equal(harness.ctx.state.subsyncModalOpen, true);
+  } finally {
+    harness.restoreGlobals();
+  }
+});

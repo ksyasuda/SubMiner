@@ -100,3 +100,33 @@ test('subtitle prefetch runtime preserves parsed cues when YouTube active track 
 
   assert.deepEqual(calls, []);
 });
+
+test('subtitle prefetch runtime does not extract internal subtitle tracks from remote media urls', async () => {
+  let extracted = false;
+  const resolveSource = createResolveActiveSubtitleSidebarSourceHandler({
+    getFfmpegPath: () => 'ffmpeg-custom',
+    extractInternalSubtitleTrack: async () => {
+      extracted = true;
+      return {
+        path: '/tmp/subminer-sidebar-123/track_7.ass',
+        cleanup: async () => {},
+      };
+    },
+  });
+
+  const resolved = await resolveSource({
+    currentExternalFilenameRaw: null,
+    currentTrackRaw: {
+      type: 'sub',
+      id: 3,
+      'ff-index': 7,
+      codec: 'ass',
+    },
+    trackListRaw: [],
+    sidRaw: 3,
+    videoPath: 'http://jellyfin.local/Videos/movie/stream?static=true',
+  });
+
+  assert.equal(resolved, null);
+  assert.equal(extracted, false);
+});

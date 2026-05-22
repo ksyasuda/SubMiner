@@ -101,6 +101,32 @@ test('createHandleJellyfinRemotePlay logs and skips payload without item id', as
   assert.deepEqual(warnings, ['Ignoring Jellyfin remote Play event without ItemIds.']);
 });
 
+test('createHandleJellyfinRemotePlay ignores duplicate play for active item', async () => {
+  let playCalls = 0;
+  const handlePlay = createHandleJellyfinRemotePlay({
+    getConfiguredSession: () => ({
+      serverUrl: 'https://jellyfin.local',
+      accessToken: 'token',
+      userId: 'user',
+      username: 'name',
+    }),
+    getClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'abc' }),
+    getJellyfinConfig: () => ({}),
+    getActivePlayback: () => ({
+      itemId: 'item-1',
+      playMethod: 'DirectPlay',
+    }),
+    playJellyfinItem: async () => {
+      playCalls += 1;
+    },
+    logWarn: () => {},
+  });
+
+  await handlePlay({ ItemIds: ['item-1'] });
+
+  assert.equal(playCalls, 0);
+});
+
 test('createHandleJellyfinRemotePlaystate dispatches pause/seek/stop flows', async () => {
   const mpvClient = {};
   const commands: Array<(string | number)[]> = [];

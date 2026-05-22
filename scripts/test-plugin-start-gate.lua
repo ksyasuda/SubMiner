@@ -1396,7 +1396,7 @@ do
 		"duplicate pause-until-ready auto-start should not issue duplicate --start commands while overlay is already running"
 	)
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 4,
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 3,
 		"duplicate pause-until-ready auto-start should re-assert visible overlay on initial start, ready, and later file load"
 	)
 	assert_true(
@@ -1483,6 +1483,33 @@ do
 		},
 		input_ipc_server = "/tmp/subminer-socket",
 		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for duplicate autoplay-ready scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(recorded.script_messages["subminer-autoplay-ready"] ~= nil, "subminer-autoplay-ready script message not registered")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
+		"duplicate autoplay-ready signals should not repeatedly spawn visible overlay restore commands"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
 		paused = true,
 		files = {
 			[binary_path] = true,
@@ -1531,6 +1558,10 @@ do
 		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
 		"manual toggle-off before readiness should suppress ready-time visible overlay restore"
 	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 0,
+		"manual toggle-off before readiness should not resume playback when readiness arrives"
+	)
 end
 
 do
@@ -1561,6 +1592,75 @@ do
 	assert_true(
 		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
 		"manual toggle-off should suppress repeated ready-time visible overlay restores for the same session"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/jellyfin-stream.m3u8",
+		media_title = "Jellyfin Episode",
+		paused = true,
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for manual hide duplicate auto-start scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(recorded.script_messages["subminer-toggle"] ~= nil, "subminer-toggle script message not registered")
+	recorded.script_messages["subminer-toggle"]()
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		"manual toggle-off should suppress duplicate auto-start visible overlay reassertion"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 0,
+		"manual toggle-off followed by duplicate auto-start should keep paused playback paused"
+	)
+end
+
+do
+	local media_path = "/media/jellyfin-redirect.m3u8"
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = media_path,
+		media_title = "Jellyfin Redirect",
+		paused = true,
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for manual hide same-media reload scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	recorded.script_messages["subminer-toggle"]()
+	fire_event(recorded, "end-file", { reason = "redirect" })
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
+		"manual toggle-off should suppress same-media reload visible overlay reassertion"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 0,
+		"manual toggle-off followed by same-media reload should keep paused playback paused"
 	)
 end
 

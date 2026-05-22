@@ -101,6 +101,7 @@ export function composeJellyfinRemoteHandlers(
       getConfiguredSession: options.getConfiguredSession,
       getClientInfo: options.getClientInfo,
       getJellyfinConfig: options.getJellyfinConfig,
+      getActivePlayback: options.getActivePlayback,
       playJellyfinItem: options.playJellyfinItem,
       logWarn: options.logWarn,
     });

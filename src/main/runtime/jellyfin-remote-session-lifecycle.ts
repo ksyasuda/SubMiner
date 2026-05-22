@@ -1,3 +1,5 @@
+import { resolveJellyfinRemoteDeviceName } from './jellyfin-device-identity';
+
 type JellyfinRemoteConfig = {
   enabled: boolean;
   remoteControlEnabled: boolean;
@@ -5,11 +7,13 @@ type JellyfinRemoteConfig = {
   serverUrl: string;
   accessToken?: string;
   userId?: string;
+  autoAnnounce: boolean;
+};
+
+type JellyfinClientInfo = {
   deviceId: string;
   clientName: string;
   clientVersion: string;
-  remoteControlDeviceName: string;
-  autoAnnounce: boolean;
 };
 
 type JellyfinRemoteService = {
@@ -44,6 +48,8 @@ export function createStartJellyfinRemoteSessionHandler(deps: {
   getCurrentSession: () => JellyfinRemoteService | null;
   setCurrentSession: (session: JellyfinRemoteService | null) => void;
   createRemoteSessionService: (options: JellyfinRemoteServiceOptions) => JellyfinRemoteService;
+  getClientInfo: () => JellyfinClientInfo;
+  getHostName: () => string;
   defaultDeviceId: string;
   defaultClientName: string;
   defaultClientVersion: string;
@@ -52,6 +58,7 @@ export function createStartJellyfinRemoteSessionHandler(deps: {
   handleGeneralCommand: (payload: JellyfinRemoteEventPayload) => Promise<void>;
   logInfo: (message: string) => void;
   logWarn: (message: string, details?: unknown) => void;
+  onSessionStateChanged?: () => void;
 }) {
   return async (options?: { explicit?: boolean }): Promise<void> => {
     const jellyfinConfig = deps.getJellyfinConfig();
@@ -59,6 +66,13 @@ export function createStartJellyfinRemoteSessionHandler(deps: {
     if (jellyfinConfig.remoteControlEnabled === false) return;
     if (jellyfinConfig.remoteControlAutoConnect === false && options?.explicit !== true) return;
     if (!jellyfinConfig.serverUrl || !jellyfinConfig.accessToken || !jellyfinConfig.userId) return;
+
+    const clientInfo = deps.getClientInfo();
+    const clientName = clientInfo.clientName || deps.defaultClientName;
+    const clientVersion = clientInfo.clientVersion || deps.defaultClientVersion;
+    const deviceName = resolveJellyfinRemoteDeviceName({
+      hostName: deps.getHostName(),
+    });
 
     const existing = deps.getCurrentSession();
     if (existing) {
@@ -69,13 +83,10 @@ export function createStartJellyfinRemoteSessionHandler(deps: {
     const service = deps.createRemoteSessionService({
       serverUrl: jellyfinConfig.serverUrl,
       accessToken: jellyfinConfig.accessToken,
-      deviceId: jellyfinConfig.deviceId || deps.defaultDeviceId,
-      clientName: jellyfinConfig.clientName || deps.defaultClientName,
-      clientVersion: jellyfinConfig.clientVersion || deps.defaultClientVersion,
-      deviceName:
-        jellyfinConfig.remoteControlDeviceName ||
-        jellyfinConfig.clientName ||
-        deps.defaultClientName,
+      deviceId: clientInfo.deviceId || deps.defaultDeviceId,
+      clientName,
+      clientVersion,
+      deviceName,
       capabilities: {
         PlayableMediaTypes: 'Video,Audio',
         SupportedCommands:
@@ -118,9 +129,8 @@ export function createStartJellyfinRemoteSessionHandler(deps: {
 
     service.start();
     deps.setCurrentSession(service);
-    deps.logInfo(
-      `Jellyfin remote session enabled (${jellyfinConfig.remoteControlDeviceName || jellyfinConfig.clientName || 'SubMiner'}).`,
-    );
+    deps.onSessionStateChanged?.();
+    deps.logInfo(`Jellyfin remote session enabled (${deviceName}).`);
   };
 }
 
@@ -128,6 +138,7 @@ export function createStopJellyfinRemoteSessionHandler(deps: {
   getCurrentSession: () => JellyfinRemoteService | null;
   setCurrentSession: (session: JellyfinRemoteService | null) => void;
   clearActivePlayback: () => void;
+  onSessionStateChanged?: () => void;
 }) {
   return (): void => {
     const session = deps.getCurrentSession();
@@ -135,5 +146,6 @@ export function createStopJellyfinRemoteSessionHandler(deps: {
     session.stop();
     deps.setCurrentSession(null);
     deps.clearActivePlayback();
+    deps.onSessionStateChanged?.();
   };
 }

@@ -31,6 +31,16 @@ function M.create(ctx)
 		return options_helper.coerce_bool(raw_visible_overlay, false)
 	end
 
+	local function resolve_auto_start_visibility_action()
+		if resolve_visible_overlay_startup() then
+			if state.suppress_ready_overlay_restore then
+				return nil
+			end
+			return "show-visible-overlay"
+		end
+		return "hide-visible-overlay"
+	end
+
 	local function resolve_pause_until_ready()
 		local raw_pause_until_ready = opts.auto_start_pause_until_ready
 		if raw_pause_until_ready == nil then
@@ -129,7 +139,7 @@ function M.create(ctx)
 
 	local function release_auto_play_ready_gate(reason)
 		if not state.auto_play_ready_gate_armed then
-			return
+			return false
 		end
 		local should_resume_playback = state.auto_play_ready_should_resume_playback == true
 		disarm_auto_play_ready_gate({ resume_playback = false })
@@ -140,6 +150,7 @@ function M.create(ctx)
 		else
 			subminer_log("info", "process", "Startup gate ready; leaving playback paused: " .. tostring(reason or "ready"))
 		end
+		return true
 	end
 
 	local function arm_auto_play_ready_gate()
@@ -179,9 +190,12 @@ function M.create(ctx)
 	end
 
 	local function notify_auto_play_ready()
-		release_auto_play_ready_gate("tokenization-ready")
+		local released_ready_gate = release_auto_play_ready_gate("tokenization-ready")
 		local force_ready_overlay_restore = state.force_ready_overlay_restore == true
 		state.force_ready_overlay_restore = false
+		if not released_ready_gate and not force_ready_overlay_restore then
+			return
+		end
 		if state.suppress_ready_overlay_restore and not force_ready_overlay_restore then
 			return
 		end
@@ -224,7 +238,7 @@ function M.create(ctx)
 
 			local should_show_visible = overrides.show_visible_overlay
 			if should_show_visible == nil then
-				should_show_visible = resolve_visible_overlay_startup()
+				should_show_visible = resolve_visible_overlay_startup() and not state.suppress_ready_overlay_restore
 			end
 			if should_show_visible then
 				table.insert(args, "--show-visible-overlay")
@@ -399,9 +413,6 @@ function M.create(ctx)
 
 	local function start_overlay(overrides)
 		overrides = overrides or {}
-		if overrides.auto_start_trigger == true then
-			state.suppress_ready_overlay_restore = false
-		end
 
 		if not binary.ensure_binary_available() then
 			subminer_log("error", "binary", "SubMiner binary not found")
@@ -424,13 +435,13 @@ function M.create(ctx)
 				elseif not state.auto_play_ready_gate_armed then
 					disarm_auto_play_ready_gate()
 				end
-				local visibility_action = resolve_visible_overlay_startup()
-						and "show-visible-overlay"
-					or "hide-visible-overlay"
-				run_control_command_async(visibility_action, {
-					socket_path = socket_path,
-					log_level = overrides.log_level,
-				})
+				local visibility_action = resolve_auto_start_visibility_action()
+				if visibility_action ~= nil then
+					run_control_command_async(visibility_action, {
+						socket_path = socket_path,
+						log_level = overrides.log_level,
+					})
+				end
 				return
 			end
 			subminer_log("info", "process", "Overlay already running")
@@ -495,13 +506,13 @@ function M.create(ctx)
 				end
 
 				if overrides.auto_start_trigger == true then
-					local visibility_action = resolve_visible_overlay_startup()
-							and "show-visible-overlay"
-						or "hide-visible-overlay"
+					local visibility_action = resolve_auto_start_visibility_action()
+					if visibility_action ~= nil then
 						run_control_command_async(visibility_action, {
 							socket_path = socket_path,
 							log_level = overrides.log_level,
 						})
+					end
 				end
 
 			end)
@@ -576,6 +587,7 @@ function M.create(ctx)
 			return
 		end
 		state.suppress_ready_overlay_restore = true
+		disarm_auto_play_ready_gate({ resume_playback = false })
 
 		run_control_command_async("toggle-visible-overlay", nil, function(ok)
 			if not ok then

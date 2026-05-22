@@ -46,6 +46,33 @@ test('media path changes clear rendered subtitle state without clearing same-you
   );
 });
 
+test('same media path updates do not reset autoplay ready fallback state', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /updateCurrentMediaPath:\s*\(path\)\s*=>\s*\{(?<body>[\s\S]*?)\n    restoreMpvSubVisibility:/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(
+    actionBlock,
+    /annotationSubtitleWsService\.broadcast\(resetSubtitlePayload, frequencyOptions\);\s+autoplayReadyGate\.invalidatePendingAutoplayReadyFallbacks\(\);\s+\}\s+currentMediaTokenizationGate\.updateCurrentMediaPath\(path\);/,
+  );
+});
+
+test('manual visible overlay toggles suppress current-media autoplay release', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(actionBlock, /autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);/);
+  assert.ok(
+    actionBlock.indexOf('autoplayReadyGate.markCurrentMediaAutoplayReady();') <
+      actionBlock.indexOf('toggleVisibleOverlayHandler();'),
+  );
+});
+
 test('main process uses one shared mpv plugin runtime config helper', () => {
   const source = readMainSource();
   assert.match(source, /function getMpvPluginRuntimeConfig\(\)/);

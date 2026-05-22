@@ -87,14 +87,10 @@ export interface JellyfinConfig {
   serverUrl?: string;
   recentServers?: string[];
   username?: string;
-  deviceId?: string;
-  clientName?: string;
-  clientVersion?: string;
   defaultLibraryId?: string;
   remoteControlEnabled?: boolean;
   remoteControlAutoConnect?: boolean;
   autoAnnounce?: boolean;
-  remoteControlDeviceName?: string;
   pullPictures?: boolean;
   iconCacheDir?: string;
   directPlayPreferred?: boolean;

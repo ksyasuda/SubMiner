@@ -35,15 +35,18 @@ test('tray main deps builders return mapped handlers', () => {
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
     isJellyfinConfigured: () => true,
     isJellyfinDiscoveryActive: () => false,
-    toggleJellyfinDiscovery: () => {
-      calls.push('jellyfin-discovery');
+    toggleJellyfinDiscovery: (checked) => {
+      calls.push(`jellyfin-discovery:${checked}`);
     },
+    platform: 'linux',
     openAnilistSetupWindow: () => calls.push('anilist'),
     checkForUpdates: () => calls.push('updates'),
     quitApp: () => calls.push('quit'),
   })();
 
+  assert.equal(menuDeps.platform, 'linux');
   const template = menuDeps.buildTrayMenuTemplateRuntime({
+    platform: menuDeps.platform,
     openSessionHelp: () => calls.push('open-help'),
     openTexthookerInBrowser: () => calls.push('open-texthooker'),
     showTexthookerPage: true,
@@ -56,7 +59,7 @@ test('tray main deps builders return mapped handlers', () => {
     openJellyfinSetup: () => calls.push('open-jellyfin'),
     showJellyfinDiscovery: true,
     jellyfinDiscoveryActive: false,
-    toggleJellyfinDiscovery: () => calls.push('open-jellyfin-discovery'),
+    toggleJellyfinDiscovery: (checked) => calls.push(`open-jellyfin-discovery:${checked}`),
     openAnilistSetup: () => calls.push('open-anilist'),
     checkForUpdates: () => calls.push('open-updates'),
     quitApp: () => calls.push('quit-app'),

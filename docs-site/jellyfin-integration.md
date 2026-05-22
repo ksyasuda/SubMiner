@@ -35,7 +35,6 @@ SubMiner includes an optional Jellyfin CLI integration for:
     "remoteControlEnabled": true,
     "remoteControlAutoConnect": true,
     "autoAnnounce": false,
-    "remoteControlDeviceName": "SubMiner",
     "defaultLibraryId": "",
     "pullPictures": false,
     "iconCacheDir": "/tmp/subminer-jellyfin-icons",
@@ -56,7 +55,7 @@ subminer jellyfin -l \
   --password 'your-password'
 ```
 
-`subminer jellyfin` opens the setup window. It pre-fills the server URL from the configured server, a recent successful server, or the local default. Successful login keeps the window open, stores the Jellyfin session token in encrypted storage, updates the configured server/username/client metadata, and refreshes recent servers. Passwords are never stored.
+`subminer jellyfin` opens the setup window. It pre-fills the server URL from the configured server, a recent successful server, or the local default. Successful login keeps the window open, stores the Jellyfin session token in encrypted storage, updates the configured server/username, and refreshes recent servers. Passwords are never stored.
 
 3. List libraries:
 
@@ -76,7 +75,7 @@ Launcher wrapper for Jellyfin cast discovery mode (background app + tray):
 subminer jellyfin -d
 ```
 
-After Jellyfin is enabled with a server URL and SubMiner is already running, the tray menu shows `Jellyfin Discovery`. Use that checkbox to start or stop discovery for the current runtime session without changing config. If the stored login session is missing or expired, starting discovery shows a warning and setup remains the path to refresh credentials. It does not survive app restart.
+After Jellyfin is enabled with a server URL and SubMiner is already running, the tray menu shows `Jellyfin Discovery`. Use that checkbox to start or stop discovery for the current runtime session without changing config. By default, Jellyfin sees the cast target as the OS hostname (`uname -n` on Linux). If the stored login session is missing or expired, starting discovery shows a warning and setup remains the path to refresh credentials. It does not survive app restart.
 
 Stop discovery session/app:
 

@@ -7,6 +7,7 @@ export * from '../jellyfin-client-info';
 export * from '../jellyfin-client-info-main-deps';
 export * from '../jellyfin-command-dispatch';
 export * from '../jellyfin-command-dispatch-main-deps';
+export * from '../jellyfin-device-identity';
 export * from '../jellyfin-playback-launch';
 export * from '../jellyfin-playback-launch-main-deps';
 export * from '../jellyfin-remote-commands';

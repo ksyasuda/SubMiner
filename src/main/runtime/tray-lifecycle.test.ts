@@ -43,6 +43,63 @@ test('ensure tray updates menu when tray already exists', () => {
   assert.deepEqual(calls, ['set-menu']);
 });
 
+test('ensure tray refreshes existing tray menu on linux with setContextMenu', () => {
+  const calls: string[] = [];
+  let trayRef: unknown = {
+    setContextMenu: () => calls.push('old-set-menu'),
+    setToolTip: () => calls.push('old-set-tooltip'),
+    on: () => calls.push('old-bind-click'),
+    destroy: () => calls.push('old-destroy'),
+  };
+
+  const ensureTray = createEnsureTrayHandler({
+    getTray: () => trayRef as never,
+    setTray: (tray) => {
+      trayRef = tray;
+      calls.push(tray ? 'set-new-tray' : 'clear-tray');
+    },
+    buildTrayMenu: () => ({ id: 'menu' }),
+    resolveTrayIconPath: () => '/tmp/icon.png',
+    createImageFromPath: () =>
+      ({
+        isEmpty: () => false,
+        resize: (options: { width: number; height: number }) => {
+          calls.push(`resize:${options.width}x${options.height}`);
+          return {
+            isEmpty: () => false,
+            resize: () => {
+              throw new Error('unexpected');
+            },
+            setTemplateImage: () => {},
+          };
+        },
+        setTemplateImage: () => {},
+      }) as never,
+    createEmptyImage: () =>
+      ({
+        isEmpty: () => true,
+        resize: () => {
+          throw new Error('unexpected');
+        },
+        setTemplateImage: () => {},
+      }) as never,
+    createTray: () =>
+      ({
+        setContextMenu: () => calls.push('new-set-menu'),
+        setToolTip: () => calls.push('new-set-tooltip'),
+        on: () => calls.push('new-bind-click'),
+        destroy: () => calls.push('new-destroy'),
+      }) as never,
+    trayTooltip: 'SubMiner',
+    platform: 'linux',
+    logWarn: () => calls.push('warn'),
+    ensureOverlayVisibleFromTrayClick: () => calls.push('show-overlay'),
+  });
+
+  ensureTray();
+  assert.deepEqual(calls, ['old-set-menu']);
+});
+
 test('ensure tray creates new tray and binds click handler', () => {
   const calls: string[] = [];
   let trayRef: unknown = null;

@@ -100,7 +100,11 @@ export type JellyfinRuntimeComposerOptions = ComposerInputs<{
   >;
   startJellyfinRemoteSessionMainDeps: Omit<
     StartRemoteSessionMainDeps,
-    'getJellyfinConfig' | 'handlePlay' | 'handlePlaystate' | 'handleGeneralCommand'
+    | 'getJellyfinConfig'
+    | 'getClientInfo'
+    | 'handlePlay'
+    | 'handlePlaystate'
+    | 'handleGeneralCommand'
   >;
   stopJellyfinRemoteSessionMainDeps: Parameters<
     typeof createBuildStopJellyfinRemoteSessionMainDepsHandler
@@ -236,6 +240,7 @@ export function composeJellyfinRuntimeHandlers(
     createBuildStartJellyfinRemoteSessionMainDepsHandler({
       ...options.startJellyfinRemoteSessionMainDeps,
       getJellyfinConfig: () => getResolvedJellyfinConfig(),
+      getClientInfo: () => getJellyfinClientInfo(),
       handlePlay: (payload) => handleJellyfinRemotePlay(payload),
       handlePlaystate: (payload) => handleJellyfinRemotePlaystate(payload),
       handleGeneralCommand: (payload) => handleJellyfinRemoteGeneralCommand(payload),

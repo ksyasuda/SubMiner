@@ -75,6 +75,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
   }) => void;
   showMpvOsd: (text: string) => void;
   recordJellyfinPlaybackMetadata?: (metadata: JellyfinPlaybackStatsMetadata) => void;
+  updateCurrentMediaTitle?: (title: string) => void;
 }) {
   return async (params: {
     session: JellyfinAuthSession;
@@ -106,24 +107,26 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     deps.applyJellyfinMpvDefaults(mpvClient);
     deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
     const playbackUrl = applyStartTimeTicksToPlaybackUrl(plan.url, params.startTimeTicksOverride);
-    deps.recordJellyfinPlaybackMetadata?.({
-      mediaPath: playbackUrl,
-      displayTitle: plan.title,
-      itemTitle: plan.itemTitle,
-      seriesTitle: plan.seriesTitle,
-      seasonNumber: plan.seasonNumber,
-      episodeNumber: plan.episodeNumber,
-      itemId: params.itemId,
-    });
+    deps.updateCurrentMediaTitle?.(plan.title);
+    try {
+      deps.recordJellyfinPlaybackMetadata?.({
+        mediaPath: playbackUrl,
+        displayTitle: plan.title,
+        itemTitle: plan.itemTitle,
+        seriesTitle: plan.seriesTitle,
+        seasonNumber: plan.seasonNumber,
+        episodeNumber: plan.episodeNumber,
+        itemId: params.itemId,
+      });
+    } catch {
+      // Best-effort stats metadata must not block playback startup.
+    }
     deps.sendMpvCommand(['loadfile', playbackUrl, 'replace']);
     if (params.setQuitOnDisconnectArm !== false) {
       deps.armQuitOnDisconnect();
     }
     deps.sendMpvCommand(['set_property', 'force-media-title', plan.title]);
     deps.sendMpvCommand(['set_property', 'sid', 'no']);
-    deps.schedule(() => {
-      deps.sendMpvCommand(['set_property', 'sid', 'no']);
-    }, 500);
 
     const startTimeTicks =
       typeof params.startTimeTicksOverride === 'number'

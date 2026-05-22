@@ -1,5 +1,10 @@
 import type { JellyfinStoredSession } from '../../core/services/jellyfin-token-store';
 import type { ResolvedConfig } from '../../types';
+import {
+  DEFAULT_JELLYFIN_CLIENT_NAME,
+  DEFAULT_JELLYFIN_CLIENT_VERSION,
+  createHostDerivedJellyfinDeviceId,
+} from './jellyfin-device-identity';
 
 type ResolvedJellyfinConfig = ResolvedConfig['jellyfin'];
 type ResolvedJellyfinConfigWithSession = ResolvedJellyfinConfig & {
@@ -42,25 +47,22 @@ export function createGetResolvedJellyfinConfigHandler(deps: {
 }
 
 export function createGetJellyfinClientInfoHandler(deps: {
-  getResolvedJellyfinConfig: () => Partial<
-    Pick<ResolvedJellyfinConfig, 'clientName' | 'clientVersion' | 'deviceId'>
-  >;
-  getDefaultJellyfinConfig: () => Partial<
-    Pick<ResolvedJellyfinConfig, 'clientName' | 'clientVersion' | 'deviceId'>
-  >;
+  getResolvedJellyfinConfig: () => unknown;
+  getHostName?: () => string;
+  defaultClientName?: string;
+  defaultClientVersion?: string;
 }) {
   return (
-    config = deps.getResolvedJellyfinConfig(),
+    _config = deps.getResolvedJellyfinConfig(),
   ): {
     clientName: string;
     clientVersion: string;
     deviceId: string;
   } => {
-    const defaults = deps.getDefaultJellyfinConfig();
     return {
-      clientName: config.clientName || defaults.clientName || '',
-      clientVersion: config.clientVersion || defaults.clientVersion || '',
-      deviceId: config.deviceId || defaults.deviceId || '',
+      clientName: deps.defaultClientName || DEFAULT_JELLYFIN_CLIENT_NAME,
+      clientVersion: deps.defaultClientVersion || DEFAULT_JELLYFIN_CLIENT_VERSION,
+      deviceId: createHostDerivedJellyfinDeviceId(deps.getHostName?.() || ''),
     };
   };
 }

@@ -61,9 +61,12 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.clearFirstRunSetupWindow();
     deps.destroyYomitanSettingsWindow();
     deps.clearYomitanSettingsWindow();
-    deps.stopJellyfinRemoteSession();
+    try {
+      deps.stopJellyfinRemoteSession();
+    } finally {
+      deps.cleanupJellyfinSubtitleCache();
+    }
     deps.cleanupYoutubeSubtitleTempDirs();
-    deps.cleanupJellyfinSubtitleCache();
     deps.stopDiscordPresenceService();
   };
 }

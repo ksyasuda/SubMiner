@@ -644,14 +644,10 @@
     "serverUrl": "", // Base Jellyfin server URL (for example: http://localhost:8096).
     "recentServers": [], // Recently authenticated Jellyfin server URLs shown in setup.
     "username": "", // Default Jellyfin username used during CLI login.
-    "deviceId": "subminer", // Stable device identifier sent on the Jellyfin authentication handshake; primarily internal.
-    "clientName": "SubMiner", // Client name sent on the Jellyfin authentication handshake; primarily internal.
-    "clientVersion": "0.1.0", // Client version sent on the Jellyfin authentication handshake; primarily internal.
     "defaultLibraryId": "", // Optional default Jellyfin library ID for item listing.
     "remoteControlEnabled": true, // Enable Jellyfin remote cast control mode. Values: true | false
     "remoteControlAutoConnect": true, // Auto-connect to the configured remote control target. Values: true | false
     "autoAnnounce": false, // When enabled, automatically trigger remote announce/visibility check on websocket connect. Values: true | false
-    "remoteControlDeviceName": "SubMiner", // Device name reported for Jellyfin remote control sessions.
     "pullPictures": false, // Enable Jellyfin poster/icon fetching for launcher menus. Values: true | false
     "iconCacheDir": "/tmp/subminer-jellyfin-icons", // Directory used by launcher for cached Jellyfin poster icons.
     "directPlayPreferred": true, // Try direct play before server-managed transcoding when possible. Values: true | false

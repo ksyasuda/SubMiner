@@ -51,6 +51,7 @@ export type JellyfinRemotePlayHandlerDeps = {
   getConfiguredSession: () => JellyfinSession | null;
   getClientInfo: () => JellyfinClientInfo;
   getJellyfinConfig: () => unknown;
+  getActivePlayback?: () => ActiveJellyfinRemotePlaybackState | null;
   playJellyfinItem: (params: {
     session: JellyfinSession;
     clientInfo: JellyfinClientInfo;
@@ -77,6 +78,9 @@ export function createHandleJellyfinRemotePlay(deps: JellyfinRemotePlayHandlerDe
     const itemId = itemIds[0];
     if (!itemId) {
       deps.logWarn('Ignoring Jellyfin remote Play event without ItemIds.');
+      return;
+    }
+    if (deps.getActivePlayback?.()?.itemId === itemId) {
       return;
     }
     await deps.playJellyfinItem({

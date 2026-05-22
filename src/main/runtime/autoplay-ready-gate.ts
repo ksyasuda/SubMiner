@@ -39,6 +39,12 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
   const getSignalMediaPath = (): string =>
     deps.getCurrentMediaPath()?.trim() || deps.getCurrentVideoPath()?.trim() || '__unknown__';
 
+  const markCurrentMediaAutoplayReady = (): void => {
+    pendingAutoplayReadySignal = null;
+    autoPlayReadySignalMediaPath = getSignalMediaPath();
+    autoPlayReadySignalGeneration += 1;
+  };
+
   const maybeSignalPluginAutoplayReady = (
     payload: SubtitleData,
     options?: { forceWhilePaused?: boolean },
@@ -58,6 +64,7 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
       forceWhilePaused: options?.forceWhilePaused === true,
       retryDelayMs: releaseRetryDelayMs,
     });
+    let releaseUnpauseSent = false;
 
     const isPlaybackPaused = async (client: MpvClientLike): Promise<boolean> => {
       try {
@@ -102,12 +109,20 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
           return;
         }
 
+        if (releaseUnpauseSent && deps.getPlaybackPaused() === true) {
+          deps.logDebug(
+            `[autoplay-ready] stopped release retries after playback paused again for media ${mediaPath}`,
+          );
+          return;
+        }
+
         const shouldUnpause = await isPlaybackPaused(mpvClient);
         if (!shouldUnpause) {
           return;
         }
 
         mpvClient.send({ command: ['set_property', 'pause', false] });
+        releaseUnpauseSent = true;
         if (attempt < maxReleaseAttempts) {
           deps.schedule(() => attemptRelease(playbackGeneration, attempt + 1), releaseRetryDelayMs);
         }
@@ -153,6 +168,7 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
     flushPendingAutoplayReadySignal,
     getAutoPlayReadySignalMediaPath: (): string | null => autoPlayReadySignalMediaPath,
     invalidatePendingAutoplayReadyFallbacks,
+    markCurrentMediaAutoplayReady,
     maybeSignalPluginAutoplayReady,
   };
 }

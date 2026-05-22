@@ -371,9 +371,6 @@ export function applyIntegrationConfig(context: ResolveContext): void {
     const stringKeys = [
       'serverUrl',
       'username',
-      'deviceId',
-      'clientName',
-      'clientVersion',
       'defaultLibraryId',
       'iconCacheDir',
       'transcodeVideoCodec',

@@ -61,6 +61,38 @@ test('createReportJellyfinRemoteProgressHandler reports playback progress', asyn
   assert.equal(lastProgressAtMs, 5000);
 });
 
+test('createReportJellyfinRemoteProgressHandler normalizes mpv pause strings', async () => {
+  const reportPayloads: Array<{ isPaused: boolean }> = [];
+
+  const reportProgress = createReportJellyfinRemoteProgressHandler({
+    getActivePlayback: () => ({
+      itemId: 'item-1',
+      playMethod: 'DirectPlay',
+    }),
+    clearActivePlayback: () => {},
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async (payload) => {
+        reportPayloads.push({ isPaused: payload.isPaused });
+      },
+      reportStopped: async () => {},
+    }),
+    getMpvClient: () => ({
+      requestProperty: async (name: string) => (name === 'pause' ? 'yes' : 3),
+    }),
+    getNow: () => 5000,
+    getLastProgressAtMs: () => 0,
+    setLastProgressAtMs: () => {},
+    progressIntervalMs: 3000,
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportProgress(true);
+
+  assert.deepEqual(reportPayloads, [{ isPaused: true }]);
+});
+
 test('createReportJellyfinRemoteProgressHandler respects debounce interval', async () => {
   let called = false;
   const reportProgress = createReportJellyfinRemoteProgressHandler({

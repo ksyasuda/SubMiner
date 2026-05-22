@@ -100,10 +100,11 @@ test('playback handler drives mpv commands and playback state', async () => {
     ['set_property', 'sid', 'no'],
     ['seek', 1.2, 'absolute+exact'],
   ]);
-  assert.equal(scheduled.length, 1);
-  assert.equal(scheduled[0]?.delay, 500);
-  scheduled[0]?.callback();
-  assert.deepEqual(commands[commands.length - 1], ['set_property', 'sid', 'no']);
+  assert.equal(scheduled.length, 0);
+  assert.equal(
+    commands.filter((command) => command[0] === 'set_property' && command[1] === 'sid').length,
+    1,
+  );
 
   assert.ok(calls.includes('defaults'));
   assert.ok(calls.includes('visible-overlay'));
@@ -131,6 +132,52 @@ test('playback handler drives mpv commands and playback state', async () => {
       itemId: 'item-1',
     },
   ]);
+});
+
+test('playback handler publishes Jellyfin title before loading tokenized stream url', async () => {
+  const timeline: string[] = [];
+  const handler = createPlayJellyfinItemInMpvHandler({
+    ensureMpvConnectedForPlayback: async () => true,
+    getMpvClient: () => ({ connected: true, send: () => {} }),
+    resolvePlaybackPlan: async () => ({
+      url: 'https://jellyfin.local/Videos/ep-1/stream?static=true&api_key=secret-token&MediaSourceId=ms-1',
+      mode: 'direct',
+      title: 'Galaxy Quest S02E07 A New Hope',
+      itemTitle: 'A New Hope',
+      seriesTitle: 'Galaxy Quest',
+      seasonNumber: 2,
+      episodeNumber: 7,
+      startTimeTicks: 0,
+      audioStreamIndex: null,
+      subtitleStreamIndex: null,
+    }),
+    applyJellyfinMpvDefaults: () => {},
+    showVisibleOverlay: () => {},
+    sendMpvCommand: (command) => timeline.push(`cmd:${command[0]}:${String(command[1] ?? '')}`),
+    armQuitOnDisconnect: () => {},
+    schedule: () => {},
+    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
+    preloadExternalSubtitles: () => {},
+    setActivePlayback: () => {},
+    setLastProgressAtMs: () => {},
+    reportPlaying: () => {},
+    showMpvOsd: () => {},
+    updateCurrentMediaTitle: (title) => timeline.push(`title:${title}`),
+  });
+
+  await handler({
+    session: baseSession,
+    clientInfo: baseClientInfo,
+    jellyfinConfig: {},
+    itemId: 'ep-1',
+  });
+
+  const titleIndex = timeline.indexOf('title:Galaxy Quest S02E07 A New Hope');
+  const loadIndex = timeline.findIndex((entry) => entry.startsWith('cmd:loadfile:'));
+  assert.ok(titleIndex >= 0);
+  assert.ok(loadIndex >= 0);
+  assert.ok(titleIndex < loadIndex);
+  assert.equal(timeline[titleIndex]?.includes('api_key'), false);
 });
 
 test('playback handler applies start override to stream url for remote resume', async () => {
@@ -176,4 +223,47 @@ test('playback handler applies start override to stream url for remote resume', 
   const parsed = new URL(loadedUrl);
   assert.equal(parsed.searchParams.get('StartTimeTicks'), '55000000');
   assert.deepEqual(commands[4], ['seek', 5.5, 'absolute+exact']);
+});
+
+test('playback handler does not let stats metadata failures block playback startup', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const handler = createPlayJellyfinItemInMpvHandler({
+    ensureMpvConnectedForPlayback: async () => true,
+    getMpvClient: () => ({ connected: true, send: () => {} }),
+    resolvePlaybackPlan: async () => ({
+      url: 'https://stream.example/video.m3u8',
+      mode: 'direct',
+      title: 'Episode 3',
+      itemTitle: 'Episode 3',
+      seriesTitle: null,
+      seasonNumber: null,
+      episodeNumber: null,
+      startTimeTicks: 0,
+      audioStreamIndex: null,
+      subtitleStreamIndex: null,
+    }),
+    applyJellyfinMpvDefaults: () => {},
+    showVisibleOverlay: () => {},
+    sendMpvCommand: (command) => commands.push(command),
+    armQuitOnDisconnect: () => {},
+    schedule: () => {},
+    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
+    preloadExternalSubtitles: () => {},
+    setActivePlayback: () => {},
+    setLastProgressAtMs: () => {},
+    reportPlaying: () => {},
+    showMpvOsd: () => {},
+    recordJellyfinPlaybackMetadata: () => {
+      throw new Error('stats db unavailable');
+    },
+  });
+
+  await handler({
+    session: baseSession,
+    clientInfo: baseClientInfo,
+    jellyfinConfig: {},
+    itemId: 'item-3',
+  });
+
+  assert.deepEqual(commands[1], ['loadfile', 'https://stream.example/video.m3u8', 'replace']);
 });

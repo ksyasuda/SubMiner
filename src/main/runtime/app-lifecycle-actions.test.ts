@@ -56,6 +56,50 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
   assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));
 });
 
+test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping remote session fails', () => {
+  const calls: string[] = [];
+  const cleanup = createOnWillQuitCleanupHandler({
+    destroyTray: () => {},
+    stopConfigHotReload: () => {},
+    restorePreviousSecondarySubVisibility: () => {},
+    restoreMpvSubVisibility: () => {},
+    unregisterAllGlobalShortcuts: () => {},
+    stopSubtitleWebsocket: () => {},
+    stopTexthookerService: () => {},
+    clearWindowsVisibleOverlayForegroundPollLoop: () => {},
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {},
+    destroyMainOverlayWindow: () => {},
+    destroyModalOverlayWindow: () => {},
+    destroyYomitanParserWindow: () => {},
+    clearYomitanParserState: () => {},
+    stopWindowTracker: () => {},
+    flushMpvLog: () => {},
+    destroyMpvSocket: () => {},
+    clearReconnectTimer: () => {},
+    destroySubtitleTimingTracker: () => {},
+    destroyImmersionTracker: () => {},
+    destroyAnkiIntegration: () => {},
+    destroyAnilistSetupWindow: () => {},
+    clearAnilistSetupWindow: () => {},
+    destroyJellyfinSetupWindow: () => {},
+    clearJellyfinSetupWindow: () => {},
+    destroyFirstRunSetupWindow: () => {},
+    clearFirstRunSetupWindow: () => {},
+    destroyYomitanSettingsWindow: () => {},
+    clearYomitanSettingsWindow: () => {},
+    stopJellyfinRemoteSession: () => {
+      calls.push('stop-jellyfin-remote');
+      throw new Error('stop failed');
+    },
+    cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
+    cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
+    stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
+  });
+
+  assert.throws(() => cleanup(), /stop failed/);
+  assert.deepEqual(calls, ['stop-jellyfin-remote', 'cleanup-jellyfin-subtitles']);
+});
+
 test('should restore windows on activate requires initialized runtime and no windows', () => {
   let initialized = false;
   let windowCount = 1;

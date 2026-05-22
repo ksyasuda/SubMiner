@@ -1253,7 +1253,6 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
     "remoteControlEnabled": true,
     "remoteControlAutoConnect": true,
     "autoAnnounce": false,
-    "remoteControlDeviceName": "SubMiner",
     "defaultLibraryId": "",
     "directPlayPreferred": true,
     "directPlayContainers": ["mkv", "mp4", "webm", "mov", "flac", "mp3", "aac"],
@@ -1268,21 +1267,17 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | `serverUrl`                | string (URL)    | Jellyfin server base URL                                                                                     |
 | `recentServers`            | string[]        | Recent Jellyfin server URLs shown in setup; entries are trimmed, deduped, and capped at 5                    |
 | `username`                 | string          | Default username used by `--jellyfin-login`                                                                  |
-| `deviceId`                 | string          | Client device id sent in auth headers (default: `subminer`)                                                  |
-| `clientName`               | string          | Client name sent in auth headers (default: `SubMiner`)                                                       |
-| `clientVersion`            | string          | Client version sent in auth headers (default: `0.1.0`)                                                       |
 | `defaultLibraryId`         | string          | Default library id for `--jellyfin-items` when CLI value is omitted                                          |
 | `remoteControlEnabled`     | `true`, `false` | Enable Jellyfin cast/remote-control session support                                                          |
 | `remoteControlAutoConnect` | `true`, `false` | Auto-connect Jellyfin remote session on app startup (requires `jellyfin.enabled` and `remoteControlEnabled`) |
 | `autoAnnounce`             | `true`, `false` | Auto-run cast-target visibility announce check on connect (default: `false`)                                 |
-| `remoteControlDeviceName`  | string          | Device name shown in Jellyfin cast/device lists                                                              |
 | `pullPictures`             | `true`, `false` | Enable poster/icon fetching for launcher Jellyfin pickers                                                    |
 | `iconCacheDir`             | string          | Cache directory for launcher-fetched Jellyfin poster icons                                                   |
 | `directPlayPreferred`      | `true`, `false` | Prefer direct stream URLs before transcoding                                                                 |
 | `directPlayContainers`     | string[]        | Container allowlist for direct play decisions                                                                |
 | `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                                                   |
 
-Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup. The legacy `jellyfin.accessToken` and `jellyfin.userId` config keys are not resolver-backed settings in the current runtime. The Settings window also hides low-level client identity and default library fields (`deviceId`, `clientName`, `clientVersion`, and `defaultLibraryId`) so normal setup stays focused on server, auth, playback, and remote-control behavior.
+Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup. The legacy `jellyfin.accessToken`, `jellyfin.userId`, `jellyfin.clientName`, `jellyfin.deviceId`, `jellyfin.clientVersion`, and `jellyfin.remoteControlDeviceName` config keys are not resolver-backed settings in the current runtime. SubMiner reports the Jellyfin client as `SubMiner`, derives the Jellyfin device id and visible device name from the OS hostname, and owns the client version internally. The Settings window also hides low-level default library fields (`defaultLibraryId`) so normal setup stays focused on server, auth, playback, and remote-control behavior.
 
 - On Linux, token storage defaults to `gnome-libsecret` for `safeStorage`. Override with `--password-store=<backend>` on launcher/app invocations when needed.
 

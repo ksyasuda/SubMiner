@@ -80,23 +80,20 @@ test('get resolved jellyfin config uses stored user id when env token set withou
 
 test('jellyfin client info resolves defaults when fields are missing', () => {
   const getClientInfo = createGetJellyfinClientInfoHandler({
-    getResolvedJellyfinConfig: () => ({ clientName: '', clientVersion: '', deviceId: '' }) as never,
-    getDefaultJellyfinConfig: () =>
-      ({
-        clientName: 'SubMiner',
-        clientVersion: '1.0.0',
-        deviceId: 'default-device',
-      }) as never,
+    getResolvedJellyfinConfig: () => ({ clientName: '' }) as never,
+    getHostName: () => 'workstation',
+    defaultClientName: 'SubMiner',
+    defaultClientVersion: '1.0.0',
   });
 
   assert.deepEqual(getClientInfo(), {
     clientName: 'SubMiner',
     clientVersion: '1.0.0',
-    deviceId: 'default-device',
+    deviceId: 'workstation',
   });
 });
 
-test('jellyfin client info keeps explicit config values', () => {
+test('jellyfin client info ignores legacy configured client name, device id, and version', () => {
   const getClientInfo = createGetJellyfinClientInfoHandler({
     getResolvedJellyfinConfig: () =>
       ({
@@ -104,17 +101,34 @@ test('jellyfin client info keeps explicit config values', () => {
         clientVersion: '2.3.4',
         deviceId: 'custom-device',
       }) as never,
-    getDefaultJellyfinConfig: () =>
-      ({
-        clientName: 'SubMiner',
-        clientVersion: '1.0.0',
-        deviceId: 'default-device',
-      }) as never,
+    getHostName: () => 'Kyle-PC',
+    defaultClientName: 'SubMiner',
+    defaultClientVersion: '1.0.0',
   });
 
   assert.deepEqual(getClientInfo(), {
-    clientName: 'Custom',
-    clientVersion: '2.3.4',
-    deviceId: 'custom-device',
+    clientName: 'SubMiner',
+    clientVersion: '1.0.0',
+    deviceId: 'Kyle-PC',
+  });
+});
+
+test('jellyfin client info ignores legacy configured device id and client version', () => {
+  const getClientInfo = createGetJellyfinClientInfoHandler({
+    getResolvedJellyfinConfig: () =>
+      ({
+        clientName: 'SubMiner',
+        clientVersion: '9.9.9',
+        deviceId: 'custom-device',
+      }) as never,
+    getHostName: () => 'media-box',
+    defaultClientName: 'SubMiner',
+    defaultClientVersion: '1.0.0',
+  });
+
+  assert.deepEqual(getClientInfo(), {
+    clientName: 'SubMiner',
+    clientVersion: '1.0.0',
+    deviceId: 'media-box',
   });
 });
