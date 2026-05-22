@@ -21,6 +21,7 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
     getLastKnownWindowsForegroundProcessName: () => 'mpv',
     getWindowsOverlayProcessName: () => 'subminer',
     getWindowsFocusHandoffGraceActive: () => true,
+    getMacOSForegroundProbeActive: () => true,
     getTrackerNotReadyWarningShown: () => trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown) => {
       trackerNotReadyWarningShown = shown;
@@ -47,6 +48,7 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
   assert.equal(deps.getLastKnownWindowsForegroundProcessName?.(), 'mpv');
   assert.equal(deps.getWindowsOverlayProcessName?.(), 'subminer');
   assert.equal(deps.getWindowsFocusHandoffGraceActive?.(), true);
+  assert.equal(deps.getMacOSForegroundProbeActive?.(), true);
   assert.equal(deps.getTrackerNotReadyWarningShown(), false);
   deps.setTrackerNotReadyWarningShown(true);
   deps.updateVisibleOverlayBounds({ x: 0, y: 0, width: 10, height: 10 });

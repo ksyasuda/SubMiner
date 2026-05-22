@@ -2280,6 +2280,7 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getLastKnownWindowsForegroundProcessName: () => lastWindowsVisibleOverlayForegroundProcessName,
     getWindowsOverlayProcessName: () => path.parse(process.execPath).name.toLowerCase(),
     getWindowsFocusHandoffGraceActive: () => hasWindowsVisibleOverlayFocusHandoffGrace(),
+    getMacOSForegroundProbeActive: () => macOSVisibleOverlayForegroundProbeActive,
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown: boolean) => {
       appState.trackerNotReadyWarningShown = shown;
@@ -2323,6 +2324,7 @@ const VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
 const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] as const;
 const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
 const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
+const MACOS_VISIBLE_OVERLAY_FOREGROUND_PROBE_TIMEOUT_MS = 1_200;
 let visibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderSyncInFlight = false;
@@ -2331,6 +2333,9 @@ let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> 
 let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
 let lastWindowsVisibleOverlayBlurredAtMs = 0;
 let visibleOverlayInteractionActive = false;
+let macOSVisibleOverlayForegroundProbeActive = false;
+let macOSVisibleOverlayForegroundProbeToken = 0;
+let macOSVisibleOverlayForegroundProbeTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const handleStatsOverlayVisibilityChanged = createStatsOverlayVisibilityChangeHandler({
   setStatsOverlayVisibleState: (visible) => {
@@ -2355,6 +2360,49 @@ function clearWindowsVisibleOverlayZOrderRetryTimeouts(): void {
     clearTimeout(timeout);
   }
   windowsVisibleOverlayZOrderRetryTimeouts = [];
+}
+
+function finishMacOSVisibleOverlayForegroundProbe(token: number): void {
+  if (token !== macOSVisibleOverlayForegroundProbeToken) {
+    return;
+  }
+  if (macOSVisibleOverlayForegroundProbeTimeout !== null) {
+    clearTimeout(macOSVisibleOverlayForegroundProbeTimeout);
+    macOSVisibleOverlayForegroundProbeTimeout = null;
+  }
+  if (!macOSVisibleOverlayForegroundProbeActive) {
+    return;
+  }
+  macOSVisibleOverlayForegroundProbeActive = false;
+  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+}
+
+function startMacOSVisibleOverlayForegroundProbe(): void {
+  if (process.platform !== 'darwin') {
+    return;
+  }
+  const tracker = appState.windowTracker;
+  if (!tracker) {
+    return;
+  }
+
+  macOSVisibleOverlayForegroundProbeActive = true;
+  const token = ++macOSVisibleOverlayForegroundProbeToken;
+  if (macOSVisibleOverlayForegroundProbeTimeout !== null) {
+    clearTimeout(macOSVisibleOverlayForegroundProbeTimeout);
+  }
+  macOSVisibleOverlayForegroundProbeTimeout = setTimeout(() => {
+    finishMacOSVisibleOverlayForegroundProbe(token);
+  }, MACOS_VISIBLE_OVERLAY_FOREGROUND_PROBE_TIMEOUT_MS);
+
+  void tracker
+    .refreshNow()
+    .catch((error) => {
+      logger.warn('Failed to refresh macOS frontmost app after overlay blur', error);
+    })
+    .finally(() => {
+      finishMacOSVisibleOverlayForegroundProbe(token);
+    });
 }
 
 function getWindowsNativeWindowHandle(window: BrowserWindow): string {
@@ -2555,6 +2603,7 @@ function scheduleVisibleOverlayBlurRefresh(): void {
   if (process.platform === 'win32') {
     lastWindowsVisibleOverlayBlurredAtMs = Date.now();
   }
+  startMacOSVisibleOverlayForegroundProbe();
   clearVisibleOverlayBlurRefreshTimeouts();
   for (const delayMs of VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS) {
     const refreshTimeout = setTimeout(() => {

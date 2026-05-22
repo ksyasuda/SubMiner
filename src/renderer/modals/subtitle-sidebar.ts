@@ -1,6 +1,11 @@
 import type { SubtitleCue, SubtitleData, SubtitleSidebarSnapshot } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
+import {
+  YOMITAN_POPUP_HIDDEN_EVENT,
+  YOMITAN_POPUP_SHOWN_EVENT,
+  isYomitanPopupVisible,
+} from '../yomitan-popup.js';
 
 const MANUAL_SCROLL_HOLD_MS = 1500;
 const ACTIVE_CUE_LOOKAHEAD_SEC = 0.18;
@@ -194,6 +199,8 @@ export function createSubtitleSidebarModal(
   let disposeDomEvents: (() => void) | null = null;
   let subtitleSidebarHovered = false;
   let subtitleSidebarFocusedWithin = false;
+  let subtitleSidebarYomitanPopupVisible = false;
+  let subtitleSidebarPauseHeldByYomitanPopup = false;
 
   function restoreEmbeddedSidebarPassthrough(): void {
     syncOverlayMouseIgnoreState(ctx);
@@ -323,16 +330,63 @@ export function createSubtitleSidebarModal(
     return `Jump to subtitle at ${formatCueTimestamp(cue.startTime)}`;
   }
 
+  function isYomitanPopupVisibleForSidebar(): boolean {
+    if (subtitleSidebarYomitanPopupVisible || ctx.state.yomitanPopupVisible) {
+      return true;
+    }
+    if (typeof document === 'undefined') {
+      return false;
+    }
+    return isYomitanPopupVisible(document);
+  }
+
+  function shouldHoldSidebarPauseForYomitanPopup(): boolean {
+    return (
+      ctx.state.autoPauseVideoOnYomitanPopup &&
+      ctx.state.subtitleSidebarPausedByHover &&
+      isYomitanPopupVisibleForSidebar()
+    );
+  }
+
   function resumeSubtitleSidebarHoverPause(): void {
     subtitleSidebarHoverRequestId += 1;
     if (!ctx.state.subtitleSidebarPausedByHover) {
+      subtitleSidebarPauseHeldByYomitanPopup = false;
       restoreEmbeddedSidebarPassthrough();
       return;
     }
 
+    if (shouldHoldSidebarPauseForYomitanPopup()) {
+      subtitleSidebarPauseHeldByYomitanPopup = true;
+      restoreEmbeddedSidebarPassthrough();
+      return;
+    }
+
+    subtitleSidebarPauseHeldByYomitanPopup = false;
     ctx.state.subtitleSidebarPausedByHover = false;
     window.electronAPI.sendMpvCommand(['set_property', 'pause', 'no']);
     restoreEmbeddedSidebarPassthrough();
+  }
+
+  function handleYomitanPopupShown(): void {
+    subtitleSidebarYomitanPopupVisible = true;
+    if (ctx.state.autoPauseVideoOnYomitanPopup && ctx.state.subtitleSidebarPausedByHover) {
+      subtitleSidebarPauseHeldByYomitanPopup = true;
+    }
+  }
+
+  function handleYomitanPopupHidden(): void {
+    subtitleSidebarYomitanPopupVisible = false;
+    if (!subtitleSidebarPauseHeldByYomitanPopup) {
+      return;
+    }
+
+    subtitleSidebarPauseHeldByYomitanPopup = false;
+    if (ctx.state.isOverSubtitleSidebar) {
+      restoreEmbeddedSidebarPassthrough();
+      return;
+    }
+    resumeSubtitleSidebarHoverPause();
   }
 
   function maybeAutoScrollActiveCue(
@@ -660,8 +714,12 @@ export function createSubtitleSidebarModal(
       syncEmbeddedSidebarLayout();
     };
     window.addEventListener('resize', resizeHandler);
+    window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, handleYomitanPopupShown);
+    window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, handleYomitanPopupHidden);
     disposeDomEvents = () => {
       window.removeEventListener('resize', resizeHandler);
+      window.removeEventListener(YOMITAN_POPUP_SHOWN_EVENT, handleYomitanPopupShown);
+      window.removeEventListener(YOMITAN_POPUP_HIDDEN_EVENT, handleYomitanPopupHidden);
       disposeDomEvents = null;
     };
   }

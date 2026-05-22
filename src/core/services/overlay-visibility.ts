@@ -71,6 +71,7 @@ export function updateVisibleOverlayVisibility(args: {
   lastKnownWindowsForegroundProcessName?: string | null;
   windowsOverlayProcessName?: string | null;
   windowsFocusHandoffGraceActive?: boolean;
+  macOSForegroundProbeActive?: boolean;
   trackerNotReadyWarningShown: boolean;
   setTrackerNotReadyWarningShown: (shown: boolean) => void;
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
@@ -128,6 +129,12 @@ export function updateVisibleOverlayVisibility(args: {
     const isTrackedMacOSTargetMinimized =
       canReportMacOSTargetMinimized && windowTracker?.isTargetWindowMinimized() === true;
     const trackedMacOSTargetFocused = args.windowTracker?.isTargetWindowFocused?.();
+    const shouldPreserveMacOSOverlayDuringForegroundProbe =
+      args.isMacOSPlatform &&
+      args.macOSForegroundProbeActive === true &&
+      !!windowTracker &&
+      !isTrackedMacOSTargetMinimized &&
+      (windowTracker.isTracking() || windowTracker.getGeometry() !== null);
     const hasTransientMacOSTrackerLoss =
       args.isMacOSPlatform &&
       canReportMacOSTargetMinimized &&
@@ -137,7 +144,10 @@ export function updateVisibleOverlayVisibility(args: {
       trackedMacOSTargetFocused !== false &&
       mainWindow.isVisible();
     const isTrackedMacOSTargetFocused =
-      hasTransientMacOSTrackerLoss || !args.isMacOSPlatform || !args.windowTracker
+      hasTransientMacOSTrackerLoss ||
+      shouldPreserveMacOSOverlayDuringForegroundProbe ||
+      !args.isMacOSPlatform ||
+      !args.windowTracker
         ? true
         : (trackedMacOSTargetFocused ?? true);
     const shouldReleaseMacOSOverlayLevel =

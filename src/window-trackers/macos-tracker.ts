@@ -196,7 +196,7 @@ export function parseMacOSHelperOutput(result: string): MacOSHelperWindowState |
 
 export class MacOSWindowTracker extends BaseWindowTracker {
   private pollTimeout: ReturnType<typeof setTimeout> | null = null;
-  private pollInFlight = false;
+  private pollInFlightPromise: Promise<void> | null = null;
   private started = false;
   private helperPath: string | null = null;
   private helperType: 'binary' | 'swift' | null = null;
@@ -357,12 +357,17 @@ export class MacOSWindowTracker extends BaseWindowTracker {
       return;
     }
     this.started = true;
-    this.pollGeometry();
+    void this.pollGeometry();
   }
 
   stop(): void {
     this.started = false;
     this.clearScheduledPoll();
+  }
+
+  override refreshNow(): Promise<void> {
+    this.clearScheduledPoll();
+    return this.pollGeometry();
   }
 
   override isTargetWindowMinimized(): boolean {
@@ -443,13 +448,19 @@ export class MacOSWindowTracker extends BaseWindowTracker {
     }, this.resolveNextPollIntervalMs());
   }
 
-  private pollGeometry(): void {
-    if (this.pollInFlight || !this.helperPath || !this.helperType) {
-      return;
+  private pollGeometry(): Promise<void> {
+    if (this.pollInFlightPromise) {
+      return this.pollInFlightPromise;
+    }
+    if (!this.helperPath || !this.helperType) {
+      return Promise.resolve();
     }
 
-    this.pollInFlight = true;
-    void this.runHelper(this.helperPath, this.helperType, this.targetMpvSocketPath)
+    this.pollInFlightPromise = this.runHelper(
+      this.helperPath,
+      this.helperType,
+      this.targetMpvSocketPath,
+    )
       .then(({ stdout }) => {
         const parsed = parseMacOSHelperOutput(stdout || '');
         if (parsed) {
@@ -495,8 +506,9 @@ export class MacOSWindowTracker extends BaseWindowTracker {
         this.registerTrackingMiss();
       })
       .finally(() => {
-        this.pollInFlight = false;
+        this.pollInFlightPromise = null;
         this.scheduleNextPoll();
       });
+    return this.pollInFlightPromise;
   }
 }
