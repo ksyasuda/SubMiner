@@ -1,10 +1,6 @@
 > This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.
 
 ## Highlights
-### Breaking Changes
-
-- **Settings Window:** The Configuration window is now called the Settings window everywhere — UI, tray menu, docs, and CLI. `--config` and `subminer config` (no action) are replaced by `--settings` and `subminer settings`; `subminer config` now only accepts `path` or `show`. The `--settings` alias that previously opened the Yomitan settings popup is removed — use `--yomitan` instead.
-
 ### Added
 
 - **Settings Window:** A dedicated Settings window is now available via `subminer --settings` or `subminer settings`. Options are organized into Appearance, Behavior, Anki, Input, and Integration sections with learned keybinding controls, AnkiConnect-backed deck/field/note-type pickers, and live reload for stats keys, logging level, Jimaku, Subsync, YouTube language defaults, and Anki field mappings. AI and translation fields remain supported in config files only.
@@ -17,15 +13,11 @@
 
 ### Changed
 
-- **Settings Window:** Option rows no longer display raw config paths; live/restart status is shown inline beside each option title. Known-words deck rows are now cards with the deck name on a separate header line so long names remain readable. Playback, shortcut, WebSocket, tracking, Jellyfin, character dictionary, and Discord presence controls have been reorganized.
-
 - **Subtitle Appearance:** Primary and secondary subtitle appearance now use color controls plus CSS declaration editors, saved as `subtitleStyle.css` and `subtitleStyle.secondary.css`. Existing configs are migrated automatically. Sidebar appearance is now configured via `subtitleSidebar.css`; the default subtitle font is updated to `Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP`.
 
 - **Known-Word Colors:** Known-word and N+1 annotation colors moved to `subtitleStyle.knownWordColor` and `subtitleStyle.nPlusOneColor`. Legacy Anki color keys are still accepted with deprecation warnings. Existing configs that had known-word highlighting enabled retain N+1 highlighting; new configs leave N+1 disabled unless `ankiConnect.nPlusOne.enabled` is explicitly set.
 
 - **Linux Updater:** Tray "Check for Updates" now automatically installs the new AppImage via `electron-updater`, matching the macOS and Windows tray flow. AppImages managed by a system package (e.g. AUR `/opt/SubMiner`) and non-AppImage launches fall back to the GitHub-asset flow.
-
-- **Subsync:** Always opens the manual subtitle picker. The `subsync.defaultMode` config option has been removed.
 
 - **Jellyfin:** The server presets dropdown in Jellyfin setup is removed; setup now shows a single editable server URL field.
 
@@ -47,17 +39,13 @@
 
 - **Character Dictionary:** Cached media matches are reused when loading a title with an existing snapshot, avoiding redundant AniList search requests on repeat visits.
 
-- **Updater — Linux:** The tray app now uses GitHub release metadata for update checks instead of the native Electron updater, preventing crashes. `subminer -u` performs updates independently of any running tray instance and correctly reports "up to date" without downloading assets when no newer release exists. Update check traffic is routed through `/usr/bin/curl` to avoid Electron network-service crashes during video startup.
+- **Updater:** Update checks are more stable across platforms: Linux uses GitHub release metadata instead of the native Electron updater, `subminer -u` can update independently of the tray app, macOS update dialogs come to the front reliably, unsupported builds show a manual-install message, and Windows keeps the native NSIS update path while routing updater HTTP through the main process. GitHub release lookups now avoid Electron networking on Linux and macOS.
 
-- **Updater — macOS:** Update dialogs now reliably come to the front when launched from `subminer --update`. Builds that cannot install native updates show a manual-install message instead of an inapplicable restart prompt. Signed macOS builds remain on the native `electron-updater`/Squirrel path; supplemental GitHub release lookups are routed through `/usr/bin/curl`, eliminating the last Electron-networking path from background update checks.
-
-- **Updater — Windows:** Automatic updates keep the native `electron-updater`/NSIS install path enabled while routing updater HTTP through main-process fetch, avoiding the delayed app exit seen shortly after launch.
-
-- **Setup — macOS:** First-run setup now recognizes existing `subminer` launcher installs in Homebrew or user PATH directories, and manual setup avoids writing into Homebrew-owned paths. `subminer app --setup` opens the setup flow even when SubMiner is already running in the background. The standalone setup app quits after completing first-run setup, and `subminer settings` exits cleanly when the window is closed — both return control to the terminal without requiring Ctrl+C.
+- **Setup - macOS:** First-run setup now recognizes existing `subminer` launcher installs in Homebrew or user PATH directories, and manual setup avoids writing into Homebrew-owned paths. `subminer app --setup` opens the setup flow even when SubMiner is already running in the background. The standalone setup app quits after completing first-run setup, and `subminer settings` exits cleanly when the window is closed - both return control to the terminal without requiring Ctrl+C.
 
 - **Tray App:** Fixed several lifecycle issues with tray-launched Yomitan settings: the tray stays running when settings are closed; settings loading no longer blocks other tray actions; the settings window uses a close-only menu to prevent accidentally quitting the tray app; an in-page close button is provided on Hyprland where native window controls are unavailable; the embedded popup preview is disabled to prevent renderer hangs during sidebar navigation; extension refreshes at startup are serialized to prevent race conditions; and the session help modal can now close correctly without mpv running.
 
-- **Launcher — Linux:** First-run launcher installs are now built with a valid Bun shebang, fixing installs that previously failed silently.
+- **Launcher - Linux:** First-run launcher installs are now built with a valid Bun shebang, fixing installs that previously failed silently.
 
 - **Launcher:** Launcher-opened videos now reuse an already-running background SubMiner instance and correctly reapply preferred subtitles on warm launches. Videos stay paused when attaching to a running background app until subtitle priming and tokenization readiness complete. Launcher-owned tray apps close after playback ends.
 
@@ -79,9 +67,7 @@
 
 - **Settings:** Settings window search now searches across all categories, narrows correctly on multi-word terms, and hides settings with dedicated editors. Live saves for subtitle CSS declarations apply immediately to open overlays. Legacy subtitle appearance options and hover token colors are automatically migrated into `subtitleStyle.css`.
 
-- **Config:** User config files are preserved during legacy compatibility handling. The note-fields note-type picker now defaults to the configured Anki deck's note type, falling back to `Kiku`, then `Lapis`, then blank for manual selection.
-
-- **Build — Linux:** Fixed one-shot `make clean build install` flows so the install step correctly picks up the AppImage produced earlier in the same make invocation.
+- **Build - Linux:** Fixed one-shot `make clean build install` flows so the install step correctly picks up the AppImage produced earlier in the same make invocation.
 
 ### Docs
 
