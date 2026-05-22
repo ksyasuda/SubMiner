@@ -114,7 +114,7 @@ Automatic checks log failures quietly so playback is not interrupted.
 
 **"SubMiner is up to date" but a prerelease exists**
 
-SubMiner defaults to stable GitHub releases. Set `updates.channel` to `"prerelease"` in `config.jsonc` when you want update checks to include beta and RC releases.
+SubMiner uses the configured release channel for update checks. Set `updates.channel` to `"prerelease"` in `config.jsonc` when you want update checks to include beta and RC releases.
 
 **Launcher update shows a sudo command**
 

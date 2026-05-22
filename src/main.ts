@@ -2801,6 +2801,7 @@ const {
   reportJellyfinRemoteStopped,
   startJellyfinRemoteSession,
   stopJellyfinRemoteSession,
+  cleanupJellyfinSubtitleCache,
   runJellyfinCommand,
   openJellyfinSetupWindow,
   getJellyfinClientInfo,
@@ -2824,6 +2825,15 @@ const {
     getLaunchMode: () => getResolvedConfig().mpv.launchMode,
     platform: process.platform,
     execPath: process.execPath,
+    getRuntimePluginEntrypoint: () => resolveBundledMpvRuntimePluginEntrypoint(),
+    getInstalledPluginDetection: () =>
+      detectInstalledMpvPlugin({
+        platform: process.platform,
+        homeDir: os.homedir(),
+        xdgConfigHome: process.env.XDG_CONFIG_HOME,
+        appDataDir: app.getPath('appData'),
+        mpvExecutablePath: getResolvedConfig().mpv.executablePath,
+      }),
     getPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
     defaultMpvLogPath: DEFAULT_MPV_LOG_PATH,
     defaultMpvArgs: MPV_JELLYFIN_DEFAULT_ARGS,
@@ -2859,6 +2869,41 @@ const {
       sendMpvCommandRuntime(appState.mpvClient, command);
     },
     wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    cacheSubtitleTrack: async (track) => {
+      if (!track.deliveryUrl) {
+        throw new Error('Jellyfin subtitle track has no delivery URL');
+      }
+
+      const cacheDir = await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), 'subminer-jellyfin-subtitles-'),
+      );
+      const urlPath = (() => {
+        try {
+          return new URL(track.deliveryUrl).pathname;
+        } catch {
+          return track.deliveryUrl;
+        }
+      })();
+      const ext = path.extname(urlPath).slice(0, 16) || '.srt';
+      const subtitlePath = path.join(cacheDir, `track-${track.index}${ext}`);
+      try {
+        const response = await fetch(track.deliveryUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to download Jellyfin subtitle (HTTP ${response.status})`);
+        }
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        await fs.promises.writeFile(subtitlePath, bytes);
+      } catch (error) {
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+        throw error;
+      }
+      return { path: subtitlePath, cleanupDir: cacheDir };
+    },
+    cleanupCachedSubtitles: (dirs) => {
+      for (const dir of dirs) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    },
     logDebug: (message, error) => {
       logger.debug(message, error);
     },
@@ -2877,6 +2922,7 @@ const {
         },
       ),
     applyJellyfinMpvDefaults: (mpvClient) => applyJellyfinMpvDefaults(mpvClient),
+    showVisibleOverlay: () => setVisibleOverlayVisible(true),
     sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
     armQuitOnDisconnect: () => {
       jellyfinPlayQuitOnDisconnectArmed = false;
@@ -2899,6 +2945,10 @@ const {
     },
     showMpvOsd: (text) => {
       showMpvOsd(text);
+    },
+    recordJellyfinPlaybackMetadata: (metadata) => {
+      ensureImmersionTrackerStarted();
+      appState.immersionTracker?.recordJellyfinPlaybackMetadata(metadata);
     },
   },
   remoteComposerOptions: {
@@ -3670,6 +3720,7 @@ const {
     },
     stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
     cleanupYoutubeSubtitleTempDirs: () => youtubeFlowRuntime.cleanupSubtitleTempDirs(),
+    cleanupJellyfinSubtitleCache: () => cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => {
       void appState.discordPresenceService?.stop();
       appState.discordPresenceService = null;

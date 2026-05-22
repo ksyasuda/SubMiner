@@ -4,6 +4,7 @@ import { openSubsyncManualModal } from './subsync-open';
 import type { SubsyncManualPayload } from '../../types';
 
 const payload: SubsyncManualPayload = {
+  ffsubsyncAvailable: true,
   sourceTracks: [{ id: 2, label: 'External #2 - eng' }],
 };
 

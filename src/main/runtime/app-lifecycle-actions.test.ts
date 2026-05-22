@@ -41,6 +41,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     clearYomitanSettingsWindow: () => calls.push('clear-yomitan-settings-window'),
     stopJellyfinRemoteSession: () => calls.push('stop-jellyfin-remote'),
     cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
+    cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
     stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
   });
 
@@ -48,6 +49,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
   assert.equal(calls.length, 31);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-discord-presence');
+  assert.ok(calls.includes('cleanup-jellyfin-subtitles'));
   assert.ok(calls.includes('clear-windows-visible-overlay-poll'));
   assert.ok(calls.includes('clear-linux-mpv-fullscreen-overlay-refresh-timeouts'));
   assert.ok(calls.includes('cleanup-youtube-subtitles'));

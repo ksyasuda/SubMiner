@@ -34,6 +34,8 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
     getLaunchMode: () => 'maximized',
     platform: 'darwin',
     execPath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
+    getRuntimePluginEntrypoint: () =>
+      '/Applications/SubMiner.app/Contents/Resources/plugin/subminer/main.lua',
     defaultMpvLogPath: '/tmp/mp.log',
     defaultMpvArgs: ['--sid=auto'],
     removeSocketPath: () => {},
@@ -52,6 +54,11 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
   assert.equal(spawnedArgs.length, 1);
   assert.ok(spawnedArgs[0]!.includes('--window-maximized=yes'));
   assert.ok(spawnedArgs[0]!.includes('--idle=yes'));
+  assert.ok(
+    spawnedArgs[0]!.includes(
+      '--script=/Applications/SubMiner.app/Contents/Resources/plugin/subminer/main.lua',
+    ),
+  );
   assert.ok(spawnedArgs[0]!.some((arg) => arg.includes('--input-ipc-server=/tmp/subminer.sock')));
   assert.ok(logs.some((entry) => entry.includes('Launched mpv for Jellyfin playback')));
 });
@@ -99,6 +106,43 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler forwards runtime plugin conf
   assert.match(scriptOpts ?? '', /subminer-texthooker_enabled=no/);
   assert.match(scriptOpts ?? '', /subminer-aniskip_enabled=yes/);
   assert.match(scriptOpts ?? '', /subminer-aniskip_button_key=F8/);
+});
+
+test('createLaunchMpvIdleForJellyfinPlaybackHandler skips bundled script when installed plugin exists', () => {
+  const spawnedArgs: string[][] = [];
+  const launch = createLaunchMpvIdleForJellyfinPlaybackHandler({
+    getSocketPath: () => '/tmp/subminer.sock',
+    getLaunchMode: () => 'normal',
+    platform: 'linux',
+    execPath: '/opt/SubMiner/SubMiner.AppImage',
+    getRuntimePluginEntrypoint: () => '/opt/SubMiner/plugin/subminer/main.lua',
+    getInstalledPluginDetection: () => ({
+      installed: true,
+      path: '/home/tester/.config/mpv/scripts/subminer/main.lua',
+      version: '0.1.0',
+      source: 'default-config',
+      message: null,
+    }),
+    defaultMpvLogPath: '/tmp/mp.log',
+    defaultMpvArgs: ['--sid=auto'],
+    removeSocketPath: () => {},
+    spawnMpv: (args) => {
+      spawnedArgs.push(args);
+      return {
+        on: () => {},
+        unref: () => {},
+      };
+    },
+    logWarn: () => {},
+    logInfo: () => {},
+  });
+
+  launch();
+  assert.equal(
+    spawnedArgs[0]?.some((arg) => arg.startsWith('--script=/opt/SubMiner/plugin/subminer')),
+    false,
+  );
+  assert.ok(spawnedArgs[0]?.some((arg) => arg.startsWith('--script-opts=')));
 });
 
 test('createEnsureMpvConnectedForJellyfinPlaybackHandler auto-launches once', async () => {

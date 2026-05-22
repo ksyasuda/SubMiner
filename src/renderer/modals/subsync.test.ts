@@ -83,6 +83,7 @@ function createTestHarness(runSubsyncManual: () => Promise<{ ok: boolean; messag
 
   const subsyncEngineFfsubsync = {
     checked: false,
+    disabled: false,
     addEventListener: engineFfsubsyncEvents.addEventListener,
     dispatch: engineFfsubsyncEvents.dispatch,
   };
@@ -194,6 +195,7 @@ test('manual subsync failure closes during run, then reopens modal with error', 
     harness.modal.wireDomEvents();
     harness.modal.openSubsyncModal({
       sourceTracks: [{ id: 2, label: 'External #2 - eng' }],
+      ffsubsyncAvailable: true,
     });
 
     harness.runButton.dispatch('click');
@@ -220,6 +222,24 @@ test('manual subsync failure closes during run, then reopens modal with error', 
     assert.equal(harness.ctx.dom.subsyncSourceSelect.value, '2');
     assert.equal(harness.getNotifyClosedCalls(), 1);
     assert.equal(harness.getNotifyOpenedCalls(), 1);
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('subsync modal disables ffsubsync when payload marks it unavailable', () => {
+  const harness = createTestHarness(async () => ({ ok: true, message: 'ok' }));
+
+  try {
+    harness.modal.openSubsyncModal({
+      sourceTracks: [{ id: 2, label: 'External #2 - eng' }],
+      ffsubsyncAvailable: false,
+    });
+
+    assert.equal(harness.ctx.dom.subsyncEngineAlass.checked, true);
+    assert.equal(harness.ctx.dom.subsyncEngineFfsubsync.checked, false);
+    assert.equal(harness.ctx.dom.subsyncEngineFfsubsync.disabled, true);
+    assert.equal(harness.ctx.dom.subsyncStatus.textContent, 'Choose alass source, then run.');
   } finally {
     harness.restoreGlobals();
   }

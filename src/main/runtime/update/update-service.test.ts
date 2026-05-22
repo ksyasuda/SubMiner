@@ -361,3 +361,38 @@ test('manual prerelease update check uses prerelease release and launcher channe
     'restart-dialog',
   ]);
 });
+
+test('manual update check keeps current prerelease builds on configured stable channel', async () => {
+  const { deps, calls } = createDeps({
+    getCurrentVersion: () => '0.15.0-beta.3',
+    checkAppUpdate: async (channel) => {
+      calls.push(`app:${channel}`);
+      return { available: false, version: '0.15.0-beta.3' };
+    },
+    fetchLatestStableRelease: async (channel) => {
+      calls.push(`fetch:${channel}`);
+      return {
+        tag_name: 'v0.14.0',
+        prerelease: false,
+        draft: false,
+        assets: [],
+      };
+    },
+    showNoUpdateDialog: async (version) => {
+      calls.push(`no-update:${version}`);
+    },
+    showUpdateAvailableDialog: async () => {
+      throw new Error('unexpected update dialog');
+    },
+  });
+  const service = createUpdateService(deps);
+
+  const result = await service.checkForUpdates({ source: 'manual' });
+
+  assert.equal(result.status, 'up-to-date');
+  assert.deepEqual(calls, [
+    'app:stable',
+    'fetch:stable',
+    'no-update:0.15.0-beta.3',
+  ]);
+});

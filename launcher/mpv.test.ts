@@ -819,6 +819,7 @@ test('startOverlay uses caller config dir for app control socket discovery', asy
   const { dir, socketPath } = createTempSocketPath();
   const configDir = path.join(dir, 'launcher-config');
   const controlSocketPath = getAppControlSocketPath({ configDir, platform: 'linux' });
+  fs.mkdirSync(configDir, { recursive: true });
   const appPath = path.join(dir, 'fake-subminer.sh');
   const appInvocationsPath = path.join(dir, 'app-invocations.log');
   const receivedControlArgv: string[][] = [];

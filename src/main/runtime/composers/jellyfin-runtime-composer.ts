@@ -142,6 +142,7 @@ export type JellyfinRuntimeComposerResult = ComposerOutputs<{
     typeof composeJellyfinRemoteHandlers
   >['handleJellyfinRemoteGeneralCommand'];
   playJellyfinItemInMpv: ReturnType<typeof createPlayJellyfinItemInMpvHandler>;
+  cleanupJellyfinSubtitleCache: () => void;
   startJellyfinRemoteSession: ReturnType<typeof createStartJellyfinRemoteSessionHandler>;
   stopJellyfinRemoteSession: ReturnType<typeof createStopJellyfinRemoteSessionHandler>;
   runJellyfinCommand: ReturnType<typeof createRunJellyfinCommandHandler>;
@@ -280,6 +281,7 @@ export function composeJellyfinRuntimeHandlers(
     handleJellyfinRemotePlaystate,
     handleJellyfinRemoteGeneralCommand,
     playJellyfinItemInMpv,
+    cleanupJellyfinSubtitleCache: () => preloadJellyfinExternalSubtitles.cleanupCachedSubtitles(),
     startJellyfinRemoteSession,
     stopJellyfinRemoteSession,
     runJellyfinCommand,

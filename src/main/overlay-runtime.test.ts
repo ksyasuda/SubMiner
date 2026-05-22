@@ -313,7 +313,7 @@ test('handleOverlayModalClosed hides modal window only after all pending modals 
   });
   runtime.sendToActiveOverlayWindow(
     'subsync:open-manual',
-    { sourceTracks: [] },
+    { ffsubsyncAvailable: true, sourceTracks: [] },
     {
       restoreOnModalClose: 'subsync',
     },
@@ -459,7 +459,7 @@ test('modal runtime notifies callers when modal input state becomes active/inact
   });
   runtime.sendToActiveOverlayWindow(
     'subsync:open-manual',
-    { sourceTracks: [] },
+    { ffsubsyncAvailable: true, sourceTracks: [] },
     {
       restoreOnModalClose: 'subsync',
     },

@@ -141,23 +141,140 @@ export function buildJellyfinSetupFormHtml(state: JellyfinSetupViewState): strin
   <meta charset="utf-8" />
   <title>Jellyfin Setup</title>
   <style>
-    :root { color-scheme: dark; --bg: #10130f; --panel: #191d17; --line: #414835; --text: #f0f2e8; --muted: #b6bca8; --accent: #a7d129; --danger: #ff786f; }
-    body { font-family: Georgia, "Times New Roman", serif; margin: 0; background: radial-gradient(circle at 20% 0%, #24301b 0, #10130f 42%); color: var(--text); }
-    main { padding: 22px; }
-    h1 { margin: 0 0 8px; font-size: 24px; letter-spacing: 0; }
-    p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.45; }
-    label { display: block; margin: 12px 0 5px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-    input { width: 100%; box-sizing: border-box; padding: 10px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font: inherit; }
-    button { padding: 10px 12px; border: 1px solid #6f831f; border-radius: 6px; font-weight: 700; cursor: pointer; background: var(--accent); color: #14170f; }
-    button:disabled { cursor: wait; opacity: .68; }
-    button.secondary { background: transparent; color: var(--text); border-color: var(--line); }
-    button.danger { background: transparent; color: var(--danger); border-color: #6b332f; }
-    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+    :root {
+      color-scheme: dark;
+      --ctp-red: #ed8796;
+      --ctp-peach: #f5a97f;
+      --ctp-yellow: #eed49f;
+      --ctp-green: #a6da95;
+      --ctp-blue: #8aadf4;
+      --ctp-lavender: #b7bdf8;
+      --ctp-text: #cad3f5;
+      --ctp-subtext1: #b8c0e0;
+      --ctp-subtext0: #a5adcb;
+      --ctp-overlay2: #939ab7;
+      --ctp-overlay1: #8087a2;
+      --ctp-overlay0: #6e738d;
+      --ctp-surface1: #494d64;
+      --ctp-surface0: #363a4f;
+      --ctp-base: #24273a;
+      --ctp-mantle: #1e2030;
+      --ctp-crust: #181926;
+      --line: rgba(110, 115, 141, 0.28);
+      --line-soft: rgba(110, 115, 141, 0.14);
+      --text: var(--ctp-text);
+      --muted: var(--ctp-subtext0);
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    html { background: var(--ctp-base); }
+    body {
+      min-height: 100vh;
+      background: var(--ctp-base);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+      font-size: 13px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    main { padding: 32px 22px; max-width: 520px; margin: 0 auto; }
+    h1 { margin: 0 0 6px; font-size: 20px; font-weight: 800; color: var(--ctp-text); letter-spacing: -0.01em; }
+    p { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    label { display: block; margin: 14px 0 6px; font-size: 11px; font-weight: 800; color: var(--ctp-overlay2); text-transform: uppercase; letter-spacing: 0.1em; }
+    input {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(24, 25, 38, 0.85);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+      transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+    }
+    input::placeholder { color: var(--ctp-overlay0); }
+    input:hover { border-color: rgba(138, 173, 244, 0.32); }
+    input:focus {
+      border-color: rgba(138, 173, 244, 0.65);
+      background: rgba(24, 25, 38, 0.95);
+      box-shadow: 0 0 0 3px rgba(138, 173, 244, 0.15);
+    }
+    button {
+      height: 36px;
+      padding: 0 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font: inherit;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 60ms ease;
+    }
+    button:active { transform: translateY(1px); }
+    button:disabled { cursor: wait; opacity: 0.7; }
+    button.primary {
+      border-color: transparent;
+      background: var(--ctp-blue);
+      color: var(--ctp-crust);
+    }
+    button.primary:hover:not(:disabled) { filter: brightness(1.06); }
+    button.primary:disabled {
+      background: rgba(54, 58, 79, 0.55);
+      color: var(--ctp-overlay0);
+      border-color: var(--line);
+    }
+    button.secondary {
+      background: rgba(54, 58, 79, 0.5);
+      color: var(--text);
+    }
+    button.secondary:hover:not(:disabled) {
+      border-color: rgba(138, 173, 244, 0.45);
+      background: rgba(73, 77, 100, 0.6);
+      color: var(--ctp-lavender);
+    }
+    button.danger {
+      background: rgba(237, 135, 150, 0.12);
+      color: var(--ctp-red);
+      border-color: rgba(237, 135, 150, 0.45);
+    }
+    button.danger:hover:not(:disabled) {
+      background: rgba(237, 135, 150, 0.22);
+    }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
     .actions .primary { grid-column: 1 / -1; }
-    .status { min-height: 18px; margin-top: 12px; font-size: 13px; color: var(--muted); }
-    .status.success { color: var(--accent); }
-    .status.error { color: var(--danger); }
-    .hint { margin-top: 14px; font-size: 12px; color: var(--muted); }
+    .status {
+      min-height: 18px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+    .status:empty { display: none; }
+    .status.loading,
+    .status.success,
+    .status.error {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--ctp-surface0);
+      font-weight: 600;
+    }
+    .status.success {
+      border-color: rgba(166, 218, 149, 0.45);
+      background: rgba(166, 218, 149, 0.1);
+      color: var(--ctp-green);
+    }
+    .status.error {
+      border-color: rgba(237, 135, 150, 0.55);
+      background: rgba(237, 135, 150, 0.1);
+      color: var(--ctp-red);
+    }
+    .hint {
+      margin-top: 16px;
+      font-size: 11.5px;
+      color: var(--ctp-overlay2);
+      line-height: 1.55;
+    }
   </style>
 </head>
 <body>

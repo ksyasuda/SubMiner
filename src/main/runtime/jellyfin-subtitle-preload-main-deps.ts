@@ -13,6 +13,8 @@ export function createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler(
     getMpvClient: () => deps.getMpvClient(),
     sendMpvCommand: (command) => deps.sendMpvCommand(command),
     wait: (ms: number) => deps.wait(ms),
+    cacheSubtitleTrack: (track) => deps.cacheSubtitleTrack(track),
+    cleanupCachedSubtitles: (dirs) => deps.cleanupCachedSubtitles(dirs),
     logDebug: (message: string, error: unknown) => deps.logDebug(message, error),
   });
 }

@@ -172,9 +172,12 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
   }
 
   deps.whenReady(async () => {
-    await deps.onReady();
-    appReadyRuntimeComplete = true;
-    flushPendingSecondInstanceCommands();
+    try {
+      await deps.onReady();
+    } finally {
+      appReadyRuntimeComplete = true;
+      flushPendingSecondInstanceCommands();
+    }
   });
 
   deps.onWindowAllClosed(() => {

@@ -130,6 +130,8 @@ Optional stream overrides:
 - If direct play is not selected/available, SubMiner requests a Jellyfin transcoded stream (`master.m3u8`) using `jellyfin.transcodeVideoCodec`.
 - Resume position (`PlaybackPositionTicks`) is applied via mpv seek.
 - Media title is set in mpv as `[Jellyfin/<mode>] <title>`.
+- When SubMiner auto-launches mpv for Jellyfin playback, it injects the bundled mpv plugin unless an installed SubMiner mpv plugin is already present. This keeps mpv-side keybindings available without clicking the overlay first.
+- Jellyfin playback shows the SubMiner visible overlay before selecting subtitle tracks, so `subtitleStyle` controls the rendered subtitle appearance. Use the overlay toggle shortcut if you want to hide it for a session.
 
 ## Cast To Device Mode (jellyfin-mpv-shim style)
 

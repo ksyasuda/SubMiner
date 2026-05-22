@@ -18,8 +18,21 @@ type JellyfinSubtitleTrack = {
   deliveryUrl?: string | null;
 };
 
+type CachedSubtitleTrack = {
+  path: string;
+  cleanupDir: string;
+};
+
 type MpvClientLike = {
   requestProperty: (name: string) => Promise<unknown>;
+};
+
+export type PreloadJellyfinExternalSubtitlesHandler = ((params: {
+  session: JellyfinSession;
+  clientInfo: JellyfinClientInfo;
+  itemId: string;
+}) => Promise<void>) & {
+  cleanupCachedSubtitles: () => void;
 };
 
 function normalizeLang(value: unknown): string {
@@ -90,13 +103,26 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
   getMpvClient: () => MpvClientLike | null;
   sendMpvCommand: (command: Array<string | number>) => void;
   wait: (ms: number) => Promise<void>;
+  cacheSubtitleTrack: (track: JellyfinSubtitleTrack) => Promise<CachedSubtitleTrack>;
+  cleanupCachedSubtitles: (dirs: string[]) => void;
   logDebug: (message: string, error: unknown) => void;
-}) {
-  return async (params: {
+}): PreloadJellyfinExternalSubtitlesHandler {
+  const activeCacheDirs = new Set<string>();
+
+  function cleanupActiveCache(): void {
+    const dirs = [...activeCacheDirs];
+    activeCacheDirs.clear();
+    if (dirs.length === 0) return;
+    deps.cleanupCachedSubtitles(dirs);
+  }
+
+  const preload = async (params: {
     session: JellyfinSession;
     clientInfo: JellyfinClientInfo;
     itemId: string;
   }): Promise<void> => {
+    cleanupActiveCache();
+
     try {
       const tracks = await deps.listJellyfinSubtitleTracks(
         params.session,
@@ -117,7 +143,9 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
         seenUrls.add(track.deliveryUrl);
         const labelBase = (track.title || track.language || '').trim();
         const label = labelBase || `Jellyfin Subtitle ${track.index}`;
-        deps.sendMpvCommand(['sub-add', track.deliveryUrl, 'cached', label, track.language || '']);
+        const cached = await deps.cacheSubtitleTrack(track);
+        activeCacheDirs.add(cached.cleanupDir);
+        deps.sendMpvCommand(['sub-add', cached.path, 'cached', label, track.language || '']);
       }
 
       await deps.wait(250);
@@ -154,4 +182,8 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
       deps.logDebug('Failed to preload Jellyfin external subtitles', error);
     }
   };
+
+  return Object.assign(preload, {
+    cleanupCachedSubtitles: cleanupActiveCache,
+  });
 }

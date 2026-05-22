@@ -1299,6 +1299,8 @@ See [Jellyfin Integration](/jellyfin-integration) for the full setup and cast-to
 
 Jellyfin remote auto-connect runs only when all three are `true`: `jellyfin.enabled`, `jellyfin.remoteControlEnabled`, and `jellyfin.remoteControlAutoConnect`.
 
+Jellyfin playback auto-launched through SubMiner loads the mpv plugin the same way regular playback does, and shows the visible subtitle overlay automatically so `subtitleStyle` applies to subtitles selected from Jellyfin.
+
 When Jellyfin is enabled with a server URL and SubMiner is running, the tray menu also shows a `Jellyfin Discovery` checkbox. It starts or stops discovery for the current runtime session only and does not write config. Starting discovery still requires a valid stored or environment-provided Jellyfin auth session.
 
 ### Discord Rich Presence

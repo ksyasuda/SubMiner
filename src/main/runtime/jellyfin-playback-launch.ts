@@ -16,6 +16,16 @@ type ActivePlaybackState = {
   playMethod: 'DirectPlay' | 'Transcode';
 };
 
+export type JellyfinPlaybackStatsMetadata = {
+  mediaPath: string;
+  displayTitle: string;
+  itemTitle: string;
+  seriesTitle: string | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  itemId: string;
+};
+
 function applyStartTimeTicksToPlaybackUrl(url: string, startTimeTicksOverride?: number): string {
   if (typeof startTimeTicksOverride !== 'number') return url;
   try {
@@ -43,6 +53,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     subtitleStreamIndex?: number | null;
   }) => Promise<JellyfinPlaybackPlan>;
   applyJellyfinMpvDefaults: (mpvClient: MpvRuntimeClientLike) => void;
+  showVisibleOverlay: () => void;
   sendMpvCommand: (command: Array<string | number>) => void;
   armQuitOnDisconnect: () => void;
   schedule: (callback: () => void, delayMs: number) => void;
@@ -63,6 +74,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     eventName: 'start';
   }) => void;
   showMpvOsd: (text: string) => void;
+  recordJellyfinPlaybackMetadata?: (metadata: JellyfinPlaybackStatsMetadata) => void;
 }) {
   return async (params: {
     session: JellyfinAuthSession;
@@ -94,15 +106,20 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     deps.applyJellyfinMpvDefaults(mpvClient);
     deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
     const playbackUrl = applyStartTimeTicksToPlaybackUrl(plan.url, params.startTimeTicksOverride);
+    deps.recordJellyfinPlaybackMetadata?.({
+      mediaPath: playbackUrl,
+      displayTitle: plan.title,
+      itemTitle: plan.itemTitle,
+      seriesTitle: plan.seriesTitle,
+      seasonNumber: plan.seasonNumber,
+      episodeNumber: plan.episodeNumber,
+      itemId: params.itemId,
+    });
     deps.sendMpvCommand(['loadfile', playbackUrl, 'replace']);
     if (params.setQuitOnDisconnectArm !== false) {
       deps.armQuitOnDisconnect();
     }
-    deps.sendMpvCommand([
-      'set_property',
-      'force-media-title',
-      `[Jellyfin/${plan.mode}] ${plan.title}`,
-    ]);
+    deps.sendMpvCommand(['set_property', 'force-media-title', plan.title]);
     deps.sendMpvCommand(['set_property', 'sid', 'no']);
     deps.schedule(() => {
       deps.sendMpvCommand(['set_property', 'sid', 'no']);
@@ -116,6 +133,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
       deps.sendMpvCommand(['seek', deps.convertTicksToSeconds(startTimeTicks), 'absolute+exact']);
     }
 
+    deps.showVisibleOverlay();
     deps.preloadExternalSubtitles({
       session: params.session,
       clientInfo: params.clientInfo,

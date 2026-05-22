@@ -212,12 +212,11 @@ export function createManagedLocalSubtitleSelectionRuntime(deps: {
     pendingTimer = null;
   };
 
+  const hasAppliedSelectionForCurrentMediaPath = (): boolean =>
+    appliedPrimaryMediaPath === currentMediaPath && appliedSecondaryMediaPath === currentMediaPath;
+
   const maybeApplySelection = (trackList: unknown[] | null): void => {
-    if (
-      !currentMediaPath ||
-      (appliedPrimaryMediaPath === currentMediaPath &&
-        appliedSecondaryMediaPath === currentMediaPath)
-    ) {
+    if (!currentMediaPath || hasAppliedSelectionForCurrentMediaPath()) {
       return;
     }
     const selection = resolveManagedLocalSubtitleSelection({
@@ -236,7 +235,7 @@ export function createManagedLocalSubtitleSelectionRuntime(deps: {
       deps.sendMpvCommand(['set_property', 'secondary-sid', selection.secondaryTrackId]);
       appliedSecondaryMediaPath = currentMediaPath;
     }
-    if (appliedPrimaryMediaPath === currentMediaPath) {
+    if (hasAppliedSelectionForCurrentMediaPath()) {
       clearPendingTimer();
     }
   };
@@ -260,7 +259,7 @@ export function createManagedLocalSubtitleSelectionRuntime(deps: {
 
   const scheduleRefresh = (): void => {
     clearPendingTimer();
-    if (!currentMediaPath || appliedPrimaryMediaPath === currentMediaPath) {
+    if (!currentMediaPath || hasAppliedSelectionForCurrentMediaPath()) {
       return;
     }
     pendingTimer = deps.schedule(() => {

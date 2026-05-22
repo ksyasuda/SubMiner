@@ -560,6 +560,10 @@ test('resolvePlaybackPlan preserves episode metadata, stream selection, and resu
 
     assert.equal(plan.mode, 'direct');
     assert.equal(plan.title, 'Galaxy Quest S02E07 A New Hope');
+    assert.equal(plan.itemTitle, 'A New Hope');
+    assert.equal(plan.seriesTitle, 'Galaxy Quest');
+    assert.equal(plan.seasonNumber, 2);
+    assert.equal(plan.episodeNumber, 7);
     assert.equal(plan.audioStreamIndex, 6);
     assert.equal(plan.subtitleStreamIndex, 9);
     assert.equal(plan.startTimeTicks, 35_000_000);

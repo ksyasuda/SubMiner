@@ -1552,6 +1552,98 @@ test('handleMediaChange reuses the same provisional anime row across matching fi
   }
 });
 
+test('Jellyfin playback metadata links stream videos to existing series title', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/The Beginning After the End S02E01.mkv', 'Episode 1');
+    await waitForPendingAnimeMetadata(tracker);
+    tracker.destroy();
+    tracker = null;
+
+    tracker = new Ctor({ dbPath });
+    tracker.recordJellyfinPlaybackMetadata({
+      mediaPath:
+        'http://jellyfin.local/Videos/item-2/stream?static=true&api_key=token&MediaSourceId=ms-1',
+      displayTitle: 'The Beginning After the End S02E02 The Princess Begins Adventuring',
+      itemTitle: 'The Princess Begins Adventuring',
+      seriesTitle: 'The Beginning After the End',
+      seasonNumber: 2,
+      episodeNumber: 2,
+      itemId: 'item-2',
+    });
+    tracker.handleMediaChange(
+      'http://jellyfin.local/Videos/item-2/stream?static=true&api_key=token&MediaSourceId=ms-1',
+      'The Beginning After the End S02E02 The Princess Begins Adventuring',
+    );
+    tracker.handleMediaChange(null, null);
+    tracker.recordJellyfinPlaybackMetadata({
+      mediaPath:
+        'http://jellyfin.local/Videos/item-2/stream?static=true&api_key=token&MediaSourceId=ms-1&StartTimeTicks=12000000',
+      displayTitle: 'The Beginning After the End S02E02 The Princess Begins Adventuring',
+      itemTitle: 'The Princess Begins Adventuring',
+      seriesTitle: 'The Beginning After the End',
+      seasonNumber: 2,
+      episodeNumber: 2,
+      itemId: 'item-2',
+    });
+    tracker.handleMediaChange(
+      'http://jellyfin.local/Videos/item-2/stream?static=true&api_key=token&MediaSourceId=ms-1&StartTimeTicks=12000000',
+      'The Beginning After the End S02E02 The Princess Begins Adventuring',
+    );
+
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    const rows = privateApi.db
+      .prepare(
+        `
+          SELECT
+            v.source_url,
+            v.canonical_title AS video_title,
+            v.parsed_title,
+            v.parsed_season,
+            v.parsed_episode,
+            v.parser_source,
+            a.canonical_title AS anime_title
+          FROM imm_videos v
+          JOIN imm_anime a ON a.anime_id = v.anime_id
+          ORDER BY v.video_id
+        `,
+      )
+      .all() as Array<{
+      source_url: string | null;
+      video_title: string;
+      parsed_title: string | null;
+      parsed_season: number | null;
+      parsed_episode: number | null;
+      parser_source: string | null;
+      anime_title: string;
+    }>;
+
+    assert.equal(rows.length, 2);
+    assert.equal(new Set(rows.map((row) => row.anime_title)).size, 1);
+    const jellyfinRow = rows.find(
+      (row) => row.source_url === 'jellyfin://jellyfin.local/item/item-2',
+    );
+    assert.ok(jellyfinRow);
+    assert.equal(
+      jellyfinRow.video_title,
+      'The Beginning After the End S02E02 The Princess Begins Adventuring',
+    );
+    assert.equal(jellyfinRow.parsed_title, 'The Beginning After the End');
+    assert.equal(jellyfinRow.parsed_season, 2);
+    assert.equal(jellyfinRow.parsed_episode, 2);
+    assert.equal(jellyfinRow.parser_source, 'jellyfin');
+    assert.equal(jellyfinRow.anime_title, 'The Beginning After the End');
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('applies configurable queue, flush, and retention policy', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

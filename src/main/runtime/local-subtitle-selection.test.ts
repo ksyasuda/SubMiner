@@ -175,3 +175,57 @@ test('managed local subtitle selection keeps waiting for primary after early sec
     ['set_property', 'sid', 3],
   ]);
 });
+
+test('managed local subtitle selection keeps pending refresh after early primary-only track list', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const scheduled = new Map<number, () => void>();
+  let nextTimerId = 1;
+
+  const runtime = createManagedLocalSubtitleSelectionRuntime({
+    getCurrentMediaPath: () => '/videos/example.mkv',
+    getMpvClient: () =>
+      ({
+        connected: true,
+        requestProperty: async (name: string) => {
+          if (name === 'track-list') {
+            return [
+              { type: 'sub', id: 3, lang: 'ja', title: 'ja.srt', external: true },
+              { type: 'sub', id: 4, lang: 'en', title: 'en.srt', external: true },
+            ];
+          }
+          throw new Error(`Unexpected property: ${name}`);
+        },
+      }) as never,
+    getPrimarySubtitleLanguages: () => [],
+    getSecondarySubtitleLanguages: () => [],
+    sendMpvCommand: (command) => {
+      commands.push(command);
+    },
+    schedule: (callback) => {
+      const timerId = nextTimerId++;
+      scheduled.set(timerId, callback);
+      return timerId as never;
+    },
+    clearScheduled: (timer) => {
+      scheduled.delete(timer as never);
+    },
+  });
+
+  runtime.handleMediaPathChange('/videos/example.mkv');
+  runtime.handleSubtitleTrackListChange([
+    { type: 'sub', id: 3, lang: 'ja', title: 'ja.srt', external: true },
+  ]);
+
+  assert.deepEqual(commands, [['set_property', 'sid', 3]]);
+  assert.equal(scheduled.size, 1);
+
+  const refresh = [...scheduled.values()][0];
+  assert.ok(refresh);
+  refresh();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(commands, [
+    ['set_property', 'sid', 3],
+    ['set_property', 'secondary-sid', 4],
+  ]);
+});

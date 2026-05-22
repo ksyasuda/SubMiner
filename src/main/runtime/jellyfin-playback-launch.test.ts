@@ -23,6 +23,7 @@ test('playback handler throws when mpv is not connected', async () => {
       throw new Error('unreachable');
     },
     applyJellyfinMpvDefaults: () => {},
+    showVisibleOverlay: () => {},
     sendMpvCommand: () => {},
     armQuitOnDisconnect: () => {},
     schedule: () => {},
@@ -52,6 +53,7 @@ test('playback handler drives mpv commands and playback state', async () => {
   const calls: string[] = [];
   const activeStates: Array<Record<string, unknown>> = [];
   const reportPayloads: Array<Record<string, unknown>> = [];
+  const statsMetadata: Array<Record<string, unknown>> = [];
   const handler = createPlayJellyfinItemInMpvHandler({
     ensureMpvConnectedForPlayback: async () => true,
     getMpvClient: () => ({ connected: true, send: () => {} }),
@@ -59,11 +61,16 @@ test('playback handler drives mpv commands and playback state', async () => {
       url: 'https://stream.example/video.m3u8',
       mode: 'direct',
       title: 'Episode 1',
+      itemTitle: 'Episode 1',
+      seriesTitle: 'Show Title',
+      seasonNumber: 1,
+      episodeNumber: 1,
       startTimeTicks: 12_000_000,
       audioStreamIndex: 1,
       subtitleStreamIndex: 2,
     }),
     applyJellyfinMpvDefaults: () => calls.push('defaults'),
+    showVisibleOverlay: () => calls.push('visible-overlay'),
     sendMpvCommand: (command) => commands.push(command),
     armQuitOnDisconnect: () => calls.push('arm'),
     schedule: (callback, delayMs) => {
@@ -75,6 +82,8 @@ test('playback handler drives mpv commands and playback state', async () => {
     setLastProgressAtMs: (value) => calls.push(`progress:${value}`),
     reportPlaying: (payload) => reportPayloads.push(payload as Record<string, unknown>),
     showMpvOsd: (text) => calls.push(`osd:${text}`),
+    recordJellyfinPlaybackMetadata: (metadata) =>
+      statsMetadata.push(metadata as Record<string, unknown>),
   });
 
   await handler({
@@ -87,7 +96,7 @@ test('playback handler drives mpv commands and playback state', async () => {
   assert.deepEqual(commands.slice(0, 5), [
     ['set_property', 'sub-auto', 'no'],
     ['loadfile', 'https://stream.example/video.m3u8', 'replace'],
-    ['set_property', 'force-media-title', '[Jellyfin/direct] Episode 1'],
+    ['set_property', 'force-media-title', 'Episode 1'],
     ['set_property', 'sid', 'no'],
     ['seek', 1.2, 'absolute+exact'],
   ]);
@@ -97,6 +106,11 @@ test('playback handler drives mpv commands and playback state', async () => {
   assert.deepEqual(commands[commands.length - 1], ['set_property', 'sid', 'no']);
 
   assert.ok(calls.includes('defaults'));
+  assert.ok(calls.includes('visible-overlay'));
+  assert.ok(
+    calls.indexOf('visible-overlay') < calls.indexOf('preload'),
+    'visible overlay should be shown before Jellyfin subtitles are selected',
+  );
   assert.ok(calls.includes('arm'));
   assert.ok(calls.includes('preload'));
   assert.ok(calls.includes('progress:0'));
@@ -106,6 +120,17 @@ test('playback handler drives mpv commands and playback state', async () => {
   assert.equal(activeStates[0]?.playMethod, 'DirectPlay');
   assert.equal(reportPayloads.length, 1);
   assert.equal(reportPayloads[0]?.eventName, 'start');
+  assert.deepEqual(statsMetadata, [
+    {
+      mediaPath: 'https://stream.example/video.m3u8',
+      displayTitle: 'Episode 1',
+      itemTitle: 'Episode 1',
+      seriesTitle: 'Show Title',
+      seasonNumber: 1,
+      episodeNumber: 1,
+      itemId: 'item-1',
+    },
+  ]);
 });
 
 test('playback handler applies start override to stream url for remote resume', async () => {
@@ -117,11 +142,16 @@ test('playback handler applies start override to stream url for remote resume', 
       url: 'https://stream.example/video.m3u8?api_key=token',
       mode: 'transcode',
       title: 'Episode 2',
+      itemTitle: 'Episode 2',
+      seriesTitle: null,
+      seasonNumber: null,
+      episodeNumber: null,
       startTimeTicks: 0,
       audioStreamIndex: null,
       subtitleStreamIndex: null,
     }),
     applyJellyfinMpvDefaults: () => {},
+    showVisibleOverlay: () => {},
     sendMpvCommand: (command) => commands.push(command),
     armQuitOnDisconnect: () => {},
     schedule: () => {},
