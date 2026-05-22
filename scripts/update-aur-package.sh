@@ -92,7 +92,10 @@ for artifact in "$appimage" "$wrapper" "$assets"; do
   fi
 done
 
-mapfile -t sha256sums < <(sha256sum "$appimage" "$wrapper" "$assets" | awk '{print $1}')
+sha256sums=()
+while IFS=' ' read -r sum _; do
+  sha256sums+=("$sum")
+done < <(sha256sum "$appimage" "$wrapper" "$assets")
 
 tmpfile="$(mktemp)"
 awk \
