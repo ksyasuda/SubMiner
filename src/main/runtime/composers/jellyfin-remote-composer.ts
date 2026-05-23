@@ -87,6 +87,9 @@ export function composeJellyfinRemoteHandlers(
       getActivePlayback: options.getActivePlayback,
       clearActivePlayback: options.clearActivePlayback,
       getSession: options.getSession,
+      getMpvClient: options.getMpvClient,
+      getNow: options.getNow,
+      ticksPerSecond: options.ticksPerSecond,
       logDebug: options.logDebug,
     });
   const reportJellyfinRemoteProgress = createReportJellyfinRemoteProgressHandler(

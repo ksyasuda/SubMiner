@@ -654,6 +654,7 @@ let jellyfinPlayQuitOnDisconnectArmed = false;
 const JELLYFIN_LANG_PREF = 'ja,jp,jpn,japanese,en,eng,english,enUS,en-US';
 const JELLYFIN_TICKS_PER_SECOND = 10_000_000;
 const JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS = 3000;
+const JELLYFIN_REMOTE_STARTUP_STOP_GRACE_MS = 10_000;
 const DISCORD_PRESENCE_APP_ID = '1475264834730856619';
 const JELLYFIN_MPV_CONNECT_TIMEOUT_MS = 3000;
 const JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS = 20000;
@@ -2968,7 +2969,11 @@ const {
     },
     convertTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
     setActivePlayback: (state) => {
-      activeJellyfinRemotePlayback = state as ActiveJellyfinRemotePlaybackState;
+      activeJellyfinRemotePlayback = {
+        ...(state as ActiveJellyfinRemotePlaybackState),
+        stopReportsAfterMs:
+          state.stopReportsAfterMs ?? Date.now() + JELLYFIN_REMOTE_STARTUP_STOP_GRACE_MS,
+      };
     },
     setLastProgressAtMs: (value) => {
       jellyfinRemoteLastProgressAtMs = value;
@@ -4458,6 +4463,11 @@ const {
       immersionMediaRuntime.syncFromCurrentMediaState();
     },
     signalAutoplayReadyIfWarm: (path) => signalAutoplayReadyFromWarmTokenization?.(path),
+    markJellyfinRemotePlaybackLoaded: (path) => {
+      if (activeJellyfinRemotePlayback) {
+        activeJellyfinRemotePlayback.loadedMediaPath = path;
+      }
+    },
     scheduleCharacterDictionarySync: () => {
       if (!yomitanProfilePolicy.isCharacterDictionaryEnabled() || isYoutubePlaybackActiveNow()) {
         return;

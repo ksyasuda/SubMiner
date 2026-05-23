@@ -4,6 +4,15 @@ type AnilistPostWatchRunOptions = {
   watchedSeconds?: number;
 };
 
+const SEEK_LIKE_TIME_DELTA_SECONDS = 2.5;
+
+function isSeekLikeTimeChange(previousTime: number | null, nextTime: number): boolean {
+  if (previousTime === null || !Number.isFinite(previousTime) || !Number.isFinite(nextTime)) {
+    return false;
+  }
+  return Math.abs(nextTime - previousTime) >= SEEK_LIKE_TIME_DELTA_SECONDS;
+}
+
 export function createHandleMpvSubtitleChangeHandler(deps: {
   setCurrentSubText: (text: string) => void;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
@@ -59,6 +68,7 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
   syncImmersionMediaState: () => void;
   scheduleCharacterDictionarySync?: () => void;
   signalAutoplayReadyIfWarm?: (path: string) => void;
+  markJellyfinRemotePlaybackLoaded?: (path: string) => void;
   flushPlaybackPositionOnMediaPathClear?: (mediaPath: string) => void;
   refreshDiscordPresence: () => void;
 }) {
@@ -81,6 +91,7 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
     }
     deps.syncImmersionMediaState();
     if (normalizedPath.trim().length > 0) {
+      deps.markJellyfinRemotePlaybackLoaded?.(normalizedPath);
       deps.scheduleCharacterDictionarySync?.();
       deps.signalAutoplayReadyIfWarm?.(normalizedPath);
     }
@@ -113,9 +124,15 @@ export function createHandleMpvTimePosChangeHandler(deps: {
   logError?: (message: string, error: unknown) => void;
   onTimePosUpdate?: (time: number) => void;
 }) {
+  let lastObservedTime: number | null = null;
+
   return ({ time }: { time: number }): void => {
+    const forceImmediate = isSeekLikeTimeChange(lastObservedTime, time);
+    if (Number.isFinite(time)) {
+      lastObservedTime = time;
+    }
     deps.recordPlaybackPosition(time);
-    deps.reportJellyfinRemoteProgress(false);
+    deps.reportJellyfinRemoteProgress(forceImmediate);
     deps.refreshDiscordPresence();
     void deps.maybeRunAnilistPostWatchUpdate?.({ watchedSeconds: time }).catch((error) => {
       deps.logError?.('AniList post-watch update failed unexpectedly', error);

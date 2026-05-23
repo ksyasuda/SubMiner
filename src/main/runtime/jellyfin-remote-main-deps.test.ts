@@ -103,12 +103,16 @@ test('jellyfin remote stopped main deps builder maps callbacks', () => {
     getActivePlayback: () => ({ itemId: 'abc', playMethod: 'DirectPlay' }),
     clearActivePlayback: () => calls.push('clear'),
     getSession: () => session as never,
+    getMpvClient: () => ({ id: 2, currentTimePos: 4 }) as never,
+    ticksPerSecond: 10_000_000,
     logDebug: (message) => calls.push(`debug:${message}`),
   })();
 
   assert.deepEqual(deps.getActivePlayback(), { itemId: 'abc', playMethod: 'DirectPlay' });
   deps.clearActivePlayback();
   assert.equal(deps.getSession(), session);
+  assert.deepEqual(deps.getMpvClient(), { id: 2, currentTimePos: 4 });
+  assert.equal(deps.ticksPerSecond, 10_000_000);
   deps.logDebug('stopped', null);
   assert.deepEqual(calls, ['clear', 'debug:stopped']);
 });

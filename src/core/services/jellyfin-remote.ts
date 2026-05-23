@@ -20,6 +20,7 @@ export interface JellyfinTimelinePlaybackState {
   subtitleStreamIndex?: number | null;
   playlistItemId?: string | null;
   eventName?: string;
+  failed?: boolean;
 }
 
 export interface JellyfinTimelinePayload {
@@ -36,7 +37,7 @@ export interface JellyfinTimelinePayload {
   AudioStreamIndex?: number | null;
   SubtitleStreamIndex?: number | null;
   PlaylistItemId?: string | null;
-  EventName: string;
+  Failed?: boolean;
 }
 
 interface JellyfinRemoteSocket {
@@ -168,7 +169,7 @@ export function buildJellyfinTimelinePayload(
     AudioStreamIndex: asNullableInteger(state.audioStreamIndex),
     SubtitleStreamIndex: asNullableInteger(state.subtitleStreamIndex),
     PlaylistItemId: state.playlistItemId,
-    EventName: state.eventName || 'timeupdate',
+    Failed: state.failed,
   };
 }
 
@@ -269,10 +270,7 @@ export class JellyfinRemoteSessionService {
   }
 
   public async reportPlaying(state: JellyfinTimelinePlaybackState): Promise<boolean> {
-    return this.postTimeline('/Sessions/Playing', {
-      ...buildJellyfinTimelinePayload(state),
-      EventName: state.eventName || 'start',
-    });
+    return this.postTimeline('/Sessions/Playing', buildJellyfinTimelinePayload(state));
   }
 
   public async reportProgress(state: JellyfinTimelinePlaybackState): Promise<boolean> {
@@ -282,7 +280,7 @@ export class JellyfinRemoteSessionService {
   public async reportStopped(state: JellyfinTimelinePlaybackState): Promise<boolean> {
     return this.postTimeline('/Sessions/Playing/Stopped', {
       ...buildJellyfinTimelinePayload(state),
-      EventName: state.eventName || 'stop',
+      Failed: state.failed === true,
     });
   }
 

@@ -4,6 +4,8 @@ export type ActiveJellyfinRemotePlaybackState = {
   audioStreamIndex?: number | null;
   subtitleStreamIndex?: number | null;
   playMethod: 'DirectPlay' | 'Transcode';
+  loadedMediaPath?: string | null;
+  stopReportsAfterMs?: number;
 };
 
 type JellyfinSession = {

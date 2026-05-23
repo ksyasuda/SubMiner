@@ -71,6 +71,9 @@ export function createBuildReportJellyfinRemoteStoppedMainDepsHandler(
     getActivePlayback: () => deps.getActivePlayback(),
     clearActivePlayback: () => deps.clearActivePlayback(),
     getSession: () => deps.getSession(),
+    getMpvClient: () => deps.getMpvClient(),
+    getNow: deps.getNow ? () => deps.getNow?.() ?? Date.now() : undefined,
+    ticksPerSecond: deps.ticksPerSecond,
     logDebug: (message: string, error: unknown) => deps.logDebug(message, error),
   });
 }

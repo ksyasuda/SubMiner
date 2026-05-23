@@ -121,6 +121,8 @@ test('playback handler drives mpv commands and playback state', async () => {
   assert.equal(activeStates[0]?.playMethod, 'DirectPlay');
   assert.equal(reportPayloads.length, 1);
   assert.equal(reportPayloads[0]?.eventName, 'start');
+  assert.equal(reportPayloads[0]?.positionTicks, 12_000_000);
+  assert.equal(reportPayloads[0]?.isPaused, false);
   assert.deepEqual(statsMetadata, [
     {
       mediaPath: 'https://stream.example/video.m3u8',
@@ -178,6 +180,47 @@ test('playback handler publishes Jellyfin title before loading tokenized stream 
   assert.ok(loadIndex >= 0);
   assert.ok(titleIndex < loadIndex);
   assert.equal(timeline[titleIndex]?.includes('api_key'), false);
+});
+
+test('playback handler arms unloaded active playback before loading mpv media', async () => {
+  const timeline: string[] = [];
+  const handler = createPlayJellyfinItemInMpvHandler({
+    ensureMpvConnectedForPlayback: async () => true,
+    getMpvClient: () => ({ connected: true, send: () => {} }),
+    resolvePlaybackPlan: async () => ({
+      url: 'https://stream.example/video.m3u8',
+      mode: 'direct',
+      title: 'Episode 1',
+      itemTitle: 'Episode 1',
+      seriesTitle: null,
+      seasonNumber: null,
+      episodeNumber: null,
+      startTimeTicks: 0,
+      audioStreamIndex: null,
+      subtitleStreamIndex: null,
+    }),
+    applyJellyfinMpvDefaults: () => {},
+    showVisibleOverlay: () => {},
+    sendMpvCommand: (command) => timeline.push(`cmd:${command[0]}`),
+    armQuitOnDisconnect: () => {},
+    schedule: () => {},
+    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
+    preloadExternalSubtitles: () => {},
+    setActivePlayback: (state) => timeline.push(`active:${String(state.loadedMediaPath)}`),
+    setLastProgressAtMs: () => {},
+    reportPlaying: () => {},
+    showMpvOsd: () => {},
+  });
+
+  await handler({
+    session: baseSession,
+    clientInfo: baseClientInfo,
+    jellyfinConfig: {},
+    itemId: 'item-1',
+  });
+
+  assert.ok(timeline.indexOf('active:null') >= 0);
+  assert.ok(timeline.indexOf('active:null') < timeline.indexOf('cmd:loadfile'));
 });
 
 test('playback handler applies start override to stream url for remote resume', async () => {

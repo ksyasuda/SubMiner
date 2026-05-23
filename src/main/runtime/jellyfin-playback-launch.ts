@@ -14,6 +14,8 @@ type ActivePlaybackState = {
   audioStreamIndex?: number | null;
   subtitleStreamIndex?: number | null;
   playMethod: 'DirectPlay' | 'Transcode';
+  loadedMediaPath?: string | null;
+  stopReportsAfterMs?: number;
 };
 
 export type JellyfinPlaybackStatsMetadata = {
@@ -69,6 +71,8 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     itemId: string;
     mediaSourceId: undefined;
     playMethod: 'DirectPlay' | 'Transcode';
+    positionTicks?: number;
+    isPaused?: boolean;
     audioStreamIndex?: number | null;
     subtitleStreamIndex?: number | null;
     eventName: 'start';
@@ -107,6 +111,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     deps.applyJellyfinMpvDefaults(mpvClient);
     deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
     const playbackUrl = applyStartTimeTicksToPlaybackUrl(plan.url, params.startTimeTicksOverride);
+    const playMethod = plan.mode === 'direct' ? 'DirectPlay' : 'Transcode';
     try {
       deps.updateCurrentMediaTitle?.(plan.title);
       deps.recordJellyfinPlaybackMetadata?.({
@@ -121,6 +126,15 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     } catch {
       // Best-effort metadata/title hooks must not block playback startup.
     }
+    deps.setActivePlayback({
+      itemId: params.itemId,
+      mediaSourceId: undefined,
+      audioStreamIndex: plan.audioStreamIndex,
+      subtitleStreamIndex: plan.subtitleStreamIndex,
+      playMethod,
+      loadedMediaPath: null,
+    });
+    deps.setLastProgressAtMs(0);
     deps.sendMpvCommand(['loadfile', playbackUrl, 'replace']);
     if (params.setQuitOnDisconnectArm !== false) {
       deps.armQuitOnDisconnect();
@@ -143,19 +157,12 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
       itemId: params.itemId,
     });
 
-    const playMethod = plan.mode === 'direct' ? 'DirectPlay' : 'Transcode';
-    deps.setActivePlayback({
-      itemId: params.itemId,
-      mediaSourceId: undefined,
-      audioStreamIndex: plan.audioStreamIndex,
-      subtitleStreamIndex: plan.subtitleStreamIndex,
-      playMethod,
-    });
-    deps.setLastProgressAtMs(0);
     deps.reportPlaying({
       itemId: params.itemId,
       mediaSourceId: undefined,
       playMethod,
+      positionTicks: startTimeTicks,
+      isPaused: false,
       audioStreamIndex: plan.audioStreamIndex,
       subtitleStreamIndex: plan.subtitleStreamIndex,
       eventName: 'start',

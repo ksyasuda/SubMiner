@@ -10,11 +10,13 @@ type JellyfinRemoteSessionLike = {
     playMethod: 'DirectPlay' | 'Transcode';
     audioStreamIndex?: number | null;
     subtitleStreamIndex?: number | null;
-    eventName: 'timeupdate';
+    eventName: 'TimeUpdate';
   }) => Promise<unknown>;
   reportStopped: (payload: {
     itemId: string;
     mediaSourceId?: string;
+    positionTicks?: number;
+    failed?: boolean;
     playMethod: 'DirectPlay' | 'Transcode';
     audioStreamIndex?: number | null;
     subtitleStreamIndex?: number | null;
@@ -23,7 +25,8 @@ type JellyfinRemoteSessionLike = {
 };
 
 type MpvClientLike = {
-  requestProperty: (name: string) => Promise<unknown>;
+  currentTimePos?: number;
+  requestProperty?: (name: string) => Promise<unknown>;
 };
 
 export function secondsToJellyfinTicks(seconds: number, ticksPerSecond: number): number {
@@ -44,6 +47,45 @@ function isMpvPauseEnabled(value: unknown): boolean {
   return false;
 }
 
+function normalizeMpvPositionSeconds(value: unknown): number {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds)) return 0;
+  return Math.max(0, seconds);
+}
+
+function getCachedMpvPositionSeconds(client: MpvClientLike | null): number | null {
+  if (!client) return null;
+  const seconds = Number(client.currentTimePos);
+  return Number.isFinite(seconds) ? Math.max(0, seconds) : null;
+}
+
+async function readMpvPositionSeconds(client: MpvClientLike | null): Promise<number> {
+  const cached = getCachedMpvPositionSeconds(client);
+  if (cached !== null) return cached;
+  const position = await client?.requestProperty?.('time-pos');
+  return normalizeMpvPositionSeconds(position);
+}
+
+async function readMpvPositionSecondsOrFallback(
+  client: MpvClientLike | null,
+  fallback = 0,
+): Promise<number> {
+  try {
+    return await readMpvPositionSeconds(client);
+  } catch {
+    return fallback;
+  }
+}
+
+function isSeekLikePositionJump(
+  previousPositionSeconds: number | null,
+  nextPositionSeconds: number,
+  thresholdSeconds: number,
+): boolean {
+  if (previousPositionSeconds === null) return false;
+  return Math.abs(nextPositionSeconds - previousPositionSeconds) >= thresholdSeconds;
+}
+
 export type JellyfinRemoteProgressReporterDeps = {
   getActivePlayback: () => ActiveJellyfinRemotePlaybackState | null;
   clearActivePlayback: () => void;
@@ -60,29 +102,41 @@ export type JellyfinRemoteProgressReporterDeps = {
 export function createReportJellyfinRemoteProgressHandler(
   deps: JellyfinRemoteProgressReporterDeps,
 ) {
+  let lastReportedPositionSeconds: number | null = null;
+
   return async (force = false): Promise<void> => {
     const playback = deps.getActivePlayback();
     if (!playback) return;
     const session = deps.getSession();
     if (!session || !session.isConnected()) return;
     const now = deps.getNow();
-    if (!force && now - deps.getLastProgressAtMs() < deps.progressIntervalMs) {
-      return;
-    }
     try {
       const mpvClient = deps.getMpvClient();
-      const position = await mpvClient?.requestProperty('time-pos');
-      const paused = await mpvClient?.requestProperty('pause');
+      const positionSeconds = await readMpvPositionSeconds(mpvClient);
+      const forceForSeekJump = isSeekLikePositionJump(
+        lastReportedPositionSeconds,
+        positionSeconds,
+        Math.max(2, deps.progressIntervalMs / 1000),
+      );
+      if (
+        !force &&
+        !forceForSeekJump &&
+        now - deps.getLastProgressAtMs() < deps.progressIntervalMs
+      ) {
+        return;
+      }
+      const paused = await mpvClient?.requestProperty?.('pause');
       await session.reportProgress({
         itemId: playback.itemId,
         mediaSourceId: playback.mediaSourceId,
-        positionTicks: secondsToJellyfinTicks(Number(position) || 0, deps.ticksPerSecond),
+        positionTicks: secondsToJellyfinTicks(positionSeconds, deps.ticksPerSecond),
         isPaused: isMpvPauseEnabled(paused),
         playMethod: playback.playMethod,
         audioStreamIndex: playback.audioStreamIndex,
         subtitleStreamIndex: playback.subtitleStreamIndex,
-        eventName: 'timeupdate',
+        eventName: 'TimeUpdate',
       });
+      lastReportedPositionSeconds = positionSeconds;
       deps.setLastProgressAtMs(now);
     } catch (error) {
       deps.logDebug('Failed to report Jellyfin remote progress', error);
@@ -94,6 +148,9 @@ export type JellyfinRemoteStoppedReporterDeps = {
   getActivePlayback: () => ActiveJellyfinRemotePlaybackState | null;
   clearActivePlayback: () => void;
   getSession: () => JellyfinRemoteSessionLike | null;
+  getMpvClient: () => MpvClientLike | null;
+  getNow?: () => number;
+  ticksPerSecond: number;
   logDebug: (message: string, error: unknown) => void;
 };
 
@@ -101,15 +158,26 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
   return async (): Promise<void> => {
     const playback = deps.getActivePlayback();
     if (!playback) return;
+    if (playback.loadedMediaPath === null) return;
+    if (
+      typeof playback.stopReportsAfterMs === 'number' &&
+      Number.isFinite(playback.stopReportsAfterMs) &&
+      (deps.getNow?.() ?? Date.now()) < playback.stopReportsAfterMs
+    ) {
+      return;
+    }
     const session = deps.getSession();
     if (!session || !session.isConnected()) {
       deps.clearActivePlayback();
       return;
     }
     try {
+      const positionSeconds = await readMpvPositionSecondsOrFallback(deps.getMpvClient());
       await session.reportStopped({
         itemId: playback.itemId,
         mediaSourceId: playback.mediaSourceId,
+        positionTicks: secondsToJellyfinTicks(positionSeconds, deps.ticksPerSecond),
+        failed: false,
         playMethod: playback.playMethod,
         audioStreamIndex: playback.audioStreamIndex,
         subtitleStreamIndex: playback.subtitleStreamIndex,

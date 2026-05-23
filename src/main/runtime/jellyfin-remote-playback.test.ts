@@ -123,9 +123,61 @@ test('createReportJellyfinRemoteProgressHandler respects debounce interval', asy
   assert.equal(called, false);
 });
 
+test('createReportJellyfinRemoteProgressHandler reports mpv seek jumps during debounce', async () => {
+  let now = 5000;
+  let lastProgressAtMs = 0;
+  let position = 10;
+  const reportPayloads: Array<{ positionTicks: number; eventName: string }> = [];
+
+  const reportProgress = createReportJellyfinRemoteProgressHandler({
+    getActivePlayback: () => ({
+      itemId: 'item-1',
+      playMethod: 'DirectPlay',
+    }),
+    clearActivePlayback: () => {},
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async (payload) => {
+        reportPayloads.push({
+          positionTicks: payload.positionTicks,
+          eventName: payload.eventName,
+        });
+      },
+      reportStopped: async () => {},
+    }),
+    getMpvClient: () => ({
+      currentTimePos: position,
+      requestProperty: async (name: string) => (name === 'pause' ? false : position),
+    }),
+    getNow: () => now,
+    getLastProgressAtMs: () => lastProgressAtMs,
+    setLastProgressAtMs: (value) => {
+      lastProgressAtMs = value;
+    },
+    progressIntervalMs: 3000,
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportProgress(true);
+  now = 5500;
+  position = 90;
+  await reportProgress(false);
+
+  assert.deepEqual(reportPayloads, [
+    { positionTicks: 100_000_000, eventName: 'TimeUpdate' },
+    { positionTicks: 900_000_000, eventName: 'TimeUpdate' },
+  ]);
+  assert.equal(lastProgressAtMs, 5500);
+});
+
 test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback', async () => {
   let cleared = false;
-  let stoppedItemId: string | null = null;
+  let stoppedPayload: {
+    itemId: string;
+    positionTicks?: number;
+    failed?: boolean;
+  } | null = null;
   const reportStopped = createReportJellyfinRemoteStoppedHandler({
     getActivePlayback: () => ({
       itemId: 'item-2',
@@ -141,13 +193,96 @@ test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback'
       isConnected: () => true,
       reportProgress: async () => {},
       reportStopped: async (payload) => {
-        stoppedItemId = payload.itemId;
+        stoppedPayload = {
+          itemId: payload.itemId,
+          positionTicks: payload.positionTicks,
+          failed: payload.failed,
+        };
       },
     }),
+    getMpvClient: () => ({
+      currentTimePos: 12.5,
+      requestProperty: async () => {
+        throw new Error('unloaded');
+      },
+    }),
+    ticksPerSecond: 10_000_000,
     logDebug: () => {},
   });
 
   await reportStopped();
-  assert.equal(stoppedItemId, 'item-2');
+  assert.deepEqual(stoppedPayload, {
+    itemId: 'item-2',
+    positionTicks: 125_000_000,
+    failed: false,
+  });
   assert.equal(cleared, true);
+});
+
+test('createReportJellyfinRemoteStoppedHandler ignores unloaded active playback', async () => {
+  let cleared = false;
+  let stopped = false;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler({
+    getActivePlayback: () =>
+      ({
+        itemId: 'item-2',
+        playMethod: 'Transcode',
+        loadedMediaPath: null,
+      }) as never,
+    clearActivePlayback: () => {
+      cleared = true;
+    },
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async () => {},
+      reportStopped: async () => {
+        stopped = true;
+      },
+    }),
+    getMpvClient: () => ({
+      currentTimePos: 0,
+    }),
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportStopped();
+
+  assert.equal(stopped, false);
+  assert.equal(cleared, false);
+});
+
+test('createReportJellyfinRemoteStoppedHandler ignores startup stop churn before grace expires', async () => {
+  let cleared = false;
+  let stopped = false;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler({
+    getActivePlayback: () =>
+      ({
+        itemId: 'item-2',
+        playMethod: 'DirectPlay',
+        loadedMediaPath: 'https://stream.example/video.m3u8',
+        stopReportsAfterMs: 20_000,
+      }) as never,
+    clearActivePlayback: () => {
+      cleared = true;
+    },
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async () => {},
+      reportStopped: async () => {
+        stopped = true;
+      },
+    }),
+    getMpvClient: () => ({
+      currentTimePos: 0,
+    }),
+    getNow: () => 12_000,
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportStopped();
+
+  assert.equal(stopped, false);
+  assert.equal(cleared, false);
 });
