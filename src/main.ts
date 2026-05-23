@@ -351,8 +351,12 @@ import {
 import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import { startStatsServer } from './core/services/stats-server';
-import { registerStatsOverlayToggle, destroyStatsWindow } from './core/services/stats-window.js';
-import { toggleStatsOverlay as toggleStatsOverlayWindow } from './core/services/stats-window.js';
+import {
+  destroyStatsWindow,
+  promoteStatsOverlayAbovePlayback,
+  registerStatsOverlayToggle,
+  toggleStatsOverlay as toggleStatsOverlayWindow,
+} from './core/services/stats-window.js';
 import {
   createFirstRunSetupService,
   getFirstRunSetupCompletionMessage,
@@ -495,6 +499,7 @@ import {
 } from './main/jlpt-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
+import { createStatsOverlayVisibilityChangeHandler } from './main/runtime/stats-overlay-visibility';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
@@ -2232,6 +2237,7 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getModalActive: () => overlayModalInputState.getModalInputExclusive(),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => appState.statsOverlayVisible,
+    getSuspendVisibleOverlay: () => appState.statsOverlayVisible,
     getOverlayInteractionActive: () => visibleOverlayInteractionActive,
     getWindowTracker: () => appState.windowTracker,
     getLastKnownWindowsForegroundProcessName: () => lastWindowsVisibleOverlayForegroundProcessName,
@@ -2288,6 +2294,17 @@ let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> 
 let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
 let lastWindowsVisibleOverlayBlurredAtMs = 0;
 let visibleOverlayInteractionActive = false;
+
+const handleStatsOverlayVisibilityChanged = createStatsOverlayVisibilityChangeHandler({
+  setStatsOverlayVisibleState: (visible) => {
+    appState.statsOverlayVisible = visible;
+  },
+  resetVisibleOverlayInteraction: () => {
+    visibleOverlayInteractionActive = false;
+  },
+  getMainWindow: () => overlayManager.getMainWindow(),
+  updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+});
 
 function clearVisibleOverlayBlurRefreshTimeouts(): void {
   for (const timeout of visibleOverlayBlurRefreshTimeouts) {
@@ -3837,8 +3854,7 @@ const immersionTrackerStartupMainDeps: Parameters<
         getToggleKey: () => getResolvedConfig().stats.toggleKey,
         resolveBounds: () => getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {
-          appState.statsOverlayVisible = visible;
-          overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+          handleStatsOverlayVisibilityChanged(visible);
         },
       });
     }
@@ -4628,7 +4644,12 @@ const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
 
 const buildEnsureOverlayWindowLevelMainDepsHandler =
   createBuildEnsureOverlayWindowLevelMainDepsHandler({
+    shouldSuppressOverlayWindowLevel: (window) =>
+      appState.statsOverlayVisible && window === overlayManager.getMainWindow(),
     ensureOverlayWindowLevelCore: (window) => ensureOverlayWindowLevelCore(window as BrowserWindow),
+    afterEnsureOverlayWindowLevel: () => {
+      promoteStatsOverlayAbovePlayback();
+    },
   });
 const ensureOverlayWindowLevelMainDeps = buildEnsureOverlayWindowLevelMainDepsHandler();
 const ensureOverlayWindowLevel = createEnsureOverlayWindowLevelHandler(
@@ -5349,8 +5370,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
         getToggleKey: () => getResolvedConfig().stats.toggleKey,
         resolveBounds: () => getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {
-          appState.statsOverlayVisible = visible;
-          overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+          handleStatsOverlayVisibilityChanged(visible);
         },
       }),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),

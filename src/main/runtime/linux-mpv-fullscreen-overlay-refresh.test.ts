@@ -50,7 +50,7 @@ test('linux mpv fullscreen overlay refresh burst schedules overlay refresh work 
   }
 });
 
-test('linux mpv fullscreen overlay refresh update cancels burst when fullscreen exits', async () => {
+test('linux mpv fullscreen overlay refresh update schedules a fresh burst when fullscreen exits', async () => {
   const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
   Object.defineProperty(process, 'platform', {
     configurable: true,
@@ -82,8 +82,11 @@ test('linux mpv fullscreen overlay refresh update cancels burst when fullscreen 
 
     await new Promise((resolve) => setTimeout(resolve, 80));
 
-    assert.equal(nextCancel, null);
-    assert.deepEqual(calls, []);
+    assert.equal(typeof nextCancel, 'function');
+    assert.ok(calls.includes('updateVisibleOverlayVisibility'));
+    assert.ok(calls.includes('hide'));
+    assert.ok(calls.includes('showInactive'));
+    assert.ok(calls.includes('ensureOverlayWindowLevel'));
   } finally {
     clearLinuxMpvFullscreenOverlayRefreshTimeouts();
     if (originalPlatformDescriptor) {

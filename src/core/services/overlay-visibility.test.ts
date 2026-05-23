@@ -197,6 +197,53 @@ test('tracked non-macOS overlay stays hidden while tracker is not ready', () => 
   assert.ok(!calls.includes('osd'));
 });
 
+test('suspended visible overlay hides without refreshing bounds or z-order', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+  };
+
+  window.show();
+  calls.length = 0;
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    suspendVisibleOverlay: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: false,
+    isWindowsPlatform: false,
+  } as never);
+
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('always-on-top:false'));
+  assert.ok(calls.includes('hide'));
+  assert.ok(calls.includes('sync-shortcuts'));
+  assert.ok(!calls.includes('update-bounds'));
+  assert.ok(!calls.includes('ensure-level'));
+  assert.ok(!calls.includes('enforce-order'));
+  assert.ok(!calls.includes('show'));
+  assert.ok(!calls.includes('focus'));
+});
+
 test('untracked non-macOS overlay keeps fallback visible behavior when no tracker exists', () => {
   const { window, calls } = createMainWindowRecorder();
   let trackerWarning = false;

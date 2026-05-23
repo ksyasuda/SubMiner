@@ -23,7 +23,11 @@ export function createBuildEnsureOverlayWindowLevelMainDepsHandler(
   deps: EnsureOverlayWindowLevelMainDeps,
 ) {
   return (): EnsureOverlayWindowLevelMainDeps => ({
+    shouldSuppressOverlayWindowLevel: (window: unknown) =>
+      deps.shouldSuppressOverlayWindowLevel?.(window) ?? false,
     ensureOverlayWindowLevelCore: (window: unknown) => deps.ensureOverlayWindowLevelCore(window),
+    afterEnsureOverlayWindowLevel: (window: unknown) =>
+      deps.afterEnsureOverlayWindowLevel?.(window),
   });
 }
 

@@ -36,9 +36,28 @@ test('ensure overlay window level handler delegates to core', () => {
   const calls: string[] = [];
   const ensureLevel = createEnsureOverlayWindowLevelHandler({
     ensureOverlayWindowLevelCore: () => calls.push('core'),
+    afterEnsureOverlayWindowLevel: () => calls.push('after'),
   });
   ensureLevel({});
-  assert.deepEqual(calls, ['core']);
+  assert.deepEqual(calls, ['core', 'after']);
+});
+
+test('ensure overlay window level handler skips while top reassertion is suppressed', () => {
+  const calls: string[] = [];
+  const window = {};
+  const ensureLevel = createEnsureOverlayWindowLevelHandler({
+    shouldSuppressOverlayWindowLevel: (nextWindow) => {
+      assert.equal(nextWindow, window);
+      calls.push('suppress-check');
+      return true;
+    },
+    ensureOverlayWindowLevelCore: () => calls.push('core'),
+    afterEnsureOverlayWindowLevel: () => calls.push('after'),
+  });
+
+  ensureLevel(window);
+
+  assert.deepEqual(calls, ['suppress-check']);
 });
 
 test('enforce overlay layer order handler forwards resolved state', () => {

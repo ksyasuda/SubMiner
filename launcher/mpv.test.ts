@@ -7,6 +7,7 @@ import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
 import { getAppControlSocketPath } from '../src/shared/app-control';
+import { withProcessExitIntercept } from './test-support/exit-intercept.js';
 import {
   buildConfiguredMpvDefaultArgs,
   buildMpvBackendArgs,
@@ -27,34 +28,6 @@ import {
   waitForUnixSocketReady,
 } from './mpv';
 import * as mpvModule from './mpv';
-
-class ExitSignal extends Error {
-  code: number;
-
-  constructor(code: number) {
-    super(`exit:${code}`);
-    this.code = code;
-  }
-}
-
-function withProcessExitIntercept(callback: () => void): ExitSignal {
-  const originalExit = process.exit;
-  try {
-    process.exit = ((code?: number) => {
-      throw new ExitSignal(code ?? 0);
-    }) as typeof process.exit;
-    callback();
-  } catch (error) {
-    if (error instanceof ExitSignal) {
-      return error;
-    }
-    throw error;
-  } finally {
-    process.exit = originalExit;
-  }
-
-  throw new Error('expected process.exit');
-}
 
 function createTempSocketPath(): { dir: string; socketPath: string } {
   const baseDir = path.join(process.cwd(), '.tmp', 'launcher-mpv-tests');
@@ -393,6 +366,7 @@ test('launchTexthookerOnly exits non-zero when app binary cannot be spawned', ()
   });
 
   assert.equal(error.code, 1);
+  assert.match(error.stderr, /Failed to launch texthooker mode/);
 });
 
 test('launchTexthookerOnly forwards browser-open request to app command', () => {

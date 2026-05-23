@@ -1,34 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseArgs } from './config';
-
-class ExitSignal extends Error {
-  code: number;
-
-  constructor(code: number) {
-    super(`exit:${code}`);
-    this.code = code;
-  }
-}
-
-function withProcessExitIntercept(callback: () => void): ExitSignal {
-  const originalExit = process.exit;
-  try {
-    process.exit = ((code?: number) => {
-      throw new ExitSignal(code ?? 0);
-    }) as typeof process.exit;
-    callback();
-  } catch (error) {
-    if (error instanceof ExitSignal) {
-      return error;
-    }
-    throw error;
-  } finally {
-    process.exit = originalExit;
-  }
-
-  throw new Error('expected parseArgs to exit');
-}
+import { withProcessExitIntercept } from './test-support/exit-intercept.js';
 
 test('parseArgs captures passthrough args for app subcommand', () => {
   const parsed = parseArgs(['app', '--anilist', '--log-level', 'debug'], 'subminer', {});
@@ -131,7 +104,9 @@ test('parseArgs rejects removed config open and launch actions', () => {
   });
 
   assert.equal(openExit.code, 1);
+  assert.match(openExit.stderr, /Unknown config action: open/);
   assert.equal(exit.code, 1);
+  assert.match(exit.stderr, /Unknown config action: launch/);
 });
 
 test('parseArgs requires an explicit action for the config subcommand', () => {
@@ -140,6 +115,7 @@ test('parseArgs requires an explicit action for the config subcommand', () => {
   });
 
   assert.equal(exit.code, 1);
+  assert.match(exit.stderr, /Unknown config action: \(none\)/);
 });
 
 test('parseArgs maps mpv idle action', () => {
@@ -180,6 +156,7 @@ test('parseArgs rejects conflicting dictionary candidate and selection modes', (
   });
 
   assert.equal(exit.code, 1);
+  assert.match(exit.stderr, /Dictionary --candidates and --select cannot be combined/);
 });
 
 test('parseArgs maps stats command and log-level override', () => {
@@ -243,6 +220,7 @@ test('parseArgs rejects cleanup-only stats flags without cleanup action', () => 
 
   assert.equal(error.code, 1);
   assert.match(error.message, /exit:1/);
+  assert.match(error.stderr, /Stats --vocab and --lifetime flags require the cleanup action/);
 });
 
 test('parseArgs maps stats rebuild action to cleanup lifetime mode', () => {

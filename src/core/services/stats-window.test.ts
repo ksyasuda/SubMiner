@@ -4,6 +4,7 @@ import {
   buildStatsWindowLoadFileOptions,
   buildStatsWindowOptions,
   presentStatsWindow,
+  promoteVisibleStatsWindowAboveOverlay,
   promoteStatsWindowLevel,
   resolveStatsWindowOuterBoundsForContent,
   shouldHideStatsWindowForInput,
@@ -230,6 +231,47 @@ test('promoteStatsWindowLevel raises stats above overlay level on Windows', () =
   );
 
   assert.deepEqual(calls, ['always-on-top:true:screen-saver:2', 'move-top']);
+});
+
+test('promoteVisibleStatsWindowAboveOverlay reasserts stats above overlay on Hyprland', () => {
+  const calls: string[] = [];
+  const promoted = promoteVisibleStatsWindowAboveOverlay(
+    {
+      isDestroyed: () => false,
+      isVisible: () => true,
+      setAlwaysOnTop: (flag: boolean, level?: string, relativeLevel?: number) => {
+        calls.push(`always-on-top:${flag}:${level ?? 'none'}:${relativeLevel ?? 0}`);
+      },
+      moveTop: () => {
+        calls.push('move-top');
+      },
+    } as never,
+    {
+      platform: 'linux',
+      promoteHyprlandWindow: () => calls.push('hyprland-top'),
+    },
+  );
+
+  assert.equal(promoted, true);
+  assert.deepEqual(calls, ['always-on-top:true:none:0', 'move-top', 'hyprland-top']);
+});
+
+test('promoteVisibleStatsWindowAboveOverlay skips hidden stats windows', () => {
+  const calls: string[] = [];
+  const promoted = promoteVisibleStatsWindowAboveOverlay(
+    {
+      isDestroyed: () => false,
+      isVisible: () => false,
+      setAlwaysOnTop: () => calls.push('always-on-top'),
+      moveTop: () => calls.push('move-top'),
+    } as never,
+    {
+      promoteHyprlandWindow: () => calls.push('hyprland-top'),
+    },
+  );
+
+  assert.equal(promoted, false);
+  assert.deepEqual(calls, []);
 });
 
 test('presentStatsWindow shows inactive on macOS to stay on the fullscreen mpv Space', () => {

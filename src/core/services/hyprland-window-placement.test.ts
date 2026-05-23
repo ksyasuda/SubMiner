@@ -60,7 +60,10 @@ test('buildHyprlandPlacementDispatches floats tiled overlay windows without pinn
       floating: false,
       pinned: false,
     }),
-    [['dispatch', 'setfloating', 'address:0xabc']],
+    [
+      ['dispatch', 'setfloating', 'address:0xabc'],
+      ['dispatch', 'alterzorder', 'top,address:0xabc'],
+    ],
   );
 });
 
@@ -87,6 +90,7 @@ test('buildHyprlandPlacementDispatches force-aligns floating overlay windows to 
       ['dispatch', 'setprop', 'address:0xabc no_shadow 1'],
       ['dispatch', 'setprop', 'address:0xabc no_blur 1'],
       ['dispatch', 'setprop', 'address:0xabc decorate 0'],
+      ['dispatch', 'alterzorder', 'top,address:0xabc'],
     ],
   );
 });
@@ -98,7 +102,7 @@ test('buildHyprlandPlacementDispatches does not pin already floating overlay win
       floating: true,
       pinned: false,
     }),
-    [],
+    [['dispatch', 'alterzorder', 'top,address:0xabc']],
   );
 });
 
@@ -109,7 +113,10 @@ test('buildHyprlandPlacementDispatches unpins previously pinned overlay windows'
       floating: true,
       pinned: true,
     }),
-    [['dispatch', 'pin', 'address:0xabc']],
+    [
+      ['dispatch', 'pin', 'address:0xabc'],
+      ['dispatch', 'alterzorder', 'top,address:0xabc'],
+    ],
   );
 });
 
@@ -146,6 +153,7 @@ test('ensureHyprlandWindowFloatingByTitle dispatches float-only placement for ma
     [
       ['-j', 'clients'],
       ['dispatch', 'setfloating', 'address:0xmatch'],
+      ['dispatch', 'alterzorder', 'top,address:0xmatch'],
     ],
   );
 });
@@ -195,6 +203,7 @@ test('ensureHyprlandWindowFloatingByTitle dispatches exact Hyprland geometry whe
       ['dispatch', 'setprop', 'address:0xmatch no_shadow 1'],
       ['dispatch', 'setprop', 'address:0xmatch no_blur 1'],
       ['dispatch', 'setprop', 'address:0xmatch decorate 0'],
+      ['dispatch', 'alterzorder', 'top,address:0xmatch'],
     ],
   );
 });

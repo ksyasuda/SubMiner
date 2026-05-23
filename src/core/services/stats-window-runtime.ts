@@ -7,6 +7,8 @@ export const STATS_WINDOW_TITLE = 'SubMiner Stats';
 
 type StatsWindowLevelController = Pick<BrowserWindow, 'setAlwaysOnTop' | 'moveTop'> &
   Partial<Pick<BrowserWindow, 'setVisibleOnAllWorkspaces' | 'setFullScreenable'>>;
+type VisibleStatsWindowLevelController = StatsWindowLevelController &
+  Pick<BrowserWindow, 'isDestroyed' | 'isVisible'>;
 
 type StatsWindowBoundsController = Pick<BrowserWindow, 'getBounds' | 'getContentBounds'>;
 type StatsWindowPresentationController = Pick<BrowserWindow, 'show' | 'focus'> &
@@ -104,6 +106,22 @@ export function promoteStatsWindowLevel(
 
   window.setAlwaysOnTop(true);
   window.moveTop();
+}
+
+export function promoteVisibleStatsWindowAboveOverlay(
+  window: VisibleStatsWindowLevelController,
+  options: {
+    platform?: NodeJS.Platform;
+    promoteHyprlandWindow?: () => void;
+  } = {},
+): boolean {
+  if (window.isDestroyed() || !window.isVisible()) {
+    return false;
+  }
+
+  promoteStatsWindowLevel(window, options.platform);
+  options.promoteHyprlandWindow?.();
+  return true;
 }
 
 export function presentStatsWindow(

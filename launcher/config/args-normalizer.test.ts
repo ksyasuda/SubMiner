@@ -3,39 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { withProcessExitIntercept } from '../test-support/exit-intercept.js';
 import {
   applyInvocationsToArgs,
   applyRootOptionsToArgs,
   createDefaultArgs,
 } from './args-normalizer.js';
-
-class ExitSignal extends Error {
-  code: number;
-
-  constructor(code: number) {
-    super(`exit:${code}`);
-    this.code = code;
-  }
-}
-
-function withProcessExitIntercept(callback: () => void): ExitSignal {
-  const originalExit = process.exit;
-  try {
-    process.exit = ((code?: number) => {
-      throw new ExitSignal(code ?? 0);
-    }) as typeof process.exit;
-    callback();
-  } catch (error) {
-    if (error instanceof ExitSignal) {
-      return error;
-    }
-    throw error;
-  } finally {
-    process.exit = originalExit;
-  }
-
-  throw new Error('expected process.exit');
-}
 
 function withTempDir<T>(fn: (dir: string) => T): T {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-launcher-args-'));
@@ -106,6 +79,7 @@ test('applyRootOptionsToArgs rejects unsupported targets', () => {
 
   assert.equal(error.code, 1);
   assert.match(error.message, /exit:1/);
+  assert.match(error.stderr, /Not a file, directory, or supported URL/);
 });
 
 test('applyInvocationsToArgs maps config and jellyfin invocation state', () => {
@@ -231,6 +205,7 @@ test('applyInvocationsToArgs fails when config invocation has no action', () => 
   });
 
   assert.equal(error.code, 1);
+  assert.match(error.stderr, /Unknown config action: \(none\)/);
 });
 
 test('applyInvocationsToArgs maps texthooker browser-open request', () => {

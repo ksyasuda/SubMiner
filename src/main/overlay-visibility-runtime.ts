@@ -11,6 +11,7 @@ export interface OverlayVisibilityRuntimeDeps {
   getModalActive: () => boolean;
   getVisibleOverlayVisible: () => boolean;
   getForceMousePassthrough: () => boolean;
+  getSuspendVisibleOverlay?: () => boolean;
   getOverlayInteractionActive?: () => boolean;
   getWindowTracker: () => BaseWindowTracker | null;
   getLastKnownWindowsForegroundProcessName?: () => string | null;
@@ -43,6 +44,7 @@ export function createOverlayVisibilityRuntimeService(
     updateVisibleOverlayVisibility(): void {
       const visibleOverlayVisible = deps.getVisibleOverlayVisible();
       const forceMousePassthrough = deps.getForceMousePassthrough();
+      const suspendVisibleOverlay = deps.getSuspendVisibleOverlay?.() ?? false;
       const windowTracker = deps.getWindowTracker();
       const mainWindow = deps.getMainWindow();
 
@@ -50,6 +52,7 @@ export function createOverlayVisibilityRuntimeService(
         visibleOverlayVisible,
         modalActive: deps.getModalActive(),
         forceMousePassthrough,
+        suspendVisibleOverlay,
         overlayInteractionActive: deps.getOverlayInteractionActive?.() ?? false,
         mainWindow,
         windowTracker,

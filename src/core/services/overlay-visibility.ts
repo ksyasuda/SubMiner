@@ -64,6 +64,7 @@ export function updateVisibleOverlayVisibility(args: {
   visibleOverlayVisible: boolean;
   modalActive?: boolean;
   forceMousePassthrough?: boolean;
+  suspendVisibleOverlay?: boolean;
   overlayInteractionActive?: boolean;
   mainWindow: BrowserWindow | null;
   windowTracker: BaseWindowTracker | null;
@@ -98,6 +99,18 @@ export function updateVisibleOverlayVisibility(args: {
       clearPendingWindowsOverlayReveal(mainWindow);
       setOverlayWindowOpacity(mainWindow, 0);
     }
+    mainWindow.hide();
+    args.syncOverlayShortcuts();
+    return;
+  }
+
+  if (args.suspendVisibleOverlay) {
+    if (args.isWindowsPlatform) {
+      clearPendingWindowsOverlayReveal(mainWindow);
+      setOverlayWindowOpacity(mainWindow, 0);
+    }
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    releaseOverlayWindowLevel(mainWindow);
     mainWindow.hide();
     args.syncOverlayShortcuts();
     return;
