@@ -68,6 +68,12 @@ function parseBackend(value: string): Backend {
   fail(`Invalid backend: ${value} (must be auto, hyprland, sway, x11, macos, or windows)`);
 }
 
+function appendMpvProfile(current: string, next: string): string {
+  const trimmed = next.trim();
+  if (!trimmed) return current;
+  return current ? `${current},${trimmed}` : trimmed;
+}
+
 function parseDictionaryTarget(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -121,7 +127,7 @@ export function createDefaultArgs(
     backend: mpvConfig.backend ?? 'auto',
     directory: '.',
     recursive: false,
-    profile: '',
+    profile: mpvConfig.profile ?? '',
     startOverlay: false,
     whisperBin: process.env.SUBMINER_WHISPER_BIN || launcherConfig.whisperBin || '',
     whisperModel: process.env.SUBMINER_WHISPER_MODEL || launcherConfig.whisperModel || '',
@@ -215,7 +221,8 @@ export function applyRootOptionsToArgs(
   if (typeof options.backend === 'string') parsed.backend = parseBackend(options.backend);
   if (typeof options.directory === 'string') parsed.directory = options.directory;
   if (options.recursive === true) parsed.recursive = true;
-  if (typeof options.profile === 'string') parsed.profile = options.profile;
+  if (typeof options.profile === 'string')
+    parsed.profile = appendMpvProfile(parsed.profile, options.profile);
   if (options.start === true) parsed.startOverlay = true;
   if (typeof options.logLevel === 'string') parsed.logLevel = parseLogLevel(options.logLevel);
   if (typeof options.passwordStore === 'string') parsed.passwordStore = options.passwordStore;

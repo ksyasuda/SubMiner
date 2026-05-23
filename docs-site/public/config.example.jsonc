@@ -611,11 +611,13 @@
   // Set mpv.socketPath to the IPC socket used by the launcher, Electron app, and bundled plugin.
   // autoStartSubMiner starts SubMiner in the background; auto_start_overlay only controls visible overlay display.
   // Set mpv.launchMode to choose normal, maximized, or fullscreen SubMiner-managed mpv playback.
+  // Set mpv.profile to pass an mpv profile to managed mpv launches; leave it blank to pass none.
   // Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.
   // ==========================================
   "mpv": {
     "executablePath": "", // Optional absolute path to mpv.exe for Windows launch flows. Leave empty to auto-discover from SUBMINER_MPV_PATH or PATH.
     "launchMode": "normal", // Default window state for SubMiner-managed mpv launches. Values: normal | maximized | fullscreen
+    "profile": "", // Optional mpv profile name passed to SubMiner-managed mpv launches. Leave empty to pass no profile.
     "socketPath": "/tmp/subminer-socket", // mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin.
     "backend": "auto", // Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform. Values: auto | hyprland | sway | x11 | macos | windows
     "autoStartSubMiner": true, // Start SubMiner in the background when SubMiner-managed mpv loads a file. Values: true | false

@@ -450,6 +450,13 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Default window state for SubMiner-managed mpv launches.',
     },
     {
+      path: 'mpv.profile',
+      kind: 'string',
+      defaultValue: defaultConfig.mpv.profile,
+      description:
+        'Optional mpv profile name passed to SubMiner-managed mpv launches. Leave empty to pass no profile.',
+    },
+    {
       path: 'mpv.socketPath',
       kind: 'string',
       defaultValue: defaultConfig.mpv.socketPath,
