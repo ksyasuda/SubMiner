@@ -35,6 +35,7 @@ function M.new()
 		auto_play_ready_osd_timer = nil,
 		suppress_ready_overlay_restore = false,
 		force_ready_overlay_restore = false,
+		visible_overlay_requested = nil,
 		current_media_identity = nil,
 		pending_reload_media_identity = nil,
 		auto_start_retry_generation = 0,

@@ -693,6 +693,55 @@ do
 			auto_start_pause_until_ready = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/jellyfin-stream.m3u8",
+		media_title = "Jellyfin Episode",
+		paused = true,
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for y-t hide visible overlay scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	local toggle_binding = nil
+	for _, candidate in ipairs(recorded.key_bindings) do
+		if candidate.name == "subminer-toggle" then
+			toggle_binding = candidate
+			break
+		end
+	end
+	assert_true(toggle_binding ~= nil, "y-t toggle binding should be registered")
+	toggle_binding.fn()
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--hide-visible-overlay") == 1,
+		"y-t should hide the known visible overlay explicitly instead of app-side toggle"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--toggle-visible-overlay") == 0,
+		"y-t should avoid app-side toggle when plugin knows the overlay is visible"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		"manual y-t hide should suppress duplicate auto-start and ready-time visible overlay reassertion"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 0,
+		"manual y-t hide should not resume paused Jellyfin playback"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
 		input_ipc_server_sequence = { "", "", "/tmp/subminer-socket" },
 		media_title = "Random Movie",
 		files = {
@@ -1550,8 +1599,12 @@ do
 	assert_true(recorded.script_messages["subminer-toggle"] ~= nil, "subminer-toggle script message not registered")
 	recorded.script_messages["subminer-toggle"]()
 	assert_true(
-		count_control_calls(recorded.async_calls, "--toggle-visible-overlay") == 1,
-		"manual toggle should use explicit visible-overlay toggle command"
+		count_control_calls(recorded.async_calls, "--hide-visible-overlay") == 1,
+		"manual toggle-off should hide a known visible overlay explicitly"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--toggle-visible-overlay") == 0,
+		"manual toggle-off should avoid app-side toggle when plugin knows the overlay is visible"
 	)
 	recorded.script_messages["subminer-autoplay-ready"]()
 	assert_true(

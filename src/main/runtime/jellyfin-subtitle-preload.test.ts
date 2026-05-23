@@ -333,12 +333,18 @@ test('preload jellyfin subtitles cleans previous cached subtitles before a new p
 
 test('preload jellyfin subtitles continues after cleanup failures', async () => {
   const commands: Array<Array<string | number>> = [];
+  const cleanupCalls: string[][] = [];
   const logs: string[] = [];
   let cleanupShouldFail = false;
   const preload = createPreloadJellyfinExternalSubtitlesHandler(
     makeDeps({
-      listJellyfinSubtitleTracks: async () => [
-        { index: 0, language: 'eng', title: 'English', deliveryUrl: 'https://sub/a.srt' },
+      listJellyfinSubtitleTracks: async (_session, _clientInfo, itemId) => [
+        {
+          index: itemId === 'item-1' ? 0 : 1,
+          language: 'eng',
+          title: 'English',
+          deliveryUrl: `https://sub/${itemId}.srt`,
+        },
       ],
       getMpvClient: () => ({ requestProperty: async () => [] }),
       cacheSubtitleTrack: async (track) => ({
@@ -346,7 +352,8 @@ test('preload jellyfin subtitles continues after cleanup failures', async () => 
         cleanupDir: `/tmp/subminer-jellyfin-subtitles-${track.index}`,
       }),
       sendMpvCommand: (command) => commands.push(command),
-      cleanupCachedSubtitles: () => {
+      cleanupCachedSubtitles: (dirs) => {
+        cleanupCalls.push(dirs);
         if (cleanupShouldFail) {
           throw new Error('cleanup failed');
         }
@@ -358,13 +365,19 @@ test('preload jellyfin subtitles continues after cleanup failures', async () => 
   await preload({ session, clientInfo, itemId: 'item-1' });
   cleanupShouldFail = true;
   await assert.doesNotReject(() => preload({ session, clientInfo, itemId: 'item-2' }));
+  cleanupShouldFail = false;
+  preload.cleanupCachedSubtitles();
 
   assert.deepEqual(logs, ['Failed to cleanup Jellyfin cached subtitles']);
+  assert.deepEqual(cleanupCalls, [
+    ['/tmp/subminer-jellyfin-subtitles-0'],
+    ['/tmp/subminer-jellyfin-subtitles-0', '/tmp/subminer-jellyfin-subtitles-1'],
+  ]);
   assert.deepEqual(
     commands.filter((command) => command[0] === 'sub-add'),
     [
       ['sub-add', '/tmp/subminer-jellyfin-subtitles-0/track.srt', 'auto', 'English', 'eng'],
-      ['sub-add', '/tmp/subminer-jellyfin-subtitles-0/track.srt', 'auto', 'English', 'eng'],
+      ['sub-add', '/tmp/subminer-jellyfin-subtitles-1/track.srt', 'auto', 'English', 'eng'],
     ],
   );
 });

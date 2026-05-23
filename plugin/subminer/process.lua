@@ -77,6 +77,20 @@ function M.create(ctx)
 		return DEFAULT_AUTO_PLAY_READY_TIMEOUT_SECONDS
 	end
 
+	local function record_visible_overlay_action(action)
+		if action == "show-visible-overlay" then
+			state.visible_overlay_requested = true
+			state.suppress_ready_overlay_restore = false
+		elseif action == "hide-visible-overlay" then
+			state.visible_overlay_requested = false
+		elseif action == "toggle-visible-overlay" and state.visible_overlay_requested ~= nil then
+			state.visible_overlay_requested = not state.visible_overlay_requested
+			if state.visible_overlay_requested then
+				state.suppress_ready_overlay_restore = false
+			end
+		end
+	end
+
 	local function normalize_socket_path(path)
 		if type(path) ~= "string" then
 			return nil
@@ -317,6 +331,7 @@ function M.create(ctx)
 	end
 
 	run_control_command_async = function(action, overrides, callback)
+		record_visible_overlay_action(action)
 		local args = build_command_args(action, overrides)
 		local command = build_subprocess_command(args)
 		subminer_log("debug", "process", "Control command: " .. table.concat(args, " "))
@@ -557,7 +572,8 @@ function M.create(ctx)
 		show_osd("Stopped")
 	end
 
-	local function hide_visible_overlay()
+	local function hide_visible_overlay(options)
+		options = options or {}
 		if not binary.ensure_binary_available() then
 			subminer_log("error", "binary", "SubMiner binary not found")
 			return
@@ -577,13 +593,31 @@ function M.create(ctx)
 			end
 		end)
 
-		disarm_auto_play_ready_gate()
+		disarm_auto_play_ready_gate({
+			resume_playback = options.resume_playback ~= false,
+		})
 	end
 
 	local function toggle_overlay()
 		if not binary.ensure_binary_available() then
 			subminer_log("error", "binary", "SubMiner binary not found")
 			show_osd("Error: binary not found")
+			return
+		end
+		if state.visible_overlay_requested == true then
+			state.suppress_ready_overlay_restore = true
+			hide_visible_overlay({ resume_playback = false })
+			return
+		end
+		if state.visible_overlay_requested == false then
+			state.suppress_ready_overlay_restore = false
+			disarm_auto_play_ready_gate({ resume_playback = false })
+			run_control_command_async("show-visible-overlay", nil, function(ok)
+				if not ok then
+					subminer_log("warn", "process", "Show-visible-overlay command failed")
+					show_osd("Toggle failed")
+				end
+			end)
 			return
 		end
 		state.suppress_ready_overlay_restore = true

@@ -235,9 +235,11 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
 
   function cleanupActiveCache(): void {
     const dirs = [...activeCacheDirs];
-    activeCacheDirs.clear();
     if (dirs.length === 0) return;
     deps.cleanupCachedSubtitles(dirs);
+    for (const dir of dirs) {
+      activeCacheDirs.delete(dir);
+    }
   }
 
   const runPreload = async (params: {
