@@ -123,6 +123,7 @@ export const IPC_CHANNELS = {
     youtubePickerOpen: 'youtube:picker-open',
     youtubePickerCancel: 'youtube:picker-cancel',
     playlistBrowserOpen: 'playlist-browser:open',
+    sessionNumericSelectionStart: 'session:numeric-selection-start',
     keyboardModeToggleRequested: 'keyboard-mode-toggle:requested',
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
     sessionHelpOpen: 'session-help:open',

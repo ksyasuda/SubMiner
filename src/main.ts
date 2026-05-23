@@ -460,6 +460,7 @@ import {
   composeStartupLifecycleHandlers,
 } from './main/runtime/composers';
 import { createOverlayWindowRuntimeHandlers } from './main/runtime/overlay-window-runtime-handlers';
+import { tryBeginVisibleOverlayNumericSelection } from './main/runtime/overlay-numeric-selection';
 import { createStartupBootstrapRuntimeDeps } from './main/startup';
 import { createAppLifecycleRuntimeRunner } from './main/startup-lifecycle';
 import {
@@ -4823,6 +4824,20 @@ const {
   numericSessions: {
     onMultiCopyDigit: (count) => handleMultiCopyDigit(count),
     onMineSentenceDigit: (count) => handleMineSentenceDigit(count),
+    tryBeginMultiCopyOverlaySelection: (timeoutMs) =>
+      tryBeginVisibleOverlayNumericSelection({
+        actionId: 'copySubtitleMultiple',
+        timeoutMs,
+        getMainWindow: () => overlayManager.getMainWindow(),
+        getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      }),
+    tryBeginMineSentenceOverlaySelection: (timeoutMs) =>
+      tryBeginVisibleOverlayNumericSelection({
+        actionId: 'mineSentenceMultiple',
+        timeoutMs,
+        getMainWindow: () => overlayManager.getMainWindow(),
+        getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      }),
   },
   overlayShortcutsRuntimeMainDeps: {
     overlayShortcutsRuntime,

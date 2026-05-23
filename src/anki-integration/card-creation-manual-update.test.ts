@@ -175,3 +175,99 @@ test('manual clipboard subtitle update skips audio when sentence audio field is 
   assert.deepEqual(updatedFields[0], { Sentence: '字幕' });
   assert.equal(mergeCalls.length, 0);
 });
+
+test('manual clipboard subtitle update uses resolved mpv stream URLs for remote media', async () => {
+  const audioPaths: string[] = [];
+  const imagePaths: string[] = [];
+  const edlSource = [
+    'edl://!new_stream;!no_clip;!no_chapters;%70%https://audio.example/videoplayback?mime=audio%2Fwebm',
+    '!new_stream;!no_clip;!no_chapters;%69%https://video.example/videoplayback?mime=video%2Fmp4',
+    '!global_tags,title=test',
+  ].join(';');
+
+  const { service, updatedFields, storedMedia } = createManualUpdateService({
+    getConfig: () =>
+      ({
+        deck: 'Mining',
+        fields: {
+          word: 'Expression',
+          sentence: 'Sentence',
+          audio: 'ExpressionAudio',
+          image: 'Picture',
+        },
+        media: {
+          generateAudio: true,
+          generateImage: true,
+          imageFormat: 'jpg',
+          maxMediaDuration: 30,
+        },
+        behavior: {
+          overwriteAudio: false,
+          overwriteImage: false,
+        },
+        ai: false,
+      }) as AnkiConnectConfig,
+    getTimingTracker: () =>
+      ({
+        findTiming: (text: string) => {
+          if (text === '一行目') return { startTime: 10, endTime: 12 };
+          if (text === '二行目') return { startTime: 12.5, endTime: 14 };
+          return null;
+        },
+      }) as never,
+    getMpvClient: () =>
+      ({
+        currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+        currentTimePos: 13,
+        currentAudioStreamIndex: 0,
+        requestProperty: async (name: string) => {
+          assert.equal(name, 'stream-open-filename');
+          return edlSource;
+        },
+      }) as never,
+    client: {
+      addNote: async () => 0,
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: {
+            Expression: { value: '単語' },
+            Sentence: { value: '' },
+            ExpressionAudio: { value: '[sound:auto-expression.mp3]' },
+            SentenceAudio: { value: '[sound:auto-sentence.mp3]' },
+            Picture: { value: '' },
+          },
+        },
+      ],
+      updateNoteFields: async (_noteId, fields) => {
+        updatedFields.push(fields);
+      },
+      storeMediaFile: async (filename) => {
+        storedMedia.push(filename);
+      },
+      findNotes: async () => [42],
+      retrieveMediaFile: async () => '',
+    },
+    mediaGenerator: {
+      generateAudio: async (path) => {
+        audioPaths.push(path);
+        return Buffer.from('audio');
+      },
+      generateScreenshot: async (path) => {
+        imagePaths.push(path);
+        return Buffer.from('image');
+      },
+      generateAnimatedImage: async () => null,
+    },
+  });
+
+  await service.updateLastAddedFromClipboard('一行目\n\n二行目');
+
+  assert.deepEqual(audioPaths, ['https://audio.example/videoplayback?mime=audio%2Fwebm']);
+  assert.deepEqual(imagePaths, ['https://video.example/videoplayback?mime=video%2Fmp4']);
+  assert.equal(storedMedia.length, 2);
+  assert.equal(updatedFields.length, 1);
+  assert.equal(updatedFields[0]?.Sentence, '一行目 二行目');
+  assert.match(updatedFields[0]?.Picture ?? '', /^<img src="image_\d+\.jpg">$/);
+});

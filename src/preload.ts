@@ -54,6 +54,7 @@ import type {
   ControllerConfigUpdate,
   ControllerPreferenceUpdate,
   ResolvedControllerConfig,
+  SessionNumericSelectionStartPayload,
   YoutubePickerOpenPayload,
   YoutubePickerResolveRequest,
   YoutubePickerResolveResult,
@@ -171,6 +172,11 @@ const onOpenPlaylistBrowserEvent = createQueuedIpcListener(IPC_CHANNELS.event.pl
 const onCancelYoutubeTrackPickerEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.youtubePickerCancel,
 );
+const onSessionNumericSelectionStartEvent =
+  createQueuedIpcListenerWithPayload<SessionNumericSelectionStartPayload>(
+    IPC_CHANNELS.event.sessionNumericSelectionStart,
+    (payload) => payload as SessionNumericSelectionStartPayload,
+  );
 const onKeyboardModeToggleRequestedEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.keyboardModeToggleRequested,
 );
@@ -385,6 +391,7 @@ const electronAPI: ElectronAPI = {
   onSubtitleSidebarToggle: onSubtitleSidebarToggleEvent,
   onPrimarySubtitleBarToggle: onPrimarySubtitleBarToggleEvent,
   onCancelYoutubeTrackPicker: onCancelYoutubeTrackPickerEvent,
+  onSessionNumericSelectionStart: onSessionNumericSelectionStartEvent,
   onKeyboardModeToggleRequested: onKeyboardModeToggleRequestedEvent,
   onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,
   appendClipboardVideoToQueue: (): Promise<ClipboardAppendResult> =>

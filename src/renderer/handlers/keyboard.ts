@@ -147,6 +147,7 @@ export function createKeyboardHandlers(
 
   function startPendingNumericSelection(
     actionId: 'copySubtitleMultiple' | 'mineSentenceMultiple',
+    timeoutMs: number = ctx.state.sessionActionTimeoutMs,
   ): void {
     cancelPendingNumericSelection(false);
     const timeoutMessage = actionId === 'copySubtitleMultiple' ? 'Copy timeout' : 'Mine timeout';
@@ -159,15 +160,17 @@ export function createKeyboardHandlers(
       timeout: setTimeout(() => {
         pendingNumericSelection = null;
         showSessionSelectionMessage(timeoutMessage);
-      }, ctx.state.sessionActionTimeoutMs),
+      }, timeoutMs),
     };
     showSessionSelectionMessage(promptMessage);
   }
 
   function beginSessionNumericSelection(
     actionId: 'copySubtitleMultiple' | 'mineSentenceMultiple',
+    timeoutMs?: number,
   ): void {
-    startPendingNumericSelection(actionId);
+    startPendingNumericSelection(actionId, timeoutMs);
+    restoreOverlayKeyboardFocus();
   }
 
   function handlePendingNumericSelection(e: KeyboardEvent): boolean {

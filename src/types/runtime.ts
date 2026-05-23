@@ -378,6 +378,11 @@ export interface CharacterDictionarySelectionResult {
   staleMediaIds: number[];
 }
 
+export interface SessionNumericSelectionStartPayload {
+  actionId: Extract<SessionActionId, 'copySubtitleMultiple' | 'mineSentenceMultiple'>;
+  timeoutMs: number;
+}
+
 export interface ElectronAPI {
   getOverlayLayer: () => 'visible' | 'modal' | null;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
@@ -451,6 +456,9 @@ export interface ElectronAPI {
   onSubtitleSidebarToggle: (callback: () => void) => void;
   onPrimarySubtitleBarToggle: (callback: () => void) => void;
   onCancelYoutubeTrackPicker: (callback: () => void) => void;
+  onSessionNumericSelectionStart: (
+    callback: (payload: SessionNumericSelectionStartPayload) => void,
+  ) => void;
   onKeyboardModeToggleRequested: (callback: () => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;
   appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;

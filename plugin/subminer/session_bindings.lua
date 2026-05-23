@@ -134,7 +134,10 @@ function M.create(ctx)
 		elseif action_id == "copySubtitle" then
 			return { "--copy-subtitle" }
 		elseif action_id == "copySubtitleMultiple" then
-			return { "--copy-subtitle-count", tostring(payload and payload.count or 1) }
+			if payload and payload.count then
+				return { "--copy-subtitle-count", tostring(payload.count) }
+			end
+			return { "--copy-subtitle-multiple" }
 		elseif action_id == "updateLastCardFromClipboard" then
 			return { "--update-last-card-from-clipboard" }
 		elseif action_id == "triggerFieldGrouping" then
@@ -144,7 +147,10 @@ function M.create(ctx)
 		elseif action_id == "mineSentence" then
 			return { "--mine-sentence" }
 		elseif action_id == "mineSentenceMultiple" then
-			return { "--mine-sentence-count", tostring(payload and payload.count or 1) }
+			if payload and payload.count then
+				return { "--mine-sentence-count", tostring(payload.count) }
+			end
+			return { "--mine-sentence-multiple" }
 		elseif action_id == "toggleSecondarySub" then
 			return { "--toggle-secondary-sub" }
 		elseif action_id == "toggleSubtitleSidebar" then
@@ -232,73 +238,6 @@ function M.create(ctx)
 		end)
 	end
 
-	local function clear_numeric_selection(show_cancelled)
-		if state.session_numeric_selection and state.session_numeric_selection.timeout then
-			state.session_numeric_selection.timeout:kill()
-		end
-		state.session_numeric_selection = nil
-		remove_binding_names(state.session_numeric_binding_names)
-		if show_cancelled then
-			show_osd("Cancelled")
-		end
-	end
-
-	local function build_modifier_prefixes(modifiers)
-		local prefixes = { "" }
-		if type(modifiers) ~= "table" then
-			return prefixes
-		end
-
-		for _, modifier in ipairs(modifiers) do
-			local mapped = MODIFIER_MAP[modifier]
-			if mapped then
-				local existing_count = #prefixes
-				for index = 1, existing_count do
-					prefixes[#prefixes + 1] = prefixes[index] .. mapped .. "+"
-				end
-			end
-		end
-		return prefixes
-	end
-
-	local function start_numeric_selection(action_id, timeout_ms, starter_modifiers)
-		clear_numeric_selection(false)
-		local modifier_prefixes = build_modifier_prefixes(starter_modifiers)
-		for digit = 1, 9 do
-			local digit_string = tostring(digit)
-			for _, prefix in ipairs(modifier_prefixes) do
-				local key_name = prefix .. digit_string
-				local modifier_name = prefix:gsub("[^%w]", "-")
-				local name = "subminer-session-digit-" .. modifier_name .. digit_string
-				state.session_numeric_binding_names[#state.session_numeric_binding_names + 1] = name
-				mp.add_forced_key_binding(key_name, name, function()
-					clear_numeric_selection(false)
-					invoke_cli_action(action_id, { count = digit })
-				end)
-			end
-		end
-
-		state.session_numeric_binding_names[#state.session_numeric_binding_names + 1] =
-			"subminer-session-digit-cancel"
-		mp.add_forced_key_binding("ESC", "subminer-session-digit-cancel", function()
-			clear_numeric_selection(true)
-		end)
-
-		state.session_numeric_selection = {
-			action_id = action_id,
-			timeout = mp.add_timeout((timeout_ms or 3000) / 1000, function()
-				clear_numeric_selection(false)
-				show_osd(action_id == "copySubtitleMultiple" and "Copy timeout" or "Mine timeout")
-			end),
-		}
-
-		show_osd(
-			action_id == "copySubtitleMultiple"
-					and "Copy how many lines? Press 1-9 (Esc to cancel)"
-				or "Mine how many lines? Press 1-9 (Esc to cancel)"
-		)
-	end
-
 	local function execute_mpv_command(command)
 		if type(command) ~= "table" or command[1] == nil then
 			return
@@ -306,14 +245,9 @@ function M.create(ctx)
 		mp.commandv(unpack_fn(command))
 	end
 
-	local function handle_binding(binding, numeric_selection_timeout_ms)
+	local function handle_binding(binding)
 		if binding.actionType == "mpv-command" then
 			execute_mpv_command(binding.command)
-			return
-		end
-
-		if binding.actionId == "copySubtitleMultiple" or binding.actionId == "mineSentenceMultiple" then
-			start_numeric_selection(binding.actionId, numeric_selection_timeout_ms, binding.key.modifiers)
 			return
 		end
 
@@ -339,7 +273,6 @@ function M.create(ctx)
 	end
 
 	local function clear_bindings()
-		clear_numeric_selection(false)
 		remove_binding_names(state.session_binding_names)
 	end
 
@@ -350,21 +283,18 @@ function M.create(ctx)
 			return false
 		end
 
-		clear_numeric_selection(false)
-
 		local previous_binding_names = state.session_binding_names
 		local next_binding_names = {}
 		state.session_binding_generation = (state.session_binding_generation or 0) + 1
 		local generation = state.session_binding_generation
 
-		local timeout_ms = tonumber(artifact.numericSelectionTimeoutMs) or 3000
 		for index, binding in ipairs(artifact.bindings) do
 			local key_name = key_spec_to_mpv_binding(binding.key)
 			if key_name then
 				local name = "subminer-session-binding-" .. tostring(generation) .. "-" .. tostring(index)
 				next_binding_names[#next_binding_names + 1] = name
 				mp.add_forced_key_binding(key_name, name, function()
-					handle_binding(binding, timeout_ms)
+					handle_binding(binding)
 				end)
 			else
 				subminer_log(
