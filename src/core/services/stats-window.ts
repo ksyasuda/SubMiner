@@ -7,6 +7,7 @@ import {
   buildStatsWindowOptions,
   presentStatsWindow,
   promoteStatsWindowLevel,
+  promoteVisibleStatsWindowAboveOverlay,
   resolveStatsWindowOuterBoundsForContent,
   shouldHideStatsWindowForInput,
   STATS_WINDOW_TITLE,
@@ -58,7 +59,19 @@ function showStatsWindow(window: BrowserWindow, options: StatsWindowOptions): vo
     placementBounds = syncStatsWindowBounds(window, bounds) ?? placementBounds;
   }
   options.onVisibilityChanged?.(true);
-  promoteStatsWindowLevel(window);
+  promoteStatsOverlayAbovePlayback();
+}
+
+export function promoteStatsOverlayAbovePlayback(): boolean {
+  if (!statsWindow) {
+    return false;
+  }
+
+  return promoteVisibleStatsWindowAboveOverlay(statsWindow, {
+    promoteHyprlandWindow: () => {
+      ensureHyprlandWindowFloatingByTitle({ title: STATS_WINDOW_TITLE });
+    },
+  });
 }
 
 /**
@@ -104,7 +117,7 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
       if (!statsWindow || statsWindow.isDestroyed() || !statsWindow.isVisible()) {
         return;
       }
-      promoteStatsWindowLevel(statsWindow);
+      promoteStatsOverlayAbovePlayback();
     });
   } else if (statsWindow.isVisible()) {
     statsWindow.hide();

@@ -11,10 +11,16 @@ export function createUpdateVisibleOverlayBoundsHandler(deps: {
 }
 
 export function createEnsureOverlayWindowLevelHandler(deps: {
+  shouldSuppressOverlayWindowLevel?: (window: unknown) => boolean;
   ensureOverlayWindowLevelCore: (window: unknown) => void;
+  afterEnsureOverlayWindowLevel?: (window: unknown) => void;
 }) {
   return (window: unknown): void => {
+    if (deps.shouldSuppressOverlayWindowLevel?.(window) === true) {
+      return;
+    }
     deps.ensureOverlayWindowLevelCore(window);
+    deps.afterEnsureOverlayWindowLevel?.(window);
   };
 }
 

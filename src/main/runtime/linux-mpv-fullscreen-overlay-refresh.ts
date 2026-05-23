@@ -68,14 +68,11 @@ export function scheduleLinuxVisibleOverlayFullscreenRefreshBurst(
 }
 
 export function updateLinuxMpvFullscreenOverlayRefreshBurst(
-  isFullscreen: boolean,
+  _isFullscreen: boolean,
   deps: LinuxMpvFullscreenOverlayRefreshDeps,
   cancelCurrentBurst: CancelLinuxMpvFullscreenOverlayRefreshBurst | null,
 ): CancelLinuxMpvFullscreenOverlayRefreshBurst | null {
   cancelCurrentBurst?.();
-  if (!isFullscreen) {
-    return null;
-  }
 
   return scheduleLinuxVisibleOverlayFullscreenRefreshBurst(deps);
 }

@@ -15,6 +15,7 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
     getModalActive: () => true,
     getVisibleOverlayVisible: () => true,
     getForceMousePassthrough: () => true,
+    getSuspendVisibleOverlay: () => true,
     getOverlayInteractionActive: () => true,
     getWindowTracker: () => tracker,
     getLastKnownWindowsForegroundProcessName: () => 'mpv',
@@ -41,6 +42,7 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
   assert.equal(deps.getModalActive(), true);
   assert.equal(deps.getVisibleOverlayVisible(), true);
   assert.equal(deps.getForceMousePassthrough(), true);
+  assert.equal(deps.getSuspendVisibleOverlay?.(), true);
   assert.equal(deps.getOverlayInteractionActive?.(), true);
   assert.equal(deps.getLastKnownWindowsForegroundProcessName?.(), 'mpv');
   assert.equal(deps.getWindowsOverlayProcessName?.(), 'subminer');

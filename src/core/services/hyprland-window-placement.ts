@@ -95,6 +95,7 @@ export function buildHyprlandPlacementDispatches(
     dispatches.push(['dispatch', 'setprop', `${windowAddress} no_blur 1`]);
     dispatches.push(['dispatch', 'setprop', `${windowAddress} decorate 0`]);
   }
+  dispatches.push(['dispatch', 'alterzorder', `top,${windowAddress}`]);
   return dispatches;
 }
 

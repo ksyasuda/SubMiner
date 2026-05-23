@@ -295,8 +295,12 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
     const data = rawData.trim();
 
     if (name === 'activewindowv2') {
+      const wasFocused = this.isTargetWindowFocused();
       this.activeWindowAddress = data || null;
       this.pollGeometry();
+      if (this.isTargetWindowFocused() === wasFocused) {
+        this.onWindowFocusChange?.(this.isTargetWindowFocused());
+      }
       return;
     }
 
@@ -336,9 +340,12 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
       const mpvWindow = this.findTargetWindow(clients);
 
       if (mpvWindow) {
+        const focused = !this.activeWindowAddress || mpvWindow.address === this.activeWindowAddress;
         this.updateGeometry(
           resolveHyprlandWindowGeometry(mpvWindow, this.getHyprlandMonitors(mpvWindow)),
+          focused,
         );
+        this.updateTargetWindowFocused(focused);
       } else {
         this.updateGeometry(null);
       }

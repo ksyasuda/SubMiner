@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  HyprlandWindowTracker,
   isHyprlandGeometryEvent,
   parseHyprctlClients,
   parseHyprctlMonitors,
@@ -176,4 +177,23 @@ test('resolveHyprlandWindowGeometry uses monitor bounds for client-requested ful
     width: 1920,
     height: 1080,
   });
+});
+
+test('HyprlandWindowTracker re-emits focus callback on active window events for z-order refresh', () => {
+  const calls: string[] = [];
+  const tracker = new HyprlandWindowTracker();
+  const privateTracker = tracker as unknown as {
+    handleSocketEvent: (event: string) => void;
+    pollGeometry: () => void;
+  };
+  privateTracker.pollGeometry = () => {
+    calls.push('poll');
+  };
+  tracker.onWindowFocusChange = (focused) => {
+    calls.push(`focus:${focused}`);
+  };
+
+  privateTracker.handleSocketEvent('activewindowv2>>0xmpv');
+
+  assert.deepEqual(calls, ['poll', 'focus:false']);
 });

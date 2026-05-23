@@ -15,9 +15,16 @@ test('overlay window layout main deps builders map callbacks', () => {
   visible.setOverlayWindowBounds({ x: 0, y: 0, width: 1, height: 1 });
 
   const level = createBuildEnsureOverlayWindowLevelMainDepsHandler({
+    shouldSuppressOverlayWindowLevel: () => {
+      calls.push('ensure-suppressed-check');
+      return false;
+    },
     ensureOverlayWindowLevelCore: () => calls.push('ensure'),
+    afterEnsureOverlayWindowLevel: () => calls.push('ensure-after'),
   })();
+  assert.equal(level.shouldSuppressOverlayWindowLevel?.({}), false);
   level.ensureOverlayWindowLevelCore({});
+  level.afterEnsureOverlayWindowLevel?.({});
 
   const order = createBuildEnforceOverlayLayerOrderMainDepsHandler({
     enforceOverlayLayerOrderCore: () => calls.push('order'),
@@ -34,5 +41,12 @@ test('overlay window layout main deps builders map callbacks', () => {
   assert.deepEqual(order.getMainWindow(), { kind: 'main' });
   order.ensureOverlayWindowLevel({});
 
-  assert.deepEqual(calls, ['visible', 'ensure', 'order', 'order-level']);
+  assert.deepEqual(calls, [
+    'visible',
+    'ensure-suppressed-check',
+    'ensure',
+    'ensure-after',
+    'order',
+    'order-level',
+  ]);
 });

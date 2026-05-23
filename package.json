@@ -123,9 +123,10 @@
   "devDependencies": {
     "@types/node": "^25.3.0",
     "@types/ws": "^8.18.1",
-    "electron": "39.8.6",
+    "electron": "42.2.0",
     "electron-builder": "26.8.2",
     "esbuild": "^0.25.12",
+    "eslint": "^10.4.0",
     "prettier": "^3.8.1",
     "typescript": "^5.9.3"
   },
