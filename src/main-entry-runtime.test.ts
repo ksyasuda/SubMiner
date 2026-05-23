@@ -15,6 +15,9 @@ import {
   shouldHandleLaunchMpvAtEntry,
   shouldHandleStatsDaemonCommandAtEntry,
   hasTransportedStartupArgs,
+  shouldForwardStartupArgvViaAppControl,
+  applyEarlyLinuxCommandLineSwitches,
+  resolveLinuxPasswordStoreValue,
 } from './main-entry-runtime';
 
 test('normalizeStartupArgv defaults no-arg startup to --start --background on non-Windows', () => {
@@ -104,6 +107,64 @@ test('normalizeStartupArgv defaults passive-only transported AppImage args to ba
 test('hasTransportedStartupArgs detects env-carried app args', () => {
   assert.equal(hasTransportedStartupArgs({ SUBMINER_APP_ARGC: '1' }), true);
   assert.equal(hasTransportedStartupArgs({}), false);
+});
+
+test('resolveLinuxPasswordStoreValue defaults Linux safeStorage to gnome-libsecret', () => {
+  assert.equal(resolveLinuxPasswordStoreValue(['SubMiner.AppImage'], 'linux'), 'gnome-libsecret');
+  assert.equal(
+    resolveLinuxPasswordStoreValue(['SubMiner.AppImage', '--password-store', 'gnome'], 'linux'),
+    'gnome-libsecret',
+  );
+  assert.equal(resolveLinuxPasswordStoreValue(['SubMiner.exe'], 'win32'), null);
+});
+
+test('applyEarlyLinuxCommandLineSwitches appends password store before main startup', () => {
+  const switches: Array<[string, string | undefined]> = [];
+  applyEarlyLinuxCommandLineSwitches(
+    {
+      appendSwitch: (name, value) => {
+        switches.push([name, value]);
+      },
+    },
+    ['SubMiner.AppImage', '--password-store=kwallet6'],
+    'linux',
+  );
+
+  assert.deepEqual(switches, [
+    ['enable-features', 'GlobalShortcutsPortal'],
+    ['password-store', 'kwallet6'],
+  ]);
+});
+
+test('transported AppImage visibility commands should forward through app control', () => {
+  assert.equal(
+    shouldForwardStartupArgvViaAppControl(['SubMiner.AppImage', '--hide-visible-overlay'], {
+      SUBMINER_APP_ARGC: '1',
+      SUBMINER_APP_ARG_0: '--hide-visible-overlay',
+    }),
+    true,
+  );
+});
+
+test('app control forwarding is only for transported runtime commands', () => {
+  assert.equal(
+    shouldForwardStartupArgvViaAppControl(['SubMiner.AppImage', '--hide-visible-overlay'], {}),
+    false,
+  );
+  assert.equal(
+    shouldForwardStartupArgvViaAppControl(['SubMiner.AppImage', '--app-ping'], {
+      SUBMINER_APP_ARGC: '1',
+      SUBMINER_APP_ARG_0: '--app-ping',
+    }),
+    false,
+  );
+  assert.equal(
+    shouldForwardStartupArgvViaAppControl(['SubMiner.AppImage', '--launch-mpv'], {
+      SUBMINER_APP_ARGC: '1',
+      SUBMINER_APP_ARG_0: '--launch-mpv',
+    }),
+    false,
+  );
 });
 
 test('shouldHandleHelpOnlyAtEntry detects help-only invocation', () => {

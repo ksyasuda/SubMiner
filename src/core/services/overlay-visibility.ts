@@ -185,6 +185,8 @@ export function updateVisibleOverlayVisibility(args: {
       shouldUseMacOSMousePassthrough ||
       forceMousePassthrough ||
       (shouldDefaultToPassthrough && (!isVisibleOverlayFocused || shouldForcePassiveReshow));
+    const isNonNativePassiveOverlay =
+      !args.isWindowsPlatform && !args.isMacOSPlatform && !overlayInteractionActive;
     const shouldBindTrackedWindowsOverlay = args.isWindowsPlatform && !!args.windowTracker;
     const shouldKeepTrackedWindowsOverlayTopmost =
       !args.isWindowsPlatform ||
@@ -227,7 +229,10 @@ export function updateVisibleOverlayVisibility(args: {
         // skip — ready-to-show hasn't fired yet; the onWindowContentReady
         // callback will trigger another visibility update when the renderer
         // has painted its first frame.
-      } else if ((args.isWindowsPlatform || args.isMacOSPlatform) && shouldIgnoreMouseEvents) {
+      } else if (
+        ((args.isWindowsPlatform || args.isMacOSPlatform) && shouldIgnoreMouseEvents) ||
+        isNonNativePassiveOverlay
+      ) {
         if (args.isWindowsPlatform) {
           setOverlayWindowOpacity(mainWindow, 0);
         }
@@ -271,7 +276,12 @@ export function updateVisibleOverlayVisibility(args: {
       mainWindow.focus();
     }
 
-    if (!args.isWindowsPlatform && !args.isMacOSPlatform && !forceMousePassthrough) {
+    if (
+      !args.isWindowsPlatform &&
+      !args.isMacOSPlatform &&
+      !forceMousePassthrough &&
+      overlayInteractionActive
+    ) {
       mainWindow.focus();
     }
 

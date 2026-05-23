@@ -1,4 +1,8 @@
-import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron';
+import type {
+  BrowserWindow,
+  BrowserWindowConstructorOptions,
+  MessageBoxSyncOptions,
+} from 'electron';
 import type { WindowGeometry } from '../../types';
 
 const DEFAULT_STATS_WINDOW_WIDTH = 900;
@@ -9,6 +13,15 @@ type StatsWindowLevelController = Pick<BrowserWindow, 'setAlwaysOnTop' | 'moveTo
   Partial<Pick<BrowserWindow, 'setVisibleOnAllWorkspaces' | 'setFullScreenable'>>;
 type VisibleStatsWindowLevelController = StatsWindowLevelController &
   Pick<BrowserWindow, 'isDestroyed' | 'isVisible'>;
+type VisibleStatsWindowDialogLayerController = Pick<
+  BrowserWindow,
+  'isDestroyed' | 'isVisible' | 'setAlwaysOnTop'
+>;
+type StatsNativeConfirmDialogWindow = Pick<BrowserWindow, 'isDestroyed'>;
+type StatsNativeConfirmDialogPresenter<WindowT> = {
+  showWithParent: (window: WindowT, options: MessageBoxSyncOptions) => number;
+  showWithoutParent: (options: MessageBoxSyncOptions) => number;
+};
 
 type StatsWindowBoundsController = Pick<BrowserWindow, 'getBounds' | 'getContentBounds'>;
 type StatsWindowPresentationController = Pick<BrowserWindow, 'show' | 'focus'> &
@@ -122,6 +135,41 @@ export function promoteVisibleStatsWindowAboveOverlay(
   promoteStatsWindowLevel(window, options.platform);
   options.promoteHyprlandWindow?.();
   return true;
+}
+
+export function demoteVisibleStatsWindowBelowDialogs(
+  window: VisibleStatsWindowDialogLayerController,
+): boolean {
+  if (window.isDestroyed() || !window.isVisible()) {
+    return false;
+  }
+
+  window.setAlwaysOnTop(false);
+  return true;
+}
+
+export function buildStatsNativeConfirmDialogOptions(message: string): MessageBoxSyncOptions {
+  return {
+    type: 'warning',
+    message,
+    buttons: ['Delete', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  };
+}
+
+export function showStatsNativeConfirmDialog<WindowT extends StatsNativeConfirmDialogWindow>(
+  window: WindowT | null,
+  message: string,
+  presenter: StatsNativeConfirmDialogPresenter<WindowT>,
+): boolean {
+  const options = buildStatsNativeConfirmDialogOptions(message);
+  const response =
+    window && !window.isDestroyed()
+      ? presenter.showWithParent(window, options)
+      : presenter.showWithoutParent(options);
+  return response === 0;
 }
 
 export function presentStatsWindow(

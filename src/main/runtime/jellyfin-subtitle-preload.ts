@@ -151,18 +151,16 @@ function parseMpvSubtitleTracks(trackListRaw: unknown): MpvSubtitleTrack[] {
     ? trackListRaw
         .filter(
           (track): track is Record<string, unknown> =>
-            Boolean(track) &&
-            typeof track === 'object' &&
-            track.type === 'sub' &&
-            typeof track.id === 'number',
+            Boolean(track) && typeof track === 'object' && track.type === 'sub',
         )
         .map((track) => ({
-          id: track.id as number,
+          id: parseTrackId(track.id),
           lang: String(track.lang || ''),
           title: String(track.title || ''),
           external: track.external === true,
           externalFilename: String(track['external-filename'] || ''),
         }))
+        .filter((track): track is MpvSubtitleTrack => track.id !== null)
     : [];
 }
 
@@ -179,6 +177,15 @@ function hasExpectedExternalSubtitleTracks(
   return expectedExternalFilenames.every((filePath) => loadedExternalFilenames.has(filePath));
 }
 
+function parseTrackId(value: unknown): number | null {
+  if (typeof value === 'string' && value.trim() === '') {
+    return null;
+  }
+  const numeric =
+    typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 async function readMpvSubtitleTracks(deps: {
   getMpvClient: () => MpvClientLike | null;
 }): Promise<MpvSubtitleTrack[] | null> {
@@ -186,7 +193,12 @@ async function readMpvSubtitleTracks(deps: {
   if (!client || client.connected === false) {
     return null;
   }
-  const trackListRaw = await client.requestProperty('track-list');
+  let trackListRaw: unknown;
+  try {
+    trackListRaw = await client.requestProperty('track-list');
+  } catch {
+    return null;
+  }
   return parseMpvSubtitleTracks(trackListRaw);
 }
 

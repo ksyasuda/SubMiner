@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useState } from 'react';
+import { DeleteConfirmDialog } from './components/layout/DeleteConfirmDialog';
 import { TabBar } from './components/layout/TabBar';
 import { OverviewTab } from './components/overview/OverviewTab';
 import { useExcludedWords } from './hooks/useExcludedWords';
@@ -272,6 +273,7 @@ export function App() {
           />
         </Suspense>
       ) : null}
+      <DeleteConfirmDialog />
     </div>
   );
 }

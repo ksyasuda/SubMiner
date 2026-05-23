@@ -42,7 +42,7 @@ export function createOverlayModalInputState(deps: OverlayModalInputStateDeps) {
         setWindowFocusable(modalWindow);
         requestOverlayApplicationFocus();
         modalWindow.setIgnoreMouseEvents(false);
-        modalWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+        modalWindow.setAlwaysOnTop(true, 'screen-saver', 3);
         modalWindow.focus();
         if (!modalWindow.webContents.isFocused()) {
           modalWindow.webContents.focus();

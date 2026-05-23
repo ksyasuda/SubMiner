@@ -108,7 +108,8 @@ export function createReportJellyfinRemoteProgressHandler(
     const playback = deps.getActivePlayback();
     if (!playback) return;
     const session = deps.getSession();
-    if (!session || !session.isConnected()) return;
+    // Timeline posts are HTTP requests; keep them flowing while the remote websocket reconnects.
+    if (!session) return;
     const now = deps.getNow();
     try {
       const mpvClient = deps.getMpvClient();
@@ -167,7 +168,8 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
       return;
     }
     const session = deps.getSession();
-    if (!session || !session.isConnected()) {
+    // Timeline posts are HTTP requests; keep them flowing while the remote websocket reconnects.
+    if (!session) {
       deps.clearActivePlayback();
       return;
     }

@@ -33,6 +33,20 @@ function M.create(ctx)
 		return nil
 	end
 
+	local function resolve_media_title()
+		local media_title = mp.get_property("media-title")
+		if type(media_title) == "string" and media_title ~= "" then
+			return media_title
+		end
+
+		local filename = mp.get_property("filename")
+		if type(filename) == "string" and filename ~= "" then
+			return filename
+		end
+
+		return nil
+	end
+
 	local function is_reload_end_file(reason)
 		return reason == "reload" or reason == "redirect"
 	end
@@ -125,6 +139,10 @@ function M.create(ctx)
 
 	local function on_start_file()
 		if state.pending_reload_media_identity ~= nil then
+			local media_identity = resolve_media_identity()
+			if media_identity ~= nil and media_identity ~= state.pending_reload_media_identity then
+				rearm_managed_subtitle_load_defaults()
+			end
 			return
 		end
 		rearm_managed_subtitle_load_defaults()
@@ -132,12 +150,23 @@ function M.create(ctx)
 
 	local function on_file_loaded()
 		local media_identity = resolve_media_identity()
+		local media_title = resolve_media_title()
 		local retry_generation = next_auto_start_retry_generation()
 		local previous_media_identity = state.current_media_identity
+		local pending_reload_title = state.pending_reload_media_title
+		local pending_reload_reason = state.pending_reload_reason
 		local same_media_reload = (
 			media_identity ~= nil
 			and state.pending_reload_media_identity ~= nil
 			and media_identity == state.pending_reload_media_identity
+		) or (
+			state.pending_reload_media_identity ~= nil
+			and media_title ~= nil
+			and pending_reload_title ~= nil
+			and media_title == pending_reload_title
+		) or (
+			pending_reload_reason == "redirect"
+			and state.pending_reload_media_identity ~= nil
 		)
 		local same_media_loaded = (
 			media_identity ~= nil
@@ -146,7 +175,10 @@ function M.create(ctx)
 		)
 		local new_media_loaded = media_identity ~= nil and not same_media_reload and not same_media_loaded
 		state.pending_reload_media_identity = nil
+		state.pending_reload_media_title = nil
+		state.pending_reload_reason = nil
 		state.current_media_identity = media_identity
+		state.current_media_title = media_title
 		if new_media_loaded then
 			state.suppress_ready_overlay_restore = false
 		end
@@ -191,7 +223,10 @@ function M.create(ctx)
 		hover.clear_hover_overlay()
 		process.disarm_auto_play_ready_gate()
 		state.current_media_identity = nil
+		state.current_media_title = nil
 		state.pending_reload_media_identity = nil
+		state.pending_reload_media_title = nil
+		state.pending_reload_reason = nil
 	end
 
 	local function register_lifecycle_hooks()
@@ -207,11 +242,16 @@ function M.create(ctx)
 			local reason = type(event) == "table" and event.reason or nil
 			if is_reload_end_file(reason) then
 				state.pending_reload_media_identity = state.current_media_identity or resolve_media_identity()
+				state.pending_reload_media_title = state.current_media_title or resolve_media_title()
+				state.pending_reload_reason = reason
 				return
 			end
 			next_auto_start_retry_generation()
 			state.current_media_identity = nil
+			state.current_media_title = nil
 			state.pending_reload_media_identity = nil
+			state.pending_reload_media_title = nil
+			state.pending_reload_reason = nil
 			if state.overlay_running and reason ~= "quit" then
 				process.hide_visible_overlay()
 			end

@@ -244,7 +244,7 @@ test('suspended visible overlay hides without refreshing bounds or z-order', () 
   assert.ok(!calls.includes('focus'));
 });
 
-test('untracked non-macOS overlay keeps fallback visible behavior when no tracker exists', () => {
+test('untracked non-macOS overlay shows passively when no tracker exists', () => {
   const { window, calls } = createMainWindowRecorder();
   let trackerWarning = false;
 
@@ -279,9 +279,47 @@ test('untracked non-macOS overlay keeps fallback visible behavior when no tracke
   } as never);
 
   assert.equal(trackerWarning, false);
-  assert.ok(calls.includes('show'));
-  assert.ok(calls.includes('focus'));
+  assert.ok(calls.includes('show-inactive'));
+  assert.ok(!calls.includes('show'));
+  assert.ok(!calls.includes('focus'));
   assert.ok(!calls.includes('osd'));
+});
+
+test('passive Linux visible overlay does not take keyboard focus', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+  };
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: false,
+    isWindowsPlatform: false,
+  } as never);
+
+  assert.ok(calls.includes('show-inactive'));
+  assert.ok(!calls.includes('show'));
+  assert.ok(!calls.includes('focus'));
 });
 
 test('tracked non-macOS overlay reapplies bounds after first show', () => {
@@ -317,8 +355,8 @@ test('tracked non-macOS overlay reapplies bounds after first show', () => {
   } as never);
 
   assert.deepEqual(
-    calls.filter((call) => call === 'update-bounds' || call === 'show'),
-    ['update-bounds', 'show', 'update-bounds'],
+    calls.filter((call) => call === 'update-bounds' || call === 'show-inactive'),
+    ['update-bounds', 'show-inactive', 'update-bounds'],
   );
 });
 

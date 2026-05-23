@@ -356,6 +356,7 @@ import {
   promoteStatsOverlayAbovePlayback,
   registerStatsOverlayToggle,
   toggleStatsOverlay as toggleStatsOverlayWindow,
+  withStatsWindowLayerSuspendedForNativeDialog,
 } from './core/services/stats-window.js';
 import {
   createFirstRunSetupService,
@@ -5184,6 +5185,8 @@ function getUpdateService() {
       });
       app.focus({ steal: true });
     },
+    withStatsWindowLayerSuspended: (showDialog) =>
+      withStatsWindowLayerSuspendedForNativeDialog(showDialog),
     showMessageBox: (options) => dialog.showMessageBox(options),
   });
   updateService = createUpdateService({
@@ -6406,6 +6409,13 @@ function ensureOverlayWindowsReadyForVisibilityActions(): void {
   }
 }
 
+function notifyMpvPluginVisibleOverlayVisibility(visible: boolean): void {
+  sendMpvCommandRuntime(appState.mpvClient, [
+    'script-message',
+    visible ? 'subminer-visible-overlay-shown' : 'subminer-visible-overlay-hidden',
+  ]);
+}
+
 function setVisibleOverlayVisible(visible: boolean): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   if (!visible) {
@@ -6416,18 +6426,21 @@ function setVisibleOverlayVisible(visible: boolean): void {
     void ensureOverlayMpvSubtitlesHidden();
   }
   setVisibleOverlayVisibleHandler(visible);
+  notifyMpvPluginVisibleOverlayVisibility(visible);
   syncOverlayMpvSubtitleSuppression();
 }
 
 function toggleVisibleOverlay(): void {
   ensureOverlayWindowsReadyForVisibilityActions();
+  const nextVisible = !overlayManager.getVisibleOverlayVisible();
   autoplayReadyGate.markCurrentMediaAutoplayReady();
-  if (overlayManager.getVisibleOverlayVisible()) {
+  if (!nextVisible) {
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   } else {
     void ensureOverlayMpvSubtitlesHidden();
   }
   toggleVisibleOverlayHandler();
+  notifyMpvPluginVisibleOverlayVisibility(nextVisible);
   syncOverlayMpvSubtitleSuppression();
 }
 function setOverlayVisible(visible: boolean): void {
@@ -6439,6 +6452,7 @@ function setOverlayVisible(visible: boolean): void {
     void ensureOverlayMpvSubtitlesHidden();
   }
   setOverlayVisibleHandler(visible);
+  notifyMpvPluginVisibleOverlayVisibility(visible);
   syncOverlayMpvSubtitleSuppression();
 }
 function handleOverlayModalClosed(modal: OverlayHostedModal): void {

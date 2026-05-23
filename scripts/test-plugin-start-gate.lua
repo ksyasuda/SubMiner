@@ -201,7 +201,7 @@ local function run_plugin_scenario(config)
 		end
 		function mp.set_osd_ass(...) end
 		function mp.get_time()
-			return 0
+			return config.now or 0
 		end
 		function mp.commandv(...) end
 		function mp.set_property_native(name, value)
@@ -623,16 +623,18 @@ local binary_path = "/tmp/subminer-binary"
 local appimage_path = "/tmp/SubMiner.AppImage"
 
 do
-	local recorded, err = run_plugin_scenario({
+	local scenario = {
 		process_list = "",
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
 		},
+		now = 20,
 		files = {
 			[binary_path] = true,
 		},
-	})
+	}
+	local recorded, err = run_plugin_scenario(scenario)
 	assert_true(recorded ~= nil, "plugin failed to load for cold-start scenario: " .. tostring(err))
 	assert_true(recorded.script_messages["subminer-start"] ~= nil, "subminer-start script message not registered")
 	recorded.script_messages["subminer-start"]("texthooker=no")
@@ -680,6 +682,125 @@ do
 	assert_true(
 		count_property_set(recorded.property_sets, "pause", false) == 2,
 		"new media after prior playback should resume only after readiness"
+	)
+end
+
+do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/jellyfin-app-toggle-initial.m3u8",
+		media_title = "Jellyfin App Toggle",
+		paused = true,
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for app-side hide Jellyfin redirect: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-visible-overlay-hidden"]()
+	fire_event(recorded, "end-file", { reason = "redirect" })
+	scenario.path = "/media/jellyfin-app-toggle-final.m3u8"
+	scenario.media_title = ""
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		"app-side hide sync should suppress path-changing Jellyfin redirect visible overlay reassertion"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 0,
+		"app-side hide sync followed by Jellyfin redirect should keep paused playback paused"
+	)
+end
+
+do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/jellyfin-duplicate-toggle.m3u8",
+		media_title = "Jellyfin Duplicate Toggle",
+		paused = true,
+		now = 10,
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for duplicate visible overlay toggle: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-toggle"]()
+	recorded.script_messages["subminer-toggle"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--hide-visible-overlay") == 1,
+		"duplicate same-tick visible overlay toggles should hide once"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		"duplicate same-tick visible overlay toggles should not immediately show the overlay again"
+	)
+	scenario.now = 10.5
+	recorded.script_messages["subminer-toggle"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
+		"later visible overlay toggle should still show after duplicate suppression window"
+	)
+end
+
+do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+		},
+		now = 20,
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for visible overlay state sync scenario: " .. tostring(err))
+	assert_true(
+		recorded.script_messages["subminer-visible-overlay-hidden"] ~= nil,
+		"hidden visibility sync message should be registered"
+	)
+	assert_true(
+		recorded.script_messages["subminer-visible-overlay-shown"] ~= nil,
+		"shown visibility sync message should be registered"
+	)
+	recorded.script_messages["subminer-visible-overlay-hidden"]()
+	recorded.script_messages["subminer-toggle"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		"toggle after app-side hide should explicitly show SubMiner overlay through plugin state"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--toggle-visible-overlay") == 0,
+		"toggle after app-side hide should avoid app-side visible overlay toggle"
+	)
+	scenario.now = 20.5
+	recorded.script_messages["subminer-visible-overlay-shown"]()
+	recorded.script_messages["subminer-toggle"]()
+	assert_true(
+		count_control_calls(recorded.async_calls, "--hide-visible-overlay") == 1,
+		"toggle after app-side show should explicitly hide SubMiner overlay through plugin state"
 	)
 end
 
@@ -1714,6 +1835,53 @@ do
 	assert_true(
 		count_property_set(recorded.property_sets, "pause", false) == 0,
 		"manual toggle-off followed by same-media reload should keep paused playback paused"
+	)
+end
+
+do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/jellyfin-redirect-initial.m3u8",
+		media_title = "Jellyfin Redirect",
+		paused = true,
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for manual hide path-changing Jellyfin redirect: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	recorded.script_messages["subminer-toggle"]()
+	fire_event(recorded, "end-file", { reason = "redirect" })
+	scenario.path = "/media/jellyfin-redirect-final.m3u8"
+	scenario.media_title = ""
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
+		"manual toggle-off should suppress path-changing Jellyfin redirect visible overlay reassertion even if media-title drops"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 0,
+		"manual toggle-off followed by path-changing Jellyfin reload should keep paused playback paused"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "sid", "auto") == 2,
+		"path-changing Jellyfin redirect should rearm primary subtitle selection before mpv loads tracks"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "secondary-sid", "auto") == 2,
+		"path-changing Jellyfin redirect should rearm secondary subtitle selection before mpv loads tracks"
 	)
 end
 

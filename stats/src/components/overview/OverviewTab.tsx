@@ -47,7 +47,7 @@ export function OverviewTab({ onNavigateToMediaDetail, onNavigateToSession }: Ov
   }, []);
 
   const handleDeleteSession = async (session: SessionSummary) => {
-    if (!confirmSessionDelete()) return;
+    if (!(await confirmSessionDelete())) return;
     setDeleteError(null);
     setDeletingIds((prev) => new Set(prev).add(session.sessionId));
     try {
@@ -65,7 +65,7 @@ export function OverviewTab({ onNavigateToMediaDetail, onNavigateToSession }: Ov
   };
 
   const handleDeleteDayGroup = async (dayLabel: string, daySessions: SessionSummary[]) => {
-    if (!confirmDayGroupDelete(dayLabel, daySessions.length)) return;
+    if (!(await confirmDayGroupDelete(dayLabel, daySessions.length))) return;
     setDeleteError(null);
     const ids = daySessions.map((s) => s.sessionId);
     setDeletingIds((prev) => {
@@ -91,7 +91,7 @@ export function OverviewTab({ onNavigateToMediaDetail, onNavigateToSession }: Ov
   const handleDeleteAnimeGroup = async (groupSessions: SessionSummary[]) => {
     const title =
       groupSessions[0]?.animeTitle ?? groupSessions[0]?.canonicalTitle ?? 'Unknown Media';
-    if (!confirmAnimeGroupDelete(title, groupSessions.length)) return;
+    if (!(await confirmAnimeGroupDelete(title, groupSessions.length))) return;
     setDeleteError(null);
     const ids = groupSessions.map((s) => s.sessionId);
     setDeletingIds((prev) => {

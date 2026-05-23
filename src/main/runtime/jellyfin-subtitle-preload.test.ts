@@ -201,6 +201,94 @@ test('preload jellyfin subtitles waits for delayed external japanese track inste
   );
 });
 
+test('preload jellyfin subtitles accepts numeric string mpv track ids', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const preload = createPreloadJellyfinExternalSubtitlesHandler(
+    makeDeps({
+      listJellyfinSubtitleTracks: async () => [
+        { index: 0, language: 'jpn', title: 'Japanese', deliveryUrl: 'https://sub/a.srt' },
+        { index: 1, language: 'eng', title: 'English', deliveryUrl: 'https://sub/b.srt' },
+      ],
+      getMpvClient: () => ({
+        requestProperty: async () => [
+          {
+            type: 'sub',
+            id: ' ',
+            lang: 'jpn',
+            title: 'Invalid empty id',
+            external: true,
+            'external-filename': '/tmp/subminer-jellyfin-subtitles/invalid.srt',
+          },
+          {
+            type: 'sub',
+            id: '10',
+            lang: 'jpn',
+            title: 'Japanese',
+            external: true,
+            'external-filename': '/tmp/subminer-jellyfin-subtitles/0.srt',
+          },
+          {
+            type: 'sub',
+            id: '11',
+            lang: 'eng',
+            title: 'English',
+            external: true,
+            'external-filename': '/tmp/subminer-jellyfin-subtitles/1.srt',
+          },
+        ],
+      }),
+      sendMpvCommand: (command) => commands.push(command),
+    }),
+  );
+
+  await preload({ session, clientInfo, itemId: 'item-1' });
+
+  assert.deepEqual(
+    commands.filter((command) => command[0] === 'set_property'),
+    [
+      ['set_property', 'sid', 10],
+      ['set_property', 'secondary-sid', 11],
+    ],
+  );
+});
+
+test('preload jellyfin subtitles retries transient mpv track-list read failures', async () => {
+  const commands: Array<Array<string | number>> = [];
+  let requestCount = 0;
+  const preload = createPreloadJellyfinExternalSubtitlesHandler(
+    makeDeps({
+      listJellyfinSubtitleTracks: async () => [
+        { index: 0, language: 'jpn', title: 'Japanese', deliveryUrl: 'https://sub/a.srt' },
+      ],
+      getMpvClient: () => ({
+        connected: true,
+        requestProperty: async () => {
+          requestCount += 1;
+          if (requestCount === 1) {
+            throw new Error('MPV request timed out');
+          }
+          return [
+            {
+              type: 'sub',
+              id: 10,
+              lang: 'jpn',
+              title: 'Japanese',
+              external: true,
+              'external-filename': '/tmp/subminer-jellyfin-subtitles/0.srt',
+            },
+          ];
+        },
+      }),
+      sendMpvCommand: (command) => commands.push(command),
+    }),
+  );
+
+  await preload({ session, clientInfo, itemId: 'item-1' });
+
+  assert.equal(requestCount, 2);
+  assert.deepEqual(commands.at(-1), ['set_property', 'sid', 10]);
+});
+
 test('preload jellyfin subtitles does not let later subtitle adds steal japanese primary selection', async () => {
   const commands: Array<Array<string | number>> = [];
   let requestCount = 0;

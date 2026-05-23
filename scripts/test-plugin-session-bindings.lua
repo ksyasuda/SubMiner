@@ -23,6 +23,7 @@ local recorded = {
 	async_calls = {},
 	mpv_commands = {},
 	osd = {},
+	overlay_toggles = 0,
 }
 
 local mp = {}
@@ -68,6 +69,14 @@ local ctx = {
 			return {
 				numericSelectionTimeoutMs = 3000,
 				bindings = {
+					{
+						key = {
+							code = "KeyO",
+							modifiers = { "alt", "shift" },
+						},
+						actionType = "session-action",
+						actionId = "toggleVisibleOverlay",
+					},
 					{
 						key = {
 							code = "KeyS",
@@ -253,6 +262,9 @@ local ctx = {
 		run_binary_command_async = function(args)
 			recorded.async_calls[#recorded.async_calls + 1] = args
 		end,
+		toggle_overlay = function()
+			recorded.overlay_toggles = recorded.overlay_toggles + 1
+		end,
 	},
 	environment = {
 		resolve_session_bindings_artifact_path = function()
@@ -317,6 +329,11 @@ local expected_cli_bindings = {
 	{ keys = "Ctrl+L", flag = "--play-next-subtitle" },
 	{ keys = "w", flag = "--mark-watched" },
 }
+
+local visible_overlay_toggle = find_binding("Alt+O")
+assert_true(visible_overlay_toggle ~= nil, "visible overlay session binding should register")
+visible_overlay_toggle.fn()
+assert_true(recorded.overlay_toggles == 1, "visible overlay session binding should use plugin toggle")
 
 for _, expected in ipairs(expected_cli_bindings) do
 	local binding = find_binding(expected.keys)

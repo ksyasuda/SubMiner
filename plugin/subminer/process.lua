@@ -7,6 +7,7 @@ local OVERLAY_RESTART_PING_MAX_ATTEMPTS = 20
 local AUTO_PLAY_READY_LOADING_OSD = "Loading subtitle tokenization..."
 local AUTO_PLAY_READY_READY_OSD = "Subtitle tokenization ready"
 local DEFAULT_AUTO_PLAY_READY_TIMEOUT_SECONDS = 15
+local DUPLICATE_VISIBLE_OVERLAY_TOGGLE_SECONDS = 0.25
 
 function M.create(ctx)
 	local mp = ctx.mp
@@ -89,6 +90,35 @@ function M.create(ctx)
 				state.suppress_ready_overlay_restore = false
 			end
 		end
+	end
+
+	local function record_visible_overlay_visibility(visible)
+		if visible then
+			state.visible_overlay_requested = true
+			state.suppress_ready_overlay_restore = false
+			return
+		end
+		state.visible_overlay_requested = false
+		state.suppress_ready_overlay_restore = true
+	end
+
+	local function should_ignore_duplicate_visible_overlay_toggle()
+		if type(mp.get_time) ~= "function" then
+			return false
+		end
+		local now = mp.get_time()
+		if type(now) ~= "number" then
+			return false
+		end
+
+		local previous = state.last_visible_overlay_toggle_time
+		state.last_visible_overlay_toggle_time = now
+		if type(previous) ~= "number" then
+			return false
+		end
+
+		local elapsed = now - previous
+		return elapsed >= 0 and elapsed < DUPLICATE_VISIBLE_OVERLAY_TOGGLE_SECONDS
 	end
 
 	local function normalize_socket_path(path)
@@ -604,6 +634,10 @@ function M.create(ctx)
 			show_osd("Error: binary not found")
 			return
 		end
+		if should_ignore_duplicate_visible_overlay_toggle() then
+			subminer_log("debug", "process", "Ignoring duplicate visible overlay toggle")
+			return
+		end
 		if state.visible_overlay_requested == true then
 			state.suppress_ready_overlay_restore = true
 			hide_visible_overlay({ resume_playback = false })
@@ -751,6 +785,7 @@ function M.create(ctx)
 		build_command_args = build_command_args,
 		has_matching_mpv_ipc_socket = has_matching_mpv_ipc_socket,
 		run_control_command_async = run_control_command_async,
+		record_visible_overlay_visibility = record_visible_overlay_visibility,
 		run_binary_command_async = run_binary_command_async,
 		parse_start_script_message_overrides = parse_start_script_message_overrides,
 		ensure_texthooker_running = ensure_texthooker_running,

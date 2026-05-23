@@ -73,6 +73,22 @@ test('manual visible overlay toggles suppress current-media autoplay release', (
   );
 });
 
+test('manual visible overlay changes notify mpv plugin visibility state', () => {
+  const source = readMainSource();
+  const setBlock = source.match(
+    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+  const toggleBlock = source.match(
+    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(setBlock);
+  assert.ok(toggleBlock);
+  assert.match(setBlock, /notifyMpvPluginVisibleOverlayVisibility\(visible\);/);
+  assert.match(toggleBlock, /const nextVisible = !overlayManager\.getVisibleOverlayVisible\(\);/);
+  assert.match(toggleBlock, /notifyMpvPluginVisibleOverlayVisibility\(nextVisible\);/);
+});
+
 test('main process uses one shared mpv plugin runtime config helper', () => {
   const source = readMainSource();
   assert.match(source, /function getMpvPluginRuntimeConfig\(\)/);

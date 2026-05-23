@@ -28,6 +28,57 @@ test('update dialog presenter focuses app and yields the run loop before showing
   assert.deepEqual(calls, ['focus', 'yield', 'dialog:SubMiner is up to date (v0.14.0)']);
 });
 
+test('update dialog presenter suspends stats window layer while showing dialogs', async () => {
+  const calls: string[] = [];
+  const showMessageBox: ShowMessageBox = async (options) => {
+    calls.push(`dialog:${options.message}`);
+    return { response: 0 };
+  };
+  const presenter = createUpdateDialogPresenter({
+    platform: 'linux',
+    withStatsWindowLayerSuspended: async (showDialog) => {
+      calls.push('suspend-stats-window');
+      try {
+        return await showDialog();
+      } finally {
+        calls.push('restore-stats-window');
+      }
+    },
+    showMessageBox,
+  });
+
+  await presenter.showNoUpdateDialog('0.14.0');
+
+  assert.deepEqual(calls, [
+    'suspend-stats-window',
+    'dialog:SubMiner is up to date (v0.14.0)',
+    'restore-stats-window',
+  ]);
+});
+
+test('update dialog presenter restores stats window layer when dialog fails', async () => {
+  const calls: string[] = [];
+  const presenter = createUpdateDialogPresenter({
+    platform: 'linux',
+    withStatsWindowLayerSuspended: async (showDialog) => {
+      calls.push('suspend-stats-window');
+      try {
+        return await showDialog();
+      } finally {
+        calls.push('restore-stats-window');
+      }
+    },
+    showMessageBox: async () => {
+      calls.push('dialog');
+      throw new Error('dialog failed');
+    },
+  });
+
+  await assert.rejects(() => presenter.showNoUpdateDialog('0.14.0'), /dialog failed/);
+
+  assert.deepEqual(calls, ['suspend-stats-window', 'dialog', 'restore-stats-window']);
+});
+
 test('update dialog presenter awaits async focusApp before yielding and showing the dialog', async () => {
   const calls: string[] = [];
   const showMessageBox: ShowMessageBox = async (options) => {

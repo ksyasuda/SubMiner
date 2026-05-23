@@ -11,7 +11,7 @@ interface DeleteEpisodeHandlerOptions {
   videoId: number;
   title: string;
   apiClient: { deleteVideo: (id: number) => Promise<void> };
-  confirmFn: (title: string) => boolean;
+  confirmFn: (title: string) => boolean | Promise<boolean>;
   onBack: () => void;
   setDeleteError: (msg: string | null) => void;
   /**
@@ -27,7 +27,7 @@ interface DeleteEpisodeHandlerOptions {
 export function buildDeleteEpisodeHandler(opts: DeleteEpisodeHandlerOptions): () => Promise<void> {
   return async () => {
     if (opts.isDeletingRef?.current) return;
-    if (!opts.confirmFn(opts.title)) return;
+    if (!(await opts.confirmFn(opts.title))) return;
     if (opts.isDeletingRef) opts.isDeletingRef.current = true;
     opts.setIsDeleting?.(true);
     opts.setDeleteError(null);
@@ -101,7 +101,7 @@ export function MediaDetailView({
   const relatedCollectionLabel = getRelatedCollectionLabel(detail);
 
   const handleDeleteSession = async (session: SessionSummary) => {
-    if (!confirmSessionDelete()) return;
+    if (!(await confirmSessionDelete())) return;
 
     setDeleteError(null);
     setDeletingSessionId(session.sessionId);

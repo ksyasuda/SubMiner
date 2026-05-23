@@ -62,6 +62,9 @@ interface StatsElectronAPI {
     ankiBrowse: (noteId: number) => Promise<void>;
     ankiNotesInfo: (noteIds: number[]) => Promise<StatsAnkiNoteInfo[]>;
     hideOverlay: () => void;
+    confirmNativeDialog?: (message: string) => boolean;
+    beginNativeDialog?: () => void;
+    endNativeDialog?: () => void;
   };
 }
 
