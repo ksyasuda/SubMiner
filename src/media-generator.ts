@@ -319,9 +319,11 @@ export class MediaGenerator {
       leadingStillDuration?: number;
     } = {},
   ): Promise<Buffer> {
-    const start = Math.max(0, startTime - padding);
-    const duration = endTime - startTime + 2 * padding;
     const { fps = 10, maxWidth = 640, maxHeight, crf = 35, leadingStillDuration = 0 } = options;
+    const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
+    const start = Math.max(0, startTime);
+    const duration = endTime - startTime + safePadding;
+    const totalLeadingStillDuration = Math.max(0, leadingStillDuration);
 
     const clampedCrf = Math.max(0, Math.min(63, crf));
 
@@ -359,7 +361,7 @@ export class MediaGenerator {
             fps,
             maxWidth,
             maxHeight,
-            leadingStillDuration,
+            leadingStillDuration: totalLeadingStillDuration,
           }),
           ...encoderArgs,
           '-y',
