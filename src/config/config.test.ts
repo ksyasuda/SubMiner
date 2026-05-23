@@ -150,6 +150,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.updates.channel, 'stable');
   assert.equal(config.mpv.socketPath, '/tmp/subminer-socket');
   assert.equal(config.mpv.backend, 'auto');
+  assert.equal(config.mpv.profile, '');
   assert.equal(config.mpv.autoStartSubMiner, true);
   assert.equal(config.mpv.pauseUntilOverlayReady, true);
   assert.equal(config.mpv.subminerBinaryPath, '');
@@ -357,6 +358,7 @@ test('parses managed mpv plugin runtime settings from config', () => {
       "mpv": {
         "socketPath": "/tmp/custom-subminer.sock",
         "backend": "x11",
+        "profile": " anime ",
         "autoStartSubMiner": false,
         "pauseUntilOverlayReady": false,
         "subminerBinaryPath": "/opt/SubMiner/SubMiner.AppImage",
@@ -371,6 +373,7 @@ test('parses managed mpv plugin runtime settings from config', () => {
   const config = validService.getConfig();
   assert.equal(config.mpv.socketPath, '/tmp/custom-subminer.sock');
   assert.equal(config.mpv.backend, 'x11');
+  assert.equal(config.mpv.profile, 'anime');
   assert.equal(config.mpv.autoStartSubMiner, false);
   assert.equal(config.mpv.pauseUntilOverlayReady, false);
   assert.equal(config.mpv.subminerBinaryPath, '/opt/SubMiner/SubMiner.AppImage');
@@ -384,6 +387,7 @@ test('parses managed mpv plugin runtime settings from config', () => {
       "mpv": {
         "socketPath": "",
         "backend": "weston",
+        "profile": 12,
         "autoStartSubMiner": "yes",
         "pauseUntilOverlayReady": "no",
         "subminerBinaryPath": 42,
@@ -399,6 +403,7 @@ test('parses managed mpv plugin runtime settings from config', () => {
   const warnings = invalidService.getWarnings();
   assert.equal(invalidConfig.mpv.socketPath, DEFAULT_CONFIG.mpv.socketPath);
   assert.equal(invalidConfig.mpv.backend, DEFAULT_CONFIG.mpv.backend);
+  assert.equal(invalidConfig.mpv.profile, DEFAULT_CONFIG.mpv.profile);
   assert.equal(invalidConfig.mpv.autoStartSubMiner, DEFAULT_CONFIG.mpv.autoStartSubMiner);
   assert.equal(invalidConfig.mpv.pauseUntilOverlayReady, DEFAULT_CONFIG.mpv.pauseUntilOverlayReady);
   assert.equal(invalidConfig.mpv.subminerBinaryPath, DEFAULT_CONFIG.mpv.subminerBinaryPath);
@@ -406,6 +411,7 @@ test('parses managed mpv plugin runtime settings from config', () => {
   assert.equal(invalidConfig.mpv.aniskipButtonKey, DEFAULT_CONFIG.mpv.aniskipButtonKey);
   assert.ok(warnings.some((warning) => warning.path === 'mpv.socketPath'));
   assert.ok(warnings.some((warning) => warning.path === 'mpv.backend'));
+  assert.ok(warnings.some((warning) => warning.path === 'mpv.profile'));
   assert.ok(warnings.some((warning) => warning.path === 'mpv.autoStartSubMiner'));
   assert.ok(warnings.some((warning) => warning.path === 'mpv.pauseUntilOverlayReady'));
   assert.ok(warnings.some((warning) => warning.path === 'mpv.subminerBinaryPath'));

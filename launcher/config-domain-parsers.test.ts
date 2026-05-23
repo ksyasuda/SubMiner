@@ -229,6 +229,29 @@ test('getDefaultSocketPath returns Windows named pipe default', () => {
   assert.equal(getDefaultSocketPath('win32'), '\\\\.\\pipe\\subminer-socket');
 });
 
+test('parseLauncherMpvConfig reads configured mpv profile', () => {
+  assert.deepEqual(
+    parseLauncherMpvConfig({
+      mpv: {
+        profile: ' anime ',
+      },
+    }),
+    {
+      launchMode: undefined,
+      socketPath: undefined,
+      backend: undefined,
+      autoStartSubMiner: undefined,
+      pauseUntilOverlayReady: undefined,
+      subminerBinaryPath: undefined,
+      profile: 'anime',
+      aniskipEnabled: undefined,
+      aniskipButtonKey: undefined,
+    },
+  );
+
+  assert.equal(parseLauncherMpvConfig({ mpv: { profile: '   ' } }).profile, undefined);
+});
+
 test('readExternalYomitanProfilePath detects configured external profile paths', () => {
   assert.equal(
     readExternalYomitanProfilePath({

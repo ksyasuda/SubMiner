@@ -58,6 +58,7 @@ export type MpvBackend = 'auto' | 'hyprland' | 'sway' | 'x11' | 'macos' | 'windo
 export interface MpvConfig {
   executablePath?: string;
   launchMode?: MpvLaunchMode;
+  profile?: string;
   socketPath?: string;
   backend?: MpvBackend;
   autoStartSubMiner?: boolean;
@@ -156,6 +157,7 @@ export interface ResolvedConfig {
   mpv: {
     executablePath: string;
     launchMode: MpvLaunchMode;
+    profile: string;
     socketPath: string;
     backend: MpvBackend;
     autoStartSubMiner: boolean;

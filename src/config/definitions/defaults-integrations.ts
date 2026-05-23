@@ -94,6 +94,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   mpv: {
     executablePath: '',
     launchMode: 'normal',
+    profile: '',
     socketPath: getDefaultMpvSocketPath(),
     backend: 'auto',
     autoStartSubMiner: true,

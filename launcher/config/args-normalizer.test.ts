@@ -45,6 +45,20 @@ test('createDefaultArgs normalizes configured language codes and env thread over
   }
 });
 
+test('createDefaultArgs seeds mpv profile from launcher config', () => {
+  const parsed = createDefaultArgs({}, { profile: 'anime' });
+
+  assert.equal(parsed.profile, 'anime');
+});
+
+test('applyRootOptionsToArgs appends CLI mpv profile to configured profile', () => {
+  const parsed = createDefaultArgs({}, { profile: 'anime' });
+
+  applyRootOptionsToArgs(parsed, { profile: 'hdr' }, undefined);
+
+  assert.equal(parsed.profile, 'anime,hdr');
+});
+
 test('applyRootOptionsToArgs maps file, directory, and url targets', () => {
   withTempDir((dir) => {
     const filePath = path.join(dir, 'movie.mkv');

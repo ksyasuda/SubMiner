@@ -31,6 +31,7 @@ export function parseLauncherMpvConfig(root: Record<string, unknown>): LauncherM
 
   return {
     launchMode: parseMpvLaunchMode(mpv.launchMode),
+    profile: parseNonEmptyString(mpv.profile),
     socketPath: parseNonEmptyString(mpv.socketPath),
     backend: parseBackend(mpv.backend),
     autoStartSubMiner:

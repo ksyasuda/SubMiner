@@ -175,6 +175,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
       'Set mpv.socketPath to the IPC socket used by the launcher, Electron app, and bundled plugin.',
       'autoStartSubMiner starts SubMiner in the background; auto_start_overlay only controls visible overlay display.',
       'Set mpv.launchMode to choose normal, maximized, or fullscreen SubMiner-managed mpv playback.',
+      'Set mpv.profile to pass an mpv profile to managed mpv launches; leave it blank to pass none.',
       'Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.',
     ],
     key: 'mpv',

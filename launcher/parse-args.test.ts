@@ -30,6 +30,12 @@ test('parseArgs captures mpv args string', () => {
   assert.equal(parsed.mpvArgs, '--pause=yes --title="movie night"');
 });
 
+test('parseArgs appends CLI mpv profile to configured mpv profile', () => {
+  const parsed = parseArgs(['--profile', 'hdr'], 'subminer', {}, { profile: 'anime' });
+
+  assert.equal(parsed.profile, 'anime,hdr');
+});
+
 test('parseArgs maps root settings window option', () => {
   const parsed = parseArgs(['--settings'], 'subminer', {});
 

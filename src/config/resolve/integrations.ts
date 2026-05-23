@@ -254,6 +254,13 @@ export function applyIntegrationConfig(context: ResolveContext): void {
       );
     }
 
+    const profile = asString(src.mpv.profile);
+    if (profile !== undefined) {
+      resolved.mpv.profile = profile.trim();
+    } else if (src.mpv.profile !== undefined) {
+      warn('mpv.profile', src.mpv.profile, resolved.mpv.profile, 'Expected string.');
+    }
+
     const socketPath = asString(src.mpv.socketPath);
     if (socketPath !== undefined && socketPath.trim().length > 0) {
       resolved.mpv.socketPath = socketPath.trim();

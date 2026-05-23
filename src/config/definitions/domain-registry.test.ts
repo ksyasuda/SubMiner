@@ -105,6 +105,7 @@ test('config option registry includes critical paths and has unique entries', ()
     'anilist.characterDictionary.collapsibleSections.description',
     'mpv.executablePath',
     'mpv.launchMode',
+    'mpv.profile',
     'mpv.socketPath',
     'mpv.backend',
     'mpv.autoStartSubMiner',

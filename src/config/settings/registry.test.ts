@@ -24,6 +24,8 @@ test('settings registry splits viewing into appearance and behavior categories',
   assert.equal(field('youtube.primarySubLanguages').section, 'YouTube Playback Settings');
   assert.equal(field('mpv.launchMode').category, 'behavior');
   assert.equal(field('mpv.launchMode').section, 'mpv Playback');
+  assert.equal(field('mpv.profile').category, 'behavior');
+  assert.equal(field('mpv.profile').section, 'mpv Playback');
   assert.ok(
     fields.findIndex((candidate) => candidate.configPath === 'subtitleStyle.primaryDefaultMode') <
       fields.findIndex((candidate) => candidate.configPath === 'secondarySub.defaultMode'),
@@ -298,6 +300,7 @@ test('settings registry keeps unsafe config siblings restart-required', () => {
     'ankiConnect.url',
     'ankiConnect.proxy.enabled',
     'mpv.socketPath',
+    'mpv.profile',
     'websocket.port',
   ]) {
     assert.equal(field(path).restartBehavior, 'restart', path);

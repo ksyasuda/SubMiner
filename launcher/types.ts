@@ -175,6 +175,7 @@ export interface LauncherJellyfinConfig {
 
 export interface LauncherMpvConfig {
   launchMode?: MpvLaunchMode;
+  profile?: string;
   socketPath?: string;
   backend?: MpvBackend;
   autoStartSubMiner?: boolean;

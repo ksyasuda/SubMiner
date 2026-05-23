@@ -178,7 +178,7 @@ The configuration file includes several main sections:
 - [**Discord Rich Presence**](#discord-rich-presence) - Optional Discord activity card updates
 - [**Immersion Tracking**](#immersion-tracking) - Track subtitle sessions and mining activity in SQLite
 - [**Stats Dashboard**](#stats-dashboard) - Local dashboard and overlay for immersion progress
-- [**MPV Launcher**](#mpv-launcher) - mpv executable path and window launch mode
+- [**MPV Launcher**](#mpv-launcher) - mpv executable path, profile, and window launch mode
 - [**YouTube Playback Settings**](#youtube-playback-settings) - Defaults for YouTube subtitle loading
 - [**Updates**](#updates) - Automatic update checks, notifications, and prerelease testing
 
@@ -1455,12 +1455,13 @@ Usage notes:
 
 ### MPV Launcher
 
-Configure the mpv executable and window state for SubMiner-managed mpv launches (launcher playback, Windows `--launch-mpv`, and Jellyfin idle mpv startup):
+Configure the mpv executable, profile, and window state for SubMiner-managed mpv launches (launcher playback, Windows `--launch-mpv`, and Jellyfin idle mpv startup):
 
 ```json
 {
   "mpv": {
     "executablePath": "",
+    "profile": "",
     "launchMode": "normal"
   }
 }
@@ -1469,7 +1470,10 @@ Configure the mpv executable and window state for SubMiner-managed mpv launches 
 | Option           | Values                                        | Description                                                                                                                         |
 | ---------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `executablePath` | string                                        | Absolute path to `mpv.exe` for Windows launch flows. Leave empty to auto-discover from `SUBMINER_MPV_PATH` or `PATH` (default `""`) |
+| `profile`        | string                                        | mpv profile name passed as `--profile=<name>`. Leave empty to pass no profile (default `""`)                                        |
 | `launchMode`     | `"normal"` \| `"maximized"` \| `"fullscreen"` | Window state when SubMiner spawns mpv (default `"normal"`)                                                                          |
+
+If `mpv.profile` is configured and the launcher also receives `--profile`, SubMiner passes both as a comma-separated mpv profile list.
 
 Launch mode behavior:
 

@@ -268,6 +268,18 @@ test('buildConfiguredMpvDefaultArgs appends maximized launch mode to configured 
   });
 });
 
+test('buildConfiguredMpvDefaultArgs passes configured mpv profile before SubMiner defaults', () => {
+  withPlatform('linux', () => {
+    assert.deepEqual(
+      buildConfiguredMpvDefaultArgs(makeArgs({ profile: 'anime,hdr' }), {
+        DISPLAY: ':1',
+        XDG_SESSION_TYPE: 'x11',
+      }).slice(0, 2),
+      ['--profile=anime,hdr', '--sub-auto=fuzzy'],
+    );
+  });
+});
+
 test('buildConfiguredMpvDefaultArgs disables macOS menu shortcuts so SubMiner bindings reach mpv', () => {
   withPlatform('darwin', () => {
     assert.equal(
