@@ -670,6 +670,21 @@ test('numeric selection ignores non-digit keys instead of falling through to oth
   }
 });
 
+test('numeric selection start focuses overlay for follow-up digit keys', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.beginSessionNumericSelection('copySubtitleMultiple');
+
+    assert.equal(testGlobals.focusMainWindowCalls() > 0, true);
+    assert.equal(testGlobals.windowFocusCalls() > 0, true);
+    assert.equal(testGlobals.overlayFocusCalls.length > 0, true);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: left and right move token selection while popup remains open', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 

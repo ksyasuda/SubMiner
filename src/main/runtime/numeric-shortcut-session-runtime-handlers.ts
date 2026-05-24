@@ -16,6 +16,8 @@ export function createNumericShortcutSessionRuntimeHandlers(deps: {
   mineSentenceSession: CancelNumericShortcutSessionMainDeps['session'];
   onMultiCopyDigit: (count: number) => void;
   onMineSentenceDigit: (count: number) => void;
+  tryBeginMultiCopyOverlaySelection?: (timeoutMs: number) => boolean;
+  tryBeginMineSentenceOverlaySelection?: (timeoutMs: number) => boolean;
 }) {
   const cancelPendingMultiCopyMainDeps = createBuildCancelNumericShortcutSessionMainDepsHandler({
     session: deps.multiCopySession,
@@ -61,9 +63,14 @@ export function createNumericShortcutSessionRuntimeHandlers(deps: {
 
   return {
     cancelPendingMultiCopy: () => cancelPendingMultiCopyHandler(),
-    startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopyHandler(timeoutMs),
+    startPendingMultiCopy: (timeoutMs: number) => {
+      if (deps.tryBeginMultiCopyOverlaySelection?.(timeoutMs)) return;
+      startPendingMultiCopyHandler(timeoutMs);
+    },
     cancelPendingMineSentenceMultiple: () => cancelPendingMineSentenceMultipleHandler(),
-    startPendingMineSentenceMultiple: (timeoutMs: number) =>
-      startPendingMineSentenceMultipleHandler(timeoutMs),
+    startPendingMineSentenceMultiple: (timeoutMs: number) => {
+      if (deps.tryBeginMineSentenceOverlaySelection?.(timeoutMs)) return;
+      startPendingMineSentenceMultipleHandler(timeoutMs);
+    },
   };
 }

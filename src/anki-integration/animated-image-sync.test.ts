@@ -50,7 +50,7 @@ test('resolveAnimatedImageLeadInSeconds sums configured word audio durations for
   assert.equal(leadInSeconds, 1.25);
 });
 
-test('resolveAnimatedImageLeadInSeconds adds sentence audio padding to word audio duration', async () => {
+test('resolveAnimatedImageLeadInSeconds does not double-count sentence audio padding', async () => {
   const leadInSeconds = await resolveAnimatedImageLeadInSeconds({
     config: {
       fields: {
@@ -87,7 +87,7 @@ test('resolveAnimatedImageLeadInSeconds adds sentence audio padding to word audi
     logWarn: () => undefined,
   });
 
-  assert.equal(leadInSeconds, 1.75);
+  assert.equal(leadInSeconds, 1.25);
 });
 
 test('resolveAnimatedImageLeadInSeconds falls back to zero when sync is disabled', async () => {

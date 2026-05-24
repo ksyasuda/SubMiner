@@ -37,7 +37,7 @@ These work when the overlay window has focus.
 | `Ctrl/Cmd+G`       | Trigger field grouping (Kiku merge check)       | `shortcuts.triggerFieldGrouping`        |
 | `Ctrl/Cmd+Shift+A` | Mark last card as audio card                    | `shortcuts.markAudioCard`               |
 
-The multi-line shortcuts open a digit selector with a 3-second timeout (`shortcuts.multiCopyTimeoutMs`). Press `1`–`9` to select how many recent subtitle lines to combine.
+The multi-line shortcuts open a digit selector with a 3-second timeout (`shortcuts.multiCopyTimeoutMs`). Press `1`–`9` to select how many recent subtitle lines to combine. When the shortcut starts from mpv, SubMiner focuses the visible overlay for that selector instead of reserving the number keys in the mpv plugin.
 
 ## Overlay Controls
 

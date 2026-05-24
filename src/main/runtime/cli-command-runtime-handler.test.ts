@@ -83,3 +83,39 @@ test('cli command runtime handler skips generic overlay prerequisites for youtub
 
   assert.deepEqual(calls, ['context', 'cli:initial:ctx']);
 });
+
+test('cli command runtime handler ensures tray for managed playback commands', () => {
+  const calls: string[] = [];
+  const handler = createCliCommandRuntimeHandler({
+    handleTexthookerOnlyModeTransitionMainDeps: {
+      isTexthookerOnlyMode: () => false,
+      setTexthookerOnlyMode: () => calls.push('set-mode'),
+      commandNeedsOverlayStartupPrereqs: () => false,
+      ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
+      startBackgroundWarmups: () => calls.push('warmups'),
+      logInfo: (message) => calls.push(`log:${message}`),
+    },
+    ensureTrayForCommand: (args) => {
+      if (args.managedPlayback) {
+        calls.push('ensure-tray');
+      }
+    },
+    createCliCommandContext: () => {
+      calls.push('context');
+      return { id: 'ctx' };
+    },
+    handleCliCommandRuntimeServiceWithContext: (_args, source, context) => {
+      calls.push(`cli:${source}:${context.id}`);
+    },
+  });
+
+  handler(
+    {
+      managedPlayback: true,
+      youtubePlay: 'https://youtube.com/watch?v=abc',
+    } as never,
+    'second-instance',
+  );
+
+  assert.deepEqual(calls, ['ensure-tray', 'context', 'cli:second-instance:ctx']);
+});

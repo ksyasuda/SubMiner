@@ -148,6 +148,50 @@ test('youtube playback launches overlay with app-owned youtube flow args', async
   assert.equal(receivedStartMpvOptions[0]?.disableYoutubeSubtitleAutoLoad, true);
 });
 
+test('youtube app-owned playback disables mpv plugin auto-start', async () => {
+  const context = createContext();
+  context.pluginRuntimeConfig = {
+    ...context.pluginRuntimeConfig,
+    autoStart: true,
+    autoStartVisibleOverlay: true,
+    autoStartPauseUntilReady: true,
+  };
+  const receivedStartMpvOptions: Record<string, unknown>[] = [];
+
+  await runPlaybackCommandWithDeps(context, {
+    ensurePlaybackSetupReady: async () => {},
+    chooseTarget: async () => ({ target: context.args.target, kind: 'url' }),
+    checkDependencies: () => {},
+    registerCleanup: () => {},
+    startMpv: async (
+      _target,
+      _targetKind,
+      _args,
+      _socketPath,
+      _appPath,
+      _preloadedSubtitles,
+      options,
+    ) => {
+      if (options) {
+        receivedStartMpvOptions.push(options as Record<string, unknown>);
+      }
+    },
+    waitForUnixSocketReady: async () => true,
+    startOverlay: async () => {},
+    launchAppCommandDetached: () => {},
+    log: () => {},
+    cleanupPlaybackSession: async () => {},
+    getMpvProc: () => null,
+  });
+
+  const runtimeConfig = receivedStartMpvOptions[0]?.runtimePluginConfig as
+    | { autoStart?: boolean; autoStartVisibleOverlay?: boolean; autoStartPauseUntilReady?: boolean }
+    | undefined;
+  assert.equal(runtimeConfig?.autoStart, false);
+  assert.equal(runtimeConfig?.autoStartVisibleOverlay, false);
+  assert.equal(runtimeConfig?.autoStartPauseUntilReady, false);
+});
+
 test('plugin auto-start playback leaves app lifetime to managed-playback owner', async () => {
   const context = createContext();
   context.args = {

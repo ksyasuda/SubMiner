@@ -843,7 +843,7 @@ export function createStatsApp(
     const client = new AnkiConnectClient(ankiConfig.url ?? 'http://127.0.0.1:8765');
     const mediaGen = new MediaGenerator();
 
-    const audioPadding = ankiConfig.media?.audioPadding ?? 0.5;
+    const audioPadding = ankiConfig.media?.audioPadding ?? 0;
     const maxMediaDuration = ankiConfig.media?.maxMediaDuration ?? 30;
 
     const startSec = startMs / 1000;

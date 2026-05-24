@@ -530,6 +530,12 @@ function registerModalOpenHandlers(): void {
 }
 
 function registerKeyboardCommandHandlers(): void {
+  window.electronAPI.onSessionNumericSelectionStart((payload) => {
+    runGuarded('session:numeric-selection-start', () => {
+      keyboardHandlers.beginSessionNumericSelection(payload.actionId, payload.timeoutMs);
+    });
+  });
+
   window.electronAPI.onKeyboardModeToggleRequested(() => {
     runGuarded('keyboard-mode-toggle:requested', () => {
       keyboardHandlers.handleKeyboardModeToggleRequested();

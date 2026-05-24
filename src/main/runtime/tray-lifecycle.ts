@@ -48,7 +48,20 @@ export function createEnsureTrayHandler(deps: {
       trayIcon = trayIcon.resize({ width: 20, height: 20 });
     }
 
-    const tray = deps.createTray(trayIcon);
+    let tray: TrayLike;
+    try {
+      tray = deps.createTray(trayIcon);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      if (deps.platform === 'linux') {
+        deps.logWarn(
+          `Unable to create Linux tray icon. Ensure your desktop has a StatusNotifier/AppIndicator tray host. ${reason}`,
+        );
+      } else {
+        deps.logWarn(`Unable to create tray icon. ${reason}`);
+      }
+      return;
+    }
     tray.setToolTip(deps.trayTooltip);
     tray.setContextMenu(deps.buildTrayMenu());
     tray.on('click', () => {

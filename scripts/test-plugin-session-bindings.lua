@@ -351,21 +351,10 @@ assert_true(
 
 starter.fn()
 
-local modified_digit = nil
-for _, binding in ipairs(recorded.bindings) do
-	if binding.keys == "Ctrl+Shift+3" then
-		modified_digit = binding
-		break
-	end
-end
-assert_true(modified_digit ~= nil, "numeric selection should bind Ctrl+Shift+3")
-
-modified_digit.fn()
-
 local call = recorded.async_calls[#recorded.async_calls]
-assert_true(call ~= nil, "modified digit should invoke CLI action")
+assert_true(call ~= nil, "multi-line shortcut should invoke CLI action")
 assert_true(call[1] == "/tmp/subminer", "CLI action should use configured binary")
-assert_true(call[2] == "--mine-sentence-count", "CLI action should mine sentence count")
-assert_true(call[3] == "3", "CLI action should pass selected count")
+assert_true(call[2] == "--mine-sentence-multiple", "CLI action should enter mine sentence count selector")
+assert_true(call[3] == nil, "CLI action should not bind a plugin-side digit count")
 
 print("plugin session binding regression tests: OK")

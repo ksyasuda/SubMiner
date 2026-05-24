@@ -48,6 +48,7 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       getYomitanSettingsWindow: () => null,
       clearYomitanSettingsWindow: () => {},
       stopJellyfinRemoteSession: async () => {},
+      cleanupYoutubeSubtitleTempDirs: () => {},
       stopDiscordPresenceService: () => {},
     },
     shouldRestoreWindowsOnActivateMainDeps: {

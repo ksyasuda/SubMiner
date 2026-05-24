@@ -7,9 +7,9 @@ import {
 
 function createTimerHarness() {
   let nextId = 1;
-  const timers = new Map<number, () => void>();
+  const timers = new Map<number, () => void | Promise<void>>();
   return {
-    schedule: (fn: () => void): YoutubePrimarySubtitleNotificationTimer => {
+    schedule: (fn: () => void | Promise<void>): YoutubePrimarySubtitleNotificationTimer => {
       const id = nextId++;
       timers.set(id, fn);
       return { id };
@@ -26,7 +26,14 @@ function createTimerHarness() {
       const pending = [...timers.values()];
       timers.clear();
       for (const fn of pending) {
-        fn();
+        void fn();
+      }
+    },
+    runAllAsync: async () => {
+      const pending = [...timers.values()];
+      timers.clear();
+      for (const fn of pending) {
+        await fn();
       }
     },
     size: () => timers.size,
@@ -194,4 +201,81 @@ test('notifier suppresses timer while app-owned youtube flow is still settling',
   assert.deepEqual(notifications, [
     'Primary subtitle failed to download or load. Try again from the subtitle modal.',
   ]);
+});
+
+test('notifier suppresses stale delayed failure after primary subtitle load is confirmed', () => {
+  const notifications: string[] = [];
+  const timers = createTimerHarness();
+  const runtime = createYoutubePrimarySubtitleNotificationRuntime({
+    getPrimarySubtitleLanguages: () => ['ja'],
+    notifyFailure: (message) => {
+      notifications.push(message);
+    },
+    schedule: (fn) => timers.schedule(fn),
+    clearSchedule: (timer) => timers.clear(timer),
+  });
+
+  runtime.handleMediaPathChange('https://www.youtube.com/watch?v=abc');
+  runtime.handleSubtitleTrackChange(null);
+  runtime.handleSubtitleTrackListChange([
+    { type: 'sub', id: 2, lang: 'en', title: 'English', external: true },
+  ]);
+  runtime.markCurrentMediaPrimarySubtitleLoaded();
+
+  assert.equal(timers.size(), 0);
+  timers.runAll();
+  assert.deepEqual(notifications, []);
+});
+
+test('notifier suppresses delayed failure when live mpv state has downloaded primary selected', async () => {
+  const notifications: string[] = [];
+  const timers = createTimerHarness();
+  let liveStateReads = 0;
+  const runtime = createYoutubePrimarySubtitleNotificationRuntime({
+    getPrimarySubtitleLanguages: () => ['ja'],
+    notifyFailure: (message) => {
+      notifications.push(message);
+    },
+    schedule: (fn) => timers.schedule(fn),
+    clearSchedule: (timer) => timers.clear(timer),
+    getCurrentSubtitleState: async () => {
+      liveStateReads += 1;
+      return {
+        sid: 22,
+        trackList: [
+          {
+            type: 'sub',
+            id: 1,
+            lang: 'en',
+            title: 'English',
+            external: true,
+            selected: true,
+            'main-selection': 1,
+          },
+          {
+            type: 'sub',
+            id: 22,
+            lang: 'ja',
+            title: 'manual-ja.ja.srt',
+            external: true,
+            selected: true,
+            'main-selection': 0,
+            'external-filename': '/tmp/subminer-youtube-subtitles-aahLWu/manual-ja.ja.srt',
+          },
+        ],
+      };
+    },
+  });
+
+  runtime.handleMediaPathChange('https://www.youtube.com/watch?v=uO2jfacqjYQ');
+  runtime.handleSubtitleTrackChange(null);
+  runtime.handleSubtitleTrackListChange([
+    { type: 'sub', id: 1, lang: 'en', title: 'English', external: true, selected: false },
+  ]);
+
+  assert.equal(timers.size(), 1);
+  await timers.runAllAsync();
+
+  assert.equal(liveStateReads, 1);
+  assert.deepEqual(notifications, []);
 });

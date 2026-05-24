@@ -156,6 +156,7 @@ Once Jellyfin is configured, the tray menu includes `Jellyfin Discovery` for sta
 - `--background` defaults to quieter logging (`warn`) unless `--log-level` is set.
 - `--background` launched from a terminal detaches and returns the prompt; stop it with tray Quit or `SubMiner.AppImage --stop` (`SubMiner.exe --stop` on Windows).
 - Linux desktop launcher starts SubMiner with `--background` by default (via electron-builder `linux.executableArgs`).
+- On Hyprland and other Wayland compositors, the tray icon appears only when your panel provides a StatusNotifier/AppIndicator tray host.
 - On Linux, the app now defaults `safeStorage` to `gnome-libsecret` for encrypted token persistence.
   Launcher pass-through commands also support `--password-store=<backend>` and forward it to the app when present.
   Override with e.g. `--password-store=basic_text`.

@@ -57,6 +57,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   clearYomitanSettingsWindow: () => void;
 
   stopJellyfinRemoteSession: () => void;
+  cleanupYoutubeSubtitleTempDirs: () => void;
   stopDiscordPresenceService: () => void;
 }) {
   return () => ({
@@ -139,6 +140,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     },
     clearYomitanSettingsWindow: () => deps.clearYomitanSettingsWindow(),
     stopJellyfinRemoteSession: () => deps.stopJellyfinRemoteSession(),
+    cleanupYoutubeSubtitleTempDirs: () => deps.cleanupYoutubeSubtitleTempDirs(),
     stopDiscordPresenceService: () => deps.stopDiscordPresenceService(),
   });
 }

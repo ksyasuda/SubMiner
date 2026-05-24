@@ -922,7 +922,7 @@ Enable automatic Anki card creation and updates with media generation:
       "animatedMaxWidth": 640,
       "animatedMaxHeight": 360,
       "animatedCrf": 35,
-      "audioPadding": 0.5,
+      "audioPadding": 0,
       "fallbackDuration": 3,
       "maxMediaDuration": 30
     },
@@ -984,7 +984,7 @@ This example is intentionally compact. The option table below documents availabl
 | `media.animatedMaxHeight`                         | number (px)                             | Optional max height for animated AVIF. Unset keeps source aspect-constrained height.                                                                                                                |
 | `media.animatedCrf`                               | number (0-63)                           | CRF quality for AVIF; lower = higher quality (default: `35`)                                                                                                                                        |
 | `media.syncAnimatedImageToWordAudio`              | `true`, `false`                         | Whether animated AVIF includes an opening frame synced to sentence word-audio timing (default: `true`).                                                                                             |
-| `media.audioPadding`                              | number (seconds)                        | Padding around audio clip timing (default: `0.5`)                                                                                                                                                   |
+| `media.audioPadding`                              | number (seconds)                        | Optional padding around audio clip timing (default: `0`). Animated AVIF clips freeze the first frame during leading audio padding.                                                                  |
 | `media.fallbackDuration`                          | number (seconds)                        | Default duration if timing unavailable (default: `3.0`)                                                                                                                                             |
 | `media.maxMediaDuration`                          | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                                                                                               |
 | `behavior.overwriteAudio`                         | `true`, `false`                         | Replace existing audio on updates; when `false`, new audio is appended/prepended per `behavior.mediaInsertMode`; manual clipboard updates always replace generated sentence audio (default: `true`) |

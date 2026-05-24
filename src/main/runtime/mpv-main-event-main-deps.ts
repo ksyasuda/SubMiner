@@ -32,7 +32,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       recordPauseState?: (paused: boolean) => void;
     } | null;
     subtitleTimingTracker: {
-      recordSubtitle?: (text: string, start: number, end: number) => void;
+      recordSubtitle?: (text: string, start: number, end: number, secondaryText?: string) => void;
     } | null;
     currentMediaPath?: string | null;
     currentSubText: string;
@@ -132,7 +132,12 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     },
     hasSubtitleTimingTracker: () => Boolean(deps.appState.subtitleTimingTracker),
     recordSubtitleTiming: (text: string, start: number, end: number) =>
-      deps.appState.subtitleTimingTracker?.recordSubtitle?.(text, start, end),
+      deps.appState.subtitleTimingTracker?.recordSubtitle?.(
+        text,
+        start,
+        end,
+        deps.appState.mpvClient?.currentSecondarySubText || undefined,
+      ),
     maybeRunAnilistPostWatchUpdate: (options?: AnilistPostWatchRunOptions) =>
       deps.maybeRunAnilistPostWatchUpdate(options),
     logSubtitleTimingError: (message: string, error: unknown) =>

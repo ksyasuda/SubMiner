@@ -33,3 +33,28 @@ test('numeric shortcut session runtime handlers compose cancel/start handlers', 
     'mine-sentence:digit:3',
   ]);
 });
+
+test('numeric shortcut session runtime handlers prefer overlay digit selection when available', () => {
+  const calls: string[] = [];
+  const createSession = (name: string) => ({
+    start: () => calls.push(`${name}:start`),
+    cancel: () => calls.push(`${name}:cancel`),
+  });
+
+  const runtime = createNumericShortcutSessionRuntimeHandlers({
+    multiCopySession: createSession('multi-copy'),
+    mineSentenceSession: createSession('mine-sentence'),
+    onMultiCopyDigit: () => calls.push('multi-copy:digit'),
+    onMineSentenceDigit: () => calls.push('mine-sentence:digit'),
+    tryBeginMultiCopyOverlaySelection: (timeoutMs) => {
+      calls.push(`multi-copy:overlay:${timeoutMs}`);
+      return true;
+    },
+    tryBeginMineSentenceOverlaySelection: () => false,
+  });
+
+  runtime.startPendingMultiCopy(500);
+  runtime.startPendingMineSentenceMultiple(700);
+
+  assert.deepEqual(calls, ['multi-copy:overlay:500', 'mine-sentence:start']);
+});

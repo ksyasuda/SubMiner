@@ -237,14 +237,19 @@ export class CardCreationService {
           `Clipboard update: timing range ${rangeStart.toFixed(2)}s - ${rangeEnd.toFixed(2)}s`,
         );
 
+        const audioSourcePath = this.deps.getConfig().media?.generateAudio
+          ? await resolveMediaGenerationInputPath(mpvClient, 'audio')
+          : null;
+        const videoPath = this.deps.getConfig().media?.generateImage
+          ? await resolveMediaGenerationInputPath(mpvClient, 'video')
+          : null;
+
         if (this.deps.getConfig().media?.generateAudio) {
           try {
             const audioFilename = this.generateAudioFilename();
-            const audioBuffer = await this.mediaGenerateAudio(
-              mpvClient.currentVideoPath,
-              rangeStart,
-              rangeEnd,
-            );
+            const audioBuffer = audioSourcePath
+              ? await this.mediaGenerateAudio(audioSourcePath, rangeStart, rangeEnd)
+              : null;
 
             if (audioBuffer) {
               await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
@@ -271,12 +276,14 @@ export class CardCreationService {
           try {
             const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
-            const imageBuffer = await this.generateImageBuffer(
-              mpvClient.currentVideoPath,
-              rangeStart,
-              rangeEnd,
-              animatedLeadInSeconds,
-            );
+            const imageBuffer = videoPath
+              ? await this.generateImageBuffer(
+                  videoPath,
+                  rangeStart,
+                  rangeEnd,
+                  animatedLeadInSeconds,
+                )
+              : null;
 
             if (imageBuffer) {
               await this.deps.client.storeMediaFile(imageFilename, imageBuffer);

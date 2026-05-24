@@ -1,5 +1,8 @@
+import type { SubtitleTimingBlock } from '../../subtitle-timing-tracker';
+
 interface SubtitleTimingTrackerLike {
   getRecentBlocks: (count: number) => string[];
+  getRecentEntries?: (count: number) => SubtitleTimingBlock[];
   getCurrentSubtitle: () => string | null;
   findTiming: (text: string) => { startTime: number; endTime: number } | null;
 }
@@ -79,6 +82,19 @@ function requireAnkiIntegration(
   return ankiIntegration;
 }
 
+function getSecondarySubTextForMinedBlocks(
+  entries: SubtitleTimingBlock[] | undefined,
+  getCurrentSecondarySubText: () => string | undefined,
+): string | undefined {
+  const secondaryBlocks = entries
+    ?.map((entry) => entry.secondaryText?.trim())
+    .filter((text): text is string => Boolean(text));
+  if (secondaryBlocks && secondaryBlocks.length > 0) {
+    return secondaryBlocks.join(' ');
+  }
+  return getCurrentSecondarySubText();
+}
+
 export async function updateLastCardFromClipboard(deps: {
   ankiIntegration: AnkiIntegrationLike | null;
   readClipboardText: () => string;
@@ -146,17 +162,20 @@ export function handleMineSentenceDigit(
 ): void {
   if (!deps.subtitleTimingTracker || !deps.ankiIntegration) return;
 
-  const blocks = deps.subtitleTimingTracker.getRecentBlocks(count);
+  const entries = deps.subtitleTimingTracker.getRecentEntries?.(count);
+  const blocks =
+    entries?.map((entry) => entry.displayText) ?? deps.subtitleTimingTracker.getRecentBlocks(count);
   if (blocks.length === 0) {
     deps.showMpvOsd('No subtitle history available');
     return;
   }
 
-  const timings: { startTime: number; endTime: number }[] = [];
-  for (const block of blocks) {
-    const timing = deps.subtitleTimingTracker.findTiming(block);
-    if (timing) timings.push(timing);
-  }
+  const timings: { startTime: number; endTime: number }[] =
+    entries ??
+    blocks.flatMap((block) => {
+      const timing = deps.subtitleTimingTracker?.findTiming(block);
+      return timing ? [timing] : [];
+    });
 
   if (timings.length === 0) {
     deps.showMpvOsd('Subtitle timing not found');
@@ -166,9 +185,13 @@ export function handleMineSentenceDigit(
   const rangeStart = Math.min(...timings.map((t) => t.startTime));
   const rangeEnd = Math.max(...timings.map((t) => t.endTime));
   const sentence = blocks.join(' ');
+  const secondarySubText = getSecondarySubTextForMinedBlocks(
+    entries,
+    deps.getCurrentSecondarySubText,
+  );
   const cardsToMine = 1;
   deps.ankiIntegration
-    .createSentenceCard(sentence, rangeStart, rangeEnd, deps.getCurrentSecondarySubText())
+    .createSentenceCard(sentence, rangeStart, rangeEnd, secondarySubText)
     .then((created) => {
       if (created) {
         deps.onCardsMined?.(cardsToMine);

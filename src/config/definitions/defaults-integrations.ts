@@ -51,7 +51,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       animatedMaxHeight: 0,
       animatedCrf: 35,
       syncAnimatedImageToWordAudio: true,
-      audioPadding: 0.5,
+      audioPadding: 0,
       fallbackDuration: 3.0,
       maxMediaDuration: 30,
     },

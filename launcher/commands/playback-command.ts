@@ -258,6 +258,13 @@ export async function runPlaybackCommandWithDeps(
       runtimePluginPath: resolveLauncherRuntimePluginPath({ appPath, scriptPath }),
       runtimePluginConfig: {
         ...effectivePluginRuntimeConfig,
+        ...(isAppOwnedYoutubeFlow
+          ? {
+              autoStart: false,
+              autoStartVisibleOverlay: false,
+              autoStartPauseUntilReady: false,
+            }
+          : {}),
         backend: args.backend,
         texthookerEnabled: args.useTexthooker && effectivePluginRuntimeConfig.texthookerEnabled,
       },

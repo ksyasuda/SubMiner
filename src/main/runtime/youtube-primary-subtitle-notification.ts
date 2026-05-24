@@ -13,6 +13,11 @@ type SubtitleTrackEntry = {
   selected: boolean;
 };
 
+type CurrentSubtitleState = {
+  sid: unknown;
+  trackList: unknown[] | null;
+};
+
 function parseTrackId(value: unknown): number | null {
   if (typeof value === 'number' && Number.isInteger(value)) {
     return value;
@@ -101,8 +106,12 @@ function hasSelectedPrimarySubtitle(
 export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
   getPrimarySubtitleLanguages: () => string[];
   notifyFailure: (message: string) => void;
-  schedule: (fn: () => void, delayMs: number) => YoutubePrimarySubtitleNotificationTimer;
+  schedule: (
+    fn: () => void | Promise<void>,
+    delayMs: number,
+  ) => YoutubePrimarySubtitleNotificationTimer;
   clearSchedule: (timer: YoutubePrimarySubtitleNotificationTimer | null) => void;
+  getCurrentSubtitleState?: () => CurrentSubtitleState | null | Promise<CurrentSubtitleState | null>;
   delayMs?: number;
 }) {
   const delayMs = deps.delayMs ?? 5000;
@@ -112,13 +121,35 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
   let pendingTimer: YoutubePrimarySubtitleNotificationTimer | null = null;
   let lastReportedMediaPath: string | null = null;
   let appOwnedFlowInFlight = false;
+  let primarySubtitleLoadedForCurrentMedia = false;
 
   const clearPendingTimer = (): void => {
     deps.clearSchedule(pendingTimer);
     pendingTimer = null;
   };
 
-  const maybeReportFailure = (): void => {
+  const refreshCurrentSubtitleState = async (
+    preferredLanguages: Set<string>,
+  ): Promise<boolean> => {
+    const getCurrentSubtitleState = deps.getCurrentSubtitleState;
+    if (!getCurrentSubtitleState) {
+      return false;
+    }
+    let state: CurrentSubtitleState | null;
+    try {
+      state = await getCurrentSubtitleState();
+    } catch {
+      state = null;
+    }
+    if (!state) {
+      return false;
+    }
+    currentSid = parseTrackId(state.sid);
+    currentTrackList = Array.isArray(state.trackList) ? state.trackList : null;
+    return hasSelectedPrimarySubtitle(currentSid, currentTrackList, preferredLanguages);
+  };
+
+  const maybeReportFailure = async (): Promise<void> => {
     const mediaPath = currentMediaPath?.trim() || '';
     if (!mediaPath || !isYoutubeMediaPath(mediaPath)) {
       return;
@@ -126,11 +157,28 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
     if (lastReportedMediaPath === mediaPath) {
       return;
     }
+    if (appOwnedFlowInFlight) {
+      return;
+    }
     const preferredLanguages = buildPreferredLanguageSet(deps.getPrimarySubtitleLanguages());
     if (preferredLanguages.size === 0) {
       return;
     }
+    if (primarySubtitleLoadedForCurrentMedia) {
+      return;
+    }
     if (hasSelectedPrimarySubtitle(currentSid, currentTrackList, preferredLanguages)) {
+      return;
+    }
+    if (deps.getCurrentSubtitleState && (await refreshCurrentSubtitleState(preferredLanguages))) {
+      clearPendingTimer();
+      return;
+    }
+    if (
+      currentMediaPath?.trim() !== mediaPath ||
+      appOwnedFlowInFlight ||
+      primarySubtitleLoadedForCurrentMedia
+    ) {
       return;
     }
     lastReportedMediaPath = mediaPath;
@@ -148,9 +196,12 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
     if (!mediaPath || !isYoutubeMediaPath(mediaPath)) {
       return;
     }
-    pendingTimer = deps.schedule(() => {
+    if (primarySubtitleLoadedForCurrentMedia) {
+      return;
+    }
+    pendingTimer = deps.schedule(async () => {
       pendingTimer = null;
-      maybeReportFailure();
+      await maybeReportFailure();
     }, delayMs);
   };
 
@@ -160,6 +211,7 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
         typeof path === 'string' && path.trim().length > 0 ? path.trim() : null;
       if (currentMediaPath !== normalizedPath) {
         lastReportedMediaPath = null;
+        primarySubtitleLoadedForCurrentMedia = false;
       }
       currentMediaPath = normalizedPath;
       currentSid = null;
@@ -179,6 +231,14 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
       if (hasSelectedPrimarySubtitle(currentSid, currentTrackList, preferredLanguages)) {
         clearPendingTimer();
       }
+    },
+    markCurrentMediaPrimarySubtitleLoaded: (): void => {
+      const mediaPath = currentMediaPath?.trim() || '';
+      if (!mediaPath || !isYoutubeMediaPath(mediaPath)) {
+        return;
+      }
+      primarySubtitleLoadedForCurrentMedia = true;
+      clearPendingTimer();
     },
     setAppOwnedFlowInFlight: (inFlight: boolean): void => {
       appOwnedFlowInFlight = inFlight;

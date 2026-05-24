@@ -464,6 +464,7 @@ import {
   composeStartupLifecycleHandlers,
 } from './main/runtime/composers';
 import { createOverlayWindowRuntimeHandlers } from './main/runtime/overlay-window-runtime-handlers';
+import { tryBeginVisibleOverlayNumericSelection } from './main/runtime/overlay-numeric-selection';
 import { createStartupBootstrapRuntimeDeps } from './main/startup';
 import { createAppLifecycleRuntimeRunner } from './main/startup-lifecycle';
 import {
@@ -547,7 +548,12 @@ import {
   createCreateJellyfinSetupWindowHandler,
 } from './main/runtime/setup-window-factory';
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
-import { isYoutubePlaybackActive } from './main/runtime/youtube-playback';
+import {
+  isSameYoutubeMediaPath,
+  isYoutubeMediaPath,
+  isYoutubePlaybackActive,
+  shouldUseCachedYoutubeParsedCues,
+} from './main/runtime/youtube-playback';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { reloadOverlayWindowsForYomitanContentScripts } from './main/runtime/yomitan-extension-overlay-reload';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
@@ -988,8 +994,8 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
   refreshCurrentSubtitle: (text: string) => {
     subtitleProcessingController.refreshCurrentSubtitle(text);
   },
-  refreshSubtitleSidebarSource: async (sourcePath: string) => {
-    await subtitlePrefetchRuntime.refreshSubtitleSidebarFromSource(sourcePath);
+  refreshSubtitleSidebarSource: async (sourcePath: string, mediaPath?: string) => {
+    await subtitlePrefetchRuntime.refreshSubtitleSidebarFromSource(sourcePath, mediaPath);
   },
   startTokenizationWarmups: async () => {
     await startTokenizationWarmups();
@@ -1076,9 +1082,18 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
   },
   showMpvOsd: (text: string) => showMpvOsd(text),
   reportSubtitleFailure: (message: string) => reportYoutubeSubtitleFailure(message),
+  notifyPrimarySubtitleLoaded: () =>
+    youtubePrimarySubtitleNotificationRuntime.markCurrentMediaPrimarySubtitleLoaded(),
   warn: (message: string) => logger.warn(message),
   log: (message: string) => logger.info(message),
   getYoutubeOutputDir: () => path.join(os.homedir(), '.cache', 'subminer', 'youtube-subs'),
+  createSubtitleTempDir: () =>
+    fs.promises.mkdtemp(path.join(os.tmpdir(), 'subminer-youtube-subtitles-')),
+  cleanupSubtitleTempDirs: (dirs) => {
+    for (const dir of dirs) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  },
 });
 const prepareYoutubePlaybackInMpv = createPrepareYoutubePlaybackInMpvHandler({
   requestPath: async () => {
@@ -1545,6 +1560,20 @@ const youtubePrimarySubtitleNotificationRuntime = createYoutubePrimarySubtitleNo
   notifyFailure: (message) => reportYoutubeSubtitleFailure(message),
   schedule: (fn, delayMs) => setTimeout(fn, delayMs),
   clearSchedule: clearYoutubePrimarySubtitleNotificationTimer,
+  getCurrentSubtitleState: async () => {
+    const client = appState.mpvClient;
+    if (!client?.connected) {
+      return null;
+    }
+    const [sid, trackList] = await Promise.all([
+      client.requestProperty('sid').catch(() => null),
+      client.requestProperty('track-list').catch(() => null),
+    ]);
+    return {
+      sid,
+      trackList: Array.isArray(trackList) ? trackList : null,
+    };
+  },
 });
 
 function isYoutubePlaybackActiveNow(): boolean {
@@ -1745,6 +1774,9 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
   onParsedSubtitleCuesChanged: (cues, sourceKey) => {
     appState.activeParsedSubtitleCues = cues ?? [];
     appState.activeParsedSubtitleSource = sourceKey;
+    if (!cues?.length) {
+      appState.activeParsedSubtitleMediaPath = null;
+    }
     const mediaPath = getCurrentAutoplayMediaPath();
     if (mediaPath && cues?.length) {
       void primeAutoplaySubtitleFromParsedCues(mediaPath, cues).catch((error) => {
@@ -1763,11 +1795,15 @@ const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSid
     extractInternalSubtitleTrackToTempFile(ffmpegPath, videoPath, track),
 });
 
-async function refreshSubtitleSidebarFromSource(sourcePath: string): Promise<void> {
+async function refreshSubtitleSidebarFromSource(
+  sourcePath: string,
+  mediaPath?: string,
+): Promise<void> {
   const normalizedSourcePath = resolveSubtitleSourcePath(sourcePath.trim());
   if (!normalizedSourcePath) {
     return;
   }
+  appState.activeParsedSubtitleMediaPath = mediaPath?.trim() || getCurrentAutoplayMediaPath();
   await subtitlePrefetchInitController.initSubtitlePrefetch(
     normalizedSourcePath,
     lastObservedTimePos,
@@ -1778,6 +1814,7 @@ const refreshSubtitlePrefetchFromActiveTrackHandler =
   createRefreshSubtitlePrefetchFromActiveTrackHandler({
     getMpvClient: () => appState.mpvClient,
     getLastObservedTimePos: () => lastObservedTimePos,
+    shouldKeepExistingCuesOnMissingSource: (videoPath) => isYoutubeMediaPath(videoPath),
     subtitlePrefetchInitController,
     resolveActiveSubtitleSidebarSource: (input) => resolveActiveSubtitleSidebarSourceHandler(input),
   });
@@ -1792,8 +1829,8 @@ function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
 const subtitlePrefetchRuntime = {
   cancelPendingInit: () => subtitlePrefetchInitController.cancelPendingInit(),
   initSubtitlePrefetch: subtitlePrefetchInitController.initSubtitlePrefetch,
-  refreshSubtitleSidebarFromSource: (sourcePath: string) =>
-    refreshSubtitleSidebarFromSource(sourcePath),
+  refreshSubtitleSidebarFromSource: (sourcePath: string, mediaPath?: string) =>
+    refreshSubtitleSidebarFromSource(sourcePath, mediaPath),
   refreshSubtitlePrefetchFromActiveTrack: () => refreshSubtitlePrefetchFromActiveTrackHandler(),
   scheduleSubtitlePrefetchRefresh: (delayMs?: number) => scheduleSubtitlePrefetchRefresh(delayMs),
   clearScheduledSubtitlePrefetchRefresh: () => clearScheduledSubtitlePrefetchRefresh(),
@@ -3632,6 +3669,7 @@ const {
       appState.yomitanSettingsWindow = null;
     },
     stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
+    cleanupYoutubeSubtitleTempDirs: () => youtubeFlowRuntime.cleanupSubtitleTempDirs(),
     stopDiscordPresenceService: () => {
       void appState.discordPresenceService?.stop();
       appState.discordPresenceService = null;
@@ -4271,6 +4309,10 @@ const {
     updateCurrentMediaPath: (path) => {
       const normalizedPath = path.trim();
       const previousPath = appState.currentMediaPath?.trim() || null;
+      const preserveParsedSubtitleCues = isSameYoutubeMediaPath(
+        normalizedPath,
+        appState.activeParsedSubtitleMediaPath,
+      );
       if ((normalizedPath || null) !== previousPath) {
         const resetSubtitlePayload = { text: '', tokens: null };
         const frequencyDictionary = getResolvedConfig().subtitleStyle.frequencyDictionary;
@@ -4284,8 +4326,11 @@ const {
         appState.currentSubText = '';
         appState.currentSubAssText = '';
         appState.currentSubtitleData = null;
-        appState.activeParsedSubtitleCues = [];
-        appState.activeParsedSubtitleSource = null;
+        if (!preserveParsedSubtitleCues) {
+          appState.activeParsedSubtitleCues = [];
+          appState.activeParsedSubtitleSource = null;
+          appState.activeParsedSubtitleMediaPath = null;
+        }
         broadcastToOverlayWindows('subtitle:set', resetSubtitlePayload);
         subtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
         annotationSubtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
@@ -4295,7 +4340,9 @@ const {
       managedLocalSubtitleSelectionRuntime.handleMediaPathChange(path);
       startupOsdSequencer.reset();
       subtitlePrefetchRuntime.clearScheduledSubtitlePrefetchRefresh();
-      subtitlePrefetchRuntime.cancelPendingInit();
+      if (!preserveParsedSubtitleCues) {
+        subtitlePrefetchRuntime.cancelPendingInit();
+      }
       youtubePrimarySubtitleNotificationRuntime.handleMediaPathChange(path);
       if (path) {
         ensureImmersionTrackerStarted();
@@ -4844,6 +4891,20 @@ const {
   numericSessions: {
     onMultiCopyDigit: (count) => handleMultiCopyDigit(count),
     onMineSentenceDigit: (count) => handleMineSentenceDigit(count),
+    tryBeginMultiCopyOverlaySelection: (timeoutMs) =>
+      tryBeginVisibleOverlayNumericSelection({
+        actionId: 'copySubtitleMultiple',
+        timeoutMs,
+        getMainWindow: () => overlayManager.getMainWindow(),
+        getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      }),
+    tryBeginMineSentenceOverlaySelection: (timeoutMs) =>
+      tryBeginVisibleOverlayNumericSelection({
+        actionId: 'mineSentenceMultiple',
+        timeoutMs,
+        getMainWindow: () => overlayManager.getMainWindow(),
+        getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      }),
   },
   overlayShortcutsRuntimeMainDeps: {
     overlayShortcutsRuntime,
@@ -5555,6 +5616,20 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
               config,
             };
           }
+          if (
+            shouldUseCachedYoutubeParsedCues({
+              videoPath,
+              cachedMediaPath: appState.activeParsedSubtitleMediaPath,
+              cachedCueCount: appState.activeParsedSubtitleCues.length,
+            })
+          ) {
+            return {
+              cues: appState.activeParsedSubtitleCues,
+              currentTimeSec,
+              currentSubtitle,
+              config,
+            };
+          }
 
           const resolvedSource = await resolveActiveSubtitleSidebarSourceHandler({
             currentExternalFilenameRaw,
@@ -5586,6 +5661,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             const cues = parseSubtitleCues(content, resolvedSource.path);
             appState.activeParsedSubtitleCues = cues;
             appState.activeParsedSubtitleSource = resolvedSource.sourceKey;
+            appState.activeParsedSubtitleMediaPath = videoPath || null;
             return {
               cues,
               currentTimeSec,
@@ -5792,6 +5868,11 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
         commandNeedsOverlayStartupPrereqs(inputArgs),
       startBackgroundWarmups: () => startBackgroundWarmups(),
       logInfo: (message: string) => logger.info(message),
+    },
+    ensureTrayForCommand: (args) => {
+      if (args.background || args.managedPlayback) {
+        ensureTray();
+      }
     },
     handleCliCommandRuntimeServiceWithContext: (args, source, cliContext) =>
       handleCliCommandRuntimeServiceWithContext(args, source, cliContext),
