@@ -488,6 +488,7 @@
     "tags": [
       "SubMiner"
     ], // Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.
+    "deck": "", // Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to search all decks.
     "fields": {
       "word": "Expression", // Card field for the mined word or expression text.
       "audio": "ExpressionAudio", // Card field that receives generated sentence audio.
@@ -507,8 +508,11 @@
       "imageType": "static", // Image capture type: "static" for a single still frame, "avif" for an animated AVIF. Values: static | avif
       "imageFormat": "jpg", // Encoding format used when imageType is "static". Values: jpg | png | webp
       "imageQuality": 92, // Quality (0-100) used for lossy static image encoders.
+      "imageMaxWidth": 0, // Maximum width for static images, in pixels. Set to 0 to preserve the source resolution.
+      "imageMaxHeight": 0, // Maximum height for static images, in pixels. Set to 0 to preserve the source resolution.
       "animatedFps": 10, // Target frame rate for animated AVIF captures.
       "animatedMaxWidth": 640, // Maximum width applied to animated AVIF captures.
+      "animatedMaxHeight": 0, // Maximum height for animated AVIF captures, in pixels. Set to 0 to preserve aspect ratio.
       "animatedCrf": 35, // Animated AVIF CRF quality target. Lower values produce larger, higher-quality files.
       "syncAnimatedImageToWordAudio": true, // For animated AVIF images, prepend a frozen first frame matching the existing word-audio duration so motion starts with sentence audio. Values: true | false
       "audioPadding": 0.5, // Seconds of padding appended to both ends of generated sentence audio.
@@ -555,6 +559,8 @@
   // ==========================================
   "jimaku": {
     "apiBaseUrl": "https://jimaku.cc", // Base URL of the Jimaku subtitle search API.
+    "apiKey": "", // Jimaku API key. Optional but recommended for higher rate limits. Get one for free at https://jimaku.cc.
+    "apiKeyCommand": "", // Shell command that prints the Jimaku API key to stdout. Used instead of apiKey to avoid storing the key in plain text.
     "languagePreference": "ja", // Preferred language used in Jimaku search. Values: ja | en | none
     "maxEntryResults": 10 // Maximum Jimaku search results returned.
   }, // Jimaku API configuration and defaults.

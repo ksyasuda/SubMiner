@@ -59,6 +59,13 @@ export function buildIntegrationConfigOptionRegistry(
         'Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.',
     },
     {
+      path: 'ankiConnect.deck',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.deck,
+      description:
+        'Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to search all decks.',
+    },
+    {
       path: 'ankiConnect.fields.word',
       kind: 'string',
       defaultValue: defaultConfig.ankiConnect.fields.word,
@@ -200,14 +207,14 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'number',
       defaultValue: defaultConfig.ankiConnect.media.imageMaxWidth,
       description:
-        'Optional maximum width for static images. Leave unset to preserve the source resolution.',
+        'Maximum width for static images, in pixels. Set to 0 to preserve the source resolution.',
     },
     {
       path: 'ankiConnect.media.imageMaxHeight',
       kind: 'number',
       defaultValue: defaultConfig.ankiConnect.media.imageMaxHeight,
       description:
-        'Optional maximum height for static images. Leave unset to preserve the source resolution.',
+        'Maximum height for static images, in pixels. Set to 0 to preserve the source resolution.',
     },
     {
       path: 'ankiConnect.media.animatedFps',
@@ -226,7 +233,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'number',
       defaultValue: defaultConfig.ankiConnect.media.animatedMaxHeight,
       description:
-        'Optional maximum height for animated AVIF captures. Leave unset to preserve aspect ratio.',
+        'Maximum height for animated AVIF captures, in pixels. Set to 0 to preserve aspect ratio.',
     },
     {
       path: 'ankiConnect.media.animatedCrf',
@@ -343,6 +350,20 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'string',
       defaultValue: defaultConfig.jimaku.apiBaseUrl,
       description: 'Base URL of the Jimaku subtitle search API.',
+    },
+    {
+      path: 'jimaku.apiKey',
+      kind: 'string',
+      defaultValue: defaultConfig.jimaku.apiKey,
+      description:
+        'Jimaku API key. Optional but recommended for higher rate limits. Get one for free at https://jimaku.cc.',
+    },
+    {
+      path: 'jimaku.apiKeyCommand',
+      kind: 'string',
+      defaultValue: defaultConfig.jimaku.apiKeyCommand,
+      description:
+        'Shell command that prints the Jimaku API key to stdout. Used instead of apiKey to avoid storing the key in plain text.',
     },
     {
       path: 'jimaku.languagePreference',
