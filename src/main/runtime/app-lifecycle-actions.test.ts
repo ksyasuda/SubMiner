@@ -46,7 +46,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
   });
 
   cleanup();
-  assert.equal(calls.length, 31);
+  assert.equal(calls.length, 32);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-discord-presence');
   assert.ok(calls.includes('cleanup-jellyfin-subtitles'));
