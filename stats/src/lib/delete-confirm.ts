@@ -44,8 +44,13 @@ export function confirmSessionDelete(): Promise<boolean> {
 }
 
 export function confirmDayGroupDelete(dayLabel: string, count: number): Promise<boolean> {
+  if (count === 1) {
+    return confirmWithStatsNativeDialogLayer(
+      `Delete this session from ${dayLabel} and all associated data?`,
+    );
+  }
   return confirmWithStatsNativeDialogLayer(
-    `Delete all ${count} session${count === 1 ? '' : 's'} from ${dayLabel} and all associated data?`,
+    `Delete all ${count} sessions from ${dayLabel} and all associated data?`,
   );
 }
 

@@ -79,6 +79,7 @@ function removePassiveStartupArgs(argv: string[]): string[] {
 }
 
 function getPasswordStoreArg(argv: string[]): string | null {
+  let resolved: string | null = null;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (!arg?.startsWith(PASSWORD_STORE_ARG)) {
@@ -88,17 +89,18 @@ function getPasswordStoreArg(argv: string[]): string | null {
     if (arg === PASSWORD_STORE_ARG) {
       const value = argv[i + 1];
       if (value && !value.startsWith('--')) {
-        return value;
+        resolved = value.trim();
+        i += 1;
       }
-      return null;
+      continue;
     }
 
     const [prefix, value] = arg.split('=', 2);
     if (prefix === PASSWORD_STORE_ARG && value && value.trim().length > 0) {
-      return value.trim();
+      resolved = value.trim();
     }
   }
-  return null;
+  return resolved;
 }
 
 function normalizePasswordStoreArg(value: string): string {

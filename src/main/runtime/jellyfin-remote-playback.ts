@@ -34,6 +34,16 @@ export function secondsToJellyfinTicks(seconds: number, ticksPerSecond: number):
   return Math.max(0, Math.floor(seconds * ticksPerSecond));
 }
 
+export function markJellyfinRemotePlaybackLoaded(
+  playback: ActiveJellyfinRemotePlaybackState | null,
+  path: string,
+): void {
+  const normalizedPath = path.trim();
+  if (playback && normalizedPath) {
+    playback.loadedMediaPath = normalizedPath;
+  }
+}
+
 function isMpvPauseEnabled(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value !== 0;

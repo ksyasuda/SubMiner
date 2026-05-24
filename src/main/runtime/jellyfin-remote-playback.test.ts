@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  markJellyfinRemotePlaybackLoaded,
   createReportJellyfinRemoteProgressHandler,
   createReportJellyfinRemoteStoppedHandler,
   secondsToJellyfinTicks,
@@ -333,6 +334,21 @@ test('createReportJellyfinRemoteStoppedHandler ignores unloaded active playback'
 
   assert.equal(stopped, false);
   assert.equal(cleared, false);
+});
+
+test('markJellyfinRemotePlaybackLoaded preserves the loaded marker on unload paths', () => {
+  const playback = {
+    itemId: 'item-2',
+    playMethod: 'Transcode' as const,
+    loadedMediaPath: 'https://stream.example/video.m3u8',
+  };
+
+  markJellyfinRemotePlaybackLoaded(playback, '');
+  markJellyfinRemotePlaybackLoaded(playback, '   ');
+  assert.equal(playback.loadedMediaPath, 'https://stream.example/video.m3u8');
+
+  markJellyfinRemotePlaybackLoaded(playback, '  https://stream.example/next.m3u8  ');
+  assert.equal(playback.loadedMediaPath, 'https://stream.example/next.m3u8');
 });
 
 test('createReportJellyfinRemoteStoppedHandler ignores startup stop churn before grace expires', async () => {

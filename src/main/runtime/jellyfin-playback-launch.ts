@@ -28,6 +28,14 @@ export type JellyfinPlaybackStatsMetadata = {
   itemId: string;
 };
 
+function runBestEffortPlaybackHook(callback: () => void | Promise<void>): void {
+  try {
+    void Promise.resolve(callback()).catch(() => {});
+  } catch {
+    // Best-effort metadata/title hooks must not block playback startup.
+  }
+}
+
 function applyStartTimeTicksToPlaybackUrl(url: string, startTimeTicksOverride?: number): string {
   if (typeof startTimeTicksOverride !== 'number') return url;
   try {
@@ -78,8 +86,10 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     eventName: 'start';
   }) => void;
   showMpvOsd: (text: string) => void;
-  recordJellyfinPlaybackMetadata?: (metadata: JellyfinPlaybackStatsMetadata) => void;
-  updateCurrentMediaTitle?: (title: string) => void;
+  recordJellyfinPlaybackMetadata?: (
+    metadata: JellyfinPlaybackStatsMetadata,
+  ) => void | Promise<void>;
+  updateCurrentMediaTitle?: (title: string) => void | Promise<void>;
 }) {
   return async (params: {
     session: JellyfinAuthSession;
@@ -112,8 +122,8 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
     const playbackUrl = applyStartTimeTicksToPlaybackUrl(plan.url, params.startTimeTicksOverride);
     const playMethod = plan.mode === 'direct' ? 'DirectPlay' : 'Transcode';
-    try {
-      deps.updateCurrentMediaTitle?.(plan.title);
+    runBestEffortPlaybackHook(() => deps.updateCurrentMediaTitle?.(plan.title));
+    runBestEffortPlaybackHook(() =>
       deps.recordJellyfinPlaybackMetadata?.({
         mediaPath: playbackUrl,
         displayTitle: plan.title,
@@ -122,10 +132,8 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
         seasonNumber: plan.seasonNumber,
         episodeNumber: plan.episodeNumber,
         itemId: params.itemId,
-      });
-    } catch {
-      // Best-effort metadata/title hooks must not block playback startup.
-    }
+      }),
+    );
     deps.setActivePlayback({
       itemId: params.itemId,
       mediaSourceId: undefined,

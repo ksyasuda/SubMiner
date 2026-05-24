@@ -82,8 +82,9 @@ test('playback handler drives mpv commands and playback state', async () => {
     setLastProgressAtMs: (value) => calls.push(`progress:${value}`),
     reportPlaying: (payload) => reportPayloads.push(payload as Record<string, unknown>),
     showMpvOsd: (text) => calls.push(`osd:${text}`),
-    recordJellyfinPlaybackMetadata: (metadata) =>
-      statsMetadata.push(metadata as Record<string, unknown>),
+    recordJellyfinPlaybackMetadata: (metadata) => {
+      statsMetadata.push(metadata as Record<string, unknown>);
+    },
   });
 
   await handler({
@@ -164,7 +165,9 @@ test('playback handler publishes Jellyfin title before loading tokenized stream 
     setLastProgressAtMs: () => {},
     reportPlaying: () => {},
     showMpvOsd: () => {},
-    updateCurrentMediaTitle: (title) => timeline.push(`title:${title}`),
+    updateCurrentMediaTitle: (title) => {
+      timeline.push(`title:${title}`);
+    },
   });
 
   await handler({
@@ -350,6 +353,54 @@ test('playback handler does not let media title failures block playback startup'
     jellyfinConfig: {},
     itemId: 'item-4',
   });
+
+  assert.deepEqual(commands[1], ['loadfile', 'https://stream.example/video.m3u8', 'replace']);
+});
+
+test('playback handler handles rejected best-effort hook promises', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const handler = createPlayJellyfinItemInMpvHandler({
+    ensureMpvConnectedForPlayback: async () => true,
+    getMpvClient: () => ({ connected: true, send: () => {} }),
+    resolvePlaybackPlan: async () => ({
+      url: 'https://stream.example/video.m3u8',
+      mode: 'direct',
+      title: 'Episode 5',
+      itemTitle: 'Episode 5',
+      seriesTitle: null,
+      seasonNumber: null,
+      episodeNumber: null,
+      startTimeTicks: 0,
+      audioStreamIndex: null,
+      subtitleStreamIndex: null,
+    }),
+    applyJellyfinMpvDefaults: () => {},
+    showVisibleOverlay: () => {},
+    sendMpvCommand: (command) => commands.push(command),
+    armQuitOnDisconnect: () => {},
+    schedule: () => {},
+    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
+    preloadExternalSubtitles: () => {},
+    setActivePlayback: () => {},
+    setLastProgressAtMs: () => {},
+    reportPlaying: () => {},
+    showMpvOsd: () => {},
+    updateCurrentMediaTitle: async () => {
+      throw new Error('title async unavailable');
+    },
+    recordJellyfinPlaybackMetadata: async () => {
+      throw new Error('stats async unavailable');
+    },
+  });
+
+  await handler({
+    session: baseSession,
+    clientInfo: baseClientInfo,
+    jellyfinConfig: {},
+    itemId: 'item-5',
+  });
+  await Promise.resolve();
+  await Promise.resolve();
 
   assert.deepEqual(commands[1], ['loadfile', 'https://stream.example/video.m3u8', 'replace']);
 });

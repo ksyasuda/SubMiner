@@ -15,11 +15,18 @@ import {
   STATS_WINDOW_TITLE,
 } from './stats-window-runtime.js';
 import { ensureHyprlandWindowFloatingByTitle } from './hyprland-window-placement.js';
+import {
+  createStatsWindowLayerSuspensionState,
+  isStatsWindowLayerSuspended,
+  resetStatsWindowLayerSuspension,
+  restoreStatsWindowLayer,
+  suspendStatsWindowLayer,
+} from './stats-window-layer.js';
 
 let statsWindow: BrowserWindow | null = null;
 let toggleRegistered = false;
 let nativeDialogLayerRegistered = false;
-let nativeDialogLayerSuspensionCount = 0;
+const nativeDialogLayerSuspension = createStatsWindowLayerSuspensionState();
 
 export interface StatsWindowOptions {
   /** Absolute path to stats/dist/ directory */
@@ -67,7 +74,7 @@ function showStatsWindow(window: BrowserWindow, options: StatsWindowOptions): vo
 }
 
 export function promoteStatsOverlayAbovePlayback(): boolean {
-  if (nativeDialogLayerSuspensionCount > 0) {
+  if (isStatsWindowLayerSuspended(nativeDialogLayerSuspension)) {
     return false;
   }
 
@@ -91,8 +98,7 @@ export function demoteStatsOverlayBelowDialogs(): boolean {
 }
 
 export function suspendStatsWindowLayerForNativeDialog(): void {
-  nativeDialogLayerSuspensionCount += 1;
-  if (nativeDialogLayerSuspensionCount !== 1) {
+  if (!suspendStatsWindowLayer(nativeDialogLayerSuspension)) {
     return;
   }
 
@@ -100,14 +106,13 @@ export function suspendStatsWindowLayerForNativeDialog(): void {
 }
 
 export function restoreStatsWindowLayerAfterNativeDialog(): void {
-  if (nativeDialogLayerSuspensionCount <= 0) {
-    return;
-  }
-
-  nativeDialogLayerSuspensionCount -= 1;
-  if (nativeDialogLayerSuspensionCount === 0) {
+  if (restoreStatsWindowLayer(nativeDialogLayerSuspension)) {
     promoteStatsOverlayAbovePlayback();
   }
+}
+
+function resetStatsWindowLayerAfterLifecycleEnd(): void {
+  resetStatsWindowLayerSuspension(nativeDialogLayerSuspension);
 }
 
 export async function withStatsWindowLayerSuspendedForNativeDialog<T>(
@@ -172,6 +177,7 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
     statsWindow.on('closed', () => {
       options.onVisibilityChanged?.(false);
       statsWindow = null;
+      resetStatsWindowLayerAfterLifecycleEnd();
     });
 
     statsWindow.webContents.on('before-input-event', (event, input) => {
@@ -222,4 +228,5 @@ export function destroyStatsWindow(): void {
     statsWindow.destroy();
     statsWindow = null;
   }
+  resetStatsWindowLayerAfterLifecycleEnd();
 }

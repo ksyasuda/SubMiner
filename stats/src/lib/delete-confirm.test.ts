@@ -219,7 +219,7 @@ test('confirmDayGroupDelete uses singular for one session', async () => {
 
   try {
     assert.equal(await confirmDayGroupDelete('Yesterday', 1), true);
-    assert.deepEqual(calls, ['Delete all 1 session from Yesterday and all associated data?']);
+    assert.deepEqual(calls, ['Delete this session from Yesterday and all associated data?']);
   } finally {
     globalThis.confirm = originalConfirm;
   }

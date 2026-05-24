@@ -118,6 +118,16 @@ test('resolveLinuxPasswordStoreValue defaults Linux safeStorage to gnome-libsecr
   assert.equal(resolveLinuxPasswordStoreValue(['SubMiner.exe'], 'win32'), null);
 });
 
+test('resolveLinuxPasswordStoreValue keeps scanning after a bare password-store flag', () => {
+  assert.equal(
+    resolveLinuxPasswordStoreValue(
+      ['SubMiner.AppImage', '--password-store', '--start', '--password-store=kwallet6'],
+      'linux',
+    ),
+    'kwallet6',
+  );
+});
+
 test('applyEarlyLinuxCommandLineSwitches appends password store before main startup', () => {
   const switches: Array<[string, string | undefined]> = [];
   applyEarlyLinuxCommandLineSwitches(

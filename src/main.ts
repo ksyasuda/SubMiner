@@ -35,6 +35,7 @@ import { applyControllerConfigUpdate } from './main/controller-config-update.js'
 import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { startAppControlServer } from './main/runtime/app-control-server';
+import { markJellyfinRemotePlaybackLoaded as markJellyfinRemotePlaybackLoadedState } from './main/runtime/jellyfin-remote-playback';
 import { getAppControlSocketPath } from './shared/app-control';
 import {
   type CancelLinuxMpvFullscreenOverlayRefreshBurst,
@@ -44,6 +45,7 @@ import {
 import { mergeAiConfig } from './ai/config';
 
 function getPasswordStoreArg(argv: string[]): string | null {
+  let resolved: string | null = null;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (!arg?.startsWith('--password-store')) {
@@ -53,17 +55,18 @@ function getPasswordStoreArg(argv: string[]): string | null {
     if (arg === '--password-store') {
       const value = argv[i + 1];
       if (value && !value.startsWith('--')) {
-        return value;
+        resolved = value.trim();
+        i += 1;
       }
-      return null;
+      continue;
     }
 
     const [prefix, value] = arg.split('=', 2);
     if (prefix === '--password-store' && value && value.trim().length > 0) {
-      return value.trim();
+      resolved = value.trim();
     }
   }
-  return null;
+  return resolved;
 }
 
 function normalizePasswordStoreArg(value: string): string {
@@ -4465,9 +4468,7 @@ const {
     },
     signalAutoplayReadyIfWarm: (path) => signalAutoplayReadyFromWarmTokenization?.(path),
     markJellyfinRemotePlaybackLoaded: (path) => {
-      if (activeJellyfinRemotePlayback) {
-        activeJellyfinRemotePlayback.loadedMediaPath = path;
-      }
+      markJellyfinRemotePlaybackLoadedState(activeJellyfinRemotePlayback, path);
     },
     scheduleCharacterDictionarySync: () => {
       if (!yomitanProfilePolicy.isCharacterDictionaryEnabled() || isYoutubePlaybackActiveNow()) {
