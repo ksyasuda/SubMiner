@@ -229,6 +229,7 @@ test('resolvePlaybackPlan chooses direct play when allowed', async () => {
     assert.equal(plan.mode, 'direct');
     assert.match(plan.url, /Videos\/movie-1\/stream\?/);
     assert.doesNotMatch(plan.url, /SubtitleStreamIndex=/);
+    assert.equal(new URL(plan.url).searchParams.get('StartTimeTicks'), null);
     assert.equal(plan.subtitleStreamIndex, null);
     assert.equal(ticksToSeconds(plan.startTimeTicks), 2);
   } finally {
@@ -570,7 +571,7 @@ test('resolvePlaybackPlan preserves episode metadata, stream selection, and resu
     const url = new URL(plan.url);
     assert.equal(url.searchParams.get('AudioStreamIndex'), '6');
     assert.equal(url.searchParams.get('SubtitleStreamIndex'), '9');
-    assert.equal(url.searchParams.get('StartTimeTicks'), '35000000');
+    assert.equal(url.searchParams.get('StartTimeTicks'), null);
   } finally {
     globalThis.fetch = originalFetch;
   }

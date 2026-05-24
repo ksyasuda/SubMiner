@@ -102,6 +102,46 @@ function M.create(ctx)
 		state.suppress_ready_overlay_restore = true
 	end
 
+	local function record_start_visibility_args(args)
+		for _, arg in ipairs(args) do
+			if arg == "--show-visible-overlay" then
+				record_visible_overlay_action("show-visible-overlay")
+				return
+			end
+			if arg == "--hide-visible-overlay" then
+				record_visible_overlay_action("hide-visible-overlay")
+				return
+			end
+		end
+	end
+
+	local function should_run_visibility_action(action)
+		if action == "show-visible-overlay" and state.visible_overlay_requested == true then
+			return false
+		end
+		if action == "hide-visible-overlay" and state.visible_overlay_requested == false then
+			return false
+		end
+		return true
+	end
+
+	local function run_visibility_action_if_needed(action, overrides, callback)
+		if action == nil then
+			if callback then
+				callback(true)
+			end
+			return
+		end
+		if not should_run_visibility_action(action) then
+			subminer_log("debug", "process", "Skipping duplicate visible overlay action: " .. tostring(action))
+			if callback then
+				callback(true)
+			end
+			return
+		end
+		run_control_command_async(action, overrides, callback)
+	end
+
 	local function should_ignore_duplicate_visible_overlay_toggle()
 		if type(mp.get_time) ~= "function" then
 			return false
@@ -247,7 +287,7 @@ function M.create(ctx)
 			state.suppress_ready_overlay_restore = false
 		end
 		if state.overlay_running and (force_ready_overlay_restore or resolve_visible_overlay_startup()) then
-			run_control_command_async("show-visible-overlay", {
+			run_visibility_action_if_needed("show-visible-overlay", {
 				socket_path = opts.socket_path,
 			})
 		end
@@ -481,12 +521,10 @@ function M.create(ctx)
 					disarm_auto_play_ready_gate()
 				end
 				local visibility_action = resolve_auto_start_visibility_action()
-				if visibility_action ~= nil then
-					run_control_command_async(visibility_action, {
-						socket_path = socket_path,
-						log_level = overrides.log_level,
-					})
-				end
+				run_visibility_action_if_needed(visibility_action, {
+					socket_path = socket_path,
+					log_level = overrides.log_level,
+				})
 				return
 			end
 			subminer_log("info", "process", "Overlay already running")
@@ -526,6 +564,7 @@ function M.create(ctx)
 			state.overlay_running = true
 
 			local command = build_subprocess_command(args)
+			record_start_visibility_args(args)
 			mp.command_native_async({
 				name = "subprocess",
 				args = command.args,
@@ -552,12 +591,10 @@ function M.create(ctx)
 
 				if overrides.auto_start_trigger == true then
 					local visibility_action = resolve_auto_start_visibility_action()
-					if visibility_action ~= nil then
-						run_control_command_async(visibility_action, {
-							socket_path = socket_path,
-							log_level = overrides.log_level,
-						})
-					end
+					run_visibility_action_if_needed(visibility_action, {
+						socket_path = socket_path,
+						log_level = overrides.log_level,
+					})
 				end
 
 			end)

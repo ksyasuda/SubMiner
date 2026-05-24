@@ -14,10 +14,11 @@ test('apply jellyfin mpv defaults sends expected property commands', () => {
 
   applyDefaults({ connected: true, send: () => {} });
   assert.deepEqual(calls, [
-    'set_property:sub-auto:fuzzy',
+    'set_property:sub-auto:no',
     'set_property:aid:auto',
-    'set_property:sid:auto',
-    'set_property:secondary-sid:auto',
+    'set_property:sid:no',
+    'set_property:secondary-sid:no',
+    'set_property:sub-visibility:no',
     'set_property:secondary-sub-visibility:no',
     'set_property:alang:ja,jp',
     'set_property:slang:ja,jp',

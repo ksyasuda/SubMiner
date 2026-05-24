@@ -25,7 +25,9 @@ test('play jellyfin item in mpv main deps builder maps callbacks', async () => {
     armQuitOnDisconnect: () => calls.push('arm'),
     schedule: (_callback, delayMs) => calls.push(`schedule:${delayMs}`),
     convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => calls.push('preload'),
+    preloadExternalSubtitles: () => {
+      calls.push('preload');
+    },
     setActivePlayback: () => calls.push('active'),
     setLastProgressAtMs: () => calls.push('progress'),
     reportPlaying: () => calls.push('report'),

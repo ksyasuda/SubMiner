@@ -6,7 +6,10 @@ import {
   MpvIpcClientProtocolDeps,
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
 } from './mpv';
-import { MPV_REQUEST_ID_TRACK_LIST_AUDIO } from './mpv-protocol';
+import {
+  MPV_REQUEST_ID_TRACK_LIST_AUDIO,
+  MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
+} from './mpv-protocol';
 
 function makeDeps(overrides: Partial<MpvIpcClientProtocolDeps> = {}): MpvIpcClientDeps {
   return {
@@ -91,6 +94,53 @@ test('MpvIpcClient clears cached media title when media path changes', async () 
 
   assert.equal(client.currentVideoPath, '/tmp/new-episode.mkv');
   assert.equal(client.currentMediaTitle, null);
+});
+
+test('MpvIpcClient skips secondary subtitle autoload when media path is managed', async () => {
+  const commands: unknown[] = [];
+  const originalSetTimeout = globalThis.setTimeout;
+  const client = new MpvIpcClient(
+    '/tmp/mpv.sock',
+    makeDeps({
+      getResolvedConfig: () =>
+        ({
+          secondarySub: {
+            autoLoadSecondarySub: true,
+            secondarySubLanguages: ['en'],
+          },
+        }) as any,
+      shouldAutoLoadSecondarySubTrack: () => false,
+    } as any),
+  );
+  (client as any).send = (command: unknown) => {
+    commands.push(command);
+    return true;
+  };
+  (globalThis as any).setTimeout = (callback: () => void) => {
+    callback();
+    return 0;
+  };
+
+  try {
+    await invokeHandleMessage(client, {
+      event: 'property-change',
+      name: 'path',
+      data: 'http://pve-main:8096/Videos/item/stream',
+    });
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
+
+  assert.equal(
+    commands.some(
+      (command) =>
+        Array.isArray((command as { command?: unknown[] }).command) &&
+        (command as { command: unknown[] }).command[0] === 'get_property' &&
+        (command as { command: unknown[] }).command[1] === 'track-list' &&
+        (command as { request_id?: number }).request_id === MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
+    ),
+    false,
+  );
 });
 
 test('MpvIpcClient parses JSON line protocol in processBuffer', () => {

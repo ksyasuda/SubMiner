@@ -44,6 +44,21 @@ export function markJellyfinRemotePlaybackLoaded(
   }
 }
 
+export function shouldAutoLoadSecondarySubTrackForJellyfinPlayback(
+  playback: ActiveJellyfinRemotePlaybackState | null,
+  path: string,
+): boolean {
+  const normalizedPath = path.trim();
+  if (!normalizedPath || !playback) {
+    return true;
+  }
+  const loadedMediaPath = playback.loadedMediaPath?.trim() ?? '';
+  if (!loadedMediaPath) {
+    return false;
+  }
+  return loadedMediaPath !== normalizedPath;
+}
+
 function isMpvPauseEnabled(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value !== 0;
@@ -87,6 +102,29 @@ async function readMpvPositionSecondsOrFallback(
   }
 }
 
+function cacheLastKnownPosition(
+  playback: ActiveJellyfinRemotePlaybackState,
+  positionSeconds: number,
+): void {
+  if (!Number.isFinite(positionSeconds)) return;
+  if (positionSeconds > 0 || playback.lastKnownPositionSeconds === undefined) {
+    playback.lastKnownPositionSeconds = Math.max(0, positionSeconds);
+  }
+}
+
+function resolveReportablePositionSeconds(
+  playback: ActiveJellyfinRemotePlaybackState,
+  positionSeconds: number,
+): number {
+  const normalizedPosition = normalizeMpvPositionSeconds(positionSeconds);
+  if (normalizedPosition > 0) return normalizedPosition;
+  const cachedPosition = playback.lastKnownPositionSeconds;
+  if (typeof cachedPosition === 'number' && Number.isFinite(cachedPosition) && cachedPosition > 0) {
+    return cachedPosition;
+  }
+  return normalizedPosition;
+}
+
 function isSeekLikePositionJump(
   previousPositionSeconds: number | null,
   nextPositionSeconds: number,
@@ -123,7 +161,9 @@ export function createReportJellyfinRemoteProgressHandler(
     const now = deps.getNow();
     try {
       const mpvClient = deps.getMpvClient();
-      const positionSeconds = await readMpvPositionSeconds(mpvClient);
+      const observedPositionSeconds = await readMpvPositionSeconds(mpvClient);
+      cacheLastKnownPosition(playback, observedPositionSeconds);
+      const positionSeconds = resolveReportablePositionSeconds(playback, observedPositionSeconds);
       const forceForSeekJump = isSeekLikePositionJump(
         lastReportedPositionSeconds,
         positionSeconds,
@@ -184,11 +224,27 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
       return;
     }
     try {
-      const positionSeconds = await readMpvPositionSecondsOrFallback(deps.getMpvClient());
+      const observedPositionSeconds = await readMpvPositionSecondsOrFallback(deps.getMpvClient());
+      const positionSeconds = resolveReportablePositionSeconds(playback, observedPositionSeconds);
+      const positionTicks = secondsToJellyfinTicks(positionSeconds, deps.ticksPerSecond);
+      try {
+        await session.reportProgress({
+          itemId: playback.itemId,
+          mediaSourceId: playback.mediaSourceId,
+          positionTicks,
+          isPaused: false,
+          playMethod: playback.playMethod,
+          audioStreamIndex: playback.audioStreamIndex,
+          subtitleStreamIndex: playback.subtitleStreamIndex,
+          eventName: 'TimeUpdate',
+        });
+      } catch (error) {
+        deps.logDebug('Failed to report Jellyfin remote final progress', error);
+      }
       await session.reportStopped({
         itemId: playback.itemId,
         mediaSourceId: playback.mediaSourceId,
-        positionTicks: secondsToJellyfinTicks(positionSeconds, deps.ticksPerSecond),
+        positionTicks,
         failed: false,
         playMethod: playback.playMethod,
         audioStreamIndex: playback.audioStreamIndex,

@@ -35,7 +35,10 @@ import { applyControllerConfigUpdate } from './main/controller-config-update.js'
 import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { startAppControlServer } from './main/runtime/app-control-server';
-import { markJellyfinRemotePlaybackLoaded as markJellyfinRemotePlaybackLoadedState } from './main/runtime/jellyfin-remote-playback';
+import {
+  markJellyfinRemotePlaybackLoaded as markJellyfinRemotePlaybackLoadedState,
+  shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
+} from './main/runtime/jellyfin-remote-playback';
 import { getAppControlSocketPath } from './shared/app-control';
 import {
   type CancelLinuxMpvFullscreenOverlayRefreshBurst,
@@ -322,6 +325,7 @@ import {
   listJellyfinItemsRuntime,
   listJellyfinLibrariesRuntime,
   listJellyfinSubtitleTracksRuntime,
+  loadJellyfinSubtitleDelay,
   loadSubtitlePosition as loadSubtitlePositionCore,
   loadYomitanExtension as loadYomitanExtensionCore,
   markLastCardAsAudioCard as markLastCardAsAudioCardCore,
@@ -332,6 +336,7 @@ import {
   replayCurrentSubtitleRuntime,
   resolveJellyfinPlaybackPlanRuntime,
   runStartupBootstrapRuntime,
+  saveJellyfinSubtitleDelay,
   saveSubtitlePosition as saveSubtitlePositionCore,
   addYomitanNoteViaSearch,
   clearYomitanParserCachesForWindow,
@@ -667,16 +672,18 @@ const YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS = 10000;
 const YOUTUBE_MPV_YTDL_FORMAT = 'bestvideo*+bestaudio/best';
 const YOUTUBE_DIRECT_PLAYBACK_FORMAT = 'b';
 const MPV_JELLYFIN_DEFAULT_ARGS = [
-  '--sub-auto=fuzzy',
+  '--sub-auto=no',
   '--sub-file-paths=.;subs;subtitles',
-  '--sid=auto',
-  '--secondary-sid=auto',
+  '--sid=no',
+  '--secondary-sid=no',
+  '--sub-visibility=no',
   '--secondary-sub-visibility=no',
   '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
   '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
 ] as const;
 
 let activeJellyfinRemotePlayback: ActiveJellyfinRemotePlaybackState | null = null;
+let activeJellyfinSubtitleDelayKey: { itemId: string; streamIndex: number } | null = null;
 let jellyfinRemoteLastProgressAtMs = 0;
 let jellyfinMpvAutoLaunchInFlight: Promise<boolean> | null = null;
 let backgroundWarmupsStarted = false;
@@ -2135,6 +2142,7 @@ const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHos
 const createFieldGroupingCallback = fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, 'subtitle-positions');
+const JELLYFIN_SUBTITLE_DELAYS_PATH = path.join(CONFIG_DIR, 'jellyfin-subtitle-delays.json');
 
 const mediaRuntime = createMediaRuntimeService(
   createBuildMediaRuntimeMainDepsHandler({
@@ -2942,6 +2950,23 @@ const {
     wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
     cacheSubtitleTrack: (track) => jellyfinSubtitleCacheIo.cacheSubtitleTrack(track),
     cleanupCachedSubtitles: (dirs) => jellyfinSubtitleCacheIo.cleanupCachedSubtitles(dirs),
+    getSavedSubtitleDelay: (itemId, streamIndex) =>
+      loadJellyfinSubtitleDelay({
+        filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
+        itemId,
+        streamIndex,
+      }),
+    setActiveSubtitleDelayKey: (key) => {
+      activeJellyfinSubtitleDelayKey = key;
+    },
+    loadSubtitleSourceText,
+    saveSubtitleDelay: (itemId, streamIndex, delaySeconds) =>
+      saveJellyfinSubtitleDelay({
+        filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
+        itemId,
+        streamIndex,
+        delaySeconds,
+      }),
     logDebug: (message, error) => {
       logger.debug(message, error);
     },
@@ -3005,6 +3030,7 @@ const {
     getActivePlayback: () => activeJellyfinRemotePlayback,
     clearActivePlayback: () => {
       activeJellyfinRemotePlayback = null;
+      activeJellyfinSubtitleDelayKey = null;
     },
     getSession: () => appState.jellyfinRemoteSession,
     getNow: () => Date.now(),
@@ -4426,6 +4452,7 @@ const {
           appState.activeParsedSubtitleSource = null;
           appState.activeParsedSubtitleMediaPath = null;
         }
+        activeJellyfinSubtitleDelayKey = null;
         broadcastToOverlayWindows('subtitle:set', resetSubtitlePayload);
         subtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
         annotationSubtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
@@ -4533,6 +4560,8 @@ const {
     setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
       appState.reconnectTimer = timer;
     },
+    shouldAutoLoadSecondarySubTrack: (path: string) =>
+      shouldAutoLoadSecondarySubTrackForJellyfinPlayback(activeJellyfinRemotePlayback, path),
     shouldQuitOnMpvShutdown: () =>
       shouldQuitOnMpvShutdownForTrayState({
         managedPlayback: appState.initialArgs?.managedPlayback === true,
@@ -5518,6 +5547,19 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   getMpvClient: () => appState.mpvClient,
   loadSubtitleSourceText,
   sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
+  onSubtitleDelayShifted: (delaySeconds) => {
+    const key = activeJellyfinSubtitleDelayKey;
+    if (!key) return;
+    const saved = saveJellyfinSubtitleDelay({
+      filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
+      itemId: key.itemId,
+      streamIndex: key.streamIndex,
+      delaySeconds,
+    });
+    if (!saved) {
+      logger.warn('Failed to save Jellyfin subtitle delay.');
+    }
+  },
   showMpvOsd: (text) => showMpvOsd(text),
 });
 

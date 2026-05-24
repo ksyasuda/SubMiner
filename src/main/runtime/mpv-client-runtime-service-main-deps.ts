@@ -11,6 +11,7 @@ export function createBuildMpvClientRuntimeServiceFactoryDepsHandler<
   isVisibleOverlayVisible: () => boolean;
   getReconnectTimer: () => ReturnType<typeof setTimeout> | null;
   setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;
+  shouldAutoLoadSecondarySubTrack?: (path: string) => boolean;
   shouldQuitOnMpvShutdown?: () => boolean;
   requestAppQuit?: () => void;
   bindEventHandlers: (client: TClient) => void;
@@ -26,6 +27,9 @@ export function createBuildMpvClientRuntimeServiceFactoryDepsHandler<
       getReconnectTimer: () => deps.getReconnectTimer(),
       setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) =>
         deps.setReconnectTimer(timer),
+      shouldAutoLoadSecondarySubTrack: deps.shouldAutoLoadSecondarySubTrack
+        ? (path: string) => deps.shouldAutoLoadSecondarySubTrack?.(path) ?? true
+        : undefined,
       shouldQuitOnMpvShutdown: () => deps.shouldQuitOnMpvShutdown?.() ?? false,
       requestAppQuit: () => deps.requestAppQuit?.(),
     },

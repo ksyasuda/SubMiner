@@ -85,6 +85,10 @@ function M.create(ctx)
 		if not has_matching_subminer_socket() then
 			return false
 		end
+		if state.skip_managed_subtitle_rearm_once then
+			state.skip_managed_subtitle_rearm_once = false
+			return true
+		end
 		mp.set_property_native("sub-auto", "fuzzy")
 		mp.set_property_native("sid", "auto")
 		mp.set_property_native("secondary-sid", "auto")
@@ -179,12 +183,21 @@ function M.create(ctx)
 		state.pending_reload_reason = nil
 		state.current_media_identity = media_identity
 		state.current_media_title = media_title
+		if state.app_managed_playback_pending then
+			state.app_managed_playback_pending = false
+			state.app_managed_playback_active = true
+		elseif new_media_loaded then
+			state.app_managed_playback_active = false
+		end
 		if new_media_loaded then
 			state.suppress_ready_overlay_restore = false
 		end
 
 		if same_media_reload then
 			subminer_log("debug", "lifecycle", "Skipping startup lifecycle for same-media mpv reload")
+			if state.app_managed_playback_active then
+				return
+			end
 			if
 				state.overlay_running
 				and not state.suppress_ready_overlay_restore
@@ -208,6 +221,11 @@ function M.create(ctx)
 			process.disarm_auto_play_ready_gate()
 		end
 
+		if state.app_managed_playback_active then
+			subminer_log("debug", "lifecycle", "Skipping plugin auto-start for app-managed subtitle preload")
+			return
+		end
+
 		if should_auto_start then
 			start_overlay_when_socket_ready(retry_generation, media_identity, same_media_loaded, 1)
 			return
@@ -227,6 +245,8 @@ function M.create(ctx)
 		state.pending_reload_media_identity = nil
 		state.pending_reload_media_title = nil
 		state.pending_reload_reason = nil
+		state.app_managed_playback_pending = false
+		state.app_managed_playback_active = false
 	end
 
 	local function register_lifecycle_hooks()
@@ -252,6 +272,7 @@ function M.create(ctx)
 			state.pending_reload_media_identity = nil
 			state.pending_reload_media_title = nil
 			state.pending_reload_reason = nil
+			state.app_managed_playback_active = false
 			if state.overlay_running and reason ~= "quit" then
 				process.hide_visible_overlay()
 			end

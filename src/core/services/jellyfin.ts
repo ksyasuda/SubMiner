@@ -233,9 +233,6 @@ function createDirectPlayUrl(
   if (plan.subtitleStreamIndex !== null) {
     query.set('SubtitleStreamIndex', String(plan.subtitleStreamIndex));
   }
-  if (plan.startTimeTicks > 0) {
-    query.set('StartTimeTicks', String(plan.startTimeTicks));
-  }
   return `${session.serverUrl}/Videos/${itemId}/stream?${query.toString()}`;
 }
 

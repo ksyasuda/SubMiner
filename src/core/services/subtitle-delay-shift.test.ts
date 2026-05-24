@@ -89,6 +89,40 @@ Dialogue: 0,0:00:04.00,0:00:05.00,Default,,0,0,0,,line-3`,
   assert.equal(Math.abs((delta as number) + 1.5) < 0.0001, true);
 });
 
+test('shift subtitle delay reports cumulative delay after adjacent cue shift', async () => {
+  const shiftedDelays: number[] = [];
+  const handler = createShiftSubtitleDelayToAdjacentCueHandler({
+    getMpvClient: () =>
+      createMpvClient({
+        'track-list': [
+          {
+            type: 'sub',
+            id: 2,
+            external: true,
+            'external-filename': '/tmp/subs.srt',
+          },
+        ],
+        sid: 2,
+        'sub-start': 3.0,
+        'sub-delay': 0.5,
+      }),
+    loadSubtitleSourceText: async () => `1
+00:00:03,000 --> 00:00:04,000
+line-1
+
+2
+00:00:05,000 --> 00:00:06,000
+line-2`,
+    sendMpvCommand: () => {},
+    showMpvOsd: () => {},
+    onSubtitleDelayShifted: (delay) => shiftedDelays.push(delay),
+  });
+
+  await handler('next');
+
+  assert.deepEqual(shiftedDelays, [2.5]);
+});
+
 test('shift subtitle delay throws when no next cue exists', async () => {
   const handler = createShiftSubtitleDelayToAdjacentCueHandler({
     getMpvClient: () =>

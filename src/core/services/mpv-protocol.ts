@@ -78,7 +78,7 @@ export interface MpvProtocolHandleMessageDeps {
   setPendingPauseAtSubEnd: (value: boolean) => void;
   getPauseAtTime: () => number | null;
   setPauseAtTime: (value: number | null) => void;
-  autoLoadSecondarySubTrack: () => void;
+  autoLoadSecondarySubTrack: (path: string) => void;
   setCurrentVideoPath: (value: string) => void;
   emitSecondarySubtitleVisibility: (payload: { visible: boolean }) => void;
   setPreviousSecondarySubVisibility: (visible: boolean) => void;
@@ -303,7 +303,7 @@ export async function dispatchMpvProtocolMessage(
       const path = (msg.data as string) || '';
       deps.setCurrentVideoPath(path);
       deps.emitMediaPathChange({ path });
-      deps.autoLoadSecondarySubTrack();
+      deps.autoLoadSecondarySubTrack(path);
       deps.syncCurrentAudioStreamIndex();
     } else if (msg.name === 'sub-pos') {
       deps.emitSubtitleMetricsChange({ subPos: msg.data as number });

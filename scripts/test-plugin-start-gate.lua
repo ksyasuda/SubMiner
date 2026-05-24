@@ -714,7 +714,7 @@ do
 	fire_event(recorded, "start-file")
 	fire_event(recorded, "file-loaded")
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
 		"app-side hide sync should suppress path-changing Jellyfin redirect visible overlay reassertion"
 	)
 	assert_true(
@@ -752,13 +752,13 @@ do
 		"duplicate same-tick visible overlay toggles should hide once"
 	)
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
 		"duplicate same-tick visible overlay toggles should not immediately show the overlay again"
 	)
 	scenario.now = 10.5
 	recorded.script_messages["subminer-toggle"]()
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
 		"later visible overlay toggle should still show after duplicate suppression window"
 	)
 end
@@ -844,12 +844,74 @@ do
 		"y-t should avoid app-side toggle when plugin knows the overlay is visible"
 	)
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
 		"manual y-t hide should suppress duplicate auto-start and ready-time visible overlay reassertion"
 	)
 	assert_true(
 		count_property_set(recorded.property_sets, "pause", false) == 0,
 		"manual y-t hide should not resume paused Jellyfin playback"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "no",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Jellyfin Managed Playback",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for managed Jellyfin subtitle preload scenario: " .. tostring(err))
+	assert_true(
+		recorded.script_messages["subminer-managed-subtitles-loading"] ~= nil,
+		"managed subtitle preload script message should be registered"
+	)
+	recorded.script_messages["subminer-managed-subtitles-loading"]()
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		not has_property_set(recorded.property_sets, "sid", "auto"),
+		"managed Jellyfin preload should not rearm primary subtitle auto-selection before app-selected subtitles load"
+	)
+	assert_true(
+		not has_property_set(recorded.property_sets, "secondary-sid", "auto"),
+		"managed Jellyfin preload should not rearm secondary subtitle auto-selection before app-selected subtitles load"
+	)
+	assert_true(
+		not has_property_set(recorded.property_sets, "sub-auto", "fuzzy"),
+		"managed Jellyfin preload should not re-enable subtitle autoloading before app-selected subtitles load"
+	)
+	assert_true(
+		count_start_calls(recorded.async_calls) == 0,
+		"managed Jellyfin preload should let the app show the overlay after subtitle preload instead of plugin auto-start"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
+		"managed Jellyfin preload should not reassert the visible overlay during duplicate file-loaded events"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 0,
+		"managed Jellyfin preload should not arm the plugin pause gate before app-selected subtitles load"
+	)
+	fire_event(recorded, "end-file", { reason = "stop" })
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_property_set(recorded.property_sets, "sid", "auto") == 1,
+		"managed subtitle preload suppression should only apply to one playback lifecycle"
+	)
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"plugin auto-start should resume after the managed Jellyfin lifecycle ends"
 	)
 end
 
@@ -1102,8 +1164,8 @@ do
 	recorded.script_messages["subminer-restart"]()
 	recorded.script_messages["subminer-autoplay-ready"]()
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
-		"manual restart should re-assert visible overlay after launch and readiness even when auto-start visibility is disabled"
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		"manual restart should avoid a second visible overlay restore after launch already requested visibility"
 	)
 end
 
@@ -1498,8 +1560,8 @@ do
 		"auto-start with visible overlay enabled should not include --hide-visible-overlay on --start"
 	)
 	assert_true(
-		find_control_call(recorded.async_calls, "--show-visible-overlay") ~= nil,
-		"auto-start with visible overlay enabled should issue a separate --show-visible-overlay command"
+		find_control_call(recorded.async_calls, "--show-visible-overlay") == nil,
+		"auto-start with visible overlay enabled should rely on the --start visibility flag instead of a separate --show-visible-overlay command"
 	)
 	assert_true(
 		not has_property_set(recorded.property_sets, "pause", true),
@@ -1530,8 +1592,8 @@ do
 		"duplicate file-loaded events should not issue duplicate --start commands while overlay is already running"
 	)
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
-		"duplicate auto-start should re-assert visible overlay state when overlay is already running"
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
+		"duplicate auto-start should not re-assert visible overlay state when it is already requested"
 	)
 	assert_true(
 		count_osd_message(recorded.osd, "SubMiner: Already running") == 0,
@@ -1566,8 +1628,8 @@ do
 		"duplicate pause-until-ready auto-start should not issue duplicate --start commands while overlay is already running"
 	)
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 3,
-		"duplicate pause-until-ready auto-start should re-assert visible overlay on initial start, ready, and later file load"
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
+		"duplicate pause-until-ready auto-start should not re-assert visible overlay after the start command already requested it"
 	)
 	assert_true(
 		count_osd_message(recorded.osd, "SubMiner: Loading subtitle tokenization...") == 1,
@@ -1628,8 +1690,8 @@ do
 		"autoplay-ready should show loaded OSD message"
 	)
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
-		"autoplay-ready should re-assert visible overlay state"
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
+		"autoplay-ready should not re-assert visible overlay state after the start command already requested it"
 	)
 	assert_true(
 		#recorded.periodic_timers == 1,
@@ -1663,8 +1725,8 @@ do
 	recorded.script_messages["subminer-autoplay-ready"]()
 	recorded.script_messages["subminer-autoplay-ready"]()
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
-		"duplicate autoplay-ready signals should not repeatedly spawn visible overlay restore commands"
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
+		"duplicate autoplay-ready signals should not spawn visible overlay restore commands when start already requested visibility"
 	)
 end
 
@@ -1729,7 +1791,7 @@ do
 	)
 	recorded.script_messages["subminer-autoplay-ready"]()
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
 		"manual toggle-off before readiness should suppress ready-time visible overlay restore"
 	)
 	assert_true(
@@ -1764,7 +1826,7 @@ do
 	recorded.script_messages["subminer-autoplay-ready"]()
 	recorded.script_messages["subminer-autoplay-ready"]()
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
 		"manual toggle-off should suppress repeated ready-time visible overlay restores for the same session"
 	)
 end
@@ -1794,7 +1856,7 @@ do
 	fire_event(recorded, "file-loaded")
 	recorded.script_messages["subminer-autoplay-ready"]()
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 1,
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
 		"manual toggle-off should suppress duplicate auto-start visible overlay reassertion"
 	)
 	assert_true(
@@ -1829,7 +1891,7 @@ do
 	fire_event(recorded, "end-file", { reason = "redirect" })
 	fire_event(recorded, "file-loaded")
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
 		"manual toggle-off should suppress same-media reload visible overlay reassertion"
 	)
 	assert_true(
@@ -1868,7 +1930,7 @@ do
 	fire_event(recorded, "start-file")
 	fire_event(recorded, "file-loaded")
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 0,
 		"manual toggle-off should suppress path-changing Jellyfin redirect visible overlay reassertion even if media-title drops"
 	)
 	assert_true(
@@ -2042,8 +2104,8 @@ do
 		"auto-start with visible overlay disabled should not include --show-visible-overlay on --start"
 	)
 	assert_true(
-		find_control_call(recorded.async_calls, "--hide-visible-overlay") ~= nil,
-		"auto-start with visible overlay disabled should issue a separate --hide-visible-overlay command"
+		find_control_call(recorded.async_calls, "--hide-visible-overlay") == nil,
+		"auto-start with visible overlay disabled should rely on the --start visibility flag instead of a separate --hide-visible-overlay command"
 	)
 end
 

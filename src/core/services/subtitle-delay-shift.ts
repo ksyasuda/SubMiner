@@ -21,6 +21,7 @@ type SubtitleDelayShiftDeps = {
   loadSubtitleSourceText: (source: string) => Promise<string>;
   sendMpvCommand: (command: Array<string | number>) => void;
   showMpvOsd: (text: string) => void;
+  onSubtitleDelayShifted?: (delaySeconds: number) => void;
 };
 
 function asTrackId(value: unknown): number | null {
@@ -175,10 +176,11 @@ export function createShiftSubtitleDelayToAdjacentCueHandler(deps: SubtitleDelay
       throw new Error('MPV not connected.');
     }
 
-    const [trackListRaw, sidRaw, subStartRaw] = await Promise.all([
+    const [trackListRaw, sidRaw, subStartRaw, subDelayRaw] = await Promise.all([
       client.requestProperty('track-list'),
       client.requestProperty('sid'),
       client.requestProperty('sub-start'),
+      client.requestProperty('sub-delay'),
     ]);
 
     const currentStart =
@@ -198,6 +200,11 @@ export function createShiftSubtitleDelayToAdjacentCueHandler(deps: SubtitleDelay
     const targetStart = findAdjacentCueStart(cueStarts, currentStart, direction);
     const delta = targetStart - currentStart;
     deps.sendMpvCommand(['add', 'sub-delay', delta]);
+    const currentDelay =
+      typeof subDelayRaw === 'number' && Number.isFinite(subDelayRaw) ? subDelayRaw : 0;
+    try {
+      deps.onSubtitleDelayShifted?.(currentDelay + delta);
+    } catch {}
     deps.showMpvOsd('Subtitle delay: ${sub-delay}');
   };
 }

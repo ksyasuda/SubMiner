@@ -105,6 +105,7 @@ export interface MpvIpcClientProtocolDeps {
   isVisibleOverlayVisible: () => boolean;
   getReconnectTimer: () => ReturnType<typeof setTimeout> | null;
   setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;
+  shouldAutoLoadSecondarySubTrack?: (path: string) => boolean;
   shouldQuitOnMpvShutdown?: () => boolean;
   requestAppQuit?: () => void;
 }
@@ -404,8 +405,8 @@ export class MpvIpcClient implements MpvClient {
       setPauseAtTime: (value: number | null) => {
         this.pauseAtTime = value;
       },
-      autoLoadSecondarySubTrack: () => {
-        this.autoLoadSecondarySubTrack();
+      autoLoadSecondarySubTrack: (path: string) => {
+        this.autoLoadSecondarySubTrack(path);
       },
       setCurrentVideoPath: (value: string) => {
         this.currentVideoPath = value;
@@ -429,7 +430,12 @@ export class MpvIpcClient implements MpvClient {
     };
   }
 
-  private autoLoadSecondarySubTrack(): void {
+  private autoLoadSecondarySubTrack(path: string): void {
+    const normalizedPath = path.trim();
+    if (!normalizedPath) return;
+    if (this.deps.shouldAutoLoadSecondarySubTrack?.(normalizedPath) === false) {
+      return;
+    }
     const config = this.deps.getResolvedConfig();
     if (!config.secondarySub?.autoLoadSecondarySub) return;
     const languages = config.secondarySub.secondarySubLanguages;

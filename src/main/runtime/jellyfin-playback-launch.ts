@@ -16,6 +16,7 @@ type ActivePlaybackState = {
   playMethod: 'DirectPlay' | 'Transcode';
   loadedMediaPath?: string | null;
   stopReportsAfterMs?: number;
+  lastKnownPositionSeconds?: number;
 };
 
 export type JellyfinPlaybackStatsMetadata = {
@@ -28,11 +29,27 @@ export type JellyfinPlaybackStatsMetadata = {
   itemId: string;
 };
 
+const JELLYFIN_LOADFILE_SUBTITLE_SUPPRESSION_OPTIONS = [
+  'sid=no',
+  'secondary-sid=no',
+  'sub-auto=no',
+  'sub-visibility=no',
+  'secondary-sub-visibility=no',
+];
+
 function runBestEffortPlaybackHook(callback: () => void | Promise<void>): void {
   try {
     void Promise.resolve(callback()).catch(() => {});
   } catch {
     // Best-effort metadata/title hooks must not block playback startup.
+  }
+}
+
+async function awaitBestEffortPlaybackHook(callback: () => void | Promise<void>): Promise<void> {
+  try {
+    await Promise.resolve(callback());
+  } catch {
+    // Best-effort startup hooks must not block playback startup.
   }
 }
 
@@ -49,6 +66,48 @@ function applyStartTimeTicksToPlaybackUrl(url: string, startTimeTicksOverride?: 
   } catch {
     return url;
   }
+}
+
+function stripStartTimeTicksFromPlaybackUrl(url: string): string {
+  try {
+    const resolved = new URL(url);
+    resolved.searchParams.delete('StartTimeTicks');
+    return resolved.toString();
+  } catch {
+    return url;
+  }
+}
+
+function stripManagedSubtitleStreamFromPlaybackUrl(url: string): string {
+  try {
+    const resolved = new URL(url);
+    resolved.searchParams.delete('SubtitleStreamIndex');
+    return resolved.toString();
+  } catch {
+    return url;
+  }
+}
+
+function resolveEffectiveStartTimeTicks(
+  planStartTimeTicks: number,
+  startTimeTicksOverride?: number,
+  fallbackToPlanStartTimeOnZeroOverride = false,
+) {
+  if (typeof startTimeTicksOverride === 'number' && startTimeTicksOverride > 0) {
+    return Math.max(0, startTimeTicksOverride);
+  }
+  if (typeof startTimeTicksOverride === 'number') {
+    return fallbackToPlanStartTimeOnZeroOverride ? Math.max(0, planStartTimeTicks) : 0;
+  }
+  return Math.max(0, planStartTimeTicks);
+}
+
+function buildJellyfinLoadfileOptions(plan: JellyfinPlaybackPlan, startSeconds: number): string {
+  const options = [...JELLYFIN_LOADFILE_SUBTITLE_SUPPRESSION_OPTIONS];
+  if (plan.mode === 'direct' && startSeconds > 0) {
+    options.push(`start=${startSeconds}`);
+  }
+  return options.join(',');
 }
 
 export function createPlayJellyfinItemInMpvHandler(deps: {
@@ -72,7 +131,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     session: JellyfinAuthSession;
     clientInfo: JellyfinClientInfo;
     itemId: string;
-  }) => void;
+  }) => void | Promise<void>;
   setActivePlayback: (state: ActivePlaybackState) => void;
   setLastProgressAtMs: (value: number) => void;
   reportPlaying: (payload: {
@@ -99,6 +158,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     audioStreamIndex?: number | null;
     subtitleStreamIndex?: number | null;
     startTimeTicksOverride?: number;
+    fallbackToPlanStartTimeOnZeroOverride?: boolean;
     setQuitOnDisconnectArm?: boolean;
   }): Promise<void> => {
     const connected = await deps.ensureMpvConnectedForPlayback();
@@ -120,7 +180,23 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
 
     deps.applyJellyfinMpvDefaults(mpvClient);
     deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
-    const playbackUrl = applyStartTimeTicksToPlaybackUrl(plan.url, params.startTimeTicksOverride);
+    deps.sendMpvCommand(['set_property', 'sid', 'no']);
+    deps.sendMpvCommand(['set_property', 'secondary-sid', 'no']);
+    deps.sendMpvCommand(['set_property', 'sub-visibility', 'no']);
+    deps.sendMpvCommand(['set_property', 'secondary-sub-visibility', 'no']);
+    const startTimeTicks = resolveEffectiveStartTimeTicks(
+      plan.startTimeTicks,
+      params.startTimeTicksOverride,
+      params.fallbackToPlanStartTimeOnZeroOverride,
+    );
+    const startSeconds =
+      startTimeTicks > 0 ? Math.max(0, deps.convertTicksToSeconds(startTimeTicks)) : 0;
+    const playbackUrlBase =
+      plan.mode === 'direct'
+        ? stripStartTimeTicksFromPlaybackUrl(plan.url)
+        : applyStartTimeTicksToPlaybackUrl(plan.url, startTimeTicks);
+    const playbackUrl = stripManagedSubtitleStreamFromPlaybackUrl(playbackUrlBase);
+    const loadfileOptions = buildJellyfinLoadfileOptions(plan, startSeconds);
     const playMethod = plan.mode === 'direct' ? 'DirectPlay' : 'Transcode';
     runBestEffortPlaybackHook(() => deps.updateCurrentMediaTitle?.(plan.title));
     runBestEffortPlaybackHook(() =>
@@ -141,29 +217,24 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
       subtitleStreamIndex: plan.subtitleStreamIndex,
       playMethod,
       loadedMediaPath: null,
+      lastKnownPositionSeconds: startSeconds > 0 ? startSeconds : undefined,
     });
     deps.setLastProgressAtMs(0);
-    deps.sendMpvCommand(['loadfile', playbackUrl, 'replace']);
+    deps.sendMpvCommand(['script-message', 'subminer-managed-subtitles-loading']);
+    deps.sendMpvCommand(['loadfile', playbackUrl, 'replace', -1, loadfileOptions]);
     if (params.setQuitOnDisconnectArm !== false) {
       deps.armQuitOnDisconnect();
     }
     deps.sendMpvCommand(['set_property', 'force-media-title', plan.title]);
-    deps.sendMpvCommand(['set_property', 'sid', 'no']);
 
-    const startTimeTicks =
-      typeof params.startTimeTicksOverride === 'number'
-        ? Math.max(0, params.startTimeTicksOverride)
-        : plan.startTimeTicks;
-    if (startTimeTicks > 0) {
-      deps.sendMpvCommand(['seek', deps.convertTicksToSeconds(startTimeTicks), 'absolute+exact']);
-    }
-
+    await awaitBestEffortPlaybackHook(() =>
+      deps.preloadExternalSubtitles({
+        session: params.session,
+        clientInfo: params.clientInfo,
+        itemId: params.itemId,
+      }),
+    );
     deps.showVisibleOverlay();
-    deps.preloadExternalSubtitles({
-      session: params.session,
-      clientInfo: params.clientInfo,
-      itemId: params.itemId,
-    });
 
     deps.reportPlaying({
       itemId: params.itemId,

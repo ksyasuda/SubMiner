@@ -1,3 +1,6 @@
+import { parseSubtitleCues } from '../../core/services/subtitle-cue-parser';
+import { estimateSubtitleTimingOffset } from '../../core/services/subtitle-timing-offset';
+
 type JellyfinSession = {
   serverUrl: string;
   accessToken: string;
@@ -15,6 +18,11 @@ type JellyfinSubtitleTrack = {
   index: number;
   language?: string;
   title?: string;
+  codec?: string;
+  isDefault?: boolean;
+  isForced?: boolean;
+  isExternal?: boolean;
+  deliveryMethod?: string;
   deliveryUrl?: string | null;
 };
 
@@ -25,6 +33,11 @@ type CachedSubtitleTrack = {
 
 type CachedExternalSubtitleTrack = CachedSubtitleTrack & {
   source: JellyfinSubtitleTrack;
+};
+
+type JellyfinSubtitleDelayKey = {
+  itemId: string;
+  streamIndex: number;
 };
 
 type MpvSubtitleTrack = {
@@ -130,12 +143,27 @@ function pickBestCachedTrackId(
         track,
         score:
           (track.external ? 100 : 0) +
+          (cached?.source.isDefault ? 35 : 0) +
+          (cached?.source.isExternal === false ? 25 : 0) +
+          (cached?.source.isExternal === true ? -10 : 0) +
+          (cached?.source.isForced ? -25 : 0) +
           (isLikelyHearingImpaired(title) ? -10 : 10) +
           (/\bdefault\b/i.test(title) ? 3 : 0),
       };
     })
     .sort((a, b) => b.score - a.score);
   return ranked[0]?.track.id ?? null;
+}
+
+function findCachedTrackForMpvTrackId(
+  tracks: MpvSubtitleTrack[],
+  cachedTracks: CachedExternalSubtitleTrack[],
+  trackId: number | null,
+): CachedExternalSubtitleTrack | null {
+  if (trackId === null) return null;
+  const mpvTrack = tracks.find((track) => track.id === trackId);
+  if (!mpvTrack?.externalFilename) return null;
+  return cachedTracks.find((track) => track.path === mpvTrack.externalFilename) ?? null;
 }
 
 function isJapaneseTrack(track: MpvSubtitleTrack): boolean {
@@ -229,6 +257,54 @@ async function waitForPreferredSubtitleTracks(
   return subtitleTracks;
 }
 
+async function estimateSubtitleDelayFromReference(
+  deps: {
+    loadSubtitleSourceText?: (source: string) => Promise<string>;
+    logDebug: (message: string, error: unknown) => void;
+  },
+  primaryTrack: CachedExternalSubtitleTrack | null,
+  referenceTrack: CachedExternalSubtitleTrack | null,
+): Promise<number | null> {
+  if (!deps.loadSubtitleSourceText || !primaryTrack || !referenceTrack) {
+    return null;
+  }
+
+  try {
+    const [primaryContent, referenceContent] = await Promise.all([
+      deps.loadSubtitleSourceText(primaryTrack.path),
+      deps.loadSubtitleSourceText(referenceTrack.path),
+    ]);
+    const primaryCues = parseSubtitleCues(primaryContent, primaryTrack.path);
+    const referenceCues = parseSubtitleCues(referenceContent, referenceTrack.path);
+    return estimateSubtitleTimingOffset(primaryCues, referenceCues)?.offsetSeconds ?? null;
+  } catch (error) {
+    deps.logDebug('Failed to auto-align Jellyfin subtitle timing', error);
+    return null;
+  }
+}
+
+function saveEstimatedSubtitleDelay(
+  deps: {
+    saveSubtitleDelay?: (
+      itemId: string,
+      streamIndex: number,
+      delaySeconds: number,
+    ) => boolean | void;
+    logDebug: (message: string, error: unknown) => void;
+  },
+  key: JellyfinSubtitleDelayKey,
+  delaySeconds: number,
+): void {
+  try {
+    const saved = deps.saveSubtitleDelay?.(key.itemId, key.streamIndex, delaySeconds);
+    if (saved === false) {
+      deps.logDebug('Failed to save Jellyfin auto subtitle delay', key);
+    }
+  } catch (error) {
+    deps.logDebug('Failed to save Jellyfin auto subtitle delay', error);
+  }
+}
+
 export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
   listJellyfinSubtitleTracks: (
     session: JellyfinSession,
@@ -240,10 +316,20 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
   wait: (ms: number) => Promise<void>;
   cacheSubtitleTrack: (track: JellyfinSubtitleTrack) => Promise<CachedSubtitleTrack>;
   cleanupCachedSubtitles: (dirs: string[]) => void;
+  getSavedSubtitleDelay?: (itemId: string, streamIndex: number) => number | null;
+  setActiveSubtitleDelayKey?: (key: JellyfinSubtitleDelayKey | null) => void;
+  loadSubtitleSourceText?: (source: string) => Promise<string>;
+  saveSubtitleDelay?: (itemId: string, streamIndex: number, delaySeconds: number) => boolean | void;
   logDebug: (message: string, error: unknown) => void;
 }): PreloadJellyfinExternalSubtitlesHandler {
   const activeCacheDirs = new Set<string>();
   let preloadQueue: Promise<void> = Promise.resolve();
+
+  function resetManagedSubtitleDelay(): void {
+    if (deps.getSavedSubtitleDelay) {
+      deps.sendMpvCommand(['set_property', 'sub-delay', 0]);
+    }
+  }
 
   function cleanupActiveCache(): void {
     const dirs = [...activeCacheDirs];
@@ -275,6 +361,10 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
         return;
       }
 
+      deps.sendMpvCommand(['set_property', 'sid', 'no']);
+      deps.sendMpvCommand(['set_property', 'secondary-sid', 'no']);
+      deps.sendMpvCommand(['set_property', 'sub-visibility', 'no']);
+      deps.sendMpvCommand(['set_property', 'secondary-sub-visibility', 'no']);
       await deps.wait(300);
       const seenUrls = new Set<string>();
       const cachedTracks: CachedExternalSubtitleTrack[] = [];
@@ -310,18 +400,55 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
         return;
       }
 
+      const resolvedSubtitleTracks = subtitleTracks ?? [];
       const japanesePrimaryId =
-        pickBestCachedTrackId(subtitleTracks ?? [], cachedTracks, isJapanese) ??
-        pickBestTrackId(subtitleTracks ?? [], isJapanese);
+        pickBestCachedTrackId(resolvedSubtitleTracks, cachedTracks, isJapanese) ??
+        pickBestTrackId(resolvedSubtitleTracks, isJapanese);
+      const englishSecondaryId =
+        pickBestCachedTrackId(resolvedSubtitleTracks, cachedTracks, isEnglish, japanesePrimaryId) ??
+        pickBestTrackId(resolvedSubtitleTracks, isEnglish, japanesePrimaryId);
       if (japanesePrimaryId !== null) {
-        deps.sendMpvCommand(['set_property', 'sid', japanesePrimaryId]);
+        const selectedCachedTrack = findCachedTrackForMpvTrackId(
+          resolvedSubtitleTracks,
+          cachedTracks,
+          japanesePrimaryId,
+        );
+        if (selectedCachedTrack) {
+          const delayKey = { itemId: params.itemId, streamIndex: selectedCachedTrack.source.index };
+          deps.setActiveSubtitleDelayKey?.(delayKey);
+          const savedDelay = deps.getSavedSubtitleDelay?.(delayKey.itemId, delayKey.streamIndex);
+          if (typeof savedDelay === 'number' && Number.isFinite(savedDelay)) {
+            deps.sendMpvCommand(['set_property', 'sub-delay', savedDelay]);
+          } else {
+            const referenceCachedTrack = findCachedTrackForMpvTrackId(
+              resolvedSubtitleTracks,
+              cachedTracks,
+              englishSecondaryId,
+            );
+            const estimatedDelay = await estimateSubtitleDelayFromReference(
+              deps,
+              selectedCachedTrack,
+              referenceCachedTrack,
+            );
+            if (estimatedDelay !== null) {
+              deps.sendMpvCommand(['set_property', 'sub-delay', estimatedDelay]);
+              saveEstimatedSubtitleDelay(deps, delayKey, estimatedDelay);
+            } else {
+              resetManagedSubtitleDelay();
+            }
+          }
+          deps.sendMpvCommand(['set_property', 'sid', japanesePrimaryId]);
+        } else {
+          deps.setActiveSubtitleDelayKey?.(null);
+          resetManagedSubtitleDelay();
+          deps.sendMpvCommand(['set_property', 'sid', japanesePrimaryId]);
+        }
       } else {
         deps.sendMpvCommand(['set_property', 'sid', 'no']);
+        deps.setActiveSubtitleDelayKey?.(null);
+        resetManagedSubtitleDelay();
       }
 
-      const englishSecondaryId =
-        pickBestCachedTrackId(subtitleTracks ?? [], cachedTracks, isEnglish, japanesePrimaryId) ??
-        pickBestTrackId(subtitleTracks ?? [], isEnglish, japanesePrimaryId);
       if (englishSecondaryId !== null) {
         deps.sendMpvCommand(['set_property', 'secondary-sid', englishSecondaryId]);
       }

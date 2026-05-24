@@ -42,6 +42,8 @@ function M.new()
 		pending_reload_media_identity = nil,
 		pending_reload_media_title = nil,
 		pending_reload_reason = nil,
+		app_managed_playback_pending = false,
+		app_managed_playback_active = false,
 		auto_start_retry_generation = 0,
 		session_binding_generation = 0,
 		session_binding_names = {},

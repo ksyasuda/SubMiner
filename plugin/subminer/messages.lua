@@ -6,6 +6,7 @@ function M.create(ctx)
 	local aniskip = ctx.aniskip
 	local hover = ctx.hover
 	local ui = ctx.ui
+	local state = ctx.state
 
 	local function register_script_messages()
 		mp.register_script_message("subminer-start", function(...)
@@ -22,6 +23,10 @@ function M.create(ctx)
 		end)
 		mp.register_script_message("subminer-visible-overlay-shown", function()
 			process.record_visible_overlay_visibility(true)
+		end)
+		mp.register_script_message("subminer-managed-subtitles-loading", function()
+			state.skip_managed_subtitle_rearm_once = true
+			state.app_managed_playback_pending = true
 		end)
 		mp.register_script_message("subminer-menu", function()
 			ui.show_menu()
