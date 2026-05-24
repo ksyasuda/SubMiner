@@ -61,6 +61,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.texthooker.launchAtStartup, false);
   assert.equal(config.ankiConnect.behavior.autoUpdateNewCards, true);
   assert.deepEqual(config.ankiConnect.tags, ['SubMiner']);
+  assert.equal(config.ankiConnect.media.audioPadding, 0);
   assert.equal(config.anilist.enabled, false);
   assert.equal(config.anilist.characterDictionary.enabled, false);
   assert.equal(config.anilist.characterDictionary.refreshTtlHours, 168);

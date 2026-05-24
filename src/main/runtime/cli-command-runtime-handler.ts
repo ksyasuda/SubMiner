@@ -8,6 +8,7 @@ type HandleTexthookerOnlyModeTransitionMainDeps = Parameters<
 
 export function createCliCommandRuntimeHandler<TCliContext>(deps: {
   handleTexthookerOnlyModeTransitionMainDeps: HandleTexthookerOnlyModeTransitionMainDeps;
+  ensureTrayForCommand?: (args: CliArgs, source: CliCommandSource) => void;
   createCliCommandContext: () => TCliContext;
   handleCliCommandRuntimeServiceWithContext: (
     args: CliArgs,
@@ -29,6 +30,7 @@ export function createCliCommandRuntimeHandler<TCliContext>(deps: {
     ) {
       deps.handleTexthookerOnlyModeTransitionMainDeps.ensureOverlayStartupPrereqs();
     }
+    deps.ensureTrayForCommand?.(args, source);
     const cliContext = deps.createCliCommandContext();
     deps.handleCliCommandRuntimeServiceWithContext(args, source, cliContext);
   };

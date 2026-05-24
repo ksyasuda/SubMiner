@@ -315,6 +315,7 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
 
 - **Wayland (Hyprland/Sway only)**: Native Wayland support is limited to Hyprland and Sway. Window tracking uses compositor-specific commands (`hyprctl` / `swaymsg`). If these are not on `PATH`, tracking will fail silently. Other Wayland compositors are not supported — both mpv and SubMiner must run under X11 or Xwayland instead.
 - **X11 / Xwayland**: Requires `xdotool` and `xwininfo`. If missing, the overlay cannot track the mpv window position. This is the required backend for any Wayland compositor other than Hyprland or Sway — both mpv and SubMiner must be running under X11/Xwayland for window tracking to work.
+- **Tray icon missing**: SubMiner creates an Electron tray icon in `--background` mode, but Linux trays require a StatusNotifier/AppIndicator host. Hyprland does not provide one by itself; enable a tray in Waybar, Hyprpanel, or another panel. If Electron cannot register the tray, SubMiner logs a warning that mentions the missing tray host.
 - **Mouse passthrough**: On Linux, Electron's mouse passthrough is unreliable. SubMiner keeps pointer events enabled, meaning you may need to toggle the overlay off to interact with mpv controls underneath.
 
 ### Hyprland

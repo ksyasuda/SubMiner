@@ -27,7 +27,15 @@ interface HistoryEntry {
   timingKey: string;
   startTime: number;
   endTime: number;
+  secondaryText?: string;
   timestamp: number;
+}
+
+export interface SubtitleTimingBlock {
+  displayText: string;
+  startTime: number;
+  endTime: number;
+  secondaryText?: string;
 }
 
 export class SubtitleTimingTracker {
@@ -41,11 +49,12 @@ export class SubtitleTimingTracker {
     this.startCleanup();
   }
 
-  recordSubtitle(text: string, startTime: number, endTime: number): void {
+  recordSubtitle(text: string, startTime: number, endTime: number, secondaryText?: string): void {
     const normalizedText = this.normalizeText(text);
     if (!normalizedText) return;
 
     const displayText = this.prepareDisplayText(text);
+    const displaySecondaryText = secondaryText ? this.prepareDisplayText(secondaryText) : undefined;
     const timingKey = normalizedText;
 
     this.timings.set(timingKey, {
@@ -60,6 +69,7 @@ export class SubtitleTimingTracker {
       // Update timing to most recent occurrence
       lastEntry.startTime = startTime;
       lastEntry.endTime = endTime;
+      lastEntry.secondaryText = displaySecondaryText;
       lastEntry.timestamp = Date.now();
       return;
     }
@@ -69,6 +79,7 @@ export class SubtitleTimingTracker {
       timingKey,
       startTime,
       endTime,
+      secondaryText: displaySecondaryText,
       timestamp: Date.now(),
     });
 
@@ -104,6 +115,23 @@ export class SubtitleTimingTracker {
       count = this.history.length;
     }
     return this.history.slice(-count).map((entry) => entry.displayText);
+  }
+
+  /**
+   * Get recent subtitle blocks with their original event timings.
+   * Returns the last `count` subtitle events (oldest → newest).
+   */
+  getRecentEntries(count: number): SubtitleTimingBlock[] {
+    if (count <= 0) return [];
+    if (count > this.history.length) {
+      count = this.history.length;
+    }
+    return this.history.slice(-count).map((entry) => ({
+      displayText: entry.displayText,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      secondaryText: entry.secondaryText,
+    }));
   }
 
   /**

@@ -6,6 +6,7 @@ import {
   handleMultiCopyDigit,
   mineSentenceCard,
 } from './mining';
+import { SubtitleTimingTracker } from '../../subtitle-timing-tracker';
 
 test('copyCurrentSubtitle reports tracker and subtitle guards', () => {
   const osd: string[] = [];
@@ -206,4 +207,77 @@ test('handleMineSentenceDigit increments successful card count', async () => {
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(cardsMined, 1);
+});
+
+test('handleMineSentenceDigit keeps per-entry timings when subtitle text repeats', async () => {
+  const created: Array<{ sentence: string; startTime: number; endTime: number }> = [];
+  const tracker = new SubtitleTimingTracker();
+
+  try {
+    tracker.recordSubtitle('same', 1, 2);
+    tracker.recordSubtitle('other', 3, 4);
+    tracker.recordSubtitle('same', 5, 6);
+
+    handleMineSentenceDigit(3, {
+      subtitleTimingTracker: tracker,
+      ankiIntegration: {
+        updateLastAddedFromClipboard: async () => {},
+        triggerFieldGroupingForLastAddedCard: async () => {},
+        markLastCardAsAudioCard: async () => {},
+        createSentenceCard: async (sentence, startTime, endTime) => {
+          created.push({ sentence, startTime, endTime });
+          return true;
+        },
+      },
+      getCurrentSecondarySubText: () => undefined,
+      showMpvOsd: () => {},
+      logError: () => {},
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(created, [{ sentence: 'same other same', startTime: 1, endTime: 6 }]);
+  } finally {
+    tracker.destroy();
+  }
+});
+
+test('handleMineSentenceDigit joins per-entry secondary subtitles when available', async () => {
+  const created: Array<{ sentence: string; secondarySub?: string }> = [];
+  const tracker = new SubtitleTimingTracker();
+  const recordSubtitleWithSecondary = tracker.recordSubtitle as (
+    text: string,
+    startTime: number,
+    endTime: number,
+    secondaryText?: string,
+  ) => void;
+
+  try {
+    recordSubtitleWithSecondary.call(tracker, 'one', 1, 2, 'translation one');
+    recordSubtitleWithSecondary.call(tracker, 'two', 3, 4, 'translation two');
+
+    handleMineSentenceDigit(2, {
+      subtitleTimingTracker: tracker,
+      ankiIntegration: {
+        updateLastAddedFromClipboard: async () => {},
+        triggerFieldGroupingForLastAddedCard: async () => {},
+        markLastCardAsAudioCard: async () => {},
+        createSentenceCard: async (sentence, _startTime, _endTime, secondarySub) => {
+          created.push({ sentence, secondarySub });
+          return true;
+        },
+      },
+      getCurrentSecondarySubText: () => 'current translation only',
+      showMpvOsd: () => {},
+      logError: () => {},
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(created, [
+      { sentence: 'one two', secondarySub: 'translation one translation two' },
+    ]);
+  } finally {
+    tracker.destroy();
+  }
 });

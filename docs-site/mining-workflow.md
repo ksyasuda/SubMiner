@@ -84,7 +84,7 @@ This is the most common flow. Yomitan creates a card in Anki, and SubMiner enric
    - **Polling mode** (default): detects via AnkiConnect polling (`ankiConnect.pollingRate`, default 3 seconds).
 4. SubMiner updates the card with:
    - **Sentence**: The current subtitle line.
-   - **Audio**: Extracted from the video using the subtitle's start/end timing (plus configurable padding).
+   - **Audio**: Extracted from the video using the subtitle's start/end timing (plus optional configured padding).
    - **Image**: A screenshot or animated clip from the current playback position.
    - **Translation**: From the secondary subtitle track, or generated via AI if configured.
    - **MiscInfo**: Metadata like filename and timestamp.

@@ -21,7 +21,7 @@ test('manual watched session action starts immersion tracker before marking watc
   );
 });
 
-test('media path changes clear rendered subtitle state', () => {
+test('media path changes clear rendered subtitle state without clearing same-youtube parsed cues', () => {
   const source = readMainSource();
   const actionBlock = source.match(
     /updateCurrentMediaPath:\s*\(path\)\s*=>\s*\{(?<body>[\s\S]*?)autoplayReadyGate\.invalidatePendingAutoplayReadyFallbacks\(\);/,
@@ -31,8 +31,11 @@ test('media path changes clear rendered subtitle state', () => {
   assert.match(actionBlock, /appState\.currentSubText = '';/);
   assert.match(actionBlock, /appState\.currentSubAssText = '';/);
   assert.match(actionBlock, /appState\.currentSubtitleData = null;/);
+  assert.match(actionBlock, /isSameYoutubeMediaPath\(/);
+  assert.match(actionBlock, /if \(!preserveParsedSubtitleCues\)/);
   assert.match(actionBlock, /appState\.activeParsedSubtitleCues = \[\];/);
   assert.match(actionBlock, /appState\.activeParsedSubtitleSource = null;/);
+  assert.match(actionBlock, /appState\.activeParsedSubtitleMediaPath = null;/);
   assert.match(actionBlock, /lastObservedTimePos = 0;/);
   assert.match(actionBlock, /broadcastToOverlayWindows\('subtitle:set',/);
   assert.match(actionBlock, /subtitleWsService\.broadcast\(/);
@@ -50,5 +53,21 @@ test('main process uses one shared mpv plugin runtime config helper', () => {
   assert.equal(
     (source.match(/binaryPath: getResolvedConfig\(\)\.mpv\.subminerBinaryPath/g) ?? []).length,
     0,
+  );
+});
+
+test('subtitle sidebar snapshot prefers cached YouTube parsed cues before active-source parsing', () => {
+  const source = readMainSource();
+  const snapshotBlock = source.match(
+    /getSubtitleSidebarSnapshot:\s*async\s*\(\)\s*=>\s*\{(?<body>[\s\S]*?const resolvedSource = await resolveActiveSubtitleSidebarSourceHandler)/,
+  )?.groups?.body;
+
+  assert.ok(snapshotBlock);
+  assert.match(snapshotBlock, /shouldUseCachedYoutubeParsedCues\(/);
+  assert.match(snapshotBlock, /cachedMediaPath:\s*appState\.activeParsedSubtitleMediaPath/);
+  assert.match(snapshotBlock, /cachedCueCount:\s*appState\.activeParsedSubtitleCues\.length/);
+  assert.ok(
+    snapshotBlock.indexOf('shouldUseCachedYoutubeParsedCues(') <
+      snapshotBlock.indexOf('resolveActiveSubtitleSidebarSourceHandler'),
   );
 });

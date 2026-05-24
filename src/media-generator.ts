@@ -158,11 +158,12 @@ export class MediaGenerator {
     videoPath: string,
     startTime: number,
     endTime: number,
-    padding: number = 0.5,
+    padding: number = 0,
     audioStreamIndex: number | null = null,
   ): Promise<Buffer> {
-    const start = Math.max(0, startTime - padding);
-    const duration = endTime - startTime + 2 * padding;
+    const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
+    const start = Math.max(0, startTime - safePadding);
+    const duration = endTime - start + safePadding;
 
     return new Promise((resolve, reject) => {
       const outputPath = path.join(this.tempDir, `audio_${Date.now()}.mp3`);
@@ -310,7 +311,7 @@ export class MediaGenerator {
     videoPath: string,
     startTime: number,
     endTime: number,
-    padding: number = 0.5,
+    padding: number = 0,
     options: {
       fps?: number;
       maxWidth?: number;
@@ -323,7 +324,8 @@ export class MediaGenerator {
     const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
     const start = Math.max(0, startTime);
     const duration = endTime - startTime + safePadding;
-    const totalLeadingStillDuration = Math.max(0, leadingStillDuration);
+    const effectiveLeadingPadding = Math.min(safePadding, start);
+    const totalLeadingStillDuration = Math.max(0, leadingStillDuration) + effectiveLeadingPadding;
 
     const clampedCrf = Math.max(0, Math.min(63, crf));
 

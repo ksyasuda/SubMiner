@@ -9,6 +9,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     overlayRuntimeInitialized: true,
     mpvClient: {
       connected: true,
+      currentSecondarySubText: 'secondary',
       currentTimePos: 12.25,
       requestProperty: async () => 18.75,
     },
@@ -20,7 +21,8 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
       recordPauseState: (paused: boolean) => calls.push(`immersion-pause:${paused}`),
     },
     subtitleTimingTracker: {
-      recordSubtitle: (text: string) => calls.push(`timing:${text}`),
+      recordSubtitle: (text: string, _start: number, _end: number, secondaryText?: string) =>
+        calls.push(`timing:${text}:${secondaryText ?? ''}`),
     },
     currentSubText: '',
     currentSubAssText: '',
@@ -113,6 +115,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.ok(calls.includes('remote-stopped'));
   assert.ok(calls.includes('sync-overlay-mpv-sub'));
   assert.ok(calls.includes('anilist-post-watch'));
+  assert.ok(calls.includes('timing:y:secondary'));
   assert.ok(calls.includes('ensure-immersion'));
   assert.ok(calls.includes('sync-immersion'));
   assert.ok(calls.includes('autoplay:/tmp/video'));

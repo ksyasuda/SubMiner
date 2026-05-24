@@ -32,7 +32,7 @@ type YoutubeFlowDeps = {
   sendMpvCommand: (command: Array<string | number>) => void;
   requestMpvProperty: (name: string) => Promise<unknown>;
   refreshCurrentSubtitle: (text: string) => void;
-  refreshSubtitleSidebarSource?: (sourcePath: string) => Promise<void>;
+  refreshSubtitleSidebarSource?: (sourcePath: string, mediaPath?: string) => Promise<void>;
   startTokenizationWarmups: () => Promise<void>;
   waitForTokenizationReady: () => Promise<void>;
   waitForAnkiReady: () => Promise<void>;
@@ -42,9 +42,12 @@ type YoutubeFlowDeps = {
   focusOverlayWindow: () => void;
   showMpvOsd: (text: string) => void;
   reportSubtitleFailure: (message: string) => void;
+  notifyPrimarySubtitleLoaded?: () => void;
   warn: (message: string) => void;
   log: (message: string) => void;
   getYoutubeOutputDir: () => string;
+  createSubtitleTempDir?: () => Promise<string>;
+  cleanupSubtitleTempDirs?: (dirs: string[]) => void;
 };
 
 type YoutubeFlowSession = {
@@ -349,7 +352,9 @@ async function injectDownloadedSubtitles(
   }
 
   let trackListRaw: unknown = await deps.requestMpvProperty('track-list');
-  let primaryTrackId: number | null = primarySelection.existingTrackId;
+  let primaryTrackId: number | null = primarySelection.injectedPath
+    ? null
+    : primarySelection.existingTrackId;
   let secondaryTrackId: number | null = secondarySelection?.existingTrackId ?? null;
   for (let attempt = 0; attempt < 12; attempt += 1) {
     if (attempt > 0 || primarySelection.injectedPath || secondarySelection?.injectedPath) {
@@ -423,6 +428,44 @@ async function injectDownloadedSubtitles(
 
 export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
   let activeSession: YoutubeFlowSession | null = null;
+  const activeSubtitleTempDirs = new Set<string>();
+
+  const cleanupSubtitleTempDirs = (): void => {
+    const dirs = [...activeSubtitleTempDirs];
+    if (dirs.length === 0) {
+      return;
+    }
+    if (!deps.cleanupSubtitleTempDirs) {
+      activeSubtitleTempDirs.clear();
+      return;
+    }
+    deps.cleanupSubtitleTempDirs(dirs);
+    for (const dir of dirs) {
+      activeSubtitleTempDirs.delete(dir);
+    }
+  };
+
+  const cleanupSubtitleTempDirsForNextLoad = (): void => {
+    try {
+      cleanupSubtitleTempDirs();
+    } catch (error) {
+      deps.warn(
+        `Failed to cleanup YouTube subtitle temp files: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  };
+
+  const prepareSubtitleOutputDir = async (fallbackOutputDir: string): Promise<string> => {
+    if (!deps.createSubtitleTempDir || !deps.cleanupSubtitleTempDirs) {
+      return fallbackOutputDir;
+    }
+    cleanupSubtitleTempDirsForNextLoad();
+    const tempDir = await deps.createSubtitleTempDir();
+    activeSubtitleTempDirs.add(tempDir);
+    return tempDir;
+  };
 
   const acquireSelectedTracks = async (input: {
     targetUrl: string;
@@ -567,6 +610,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       osdProgress.setMessage('Downloading subtitles...');
     }
     try {
+      const outputDir = await prepareSubtitleOutputDir(input.outputDir);
       let initialTrackListRaw: unknown = null;
       let existingPrimaryTrackId: number | null = null;
       let existingSecondaryTrackId: number | null = null;
@@ -602,19 +646,11 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       let primaryInjectedPath: string | null = null;
       let secondaryInjectedPath: string | null = null;
 
-      if (existingPrimaryTrackId !== null) {
-        primarySidebarPath = (
-          await deps.acquireYoutubeSubtitleTrack({
-            targetUrl: input.url,
-            outputDir: input.outputDir,
-            track: input.primaryTrack,
-          })
-        ).path;
-      } else if (existingSecondaryTrackId !== null || !input.secondaryTrack) {
+      if (existingSecondaryTrackId !== null || !input.secondaryTrack) {
         primaryInjectedPath = (
           await deps.acquireYoutubeSubtitleTrack({
             targetUrl: input.url,
-            outputDir: input.outputDir,
+            outputDir,
             track: input.primaryTrack,
           })
         ).path;
@@ -622,7 +658,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       } else {
         const acquired = await acquireSelectedTracks({
           targetUrl: input.url,
-          outputDir: input.outputDir,
+          outputDir,
           primaryTrack: input.primaryTrack,
           secondaryTrack: existingSecondaryTrackId === null ? input.secondaryTrack : null,
           secondaryFailureLabel: input.secondaryFailureLabel,
@@ -641,7 +677,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
           secondaryInjectedPath = (
             await deps.acquireYoutubeSubtitleTrack({
               targetUrl: input.url,
-              outputDir: input.outputDir,
+              outputDir,
               track: input.secondaryTrack,
             })
           ).path;
@@ -685,8 +721,9 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       if (!refreshedActiveSubtitle) {
         return false;
       }
+      deps.notifyPrimarySubtitleLoaded?.();
       try {
-        await deps.refreshSubtitleSidebarSource?.(primarySidebarPath);
+        await deps.refreshSubtitleSidebarSource?.(primarySidebarPath, input.url);
       } catch (error) {
         deps.warn(
           `Failed to refresh parsed subtitle cues for sidebar: ${
@@ -877,5 +914,6 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     resolveActivePicker,
     cancelActivePicker,
     hasActiveSession: () => Boolean(activeSession),
+    cleanupSubtitleTempDirs,
   };
 }

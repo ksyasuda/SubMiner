@@ -104,6 +104,55 @@ test('ensure tray creates new tray and binds click handler', () => {
   assert.ok(calls.includes('bind-click'));
 });
 
+test('ensure tray logs Linux tray registration failures without crashing startup', () => {
+  const calls: string[] = [];
+  let trayRef: unknown = null;
+
+  const ensureTray = createEnsureTrayHandler({
+    getTray: () => null,
+    setTray: (tray) => {
+      trayRef = tray;
+      calls.push('set-tray');
+    },
+    buildTrayMenu: () => ({ id: 'menu' }),
+    resolveTrayIconPath: () => '/tmp/icon.png',
+    createImageFromPath: () =>
+      ({
+        isEmpty: () => false,
+        resize: () => ({
+          isEmpty: () => false,
+          resize: () => {
+            throw new Error('unexpected');
+          },
+          setTemplateImage: () => {},
+        }),
+        setTemplateImage: () => {},
+      }) as never,
+    createEmptyImage: () =>
+      ({
+        isEmpty: () => true,
+        resize: () => {
+          throw new Error('unexpected');
+        },
+        setTemplateImage: () => {},
+      }) as never,
+    createTray: () => {
+      throw new Error('StatusNotifier watcher unavailable');
+    },
+    trayTooltip: 'SubMiner',
+    platform: 'linux',
+    logWarn: (message) => calls.push(`warn:${message}`),
+    ensureOverlayVisibleFromTrayClick: () => calls.push('show-overlay'),
+  });
+
+  ensureTray();
+
+  assert.equal(trayRef, null);
+  assert.deepEqual(calls, [
+    'warn:Unable to create Linux tray icon. Ensure your desktop has a StatusNotifier/AppIndicator tray host. StatusNotifier watcher unavailable',
+  ]);
+});
+
 test('destroy tray handler destroys active tray and clears ref', () => {
   const calls: string[] = [];
   let tray: { destroy: () => void } | null = {

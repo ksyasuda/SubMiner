@@ -147,13 +147,13 @@ SubMiner uses FFmpeg to generate audio and image media from the video. FFmpeg mu
 
 ### Audio
 
-Audio is extracted from the video file using the subtitle's start and end timestamps, with configurable padding added before and after.
+Audio is extracted from the video file using the subtitle's start and end timestamps. Padding is opt-in; keep it at `0` when you want sentence audio to start exactly at the mined sentence.
 
 ```jsonc
 "ankiConnect": {
   "media": {
     "generateAudio": true,
-    "audioPadding": 0.5,         // seconds before and after subtitle timing
+    "audioPadding": 0,           // optional seconds before and after subtitle timing
     "maxMediaDuration": 30       // cap total duration in seconds
   }
 }
@@ -334,7 +334,7 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
       "imageType": "static",
       "imageFormat": "jpg",
       "imageQuality": 92,
-      "audioPadding": 0.5,
+      "audioPadding": 0,
       "maxMediaDuration": 30,
     },
     "behavior": {

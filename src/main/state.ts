@@ -163,6 +163,7 @@ export interface AppState {
   currentSubtitleData: SubtitleData | null;
   activeParsedSubtitleCues: SubtitleCue[];
   activeParsedSubtitleSource: string | null;
+  activeParsedSubtitleMediaPath: string | null;
   windowTracker: BaseWindowTracker | null;
   subtitlePosition: SubtitlePosition | null;
   currentMediaPath: string | null;
@@ -248,6 +249,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     currentSubtitleData: null,
     activeParsedSubtitleCues: [],
     activeParsedSubtitleSource: null,
+    activeParsedSubtitleMediaPath: null,
     windowTracker: null,
     subtitlePosition: null,
     currentMediaPath: null,
