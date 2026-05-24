@@ -272,6 +272,7 @@ function M.create(ctx)
 			state.pending_reload_media_identity = nil
 			state.pending_reload_media_title = nil
 			state.pending_reload_reason = nil
+			state.app_managed_playback_pending = false
 			state.app_managed_playback_active = false
 			if state.overlay_running and reason ~= "quit" then
 				process.hide_visible_overlay()

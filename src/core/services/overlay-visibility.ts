@@ -181,12 +181,13 @@ export function updateVisibleOverlayVisibility(args: {
       !isTrackedWindowsTargetMinimized &&
       (args.windowTracker.isTracking() || args.windowTracker.getGeometry() !== null);
     const shouldForcePassiveReshow = args.isWindowsPlatform && !wasVisible;
+    const isNonNativePassiveOverlay =
+      !args.isWindowsPlatform && !args.isMacOSPlatform && !overlayInteractionActive;
     const shouldIgnoreMouseEvents =
       shouldUseMacOSMousePassthrough ||
       forceMousePassthrough ||
+      isNonNativePassiveOverlay ||
       (shouldDefaultToPassthrough && (!isVisibleOverlayFocused || shouldForcePassiveReshow));
-    const isNonNativePassiveOverlay =
-      !args.isWindowsPlatform && !args.isMacOSPlatform && !overlayInteractionActive;
     const shouldBindTrackedWindowsOverlay = args.isWindowsPlatform && !!args.windowTracker;
     const shouldKeepTrackedWindowsOverlayTopmost =
       !args.isWindowsPlatform ||

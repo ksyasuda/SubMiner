@@ -40,6 +40,8 @@ export function DeleteConfirmDialog() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       finish(false);
     };
     window.addEventListener('keydown', onKeyDown, true);

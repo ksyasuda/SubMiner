@@ -290,6 +290,37 @@ test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback'
   assert.equal(cleared, true);
 });
 
+test('createReportJellyfinRemoteStoppedHandler clears aborted playback that never loaded', async () => {
+  let cleared = false;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler({
+    getActivePlayback: () => ({
+      itemId: 'item-2',
+      mediaSourceId: undefined,
+      playMethod: 'Transcode',
+      audioStreamIndex: null,
+      subtitleStreamIndex: null,
+      loadedMediaPath: null,
+    }),
+    clearActivePlayback: () => {
+      cleared = true;
+    },
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async () => {},
+      reportStopped: async () => {
+        throw new Error('should not report stopped for unloaded media');
+      },
+    }),
+    getMpvClient: () => null,
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportStopped();
+
+  assert.equal(cleared, true);
+});
+
 test('createReportJellyfinRemoteStoppedHandler reports stop while remote websocket is disconnected', async () => {
   let cleared = false;
   let stoppedPayload: {
@@ -409,7 +440,7 @@ test('createReportJellyfinRemoteStoppedHandler ignores unloaded active playback'
   await reportStopped();
 
   assert.equal(stopped, false);
-  assert.equal(cleared, false);
+  assert.equal(cleared, true);
 });
 
 test('createReportJellyfinRemoteProgressHandler caches last nonzero mpv position', async () => {

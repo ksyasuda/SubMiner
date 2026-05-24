@@ -67,3 +67,27 @@ test('jellyfin subtitle cache io removes temp dir when download fails', async ()
   );
   assert.deepEqual(removed, ['/tmp/subminer-jellyfin-subtitles-failed']);
 });
+
+test('jellyfin subtitle cache io awaits async temp cleanup when download fails', async () => {
+  let removed = false;
+  const cacheIo = createJellyfinSubtitleCacheIo({
+    tmpDir: () => '/tmp',
+    makeTempDir: async () => '/tmp/subminer-jellyfin-subtitles-failed',
+    writeFile: async () => {},
+    removeDir: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      removed = true;
+    },
+    fetch: async () => ({
+      ok: false,
+      status: 500,
+      arrayBuffer: async () => new ArrayBuffer(0),
+    }),
+  });
+
+  await assert.rejects(
+    () => cacheIo.cacheSubtitleTrack({ index: 1, deliveryUrl: 'https://example.test/sub.srt' }),
+    /HTTP 500/,
+  );
+  assert.equal(removed, true);
+});

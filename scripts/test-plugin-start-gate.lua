@@ -656,6 +656,36 @@ do
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/aborted-app-managed.m3u8",
+		media_title = "Aborted App Managed",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for aborted app-managed scenario: " .. tostring(err))
+	recorded.script_messages["subminer-managed-subtitles-loading"]()
+	fire_event(recorded, "end-file", { reason = "error" })
+	scenario.path = "/media/next-normal.mkv"
+	scenario.media_title = "Next Normal"
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"aborted app-managed playback should not leak pending state into the next item"
+	)
+end
+
+do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
 		path = "/media/episode-01.mkv",
 		media_title = "Episode 1",
 		files = {

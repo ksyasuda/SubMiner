@@ -209,7 +209,10 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
   return async (): Promise<void> => {
     const playback = deps.getActivePlayback();
     if (!playback) return;
-    if (playback.loadedMediaPath === null) return;
+    if (playback.loadedMediaPath === null) {
+      deps.clearActivePlayback();
+      return;
+    }
     if (
       typeof playback.stopReportsAfterMs === 'number' &&
       Number.isFinite(playback.stopReportsAfterMs) &&

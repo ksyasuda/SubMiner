@@ -1830,12 +1830,13 @@ async function refreshSubtitleSidebarFromSource(
   if (!normalizedSourcePath) {
     return;
   }
-  appState.activeParsedSubtitleMediaPath = mediaPath?.trim() || getCurrentAutoplayMediaPath();
+  const nextMediaPath = mediaPath?.trim() || getCurrentAutoplayMediaPath();
   await subtitlePrefetchInitController.initSubtitlePrefetch(
     normalizedSourcePath,
     lastObservedTimePos,
     normalizedSourcePath,
   );
+  appState.activeParsedSubtitleMediaPath = nextMediaPath;
 }
 const refreshSubtitlePrefetchFromActiveTrackHandler =
   createRefreshSubtitlePrefetchFromActiveTrackHandler({
@@ -6476,8 +6477,8 @@ function setVisibleOverlayVisible(visible: boolean): void {
 function toggleVisibleOverlay(): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   const nextVisible = !overlayManager.getVisibleOverlayVisible();
-  autoplayReadyGate.markCurrentMediaAutoplayReady();
   if (!nextVisible) {
+    autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   } else {
     void ensureOverlayMpvSubtitlesHidden();

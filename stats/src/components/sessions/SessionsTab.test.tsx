@@ -125,6 +125,34 @@ test('buildBucketDeleteHandler reports errors via onError without calling onSucc
   assert.equal(successCalled, false);
 });
 
+test('buildBucketDeleteHandler reports confirmation errors via onError', async () => {
+  let errorMessage: string | null = null;
+  let deleteCalled = false;
+
+  const bucket = makeBucket([makeSession({ sessionId: 1 }), makeSession({ sessionId: 2 })]);
+
+  const handler = buildBucketDeleteHandler({
+    bucket,
+    apiClient: {
+      deleteSessions: async () => {
+        deleteCalled = true;
+      },
+    },
+    confirm: async () => {
+      throw new Error('confirm failed');
+    },
+    onSuccess: () => {},
+    onError: (message) => {
+      errorMessage = message;
+    },
+  });
+
+  await handler();
+
+  assert.equal(errorMessage, 'confirm failed');
+  assert.equal(deleteCalled, false);
+});
+
 test('buildBucketDeleteHandler falls back to a generic title when canonicalTitle is null', async () => {
   let seenTitle: string | null = null;
 

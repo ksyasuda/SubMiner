@@ -73,7 +73,8 @@ function withoutTrackAutoSelectionCommands(
           (command[1] === 'sid' && command[2] === 'no') ||
           (command[1] === 'secondary-sid' && command[2] === 'no') ||
           (command[1] === 'sub-visibility' && command[2] === 'no') ||
-          (command[1] === 'secondary-sub-visibility' && command[2] === 'no'))
+          (command[1] === 'secondary-sub-visibility' && command[2] === 'no') ||
+          (command[1] === 'sub-delay' && command[2] === 0))
       ),
   );
 }
@@ -282,6 +283,25 @@ test('preload jellyfin subtitles waits for delayed external japanese track inste
     ['set_property', 'sid', 42],
     ['set_property', 'secondary-sid', 43],
   ]);
+});
+
+test('preload jellyfin subtitles clears managed delay when no external tracks are available', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const activeDelayKeys: Array<unknown> = [];
+  const preload = createPreloadJellyfinExternalSubtitlesHandler(
+    makeDeps({
+      listJellyfinSubtitleTracks: async () => [
+        { index: 0, language: 'jpn', title: 'Embedded Japanese' },
+      ],
+      sendMpvCommand: (command) => commands.push(command),
+      setActiveSubtitleDelayKey: (key) => activeDelayKeys.push(key),
+    }),
+  );
+
+  await preload({ session, clientInfo, itemId: 'item-1' });
+
+  assert.deepEqual(activeDelayKeys, [null]);
+  assert.deepEqual(commands, [['set_property', 'sub-delay', 0]]);
 });
 
 test('preload jellyfin subtitles prefers Jellyfin default and embedded japanese sources', async () => {
@@ -953,7 +973,7 @@ test('preload jellyfin subtitles exits quietly when no external tracks', async (
   await preload({ session, clientInfo, itemId: 'item-1' });
 
   assert.equal(waited, false);
-  assert.deepEqual(commands, []);
+  assert.deepEqual(commands, [['set_property', 'sub-delay', 0]]);
 });
 
 test('preload jellyfin subtitles logs debug on failure', async () => {

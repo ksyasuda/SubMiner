@@ -43,8 +43,8 @@ export function buildBucketDeleteHandler(deps: BucketDeleteDeps): () => Promise<
   return async () => {
     const title = bucket.representativeSession.canonicalTitle ?? 'this episode';
     const ids = bucket.sessions.map((s) => s.sessionId);
-    if (!(await confirm(title, ids.length))) return;
     try {
+      if (!(await confirm(title, ids.length))) return;
       await client.deleteSessions(ids);
       onSuccess(ids);
     } catch (err) {
@@ -120,7 +120,14 @@ export function SessionsTab({
   };
 
   const handleDeleteSession = async (session: SessionSummary) => {
-    if (!(await confirmSessionDelete())) return;
+    let confirmed = false;
+    try {
+      confirmed = await confirmSessionDelete();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to confirm delete.');
+      return;
+    }
+    if (!confirmed) return;
 
     setDeleteError(null);
     setDeletingSessionId(session.sessionId);

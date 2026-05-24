@@ -326,9 +326,7 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
   let preloadQueue: Promise<void> = Promise.resolve();
 
   function resetManagedSubtitleDelay(): void {
-    if (deps.getSavedSubtitleDelay) {
-      deps.sendMpvCommand(['set_property', 'sub-delay', 0]);
-    }
+    deps.sendMpvCommand(['set_property', 'sub-delay', 0]);
   }
 
   function cleanupActiveCache(): void {
@@ -358,6 +356,8 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
       );
       const externalTracks = tracks.filter((track) => Boolean(track.deliveryUrl));
       if (externalTracks.length === 0) {
+        deps.setActiveSubtitleDelayKey?.(null);
+        resetManagedSubtitleDelay();
         return;
       }
 

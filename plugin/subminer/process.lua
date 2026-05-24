@@ -401,7 +401,6 @@ function M.create(ctx)
 	end
 
 	run_control_command_async = function(action, overrides, callback)
-		record_visible_overlay_action(action)
 		local args = build_command_args(action, overrides)
 		local command = build_subprocess_command(args)
 		subminer_log("debug", "process", "Control command: " .. table.concat(args, " "))
@@ -414,6 +413,9 @@ function M.create(ctx)
 			capture_stderr = true,
 		}, function(success, result, error)
 			local ok = success and (result == nil or result.status == 0)
+			if ok then
+				record_visible_overlay_action(action)
+			end
 			if callback then
 				callback(ok, result, error)
 			end

@@ -20,7 +20,7 @@ type JellyfinSubtitleCacheIoDeps = {
   tmpDir: () => string;
   makeTempDir: (prefix: string) => Promise<string>;
   writeFile: (filePath: string, bytes: Uint8Array) => Promise<void>;
-  removeDir: (dir: string, options: { recursive: true; force: true }) => void;
+  removeDir: (dir: string, options: { recursive: true; force: true }) => void | Promise<void>;
   fetch: (url: string) => Promise<FetchResponseLike>;
 };
 
@@ -59,14 +59,16 @@ export function createJellyfinSubtitleCacheIo(deps: JellyfinSubtitleCacheIoDeps)
         const bytes = new Uint8Array(await response.arrayBuffer());
         await deps.writeFile(subtitlePath, bytes);
       } catch (error) {
-        deps.removeDir(cacheDir, { recursive: true, force: true });
+        try {
+          await Promise.resolve(deps.removeDir(cacheDir, { recursive: true, force: true }));
+        } catch {}
         throw error;
       }
       return { path: subtitlePath, cleanupDir: cacheDir };
     },
     cleanupCachedSubtitles(dirs: string[]): void {
       for (const dir of dirs) {
-        deps.removeDir(dir, { recursive: true, force: true });
+        void Promise.resolve(deps.removeDir(dir, { recursive: true, force: true })).catch(() => {});
       }
     },
   };

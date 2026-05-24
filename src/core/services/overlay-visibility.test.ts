@@ -197,6 +197,68 @@ test('tracked non-macOS overlay stays hidden while tracker is not ready', () => 
   assert.ok(!calls.includes('osd'));
 });
 
+test('non-native passive overlay stays click-through after subsequent visibility updates', () => {
+  const { window, calls } = createMainWindowRecorder();
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: false,
+    isWindowsPlatform: false,
+    overlayInteractionActive: false,
+    showOverlayLoadingOsd: () => {},
+    resolveFallbackBounds: () => ({ x: 12, y: 24, width: 640, height: 360 }),
+  } as never);
+  calls.length = 0;
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: false,
+    isWindowsPlatform: false,
+    overlayInteractionActive: false,
+    showOverlayLoadingOsd: () => {},
+    resolveFallbackBounds: () => ({ x: 12, y: 24, width: 640, height: 360 }),
+  } as never);
+
+  assert.equal(calls.includes('mouse-ignore:false:plain'), false);
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
+});
+
 test('suspended visible overlay hides without refreshing bounds or z-order', () => {
   const { window, calls } = createMainWindowRecorder();
   const tracker: WindowTrackerStub = {

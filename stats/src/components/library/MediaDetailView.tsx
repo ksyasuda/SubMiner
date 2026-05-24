@@ -27,8 +27,19 @@ interface DeleteEpisodeHandlerOptions {
 export function buildDeleteEpisodeHandler(opts: DeleteEpisodeHandlerOptions): () => Promise<void> {
   return async () => {
     if (opts.isDeletingRef?.current) return;
-    if (!(await opts.confirmFn(opts.title))) return;
     if (opts.isDeletingRef) opts.isDeletingRef.current = true;
+    let confirmed = false;
+    try {
+      confirmed = await opts.confirmFn(opts.title);
+    } catch (err) {
+      if (opts.isDeletingRef) opts.isDeletingRef.current = false;
+      opts.setDeleteError(err instanceof Error ? err.message : 'Failed to confirm delete.');
+      return;
+    }
+    if (!confirmed) {
+      if (opts.isDeletingRef) opts.isDeletingRef.current = false;
+      return;
+    }
     opts.setIsDeleting?.(true);
     opts.setDeleteError(null);
     try {
@@ -73,6 +84,7 @@ export function MediaDetailView({
   const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
   const [isDeletingEpisode, setIsDeletingEpisode] = useState(false);
   const isDeletingEpisodeRef = useRef(false);
+  const isDeletingSessionRef = useRef(false);
 
   useEffect(() => {
     setLocalSessions(data?.sessions ?? null);
@@ -101,7 +113,20 @@ export function MediaDetailView({
   const relatedCollectionLabel = getRelatedCollectionLabel(detail);
 
   const handleDeleteSession = async (session: SessionSummary) => {
-    if (!(await confirmSessionDelete())) return;
+    if (isDeletingSessionRef.current) return;
+    isDeletingSessionRef.current = true;
+    let confirmed = false;
+    try {
+      confirmed = await confirmSessionDelete();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to confirm delete.');
+      isDeletingSessionRef.current = false;
+      return;
+    }
+    if (!confirmed) {
+      isDeletingSessionRef.current = false;
+      return;
+    }
 
     setDeleteError(null);
     setDeletingSessionId(session.sessionId);
@@ -114,6 +139,7 @@ export function MediaDetailView({
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete session.');
     } finally {
       setDeletingSessionId(null);
+      isDeletingSessionRef.current = false;
     }
   };
 

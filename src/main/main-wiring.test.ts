@@ -59,17 +59,33 @@ test('same media path updates do not reset autoplay ready fallback state', () =>
   );
 });
 
-test('manual visible overlay toggles suppress current-media autoplay release', () => {
+test('manual visible overlay toggles only release current-media autoplay when hiding', () => {
   const source = readMainSource();
   const actionBlock = source.match(
     /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
-  assert.match(actionBlock, /autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);/);
+  assert.match(
+    actionBlock,
+    /if \(!nextVisible\) \{\s+autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);\s+cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
+  );
+});
+
+test('subtitle sidebar media path tag is assigned after prefetch succeeds', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /async function refreshSubtitleSidebarFromSource\([\s\S]*?\): Promise<void> \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(
+    actionBlock,
+    /const nextMediaPath = mediaPath\?\.trim\(\) \|\| getCurrentAutoplayMediaPath\(\);/,
+  );
   assert.ok(
-    actionBlock.indexOf('autoplayReadyGate.markCurrentMediaAutoplayReady();') <
-      actionBlock.indexOf('toggleVisibleOverlayHandler();'),
+    actionBlock.indexOf('subtitlePrefetchInitController.initSubtitlePrefetch') <
+      actionBlock.indexOf('appState.activeParsedSubtitleMediaPath = nextMediaPath;'),
   );
 });
 

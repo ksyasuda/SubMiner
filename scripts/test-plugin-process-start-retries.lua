@@ -83,10 +83,16 @@ local process = process_module.create({
 			return true
 		end,
 	},
-	environment = {
-		detect_backend = function()
-			return "x11"
-		end,
+		environment = {
+			detect_backend = function()
+				return "x11"
+			end,
+			is_linux = function()
+				return false
+			end,
+			is_subminer_app_running_async = function(callback)
+				callback(false)
+			end,
 	},
 	options_helper = {
 		coerce_bool = function(value, default_value)
@@ -124,5 +130,80 @@ for _, timeout_seconds in ipairs(recorded.timeouts) do
 	end
 end
 assert_true(retry_timeout_seen, "expected shorter bounded retry timeout")
+
+do
+	local visibility_state = {
+		binary_path = "/tmp/subminer",
+		overlay_running = true,
+		texthooker_running = false,
+		visible_overlay_requested = false,
+	}
+	local visibility_calls = {}
+	local visibility_mp = {}
+
+	function visibility_mp.command_native_async(command, callback)
+		visibility_calls[#visibility_calls + 1] = command
+		if callback then
+			callback(false, { status = 1, stdout = "", stderr = "failed" }, "failed")
+		end
+	end
+
+	local visibility_process = process_module.create({
+		mp = visibility_mp,
+		opts = {
+			backend = "x11",
+			socket_path = "/tmp/subminer.sock",
+			log_level = "debug",
+			texthooker_enabled = true,
+			texthooker_port = 5174,
+			auto_start_visible_overlay = false,
+		},
+		state = visibility_state,
+		binary = {
+			ensure_binary_available = function()
+				return true
+			end,
+		},
+		environment = {
+			detect_backend = function()
+				return "x11"
+			end,
+			is_linux = function()
+				return false
+			end,
+			is_subminer_app_running_async = function(callback)
+				callback(true)
+			end,
+		},
+		options_helper = {
+			coerce_bool = function(value, default_value)
+				if value == true or value == "yes" or value == "true" then
+					return true
+				end
+				if value == false or value == "no" or value == "false" then
+					return false
+				end
+				return default_value
+			end,
+		},
+		log = {
+			subminer_log = function(_level, _scope, line)
+				recorded.logs[#recorded.logs + 1] = line
+			end,
+			show_osd = function(_) end,
+			normalize_log_level = function(value)
+				return value or "info"
+			end,
+		},
+	})
+
+	visibility_process.run_control_command_async("show-visible-overlay")
+
+	assert_true(#visibility_calls == 1, "expected visible overlay command to run")
+	assert_true(
+		visibility_state.visible_overlay_requested == false,
+		"failed visible-overlay command should not update requested visibility state"
+	)
+end
 
 print("plugin process retry regression tests: OK")
