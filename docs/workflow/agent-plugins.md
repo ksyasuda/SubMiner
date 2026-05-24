@@ -3,7 +3,7 @@
 # Agent Plugins
 
 Status: active
-Last verified: 2026-03-26
+Last verified: 2026-05-23
 Owner: Kyle Yasuda
 Read when: packaging or migrating repo-local agent workflow skills into plugins
 

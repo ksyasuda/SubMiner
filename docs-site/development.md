@@ -68,10 +68,15 @@ make dev-watch-macos                          # same as dev-watch, forcing --bac
 ```
 
 For mpv-plugin-driven testing without exporting `SUBMINER_BINARY_PATH` each run, set a one-time
-dev binary path in `~/.config/mpv/script-opts/subminer.conf`:
+dev binary path with `mpv.subminerBinaryPath` in your SubMiner config. The launcher injects it into
+the mpv plugin at runtime:
 
-```ini
-binary_path=/absolute/path/to/SubMiner/scripts/subminer-dev.sh
+```json
+{
+  "mpv": {
+    "subminerBinaryPath": "/absolute/path/to/SubMiner/scripts/subminer-dev.sh"
+  }
+}
 ```
 
 ## Testing

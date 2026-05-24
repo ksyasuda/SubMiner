@@ -1,6 +1,10 @@
 # MPV Plugin
 
-The SubMiner mpv plugin (`subminer/main.lua`) provides in-player keybindings to control the overlay without leaving mpv. SubMiner-managed launches inject the bundled runtime plugin, so users do not need to install it into mpv's global `scripts` directory.
+**What this is:** mpv is the video player SubMiner overlays subtitles on. The SubMiner mpv plugin is a small Lua script that runs *inside* mpv and gives you in-player keybindings to control the SubMiner overlay (start/stop/toggle, skip intro, etc.) without leaving the player window.
+
+**Who needs this page:** Most users never touch the plugin directly — SubMiner-managed launches (the app, the `subminer` launcher, or the Windows shortcut) inject the bundled plugin automatically for that session, so there is nothing to install into mpv's global `scripts` directory. Read on if you launch mpv from another tool and want SubMiner's in-player controls, or you want to script mpv against SubMiner.
+
+The plugin ships as a modular Lua package under `plugin/subminer/` (entry point `init.lua`, which loads `main.lua` and sibling modules). Earlier releases shipped a single global `main.lua`; runtime loading replaces it.
 
 ## Runtime Loading
 
@@ -23,21 +27,44 @@ input-ipc-server=\\.\pipe\subminer-socket
 
 ## Keybindings
 
-All keybindings use a `y` chord prefix — press `y`, then the second key:
+Most plugin actions use a `y` chord prefix — press `y`, then the second key (a "chord"):
 
-| Chord | Action                 |
-| ----- | ---------------------- |
-| `y-y` | Open menu              |
-| `y-s` | Start overlay          |
-| `y-S` | Stop overlay           |
-| `y-t` | Toggle visible overlay |
-| `v`   | Toggle primary subtitle bar visibility |
-| `y-o` | Open settings window   |
-| `y-r` | Restart overlay        |
-| `y-c` | Check status           |
-| `y-k` | Skip intro (AniSkip)   |
+| Chord            | Action                                 |
+| ---------------- | -------------------------------------- |
+| `y-y`            | Open menu                              |
+| `y-s`            | Start overlay                          |
+| `y-S`            | Stop overlay                           |
+| `y-t`            | Toggle visible overlay                 |
+| `y-o`            | Open settings window                   |
+| `y-r`            | Restart overlay                        |
+| `y-c`            | Check status                           |
+| `y-h`            | Open session help / keybinding modal   |
+| `v`              | Toggle primary subtitle bar visibility |
+| `TAB` (default)  | Skip intro (AniSkip)                   |
+
+The AniSkip key is **not** a `y` chord. It defaults to `TAB` and is configurable via `mpv.aniskipButtonKey`. The legacy `y-k` chord still works as a fallback unless you remap the AniSkip key onto it.
 
 The bare `v` binding is a forced mpv binding. It overrides mpv's default primary subtitle visibility toggle and routes the action to SubMiner's primary subtitle bar instead.
+
+## Shared Shortcuts (Session Bindings)
+
+The `y-*` chords above are built into the plugin. Everything else you configure under [`shortcuts.*`](/shortcuts) — plus any custom [`keybindings`](/configuration) and the stats toggle/mark-watched keys — is **injected into mpv at runtime**, so the same shortcut works both inside mpv and in the SubMiner overlay. You do not edit any mpv config to enable them.
+
+How it works:
+
+1. The SubMiner app compiles your configured shortcuts, custom keybindings, and stats keys into a normalized list and writes it to `session-bindings.json` in the SubMiner config directory.
+2. On load, the plugin reads that file and registers each entry as a forced mpv key binding, translating each accelerator into the matching mpv key name.
+3. When a binding fires, the plugin either runs a SubMiner action (by invoking the SubMiner binary with the corresponding CLI flag, e.g. `--mine-sentence`) or runs a raw mpv command, depending on what the shortcut maps to.
+
+Because the bindings come from the same configuration the overlay uses, you maintain one set of shortcuts for both surfaces.
+
+Live updates: changing a shortcut in the app rewrites `session-bindings.json` and sends the plugin a `subminer-reload-session-bindings` script message, so mpv re-registers the bindings immediately — no mpv restart required.
+
+Notes:
+
+- Accelerators are normalized per platform — `CommandOrControl` resolves to `Cmd` on macOS and `Ctrl` elsewhere.
+- Multi-line actions (`copySubtitleMultiple`, `mineSentenceMultiple`) register temporary `1`–`9` digit follow-up bindings after the trigger key, with `Esc` to cancel.
+- If two shortcuts compile to the same key, or an accelerator can't be mapped to an mpv key, the app logs a warning and skips that binding instead of registering a broken one.
 
 ## Menu
 
@@ -54,93 +81,6 @@ SubMiner:
 ```
 
 Select an item by pressing its number.
-
-## Configuration
-
-For advanced/manual runtime use, create or edit `~/.config/mpv/script-opts/subminer.conf`:
-
-```ini
-# Path to SubMiner binary. Leave empty for auto-detection.
-binary_path=
-
-# MPV IPC socket path. Must match input-ipc-server in mpv.conf.
-socket_path=/tmp/subminer-socket
-
-# Enable the texthooker WebSocket server.
-texthooker_enabled=yes
-
-# Port for the texthooker server.
-texthooker_port=5174
-
-# Window manager backend: auto, hyprland, sway, x11, macos, windows.
-backend=auto
-
-# Start the overlay automatically when a file is loaded.
-# Runs only when mpv input-ipc-server matches socket_path.
-auto_start=yes
-
-# Show the visible overlay on auto-start.
-# Runs only when mpv input-ipc-server matches socket_path.
-auto_start_visible_overlay=yes
-
-# Pause mpv on visible auto-start until SubMiner signals overlay/tokenization readiness.
-# Requires auto_start=yes and auto_start_visible_overlay=yes.
-auto_start_pause_until_ready=yes
-
-# Show OSD messages for overlay status changes.
-osd_messages=yes
-
-# Logging level: debug, info, warn, error.
-log_level=info
-
-# Enable AniSkip intro detection/markers.
-aniskip_enabled=yes
-
-# Optional title override (launcher fills from guessit when available).
-aniskip_title=
-
-# Optional season override (launcher fills from guessit when available).
-aniskip_season=
-
-# Optional MAL ID override. Leave blank to resolve from media title.
-aniskip_mal_id=
-
-# Optional episode override. Leave blank to detect from filename/title.
-aniskip_episode=
-
-# Show OSD skip button while inside intro range.
-aniskip_show_button=yes
-
-# OSD label + keybinding for intro skip action.
-aniskip_button_text=You can skip by pressing %s
-aniskip_button_key=y-k
-aniskip_button_duration=3
-```
-
-### Option Reference
-
-| Option                         | Default                       | Values                                     | Description                                                                      |
-| ------------------------------ | ----------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------- |
-| `binary_path`                  | `""` (auto-detect)            | file path                                  | Path to SubMiner binary                                                          |
-| `socket_path`                  | `/tmp/subminer-socket`        | file path                                  | MPV IPC socket path                                                              |
-| `texthooker_enabled`           | `yes`                         | `yes` / `no`                               | Enable texthooker server                                                         |
-| `texthooker_port`              | `5174`                        | 1–65535                                    | Texthooker server port                                                           |
-| `backend`                      | `auto`                        | `auto`, `hyprland`, `sway`, `x11`, `macos` | Window manager backend                                                           |
-| `auto_start`                   | `yes`                         | `yes` / `no`                               | Auto-start overlay on file load when mpv socket matches `socket_path`            |
-| `auto_start_visible_overlay`   | `yes`                         | `yes` / `no`                               | Show visible layer on auto-start when mpv socket matches `socket_path`           |
-| `auto_start_pause_until_ready` | `yes`                         | `yes` / `no`                               | Pause mpv on visible auto-start; resume when SubMiner signals tokenization-ready |
-| `osd_messages`                 | `yes`                         | `yes` / `no`                               | Show OSD status messages                                                         |
-| `log_level`                    | `info`                        | `debug`, `info`, `warn`, `error`           | Log verbosity                                                                    |
-| `aniskip_enabled`              | `yes`                         | `yes` / `no`                               | Enable AniSkip intro detection                                                   |
-| `aniskip_title`                | `""`                          | string                                     | Override title used for lookup                                                   |
-| `aniskip_season`               | `""`                          | numeric season                             | Optional season hint                                                             |
-| `aniskip_mal_id`               | `""`                          | numeric MAL id                             | Skip title lookup; use fixed id                                                  |
-| `aniskip_episode`              | `""`                          | numeric episode                            | Skip episode parsing; use fixed                                                  |
-| `aniskip_payload`              | `""`                          | JSON / base64-encoded JSON                 | Optional pre-fetched AniSkip payload for this media. When set, plugin skips network lookup |
-| `aniskip_show_button`          | `yes`                         | `yes` / `no`                               | Show in-range intro skip prompt                                                  |
-| `aniskip_button_text`          | `You can skip by pressing %s` | string                                     | OSD prompt format (`%s`=key)                                                     |
-| `aniskip_button_key`           | `y-k`                         | mpv key chord                              | Primary key for intro skip action (`y-k` always works as fallback)               |
-| `aniskip_button_duration`      | `3`                           | float seconds                              | OSD hint duration                                                                |
 
 ## Binary Auto-Detection
 
@@ -218,7 +158,7 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 - If the payload is absent or invalid, lookup falls back to title/MAL-based async fetch.
 - Install `guessit` for best detection quality (`python3 -m pip install --user guessit`).
 - If OP interval exists, plugin adds `AniSkip Intro Start` and `AniSkip Intro End` chapters.
-- At intro start, plugin shows an OSD hint for the first 3 seconds (`You can skip by pressing y-k` by default).
+- At intro start, plugin shows an OSD hint for the first 3 seconds (`You can skip by pressing TAB` by default; the key reflects `mpv.aniskipButtonKey`).
 - Use `script-message subminer-aniskip-refresh` after changing media metadata/options to retry lookup.
 
 ## Lifecycle

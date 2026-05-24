@@ -51,14 +51,14 @@ Enable and configure the sidebar under `subtitleSidebar` in your config file:
 | `autoScroll`                | boolean | `true`       | Keep the active cue in view during playback                                                        |
 | `maxWidth`                  | number  | `420`        | Maximum sidebar width in CSS pixels                                                                |
 | `opacity`                   | number  | `0.95`       | Sidebar opacity between `0` and `1`                                                                |
-| `backgroundColor`           | string  | —            | Sidebar shell background color                                                                     |
-| `textColor`                 | string  | —            | Default cue text color                                                                             |
-| `fontFamily`                | string  | —            | CSS `font-family` applied to cue text                                                              |
+| `backgroundColor`           | string  | `rgba(73, 77, 100, 0.9)`  | Sidebar shell background color                                                        |
+| `textColor`                 | string  | `#cad3f5`    | Default cue text color                                                                             |
+| `fontFamily`                | string  | `Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP` | CSS `font-family` applied to cue text          |
 | `fontSize`                  | number  | `16`         | Base cue font size in CSS pixels                                                                   |
-| `timestampColor`            | string  | —            | Cue timestamp color                                                                                |
-| `activeLineColor`           | string  | —            | Active cue text color                                                                              |
-| `activeLineBackgroundColor` | string  | —            | Active cue background color                                                                        |
-| `hoverLineBackgroundColor`  | string  | —            | Hovered cue background color                                                                       |
+| `timestampColor`            | string  | `#a5adcb`    | Cue timestamp color                                                                                |
+| `activeLineColor`           | string  | `#f5bde6`    | Active cue text color                                                                              |
+| `activeLineBackgroundColor` | string  | `rgba(138, 173, 244, 0.22)` | Active cue background color                                                         |
+| `hoverLineBackgroundColor`  | string  | `rgba(54, 58, 79, 0.84)`    | Hovered cue background color                                                        |
 
 ## Keyboard Shortcut
 

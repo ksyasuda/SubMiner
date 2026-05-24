@@ -3,7 +3,7 @@
 # Domain Ownership
 
 Status: active
-Last verified: 2026-03-26
+Last verified: 2026-05-23
 Owner: Kyle Yasuda
 Read when: you need to find the owner module for a behavior or test surface
 
@@ -19,7 +19,7 @@ Read when: you need to find the owner module for a behavior or test surface
 - Config system: `src/config/`
 - Overlay/window state: `src/core/services/overlay-*`, `src/main/overlay-*.ts`
 - MPV runtime and protocol: `src/core/services/mpv*.ts`
-- Subtitle/token pipeline: `src/core/services/tokenizer*`, `src/subtitle/`, `src/tokenizers/`
+- Subtitle/token pipeline: `src/core/services/subtitle-*.ts`, `src/core/services/tokenizer*`, `src/core/services/tokenizer/`, `src/subsync/`
 - Anki workflow: `src/anki-integration/`, `src/core/services/anki-jimaku*.ts`
 - Immersion tracking: `src/core/services/immersion-tracker/`
   Includes stats storage/query schema such as `imm_videos`, `imm_media_art`, and `imm_youtube_videos` for per-video and YouTube-specific library metadata.
@@ -37,6 +37,8 @@ Read when: you need to find the owner module for a behavior or test surface
 - Anki-specific contracts: `src/types/anki.ts`
 - External integration contracts: `src/types/integrations.ts`
 - Runtime-option contracts: `src/types/runtime-options.ts`
+- Settings UI contracts: `src/types/settings.ts`
+- Session-binding contracts: `src/types/session-bindings.ts`
 - Compatibility-only barrel: `src/types.ts`
 
 ## Ownership Heuristics

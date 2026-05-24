@@ -2,7 +2,13 @@
 
 SubMiner can log your watching and mining activity to a local SQLite database, then surface it in the built-in stats dashboard. Tracking is enabled by default and can be turned off if you do not want local analytics.
 
+"Immersion" here means time spent watching and reading native Japanese content. **All data stays on your computer** — nothing is uploaded anywhere. (SQLite is just a single-file database; you do not need to install or manage anything.)
+
 When enabled, SubMiner records per-session statistics (watch time, subtitle lines seen, words encountered, cards mined) and maintains exact lifetime summary tables plus daily/monthly rollups. You can view that data in SubMiner's stats UI or query the database directly with any SQLite tool.
+
+::: tip For most users
+Just leave tracking on and use the built-in [Stats Dashboard](#stats-dashboard). The retention, performance, SQL, and schema sections further down are reference material for advanced users who want to inspect or tune the database — you can safely skip them.
+:::
 
 Episode completion for local `watched` state uses the shared `DEFAULT_MIN_WATCH_RATIO` (`85%`) value from `src/shared/watch-threshold.ts`.
 

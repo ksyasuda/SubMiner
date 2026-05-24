@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Common issues and how to resolve them.
+Common issues and how to resolve them. Most problems fall into one of a few buckets — the overlay shows but subtitles don't (see [MPV Connection](#mpv-connection)), cards aren't being created or come out empty (see [AnkiConnect](#ankiconnect)), or word lookups don't appear (see [Yomitan](#yomitan)). If an error message popped up on screen, search this page for the exact text — most headings below are quoted error strings.
 
 ## MPV Connection
 
@@ -9,7 +9,7 @@ Common issues and how to resolve them.
 SubMiner connects to mpv via a Unix socket (or named pipe on Windows). If the socket does not exist or the path does not match, the overlay will appear but subtitles will never arrive.
 
 - Ensure mpv is running with `--input-ipc-server=/tmp/subminer-socket`.
-- If you use a custom socket path, set it in both your mpv config and SubMiner config (`mpvSocketPath`).
+- If you use a custom socket path, set it in both your mpv config and SubMiner config (`mpv.socketPath`).
 - The `subminer` wrapper script sets the socket automatically when it launches mpv. If you launch mpv yourself, the `--input-ipc-server` flag is required.
 
 SubMiner retries the connection automatically with increasing delays (200 ms, 500 ms, 1 s, 2 s on first connect; 1 s, 2 s, 5 s, 10 s on reconnect). If mpv exits and restarts, the overlay reconnects without needing a restart.

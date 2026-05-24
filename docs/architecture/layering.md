@@ -3,7 +3,7 @@
 # Layering Rules
 
 Status: active  
-Last verified: 2026-03-13  
+Last verified: 2026-05-23  
 Owner: Kyle Yasuda  
 Read when: deciding whether a dependency direction is acceptable
 

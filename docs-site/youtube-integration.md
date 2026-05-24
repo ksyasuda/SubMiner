@@ -4,8 +4,8 @@ SubMiner auto-loads Japanese subtitles when you play a YouTube URL, giving you t
 
 ## Requirements
 
-- **yt-dlp** must be installed and on `PATH` (or set `SUBMINER_YTDLP_BIN` to its path)
-- mpv with `--input-ipc-server` configured (handled automatically by the `subminer` launcher)
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** must be installed and on your `PATH`. yt-dlp is a free command-line tool that reads YouTube video and subtitle info; SubMiner calls it behind the scenes. (`PATH` is the list of folders your system searches for programs — most installers add yt-dlp to it automatically. If yours did not, set `SUBMINER_YTDLP_BIN` to the full path of the yt-dlp binary.)
+- mpv with `--input-ipc-server` configured (handled automatically when you launch playback through the `subminer` launcher — no manual setup needed).
 
 ## How It Works
 
@@ -111,8 +111,8 @@ Secondary track selection uses the shared `secondarySub` config:
 ```jsonc
 {
   "secondarySub": {
-    "secondarySubLanguages": ["eng", "en"],
-    "autoLoadSecondarySub": true,
+    "secondarySubLanguages": [],
+    "autoLoadSecondarySub": false,
     "defaultMode": "hover"
   }
 }
@@ -120,8 +120,8 @@ Secondary track selection uses the shared `secondarySub` config:
 
 | Option | Type | Description |
 | ------ | ---- | ----------- |
-| `secondarySubLanguages` | `string[]` | Language codes for secondary subtitle auto-loading (default: English) |
-| `autoLoadSecondarySub` | `boolean` | Auto-detect and load matching secondary track |
+| `secondarySubLanguages` | `string[]` | Extra language codes (e.g. `["eng", "en"]`) used when auto-selecting a secondary track. Default is empty (`[]`). For YouTube, SubMiner always tries an English track first regardless of this list. |
+| `autoLoadSecondarySub` | `boolean` | Auto-detect and load a matching secondary track (default: `false`) |
 | `defaultMode` | `"hidden"` / `"visible"` / `"hover"` | Initial display mode for secondary subtitles (default: `"hover"`) |
 
 Precedence: CLI flag > environment variable > `config.jsonc` > built-in default.

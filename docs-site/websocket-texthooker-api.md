@@ -1,5 +1,9 @@
 # WebSocket / Texthooker API & Integration
 
+**Who this page is for:** developers and tinkerers who want to consume SubMiner's live subtitle stream from their own tools — a browser tab, an automation script, or another mpv plugin. If you just want subtitles in a browser tab for Yomitan, skip to [Texthooker Integration Guide](#texthooker-integration-guide); the rest is reference for building custom clients.
+
+A *texthooker* is a page/tool that receives the text currently on screen so a dictionary extension (like Yomitan) can look words up. SubMiner ships its own texthooker UI and also broadcasts subtitle text over local WebSockets that any client can connect to.
+
 SubMiner exposes a small set of local integration surfaces for browser tools, automation helpers, and mpv-driven workflows:
 
 - **Subtitle WebSocket** at `ws://127.0.0.1:6677` by default for plain subtitle pushes.
@@ -46,7 +50,7 @@ SubMiner's integration ports are configured in `config.jsonc`.
 - `texthooker.launchAtStartup` starts the local HTTP UI automatically.
 - `texthooker.openBrowser` controls whether SubMiner opens the texthooker page in your browser when it starts.
 
-If you use the [mpv plugin](/mpv-plugin), it can also start a texthooker-only helper process and override the texthooker port in `subminer.conf`.
+If you use the [mpv plugin](/mpv-plugin), it can also start a texthooker-only helper process. The launcher derives the plugin's texthooker setting from your SubMiner config (`texthooker.launchAtStartup`) and injects it at runtime — there is no plugin config file to edit.
 
 ## Developer API Documentation
 

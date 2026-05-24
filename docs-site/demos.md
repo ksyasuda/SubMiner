@@ -1,6 +1,6 @@
 # Feature Demos
 
-Short recordings of SubMiner's key features and integrations from real playback sessions.
+Short recordings of SubMiner's key features and integrations from real playback sessions. A few terms you'll see below: _Yomitan_ is the pop-up dictionary used for word lookups, _Jimaku_ is a community subtitle database, _alass_ and _ffsubsync_ are tools that retime subtitles to match the audio, _Jellyfin_ is a self-hosted media server, and a _texthooker_ is a web page that mirrors the current subtitle as selectable text for browser-based tools.
 
 <script setup>
 import { withBase } from 'vitepress';

@@ -4,74 +4,15 @@ This guide walks through the sentence mining loop — from watching a video to c
 
 ## Overview
 
-SubMiner runs as a transparent overlay on top of mpv. As subtitles play, the overlay displays them as interactive text. You hover a word, trigger Yomitan lookup with your configured lookup key/modifier, then create an Anki card with a single action. SubMiner automatically attaches the sentence, audio clip, and screenshot.
+*Sentence mining* means turning real sentences you encounter while watching native video into Anki flashcards, so you learn vocabulary in the context where you actually met it. SubMiner automates the tedious parts of that loop.
 
-## Subtitle Delivery Path (Startup + Runtime)
+SubMiner runs as a transparent overlay on top of mpv (the video player). As subtitles play, the overlay displays them as interactive text. You hover a word, trigger a Yomitan dictionary lookup with your configured lookup key/modifier, then create an Anki card with a single action. SubMiner automatically attaches the sentence, an audio clip, and a screenshot to that card — no manual copy-pasting or screen capturing.
 
-SubMiner prioritizes subtitle responsiveness over heavy initialization:
-
-1. The first subtitle render is **plain text first** (no tokenization wait).
-2. Tokenized enrichment (word spans, known-word flags, JLPT/frequency metadata) is applied right after parsing completes.
-3. Under rapid subtitle churn, SubMiner uses a **latest-only tokenization queue** so stale lines are dropped instead of building lag.
-4. MeCab, Yomitan extension load, and dictionary prewarm run as background warmups after overlay initialization (configurable via `startupWarmups`, including low-power mode).
-
-This keeps early playback snappy and avoids mpv-side sluggishness while startup work completes.
-
-## Overlay Model
-
-SubMiner uses one overlay window with modal surfaces.
-
-### Primary Subtitle Layer
-
-The visible overlay renders subtitles as tokenized hoverable word spans. Each word is a separate element with reading and headword data attached. This plane is styled independently from mpv subtitles and supports:
-
-- Word-level hover targets for Yomitan lookup
-- Auto pause/resume on subtitle hover (enabled by default via `subtitleStyle.autoPauseVideoOnHover`)
-- Auto pause/resume while the Yomitan popup is open (enabled by default via `subtitleStyle.autoPauseVideoOnYomitanPopup`)
-- Right-click to pause/resume
-- Right-click + drag to reposition subtitles
-- Modal dialogs for Jimaku search, field grouping, subsync, and runtime options
-- **Reading annotations** — known words, N+1 targets, character-name matches, JLPT levels, and frequency hits can all be visually highlighted
-
-Toggle visibility with `Alt+Shift+O` (global) or `y-t` (mpv plugin).
-
-### Secondary Subtitle Bar
-
-The secondary subtitle bar is a compact top-strip region in the same overlay window for translation/context visibility while keeping primary reading flow below. It mirrors your configured secondary subtitle preference and can be independently shown or hidden.
-
-It is controlled by `secondarySub` configuration and shares lifecycle with the main overlay window.
-
-### Modal Surfaces
-
-Jimaku search, field-grouping, runtime options, and manual subsync open as modal surfaces on top of the same overlay window.
-
-## Looking Up Words
-
-1. Hover over the subtitle area — the overlay activates pointer events.
-2. Hover the word you want. SubMiner keeps per-token boundaries so Yomitan can target that token cleanly.
-3. Trigger Yomitan lookup with your configured lookup key/modifier (for example `Shift` if that is how your Yomitan profile is set up).
-4. Yomitan opens its lookup popup for the hovered token.
-5. From the popup, add the word to Anki.
-
-### Controller Workflow
-
-With a gamepad connected and keyboard-only mode enabled, the full mining loop works without a mouse or keyboard:
-
-1. **Navigate** — push the left stick left/right to move the token highlight across subtitle words.
-2. **Look up** — press `A` to trigger Yomitan lookup on the highlighted word.
-3. **Browse the popup** — push the left stick up/down to smooth-scroll through the Yomitan popup, or use the right stick for larger jumps.
-4. **Cycle audio** — press `R1` to move to the next dictionary audio entry, `L1` to play the current one.
-5. **Mine** — press `X` to create an Anki card for the current sentence (same as `Ctrl+S`).
-6. **Close** — press `B` to dismiss the Yomitan popup and return to subtitle navigation.
-7. **Pause/resume** — press `L3` (left stick click) to toggle mpv pause at any time.
-
-After controller support is enabled, the controller and keyboard can be used interchangeably — switching mid-session is seamless. Toggle keyboard-only mode on or off with `Y` on the controller.
-
-See [Usage — Controller Support](/usage#controller-support) for setup details and [Configuration — Controller Support](/configuration#controller-support) for the full mapping and tuning options.
+> **Yomitan** is the popup dictionary that shows definitions when you hover or scan a word. **AnkiConnect** is the add-on that lets SubMiner talk to Anki. Both are set up during installation — see [Anki Integration](/anki-integration) if you have not configured them yet.
 
 ## Creating Anki Cards
 
-There are three ways to create cards, depending on your workflow.
+There are four ways to create or enrich cards, depending on your workflow.
 
 ### 1. Auto-Update from Yomitan
 
@@ -80,8 +21,8 @@ This is the most common flow. Yomitan creates a card in Anki, and SubMiner enric
 1. Hover a word, then trigger Yomitan lookup → Yomitan popup appears.
 2. Click the Anki icon in Yomitan to add the word.
 3. SubMiner receives or detects the new card:
-   - **Proxy mode** (`ankiConnect.proxy.enabled: true`): immediate enrich after successful `addNote` / `addNotes`.
-   - **Polling mode** (default): detects via AnkiConnect polling (`ankiConnect.pollingRate`, default 3 seconds).
+   - **Proxy mode** (default, `ankiConnect.proxy.enabled: true`): immediate enrich after a successful `addNote` / `addNotes` is pushed through the local proxy.
+   - **Polling mode** (fallback, when the proxy is disabled): detects new cards via AnkiConnect polling (`ankiConnect.pollingRate`, default 3 seconds).
 4. SubMiner updates the card with:
    - **Sentence**: The current subtitle line.
    - **Audio**: Extracted from the video using the subtitle's start/end timing (plus configurable padding).
@@ -131,55 +72,88 @@ After adding a word via Yomitan, press the audio card shortcut to overwrite the 
 Audio card marking requires a [Lapis](https://github.com/donkuri/lapis) or [Kiku](https://github.com/youyoumu/kiku) compatible note type and `ankiConnect.isLapis.enabled: true` in your config. See [Anki Integration — Sentence Cards](/anki-integration#sentence-cards-lapis) for setup.
 :::
 
-## Secondary Subtitles
-
-SubMiner can display a secondary subtitle track (typically English) alongside the primary Japanese subtitles. This is useful for:
-
-- Quick comprehension checks without leaving the mining flow.
-- Auto-populating the translation field on mined cards.
-
-### Display Modes
-
-Cycle through modes with the configured shortcut:
-
-- **Hidden**: Secondary subtitle not shown.
-- **Visible**: Always displayed below the primary subtitle.
-- **Hover**: Only shown when you hover over the primary subtitle.
-
-When a card is created, SubMiner uses the secondary subtitle text as the translation field value (unless AI translation is configured to override it).
-
-## Field Grouping (Kiku)
+### Field Grouping (Kiku)
 
 If you mine the same word from different sentences, SubMiner can merge the cards instead of creating duplicates. This feature is designed for use with [Kiku](https://github.com/youyoumu/kiku) and similar note types that support grouped fields.
 
-### How It Works
-
 1. You add a word via Yomitan.
 2. SubMiner detects the new card and checks if a card with the same expression already exists.
-3. If a duplicate is found:
-   - **Auto mode** (`fieldGrouping: "auto"`): Merges automatically. Both sentences, audio clips, and images are combined into the existing card. The duplicate is optionally deleted.
-   - **Manual mode** (`fieldGrouping: "manual"`): A modal appears showing both cards side by side. You choose which card to keep and preview the merged result before confirming.
+3. If a duplicate is found (this requires `ankiConnect.isKiku.fieldGrouping` to be set to `"auto"` or `"manual"`; it defaults to `"disabled"`):
+   - **Auto mode** (`ankiConnect.isKiku.fieldGrouping: "auto"`): Merges automatically. Both sentences, audio clips, and images are combined into the existing card. The duplicate is optionally deleted.
+   - **Manual mode** (`ankiConnect.isKiku.fieldGrouping: "manual"`): A modal appears showing both cards side by side. You choose which card to keep and preview the merged result before confirming.
 
 See [Anki Integration — Field Grouping](/anki-integration#field-grouping-kiku) for configuration options, merge behavior, and modal keyboard shortcuts.
 
-## Jimaku Subtitle Search
+## Overlay Model
 
-SubMiner integrates with [Jimaku](https://jimaku.cc) to search and download subtitle files for anime directly from the overlay.
+SubMiner uses one overlay window with modal surfaces. It carries two subtitle bars — a primary reading bar and a secondary translation/context bar — plus modal dialogs that open on top.
 
-1. Open the Jimaku modal via the configured shortcut (`Ctrl+Shift+J` by default).
-2. SubMiner auto-fills the search from the current video filename (title, season, episode).
-3. Browse matching entries and select a subtitle file to download.
-4. The subtitle is loaded into mpv as a new track.
+Toggle the entire overlay window with `Alt+Shift+O` (global) or `y-t` (mpv plugin).
 
-Requires an internet connection. An API key (`jimaku.apiKey`) is optional but recommended for higher rate limits.
+### Primary Subtitle Layer
 
-## Texthooker
+The primary bar renders subtitles as tokenized hoverable word spans. Each word is a separate element with reading and headword data attached. This plane is styled independently from mpv subtitles and supports:
 
-SubMiner runs a local HTTP server at `http://127.0.0.1:5174` (configurable port) that serves a texthooker UI. This allows external tools — such as a browser-based Yomitan instance — to receive subtitle text in real time.
+- Word-level hover targets for Yomitan lookup
+- Auto pause/resume on subtitle hover (enabled by default via `subtitleStyle.autoPauseVideoOnHover`)
+- Auto pause/resume while the Yomitan popup is open (enabled by default via `subtitleStyle.autoPauseVideoOnYomitanPopup`)
+- Right-click to pause/resume
+- Right-click + drag to reposition subtitles
+- **Reading annotations** — known words, N+1 targets, character-name matches, JLPT levels, and frequency hits can all be visually highlighted
 
-The texthooker page displays the current subtitle and updates as new lines arrive. This is useful if you prefer to do lookups in a browser rather than through the overlay's built-in Yomitan.
+### Secondary Subtitle Bar
 
-If you want to build your own browser client, websocket consumer, or automation relay, see [WebSocket / Texthooker API & Integration](/websocket-texthooker-api).
+The secondary bar is a compact top-strip region in the same overlay window. It shows a secondary subtitle track (typically English) for translation/context while keeping the primary reading flow below. It is useful for:
+
+- Quick comprehension checks without leaving the mining flow.
+- Auto-populating the translation field on mined cards — when a card is created, SubMiner uses the secondary subtitle text as the translation field value (unless AI translation is configured to override it).
+
+It is controlled by `secondarySub` configuration and shares its lifecycle with the main overlay window. Cycle which track feeds it with `Shift+J`.
+
+### Display Modes
+
+Both the primary and secondary subtitle bars share the same three visibility modes, and each can be changed independently at runtime:
+
+- **Hidden** — the bar is not shown.
+- **Visible** — the bar is always shown.
+- **Hover** — the bar is revealed only while you hover over the overlay.
+
+By default the **primary** bar is `visible` (`subtitleStyle.primaryDefaultMode`) and the **secondary** bar is `hover` (`secondarySub.defaultMode`).
+
+Cycle each bar's mode at runtime with its own shortcut:
+
+| Shortcut             | Action                                                   | Config key                     |
+| -------------------- | -------------------------------------------------------- | ------------------------------ |
+| `V`                  | Cycle primary subtitle mode (hidden → visible → hover)   | overlay-local                  |
+| `Ctrl/Cmd+Shift+V`   | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub` |
+
+### Modal Surfaces
+
+Jimaku search, field-grouping, runtime options, and manual subsync open as modal surfaces on top of the same overlay window.
+
+## Looking Up Words
+
+1. Hover over the subtitle area — the overlay activates pointer events.
+2. Hover the word you want. SubMiner keeps per-token boundaries so Yomitan can target that token cleanly.
+3. Trigger Yomitan lookup with your configured lookup key/modifier (for example `Shift` if that is how your Yomitan profile is set up).
+4. Yomitan opens its lookup popup for the hovered token.
+5. From the popup, add the word to Anki.
+
+### Controller Workflow
+
+With a gamepad connected and keyboard-only mode enabled, the full mining loop works without a mouse or keyboard:
+
+1. **Navigate** — push the left stick left/right to move the token highlight across subtitle words.
+2. **Look up** — press `A` to trigger Yomitan lookup on the highlighted word.
+3. **Browse the popup** — push the left stick up/down to smooth-scroll through the Yomitan popup, or use the right stick for larger jumps.
+4. **Cycle audio** — press `R1` to move to the next dictionary audio entry, `L1` to play the current one.
+5. **Mine** — press `X` to create an Anki card for the current sentence (same as `Ctrl+S`).
+6. **Close** — press `B` to dismiss the Yomitan popup and return to subtitle navigation.
+7. **Pause/resume** — press `L3` (left stick click) to toggle mpv pause at any time.
+
+After controller support is enabled, the controller and keyboard can be used interchangeably — switching mid-session is seamless. Toggle keyboard-only mode on or off with `Y` on the controller.
+
+See [Usage — Controller Support](/usage#controller-support) for setup details and [Configuration — Controller Support](/configuration#controller-support) for the full mapping and tuning options.
 
 ## Subtitle Sync (Subsync)
 
@@ -192,27 +166,20 @@ If your subtitle file is out of sync with the audio, SubMiner can resynchronize 
 
 Install the sync tools separately — see [Troubleshooting](/troubleshooting#subtitle-sync-subsync) if the tools are not found.
 
-## N+1 Word Highlighting
+## Texthooker
 
-When enabled, SubMiner cross-references your Anki decks to highlight known words in the overlay, making true N+1 sentences (exactly one unknown word) easy to spot during immersion.
+SubMiner runs a local HTTP server at `http://127.0.0.1:5174` (configurable port) that serves a texthooker UI. This allows external tools — such as a browser-based Yomitan instance — to receive subtitle text in real time.
 
-See [Subtitle Annotations — N+1](/subtitle-annotations#n1-word-highlighting) for configuration options and color settings.
+The texthooker page displays the current subtitle and updates as new lines arrive. This is useful if you prefer to do lookups in a browser rather than through the overlay's built-in Yomitan.
 
-## Immersion Tracking
+If you want to build your own browser client, websocket consumer, or automation relay, see [WebSocket / Texthooker API & Integration](/websocket-texthooker-api).
 
-SubMiner can log your watching and mining activity to a local SQLite database and expose it in the built-in stats dashboard — session times, words seen, cards mined, and daily/monthly rollups.
+## Related Features
 
-Enable it in your config:
+These features support the mining loop but have their own dedicated pages:
 
-```jsonc
-"immersionTracking": {
-  "enabled": true,
-  "dbPath": ""  // leave empty to use the default location
-}
-```
-
-Open the dashboard in the overlay with `stats.toggleKey` (default: `` ` ``), launch it in a browser with `subminer stats`, keep a dedicated background server alive with `subminer stats -b`, stop that background server with `subminer stats -s`, or visit `http://127.0.0.1:6969` directly if the local stats server is already running. The dashboard covers overview totals, anime progress, session detail, and vocabulary drill-down from the same local immersion database.
-
-See [Immersion Tracking](/immersion-tracking) for dashboard details, schema, and retention settings.
+- **[Jimaku subtitle search](/jimaku-integration)** — search and download anime subtitle files directly from the overlay (`Ctrl+Shift+J` by default), then load them into mpv.
+- **[N+1 word highlighting](/subtitle-annotations#n1-word-highlighting)** — cross-reference your Anki decks to highlight known words, making true N+1 sentences (exactly one unknown word) easy to spot during immersion.
+- **[Immersion tracking](/immersion-tracking)** — log watching and mining activity to a local database and view session times, words seen, and cards mined in the built-in stats dashboard.
 
 Next: [Anki Integration](/anki-integration) — field mapping, media generation, and card enrichment configuration.

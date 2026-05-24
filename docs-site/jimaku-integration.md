@@ -1,6 +1,10 @@
 # Jimaku Integration
 
-[Jimaku](https://jimaku.cc) is a community-driven subtitle repository for anime. SubMiner integrates with the Jimaku API so you can search, browse, and download Japanese subtitle files directly from the overlay — no alt-tabbing or manual file management required. Downloaded subtitles are loaded into mpv immediately.
+[Jimaku](https://jimaku.cc) is a community-driven subtitle repository for anime — a shared online library of subtitle files contributed by other learners. SubMiner integrates with the Jimaku API so you can search, browse, and download Japanese subtitle files directly from the overlay — no alt-tabbing or manual file management required. Downloaded subtitles are loaded into mpv immediately.
+
+::: tip Prerequisite: a free API key
+You need a Jimaku account and an API key (a personal access string) before this feature works. Create an account at [jimaku.cc](https://jimaku.cc), copy your key, and add it to your config as shown under [Configuration](#configuration) below. Without a key, the search modal will report "Jimaku API key not set."
+:::
 
 ## How It Works
 

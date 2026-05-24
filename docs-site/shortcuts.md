@@ -1,5 +1,13 @@
 # Keyboard Shortcuts
 
+This page is the complete reference for every keystroke SubMiner responds to. If you are just getting started, focus on the **Mining Shortcuts** and **Overlay Controls** sections — those cover the day-to-day mining loop. The rest can wait until you need them.
+
+A few terms used throughout:
+
+- **Overlay** — the transparent SubMiner window that sits on top of mpv and shows the interactive subtitles. Most shortcuts only work while this window has focus (click the video once if a shortcut seems to do nothing).
+- **`Ctrl/Cmd`** — use `Ctrl` on Windows/Linux and `Cmd` (⌘) on macOS. In the config file this is written as `CommandOrControl`.
+- **Accelerator** — Electron's name for a shortcut string like `Alt+Shift+O`.
+
 All shortcuts are configurable in `config.jsonc` under `shortcuts` and `keybindings`. Set any shortcut to `null` to disable it.
 
 ## Global Shortcuts
@@ -39,7 +47,7 @@ These control playback and subtitle display. They require overlay window focus.
 | -------------------- | --------------------------------------------------- |
 | `Space`              | Toggle mpv pause                                    |
 | `F`                  | Toggle fullscreen                                   |
-| `V`                  | Toggle primary subtitle bar visibility              |
+| `V`                  | Cycle primary subtitle bar mode (hidden → visible → hover) |
 | `J`                  | Cycle primary subtitle track                        |
 | `Shift+J`            | Cycle secondary subtitle track                      |
 | `Ctrl+Alt+P`         | Open playlist browser for current directory + queue |
@@ -104,13 +112,13 @@ When the mpv plugin is installed, all commands use a `y` chord prefix — press 
 | `y-s` | Start overlay                          |
 | `y-S` | Stop overlay                           |
 | `y-t` | Toggle visible overlay                 |
-| `v`   | Toggle primary subtitle bar visibility |
+| `v`   | Cycle primary subtitle bar mode (hidden → visible → hover) |
 | `y-o` | Open Yomitan settings                  |
 | `y-r` | Restart overlay                        |
 | `y-c` | Check overlay status                   |
 | `y-h` | Open session help                      |
 
-The bare `v` plugin binding intentionally overrides mpv's native primary subtitle visibility toggle so the SubMiner primary subtitle bar is hidden or restored instead.
+The bare `v` plugin binding intentionally overrides mpv's native primary subtitle visibility toggle so it cycles the SubMiner primary subtitle bar (hidden → visible → hover) instead.
 
 When the overlay has focus, press `y` then `d` to toggle DevTools (debugging helper).
 

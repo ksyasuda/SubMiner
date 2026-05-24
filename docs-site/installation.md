@@ -1,5 +1,7 @@
 # Installation
 
+SubMiner is a desktop app that draws an interactive layer — an **overlay** — on top of the [mpv](https://mpv.io) video player. As you watch native Japanese media, you can click or hover any word in the subtitles to look it up, then turn it into an Anki flashcard without pausing to switch apps. Building flashcards from real content you're watching is called **sentence mining**, and it's what SubMiner is built for. It bundles its own copy of **Yomitan** (a pop-up dictionary) and talks to **AnkiConnect** (an add-on that lets other programs add cards to Anki) so cards get filled in automatically.
+
 Three steps to get started:
 
 1. **Install requirements** — mpv and a few optional extras
@@ -92,7 +94,7 @@ pip install ffsubsync
 
 ### macOS
 
-macOS 10.13 or later. Accessibility permission is required for window tracking (see [step 2](#macos-dmg)).
+macOS 11 (Big Sur) or later. Accessibility permission — the macOS setting that lets one app observe and position another app's windows — is required so the overlay can follow the mpv window (see [step 2](#macos-dmg)).
 
 ```bash
 brew install mpv ffmpeg

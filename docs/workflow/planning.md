@@ -3,7 +3,7 @@
 # Planning
 
 Status: active  
-Last verified: 2026-03-13  
+Last verified: 2026-05-23  
 Owner: Kyle Yasuda  
 Read when: the task spans multiple files, subsystems, or verification lanes
 
@@ -28,9 +28,9 @@ Read when: the task spans multiple files, subsystems, or verification lanes
 
 ## Plan Location
 
-- active design and implementation docs live in `docs/plans/`
-- keep names date-prefixed and task-specific
-- remove or archive old plans deliberately; do not leave mystery artifacts
+- plans are task-scoped scratch artifacts; keep them with the work (worktree, branch, or PR description), not committed under `docs/`
+- if a plan must be shared, keep names date-prefixed and task-specific
+- delete plans once the work lands; do not leave mystery artifacts behind
 
 ## Plan Contents
 

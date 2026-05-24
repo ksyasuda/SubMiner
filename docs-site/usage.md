@@ -38,13 +38,13 @@ Field names must match your Anki note type exactly (case-sensitive). See [Anki I
 
 ## How It Works
 
+When you launch SubMiner, it wires up mpv and the overlay for you:
+
 1. SubMiner starts the overlay app in the background
-2. mpv runs with an IPC socket at `/tmp/subminer-socket`
+2. mpv runs with an **IPC socket** at `/tmp/subminer-socket` — a small local channel two programs use to talk to each other, so the overlay can ask mpv what subtitle is on screen right now
 3. The overlay connects and subscribes to subtitle changes
-4. Subtitles are tokenized with Yomitan's internal parser
-5. Words are displayed as interactive spans in the overlay
-6. Hover a word, then trigger Yomitan lookup with your configured lookup key/modifier to open the Yomitan popup
-7. Optional [subtitle annotations](/subtitle-annotations) (N+1, character-name, frequency, JLPT) highlight useful cues in real time
+
+From there, subtitles render as interactive, hoverable word spans and you mine cards directly from the overlay. For the overlay anatomy and the full mining loop — word lookup, card creation, annotations — see [Mining Workflow](/mining-workflow).
 
 ### Ways to Launch
 
@@ -190,7 +190,7 @@ This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blan
 - `subminer mpv`: mpv helpers (`status`, `socket`, `idle`).
 - `subminer dictionary <path>`: generates a Yomitan-importable character dictionary ZIP from a file/directory target.
 - Use `subminer dictionary --candidates <path>` and `subminer dictionary --select <id> <path>` to correct AniList character-dictionary matches for a whole series.
-- `subminer texthooker`: texthooker-only shortcut (same behavior as `--texthooker`).
+- `subminer texthooker`: texthooker-only shortcut (same behavior as `--texthooker`). A _texthooker_ is a web page that displays the current subtitle line as selectable text, so browser-based dictionary extensions and other tools can read along with playback.
 - `subminer app` / `subminer bin`: direct passthrough to the SubMiner binary/AppImage.
 - Subcommand help pages are available (for example `subminer jellyfin -h`).
 
@@ -241,7 +241,7 @@ Top-level launcher flags like `--jellyfin-*` are intentionally rejected.
 
 You can append additional MPV arguments with launcher `-a/--args`, for example `--args "--ao=alsa --volume=80"`.
 
-You can define a matching profile in `~/.config/mpv/mpv.conf` for consistency when launching `mpv` manually or from other tools. The Windows `SubMiner.exe --launch-mpv` shortcut path uses equivalent args directly, but skips the extra current-directory subtitle scan to avoid duplicate sidecar detection when you drag a video onto the shortcut; the optional profile remains useful for manual mpv launches and the `subminer` wrapper defaults to `--profile=subminer` (or override with `subminer -p <profile> ...`):
+You can define a matching profile in `~/.config/mpv/mpv.conf` for consistency when launching `mpv` manually or from other tools. The Windows `SubMiner.exe --launch-mpv` shortcut path uses equivalent args directly, but skips the extra current-directory subtitle scan to avoid duplicate sidecar detection when you drag a video onto the shortcut; the optional profile remains useful for manual mpv launches. The `subminer` wrapper passes no mpv profile by default; set one with `subminer -p <profile> ...` or with `mpv.profile` in your config (for example `"profile": "subminer"` to use the `[subminer]` profile below):
 
 ```ini
 [subminer]
@@ -283,7 +283,7 @@ Notes:
 - For YouTube URLs, `subminer` probes available YouTube subtitle tracks, reuses existing authoritative tracks when available, and downloads only missing sides.
 - Native mpv secondary subtitle rendering stays hidden so the overlay remains the visible secondary subtitle surface.
 - Primary subtitle target languages come from `youtube.primarySubLanguages` (defaults to `["ja","jpn"]`).
-- Secondary target languages come from `secondarySub.secondarySubLanguages` (defaults to English if unset).
+- Secondary target languages come from `secondarySub.secondarySubLanguages` (empty by default; when empty, no language-based secondary track is auto-selected, though mpv's `--slang` list above still prefers English variants).
 - Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtube` and `secondarySub`.
 
 For local video files, SubMiner uses the same config-driven language priorities to auto-select the primary and secondary subtitle tracks from internal and external subtitle sources.

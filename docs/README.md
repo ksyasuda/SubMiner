@@ -3,7 +3,7 @@
 # SubMiner Internal Docs
 
 Status: active  
-Last verified: 2026-03-13  
+Last verified: 2026-05-23  
 Owner: Kyle Yasuda  
 Read when: you need internal architecture, workflow, verification, or release guidance
 
@@ -15,7 +15,6 @@ Read when: you need internal architecture, workflow, verification, or release gu
 - [Workflow](./workflow/README.md) - planning, execution, verification expectations
 - [Knowledge Base](./knowledge-base/README.md) - how docs are structured, maintained, and audited
 - [Release Guide](./RELEASING.md) - tagged release checklist
-- [Plans](./plans/) - active design and implementation artifacts
 
 ## Fast Paths
 

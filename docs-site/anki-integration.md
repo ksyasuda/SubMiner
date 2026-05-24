@@ -3,6 +3,13 @@
 SubMiner uses the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on to create and update Anki cards with sentence context, audio, and screenshots.
 This project is built primarily for [Kiku](https://kiku.youyoumu.my.id/) and [Lapis](https://github.com/donkuri/lapis) note types, including sentence-card and field-grouping behavior.
 
+::: tip New to these terms?
+- **Anki** is the flashcard app where your study cards live.
+- **AnkiConnect** is a free add-on that lets other programs (like SubMiner) talk to Anki over a local connection. SubMiner needs it installed to add or edit cards.
+- A **note type** (also called a "model") is the template that defines what a card looks like — for example the Kiku or Lapis templates many Japanese learners use.
+- A **field** is one labeled slot in that template, such as `Sentence`, `Expression`, or `Picture`. SubMiner fills these fields when it mines a card.
+:::
+
 ## Prerequisites
 
 1. Install [Anki](https://apps.ankiweb.net/).
@@ -15,9 +22,9 @@ AnkiConnect listens on `http://127.0.0.1:8765` by default. If you changed the po
 
 When you add a word via Yomitan, SubMiner detects the new card and fills in the sentence, audio, image, and translation fields automatically. Two detection methods are available:
 
-**Proxy mode** — SubMiner runs a local AnkiConnect-compatible proxy and intercepts card creation instantly. Recommended when possible.
+**Proxy mode** (default) — SubMiner runs a local *proxy*: a small middleman server that sits between Yomitan and Anki. Yomitan sends new cards to SubMiner, SubMiner enriches them, then passes them along to Anki. This makes enrichment instant.
 
-**Polling mode** (default) — SubMiner polls AnkiConnect every few seconds for newly added cards. Simpler setup, but with a short delay (~3 seconds).
+**Polling mode** (fallback, when the proxy is disabled) — SubMiner asks AnkiConnect every few seconds whether any new cards were added, then enriches them. Simpler setup, but with a short delay (~3 seconds).
 
 Use proxy mode if you want immediate enrichment. Use polling mode if your Yomitan instance is external (browser-based) or you prefer minimal configuration.
 
@@ -322,6 +329,7 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
       "upstreamUrl": "http://127.0.0.1:8765",
     },
     "fields": {
+      "word": "Expression",
       "audio": "ExpressionAudio",
       "image": "Picture",
       "sentence": "Sentence",

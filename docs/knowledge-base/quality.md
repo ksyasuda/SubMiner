@@ -37,4 +37,3 @@ Grades are directional, not ceremonial. The point is to keep gaps visible.
 
 - Some deep architecture detail still lives in `docs-site/architecture.md` and may merit later migration.
 - Quality grading is manual and should be refreshed when major refactors land.
-- Active plans can accumulate without lifecycle cleanup if humans do not prune them.

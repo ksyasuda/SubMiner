@@ -8,6 +8,8 @@ outline: [2, 3]
 import { withBase } from 'vitepress';
 </script>
 
+SubMiner is configured through a single file (`config.jsonc`). Most settings are also editable from the in-app **Settings** window — you rarely need to edit the file by hand. This page is the full reference: it explains the Settings window, where the config file lives, and documents every option grouped by topic. New to SubMiner? The Quick Start below plus the [Settings window](#settings) cover everything most users need.
+
 ## Quick Start
 
 For most users, start with this minimal configuration:
@@ -228,22 +230,15 @@ Control whether the overlay automatically becomes visible when it connects to mp
 
 ```json
 {
-  "auto_start_overlay": false
+  "auto_start_overlay": true
 }
 ```
 
-| Option               | Values          | Description                                            |
-| -------------------- | --------------- | ------------------------------------------------------ |
-| `auto_start_overlay` | `true`, `false` | Auto-show overlay on mpv connection (default: `false`) |
+| Option               | Values          | Description                                           |
+| -------------------- | --------------- | ----------------------------------------------------- |
+| `auto_start_overlay` | `true`, `false` | Auto-show overlay on mpv connection (default: `true`) |
 
-The mpv plugin controls startup overlay visibility via `auto_start_visible_overlay` in `subminer.conf`.
-For wrapper-driven playback, `subminer.conf` can also enable startup pause gating with
-`auto_start_pause_until_ready` (requires `auto_start=yes` + `auto_start_visible_overlay=yes`).
-Current plugin defaults in `subminer.conf` are:
-
-- `auto_start=yes`
-- `auto_start_visible_overlay=yes`
-- `auto_start_pause_until_ready=yes`
+When you launch through the SubMiner app or the `subminer` wrapper, the launcher reads these settings from this config and injects them into the mpv plugin at runtime — there is no separate plugin config file to edit. `auto_start_overlay` controls whether the visible overlay shows on auto-start. Two related keys in the `mpv` block tune startup behavior: `mpv.autoStartSubMiner` starts the overlay automatically when a file loads, and `mpv.pauseUntilOverlayReady` pauses mpv on visible auto-start until SubMiner signals overlay/tokenization readiness.
 
 On Windows, packaged plugin installs also rewrite the plugin socket path to `\\.\pipe\subminer-socket`.
 
@@ -367,7 +362,7 @@ See `config.example.jsonc` for detailed configuration options.
       "fontColor": "#cad3f5",
       "backgroundColor": "transparent",
       "css": {
-        "font-family": "Inter, Noto Sans, Helvetica Neue, sans-serif",
+        "font-family": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP",
         "font-size": "24px",
         "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)"
       }
@@ -428,7 +423,7 @@ Character-name highlighting is separate from N+1 and frequency highlighting:
 - `nameMatchColor` sets the highlight color for those matched character names.
 - Matches come from the bundled SubMiner character dictionary, including AniList-synced merged dictionaries when enabled.
 
-Secondary subtitle defaults: `fontFamily: "Inter, Noto Sans, Helvetica Neue, sans-serif"`, `fontSize: 24`, `fontColor: "#cad3f5"`, `textShadow: "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)"`, `backgroundColor: "transparent"`, `fontWeight: "600"`. Any property not set in `secondary` falls back to the CSS defaults.
+Secondary subtitle defaults: `fontFamily: "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP"`, `fontSize: 24`, `fontColor: "#cad3f5"`, `textShadow: "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)"`, `backgroundColor: "transparent"`, `fontWeight: "600"`. Any property not set in `secondary` falls back to the CSS defaults.
 
 **See `config.example.jsonc`** for the complete list of subtitle style configuration options.
 
@@ -445,7 +440,7 @@ Configure the parsed-subtitle sidebar modal.
     "toggleKey": "Backslash",
     "pauseVideoOnHover": true,
     "autoScroll": true,
-    "fontFamily": "\"M PLUS 1\", \"Noto Sans CJK JP\", sans-serif",
+    "fontFamily": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP",
     "fontSize": 16
   }
 }
@@ -483,7 +478,7 @@ For full details on layout modes, behavior, and the keyboard shortcut, see the [
 | `N1` | `#ed8796` | JLPT N1 underline color |
 | `N2` | `#f5a97f` | JLPT N2 underline color |
 | `N3` | `#f9e2af` | JLPT N3 underline color |
-| `N4` | `#a6e3a1` | JLPT N4 underline color |
+| `N4` | `#8bd5ca` | JLPT N4 underline color |
 | `N5` | `#8aadf4` | JLPT N5 underline color |
 
 **Image Quality Notes:**
@@ -855,8 +850,7 @@ Palette controls:
 
 ### Shared AI Provider
 
-Shared OpenAI-compatible transport settings live at the top level under `ai`.
-Anki reads this provider directly. Legacy subtitle fallback keeps the same provider shape for compatibility, then applies feature-local overrides where supported.
+This is the single, shared connection to an OpenAI-compatible LLM endpoint. Configure it **once** here at the top level, and SubMiner reuses it wherever AI is needed (today: Anki translation/enrichment). Per-feature toggles and prompt/model tweaks live in their own sections (for example `ankiConnect.ai`) and inherit this transport.
 
 ```json
 {
@@ -864,21 +858,22 @@ Anki reads this provider directly. Legacy subtitle fallback keeps the same provi
     "enabled": false,
     "apiKey": "",
     "apiKeyCommand": "",
+    "model": "openai/gpt-4o-mini",
     "baseUrl": "https://openrouter.ai/api",
     "requestTimeoutMs": 15000
   }
 }
 ```
 
-| Option             | Values               | Description                                                   |
-| ------------------ | -------------------- | ------------------------------------------------------------- |
-| `enabled`          | `true`, `false`      | Enable shared AI provider features                            |
-| `apiKey`           | string               | Static API key for the shared provider                        |
-| `apiKeyCommand`    | string               | Shell command used to resolve the API key                     |
-| `baseUrl`          | string (URL)         | OpenAI-compatible base URL                                    |
-| `model`            | string               | Optional model override for shared provider workflows         |
-| `systemPrompt`     | string               | Optional system prompt override for shared provider workflows |
-| `requestTimeoutMs` | integer milliseconds | Shared request timeout (default: `15000`)                     |
+| Option             | Values               | Description                                                                        |
+| ------------------ | -------------------- | ---------------------------------------------------------------------------------- |
+| `enabled`          | `true`, `false`      | Enable shared AI provider features (default: `false`)                              |
+| `apiKey`           | string               | Static API key for the shared provider                                             |
+| `apiKeyCommand`    | string               | Shell command used to resolve the API key (preferred over a plaintext `apiKey`)    |
+| `model`            | string               | Default model identifier requested from the provider (default: `openai/gpt-4o-mini`) |
+| `baseUrl`          | string (URL)         | OpenAI-compatible base URL (default: `https://openrouter.ai/api`)                  |
+| `systemPrompt`     | string               | Default system prompt sent with requests (default: a translation-engine prompt)    |
+| `requestTimeoutMs` | integer milliseconds | Shared request timeout (default: `15000`)                                          |
 
 SubMiner uses the shared provider for:
 
@@ -895,7 +890,7 @@ Enable automatic Anki card creation and updates with media generation:
     "url": "http://127.0.0.1:8765",
     "pollingRate": 3000,
     "proxy": {
-      "enabled": false,
+      "enabled": true,
       "host": "127.0.0.1",
       "port": 8766,
       "upstreamUrl": "http://127.0.0.1:8765"

@@ -1,5 +1,11 @@
 # Jellyfin Integration
 
+[Jellyfin](https://jellyfin.org) is a free, self-hosted media server — think of it as your own private streaming service for video you own. If you keep your anime on a Jellyfin server, SubMiner can log in, browse it, and play episodes through mpv with the full mining overlay.
+
+::: tip Who needs this?
+This page is only relevant if you already run (or have access to) a Jellyfin server. If you watch local files or YouTube, you can skip it. Most of this integration is driven from the command line, so it is aimed at slightly more advanced users; the in-app setup window (`subminer jellyfin`) is the easiest starting point.
+:::
+
 SubMiner includes an optional Jellyfin CLI integration for:
 
 - authenticating against a server

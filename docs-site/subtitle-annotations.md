@@ -73,9 +73,11 @@ SubMiner looks up each token's `frequencyRank` from `term_meta_bank_*.json` file
 | `subtitleStyle.frequencyDictionary.topX`         | `1000`       | Max frequency rank to highlight          |
 | `subtitleStyle.frequencyDictionary.mode`         | `"single"`   | `"single"` or `"banded"`                 |
 | `subtitleStyle.frequencyDictionary.matchMode`    | `"headword"` | `"headword"` or `"surface"`              |
-| `subtitleStyle.frequencyDictionary.singleColor`  | —            | Color for single mode                    |
-| `subtitleStyle.frequencyDictionary.bandedColors` | —            | Array of five hex colors for banded mode |
-| `subtitleStyle.frequencyDictionary.sourcePath`   | —            | Custom path to frequency dictionary root |
+| `subtitleStyle.frequencyDictionary.singleColor`  | `#f5a97f`    | Color for single mode                    |
+| `subtitleStyle.frequencyDictionary.bandedColors` | 5 colors[^1] | Array of five hex colors for banded mode |
+| `subtitleStyle.frequencyDictionary.sourcePath`   | `""`         | Custom path to frequency dictionary root (empty = auto-discover) |
+
+[^1]: Default banded palette (most common → least common): `#ed8796`, `#f5a97f`, `#f9e2af`, `#8bd5ca`, `#8aadf4`.
 
 When `sourcePath` is omitted, SubMiner searches default install/runtime locations for `frequency-dictionary` directories automatically.
 
@@ -102,7 +104,7 @@ SubMiner loads offline `term_meta_bank_*.json` files from `vendor/yomitan-jlpt-v
 | N1    | `#ed8796` | Red     |
 | N2    | `#f5a97f` | Peach   |
 | N3    | `#f9e2af` | Yellow  |
-| N4    | `#a6e3a1` | Green   |
+| N4    | `#8bd5ca` | Teal    |
 | N5    | `#8aadf4` | Blue    |
 
 All colors are customizable via the `subtitleStyle.jlptColors` object.
