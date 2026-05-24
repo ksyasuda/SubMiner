@@ -462,9 +462,18 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       return fallbackOutputDir;
     }
     cleanupSubtitleTempDirsForNextLoad();
-    const tempDir = await deps.createSubtitleTempDir();
-    activeSubtitleTempDirs.add(tempDir);
-    return tempDir;
+    try {
+      const tempDir = await deps.createSubtitleTempDir();
+      activeSubtitleTempDirs.add(tempDir);
+      return tempDir;
+    } catch (error) {
+      deps.warn(
+        `Failed to create YouTube subtitle temp dir; using configured output dir: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return fallbackOutputDir;
+    }
   };
 
   const acquireSelectedTracks = async (input: {

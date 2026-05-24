@@ -943,9 +943,7 @@ test('youtube flow injects downloaded primary while reusing existing manual seco
   assert.ok(
     commands.some(
       (command) =>
-        command[0] === 'sub-add' &&
-        command[1] === downloadedPrimaryPath &&
-        command[2] === 'select',
+        command[0] === 'sub-add' && command[1] === downloadedPrimaryPath && command[2] === 'select',
     ),
   );
   assert.deepEqual(refreshedSidebarSources, [downloadedPrimaryPath]);
@@ -1075,9 +1073,7 @@ test('youtube flow injects downloaded primary subtitles instead of reusing strea
   assert.ok(
     commands.some(
       (command) =>
-        command[0] === 'sub-add' &&
-        command[1] === downloadedPrimaryPath &&
-        command[2] === 'select',
+        command[0] === 'sub-add' && command[1] === downloadedPrimaryPath && command[2] === 'select',
     ),
   );
 });
@@ -1288,6 +1284,98 @@ test('youtube flow downloads subtitles into temporary dirs and exposes cleanup',
   ]);
 });
 
+test('youtube flow falls back to configured output dir when subtitle temp dir creation fails', async () => {
+  const outputDirs: string[] = [];
+  const warnings: string[] = [];
+  let selectedPrimarySid: number | null = null;
+  let addedSubtitlePath: string | null = null;
+
+  const runtime = createYoutubeFlowRuntime({
+    probeYoutubeTracks: async () => ({
+      videoId: 'video123',
+      title: 'Video 123',
+      tracks: [primaryTrack],
+    }),
+    acquireYoutubeSubtitleTracks: async () => {
+      throw new Error('single primary selection should not batch download');
+    },
+    acquireYoutubeSubtitleTrack: async ({ outputDir }) => {
+      outputDirs.push(outputDir);
+      return { path: path.join(outputDir, 'auto-ja-orig.vtt') };
+    },
+    openPicker: async (payload) => {
+      queueMicrotask(() => {
+        void runtime.resolveActivePicker({
+          sessionId: payload.sessionId,
+          action: 'use-selected',
+          primaryTrackId: primaryTrack.id,
+          secondaryTrackId: null,
+        });
+      });
+      return true;
+    },
+    pauseMpv: () => {},
+    resumeMpv: () => {},
+    sendMpvCommand: (command) => {
+      if (command[0] === 'sub-add' && typeof command[1] === 'string') {
+        addedSubtitlePath = command[1];
+      }
+      if (command[0] === 'set_property' && command[1] === 'sid' && typeof command[2] === 'number') {
+        selectedPrimarySid = command[2];
+      }
+    },
+    requestMpvProperty: async (name) => {
+      if (name === 'sub-text') {
+        return '字幕です';
+      }
+      if (name === 'sid') {
+        return selectedPrimarySid;
+      }
+      return addedSubtitlePath
+        ? [
+            {
+              type: 'sub',
+              id: 11,
+              lang: 'ja-orig',
+              title: path.basename(addedSubtitlePath),
+              external: true,
+              'external-filename': addedSubtitlePath,
+            },
+          ]
+        : [];
+    },
+    refreshCurrentSubtitle: () => {},
+    refreshSubtitleSidebarSource: async () => {},
+    startTokenizationWarmups: async () => {},
+    waitForTokenizationReady: async () => {},
+    waitForAnkiReady: async () => {},
+    wait: async () => {},
+    waitForPlaybackWindowReady: async () => {},
+    waitForOverlayGeometryReady: async () => {},
+    focusOverlayWindow: () => {},
+    showMpvOsd: () => {},
+    reportSubtitleFailure: (message) => {
+      throw new Error(message);
+    },
+    warn: (message) => {
+      warnings.push(message);
+    },
+    log: () => {},
+    getYoutubeOutputDir: () => '/tmp/youtube-cache',
+    createSubtitleTempDir: async () => {
+      throw new Error('tmp unavailable');
+    },
+    cleanupSubtitleTempDirs: () => {},
+  });
+
+  await runtime.openManualPicker({ url: 'https://example.com/watch?v=video123' });
+
+  assert.deepEqual(outputDirs, ['/tmp/youtube-cache']);
+  assert.deepEqual(warnings, [
+    'Failed to create YouTube subtitle temp dir; using configured output dir: tmp unavailable',
+  ]);
+});
+
 test('youtube flow waits for manual secondary tracks while injecting downloaded primary', async () => {
   const commands: Array<Array<string | number>> = [];
   let selectedPrimarySid: number | null = null;
@@ -1445,9 +1533,7 @@ test('youtube flow waits for manual secondary tracks while injecting downloaded 
   assert.ok(
     commands.some(
       (command) =>
-        command[0] === 'sub-add' &&
-        command[1] === downloadedPrimaryPath &&
-        command[2] === 'select',
+        command[0] === 'sub-add' && command[1] === downloadedPrimaryPath && command[2] === 'select',
     ),
   );
 });
@@ -1593,9 +1679,7 @@ test('youtube flow injects downloaded primary even when reusable manual youtube 
   assert.ok(
     commands.some(
       (command) =>
-        command[0] === 'sub-add' &&
-        command[1] === downloadedPrimaryPath &&
-        command[2] === 'select',
+        command[0] === 'sub-add' && command[1] === downloadedPrimaryPath && command[2] === 'select',
     ),
   );
 });
