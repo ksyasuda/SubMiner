@@ -3,22 +3,24 @@ export interface StartupOsdSequencerCharacterDictionaryEvent {
   message: string;
 }
 
-export function createStartupOsdSequencer(deps: { showOsd: (message: string) => void }): {
+export function createStartupOsdSequencer(deps: { showOsd: (message: string) => boolean | void }): {
   reset: () => void;
   markTokenizationReady: () => void;
   showAnnotationLoading: (message: string) => void;
   markAnnotationLoadingComplete: (message: string) => void;
-  notifyCharacterDictionaryStatus: (event: StartupOsdSequencerCharacterDictionaryEvent) => void;
+  notifyCharacterDictionaryStatus: (event: StartupOsdSequencerCharacterDictionaryEvent) => boolean;
 } {
   let tokenizationReady = false;
   let tokenizationWarmupCompleted = false;
   let annotationLoadingMessage: string | null = null;
   let pendingDictionaryProgress: StartupOsdSequencerCharacterDictionaryEvent | null = null;
   let pendingDictionaryFailure: StartupOsdSequencerCharacterDictionaryEvent | null = null;
+  let pendingDictionaryReady: StartupOsdSequencerCharacterDictionaryEvent | null = null;
   let dictionaryProgressShown = false;
 
   const canShowDictionaryStatus = (): boolean =>
     tokenizationReady && annotationLoadingMessage === null;
+  const showOsd = (message: string): boolean => deps.showOsd(message) !== false;
 
   const flushBufferedDictionaryStatus = (): boolean => {
     if (!canShowDictionaryStatus()) {
@@ -28,15 +30,24 @@ export function createStartupOsdSequencer(deps: { showOsd: (message: string) => 
       if (dictionaryProgressShown) {
         return true;
       }
-      deps.showOsd(pendingDictionaryProgress.message);
-      dictionaryProgressShown = true;
-      return true;
+      dictionaryProgressShown = showOsd(pendingDictionaryProgress.message);
+      return dictionaryProgressShown;
+    }
+    if (pendingDictionaryReady) {
+      const shown = showOsd(pendingDictionaryReady.message);
+      if (shown) {
+        pendingDictionaryReady = null;
+        dictionaryProgressShown = false;
+      }
+      return shown;
     }
     if (pendingDictionaryFailure) {
-      deps.showOsd(pendingDictionaryFailure.message);
-      pendingDictionaryFailure = null;
-      dictionaryProgressShown = false;
-      return true;
+      const shown = showOsd(pendingDictionaryFailure.message);
+      if (shown) {
+        pendingDictionaryFailure = null;
+        dictionaryProgressShown = false;
+      }
+      return shown;
     }
     return false;
   };
@@ -47,13 +58,14 @@ export function createStartupOsdSequencer(deps: { showOsd: (message: string) => 
       annotationLoadingMessage = null;
       pendingDictionaryProgress = null;
       pendingDictionaryFailure = null;
+      pendingDictionaryReady = null;
       dictionaryProgressShown = false;
     },
     markTokenizationReady: () => {
       tokenizationWarmupCompleted = true;
       tokenizationReady = true;
       if (annotationLoadingMessage !== null) {
-        deps.showOsd(annotationLoadingMessage);
+        showOsd(annotationLoadingMessage);
         return;
       }
       flushBufferedDictionaryStatus();
@@ -61,7 +73,7 @@ export function createStartupOsdSequencer(deps: { showOsd: (message: string) => 
     showAnnotationLoading: (message) => {
       annotationLoadingMessage = message;
       if (tokenizationReady) {
-        deps.showOsd(message);
+        showOsd(message);
       }
     },
     markAnnotationLoadingComplete: (message) => {
@@ -72,7 +84,7 @@ export function createStartupOsdSequencer(deps: { showOsd: (message: string) => 
       if (flushBufferedDictionaryStatus()) {
         return;
       }
-      deps.showOsd(message);
+      showOsd(message);
     },
     notifyCharacterDictionaryStatus: (event) => {
       if (
@@ -84,32 +96,47 @@ export function createStartupOsdSequencer(deps: { showOsd: (message: string) => 
       ) {
         pendingDictionaryProgress = event;
         pendingDictionaryFailure = null;
+        pendingDictionaryReady = null;
         if (canShowDictionaryStatus()) {
-          deps.showOsd(event.message);
-          dictionaryProgressShown = true;
+          dictionaryProgressShown = showOsd(event.message);
         } else if (tokenizationReady) {
-          deps.showOsd(event.message);
-          dictionaryProgressShown = true;
+          dictionaryProgressShown = showOsd(event.message);
         }
-        return;
+        return dictionaryProgressShown;
       }
 
       pendingDictionaryProgress = null;
       if (event.phase === 'failed') {
+        pendingDictionaryReady = null;
         if (canShowDictionaryStatus()) {
-          deps.showOsd(event.message);
+          if (!showOsd(event.message)) {
+            pendingDictionaryFailure = event;
+            return false;
+          }
+          dictionaryProgressShown = false;
+          return true;
         } else {
           pendingDictionaryFailure = event;
         }
         dictionaryProgressShown = false;
-        return;
+        return false;
       }
 
       pendingDictionaryFailure = null;
-      if (canShowDictionaryStatus() && dictionaryProgressShown) {
-        deps.showOsd(event.message);
+      if (canShowDictionaryStatus()) {
+        if (!showOsd(event.message)) {
+          pendingDictionaryReady = event;
+          dictionaryProgressShown = false;
+          return false;
+        }
+        pendingDictionaryReady = null;
+        dictionaryProgressShown = false;
+        return true;
+      } else {
+        pendingDictionaryReady = event;
       }
       dictionaryProgressShown = false;
+      return false;
     },
   };
 }

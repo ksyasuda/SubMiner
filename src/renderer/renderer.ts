@@ -463,7 +463,6 @@ function registerModalOpenHandlers(): void {
   window.electronAPI.onOpenCharacterDictionary(() => {
     runGuardedAsync('character-dictionary:open', async () => {
       await characterDictionaryModal.openCharacterDictionaryModal();
-      window.electronAPI.notifyOverlayModalOpened('character-dictionary');
     });
   });
   window.electronAPI.onOpenSessionHelp(() => {

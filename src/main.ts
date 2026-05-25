@@ -5347,7 +5347,9 @@ function getUpdateService() {
         { notificationType: getResolvedConfig().updates.notificationType, version },
         {
           showSystemNotification: (title, body) => showDesktopNotification(title, { body }),
-          showOsdNotification: (message) => showMpvOsd(message),
+          showOsdNotification: (message) => {
+            showMpvOsd(message);
+          },
           log: (message) => logger.warn(message),
         },
       ),

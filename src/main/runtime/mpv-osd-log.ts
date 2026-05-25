@@ -57,13 +57,13 @@ export function createShowMpvOsdHandler(deps: {
     mpvClient: MpvRuntimeClientLike | null,
     text: string,
     fallbackLog: (line: string) => void,
-  ) => void;
+  ) => boolean;
   getMpvClient: () => MpvRuntimeClientLike | null;
   logInfo: (line: string) => void;
 }) {
-  return (text: string): void => {
+  return (text: string): boolean => {
     deps.appendToMpvLog(`[OSD] ${text}`);
-    deps.showMpvOsdRuntime(deps.getMpvClient(), text, (line) => {
+    return deps.showMpvOsdRuntime(deps.getMpvClient(), text, (line) => {
       deps.logInfo(line);
     });
   };

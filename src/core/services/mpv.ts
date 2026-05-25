@@ -51,15 +51,16 @@ export function showMpvOsdRuntime(
   mpvClient: MpvRuntimeClientLike | null,
   text: string,
   fallbackLog: (text: string) => void = (line) => logger.info(line),
-): void {
+): boolean {
   if (mpvClient && mpvClient.connected) {
     const command = text.includes('${')
       ? ['expand-properties', 'show-text', text, '3000']
       : ['show-text', text, '3000'];
     mpvClient.send({ command });
-    return;
+    return true;
   }
   fallbackLog(`OSD (MPV not connected): ${text}`);
+  return false;
 }
 
 export function replayCurrentSubtitleRuntime(mpvClient: MpvRuntimeClientLike | null): void {

@@ -10,7 +10,7 @@ import {
 
 test('showMpvOsdRuntime sends show-text when connected', () => {
   const commands: (string | number)[][] = [];
-  showMpvOsdRuntime(
+  const shown = showMpvOsdRuntime(
     {
       connected: true,
       send: ({ command }) => {
@@ -19,12 +19,13 @@ test('showMpvOsdRuntime sends show-text when connected', () => {
     },
     'hello',
   );
+  assert.equal(shown, true);
   assert.deepEqual(commands, [['show-text', 'hello', '3000']]);
 });
 
 test('showMpvOsdRuntime enables property expansion for placeholder-based messages', () => {
   const commands: (string | number)[][] = [];
-  showMpvOsdRuntime(
+  const shown = showMpvOsdRuntime(
     {
       connected: true,
       send: ({ command }) => {
@@ -33,6 +34,7 @@ test('showMpvOsdRuntime enables property expansion for placeholder-based message
     },
     'Subtitle delay: ${sub-delay}',
   );
+  assert.equal(shown, true);
   assert.deepEqual(commands, [
     ['expand-properties', 'show-text', 'Subtitle delay: ${sub-delay}', '3000'],
   ]);
@@ -40,7 +42,7 @@ test('showMpvOsdRuntime enables property expansion for placeholder-based message
 
 test('showMpvOsdRuntime logs fallback when disconnected', () => {
   const logs: string[] = [];
-  showMpvOsdRuntime(
+  const shown = showMpvOsdRuntime(
     {
       connected: false,
       send: () => {},
@@ -50,6 +52,7 @@ test('showMpvOsdRuntime logs fallback when disconnected', () => {
       logs.push(line);
     },
   );
+  assert.equal(shown, false);
   assert.deepEqual(logs, ['OSD (MPV not connected): hello']);
 });
 

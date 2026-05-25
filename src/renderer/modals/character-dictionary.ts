@@ -153,6 +153,7 @@ export function createCharacterDictionaryModal(
     ctx.dom.overlay.classList.add('interactive');
     ctx.dom.characterDictionaryModal.classList.remove('hidden');
     ctx.dom.characterDictionaryModal.setAttribute('aria-hidden', 'false');
+    window.electronAPI.notifyOverlayModalOpened('character-dictionary');
     setStatus('Loading AniList candidates...');
   }
 
@@ -160,6 +161,7 @@ export function createCharacterDictionaryModal(
     if (!ctx.state.characterDictionaryModalOpen) {
       showShell();
     } else {
+      window.electronAPI.notifyOverlayModalOpened('character-dictionary');
       setStatus('Refreshing AniList candidates...');
     }
     try {

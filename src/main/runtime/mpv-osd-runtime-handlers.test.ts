@@ -19,15 +19,17 @@ test('mpv osd runtime handlers compose append and osd logging flow', async () =>
       showMpvOsdRuntime: (_client, text, fallbackLog) => {
         calls.push(`show:${text}`);
         fallbackLog('fallback');
+        return false;
       },
       getMpvClient: () => null,
       logInfo: (line) => calls.push(`info:${line}`),
     }),
   });
 
-  runtime.showMpvOsd('hello');
+  const shown = runtime.showMpvOsd('hello');
   await runtime.flushMpvLog();
 
+  assert.equal(shown, false);
   assert.deepEqual(calls, [
     'show:hello',
     'info:fallback',
