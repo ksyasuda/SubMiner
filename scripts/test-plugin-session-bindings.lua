@@ -322,7 +322,9 @@ end
 
 local expected_cli_bindings = {
 	{ keys = "Shift+]", flag = "--shift-sub-delay-next-line" },
+	{ keys = "}", flag = "--shift-sub-delay-next-line" },
 	{ keys = "Shift+[", flag = "--shift-sub-delay-prev-line" },
+	{ keys = "{", flag = "--shift-sub-delay-prev-line" },
 	{ keys = "Ctrl+Alt+c", flag = "--open-youtube-picker" },
 	{ keys = "Ctrl+Alt+p", flag = "--open-playlist-browser" },
 	{ keys = "Ctrl+H", flag = "--replay-current-subtitle" },

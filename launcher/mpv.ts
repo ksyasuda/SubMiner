@@ -47,7 +47,10 @@ type SpawnTarget = {
   env?: NodeJS.ProcessEnv;
 };
 
-type PathModule = Pick<typeof path, 'join' | 'extname' | 'delimiter' | 'sep' | 'resolve'>;
+type PathModule = Pick<
+  typeof path,
+  'dirname' | 'join' | 'extname' | 'delimiter' | 'sep' | 'resolve' | 'isAbsolute' | 'normalize'
+>;
 
 const DETACHED_IDLE_MPV_PID_FILE = path.join(os.tmpdir(), 'subminer-idle-mpv.pid');
 const OVERLAY_START_SOCKET_READY_TIMEOUT_MS = 900;
@@ -60,6 +63,12 @@ export interface LauncherRuntimePluginPlan {
   installedPlugin: InstalledMpvPluginDetection;
   warningMessage: string | null;
   errorMessage: string | null;
+}
+
+function resolvePluginCandidatePath(candidate: string, pathModule: PathModule): string {
+  return pathModule.isAbsolute(candidate)
+    ? pathModule.normalize(candidate)
+    : pathModule.resolve(candidate);
 }
 
 export function parseMpvArgString(input: string): string[] {
@@ -291,12 +300,12 @@ export function resolveLauncherRuntimePluginPath(options: {
   pathModule?: typeof path;
   existsSync?: (candidate: string) => boolean;
 }): string | null {
+  const platform = options.platform ?? process.platform;
   const pathModule = options.pathModule ?? path;
   const existsSync = options.existsSync ?? fs.existsSync;
   const env = options.env ?? process.env;
   const dirname = options.dirname ?? __dirname;
   const cwd = options.cwd ?? process.cwd();
-  const platform = options.platform ?? process.platform;
   const homeDir = options.homeDir ?? os.homedir();
   const candidates: string[] = [];
 
@@ -344,7 +353,7 @@ export function resolveLauncherRuntimePluginPath(options: {
 
   const seen = new Set<string>();
   for (const candidate of candidates) {
-    const resolved = pathModule.resolve(candidate);
+    const resolved = resolvePluginCandidatePath(candidate, pathModule);
     if (seen.has(resolved)) continue;
     seen.add(resolved);
     const entrypoint = normalizeRuntimePluginEntrypoint(resolved, { pathModule, existsSync });
@@ -1704,7 +1713,7 @@ export async function waitForUnixSocketReady(
   const deadline = nowMs() + timeoutMs;
   while (nowMs() < deadline) {
     try {
-      if (fs.existsSync(socketPath)) {
+      if (process.platform === 'win32' || fs.existsSync(socketPath)) {
         const ready = await canConnectUnixSocket(socketPath);
         if (ready) return true;
       }

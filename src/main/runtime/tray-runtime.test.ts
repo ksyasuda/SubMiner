@@ -57,6 +57,7 @@ test('tray menu template contains expected entries and handlers', () => {
     false,
   );
   assert.equal(template[0]!.label, 'Open Help');
+  assert.equal(template[3]!.label, 'Open SubMiner Setup');
   const discovery = template.find((entry) => entry.label === 'Jellyfin Discovery');
   assert.equal(discovery?.type, 'checkbox');
   assert.equal(discovery?.checked, false);
@@ -102,7 +103,7 @@ test('tray menu template omits first-run setup entry when setup is complete', ()
     .filter(Boolean);
 
   assert.equal(labels.includes('Complete Setup'), false);
-  assert.equal(labels.includes('Manage Windows mpv launcher'), false);
+  assert.equal(labels.includes('Open SubMiner Setup'), false);
   assert.equal(labels.includes('Jellyfin Discovery'), false);
 });
 

@@ -33,6 +33,30 @@ local MODIFIER_MAP = {
 	meta = "Meta",
 }
 
+local SHIFTED_KEY_NAME_MAP = {
+	Digit1 = "!",
+	Digit2 = "@",
+	Digit3 = "SHARP",
+	Digit4 = "$",
+	Digit5 = "%",
+	Digit6 = "^",
+	Digit7 = "&",
+	Digit8 = "*",
+	Digit9 = "(",
+	Digit0 = ")",
+	Minus = "_",
+	Equal = "+",
+	BracketLeft = "{",
+	BracketRight = "}",
+	Backslash = "|",
+	Semicolon = ":",
+	Quote = '"',
+	Comma = "<",
+	Period = ">",
+	Slash = "?",
+	Backquote = "~",
+}
+
 function M.create(ctx)
 	local mp = ctx.mp
 	local utils = ctx.utils
@@ -84,7 +108,22 @@ function M.create(ctx)
 		return nil
 	end
 
-	local function key_spec_to_mpv_binding(key)
+	local function contains_value(values, target)
+		for _, value in ipairs(values) do
+			if value == target then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function append_unique(values, value)
+		if not contains_value(values, value) then
+			values[#values + 1] = value
+		end
+	end
+
+	local function key_spec_to_mpv_bindings(key)
 		if type(key) ~= "table" then
 			return nil
 		end
@@ -123,7 +162,24 @@ function M.create(ctx)
 			end
 		end
 		parts[#parts + 1] = key_name
-		return table.concat(parts, "+")
+		local bindings = { table.concat(parts, "+") }
+
+		local shifted_key_name = SHIFTED_KEY_NAME_MAP[key.code]
+		if has_shift and shifted_key_name then
+			local shifted_parts = {}
+			for _, modifier in ipairs(key.modifiers) do
+				if modifier ~= "shift" then
+					local mapped = MODIFIER_MAP[modifier]
+					if mapped then
+						shifted_parts[#shifted_parts + 1] = mapped
+					end
+				end
+			end
+			shifted_parts[#shifted_parts + 1] = shifted_key_name
+			append_unique(bindings, table.concat(shifted_parts, "+"))
+		end
+
+		return bindings
 	end
 
 	local function build_cli_args(action_id, payload)
@@ -294,13 +350,20 @@ function M.create(ctx)
 		local generation = state.session_binding_generation
 
 		for index, binding in ipairs(artifact.bindings) do
-			local key_name = key_spec_to_mpv_binding(binding.key)
-			if key_name then
-				local name = "subminer-session-binding-" .. tostring(generation) .. "-" .. tostring(index)
-				next_binding_names[#next_binding_names + 1] = name
-				mp.add_forced_key_binding(key_name, name, function()
-					handle_binding(binding)
-				end)
+			local key_names = key_spec_to_mpv_bindings(binding.key)
+			if key_names then
+				for key_index, key_name in ipairs(key_names) do
+					local name = "subminer-session-binding-"
+						.. tostring(generation)
+						.. "-"
+						.. tostring(index)
+						.. "-"
+						.. tostring(key_index)
+					next_binding_names[#next_binding_names + 1] = name
+					mp.add_forced_key_binding(key_name, name, function()
+						handle_binding(binding)
+					end)
+				end
 			else
 				subminer_log(
 					"warn",

@@ -139,13 +139,38 @@ export function failureMessage(result: RunCommandResult, fallback: string): stri
   return detail ? `${fallback}: ${detail}` : fallback;
 }
 
+function needsWindowsShell(command: string): boolean {
+  return process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
+}
+
+function quoteForWindowsShell(value: string): string {
+  return `"${value.replace(/([&|<>^%!])/g, '^$1').replace(/"/g, '""')}"`;
+}
+
 function createDefaultRunCommand(): RunCommand {
   return (command, args, options = {}) =>
     new Promise((resolve) => {
-      const child = spawn(command, args, {
-        env: options.env ?? process.env,
-        windowsHide: false,
-      });
+      const useShell = needsWindowsShell(command);
+      let child: ReturnType<typeof spawn>;
+      try {
+        child = useShell
+          ? spawn(quoteForWindowsShell(command), args.map(quoteForWindowsShell), {
+              env: options.env ?? process.env,
+              windowsHide: false,
+              shell: true,
+            })
+          : spawn(command, args, {
+              env: options.env ?? process.env,
+              windowsHide: false,
+            });
+      } catch (error) {
+        resolve({
+          exitCode: 1,
+          stdout: '',
+          stderr: error instanceof Error ? error.message : String(error),
+        });
+        return;
+      }
       let stdout = '';
       let stderr = '';
       const timeout = setTimeout(() => {

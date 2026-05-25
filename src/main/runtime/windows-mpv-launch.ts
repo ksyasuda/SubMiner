@@ -143,6 +143,7 @@ export function buildWindowsMpvLaunchArgs(
     '--sub-file-paths=subs;subtitles',
     '--sid=auto',
     '--secondary-sid=auto',
+    '--sub-visibility=no',
     '--secondary-sub-visibility=no',
     ...(scriptOpts ? [scriptOpts] : []),
     ...buildMpvLaunchModeArgs(launchMode),

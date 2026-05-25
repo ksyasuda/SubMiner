@@ -1,9 +1,7 @@
-import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { app, dialog, shell } from 'electron';
 import { printHelp } from './cli/help';
-import { loadRawConfigStrict } from './config/load';
 import {
   configureEarlyAppPaths,
   normalizeLaunchMpvExtraArgs,
@@ -22,6 +20,7 @@ import {
   shouldHandleStatsDaemonCommandAtEntry,
 } from './main-entry-runtime';
 import { requestSingleInstanceLockEarly } from './main/early-single-instance';
+import { readConfiguredWindowsMpvLaunch } from './main-entry-launch-config';
 import { sendAppControlCommand } from './shared/app-control-client';
 import {
   detectInstalledFirstRunPluginCandidates,
@@ -30,7 +29,6 @@ import {
   resolvePackagedRuntimePluginPath,
 } from './main/runtime/first-run-setup-plugin';
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
-import { parseMpvLaunchMode } from './shared/mpv-launch-mode';
 import { runStatsDaemonControlFromProcess } from './stats-daemon-entry';
 import { createFatalErrorReporter, registerFatalErrorHandlers } from './main/fatal-error';
 
@@ -150,31 +148,6 @@ function createWindowsRuntimePluginPolicy() {
   };
 }
 
-function readConfiguredWindowsMpvLaunch(configDir: string): {
-  executablePath: string;
-  launchMode: 'normal' | 'maximized' | 'fullscreen';
-} {
-  const loadResult = loadRawConfigStrict({
-    configDir,
-    configFileJsonc: path.join(configDir, 'config.jsonc'),
-    configFileJson: path.join(configDir, 'config.json'),
-  });
-  if (!loadResult.ok) {
-    return {
-      executablePath: '',
-      launchMode: 'normal',
-    };
-  }
-
-  return {
-    executablePath:
-      typeof loadResult.config.mpv?.executablePath === 'string'
-        ? loadResult.config.mpv.executablePath.trim()
-        : '',
-    launchMode: parseMpvLaunchMode(loadResult.config.mpv?.launchMode) ?? 'normal',
-  };
-}
-
 process.argv = normalizeStartupArgv(process.argv, process.env);
 applyEarlyLinuxCommandLineSwitches(app.commandLine, process.argv);
 applySanitizedEnv(sanitizeStartupEnv(process.env));
@@ -226,31 +199,22 @@ async function forwardStartupArgvViaAppControlIfAvailable(): Promise<boolean> {
   return false;
 }
 
-if (shouldDetachBackgroundLaunch(process.argv, process.env)) {
-  const childArgs = hasTransportedStartupArgs(process.env) ? [] : process.argv.slice(1);
-  const child = spawn(process.execPath, childArgs, {
-    detached: true,
-    stdio: 'ignore',
-    env: sanitizeBackgroundEnv(process.env),
-  });
-  child.unref();
-  process.exit(0);
-}
-
-if (shouldHandleHelpOnlyAtEntry(process.argv, process.env)) {
-  const sanitizedEnv = sanitizeHelpEnv(process.env);
-  process.env.NODE_NO_WARNINGS = sanitizedEnv.NODE_NO_WARNINGS;
-  if (!sanitizedEnv.VK_INSTANCE_LAYERS) {
-    delete process.env.VK_INSTANCE_LAYERS;
+async function runEntryProcess(): Promise<void> {
+  if (shouldHandleHelpOnlyAtEntry(process.argv, process.env)) {
+    const sanitizedEnv = sanitizeHelpEnv(process.env);
+    process.env.NODE_NO_WARNINGS = sanitizedEnv.NODE_NO_WARNINGS;
+    if (!sanitizedEnv.VK_INSTANCE_LAYERS) {
+      delete process.env.VK_INSTANCE_LAYERS;
+    }
+    printHelp(DEFAULT_TEXTHOOKER_PORT);
+    process.exit(0);
+    return;
   }
-  printHelp(DEFAULT_TEXTHOOKER_PORT);
-  process.exit(0);
-}
 
-if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
-  const sanitizedEnv = sanitizeLaunchMpvEnv(process.env);
-  applySanitizedEnv(sanitizedEnv);
-  void app.whenReady().then(async () => {
+  if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
+    const sanitizedEnv = sanitizeLaunchMpvEnv(process.env);
+    applySanitizedEnv(sanitizedEnv);
+    await app.whenReady();
     const configuredMpvLaunch = readConfiguredWindowsMpvLaunch(userDataPath);
     const result = await launchWindowsMpv(
       normalizeLaunchMpvTargets(process.argv),
@@ -266,23 +230,39 @@ if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
       configuredMpvLaunch.executablePath,
       configuredMpvLaunch.launchMode,
       createWindowsRuntimePluginPolicy(),
+      configuredMpvLaunch.pluginRuntimeConfig,
     );
     app.exit(result.ok ? 0 : 1);
-  });
-} else if (shouldHandleStatsDaemonCommandAtEntry(process.argv, process.env)) {
-  void app.whenReady().then(async () => {
+    return;
+  }
+
+  if (shouldHandleStatsDaemonCommandAtEntry(process.argv, process.env)) {
+    await app.whenReady();
     const exitCode = await runStatsDaemonControlFromProcess(app.getPath('userData'));
     app.exit(exitCode);
-  });
-} else {
-  void forwardStartupArgvViaAppControlIfAvailable()
-    .then((forwarded) => {
-      if (!forwarded) {
-        startMainProcess();
-      }
-    })
-    .catch((error) => {
-      console.error('SubMiner app-control handoff failed:', error);
-      startMainProcess();
+    return;
+  }
+
+  if (await forwardStartupArgvViaAppControlIfAvailable()) {
+    return;
+  }
+
+  if (shouldDetachBackgroundLaunch(process.argv, process.env)) {
+    const childArgs = hasTransportedStartupArgs(process.env) ? [] : process.argv.slice(1);
+    const child = spawn(process.execPath, childArgs, {
+      detached: true,
+      stdio: 'ignore',
+      env: sanitizeBackgroundEnv(process.env),
     });
+    child.unref();
+    process.exit(0);
+    return;
+  }
+
+  startMainProcess();
 }
+
+void runEntryProcess().catch((error) => {
+  console.error('SubMiner app-control handoff failed:', error);
+  startMainProcess();
+});

@@ -66,7 +66,8 @@ test('build tray template handler wires actions and init guards', () => {
     openTexthookerInBrowser: () => calls.push('texthooker'),
     showTexthookerPage: () => true,
     showFirstRunSetup: () => true,
-    openFirstRunSetupWindow: () => calls.push('setup'),
+    openFirstRunSetupWindow: (force?: boolean) =>
+      calls.push(force ? 'setup-forced' : 'setup'),
     showWindowsMpvLauncherSetup: () => true,
     openYomitanSettings: () => calls.push('yomitan'),
     openConfigSettingsWindow: () => calls.push('configuration'),
@@ -91,7 +92,7 @@ test('build tray template handler wires actions and init guards', () => {
     'texthooker',
     'show-texthooker:true',
     'setup',
-    'setup',
+    'setup-forced',
     'yomitan',
     'configuration',
     'jellyfin',
@@ -100,6 +101,42 @@ test('build tray template handler wires actions and init guards', () => {
     'updates',
     'quit',
   ]);
+});
+
+test('windows mpv launcher tray action force-opens completed setup', () => {
+  const calls: string[] = [];
+  const buildTemplate = createBuildTrayMenuTemplateHandler({
+    buildTrayMenuTemplateRuntime: (handlers) => {
+      assert.equal(handlers.showFirstRunSetup, false);
+      assert.equal(handlers.showWindowsMpvLauncherSetup, true);
+      handlers.openWindowsMpvLauncherSetup();
+      return [{ label: 'ok' }] as never;
+    },
+    initializeOverlayRuntime: () => calls.push('init'),
+    isOverlayRuntimeInitialized: () => true,
+    openSessionHelpModal: () => calls.push('help'),
+    openTexthookerInBrowser: () => calls.push('texthooker'),
+    showTexthookerPage: () => true,
+    showFirstRunSetup: () => false,
+    openFirstRunSetupWindow: (force?: boolean) =>
+      calls.push(force ? 'setup-forced' : 'setup'),
+    showWindowsMpvLauncherSetup: () => true,
+    openYomitanSettings: () => calls.push('yomitan'),
+    openConfigSettingsWindow: () => calls.push('configuration'),
+    openJellyfinSetupWindow: () => calls.push('jellyfin'),
+    isJellyfinConfigured: () => false,
+    isJellyfinDiscoveryActive: () => false,
+    toggleJellyfinDiscovery: () => {
+      calls.push('jellyfin-discovery');
+    },
+    platform: 'win32',
+    openAnilistSetupWindow: () => calls.push('anilist'),
+    checkForUpdates: () => calls.push('updates'),
+    quitApp: () => calls.push('quit'),
+  });
+
+  assert.deepEqual(buildTemplate(), [{ label: 'ok' }]);
+  assert.deepEqual(calls, ['setup-forced']);
 });
 
 test('texthooker tray visibility follows websocket server enabled state', () => {

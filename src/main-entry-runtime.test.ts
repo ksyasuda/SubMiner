@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
+import { DEFAULT_CONFIG } from './config/definitions';
+import { readConfiguredWindowsMpvLaunch } from './main-entry-launch-config';
 import {
   configureEarlyAppPaths,
   normalizeLaunchMpvExtraArgs,
@@ -146,7 +151,7 @@ test('applyEarlyLinuxCommandLineSwitches appends password store before main star
   ]);
 });
 
-test('transported AppImage visibility commands should forward through app control', () => {
+test('transported AppImage visibility commands forward through app control', () => {
   assert.equal(
     shouldForwardStartupArgvViaAppControl(['SubMiner.AppImage', '--hide-visible-overlay'], {
       SUBMINER_APP_ARGC: '1',
@@ -156,9 +161,35 @@ test('transported AppImage visibility commands should forward through app contro
   );
 });
 
-test('app control forwarding is only for transported runtime commands', () => {
+test('direct runtime commands forward through app control', () => {
   assert.equal(
     shouldForwardStartupArgvViaAppControl(['SubMiner.AppImage', '--hide-visible-overlay'], {}),
+    true,
+  );
+  assert.equal(
+    shouldForwardStartupArgvViaAppControl(
+      ['SubMiner.exe', '--start', '--socket', '\\\\.\\pipe\\subminer-socket'],
+      {},
+    ),
+    true,
+  );
+  assert.equal(shouldForwardStartupArgvViaAppControl(['SubMiner.exe', '--settings'], {}), true);
+  assert.equal(shouldForwardStartupArgvViaAppControl(['SubMiner.exe', '--stop'], {}), true);
+});
+
+test('entry-only and internal commands do not forward through app control', () => {
+  assert.equal(shouldForwardStartupArgvViaAppControl(['SubMiner.exe'], {}), false);
+  assert.equal(shouldForwardStartupArgvViaAppControl(['SubMiner.exe', '--help'], {}), false);
+  assert.equal(
+    shouldForwardStartupArgvViaAppControl(['SubMiner.exe', '--generate-config'], {}),
+    false,
+  );
+  assert.equal(
+    shouldForwardStartupArgvViaAppControl(['SubMiner.exe', '--stats-daemon-start'], {}),
+    false,
+  );
+  assert.equal(
+    shouldForwardStartupArgvViaAppControl(['SubMiner.exe', '--stats', '--stats-background'], {}),
     false,
   );
   assert.equal(
@@ -172,6 +203,12 @@ test('app control forwarding is only for transported runtime commands', () => {
     shouldForwardStartupArgvViaAppControl(['SubMiner.AppImage', '--launch-mpv'], {
       SUBMINER_APP_ARGC: '1',
       SUBMINER_APP_ARG_0: '--launch-mpv',
+    }),
+    false,
+  );
+  assert.equal(
+    shouldForwardStartupArgvViaAppControl(['SubMiner.exe', '--start'], {
+      ELECTRON_RUN_AS_NODE: '1',
     }),
     false,
   );
@@ -267,6 +304,73 @@ test('launch-mpv entry helpers detect and normalize targets', () => {
     ]),
     ['--msg-level', 'all=warn'],
   );
+});
+
+test('readConfiguredWindowsMpvLaunch includes defaults for runtime plugin script opts', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-entry-config-'));
+  try {
+    const launch = readConfiguredWindowsMpvLaunch(tempDir);
+
+    assert.equal(launch.executablePath, DEFAULT_CONFIG.mpv.executablePath);
+    assert.equal(launch.launchMode, DEFAULT_CONFIG.mpv.launchMode);
+    assert.deepEqual(launch.pluginRuntimeConfig, {
+      socketPath: DEFAULT_CONFIG.mpv.socketPath,
+      binaryPath: DEFAULT_CONFIG.mpv.subminerBinaryPath,
+      backend: DEFAULT_CONFIG.mpv.backend,
+      autoStart: DEFAULT_CONFIG.mpv.autoStartSubMiner,
+      autoStartVisibleOverlay: DEFAULT_CONFIG.auto_start_overlay,
+      autoStartPauseUntilReady: DEFAULT_CONFIG.mpv.pauseUntilOverlayReady,
+      texthookerEnabled: DEFAULT_CONFIG.texthooker.launchAtStartup,
+      aniskipEnabled: DEFAULT_CONFIG.mpv.aniskipEnabled,
+      aniskipButtonKey: DEFAULT_CONFIG.mpv.aniskipButtonKey,
+    });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('readConfiguredWindowsMpvLaunch preserves configured runtime plugin script opts', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-entry-config-'));
+  try {
+    fs.writeFileSync(
+      path.join(tempDir, 'config.jsonc'),
+      JSON.stringify({
+        auto_start_overlay: false,
+        texthooker: {
+          launchAtStartup: true,
+        },
+        mpv: {
+          executablePath: '  C:\\tools\\mpv.exe  ',
+          launchMode: 'maximized',
+          socketPath: '\\\\.\\pipe\\custom-subminer-socket',
+          backend: 'windows',
+          autoStartSubMiner: false,
+          pauseUntilOverlayReady: false,
+          subminerBinaryPath: 'C:\\SubMiner\\Custom.exe',
+          aniskipEnabled: false,
+          aniskipButtonKey: 'F8',
+        },
+      }),
+    );
+
+    const launch = readConfiguredWindowsMpvLaunch(tempDir);
+
+    assert.equal(launch.executablePath, 'C:\\tools\\mpv.exe');
+    assert.equal(launch.launchMode, 'maximized');
+    assert.deepEqual(launch.pluginRuntimeConfig, {
+      socketPath: '\\\\.\\pipe\\custom-subminer-socket',
+      binaryPath: 'C:\\SubMiner\\Custom.exe',
+      backend: 'windows',
+      autoStart: false,
+      autoStartVisibleOverlay: false,
+      autoStartPauseUntilReady: false,
+      texthookerEnabled: true,
+      aniskipEnabled: false,
+      aniskipButtonKey: 'F8',
+    });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('stats-daemon entry helper detects internal daemon commands', () => {

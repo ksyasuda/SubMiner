@@ -13,6 +13,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
 
   const build = createBuildCliCommandContextMainDepsHandler({
     appState,
+    onMpvSocketPathChanged: (next, previous) => calls.push(`socket:${previous}->${next}`),
     texthookerService: { isRunning: () => false, start: () => null },
     getResolvedConfig: () => ({
       texthooker: { openBrowser: true },
@@ -121,6 +122,10 @@ test('cli command context main deps builder maps state and callbacks', async () 
   assert.equal(deps.getSocketPath(), '/tmp/mpv.sock');
   deps.setSocketPath('/tmp/next.sock');
   assert.equal(appState.mpvSocketPath, '/tmp/next.sock');
+  assert.deepEqual(calls, ['socket:/tmp/mpv.sock->/tmp/next.sock']);
+  deps.setSocketPath('/tmp/next.sock');
+  assert.deepEqual(calls, ['socket:/tmp/mpv.sock->/tmp/next.sock']);
+  calls.length = 0;
   assert.equal(deps.getTexthookerPort(), 5174);
   deps.setTexthookerPort(5175);
   assert.equal(appState.texthookerPort, 5175);

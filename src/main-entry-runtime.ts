@@ -154,10 +154,9 @@ export function shouldForwardStartupArgvViaAppControl(
   env: NodeJS.ProcessEnv,
 ): boolean {
   if (env.ELECTRON_RUN_AS_NODE === '1') return false;
-  if (!hasTransportedStartupArgs(env)) return false;
 
   const args = parseCliArgs(argv);
-  if (args.help || args.appPing || args.launchMpv) return false;
+  if (args.help || args.appPing || args.launchMpv || args.generateConfig) return false;
   if (resolveStatsDaemonCommandAction(argv) !== null) return false;
 
   return hasExplicitCommand(args);

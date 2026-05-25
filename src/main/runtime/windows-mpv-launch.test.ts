@@ -72,6 +72,7 @@ test('buildWindowsMpvLaunchArgs uses explicit SubMiner defaults and targets', ()
       '--sub-file-paths=subs;subtitles',
       '--sid=auto',
       '--secondary-sid=auto',
+      '--sub-visibility=no',
       '--secondary-sub-visibility=no',
       '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket',
       'C:\\a.mkv',
@@ -100,6 +101,7 @@ test('buildWindowsMpvLaunchArgs inserts maximized launch mode before explicit ex
       '--sub-file-paths=subs;subtitles',
       '--sid=auto',
       '--secondary-sid=auto',
+      '--sub-visibility=no',
       '--secondary-sub-visibility=no',
       '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket',
       '--window-maximized=yes',
@@ -129,6 +131,7 @@ test('buildWindowsMpvLaunchArgs keeps shortcut-only launches in idle mode', () =
       '--sub-file-paths=subs;subtitles',
       '--sid=auto',
       '--secondary-sid=auto',
+      '--sub-visibility=no',
       '--secondary-sub-visibility=no',
       '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket',
     ],
@@ -154,6 +157,7 @@ test('buildWindowsMpvLaunchArgs mirrors a custom input-ipc-server into script op
       '--sub-file-paths=subs;subtitles',
       '--sid=auto',
       '--secondary-sid=auto',
+      '--sub-visibility=no',
       '--secondary-sub-visibility=no',
       '--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\custom-subminer-socket',
       '--input-ipc-server',
@@ -182,6 +186,7 @@ test('buildWindowsMpvLaunchArgs includes socket script opts when plugin entrypoi
       '--sub-file-paths=subs;subtitles',
       '--sid=auto',
       '--secondary-sid=auto',
+      '--sub-visibility=no',
       '--secondary-sub-visibility=no',
       '--script-opts=subminer-socket_path=\\\\.\\pipe\\custom-subminer-socket',
       '--input-ipc-server',
@@ -223,6 +228,31 @@ test('buildWindowsMpvLaunchArgs uses runtime plugin config script opts', () => {
   assert.match(scriptOpts ?? '', /subminer-aniskip_button_key=F8/);
 });
 
+test('buildWindowsMpvLaunchArgs keeps Windows ipc default unless explicitly overridden', () => {
+  const args = buildWindowsMpvLaunchArgs(
+    ['C:\\video.mkv'],
+    [],
+    'C:\\SubMiner\\SubMiner.exe',
+    'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    'normal',
+    {
+      socketPath: 'C:\\Users\\tester\\AppData\\Local\\Temp\\subminer-smoke-sock\\subminer.sock',
+      binaryPath: '',
+      backend: 'windows',
+      autoStart: true,
+      autoStartVisibleOverlay: true,
+      autoStartPauseUntilReady: true,
+      texthookerEnabled: false,
+      aniskipEnabled: true,
+      aniskipButtonKey: 'F7',
+    },
+  );
+
+  assert.ok(args.includes('--input-ipc-server=\\\\.\\pipe\\subminer-socket'));
+  const scriptOpts = args.find((arg) => arg.startsWith('--script-opts='));
+  assert.match(scriptOpts ?? '', /subminer-socket_path=\\\\\.\\pipe\\subminer-socket/);
+});
+
 test('launchWindowsMpv reports missing mpv path', async () => {
   const errors: string[] = [];
   const result = await launchWindowsMpv(
@@ -258,7 +288,7 @@ test('launchWindowsMpv spawns detached mpv with targets', async () => {
   assert.equal(result.mpvPath, 'C:\\mpv\\mpv.exe');
   assert.deepEqual(calls, [
     'C:\\mpv\\mpv.exe',
-    '--player-operation-mode=pseudo-gui|--force-window=immediate|--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua|--input-ipc-server=\\\\.\\pipe\\subminer-socket|--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--sub-auto=fuzzy|--sub-file-paths=subs;subtitles|--sid=auto|--secondary-sid=auto|--secondary-sub-visibility=no|--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket|C:\\video.mkv',
+    '--player-operation-mode=pseudo-gui|--force-window=immediate|--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua|--input-ipc-server=\\\\.\\pipe\\subminer-socket|--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--sub-auto=fuzzy|--sub-file-paths=subs;subtitles|--sid=auto|--secondary-sid=auto|--sub-visibility=no|--secondary-sub-visibility=no|--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket|C:\\video.mkv',
   ]);
 });
 
