@@ -1,6 +1,7 @@
 import electron from 'electron';
 import type { BrowserWindow, Extension, Menu, MenuItemConstructorOptions, Session } from 'electron';
 import { createLogger } from '../../logger';
+import { promoteSettingsWindowAboveOverlay } from './settings-window-z-order';
 
 const { BrowserWindow: ElectronBrowserWindow, Menu: ElectronMenu, session } = electron;
 const logger = createLogger('main:yomitan-settings');
@@ -136,7 +137,12 @@ export function buildYomitanSettingsUrl(extensionId: string): string {
   return `chrome-extension://${extensionId}/settings.html?popup-preview=false`;
 }
 
-export function showYomitanSettingsWindow(settingsWindow: BrowserWindow): void {
+export function showYomitanSettingsWindow(
+  settingsWindow: BrowserWindow,
+  options: {
+    promoteSettingsWindowAboveOverlay?: (settingsWindow: BrowserWindow) => void;
+  } = {},
+): void {
   if (settingsWindow.isDestroyed()) {
     return;
   }
@@ -148,6 +154,7 @@ export function showYomitanSettingsWindow(settingsWindow: BrowserWindow): void {
   settingsWindow.webContents.invalidate();
   settingsWindow.show();
   settingsWindow.focus();
+  (options.promoteSettingsWindowAboveOverlay ?? promoteSettingsWindowAboveOverlay)(settingsWindow);
 }
 
 export function destroyYomitanSettingsWindow(settingsWindow: BrowserWindow | null): boolean {
@@ -177,6 +184,7 @@ export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOpti
   logger.info('Creating new settings window for extension:', options.yomitanExt.id);
 
   const settingsWindow = new ElectronBrowserWindow({
+    title: 'Yomitan Settings',
     width: 1200,
     height: 800,
     show: false,

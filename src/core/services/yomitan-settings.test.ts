@@ -106,20 +106,32 @@ test('yomitan settings URL disables the embedded popup preview', () => {
 test('showYomitanSettingsWindow restores, repaints, shows, and focuses an existing window', () => {
   const calls: string[] = [];
 
-  showYomitanSettingsWindow({
-    isDestroyed: () => false,
-    isMinimized: () => true,
-    restore: () => calls.push('restore'),
-    getSize: () => [1200, 800],
-    setSize: (width: number, height: number) => calls.push(`set-size:${width}x${height}`),
-    webContents: {
-      invalidate: () => calls.push('invalidate'),
+  showYomitanSettingsWindow(
+    {
+      isDestroyed: () => false,
+      isMinimized: () => true,
+      restore: () => calls.push('restore'),
+      getSize: () => [1200, 800],
+      setSize: (width: number, height: number) => calls.push(`set-size:${width}x${height}`),
+      webContents: {
+        invalidate: () => calls.push('invalidate'),
+      },
+      show: () => calls.push('show'),
+      focus: () => calls.push('focus'),
+    } as never,
+    {
+      promoteSettingsWindowAboveOverlay: () => calls.push('promote'),
     },
-    show: () => calls.push('show'),
-    focus: () => calls.push('focus'),
-  } as never);
+  );
 
-  assert.deepEqual(calls, ['restore', 'set-size:1200x800', 'invalidate', 'show', 'focus']);
+  assert.deepEqual(calls, [
+    'restore',
+    'set-size:1200x800',
+    'invalidate',
+    'show',
+    'focus',
+    'promote',
+  ]);
 });
 
 test('destroyYomitanSettingsWindow destroys a live settings window before app quit', () => {

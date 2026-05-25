@@ -6,6 +6,7 @@ test('createOpenConfigSettingsWindowHandler focuses existing settings window', (
   const calls: string[] = [];
   const existing = {
     isDestroyed: () => false,
+    show: () => calls.push('show'),
     focus: () => calls.push('focus'),
     loadFile: () => calls.push('load'),
     on: () => {},
@@ -18,10 +19,11 @@ test('createOpenConfigSettingsWindowHandler focuses existing settings window', (
       throw new Error('Should not create a second window.');
     },
     settingsHtmlPath: '/tmp/settings.html',
+    promoteSettingsWindowAboveOverlay: () => calls.push('promote'),
   });
 
   assert.equal(open(), true);
-  assert.deepEqual(calls, ['focus']);
+  assert.deepEqual(calls, ['show', 'focus', 'promote']);
 });
 
 test('createOpenConfigSettingsWindowHandler creates window and clears closed state', () => {
@@ -29,6 +31,7 @@ test('createOpenConfigSettingsWindowHandler creates window and clears closed sta
   const handlers: { closed?: () => void } = {};
   const created = {
     isDestroyed: () => false,
+    show: () => calls.push('show'),
     focus: () => calls.push('focus'),
     loadFile: (path: string) => calls.push(`load:${path}`),
     on: (event: string, handler: () => void) => {
@@ -41,10 +44,11 @@ test('createOpenConfigSettingsWindowHandler creates window and clears closed sta
     setSettingsWindow: (window) => calls.push(window ? 'set:window' : 'set:null'),
     createSettingsWindow: () => created,
     settingsHtmlPath: '/tmp/settings.html',
+    promoteSettingsWindowAboveOverlay: () => calls.push('promote'),
   });
 
   assert.equal(open(), true);
-  assert.deepEqual(calls, ['load:/tmp/settings.html', 'set:window', 'focus']);
+  assert.deepEqual(calls, ['load:/tmp/settings.html', 'set:window', 'show', 'focus', 'promote']);
   assert.ok(handlers.closed);
   handlers.closed();
   assert.equal(calls.at(-1), 'set:null');
@@ -54,6 +58,7 @@ test('createOpenConfigSettingsWindowHandler clears failed load window state', as
   const calls: string[] = [];
   const created = {
     isDestroyed: () => false,
+    show: () => calls.push('show'),
     focus: () => calls.push('focus'),
     loadFile: (path: string) => {
       calls.push(`load:${path}`);
@@ -76,6 +81,7 @@ test('createOpenConfigSettingsWindowHandler clears failed load window state', as
   assert.deepEqual(calls, [
     'load:/tmp/missing-settings.html',
     'set:window',
+    'show',
     'focus',
     'set:null',
     'destroy',

@@ -2,6 +2,7 @@ interface SetupWindowConfig {
   width: number;
   height: number;
   title: string;
+  show?: boolean;
   resizable?: boolean;
   minimizable?: boolean;
   maximizable?: boolean;
@@ -19,7 +20,7 @@ function createSetupWindowHandler<TWindow>(
       width: config.width,
       height: config.height,
       title: config.title,
-      show: true,
+      show: config.show ?? true,
       autoHideMenuBar: true,
       ...(config.resizable === undefined ? {} : { resizable: config.resizable }),
       ...(config.minimizable === undefined ? {} : { minimizable: config.minimizable }),
@@ -77,6 +78,7 @@ export function createCreateConfigSettingsWindowHandler<TWindow>(deps: {
     width: 1040,
     height: 760,
     title: 'SubMiner Settings',
+    show: false,
     resizable: true,
     preloadPath: deps.preloadPath,
     backgroundColor: '#24273a',

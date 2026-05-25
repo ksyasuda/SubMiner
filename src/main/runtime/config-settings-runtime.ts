@@ -56,6 +56,7 @@ export interface ConfigSettingsRuntimeDeps<TWindow extends ConfigSettingsWindowL
   setSettingsWindow(window: TWindow | null): void;
   createSettingsWindow(): TWindow;
   settingsHtmlPath: string;
+  promoteSettingsWindowAboveOverlay?: (window: TWindow) => void;
   openPath(path: string): Promise<string>;
   defaultAnkiConnectUrl: string;
   createAnkiClient(url: string): ConfigSettingsAnkiClient;
@@ -144,6 +145,7 @@ export function createConfigSettingsRuntime<TWindow extends ConfigSettingsWindow
     setSettingsWindow: deps.setSettingsWindow,
     createSettingsWindow: deps.createSettingsWindow,
     settingsHtmlPath: deps.settingsHtmlPath,
+    promoteSettingsWindowAboveOverlay: deps.promoteSettingsWindowAboveOverlay,
     log: deps.log,
   });
 

@@ -176,7 +176,25 @@ test('app command starts default macOS background app detached from launcher', (
   const calls: string[] = [];
 
   const handled = runAppPassthroughCommand(context, {
-    platform: () => 'darwin',
+    runAppCommandWithInherit: () => {
+      calls.push('attached');
+    },
+    launchAppBackgroundDetached: (appPath, logLevel) => {
+      calls.push(`detached:${appPath}:${logLevel}`);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(calls, ['detached:/tmp/subminer.app:info']);
+});
+
+test('app command starts default Linux background app detached from launcher', () => {
+  const context = createContext();
+  context.args.appPassthrough = true;
+  context.args.appArgs = [];
+  const calls: string[] = [];
+
+  const handled = runAppPassthroughCommand(context, {
     runAppCommandWithInherit: () => {
       calls.push('attached');
     },
@@ -197,7 +215,6 @@ test('app command keeps explicit passthrough args attached', () => {
   const detached: string[] = [];
 
   const handled = runAppPassthroughCommand(context, {
-    platform: () => 'darwin',
     runAppCommandWithInherit: (_appPath, appArgs) => {
       forwarded.push(appArgs);
     },

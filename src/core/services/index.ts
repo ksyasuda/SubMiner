@@ -28,6 +28,7 @@ export {
   shouldAutoInitializeOverlayRuntimeFromConfig,
 } from './startup';
 export { destroyYomitanSettingsWindow, openYomitanSettingsWindow } from './yomitan-settings';
+export { promoteSettingsWindowAboveOverlay } from './settings-window-z-order';
 export { createTokenizerDepsRuntime, tokenizeSubtitle } from './tokenizer';
 export {
   addYomitanNoteViaSearch,
