@@ -51,11 +51,18 @@ function loadOverlayWindowLayer(window: BrowserWindow, layer: OverlayWindowKind)
 export function updateOverlayWindowBounds(
   geometry: WindowGeometry,
   window: BrowserWindow | null,
+  options: {
+    promote?: boolean;
+  } = {},
 ): void {
   if (!geometry || !window || window.isDestroyed()) return;
   const bounds = normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen);
   window.setBounds(bounds);
-  ensureHyprlandWindowFloatingByTitle({ title: window.getTitle(), bounds });
+  ensureHyprlandWindowFloatingByTitle({
+    title: window.getTitle(),
+    bounds,
+    promote: options.promote,
+  });
 }
 
 export function ensureOverlayWindowLevel(window: BrowserWindow): void {

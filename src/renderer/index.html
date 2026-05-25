@@ -200,29 +200,61 @@
       <div id="characterDictionaryModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content character-dictionary-content">
           <div class="modal-header">
-            <div class="modal-title">Character Dictionary Anime</div>
+            <div class="modal-title">Character Dictionary Management</div>
             <button id="characterDictionaryClose" class="modal-close" type="button">Close</button>
           </div>
           <div class="modal-body">
-            <div id="characterDictionarySummary" class="runtime-options-hint"></div>
-            <div class="character-dictionary-search">
-              <input
-                id="characterDictionarySearchInput"
-                class="character-dictionary-search-input"
-                type="text"
-                aria-label="Search character dictionary"
-                autocomplete="off"
-              />
+            <div
+              class="character-dictionary-tabs"
+              role="tablist"
+              aria-label="Character dictionary views"
+            >
               <button
-                id="characterDictionarySearchButton"
-                class="character-dictionary-use"
+                id="characterDictionaryOverrideTab"
+                class="character-dictionary-tab active"
                 type="button"
+                role="tab"
+                aria-selected="true"
               >
-                Search
+                Override
+              </button>
+              <button
+                id="characterDictionaryManageTab"
+                class="character-dictionary-tab"
+                type="button"
+                role="tab"
+                aria-selected="false"
+              >
+                Manage
               </button>
             </div>
-            <div id="characterDictionaryCurrent" class="character-dictionary-current"></div>
-            <ul id="characterDictionaryCandidates" class="character-dictionary-candidates"></ul>
+            <div id="characterDictionarySummary" class="runtime-options-hint"></div>
+            <div id="characterDictionarySearchPanel">
+              <div class="character-dictionary-search">
+                <input
+                  id="characterDictionarySearchInput"
+                  class="character-dictionary-search-input"
+                  type="text"
+                  aria-label="Search character dictionary"
+                  autocomplete="off"
+                />
+                <button
+                  id="characterDictionarySearchButton"
+                  class="character-dictionary-use"
+                  type="button"
+                >
+                  Search
+                </button>
+              </div>
+              <div id="characterDictionaryCurrent" class="character-dictionary-current"></div>
+              <ul id="characterDictionaryCandidates" class="character-dictionary-candidates"></ul>
+            </div>
+            <div id="characterDictionaryManagerPanel" class="hidden">
+              <ul
+                id="characterDictionaryManagedEntries"
+                class="character-dictionary-candidates character-dictionary-managed-entries"
+              ></ul>
+            </div>
             <div id="characterDictionaryStatus" class="runtime-options-status"></div>
           </div>
         </div>

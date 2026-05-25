@@ -35,6 +35,7 @@ function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     openSessionHelp: () => calls.push('session-help'),
     openCharacterDictionary: () => calls.push('character-dictionary'),
+    openCharacterDictionaryManager: () => calls.push('character-dictionary-manager'),
     openControllerSelect: () => calls.push('controller-select'),
     openControllerDebug: () => calls.push('controller-debug'),
     openJimaku: () => calls.push('jimaku'),
@@ -76,4 +77,12 @@ test('dispatchSessionAction does not advance playlist when mark watched no-ops',
   await dispatchSessionAction({ actionId: 'markWatched' }, deps);
 
   assert.deepEqual(calls, ['mark-watched']);
+});
+
+test('dispatchSessionAction opens the character dictionary manager', async () => {
+  const { calls, deps } = createDeps();
+
+  await dispatchSessionAction({ actionId: 'openCharacterDictionaryManager' }, deps);
+
+  assert.deepEqual(calls, ['character-dictionary-manager']);
 });

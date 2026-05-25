@@ -37,7 +37,7 @@ Set `refreshMinutes` to `1440` (24 hours) for daily sync if your Anki collection
 
 ## Character-Name Highlighting
 
-Character-name matches are built from the active merged SubMiner character dictionary, which auto-syncs character data from AniList for your recently-watched titles. Matching names are highlighted in subtitles and become available for hover-driven Yomitan character profiles — portraits, roles, voice actors, and biographical detail.
+Character-name matches are built from the active merged SubMiner character dictionary, which auto-syncs character data from AniList for your recently-watched titles. When the current AniList media ID is known, SubMiner ignores loaded entries from other titles for subtitle name matching and inline portraits. Matching names are highlighted in subtitles and become available for hover-driven Yomitan character profiles — portraits, roles, voice actors, and biographical detail.
 
 **How it works:**
 

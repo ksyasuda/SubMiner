@@ -3,7 +3,12 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import test from 'node:test';
-import { createCharacterDictionaryAutoSyncRuntimeService } from './character-dictionary-auto-sync';
+import {
+  createCharacterDictionaryAutoSyncRuntimeService,
+  getCharacterDictionaryManagerSnapshot,
+  moveCharacterDictionaryManagedEntry,
+  removeCharacterDictionaryManagedEntry,
+} from './character-dictionary-auto-sync';
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-char-dict-auto-sync-'));
@@ -16,6 +21,88 @@ function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void
   });
   return { promise, resolve };
 }
+
+test('character dictionary manager snapshots, reorders, and removes MRU entries', () => {
+  const userDataPath = makeTempDir();
+  const statePath = path.join(userDataPath, 'character-dictionaries', 'auto-sync-state.json');
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  fs.writeFileSync(
+    statePath,
+    JSON.stringify(
+      {
+        activeMediaIds: ['21202 - KonoSuba', '115230 - Tower of God', '130298 - Eminence'],
+        mergedRevision: 'rev-1',
+        mergedDictionaryTitle: 'SubMiner Character Dictionary',
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  assert.deepEqual(getCharacterDictionaryManagerSnapshot(userDataPath).entries, [
+    { mediaId: 21202, label: '21202 - KonoSuba', title: 'KonoSuba', current: true },
+    { mediaId: 115230, label: '115230 - Tower of God', title: 'Tower of God', current: false },
+    { mediaId: 130298, label: '130298 - Eminence', title: 'Eminence', current: false },
+  ]);
+
+  assert.deepEqual(moveCharacterDictionaryManagedEntry(userDataPath, 130298, -1), {
+    ok: true,
+    entries: [
+      { mediaId: 21202, label: '21202 - KonoSuba', title: 'KonoSuba', current: true },
+      { mediaId: 130298, label: '130298 - Eminence', title: 'Eminence', current: false },
+      { mediaId: 115230, label: '115230 - Tower of God', title: 'Tower of God', current: false },
+    ],
+  });
+  assert.deepEqual(removeCharacterDictionaryManagedEntry(userDataPath, 115230), {
+    ok: true,
+    entries: [
+      { mediaId: 21202, label: '21202 - KonoSuba', title: 'KonoSuba', current: true },
+      { mediaId: 130298, label: '130298 - Eminence', title: 'Eminence', current: false },
+    ],
+    rebuildRequired: true,
+  });
+});
+
+test('character dictionary manager protects the actual current media after LRU reorder', () => {
+  const userDataPath = makeTempDir();
+  const statePath = path.join(userDataPath, 'character-dictionaries', 'auto-sync-state.json');
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  fs.writeFileSync(
+    statePath,
+    JSON.stringify(
+      {
+        activeMediaIds: ['21202 - KonoSuba', '115230 - Tower of God'],
+        mergedRevision: 'rev-1',
+        mergedDictionaryTitle: 'SubMiner Character Dictionary',
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  assert.deepEqual(getCharacterDictionaryManagerSnapshot(userDataPath, 115230).entries, [
+    { mediaId: 21202, label: '21202 - KonoSuba', title: 'KonoSuba', current: false },
+    { mediaId: 115230, label: '115230 - Tower of God', title: 'Tower of God', current: true },
+  ]);
+  assert.deepEqual(moveCharacterDictionaryManagedEntry(userDataPath, 115230, -1, 115230), {
+    ok: false,
+    message: 'The current anime stays anchored while you are watching it.',
+    entries: [
+      { mediaId: 21202, label: '21202 - KonoSuba', title: 'KonoSuba', current: false },
+      { mediaId: 115230, label: '115230 - Tower of God', title: 'Tower of God', current: true },
+    ],
+  });
+  assert.deepEqual(removeCharacterDictionaryManagedEntry(userDataPath, 115230, 115230), {
+    ok: false,
+    message: 'The current anime stays loaded while you are watching it.',
+    entries: [
+      { mediaId: 21202, label: '21202 - KonoSuba', title: 'KonoSuba', current: false },
+      { mediaId: 115230, label: '115230 - Tower of God', title: 'Tower of God', current: true },
+    ],
+  });
+});
 
 test('auto sync imports merged dictionary and persists MRU state', async () => {
   const userDataPath = makeTempDir();

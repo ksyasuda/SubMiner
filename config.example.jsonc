@@ -187,7 +187,7 @@
     "multiCopyTimeoutMs": 3000, // Timeout for multi-copy/mine modes.
     "toggleSecondarySub": "CommandOrControl+Shift+V", // Accelerator that toggles the secondary subtitle bar visibility.
     "markAudioCard": "CommandOrControl+Shift+A", // Accelerator that marks the last mined card as an audio card.
-    "openCharacterDictionary": "CommandOrControl+Alt+A", // Accelerator that opens the character dictionary modal.
+    "openCharacterDictionaryManager": "CommandOrControl+D", // Accelerator that opens the character dictionary manager modal.
     "openRuntimeOptions": "CommandOrControl+Shift+O", // Accelerator that opens the runtime options modal.
     "openJimaku": "Ctrl+Shift+J", // Accelerator that opens the Jimaku subtitle search modal.
     "openSessionHelp": "CommandOrControl+Slash", // Accelerator that opens the session help / keybinding cheatsheet.

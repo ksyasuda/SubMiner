@@ -17,6 +17,7 @@ export type SessionActionId =
   | 'openRuntimeOptions'
   | 'openSessionHelp'
   | 'openCharacterDictionary'
+  | 'openCharacterDictionaryManager'
   | 'openControllerSelect'
   | 'openControllerDebug'
   | 'openJimaku'

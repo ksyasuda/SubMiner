@@ -96,7 +96,14 @@ export interface IpcServiceDeps {
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
   runAnilistPostWatchUpdateOnManualMark?: () => Promise<void>;
   getCharacterDictionarySelection?: (searchTitle?: string) => Promise<unknown>;
-  setCharacterDictionarySelection?: (mediaId: number) => Promise<unknown>;
+  setCharacterDictionarySelection?: (
+    mediaId: number,
+    replaceManagedMediaId?: number,
+    mediaTitle?: string,
+  ) => Promise<unknown>;
+  getCharacterDictionaryManagerSnapshot?: () => Promise<unknown>;
+  removeCharacterDictionaryManagedEntry?: (mediaId: number) => Promise<unknown>;
+  moveCharacterDictionaryManagedEntry?: (mediaId: number, direction: 1 | -1) => Promise<unknown>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (filePath: string) => Promise<PlaylistBrowserMutationResult>;
@@ -224,7 +231,14 @@ export interface IpcDepsRuntimeOptions {
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
   runAnilistPostWatchUpdateOnManualMark?: () => Promise<void>;
   getCharacterDictionarySelection?: (searchTitle?: string) => Promise<unknown>;
-  setCharacterDictionarySelection?: (mediaId: number) => Promise<unknown>;
+  setCharacterDictionarySelection?: (
+    mediaId: number,
+    replaceManagedMediaId?: number,
+    mediaTitle?: string,
+  ) => Promise<unknown>;
+  getCharacterDictionaryManagerSnapshot?: () => Promise<unknown>;
+  removeCharacterDictionaryManagedEntry?: (mediaId: number) => Promise<unknown>;
+  moveCharacterDictionaryManagedEntry?: (mediaId: number, direction: 1 | -1) => Promise<unknown>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (filePath: string) => Promise<PlaylistBrowserMutationResult>;
@@ -316,6 +330,22 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
         seriesKey: '',
         selected: { id: 0, title: '', episodes: null },
         staleMediaIds: [],
+      })),
+    getCharacterDictionaryManagerSnapshot:
+      options.getCharacterDictionaryManagerSnapshot ?? (async () => ({ entries: [] })),
+    removeCharacterDictionaryManagedEntry:
+      options.removeCharacterDictionaryManagedEntry ??
+      (async () => ({
+        ok: false,
+        message: 'Character dictionary manager unavailable.',
+        entries: [],
+      })),
+    moveCharacterDictionaryManagedEntry:
+      options.moveCharacterDictionaryManagedEntry ??
+      (async () => ({
+        ok: false,
+        message: 'Character dictionary manager unavailable.',
+        entries: [],
       })),
     appendClipboardVideoToQueue: options.appendClipboardVideoToQueue,
     getPlaylistBrowserSnapshot: options.getPlaylistBrowserSnapshot,
@@ -629,14 +659,62 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(
     IPC_CHANNELS.request.setCharacterDictionarySelection,
-    async (_event, mediaId: unknown) => {
+    async (_event, mediaId: unknown, replaceManagedMediaId: unknown, mediaTitle: unknown) => {
       if (!Number.isSafeInteger(mediaId) || (mediaId as number) <= 0) {
         return { ok: false, message: 'Invalid AniList media ID.' };
       }
-      return await (deps.setCharacterDictionarySelection?.(mediaId as number) ??
+      const normalizedReplaceManagedMediaId =
+        Number.isSafeInteger(replaceManagedMediaId) && (replaceManagedMediaId as number) > 0
+          ? (replaceManagedMediaId as number)
+          : undefined;
+      const normalizedMediaTitle =
+        typeof mediaTitle === 'string' && mediaTitle.trim() ? mediaTitle.trim() : undefined;
+      return await (deps.setCharacterDictionarySelection?.(
+        mediaId as number,
+        normalizedReplaceManagedMediaId,
+        normalizedMediaTitle,
+      ) ??
         Promise.resolve({
           ok: false,
           message: 'Character dictionary selection unavailable.',
+        }));
+    },
+  );
+
+  ipc.handle(IPC_CHANNELS.request.getCharacterDictionaryManagerSnapshot, async () => {
+    return await (deps.getCharacterDictionaryManagerSnapshot?.() ??
+      Promise.resolve({ entries: [] }));
+  });
+
+  ipc.handle(
+    IPC_CHANNELS.request.removeCharacterDictionaryManagedEntry,
+    async (_event, mediaId: unknown) => {
+      if (!Number.isSafeInteger(mediaId) || (mediaId as number) <= 0) {
+        return { ok: false, message: 'Invalid AniList media ID.', entries: [] };
+      }
+      return await (deps.removeCharacterDictionaryManagedEntry?.(mediaId as number) ??
+        Promise.resolve({
+          ok: false,
+          message: 'Character dictionary manager unavailable.',
+          entries: [],
+        }));
+    },
+  );
+
+  ipc.handle(
+    IPC_CHANNELS.request.moveCharacterDictionaryManagedEntry,
+    async (_event, mediaId: unknown, direction: unknown) => {
+      if (!Number.isSafeInteger(mediaId) || (mediaId as number) <= 0) {
+        return { ok: false, message: 'Invalid AniList media ID.', entries: [] };
+      }
+      if (direction !== 1 && direction !== -1) {
+        return { ok: false, message: 'Invalid move direction.', entries: [] };
+      }
+      return await (deps.moveCharacterDictionaryManagedEntry?.(mediaId as number, direction) ??
+        Promise.resolve({
+          ok: false,
+          message: 'Character dictionary manager unavailable.',
+          entries: [],
         }));
     },
   );

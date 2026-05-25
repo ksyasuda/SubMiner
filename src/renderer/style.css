@@ -1568,6 +1568,27 @@ iframe[id^='yomitan-popup'],
   width: min(680px, 92%);
 }
 
+.character-dictionary-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.character-dictionary-tab {
+  border: 1px solid rgba(110, 115, 141, 0.28);
+  border-radius: 6px;
+  background: rgba(24, 25, 38, 0.78);
+  color: var(--ctp-subtext0);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.character-dictionary-tab.active {
+  border-color: rgba(138, 173, 244, 0.62);
+  background: rgba(138, 173, 244, 0.18);
+  color: var(--ctp-text);
+}
+
 .character-dictionary-current {
   font-size: 12px;
   color: var(--ctp-subtext1);
@@ -1629,6 +1650,18 @@ iframe[id^='yomitan-popup'],
 
 .character-dictionary-candidate-body {
   min-width: 0;
+}
+
+.character-dictionary-manager-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.character-dictionary-managed-entry {
+  align-items: flex-start;
 }
 
 .character-dictionary-use {

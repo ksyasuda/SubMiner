@@ -75,17 +75,17 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 
 ## Subtitle & Feature Shortcuts
 
-| Shortcut           | Action                                                   | Config key                          |
-| ------------------ | -------------------------------------------------------- | ----------------------------------- |
-| `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub`      |
-| `Ctrl/Cmd+Alt+A`   | Open character dictionary AniList selector               | `shortcuts.openCharacterDictionary` |
-| `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions`      |
-| `Ctrl/Cmd+/`       | Open session help modal                                  | `shortcuts.openSessionHelp`         |
-| `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`              |
-| `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                       |
-| `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`          |
-| `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey`         |
-| `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`                   |
+| Shortcut           | Action                                                   | Config key                                      |
+| ------------------ | -------------------------------------------------------- | ----------------------------------------------- |
+| `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub`                  |
+| `Ctrl/Cmd+D`       | Open loaded character dictionary manager                 | `shortcuts.openCharacterDictionaryManager`      |
+| `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions`                  |
+| `Ctrl/Cmd+/`       | Open session help modal                                  | `shortcuts.openSessionHelp`                     |
+| `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`                          |
+| `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                                   |
+| `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`                      |
+| `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey`                     |
+| `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`                               |
 
 The stats toggle is handled inside the focused visible overlay window. It is configurable through the top-level `stats.toggleKey` setting and defaults to `Backquote`.
 
@@ -131,7 +131,7 @@ When the overlay has focus, press `y` then `d` to toggle DevTools (debugging hel
 
 ## Customizing Shortcuts
 
-All `shortcuts.*` keys accept [Electron accelerator strings](https://www.electronjs.org/docs/latest/tutorial/keyboard-shortcuts), for example `"CommandOrControl+Alt+A"`. Use `null` to disable a shortcut.
+All `shortcuts.*` keys accept [Electron accelerator strings](https://www.electronjs.org/docs/latest/tutorial/keyboard-shortcuts), for example `"CommandOrControl+D"`. Use `null` to disable a shortcut.
 
 ```jsonc
 {

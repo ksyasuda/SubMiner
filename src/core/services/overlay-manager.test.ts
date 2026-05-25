@@ -110,6 +110,32 @@ test('overlay manager applies bounds for main and modal windows', () => {
   assert.deepEqual(modalCalls, [{ x: 80, y: 90, width: 100, height: 110 }]);
 });
 
+test('overlay manager can suppress z-order promotion during bounds updates', () => {
+  const calls: string[] = [];
+  const createManager = createOverlayManager as unknown as (options: {
+    updateOverlayWindowBounds: (
+      geometry: Electron.Rectangle,
+      window: Electron.BrowserWindow | null,
+      options: { promote: boolean },
+    ) => void;
+    shouldPromoteWindowOnBoundsUpdate: (window: Electron.BrowserWindow) => boolean;
+  }) => ReturnType<typeof createOverlayManager>;
+  const manager = createManager({
+    updateOverlayWindowBounds: (_geometry, _window, options) => {
+      calls.push(`promote:${options.promote}`);
+    },
+    shouldPromoteWindowOnBoundsUpdate: () => false,
+  });
+
+  manager.setMainWindow({
+    isDestroyed: () => false,
+  } as unknown as Electron.BrowserWindow);
+
+  manager.setOverlayWindowBounds({ x: 1, y: 2, width: 3, height: 4 });
+
+  assert.deepEqual(calls, ['promote:false']);
+});
+
 test('runtime-option broadcast still uses expected channel', () => {
   const broadcasts: unknown[][] = [];
   broadcastRuntimeOptionsChangedRuntime(

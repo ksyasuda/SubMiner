@@ -106,6 +106,40 @@ test('buildHyprlandPlacementDispatches does not pin already floating overlay win
   );
 });
 
+test('buildHyprlandPlacementDispatches can update placement without raising z-order', () => {
+  const buildDispatches = buildHyprlandPlacementDispatches as (
+    client: Parameters<typeof buildHyprlandPlacementDispatches>[0],
+    bounds: Parameters<typeof buildHyprlandPlacementDispatches>[1],
+    options: { promote: false },
+  ) => string[][];
+
+  assert.deepEqual(
+    buildDispatches(
+      {
+        address: '0xabc',
+        floating: true,
+        pinned: false,
+      },
+      {
+        x: 0,
+        y: 0,
+        width: 1920,
+        height: 1080,
+      },
+      { promote: false },
+    ),
+    [
+      ['dispatch', 'movewindowpixel', 'exact 0 0,address:0xabc'],
+      ['dispatch', 'resizewindowpixel', 'exact 1920 1080,address:0xabc'],
+      ['dispatch', 'setprop', 'address:0xabc rounding 0'],
+      ['dispatch', 'setprop', 'address:0xabc border_size 0'],
+      ['dispatch', 'setprop', 'address:0xabc no_shadow 1'],
+      ['dispatch', 'setprop', 'address:0xabc no_blur 1'],
+      ['dispatch', 'setprop', 'address:0xabc decorate 0'],
+    ],
+  );
+});
+
 test('buildHyprlandPlacementDispatches unpins previously pinned overlay windows', () => {
   assert.deepEqual(
     buildHyprlandPlacementDispatches({

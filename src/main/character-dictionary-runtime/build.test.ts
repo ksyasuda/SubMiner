@@ -119,3 +119,48 @@ test('buildSnapshotFromCharacters shows Japanese aliases without adding romanize
   assert.equal(terms.includes('アクア'), true);
   assert.equal(terms.includes('阿久亜'), true);
 });
+
+test('buildSnapshotFromCharacters stores media id in Yomitan structured-content data', () => {
+  const character: CharacterRecord = {
+    id: 1,
+    role: 'main',
+    firstNameHint: '',
+    fullName: 'Aqua',
+    lastNameHint: '',
+    nativeName: 'アクア',
+    alternativeNames: [],
+    bloodType: '',
+    birthday: null,
+    description: '',
+    imageUrl: null,
+    age: '',
+    sex: '',
+    voiceActors: [],
+  };
+
+  const snapshot = buildSnapshotFromCharacters(
+    21699,
+    "KONOSUBA -God's blessing on this wonderful world! 2",
+    [character],
+    new Map(),
+    new Map(),
+    1_700_000_000_000,
+    () => false,
+  );
+  const aquaEntry = snapshot.termEntries.find(([term]) => term === 'アクア');
+  assert.ok(aquaEntry);
+  const glossaryEntry = aquaEntry[5][0] as {
+    content: {
+      data?: Record<string, string>;
+      content: Array<Record<string, unknown>>;
+    };
+  };
+
+  assert.equal(glossaryEntry.content.data?.subminerMediaId, '21699');
+  assert.equal(
+    glossaryEntry.content.content.some((node) =>
+      Object.prototype.hasOwnProperty.call(node, 'subminerMediaId'),
+    ),
+    false,
+  );
+});

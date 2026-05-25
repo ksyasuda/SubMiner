@@ -43,7 +43,7 @@ ${B}Mining${R}
   --toggle-subtitle-sidebar      Toggle subtitle sidebar panel
   --open-runtime-options         Open runtime options palette
   --open-session-help            Open session help modal
-  --open-character-dictionary    Open character dictionary anime selection modal
+  --open-character-dictionary    Open character dictionary management modal
   --open-controller-select       Open controller select modal
   --open-controller-debug        Open controller debug modal
 

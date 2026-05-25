@@ -12,6 +12,7 @@ export function createBuildOverlayShortcutsRuntimeMainDepsHandler(
     showMpvOsd: (text: string) => deps.showMpvOsd(text),
     openRuntimeOptionsPalette: () => deps.openRuntimeOptionsPalette(),
     openCharacterDictionary: () => deps.openCharacterDictionary(),
+    openCharacterDictionaryManager: () => deps.openCharacterDictionaryManager(),
     openJimaku: () => deps.openJimaku(),
     markAudioCard: () => deps.markAudioCard(),
     copySubtitleMultiple: (timeoutMs: number) => deps.copySubtitleMultiple(timeoutMs),
