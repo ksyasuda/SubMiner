@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { shouldFetchReleaseMetadataForPlatform } from './release-metadata-policy';
 import { createUpdateService, type UpdateServiceDeps, type UpdateState } from './update-service';
 
 function createDeps(overrides: Partial<UpdateServiceDeps> = {}) {
@@ -359,6 +360,57 @@ test('manual prerelease update check uses prerelease release and launcher channe
     'download',
     'launcher:prerelease',
     'restart-dialog',
+  ]);
+});
+
+test('manual macOS prerelease check reports GitHub update when native updater is unsupported', async () => {
+  const { deps, calls } = createDeps({
+    getConfig: () => ({
+      enabled: true,
+      checkIntervalHours: 24,
+      notificationType: 'system',
+      channel: 'prerelease',
+    }),
+    getCurrentVersion: () => '0.15.0-beta.4',
+    checkAppUpdate: async (channel) => {
+      calls.push(`app:${channel}`);
+      return {
+        available: false,
+        version: '0.15.0-beta.4',
+        canUpdate: false,
+      };
+    },
+    shouldFetchReleaseMetadata: ({ request, appUpdate }) =>
+      shouldFetchReleaseMetadataForPlatform('darwin', appUpdate, request),
+    fetchLatestStableRelease: async (channel) => {
+      calls.push(`fetch:${channel}`);
+      return {
+        tag_name: 'v0.15.0-beta.5',
+        prerelease: true,
+        draft: false,
+        assets: [],
+      };
+    },
+    showUpdateAvailableDialog: async (version) => {
+      calls.push(`available-dialog:${version}`);
+      return 'update';
+    },
+    updateLauncher: async (_launcherPath, channel, release) => {
+      calls.push(`launcher:${channel}:${release?.tag_name ?? 'none'}`);
+      return { status: 'skipped' };
+    },
+  });
+  const service = createUpdateService(deps);
+
+  const result = await service.checkForUpdates({ source: 'manual' });
+
+  assert.equal(result.status, 'update-available');
+  assert.deepEqual(calls, [
+    'app:prerelease',
+    'fetch:prerelease',
+    'available-dialog:0.15.0-beta.5',
+    'launcher:prerelease:v0.15.0-beta.5',
+    'manual-install:0.15.0-beta.5',
   ]);
 });
 

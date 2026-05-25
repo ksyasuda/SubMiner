@@ -87,6 +87,11 @@ test('prerelease workflow writes checksum entries using release asset basenames'
   );
 });
 
+test('prerelease workflow relies on builder artifact names without post-build zip renames', () => {
+  assert.doesNotMatch(prereleaseWorkflow, /Rename Windows ZIP artifacts/);
+  assert.doesNotMatch(prereleaseWorkflow, /Rename-Item[\s\S]*-win\.zip/);
+});
+
 test('prerelease workflow validates artifacts before publishing the release and only undrafts after upload', () => {
   const artifactsIndex = prereleaseWorkflow.indexOf('artifacts=(');
   const createIndex = prereleaseWorkflow.indexOf('gh release create');

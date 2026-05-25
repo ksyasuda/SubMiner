@@ -158,6 +158,7 @@
       ]
     },
     "mac": {
+      "artifactName": "SubMiner-${version}-mac.${ext}",
       "target": [
         "dmg",
         "zip"
@@ -174,7 +175,11 @@
         }
       ]
     },
+    "dmg": {
+      "artifactName": "SubMiner-${version}.${ext}"
+    },
     "win": {
+      "artifactName": "SubMiner-${version}-win.${ext}",
       "target": [
         "nsis",
         "zip"
@@ -182,6 +187,7 @@
       "icon": "assets/SubMiner.ico"
     },
     "nsis": {
+      "artifactName": "SubMiner-${version}.${ext}",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,

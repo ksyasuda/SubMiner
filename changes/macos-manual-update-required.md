@@ -1,4 +1,4 @@
 type: fixed
 area: updater
 
-- Fixed tray update checks for builds that cannot install native app updates, showing a manual install message instead of a restart prompt that cannot apply the update.
+- Fixed macOS tray update checks for builds that cannot install native app updates, so newer stable or prerelease GitHub releases are reported instead of incorrectly saying the current build is up to date.

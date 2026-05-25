@@ -18,15 +18,28 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
     afterPack?: string;
     electronUpdaterCompatibility?: string;
     files?: string[];
+    artifactName?: string;
+    dmg?: {
+      artifactName?: string;
+    };
     extraResources?: Array<{
       from?: string;
       to?: string;
     }>;
+    mac?: {
+      artifactName?: string;
+    };
+    nsis?: {
+      artifactName?: string;
+    };
     publish?: Array<{
       provider?: string;
       owner?: string;
       repo?: string;
     }>;
+    win?: {
+      artifactName?: string;
+    };
   };
 };
 
@@ -197,6 +210,15 @@ test('windows release workflow publishes unsigned artifacts directly without Sig
   assert.match(releaseWorkflow, /path: \|\n\s+release\/\*\.exe\n\s+release\/\*\.zip/);
   assert.ok(!releaseWorkflow.includes('signpath/github-action-submit-signing-request'));
   assert.ok(!releaseWorkflow.includes('SIGNPATH_'));
+});
+
+test('release artifact names are distinct before upload', () => {
+  assert.equal(packageJson.build?.mac?.artifactName, 'SubMiner-${version}-mac.${ext}');
+  assert.equal(packageJson.build?.dmg?.artifactName, 'SubMiner-${version}.${ext}');
+  assert.equal(packageJson.build?.win?.artifactName, 'SubMiner-${version}-win.${ext}');
+  assert.equal(packageJson.build?.nsis?.artifactName, 'SubMiner-${version}.${ext}');
+  assert.doesNotMatch(releaseWorkflow, /Rename Windows ZIP artifacts/);
+  assert.doesNotMatch(releaseWorkflow, /Rename-Item[\s\S]*-win\.zip/);
 });
 
 test('release workflow publishes subminer-bin to AUR from tagged release artifacts', () => {

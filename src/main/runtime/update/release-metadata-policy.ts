@@ -4,12 +4,20 @@ type AppUpdateMetadata = {
   canUpdate?: boolean;
 };
 
+type UpdateMetadataRequest = {
+  source?: 'manual' | 'automatic' | 'launcher';
+};
+
 export function shouldFetchReleaseMetadataForPlatform(
   platform: NodeJS.Platform,
   appUpdate: AppUpdateMetadata,
+  request: UpdateMetadataRequest = {},
 ): boolean {
   if (platform !== 'darwin') {
     return true;
   }
-  return appUpdate.canUpdate !== false;
+  if (appUpdate.canUpdate !== false) {
+    return true;
+  }
+  return request.source === 'manual' || request.source === 'launcher';
 }
