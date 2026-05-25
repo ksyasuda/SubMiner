@@ -134,7 +134,12 @@ export function createCharacterDictionaryManualSelectionStore(deps: { userDataPa
   return {
     getOverride: async (seriesKey: string): Promise<CharacterDictionaryManualSelection | null> => {
       const candidates = getLegacySeriesKeyCandidates(seriesKey);
-      return readOverrides(filePath).find((entry) => candidates.includes(entry.seriesKey)) ?? null;
+      const overrides = readOverrides(filePath);
+      for (const candidate of candidates) {
+        const match = overrides.find((entry) => entry.seriesKey === candidate);
+        if (match) return match;
+      }
+      return null;
     },
     setOverride: async (selection: CharacterDictionaryManualSelection): Promise<void> => {
       const normalized = normalizeOverride(selection);
