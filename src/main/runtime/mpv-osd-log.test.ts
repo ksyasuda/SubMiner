@@ -99,12 +99,14 @@ test('show mpv osd logs marker and forwards fallback logging', () => {
     showMpvOsdRuntime: (_client, text, fallbackLog) => {
       calls.push(`show:${text}`);
       fallbackLog('fallback-line');
+      return false;
     },
     getMpvClient: () => client,
     logInfo: (line) => calls.push(`info:${line}`),
   });
 
-  showMpvOsd('subtitle copied');
+  const shown = showMpvOsd('subtitle copied');
+  assert.equal(shown, false);
   assert.deepEqual(calls, [
     'append:[OSD] subtitle copied',
     'show:subtitle copied',

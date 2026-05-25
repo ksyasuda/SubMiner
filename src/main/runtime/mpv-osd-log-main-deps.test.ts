@@ -41,6 +41,7 @@ test('show mpv osd main deps map runtime delegates and logging callback', () => 
     showMpvOsdRuntime: (_mpvClient, text, fallbackLog) => {
       calls.push(`show:${text}`);
       fallbackLog('fallback');
+      return false;
     },
     getMpvClient: () => client,
     logInfo: (line) => calls.push(`info:${line}`),
@@ -48,6 +49,9 @@ test('show mpv osd main deps map runtime delegates and logging callback', () => 
 
   assert.deepEqual(deps.getMpvClient(), client);
   deps.appendToMpvLog('hello');
-  deps.showMpvOsdRuntime(deps.getMpvClient(), 'subtitle', (line) => deps.logInfo(line));
+  const shown = deps.showMpvOsdRuntime(deps.getMpvClient(), 'subtitle', (line) =>
+    deps.logInfo(line),
+  );
+  assert.equal(shown, false);
   assert.deepEqual(calls, ['append:hello', 'show:subtitle', 'info:fallback']);
 });

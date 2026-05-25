@@ -62,6 +62,91 @@ function flushAsyncWork(): Promise<void> {
   });
 }
 
+test('character dictionary modal announces open before AniList refresh resolves', async () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  let resolveSelection: (snapshot: CharacterDictionarySelectionSnapshot) => void = () => {};
+  const selectionPromise = new Promise<CharacterDictionarySelectionSnapshot>((resolve) => {
+    resolveSelection = resolve;
+  });
+  const events: string[] = [];
+  const overlay = createNodeStub();
+  const modalNode = createNodeStub(true);
+  const state = createRendererState();
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getCharacterDictionarySelection: () => selectionPromise,
+        setCharacterDictionarySelection: async () => ({
+          ok: false,
+          seriesKey: 'test',
+          selected: { id: 0, title: '', episodes: null },
+          staleMediaIds: [],
+        }),
+        notifyOverlayModalClosed: () => {},
+        notifyOverlayModalOpened: (modal: string) => {
+          events.push(`notify:${modal}`);
+        },
+      } satisfies Pick<
+        ElectronAPI,
+        | 'getCharacterDictionarySelection'
+        | 'setCharacterDictionarySelection'
+        | 'notifyOverlayModalClosed'
+        | 'notifyOverlayModalOpened'
+      >,
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createElementStub(),
+    },
+  });
+
+  try {
+    const modal = createCharacterDictionaryModal(
+      {
+        state,
+        dom: {
+          overlay,
+          characterDictionaryModal: modalNode,
+          characterDictionaryClose: createNodeStub(),
+          characterDictionarySummary: createNodeStub(),
+          characterDictionaryCurrent: createNodeStub(),
+          characterDictionaryCandidates: createNodeStub(),
+          characterDictionaryStatus: createNodeStub(),
+        },
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => false },
+        syncSettingsModalSubtitleSuppression: () => {
+          events.push('sync-subtitle-suppression');
+        },
+      },
+    );
+
+    const openPromise = modal.openCharacterDictionaryModal();
+
+    assert.equal(state.characterDictionaryModalOpen, true);
+    assert.equal(modalNode.classList.contains('hidden'), false);
+    assert.deepEqual(events, ['sync-subtitle-suppression', 'notify:character-dictionary']);
+
+    resolveSelection({
+      seriesKey: 'tower-of-god-2020',
+      guessTitle: 'Tower of God',
+      current: null,
+      override: null,
+      candidates: [{ id: 115230, title: 'Tower of God', episodes: 13 }],
+    });
+    await openPromise;
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+});
+
 test('character dictionary modal loads candidates and applies selected override', async () => {
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;
@@ -95,11 +180,13 @@ test('character dictionary modal loads candidates and applies selected override'
           };
         },
         notifyOverlayModalClosed: () => {},
+        notifyOverlayModalOpened: () => {},
       } satisfies Pick<
         ElectronAPI,
         | 'getCharacterDictionarySelection'
         | 'setCharacterDictionarySelection'
         | 'notifyOverlayModalClosed'
+        | 'notifyOverlayModalOpened'
       >,
     },
   });
@@ -175,11 +262,13 @@ test('character dictionary modal shows refresh errors without rejecting open', a
           staleMediaIds: [],
         }),
         notifyOverlayModalClosed: () => {},
+        notifyOverlayModalOpened: () => {},
       } satisfies Pick<
         ElectronAPI,
         | 'getCharacterDictionarySelection'
         | 'setCharacterDictionarySelection'
         | 'notifyOverlayModalClosed'
+        | 'notifyOverlayModalOpened'
       >,
     },
   });

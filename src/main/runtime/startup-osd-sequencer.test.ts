@@ -100,7 +100,7 @@ test('startup OSD replaces earlier dictionary progress with later building progr
   ]);
 });
 
-test('startup OSD skips buffered dictionary ready messages when progress completed before it became visible', () => {
+test('startup OSD shows dictionary ready when progress completed before it became visible', () => {
   const osdMessages: string[] = [];
   const sequencer = createStartupOsdSequencer({
     showOsd: (message) => {
@@ -117,7 +117,10 @@ test('startup OSD skips buffered dictionary ready messages when progress complet
   sequencer.markTokenizationReady();
   sequencer.markAnnotationLoadingComplete('Subtitle annotations loaded');
 
-  assert.deepEqual(osdMessages, ['Subtitle annotations loaded']);
+  assert.deepEqual(osdMessages, [
+    'Character dictionary ready for Frieren',
+    'Subtitle annotations loaded',
+  ]);
 });
 
 test('startup OSD shows dictionary failure after annotation loading completes', () => {
@@ -182,5 +185,40 @@ test('startup OSD shows later dictionary progress immediately once tokenization 
   assert.deepEqual(osdMessages, [
     'Loading subtitle annotations |',
     'Generating character dictionary for Frieren...',
+  ]);
+});
+
+test('startup OSD keeps dictionary progress pending when mpv osd is unavailable', () => {
+  const osdMessages: string[] = [];
+  let osdAvailable = false;
+  const sequencer = createStartupOsdSequencer({
+    showOsd: (message) => {
+      osdMessages.push(message);
+      return osdAvailable;
+    },
+  });
+
+  sequencer.markTokenizationReady();
+  sequencer.notifyCharacterDictionaryStatus(
+    makeDictionaryEvent('generating', 'Generating character dictionary for Frieren...'),
+  );
+  sequencer.notifyCharacterDictionaryStatus(
+    makeDictionaryEvent('ready', 'Character dictionary ready for Frieren'),
+  );
+
+  assert.deepEqual(osdMessages, [
+    'Generating character dictionary for Frieren...',
+    'Character dictionary ready for Frieren',
+  ]);
+
+  osdAvailable = true;
+  sequencer.notifyCharacterDictionaryStatus(
+    makeDictionaryEvent('ready', 'Character dictionary ready for Frieren'),
+  );
+
+  assert.deepEqual(osdMessages, [
+    'Generating character dictionary for Frieren...',
+    'Character dictionary ready for Frieren',
+    'Character dictionary ready for Frieren',
   ]);
 });

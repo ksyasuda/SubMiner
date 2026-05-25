@@ -5,15 +5,27 @@ export type CharacterDictionaryAutoSyncNotificationEvent = CharacterDictionaryAu
 
 export interface CharacterDictionaryAutoSyncNotificationDeps {
   getNotificationType: () => 'osd' | 'system' | 'both' | 'none' | undefined;
-  showOsd: (message: string) => void;
+  showOsd: (message: string) => boolean | void;
   showDesktopNotification: (title: string, options: { body?: string }) => void;
   startupOsdSequencer?: {
-    notifyCharacterDictionaryStatus: (event: StartupOsdSequencerCharacterDictionaryEvent) => void;
+    notifyCharacterDictionaryStatus: (
+      event: StartupOsdSequencerCharacterDictionaryEvent,
+    ) => boolean;
   };
 }
 
 function shouldShowOsd(type: 'osd' | 'system' | 'both' | 'none' | undefined): boolean {
   return type !== 'none';
+}
+
+function shouldFallbackToDesktop(
+  type: 'osd' | 'system' | 'both' | 'none' | undefined,
+  phase: CharacterDictionaryAutoSyncNotificationEvent['phase'],
+): boolean {
+  return (
+    (type === 'system' || type === 'both') &&
+    (phase === 'generating' || phase === 'building' || phase === 'importing')
+  );
 }
 
 export function notifyCharacterDictionaryAutoSyncStatus(
@@ -23,12 +35,18 @@ export function notifyCharacterDictionaryAutoSyncStatus(
   const type = deps.getNotificationType();
   if (shouldShowOsd(type)) {
     if (deps.startupOsdSequencer) {
-      deps.startupOsdSequencer.notifyCharacterDictionaryStatus({
+      const shown = deps.startupOsdSequencer.notifyCharacterDictionaryStatus({
         phase: event.phase,
         message: event.message,
       });
+      if (!shown && shouldFallbackToDesktop(type, event.phase)) {
+        deps.showDesktopNotification('SubMiner', { body: event.message });
+      }
       return;
     }
-    deps.showOsd(event.message);
+    const shown = deps.showOsd(event.message) !== false;
+    if (!shown && shouldFallbackToDesktop(type, event.phase)) {
+      deps.showDesktopNotification('SubMiner', { body: event.message });
+    }
   }
 }
