@@ -6,7 +6,6 @@ import {
 import type { LauncherCommandContext } from './context.js';
 
 type AppCommandDeps = {
-  platform: () => NodeJS.Platform;
   runAppCommandWithInherit: (appPath: string, appArgs: string[]) => void;
   launchAppBackgroundDetached: (
     appPath: string,
@@ -15,7 +14,6 @@ type AppCommandDeps = {
 };
 
 const defaultAppCommandDeps: AppCommandDeps = {
-  platform: () => process.platform,
   runAppCommandWithInherit,
   launchAppBackgroundDetached,
 };
@@ -35,7 +33,7 @@ export function runAppPassthroughCommand(
   if (!args.appPassthrough) {
     return false;
   }
-  if (deps.platform() === 'darwin' && args.appArgs.length === 0) {
+  if (args.appArgs.length === 0) {
     deps.launchAppBackgroundDetached(appPath, args.logLevel);
     return true;
   }

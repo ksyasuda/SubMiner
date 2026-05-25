@@ -332,6 +332,7 @@ import {
   mineSentenceCard as mineSentenceCardCore,
   openYomitanSettingsWindow,
   playNextSubtitleRuntime,
+  promoteSettingsWindowAboveOverlay,
   registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
   resolveJellyfinPlaybackPlanRuntime,
@@ -565,6 +566,7 @@ import {
   createCreateJellyfinSetupWindowHandler,
 } from './main/runtime/setup-window-factory';
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
+import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './main/runtime/settings-window-z-order';
 import {
   isSameYoutubeMediaPath,
   isYoutubeMediaPath,
@@ -2034,6 +2036,8 @@ const configSettingsRuntime = createConfigSettingsRuntime({
     preloadPath: path.join(__dirname, 'preload-settings.js'),
   }),
   settingsHtmlPath: path.join(__dirname, 'settings', 'index.html'),
+  promoteSettingsWindowAboveOverlay: (window) =>
+    promoteSettingsWindowAboveOverlay(window as BrowserWindow),
   openPath: (targetPath) => shell.openPath(targetPath),
   ipcMain,
   ipcChannels: IPC_CHANNELS.request,
@@ -4927,8 +4931,17 @@ const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
 
 const buildEnsureOverlayWindowLevelMainDepsHandler =
   createBuildEnsureOverlayWindowLevelMainDepsHandler({
-    shouldSuppressOverlayWindowLevel: (window) =>
-      appState.statsOverlayVisible && window === overlayManager.getMainWindow(),
+    shouldSuppressOverlayWindowLevel: (window) => {
+      const mainWindow = overlayManager.getMainWindow();
+      return (
+        (appState.statsOverlayVisible && window === mainWindow) ||
+        shouldSuppressVisibleOverlayRaiseForSeparateWindow({
+          window,
+          mainWindow,
+          separateWindows: [appState.configSettingsWindow, appState.yomitanSettingsWindow],
+        })
+      );
+    },
     ensureOverlayWindowLevelCore: (window) => ensureOverlayWindowLevelCore(window as BrowserWindow),
     afterEnsureOverlayWindowLevel: () => {
       promoteStatsOverlayAbovePlayback();

@@ -111,7 +111,7 @@ test('createCreateConfigSettingsWindowHandler builds configuration settings wind
     width: 1040,
     height: 760,
     title: 'SubMiner Settings',
-    show: true,
+    show: false,
     autoHideMenuBar: true,
     resizable: true,
     backgroundColor: '#24273a',
