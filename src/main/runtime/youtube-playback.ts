@@ -78,10 +78,7 @@ export function shouldUseCachedYoutubeParsedCues(input: {
   cachedMediaPath: string | null | undefined;
   cachedCueCount: number;
 }): boolean {
-  return (
-    input.cachedCueCount > 0 &&
-    isSameYoutubeMediaPath(input.videoPath, input.cachedMediaPath)
-  );
+  return input.cachedCueCount > 0 && isSameYoutubeMediaPath(input.videoPath, input.cachedMediaPath);
 }
 
 export function isYoutubePlaybackActive(

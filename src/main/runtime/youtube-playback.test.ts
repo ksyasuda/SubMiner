@@ -30,7 +30,10 @@ test('isYoutubePlaybackActive checks both current media and mpv video paths', ()
 
 test('isSameYoutubeMediaPath matches equivalent youtube urls by video id', () => {
   assert.equal(
-    isSameYoutubeMediaPath('https://www.youtube.com/watch?v=abc123&t=30', 'https://youtu.be/abc123'),
+    isSameYoutubeMediaPath(
+      'https://www.youtube.com/watch?v=abc123&t=30',
+      'https://youtu.be/abc123',
+    ),
     true,
   );
   assert.equal(

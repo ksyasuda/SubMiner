@@ -111,7 +111,10 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
     delayMs: number,
   ) => YoutubePrimarySubtitleNotificationTimer;
   clearSchedule: (timer: YoutubePrimarySubtitleNotificationTimer | null) => void;
-  getCurrentSubtitleState?: () => CurrentSubtitleState | null | Promise<CurrentSubtitleState | null>;
+  getCurrentSubtitleState?: () =>
+    | CurrentSubtitleState
+    | null
+    | Promise<CurrentSubtitleState | null>;
   delayMs?: number;
 }) {
   const delayMs = deps.delayMs ?? 5000;
@@ -128,9 +131,7 @@ export function createYoutubePrimarySubtitleNotificationRuntime(deps: {
     pendingTimer = null;
   };
 
-  const refreshCurrentSubtitleState = async (
-    preferredLanguages: Set<string>,
-  ): Promise<boolean> => {
+  const refreshCurrentSubtitleState = async (preferredLanguages: Set<string>): Promise<boolean> => {
     const getCurrentSubtitleState = deps.getCurrentSubtitleState;
     if (!getCurrentSubtitleState) {
       return false;
