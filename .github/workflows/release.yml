@@ -261,6 +261,17 @@ jobs:
       - name: Build unsigned Windows artifacts
         run: bun run build:win:unsigned
 
+      - name: Rename Windows ZIP artifacts
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem release -Filter 'SubMiner-*.zip' | ForEach-Object {
+            Rename-Item -LiteralPath $_.FullName -NewName ($_.BaseName + '-win' + $_.Extension)
+          }
+          Get-ChildItem release -Filter 'SubMiner-*.zip.blockmap' | ForEach-Object {
+            Rename-Item -LiteralPath $_.FullName -NewName ($_.Name -replace '\.zip\.blockmap$', '-win.zip.blockmap')
+          }
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:

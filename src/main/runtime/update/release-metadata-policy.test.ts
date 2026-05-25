@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { shouldFetchReleaseMetadataForPlatform } from './release-metadata-policy';
 
-test('macOS release metadata fetch is skipped only when native updater is unsupported', () => {
+test('macOS automatic release metadata fetch is skipped when native updater is unsupported', () => {
   assert.equal(
     shouldFetchReleaseMetadataForPlatform('darwin', {
       available: false,
@@ -25,6 +25,33 @@ test('macOS release metadata fetch is skipped only when native updater is unsupp
       canUpdate: true,
     }),
     true,
+  );
+});
+
+test('macOS manual checks fetch release metadata when native updater is unsupported', () => {
+  const unsupportedUpdate = {
+    available: false,
+    version: '0.15.0-beta.4',
+    canUpdate: false,
+  };
+
+  assert.equal(
+    shouldFetchReleaseMetadataForPlatform('darwin', unsupportedUpdate, {
+      source: 'manual',
+    }),
+    true,
+  );
+  assert.equal(
+    shouldFetchReleaseMetadataForPlatform('darwin', unsupportedUpdate, {
+      source: 'launcher',
+    }),
+    true,
+  );
+  assert.equal(
+    shouldFetchReleaseMetadataForPlatform('darwin', unsupportedUpdate, {
+      source: 'automatic',
+    }),
+    false,
   );
 });
 

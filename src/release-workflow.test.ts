@@ -30,6 +30,12 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
   };
 };
 
+function extractWorkflowJob(workflow: string, jobName: string, nextJobName: string): string {
+  const match = workflow.match(new RegExp(`\\n  ${jobName}:[\\s\\S]*?\\n  ${nextJobName}:`));
+  assert.ok(match, `${jobName} job not found`);
+  return match[0];
+}
+
 test('publish release leaves prerelease unset so gh creates a normal release', () => {
   assert.ok(!releaseWorkflow.includes('--prerelease'));
 });
@@ -197,6 +203,14 @@ test('windows release workflow publishes unsigned artifacts directly without Sig
   assert.match(releaseWorkflow, /path: \|\n\s+release\/\*\.exe\n\s+release\/\*\.zip/);
   assert.ok(!releaseWorkflow.includes('signpath/github-action-submit-signing-request'));
   assert.ok(!releaseWorkflow.includes('SIGNPATH_'));
+});
+
+test('windows release workflow renames portable zip assets before upload', () => {
+  const windowsJob = extractWorkflowJob(releaseWorkflow, 'build-windows', 'release');
+
+  assert.match(windowsJob, /Rename Windows ZIP artifacts/);
+  assert.match(windowsJob, /-win\.zip/);
+  assert.match(windowsJob, /-win\.zip\.blockmap/);
 });
 
 test('release workflow publishes subminer-bin to AUR from tagged release artifacts', () => {

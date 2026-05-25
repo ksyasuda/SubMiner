@@ -173,7 +173,7 @@ If you prefer to install it manually, see [manual launcher install](#manual-laun
 Download the latest installer from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest):
 
 - `SubMiner-<version>.exe` — installer (recommended)
-- `SubMiner-<version>.zip` — portable fallback
+- `SubMiner-<version>-win.zip` — portable fallback
 
 Make sure `mpv.exe` is on your `PATH`, or set `mpv.executablePath` in the config during first-run setup.
 

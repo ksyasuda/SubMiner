@@ -5227,8 +5227,8 @@ function getUpdateService() {
     readState: () => updateStateStore.readState(),
     writeState: (state) => updateStateStore.writeState(state),
     checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
-    shouldFetchReleaseMetadata: ({ appUpdate }) =>
-      shouldFetchReleaseMetadataForPlatform(process.platform, appUpdate),
+    shouldFetchReleaseMetadata: ({ request, appUpdate }) =>
+      shouldFetchReleaseMetadataForPlatform(process.platform, appUpdate, request),
     fetchLatestStableRelease: (channel) =>
       fetchLatestStableRelease({ fetch: getFetchForUpdater(), channel }),
     updateLauncher: (launcherPath, channel, release) =>
