@@ -235,6 +235,13 @@ const POLISH_PROMPT_INSTRUCTIONS = `You are formatting a software release change
 
 You will receive a list of FRAGMENT entries below. Each fragment has metadata (type, area, breaking) and one or more bullet points written by the engineer who shipped that change. Your job is to merge, dedupe, and rewrite these fragments into a polished, user-facing release body.
 
+## Release Outcome Rules
+
+- Treat the fragment list as one cumulative release outcome, not a chronological log of beta/RC churn.
+- Put a fragment in ### Breaking Changes only if the final release requires action from users upgrading from the previous stable release. A breaking: true marker is a warning to preserve and evaluate the substance, not an automatic section choice.
+- If a breaking or fixed fragment only changes behavior introduced by another pending fragment in the same release cycle, merge it into the final Added or Changed bullet. Example: if fragments first add a Config window and later rename or fix it as a Settings window, output one Settings Window bullet under Added, not separate Config window, Breaking Changes, or Fixed bullets.
+- Multiple fixes within the same prerelease cycle should collapse into one current-state bullet that describes the final behavior.
+
 ## Output Rules
 
 1. Output Markdown ONLY. No preamble, no commentary, no closing remarks. Start directly with the first section heading.
@@ -258,7 +265,7 @@ You will receive a list of FRAGMENT entries below. Each fragment has metadata (t
    - Be written in user-facing language. Drop implementation jargon, internal class names, file paths, and PR numbers.
    - Be merged with related bullets when possible. If five fragments all touch Windows overlay z-order/focus/restore, write one or two bullets that summarize the overall improvement instead of five.
    - Drop bullets that only describe PR housekeeping, CodeRabbit follow-ups, or test-only changes that don't affect users.
-   - Preserve the substance of every breaking change in ### Breaking Changes. Do not soften or omit them.
+   - Preserve the substance of breaking changes that remain breaking after applying the Release Outcome Rules. Do not soften or omit them.
 5. Do not invent features. Every bullet must be grounded in the input fragments.
 6. Do not include the version heading (## v...) — that wrapper is added by the caller.
 
@@ -371,7 +378,7 @@ function polishFragmentsWithClaude(
     ? [
         '## Existing Prerelease Notes',
         '',
-        'The input includes EXISTING PRERELEASE NOTES before the fragment list. Reuse those highlight bullets as the baseline, preserve their meaning and wording where possible, then merge in only new or changed fragment material. Deduplicate instead of restating existing bullets. Output only the final highlights body using the section headings above; do not include the prerelease disclaimer, Installation, or Assets sections.',
+        'The input includes EXISTING PRERELEASE NOTES before the fragment list. Existing prerelease notes are a baseline, not an immutable changelog. Reuse reviewed highlight bullets when they still describe the current outcome, but replace stale beta or RC wording when new fragments supersede it. Merge in only new or changed fragment material, and deduplicate instead of restating existing bullets. Output only the final highlights body using the section headings above; do not include the prerelease disclaimer, Installation, or Assets sections.',
         '',
       ].join('\n')
     : '';

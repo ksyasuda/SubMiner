@@ -374,6 +374,74 @@ test('writeChangelogArtifacts renders breaking changes section above type sectio
   }
 });
 
+test('writeChangelogArtifacts prompts Claude to summarize the final stable outcome instead of prerelease churn', async () => {
+  const { writeChangelogArtifacts } = await loadModule();
+  const workspace = createWorkspace('stable-outcome-prompt');
+  const projectRoot = path.join(workspace, 'SubMiner');
+
+  fs.mkdirSync(projectRoot, { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'CHANGELOG.md'), '# Changelog\n', 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    [
+      'type: added',
+      'area: config',
+      '',
+      '- Added a dedicated Config window with launcher entry points.',
+    ].join('\n'),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '002.md'),
+    [
+      'type: changed',
+      'area: config',
+      'breaking: true',
+      '',
+      '- Renamed the Config window to Settings window and changed the launcher entry point to `subminer settings`.',
+    ].join('\n'),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '003.md'),
+    [
+      'type: fixed',
+      'area: config',
+      '',
+      '- Fixed Settings window search and live subtitle CSS saves.',
+    ].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const stub = defaultStubClaude();
+    writeChangelogArtifacts({
+      cwd: projectRoot,
+      version: '0.12.0',
+      date: '2026-05-24',
+      deps: { runClaude: stub.runClaude },
+    });
+
+    const prompts = stub.calls.map((call) => call.input);
+    assert.equal(prompts.length, 2, 'expected changelog and release-notes prompts');
+    for (const prompt of prompts) {
+      assert.match(prompt, /Treat the fragment list as one cumulative release outcome/);
+      assert.match(
+        prompt,
+        /only if the final release requires action from users upgrading from the previous stable release/,
+      );
+      assert.match(prompt, /Config window.*Settings window/s);
+      assert.match(
+        prompt,
+        /Multiple fixes within the same prerelease cycle should collapse into one current-state bullet/,
+      );
+    }
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test('verifyChangelogFragments rejects invalid metadata', async () => {
   const { verifyChangelogFragments } = await loadModule();
   const workspace = createWorkspace('lint-invalid');
@@ -570,6 +638,74 @@ test('writePrereleaseNotesForVersion reuses existing prerelease notes when addin
     const prereleaseNotes = fs.readFileSync(outputPath, 'utf8');
     assert.match(prereleaseNotes, /- Overlay: Previous beta entry\./);
     assert.match(prereleaseNotes, /- Launcher: Added only the latest fix\./);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('writePrereleaseNotesForVersion prompts Claude to revise stale prerelease bullets instead of appending fix churn', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-net-outcome-prompt');
+  const projectRoot = path.join(workspace, 'SubMiner');
+  const existingNotes = [
+    '> This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.',
+    '',
+    '## Highlights',
+    '### Added',
+    '- Config Window: Previous beta entry.',
+    '',
+    '## Installation',
+    '',
+    'See the README and docs/installation guide for full setup steps.',
+    '',
+    '## Assets',
+    '',
+    '- Linux: `SubMiner.AppImage`',
+    '',
+  ].join('\n');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'release'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.12.0-beta.2' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(path.join(projectRoot, 'release', 'prerelease-notes.md'), existingNotes, 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    [
+      'type: changed',
+      'area: config',
+      'breaking: true',
+      '',
+      '- Renamed the Config window to Settings window.',
+    ].join('\n'),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '002.md'),
+    ['type: fixed', 'area: config', '', '- Fixed Settings window search.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const stub = recordingRunClaude(() => '### Added\n- Settings Window: Current beta state.');
+    writePrereleaseNotesForVersion({
+      cwd: projectRoot,
+      version: '0.12.0-beta.2',
+      deps: { runClaude: stub.runClaude },
+    });
+
+    assert.equal(stub.calls.length, 1, 'prerelease should issue exactly one Claude call');
+    const prompt = stub.calls[0]!.input;
+    assert.match(prompt, /EXISTING PRERELEASE NOTES/);
+    assert.match(prompt, /Existing prerelease notes are a baseline, not an immutable changelog/);
+    assert.match(prompt, /replace stale beta or RC wording/);
+    assert.match(
+      prompt,
+      /Multiple fixes within the same prerelease cycle should collapse into one current-state bullet/,
+    );
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }
