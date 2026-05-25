@@ -51,7 +51,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
   openTexthookerInBrowser: () => void;
   showTexthookerPage: () => boolean;
   showFirstRunSetup: () => boolean;
-  openFirstRunSetupWindow: () => void;
+  openFirstRunSetupWindow: (force?: boolean) => void;
   showWindowsMpvLauncherSetup: () => boolean;
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;

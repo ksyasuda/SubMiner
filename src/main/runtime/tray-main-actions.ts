@@ -61,7 +61,7 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   openTexthookerInBrowser: () => void;
   showTexthookerPage: () => boolean;
   showFirstRunSetup: () => boolean;
-  openFirstRunSetupWindow: () => void;
+  openFirstRunSetupWindow: (force?: boolean) => void;
   showWindowsMpvLauncherSetup: () => boolean;
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
@@ -92,7 +92,7 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
       },
       showFirstRunSetup: deps.showFirstRunSetup(),
       openWindowsMpvLauncherSetup: () => {
-        deps.openFirstRunSetupWindow();
+        deps.openFirstRunSetupWindow(true);
       },
       showWindowsMpvLauncherSetup: deps.showWindowsMpvLauncherSetup(),
       openYomitanSettings: () => {

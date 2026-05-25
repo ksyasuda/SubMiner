@@ -1,6 +1,65 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { initializeOverlayAnkiIntegration, initializeOverlayRuntime } from './overlay-runtime-init';
+import {
+  initializeOverlayAnkiIntegration,
+  initializeOverlayRuntime,
+  startOverlayWindowTracker,
+} from './overlay-runtime-init';
+
+test('startOverlayWindowTracker starts tracker for the current mpv socket', () => {
+  const calls: string[] = [];
+  const tracker = {
+    onGeometryChange: null as ((...args: unknown[]) => void) | null,
+    onWindowFound: null as ((...args: unknown[]) => void) | null,
+    onWindowLost: null as (() => void) | null,
+    onWindowFocusChange: null as ((focused: boolean) => void) | null,
+    isTargetWindowMinimized: () => false,
+    start: () => {
+      calls.push('start');
+    },
+  };
+
+  const result = startOverlayWindowTracker({
+    backendOverride: 'windows',
+    getMpvSocketPath: () => '\\\\.\\pipe\\subminer-socket',
+    createWindowTracker: (override, socketPath) => {
+      calls.push(`create:${override}:${socketPath}`);
+      return tracker as never;
+    },
+    setWindowTracker: (nextTracker) => {
+      calls.push(nextTracker === tracker ? 'set-tracker' : 'clear-tracker');
+    },
+    updateVisibleOverlayBounds: () => {
+      calls.push('bounds');
+    },
+    isVisibleOverlayVisible: () => true,
+    updateVisibleOverlayVisibility: () => {
+      calls.push('visibility');
+    },
+    refreshCurrentSubtitle: () => {
+      calls.push('refresh-subtitle');
+    },
+    getOverlayWindows: () => [],
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+  });
+
+  assert.equal(result, tracker);
+  tracker.onWindowFound?.({ x: 10, y: 20, width: 300, height: 200 });
+  tracker.onWindowFocusChange?.(true);
+
+  assert.deepEqual(calls, [
+    'create:windows:\\\\.\\pipe\\subminer-socket',
+    'set-tracker',
+    'start',
+    'bounds',
+    'visibility',
+    'refresh-subtitle',
+    'visibility',
+    'sync-shortcuts',
+  ]);
+});
 
 test('initializeOverlayRuntime skips Anki integration when ankiConnect.enabled is false', () => {
   let createdIntegrations = 0;

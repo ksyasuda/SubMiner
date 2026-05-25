@@ -365,8 +365,8 @@ export function findRofiTheme(scriptPath: string): string | null {
   } else {
     const xdgDataHome = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local/share');
     candidates.push(path.join(xdgDataHome, 'SubMiner/themes', ROFI_THEME_FILE));
-    candidates.push(path.join('/usr/local/share/SubMiner/themes', ROFI_THEME_FILE));
-    candidates.push(path.join('/usr/share/SubMiner/themes', ROFI_THEME_FILE));
+    candidates.push(path.posix.join('/usr/local/share/SubMiner/themes', ROFI_THEME_FILE));
+    candidates.push(path.posix.join('/usr/share/SubMiner/themes', ROFI_THEME_FILE));
   }
 
   candidates.push(path.join(scriptDir, 'assets', 'themes', ROFI_THEME_FILE));

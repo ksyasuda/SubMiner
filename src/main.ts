@@ -347,6 +347,7 @@ import {
   syncOverlayWindowLayer,
   setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
   showMpvOsdRuntime,
+  startOverlayWindowTracker as startOverlayWindowTrackerCore,
   tokenizeSubtitle as tokenizeSubtitleCore,
   triggerFieldGrouping as triggerFieldGroupingCore,
   upsertYomitanDictionarySettings,
@@ -2465,6 +2466,100 @@ function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | nu
   } catch {
     return null;
   }
+}
+
+function createOverlayWindowTracker(override?: string | null, targetMpvSocketPath?: string | null) {
+  if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
+    return null;
+  }
+  return createWindowTrackerCore(override, targetMpvSocketPath);
+}
+
+function bindVisibleOverlayOwner(): void {
+  const mainWindow = overlayManager.getMainWindow();
+  if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
+  const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
+  const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(appState.mpvSocketPath);
+  if (targetWindowHwnd !== null && bindWindowsOverlayAboveMpv(overlayHwnd, targetWindowHwnd)) {
+    return;
+  }
+  const tracker = appState.windowTracker;
+  const mpvResult = tracker
+    ? (() => {
+        try {
+          const win32 =
+            require('./window-trackers/win32') as typeof import('./window-trackers/win32');
+          const poll = win32.findMpvWindows();
+          const focused = poll.matches.find((m) => m.isForeground);
+          return focused ?? [...poll.matches].sort((a, b) => b.area - a.area)[0] ?? null;
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+  if (!mpvResult) return;
+  if (!setWindowsOverlayOwner(overlayHwnd, mpvResult.hwnd)) {
+    logger.warn('Failed to set overlay owner via koffi');
+  }
+}
+
+function releaseVisibleOverlayOwner(): void {
+  const mainWindow = overlayManager.getMainWindow();
+  if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
+  const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
+  if (!clearWindowsOverlayOwner(overlayHwnd)) {
+    logger.warn('Failed to clear overlay owner via koffi');
+  }
+}
+
+function startOverlayWindowTrackerForCurrentSocket(): void {
+  startOverlayWindowTrackerCore({
+    backendOverride: appState.backendOverride,
+    getMpvSocketPath: () => appState.mpvSocketPath,
+    createWindowTracker: createOverlayWindowTracker,
+    setWindowTracker: (tracker) => {
+      appState.windowTracker = tracker;
+    },
+    updateVisibleOverlayBounds: (geometry: WindowGeometry) => updateVisibleOverlayBounds(geometry),
+    isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+    refreshCurrentSubtitle: () => {
+      subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+    },
+    getOverlayWindows: () => getOverlayWindows(),
+    syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
+    bindOverlayOwner: () => bindVisibleOverlayOwner(),
+    releaseOverlayOwner: () => releaseVisibleOverlayOwner(),
+  });
+}
+
+function retargetOverlayWindowTrackerForMpvSocket(
+  nextSocketPath: string,
+  previousSocketPath: string,
+): void {
+  if (nextSocketPath === previousSocketPath || !appState.overlayRuntimeInitialized) {
+    return;
+  }
+
+  const previousTracker = appState.windowTracker;
+  if (previousTracker) {
+    try {
+      previousTracker.stop();
+    } catch (error) {
+      logger.warn('Failed to stop previous overlay window tracker before retargeting', error);
+    }
+  }
+
+  releaseVisibleOverlayOwner();
+  appState.windowTracker = null;
+  appState.trackerNotReadyWarningShown = false;
+  lastOverlayWindowGeometry = null;
+  startOverlayWindowTrackerForCurrentSocket();
+  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+  overlayShortcutsRuntime.syncOverlayShortcuts();
+  logger.info(
+    `Retargeted overlay window tracker for MPV socket: ${previousSocketPath} -> ${nextSocketPath}`,
+  );
 }
 
 async function syncWindowsVisibleOverlayToMpvZOrder(): Promise<boolean> {
@@ -5925,6 +6020,8 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
   cliCommandContextMainDeps: {
     appState,
     setLogLevel: (level) => setLogLevel(level, 'cli'),
+    onMpvSocketPathChanged: (nextSocketPath, previousSocketPath) =>
+      retargetOverlayWindowTrackerForMpvSocket(nextSocketPath, previousSocketPath),
     texthookerService,
     getResolvedConfig: () => getResolvedConfig(),
     defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
@@ -6213,7 +6310,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
         handleCliCommand(parseArgs(['--texthooker', '--open-browser'])),
       showTexthookerPage: () => shouldShowTexthookerTrayEntry(getResolvedConfig()),
       showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
-      openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
+      openFirstRunSetupWindow: (force?: boolean) => openFirstRunSetupWindow(force),
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
       openYomitanSettings: () => openYomitanSettings(),
       openConfigSettingsWindow: () => openConfigSettingsWindow(),
@@ -6323,52 +6420,12 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
         }
         registerGlobalShortcuts();
       },
-      createWindowTracker: (override, targetMpvSocketPath) => {
-        if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
-          return null;
-        }
-        return createWindowTrackerCore(override, targetMpvSocketPath);
-      },
+      createWindowTracker: (override, targetMpvSocketPath) =>
+        createOverlayWindowTracker(override, targetMpvSocketPath),
       updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
         updateVisibleOverlayBounds(geometry),
-      bindOverlayOwner: () => {
-        const mainWindow = overlayManager.getMainWindow();
-        if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
-        const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
-        const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(appState.mpvSocketPath);
-        if (
-          targetWindowHwnd !== null &&
-          bindWindowsOverlayAboveMpv(overlayHwnd, targetWindowHwnd)
-        ) {
-          return;
-        }
-        const tracker = appState.windowTracker;
-        const mpvResult = tracker
-          ? (() => {
-              try {
-                const win32 =
-                  require('./window-trackers/win32') as typeof import('./window-trackers/win32');
-                const poll = win32.findMpvWindows();
-                const focused = poll.matches.find((m) => m.isForeground);
-                return focused ?? [...poll.matches].sort((a, b) => b.area - a.area)[0] ?? null;
-              } catch {
-                return null;
-              }
-            })()
-          : null;
-        if (!mpvResult) return;
-        if (!setWindowsOverlayOwner(overlayHwnd, mpvResult.hwnd)) {
-          logger.warn('Failed to set overlay owner via koffi');
-        }
-      },
-      releaseOverlayOwner: () => {
-        const mainWindow = overlayManager.getMainWindow();
-        if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
-        const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
-        if (!clearWindowsOverlayOwner(overlayHwnd)) {
-          logger.warn('Failed to clear overlay owner via koffi');
-        }
-      },
+      bindOverlayOwner: () => bindVisibleOverlayOwner(),
+      releaseOverlayOwner: () => releaseVisibleOverlayOwner(),
       getOverlayWindows: () => getOverlayWindows(),
       getResolvedConfig: () => getResolvedConfig(),
       showDesktopNotification,

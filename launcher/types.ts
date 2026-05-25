@@ -60,6 +60,7 @@ export const DEFAULT_MPV_SUBMINER_ARGS = [
   '--sub-file-paths=.;subs;subtitles',
   '--sid=auto',
   '--secondary-sid=auto',
+  '--sub-visibility=no',
   '--secondary-sub-visibility=no',
   '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
   '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',

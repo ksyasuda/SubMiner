@@ -152,7 +152,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.updates.checkIntervalHours, 24);
   assert.equal(config.updates.notificationType, 'system');
   assert.equal(config.updates.channel, 'stable');
-  assert.equal(config.mpv.socketPath, '/tmp/subminer-socket');
+  assert.equal(config.mpv.socketPath, DEFAULT_CONFIG.mpv.socketPath);
   assert.equal(config.mpv.backend, 'auto');
   assert.equal(config.mpv.profile, '');
   assert.equal(config.mpv.autoStartSubMiner, true);

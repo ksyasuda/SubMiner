@@ -28,7 +28,8 @@ test('tray main deps builders return mapped handlers', () => {
     openTexthookerInBrowser: () => calls.push('texthooker'),
     showTexthookerPage: () => true,
     showFirstRunSetup: () => true,
-    openFirstRunSetupWindow: () => calls.push('setup'),
+    openFirstRunSetupWindow: (force?: boolean) =>
+      calls.push(force ? 'setup-forced' : 'setup'),
     showWindowsMpvLauncherSetup: () => true,
     openYomitanSettings: () => calls.push('yomitan'),
     openConfigSettingsWindow: () => calls.push('configuration'),

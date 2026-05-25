@@ -12,6 +12,7 @@ type CliCommandContextMainState = {
 export function createBuildCliCommandContextMainDepsHandler(deps: {
   appState: CliCommandContextMainState;
   setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
+  onMpvSocketPathChanged?: (nextSocketPath: string, previousSocketPath: string) => void;
   texthookerService: CliCommandContextFactoryDeps['texthookerService'];
   getResolvedConfig: () => {
     texthooker?: { openBrowser?: boolean };
@@ -74,7 +75,11 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     setLogLevel: deps.setLogLevel,
     getSocketPath: () => deps.appState.mpvSocketPath,
     setSocketPath: (socketPath: string) => {
+      const previousSocketPath = deps.appState.mpvSocketPath;
       deps.appState.mpvSocketPath = socketPath;
+      if (socketPath !== previousSocketPath) {
+        deps.onMpvSocketPathChanged?.(socketPath, previousSocketPath);
+      }
     },
     getMpvClient: () => deps.appState.mpvClient,
     showOsd: (text: string) => deps.showMpvOsd(text),

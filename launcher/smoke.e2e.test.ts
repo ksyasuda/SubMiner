@@ -40,6 +40,19 @@ function writeExecutable(filePath: string, body: string): void {
   fs.chmodSync(filePath, 0o755);
 }
 
+function writeFixtureExecutable(basePath: string, body: string): string {
+  if (process.platform !== 'win32') {
+    writeExecutable(basePath, body);
+    return basePath;
+  }
+
+  const scriptPath = `${basePath}.js`;
+  const commandPath = `${basePath}.cmd`;
+  fs.writeFileSync(scriptPath, body);
+  fs.writeFileSync(commandPath, `@echo off\r\n"${process.execPath}" "${scriptPath}" %*\r\n`);
+  return commandPath;
+}
+
 function createSmokeCase(name: string): SmokeCase {
   const baseDir = path.join(process.cwd(), '.tmp', 'launcher-smoke');
   fs.mkdirSync(baseDir, { recursive: true });
@@ -52,8 +65,8 @@ function createSmokeCase(name: string): SmokeCase {
   const socketDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-smoke-sock-'));
   const socketPath = path.join(socketDir, 'subminer.sock');
   const videoPath = path.join(root, 'video.mkv');
-  const fakeAppPath = path.join(binDir, 'fake-subminer');
-  const fakeMpvPath = path.join(binDir, 'mpv');
+  const fakeAppBasePath = path.join(binDir, 'fake-subminer');
+  const fakeMpvBasePath = path.join(binDir, 'mpv');
   const mpvOverlayLogPath = path.join(artifactsDir, 'mpv-overlay.log');
 
   fs.mkdirSync(artifactsDir, { recursive: true });
@@ -74,8 +87,8 @@ function createSmokeCase(name: string): SmokeCase {
   const fakeAppStartLogPath = path.join(artifactsDir, 'fake-app-start.log');
   const fakeAppStopLogPath = path.join(artifactsDir, 'fake-app-stop.log');
 
-  writeExecutable(
-    fakeMpvPath,
+  const fakeMpvPath = writeFixtureExecutable(
+    fakeMpvBasePath,
     `#!/usr/bin/env bun
 const fs = require('node:fs');
 const net = require('node:net');
@@ -113,8 +126,8 @@ process.on('SIGTERM', closeAndExit);
 `,
   );
 
-  writeExecutable(
-    fakeAppPath,
+  const fakeAppPath = writeFixtureExecutable(
+    fakeAppBasePath,
     `#!/usr/bin/env bun
 const fs = require('node:fs');
 
@@ -157,14 +170,21 @@ process.exit(0);
 }
 
 function makeTestEnv(smokeCase: SmokeCase): NodeJS.ProcessEnv {
-  return {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     HOME: smokeCase.homeDir,
     XDG_CONFIG_HOME: smokeCase.xdgConfigHome,
     SUBMINER_APPIMAGE_PATH: smokeCase.fakeAppPath,
     SUBMINER_MPV_LOG: smokeCase.mpvOverlayLogPath,
-    PATH: `${smokeCase.binDir}${path.delimiter}${process.env.PATH || ''}`,
   };
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') ?? 'PATH';
+  env[pathKey] = `${smokeCase.binDir}${path.delimiter}${env[pathKey] || ''}`;
+  for (const key of Object.keys(env)) {
+    if (key !== pathKey && key.toLowerCase() === 'path') {
+      delete env[key];
+    }
+  }
+  return env;
 }
 
 function runLauncher(

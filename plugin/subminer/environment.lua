@@ -13,6 +13,16 @@ function M.create(ctx)
 	local APP_RUNNING_CACHE_TTL_SECONDS = 2
 
 	local function is_windows()
+		local platform = mp.get_property("platform") or ""
+		if platform ~= "" then
+			local normalized = platform:lower()
+			if normalized == "windows" or normalized == "win32" then
+				return true
+			end
+			if normalized == "macos" or normalized == "darwin" or normalized == "osx" or normalized == "linux" then
+				return false
+			end
+		end
 		return package.config:sub(1, 1) == "\\"
 	end
 

@@ -89,7 +89,7 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
     ...(handlers.showWindowsMpvLauncherSetup
       ? [
           {
-            label: 'Manage Windows mpv launcher',
+            label: 'Open SubMiner Setup',
             click: handlers.openWindowsMpvLauncherSetup,
           },
         ]
