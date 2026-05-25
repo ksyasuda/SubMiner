@@ -144,7 +144,7 @@ function needsWindowsShell(command: string): boolean {
 }
 
 function quoteForWindowsShell(value: string): string {
-  return /\s/.test(value) ? `"${value}"` : value;
+  return `"${value.replace(/([&|<>^%!])/g, '^$1').replace(/"/g, '""')}"`;
 }
 
 function createDefaultRunCommand(): RunCommand {

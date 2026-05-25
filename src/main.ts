@@ -2461,6 +2461,7 @@ function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | nu
       if (typeof trackedHandle === 'number' && Number.isFinite(trackedHandle)) {
         return trackedHandle;
       }
+      return null;
     }
     return findWindowsMpvTargetWindowHandle();
   } catch {
@@ -2479,8 +2480,12 @@ function bindVisibleOverlayOwner(): void {
   const mainWindow = overlayManager.getMainWindow();
   if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
   const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
-  const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(appState.mpvSocketPath);
+  const targetSocketPath = appState.mpvSocketPath;
+  const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(targetSocketPath);
   if (targetWindowHwnd !== null && bindWindowsOverlayAboveMpv(overlayHwnd, targetWindowHwnd)) {
+    return;
+  }
+  if (targetSocketPath) {
     return;
   }
   const tracker = appState.windowTracker;

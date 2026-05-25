@@ -214,34 +214,32 @@ async function runEntryProcess(): Promise<void> {
   if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
     const sanitizedEnv = sanitizeLaunchMpvEnv(process.env);
     applySanitizedEnv(sanitizedEnv);
-    void app.whenReady().then(async () => {
-      const configuredMpvLaunch = readConfiguredWindowsMpvLaunch(userDataPath);
-      const result = await launchWindowsMpv(
-        normalizeLaunchMpvTargets(process.argv),
-        createWindowsMpvLaunchDeps({
-          getEnv: (name) => process.env[name],
-          showError: (title, content) => {
-            dialog.showErrorBox(title, content);
-          },
-        }),
-        normalizeLaunchMpvExtraArgs(process.argv),
-        process.execPath,
-        resolveBundledWindowsMpvPluginEntrypoint(),
-        configuredMpvLaunch.executablePath,
-        configuredMpvLaunch.launchMode,
-        createWindowsRuntimePluginPolicy(),
-        configuredMpvLaunch.pluginRuntimeConfig,
-      );
-      app.exit(result.ok ? 0 : 1);
-    });
+    await app.whenReady();
+    const configuredMpvLaunch = readConfiguredWindowsMpvLaunch(userDataPath);
+    const result = await launchWindowsMpv(
+      normalizeLaunchMpvTargets(process.argv),
+      createWindowsMpvLaunchDeps({
+        getEnv: (name) => process.env[name],
+        showError: (title, content) => {
+          dialog.showErrorBox(title, content);
+        },
+      }),
+      normalizeLaunchMpvExtraArgs(process.argv),
+      process.execPath,
+      resolveBundledWindowsMpvPluginEntrypoint(),
+      configuredMpvLaunch.executablePath,
+      configuredMpvLaunch.launchMode,
+      createWindowsRuntimePluginPolicy(),
+      configuredMpvLaunch.pluginRuntimeConfig,
+    );
+    app.exit(result.ok ? 0 : 1);
     return;
   }
 
   if (shouldHandleStatsDaemonCommandAtEntry(process.argv, process.env)) {
-    void app.whenReady().then(async () => {
-      const exitCode = await runStatsDaemonControlFromProcess(app.getPath('userData'));
-      app.exit(exitCode);
-    });
+    await app.whenReady();
+    const exitCode = await runStatsDaemonControlFromProcess(app.getPath('userData'));
+    app.exit(exitCode);
     return;
   }
 
