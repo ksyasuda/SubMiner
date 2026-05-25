@@ -151,6 +151,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
   buildMergedDictionary: (mediaIds: number[]) => Promise<MergedCharacterDictionaryBuildResult>;
   getManualSelectionSnapshot: (
     targetPath?: string,
+    searchTitle?: string,
   ) => Promise<CharacterDictionaryManualSelectionSnapshot>;
   setManualSelection: (request: {
     targetPath?: string;
@@ -455,28 +456,43 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         entryCount,
       };
     },
-    getManualSelectionSnapshot: async (targetPath?: string) => {
+    getManualSelectionSnapshot: async (targetPath?: string, searchTitle?: string) => {
       const waitForAniListRequestSlot = createAniListRequestSlot();
       const { guessed, seriesKey } = await guessCurrentMedia(targetPath);
-      const [candidates, override] = await Promise.all([
-        searchAniListMediaCandidates(guessed.title, waitForAniListRequestSlot),
+      const normalizedSearchTitle = searchTitle?.trim();
+      const shouldUseExplicitSearch = searchTitle !== undefined;
+      const candidateSearchTitle = shouldUseExplicitSearch ? normalizedSearchTitle : guessed.title;
+      const candidates = candidateSearchTitle
+        ? await searchAniListMediaCandidates(candidateSearchTitle, waitForAniListRequestSlot)
+        : [];
+      const [override, current] = await Promise.all([
         manualSelectionStore.getOverride(seriesKey),
+        shouldUseExplicitSearch
+          ? Promise.resolve(null)
+          : resolveAniListMediaIdFromGuess(guessed, waitForAniListRequestSlot)
+              .then(
+                (entry): AniListMediaCandidate => ({
+                  id: entry.id,
+                  title: entry.title,
+                  episodes:
+                    candidates.find((candidate) => candidate.id === entry.id)?.episodes ?? null,
+                }),
+              )
+              .catch(() => null),
       ]);
-      const current = await resolveAniListMediaIdFromGuess(guessed, waitForAniListRequestSlot)
-        .then(
-          (entry): AniListMediaCandidate => ({
-            id: entry.id,
-            title: entry.title,
-            episodes: candidates.find((candidate) => candidate.id === entry.id)?.episodes ?? null,
-          }),
-        )
-        .catch(() => null);
+      const overrideCandidate = override
+        ? candidates.find((candidate) => candidate.id === override.mediaId)
+        : null;
       return {
         seriesKey,
         guessTitle: guessed.title,
         current,
         override: override
-          ? { id: override.mediaId, title: override.mediaTitle, episodes: null }
+          ? {
+              id: override.mediaId,
+              title: override.mediaTitle,
+              episodes: overrideCandidate?.episodes ?? null,
+            }
           : null,
         candidates,
       };

@@ -95,7 +95,7 @@ export interface IpcServiceDeps {
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
   runAnilistPostWatchUpdateOnManualMark?: () => Promise<void>;
-  getCharacterDictionarySelection?: () => Promise<unknown>;
+  getCharacterDictionarySelection?: (searchTitle?: string) => Promise<unknown>;
   setCharacterDictionarySelection?: (mediaId: number) => Promise<unknown>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
@@ -223,7 +223,7 @@ export interface IpcDepsRuntimeOptions {
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
   runAnilistPostWatchUpdateOnManualMark?: () => Promise<void>;
-  getCharacterDictionarySelection?: () => Promise<unknown>;
+  getCharacterDictionarySelection?: (searchTitle?: string) => Promise<unknown>;
   setCharacterDictionarySelection?: (mediaId: number) => Promise<unknown>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
@@ -615,8 +615,9 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     return await deps.retryAnilistQueueNow();
   });
 
-  ipc.handle(IPC_CHANNELS.request.getCharacterDictionarySelection, async () => {
-    return await (deps.getCharacterDictionarySelection?.() ??
+  ipc.handle(IPC_CHANNELS.request.getCharacterDictionarySelection, async (_event, searchTitle) => {
+    const normalizedSearchTitle = typeof searchTitle === 'string' ? searchTitle.trim() : undefined;
+    return await (deps.getCharacterDictionarySelection?.(normalizedSearchTitle) ??
       Promise.resolve({
         seriesKey: '',
         guessTitle: null,

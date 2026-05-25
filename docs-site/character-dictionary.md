@@ -169,9 +169,12 @@ This creates a standalone dictionary ZIP for the target media and saves it along
 
 ## Correcting AniList Matches
 
-SubMiner uses `guessit` to infer the anime title from the active filename, then searches AniList. Some filenames can still resolve to the wrong title. For example, `Re - ZERO, Starting Life in Another World (2016)` can be misread as a different `Re...` series.
+SubMiner uses `guessit` to infer the anime title from the active filename before searching AniList. Some filenames can still resolve to the wrong title. For example, `Re - ZERO, Starting Life in Another World (2016)` can be misread as a different `Re...` series.
 
 Use the in-app selector or CLI to pin the correct AniList media for the whole series:
+
+- In-app: open the selector with `Ctrl/Cmd+Alt+A` or `--open-character-dictionary`, edit the prefilled title if needed, then search and choose the correct result.
+- CLI: `--dictionary-candidates` still lists matches for the current filename guess.
 
 ```bash
 # List candidate AniList matches for a file
@@ -254,7 +257,7 @@ If you work with visual novels or want a standalone dictionary generator indepen
 
 - **Names not highlighting:** Confirm `anilist.characterDictionary.enabled` is `true` and `subtitleStyle.nameMatchEnabled` is `true`. Check that the current media has an AniList entry — SubMiner needs a media ID to fetch characters.
 - **Sync seems stuck:** The auto-sync debounces for 800ms after media changes and throttles image downloads at 250ms per image. Large casts (50+ characters) take longer. Check the status bar for the current sync phase.
-- **Wrong characters showing:** Open the in-app character dictionary selector (`--open-character-dictionary`) or run `--dictionary-candidates`, then save the correct media with `--dictionary-select --dictionary-anilist-id <id>`. This replaces stale wrong-title entries for that series. If names are only from an older unrelated show, they'll rotate out once you watch enough new titles to push it past `maxLoaded`.
+- **Wrong characters showing:** Open the in-app character dictionary selector (`--open-character-dictionary`), edit the search title, and select the right AniList entry. You can also run `--dictionary-candidates`, then save the correct media with `--dictionary-select --dictionary-anilist-id <id>`. This replaces stale wrong-title entries for that series. If names are only from an older unrelated show, they'll rotate out once you watch enough new titles to push it past `maxLoaded`.
 - **Yomitan import fails:** SubMiner waits up to 7 seconds for Yomitan to be ready for mutations. If Yomitan is still loading dictionaries or performing another import, the operation may time out. Restarting the overlay typically resolves this.
 - **Portraits missing:** Images are downloaded from AniList CDN during snapshot generation. If the network was unavailable during the initial sync, delete the snapshot file from `character-dictionaries/snapshots/` and let it regenerate.
 

@@ -413,8 +413,8 @@ const electronAPI: ElectronAPI = {
     request: YoutubePickerResolveRequest,
   ): Promise<YoutubePickerResolveResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.youtubePickerResolve, request),
-  getCharacterDictionarySelection: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.getCharacterDictionarySelection),
+  getCharacterDictionarySelection: (searchTitle?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getCharacterDictionarySelection, searchTitle),
   setCharacterDictionarySelection: (mediaId: number) =>
     ipcRenderer.invoke(IPC_CHANNELS.request.setCharacterDictionarySelection, mediaId),
   notifyOverlayModalClosed: (modal) => {

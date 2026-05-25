@@ -1551,6 +1551,27 @@ iframe[id^='yomitan-popup'],
   color: var(--ctp-subtext1);
 }
 
+.character-dictionary-search {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.character-dictionary-search-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 1px solid rgba(110, 115, 141, 0.28);
+  border-radius: 6px;
+  background: rgba(24, 25, 38, 0.88);
+  color: var(--ctp-text);
+  padding: 7px 9px;
+}
+
+.character-dictionary-search-input:focus {
+  border-color: rgba(138, 173, 244, 0.75);
+  outline: none;
+}
+
 .character-dictionary-candidates {
   list-style: none;
   margin: 0;
@@ -1600,6 +1621,11 @@ iframe[id^='yomitan-popup'],
 
 .character-dictionary-use:hover {
   background: rgba(91, 96, 120, 0.9);
+}
+
+.character-dictionary-use:disabled {
+  cursor: default;
+  opacity: 0.72;
 }
 
 .character-dictionary-empty {
