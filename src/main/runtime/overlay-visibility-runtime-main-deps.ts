@@ -17,6 +17,7 @@ export function createBuildOverlayVisibilityRuntimeMainDepsHandler(
       deps.getLastKnownWindowsForegroundProcessName?.() ?? null,
     getWindowsOverlayProcessName: () => deps.getWindowsOverlayProcessName?.() ?? null,
     getWindowsFocusHandoffGraceActive: () => deps.getWindowsFocusHandoffGraceActive?.() ?? false,
+    getMacOSForegroundProbeActive: () => deps.getMacOSForegroundProbeActive?.() ?? false,
     getTrackerNotReadyWarningShown: () => deps.getTrackerNotReadyWarningShown(),
     setTrackerNotReadyWarningShown: (shown: boolean) => deps.setTrackerNotReadyWarningShown(shown),
     updateVisibleOverlayBounds: (geometry: WindowGeometry) =>

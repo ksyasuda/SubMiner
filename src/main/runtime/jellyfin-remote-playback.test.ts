@@ -1,15 +1,50 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  markJellyfinRemotePlaybackLoaded,
   createReportJellyfinRemoteProgressHandler,
   createReportJellyfinRemoteStoppedHandler,
   secondsToJellyfinTicks,
+  shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
 } from './jellyfin-remote-playback';
 
 test('secondsToJellyfinTicks converts seconds and clamps invalid values', () => {
   assert.equal(secondsToJellyfinTicks(1.25, 10_000_000), 12_500_000);
   assert.equal(secondsToJellyfinTicks(-3, 10_000_000), 0);
   assert.equal(secondsToJellyfinTicks(Number.NaN, 10_000_000), 0);
+});
+
+test('shouldAutoLoadSecondarySubTrackForJellyfinPlayback suppresses generic secondary autoload for active Jellyfin media', () => {
+  assert.equal(shouldAutoLoadSecondarySubTrackForJellyfinPlayback(null, '/tmp/local.mkv'), true);
+  assert.equal(
+    shouldAutoLoadSecondarySubTrackForJellyfinPlayback(
+      { itemId: 'item-1', playMethod: 'DirectPlay', loadedMediaPath: null },
+      'http://pve-main:8096/Videos/item/stream',
+    ),
+    false,
+  );
+  assert.equal(
+    shouldAutoLoadSecondarySubTrackForJellyfinPlayback(
+      {
+        itemId: 'item-1',
+        playMethod: 'DirectPlay',
+        loadedMediaPath: 'http://pve-main:8096/Videos/item/stream',
+      },
+      'http://pve-main:8096/Videos/item/stream',
+    ),
+    false,
+  );
+  assert.equal(
+    shouldAutoLoadSecondarySubTrackForJellyfinPlayback(
+      {
+        itemId: 'item-1',
+        playMethod: 'DirectPlay',
+        loadedMediaPath: 'http://pve-main:8096/Videos/item/stream',
+      },
+      '/tmp/local.mkv',
+    ),
+    true,
+  );
 });
 
 test('createReportJellyfinRemoteProgressHandler reports playback progress', async () => {
@@ -61,6 +96,74 @@ test('createReportJellyfinRemoteProgressHandler reports playback progress', asyn
   assert.equal(lastProgressAtMs, 5000);
 });
 
+test('createReportJellyfinRemoteProgressHandler reports while remote websocket is disconnected', async () => {
+  const reportPayloads: Array<{ positionTicks: number; isPaused: boolean }> = [];
+
+  const reportProgress = createReportJellyfinRemoteProgressHandler({
+    getActivePlayback: () => ({
+      itemId: 'item-1',
+      playMethod: 'DirectPlay',
+    }),
+    clearActivePlayback: () => {},
+    getSession: () => ({
+      isConnected: () => false,
+      reportProgress: async (payload) => {
+        reportPayloads.push({
+          positionTicks: payload.positionTicks,
+          isPaused: payload.isPaused,
+        });
+      },
+      reportStopped: async () => {},
+    }),
+    getMpvClient: () => ({
+      currentTimePos: 42,
+      requestProperty: async (name: string) => (name === 'pause' ? false : 42),
+    }),
+    getNow: () => 5000,
+    getLastProgressAtMs: () => 0,
+    setLastProgressAtMs: () => {},
+    progressIntervalMs: 3000,
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportProgress(true);
+
+  assert.deepEqual(reportPayloads, [{ positionTicks: 420_000_000, isPaused: false }]);
+});
+
+test('createReportJellyfinRemoteProgressHandler normalizes mpv pause strings', async () => {
+  const reportPayloads: Array<{ isPaused: boolean }> = [];
+
+  const reportProgress = createReportJellyfinRemoteProgressHandler({
+    getActivePlayback: () => ({
+      itemId: 'item-1',
+      playMethod: 'DirectPlay',
+    }),
+    clearActivePlayback: () => {},
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async (payload) => {
+        reportPayloads.push({ isPaused: payload.isPaused });
+      },
+      reportStopped: async () => {},
+    }),
+    getMpvClient: () => ({
+      requestProperty: async (name: string) => (name === 'pause' ? 'yes' : 3),
+    }),
+    getNow: () => 5000,
+    getLastProgressAtMs: () => 0,
+    setLastProgressAtMs: () => {},
+    progressIntervalMs: 3000,
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportProgress(true);
+
+  assert.deepEqual(reportPayloads, [{ isPaused: true }]);
+});
+
 test('createReportJellyfinRemoteProgressHandler respects debounce interval', async () => {
   let called = false;
   const reportProgress = createReportJellyfinRemoteProgressHandler({
@@ -91,9 +194,61 @@ test('createReportJellyfinRemoteProgressHandler respects debounce interval', asy
   assert.equal(called, false);
 });
 
+test('createReportJellyfinRemoteProgressHandler reports mpv seek jumps during debounce', async () => {
+  let now = 5000;
+  let lastProgressAtMs = 0;
+  let position = 10;
+  const reportPayloads: Array<{ positionTicks: number; eventName: string }> = [];
+
+  const reportProgress = createReportJellyfinRemoteProgressHandler({
+    getActivePlayback: () => ({
+      itemId: 'item-1',
+      playMethod: 'DirectPlay',
+    }),
+    clearActivePlayback: () => {},
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async (payload) => {
+        reportPayloads.push({
+          positionTicks: payload.positionTicks,
+          eventName: payload.eventName,
+        });
+      },
+      reportStopped: async () => {},
+    }),
+    getMpvClient: () => ({
+      currentTimePos: position,
+      requestProperty: async (name: string) => (name === 'pause' ? false : position),
+    }),
+    getNow: () => now,
+    getLastProgressAtMs: () => lastProgressAtMs,
+    setLastProgressAtMs: (value) => {
+      lastProgressAtMs = value;
+    },
+    progressIntervalMs: 3000,
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportProgress(true);
+  now = 5500;
+  position = 90;
+  await reportProgress(false);
+
+  assert.deepEqual(reportPayloads, [
+    { positionTicks: 100_000_000, eventName: 'TimeUpdate' },
+    { positionTicks: 900_000_000, eventName: 'TimeUpdate' },
+  ]);
+  assert.equal(lastProgressAtMs, 5500);
+});
+
 test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback', async () => {
   let cleared = false;
-  let stoppedItemId: string | null = null;
+  let stoppedPayload: {
+    itemId: string;
+    positionTicks?: number;
+    failed?: boolean;
+  } | null = null;
   const reportStopped = createReportJellyfinRemoteStoppedHandler({
     getActivePlayback: () => ({
       itemId: 'item-2',
@@ -109,13 +264,267 @@ test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback'
       isConnected: () => true,
       reportProgress: async () => {},
       reportStopped: async (payload) => {
-        stoppedItemId = payload.itemId;
+        stoppedPayload = {
+          itemId: payload.itemId,
+          positionTicks: payload.positionTicks,
+          failed: payload.failed,
+        };
       },
     }),
+    getMpvClient: () => ({
+      currentTimePos: 12.5,
+      requestProperty: async () => {
+        throw new Error('unloaded');
+      },
+    }),
+    ticksPerSecond: 10_000_000,
     logDebug: () => {},
   });
 
   await reportStopped();
-  assert.equal(stoppedItemId, 'item-2');
+  assert.deepEqual(stoppedPayload, {
+    itemId: 'item-2',
+    positionTicks: 125_000_000,
+    failed: false,
+  });
   assert.equal(cleared, true);
+});
+
+test('createReportJellyfinRemoteStoppedHandler clears aborted playback that never loaded', async () => {
+  let cleared = false;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler({
+    getActivePlayback: () => ({
+      itemId: 'item-2',
+      mediaSourceId: undefined,
+      playMethod: 'Transcode',
+      audioStreamIndex: null,
+      subtitleStreamIndex: null,
+      loadedMediaPath: null,
+    }),
+    clearActivePlayback: () => {
+      cleared = true;
+    },
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async () => {},
+      reportStopped: async () => {
+        throw new Error('should not report stopped for unloaded media');
+      },
+    }),
+    getMpvClient: () => null,
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportStopped();
+
+  assert.equal(cleared, true);
+});
+
+test('createReportJellyfinRemoteStoppedHandler reports stop while remote websocket is disconnected', async () => {
+  let cleared = false;
+  let stoppedPayload: {
+    itemId: string;
+    positionTicks?: number;
+    failed?: boolean;
+  } | null = null;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler({
+    getActivePlayback: () => ({
+      itemId: 'item-2',
+      mediaSourceId: undefined,
+      playMethod: 'Transcode',
+      audioStreamIndex: null,
+      subtitleStreamIndex: null,
+      loadedMediaPath: 'https://stream.example/video.m3u8',
+    }),
+    clearActivePlayback: () => {
+      cleared = true;
+    },
+    getSession: () => ({
+      isConnected: () => false,
+      reportProgress: async () => {},
+      reportStopped: async (payload) => {
+        stoppedPayload = {
+          itemId: payload.itemId,
+          positionTicks: payload.positionTicks,
+          failed: payload.failed,
+        };
+      },
+    }),
+    getMpvClient: () => ({
+      currentTimePos: 12.5,
+    }),
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportStopped();
+
+  assert.deepEqual(stoppedPayload, {
+    itemId: 'item-2',
+    positionTicks: 125_000_000,
+    failed: false,
+  });
+  assert.equal(cleared, true);
+});
+
+test('createReportJellyfinRemoteStoppedHandler uses cached position after mpv unload reset', async () => {
+  let cleared = false;
+  const calls: Array<{ event: string; positionTicks?: number }> = [];
+  const reportStopped = createReportJellyfinRemoteStoppedHandler({
+    getActivePlayback: () =>
+      ({
+        itemId: 'item-2',
+        mediaSourceId: undefined,
+        playMethod: 'DirectPlay',
+        audioStreamIndex: null,
+        subtitleStreamIndex: null,
+        loadedMediaPath: 'https://stream.example/video.m3u8',
+        lastKnownPositionSeconds: 72.25,
+      }) as never,
+    clearActivePlayback: () => {
+      cleared = true;
+    },
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async (payload) => {
+        calls.push({ event: 'progress', positionTicks: payload.positionTicks });
+      },
+      reportStopped: async (payload) => {
+        calls.push({ event: 'stopped', positionTicks: payload.positionTicks });
+      },
+    }),
+    getMpvClient: () => ({
+      currentTimePos: 0,
+    }),
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportStopped();
+
+  assert.deepEqual(calls, [
+    { event: 'progress', positionTicks: 722_500_000 },
+    { event: 'stopped', positionTicks: 722_500_000 },
+  ]);
+  assert.equal(cleared, true);
+});
+
+test('createReportJellyfinRemoteStoppedHandler ignores unloaded active playback', async () => {
+  let cleared = false;
+  let stopped = false;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler({
+    getActivePlayback: () =>
+      ({
+        itemId: 'item-2',
+        playMethod: 'Transcode',
+        loadedMediaPath: null,
+      }) as never,
+    clearActivePlayback: () => {
+      cleared = true;
+    },
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async () => {},
+      reportStopped: async () => {
+        stopped = true;
+      },
+    }),
+    getMpvClient: () => ({
+      currentTimePos: 0,
+    }),
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportStopped();
+
+  assert.equal(stopped, false);
+  assert.equal(cleared, true);
+});
+
+test('createReportJellyfinRemoteProgressHandler caches last nonzero mpv position', async () => {
+  let position = 42;
+  let lastProgressAtMs = 0;
+  const playback = {
+    itemId: 'item-1',
+    playMethod: 'DirectPlay' as const,
+  };
+  const reportProgress = createReportJellyfinRemoteProgressHandler({
+    getActivePlayback: () => playback,
+    clearActivePlayback: () => {},
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async () => {},
+      reportStopped: async () => {},
+    }),
+    getMpvClient: () => ({
+      currentTimePos: position,
+      requestProperty: async (name: string) => (name === 'pause' ? false : position),
+    }),
+    getNow: () => 5000,
+    getLastProgressAtMs: () => lastProgressAtMs,
+    setLastProgressAtMs: (value) => {
+      lastProgressAtMs = value;
+    },
+    progressIntervalMs: 3000,
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportProgress(true);
+  position = 0;
+  await reportProgress(true);
+
+  assert.equal((playback as { lastKnownPositionSeconds?: number }).lastKnownPositionSeconds, 42);
+});
+
+test('markJellyfinRemotePlaybackLoaded preserves the loaded marker on unload paths', () => {
+  const playback = {
+    itemId: 'item-2',
+    playMethod: 'Transcode' as const,
+    loadedMediaPath: 'https://stream.example/video.m3u8',
+  };
+
+  markJellyfinRemotePlaybackLoaded(playback, '');
+  markJellyfinRemotePlaybackLoaded(playback, '   ');
+  assert.equal(playback.loadedMediaPath, 'https://stream.example/video.m3u8');
+
+  markJellyfinRemotePlaybackLoaded(playback, '  https://stream.example/next.m3u8  ');
+  assert.equal(playback.loadedMediaPath, 'https://stream.example/next.m3u8');
+});
+
+test('createReportJellyfinRemoteStoppedHandler ignores startup stop churn before grace expires', async () => {
+  let cleared = false;
+  let stopped = false;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler({
+    getActivePlayback: () =>
+      ({
+        itemId: 'item-2',
+        playMethod: 'DirectPlay',
+        loadedMediaPath: 'https://stream.example/video.m3u8',
+        stopReportsAfterMs: 20_000,
+      }) as never,
+    clearActivePlayback: () => {
+      cleared = true;
+    },
+    getSession: () => ({
+      isConnected: () => true,
+      reportProgress: async () => {},
+      reportStopped: async () => {
+        stopped = true;
+      },
+    }),
+    getMpvClient: () => ({
+      currentTimePos: 0,
+    }),
+    getNow: () => 12_000,
+    ticksPerSecond: 10_000_000,
+    logDebug: () => {},
+  });
+
+  await reportStopped();
+
+  assert.equal(stopped, false);
+  assert.equal(cleared, false);
 });

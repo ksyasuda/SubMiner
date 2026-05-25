@@ -9,6 +9,7 @@ type MockWindow = {
   ignoreMouseEvents: boolean;
   forwardedIgnoreMouseEvents: boolean;
   webContentsFocused: boolean;
+  alwaysOnTopCalls: string[];
   showCount: number;
   hideCount: number;
   sent: unknown[][];
@@ -53,6 +54,7 @@ function createMockWindow(): MockWindow & {
     ignoreMouseEvents: false,
     forwardedIgnoreMouseEvents: false,
     webContentsFocused: false,
+    alwaysOnTopCalls: [],
     showCount: 0,
     hideCount: 0,
     sent: [],
@@ -72,7 +74,9 @@ function createMockWindow(): MockWindow & {
       state.ignoreMouseEvents = ignore;
       state.forwardedIgnoreMouseEvents = options?.forward === true;
     },
-    setAlwaysOnTop: (_flag: boolean, _level?: string, _relativeLevel?: number) => {},
+    setAlwaysOnTop: (flag: boolean, level?: string, relativeLevel?: number) => {
+      state.alwaysOnTopCalls.push(`top:${flag}:${level ?? ''}:${relativeLevel ?? ''}`);
+    },
     moveTop: () => {},
     getShowCount: () => state.showCount,
     getHideCount: () => state.hideCount,
@@ -155,6 +159,13 @@ function createMockWindow(): MockWindow & {
     },
   });
 
+  Object.defineProperty(window, 'alwaysOnTopCalls', {
+    get: () => state.alwaysOnTopCalls,
+    set: (value: string[]) => {
+      state.alwaysOnTopCalls = value;
+    },
+  });
+
   Object.defineProperty(window, 'url', {
     get: () => state.url,
     set: (value: string) => {
@@ -219,6 +230,7 @@ test('sendToActiveOverlayWindow targets modal window with full geometry and trac
   runtime.notifyOverlayModalOpened('runtime-options');
   assert.equal(window.getShowCount(), 1);
   assert.equal(window.isFocused(), true);
+  assert.deepEqual(window.alwaysOnTopCalls, ['top:true:screen-saver:3']);
   assert.deepEqual(window.sent, [['runtime-options:open']]);
 });
 
@@ -313,7 +325,7 @@ test('handleOverlayModalClosed hides modal window only after all pending modals 
   });
   runtime.sendToActiveOverlayWindow(
     'subsync:open-manual',
-    { sourceTracks: [] },
+    { ffsubsyncAvailable: true, sourceTracks: [] },
     {
       restoreOnModalClose: 'subsync',
     },
@@ -459,7 +471,7 @@ test('modal runtime notifies callers when modal input state becomes active/inact
   });
   runtime.sendToActiveOverlayWindow(
     'subsync:open-manual',
-    { sourceTracks: [] },
+    { ffsubsyncAvailable: true, sourceTracks: [] },
     {
       restoreOnModalClose: 'subsync',
     },

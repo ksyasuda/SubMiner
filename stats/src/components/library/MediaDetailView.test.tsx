@@ -125,3 +125,40 @@ test('buildDeleteEpisodeHandler sets error when deleteVideo throws', async () =>
   await handler();
   assert.equal(capturedError, 'Network failure');
 });
+
+test('buildDeleteEpisodeHandler guards duplicate clicks while confirmation is pending', async () => {
+  const confirmResolvers: Array<(value: boolean) => void> = [];
+  let confirmCalls = 0;
+  let deleteCalls = 0;
+  const isDeletingRef = { current: false };
+
+  const handler = buildDeleteEpisodeHandler({
+    videoId: 42,
+    title: 'Test Episode',
+    apiClient: {
+      deleteVideo: async () => {
+        deleteCalls += 1;
+      },
+    },
+    confirmFn: () => {
+      confirmCalls += 1;
+      return new Promise<boolean>((resolve) => {
+        confirmResolvers.push(resolve);
+      });
+    },
+    onBack: () => {},
+    setDeleteError: () => {},
+    isDeletingRef,
+  });
+
+  const first = handler();
+  const second = handler();
+  for (const resolveConfirm of confirmResolvers) {
+    resolveConfirm(true);
+  }
+  await Promise.all([first, second]);
+
+  assert.equal(confirmCalls, 1);
+  assert.equal(deleteCalls, 1);
+  assert.equal(isDeletingRef.current, false);
+});

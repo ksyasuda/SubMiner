@@ -265,7 +265,8 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'enum',
       enumValues: ['headword', 'surface'],
       defaultValue: defaultConfig.ankiConnect.knownWords.matchMode,
-      description: 'Known-word matching strategy for subtitle annotations.',
+      description:
+        'Known-word matching strategy for subtitle annotations. Cache matches always receive known-word highlighting even when POS filters suppress other annotation types.',
     },
     {
       path: 'ankiConnect.knownWords.highlightEnabled',
@@ -549,26 +550,6 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Default Jellyfin username used during CLI login.',
     },
     {
-      path: 'jellyfin.deviceId',
-      kind: 'string',
-      defaultValue: defaultConfig.jellyfin.deviceId,
-      description:
-        'Stable device identifier sent on the Jellyfin authentication handshake; primarily internal.',
-    },
-    {
-      path: 'jellyfin.clientName',
-      kind: 'string',
-      defaultValue: defaultConfig.jellyfin.clientName,
-      description: 'Client name sent on the Jellyfin authentication handshake; primarily internal.',
-    },
-    {
-      path: 'jellyfin.clientVersion',
-      kind: 'string',
-      defaultValue: defaultConfig.jellyfin.clientVersion,
-      description:
-        'Client version sent on the Jellyfin authentication handshake; primarily internal.',
-    },
-    {
       path: 'jellyfin.defaultLibraryId',
       kind: 'string',
       defaultValue: defaultConfig.jellyfin.defaultLibraryId,
@@ -592,12 +573,6 @@ export function buildIntegrationConfigOptionRegistry(
       defaultValue: defaultConfig.jellyfin.autoAnnounce,
       description:
         'When enabled, automatically trigger remote announce/visibility check on websocket connect.',
-    },
-    {
-      path: 'jellyfin.remoteControlDeviceName',
-      kind: 'string',
-      defaultValue: defaultConfig.jellyfin.remoteControlDeviceName,
-      description: 'Device name reported for Jellyfin remote control sessions.',
     },
     {
       path: 'jellyfin.pullPictures',

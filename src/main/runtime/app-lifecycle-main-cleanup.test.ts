@@ -70,6 +70,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
 
     stopJellyfinRemoteSession: () => calls.push('stop-jellyfin-remote'),
     cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
+    cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
     stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
   });
 
@@ -91,6 +92,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
   assert.ok(calls.includes('destroy-yomitan-settings-window'));
   assert.ok(calls.includes('stop-jellyfin-remote'));
   assert.ok(calls.includes('cleanup-youtube-subtitles'));
+  assert.ok(calls.includes('cleanup-jellyfin-subtitles'));
   assert.ok(calls.includes('stop-discord-presence'));
   assert.ok(calls.includes('clear-windows-visible-overlay-foreground-poll-loop'));
   assert.ok(calls.includes('clear-linux-mpv-fullscreen-overlay-refresh-timeouts'));
@@ -145,6 +147,7 @@ test('cleanup deps builder skips destroyed yomitan window', () => {
     clearYomitanSettingsWindow: () => {},
     stopJellyfinRemoteSession: () => {},
     cleanupYoutubeSubtitleTempDirs: () => {},
+    cleanupJellyfinSubtitleCache: () => {},
     stopDiscordPresenceService: () => {},
   });
 
@@ -194,6 +197,7 @@ test('cleanup deps builder skips global shortcut cleanup before app ready', () =
     clearYomitanSettingsWindow: () => {},
     stopJellyfinRemoteSession: () => {},
     cleanupYoutubeSubtitleTempDirs: () => {},
+    cleanupJellyfinSubtitleCache: () => {},
     stopDiscordPresenceService: () => {},
   });
 

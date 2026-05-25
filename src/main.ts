@@ -35,6 +35,10 @@ import { applyControllerConfigUpdate } from './main/controller-config-update.js'
 import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { startAppControlServer } from './main/runtime/app-control-server';
+import {
+  markJellyfinRemotePlaybackLoaded as markJellyfinRemotePlaybackLoadedState,
+  shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
+} from './main/runtime/jellyfin-remote-playback';
 import { getAppControlSocketPath } from './shared/app-control';
 import {
   type CancelLinuxMpvFullscreenOverlayRefreshBurst,
@@ -44,6 +48,7 @@ import {
 import { mergeAiConfig } from './ai/config';
 
 function getPasswordStoreArg(argv: string[]): string | null {
+  let resolved: string | null = null;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (!arg?.startsWith('--password-store')) {
@@ -53,17 +58,18 @@ function getPasswordStoreArg(argv: string[]): string | null {
     if (arg === '--password-store') {
       const value = argv[i + 1];
       if (value && !value.startsWith('--')) {
-        return value;
+        resolved = value.trim();
+        i += 1;
       }
-      return null;
+      continue;
     }
 
     const [prefix, value] = arg.split('=', 2);
     if (prefix === '--password-store' && value && value.trim().length > 0) {
-      return value.trim();
+      resolved = value.trim();
     }
   }
-  return null;
+  return resolved;
 }
 
 function normalizePasswordStoreArg(value: string): string {
@@ -319,6 +325,7 @@ import {
   listJellyfinItemsRuntime,
   listJellyfinLibrariesRuntime,
   listJellyfinSubtitleTracksRuntime,
+  loadJellyfinSubtitleDelay,
   loadSubtitlePosition as loadSubtitlePositionCore,
   loadYomitanExtension as loadYomitanExtensionCore,
   markLastCardAsAudioCard as markLastCardAsAudioCardCore,
@@ -329,6 +336,7 @@ import {
   replayCurrentSubtitleRuntime,
   resolveJellyfinPlaybackPlanRuntime,
   runStartupBootstrapRuntime,
+  saveJellyfinSubtitleDelay,
   saveSubtitlePosition as saveSubtitlePositionCore,
   addYomitanNoteViaSearch,
   clearYomitanParserCachesForWindow,
@@ -356,6 +364,7 @@ import {
   promoteStatsOverlayAbovePlayback,
   registerStatsOverlayToggle,
   toggleStatsOverlay as toggleStatsOverlayWindow,
+  withStatsWindowLayerSuspendedForNativeDialog,
 } from './core/services/stats-window.js';
 import {
   createFirstRunSetupService,
@@ -403,6 +412,11 @@ import {
   launchWindowsMpv,
 } from './main/runtime/windows-mpv-launch';
 import { createWaitForMpvConnectedHandler } from './main/runtime/jellyfin-remote-connection';
+import {
+  DEFAULT_JELLYFIN_CLIENT_NAME,
+  DEFAULT_JELLYFIN_CLIENT_VERSION,
+  createHostDerivedJellyfinDeviceId,
+} from './main/runtime/jellyfin-device-identity';
 import {
   clearJellyfinAuthSessionAndRefreshTray as clearJellyfinAuthSessionAndRefreshTrayRuntime,
   isJellyfinConfiguredForTray as isJellyfinConfiguredForTrayRuntime,
@@ -508,6 +522,7 @@ import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/charac
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { resolveCurrentSubtitleForRenderer } from './main/runtime/current-subtitle-snapshot';
+import { createJellyfinSubtitleCacheIo } from './main/runtime/jellyfin-subtitle-cache-io';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import {
   createElectronAppUpdater,
@@ -619,6 +634,15 @@ const DEFAULT_MPV_LOG_FILE = resolveDefaultLogFilePath({
   appDataDir: process.env.APPDATA,
 });
 const ANILIST_SETUP_CLIENT_ID_URL = 'https://anilist.co/api/v2/oauth/authorize';
+const jellyfinSubtitleCacheIo = createJellyfinSubtitleCacheIo({
+  tmpDir: () => os.tmpdir(),
+  makeTempDir: (prefix) => fs.promises.mkdtemp(prefix),
+  writeFile: (filePath, bytes) => fs.promises.writeFile(filePath, bytes),
+  removeDir: (dir, options) => {
+    fs.rmSync(dir, options);
+  },
+  fetch: (url) => fetch(url),
+});
 const ANILIST_SETUP_RESPONSE_TYPE = 'token';
 const ANILIST_DEFAULT_CLIENT_ID = '36084';
 const ANILIST_REDIRECT_URI = 'https://anilist.subminer.moe/';
@@ -639,6 +663,7 @@ let jellyfinPlayQuitOnDisconnectArmed = false;
 const JELLYFIN_LANG_PREF = 'ja,jp,jpn,japanese,en,eng,english,enUS,en-US';
 const JELLYFIN_TICKS_PER_SECOND = 10_000_000;
 const JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS = 3000;
+const JELLYFIN_REMOTE_STARTUP_STOP_GRACE_MS = 10_000;
 const DISCORD_PRESENCE_APP_ID = '1475264834730856619';
 const JELLYFIN_MPV_CONNECT_TIMEOUT_MS = 3000;
 const JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS = 20000;
@@ -647,16 +672,18 @@ const YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS = 10000;
 const YOUTUBE_MPV_YTDL_FORMAT = 'bestvideo*+bestaudio/best';
 const YOUTUBE_DIRECT_PLAYBACK_FORMAT = 'b';
 const MPV_JELLYFIN_DEFAULT_ARGS = [
-  '--sub-auto=fuzzy',
+  '--sub-auto=no',
   '--sub-file-paths=.;subs;subtitles',
-  '--sid=auto',
-  '--secondary-sid=auto',
+  '--sid=no',
+  '--secondary-sid=no',
+  '--sub-visibility=no',
   '--secondary-sub-visibility=no',
   '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
   '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
 ] as const;
 
 let activeJellyfinRemotePlayback: ActiveJellyfinRemotePlaybackState | null = null;
+let activeJellyfinSubtitleDelayKey: { itemId: string; streamIndex: number } | null = null;
 let jellyfinRemoteLastProgressAtMs = 0;
 let jellyfinMpvAutoLaunchInFlight: Promise<boolean> | null = null;
 let backgroundWarmupsStarted = false;
@@ -1803,12 +1830,13 @@ async function refreshSubtitleSidebarFromSource(
   if (!normalizedSourcePath) {
     return;
   }
-  appState.activeParsedSubtitleMediaPath = mediaPath?.trim() || getCurrentAutoplayMediaPath();
+  const nextMediaPath = mediaPath?.trim() || getCurrentAutoplayMediaPath();
   await subtitlePrefetchInitController.initSubtitlePrefetch(
     normalizedSourcePath,
     lastObservedTimePos,
     normalizedSourcePath,
   );
+  appState.activeParsedSubtitleMediaPath = nextMediaPath;
 }
 const refreshSubtitlePrefetchFromActiveTrackHandler =
   createRefreshSubtitlePrefetchFromActiveTrackHandler({
@@ -2115,6 +2143,7 @@ const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHos
 const createFieldGroupingCallback = fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, 'subtitle-positions');
+const JELLYFIN_SUBTITLE_DELAYS_PATH = path.join(CONFIG_DIR, 'jellyfin-subtitle-delays.json');
 
 const mediaRuntime = createMediaRuntimeService(
   createBuildMediaRuntimeMainDepsHandler({
@@ -2280,6 +2309,7 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getLastKnownWindowsForegroundProcessName: () => lastWindowsVisibleOverlayForegroundProcessName,
     getWindowsOverlayProcessName: () => path.parse(process.execPath).name.toLowerCase(),
     getWindowsFocusHandoffGraceActive: () => hasWindowsVisibleOverlayFocusHandoffGrace(),
+    getMacOSForegroundProbeActive: () => macOSVisibleOverlayForegroundProbeActive,
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown: boolean) => {
       appState.trackerNotReadyWarningShown = shown;
@@ -2323,6 +2353,7 @@ const VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
 const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] as const;
 const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
 const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
+const MACOS_VISIBLE_OVERLAY_FOREGROUND_PROBE_TIMEOUT_MS = 1_200;
 let visibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderSyncInFlight = false;
@@ -2331,6 +2362,9 @@ let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> 
 let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
 let lastWindowsVisibleOverlayBlurredAtMs = 0;
 let visibleOverlayInteractionActive = false;
+let macOSVisibleOverlayForegroundProbeActive = false;
+let macOSVisibleOverlayForegroundProbeToken = 0;
+let macOSVisibleOverlayForegroundProbeTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const handleStatsOverlayVisibilityChanged = createStatsOverlayVisibilityChangeHandler({
   setStatsOverlayVisibleState: (visible) => {
@@ -2355,6 +2389,49 @@ function clearWindowsVisibleOverlayZOrderRetryTimeouts(): void {
     clearTimeout(timeout);
   }
   windowsVisibleOverlayZOrderRetryTimeouts = [];
+}
+
+function finishMacOSVisibleOverlayForegroundProbe(token: number): void {
+  if (token !== macOSVisibleOverlayForegroundProbeToken) {
+    return;
+  }
+  if (macOSVisibleOverlayForegroundProbeTimeout !== null) {
+    clearTimeout(macOSVisibleOverlayForegroundProbeTimeout);
+    macOSVisibleOverlayForegroundProbeTimeout = null;
+  }
+  if (!macOSVisibleOverlayForegroundProbeActive) {
+    return;
+  }
+  macOSVisibleOverlayForegroundProbeActive = false;
+  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+}
+
+function startMacOSVisibleOverlayForegroundProbe(): void {
+  if (process.platform !== 'darwin') {
+    return;
+  }
+  const tracker = appState.windowTracker;
+  if (!tracker) {
+    return;
+  }
+
+  macOSVisibleOverlayForegroundProbeActive = true;
+  const token = ++macOSVisibleOverlayForegroundProbeToken;
+  if (macOSVisibleOverlayForegroundProbeTimeout !== null) {
+    clearTimeout(macOSVisibleOverlayForegroundProbeTimeout);
+  }
+  macOSVisibleOverlayForegroundProbeTimeout = setTimeout(() => {
+    finishMacOSVisibleOverlayForegroundProbe(token);
+  }, MACOS_VISIBLE_OVERLAY_FOREGROUND_PROBE_TIMEOUT_MS);
+
+  void tracker
+    .refreshNow()
+    .catch((error) => {
+      logger.warn('Failed to refresh macOS frontmost app after overlay blur', error);
+    })
+    .finally(() => {
+      finishMacOSVisibleOverlayForegroundProbe(token);
+    });
 }
 
 function getWindowsNativeWindowHandle(window: BrowserWindow): string {
@@ -2555,6 +2632,7 @@ function scheduleVisibleOverlayBlurRefresh(): void {
   if (process.platform === 'win32') {
     lastWindowsVisibleOverlayBlurredAtMs = Date.now();
   }
+  startMacOSVisibleOverlayForegroundProbe();
   clearVisibleOverlayBlurRefreshTimeouts();
   for (const delayMs of VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS) {
     const refreshTimeout = setTimeout(() => {
@@ -2801,6 +2879,7 @@ const {
   reportJellyfinRemoteStopped,
   startJellyfinRemoteSession,
   stopJellyfinRemoteSession,
+  cleanupJellyfinSubtitleCache,
   runJellyfinCommand,
   openJellyfinSetupWindow,
   getJellyfinClientInfo,
@@ -2812,7 +2891,9 @@ const {
   },
   getJellyfinClientInfoMainDeps: {
     getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
-    getDefaultJellyfinConfig: () => DEFAULT_CONFIG.jellyfin,
+    getHostName: () => os.hostname(),
+    defaultClientName: DEFAULT_JELLYFIN_CLIENT_NAME,
+    defaultClientVersion: DEFAULT_JELLYFIN_CLIENT_VERSION,
   },
   waitForMpvConnectedMainDeps: {
     getMpvClient: () => appState.mpvClient,
@@ -2824,6 +2905,15 @@ const {
     getLaunchMode: () => getResolvedConfig().mpv.launchMode,
     platform: process.platform,
     execPath: process.execPath,
+    getRuntimePluginEntrypoint: () => resolveBundledMpvRuntimePluginEntrypoint(),
+    getInstalledPluginDetection: () =>
+      detectInstalledMpvPlugin({
+        platform: process.platform,
+        homeDir: os.homedir(),
+        xdgConfigHome: process.env.XDG_CONFIG_HOME,
+        appDataDir: app.getPath('appData'),
+        mpvExecutablePath: getResolvedConfig().mpv.executablePath,
+      }),
     getPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
     defaultMpvLogPath: DEFAULT_MPV_LOG_PATH,
     defaultMpvArgs: MPV_JELLYFIN_DEFAULT_ARGS,
@@ -2859,6 +2949,25 @@ const {
       sendMpvCommandRuntime(appState.mpvClient, command);
     },
     wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    cacheSubtitleTrack: (track) => jellyfinSubtitleCacheIo.cacheSubtitleTrack(track),
+    cleanupCachedSubtitles: (dirs) => jellyfinSubtitleCacheIo.cleanupCachedSubtitles(dirs),
+    getSavedSubtitleDelay: (itemId, streamIndex) =>
+      loadJellyfinSubtitleDelay({
+        filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
+        itemId,
+        streamIndex,
+      }),
+    setActiveSubtitleDelayKey: (key) => {
+      activeJellyfinSubtitleDelayKey = key;
+    },
+    loadSubtitleSourceText,
+    saveSubtitleDelay: (itemId, streamIndex, delaySeconds) =>
+      saveJellyfinSubtitleDelay({
+        filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
+        itemId,
+        streamIndex,
+        delaySeconds,
+      }),
     logDebug: (message, error) => {
       logger.debug(message, error);
     },
@@ -2877,6 +2986,7 @@ const {
         },
       ),
     applyJellyfinMpvDefaults: (mpvClient) => applyJellyfinMpvDefaults(mpvClient),
+    showVisibleOverlay: () => setVisibleOverlayVisible(true),
     sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
     armQuitOnDisconnect: () => {
       jellyfinPlayQuitOnDisconnectArmed = false;
@@ -2889,7 +2999,11 @@ const {
     },
     convertTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
     setActivePlayback: (state) => {
-      activeJellyfinRemotePlayback = state as ActiveJellyfinRemotePlaybackState;
+      activeJellyfinRemotePlayback = {
+        ...(state as ActiveJellyfinRemotePlaybackState),
+        stopReportsAfterMs:
+          state.stopReportsAfterMs ?? Date.now() + JELLYFIN_REMOTE_STARTUP_STOP_GRACE_MS,
+      };
     },
     setLastProgressAtMs: (value) => {
       jellyfinRemoteLastProgressAtMs = value;
@@ -2899,6 +3013,13 @@ const {
     },
     showMpvOsd: (text) => {
       showMpvOsd(text);
+    },
+    updateCurrentMediaTitle: (title) => {
+      mediaRuntime.updateCurrentMediaTitle(title);
+    },
+    recordJellyfinPlaybackMetadata: (metadata) => {
+      ensureImmersionTrackerStarted();
+      appState.immersionTracker?.recordJellyfinPlaybackMetadata(metadata);
     },
   },
   remoteComposerOptions: {
@@ -2910,6 +3031,7 @@ const {
     getActivePlayback: () => activeJellyfinRemotePlayback,
     clearActivePlayback: () => {
       activeJellyfinRemotePlayback = null;
+      activeJellyfinSubtitleDelayKey = null;
     },
     getSession: () => appState.jellyfinRemoteSession,
     getNow: () => Date.now(),
@@ -2960,11 +3082,13 @@ const {
       appState.jellyfinRemoteSession = session as typeof appState.jellyfinRemoteSession;
     },
     createRemoteSessionService: (options) => new JellyfinRemoteSessionService(options),
-    defaultDeviceId: DEFAULT_CONFIG.jellyfin.deviceId,
-    defaultClientName: DEFAULT_CONFIG.jellyfin.clientName,
-    defaultClientVersion: DEFAULT_CONFIG.jellyfin.clientVersion,
+    getHostName: () => os.hostname(),
+    defaultDeviceId: createHostDerivedJellyfinDeviceId(os.hostname()),
+    defaultClientName: DEFAULT_JELLYFIN_CLIENT_NAME,
+    defaultClientVersion: DEFAULT_JELLYFIN_CLIENT_VERSION,
     logInfo: (message) => logger.info(message),
     logWarn: (message, details) => logger.warn(message, details),
+    onSessionStateChanged: () => refreshTrayMenuIfPresent(),
   },
   stopJellyfinRemoteSessionMainDeps: {
     getCurrentSession: () => appState.jellyfinRemoteSession,
@@ -2974,6 +3098,7 @@ const {
     clearActivePlayback: () => {
       activeJellyfinRemotePlayback = null;
     },
+    onSessionStateChanged: () => refreshTrayMenuIfPresent(),
   },
   runJellyfinCommandMainDeps: {
     defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl,
@@ -2994,7 +3119,6 @@ const {
     clearStoredSession: () =>
       clearJellyfinAuthSessionAndRefreshTrayRuntime(getJellyfinTrayDiscoveryDeps()),
     patchJellyfinConfig: (session) => {
-      const clientInfo = getJellyfinClientInfo();
       const recentServers = mergeJellyfinRecentServers(
         session.serverUrl,
         getResolvedConfig().jellyfin.recentServers || [],
@@ -3004,9 +3128,6 @@ const {
           enabled: true,
           serverUrl: session.serverUrl,
           username: session.username,
-          deviceId: clientInfo.deviceId,
-          clientName: clientInfo.clientName,
-          clientVersion: clientInfo.clientVersion,
           recentServers,
         },
       });
@@ -3670,6 +3791,7 @@ const {
     },
     stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
     cleanupYoutubeSubtitleTempDirs: () => youtubeFlowRuntime.cleanupSubtitleTempDirs(),
+    cleanupJellyfinSubtitleCache: () => cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => {
       void appState.discordPresenceService?.stop();
       appState.discordPresenceService = null;
@@ -4331,11 +4453,12 @@ const {
           appState.activeParsedSubtitleSource = null;
           appState.activeParsedSubtitleMediaPath = null;
         }
+        activeJellyfinSubtitleDelayKey = null;
         broadcastToOverlayWindows('subtitle:set', resetSubtitlePayload);
         subtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
         annotationSubtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
+        autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks();
       }
-      autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks();
       currentMediaTokenizationGate.updateCurrentMediaPath(path);
       managedLocalSubtitleSelectionRuntime.handleMediaPathChange(path);
       startupOsdSequencer.reset();
@@ -4372,6 +4495,9 @@ const {
       immersionMediaRuntime.syncFromCurrentMediaState();
     },
     signalAutoplayReadyIfWarm: (path) => signalAutoplayReadyFromWarmTokenization?.(path),
+    markJellyfinRemotePlaybackLoaded: (path) => {
+      markJellyfinRemotePlaybackLoadedState(activeJellyfinRemotePlayback, path);
+    },
     scheduleCharacterDictionarySync: () => {
       if (!yomitanProfilePolicy.isCharacterDictionaryEnabled() || isYoutubePlaybackActiveNow()) {
         return;
@@ -4435,6 +4561,8 @@ const {
     setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
       appState.reconnectTimer = timer;
     },
+    shouldAutoLoadSecondarySubTrack: (path: string) =>
+      shouldAutoLoadSecondarySubTrackForJellyfinPlayback(activeJellyfinRemotePlayback, path),
     shouldQuitOnMpvShutdown: () =>
       shouldQuitOnMpvShutdownForTrayState({
         managedPlayback: appState.initialArgs?.managedPlayback === true,
@@ -5088,6 +5216,8 @@ function getUpdateService() {
       });
       app.focus({ steal: true });
     },
+    withStatsWindowLayerSuspended: (showDialog) =>
+      withStatsWindowLayerSuspendedForNativeDialog(showDialog),
     showMessageBox: (options) => dialog.showMessageBox(options),
   });
   updateService = createUpdateService({
@@ -5418,6 +5548,19 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   getMpvClient: () => appState.mpvClient,
   loadSubtitleSourceText,
   sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
+  onSubtitleDelayShifted: (delaySeconds) => {
+    const key = activeJellyfinSubtitleDelayKey;
+    if (!key) return;
+    const saved = saveJellyfinSubtitleDelay({
+      filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
+      itemId: key.itemId,
+      streamIndex: key.streamIndex,
+      delaySeconds,
+    });
+    if (!saved) {
+      logger.warn('Failed to save Jellyfin subtitle delay.');
+    }
+  },
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
@@ -6062,6 +6205,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
     },
     buildTrayMenuTemplateDeps: {
       buildTrayMenuTemplateRuntime,
+      platform: process.platform,
       initializeOverlayRuntime: () => initializeOverlayRuntime(),
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
       openSessionHelpModal: () => openSessionHelpOverlay(),
@@ -6077,8 +6221,10 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       isJellyfinConfigured: () =>
         isJellyfinConfiguredForTrayRuntime(getJellyfinTrayDiscoveryDeps()),
       isJellyfinDiscoveryActive: () => Boolean(appState.jellyfinRemoteSession),
-      toggleJellyfinDiscovery: () =>
-        toggleJellyfinDiscoveryFromTrayRuntime(getJellyfinTrayDiscoveryDeps()),
+      toggleJellyfinDiscovery: (checked: boolean) =>
+        toggleJellyfinDiscoveryFromTrayRuntime(getJellyfinTrayDiscoveryDeps(), {
+          desiredActive: checked,
+        }),
       openAnilistSetupWindow: () => openAnilistSetupWindow(),
       checkForUpdates: () => {
         void getUpdateService().checkForUpdates({ source: 'manual' });
@@ -6307,36 +6453,50 @@ function ensureOverlayWindowsReadyForVisibilityActions(): void {
   }
 }
 
+function notifyMpvPluginVisibleOverlayVisibility(visible: boolean): void {
+  sendMpvCommandRuntime(appState.mpvClient, [
+    'script-message',
+    visible ? 'subminer-visible-overlay-shown' : 'subminer-visible-overlay-hidden',
+  ]);
+}
+
 function setVisibleOverlayVisible(visible: boolean): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   if (!visible) {
+    autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   }
   if (visible) {
     void ensureOverlayMpvSubtitlesHidden();
   }
   setVisibleOverlayVisibleHandler(visible);
+  notifyMpvPluginVisibleOverlayVisibility(visible);
   syncOverlayMpvSubtitleSuppression();
 }
 
 function toggleVisibleOverlay(): void {
   ensureOverlayWindowsReadyForVisibilityActions();
-  if (overlayManager.getVisibleOverlayVisible()) {
+  const nextVisible = !overlayManager.getVisibleOverlayVisible();
+  if (!nextVisible) {
+    autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   } else {
     void ensureOverlayMpvSubtitlesHidden();
   }
   toggleVisibleOverlayHandler();
+  notifyMpvPluginVisibleOverlayVisibility(nextVisible);
   syncOverlayMpvSubtitleSuppression();
 }
 function setOverlayVisible(visible: boolean): void {
   if (!visible) {
+    autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   }
   if (visible) {
     void ensureOverlayMpvSubtitlesHidden();
   }
   setOverlayVisibleHandler(visible);
+  notifyMpvPluginVisibleOverlayVisibility(visible);
   syncOverlayMpvSubtitleSuppression();
 }
 function handleOverlayModalClosed(modal: OverlayHostedModal): void {

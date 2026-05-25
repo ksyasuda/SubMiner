@@ -8,6 +8,7 @@ import {
   createSubtitleSidebarModal,
   findActiveSubtitleCueIndex,
 } from './subtitle-sidebar.js';
+import { YOMITAN_POPUP_HIDDEN_EVENT, YOMITAN_POPUP_SHOWN_EVENT } from '../yomitan-popup.js';
 
 function createClassList(initialTokens: string[] = []) {
   const tokens = new Set(initialTokens);
@@ -1536,6 +1537,137 @@ test('subtitle sidebar hover pause ignores playback-state IPC failures', async (
       mpvCommands.some((command) => command[0] === 'set_property' && command[2] === 'yes'),
       false,
     );
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+});
+
+test('subtitle sidebar keeps hover pause while a Yomitan lookup popup remains open', async () => {
+  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+  const previousWindow = globals.window;
+  const previousDocument = globals.document;
+  const mpvCommands: Array<Array<string | number>> = [];
+  const contentListeners = new Map<string, Array<() => Promise<void> | void>>();
+  const windowListeners = new Map<string, Array<() => Promise<void> | void>>();
+
+  const snapshot: SubtitleSidebarSnapshot = {
+    cues: [{ startTime: 1, endTime: 2, text: 'first' }],
+    currentSubtitle: {
+      text: 'first',
+      startTime: 1,
+      endTime: 2,
+    },
+    currentTimeSec: 1.1,
+    config: {
+      enabled: true,
+      autoOpen: false,
+      layout: 'overlay',
+      toggleKey: 'Backslash',
+      pauseVideoOnHover: true,
+      autoScroll: true,
+      maxWidth: 420,
+      opacity: 0.92,
+      backgroundColor: 'rgba(54, 58, 79, 0.88)',
+      textColor: '#cad3f5',
+      fontFamily: '"Iosevka Aile", sans-serif',
+      fontSize: 17,
+      timestampColor: '#a5adcb',
+      activeLineColor: '#f5bde6',
+      activeLineBackgroundColor: 'rgba(138, 173, 244, 0.22)',
+      hoverLineBackgroundColor: 'rgba(54, 58, 79, 0.84)',
+    },
+  };
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: () => Promise<void> | void) => {
+        const bucket = windowListeners.get(type) ?? [];
+        bucket.push(listener);
+        windowListeners.set(type, bucket);
+      },
+      removeEventListener: () => {},
+      electronAPI: {
+        getSubtitleSidebarSnapshot: async () => snapshot,
+        getPlaybackPaused: async () => false,
+        sendMpvCommand: (command: Array<string | number>) => {
+          mpvCommands.push(command);
+        },
+      } as unknown as ElectronAPI,
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createCueRow(),
+      body: {
+        classList: createClassList(),
+      },
+      documentElement: {
+        style: {
+          setProperty: () => {},
+        },
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    state.autoPauseVideoOnYomitanPopup = true;
+    const ctx = {
+      dom: {
+        overlay: { classList: createClassList() },
+        subtitleSidebarModal: {
+          classList: createClassList(['hidden']),
+          setAttribute: () => {},
+          style: { setProperty: () => {} },
+          addEventListener: () => {},
+        },
+        subtitleSidebarContent: {
+          classList: createClassList(),
+          getBoundingClientRect: () => ({ width: 420 }),
+          addEventListener: (type: string, listener: () => Promise<void> | void) => {
+            const bucket = contentListeners.get(type) ?? [];
+            bucket.push(listener);
+            contentListeners.set(type, bucket);
+          },
+        },
+        subtitleSidebarClose: { addEventListener: () => {} },
+        subtitleSidebarStatus: { textContent: '' },
+        subtitleSidebarList: createListStub(),
+      },
+      state,
+    };
+
+    const modal = createSubtitleSidebarModal(ctx as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+    });
+    modal.wireDomEvents();
+
+    await modal.openSubtitleSidebarModal();
+    mpvCommands.length = 0;
+    await contentListeners.get('mouseenter')?.[0]?.();
+
+    assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
+
+    for (const listener of windowListeners.get(YOMITAN_POPUP_SHOWN_EVENT) ?? []) {
+      await listener();
+    }
+    await contentListeners.get('mouseleave')?.[0]?.();
+
+    assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
+    assert.equal(state.subtitleSidebarPausedByHover, true);
+
+    for (const listener of windowListeners.get(YOMITAN_POPUP_HIDDEN_EVENT) ?? []) {
+      await listener();
+    }
+
+    assert.deepEqual(mpvCommands, [
+      ['set_property', 'pause', 'yes'],
+      ['set_property', 'pause', 'no'],
+    ]);
+    assert.equal(state.subtitleSidebarPausedByHover, false);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });

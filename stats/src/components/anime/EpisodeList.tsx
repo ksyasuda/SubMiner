@@ -44,7 +44,7 @@ export function EpisodeList({
   };
 
   const handleDeleteEpisode = async (videoId: number, title: string) => {
-    if (!confirmEpisodeDelete(title)) return;
+    if (!(await confirmEpisodeDelete(title))) return;
     await apiClient.deleteVideo(videoId);
     setEpisodes((prev) => prev.filter((ep) => ep.videoId !== videoId));
     if (expandedVideoId === videoId) setExpandedVideoId(null);

@@ -42,6 +42,7 @@ test('build tray template handler wires actions and init guards', () => {
   let initialized = false;
   const buildTemplate = createBuildTrayMenuTemplateHandler({
     buildTrayMenuTemplateRuntime: (handlers) => {
+      calls.push(`platform:${handlers.platform}`);
       handlers.openSessionHelp();
       handlers.openTexthookerInBrowser();
       calls.push(`show-texthooker:${handlers.showTexthookerPage}`);
@@ -50,7 +51,7 @@ test('build tray template handler wires actions and init guards', () => {
       handlers.openYomitanSettings();
       handlers.openConfigSettings();
       handlers.openJellyfinSetup();
-      handlers.toggleJellyfinDiscovery();
+      handlers.toggleJellyfinDiscovery(true);
       handlers.openAnilistSetup();
       handlers.checkForUpdates();
       handlers.quitApp();
@@ -72,9 +73,10 @@ test('build tray template handler wires actions and init guards', () => {
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
     isJellyfinConfigured: () => true,
     isJellyfinDiscoveryActive: () => false,
-    toggleJellyfinDiscovery: async () => {
-      calls.push('jellyfin-discovery');
+    toggleJellyfinDiscovery: async (checked) => {
+      calls.push(`jellyfin-discovery:${checked}`);
     },
+    platform: 'linux',
     openAnilistSetupWindow: () => calls.push('anilist'),
     checkForUpdates: () => calls.push('updates'),
     quitApp: () => calls.push('quit'),
@@ -83,6 +85,7 @@ test('build tray template handler wires actions and init guards', () => {
   const template = buildTemplate();
   assert.deepEqual(template, [{ label: 'ok' }]);
   assert.deepEqual(calls, [
+    'platform:linux',
     'init',
     'help',
     'texthooker',
@@ -92,7 +95,7 @@ test('build tray template handler wires actions and init guards', () => {
     'yomitan',
     'configuration',
     'jellyfin',
-    'jellyfin-discovery',
+    'jellyfin-discovery:true',
     'anilist',
     'updates',
     'quit',

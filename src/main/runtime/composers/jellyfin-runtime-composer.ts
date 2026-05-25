@@ -100,7 +100,11 @@ export type JellyfinRuntimeComposerOptions = ComposerInputs<{
   >;
   startJellyfinRemoteSessionMainDeps: Omit<
     StartRemoteSessionMainDeps,
-    'getJellyfinConfig' | 'handlePlay' | 'handlePlaystate' | 'handleGeneralCommand'
+    | 'getJellyfinConfig'
+    | 'getClientInfo'
+    | 'handlePlay'
+    | 'handlePlaystate'
+    | 'handleGeneralCommand'
   >;
   stopJellyfinRemoteSessionMainDeps: Parameters<
     typeof createBuildStopJellyfinRemoteSessionMainDepsHandler
@@ -142,6 +146,7 @@ export type JellyfinRuntimeComposerResult = ComposerOutputs<{
     typeof composeJellyfinRemoteHandlers
   >['handleJellyfinRemoteGeneralCommand'];
   playJellyfinItemInMpv: ReturnType<typeof createPlayJellyfinItemInMpvHandler>;
+  cleanupJellyfinSubtitleCache: () => void;
   startJellyfinRemoteSession: ReturnType<typeof createStartJellyfinRemoteSessionHandler>;
   stopJellyfinRemoteSession: ReturnType<typeof createStopJellyfinRemoteSessionHandler>;
   runJellyfinCommand: ReturnType<typeof createRunJellyfinCommandHandler>;
@@ -235,6 +240,7 @@ export function composeJellyfinRuntimeHandlers(
     createBuildStartJellyfinRemoteSessionMainDepsHandler({
       ...options.startJellyfinRemoteSessionMainDeps,
       getJellyfinConfig: () => getResolvedJellyfinConfig(),
+      getClientInfo: () => getJellyfinClientInfo(),
       handlePlay: (payload) => handleJellyfinRemotePlay(payload),
       handlePlaystate: (payload) => handleJellyfinRemotePlaystate(payload),
       handleGeneralCommand: (payload) => handleJellyfinRemoteGeneralCommand(payload),
@@ -280,6 +286,7 @@ export function composeJellyfinRuntimeHandlers(
     handleJellyfinRemotePlaystate,
     handleJellyfinRemoteGeneralCommand,
     playJellyfinItemInMpv,
+    cleanupJellyfinSubtitleCache: () => preloadJellyfinExternalSubtitles.cleanupCachedSubtitles(),
     startJellyfinRemoteSession,
     stopJellyfinRemoteSession,
     runJellyfinCommand,

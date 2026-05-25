@@ -27,7 +27,7 @@ function groupSessionsByDay(sessions: SessionSummary[]): Map<string, SessionSumm
 export interface BucketDeleteDeps {
   bucket: SessionBucket;
   apiClient: { deleteSessions: (ids: number[]) => Promise<void> };
-  confirm: (title: string, count: number) => boolean;
+  confirm: (title: string, count: number) => boolean | Promise<boolean>;
   onSuccess: (deletedIds: number[]) => void;
   onError: (message: string) => void;
 }
@@ -43,8 +43,8 @@ export function buildBucketDeleteHandler(deps: BucketDeleteDeps): () => Promise<
   return async () => {
     const title = bucket.representativeSession.canonicalTitle ?? 'this episode';
     const ids = bucket.sessions.map((s) => s.sessionId);
-    if (!confirm(title, ids.length)) return;
     try {
+      if (!(await confirm(title, ids.length))) return;
       await client.deleteSessions(ids);
       onSuccess(ids);
     } catch (err) {
@@ -120,7 +120,14 @@ export function SessionsTab({
   };
 
   const handleDeleteSession = async (session: SessionSummary) => {
-    if (!confirmSessionDelete()) return;
+    let confirmed = false;
+    try {
+      confirmed = await confirmSessionDelete();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to confirm delete.');
+      return;
+    }
+    if (!confirmed) return;
 
     setDeleteError(null);
     setDeletingSessionId(session.sessionId);

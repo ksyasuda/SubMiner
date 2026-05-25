@@ -138,7 +138,7 @@ export function createOverlayModalRuntimeService(
 
   const elevateModalWindow = (window: BrowserWindow): void => {
     if (window.isDestroyed()) return;
-    window.setAlwaysOnTop(true, 'screen-saver', 1);
+    window.setAlwaysOnTop(true, 'screen-saver', 3);
     window.moveTop();
   };
 

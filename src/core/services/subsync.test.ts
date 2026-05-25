@@ -70,12 +70,14 @@ test('triggerSubsyncFromConfig returns early when already in progress', async ()
 test('triggerSubsyncFromConfig opens manual picker', async () => {
   const osd: string[] = [];
   let payloadTrackCount = 0;
+  let ffsubsyncAvailable: boolean | null = null;
   let inProgressState: boolean | null = null;
 
   await triggerSubsyncFromConfig(
     makeDeps({
       openManualPicker: (payload) => {
         payloadTrackCount = payload.sourceTracks.length;
+        ffsubsyncAvailable = payload.ffsubsyncAvailable;
       },
       showMpvOsd: (text) => {
         osd.push(text);
@@ -87,8 +89,47 @@ test('triggerSubsyncFromConfig opens manual picker', async () => {
   );
 
   assert.equal(payloadTrackCount, 1);
+  assert.equal(ffsubsyncAvailable, true);
   assert.ok(osd.includes('Subsync: choose engine and source'));
   assert.equal(inProgressState, false);
+});
+
+test('triggerSubsyncFromConfig marks ffsubsync unavailable for remote media paths', async () => {
+  let ffsubsyncAvailable: boolean | null = null;
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return 'https://jellyfin.example/Videos/movie/stream.mkv';
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'track-list') {
+            return [
+              { id: 1, type: 'sub', selected: true, lang: 'jpn' },
+              {
+                id: 2,
+                type: 'sub',
+                selected: false,
+                external: true,
+                lang: 'eng',
+                'external-filename': 'https://jellyfin.example/subs/eng.srt',
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      openManualPicker: (payload) => {
+        ffsubsyncAvailable = payload.ffsubsyncAvailable;
+      },
+    }),
+  );
+
+  assert.equal(ffsubsyncAvailable, false);
 });
 
 test('triggerSubsyncFromConfig does not run automatic sync', async () => {

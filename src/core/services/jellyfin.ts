@@ -27,6 +27,10 @@ export interface JellyfinPlaybackPlan {
   mode: 'direct' | 'transcode';
   url: string;
   title: string;
+  itemTitle: string;
+  seriesTitle: string | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
   startTimeTicks: number;
   audioStreamIndex: number | null;
   subtitleStreamIndex: number | null;
@@ -229,9 +233,6 @@ function createDirectPlayUrl(
   if (plan.subtitleStreamIndex !== null) {
     query.set('SubtitleStreamIndex', String(plan.subtitleStreamIndex));
   }
-  if (plan.startTimeTicks > 0) {
-    query.set('StartTimeTicks', String(plan.startTimeTicks));
-  }
   return `${session.serverUrl}/Videos/${itemId}/stream?${query.toString()}`;
 }
 
@@ -292,14 +293,24 @@ function getStreamDefaults(source: JellyfinMediaSource): {
   };
 }
 
+function getItemTitle(item: JellyfinItem): string {
+  return ensureString(item.Name).trim() || 'Jellyfin Item';
+}
+
+function getSeriesTitle(item: JellyfinItem): string | null {
+  return ensureString(item.SeriesName).trim() || null;
+}
+
 function getDisplayTitle(item: JellyfinItem): string {
+  const itemTitle = getItemTitle(item);
   if (item.Type === 'Episode') {
     const season = asIntegerOrNull(item.ParentIndexNumber) ?? 0;
     const episode = asIntegerOrNull(item.IndexNumber) ?? 0;
-    const prefix = item.SeriesName ? `${item.SeriesName} ` : '';
-    return `${prefix}S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')} ${ensureString(item.Name).trim()}`.trim();
+    const seriesTitle = getSeriesTitle(item);
+    const prefix = seriesTitle ? `${seriesTitle} ` : '';
+    return `${prefix}S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')} ${itemTitle}`.trim();
   }
-  return ensureString(item.Name).trim() || 'Jellyfin Item';
+  return itemTitle;
 }
 
 function shouldPreferDirectPlay(source: JellyfinMediaSource, config: JellyfinConfig): boolean {
@@ -521,10 +532,16 @@ export async function resolvePlaybackPlan(
   const audioStreamIndex = selection.audioStreamIndex ?? defaults.audioStreamIndex ?? null;
   const subtitleStreamIndex = selection.subtitleStreamIndex ?? null;
   const startTimeTicks = Math.max(0, asIntegerOrNull(item.UserData?.PlaybackPositionTicks) ?? 0);
+  const itemTitle = getItemTitle(item);
+  const seriesTitle = item.Type === 'Episode' ? getSeriesTitle(item) : null;
   const basePlan: JellyfinPlaybackPlan = {
     mode: 'transcode',
     url: '',
     title: getDisplayTitle(item),
+    itemTitle,
+    seriesTitle,
+    seasonNumber: item.Type === 'Episode' ? asIntegerOrNull(item.ParentIndexNumber) : null,
+    episodeNumber: item.Type === 'Episode' ? asIntegerOrNull(item.IndexNumber) : null,
     startTimeTicks,
     audioStreamIndex,
     subtitleStreamIndex,

@@ -4,6 +4,7 @@ import {
   type SubminerPluginRuntimeScriptOptConfig,
 } from '../../shared/subminer-plugin-script-opts';
 import type { MpvLaunchMode } from '../../types/config';
+import type { InstalledMpvPluginDetection } from './first-run-setup-plugin';
 
 type MpvClientLike = {
   connected: boolean;
@@ -44,6 +45,8 @@ export type LaunchMpvForJellyfinDeps = {
   getLaunchMode: () => MpvLaunchMode;
   platform: NodeJS.Platform;
   execPath: string;
+  getRuntimePluginEntrypoint?: () => string | null | undefined;
+  getInstalledPluginDetection?: () => InstalledMpvPluginDetection;
   getPluginRuntimeConfig?: () => SubminerPluginRuntimeScriptOptConfig;
   defaultMpvLogPath: string;
   defaultMpvArgs: readonly string[];
@@ -75,9 +78,17 @@ export function createLaunchMpvIdleForJellyfinPlaybackHandler(deps: LaunchMpvFor
         )
       : [`subminer-binary_path=${deps.execPath}`, `subminer-socket_path=${socketPath}`];
     const scriptOpts = `--script-opts=${scriptOptParts.join(',')}`;
+    const installedPlugin = deps.getInstalledPluginDetection?.();
+    const runtimePluginEntrypoint = installedPlugin?.installed
+      ? ''
+      : (deps.getRuntimePluginEntrypoint?.()?.trim() ?? '');
+    if (installedPlugin?.installed && installedPlugin.path) {
+      deps.logInfo(`Using installed mpv plugin for Jellyfin playback: ${installedPlugin.path}`);
+    }
     const mpvArgs = [
       ...deps.defaultMpvArgs,
       ...buildMpvLaunchModeArgs(deps.getLaunchMode()),
+      ...(runtimePluginEntrypoint ? [`--script=${runtimePluginEntrypoint}`] : []),
       '--idle=yes',
       scriptOpts,
       `--log-file=${deps.defaultMpvLogPath}`,

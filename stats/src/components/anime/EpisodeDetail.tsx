@@ -85,7 +85,7 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
   }, [videoId]);
 
   const handleDeleteSession = async (sessionId: number) => {
-    if (!confirmSessionDelete()) return;
+    if (!(await confirmSessionDelete())) return;
     await apiClient.deleteSession(sessionId);
     setData((prev) => {
       if (!prev) return prev;

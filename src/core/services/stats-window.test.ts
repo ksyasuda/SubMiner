@@ -3,10 +3,13 @@ import test from 'node:test';
 import {
   buildStatsWindowLoadFileOptions,
   buildStatsWindowOptions,
+  buildStatsNativeConfirmDialogOptions,
+  demoteVisibleStatsWindowBelowDialogs,
   presentStatsWindow,
   promoteVisibleStatsWindowAboveOverlay,
   promoteStatsWindowLevel,
   resolveStatsWindowOuterBoundsForContent,
+  showStatsNativeConfirmDialog,
   shouldHideStatsWindowForInput,
 } from './stats-window-runtime';
 
@@ -272,6 +275,90 @@ test('promoteVisibleStatsWindowAboveOverlay skips hidden stats windows', () => {
 
   assert.equal(promoted, false);
   assert.deepEqual(calls, []);
+});
+
+test('demoteVisibleStatsWindowBelowDialogs lowers visible stats below native dialogs', () => {
+  const calls: string[] = [];
+  const demoted = demoteVisibleStatsWindowBelowDialogs({
+    isDestroyed: () => false,
+    isVisible: () => true,
+    setAlwaysOnTop: (flag: boolean, level?: string, relativeLevel?: number) => {
+      calls.push(`always-on-top:${flag}:${level ?? 'none'}:${relativeLevel ?? 0}`);
+    },
+  } as never);
+
+  assert.equal(demoted, true);
+  assert.deepEqual(calls, ['always-on-top:false:none:0']);
+});
+
+test('demoteVisibleStatsWindowBelowDialogs skips hidden stats windows', () => {
+  const calls: string[] = [];
+  const demoted = demoteVisibleStatsWindowBelowDialogs({
+    isDestroyed: () => false,
+    isVisible: () => false,
+    setAlwaysOnTop: () => calls.push('always-on-top'),
+  } as never);
+
+  assert.equal(demoted, false);
+  assert.deepEqual(calls, []);
+});
+
+test('buildStatsNativeConfirmDialogOptions makes delete the explicit destructive action', () => {
+  assert.deepEqual(buildStatsNativeConfirmDialogOptions('Delete this session?'), {
+    type: 'warning',
+    message: 'Delete this session?',
+    buttons: ['Delete', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+});
+
+test('showStatsNativeConfirmDialog parents the native dialog to live stats windows', () => {
+  const calls: string[] = [];
+  const parent = { isDestroyed: () => false };
+
+  const confirmed = showStatsNativeConfirmDialog(parent, 'Delete this session?', {
+    showWithParent: (window, options) => {
+      assert.equal(window, parent);
+      calls.push(`${options.message}:${options.defaultId}:${options.cancelId}`);
+      return 0;
+    },
+    showWithoutParent: () => {
+      calls.push('unparented');
+      return 1;
+    },
+  });
+
+  assert.equal(confirmed, true);
+  assert.deepEqual(calls, ['Delete this session?:1:1']);
+});
+
+test('showStatsNativeConfirmDialog treats cancel as not confirmed', () => {
+  const confirmed = showStatsNativeConfirmDialog({ isDestroyed: () => false }, 'Delete?', {
+    showWithParent: () => 1,
+    showWithoutParent: () => 0,
+  });
+
+  assert.equal(confirmed, false);
+});
+
+test('showStatsNativeConfirmDialog falls back to an unparented dialog without a live stats window', () => {
+  const calls: string[] = [];
+
+  const confirmed = showStatsNativeConfirmDialog({ isDestroyed: () => true }, 'Delete?', {
+    showWithParent: () => {
+      calls.push('parented');
+      return 0;
+    },
+    showWithoutParent: (options) => {
+      calls.push(options.message);
+      return 0;
+    },
+  });
+
+  assert.equal(confirmed, true);
+  assert.deepEqual(calls, ['Delete?']);
 });
 
 test('presentStatsWindow shows inactive on macOS to stay on the fullscreen mpv Space', () => {

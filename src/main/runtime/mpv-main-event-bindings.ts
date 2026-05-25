@@ -63,6 +63,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   ensureAnilistMediaGuess: (mediaKey: string) => void;
   syncImmersionMediaState: () => void;
   signalAutoplayReadyIfWarm?: (path: string) => void;
+  markJellyfinRemotePlaybackLoaded?: (path: string) => void;
   flushPlaybackPositionOnMediaPathClear?: (mediaPath: string) => void;
 
   updateCurrentMediaTitle: (title: string) => void;
@@ -142,6 +143,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       flushPlaybackPositionOnMediaPathClear: (mediaPath) =>
         deps.flushPlaybackPositionOnMediaPathClear?.(mediaPath),
       signalAutoplayReadyIfWarm: (path) => deps.signalAutoplayReadyIfWarm?.(path),
+      markJellyfinRemotePlaybackLoaded: (path) => deps.markJellyfinRemotePlaybackLoaded?.(path),
       scheduleCharacterDictionarySync: () => deps.scheduleCharacterDictionarySync?.(),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     });

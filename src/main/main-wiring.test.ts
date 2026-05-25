@@ -46,6 +46,65 @@ test('media path changes clear rendered subtitle state without clearing same-you
   );
 });
 
+test('same media path updates do not reset autoplay ready fallback state', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /updateCurrentMediaPath:\s*\(path\)\s*=>\s*\{(?<body>[\s\S]*?)\n    restoreMpvSubVisibility:/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(
+    actionBlock,
+    /annotationSubtitleWsService\.broadcast\(resetSubtitlePayload, frequencyOptions\);\s+autoplayReadyGate\.invalidatePendingAutoplayReadyFallbacks\(\);\s+\}\s+currentMediaTokenizationGate\.updateCurrentMediaPath\(path\);/,
+  );
+});
+
+test('manual visible overlay toggles only release current-media autoplay when hiding', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(
+    actionBlock,
+    /if \(!nextVisible\) \{\s+autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);\s+cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
+  );
+});
+
+test('subtitle sidebar media path tag is assigned after prefetch succeeds', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /async function refreshSubtitleSidebarFromSource\([\s\S]*?\): Promise<void> \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(
+    actionBlock,
+    /const nextMediaPath = mediaPath\?\.trim\(\) \|\| getCurrentAutoplayMediaPath\(\);/,
+  );
+  assert.ok(
+    actionBlock.indexOf('subtitlePrefetchInitController.initSubtitlePrefetch') <
+      actionBlock.indexOf('appState.activeParsedSubtitleMediaPath = nextMediaPath;'),
+  );
+});
+
+test('manual visible overlay changes notify mpv plugin visibility state', () => {
+  const source = readMainSource();
+  const setBlock = source.match(
+    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+  const toggleBlock = source.match(
+    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(setBlock);
+  assert.ok(toggleBlock);
+  assert.match(setBlock, /notifyMpvPluginVisibleOverlayVisibility\(visible\);/);
+  assert.match(toggleBlock, /const nextVisible = !overlayManager\.getVisibleOverlayVisible\(\);/);
+  assert.match(toggleBlock, /notifyMpvPluginVisibleOverlayVisibility\(nextVisible\);/);
+});
+
 test('main process uses one shared mpv plugin runtime config helper', () => {
   const source = readMainSource();
   assert.match(source, /function getMpvPluginRuntimeConfig\(\)/);

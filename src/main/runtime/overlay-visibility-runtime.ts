@@ -22,9 +22,10 @@ export type OverlayVisibilityRuntimeDeps = {
 };
 
 export function createOverlayVisibilityRuntime(deps: OverlayVisibilityRuntimeDeps) {
-  const setVisibleOverlayVisibleMainDeps = createBuildSetVisibleOverlayVisibleMainDepsHandler(
-    deps.setVisibleOverlayVisibleDeps,
-  )();
+  const setVisibleOverlayVisibleMainDeps = createBuildSetVisibleOverlayVisibleMainDepsHandler({
+    ...deps.setVisibleOverlayVisibleDeps,
+    getVisibleOverlayVisible: deps.getVisibleOverlayVisible,
+  })();
   const setVisibleOverlayVisible = createSetVisibleOverlayVisibleHandler(
     setVisibleOverlayVisibleMainDeps,
   );

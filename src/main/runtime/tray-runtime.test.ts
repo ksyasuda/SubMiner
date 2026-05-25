@@ -41,7 +41,7 @@ test('tray menu template contains expected entries and handlers', () => {
     openJellyfinSetup: () => calls.push('jellyfin'),
     showJellyfinDiscovery: true,
     jellyfinDiscoveryActive: false,
-    toggleJellyfinDiscovery: () => calls.push('jellyfin-discovery'),
+    toggleJellyfinDiscovery: (checked) => calls.push(`jellyfin-discovery:${checked}`),
     openAnilistSetup: () => calls.push('anilist'),
     checkForUpdates: () => calls.push('updates'),
     quitApp: () => calls.push('quit'),
@@ -60,7 +60,7 @@ test('tray menu template contains expected entries and handlers', () => {
   const discovery = template.find((entry) => entry.label === 'Jellyfin Discovery');
   assert.equal(discovery?.type, 'checkbox');
   assert.equal(discovery?.checked, false);
-  discovery?.click?.();
+  discovery?.click?.({ checked: true });
   template[0]!.click?.();
   assert.equal(template[1]!.label, 'Open Texthooker');
   template[1]!.click?.();
@@ -70,7 +70,7 @@ test('tray menu template contains expected entries and handlers', () => {
   template[10]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
   template[11]!.click?.();
   assert.deepEqual(calls, [
-    'jellyfin-discovery',
+    'jellyfin-discovery:true',
     'help',
     'texthooker',
     'updates',
@@ -152,6 +152,32 @@ test('tray menu template renders active jellyfin discovery checkbox', () => {
   });
 
   const discovery = template.find((entry) => entry.label === 'Jellyfin Discovery');
+  assert.equal(discovery?.type, 'checkbox');
+  assert.equal(discovery?.checked, true);
+});
+
+test('tray menu template renders a visible linux discovery check mark when active', () => {
+  const template = buildTrayMenuTemplateRuntime({
+    platform: 'linux',
+    openSessionHelp: () => undefined,
+    openTexthookerInBrowser: () => undefined,
+    showTexthookerPage: true,
+    openFirstRunSetup: () => undefined,
+    showFirstRunSetup: false,
+    openWindowsMpvLauncherSetup: () => undefined,
+    showWindowsMpvLauncherSetup: false,
+    openYomitanSettings: () => undefined,
+    openConfigSettings: () => undefined,
+    openJellyfinSetup: () => undefined,
+    showJellyfinDiscovery: true,
+    jellyfinDiscoveryActive: true,
+    toggleJellyfinDiscovery: () => undefined,
+    openAnilistSetup: () => undefined,
+    checkForUpdates: () => undefined,
+    quitApp: () => undefined,
+  });
+
+  const discovery = template.find((entry) => entry.label === '✓ Jellyfin Discovery');
   assert.equal(discovery?.type, 'checkbox');
   assert.equal(discovery?.checked, true);
 });

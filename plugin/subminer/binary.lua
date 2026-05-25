@@ -114,6 +114,13 @@ function M.create(ctx)
 			end
 		end
 
+		if not environment.is_windows() then
+			local appimage_path = resolve_binary_candidate(os.getenv("APPIMAGE"))
+			if appimage_path and appimage_path ~= "" then
+				return appimage_path
+			end
+		end
+
 		return nil
 	end
 

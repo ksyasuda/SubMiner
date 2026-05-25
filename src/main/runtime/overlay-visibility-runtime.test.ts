@@ -27,6 +27,8 @@ test('overlay visibility runtime wires set/toggle handlers through composed deps
 
   runtime.setVisibleOverlayVisible(true);
   assert.equal(visible, true);
+  runtime.setVisibleOverlayVisible(true);
+  assert.equal(setVisibleCoreCalls, 1);
 
   runtime.toggleVisibleOverlay();
   assert.equal(visible, false);

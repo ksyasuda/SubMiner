@@ -63,7 +63,7 @@ test('overlay modal input state activates modal window interactivity and syncs d
   assert.deepEqual(modalWindow.calls, [
     'focusable:true',
     'ignore:false',
-    'top:true:screen-saver:1',
+    'top:true:screen-saver:3',
     'focus',
     'web-focus',
   ]);

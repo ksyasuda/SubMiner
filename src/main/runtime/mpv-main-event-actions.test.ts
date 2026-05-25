@@ -168,6 +168,28 @@ test('media path change handler signals autoplay readiness from warm media path'
   ]);
 });
 
+test('media path change handler marks Jellyfin remote playback loaded from media path', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvMediaPathChangeHandler({
+    updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
+    reportJellyfinRemoteStopped: () => calls.push('stopped'),
+    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
+    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${String(mediaKey)}`),
+    maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
+    ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
+    syncImmersionMediaState: () => calls.push('sync'),
+    markJellyfinRemotePlaybackLoaded: (path) => calls.push(`jellyfin-loaded:${path}`),
+    refreshDiscordPresence: () => calls.push('presence'),
+  });
+
+  handler({ path: 'https://stream.example/video.m3u8' });
+
+  assert.ok(calls.includes('jellyfin-loaded:https://stream.example/video.m3u8'));
+  assert.equal(calls.includes('stopped'), false);
+});
+
 test('media title change handler clears guess state without re-scheduling character dictionary sync', () => {
   const calls: string[] = [];
   const deps: Parameters<typeof createHandleMpvMediaTitleChangeHandler>[0] & {
@@ -217,6 +239,36 @@ test('time-pos and pause handlers report progress with correct urgency', () => {
     'presence',
     'post-watch',
     'pause:yes',
+    'progress:force',
+    'presence',
+  ]);
+});
+
+test('time-pos handler forces Jellyfin progress when mpv position jumps', () => {
+  const calls: string[] = [];
+  const timeHandler = createHandleMpvTimePosChangeHandler({
+    recordPlaybackPosition: (time) => calls.push(`time:${time}`),
+    reportJellyfinRemoteProgress: (force) => calls.push(`progress:${force ? 'force' : 'normal'}`),
+    refreshDiscordPresence: () => calls.push('presence'),
+    maybeRunAnilistPostWatchUpdate: async () => {},
+  });
+
+  timeHandler({ time: 10 });
+  timeHandler({ time: 11 });
+  timeHandler({ time: 90 });
+  timeHandler({ time: 30 });
+
+  assert.deepEqual(calls, [
+    'time:10',
+    'progress:normal',
+    'presence',
+    'time:11',
+    'progress:normal',
+    'presence',
+    'time:90',
+    'progress:force',
+    'presence',
+    'time:30',
     'progress:force',
     'presence',
   ]);

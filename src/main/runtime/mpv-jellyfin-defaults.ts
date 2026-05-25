@@ -6,10 +6,11 @@ export function createApplyJellyfinMpvDefaultsHandler(deps: {
   jellyfinLangPref: string;
 }) {
   return (client: MpvRuntimeClientLike): void => {
-    deps.sendMpvCommandRuntime(client, ['set_property', 'sub-auto', 'fuzzy']);
+    deps.sendMpvCommandRuntime(client, ['set_property', 'sub-auto', 'no']);
     deps.sendMpvCommandRuntime(client, ['set_property', 'aid', 'auto']);
-    deps.sendMpvCommandRuntime(client, ['set_property', 'sid', 'auto']);
-    deps.sendMpvCommandRuntime(client, ['set_property', 'secondary-sid', 'auto']);
+    deps.sendMpvCommandRuntime(client, ['set_property', 'sid', 'no']);
+    deps.sendMpvCommandRuntime(client, ['set_property', 'secondary-sid', 'no']);
+    deps.sendMpvCommandRuntime(client, ['set_property', 'sub-visibility', 'no']);
     deps.sendMpvCommandRuntime(client, ['set_property', 'secondary-sub-visibility', 'no']);
     deps.sendMpvCommandRuntime(client, ['set_property', 'alang', deps.jellyfinLangPref]);
     deps.sendMpvCommandRuntime(client, ['set_property', 'slang', deps.jellyfinLangPref]);

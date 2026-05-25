@@ -36,6 +36,14 @@ test('launch mpv for jellyfin main deps builder maps callbacks', () => {
     getLaunchMode: () => 'fullscreen',
     platform: 'darwin',
     execPath: '/tmp/subminer',
+    getRuntimePluginEntrypoint: () => '/tmp/plugin/subminer/main.lua',
+    getInstalledPluginDetection: () => ({
+      installed: false,
+      path: null,
+      version: null,
+      source: null,
+      message: null,
+    }),
     defaultMpvLogPath: '/tmp/mpv.log',
     defaultMpvArgs: ['--no-config'],
     removeSocketPath: (socketPath) => calls.push(`rm:${socketPath}`),
@@ -51,6 +59,8 @@ test('launch mpv for jellyfin main deps builder maps callbacks', () => {
   assert.equal(deps.getLaunchMode(), 'fullscreen');
   assert.equal(deps.platform, 'darwin');
   assert.equal(deps.execPath, '/tmp/subminer');
+  assert.equal(deps.getRuntimePluginEntrypoint?.(), '/tmp/plugin/subminer/main.lua');
+  assert.equal(deps.getInstalledPluginDetection?.().installed, false);
   assert.equal(deps.defaultMpvLogPath, '/tmp/mpv.log');
   assert.deepEqual(deps.defaultMpvArgs, ['--no-config']);
   deps.removeSocketPath('/tmp/mpv.sock');

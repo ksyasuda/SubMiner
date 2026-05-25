@@ -28,6 +28,15 @@ function parseTrackId(value: unknown): number | null {
   return null;
 }
 
+function isRemoteMediaPath(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function getActiveSubtitleTrack(
   currentTrackRaw: unknown,
   trackListRaw: unknown,
@@ -102,6 +111,10 @@ export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
       typeof track['external-filename'] === 'string' ? track['external-filename'].trim() : '';
     if (externalFilename) {
       return { path: externalFilename, sourceKey: externalFilename };
+    }
+
+    if (isRemoteMediaPath(input.videoPath)) {
+      return null;
     }
 
     const extracted = await deps.extractInternalSubtitleTrack(

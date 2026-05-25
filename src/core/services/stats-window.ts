@@ -1,21 +1,32 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, dialog, ipcMain } from 'electron';
 import * as path from 'path';
 import type { WindowGeometry } from '../../types.js';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts.js';
 import {
   buildStatsWindowLoadFileOptions,
   buildStatsWindowOptions,
+  demoteVisibleStatsWindowBelowDialogs,
   presentStatsWindow,
   promoteStatsWindowLevel,
   promoteVisibleStatsWindowAboveOverlay,
   resolveStatsWindowOuterBoundsForContent,
+  showStatsNativeConfirmDialog,
   shouldHideStatsWindowForInput,
   STATS_WINDOW_TITLE,
 } from './stats-window-runtime.js';
 import { ensureHyprlandWindowFloatingByTitle } from './hyprland-window-placement.js';
+import {
+  createStatsWindowLayerSuspensionState,
+  isStatsWindowLayerSuspended,
+  resetStatsWindowLayerSuspension,
+  restoreStatsWindowLayer,
+  suspendStatsWindowLayer,
+} from './stats-window-layer.js';
 
 let statsWindow: BrowserWindow | null = null;
 let toggleRegistered = false;
+let nativeDialogLayerRegistered = false;
+const nativeDialogLayerSuspension = createStatsWindowLayerSuspensionState();
 
 export interface StatsWindowOptions {
   /** Absolute path to stats/dist/ directory */
@@ -63,6 +74,10 @@ function showStatsWindow(window: BrowserWindow, options: StatsWindowOptions): vo
 }
 
 export function promoteStatsOverlayAbovePlayback(): boolean {
+  if (isStatsWindowLayerSuspended(nativeDialogLayerSuspension)) {
+    return false;
+  }
+
   if (!statsWindow) {
     return false;
   }
@@ -71,6 +86,69 @@ export function promoteStatsOverlayAbovePlayback(): boolean {
     promoteHyprlandWindow: () => {
       ensureHyprlandWindowFloatingByTitle({ title: STATS_WINDOW_TITLE });
     },
+  });
+}
+
+export function demoteStatsOverlayBelowDialogs(): boolean {
+  if (!statsWindow) {
+    return false;
+  }
+
+  return demoteVisibleStatsWindowBelowDialogs(statsWindow);
+}
+
+export function suspendStatsWindowLayerForNativeDialog(): void {
+  if (!suspendStatsWindowLayer(nativeDialogLayerSuspension)) {
+    return;
+  }
+
+  demoteStatsOverlayBelowDialogs();
+}
+
+export function restoreStatsWindowLayerAfterNativeDialog(): void {
+  if (restoreStatsWindowLayer(nativeDialogLayerSuspension)) {
+    promoteStatsOverlayAbovePlayback();
+  }
+}
+
+function resetStatsWindowLayerAfterLifecycleEnd(): void {
+  resetStatsWindowLayerSuspension(nativeDialogLayerSuspension);
+}
+
+export async function withStatsWindowLayerSuspendedForNativeDialog<T>(
+  showDialog: () => Promise<T>,
+): Promise<T> {
+  suspendStatsWindowLayerForNativeDialog();
+  try {
+    return await showDialog();
+  } finally {
+    restoreStatsWindowLayerAfterNativeDialog();
+  }
+}
+
+function confirmStatsNativeDialog(message: unknown): boolean {
+  const dialogMessage =
+    typeof message === 'string' && message.trim().length > 0 ? message : 'Confirm deletion?';
+
+  return showStatsNativeConfirmDialog(statsWindow, dialogMessage, {
+    showWithParent: (parentWindow, options) => dialog.showMessageBoxSync(parentWindow, options),
+    showWithoutParent: (options) => dialog.showMessageBoxSync(options),
+  });
+}
+
+function registerStatsNativeDialogLayerHandlers(): void {
+  if (nativeDialogLayerRegistered) return;
+  nativeDialogLayerRegistered = true;
+
+  ipcMain.on(IPC_CHANNELS.command.statsNativeConfirmDialog, (event, message) => {
+    event.returnValue = confirmStatsNativeDialog(message);
+  });
+  ipcMain.on(IPC_CHANNELS.command.statsNativeDialogOpened, (event) => {
+    suspendStatsWindowLayerForNativeDialog();
+    event.returnValue = true;
+  });
+  ipcMain.on(IPC_CHANNELS.command.statsNativeDialogClosed, () => {
+    restoreStatsWindowLayerAfterNativeDialog();
   });
 }
 
@@ -99,6 +177,7 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
     statsWindow.on('closed', () => {
       options.onVisibilityChanged?.(false);
       statsWindow = null;
+      resetStatsWindowLayerAfterLifecycleEnd();
     });
 
     statsWindow.webContents.on('before-input-event', (event, input) => {
@@ -132,6 +211,7 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
  * Call this once during app initialization.
  */
 export function registerStatsOverlayToggle(options: StatsWindowOptions): void {
+  registerStatsNativeDialogLayerHandlers();
   if (toggleRegistered) return;
   toggleRegistered = true;
   ipcMain.on(IPC_CHANNELS.command.toggleStatsOverlay, () => {
@@ -148,4 +228,5 @@ export function destroyStatsWindow(): void {
     statsWindow.destroy();
     statsWindow = null;
   }
+  resetStatsWindowLayerAfterLifecycleEnd();
 }

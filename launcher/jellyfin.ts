@@ -361,6 +361,21 @@ export function classifyJellyfinChildSelection(
   fail('Selected Jellyfin item is not playable.');
 }
 
+export function buildForwardedJellyfinAppArgs(args: Args, appArgs: string[]): string[] {
+  const forwarded = [...appArgs];
+  const serverOverride = sanitizeServerUrl(args.jellyfinServer || '');
+  if (serverOverride) {
+    forwarded.push('--jellyfin-server', serverOverride);
+  }
+  if (args.passwordStore) {
+    forwarded.push('--password-store', args.passwordStore);
+  }
+  if (!forwarded.some((arg) => arg === '--log-level' || arg.startsWith('--log-level='))) {
+    forwarded.push('--log-level', args.logLevel);
+  }
+  return forwarded;
+}
+
 async function runAppJellyfinListCommand(
   appPath: string,
   args: Args,
@@ -384,14 +399,7 @@ async function runAppJellyfinCommand(
   appArgs: string[],
   label: string,
 ): Promise<{ status: number; output: string; error: string; logOffset: number }> {
-  const forwardedBase = [...appArgs];
-  const serverOverride = sanitizeServerUrl(args.jellyfinServer || '');
-  if (serverOverride) {
-    forwardedBase.push('--jellyfin-server', serverOverride);
-  }
-  if (args.passwordStore) {
-    forwardedBase.push('--password-store', args.passwordStore);
-  }
+  const forwardedBase = buildForwardedJellyfinAppArgs(args, appArgs);
 
   const readLogAppendedSince = (offset: number): string => {
     const logPath = getMpvLogPath();

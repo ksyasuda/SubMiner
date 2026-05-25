@@ -66,14 +66,40 @@ export async function toggleJellyfinDiscoveryFromTray<TSession extends JellyfinT
     | 'logger'
     | 'showMpvOsd'
   >,
+  options: { desiredActive?: boolean } = {},
 ): Promise<void> {
   try {
     const activeSession = deps.getRemoteSession();
-    if (activeSession) {
-      deps.stopRemoteSession();
-      deps.logger.info('Jellyfin discovery stopped.');
-      deps.showMpvOsd('Jellyfin discovery stopped');
+    if (options.desiredActive === false) {
+      if (activeSession) {
+        deps.stopRemoteSession();
+        deps.logger.info('Jellyfin discovery stopped.');
+        deps.showMpvOsd('Jellyfin discovery stopped');
+      }
       return;
+    }
+
+    if (activeSession) {
+      let visible = false;
+      try {
+        visible = await activeSession.advertiseNow();
+      } catch {
+        deps.logger.warn('Jellyfin discovery visibility check failed; restarting.');
+      }
+
+      if (visible) {
+        if (options.desiredActive === true) {
+          deps.logger.info('Jellyfin discovery already active.');
+        } else {
+          deps.stopRemoteSession();
+          deps.logger.info('Jellyfin discovery stopped.');
+          deps.showMpvOsd('Jellyfin discovery stopped');
+        }
+        return;
+      }
+
+      deps.logger.warn('Jellyfin discovery was active but not visible; restarting.');
+      deps.stopRemoteSession();
     }
 
     await deps.startRemoteSession({ explicit: true });

@@ -301,6 +301,33 @@ export type {
   VocabularyStatsRow,
 } from './immersion-tracker/types';
 
+export interface JellyfinPlaybackMetadataInput {
+  mediaPath: string;
+  displayTitle: string;
+  itemTitle: string;
+  seriesTitle: string | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  itemId: string;
+}
+
+function normalizeMetadataInt(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) ? value : null;
+}
+
+function buildJellyfinStatsMediaPath(mediaPath: string, itemId: string): string {
+  const normalizedItemId = normalizeText(itemId);
+  if (!normalizedItemId) {
+    return mediaPath;
+  }
+  try {
+    const parsed = new URL(mediaPath);
+    return `jellyfin://${parsed.host}/item/${encodeURIComponent(normalizedItemId)}`;
+  } catch {
+    return `jellyfin://item/${encodeURIComponent(normalizedItemId)}`;
+  }
+}
+
 export class ImmersionTrackerService {
   private readonly logger = createLogger('main:immersion-tracker');
   private readonly db: DatabaseSync;
@@ -337,6 +364,7 @@ export class ImmersionTrackerService {
   private readonly pendingYoutubeMetadataFetches = new Map<number, Promise<void>>();
   private readonly recordedSubtitleKeys = new Set<string>();
   private readonly pendingAnimeMetadataUpdates = new Map<number, Promise<void>>();
+  private readonly mediaPathAliases = new Map<string, string>();
   private readonly resolveLegacyVocabularyPos:
     | ((row: LegacyVocabularyPosRow) => Promise<LegacyVocabularyPosResolution | null>)
     | undefined;
@@ -1115,8 +1143,85 @@ export class ImmersionTrackerService {
     rebuildLifetimeSummaryTables(this.db);
   }
 
+  recordJellyfinPlaybackMetadata(metadata: JellyfinPlaybackMetadataInput): void {
+    const rawPath = normalizeMediaPath(metadata.mediaPath);
+    if (!rawPath) {
+      return;
+    }
+    const normalizedPath = buildJellyfinStatsMediaPath(rawPath, metadata.itemId);
+    this.mediaPathAliases.set(rawPath, normalizedPath);
+
+    const displayTitle =
+      normalizeText(metadata.displayTitle) ||
+      normalizeText(metadata.itemTitle) ||
+      deriveCanonicalTitle(normalizedPath);
+    const itemTitle = normalizeText(metadata.itemTitle) || displayTitle;
+    const seriesTitle = normalizeText(metadata.seriesTitle);
+    const libraryTitle = seriesTitle || itemTitle;
+    if (!libraryTitle) {
+      return;
+    }
+
+    const videoId = getOrCreateVideoRecord(
+      this.db,
+      buildVideoKey(normalizedPath, SOURCE_TYPE_REMOTE),
+      {
+        canonicalTitle: displayTitle,
+        sourcePath: null,
+        sourceUrl: normalizedPath,
+        sourceType: SOURCE_TYPE_REMOTE,
+      },
+    );
+    const previousLink = this.db
+      .prepare('SELECT anime_id AS animeId FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { animeId: number | null } | null;
+    const metadataJson = JSON.stringify({
+      source: 'jellyfin',
+      itemId: normalizeText(metadata.itemId) || null,
+      itemTitle,
+      seriesTitle: seriesTitle || null,
+      displayTitle,
+      seasonNumber: normalizeMetadataInt(metadata.seasonNumber),
+      episodeNumber: normalizeMetadataInt(metadata.episodeNumber),
+    });
+    const animeId = getOrCreateAnimeRecord(this.db, {
+      parsedTitle: libraryTitle,
+      canonicalTitle: libraryTitle,
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson,
+    });
+    linkVideoToAnimeRecord(this.db, videoId, {
+      animeId,
+      parsedBasename: null,
+      parsedTitle: libraryTitle,
+      parsedSeason: normalizeMetadataInt(metadata.seasonNumber),
+      parsedEpisode: normalizeMetadataInt(metadata.episodeNumber),
+      parserSource: 'jellyfin',
+      parserConfidence: 1,
+      parseMetadataJson: metadataJson,
+    });
+
+    const hasLifetimeMedia = Boolean(
+      this.db.prepare('SELECT 1 FROM imm_lifetime_media WHERE video_id = ?').get(videoId),
+    );
+    if (hasLifetimeMedia || (previousLink && previousLink.animeId !== animeId)) {
+      rebuildLifetimeSummaryTables(this.db);
+    }
+  }
+
+  private hasJellyfinMetadata(videoId: number): boolean {
+    const row = this.db
+      .prepare('SELECT parser_source AS parserSource FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { parserSource: string | null } | null;
+    return row?.parserSource === 'jellyfin';
+  }
+
   handleMediaChange(mediaPath: string | null, mediaTitle: string | null): void {
-    const normalizedPath = normalizeMediaPath(mediaPath);
+    const rawPath = normalizeMediaPath(mediaPath);
+    const normalizedPath = this.mediaPathAliases.get(rawPath) ?? rawPath;
     const normalizedTitle = normalizeText(mediaTitle);
     this.logger.info(
       `handleMediaChange called with path=${normalizedPath || '<empty>'} title=${normalizedTitle || '<empty>'}`,
@@ -1164,7 +1269,7 @@ export class ImmersionTrackerService {
     if (youtubeVideoId) {
       void this.ensureYouTubeCoverArt(sessionInfo.videoId, normalizedPath, youtubeVideoId);
       this.captureYoutubeMetadataAsync(sessionInfo.videoId, normalizedPath);
-    } else {
+    } else if (!this.hasJellyfinMetadata(sessionInfo.videoId)) {
       this.captureAnimeMetadataAsync(sessionInfo.videoId, normalizedPath, normalizedTitle || null);
     }
     this.captureVideoMetadataAsync(sessionInfo.videoId, sourceType, normalizedPath);

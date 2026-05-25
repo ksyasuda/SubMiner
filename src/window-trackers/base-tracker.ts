@@ -50,6 +50,10 @@ export abstract class BaseWindowTracker {
   abstract start(): void;
   abstract stop(): void;
 
+  refreshNow(): Promise<void> {
+    return Promise.resolve();
+  }
+
   getGeometry(): WindowGeometry | null {
     return this.currentGeometry;
   }

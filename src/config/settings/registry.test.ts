@@ -59,7 +59,6 @@ test('settings registry hides removed modal-only fields', () => {
     'shortcuts.multiCopyTimeoutMs',
     'anilist.characterDictionary.profileScope',
     'jellyfin.directPlayContainers',
-    'jellyfin.remoteControlDeviceName',
   ]) {
     assert.equal(
       fields.some((candidate) => candidate.configPath === path),
@@ -246,10 +245,7 @@ test('settings registry hides app-managed and inactive config surfaces', () => {
     'controller.preferredGamepadLabel',
     'controller.profiles',
     'youtubeSubgen.whisperBin',
-    'jellyfin.clientVersion',
     'jellyfin.defaultLibraryId',
-    'jellyfin.deviceId',
-    'jellyfin.clientName',
     'subtitleSidebar.toggleKey',
     'jellyfin.recentServers',
   ]) {

@@ -20,6 +20,8 @@ export function createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler(
     getLaunchMode: () => deps.getLaunchMode(),
     platform: deps.platform,
     execPath: deps.execPath,
+    getRuntimePluginEntrypoint: deps.getRuntimePluginEntrypoint,
+    getInstalledPluginDetection: deps.getInstalledPluginDetection,
     getPluginRuntimeConfig: deps.getPluginRuntimeConfig,
     defaultMpvLogPath: deps.defaultMpvLogPath,
     defaultMpvArgs: deps.defaultMpvArgs,

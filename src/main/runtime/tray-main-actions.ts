@@ -37,6 +37,7 @@ export function shouldShowTexthookerTrayEntry(config: {
 
 export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   buildTrayMenuTemplateRuntime: (handlers: {
+    platform?: string;
     openSessionHelp: () => void;
     openTexthookerInBrowser: () => void;
     showTexthookerPage: boolean;
@@ -49,7 +50,7 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
     openJellyfinSetup: () => void;
     showJellyfinDiscovery: boolean;
     jellyfinDiscoveryActive: boolean;
-    toggleJellyfinDiscovery: () => void;
+    toggleJellyfinDiscovery: (checked: boolean) => void;
     openAnilistSetup: () => void;
     checkForUpdates: () => void;
     quitApp: () => void;
@@ -67,13 +68,15 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   openJellyfinSetupWindow: () => void;
   isJellyfinConfigured: () => boolean;
   isJellyfinDiscoveryActive: () => boolean;
-  toggleJellyfinDiscovery: () => void | Promise<void>;
+  toggleJellyfinDiscovery: (checked: boolean) => void | Promise<void>;
+  platform?: string;
   openAnilistSetupWindow: () => void;
   checkForUpdates: () => void;
   quitApp: () => void;
 }) {
   return (): TMenuItem[] => {
     return deps.buildTrayMenuTemplateRuntime({
+      platform: deps.platform,
       openSessionHelp: () => {
         if (!deps.isOverlayRuntimeInitialized()) {
           deps.initializeOverlayRuntime();
@@ -103,8 +106,8 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
       },
       showJellyfinDiscovery: deps.isJellyfinConfigured(),
       jellyfinDiscoveryActive: deps.isJellyfinDiscoveryActive(),
-      toggleJellyfinDiscovery: () => {
-        void deps.toggleJellyfinDiscovery();
+      toggleJellyfinDiscovery: (checked) => {
+        void deps.toggleJellyfinDiscovery(checked);
       },
       openAnilistSetup: () => {
         deps.openAnilistSetupWindow();

@@ -8,6 +8,8 @@ export function createSubsyncModal(
     syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
+  let ffsubsyncAvailable = true;
+
   function setSubsyncStatus(message: string, isError = false): void {
     ctx.dom.subsyncStatus.textContent = message;
     ctx.dom.subsyncStatus.classList.toggle('error', isError);
@@ -46,20 +48,26 @@ export function createSubsyncModal(
 
   function openSubsyncModal(payload: SubsyncManualPayload): void {
     ctx.state.subsyncSubmitting = false;
-    ctx.dom.subsyncRunButton.disabled = false;
     ctx.state.subsyncSourceTracks = payload.sourceTracks;
+    ffsubsyncAvailable = payload.ffsubsyncAvailable;
 
     const hasSources = ctx.state.subsyncSourceTracks.length > 0;
     ctx.dom.subsyncEngineAlass.checked = hasSources;
-    ctx.dom.subsyncEngineFfsubsync.checked = !hasSources;
+    ctx.dom.subsyncEngineFfsubsync.checked = !hasSources && ffsubsyncAvailable;
+    ctx.dom.subsyncEngineFfsubsync.disabled = !ffsubsyncAvailable;
+    ctx.dom.subsyncRunButton.disabled = !hasSources && !ffsubsyncAvailable;
 
     renderSubsyncSourceTracks();
     updateSubsyncSourceVisibility();
 
     setSubsyncStatus(
-      hasSources
-        ? 'Choose engine and source, then run.'
-        : 'No source subtitles available for alass. Use ffsubsync.',
+      !ffsubsyncAvailable && hasSources
+        ? 'Choose alass source, then run.'
+        : !ffsubsyncAvailable
+          ? 'No source subtitles available for alass.'
+          : hasSources
+            ? 'Choose engine and source, then run.'
+            : 'No source subtitles available for alass. Use ffsubsync.',
       false,
     );
 
@@ -77,7 +85,7 @@ export function createSubsyncModal(
     sourceTrackId: number | null,
     message: string,
   ): void {
-    openSubsyncModal({ sourceTracks });
+    openSubsyncModal({ sourceTracks, ffsubsyncAvailable });
 
     if (engine === 'alass' && sourceTracks.length > 0) {
       ctx.dom.subsyncEngineAlass.checked = true;
@@ -85,7 +93,7 @@ export function createSubsyncModal(
       if (Number.isFinite(sourceTrackId)) {
         ctx.dom.subsyncSourceSelect.value = String(sourceTrackId);
       }
-    } else {
+    } else if (ffsubsyncAvailable) {
       ctx.dom.subsyncEngineAlass.checked = false;
       ctx.dom.subsyncEngineFfsubsync.checked = true;
     }
@@ -97,8 +105,16 @@ export function createSubsyncModal(
 
   async function runSubsyncManualFromModal(): Promise<void> {
     if (ctx.state.subsyncSubmitting) return;
+    if (ctx.dom.subsyncRunButton.disabled) return;
 
-    const engine = ctx.dom.subsyncEngineAlass.checked ? 'alass' : 'ffsubsync';
+    const useAlass = ctx.dom.subsyncEngineAlass.checked;
+    const useFfsubsync = ctx.dom.subsyncEngineFfsubsync.checked;
+    if (!useAlass && !useFfsubsync) {
+      setSubsyncStatus('No sync engine available for current media.', true);
+      return;
+    }
+
+    const engine = useAlass ? 'alass' : 'ffsubsync';
     const sourceTrackId =
       engine === 'alass' && ctx.dom.subsyncSourceSelect.value
         ? Number.parseInt(ctx.dom.subsyncSourceSelect.value, 10)

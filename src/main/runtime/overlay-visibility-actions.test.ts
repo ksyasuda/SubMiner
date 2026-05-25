@@ -8,9 +8,12 @@ import {
 test('set visible overlay handler forwards dependencies to core', () => {
   const calls: string[] = [];
   let warmupStarts = 0;
+  let currentVisible = false;
   const setVisible = createSetVisibleOverlayVisibleHandler({
+    getVisibleOverlayVisible: () => currentVisible,
     setVisibleOverlayVisibleCore: (options) => {
       calls.push(`core:${options.visible}`);
+      currentVisible = options.visible;
       options.setVisibleOverlayVisibleState(options.visible);
       options.updateVisibleOverlayVisibility();
     },
@@ -20,6 +23,10 @@ test('set visible overlay handler forwards dependencies to core', () => {
       warmupStarts += 1;
     },
   });
+
+  setVisible(true);
+  assert.deepEqual(calls, ['core:true', 'state:true', 'update-visible']);
+  assert.equal(warmupStarts, 1);
 
   setVisible(true);
   assert.deepEqual(calls, ['core:true', 'state:true', 'update-visible']);

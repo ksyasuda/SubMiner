@@ -10,6 +10,7 @@ export function createBuildPlayJellyfinItemInMpvMainDepsHandler(
     getMpvClient: () => deps.getMpvClient(),
     resolvePlaybackPlan: (params) => deps.resolvePlaybackPlan(params),
     applyJellyfinMpvDefaults: (mpvClient) => deps.applyJellyfinMpvDefaults(mpvClient),
+    showVisibleOverlay: () => deps.showVisibleOverlay(),
     sendMpvCommand: (command: Array<string | number>) => deps.sendMpvCommand(command),
     armQuitOnDisconnect: () => deps.armQuitOnDisconnect(),
     schedule: (callback: () => void, delayMs: number) => deps.schedule(callback, delayMs),
@@ -19,5 +20,11 @@ export function createBuildPlayJellyfinItemInMpvMainDepsHandler(
     setLastProgressAtMs: (value: number) => deps.setLastProgressAtMs(value),
     reportPlaying: (payload) => deps.reportPlaying(payload),
     showMpvOsd: (text: string) => deps.showMpvOsd(text),
+    recordJellyfinPlaybackMetadata: deps.recordJellyfinPlaybackMetadata
+      ? (metadata) => deps.recordJellyfinPlaybackMetadata!(metadata)
+      : undefined,
+    updateCurrentMediaTitle: deps.updateCurrentMediaTitle
+      ? (title) => deps.updateCurrentMediaTitle!(title)
+      : undefined,
   });
 }

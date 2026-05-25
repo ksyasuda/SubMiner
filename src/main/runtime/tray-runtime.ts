@@ -30,6 +30,7 @@ export function resolveTrayIconPathRuntime(deps: {
 }
 
 export type TrayMenuActionHandlers = {
+  platform?: string;
   openSessionHelp: () => void;
   openTexthookerInBrowser: () => void;
   showTexthookerPage: boolean;
@@ -42,10 +43,14 @@ export type TrayMenuActionHandlers = {
   openJellyfinSetup: () => void;
   showJellyfinDiscovery: boolean;
   jellyfinDiscoveryActive: boolean;
-  toggleJellyfinDiscovery: () => void;
+  toggleJellyfinDiscovery: (checked: boolean) => void;
   openAnilistSetup: () => void;
   checkForUpdates: () => void;
   quitApp: () => void;
+};
+
+type TrayMenuClickItem = {
+  checked?: boolean;
 };
 
 export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): Array<{
@@ -53,8 +58,13 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
   type?: 'separator' | 'checkbox';
   checked?: boolean;
   enabled?: boolean;
-  click?: () => void;
+  click?: (menuItem?: TrayMenuClickItem) => void;
 }> {
+  const jellyfinDiscoveryLabel =
+    handlers.platform === 'linux' && handlers.jellyfinDiscoveryActive
+      ? '✓ Jellyfin Discovery'
+      : 'Jellyfin Discovery';
+
   return [
     {
       label: 'Open Help',
@@ -99,11 +109,17 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
     ...(handlers.showJellyfinDiscovery
       ? [
           {
-            label: 'Jellyfin Discovery',
+            label: jellyfinDiscoveryLabel,
             type: 'checkbox' as const,
             checked: handlers.jellyfinDiscoveryActive,
             enabled: true,
-            click: handlers.toggleJellyfinDiscovery,
+            click: (menuItem?: TrayMenuClickItem) => {
+              const checked =
+                typeof menuItem?.checked === 'boolean'
+                  ? menuItem.checked
+                  : !handlers.jellyfinDiscoveryActive;
+              handlers.toggleJellyfinDiscovery(checked);
+            },
           },
         ]
       : []),

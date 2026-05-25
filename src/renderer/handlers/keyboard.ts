@@ -207,6 +207,11 @@ export function createKeyboardHandlers(
       return;
     }
 
+    if (binding.actionType === 'session-action' && binding.actionId === 'toggleVisibleOverlay') {
+      window.electronAPI.sendMpvCommand(['script-message', 'subminer-toggle']);
+      return;
+    }
+
     if (binding.actionType === 'session-action' && binding.actionId === 'openControllerSelect') {
       options.openControllerSelectModal?.();
       return;

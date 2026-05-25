@@ -164,6 +164,8 @@ If your subtitle file is out of sync with the audio, SubMiner can resynchronize 
 3. For alass, select a reference subtitle track from the video.
 4. SubMiner runs the sync and reloads the corrected subtitle.
 
+For remote streams, including Jellyfin playback, the modal only offers alass. Jellyfin subtitle URLs are cached as temporary subtitle files so alass can read them, but the video stream is not downloaded. ffsubsync needs direct access to the local media file and is unavailable for stream URLs.
+
 Install the sync tools separately — see [Troubleshooting](/troubleshooting#subtitle-sync-subsync) if the tools are not found.
 
 ## Texthooker

@@ -19,6 +19,7 @@ export interface UpdateDialogPresenterDeps {
   showMessageBox: ShowMessageBox;
   focusApp?: () => void | Promise<void>;
   yieldToRunLoop?: () => Promise<void>;
+  withStatsWindowLayerSuspended?: <T>(showDialog: () => Promise<T>) => Promise<T>;
   platform?: NodeJS.Platform;
 }
 
@@ -46,12 +47,18 @@ async function maybeFocusAppForDialog(deps: UpdateDialogPresenterDeps): Promise<
 
 export function createUpdateDialogPresenter(deps: UpdateDialogPresenterDeps) {
   const showFocusedMessageBox: ShowMessageBox = async (options) => {
-    try {
-      await maybeFocusAppForDialog(deps);
-    } catch {
-      // Best-effort focus only; never block the dialog itself.
-    }
-    return deps.showMessageBox(options);
+    const showDialog = async (): Promise<MessageBoxResultLike> => {
+      try {
+        await maybeFocusAppForDialog(deps);
+      } catch {
+        // Best-effort focus only; never block the dialog itself.
+      }
+      return deps.showMessageBox(options);
+    };
+
+    return deps.withStatsWindowLayerSuspended
+      ? deps.withStatsWindowLayerSuspended(showDialog)
+      : showDialog();
   };
 
   return {

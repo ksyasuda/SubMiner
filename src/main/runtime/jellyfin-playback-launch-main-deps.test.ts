@@ -11,16 +11,23 @@ test('play jellyfin item in mpv main deps builder maps callbacks', async () => {
       url: 'u',
       mode: 'direct',
       title: 't',
+      itemTitle: 't',
+      seriesTitle: null,
+      seasonNumber: null,
+      episodeNumber: null,
       startTimeTicks: 0,
       audioStreamIndex: null,
       subtitleStreamIndex: null,
     }),
     applyJellyfinMpvDefaults: () => calls.push('defaults'),
+    showVisibleOverlay: () => calls.push('visible-overlay'),
     sendMpvCommand: (command) => calls.push(`cmd:${command[0]}`),
     armQuitOnDisconnect: () => calls.push('arm'),
     schedule: (_callback, delayMs) => calls.push(`schedule:${delayMs}`),
     convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => calls.push('preload'),
+    preloadExternalSubtitles: () => {
+      calls.push('preload');
+    },
     setActivePlayback: () => calls.push('active'),
     setLastProgressAtMs: () => calls.push('progress'),
     reportPlaying: () => calls.push('report'),
@@ -49,12 +56,17 @@ test('play jellyfin item in mpv main deps builder maps callbacks', async () => {
       url: 'u',
       mode: 'direct',
       title: 't',
+      itemTitle: 't',
+      seriesTitle: null,
+      seasonNumber: null,
+      episodeNumber: null,
       startTimeTicks: 0,
       audioStreamIndex: null,
       subtitleStreamIndex: null,
     },
   );
   deps.applyJellyfinMpvDefaults({ connected: true, send: () => {} });
+  deps.showVisibleOverlay();
   deps.sendMpvCommand(['show-text', 'x']);
   deps.armQuitOnDisconnect();
   deps.schedule(() => {}, 500);
@@ -85,6 +97,7 @@ test('play jellyfin item in mpv main deps builder maps callbacks', async () => {
 
   assert.deepEqual(calls, [
     'defaults',
+    'visible-overlay',
     'cmd:show-text',
     'arm',
     'schedule:500',

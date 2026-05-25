@@ -17,6 +17,7 @@ import {
   parseEpisodePathFromDisplay,
   buildRootSearchGroups,
   classifyJellyfinChildSelection,
+  buildForwardedJellyfinAppArgs,
 } from './jellyfin.js';
 
 type RunResult = {
@@ -875,6 +876,27 @@ test('parseJellyfinItemsFromAppOutput parses item title/id/type tuples', () => {
       type: 'Movie',
       display: 'Movie [Alt]',
     },
+  ]);
+});
+
+test('buildForwardedJellyfinAppArgs forces app log level for parseable list output', () => {
+  const forwarded = buildForwardedJellyfinAppArgs(
+    {
+      jellyfinServer: 'https://jf.example.test/',
+      passwordStore: 'gnome-libsecret',
+      logLevel: 'info',
+    } as never,
+    ['--jellyfin-libraries'],
+  );
+
+  assert.deepEqual(forwarded, [
+    '--jellyfin-libraries',
+    '--jellyfin-server',
+    'https://jf.example.test',
+    '--password-store',
+    'gnome-libsecret',
+    '--log-level',
+    'info',
   ]);
 });
 

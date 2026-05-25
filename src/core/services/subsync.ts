@@ -378,6 +378,7 @@ export async function openSubsyncManualPicker(deps: TriggerSubsyncFromConfigDeps
   const client = getMpvClientForSubsync(deps);
   const context = await gatherSubsyncContext(client);
   const payload: SubsyncManualPayload = {
+    ffsubsyncAvailable: !isRemoteMediaPath(context.videoPath),
     sourceTracks: context.sourceTracks
       .filter((track) => typeof track.id === 'number')
       .map((track) => ({

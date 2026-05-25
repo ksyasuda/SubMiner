@@ -19,12 +19,15 @@ test('get resolved jellyfin config main deps builder maps callbacks', () => {
 
 test('get jellyfin client info main deps builder maps callbacks', () => {
   const configured = { clientName: 'Configured' };
-  const defaults = { clientName: 'Default' };
   const deps = createBuildGetJellyfinClientInfoMainDepsHandler({
     getResolvedJellyfinConfig: () => configured as never,
-    getDefaultJellyfinConfig: () => defaults as never,
+    getHostName: () => 'workstation',
+    defaultClientName: 'SubMiner',
+    defaultClientVersion: '1.0.0',
   })();
 
   assert.equal(deps.getResolvedJellyfinConfig(), configured);
-  assert.equal(deps.getDefaultJellyfinConfig(), defaults);
+  assert.equal(deps.getHostName?.(), 'workstation');
+  assert.equal(deps.defaultClientName, 'SubMiner');
+  assert.equal(deps.defaultClientVersion, '1.0.0');
 });

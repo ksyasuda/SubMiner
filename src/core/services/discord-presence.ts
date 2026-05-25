@@ -106,6 +106,15 @@ function basename(filePath: string | null): string {
   return parts[parts.length - 1] ?? '';
 }
 
+function fallbackTitleFromMediaPath(mediaPath: string | null): string {
+  const trimmed = mediaPath?.trim();
+  if (!trimmed) return '';
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) && !trimmed.toLowerCase().startsWith('file://')) {
+    return '';
+  }
+  return basename(trimmed).split(/[?#]/)[0] ?? '';
+}
+
 function buildStatus(snapshot: DiscordPresenceSnapshot): string {
   if (!snapshot.connected || !snapshot.mediaPath) return 'Idle';
   if (snapshot.paused) return 'Paused';
@@ -130,7 +139,10 @@ export function buildDiscordPresenceActivity(
 ): DiscordActivityPayload {
   const style = resolvePresenceStyle(config.presenceStyle);
   const status = buildStatus(snapshot);
-  const title = sanitizeText(snapshot.mediaTitle, basename(snapshot.mediaPath) || 'Unknown media');
+  const title = sanitizeText(
+    snapshot.mediaTitle,
+    fallbackTitleFromMediaPath(snapshot.mediaPath) || 'Unknown media',
+  );
   const details =
     snapshot.connected && snapshot.mediaPath ? trimField(title) : style.fallbackDetails;
   const timeline = `${formatClock(snapshot.currentTimeSec)} / ${formatClock(snapshot.mediaDurationSec)}`;

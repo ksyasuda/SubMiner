@@ -41,17 +41,63 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     clearYomitanSettingsWindow: () => calls.push('clear-yomitan-settings-window'),
     stopJellyfinRemoteSession: () => calls.push('stop-jellyfin-remote'),
     cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
+    cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
     stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
   });
 
   cleanup();
-  assert.equal(calls.length, 31);
+  assert.equal(calls.length, 32);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-discord-presence');
+  assert.ok(calls.includes('cleanup-jellyfin-subtitles'));
   assert.ok(calls.includes('clear-windows-visible-overlay-poll'));
   assert.ok(calls.includes('clear-linux-mpv-fullscreen-overlay-refresh-timeouts'));
   assert.ok(calls.includes('cleanup-youtube-subtitles'));
   assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));
+});
+
+test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping remote session fails', () => {
+  const calls: string[] = [];
+  const cleanup = createOnWillQuitCleanupHandler({
+    destroyTray: () => {},
+    stopConfigHotReload: () => {},
+    restorePreviousSecondarySubVisibility: () => {},
+    restoreMpvSubVisibility: () => {},
+    unregisterAllGlobalShortcuts: () => {},
+    stopSubtitleWebsocket: () => {},
+    stopTexthookerService: () => {},
+    clearWindowsVisibleOverlayForegroundPollLoop: () => {},
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {},
+    destroyMainOverlayWindow: () => {},
+    destroyModalOverlayWindow: () => {},
+    destroyYomitanParserWindow: () => {},
+    clearYomitanParserState: () => {},
+    stopWindowTracker: () => {},
+    flushMpvLog: () => {},
+    destroyMpvSocket: () => {},
+    clearReconnectTimer: () => {},
+    destroySubtitleTimingTracker: () => {},
+    destroyImmersionTracker: () => {},
+    destroyAnkiIntegration: () => {},
+    destroyAnilistSetupWindow: () => {},
+    clearAnilistSetupWindow: () => {},
+    destroyJellyfinSetupWindow: () => {},
+    clearJellyfinSetupWindow: () => {},
+    destroyFirstRunSetupWindow: () => {},
+    clearFirstRunSetupWindow: () => {},
+    destroyYomitanSettingsWindow: () => {},
+    clearYomitanSettingsWindow: () => {},
+    stopJellyfinRemoteSession: () => {
+      calls.push('stop-jellyfin-remote');
+      throw new Error('stop failed');
+    },
+    cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
+    cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
+    stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
+  });
+
+  assert.throws(() => cleanup(), /stop failed/);
+  assert.deepEqual(calls, ['stop-jellyfin-remote', 'cleanup-jellyfin-subtitles']);
 });
 
 test('should restore windows on activate requires initialized runtime and no windows', () => {

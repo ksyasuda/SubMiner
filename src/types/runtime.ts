@@ -72,6 +72,7 @@ export interface SubsyncSourceTrack {
 
 export interface SubsyncManualPayload {
   sourceTracks: SubsyncSourceTrack[];
+  ffsubsyncAvailable: boolean;
 }
 
 export interface SubsyncManualRunRequest {

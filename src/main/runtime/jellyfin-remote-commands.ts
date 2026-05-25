@@ -4,6 +4,9 @@ export type ActiveJellyfinRemotePlaybackState = {
   audioStreamIndex?: number | null;
   subtitleStreamIndex?: number | null;
   playMethod: 'DirectPlay' | 'Transcode';
+  loadedMediaPath?: string | null;
+  stopReportsAfterMs?: number;
+  lastKnownPositionSeconds?: number;
 };
 
 type JellyfinSession = {
@@ -51,6 +54,7 @@ export type JellyfinRemotePlayHandlerDeps = {
   getConfiguredSession: () => JellyfinSession | null;
   getClientInfo: () => JellyfinClientInfo;
   getJellyfinConfig: () => unknown;
+  getActivePlayback?: () => ActiveJellyfinRemotePlaybackState | null;
   playJellyfinItem: (params: {
     session: JellyfinSession;
     clientInfo: JellyfinClientInfo;
@@ -59,6 +63,7 @@ export type JellyfinRemotePlayHandlerDeps = {
     audioStreamIndex?: number;
     subtitleStreamIndex?: number;
     startTimeTicksOverride?: number;
+    fallbackToPlanStartTimeOnZeroOverride?: boolean;
     setQuitOnDisconnectArm?: boolean;
   }) => Promise<void>;
   logWarn: (message: string) => void;
@@ -79,6 +84,13 @@ export function createHandleJellyfinRemotePlay(deps: JellyfinRemotePlayHandlerDe
       deps.logWarn('Ignoring Jellyfin remote Play event without ItemIds.');
       return;
     }
+    if (deps.getActivePlayback?.()?.itemId === itemId) {
+      return;
+    }
+    const hasStartPositionTicks = Object.prototype.hasOwnProperty.call(data, 'StartPositionTicks');
+    const startTimeTicksOverride = hasStartPositionTicks
+      ? (asInteger(data.StartPositionTicks) ?? 0)
+      : 0;
     await deps.playJellyfinItem({
       session,
       clientInfo,
@@ -86,7 +98,8 @@ export function createHandleJellyfinRemotePlay(deps: JellyfinRemotePlayHandlerDe
       itemId,
       audioStreamIndex: asInteger(data.AudioStreamIndex),
       subtitleStreamIndex: asInteger(data.SubtitleStreamIndex),
-      startTimeTicksOverride: asInteger(data.StartPositionTicks),
+      startTimeTicksOverride,
+      fallbackToPlanStartTimeOnZeroOverride: hasStartPositionTicks,
       setQuitOnDisconnectArm: false,
     });
   };

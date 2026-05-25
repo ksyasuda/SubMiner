@@ -680,6 +680,11 @@ export function annotateTokens(
 
   // Single pass: compute known word status, frequency filtering, and JLPT level together
   const annotated = tokens.map((token, index) => {
+    const isKnownForMatching = shouldComputeKnownStatus
+      ? computeTokenKnownStatus(token, deps.isKnownWord, deps.knownWordMatchMode)
+      : false;
+    nPlusOneKnownStatuses[index] = isKnownForMatching;
+
     if (
       sharedShouldExcludeTokenFromSubtitleAnnotations(token, {
         pos1Exclusions,
@@ -690,18 +695,13 @@ export function annotateTokens(
         pos1Exclusions,
         pos2Exclusions,
       });
-      nPlusOneKnownStatuses[index] = false;
       return {
         ...strippedToken,
-        isKnown: false,
+        isKnown: knownWordsEnabled ? isKnownForMatching : false,
       };
     }
 
     const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
-    const isKnownForMatching = shouldComputeKnownStatus
-      ? computeTokenKnownStatus(token, deps.isKnownWord, deps.knownWordMatchMode)
-      : false;
-    nPlusOneKnownStatuses[index] = isKnownForMatching;
 
     const frequencyRank =
       frequencyEnabled && !prioritizedNameMatch

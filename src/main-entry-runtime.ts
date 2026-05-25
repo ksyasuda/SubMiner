@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import { CliArgs, parseArgs, shouldStartApp } from './cli/args';
+import { CliArgs, hasExplicitCommand, parseArgs, shouldStartApp } from './cli/args';
 import { resolveConfigDir } from './config/path-resolution';
 
 const BACKGROUND_ARG = '--background';
 const START_ARG = '--start';
 const PASSWORD_STORE_ARG = '--password-store';
+const DEFAULT_LINUX_PASSWORD_STORE = 'gnome-libsecret';
 const BACKGROUND_CHILD_ENV = 'SUBMINER_BACKGROUND_CHILD';
 const TRANSPORTED_APP_ARGC_ENV = 'SUBMINER_APP_ARGC';
 const TRANSPORTED_APP_ARG_PREFIX = 'SUBMINER_APP_ARG_';
@@ -32,6 +33,10 @@ const MPV_LONG_OPTIONS_WITH_SEPARATE_VALUES = new Set([
 type EarlyAppLike = {
   setName: (name: string) => void;
   setPath: (name: 'userData', value: string) => void;
+};
+
+type CommandLineLike = {
+  appendSwitch: (name: string, value?: string) => void;
 };
 
 type EarlyAppPathOptions = {
@@ -73,6 +78,60 @@ function removePassiveStartupArgs(argv: string[]): string[] {
   return filtered;
 }
 
+function getPasswordStoreArg(argv: string[]): string | null {
+  let resolved: string | null = null;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (!arg?.startsWith(PASSWORD_STORE_ARG)) {
+      continue;
+    }
+
+    if (arg === PASSWORD_STORE_ARG) {
+      const value = argv[i + 1];
+      if (value && !value.startsWith('--')) {
+        resolved = value.trim();
+        i += 1;
+      }
+      continue;
+    }
+
+    const [prefix, value] = arg.split('=', 2);
+    if (prefix === PASSWORD_STORE_ARG && value && value.trim().length > 0) {
+      resolved = value.trim();
+    }
+  }
+  return resolved;
+}
+
+function normalizePasswordStoreArg(value: string): string {
+  const normalized = value.trim();
+  if (normalized.toLowerCase() === 'gnome') {
+    return DEFAULT_LINUX_PASSWORD_STORE;
+  }
+  return normalized;
+}
+
+export function resolveLinuxPasswordStoreValue(
+  argv: string[],
+  platform: NodeJS.Platform = process.platform,
+): string | null {
+  if (platform !== 'linux') return null;
+  return normalizePasswordStoreArg(getPasswordStoreArg(argv) ?? DEFAULT_LINUX_PASSWORD_STORE);
+}
+
+export function applyEarlyLinuxCommandLineSwitches(
+  commandLine: CommandLineLike,
+  argv: string[],
+  platform: NodeJS.Platform = process.platform,
+): void {
+  if (platform !== 'linux') return;
+  commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
+  commandLine.appendSwitch(
+    'password-store',
+    resolveLinuxPasswordStoreValue(argv, platform) ?? DEFAULT_LINUX_PASSWORD_STORE,
+  );
+}
+
 function consumesLaunchMpvValue(token: string): boolean {
   return (
     token.startsWith('--') &&
@@ -88,6 +147,20 @@ function parseCliArgs(argv: string[]): CliArgs {
 
 export function hasTransportedStartupArgs(env: NodeJS.ProcessEnv): boolean {
   return typeof env[TRANSPORTED_APP_ARGC_ENV] === 'string';
+}
+
+export function shouldForwardStartupArgvViaAppControl(
+  argv: string[],
+  env: NodeJS.ProcessEnv,
+): boolean {
+  if (env.ELECTRON_RUN_AS_NODE === '1') return false;
+  if (!hasTransportedStartupArgs(env)) return false;
+
+  const args = parseCliArgs(argv);
+  if (args.help || args.appPing || args.launchMpv) return false;
+  if (resolveStatsDaemonCommandAction(argv) !== null) return false;
+
+  return hasExplicitCommand(args);
 }
 
 function readTransportedStartupArgs(env: NodeJS.ProcessEnv): string[] | null {

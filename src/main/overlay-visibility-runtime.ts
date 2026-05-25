@@ -17,6 +17,7 @@ export interface OverlayVisibilityRuntimeDeps {
   getLastKnownWindowsForegroundProcessName?: () => string | null;
   getWindowsOverlayProcessName?: () => string | null;
   getWindowsFocusHandoffGraceActive?: () => boolean;
+  getMacOSForegroundProbeActive?: () => boolean;
   getTrackerNotReadyWarningShown: () => boolean;
   setTrackerNotReadyWarningShown: (shown: boolean) => void;
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
@@ -59,6 +60,7 @@ export function createOverlayVisibilityRuntimeService(
         lastKnownWindowsForegroundProcessName: deps.getLastKnownWindowsForegroundProcessName?.(),
         windowsOverlayProcessName: deps.getWindowsOverlayProcessName?.() ?? null,
         windowsFocusHandoffGraceActive: deps.getWindowsFocusHandoffGraceActive?.() ?? false,
+        macOSForegroundProbeActive: deps.getMacOSForegroundProbeActive?.() ?? false,
         trackerNotReadyWarningShown: deps.getTrackerNotReadyWarningShown(),
         setTrackerNotReadyWarningShown: (shown: boolean) => {
           deps.setTrackerNotReadyWarningShown(shown);

@@ -1,4 +1,0 @@
-type: changed
-area: config
-
-- Settings: reorganized playback, shortcut, WebSocket, tracking, Jellyfin, character dictionary, and Discord presence controls in the settings modal.

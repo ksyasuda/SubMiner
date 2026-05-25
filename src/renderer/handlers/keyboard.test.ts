@@ -1008,6 +1008,38 @@ test('visible-layer y-t dispatches mpv plugin toggle while overlay owns focus', 
   }
 });
 
+test('visible-layer configured overlay toggle dispatches mpv plugin toggle', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.toggleVisibleOverlayGlobal',
+        originalKey: 'Alt+Shift+O',
+        key: { code: 'KeyO', modifiers: ['alt', 'shift'] },
+        actionType: 'session-action',
+        actionId: 'toggleVisibleOverlay',
+      },
+    ] as never);
+
+    testGlobals.dispatchKeydown({ key: 'O', code: 'KeyO', altKey: true, shiftKey: true });
+
+    assert.equal(
+      testGlobals.mpvCommands.some(
+        (command) => command[0] === 'script-message' && command[1] === 'subminer-toggle',
+      ),
+      true,
+    );
+    assert.equal(
+      testGlobals.sessionActions.some((action) => action.actionId === 'toggleVisibleOverlay'),
+      false,
+    );
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('refreshConfiguredShortcuts updates hot-reloaded stats and watched keys', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 

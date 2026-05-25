@@ -91,6 +91,22 @@ test('buildDiscordPresenceActivity shows media title regardless of style', () =>
   }
 });
 
+test('buildDiscordPresenceActivity never falls back to remote stream URLs', () => {
+  const payload = buildDiscordPresenceActivity(baseConfig, {
+    ...baseSnapshot,
+    mediaTitle: null,
+    mediaPath:
+      'http://jellyfin.local/Videos/item-1/stream?static=true&api_key=secret-token&MediaSourceId=ms-1',
+  });
+
+  assert.equal(payload.details, 'Unknown media');
+  assert.equal(payload.state, 'Playing 01:35 / 24:10');
+  const serialized = JSON.stringify(payload);
+  assert.equal(serialized.includes('api_key'), false);
+  assert.equal(serialized.includes('secret-token'), false);
+  assert.equal(serialized.includes('/Videos/item-1/stream'), false);
+});
+
 test('service deduplicates identical updates and sends changed timeline', async () => {
   const sent: DiscordActivityPayload[] = [];
   const timers = new Map<number, () => void>();

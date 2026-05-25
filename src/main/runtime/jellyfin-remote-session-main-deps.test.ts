@@ -13,6 +13,13 @@ test('start jellyfin remote session main deps builder maps callbacks', async () 
     getCurrentSession: () => null,
     setCurrentSession: () => calls.push('set-session'),
     createRemoteSessionService: () => session as never,
+    getClientInfo: () =>
+      ({
+        deviceId: 'workstation',
+        clientName: 'SubMiner',
+        clientVersion: '1.0',
+      }) as never,
+    getHostName: () => 'workstation',
     defaultDeviceId: 'device',
     defaultClientName: 'SubMiner',
     defaultClientVersion: '1.0',
@@ -27,19 +34,34 @@ test('start jellyfin remote session main deps builder maps callbacks', async () 
     },
     logInfo: (message) => calls.push(`info:${message}`),
     logWarn: (message) => calls.push(`warn:${message}`),
+    onSessionStateChanged: () => calls.push('state-changed'),
   })();
 
   assert.deepEqual(deps.getJellyfinConfig(), { serverUrl: 'http://localhost' });
   assert.equal(deps.defaultDeviceId, 'device');
   assert.equal(deps.defaultClientName, 'SubMiner');
   assert.equal(deps.defaultClientVersion, '1.0');
+  assert.equal(deps.getHostName(), 'workstation');
+  assert.deepEqual(deps.getClientInfo(), {
+    deviceId: 'workstation',
+    clientName: 'SubMiner',
+    clientVersion: '1.0',
+  });
   assert.equal(deps.createRemoteSessionService({} as never), session);
   await deps.handlePlay({});
   await deps.handlePlaystate({});
   await deps.handleGeneralCommand({});
   deps.logInfo('connected');
   deps.logWarn('missing');
-  assert.deepEqual(calls, ['play', 'playstate', 'general', 'info:connected', 'warn:missing']);
+  deps.onSessionStateChanged?.();
+  assert.deepEqual(calls, [
+    'play',
+    'playstate',
+    'general',
+    'info:connected',
+    'warn:missing',
+    'state-changed',
+  ]);
 });
 
 test('stop jellyfin remote session main deps builder maps callbacks', () => {
@@ -49,10 +71,12 @@ test('stop jellyfin remote session main deps builder maps callbacks', () => {
     getCurrentSession: () => session as never,
     setCurrentSession: () => calls.push('set-null'),
     clearActivePlayback: () => calls.push('clear'),
+    onSessionStateChanged: () => calls.push('state-changed'),
   })();
 
   assert.equal(deps.getCurrentSession(), session);
   deps.setCurrentSession(null);
   deps.clearActivePlayback();
-  assert.deepEqual(calls, ['set-null', 'clear']);
+  deps.onSessionStateChanged?.();
+  assert.deepEqual(calls, ['set-null', 'clear', 'state-changed']);
 });

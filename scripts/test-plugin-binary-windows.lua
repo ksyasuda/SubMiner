@@ -69,6 +69,31 @@ local function create_binary_module(config)
 end
 
 do
+	local appimage_path = "/home/tester/.local/bin/SubMiner.AppImage"
+	local mounted_binary_path = "/tmp/.mount_SubMiner/SubMiner"
+	local resolved = with_env({
+		APPIMAGE = appimage_path,
+	}, function()
+		local binary = create_binary_module({
+			is_windows = false,
+			binary_path = mounted_binary_path,
+			entries = {
+				[appimage_path] = "file",
+				[mounted_binary_path] = "file",
+			},
+		})
+
+		return binary.find_binary()
+	end)
+
+	assert_equal(
+		resolved,
+		appimage_path,
+		"linux resolver should prefer APPIMAGE over the mounted AppImage inner binary"
+	)
+end
+
+do
 	local binary = create_binary_module({
 		is_windows = true,
 		binary_path = "C:\\Users\\tester\\AppData\\Local\\Programs\\SubMiner\\SubMiner",

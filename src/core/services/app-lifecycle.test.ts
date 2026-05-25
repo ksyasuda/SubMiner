@@ -280,6 +280,44 @@ test('startAppLifecycle routes control socket commands through the second-instan
   assert.deepEqual(handled, ['ready', 'second-instance:start', 'control-close']);
 });
 
+test('startAppLifecycle drains queued second-instance commands when app ready runtime fails', async () => {
+  const handled: string[] = [];
+  let controlArgvHandler: ((argv: string[]) => void) | null = null;
+  let readyHandler: (() => Promise<void>) | null = null;
+
+  const { deps } = createDeps({
+    shouldStartApp: () => true,
+    parseArgs: (argv) => makeArgs({ start: argv.includes('--start') }),
+    handleCliCommand: (args, source) => {
+      handled.push(`${source}:${args.start ? 'start' : 'other'}`);
+    },
+    startControlServer: (handler) => {
+      controlArgvHandler = handler;
+    },
+    whenReady: (handler) => {
+      readyHandler = handler;
+    },
+    onReady: async () => {
+      handled.push('ready');
+      throw new Error('ready failed');
+    },
+  });
+
+  startAppLifecycle(makeArgs({ background: true }), deps);
+
+  assert.ok(controlArgvHandler);
+  (controlArgvHandler as (argv: string[]) => void)(['--start']);
+  assert.deepEqual(handled, []);
+
+  assert.ok(readyHandler);
+  await assert.rejects((readyHandler as () => Promise<void>)(), /ready failed/);
+
+  assert.deepEqual(handled, ['ready', 'second-instance:start']);
+
+  (controlArgvHandler as (argv: string[]) => void)(['--start']);
+  assert.deepEqual(handled, ['ready', 'second-instance:start', 'second-instance:start']);
+});
+
 test('startAppLifecycle quits macOS config-only launch when all windows close', () => {
   let windowAllClosedHandler: (() => void) | null = null;
   const { deps, calls } = createDeps({

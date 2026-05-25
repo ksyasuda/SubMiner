@@ -523,7 +523,7 @@
       "highlightEnabled": false, // Enable fast local highlighting for words already known in Anki. Values: true | false
       "refreshMinutes": 1440, // Minutes between known-word cache refreshes.
       "addMinedWordsImmediately": true, // Immediately append newly mined card words into the known-word cache. Values: true | false
-      "matchMode": "headword", // Known-word matching strategy for subtitle annotations. Values: headword | surface
+      "matchMode": "headword", // Known-word matching strategy for subtitle annotations. Cache matches always receive known-word highlighting even when POS filters suppress other annotation types. Values: headword | surface
       "decks": {} // Decks and fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word", "Word Reading"] }.
     }, // Known words setting.
     "behavior": {
@@ -644,14 +644,10 @@
     "serverUrl": "", // Base Jellyfin server URL (for example: http://localhost:8096).
     "recentServers": [], // Recently authenticated Jellyfin server URLs shown in setup.
     "username": "", // Default Jellyfin username used during CLI login.
-    "deviceId": "subminer", // Stable device identifier sent on the Jellyfin authentication handshake; primarily internal.
-    "clientName": "SubMiner", // Client name sent on the Jellyfin authentication handshake; primarily internal.
-    "clientVersion": "0.1.0", // Client version sent on the Jellyfin authentication handshake; primarily internal.
     "defaultLibraryId": "", // Optional default Jellyfin library ID for item listing.
     "remoteControlEnabled": true, // Enable Jellyfin remote cast control mode. Values: true | false
     "remoteControlAutoConnect": true, // Auto-connect to the configured remote control target. Values: true | false
     "autoAnnounce": false, // When enabled, automatically trigger remote announce/visibility check on websocket connect. Values: true | false
-    "remoteControlDeviceName": "SubMiner", // Device name reported for Jellyfin remote control sessions.
     "pullPictures": false, // Enable Jellyfin poster/icon fetching for launcher menus. Values: true | false
     "iconCacheDir": "/tmp/subminer-jellyfin-icons", // Directory used by launcher for cached Jellyfin poster icons.
     "directPlayPreferred": true, // Try direct play before server-managed transcoding when possible. Values: true | false

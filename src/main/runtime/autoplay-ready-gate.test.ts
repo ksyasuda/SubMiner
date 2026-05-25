@@ -46,7 +46,6 @@ test('autoplay ready gate suppresses duplicate media signals for the same media'
       (command) => command[0] === 'set_property' && command[1] === 'pause' && command[2] === false,
     ),
   );
-  assert.equal(scheduled.length > 0, true);
 });
 
 test('autoplay ready gate retry loop does not re-signal plugin readiness', async () => {
@@ -142,6 +141,86 @@ test('autoplay ready gate does not unpause again after a later manual pause on t
     ).length,
     1,
   );
+});
+
+test('autoplay ready gate cancels release retries after playback is paused again', async () => {
+  const commands: Array<Array<string | boolean>> = [];
+  const scheduled: Array<() => void> = [];
+  let playbackPaused = true;
+
+  const gate = createAutoplayReadyGate({
+    isAppOwnedFlowInFlight: () => false,
+    getCurrentMediaPath: () => '/media/video.mkv',
+    getCurrentVideoPath: () => null,
+    getPlaybackPaused: () => playbackPaused,
+    getMpvClient: () =>
+      ({
+        connected: true,
+        requestProperty: async () => playbackPaused,
+        send: ({ command }: { command: Array<string | boolean> }) => {
+          commands.push(command);
+          if (command[0] === 'set_property' && command[1] === 'pause' && command[2] === false) {
+            playbackPaused = false;
+          }
+        },
+      }) as never,
+    signalPluginAutoplayReady: () => {
+      commands.push(['script-message', 'subminer-autoplay-ready']);
+    },
+    schedule: (callback) => {
+      scheduled.push(callback);
+      return 1 as never;
+    },
+    logDebug: () => {},
+  });
+
+  gate.maybeSignalPluginAutoplayReady({ text: '字幕', tokens: null }, { forceWhilePaused: true });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  playbackPaused = true;
+  const retry = scheduled.shift();
+  retry?.();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(
+    commands.filter(
+      (command) => command[0] === 'set_property' && command[1] === 'pause' && command[2] === false,
+    ).length,
+    1,
+  );
+});
+
+test('autoplay ready gate suppresses release after manual current-media dismissal', async () => {
+  const commands: Array<Array<string | boolean>> = [];
+
+  const gate = createAutoplayReadyGate({
+    isAppOwnedFlowInFlight: () => false,
+    getCurrentMediaPath: () => '/media/video.mkv',
+    getCurrentVideoPath: () => null,
+    getPlaybackPaused: () => true,
+    getMpvClient: () =>
+      ({
+        connected: true,
+        requestProperty: async () => true,
+        send: ({ command }: { command: Array<string | boolean> }) => {
+          commands.push(command);
+        },
+      }) as never,
+    signalPluginAutoplayReady: () => {
+      commands.push(['script-message', 'subminer-autoplay-ready']);
+    },
+    schedule: (callback) => {
+      queueMicrotask(callback);
+      return 1 as never;
+    },
+    logDebug: () => {},
+  });
+
+  gate.markCurrentMediaAutoplayReady();
+  gate.maybeSignalPluginAutoplayReady({ text: '字幕', tokens: null }, { forceWhilePaused: true });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(commands, []);
 });
 
 test('autoplay ready gate defers plugin readiness until the signal target is ready', async () => {

@@ -289,6 +289,44 @@ test('reportProgress posts timeline payload and treats failure as non-fatal', as
   assert.deepEqual(JSON.parse(String(timelineCall.init.body)), expectedPostedPayload);
 });
 
+test('timeline payload omits websocket-only event names', () => {
+  const payload = buildJellyfinTimelinePayload({
+    itemId: 'movie-2',
+    positionTicks: 123456,
+    eventName: 'TimeUpdate',
+  });
+
+  assert.equal('EventName' in payload, false);
+});
+
+test('reportStopped posts final position and explicit non-failed state', async () => {
+  const fetchCalls: Array<{ input: string; init: RequestInit }> = [];
+  const service = new JellyfinRemoteSessionService({
+    serverUrl: 'http://jellyfin.local',
+    accessToken: 'token-stop-payload',
+    deviceId: 'device-stop-payload',
+    webSocketFactory: () => new FakeWebSocket() as unknown as any,
+    fetchImpl: (async (input, init) => {
+      fetchCalls.push({ input: String(input), init: init ?? {} });
+      return new Response(null, { status: 200 });
+    }) as typeof fetch,
+  });
+
+  const ok = await service.reportStopped({
+    itemId: 'movie-stop',
+    positionTicks: 7654321,
+    failed: false,
+  });
+
+  const stoppedCall = fetchCalls.find((call) => call.input.endsWith('/Sessions/Playing/Stopped'));
+  assert.equal(ok, true);
+  assert.ok(stoppedCall);
+  assert.ok(typeof stoppedCall.init.body === 'string');
+  const posted = JSON.parse(String(stoppedCall.init.body));
+  assert.equal(posted.PositionTicks, 7654321);
+  assert.equal(posted.Failed, false);
+});
+
 test('advertiseNow validates server registration using Sessions endpoint', async () => {
   const sockets: FakeWebSocket[] = [];
   const calls: string[] = [];

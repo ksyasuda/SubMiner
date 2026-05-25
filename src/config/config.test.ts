@@ -75,7 +75,10 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.jellyfin.remoteControlEnabled, true);
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
   assert.equal(config.jellyfin.autoAnnounce, false);
-  assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
+  assert.equal('clientName' in config.jellyfin, false);
+  assert.equal('remoteControlDeviceName' in config.jellyfin, false);
+  assert.equal('deviceId' in config.jellyfin, false);
+  assert.equal('clientVersion' in config.jellyfin, false);
   assert.equal(config.ai.enabled, false);
   assert.equal(config.ai.apiKeyCommand, '');
   assert.equal(config.texthooker.openBrowser, false);
@@ -832,7 +835,7 @@ test('parses anilist.characterDictionary.collapsibleSections booleans and warns 
   );
 });
 
-test('parses jellyfin remote control fields', () => {
+test('parses jellyfin remote control fields and ignores legacy identity fields', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
@@ -843,6 +846,7 @@ test('parses jellyfin remote control fields', () => {
         "remoteControlEnabled": true,
         "remoteControlAutoConnect": true,
         "autoAnnounce": true,
+        "clientName": "Custom Client",
         "remoteControlDeviceName": "SubMiner"
       }
     }`,
@@ -857,7 +861,8 @@ test('parses jellyfin remote control fields', () => {
   assert.equal(config.jellyfin.remoteControlEnabled, true);
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
   assert.equal(config.jellyfin.autoAnnounce, true);
-  assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
+  assert.equal('clientName' in config.jellyfin, false);
+  assert.equal('remoteControlDeviceName' in config.jellyfin, false);
 });
 
 test('parses jellyfin.enabled and remoteControlEnabled disabled combinations', () => {
@@ -2469,6 +2474,8 @@ test('template generator includes known keys', () => {
   assert.match(output, /"startupWarmups":/);
   assert.match(output, /"updates":/);
   assert.match(output, /"youtube":/);
+  assert.doesNotMatch(output, /"deviceId":/);
+  assert.doesNotMatch(output, /"clientVersion":/);
   assert.doesNotMatch(output, /"youtubeSubgen":/);
   assert.match(output, /"characterDictionary":\s*\{/);
   assert.match(output, /"preserveLineBreaks": false/);

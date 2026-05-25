@@ -15,6 +15,9 @@ export function createBuildHandleJellyfinRemotePlayMainDepsHandler(
     getConfiguredSession: () => deps.getConfiguredSession(),
     getClientInfo: () => deps.getClientInfo(),
     getJellyfinConfig: () => deps.getJellyfinConfig(),
+    ...(deps.getActivePlayback
+      ? { getActivePlayback: () => deps.getActivePlayback?.() ?? null }
+      : {}),
     playJellyfinItem: (params) => deps.playJellyfinItem(params),
     logWarn: (message: string) => deps.logWarn(message),
   });
@@ -68,6 +71,9 @@ export function createBuildReportJellyfinRemoteStoppedMainDepsHandler(
     getActivePlayback: () => deps.getActivePlayback(),
     clearActivePlayback: () => deps.clearActivePlayback(),
     getSession: () => deps.getSession(),
+    getMpvClient: () => deps.getMpvClient(),
+    getNow: deps.getNow ? () => deps.getNow?.() ?? Date.now() : undefined,
+    ticksPerSecond: deps.ticksPerSecond,
     logDebug: (message: string, error: unknown) => deps.logDebug(message, error),
   });
 }

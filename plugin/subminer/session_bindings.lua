@@ -251,6 +251,11 @@ function M.create(ctx)
 			return
 		end
 
+		if binding.actionId == "toggleVisibleOverlay" and type(process.toggle_overlay) == "function" then
+			process.toggle_overlay()
+			return
+		end
+
 		invoke_cli_action(binding.actionId, binding.payload)
 	end
 

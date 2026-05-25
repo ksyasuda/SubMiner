@@ -359,6 +359,35 @@ test('MacOSWindowTracker marks target unfocused on explicit inactive helper sign
   assert.deepEqual(focusChanges, [true, false]);
 });
 
+test('MacOSWindowTracker refreshNow immediately samples frontmost mpv state', async () => {
+  let callIndex = 0;
+  const outputs = [
+    { stdout: '10,20,1280,720,0', stderr: '' },
+    { stdout: 'active', stderr: '' },
+  ];
+
+  const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
+    resolveHelper: () => ({
+      helperPath: 'helper.swift',
+      helperType: 'swift',
+    }),
+    runHelper: async () => outputs[callIndex++] ?? outputs.at(-1)!,
+  });
+
+  await (tracker as unknown as { refreshNow: () => Promise<void> }).refreshNow();
+  assert.equal(tracker.isTargetWindowFocused(), false);
+
+  await (tracker as unknown as { refreshNow: () => Promise<void> }).refreshNow();
+  assert.equal(tracker.isTracking(), true);
+  assert.equal(tracker.isTargetWindowFocused(), true);
+  assert.deepEqual(tracker.getGeometry(), {
+    x: 10,
+    y: 20,
+    width: 1280,
+    height: 720,
+  });
+});
+
 test('MacOSWindowTracker drops tracking after consecutive helper misses', async () => {
   let callIndex = 0;
   const outputs = [

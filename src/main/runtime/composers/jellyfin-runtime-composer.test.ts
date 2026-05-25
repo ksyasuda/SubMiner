@@ -13,11 +13,9 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
     },
     getJellyfinClientInfoMainDeps: {
       getResolvedJellyfinConfig: () => ({}) as never,
-      getDefaultJellyfinConfig: () => ({
-        clientName: 'SubMiner',
-        clientVersion: 'test',
-        deviceId: 'dev',
-      }),
+      getHostName: () => 'workstation',
+      defaultClientName: 'SubMiner',
+      defaultClientVersion: 'test',
     },
     waitForMpvConnectedMainDeps: {
       getMpvClient: () => null,
@@ -50,6 +48,8 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
       getMpvClient: () => null,
       sendMpvCommand: () => {},
       wait: async () => {},
+      cacheSubtitleTrack: async () => ({ path: '/tmp/sub.srt', cleanupDir: '/tmp/subs' }),
+      cleanupCachedSubtitles: () => {},
       logDebug: () => {},
     },
     playJellyfinItemInMpvMainDeps: {
@@ -58,11 +58,16 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
         mode: 'direct',
         url: 'https://example.test/video.m3u8',
         title: 'Episode 1',
+        itemTitle: 'Episode 1',
+        seriesTitle: null,
+        seasonNumber: null,
+        episodeNumber: null,
         startTimeTicks: 0,
         audioStreamIndex: null,
         subtitleStreamIndex: null,
       }),
       applyJellyfinMpvDefaults: () => {},
+      showVisibleOverlay: () => {},
       sendMpvCommand: () => {},
       armQuitOnDisconnect: () => {},
       schedule: () => undefined,
@@ -133,6 +138,7 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
       defaultDeviceId: 'dev',
       defaultClientName: 'SubMiner',
       defaultClientVersion: 'test',
+      getHostName: () => 'workstation',
       logInfo: () => {},
       logWarn: () => {},
     },
@@ -189,6 +195,7 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
   assert.equal(typeof composed.handleJellyfinRemotePlaystate, 'function');
   assert.equal(typeof composed.handleJellyfinRemoteGeneralCommand, 'function');
   assert.equal(typeof composed.playJellyfinItemInMpv, 'function');
+  assert.equal(typeof composed.cleanupJellyfinSubtitleCache, 'function');
   assert.equal(typeof composed.startJellyfinRemoteSession, 'function');
   assert.equal(typeof composed.stopJellyfinRemoteSession, 'function');
   assert.equal(typeof composed.runJellyfinCommand, 'function');

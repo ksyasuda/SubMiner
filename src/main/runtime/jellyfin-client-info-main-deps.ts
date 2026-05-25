@@ -23,6 +23,8 @@ export function createBuildGetJellyfinClientInfoMainDepsHandler(
 ) {
   return (): GetJellyfinClientInfoMainDeps => ({
     getResolvedJellyfinConfig: () => deps.getResolvedJellyfinConfig(),
-    getDefaultJellyfinConfig: () => deps.getDefaultJellyfinConfig(),
+    getHostName: deps.getHostName ? () => deps.getHostName?.() || '' : undefined,
+    defaultClientName: deps.defaultClientName,
+    defaultClientVersion: deps.defaultClientVersion,
   });
 }

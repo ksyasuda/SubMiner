@@ -9,17 +9,20 @@ import {
   normalizeLaunchMpvExtraArgs,
   normalizeLaunchMpvTargets,
   normalizeStartupArgv,
+  applyEarlyLinuxCommandLineSwitches,
   sanitizeStartupEnv,
   sanitizeBackgroundEnv,
   sanitizeHelpEnv,
   sanitizeLaunchMpvEnv,
   hasTransportedStartupArgs,
+  shouldForwardStartupArgvViaAppControl,
   shouldDetachBackgroundLaunch,
   shouldHandleHelpOnlyAtEntry,
   shouldHandleLaunchMpvAtEntry,
   shouldHandleStatsDaemonCommandAtEntry,
 } from './main-entry-runtime';
 import { requestSingleInstanceLockEarly } from './main/early-single-instance';
+import { sendAppControlCommand } from './shared/app-control-client';
 import {
   detectInstalledFirstRunPluginCandidates,
   detectInstalledMpvPlugin,
@@ -173,6 +176,7 @@ function readConfiguredWindowsMpvLaunch(configDir: string): {
 }
 
 process.argv = normalizeStartupArgv(process.argv, process.env);
+applyEarlyLinuxCommandLineSwitches(app.commandLine, process.argv);
 applySanitizedEnv(sanitizeStartupEnv(process.env));
 const userDataPath = configureEarlyAppPaths(app);
 const reportFatalError = createFatalErrorReporter({
@@ -183,6 +187,44 @@ registerFatalErrorHandlers({
   reportFatalError,
   exit: (code) => app.exit(code),
 });
+
+function startMainProcess(): void {
+  const gotSingleInstanceLock = requestSingleInstanceLockEarly(app);
+  if (!gotSingleInstanceLock) {
+    app.exit(0);
+    return;
+  }
+  try {
+    require('./main.js');
+  } catch (error) {
+    reportFatalError(error, {
+      title: 'SubMiner startup failed',
+      context: 'SubMiner failed while loading the main process.',
+    });
+    app.exit(1);
+  }
+}
+
+async function forwardStartupArgvViaAppControlIfAvailable(): Promise<boolean> {
+  if (!shouldForwardStartupArgvViaAppControl(process.argv, process.env)) {
+    return false;
+  }
+
+  const result = await sendAppControlCommand(process.argv, {
+    configDir: userDataPath,
+    timeoutMs: 500,
+  });
+  if (result.ok) {
+    app.exit(0);
+    return true;
+  }
+  if (!result.unavailable) {
+    console.error(`SubMiner app-control handoff failed: ${result.error ?? 'unknown error'}`);
+    app.exit(1);
+    return true;
+  }
+  return false;
+}
 
 if (shouldDetachBackgroundLaunch(process.argv, process.env)) {
   const childArgs = hasTransportedStartupArgs(process.env) ? [] : process.argv.slice(1);
@@ -233,17 +275,14 @@ if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
     app.exit(exitCode);
   });
 } else {
-  const gotSingleInstanceLock = requestSingleInstanceLockEarly(app);
-  if (!gotSingleInstanceLock) {
-    app.exit(0);
-  }
-  try {
-    require('./main.js');
-  } catch (error) {
-    reportFatalError(error, {
-      title: 'SubMiner startup failed',
-      context: 'SubMiner failed while loading the main process.',
+  void forwardStartupArgvViaAppControlIfAvailable()
+    .then((forwarded) => {
+      if (!forwarded) {
+        startMainProcess();
+      }
+    })
+    .catch((error) => {
+      console.error('SubMiner app-control handoff failed:', error);
+      startMainProcess();
     });
-    app.exit(1);
-  }
 }
