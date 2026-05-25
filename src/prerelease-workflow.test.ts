@@ -10,12 +10,6 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
   scripts: Record<string, string>;
 };
 
-function extractWorkflowJob(workflow: string, jobName: string, nextJobName: string): string {
-  const match = workflow.match(new RegExp(`\\n  ${jobName}:[\\s\\S]*?\\n  ${nextJobName}:`));
-  assert.ok(match, `${jobName} job not found`);
-  return match[0];
-}
-
 test('prerelease workflow triggers on beta and rc tags only', () => {
   assert.match(prereleaseWorkflow, /name: Prerelease/);
   const tagsBlock = prereleaseWorkflow.match(/tags:\s*\n((?:\s*-\s*'[^']+'\s*\n?)+)/);
@@ -93,12 +87,9 @@ test('prerelease workflow writes checksum entries using release asset basenames'
   );
 });
 
-test('prerelease workflow renames Windows portable zip assets before upload', () => {
-  const windowsJob = extractWorkflowJob(prereleaseWorkflow, 'build-windows', 'release');
-
-  assert.match(windowsJob, /Rename Windows ZIP artifacts/);
-  assert.match(windowsJob, /-win\.zip/);
-  assert.match(windowsJob, /-win\.zip\.blockmap/);
+test('prerelease workflow relies on builder artifact names without post-build zip renames', () => {
+  assert.doesNotMatch(prereleaseWorkflow, /Rename Windows ZIP artifacts/);
+  assert.doesNotMatch(prereleaseWorkflow, /Rename-Item[\s\S]*-win\.zip/);
 });
 
 test('prerelease workflow validates artifacts before publishing the release and only undrafts after upload', () => {
