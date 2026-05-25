@@ -523,11 +523,13 @@ test('character dictionary modal does not resave the active override from keyboa
           };
         },
         notifyOverlayModalClosed: () => {},
+        notifyOverlayModalOpened: () => {},
       } satisfies Pick<
         ElectronAPI,
         | 'getCharacterDictionarySelection'
         | 'setCharacterDictionarySelection'
         | 'notifyOverlayModalClosed'
+        | 'notifyOverlayModalOpened'
       >,
     },
   });
