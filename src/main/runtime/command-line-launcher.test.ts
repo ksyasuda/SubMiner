@@ -89,10 +89,7 @@ test('resolveBunInstallCommand prefers winget on Windows', () => {
 });
 
 test('default runCommand preserves Windows cmd metacharacter args', async (t) => {
-  if (process.platform !== 'win32') {
-    t.skip('Windows cmd quoting only');
-    return;
-  }
+  if (process.platform !== 'win32') return;
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-cmd-args-'));
   const scriptPath = path.join(tempDir, 'argv.cmd');
