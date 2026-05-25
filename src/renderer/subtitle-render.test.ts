@@ -259,6 +259,103 @@ test('applySubtitleStyle sets subtitle name-match color variable', () => {
   }
 });
 
+test('renderSubtitle injects circular character image for annotated name matches', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const ctx = {
+      state: {
+        ...createRendererState(),
+        nameMatchEnabled: true,
+      },
+      dom: {
+        subtitleRoot,
+        subtitleContainer: new FakeElement('div'),
+        secondarySubRoot: new FakeElement('div'),
+        secondarySubContainer: new FakeElement('div'),
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.renderSubtitle({
+      text: 'アクア',
+      tokens: [
+        {
+          ...createToken({ surface: 'アクア', headword: 'アクア', reading: 'あくあ' }),
+          isNameMatch: true,
+          characterImage: {
+            src: 'data:image/png;base64,AAAA',
+            alt: 'アクア',
+          },
+        } as MergedToken,
+      ],
+    });
+
+    const [word] = collectWordNodes(subtitleRoot);
+    assert.ok(word);
+    assert.equal(word.className, 'word word-name-match word-character-image-token');
+    assert.equal(word.textContent, 'アクア');
+    const image = word.childNodes[0] as FakeElement & { src?: string; alt?: string };
+    assert.equal(image.tagName, 'img');
+    assert.equal(image.className, 'word-character-image');
+    assert.equal(image.src, 'data:image/png;base64,AAAA');
+    assert.equal(image.alt, 'アクア');
+  } finally {
+    restoreDocument();
+  }
+});
+
+test('renderSubtitle skips character image when name-match rendering is disabled', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const ctx = {
+      state: {
+        ...createRendererState(),
+        nameMatchEnabled: false,
+      },
+      dom: {
+        subtitleRoot,
+        subtitleContainer: new FakeElement('div'),
+        secondarySubRoot: new FakeElement('div'),
+        secondarySubContainer: new FakeElement('div'),
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.renderSubtitle({
+      text: 'アクア',
+      tokens: [
+        {
+          ...createToken({ surface: 'アクア', headword: 'アクア', reading: 'あくあ' }),
+          isNameMatch: true,
+          characterImage: {
+            src: 'data:image/png;base64,AAAA',
+            alt: 'アクア',
+          },
+        } as MergedToken,
+      ],
+    });
+
+    const [word] = collectWordNodes(subtitleRoot);
+    assert.ok(word);
+    assert.equal(word.className, 'word');
+    assert.equal(word.textContent, 'アクア');
+    assert.equal(word.childNodes.length, 0);
+  } finally {
+    restoreDocument();
+  }
+});
+
+test('renderer content security policy allows data URL character images', () => {
+  const htmlPath = path.join(process.cwd(), 'src', 'renderer', 'index.html');
+  const htmlText = fs.readFileSync(htmlPath, 'utf-8');
+  const cspMatch = htmlText.match(/http-equiv="Content-Security-Policy"[\s\S]*?content="([^"]+)"/);
+
+  assert.ok(cspMatch, 'renderer CSP meta tag should exist');
+  assert.match(cspMatch[1] ?? '', /(?:^|;)\s*img-src\s+[^;]*\bdata:/);
+});
+
 test('applySubtitleStyle stores secondary background styles in hover-aware css variables', () => {
   const restoreDocument = installFakeDocument();
   try {
@@ -868,6 +965,19 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
 
   const wordBlock = extractClassBlock(cssText, '#subtitleRoot .word');
   assert.match(wordBlock, /-webkit-text-fill-color:\s*currentColor\s*!important;/);
+
+  const characterImageTokenBlock = extractClassBlock(
+    cssText,
+    '#subtitleRoot .word.word-character-image-token',
+  );
+  assert.match(characterImageTokenBlock, /display:\s*inline-block;/);
+  assert.match(characterImageTokenBlock, /position:\s*relative;/);
+  assert.match(characterImageTokenBlock, /padding-left:\s*1\.08em;/);
+
+  const characterImageBlock = extractClassBlock(cssText, '#subtitleRoot .word-character-image');
+  assert.match(characterImageBlock, /position:\s*absolute;/);
+  assert.match(characterImageBlock, /top:\s*50%;/);
+  assert.match(characterImageBlock, /transform:\s*translateY\(calc\(-50%\s*\+\s*0\.05em\)\);/);
 
   const frequencyTooltipBaseBlock = extractClassBlock(
     cssText,

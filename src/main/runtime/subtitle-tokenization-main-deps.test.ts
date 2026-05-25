@@ -36,6 +36,9 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
     getJlptLevel: () => 'N2',
     getJlptEnabled: () => true,
     getNameMatchEnabled: () => false,
+    getNameMatchImagesEnabled: () => true,
+    getCharacterNameImage: (term) =>
+      term === 'name' ? { src: 'data:image/png;base64,AAAA', alt: 'Name' } : null,
     getFrequencyDictionaryEnabled: () => true,
     getFrequencyDictionaryMatchMode: () => 'surface',
     getFrequencyRank: () => 5,
@@ -52,6 +55,11 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
   assert.equal(deps.getNPlusOneEnabled?.(), true);
   assert.equal(deps.getMinSentenceWordsForNPlusOne?.(), 3);
   assert.equal(deps.getNameMatchEnabled?.(), false);
+  assert.equal(deps.getNameMatchImagesEnabled?.(), true);
+  assert.deepEqual(deps.getCharacterNameImage?.('name'), {
+    src: 'data:image/png;base64,AAAA',
+    alt: 'Name',
+  });
   assert.equal(deps.getFrequencyDictionaryMatchMode?.(), 'surface');
   assert.deepEqual(calls, ['lookup:true', 'lookup:false', 'set-window', 'set-ready', 'set-init']);
 });
@@ -74,6 +82,7 @@ test('tokenizer deps builder disables name matching when character dictionary is
     getJlptEnabled: () => true,
     getCharacterDictionaryEnabled: () => false,
     getNameMatchEnabled: () => true,
+    getNameMatchImagesEnabled: () => true,
     getFrequencyDictionaryEnabled: () => true,
     getFrequencyDictionaryMatchMode: () => 'surface',
     getFrequencyRank: () => 5,
@@ -82,6 +91,7 @@ test('tokenizer deps builder disables name matching when character dictionary is
   })();
 
   assert.equal(deps.getNameMatchEnabled?.(), false);
+  assert.equal(deps.getNameMatchImagesEnabled?.(), false);
 });
 
 test('mecab tokenizer check creates tokenizer once and runs availability check', async () => {

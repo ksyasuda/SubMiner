@@ -4,6 +4,8 @@ type TokenizerMainDeps = TokenizerDepsRuntimeOptions & {
   getJlptEnabled: NonNullable<TokenizerDepsRuntimeOptions['getJlptEnabled']>;
   getCharacterDictionaryEnabled?: () => boolean;
   getNameMatchEnabled?: NonNullable<TokenizerDepsRuntimeOptions['getNameMatchEnabled']>;
+  getNameMatchImagesEnabled?: NonNullable<TokenizerDepsRuntimeOptions['getNameMatchImagesEnabled']>;
+  getCharacterNameImage?: NonNullable<TokenizerDepsRuntimeOptions['getCharacterNameImage']>;
   getFrequencyDictionaryEnabled: NonNullable<
     TokenizerDepsRuntimeOptions['getFrequencyDictionaryEnabled']
   >;
@@ -55,6 +57,17 @@ export function createBuildTokenizerDepsMainHandler(deps: TokenizerMainDeps) {
       ? {
           getNameMatchEnabled: () =>
             deps.getCharacterDictionaryEnabled?.() !== false && deps.getNameMatchEnabled!(),
+        }
+      : {}),
+    ...(deps.getNameMatchImagesEnabled
+      ? {
+          getNameMatchImagesEnabled: () =>
+            deps.getCharacterDictionaryEnabled?.() !== false && deps.getNameMatchImagesEnabled!(),
+        }
+      : {}),
+    ...(deps.getCharacterNameImage
+      ? {
+          getCharacterNameImage: (term: string) => deps.getCharacterNameImage!(term),
         }
       : {}),
     getFrequencyDictionaryEnabled: () => deps.getFrequencyDictionaryEnabled(),

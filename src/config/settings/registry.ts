@@ -345,6 +345,7 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
     path === 'subtitleStyle.knownWordColor' ||
     path === 'subtitleStyle.nPlusOneColor' ||
     path === 'subtitleStyle.nameMatchEnabled' ||
+    path === 'subtitleStyle.nameMatchImagesEnabled' ||
     path === 'subtitleStyle.nameMatchColor'
   ) {
     return { category: 'appearance', section: 'Annotation Display' };
@@ -524,7 +525,11 @@ function subsectionForPath(path: string): string | undefined {
   ) {
     return 'Frequency Highlighting';
   }
-  if (path === 'subtitleStyle.nameMatchEnabled' || path === 'subtitleStyle.nameMatchColor') {
+  if (
+    path === 'subtitleStyle.nameMatchEnabled' ||
+    path === 'subtitleStyle.nameMatchImagesEnabled' ||
+    path === 'subtitleStyle.nameMatchColor'
+  ) {
     return 'Character Names';
   }
   if (path === 'anilist.characterDictionary.collapsibleSections.description') {

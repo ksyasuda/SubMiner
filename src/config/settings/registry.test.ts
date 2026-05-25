@@ -173,6 +173,7 @@ test('settings registry exposes css declaration editor for primary and secondary
   assert.equal(field('subtitleStyle.WebkitTextStroke').settingsHidden, true);
   assert.equal(field('subtitleStyle.knownWordColor').settingsHidden, false);
   assert.equal(field('subtitleStyle.nPlusOneColor').settingsHidden, false);
+  assert.equal(field('subtitleStyle.nameMatchImagesEnabled').settingsHidden, false);
   assert.equal(field('subtitleStyle.nameMatchColor').settingsHidden, false);
   assert.equal(field('subtitleStyle.jlptColors.N1').settingsHidden, false);
   assert.equal(field('subtitleStyle.frequencyDictionary.singleColor').settingsHidden, false);

@@ -37,6 +37,7 @@ import {
   buildCharacterDictionarySeriesKey,
   createCharacterDictionaryManualSelectionStore,
 } from './character-dictionary-runtime/manual-selection';
+import { snapshotHasCharacterNameImages } from './character-dictionary-runtime/image-lookup';
 import type {
   AniListMediaCandidate,
   CharacterDictionaryBuildResult,
@@ -169,6 +170,13 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     userDataPath: deps.userDataPath,
   });
 
+  const shouldRefreshCachedSnapshot = (snapshot: CharacterDictionarySnapshot): boolean => {
+    if (deps.getNameMatchImagesEnabled?.() !== true) {
+      return false;
+    }
+    return !snapshotHasCharacterNameImages(snapshot);
+  };
+
   const createAniListRequestSlot = (): (() => Promise<void>) => {
     let hasAniListRequest = false;
     return async (): Promise<void> => {
@@ -206,12 +214,19 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         mediaTitle: guessInput.mediaTitle,
         guess: guessed,
       }),
+      unscopedSeriesKey: buildCharacterDictionarySeriesKey({
+        mediaPath: null,
+        mediaTitle: guessInput.mediaTitle,
+        guess: guessed,
+      }),
     };
   };
 
   const findCachedSnapshotForSeriesKey = (
     seriesKey: string,
+    fallbackSeriesKey?: string,
   ): CharacterDictionarySnapshot | null => {
+    const acceptedKeys = new Set([seriesKey, fallbackSeriesKey].filter(Boolean));
     return (
       readCachedSnapshots(outputDir).find((snapshot) => {
         const snapshotSeriesKey = buildCharacterDictionarySeriesKey({
@@ -224,7 +239,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
             source: 'fallback',
           },
         });
-        return snapshotSeriesKey === seriesKey;
+        return acceptedKeys.has(snapshotSeriesKey);
       }) ?? null
     );
   };
@@ -234,7 +249,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     beforeRequest?: () => Promise<void>,
   ): Promise<ResolvedAniListMedia> => {
     deps.logInfo?.('[dictionary] resolving current anime for character dictionary generation');
-    const { guessed, seriesKey } = await guessCurrentMedia(targetPath);
+    const { guessed, seriesKey, unscopedSeriesKey } = await guessCurrentMedia(targetPath);
     deps.logInfo?.(
       `[dictionary] current anime guess: ${guessed.title.trim()}${
         typeof guessed.episode === 'number' && guessed.episode > 0
@@ -268,7 +283,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       }
     }
 
-    const cachedSnapshot = findCachedSnapshotForSeriesKey(seriesKey);
+    const cachedSnapshot = findCachedSnapshotForSeriesKey(seriesKey, unscopedSeriesKey);
     if (cachedSnapshot) {
       writeCachedMediaResolution(outputDir, {
         seriesKey,
@@ -302,7 +317,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
   ): Promise<CharacterDictionarySnapshotResult> => {
     const snapshotPath = getSnapshotPath(outputDir, mediaId);
     const cachedSnapshot = readSnapshot(snapshotPath);
-    if (cachedSnapshot) {
+    if (cachedSnapshot && !shouldRefreshCachedSnapshot(cachedSnapshot)) {
       deps.logInfo?.(`[dictionary] snapshot hit for AniList ${mediaId}`);
       return {
         mediaId: cachedSnapshot.mediaId,
@@ -311,6 +326,11 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         fromCache: true,
         updatedAt: cachedSnapshot.updatedAt,
       };
+    }
+    if (cachedSnapshot) {
+      deps.logInfo?.(
+        `[dictionary] snapshot stale for AniList ${mediaId}: missing cached character images`,
+      );
     }
 
     progress?.onGenerating?.({

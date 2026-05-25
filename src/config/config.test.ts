@@ -64,6 +64,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.ankiConnect.media.audioPadding, 0);
   assert.equal(config.anilist.enabled, false);
   assert.equal(config.anilist.characterDictionary.enabled, false);
+  assert.equal(config.subtitleStyle.nameMatchImagesEnabled, false);
   assert.equal(config.anilist.characterDictionary.refreshTtlHours, 168);
   assert.equal(config.anilist.characterDictionary.maxLoaded, 3);
   assert.equal(config.anilist.characterDictionary.evictionPolicy, 'delete');
@@ -737,6 +738,44 @@ test('parses subtitleStyle.nameMatchEnabled and warns on invalid values', () => 
     invalidService
       .getWarnings()
       .some((warning) => warning.path === 'subtitleStyle.nameMatchEnabled'),
+  );
+});
+
+test('parses subtitleStyle.nameMatchImagesEnabled and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "nameMatchImagesEnabled": true
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.nameMatchImagesEnabled, true);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "nameMatchImagesEnabled": "yes"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.nameMatchImagesEnabled,
+    DEFAULT_CONFIG.subtitleStyle.nameMatchImagesEnabled,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.nameMatchImagesEnabled'),
   );
 });
 

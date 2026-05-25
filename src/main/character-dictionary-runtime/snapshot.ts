@@ -2,7 +2,12 @@ import type { AnilistCharacterDictionaryCollapsibleSectionKey } from '../../type
 import { CHARACTER_DICTIONARY_FORMAT_VERSION } from './constants';
 import { createDefinitionGlossary } from './glossary';
 import { generateNameReadings, splitJapaneseName } from './name-reading';
-import { buildNameTerms, buildReadingForTerm, buildTermEntry } from './term-building';
+import {
+  buildNameTerms,
+  buildReadingForTerm,
+  buildTermEntry,
+  buildVisibleNameTerms,
+} from './term-building';
 import type {
   CharacterDictionaryGlossaryEntry,
   CharacterDictionarySnapshot,
@@ -40,14 +45,15 @@ export function buildSnapshotFromCharacters(
       const vaImg = imagesByVaId.get(va.id);
       if (vaImg) vaImagePaths.set(va.id, vaImg.path);
     }
+    const candidateTerms = buildNameTerms(character);
     const glossary = createDefinitionGlossary(
       character,
       mediaTitle,
       imagePath,
       vaImagePaths,
+      buildVisibleNameTerms(candidateTerms),
       getCollapsibleSectionOpenState,
     );
-    const candidateTerms = buildNameTerms(character);
     const nameParts = splitJapaneseName(
       character.nativeName,
       character.firstNameHint,

@@ -4,6 +4,10 @@ import * as os from 'os';
 import * as path from 'path';
 import test from 'node:test';
 import { createCharacterDictionaryRuntimeService } from './character-dictionary-runtime';
+import { getSnapshotPath, writeSnapshot } from './character-dictionary-runtime/cache';
+import { CHARACTER_DICTIONARY_FORMAT_VERSION } from './character-dictionary-runtime/constants';
+import { buildCharacterDictionarySeriesKey } from './character-dictionary-runtime/manual-selection';
+import type { CharacterDictionarySnapshot } from './character-dictionary-runtime/types';
 
 const GRAPHQL_URL = 'https://graphql.anilist.co';
 const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50;
@@ -16,6 +20,18 @@ const PNG_1X1 = Buffer.from(
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-character-dictionary-'));
+}
+
+function createSnapshotWithoutImages(): CharacterDictionarySnapshot {
+  return {
+    formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
+    mediaId: 130298,
+    mediaTitle: 'The Eminence in Shadow',
+    entryCount: 1,
+    updatedAt: 1_700_000_000_000,
+    termEntries: [['アレクシア', 'あれくしあ', 'name primary', '', 75, ['Alexia'], 0, '']],
+    images: [],
+  };
 }
 
 function readStoredZipEntry(zipPath: string, entryName: string): Buffer {
@@ -195,22 +211,45 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
     assert.equal(nameDiv.tag, 'div');
     assert.equal(nameDiv.content, 'アレクシア・ミドガル');
 
-    const secondaryNameDiv = children[1] as { tag: string; content: string };
-    assert.equal(secondaryNameDiv.tag, 'div');
-    assert.equal(secondaryNameDiv.content, 'Alexia Midgar');
+    assert.equal(
+      children.some((child) => (child as { content?: unknown }).content === 'Alexia Midgar'),
+      false,
+    );
 
-    const imageWrap = children[2] as { tag: string; content: Record<string, unknown> };
+    const imageWrap = children.find((child) => {
+      const content = (child as { content?: unknown }).content;
+      return (
+        content &&
+        typeof content === 'object' &&
+        !Array.isArray(content) &&
+        (content as { path?: unknown }).path === 'img/m130298-c123.png'
+      );
+    }) as { tag: string; content: Record<string, unknown> } | undefined;
+    assert.ok(imageWrap);
     assert.equal(imageWrap.tag, 'div');
     const image = imageWrap.content as Record<string, unknown>;
     assert.equal(image.tag, 'img');
     assert.equal(image.path, 'img/m130298-c123.png');
     assert.equal(image.sizeUnits, 'em');
 
-    const sourceDiv = children[3] as { tag: string; content: string };
+    const sourceDiv = children.find((child) => {
+      const content = (child as { content?: unknown }).content;
+      return typeof content === 'string' && content.includes('The Eminence in Shadow');
+    }) as { tag: string; content: string } | undefined;
+    assert.ok(sourceDiv);
     assert.equal(sourceDiv.tag, 'div');
     assert.ok(sourceDiv.content.includes('The Eminence in Shadow'));
 
-    const roleBadgeDiv = children[4] as { tag: string; content: Record<string, unknown> };
+    const roleBadgeDiv = children.find((child) => {
+      const content = (child as { content?: unknown }).content;
+      return (
+        content &&
+        typeof content === 'object' &&
+        !Array.isArray(content) &&
+        (content as { content?: unknown }).content === 'Main Character'
+      );
+    }) as { tag: string; content: Record<string, unknown> } | undefined;
+    assert.ok(roleBadgeDiv);
     assert.equal(roleBadgeDiv.tag, 'div');
     const badge = roleBadgeDiv.content as { tag: string; content: string };
     assert.equal(badge.tag, 'span');
@@ -247,6 +286,131 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
         typeof item === 'object' && item !== null && (item as { type?: string }).type === 'image',
     );
     assert.equal(topLevelImageGlossaryEntry, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia refreshes same-version snapshots missing images when inline images are enabled', async () => {
+  const userDataPath = makeTempDir();
+  const outputDir = path.join(userDataPath, 'character-dictionaries');
+  writeSnapshot(getSnapshotPath(outputDir, 130298), createSnapshotWithoutImages());
+  const originalFetch = globalThis.fetch;
+  const fetchUrls: string[] = [];
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    fetchUrls.push(url);
+
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  english: 'The Eminence in Shadow',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'SUPPORTING',
+                      node: {
+                        id: 123,
+                        description: 'Alexia Midgar.',
+                        image: {
+                          large: 'https://cdn.example.com/character-123.png',
+                          medium: null,
+                        },
+                        name: {
+                          full: 'Alexia Midgar',
+                          native: 'アレクシア・ミドガル',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    }
+
+    if (url === 'https://cdn.example.com/character-123.png') {
+      return new Response(PNG_1X1, {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        season: null,
+        episode: 5,
+        source: 'fallback',
+      }),
+      getNameMatchImagesEnabled: () => true,
+      now: () => 1_700_000_000_500,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+    const refreshedSnapshot = JSON.parse(
+      fs.readFileSync(getSnapshotPath(outputDir, 130298), 'utf8'),
+    ) as CharacterDictionarySnapshot;
+
+    assert.equal(result.fromCache, false);
+    assert.ok(fetchUrls.includes(GRAPHQL_URL));
+    assert.ok(refreshedSnapshot.images.some((image) => image.path === 'img/m130298-c123.png'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia keeps same-version snapshots without images when inline images are disabled', async () => {
+  const userDataPath = makeTempDir();
+  const outputDir = path.join(userDataPath, 'character-dictionaries');
+  writeSnapshot(getSnapshotPath(outputDir, 130298), createSnapshotWithoutImages());
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        season: null,
+        episode: 5,
+        source: 'fallback',
+      }),
+      getNameMatchImagesEnabled: () => false,
+      now: () => 1_700_000_000_500,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+
+    assert.equal(result.fromCache, true);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -319,6 +483,17 @@ test('getManualSelectionSnapshot waits for explicit search text before fetching 
 
 test('getManualSelectionSnapshot hydrates override episode count from searched candidates', async () => {
   const userDataPath = makeTempDir();
+  const overrideSeriesKey = buildCharacterDictionarySeriesKey({
+    mediaPath: '/tmp/KonoSuba - 01.mkv',
+    mediaTitle: 'KonoSuba - 01.mkv',
+    guess: {
+      title: "KonoSuba - God's blessing on this wonderful world!",
+      year: 2016,
+      season: null,
+      episode: 1,
+      source: 'guessit',
+    },
+  });
   const overrideDir = path.join(userDataPath, 'character-dictionaries');
   fs.mkdirSync(overrideDir, { recursive: true });
   fs.writeFileSync(
@@ -326,7 +501,7 @@ test('getManualSelectionSnapshot hydrates override episode count from searched c
     JSON.stringify({
       overrides: [
         {
-          seriesKey: 'konosuba-gods-blessing-on-this-wonderful-world-2016',
+          seriesKey: overrideSeriesKey,
           mediaId: 21202,
           mediaTitle: "KONOSUBA -God's blessing on this wonderful world!",
           staleMediaIds: [],
@@ -2021,9 +2196,9 @@ test('generateForCurrentMedia logs progress while resolving and rebuilding snaps
       '[dictionary] snapshot miss for AniList 130298, fetching characters',
       '[dictionary] downloaded AniList character page 1 for AniList 130298',
       '[dictionary] downloading 1 images for AniList 130298',
-      '[dictionary] stored snapshot for AniList 130298: 32 terms',
+      '[dictionary] stored snapshot for AniList 130298: 16 terms',
       '[dictionary] building ZIP for AniList 130298',
-      '[dictionary] generated AniList 130298: 32 terms -> ' +
+      '[dictionary] generated AniList 130298: 16 terms -> ' +
         path.join(userDataPath, 'character-dictionaries', 'anilist-130298.zip'),
     ]);
   } finally {

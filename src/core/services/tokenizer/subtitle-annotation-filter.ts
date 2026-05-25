@@ -508,11 +508,17 @@ export function stripSubtitleAnnotationMetadata(
     return token;
   }
 
-  return {
+  const strippedToken = {
     ...token,
     isNPlusOneTarget: false,
     isNameMatch: false,
     jlptLevel: undefined,
     frequencyRank: undefined,
   };
+
+  if ('characterImage' in strippedToken) {
+    strippedToken.characterImage = undefined;
+  }
+
+  return strippedToken;
 }

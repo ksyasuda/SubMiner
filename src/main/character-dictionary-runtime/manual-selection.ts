@@ -31,6 +31,29 @@ function normalizeSeriesKeyPart(value: string): string {
     .toLowerCase();
 }
 
+function getMediaDirectoryKey(mediaPath: string | null): string {
+  const rawPath = mediaPath?.trim();
+  if (!rawPath) return '';
+
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(rawPath) || rawPath.startsWith('file:')) {
+    try {
+      const url = new URL(rawPath);
+      const directoryPath = path.posix.dirname(
+        decodeURIComponent(url.pathname).replace(/\\/g, '/'),
+      );
+      const scopedPath = `${url.hostname}${directoryPath === '/' ? '' : directoryPath}`;
+      return normalizeSeriesKeyPart(scopedPath);
+    } catch {
+      return '';
+    }
+  }
+
+  const normalizedPath = rawPath.replace(/\\/g, '/');
+  const directoryPath = path.posix.dirname(normalizedPath);
+  if (!directoryPath || directoryPath === '.') return '';
+  return normalizeSeriesKeyPart(directoryPath);
+}
+
 function dedupeNumbers(values: number[]): number[] {
   const seen = new Set<number>();
   const result: number[] = [];
@@ -94,7 +117,9 @@ export function buildCharacterDictionarySeriesKey(input: {
     .replace(/\bepisode\s+\d+\b/gi, ' ')
     .trim();
   const base = normalizeSeriesKeyPart(withoutEpisode) || 'unknown';
-  return input.guess?.year ? `${base}-${input.guess.year}` : base;
+  const directoryKey = getMediaDirectoryKey(input.mediaPath);
+  const scopedBase = directoryKey ? `${directoryKey}--${base}` : base;
+  return input.guess?.year ? `${scopedBase}-${input.guess.year}` : scopedBase;
 }
 
 export function createCharacterDictionaryManualSelectionStore(deps: { userDataPath: string }) {

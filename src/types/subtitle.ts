@@ -39,8 +39,14 @@ export interface MergedToken {
   isKnown: boolean;
   isNPlusOneTarget: boolean;
   isNameMatch?: boolean;
+  characterImage?: CharacterNameImage;
   jlptLevel?: JlptLevel;
   frequencyRank?: number;
+}
+
+export interface CharacterNameImage {
+  src: string;
+  alt: string;
 }
 
 export type FrequencyDictionaryLookup = (term: string) => number | null;
@@ -78,6 +84,7 @@ export interface SubtitleStyleConfig {
   hoverTokenColor?: string;
   hoverTokenBackgroundColor?: string;
   nameMatchEnabled?: boolean;
+  nameMatchImagesEnabled?: boolean;
   nameMatchColor?: string;
   fontFamily?: string;
   fontSize?: number;

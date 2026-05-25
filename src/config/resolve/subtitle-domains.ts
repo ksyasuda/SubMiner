@@ -190,6 +190,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     const fallbackSubtitleStyleHoverTokenBackgroundColor =
       resolved.subtitleStyle.hoverTokenBackgroundColor;
     const fallbackSubtitleStyleNameMatchEnabled = resolved.subtitleStyle.nameMatchEnabled;
+    const fallbackSubtitleStyleNameMatchImagesEnabled =
+      resolved.subtitleStyle.nameMatchImagesEnabled;
     const fallbackSubtitleStyleNameMatchColor = resolved.subtitleStyle.nameMatchColor;
     const fallbackSubtitleStyleKnownWordColor = resolved.subtitleStyle.knownWordColor;
     const fallbackSubtitleStyleNPlusOneColor = resolved.subtitleStyle.nPlusOneColor;
@@ -386,6 +388,24 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         'subtitleStyle.nameMatchEnabled',
         (src.subtitleStyle as { nameMatchEnabled?: unknown }).nameMatchEnabled,
         resolved.subtitleStyle.nameMatchEnabled,
+        'Expected boolean.',
+      );
+    }
+
+    const nameMatchImagesEnabled = asBoolean(
+      (src.subtitleStyle as { nameMatchImagesEnabled?: unknown }).nameMatchImagesEnabled,
+    );
+    if (nameMatchImagesEnabled !== undefined) {
+      resolved.subtitleStyle.nameMatchImagesEnabled = nameMatchImagesEnabled;
+    } else if (
+      (src.subtitleStyle as { nameMatchImagesEnabled?: unknown }).nameMatchImagesEnabled !==
+      undefined
+    ) {
+      resolved.subtitleStyle.nameMatchImagesEnabled = fallbackSubtitleStyleNameMatchImagesEnabled;
+      warn(
+        'subtitleStyle.nameMatchImagesEnabled',
+        (src.subtitleStyle as { nameMatchImagesEnabled?: unknown }).nameMatchImagesEnabled,
+        resolved.subtitleStyle.nameMatchImagesEnabled,
         'Expected boolean.',
       );
     }

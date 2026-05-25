@@ -384,6 +384,7 @@
     "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false
     "autoPauseVideoOnYomitanPopup": true, // Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes. Values: true | false
     "nameMatchEnabled": false, // Enable subtitle token coloring for matches from the SubMiner character dictionary. Values: true | false
+    "nameMatchImagesEnabled": false, // Show small character portraits beside subtitle tokens matched from the SubMiner character dictionary. Values: true | false
     "nameMatchColor": "#f5bde6", // Hex color used when a subtitle token matches an entry from the SubMiner character dictionary.
     "nPlusOneColor": "#c6a0f6", // Color used for the single N+1 target token subtitle highlight.
     "knownWordColor": "#a6da95", // Color used for known-word subtitle highlights.

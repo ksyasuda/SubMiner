@@ -1577,18 +1577,24 @@ test('dictionary settings helpers upsert and remove dictionary entries without r
   assert.match(upsertScript ?? '', /"enabled":true/);
 });
 
-test('importYomitanDictionaryFromZip uses settings automation bridge instead of custom backend action', async () => {
+test('importYomitanDictionaryFromZip imports via localhost URL instead of embedding archive bytes in script', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yomitan-import-'));
   const zipPath = path.join(tempDir, 'dict.zip');
   fs.writeFileSync(zipPath, Buffer.from('zip-bytes'));
 
   const scripts: string[] = [];
+  const servedArchives: string[] = [];
   const settingsWindow = {
     isDestroyed: () => false,
     destroy: () => undefined,
     webContents: {
       executeJavaScript: async (script: string) => {
         scripts.push(script);
+        const urlMatch = script.match(/importDictionaryArchiveUrl\(\s*"([^"]+)"/);
+        if (urlMatch) {
+          const response = await fetch(JSON.parse(`"${urlMatch[1]}"`) as string);
+          servedArchives.push(await response.text());
+        }
         return true;
       },
     },
@@ -1611,8 +1617,13 @@ test('importYomitanDictionaryFromZip uses settings automation bridge instead of 
     true,
   );
   assert.equal(
-    scripts.some((script) => script.includes('importDictionaryArchiveBase64')),
+    scripts.some((script) => script.includes('importDictionaryArchiveUrl')),
     true,
+  );
+  assert.deepEqual(servedArchives, ['zip-bytes']);
+  assert.equal(
+    scripts.some((script) => script.includes('emlwLWJ5dGVz')),
+    false,
   );
   assert.equal(
     scripts.some((script) => script.includes('subminerImportDictionary')),

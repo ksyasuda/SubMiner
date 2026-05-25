@@ -41,25 +41,27 @@ function expandRawNameVariants(rawName: string): string[] {
 
 export function buildNameTerms(character: CharacterRecord): string[] {
   const base = new Set<string>();
+  const romanizedBase = new Set<string>();
   const rawNames = [character.nativeName, character.fullName, ...character.alternativeNames];
   for (const rawName of rawNames) {
     for (const name of expandRawNameVariants(rawName)) {
-      base.add(name);
+      const target = isRomanizedName(name) ? romanizedBase : base;
+      target.add(name);
 
       const compact = name.replace(/[\s\u3000]+/g, '');
       if (compact && compact !== name) {
-        base.add(compact);
+        target.add(compact);
       }
 
       const noMiddleDots = compact.replace(/[・･·•]/g, '');
       if (noMiddleDots && noMiddleDots !== compact) {
-        base.add(noMiddleDots);
+        target.add(noMiddleDots);
       }
 
       const split = name.split(/[\s\u3000]+/).filter((part) => part.trim().length > 0);
       if (split.length === 2) {
-        base.add(split[0]!);
-        base.add(split[1]!);
+        target.add(split[0]!);
+        target.add(split[1]!);
       }
 
       const splitByMiddleDot = name
@@ -68,10 +70,14 @@ export function buildNameTerms(character: CharacterRecord): string[] {
         .filter((part) => part.length > 0);
       if (splitByMiddleDot.length >= 2) {
         for (const part of splitByMiddleDot) {
-          base.add(part);
+          target.add(part);
         }
       }
     }
+  }
+
+  for (const alias of addRomanizedKanaAliases(romanizedBase)) {
+    base.add(alias);
   }
 
   const nativeParts = splitJapaneseName(
@@ -94,14 +100,22 @@ export function buildNameTerms(character: CharacterRecord): string[] {
     }
   }
 
-  for (const alias of addRomanizedKanaAliases(withHonorifics)) {
-    withHonorifics.add(alias);
-    for (const suffix of HONORIFIC_SUFFIXES) {
-      withHonorifics.add(`${alias}${suffix.term}`);
-    }
-  }
-
   return [...withHonorifics].filter((entry) => entry.trim().length > 0);
+}
+
+export function buildVisibleNameTerms(nameTerms: string[]): string[] {
+  const allTerms = new Set(nameTerms);
+  return nameTerms.filter((term) => {
+    for (const suffix of HONORIFIC_SUFFIXES) {
+      if (!term.endsWith(suffix.term) || term.length <= suffix.term.length) {
+        continue;
+      }
+      if (allTerms.has(term.slice(0, -suffix.term.length))) {
+        return false;
+      }
+    }
+    return true;
+  });
 }
 
 export function buildReadingForTerm(

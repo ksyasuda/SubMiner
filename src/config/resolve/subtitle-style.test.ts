@@ -172,6 +172,31 @@ test('subtitleStyle nameMatchEnabled falls back on invalid value', () => {
   );
 });
 
+test('subtitleStyle nameMatchImagesEnabled accepts boolean and warns on invalid', () => {
+  const valid = createResolveContext({
+    subtitleStyle: {
+      nameMatchImagesEnabled: true,
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.equal(valid.context.resolved.subtitleStyle.nameMatchImagesEnabled, true);
+
+  const invalid = createResolveContext({
+    subtitleStyle: {
+      nameMatchImagesEnabled: 'yes' as unknown as boolean,
+    },
+  });
+  applySubtitleDomainConfig(invalid.context);
+  assert.equal(invalid.context.resolved.subtitleStyle.nameMatchImagesEnabled, false);
+  assert.ok(
+    invalid.warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.nameMatchImagesEnabled' &&
+        warning.message === 'Expected boolean.',
+    ),
+  );
+});
+
 test('subtitleStyle frequencyDictionary defaults to the teal fourth band color', () => {
   const { context } = createResolveContext({});
 

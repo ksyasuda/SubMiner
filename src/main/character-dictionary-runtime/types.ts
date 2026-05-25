@@ -147,6 +147,7 @@ export interface CharacterDictionaryRuntimeDeps {
   sleep?: (ms: number) => Promise<void>;
   logInfo?: (message: string) => void;
   logWarn?: (message: string) => void;
+  getNameMatchImagesEnabled?: () => boolean;
   getCollapsibleSectionOpenState?: (
     section: AnilistCharacterDictionaryCollapsibleSectionKey,
   ) => boolean;

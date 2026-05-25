@@ -117,20 +117,44 @@ function buildVoicedByContent(
   return { tag: 'ul', style: { marginTop: '0.15em' }, content: items };
 }
 
+function buildKnownNamesBlock(nameTerms: string[]): Record<string, unknown> | null {
+  const visibleTerms = [...new Set(nameTerms.map((term) => term.trim()).filter(Boolean))];
+  if (visibleTerms.length <= 1) {
+    return null;
+  }
+
+  return {
+    tag: 'div',
+    style: { fontSize: '0.85em', marginBottom: '0.25em' },
+    content: [
+      {
+        tag: 'div',
+        style: { fontWeight: 'bold', color: '#d0d0d0', marginBottom: '0.1em' },
+        content: 'Known names',
+      },
+      {
+        tag: 'ul',
+        style: { marginTop: '0', marginBottom: '0', paddingLeft: '1.2em' },
+        content: visibleTerms.map((term) => ({
+          tag: 'li',
+          content: term,
+        })),
+      },
+    ],
+  };
+}
+
 export function createDefinitionGlossary(
   character: CharacterRecord,
   mediaTitle: string,
   imagePath: string | null,
   vaImagePaths: Map<number, string>,
+  nameTerms: string[],
   getCollapsibleSectionOpenState: (
     section: AnilistCharacterDictionaryCollapsibleSectionKey,
   ) => boolean,
 ): CharacterDictionaryGlossaryEntry[] {
   const displayName = character.nativeName || character.fullName || `Character ${character.id}`;
-  const secondaryName =
-    character.nativeName && character.fullName && character.fullName !== character.nativeName
-      ? character.fullName
-      : null;
   const { fields, text: descriptionText } = parseCharacterDescription(character.description);
 
   const content: Array<string | Record<string, unknown>> = [
@@ -141,12 +165,9 @@ export function createDefinitionGlossary(
     },
   ];
 
-  if (secondaryName) {
-    content.push({
-      tag: 'div',
-      style: { fontSize: '0.85em', fontStyle: 'italic', color: '#b0b0b0', marginBottom: '0.2em' },
-      content: secondaryName,
-    });
+  const knownNamesBlock = buildKnownNamesBlock(nameTerms);
+  if (knownNamesBlock) {
+    content.push(knownNamesBlock);
   }
 
   if (imagePath) {

@@ -809,6 +809,28 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
   color: var(--subtitle-name-match-color, #f5bde6);
 }
 
+#subtitleRoot .word.word-character-image-token {
+  display: inline-block;
+  position: relative;
+  padding-left: 1.08em;
+  vertical-align: baseline;
+}
+
+#subtitleRoot .word-character-image {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 0.9em;
+  height: 0.9em;
+  border-radius: 50%;
+  object-fit: cover;
+  transform: translateY(calc(-50% + 0.05em));
+  pointer-events: none;
+  box-shadow:
+    0 0 0 0.06em rgba(255, 255, 255, 0.32),
+    0 0.08em 0.2em rgba(0, 0, 0, 0.45);
+}
+
 #subtitleRoot .word.word-jlpt-n1 {
   text-decoration-line: none;
   border-bottom: 2px solid var(--subtitle-jlpt-n1-color, #ed8796);

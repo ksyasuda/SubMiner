@@ -3,6 +3,7 @@ import { mergeTokens } from '../../token-merger';
 import { createLogger } from '../../logger';
 import {
   FrequencyDictionaryMatchMode,
+  CharacterNameImage,
   MergedToken,
   NPlusOneMatchMode,
   SubtitleData,
@@ -48,6 +49,8 @@ export interface TokenizerServiceDeps {
   getNPlusOneEnabled?: () => boolean;
   getJlptEnabled?: () => boolean;
   getNameMatchEnabled?: () => boolean;
+  getNameMatchImagesEnabled?: () => boolean;
+  getCharacterNameImage?: (term: string) => CharacterNameImage | null;
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyDictionaryMatchMode?: () => FrequencyDictionaryMatchMode;
   getFrequencyRank?: FrequencyDictionaryLookup;
@@ -80,6 +83,8 @@ export interface TokenizerDepsRuntimeOptions {
   getNPlusOneEnabled?: () => boolean;
   getJlptEnabled?: () => boolean;
   getNameMatchEnabled?: () => boolean;
+  getNameMatchImagesEnabled?: () => boolean;
+  getCharacterNameImage?: (term: string) => CharacterNameImage | null;
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyDictionaryMatchMode?: () => FrequencyDictionaryMatchMode;
   getFrequencyRank?: FrequencyDictionaryLookup;
@@ -94,6 +99,7 @@ interface TokenizerAnnotationOptions {
   nPlusOneEnabled: boolean;
   jlptEnabled: boolean;
   nameMatchEnabled: boolean;
+  nameMatchImagesEnabled: boolean;
   frequencyEnabled: boolean;
   frequencyMatchMode: FrequencyDictionaryMatchMode;
   minSentenceWordsForNPlusOne: number | undefined;
@@ -229,6 +235,8 @@ export function createTokenizerDepsRuntime(
     getNPlusOneEnabled: options.getNPlusOneEnabled,
     getJlptEnabled: options.getJlptEnabled,
     getNameMatchEnabled: options.getNameMatchEnabled,
+    getNameMatchImagesEnabled: options.getNameMatchImagesEnabled,
+    getCharacterNameImage: options.getCharacterNameImage,
     getFrequencyDictionaryEnabled: options.getFrequencyDictionaryEnabled,
     getFrequencyDictionaryMatchMode: options.getFrequencyDictionaryMatchMode ?? (() => 'headword'),
     getFrequencyRank: options.getFrequencyRank,
@@ -684,6 +692,7 @@ function getAnnotationOptions(deps: TokenizerServiceDeps): TokenizerAnnotationOp
     nPlusOneEnabled,
     jlptEnabled: deps.getJlptEnabled?.() !== false,
     nameMatchEnabled: deps.getNameMatchEnabled?.() !== false,
+    nameMatchImagesEnabled: deps.getNameMatchImagesEnabled?.() === true,
     frequencyEnabled: deps.getFrequencyDictionaryEnabled?.() !== false,
     frequencyMatchMode: deps.getFrequencyDictionaryMatchMode?.() ?? 'headword',
     minSentenceWordsForNPlusOne: deps.getMinSentenceWordsForNPlusOne?.(),
@@ -780,6 +789,47 @@ async function parseWithYomitanInternalParser(
   return enrichedTokens;
 }
 
+function resolveCharacterNameImageForToken(
+  token: MergedToken,
+  getCharacterNameImage: (term: string) => CharacterNameImage | null,
+): CharacterNameImage | null {
+  const terms = [token.headword, token.surface]
+    .map((term) => term.trim())
+    .filter((term, index, list) => term.length > 0 && list.indexOf(term) === index);
+  for (const term of terms) {
+    const image = getCharacterNameImage(term);
+    if (image) {
+      return image;
+    }
+  }
+  return null;
+}
+
+function applyCharacterNameImages(
+  tokens: MergedToken[],
+  deps: TokenizerServiceDeps,
+  options: TokenizerAnnotationOptions,
+): MergedToken[] {
+  if (
+    !options.nameMatchEnabled ||
+    !options.nameMatchImagesEnabled ||
+    typeof deps.getCharacterNameImage !== 'function'
+  ) {
+    return tokens.map((token) => ({ ...token, characterImage: undefined }));
+  }
+
+  return tokens.map((token) => {
+    if (token.isNameMatch !== true) {
+      return { ...token, characterImage: undefined };
+    }
+    return {
+      ...token,
+      characterImage:
+        resolveCharacterNameImageForToken(token, deps.getCharacterNameImage!) ?? undefined,
+    };
+  });
+}
+
 export async function tokenizeSubtitle(
   text: string,
   deps: TokenizerServiceDeps,
@@ -805,9 +855,10 @@ export async function tokenizeSubtitle(
   const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps, annotationOptions);
   if (yomitanTokens && yomitanTokens.length > 0) {
     const annotatedTokens = await applyAnnotationStage(yomitanTokens, deps, annotationOptions);
+    const renderedTokens = applyCharacterNameImages(annotatedTokens, deps, annotationOptions);
     return {
       text: displayText,
-      tokens: annotatedTokens.length > 0 ? annotatedTokens : null,
+      tokens: renderedTokens.length > 0 ? renderedTokens : null,
     };
   }
 
