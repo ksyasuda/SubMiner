@@ -1,19 +1,45 @@
-import { launchTexthookerOnly, runAppCommandWithInherit } from '../mpv.js';
+import {
+  launchAppBackgroundDetached,
+  launchTexthookerOnly,
+  runAppCommandWithInherit,
+} from '../mpv.js';
 import type { LauncherCommandContext } from './context.js';
 
-export function runAppPassthroughCommand(context: LauncherCommandContext): boolean {
+type AppCommandDeps = {
+  platform: () => NodeJS.Platform;
+  runAppCommandWithInherit: (appPath: string, appArgs: string[]) => void;
+  launchAppBackgroundDetached: (
+    appPath: string,
+    logLevel: LauncherCommandContext['args']['logLevel'],
+  ) => void;
+};
+
+const defaultAppCommandDeps: AppCommandDeps = {
+  platform: () => process.platform,
+  runAppCommandWithInherit,
+  launchAppBackgroundDetached,
+};
+
+export function runAppPassthroughCommand(
+  context: LauncherCommandContext,
+  deps: AppCommandDeps = defaultAppCommandDeps,
+): boolean {
   const { args, appPath } = context;
   if (!appPath) {
     return false;
   }
   if (args.settings) {
-    runAppCommandWithInherit(appPath, ['--settings']);
+    deps.runAppCommandWithInherit(appPath, ['--settings']);
     return true;
   }
   if (!args.appPassthrough) {
     return false;
   }
-  runAppCommandWithInherit(appPath, args.appArgs);
+  if (deps.platform() === 'darwin' && args.appArgs.length === 0) {
+    deps.launchAppBackgroundDetached(appPath, args.logLevel);
+    return true;
+  }
+  deps.runAppCommandWithInherit(appPath, args.appArgs);
   return true;
 }
 

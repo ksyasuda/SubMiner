@@ -57,6 +57,7 @@ const OVERLAY_START_SOCKET_READY_TIMEOUT_MS = 900;
 const OVERLAY_START_COMMAND_SETTLE_TIMEOUT_MS = 700;
 const TRANSPORTED_APP_ARGC_ENV = 'SUBMINER_APP_ARGC';
 const TRANSPORTED_APP_ARG_PREFIX = 'SUBMINER_APP_ARG_';
+const BACKGROUND_CHILD_ENV = 'SUBMINER_BACKGROUND_CHILD';
 
 export interface LauncherRuntimePluginPlan {
   scriptPath: string | null;
@@ -1589,11 +1590,20 @@ export function launchAppStartDetached(appPath: string, logLevel: LogLevel): voi
   launchAppCommandDetached(appPath, startArgs, logLevel, 'start');
 }
 
+export function launchAppBackgroundDetached(appPath: string, logLevel: LogLevel): void {
+  const startArgs = ['--start', '--background'];
+  if (logLevel !== 'info') startArgs.push('--log-level', logLevel);
+  launchAppCommandDetached(appPath, startArgs, logLevel, 'app', {
+    [BACKGROUND_CHILD_ENV]: '1',
+  });
+}
+
 export function launchAppCommandDetached(
   appPath: string,
   appArgs: string[],
   logLevel: LogLevel,
   label: string,
+  extraEnv: NodeJS.ProcessEnv = {},
 ): void {
   if (maybeCaptureAppArgs(appArgs)) {
     return;
@@ -1612,7 +1622,7 @@ export function launchAppCommandDetached(
     const proc = spawn(target.command, target.args, {
       stdio: ['ignore', stdoutFd, stderrFd],
       detached: true,
-      env: buildAppEnv(process.env, target.env),
+      env: buildAppEnv(process.env, { ...target.env, ...extraEnv }),
     });
     proc.once('error', (error) => {
       log('warn', logLevel, `${label}: failed to launch detached app: ${error.message}`);

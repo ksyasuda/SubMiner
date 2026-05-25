@@ -7,6 +7,7 @@ import { runConfigCommand } from './config-command.js';
 import { runDictionaryCommand } from './dictionary-command.js';
 import { runDoctorCommand } from './doctor-command.js';
 import { runMpvPreAppCommand } from './mpv-command.js';
+import { runAppPassthroughCommand } from './app-command.js';
 import { runStatsCommand } from './stats-command.js';
 import { runUpdateCommand } from './update-command.js';
 
@@ -166,6 +167,48 @@ test('doctor command forwards refresh-known-words to app binary', () => {
 
   assert.equal(handled, true);
   assert.deepEqual(forwarded, [['--refresh-known-words']]);
+});
+
+test('app command starts default macOS background app detached from launcher', () => {
+  const context = createContext();
+  context.args.appPassthrough = true;
+  context.args.appArgs = [];
+  const calls: string[] = [];
+
+  const handled = runAppPassthroughCommand(context, {
+    platform: () => 'darwin',
+    runAppCommandWithInherit: () => {
+      calls.push('attached');
+    },
+    launchAppBackgroundDetached: (appPath, logLevel) => {
+      calls.push(`detached:${appPath}:${logLevel}`);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(calls, ['detached:/tmp/subminer.app:info']);
+});
+
+test('app command keeps explicit passthrough args attached', () => {
+  const context = createContext();
+  context.args.appPassthrough = true;
+  context.args.appArgs = ['--settings'];
+  const forwarded: string[][] = [];
+  const detached: string[] = [];
+
+  const handled = runAppPassthroughCommand(context, {
+    platform: () => 'darwin',
+    runAppCommandWithInherit: (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+    },
+    launchAppBackgroundDetached: () => {
+      detached.push('detached');
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(forwarded, [['--settings']]);
+  assert.deepEqual(detached, []);
 });
 
 test('mpv pre-app command exits non-zero when socket is not ready', async () => {

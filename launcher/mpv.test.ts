@@ -14,6 +14,7 @@ import {
   buildMpvEnv,
   cleanupPlaybackSession,
   detectBackend,
+  launchAppBackgroundDetached,
   findAppBinary,
   launchAppCommandDetached,
   launchTexthookerOnly,
@@ -423,6 +424,34 @@ test('launchAppCommandDetached handles child process spawn errors', async () => 
   } finally {
     process.removeListener('uncaughtException', onUncaughtException);
   }
+});
+
+test('launchAppBackgroundDetached starts background child directly', async () => {
+  const { dir } = createTempSocketPath();
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const argsPath = path.join(dir, 'args.txt');
+  const envPath = path.join(dir, 'env.txt');
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      `printf '%s\\n' "$@" > ${JSON.stringify(argsPath)}`,
+      `printf '%s\\n' "$SUBMINER_BACKGROUND_CHILD" > ${JSON.stringify(envPath)}`,
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+
+  launchAppBackgroundDetached(appPath, 'info');
+
+  const deadline = Date.now() + 1000;
+  while ((!fs.existsSync(argsPath) || !fs.existsSync(envPath)) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  assert.equal(fs.readFileSync(argsPath, 'utf8').trim(), '--start\n--background');
+  assert.equal(fs.readFileSync(envPath, 'utf8').trim(), '1');
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('stopOverlay logs a warning when stop command cannot be spawned', () => {
