@@ -52,3 +52,18 @@ test('readSnapshot ignores snapshots written with an older format version', () =
 
   assert.equal(readSnapshot(snapshotPath), null);
 });
+
+test('readSnapshot ignores v15 snapshots with stale romanized character-name entries', () => {
+  const outputDir = makeTempDir();
+  const snapshotPath = getSnapshotPath(outputDir, 130298);
+  const staleSnapshot = {
+    ...createSnapshot(),
+    formatVersion: 15,
+    termEntries: [['Vanir', 'ばにる', 'name primary', '', 75, ['Vanir'], 0, '']],
+  };
+
+  fs.mkdirSync(path.dirname(snapshotPath), { recursive: true });
+  fs.writeFileSync(snapshotPath, JSON.stringify(staleSnapshot), 'utf8');
+
+  assert.equal(readSnapshot(snapshotPath), null);
+});

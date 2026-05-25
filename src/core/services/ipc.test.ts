@@ -1191,18 +1191,22 @@ test('registerIpcHandlers rejects malformed controller preference payloads', asy
 test('registerIpcHandlers exposes character dictionary selection handlers', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const calls: number[] = [];
+  const searches: Array<string | undefined> = [];
 
   registerIpcHandlers(
     createRegisterIpcDeps({
-      getCharacterDictionarySelection: async () => ({
-        seriesKey: 're-zero-starting-life-in-another-world-2016',
-        guessTitle: 'Re ZERO, Starting Life in Another World',
-        current: { id: 10607, title: 'Rerere no Tensai Bakabon', episodes: 24 },
-        override: null,
-        candidates: [
-          { id: 21355, title: 'Re:ZERO -Starting Life in Another World-', episodes: 25 },
-        ],
-      }),
+      getCharacterDictionarySelection: async (searchTitle) => {
+        searches.push(searchTitle);
+        return {
+          seriesKey: 're-zero-starting-life-in-another-world-2016',
+          guessTitle: 'Re ZERO, Starting Life in Another World',
+          current: { id: 10607, title: 'Rerere no Tensai Bakabon', episodes: 24 },
+          override: null,
+          candidates: [
+            { id: 21355, title: 'Re:ZERO -Starting Life in Another World-', episodes: 25 },
+          ],
+        };
+      },
       setCharacterDictionarySelection: async (mediaId) => {
         calls.push(mediaId);
         return {
@@ -1223,7 +1227,7 @@ test('registerIpcHandlers exposes character dictionary selection handlers', asyn
   const getHandler = handlers.handle.get(IPC_CHANNELS.request.getCharacterDictionarySelection);
   const setHandler = handlers.handle.get(IPC_CHANNELS.request.setCharacterDictionarySelection);
 
-  assert.deepEqual(await getHandler!({}), {
+  assert.deepEqual(await getHandler!({}, '  Re:ZERO  '), {
     seriesKey: 're-zero-starting-life-in-another-world-2016',
     guessTitle: 'Re ZERO, Starting Life in Another World',
     current: { id: 10607, title: 'Rerere no Tensai Bakabon', episodes: 24 },
@@ -1241,4 +1245,5 @@ test('registerIpcHandlers exposes character dictionary selection handlers', asyn
     staleMediaIds: [10607],
   });
   assert.deepEqual(calls, [21355]);
+  assert.deepEqual(searches, ['Re:ZERO']);
 });

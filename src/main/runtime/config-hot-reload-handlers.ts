@@ -124,6 +124,8 @@ function hasAnnotationRuntimeHotReload(diff: ConfigHotReloadDiff): boolean {
     'ankiConnect.knownWords',
     'ankiConnect.nPlusOne',
     'ankiConnect.fields.word',
+    'subtitleStyle.nameMatchEnabled',
+    'subtitleStyle.nameMatchImagesEnabled',
   ]);
 }
 

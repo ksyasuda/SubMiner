@@ -371,34 +371,35 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option                             | Values      | Description                                                                                                                |
-| ---------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `fontFamily`                       | string      | CSS font-family value (default: `"Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP"`)                         |
-| `fontSize`                         | number (px) | Font size in pixels (default: `35`)                                                                                        |
-| `fontColor`                        | string      | Any CSS color value (default: `"#cad3f5"`)                                                                                 |
-| `css`                              | object      | CSS declarations applied to subtitles after normal style defaults; the settings window writes textbox edits here           |
-| `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"600"`)                                                     |
-| `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                             |
-| `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"transparent"`)                                                        |
-| `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                                   |
-| `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.         |
-| `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                 |
-| `autoPauseVideoOnYomitanPopup`     | boolean     | Pause playback while the Yomitan popup is open, then resume when the popup closes (`true` by default).                     |
-| `hoverTokenColor`                  | string      | Hex color used for hovered subtitle token highlight in mpv (default: catppuccin mauve)                                     |
+| Option                             | Values      | Description                                                                                                                          |
+| ---------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `fontFamily`                       | string      | CSS font-family value (default: `"Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP"`)                                   |
+| `fontSize`                         | number (px) | Font size in pixels (default: `35`)                                                                                                  |
+| `fontColor`                        | string      | Any CSS color value (default: `"#cad3f5"`)                                                                                           |
+| `css`                              | object      | CSS declarations applied to subtitles after normal style defaults; the settings window writes textbox edits here                     |
+| `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"600"`)                                                               |
+| `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                                       |
+| `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"transparent"`)                                                                  |
+| `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                                             |
+| `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.                   |
+| `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                           |
+| `autoPauseVideoOnYomitanPopup`     | boolean     | Pause playback while the Yomitan popup is open, then resume when the popup closes (`true` by default).                               |
+| `hoverTokenColor`                  | string      | Hex color used for hovered subtitle token highlight in mpv (default: catppuccin mauve)                                               |
 | `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight (default: `"transparent"`); `hoverBackground` is accepted as an alias |
-| `nameMatchEnabled`                 | boolean     | Enable subtitle token coloring for matches from the SubMiner character dictionary (`false` by default)                     |
-| `nameMatchColor`                   | string      | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                     |
-| `knownWordColor`                   | string      | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                     |
-| `nPlusOneColor`                    | string      | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                           |
-| `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                                 |
-| `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths. |
-| `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                                    |
-| `frequencyDictionary.mode`         | string      | `"single"` or `"banded"` (`"single"` by default)                                                                           |
-| `frequencyDictionary.matchMode`    | string      | `"headword"` or `"surface"` (`"headword"` by default)                                                                      |
-| `frequencyDictionary.singleColor`  | string      | Color used for all highlighted tokens in single mode                                                                       |
-| `frequencyDictionary.bandedColors` | string[]    | Array of five hex colors used for ranked bands in banded mode                                                              |
-| `jlptColors`                       | object      | JLPT level underline colors object (`N1`..`N5`)                                                                            |
-| `secondary`                        | object      | Override any of the above for secondary subtitles (optional), including `secondary.css` declarations                       |
+| `nameMatchEnabled`                 | boolean     | Enable subtitle token coloring for matches from the SubMiner character dictionary (`false` by default)                               |
+| `nameMatchImagesEnabled`           | boolean     | Show small cached AniList character portraits beside matched character-name tokens (`false` by default)                              |
+| `nameMatchColor`                   | string      | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                               |
+| `knownWordColor`                   | string      | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                               |
+| `nPlusOneColor`                    | string      | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                                     |
+| `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                                           |
+| `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths.           |
+| `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                                              |
+| `frequencyDictionary.mode`         | string      | `"single"` or `"banded"` (`"single"` by default)                                                                                     |
+| `frequencyDictionary.matchMode`    | string      | `"headword"` or `"surface"` (`"headword"` by default)                                                                                |
+| `frequencyDictionary.singleColor`  | string      | Color used for all highlighted tokens in single mode                                                                                 |
+| `frequencyDictionary.bandedColors` | string[]    | Array of five hex colors used for ranked bands in banded mode                                                                        |
+| `jlptColors`                       | object      | JLPT level underline colors object (`N1`..`N5`)                                                                                      |
+| `secondary`                        | object      | Override any of the above for secondary subtitles (optional), including `secondary.css` declarations                                 |
 
 The Settings window keeps subtitle color controls separate, then saves CSS textboxes to
 `subtitleStyle.css`, `subtitleStyle.secondary.css`, and `subtitleSidebar.css`. The generated example
@@ -420,6 +421,7 @@ In `single` mode all highlights use `singleColor`; in `banded` mode tokens map t
 Character-name highlighting is separate from N+1 and frequency highlighting:
 
 - `nameMatchEnabled` controls whether SubMiner includes character-dictionary name matches in subtitle token metadata and renderer styling.
+- `nameMatchImagesEnabled` adds small circular portraits beside matched names using the AniList images already cached with character dictionary snapshots.
 - `nameMatchColor` sets the highlight color for those matched character names.
 - Matches come from the bundled SubMiner character dictionary, including AniList-synced merged dictionaries when enabled.
 
@@ -865,15 +867,15 @@ This is the single, shared connection to an OpenAI-compatible LLM endpoint. Conf
 }
 ```
 
-| Option             | Values               | Description                                                                        |
-| ------------------ | -------------------- | ---------------------------------------------------------------------------------- |
-| `enabled`          | `true`, `false`      | Enable shared AI provider features (default: `false`)                              |
-| `apiKey`           | string               | Static API key for the shared provider                                             |
-| `apiKeyCommand`    | string               | Shell command used to resolve the API key (preferred over a plaintext `apiKey`)    |
+| Option             | Values               | Description                                                                          |
+| ------------------ | -------------------- | ------------------------------------------------------------------------------------ |
+| `enabled`          | `true`, `false`      | Enable shared AI provider features (default: `false`)                                |
+| `apiKey`           | string               | Static API key for the shared provider                                               |
+| `apiKeyCommand`    | string               | Shell command used to resolve the API key (preferred over a plaintext `apiKey`)      |
 | `model`            | string               | Default model identifier requested from the provider (default: `openai/gpt-4o-mini`) |
-| `baseUrl`          | string (URL)         | OpenAI-compatible base URL (default: `https://openrouter.ai/api`)                  |
-| `systemPrompt`     | string               | Default system prompt sent with requests (default: a translation-engine prompt)    |
-| `requestTimeoutMs` | integer milliseconds | Shared request timeout (default: `15000`)                                          |
+| `baseUrl`          | string (URL)         | OpenAI-compatible base URL (default: `https://openrouter.ai/api`)                    |
+| `systemPrompt`     | string               | Default system prompt sent with requests (default: a translation-engine prompt)      |
+| `requestTimeoutMs` | integer milliseconds | Shared request timeout (default: `15000`)                                            |
 
 SubMiner uses the shared provider for:
 
@@ -1125,12 +1127,12 @@ Sync the active subtitle track from the overlay picker using `alass` or `ffsubsy
 }
 ```
 
-| Option           | Values               | Description                                                                                                               |
-| ---------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `alass_path`     | string path          | Path to `alass` executable. Empty or `null` resolves from `PATH`. `alass` must be installed separately.                   |
-| `ffsubsync_path` | string path          | Path to `ffsubsync` executable. Empty or `null` resolves from `PATH`. `ffsubsync` must be installed separately.           |
-| `ffmpeg_path`    | string path          | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.                |
-| `replace`        | `true`, `false`      | When `true` (default), overwrite the active subtitle file on successful sync. When `false`, write `<name>_retimed.<ext>`. |
+| Option           | Values          | Description                                                                                                               |
+| ---------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `alass_path`     | string path     | Path to `alass` executable. Empty or `null` resolves from `PATH`. `alass` must be installed separately.                   |
+| `ffsubsync_path` | string path     | Path to `ffsubsync` executable. Empty or `null` resolves from `PATH`. `ffsubsync` must be installed separately.           |
+| `ffmpeg_path`    | string path     | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.                |
+| `replace`        | `true`, `false` | When `true` (default), overwrite the active subtitle file on successful sync. When `false`, write `<name>_retimed.<ext>`. |
 
 Default trigger is `Ctrl+Alt+S` via `shortcuts.triggerSubsync`.
 Customize it there, or set it to `null` to disable.

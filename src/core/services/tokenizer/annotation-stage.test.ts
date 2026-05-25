@@ -788,6 +788,30 @@ test('stripSubtitleAnnotationMetadata keeps known hover data while clearing non-
   });
 });
 
+test('stripSubtitleAnnotationMetadata clears character image metadata from excluded name matches', () => {
+  const token = makeToken({
+    surface: 'は',
+    headword: 'は',
+    reading: 'ハ',
+    partOfSpeech: PartOfSpeech.particle,
+    pos1: '助詞',
+    isNameMatch: true,
+  });
+  token.characterImage = {
+    src: 'data:image/png;base64,AAAA',
+    alt: 'は',
+  };
+
+  assert.deepEqual(stripSubtitleAnnotationMetadata(token), {
+    ...token,
+    isNPlusOneTarget: false,
+    isNameMatch: false,
+    characterImage: undefined,
+    jlptLevel: undefined,
+    frequencyRank: undefined,
+  });
+});
+
 test('stripSubtitleAnnotationMetadata leaves content tokens unchanged', () => {
   const token = makeToken({
     surface: '猫',

@@ -474,7 +474,9 @@ export interface ElectronAPI {
   youtubePickerResolve: (
     request: YoutubePickerResolveRequest,
   ) => Promise<YoutubePickerResolveResult>;
-  getCharacterDictionarySelection: () => Promise<CharacterDictionarySelectionSnapshot>;
+  getCharacterDictionarySelection: (
+    searchTitle?: string,
+  ) => Promise<CharacterDictionarySelectionSnapshot>;
   setCharacterDictionarySelection: (mediaId: number) => Promise<CharacterDictionarySelectionResult>;
   notifyOverlayModalClosed: (
     modal:

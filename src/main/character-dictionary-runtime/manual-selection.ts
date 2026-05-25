@@ -31,6 +31,29 @@ function normalizeSeriesKeyPart(value: string): string {
     .toLowerCase();
 }
 
+function getMediaDirectoryKey(mediaPath: string | null): string {
+  const rawPath = mediaPath?.trim();
+  if (!rawPath) return '';
+
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(rawPath) || rawPath.startsWith('file:')) {
+    try {
+      const url = new URL(rawPath);
+      const directoryPath = path.posix.dirname(
+        decodeURIComponent(url.pathname).replace(/\\/g, '/'),
+      );
+      const scopedPath = `${url.hostname}${directoryPath === '/' ? '' : directoryPath}`;
+      return normalizeSeriesKeyPart(scopedPath);
+    } catch {
+      return '';
+    }
+  }
+
+  const normalizedPath = rawPath.replace(/\\/g, '/');
+  const directoryPath = path.posix.dirname(normalizedPath);
+  if (!directoryPath || directoryPath === '.') return '';
+  return normalizeSeriesKeyPart(directoryPath);
+}
+
 function dedupeNumbers(values: number[]): number[] {
   const seen = new Set<number>();
   const result: number[] = [];
@@ -78,6 +101,12 @@ function writeOverrides(filePath: string, overrides: CharacterDictionaryManualSe
   fs.writeFileSync(filePath, JSON.stringify({ overrides }, null, 2), 'utf8');
 }
 
+function getLegacySeriesKeyCandidates(seriesKey: string): string[] {
+  const scopedSeparatorIndex = seriesKey.indexOf('--');
+  if (scopedSeparatorIndex < 0) return [seriesKey];
+  return [seriesKey, seriesKey.slice(scopedSeparatorIndex + 2)];
+}
+
 export function buildCharacterDictionarySeriesKey(input: {
   mediaPath: string | null;
   mediaTitle: string | null;
@@ -94,7 +123,9 @@ export function buildCharacterDictionarySeriesKey(input: {
     .replace(/\bepisode\s+\d+\b/gi, ' ')
     .trim();
   const base = normalizeSeriesKeyPart(withoutEpisode) || 'unknown';
-  return input.guess?.year ? `${base}-${input.guess.year}` : base;
+  const directoryKey = getMediaDirectoryKey(input.mediaPath);
+  const scopedBase = directoryKey ? `${directoryKey}--${base}` : base;
+  return input.guess?.year ? `${scopedBase}-${input.guess.year}` : scopedBase;
 }
 
 export function createCharacterDictionaryManualSelectionStore(deps: { userDataPath: string }) {
@@ -102,7 +133,13 @@ export function createCharacterDictionaryManualSelectionStore(deps: { userDataPa
 
   return {
     getOverride: async (seriesKey: string): Promise<CharacterDictionaryManualSelection | null> => {
-      return readOverrides(filePath).find((entry) => entry.seriesKey === seriesKey) ?? null;
+      const candidates = getLegacySeriesKeyCandidates(seriesKey);
+      const overrides = readOverrides(filePath);
+      for (const candidate of candidates) {
+        const match = overrides.find((entry) => entry.seriesKey === candidate);
+        if (match) return match;
+      }
+      return null;
     },
     setOverride: async (selection: CharacterDictionaryManualSelection): Promise<void> => {
       const normalized = normalizeOverride(selection);

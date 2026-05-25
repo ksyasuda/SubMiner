@@ -149,6 +149,70 @@ test('tokenizeSubtitle preserves Yomitan name-match metadata on tokens', async (
   assert.equal((result.tokens?.[1] as { isNameMatch?: boolean } | undefined)?.isNameMatch, false);
 });
 
+test('tokenizeSubtitle attaches character image metadata to name matches when enabled', async () => {
+  const result = await tokenizeSubtitle(
+    'アクアです',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: 'アクア', reading: 'あくあ', headword: 'アクア', isNameMatch: true },
+        { surface: 'です', reading: 'です', headword: 'です' },
+      ],
+      {
+        getNameMatchImagesEnabled: () => true,
+        getCharacterNameImage: (term) =>
+          term === 'アクア'
+            ? {
+                src: 'data:image/png;base64,AAAA',
+                alt: 'アクア',
+              }
+            : null,
+      } as Partial<TokenizerServiceDeps>,
+    ),
+  );
+
+  assert.deepEqual(result.tokens?.[0]?.characterImage, {
+    src: 'data:image/png;base64,AAAA',
+    alt: 'アクア',
+  });
+  assert.equal(result.tokens?.[1]?.characterImage, undefined);
+});
+
+test('tokenizeSubtitle keeps tokens when character image lookup throws', async () => {
+  const result = await tokenizeSubtitle(
+    'アクア',
+    makeDepsFromYomitanTokens(
+      [{ surface: 'アクア', reading: 'あくあ', headword: 'アクア', isNameMatch: true }],
+      {
+        getNameMatchImagesEnabled: () => true,
+        getCharacterNameImage: () => {
+          throw new Error('image lookup failed');
+        },
+      } as Partial<TokenizerServiceDeps>,
+    ),
+  );
+
+  assert.equal(result.tokens?.[0]?.surface, 'アクア');
+  assert.equal(result.tokens?.[0]?.characterImage, undefined);
+});
+
+test('tokenizeSubtitle omits character image metadata when name-match images are disabled', async () => {
+  const result = await tokenizeSubtitle(
+    'アクア',
+    makeDepsFromYomitanTokens(
+      [{ surface: 'アクア', reading: 'あくあ', headword: 'アクア', isNameMatch: true }],
+      {
+        getNameMatchImagesEnabled: () => false,
+        getCharacterNameImage: () => ({
+          src: 'data:image/png;base64,AAAA',
+          alt: 'アクア',
+        }),
+      } as Partial<TokenizerServiceDeps>,
+    ),
+  );
+
+  assert.equal(result.tokens?.[0]?.characterImage, undefined);
+});
+
 test('tokenizeSubtitle caches JLPT lookups across repeated tokens', async () => {
   let lookupCalls = 0;
   const result = await tokenizeSubtitle(

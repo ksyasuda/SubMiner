@@ -195,22 +195,45 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
     assert.equal(nameDiv.tag, 'div');
     assert.equal(nameDiv.content, 'アレクシア・ミドガル');
 
-    const secondaryNameDiv = children[1] as { tag: string; content: string };
-    assert.equal(secondaryNameDiv.tag, 'div');
-    assert.equal(secondaryNameDiv.content, 'Alexia Midgar');
+    assert.equal(
+      children.some((child) => (child as { content?: unknown }).content === 'Alexia Midgar'),
+      false,
+    );
 
-    const imageWrap = children[2] as { tag: string; content: Record<string, unknown> };
+    const imageWrap = children.find((child) => {
+      const content = (child as { content?: unknown }).content;
+      return (
+        content &&
+        typeof content === 'object' &&
+        !Array.isArray(content) &&
+        (content as { path?: unknown }).path === 'img/m130298-c123.png'
+      );
+    }) as { tag: string; content: Record<string, unknown> } | undefined;
+    assert.ok(imageWrap);
     assert.equal(imageWrap.tag, 'div');
     const image = imageWrap.content as Record<string, unknown>;
     assert.equal(image.tag, 'img');
     assert.equal(image.path, 'img/m130298-c123.png');
     assert.equal(image.sizeUnits, 'em');
 
-    const sourceDiv = children[3] as { tag: string; content: string };
+    const sourceDiv = children.find((child) => {
+      const content = (child as { content?: unknown }).content;
+      return typeof content === 'string' && content.includes('The Eminence in Shadow');
+    }) as { tag: string; content: string } | undefined;
+    assert.ok(sourceDiv);
     assert.equal(sourceDiv.tag, 'div');
     assert.ok(sourceDiv.content.includes('The Eminence in Shadow'));
 
-    const roleBadgeDiv = children[4] as { tag: string; content: Record<string, unknown> };
+    const roleBadgeDiv = children.find((child) => {
+      const content = (child as { content?: unknown }).content;
+      return (
+        content &&
+        typeof content === 'object' &&
+        !Array.isArray(content) &&
+        (content as { content?: unknown }).content === 'Main Character'
+      );
+    }) as { tag: string; content: Record<string, unknown> } | undefined;
+    assert.ok(roleBadgeDiv);
     assert.equal(roleBadgeDiv.tag, 'div');
     const badge = roleBadgeDiv.content as { tag: string; content: string };
     assert.equal(badge.tag, 'span');
@@ -1882,9 +1905,9 @@ test('generateForCurrentMedia logs progress while resolving and rebuilding snaps
       '[dictionary] snapshot miss for AniList 130298, fetching characters',
       '[dictionary] downloaded AniList character page 1 for AniList 130298',
       '[dictionary] downloading 1 images for AniList 130298',
-      '[dictionary] stored snapshot for AniList 130298: 32 terms',
+      '[dictionary] stored snapshot for AniList 130298: 16 terms',
       '[dictionary] building ZIP for AniList 130298',
-      '[dictionary] generated AniList 130298: 32 terms -> ' +
+      '[dictionary] generated AniList 130298: 16 terms -> ' +
         path.join(userDataPath, 'character-dictionaries', 'anilist-130298.zip'),
     ]);
   } finally {

@@ -681,6 +681,7 @@ test('numeric selection start focuses overlay for follow-up digit keys', async (
     assert.equal(testGlobals.windowFocusCalls() > 0, true);
     assert.equal(testGlobals.overlayFocusCalls.length > 0, true);
   } finally {
+    testGlobals.dispatchKeydown({ key: 'Escape', code: 'Escape' });
     testGlobals.restore();
   }
 });

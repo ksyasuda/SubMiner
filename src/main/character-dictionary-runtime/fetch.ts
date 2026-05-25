@@ -191,11 +191,51 @@ function mapRole(input: string | null | undefined): CharacterDictionaryRole {
   return 'side';
 }
 
-function inferImageExt(contentType: string | null): string {
+function inferImageExtFromBytes(bytes: Buffer): string | null {
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
+    return 'png';
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'jpg';
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    bytes.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'webp';
+  }
+  if (bytes.length >= 6 && bytes.subarray(0, 6).toString('ascii') === 'GIF89a') {
+    return 'gif';
+  }
+  if (bytes.length >= 6 && bytes.subarray(0, 6).toString('ascii') === 'GIF87a') {
+    return 'gif';
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes.subarray(4, 8).toString('ascii') === 'ftyp' &&
+    bytes.subarray(8, 12).toString('ascii') === 'avif'
+  ) {
+    return 'avif';
+  }
+  return null;
+}
+
+function inferImageExt(contentType: string | null, bytes: Buffer): string {
+  const extFromBytes = inferImageExtFromBytes(bytes);
+  if (extFromBytes) return extFromBytes;
+
   const normalized = (contentType || '').toLowerCase();
   if (normalized.includes('png')) return 'png';
   if (normalized.includes('gif')) return 'gif';
   if (normalized.includes('webp')) return 'webp';
+  if (normalized.includes('avif')) return 'avif';
   return 'jpg';
 }
 
@@ -462,7 +502,7 @@ export async function downloadCharacterImage(
     if (!response.ok) return null;
     const bytes = Buffer.from(await response.arrayBuffer());
     if (bytes.length === 0) return null;
-    const ext = inferImageExt(response.headers.get('content-type'));
+    const ext = inferImageExt(response.headers.get('content-type'), bytes);
     return {
       filename: `c${charId}.${ext}`,
       ext,

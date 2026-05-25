@@ -518,6 +518,7 @@ import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility
 import { createStatsOverlayVisibilityChangeHandler } from './main/runtime/stats-overlay-visibility';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
+import { createCharacterDictionaryImageLookup } from './main/character-dictionary-runtime/image-lookup';
 import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
 import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/character-dictionary-auto-sync-completion';
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
@@ -2178,11 +2179,16 @@ const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
   getCurrentMediaTitle: () => appState.currentMediaTitle,
   resolveMediaPathForJimaku: (mediaPath) => mediaRuntime.resolveMediaPathForJimaku(mediaPath),
   guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
+  getNameMatchImagesEnabled: () => getResolvedConfig().subtitleStyle.nameMatchImagesEnabled,
   getCollapsibleSectionOpenState: (section) =>
     getResolvedConfig().anilist.characterDictionary.collapsibleSections[section],
   now: () => Date.now(),
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
+});
+
+const characterDictionaryImageLookup = createCharacterDictionaryImageLookup({
+  userDataPath: USER_DATA_PATH,
 });
 
 const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRuntimeService({
@@ -4728,6 +4734,8 @@ const {
         yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
         !isYoutubePlaybackActiveNow(),
       getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
+      getNameMatchImagesEnabled: () => getResolvedConfig().subtitleStyle.nameMatchImagesEnabled,
+      getCharacterNameImage: (term) => characterDictionaryImageLookup.get(term),
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.frequency',
@@ -5967,8 +5975,8 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
       retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
       runAnilistPostWatchUpdateOnManualMark: () => maybeRunAnilistPostWatchUpdate({ force: true }),
-      getCharacterDictionarySelection: () =>
-        characterDictionaryRuntime.getManualSelectionSnapshot(),
+      getCharacterDictionarySelection: (searchTitle?: string) =>
+        characterDictionaryRuntime.getManualSelectionSnapshot(undefined, searchTitle),
       setCharacterDictionarySelection: async (mediaId: number) =>
         applyCharacterDictionarySelection(
           { mediaId },

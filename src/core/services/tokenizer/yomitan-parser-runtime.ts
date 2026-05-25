@@ -1,5 +1,6 @@
 import type { BrowserWindow, Extension, Session } from 'electron';
 import * as fs from 'fs';
+import * as http from 'http';
 import * as path from 'path';
 import { selectYomitanParseTokens } from './parser-selection-stage';
 
@@ -702,6 +703,70 @@ async function invokeYomitanSettingsAutomation<T>(
     if (!settingsWindow.isDestroyed()) {
       settingsWindow.destroy();
     }
+  }
+}
+
+async function serveDictionaryZipOnce<T>(
+  zipPath: string,
+  callback: (url: string) => Promise<T>,
+): Promise<T> {
+  const fileName = path.basename(zipPath);
+  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  const requestPath = `/${token}/${encodeURIComponent(fileName)}`;
+  let served = false;
+  const server = http.createServer((request, response) => {
+    if (request.method === 'OPTIONS') {
+      response.writeHead(204, {
+        'access-control-allow-origin': '*',
+        'access-control-allow-methods': 'GET, OPTIONS',
+      });
+      response.end();
+      return;
+    }
+    if (request.method !== 'GET' || request.url !== requestPath || served) {
+      response.writeHead(404, { 'access-control-allow-origin': '*' });
+      response.end();
+      return;
+    }
+    served = true;
+    let size = 0;
+    try {
+      size = fs.statSync(zipPath).size;
+    } catch {
+      response.writeHead(500, { 'access-control-allow-origin': '*' });
+      response.end();
+      return;
+    }
+    response.writeHead(200, {
+      'access-control-allow-origin': '*',
+      'content-length': String(size),
+      'content-type': 'application/zip',
+    });
+    const stream = fs.createReadStream(zipPath);
+    stream.on('error', () => {
+      if (!response.headersSent) {
+        response.writeHead(500, { 'access-control-allow-origin': '*' });
+        response.end();
+        return;
+      }
+      response.destroy();
+    });
+    stream.pipe(response);
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => resolve());
+  });
+
+  try {
+    const address = server.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('Dictionary import server did not bind to a TCP port.');
+    }
+    return await callback(`http://127.0.0.1:${address.port}${requestPath}`);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }
 
@@ -1863,17 +1928,43 @@ export async function importYomitanDictionaryFromZip(
     return false;
   }
 
-  const archiveBase64 = fs.readFileSync(normalizedZipPath).toString('base64');
-  const script = `
-    (async () => {
-      await globalThis.__subminerYomitanSettingsAutomation.importDictionaryArchiveBase64(
-        ${JSON.stringify(archiveBase64)},
-        ${JSON.stringify(path.basename(normalizedZipPath))}
-      );
-      return true;
-    })();
-  `;
-  const result = await invokeYomitanSettingsAutomation<boolean>(script, deps, logger);
+  const supportsUrlImport = await invokeYomitanSettingsAutomation<boolean>(
+    `
+      (() => typeof globalThis.__subminerYomitanSettingsAutomation.importDictionaryArchiveUrl === "function")();
+    `,
+    deps,
+    logger,
+  );
+
+  const result =
+    supportsUrlImport === true
+      ? await serveDictionaryZipOnce(normalizedZipPath, async (archiveUrl) =>
+          invokeYomitanSettingsAutomation<boolean>(
+            `
+              (async () => {
+                await globalThis.__subminerYomitanSettingsAutomation.importDictionaryArchiveUrl(
+                  ${JSON.stringify(archiveUrl)}
+                );
+                return true;
+              })();
+            `,
+            deps,
+            logger,
+          ),
+        )
+      : await invokeYomitanSettingsAutomation<boolean>(
+          `
+            (async () => {
+              await globalThis.__subminerYomitanSettingsAutomation.importDictionaryArchiveBase64(
+                ${JSON.stringify(fs.readFileSync(normalizedZipPath).toString('base64'))},
+                ${JSON.stringify(path.basename(normalizedZipPath))}
+              );
+              return true;
+            })();
+          `,
+          deps,
+          logger,
+        );
   return result === true;
 }
 

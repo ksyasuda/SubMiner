@@ -22,7 +22,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self' 'unsafe-inline' chrome-extension:; script-src 'self' 'unsafe-inline' chrome-extension:; style-src 'self' 'unsafe-inline' chrome-extension:; worker-src 'self' blob:;"
+      content="default-src 'self' 'unsafe-inline' chrome-extension:; script-src 'self' 'unsafe-inline' chrome-extension:; style-src 'self' 'unsafe-inline' chrome-extension:; img-src 'self' data: blob: chrome-extension:; worker-src 'self' blob:;"
     />
     <title>SubMiner</title>
     <link rel="stylesheet" href="style.css" />
@@ -205,6 +205,22 @@
           </div>
           <div class="modal-body">
             <div id="characterDictionarySummary" class="runtime-options-hint"></div>
+            <div class="character-dictionary-search">
+              <input
+                id="characterDictionarySearchInput"
+                class="character-dictionary-search-input"
+                type="text"
+                aria-label="Search character dictionary"
+                autocomplete="off"
+              />
+              <button
+                id="characterDictionarySearchButton"
+                class="character-dictionary-use"
+                type="button"
+              >
+                Search
+              </button>
+            </div>
             <div id="characterDictionaryCurrent" class="character-dictionary-current"></div>
             <ul id="characterDictionaryCandidates" class="character-dictionary-candidates"></ul>
             <div id="characterDictionaryStatus" class="runtime-options-status"></div>

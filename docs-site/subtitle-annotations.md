@@ -44,13 +44,15 @@ Character-name matches are built from the active merged SubMiner character dicti
 1. Subtitles are tokenized, then candidate name tokens are matched against the character dictionary via Yomitan's scanning pipeline.
 2. Matching tokens receive a dedicated style distinct from N+1 and frequency layers.
 3. This layer can be independently toggled with `subtitleStyle.nameMatchEnabled`.
+4. When `subtitleStyle.nameMatchImagesEnabled` is also enabled, SubMiner shows the cached AniList portrait beside matched names.
 
 **Key settings:**
 
-| Option                           | Default   | Description                              |
-| -------------------------------- | --------- | ---------------------------------------- |
-| `subtitleStyle.nameMatchEnabled` | `false`   | Enable character-name token highlighting |
-| `subtitleStyle.nameMatchColor`   | `#f5bde6` | Color used for character-name matches    |
+| Option                                 | Default   | Description                                      |
+| -------------------------------------- | --------- | ------------------------------------------------ |
+| `subtitleStyle.nameMatchEnabled`       | `false`   | Enable character-name token highlighting         |
+| `subtitleStyle.nameMatchImagesEnabled` | `false`   | Show small AniList portraits next to name tokens |
+| `subtitleStyle.nameMatchColor`         | `#f5bde6` | Color used for character-name matches            |
 
 For full details on dictionary generation, name variant expansion, auto-sync lifecycle, and configuration, see the dedicated [Character Dictionary](/character-dictionary) page.
 
@@ -67,14 +69,14 @@ SubMiner looks up each token's `frequencyRank` from `term_meta_bank_*.json` file
 
 **Key settings:**
 
-| Option                                           | Default      | Description                              |
-| ------------------------------------------------ | ------------ | ---------------------------------------- |
-| `subtitleStyle.frequencyDictionary.enabled`      | `false`      | Enable frequency highlighting            |
-| `subtitleStyle.frequencyDictionary.topX`         | `1000`       | Max frequency rank to highlight          |
-| `subtitleStyle.frequencyDictionary.mode`         | `"single"`   | `"single"` or `"banded"`                 |
-| `subtitleStyle.frequencyDictionary.matchMode`    | `"headword"` | `"headword"` or `"surface"`              |
-| `subtitleStyle.frequencyDictionary.singleColor`  | `#f5a97f`    | Color for single mode                    |
-| `subtitleStyle.frequencyDictionary.bandedColors` | 5 colors[^1] | Array of five hex colors for banded mode |
+| Option                                           | Default      | Description                                                      |
+| ------------------------------------------------ | ------------ | ---------------------------------------------------------------- |
+| `subtitleStyle.frequencyDictionary.enabled`      | `false`      | Enable frequency highlighting                                    |
+| `subtitleStyle.frequencyDictionary.topX`         | `1000`       | Max frequency rank to highlight                                  |
+| `subtitleStyle.frequencyDictionary.mode`         | `"single"`   | `"single"` or `"banded"`                                         |
+| `subtitleStyle.frequencyDictionary.matchMode`    | `"headword"` | `"headword"` or `"surface"`                                      |
+| `subtitleStyle.frequencyDictionary.singleColor`  | `#f5a97f`    | Color for single mode                                            |
+| `subtitleStyle.frequencyDictionary.bandedColors` | 5 colors[^1] | Array of five hex colors for banded mode                         |
 | `subtitleStyle.frequencyDictionary.sourcePath`   | `""`         | Custom path to frequency dictionary root (empty = auto-discover) |
 
 [^1]: Default banded palette (most common → least common): `#ed8796`, `#f5a97f`, `#f9e2af`, `#8bd5ca`, `#8aadf4`.
@@ -122,6 +124,7 @@ All annotation layers can be toggled at runtime via the mpv command menu without
 
 - `ankiConnect.knownWords.highlightEnabled` (`On` / `Off`)
 - `subtitleStyle.nameMatchEnabled` (`On` / `Off`)
+- `subtitleStyle.nameMatchImagesEnabled` (`On` / `Off`)
 - `subtitleStyle.enableJlpt` (`On` / `Off`)
 - `subtitleStyle.frequencyDictionary.enabled` (`On` / `Off`)
 

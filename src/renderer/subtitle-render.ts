@@ -105,6 +105,40 @@ function hasPrioritizedNameMatch(
   );
 }
 
+function hasTokenCharacterImage(token: MergedToken): boolean {
+  return (
+    typeof token.characterImage?.src === 'string' && token.characterImage.src.trim().length > 0
+  );
+}
+
+function shouldRenderTokenCharacterImage(
+  token: MergedToken,
+  tokenRenderSettings: Partial<Pick<TokenRenderSettings, 'nameMatchEnabled'>>,
+): boolean {
+  return hasPrioritizedNameMatch(token, tokenRenderSettings) && hasTokenCharacterImage(token);
+}
+
+function appendTokenSurface(
+  span: HTMLSpanElement,
+  token: MergedToken,
+  surface: string,
+  tokenRenderSettings: Partial<Pick<TokenRenderSettings, 'nameMatchEnabled'>>,
+): void {
+  if (!shouldRenderTokenCharacterImage(token, tokenRenderSettings)) {
+    span.textContent = surface;
+    return;
+  }
+
+  const image = document.createElement('img');
+  image.className = 'word-character-image';
+  image.src = token.characterImage!.src;
+  image.alt = token.characterImage!.alt || token.headword || surface;
+  image.decoding = 'async';
+  image.loading = 'eager';
+  span.appendChild(image);
+  span.appendChild(document.createTextNode(surface));
+}
+
 function sanitizeFrequencyTopX(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
     return fallback;
@@ -393,7 +427,7 @@ function renderWithTokens(
       const token = segment.token;
       const span = getSpanTemplate().cloneNode(false) as HTMLSpanElement;
       span.className = computeWordClass(token, resolvedTokenRenderSettings);
-      span.textContent = token.surface;
+      appendTokenSurface(span, token, token.surface, resolvedTokenRenderSettings);
       span.dataset.tokenIndex = String(segment.tokenIndex);
       if (token.reading) span.dataset.reading = token.reading;
       if (token.headword) span.dataset.headword = token.headword;
@@ -429,7 +463,7 @@ function renderWithTokens(
 
     const span = getSpanTemplate().cloneNode(false) as HTMLSpanElement;
     span.className = computeWordClass(token, resolvedTokenRenderSettings);
-    span.textContent = surface;
+    appendTokenSurface(span, token, surface, resolvedTokenRenderSettings);
     span.dataset.tokenIndex = String(index);
     if (token.reading) span.dataset.reading = token.reading;
     if (token.headword) span.dataset.headword = token.headword;
@@ -570,6 +604,10 @@ export function computeWordClass(
     if (frequencyClass) {
       classes.push(frequencyClass);
     }
+  }
+
+  if (shouldRenderTokenCharacterImage(token, resolvedTokenRenderSettings)) {
+    classes.push('word-character-image-token');
   }
 
   return classes.join(' ');

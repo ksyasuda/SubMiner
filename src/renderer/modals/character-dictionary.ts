@@ -27,17 +27,25 @@ export function createCharacterDictionaryModal(
     syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
+  let hasSearched = false;
+
   function setStatus(message: string, isError = false): void {
     ctx.state.characterDictionaryStatus = message;
     ctx.dom.characterDictionaryStatus.textContent = message;
     ctx.dom.characterDictionaryStatus.classList.toggle('error', isError);
   }
 
-  function setSelection(snapshot: CharacterDictionarySelectionSnapshot): void {
+  function setSelection(
+    snapshot: CharacterDictionarySelectionSnapshot,
+    seedSearchInput = false,
+  ): void {
     const previousId =
       ctx.state.characterDictionarySelection?.candidates[ctx.state.characterDictionarySelectedIndex]
         ?.id;
     ctx.state.characterDictionarySelection = snapshot;
+    if (seedSearchInput) {
+      ctx.dom.characterDictionarySearchInput.value = snapshot.guessTitle ?? '';
+    }
     const nextIndex = snapshot.candidates.findIndex((candidate) => candidate.id === previousId);
     ctx.state.characterDictionarySelectedIndex = clampIndex(
       nextIndex >= 0 ? nextIndex : 0,
@@ -47,6 +55,7 @@ export function createCharacterDictionaryModal(
   }
 
   function renderCandidate(candidate: CharacterDictionaryCandidate, index: number): HTMLLIElement {
+    const isOverride = candidate.id === ctx.state.characterDictionarySelection?.override?.id;
     const item = document.createElement('li');
     item.className = 'character-dictionary-candidate';
     item.classList.toggle('active', index === ctx.state.characterDictionarySelectedIndex);
@@ -63,9 +72,11 @@ export function createCharacterDictionaryModal(
     const button = document.createElement('button');
     button.className = 'character-dictionary-use';
     button.type = 'button';
-    button.textContent = 'Use';
+    button.textContent = isOverride ? 'Selected' : 'Use';
+    button.disabled = isOverride;
     button.addEventListener('click', (event) => {
       event.stopPropagation();
+      if (isOverride) return;
       ctx.state.characterDictionarySelectedIndex = index;
       void applySelectedCandidate();
     });
@@ -104,7 +115,9 @@ export function createCharacterDictionaryModal(
     if (snapshot.candidates.length === 0) {
       const empty = document.createElement('li');
       empty.className = 'character-dictionary-empty';
-      empty.textContent = 'No AniList candidates found.';
+      empty.textContent = hasSearched
+        ? 'No AniList candidates found.'
+        : 'Search AniList to show candidates.';
       ctx.dom.characterDictionaryCandidates.append(empty);
       return;
     }
@@ -114,20 +127,41 @@ export function createCharacterDictionaryModal(
     );
   }
 
-  async function refreshSelection(): Promise<void> {
-    const snapshot = await window.electronAPI.getCharacterDictionarySelection();
-    setSelection(snapshot);
+  async function refreshSelection(searchTitle?: string): Promise<void> {
+    const snapshot = await window.electronAPI.getCharacterDictionarySelection(searchTitle);
+    hasSearched = searchTitle !== '';
+    setSelection(snapshot, searchTitle === '');
     setStatus(
-      snapshot.override
-        ? `Override active: ${formatCandidate(snapshot.override)}`
-        : 'Select the correct AniList entry.',
+      searchTitle === ''
+        ? 'Enter a title to search AniList.'
+        : snapshot.override
+          ? `Override active: ${formatCandidate(snapshot.override)}`
+          : 'Select the correct AniList entry.',
     );
+  }
+
+  async function searchCandidates(): Promise<void> {
+    const searchTitle = ctx.dom.characterDictionarySearchInput.value.trim();
+    if (!searchTitle) {
+      setStatus('Enter a title to search AniList.', true);
+      return;
+    }
+    ctx.dom.characterDictionarySearchButton.disabled = true;
+    setStatus(`Searching AniList for ${searchTitle}...`);
+    try {
+      await refreshSelection(searchTitle);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    } finally {
+      ctx.dom.characterDictionarySearchButton.disabled = false;
+    }
   }
 
   async function applySelectedCandidate(): Promise<void> {
     const snapshot = ctx.state.characterDictionarySelection;
     const candidate = snapshot?.candidates[ctx.state.characterDictionarySelectedIndex];
     if (!candidate) return;
+    if (candidate.id === snapshot?.override?.id) return;
 
     setStatus(`Saving override for ${candidate.title}...`);
     try {
@@ -136,7 +170,7 @@ export function createCharacterDictionaryModal(
         setStatus('Failed to save override', true);
         return;
       }
-      await refreshSelection();
+      await refreshSelection(ctx.dom.characterDictionarySearchInput.value.trim());
       const staleLabel =
         result.staleMediaIds.length > 0
           ? ` Removed stale: ${result.staleMediaIds.join(', ')}.`
@@ -154,7 +188,7 @@ export function createCharacterDictionaryModal(
     ctx.dom.characterDictionaryModal.classList.remove('hidden');
     ctx.dom.characterDictionaryModal.setAttribute('aria-hidden', 'false');
     window.electronAPI.notifyOverlayModalOpened('character-dictionary');
-    setStatus('Loading AniList candidates...');
+    setStatus('Loading character dictionary selector...');
   }
 
   async function openCharacterDictionaryModal(): Promise<void> {
@@ -165,7 +199,7 @@ export function createCharacterDictionaryModal(
       setStatus('Refreshing AniList candidates...');
     }
     try {
-      await refreshSelection();
+      await refreshSelection('');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), true);
     }
@@ -179,6 +213,7 @@ export function createCharacterDictionaryModal(
     ctx.dom.characterDictionaryModal.classList.add('hidden');
     ctx.dom.characterDictionaryModal.setAttribute('aria-hidden', 'true');
     ctx.dom.characterDictionaryCandidates.replaceChildren();
+    hasSearched = false;
     window.electronAPI.notifyOverlayModalClosed('character-dictionary');
     setStatus('');
     if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
@@ -202,6 +237,14 @@ export function createCharacterDictionaryModal(
       closeCharacterDictionaryModal();
       return true;
     }
+    if (e.target === ctx.dom.characterDictionarySearchInput) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        void searchCandidates();
+        return true;
+      }
+      return false;
+    }
     if (e.key === 'ArrowDown' || e.key === 'j' || e.key === 'J') {
       e.preventDefault();
       moveSelection(1);
@@ -222,6 +265,15 @@ export function createCharacterDictionaryModal(
 
   function wireDomEvents(): void {
     ctx.dom.characterDictionaryClose.addEventListener('click', closeCharacterDictionaryModal);
+    ctx.dom.characterDictionarySearchButton.addEventListener('click', () => {
+      void searchCandidates();
+    });
+    ctx.dom.characterDictionarySearchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        void searchCandidates();
+      }
+    });
   }
 
   return {

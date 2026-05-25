@@ -60,6 +60,8 @@ export type RendererDom = {
   characterDictionaryModal: HTMLDivElement;
   characterDictionaryClose: HTMLButtonElement;
   characterDictionarySummary: HTMLDivElement;
+  characterDictionarySearchInput: HTMLInputElement;
+  characterDictionarySearchButton: HTMLButtonElement;
   characterDictionaryCurrent: HTMLDivElement;
   characterDictionaryCandidates: HTMLUListElement;
   characterDictionaryStatus: HTMLDivElement;
@@ -187,6 +189,12 @@ export function resolveRendererDom(): RendererDom {
     characterDictionaryModal: getRequiredElement<HTMLDivElement>('characterDictionaryModal'),
     characterDictionaryClose: getRequiredElement<HTMLButtonElement>('characterDictionaryClose'),
     characterDictionarySummary: getRequiredElement<HTMLDivElement>('characterDictionarySummary'),
+    characterDictionarySearchInput: getRequiredElement<HTMLInputElement>(
+      'characterDictionarySearchInput',
+    ),
+    characterDictionarySearchButton: getRequiredElement<HTMLButtonElement>(
+      'characterDictionarySearchButton',
+    ),
     characterDictionaryCurrent: getRequiredElement<HTMLDivElement>('characterDictionaryCurrent'),
     characterDictionaryCandidates: getRequiredElement<HTMLUListElement>(
       'characterDictionaryCandidates',
