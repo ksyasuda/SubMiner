@@ -161,6 +161,7 @@ export function createCharacterDictionaryModal(
     const snapshot = ctx.state.characterDictionarySelection;
     const candidate = snapshot?.candidates[ctx.state.characterDictionarySelectedIndex];
     if (!candidate) return;
+    if (candidate.id === snapshot?.override?.id) return;
 
     setStatus(`Saving override for ${candidate.title}...`);
     try {

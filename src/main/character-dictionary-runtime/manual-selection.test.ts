@@ -82,6 +82,48 @@ test('manual selection store persists overrides and matches later episodes in th
   });
 });
 
+test('manual selection store resolves legacy unscoped override keys', async () => {
+  const userDataPath = makeTempDir();
+  const overrideDir = path.join(userDataPath, 'character-dictionaries');
+  fs.mkdirSync(overrideDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(overrideDir, 'anilist-overrides.json'),
+    JSON.stringify({
+      overrides: [
+        {
+          seriesKey: 're-zero-starting-life-in-another-world-2016',
+          mediaId: 21355,
+          mediaTitle: 'Re:ZERO -Starting Life in Another World-',
+          staleMediaIds: [10607],
+        },
+      ],
+    }),
+    'utf8',
+  );
+
+  const scopedKey = buildCharacterDictionarySeriesKey({
+    mediaPath: REZERO_EP1,
+    mediaTitle: null,
+    guess: {
+      title: 'Re ZERO, Starting Life in Another World',
+      alternativeTitle: 'ZERO, Starting Life in Another World',
+      year: 2016,
+      season: 1,
+      episode: 1,
+      source: 'guessit',
+    },
+  });
+
+  const store = createCharacterDictionaryManualSelectionStore({ userDataPath });
+
+  assert.deepEqual(await store.getOverride(scopedKey), {
+    seriesKey: 're-zero-starting-life-in-another-world-2016',
+    mediaId: 21355,
+    mediaTitle: 'Re:ZERO -Starting Life in Another World-',
+    staleMediaIds: [10607],
+  });
+});
+
 test('manual selection store keeps overrides separate for different season directories', async () => {
   const userDataPath = makeTempDir();
   const store = createCharacterDictionaryManualSelectionStore({ userDataPath });

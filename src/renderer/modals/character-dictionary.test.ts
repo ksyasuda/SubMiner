@@ -495,3 +495,74 @@ test('character dictionary modal marks override candidate as selected', async ()
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
   }
 });
+
+test('character dictionary modal does not resave the active override from keyboard apply', async () => {
+  const previousWindow = globalThis.window;
+  const snapshot: CharacterDictionarySelectionSnapshot = {
+    seriesKey: 're-zero-starting-life-in-another-world-2016',
+    guessTitle: 'Re ZERO, Starting Life in Another World',
+    current: { id: 21355, title: 'Re:ZERO -Starting Life in Another World-', episodes: 25 },
+    override: { id: 21355, title: 'Re:ZERO -Starting Life in Another World-', episodes: 25 },
+    candidates: [{ id: 21355, title: 'Re:ZERO -Starting Life in Another World-', episodes: 25 }],
+  };
+  const calls: number[] = [];
+  const state = createRendererState();
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getCharacterDictionarySelection: async () => snapshot,
+        setCharacterDictionarySelection: async (mediaId: number) => {
+          calls.push(mediaId);
+          return {
+            ok: true,
+            seriesKey: snapshot.seriesKey,
+            selected: snapshot.candidates[0]!,
+            staleMediaIds: [],
+          };
+        },
+        notifyOverlayModalClosed: () => {},
+      } satisfies Pick<
+        ElectronAPI,
+        | 'getCharacterDictionarySelection'
+        | 'setCharacterDictionarySelection'
+        | 'notifyOverlayModalClosed'
+      >,
+    },
+  });
+
+  try {
+    const modal = createCharacterDictionaryModal(
+      {
+        state,
+        dom: {
+          overlay: createNodeStub(),
+          characterDictionaryModal: createNodeStub(true),
+          characterDictionaryClose: createNodeStub(),
+          characterDictionarySummary: createNodeStub(),
+          characterDictionaryCurrent: createNodeStub(),
+          characterDictionarySearchInput: createNodeStub(),
+          characterDictionarySearchButton: createNodeStub(),
+          characterDictionaryCandidates: createNodeStub(),
+          characterDictionaryStatus: createNodeStub(),
+        },
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => false },
+        syncSettingsModalSubtitleSuppression: () => {},
+      },
+    );
+
+    await modal.openCharacterDictionaryModal();
+    modal.handleCharacterDictionaryKeydown({
+      key: 'Enter',
+      preventDefault: () => {},
+    } as KeyboardEvent);
+    await flushAsyncWork();
+
+    assert.deepEqual(calls, []);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+  }
+});

@@ -177,6 +177,24 @@ test('tokenizeSubtitle attaches character image metadata to name matches when en
   assert.equal(result.tokens?.[1]?.characterImage, undefined);
 });
 
+test('tokenizeSubtitle keeps tokens when character image lookup throws', async () => {
+  const result = await tokenizeSubtitle(
+    'アクア',
+    makeDepsFromYomitanTokens(
+      [{ surface: 'アクア', reading: 'あくあ', headword: 'アクア', isNameMatch: true }],
+      {
+        getNameMatchImagesEnabled: () => true,
+        getCharacterNameImage: () => {
+          throw new Error('image lookup failed');
+        },
+      } as Partial<TokenizerServiceDeps>,
+    ),
+  );
+
+  assert.equal(result.tokens?.[0]?.surface, 'アクア');
+  assert.equal(result.tokens?.[0]?.characterImage, undefined);
+});
+
 test('tokenizeSubtitle omits character image metadata when name-match images are disabled', async () => {
   const result = await tokenizeSubtitle(
     'アクア',

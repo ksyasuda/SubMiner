@@ -818,14 +818,20 @@ function applyCharacterNameImages(
     return tokens.map((token) => ({ ...token, characterImage: undefined }));
   }
 
+  const getCharacterNameImage = deps.getCharacterNameImage;
   return tokens.map((token) => {
     if (token.isNameMatch !== true) {
       return { ...token, characterImage: undefined };
     }
+    let characterImage: CharacterNameImage | undefined;
+    try {
+      characterImage = resolveCharacterNameImageForToken(token, getCharacterNameImage) ?? undefined;
+    } catch (err) {
+      logger.warn('Failed to resolve character name image:', (err as Error).message);
+    }
     return {
       ...token,
-      characterImage:
-        resolveCharacterNameImageForToken(token, deps.getCharacterNameImage!) ?? undefined,
+      characterImage,
     };
   });
 }

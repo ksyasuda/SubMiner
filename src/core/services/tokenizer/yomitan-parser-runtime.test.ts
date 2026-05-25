@@ -1631,6 +1631,89 @@ test('importYomitanDictionaryFromZip imports via localhost URL instead of embedd
   );
 });
 
+test('importYomitanDictionaryFromZip falls back to base64 import for older Yomitan bridge', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yomitan-import-'));
+  const zipPath = path.join(tempDir, 'dict.zip');
+  fs.writeFileSync(zipPath, Buffer.from('zip-bytes'));
+
+  const scripts: string[] = [];
+  const settingsWindow = {
+    isDestroyed: () => false,
+    destroy: () => undefined,
+    webContents: {
+      executeJavaScript: async (script: string) => {
+        scripts.push(script);
+        if (
+          script.includes(
+            'typeof globalThis.__subminerYomitanSettingsAutomation.importDictionaryArchiveUrl',
+          )
+        ) {
+          return false;
+        }
+        return true;
+      },
+    },
+  };
+
+  const deps = createDeps(async () => true, {
+    createYomitanExtensionWindow: async (pageName: string) => {
+      assert.equal(pageName, 'settings.html');
+      return settingsWindow;
+    },
+  });
+
+  const imported = await importYomitanDictionaryFromZip(zipPath, deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(imported, true);
+  assert.equal(
+    scripts.some((script) => script.includes('importDictionaryArchiveBase64')),
+    true,
+  );
+  assert.equal(
+    scripts.some((script) => script.includes('importDictionaryArchiveUrl(')),
+    false,
+  );
+  assert.equal(
+    scripts.some((script) => script.includes('emlwLWJ5dGVz')),
+    true,
+  );
+});
+
+test('importYomitanDictionaryFromZip returns false when served archive cannot be read', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yomitan-import-'));
+  const zipPath = path.join(tempDir, 'dict.zip');
+  fs.writeFileSync(zipPath, Buffer.from('zip-bytes'));
+
+  const settingsWindow = {
+    isDestroyed: () => false,
+    destroy: () => undefined,
+    webContents: {
+      executeJavaScript: async (script: string) => {
+        const urlMatch = script.match(/importDictionaryArchiveUrl\(\s*"([^"]+)"/);
+        if (!urlMatch) return true;
+        fs.unlinkSync(zipPath);
+        const response = await fetch(JSON.parse(`"${urlMatch[1]}"`) as string);
+        return response.ok;
+      },
+    },
+  };
+
+  const deps = createDeps(async () => true, {
+    createYomitanExtensionWindow: async (pageName: string) => {
+      assert.equal(pageName, 'settings.html');
+      return settingsWindow;
+    },
+  });
+
+  const imported = await importYomitanDictionaryFromZip(zipPath, deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(imported, false);
+});
+
 test('deleteYomitanDictionaryByTitle uses settings automation bridge instead of custom backend action', async () => {
   const scripts: string[] = [];
   const settingsWindow = {

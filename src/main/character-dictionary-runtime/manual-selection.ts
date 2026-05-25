@@ -101,6 +101,12 @@ function writeOverrides(filePath: string, overrides: CharacterDictionaryManualSe
   fs.writeFileSync(filePath, JSON.stringify({ overrides }, null, 2), 'utf8');
 }
 
+function getLegacySeriesKeyCandidates(seriesKey: string): string[] {
+  const scopedSeparatorIndex = seriesKey.indexOf('--');
+  if (scopedSeparatorIndex < 0) return [seriesKey];
+  return [seriesKey, seriesKey.slice(scopedSeparatorIndex + 2)];
+}
+
 export function buildCharacterDictionarySeriesKey(input: {
   mediaPath: string | null;
   mediaTitle: string | null;
@@ -127,7 +133,8 @@ export function createCharacterDictionaryManualSelectionStore(deps: { userDataPa
 
   return {
     getOverride: async (seriesKey: string): Promise<CharacterDictionaryManualSelection | null> => {
-      return readOverrides(filePath).find((entry) => entry.seriesKey === seriesKey) ?? null;
+      const candidates = getLegacySeriesKeyCandidates(seriesKey);
+      return readOverrides(filePath).find((entry) => candidates.includes(entry.seriesKey)) ?? null;
     },
     setOverride: async (selection: CharacterDictionaryManualSelection): Promise<void> => {
       const normalized = normalizeOverride(selection);

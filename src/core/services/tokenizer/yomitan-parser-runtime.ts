@@ -729,13 +729,29 @@ async function serveDictionaryZipOnce<T>(
       return;
     }
     served = true;
-    const size = fs.statSync(zipPath).size;
+    let size = 0;
+    try {
+      size = fs.statSync(zipPath).size;
+    } catch {
+      response.writeHead(500, { 'access-control-allow-origin': '*' });
+      response.end();
+      return;
+    }
     response.writeHead(200, {
       'access-control-allow-origin': '*',
       'content-length': String(size),
       'content-type': 'application/zip',
     });
-    fs.createReadStream(zipPath).pipe(response);
+    const stream = fs.createReadStream(zipPath);
+    stream.on('error', () => {
+      if (!response.headersSent) {
+        response.writeHead(500, { 'access-control-allow-origin': '*' });
+        response.end();
+        return;
+      }
+      response.destroy();
+    });
+    stream.pipe(response);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -1912,20 +1928,43 @@ export async function importYomitanDictionaryFromZip(
     return false;
   }
 
-  const result = await serveDictionaryZipOnce(normalizedZipPath, async (archiveUrl) =>
-    invokeYomitanSettingsAutomation<boolean>(
-      `
-        (async () => {
-          await globalThis.__subminerYomitanSettingsAutomation.importDictionaryArchiveUrl(
-            ${JSON.stringify(archiveUrl)}
-          );
-          return true;
-        })();
-      `,
-      deps,
-      logger,
-    ),
+  const supportsUrlImport = await invokeYomitanSettingsAutomation<boolean>(
+    `
+      (() => typeof globalThis.__subminerYomitanSettingsAutomation.importDictionaryArchiveUrl === "function")();
+    `,
+    deps,
+    logger,
   );
+
+  const result =
+    supportsUrlImport === true
+      ? await serveDictionaryZipOnce(normalizedZipPath, async (archiveUrl) =>
+          invokeYomitanSettingsAutomation<boolean>(
+            `
+              (async () => {
+                await globalThis.__subminerYomitanSettingsAutomation.importDictionaryArchiveUrl(
+                  ${JSON.stringify(archiveUrl)}
+                );
+                return true;
+              })();
+            `,
+            deps,
+            logger,
+          ),
+        )
+      : await invokeYomitanSettingsAutomation<boolean>(
+          `
+            (async () => {
+              await globalThis.__subminerYomitanSettingsAutomation.importDictionaryArchiveBase64(
+                ${JSON.stringify(fs.readFileSync(normalizedZipPath).toString('base64'))},
+                ${JSON.stringify(path.basename(normalizedZipPath))}
+              );
+              return true;
+            })();
+          `,
+          deps,
+          logger,
+        );
   return result === true;
 }
 

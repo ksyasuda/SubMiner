@@ -1,0 +1,157 @@
+import assert from 'node:assert/strict';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import test from 'node:test';
+
+import { createCharacterDictionaryRuntimeService } from '../character-dictionary-runtime';
+import { getSnapshotPath, writeSnapshot } from './cache';
+import { CHARACTER_DICTIONARY_FORMAT_VERSION } from './constants';
+import type { CharacterDictionarySnapshot } from './types';
+
+const GRAPHQL_URL = 'https://graphql.anilist.co';
+const PNG_1X1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+nmX8AAAAASUVORK5CYII=',
+  'base64',
+);
+
+function makeTempDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-character-dictionary-'));
+}
+
+function createSnapshotWithoutImages(): CharacterDictionarySnapshot {
+  return {
+    formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
+    mediaId: 130298,
+    mediaTitle: 'The Eminence in Shadow',
+    entryCount: 1,
+    updatedAt: 1_700_000_000_000,
+    termEntries: [['アレクシア', 'あれくしあ', 'name primary', '', 75, ['Alexia'], 0, '']],
+    images: [],
+  };
+}
+
+test('generateForCurrentMedia refreshes same-version snapshots missing images when inline images are enabled', async () => {
+  const userDataPath = makeTempDir();
+  const outputDir = path.join(userDataPath, 'character-dictionaries');
+  writeSnapshot(getSnapshotPath(outputDir, 130298), createSnapshotWithoutImages());
+  const originalFetch = globalThis.fetch;
+  const fetchUrls: string[] = [];
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    fetchUrls.push(url);
+
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  english: 'The Eminence in Shadow',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'SUPPORTING',
+                      node: {
+                        id: 123,
+                        description: 'Alexia Midgar.',
+                        image: {
+                          large: 'https://cdn.example.com/character-123.png',
+                          medium: null,
+                        },
+                        name: {
+                          full: 'Alexia Midgar',
+                          native: 'アレクシア・ミドガル',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    }
+
+    if (url === 'https://cdn.example.com/character-123.png') {
+      return new Response(PNG_1X1, {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        season: null,
+        episode: 5,
+        source: 'fallback',
+      }),
+      getNameMatchImagesEnabled: () => true,
+      now: () => 1_700_000_000_500,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+    const refreshedSnapshot = JSON.parse(
+      fs.readFileSync(getSnapshotPath(outputDir, 130298), 'utf8'),
+    ) as CharacterDictionarySnapshot;
+
+    assert.equal(result.fromCache, false);
+    assert.ok(fetchUrls.includes(GRAPHQL_URL));
+    assert.ok(refreshedSnapshot.images.some((image) => image.path === 'img/m130298-c123.png'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia keeps same-version snapshots without images when inline images are disabled', async () => {
+  const userDataPath = makeTempDir();
+  const outputDir = path.join(userDataPath, 'character-dictionaries');
+  writeSnapshot(getSnapshotPath(outputDir, 130298), createSnapshotWithoutImages());
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        season: null,
+        episode: 5,
+        source: 'fallback',
+      }),
+      getNameMatchImagesEnabled: () => false,
+      now: () => 1_700_000_000_500,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+
+    assert.equal(result.fromCache, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
