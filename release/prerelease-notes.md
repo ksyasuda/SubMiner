@@ -19,6 +19,8 @@
 
 - **Known-Word Colors:** Known-word and N+1 annotation colors moved to `subtitleStyle.knownWordColor` and `subtitleStyle.nPlusOneColor`. Legacy Anki color keys remain accepted with deprecation warnings. N+1 highlighting is preserved for configs that already had it enabled; new configs leave it disabled unless `ankiConnect.nPlusOne.enabled` is set explicitly.
 
+- **Character Dictionary:** A new `Ctrl/Cmd+D` manager modal lets you remove, reorder, or override loaded dictionary entries. The in-app AniList title selector now waits for an explicit search rather than triggering automatically; the search box is prefilled from the current filename guess so it can be edited before confirming an override. Lookup entries are scoped to generated Japanese name aliases only, so raw romanized or English aliases no longer appear as separate results.
+
 - **Linux Updater:** Tray "Check for Updates" now installs the new AppImage automatically via `electron-updater`, matching the macOS and Windows update flow. System-package-managed AppImages (e.g. AUR `/opt/SubMiner`) and non-AppImage launches fall back to the GitHub-asset flow.
 
 - **Subsync:** The subtitle sync dialog now always opens the manual picker; the `subsync.defaultMode` config option has been removed.
@@ -26,8 +28,6 @@
 - **Jellyfin:** The server presets dropdown in Jellyfin setup is replaced by a single editable server URL field.
 
 - **AniSkip:** The key binding setting now uses click-to-learn key capture instead of raw text entry.
-
-- **Character Dictionary:** The in-app AniList title selector now waits for an explicit search rather than triggering automatically. The search box is prefilled from the current filename guess so it can be edited before confirming an override. Results are scoped to generated Japanese name aliases; raw romanized or English aliases no longer appear as separate entries.
 
 - **Setup:** The bundled mpv runtime plugin readiness card is removed from first-run setup; the legacy mpv plugin removal notice still appears when needed.
 
@@ -37,9 +37,9 @@
 
 ### Fixed
 
-- **macOS Overlay:** Significantly improved overlay focus and stability: the overlay hides when mpv loses focus, is minimized, or is no longer the foreground target; stays stable through transient window-tracking misses; remains correctly layered during stats mouse passthrough; opens over fullscreen mpv without switching Spaces; and stays stable when mpv remains frontmost but window geometry temporarily disappears from macOS APIs. Passthrough is fixed so mpv controls stay clickable before hovering a subtitle bar. The overlay also stays stable when clicking from the overlay back into mpv. Background tracking overhead is reduced while mpv is stably focused.
+- **macOS Overlay:** Significantly improved overlay focus and stability: the overlay hides when mpv loses focus, is minimized, or is no longer the foreground target; stays stable through transient window-tracking misses; remains correctly layered during stats mouse passthrough; opens over fullscreen mpv without switching Spaces; and stays stable when mpv remains frontmost but window geometry temporarily disappears from macOS APIs. Passthrough is fixed so mpv controls stay clickable before hovering a subtitle bar. The overlay stays stable when clicking from the overlay back into mpv. Background tracking overhead is reduced while mpv is stably focused.
 
-- **Linux/Hyprland Overlay:** Overlay placement refreshes after leaving mpv fullscreen so the visible overlay stays aligned to the player. The visible overlay remains stacked above mpv after mpv regains focus from clicks, and is suspended while the in-player stats window is open.
+- **Linux/Hyprland Overlay:** Overlay placement refreshes after leaving mpv fullscreen so the visible overlay stays aligned to the player. The visible overlay remains stacked above mpv after mpv regains focus from clicks, and is suspended while the in-player stats window is open. Settings windows (SubMiner and Yomitan) now open above the subtitle overlay on Hyprland instead of behind it.
 
 - **Jellyfin Playback:** Resolved a wide range of Jellyfin discovery and playback issues: the active item is no longer reloaded during startup, paused mpv is no longer misreported as playing, startup unpause no longer repeats after a manual pause or `y-t` toggle, duplicate ready signals no longer re-show the overlay, and long-lived sidebar ffmpeg extractors no longer run against stream URLs. Discovery now correctly handles delayed Japanese subtitle selection and prevents later-loading foreign tracks from stealing the active Japanese track. Discovery resume correctly handles `StartPositionTicks: 0` for items with saved progress.
 
@@ -65,7 +65,7 @@
 
 - **YouTube:** Primary subtitles are now downloaded to temporary local files so the primary bar and sidebar read the same source, with cleanup on reload and quit. False subtitle load failure notifications are suppressed after SubMiner confirms the selected track loaded. Launcher-managed playback commands create the tray icon even when attaching to an already-running process, and app-owned YouTube playback no longer lets the mpv plugin start a second SubMiner instance.
 
-- **Character Dictionary:** Cached media matches are reused when loading a title with an existing snapshot, avoiding redundant AniList search requests on repeat visits. The visible subtitle overlay is now suppressed as soon as the character dictionary modal opens, including while AniList lookup is loading or returns no results.
+- **Character Dictionary:** Cached media matches are reused when loading a title with an existing snapshot, avoiding redundant AniList search requests on repeat visits. The visible subtitle overlay is suppressed as soon as the character dictionary modal opens, including while AniList lookup is loading or returns no results.
 
 - **Updater:** Update checks are more stable across platforms: Linux uses GitHub release metadata instead of the native Electron updater; `subminer -u` can update independently of the tray app; macOS update dialogs reliably appear in the foreground; builds that cannot apply native updates show a manual-install message instead of a restart prompt; Windows retains the native NSIS update path while routing updater HTTP through the main process; and macOS updater metadata mismatches from conflicting ZIP filenames are resolved.
 
@@ -73,7 +73,7 @@
 
 - **Tray App:** Fixed several lifecycle issues with tray-launched Yomitan settings: the tray stays running when settings are closed; settings loading no longer blocks other tray actions; a close-only menu prevents accidentally quitting the tray app; an in-page close button is available on Hyprland where native window controls are unavailable; the embedded popup preview is disabled to prevent renderer hangs during sidebar navigation; extension refreshes at startup are serialized to prevent race conditions; and the session help modal can close correctly without mpv running. On Windows, the tray "Open SubMiner Setup" action now correctly opens the setup window after first-run setup is complete.
 
-- **Launcher:** Launcher-opened videos reuse an already-running background SubMiner instance and correctly reapply preferred subtitles on warm launches. Videos stay paused when attaching to a running background app until subtitle priming and tokenization readiness complete. Launcher-owned tray apps close after playback ends. `subminer settings` on macOS no longer emits Electron menu diagnostics. Linux first-run launcher installs now build with a valid Bun shebang. On Windows, managed mpv launches from a background SubMiner instance correctly retarget the new mpv socket, bind to the player window, and receive startup overlay options.
+- **Launcher:** Launcher-opened videos reuse an already-running background SubMiner instance and correctly reapply preferred subtitles on warm launches. Videos stay paused when attaching to a running background app until subtitle priming and tokenization readiness complete. Launcher-owned tray apps close after playback ends. `subminer settings` on macOS no longer emits Electron menu diagnostics. Linux first-run launcher installs now build with a valid Bun shebang. `subminer app` on Linux returns control to the terminal immediately. On Windows, managed mpv launches from a background SubMiner instance correctly retarget the new mpv socket, bind to the player window, and receive startup overlay options.
 
 - **Playback:** The first subtitle is primed before autoplay resumes so the overlay renders text before video playback begins. Launcher-owned videos quit SubMiner when playback ends while background and tray sessions stay alive.
 
