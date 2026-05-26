@@ -16,10 +16,23 @@ export interface OverlayManager {
   broadcastToOverlayWindows: (channel: string, ...args: unknown[]) => void;
 }
 
-export function createOverlayManager(): OverlayManager {
+type UpdateOverlayWindowBounds = typeof updateOverlayWindowBounds;
+
+export interface OverlayManagerOptions {
+  updateOverlayWindowBounds?: UpdateOverlayWindowBounds;
+  shouldPromoteWindowOnBoundsUpdate?: (window: BrowserWindow) => boolean;
+}
+
+export function createOverlayManager(options: OverlayManagerOptions = {}): OverlayManager {
   let mainWindow: BrowserWindow | null = null;
   let modalWindow: BrowserWindow | null = null;
   let visibleOverlayVisible = false;
+  const applyOverlayBounds = options.updateOverlayWindowBounds ?? updateOverlayWindowBounds;
+
+  const updateWindowBounds = (geometry: WindowGeometry, window: BrowserWindow | null): void => {
+    const promote = window ? (options.shouldPromoteWindowOnBoundsUpdate?.(window) ?? true) : true;
+    applyOverlayBounds(geometry, window, { promote });
+  };
 
   return {
     getMainWindow: () => mainWindow,
@@ -32,10 +45,10 @@ export function createOverlayManager(): OverlayManager {
     },
     getOverlayWindow: () => mainWindow,
     setOverlayWindowBounds: (geometry) => {
-      updateOverlayWindowBounds(geometry, mainWindow);
+      updateWindowBounds(geometry, mainWindow);
     },
     setModalWindowBounds: (geometry) => {
-      updateOverlayWindowBounds(geometry, modalWindow);
+      updateWindowBounds(geometry, modalWindow);
     },
     getVisibleOverlayVisible: () => visibleOverlayVisible,
     setVisibleOverlayVisible: (visible) => {

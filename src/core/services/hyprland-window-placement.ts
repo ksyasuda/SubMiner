@@ -18,6 +18,10 @@ export interface HyprlandPlacementBounds {
   height: number;
 }
 
+export interface HyprlandPlacementDispatchOptions {
+  promote?: boolean;
+}
+
 type ExecFileSync = typeof execFileSync;
 
 export function shouldAttemptHyprlandWindowPlacement(
@@ -64,6 +68,7 @@ export function findHyprlandWindowForPlacement(
 export function buildHyprlandPlacementDispatches(
   client: HyprlandPlacementClient,
   bounds?: HyprlandPlacementBounds | null,
+  options: HyprlandPlacementDispatchOptions = {},
 ): string[][] {
   if (!client.address) {
     return [];
@@ -95,7 +100,9 @@ export function buildHyprlandPlacementDispatches(
     dispatches.push(['dispatch', 'setprop', `${windowAddress} no_blur 1`]);
     dispatches.push(['dispatch', 'setprop', `${windowAddress} decorate 0`]);
   }
-  dispatches.push(['dispatch', 'alterzorder', `top,${windowAddress}`]);
+  if (options.promote !== false) {
+    dispatches.push(['dispatch', 'alterzorder', `top,${windowAddress}`]);
+  }
   return dispatches;
 }
 
@@ -127,6 +134,7 @@ export function ensureHyprlandWindowFloatingByTitle(options: {
   platform?: NodeJS.Platform;
   env?: NodeJS.ProcessEnv;
   pid?: number;
+  promote?: boolean;
   execFileSync?: ExecFileSync;
 }): boolean {
   if (!shouldAttemptHyprlandWindowPlacement(options.platform, options.env)) {
@@ -146,7 +154,9 @@ export function ensureHyprlandWindowFloatingByTitle(options: {
       return false;
     }
 
-    const dispatches = buildHyprlandPlacementDispatches(client, options.bounds);
+    const dispatches = buildHyprlandPlacementDispatches(client, options.bounds, {
+      promote: options.promote,
+    });
     for (const args of dispatches) {
       run('hyprctl', args, { stdio: 'ignore' });
     }

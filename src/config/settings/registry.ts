@@ -208,7 +208,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'ankiConnect.isLapis.enabled': 'Enable Lapis Features',
   'ankiConnect.isKiku.enabled': 'Enable Kiku Features',
   'stats.toggleKey': 'Toggle Stats Overlay',
-  'shortcuts.openCharacterDictionary': 'Open AniList Override',
+  'shortcuts.openCharacterDictionaryManager': 'Open Character Dictionary Manager',
   'subtitleSidebar.pauseVideoOnHover': 'Pause Video On Hover - Sidebar',
   'subtitleStyle.autoPauseVideoOnHover': 'Pause Video On Hover - Subtitles',
   'subtitleStyle.autoPauseVideoOnYomitanPopup': 'Pause Video On Yomitan Popup',
@@ -570,7 +570,7 @@ function subsectionForPath(path: string): string | undefined {
       return 'Toggle & Visibility';
     }
     if (
-      leaf === 'openCharacterDictionary' ||
+      leaf === 'openCharacterDictionaryManager' ||
       leaf === 'openRuntimeOptions' ||
       leaf === 'openJimaku' ||
       leaf === 'openSessionHelp' ||

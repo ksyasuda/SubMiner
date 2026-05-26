@@ -14,7 +14,7 @@ The feature has three stages: **snapshot**, **merge**, and **match**.
 
 2. **Merge** — SubMiner maintains a most-recently-used list of media IDs (default: 3). Snapshots from those titles are merged into a single Yomitan ZIP — `character-dictionaries/merged.zip` — which is always named "SubMiner Character Dictionary" so Yomitan treats it as a single stable dictionary across rebuilds.
 
-3. **Match** — During subtitle rendering, Yomitan scans subtitle text against all loaded dictionaries including the character dictionary. Tokens that match a character entry are flagged with `isNameMatch` and highlighted in the overlay with a distinct color.
+3. **Match** — During subtitle rendering, Yomitan scans subtitle text against all loaded dictionaries including the character dictionary. SubMiner only accepts character entries for the current AniList media when that media ID is known, then flags matching tokens with `isNameMatch` and highlights them in the overlay with a distinct color.
 
 ## Enabling the Feature
 
@@ -89,9 +89,10 @@ Name matching runs inside Yomitan's scanning pipeline during subtitle tokenizati
 
 1. Yomitan receives subtitle text and scans for dictionary matches.
 2. Entries from "SubMiner Character Dictionary" are checked with exact primary-source matching — the token must match the entry's `originalText` with `isPrimary: true` and `matchType: 'exact'`.
-3. Matched tokens are flagged `isNameMatch: true` and forwarded to the renderer.
-4. If `subtitleStyle.nameMatchEnabled` is enabled, the renderer applies the name-match highlight color (default: `#f5bde6`).
-5. If `subtitleStyle.nameMatchImagesEnabled` is enabled, the renderer also injects a small circular AniList portrait from the cached snapshot image data.
+3. When the current AniList media ID is known, entries whose embedded media ID belongs to a different title are ignored for name matching and inline portraits.
+4. Matched tokens are flagged `isNameMatch: true` and forwarded to the renderer.
+5. If `subtitleStyle.nameMatchEnabled` is enabled, the renderer applies the name-match highlight color (default: `#f5bde6`).
+6. If `subtitleStyle.nameMatchImagesEnabled` is enabled, the renderer also injects a small circular AniList portrait from the cached snapshot image data.
 
 Older snapshot schema versions are regenerated automatically. Current-version snapshots are normally reused, but when `subtitleStyle.nameMatchImagesEnabled` is enabled SubMiner also checks whether the cached snapshot contains usable character portrait data. If it does not, the snapshot is refreshed so the merged dictionary can include images.
 
@@ -178,7 +179,7 @@ SubMiner uses `guessit` to infer the anime title from the active filename before
 
 Use the in-app selector or CLI to pin the correct AniList media for the whole series:
 
-- In-app: open the selector with `Ctrl/Cmd+Alt+A` or `--open-character-dictionary`, edit the prefilled title if needed, then search and choose the correct result.
+- In-app: open the manager with `Ctrl/Cmd+D`, use the **Override** tab/button, edit the prefilled title if needed, then search and choose the correct result. The CLI flag `--open-character-dictionary` still opens the selector directly.
 - CLI: `--dictionary-candidates` still lists matches for the current filename guess.
 
 ```bash
@@ -198,6 +199,16 @@ subminer app --open-character-dictionary
 
 Manual selections are stored in `character-dictionaries/anilist-overrides.json` using a series key derived from the episode's parent directory plus the filename guess. Later episodes in the same directory use the selected AniList ID automatically, while separate season directories can keep separate overrides and character dictionaries. When the override replaces a previous wrong match, SubMiner removes that stale media ID from the merged dictionary's active set and rebuilds/imports the merged character dictionary.
 
+## Managing Loaded Entries
+
+Open the manager with `Ctrl/Cmd+D` (`shortcuts.openCharacterDictionaryManager`). The manager shows the merged dictionary's active MRU entries, marks the current anime, and lets you adjust eviction priority for the other loaded entries.
+
+- **Remove** drops a non-current entry from the active merged dictionary and rebuilds/imports once.
+- **Up/Down** changes MRU order for future eviction without rebuilding.
+- **Override** opens the AniList selector for that entry's title so you can replace a saved loaded entry.
+
+The current anime cannot be removed while you are watching it; it stays loaded until playback changes.
+
 ## File Structure
 
 All character dictionary data lives under `{userData}/character-dictionaries/`:
@@ -215,7 +226,7 @@ character-dictionaries/
     m170942-va67890.jpg       # Voice actor portrait
 ```
 
-**Snapshot format** (v16): each snapshot contains the media ID, title, entry count, timestamp, an array of Yomitan term entries, and base64-encoded images.
+**Snapshot format** (v17): each snapshot contains the media ID, title, entry count, timestamp, an array of Yomitan term entries, and base64-encoded images.
 
 **ZIP structure** follows the Yomitan dictionary format:
 
@@ -264,7 +275,7 @@ If you work with visual novels or want a standalone dictionary generator indepen
 - **Names not highlighting:** Confirm `anilist.characterDictionary.enabled` is `true` and `subtitleStyle.nameMatchEnabled` is `true`. Check that the current media has an AniList entry — SubMiner needs a media ID to fetch characters.
 - **Inline portraits missing:** Confirm `subtitleStyle.nameMatchImagesEnabled` is `true`. On the next character dictionary sync, SubMiner refreshes current-version snapshots that do not contain usable cached character portrait data. Portraits still require AniList to return an image and the image download to succeed.
 - **Sync seems stuck:** The auto-sync debounces for 800ms after media changes and throttles image downloads at 250ms per image. Large casts (50+ characters) take longer. Check the status bar for the current sync phase.
-- **Wrong characters showing:** Open the in-app character dictionary selector (`--open-character-dictionary`), edit the search title, and select the right AniList entry. You can also run `--dictionary-candidates`, then save the correct media with `--dictionary-select --dictionary-anilist-id <id>`. This replaces stale wrong-title entries for that series. If names are only from an older unrelated show, they'll rotate out once you watch enough new titles to push it past `maxLoaded`.
+- **Wrong characters showing:** Open the in-app character dictionary manager (`Ctrl/Cmd+D`) to remove/reorder loaded titles, then use **Override** to correct the active AniList match. You can also run `--dictionary-candidates`, then save the correct media with `--dictionary-select --dictionary-anilist-id <id>`. SubMiner ignores character entries from other loaded titles for subtitle name matching and inline portraits once the current media ID is known.
 - **Yomitan import fails:** SubMiner waits up to 7 seconds for Yomitan to be ready for mutations. If Yomitan is still loading dictionaries or performing another import, the operation may time out. Restarting the overlay typically resolves this.
 - **Portraits missing:** Images are downloaded from AniList CDN during snapshot generation. If the network was unavailable during the initial sync, delete the snapshot file from `character-dictionaries/snapshots/` and let it regenerate.
 

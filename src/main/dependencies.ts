@@ -98,6 +98,9 @@ export interface MainIpcRuntimeServiceDepsParams {
   runAnilistPostWatchUpdateOnManualMark?: IpcDepsRuntimeOptions['runAnilistPostWatchUpdateOnManualMark'];
   getCharacterDictionarySelection?: IpcDepsRuntimeOptions['getCharacterDictionarySelection'];
   setCharacterDictionarySelection?: IpcDepsRuntimeOptions['setCharacterDictionarySelection'];
+  getCharacterDictionaryManagerSnapshot?: IpcDepsRuntimeOptions['getCharacterDictionaryManagerSnapshot'];
+  removeCharacterDictionaryManagedEntry?: IpcDepsRuntimeOptions['removeCharacterDictionaryManagedEntry'];
+  moveCharacterDictionaryManagedEntry?: IpcDepsRuntimeOptions['moveCharacterDictionaryManagedEntry'];
   appendClipboardVideoToQueue: IpcDepsRuntimeOptions['appendClipboardVideoToQueue'];
   getPlaylistBrowserSnapshot: IpcDepsRuntimeOptions['getPlaylistBrowserSnapshot'];
   appendPlaylistBrowserFile: IpcDepsRuntimeOptions['appendPlaylistBrowserFile'];
@@ -272,6 +275,9 @@ export function createMainIpcRuntimeServiceDeps(
     runAnilistPostWatchUpdateOnManualMark: params.runAnilistPostWatchUpdateOnManualMark,
     getCharacterDictionarySelection: params.getCharacterDictionarySelection,
     setCharacterDictionarySelection: params.setCharacterDictionarySelection,
+    getCharacterDictionaryManagerSnapshot: params.getCharacterDictionaryManagerSnapshot,
+    removeCharacterDictionaryManagedEntry: params.removeCharacterDictionaryManagedEntry,
+    moveCharacterDictionaryManagedEntry: params.moveCharacterDictionaryManagedEntry,
     appendClipboardVideoToQueue: params.appendClipboardVideoToQueue,
     getPlaylistBrowserSnapshot: params.getPlaylistBrowserSnapshot,
     appendPlaylistBrowserFile: params.appendPlaylistBrowserFile,

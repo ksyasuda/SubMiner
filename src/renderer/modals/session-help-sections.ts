@@ -205,7 +205,9 @@ function describeSessionAction(
     case 'openSessionHelp':
       return 'Open session help';
     case 'openCharacterDictionary':
-      return 'Open character dictionary anime selector';
+      return 'Open AniList override selector';
+    case 'openCharacterDictionaryManager':
+      return 'Open character dictionary manager';
     case 'openControllerSelect':
       return 'Open controller select';
     case 'openControllerDebug':
@@ -255,6 +257,7 @@ function sectionForSessionBinding(binding: CompiledSessionBinding): string {
     case 'openRuntimeOptions':
     case 'openJimaku':
     case 'openCharacterDictionary':
+    case 'openCharacterDictionaryManager':
     case 'openControllerSelect':
     case 'openControllerDebug':
     case 'openYoutubePicker':

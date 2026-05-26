@@ -5,7 +5,7 @@ import { openOverlayHostedModal, retryOverlayModalOpen } from './overlay-hosted-
 const CHARACTER_DICTIONARY_MODAL: OverlayHostedModal = 'character-dictionary';
 const CHARACTER_DICTIONARY_OPEN_TIMEOUT_MS = 1500;
 
-export async function openCharacterDictionaryModal(deps: {
+async function openCharacterDictionaryModalChannel(deps: {
   ensureOverlayStartupPrereqs: () => void;
   ensureOverlayWindowsReadyForVisibilityActions: () => void;
   sendToActiveOverlayWindow: (
@@ -18,6 +18,8 @@ export async function openCharacterDictionaryModal(deps: {
   ) => boolean;
   waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
   logWarn: (message: string) => void;
+  channel: string;
+  retryWarning: string;
 }): Promise<boolean> {
   return await retryOverlayModalOpen(
     {
@@ -27,8 +29,7 @@ export async function openCharacterDictionaryModal(deps: {
     {
       modal: CHARACTER_DICTIONARY_MODAL,
       timeoutMs: CHARACTER_DICTIONARY_OPEN_TIMEOUT_MS,
-      retryWarning:
-        'Character dictionary modal did not acknowledge modal open on first attempt; retrying dedicated modal window.',
+      retryWarning: deps.retryWarning,
       sendOpen: () =>
         openOverlayHostedModal(
           {
@@ -38,11 +39,38 @@ export async function openCharacterDictionaryModal(deps: {
             sendToActiveOverlayWindow: deps.sendToActiveOverlayWindow,
           },
           {
-            channel: IPC_CHANNELS.event.characterDictionaryOpen,
+            channel: deps.channel,
             modal: CHARACTER_DICTIONARY_MODAL,
             preferModalWindow: true,
           },
         ),
     },
   );
+}
+
+type OpenCharacterDictionaryModalDeps = Omit<
+  Parameters<typeof openCharacterDictionaryModalChannel>[0],
+  'channel' | 'retryWarning'
+>;
+
+export async function openCharacterDictionaryModal(
+  deps: OpenCharacterDictionaryModalDeps,
+): Promise<boolean> {
+  return await openCharacterDictionaryModalChannel({
+    ...deps,
+    channel: IPC_CHANNELS.event.characterDictionaryOpen,
+    retryWarning:
+      'Character dictionary modal did not acknowledge modal open on first attempt; retrying dedicated modal window.',
+  });
+}
+
+export async function openCharacterDictionaryManagerModal(
+  deps: OpenCharacterDictionaryModalDeps,
+): Promise<boolean> {
+  return await openCharacterDictionaryModalChannel({
+    ...deps,
+    channel: IPC_CHANNELS.event.characterDictionaryManagerOpen,
+    retryWarning:
+      'Character dictionary manager did not acknowledge modal open on first attempt; retrying dedicated modal window.',
+  });
 }

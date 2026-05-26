@@ -492,8 +492,8 @@ export function handleCliCommand(
     );
   } else if (args.openCharacterDictionary) {
     dispatchCliSessionAction(
-      { actionId: 'openCharacterDictionary' },
-      'openCharacterDictionary',
+      { actionId: 'openCharacterDictionaryManager' },
+      'openCharacterDictionaryManager',
       'Open character dictionary failed',
     );
   } else if (args.openControllerSelect) {

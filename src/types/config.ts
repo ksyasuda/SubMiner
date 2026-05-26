@@ -105,7 +105,7 @@ export interface ShortcutsConfig {
   multiCopyTimeoutMs?: number;
   toggleSecondarySub?: string | null;
   markAudioCard?: string | null;
-  openCharacterDictionary?: string | null;
+  openCharacterDictionaryManager?: string | null;
   openRuntimeOptions?: string | null;
   openJimaku?: string | null;
   openSessionHelp?: string | null;

@@ -25,7 +25,7 @@ function makeShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configured
     multiCopyTimeoutMs: 2500,
     toggleSecondarySub: null,
     markAudioCard: null,
-    openCharacterDictionary: null,
+    openCharacterDictionaryManager: null,
     openRuntimeOptions: null,
     openJimaku: null,
     openSessionHelp: null,
@@ -48,6 +48,9 @@ function createDeps(overrides: Partial<OverlayShortcutRuntimeDeps> = {}) {
     },
     openCharacterDictionary: () => {
       calls.push('openCharacterDictionary');
+    },
+    openCharacterDictionaryManager: () => {
+      calls.push('openCharacterDictionaryManager');
     },
     openJimaku: () => {
       calls.push('openJimaku');
@@ -93,6 +96,7 @@ test('createOverlayShortcutRuntimeHandlers dispatches sync and async handlers', 
   overlayHandlers.copySubtitleMultiple(1111);
   overlayHandlers.toggleSecondarySub();
   overlayHandlers.openRuntimeOptions();
+  overlayHandlers.openCharacterDictionaryManager();
   overlayHandlers.openJimaku();
   overlayHandlers.mineSentenceMultiple(2222);
   overlayHandlers.updateLastCardFromClipboard();
@@ -104,6 +108,7 @@ test('createOverlayShortcutRuntimeHandlers dispatches sync and async handlers', 
     'copySubtitleMultiple:1111',
     'toggleSecondarySub',
     'openRuntimeOptions',
+    'openCharacterDictionaryManager',
     'openJimaku',
     'mineSentenceMultiple:2222',
     'updateLastCardFromClipboard',
@@ -159,6 +164,7 @@ test('runOverlayShortcutLocalFallback dispatches matching single-step actions', 
     {
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
       openCharacterDictionary: () => handled.push('openCharacterDictionary'),
+      openCharacterDictionaryManager: () => handled.push('openCharacterDictionaryManager'),
       openJimaku: () => handled.push('openJimaku'),
       markAudioCard: () => handled.push('markAudioCard'),
       copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
@@ -192,6 +198,7 @@ test('runOverlayShortcutLocalFallback leaves multi-step numeric shortcuts for re
     {
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
       openCharacterDictionary: () => handled.push('openCharacterDictionary'),
+      openCharacterDictionaryManager: () => handled.push('openCharacterDictionaryManager'),
       openJimaku: () => handled.push('openJimaku'),
       markAudioCard: () => handled.push('markAudioCard'),
       copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
@@ -212,6 +219,7 @@ test('runOverlayShortcutLocalFallback leaves multi-step numeric shortcuts for re
     {
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
       openCharacterDictionary: () => handled.push('openCharacterDictionary'),
+      openCharacterDictionaryManager: () => handled.push('openCharacterDictionaryManager'),
       openJimaku: () => handled.push('openJimaku'),
       markAudioCard: () => handled.push('markAudioCard'),
       copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
@@ -249,6 +257,7 @@ test('runOverlayShortcutLocalFallback passes allowWhenRegistered for secondary-s
     {
       openRuntimeOptions: () => {},
       openCharacterDictionary: () => {},
+      openCharacterDictionaryManager: () => {},
       openJimaku: () => {},
       markAudioCard: () => {},
       copySubtitleMultiple: () => {},
@@ -285,6 +294,7 @@ test('runOverlayShortcutLocalFallback allows registered-global jimaku shortcut',
     {
       openRuntimeOptions: () => {},
       openCharacterDictionary: () => {},
+      openCharacterDictionaryManager: () => {},
       openJimaku: () => {},
       markAudioCard: () => {},
       copySubtitleMultiple: () => {},
@@ -313,6 +323,9 @@ test('runOverlayShortcutLocalFallback returns false when no action matches', () 
       called = true;
     },
     openCharacterDictionary: () => {
+      called = true;
+    },
+    openCharacterDictionaryManager: () => {
       called = true;
     },
     openJimaku: () => {
@@ -398,6 +411,7 @@ test('registerOverlayShortcutsRuntime reports active shortcuts when configured',
       toggleSecondarySub: () => {},
       markAudioCard: () => {},
       openCharacterDictionary: () => {},
+      openCharacterDictionaryManager: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
     }),
@@ -425,6 +439,7 @@ test('unregisterOverlayShortcutsRuntime clears pending shortcut work when active
       toggleSecondarySub: () => {},
       markAudioCard: () => {},
       openCharacterDictionary: () => {},
+      openCharacterDictionaryManager: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
     }),

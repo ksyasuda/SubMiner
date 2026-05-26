@@ -146,6 +146,7 @@ function buildKnownNamesBlock(nameTerms: string[]): Record<string, unknown> | nu
 
 export function createDefinitionGlossary(
   character: CharacterRecord,
+  mediaId: number,
   mediaTitle: string,
   imagePath: string | null,
   vaImagePaths: Map<number, string>,
@@ -258,7 +259,7 @@ export function createDefinitionGlossary(
   return [
     {
       type: 'structured-content',
-      content: { tag: 'div', content },
+      content: { tag: 'div', data: { subminerMediaId: String(mediaId) }, content },
     },
   ];
 }

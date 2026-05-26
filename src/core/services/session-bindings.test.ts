@@ -19,7 +19,7 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
     multiCopyTimeoutMs: 2500,
     toggleSecondarySub: null,
     markAudioCard: null,
-    openCharacterDictionary: null,
+    openCharacterDictionaryManager: null,
     openRuntimeOptions: null,
     openJimaku: null,
     openSessionHelp: null,
@@ -207,6 +207,41 @@ test('compileSessionBindings keeps default replay and next subtitle session acti
   const next = bySignature.get('ctrl+shift+KeyL');
   assert.equal(next?.actionType, 'session-action');
   assert.equal(next?.actionId, 'playNextSubtitle');
+});
+
+test('compileSessionBindings keeps only the character dictionary manager bound by default', () => {
+  const result = compileSessionBindings({
+    shortcuts: resolveConfiguredShortcuts(DEFAULT_CONFIG, DEFAULT_CONFIG),
+    keybindings: DEFAULT_KEYBINDINGS,
+    statsToggleKey: DEFAULT_CONFIG.stats.toggleKey,
+    platform: 'linux',
+    rawConfig: DEFAULT_CONFIG,
+  });
+
+  const characterDictionaryBindings = result.bindings.flatMap((binding) => {
+    if (binding.actionType !== 'session-action') return [];
+    if (
+      binding.actionId !== 'openCharacterDictionary' &&
+      binding.actionId !== 'openCharacterDictionaryManager'
+    ) {
+      return [];
+    }
+    return [
+      {
+        sourcePath: binding.sourcePath,
+        originalKey: binding.originalKey,
+        actionId: binding.actionId,
+      },
+    ];
+  });
+
+  assert.deepEqual(characterDictionaryBindings, [
+    {
+      sourcePath: 'shortcuts.openCharacterDictionaryManager',
+      originalKey: 'CommandOrControl+D',
+      actionId: 'openCharacterDictionaryManager',
+    },
+  ]);
 });
 
 test('compileSessionBindings wires every default keybinding to an overlay or mpv action', () => {
@@ -411,7 +446,7 @@ test('compileSessionBindings wires every configured shortcut key into the shared
     'mineSentenceMultiple',
     'toggleSecondarySub',
     'markAudioCard',
-    'openCharacterDictionary',
+    'openCharacterDictionaryManager',
     'openRuntimeOptions',
     'openJimaku',
     'openSessionHelp',

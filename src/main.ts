@@ -500,7 +500,10 @@ import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './mai
 import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
 import { openSubsyncManualModal as openSubsyncManualModalRuntime } from './main/runtime/subsync-open';
 import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
-import { openCharacterDictionaryModal as openCharacterDictionaryModalRuntime } from './main/runtime/character-dictionary-open';
+import {
+  openCharacterDictionaryManagerModal as openCharacterDictionaryManagerModalRuntime,
+  openCharacterDictionaryModal as openCharacterDictionaryModalRuntime,
+} from './main/runtime/character-dictionary-open';
 import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
 import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
@@ -520,7 +523,13 @@ import { createStatsOverlayVisibilityChangeHandler } from './main/runtime/stats-
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryImageLookup } from './main/character-dictionary-runtime/image-lookup';
-import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
+import {
+  createCharacterDictionaryAutoSyncRuntimeService,
+  getCharacterDictionaryManagerSnapshot,
+  moveCharacterDictionaryManagedEntry,
+  removeCharacterDictionaryManagedEntry,
+  replaceCharacterDictionaryManagedEntry,
+} from './main/runtime/character-dictionary-auto-sync';
 import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/character-dictionary-auto-sync-completion';
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
@@ -838,7 +847,15 @@ const bootServices = createMainBootServices({
   createSubtitleWebSocket: (payloadMode) => new SubtitleWebSocket(payloadMode),
   createLogger,
   createMainRuntimeRegistry,
-  createOverlayManager,
+  createOverlayManager: () =>
+    createOverlayManager({
+      shouldPromoteWindowOnBoundsUpdate: (window) =>
+        !shouldSuppressVisibleOverlayRaiseForSeparateWindow({
+          window,
+          mainWindow: overlayManager.getMainWindow(),
+          separateWindows: [appState.configSettingsWindow, appState.yomitanSettingsWindow],
+        }),
+    }),
   createOverlayModalInputState,
   createOverlayContentMeasurementStore: ({ logger }) => {
     const buildHandler = createBuildOverlayContentMeasurementStoreMainDepsHandler({
@@ -1899,6 +1916,9 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
     openCharacterDictionary: () => {
       openCharacterDictionaryOverlay();
     },
+    openCharacterDictionaryManager: () => {
+      openCharacterDictionaryManagerOverlay();
+    },
     openJimaku: () => {
       openJimakuOverlay();
     },
@@ -2191,10 +2211,6 @@ const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
   logWarn: (message) => logger.warn(message),
 });
 
-const characterDictionaryImageLookup = createCharacterDictionaryImageLookup({
-  userDataPath: USER_DATA_PATH,
-});
-
 const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRuntimeService({
   userDataPath: USER_DATA_PATH,
   getConfig: () => {
@@ -2306,6 +2322,11 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
       },
     );
   },
+});
+
+const characterDictionaryImageLookup = createCharacterDictionaryImageLookup({
+  userDataPath: USER_DATA_PATH,
+  getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
 });
 
 const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
@@ -2915,6 +2936,14 @@ function openCharacterDictionaryOverlay(): void {
     openCharacterDictionaryModalRuntime,
     'Character dictionary overlay unavailable.',
     'Failed to open character dictionary overlay.',
+  );
+}
+
+function openCharacterDictionaryManagerOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openCharacterDictionaryManagerModalRuntime,
+    'Character dictionary manager unavailable.',
+    'Failed to open character dictionary manager.',
   );
 }
 
@@ -4740,6 +4769,8 @@ const {
       getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
       getNameMatchImagesEnabled: () => getResolvedConfig().subtitleStyle.nameMatchImagesEnabled,
       getCharacterNameImage: (term) => characterDictionaryImageLookup.get(term),
+      getCurrentCharacterDictionaryMediaId: () =>
+        characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.frequency',
@@ -5727,6 +5758,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     openJimaku: () => openJimakuOverlay(),
     openSessionHelp: () => openSessionHelpOverlay(),
     openCharacterDictionary: () => openCharacterDictionaryOverlay(),
+    openCharacterDictionaryManager: () => openCharacterDictionaryManagerOverlay(),
     openControllerSelect: () => openControllerSelectOverlay(),
     openControllerDebug: () => openControllerDebugOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
@@ -5990,8 +6022,31 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       runAnilistPostWatchUpdateOnManualMark: () => maybeRunAnilistPostWatchUpdate({ force: true }),
       getCharacterDictionarySelection: (searchTitle?: string) =>
         characterDictionaryRuntime.getManualSelectionSnapshot(undefined, searchTitle),
-      setCharacterDictionarySelection: async (mediaId: number) =>
-        applyCharacterDictionarySelection(
+      setCharacterDictionarySelection: async (
+        mediaId: number,
+        replaceManagedMediaId?: number,
+        mediaTitle?: string,
+      ) => {
+        if (replaceManagedMediaId !== undefined && mediaTitle) {
+          const result = replaceCharacterDictionaryManagedEntry(
+            USER_DATA_PATH,
+            replaceManagedMediaId,
+            {
+              mediaId,
+              mediaTitle,
+            },
+          );
+          if (result.ok && result.rebuildRequired) {
+            try {
+              await characterDictionaryAutoSyncRuntime.runSyncNow();
+              characterDictionaryImageLookup.invalidate();
+            } catch (error) {
+              logger.warn('Failed to rebuild character dictionary after manager override:', error);
+            }
+          }
+          return result;
+        }
+        return await applyCharacterDictionarySelection(
           { mediaId },
           {
             setManualSelection: (request) => characterDictionaryRuntime.setManualSelection(request),
@@ -5999,7 +6054,46 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
             warn: (message, error) => logger.warn(message, error),
           },
+        );
+      },
+      getCharacterDictionaryManagerSnapshot: async () =>
+        getCharacterDictionaryManagerSnapshot(
+          USER_DATA_PATH,
+          characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
         ),
+      removeCharacterDictionaryManagedEntry: async (mediaId: number) => {
+        const result = removeCharacterDictionaryManagedEntry(
+          USER_DATA_PATH,
+          mediaId,
+          characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+        );
+        if (result.ok && result.rebuildRequired) {
+          try {
+            await characterDictionaryAutoSyncRuntime.runSyncNow();
+            characterDictionaryImageLookup.invalidate();
+          } catch (error) {
+            logger.warn('Failed to rebuild character dictionary after manager removal:', error);
+          }
+        }
+        return result;
+      },
+      moveCharacterDictionaryManagedEntry: async (mediaId: number, direction: 1 | -1) => {
+        const result = moveCharacterDictionaryManagedEntry(
+          USER_DATA_PATH,
+          mediaId,
+          direction,
+          characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+        );
+        if (result.ok && result.rebuildRequired) {
+          try {
+            await characterDictionaryAutoSyncRuntime.runSyncNow();
+            characterDictionaryImageLookup.invalidate();
+          } catch (error) {
+            logger.warn('Failed to rebuild character dictionary after manager reorder:', error);
+          }
+        }
+        return result;
+      },
       appendClipboardVideoToQueue: () => appendClipboardVideoToQueue(),
       ...playlistBrowserMainDeps,
       getImmersionTracker: () => appState.immersionTracker,

@@ -54,9 +54,22 @@ test('settings registry moves AniSkip button key into input shortcuts and hot re
   assert.equal(field('mpv.aniskipButtonKey').restartBehavior, 'hot-reload');
 });
 
+test('settings registry exposes character dictionary panel shortcuts dynamically', () => {
+  assert.equal(
+    fields.some((candidate) => candidate.configPath === 'shortcuts.openCharacterDictionary'),
+    false,
+  );
+  assert.equal(
+    field('shortcuts.openCharacterDictionaryManager').label,
+    'Open Character Dictionary Manager',
+  );
+  assert.equal(field('shortcuts.openCharacterDictionaryManager').subsection, 'Open Panels');
+});
+
 test('settings registry hides removed modal-only fields', () => {
   for (const path of [
     'shortcuts.multiCopyTimeoutMs',
+    'shortcuts.openCharacterDictionary',
     'anilist.characterDictionary.profileScope',
     'jellyfin.directPlayContainers',
   ]) {

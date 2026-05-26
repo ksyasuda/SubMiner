@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Character Dictionary:** Loaded entries are now scoped to the current AniList media for subtitle name matching and inline portraits. Added a character dictionary manager at `Ctrl/Cmd+D`; AniList overrides now live inside that manager instead of using a separate default shortcut.
+
 ## v0.14.0 (2026-05-12)
 
 SubMiner no longer requires a globally-installed mpv plugin. The bundled plugin is injected at runtime only when SubMiner launches mpv — through the `subminer` launcher, the app's managed launch, or the packaged Windows SubMiner mpv shortcut. When you open mpv on its own, SubMiner is not involved and the plugin is never loaded. If you have a legacy global SubMiner plugin under mpv's `scripts` directory, first-run setup detects it and prompts you to remove it before playback starts.

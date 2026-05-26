@@ -59,11 +59,16 @@ export type RendererDom = {
 
   characterDictionaryModal: HTMLDivElement;
   characterDictionaryClose: HTMLButtonElement;
+  characterDictionaryOverrideTab: HTMLButtonElement;
+  characterDictionaryManageTab: HTMLButtonElement;
   characterDictionarySummary: HTMLDivElement;
+  characterDictionarySearchPanel: HTMLDivElement;
   characterDictionarySearchInput: HTMLInputElement;
   characterDictionarySearchButton: HTMLButtonElement;
   characterDictionaryCurrent: HTMLDivElement;
   characterDictionaryCandidates: HTMLUListElement;
+  characterDictionaryManagerPanel: HTMLDivElement;
+  characterDictionaryManagedEntries: HTMLUListElement;
   characterDictionaryStatus: HTMLDivElement;
 
   subsyncModal: HTMLDivElement;
@@ -188,7 +193,16 @@ export function resolveRendererDom(): RendererDom {
 
     characterDictionaryModal: getRequiredElement<HTMLDivElement>('characterDictionaryModal'),
     characterDictionaryClose: getRequiredElement<HTMLButtonElement>('characterDictionaryClose'),
+    characterDictionaryOverrideTab: getRequiredElement<HTMLButtonElement>(
+      'characterDictionaryOverrideTab',
+    ),
+    characterDictionaryManageTab: getRequiredElement<HTMLButtonElement>(
+      'characterDictionaryManageTab',
+    ),
     characterDictionarySummary: getRequiredElement<HTMLDivElement>('characterDictionarySummary'),
+    characterDictionarySearchPanel: getRequiredElement<HTMLDivElement>(
+      'characterDictionarySearchPanel',
+    ),
     characterDictionarySearchInput: getRequiredElement<HTMLInputElement>(
       'characterDictionarySearchInput',
     ),
@@ -198,6 +212,12 @@ export function resolveRendererDom(): RendererDom {
     characterDictionaryCurrent: getRequiredElement<HTMLDivElement>('characterDictionaryCurrent'),
     characterDictionaryCandidates: getRequiredElement<HTMLUListElement>(
       'characterDictionaryCandidates',
+    ),
+    characterDictionaryManagerPanel: getRequiredElement<HTMLDivElement>(
+      'characterDictionaryManagerPanel',
+    ),
+    characterDictionaryManagedEntries: getRequiredElement<HTMLUListElement>(
+      'characterDictionaryManagedEntries',
     ),
     characterDictionaryStatus: getRequiredElement<HTMLDivElement>('characterDictionaryStatus'),
 

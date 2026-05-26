@@ -23,6 +23,14 @@ function normalizeLookupTerm(term: string): string {
   return term.trim();
 }
 
+function normalizeLookupMediaId(mediaId: unknown): number | null {
+  if (typeof mediaId !== 'number' || !Number.isFinite(mediaId)) {
+    return null;
+  }
+  const normalized = Math.floor(mediaId);
+  return normalized > 0 ? normalized : null;
+}
+
 function getSnapshotsDir(outputDir: string): string {
   return path.join(outputDir, 'snapshots');
 }
@@ -209,8 +217,9 @@ export function buildCharacterNameImageIndexFromSnapshots(
 export function createCharacterDictionaryImageLookup(deps: {
   userDataPath?: string;
   outputDir?: string;
+  getCurrentMediaId?: () => number | null | undefined;
 }): {
-  get: (term: string) => CharacterNameImage | null;
+  get: (term: string, mediaId?: number | null) => CharacterNameImage | null;
   invalidate: () => void;
 } {
   const outputDir =
@@ -218,10 +227,12 @@ export function createCharacterDictionaryImageLookup(deps: {
     (deps.userDataPath ? path.join(deps.userDataPath, 'character-dictionaries') : '');
   let signature: string | null = null;
   let index = new Map<string, CharacterNameImage>();
+  let indexByMediaId = new Map<number, Map<string, CharacterNameImage>>();
 
   function refreshIfNeeded(): void {
     if (!outputDir) {
       index = new Map<string, CharacterNameImage>();
+      indexByMediaId = new Map<number, Map<string, CharacterNameImage>>();
       signature = '';
       return;
     }
@@ -230,16 +241,29 @@ export function createCharacterDictionaryImageLookup(deps: {
       return;
     }
     signature = nextSignature;
-    index = buildCharacterNameImageIndexFromSnapshots(outputDir);
+    index = new Map<string, CharacterNameImage>();
+    indexByMediaId = new Map<number, Map<string, CharacterNameImage>>();
+    for (const snapshot of readCachedSnapshots(outputDir)) {
+      appendSnapshotImages(index, snapshot);
+      const mediaIndex = new Map<string, CharacterNameImage>();
+      appendSnapshotImages(mediaIndex, snapshot);
+      if (mediaIndex.size > 0) {
+        indexByMediaId.set(snapshot.mediaId, mediaIndex);
+      }
+    }
   }
 
   return {
-    get(term: string): CharacterNameImage | null {
+    get(term: string, mediaId?: number | null): CharacterNameImage | null {
       const normalizedTerm = normalizeLookupTerm(term);
       if (!normalizedTerm) {
         return null;
       }
       refreshIfNeeded();
+      const scopedMediaId = normalizeLookupMediaId(mediaId ?? deps.getCurrentMediaId?.() ?? null);
+      if (scopedMediaId !== null) {
+        return indexByMediaId.get(scopedMediaId)?.get(normalizedTerm) ?? null;
+      }
       return index.get(normalizedTerm) ?? null;
     },
     invalidate(): void {

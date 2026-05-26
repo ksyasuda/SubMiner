@@ -1281,6 +1281,158 @@ test('requestYomitanScanTokens marks grouped entries when SubMiner dictionary al
   assert.equal((result as Array<{ isNameMatch?: boolean }>)[0]?.isNameMatch, true);
 });
 
+test('requestYomitanScanTokens ignores SubMiner character entries from other media', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens(
+    'カズ',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true, currentCharacterDictionaryMediaId: 21202 },
+  );
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+    const text = (params as { text?: string } | undefined)?.text;
+    if (text !== 'カズ') {
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    }
+    return {
+      originalTextLength: 2,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: 'カズ',
+              reading: 'かず',
+              sources: [{ originalText: 'カズ', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+          definitions: [
+            {
+              dictionary: 'SubMiner Character Dictionary',
+              dictionaryAlias: 'SubMiner Character Dictionary',
+              entries: [
+                {
+                  type: 'structured-content',
+                  content: {
+                    tag: 'img',
+                    path: 'img/m115230-c9.png',
+                    alt: 'Kaz',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  assert.deepEqual(result, []);
+});
+
+test('requestYomitanScanTokens accepts SubMiner character entries with structured-content media data', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens(
+    'アクア',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true, currentCharacterDictionaryMediaId: 21699 },
+  );
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+    const text = (params as { text?: string } | undefined)?.text;
+    if (text !== 'アクア') {
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    }
+    return {
+      originalTextLength: 3,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: 'アクア',
+              reading: 'あくあ',
+              sources: [{ originalText: 'アクア', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+          definitions: [
+            {
+              dictionary: 'SubMiner Character Dictionary',
+              dictionaryAlias: 'SubMiner Character Dictionary',
+              entries: [
+                {
+                  type: 'structured-content',
+                  content: {
+                    tag: 'div',
+                    data: { subminerMediaId: '21699' },
+                    content: [
+                      {
+                        tag: 'img',
+                        path: 'img/m115230-c1.png',
+                        alt: 'アクア',
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  assert.equal(Array.isArray(result), true);
+  assert.equal((result as Array<{ surface?: string }>)[0]?.surface, 'アクア');
+  assert.equal((result as Array<{ isNameMatch?: boolean }>)[0]?.isNameMatch, true);
+});
+
 test('requestYomitanScanTokens preserves matched headword word classes', async () => {
   let scannerScript = '';
   const deps = createDeps(async (script) => {

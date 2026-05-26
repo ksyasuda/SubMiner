@@ -48,6 +48,7 @@ export function buildSnapshotFromCharacters(
     const candidateTerms = buildNameTerms(character);
     const glossary = createDefinitionGlossary(
       character,
+      mediaId,
       mediaTitle,
       imagePath,
       vaImagePaths,

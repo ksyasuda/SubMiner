@@ -5,7 +5,10 @@ import * as path from 'path';
 import test from 'node:test';
 import { getSnapshotPath, writeSnapshot } from './cache';
 import { CHARACTER_DICTIONARY_FORMAT_VERSION } from './constants';
-import { buildCharacterNameImageIndexFromSnapshots } from './image-lookup';
+import {
+  buildCharacterNameImageIndexFromSnapshots,
+  createCharacterDictionaryImageLookup,
+} from './image-lookup';
 import type { CharacterDictionarySnapshot } from './types';
 
 const PNG_1X1_BASE64 =
@@ -118,4 +121,97 @@ test('buildCharacterNameImageIndexFromSnapshots sniffs image MIME from bytes bef
   const index = buildCharacterNameImageIndexFromSnapshots(outputDir);
 
   assert.equal(index.get('アレクシア')?.src, `data:image/png;base64,${PNG_1X1_BASE64}`);
+});
+
+test('createCharacterDictionaryImageLookup can scope duplicate names to the current media', () => {
+  const outputDir = makeTempDir();
+  const towerSnapshot: CharacterDictionarySnapshot = {
+    formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
+    mediaId: 115230,
+    mediaTitle: 'Tower of God',
+    entryCount: 1,
+    updatedAt: 1_700_000_000_000,
+    termEntries: [
+      [
+        'カズ',
+        'かず',
+        'name primary',
+        '',
+        75,
+        [
+          {
+            type: 'structured-content',
+            content: { tag: 'img', path: 'img/m115230-c1.png', alt: 'Kaz' },
+          },
+        ],
+        0,
+        '',
+      ],
+    ],
+    images: [{ path: 'img/m115230-c1.png', dataBase64: 'TOWER' }],
+  };
+  const konosubaSnapshot: CharacterDictionarySnapshot = {
+    ...towerSnapshot,
+    mediaId: 21202,
+    mediaTitle: 'KonoSuba',
+    termEntries: [
+      [
+        'カズ',
+        'かず',
+        'name primary',
+        '',
+        75,
+        [
+          {
+            type: 'structured-content',
+            content: { tag: 'img', path: 'img/m21202-c2.png', alt: 'Kazuma' },
+          },
+        ],
+        0,
+        '',
+      ],
+    ],
+    images: [{ path: 'img/m21202-c2.png', dataBase64: 'KONOSUBA' }],
+  };
+  writeSnapshot(getSnapshotPath(outputDir, towerSnapshot.mediaId), towerSnapshot);
+  writeSnapshot(getSnapshotPath(outputDir, konosubaSnapshot.mediaId), konosubaSnapshot);
+
+  const lookup = createCharacterDictionaryImageLookup({ outputDir });
+
+  assert.equal(lookup.get('カズ', 21202)?.alt, 'Kazuma');
+});
+
+test('createCharacterDictionaryImageLookup does not fall back globally on scoped miss', () => {
+  const outputDir = makeTempDir();
+  const snapshot: CharacterDictionarySnapshot = {
+    formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
+    mediaId: 115230,
+    mediaTitle: 'Tower of God',
+    entryCount: 1,
+    updatedAt: 1_700_000_000_000,
+    termEntries: [
+      [
+        'カズ',
+        'かず',
+        'name primary',
+        '',
+        75,
+        [
+          {
+            type: 'structured-content',
+            content: { tag: 'img', path: 'img/m115230-c1.png', alt: 'Kaz' },
+          },
+        ],
+        0,
+        '',
+      ],
+    ],
+    images: [{ path: 'img/m115230-c1.png', dataBase64: 'TOWER' }],
+  };
+  writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
+
+  const lookup = createCharacterDictionaryImageLookup({ outputDir });
+
+  assert.equal(lookup.get('カズ', 21202), null);
+  assert.equal(lookup.get('カズ')?.alt, 'Kaz');
 });

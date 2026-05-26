@@ -542,10 +542,10 @@ export function buildCoreConfigOptionRegistry(
       description: 'Accelerator that marks the last mined card as an audio card.',
     },
     {
-      path: 'shortcuts.openCharacterDictionary',
+      path: 'shortcuts.openCharacterDictionaryManager',
       kind: 'string',
-      defaultValue: defaultConfig.shortcuts.openCharacterDictionary,
-      description: 'Accelerator that opens the character dictionary modal.',
+      defaultValue: defaultConfig.shortcuts.openCharacterDictionaryManager,
+      description: 'Accelerator that opens the character dictionary manager modal.',
     },
     {
       path: 'shortcuts.openRuntimeOptions',

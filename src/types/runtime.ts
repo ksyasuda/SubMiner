@@ -379,6 +379,21 @@ export interface CharacterDictionarySelectionResult {
   staleMediaIds: number[];
 }
 
+export interface CharacterDictionaryManagerEntry {
+  mediaId: number;
+  label: string;
+  title: string;
+  current: boolean;
+}
+
+export interface CharacterDictionaryManagerSnapshot {
+  entries: CharacterDictionaryManagerEntry[];
+}
+
+export type CharacterDictionaryManagerMutationResult =
+  | (CharacterDictionaryManagerSnapshot & { ok: true; rebuildRequired?: boolean })
+  | { ok: false; message: string; entries: CharacterDictionaryManagerEntry[] };
+
 export interface SessionNumericSelectionStartPayload {
   actionId: Extract<SessionActionId, 'copySubtitleMultiple' | 'mineSentenceMultiple'>;
   timeoutMs: number;
@@ -454,6 +469,7 @@ export interface ElectronAPI {
   onOpenYoutubeTrackPicker: (callback: (payload: YoutubePickerOpenPayload) => void) => void;
   onOpenPlaylistBrowser: (callback: () => void) => void;
   onOpenCharacterDictionary: (callback: () => void) => void;
+  onOpenCharacterDictionaryManager: (callback: () => void) => void;
   onSubtitleSidebarToggle: (callback: () => void) => void;
   onPrimarySubtitleBarToggle: (callback: () => void) => void;
   onCancelYoutubeTrackPicker: (callback: () => void) => void;
@@ -477,7 +493,19 @@ export interface ElectronAPI {
   getCharacterDictionarySelection: (
     searchTitle?: string,
   ) => Promise<CharacterDictionarySelectionSnapshot>;
-  setCharacterDictionarySelection: (mediaId: number) => Promise<CharacterDictionarySelectionResult>;
+  setCharacterDictionarySelection: (
+    mediaId: number,
+    replaceManagedMediaId?: number,
+    mediaTitle?: string,
+  ) => Promise<CharacterDictionarySelectionResult | CharacterDictionaryManagerMutationResult>;
+  getCharacterDictionaryManagerSnapshot: () => Promise<CharacterDictionaryManagerSnapshot>;
+  removeCharacterDictionaryManagedEntry: (
+    mediaId: number,
+  ) => Promise<CharacterDictionaryManagerMutationResult>;
+  moveCharacterDictionaryManagedEntry: (
+    mediaId: number,
+    direction: 1 | -1,
+  ) => Promise<CharacterDictionaryManagerMutationResult>;
   notifyOverlayModalClosed: (
     modal:
       | 'runtime-options'

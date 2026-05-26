@@ -1,8 +1,12 @@
 import type {
   CharacterDictionaryCandidate,
+  CharacterDictionaryManagerEntry,
+  CharacterDictionaryManagerSnapshot,
   CharacterDictionarySelectionSnapshot,
 } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+
+type CharacterDictionaryView = 'override' | 'manage';
 
 function clampIndex(index: number, length: number): number {
   if (length <= 0) return 0;
@@ -28,6 +32,9 @@ export function createCharacterDictionaryModal(
   },
 ) {
   let hasSearched = false;
+  let activeView: CharacterDictionaryView = 'override';
+  let managerSnapshot: CharacterDictionaryManagerSnapshot | null = null;
+  let pendingManagedOverride: { mediaId: number; title: string } | null = null;
 
   function setStatus(message: string, isError = false): void {
     ctx.state.characterDictionaryStatus = message;
@@ -52,6 +59,22 @@ export function createCharacterDictionaryModal(
       snapshot.candidates.length,
     );
     render();
+  }
+
+  function setActiveView(view: CharacterDictionaryView): void {
+    activeView = view;
+    ctx.dom.characterDictionarySearchPanel?.classList.toggle('hidden', view !== 'override');
+    ctx.dom.characterDictionaryManagerPanel?.classList.toggle('hidden', view !== 'manage');
+    ctx.dom.characterDictionaryOverrideTab?.classList.toggle('active', view === 'override');
+    ctx.dom.characterDictionaryManageTab?.classList.toggle('active', view === 'manage');
+    ctx.dom.characterDictionaryOverrideTab?.setAttribute(
+      'aria-selected',
+      view === 'override' ? 'true' : 'false',
+    );
+    ctx.dom.characterDictionaryManageTab?.setAttribute(
+      'aria-selected',
+      view === 'manage' ? 'true' : 'false',
+    );
   }
 
   function renderCandidate(candidate: CharacterDictionaryCandidate, index: number): HTMLLIElement {
@@ -127,6 +150,84 @@ export function createCharacterDictionaryModal(
     );
   }
 
+  function renderManagerEntry(
+    entry: CharacterDictionaryManagerEntry,
+    index: number,
+    entryCount: number,
+  ): HTMLLIElement {
+    const item = document.createElement('li');
+    item.className = 'character-dictionary-candidate character-dictionary-managed-entry';
+
+    const main = document.createElement('div');
+    main.className = 'runtime-options-label';
+    main.textContent = entry.title || entry.label;
+
+    const meta = document.createElement('div');
+    meta.className = 'runtime-options-allowed';
+    meta.textContent = `AniList ${entry.mediaId}${entry.current ? ' · Current' : ''}`;
+
+    const body = document.createElement('div');
+    body.className = 'character-dictionary-candidate-body';
+    body.append(main, meta);
+
+    const controls = document.createElement('div');
+    controls.className = 'character-dictionary-manager-actions';
+
+    const makeButton = (
+      label: string,
+      disabled: boolean,
+      onClick: () => void | Promise<void>,
+    ): HTMLButtonElement => {
+      const button = document.createElement('button');
+      button.className = 'character-dictionary-use';
+      button.type = 'button';
+      button.textContent = label;
+      button.disabled = disabled;
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (button.disabled) return;
+        void onClick();
+      });
+      return button;
+    };
+
+    controls.append(
+      makeButton('Up', entry.current || index === 0, () => moveManagedEntry(entry.mediaId, -1)),
+      makeButton('Down', entry.current || index >= entryCount - 1, () =>
+        moveManagedEntry(entry.mediaId, 1),
+      ),
+      makeButton('Override', false, () => openManagedOverride(entry)),
+      makeButton('Remove', entry.current, () => removeManagedEntry(entry.mediaId)),
+    );
+
+    item.append(body, controls);
+    return item;
+  }
+
+  function renderManager(): void {
+    const entries = managerSnapshot?.entries ?? [];
+    ctx.dom.characterDictionaryManagedEntries?.replaceChildren();
+    if (!ctx.dom.characterDictionaryManagedEntries) return;
+
+    ctx.dom.characterDictionarySummary.textContent =
+      entries.length > 0
+        ? `${entries.length} loaded character dictionaries. Order controls eviction priority; current dictionary stays loaded.`
+        : 'No loaded character dictionaries.';
+    ctx.dom.characterDictionaryCurrent.textContent = '';
+
+    if (entries.length === 0) {
+      const empty = document.createElement('li');
+      empty.className = 'character-dictionary-empty';
+      empty.textContent = 'No loaded character dictionaries.';
+      ctx.dom.characterDictionaryManagedEntries.append(empty);
+      return;
+    }
+
+    ctx.dom.characterDictionaryManagedEntries.replaceChildren(
+      ...entries.map((entry, index) => renderManagerEntry(entry, index, entries.length)),
+    );
+  }
+
   async function refreshSelection(searchTitle?: string): Promise<void> {
     const snapshot = await window.electronAPI.getCharacterDictionarySelection(searchTitle);
     hasSearched = searchTitle !== '';
@@ -138,6 +239,12 @@ export function createCharacterDictionaryModal(
           ? `Override active: ${formatCandidate(snapshot.override)}`
           : 'Select the correct AniList entry.',
     );
+  }
+
+  async function refreshManager(): Promise<void> {
+    managerSnapshot = await window.electronAPI.getCharacterDictionaryManagerSnapshot();
+    renderManager();
+    setStatus('Loaded character dictionary entries.');
   }
 
   async function searchCandidates(): Promise<void> {
@@ -165,17 +272,80 @@ export function createCharacterDictionaryModal(
 
     setStatus(`Saving override for ${candidate.title}...`);
     try {
-      const result = await window.electronAPI.setCharacterDictionarySelection(candidate.id);
+      const result = await window.electronAPI.setCharacterDictionarySelection(
+        candidate.id,
+        pendingManagedOverride?.mediaId,
+        pendingManagedOverride ? candidate.title : undefined,
+      );
       if (!result.ok) {
-        setStatus('Failed to save override', true);
+        setStatus('message' in result ? result.message : 'Failed to save override', true);
+        return;
+      }
+      if (pendingManagedOverride) {
+        const replacedTitle = candidate.title;
+        pendingManagedOverride = null;
+        await refreshManager();
+        setActiveView('manage');
+        setStatus(`Managed entry replaced with ${replacedTitle}.`);
         return;
       }
       await refreshSelection(ctx.dom.characterDictionarySearchInput.value.trim());
-      const staleLabel =
-        result.staleMediaIds.length > 0
-          ? ` Removed stale: ${result.staleMediaIds.join(', ')}.`
-          : '';
-      setStatus(`Override saved: ${formatCandidate(result.selected)}.${staleLabel}`);
+      if ('selected' in result) {
+        const staleLabel =
+          result.staleMediaIds.length > 0
+            ? ` Removed stale: ${result.staleMediaIds.join(', ')}.`
+            : '';
+        setStatus(`Override saved: ${formatCandidate(result.selected)}.${staleLabel}`);
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
+  }
+
+  async function moveManagedEntry(mediaId: number, direction: 1 | -1): Promise<void> {
+    setStatus('Updating entry order...');
+    try {
+      const result = await window.electronAPI.moveCharacterDictionaryManagedEntry(
+        mediaId,
+        direction,
+      );
+      managerSnapshot = { entries: result.entries };
+      renderManager();
+      setStatus(result.ok ? 'Entry order updated.' : result.message, !result.ok);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
+  }
+
+  async function removeManagedEntry(mediaId: number): Promise<void> {
+    setStatus('Removing entry...');
+    try {
+      const result = await window.electronAPI.removeCharacterDictionaryManagedEntry(mediaId);
+      managerSnapshot = { entries: result.entries };
+      renderManager();
+      setStatus(
+        result.ok
+          ? result.rebuildRequired
+            ? 'Entry removed. Merged dictionary will refresh shortly.'
+            : 'Entry removed.'
+          : result.message,
+        !result.ok,
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
+  }
+
+  async function openManagedOverride(entry: CharacterDictionaryManagerEntry): Promise<void> {
+    pendingManagedOverride = entry.current
+      ? null
+      : { mediaId: entry.mediaId, title: entry.title || entry.label };
+    setActiveView('override');
+    const searchTitle = entry.title || entry.label;
+    ctx.dom.characterDictionarySearchInput.value = searchTitle;
+    setStatus(`Searching AniList for ${searchTitle}...`);
+    try {
+      await refreshSelection(searchTitle);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), true);
     }
@@ -192,6 +362,8 @@ export function createCharacterDictionaryModal(
   }
 
   async function openCharacterDictionaryModal(): Promise<void> {
+    setActiveView('override');
+    pendingManagedOverride = null;
     if (!ctx.state.characterDictionaryModalOpen) {
       showShell();
     } else {
@@ -205,14 +377,33 @@ export function createCharacterDictionaryModal(
     }
   }
 
+  async function openCharacterDictionaryManagerModal(): Promise<void> {
+    setActiveView('manage');
+    pendingManagedOverride = null;
+    if (!ctx.state.characterDictionaryModalOpen) {
+      showShell();
+    } else {
+      window.electronAPI.notifyOverlayModalOpened('character-dictionary');
+      setStatus('Refreshing character dictionary entries...');
+    }
+    try {
+      await refreshManager();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
+  }
+
   function closeCharacterDictionaryModal(): void {
     if (!ctx.state.characterDictionaryModalOpen) return;
     ctx.state.characterDictionaryModalOpen = false;
     ctx.state.characterDictionarySelection = null;
+    managerSnapshot = null;
+    pendingManagedOverride = null;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.characterDictionaryModal.classList.add('hidden');
     ctx.dom.characterDictionaryModal.setAttribute('aria-hidden', 'true');
     ctx.dom.characterDictionaryCandidates.replaceChildren();
+    ctx.dom.characterDictionaryManagedEntries?.replaceChildren();
     hasSearched = false;
     window.electronAPI.notifyOverlayModalClosed('character-dictionary');
     setStatus('');
@@ -245,6 +436,9 @@ export function createCharacterDictionaryModal(
       }
       return false;
     }
+    if (activeView === 'manage') {
+      return false;
+    }
     if (e.key === 'ArrowDown' || e.key === 'j' || e.key === 'J') {
       e.preventDefault();
       moveSelection(1);
@@ -265,6 +459,12 @@ export function createCharacterDictionaryModal(
 
   function wireDomEvents(): void {
     ctx.dom.characterDictionaryClose.addEventListener('click', closeCharacterDictionaryModal);
+    ctx.dom.characterDictionaryOverrideTab?.addEventListener('click', () => {
+      void openCharacterDictionaryModal();
+    });
+    ctx.dom.characterDictionaryManageTab?.addEventListener('click', () => {
+      void openCharacterDictionaryManagerModal();
+    });
     ctx.dom.characterDictionarySearchButton.addEventListener('click', () => {
       void searchCandidates();
     });
@@ -278,6 +478,7 @@ export function createCharacterDictionaryModal(
 
   return {
     openCharacterDictionaryModal,
+    openCharacterDictionaryManagerModal,
     closeCharacterDictionaryModal,
     handleCharacterDictionaryKeydown,
     wireDomEvents,

@@ -207,7 +207,7 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       'mineSentenceMultiple',
       'toggleSecondarySub',
       'markAudioCard',
-      'openCharacterDictionary',
+      'openCharacterDictionaryManager',
       'openRuntimeOptions',
       'openJimaku',
     ] as const;

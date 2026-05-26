@@ -618,7 +618,7 @@ See `config.example.jsonc` for detailed configuration options.
     "mineSentence": "CommandOrControl+S",
     "mineSentenceMultiple": "CommandOrControl+Shift+S",
     "markAudioCard": "CommandOrControl+Shift+A",
-    "openCharacterDictionary": "CommandOrControl+Alt+A",
+    "openCharacterDictionaryManager": "CommandOrControl+D",
     "openRuntimeOptions": "CommandOrControl+Shift+O",
     "openSessionHelp": "CommandOrControl+Slash",
     "openControllerSelect": "Alt+C",
@@ -643,7 +643,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `multiCopyTimeoutMs`          | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                                                               |
 | `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                                       |
 | `markAudioCard`               | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                                       |
-| `openCharacterDictionary`     | string \| `null` | Opens the character dictionary AniList selector (default: `"CommandOrControl+Alt+A"`)                                                         |
+| `openCharacterDictionaryManager` | string \| `null` | Opens the loaded character dictionary manager (default: `"CommandOrControl+D"`)                                                             |
 | `openRuntimeOptions`          | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                           |
 | `openSessionHelp`             | string \| `null` | Opens the in-overlay session help modal (default: `"CommandOrControl+Slash"`)                                                                 |
 | `openControllerSelect`        | string \| `null` | Opens the controller config/remap modal (default: `"Alt+C"`)                                                                                  |
@@ -787,7 +787,7 @@ When `behavior.autoUpdateNewCards` is set to `false`, new cards are detected but
 | `Ctrl+Shift+S` | Enter multi-mine mode. Press `1-9` to create a sentence card from that many recent lines, or `Esc` to cancel       |
 | `Ctrl+Shift+V` | Cycle secondary subtitle display mode (hidden → visible → hover)                                                   |
 | `Ctrl+Shift+A` | Mark the last added Anki card as an audio card (sets IsAudioCard, SentenceAudio, Sentence, Picture)                |
-| `Ctrl+Alt+A`   | Open character dictionary AniList selector                                                                         |
+| `Ctrl+D`       | Open loaded character dictionary manager                                                                           |
 | `Ctrl+Shift+O` | Open runtime options palette (session-only live toggles)                                                           |
 | `Ctrl/Cmd+A`   | Append clipboard video path to MPV playlist (fixed, not currently configurable)                                    |
 

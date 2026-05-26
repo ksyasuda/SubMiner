@@ -96,7 +96,8 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.startupWarmups.subtitleDictionaries, true);
   assert.equal(config.startupWarmups.jellyfinRemoteSession, false);
   assert.equal(config.shortcuts.markAudioCard, 'CommandOrControl+Shift+A');
-  assert.equal(config.shortcuts.openCharacterDictionary, 'CommandOrControl+Alt+A');
+  assert.equal('openCharacterDictionary' in config.shortcuts, false);
+  assert.equal(config.shortcuts.openCharacterDictionaryManager, 'CommandOrControl+D');
   assert.equal(config.shortcuts.toggleSubtitleSidebar, 'Backslash');
   assert.equal(config.discordPresence.enabled, true);
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);

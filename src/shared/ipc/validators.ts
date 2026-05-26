@@ -34,6 +34,7 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'openRuntimeOptions',
   'openSessionHelp',
   'openCharacterDictionary',
+  'openCharacterDictionaryManager',
   'openControllerSelect',
   'openControllerDebug',
   'openJimaku',

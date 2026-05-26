@@ -11,6 +11,7 @@ export interface OverlayShortcutHandlers {
   toggleSecondarySub: () => void;
   markAudioCard: () => void;
   openCharacterDictionary: () => void;
+  openCharacterDictionaryManager: () => void;
   openRuntimeOptions: () => void;
   openJimaku: () => void;
 }
@@ -32,7 +33,7 @@ const OVERLAY_SHORTCUT_KEYS: Array<keyof Omit<ConfiguredShortcuts, 'multiCopyTim
   'mineSentenceMultiple',
   'toggleSecondarySub',
   'markAudioCard',
-  'openCharacterDictionary',
+  'openCharacterDictionaryManager',
   'openRuntimeOptions',
   'openJimaku',
 ];

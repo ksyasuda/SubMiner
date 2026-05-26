@@ -159,6 +159,9 @@ const onOpenSessionHelpEvent = createQueuedIpcListener(IPC_CHANNELS.event.sessio
 const onOpenCharacterDictionaryEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.characterDictionaryOpen,
 );
+const onOpenCharacterDictionaryManagerEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.characterDictionaryManagerOpen,
+);
 const onOpenControllerSelectEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.controllerSelectOpen,
 );
@@ -388,6 +391,7 @@ const electronAPI: ElectronAPI = {
   onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
   onOpenPlaylistBrowser: onOpenPlaylistBrowserEvent,
   onOpenCharacterDictionary: onOpenCharacterDictionaryEvent,
+  onOpenCharacterDictionaryManager: onOpenCharacterDictionaryManagerEvent,
   onSubtitleSidebarToggle: onSubtitleSidebarToggleEvent,
   onPrimarySubtitleBarToggle: onPrimarySubtitleBarToggleEvent,
   onCancelYoutubeTrackPicker: onCancelYoutubeTrackPickerEvent,
@@ -415,8 +419,27 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.youtubePickerResolve, request),
   getCharacterDictionarySelection: (searchTitle?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getCharacterDictionarySelection, searchTitle),
-  setCharacterDictionarySelection: (mediaId: number) =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.setCharacterDictionarySelection, mediaId),
+  setCharacterDictionarySelection: (
+    mediaId: number,
+    replaceManagedMediaId?: number,
+    mediaTitle?: string,
+  ) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.request.setCharacterDictionarySelection,
+      mediaId,
+      replaceManagedMediaId,
+      mediaTitle,
+    ),
+  getCharacterDictionaryManagerSnapshot: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getCharacterDictionaryManagerSnapshot),
+  removeCharacterDictionaryManagedEntry: (mediaId: number) =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.removeCharacterDictionaryManagedEntry, mediaId),
+  moveCharacterDictionaryManagedEntry: (mediaId: number, direction: 1 | -1) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.request.moveCharacterDictionaryManagedEntry,
+      mediaId,
+      direction,
+    ),
   notifyOverlayModalClosed: (modal) => {
     ipcRenderer.send(IPC_CHANNELS.command.overlayModalClosed, modal);
   },

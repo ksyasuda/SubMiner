@@ -7,6 +7,7 @@ const logger = createLogger('main:overlay-shortcut-handler');
 export interface OverlayShortcutFallbackHandlers {
   openRuntimeOptions: () => void;
   openCharacterDictionary: () => void;
+  openCharacterDictionaryManager: () => void;
   openJimaku: () => void;
   markAudioCard: () => void;
   copySubtitleMultiple: (timeoutMs: number) => void;
@@ -23,6 +24,7 @@ export interface OverlayShortcutRuntimeDeps {
   showMpvOsd: (text: string) => void;
   openRuntimeOptions: () => void;
   openCharacterDictionary: () => void;
+  openCharacterDictionaryManager: () => void;
   openJimaku: () => void;
   markAudioCard: () => Promise<void>;
   copySubtitleMultiple: (timeoutMs: number) => void;
@@ -100,6 +102,9 @@ export function createOverlayShortcutRuntimeHandlers(deps: OverlayShortcutRuntim
     openCharacterDictionary: () => {
       deps.openCharacterDictionary();
     },
+    openCharacterDictionaryManager: () => {
+      deps.openCharacterDictionaryManager();
+    },
     openJimaku: () => {
       deps.openJimaku();
     },
@@ -108,6 +113,7 @@ export function createOverlayShortcutRuntimeHandlers(deps: OverlayShortcutRuntim
   const fallbackHandlers: OverlayShortcutFallbackHandlers = {
     openRuntimeOptions: overlayHandlers.openRuntimeOptions,
     openCharacterDictionary: overlayHandlers.openCharacterDictionary,
+    openCharacterDictionaryManager: overlayHandlers.openCharacterDictionaryManager,
     openJimaku: overlayHandlers.openJimaku,
     markAudioCard: overlayHandlers.markAudioCard,
     copySubtitleMultiple: overlayHandlers.copySubtitleMultiple,
@@ -141,9 +147,9 @@ export function runOverlayShortcutLocalFallback(
       },
     },
     {
-      accelerator: shortcuts.openCharacterDictionary,
+      accelerator: shortcuts.openCharacterDictionaryManager,
       run: () => {
-        handlers.openCharacterDictionary();
+        handlers.openCharacterDictionaryManager();
       },
     },
     {

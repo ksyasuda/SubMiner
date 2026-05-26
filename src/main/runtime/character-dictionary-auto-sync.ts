@@ -24,6 +24,21 @@ type AutoSyncDictionaryInfo = {
   revision?: string | number;
 };
 
+export interface CharacterDictionaryManagerEntry {
+  mediaId: number;
+  label: string;
+  title: string;
+  current: boolean;
+}
+
+export interface CharacterDictionaryManagerSnapshot {
+  entries: CharacterDictionaryManagerEntry[];
+}
+
+export type CharacterDictionaryManagerMutationResult =
+  | (CharacterDictionaryManagerSnapshot & { ok: true; rebuildRequired?: boolean })
+  | { ok: false; message: string; entries: CharacterDictionaryManagerEntry[] };
+
 export interface CharacterDictionaryAutoSyncConfig {
   enabled: boolean;
   maxLoaded: number;
@@ -154,6 +169,167 @@ function writeAutoSyncState(statePath: string, state: AutoSyncState): void {
   fs.writeFileSync(statePath, JSON.stringify(persistedState, null, 2), 'utf8');
 }
 
+function getAutoSyncStatePath(userDataPath: string): string {
+  return path.join(userDataPath, 'character-dictionaries', 'auto-sync-state.json');
+}
+
+function parseActiveMediaTitle(entry: AutoSyncMediaEntry): string {
+  const prefix = `${entry.mediaId} - `;
+  if (entry.label.startsWith(prefix)) {
+    return entry.label.slice(prefix.length).trim();
+  }
+  return entry.label === String(entry.mediaId) ? '' : entry.label.trim();
+}
+
+function resolveCurrentManagerMediaId(
+  state: AutoSyncState,
+  currentMediaId?: number | null,
+): number | null {
+  const normalizedCurrentMediaId =
+    typeof currentMediaId === 'number' ? normalizeMediaId(currentMediaId) : null;
+  if (normalizedCurrentMediaId !== null) return normalizedCurrentMediaId;
+  return state.activeMediaIds[0]?.mediaId ?? null;
+}
+
+function toManagerEntries(
+  state: AutoSyncState,
+  currentMediaId?: number | null,
+): CharacterDictionaryManagerEntry[] {
+  const resolvedCurrentMediaId = resolveCurrentManagerMediaId(state, currentMediaId);
+  return state.activeMediaIds.map((entry, index) => ({
+    mediaId: entry.mediaId,
+    label: entry.label,
+    title: parseActiveMediaTitle(entry),
+    current:
+      resolvedCurrentMediaId !== null ? entry.mediaId === resolvedCurrentMediaId : index === 0,
+  }));
+}
+
+export function getCharacterDictionaryManagerSnapshot(
+  userDataPath: string,
+  currentMediaId?: number | null,
+): CharacterDictionaryManagerSnapshot {
+  return {
+    entries: toManagerEntries(
+      readAutoSyncState(getAutoSyncStatePath(userDataPath)),
+      currentMediaId,
+    ),
+  };
+}
+
+export function moveCharacterDictionaryManagedEntry(
+  userDataPath: string,
+  mediaId: number,
+  direction: 1 | -1,
+  currentMediaId?: number | null,
+): CharacterDictionaryManagerMutationResult {
+  const statePath = getAutoSyncStatePath(userDataPath);
+  const state = readAutoSyncState(statePath);
+  const managerEntries = toManagerEntries(state, currentMediaId);
+  const index = state.activeMediaIds.findIndex((entry) => entry.mediaId === mediaId);
+  if (index < 0) {
+    return {
+      ok: false,
+      message: 'Character dictionary entry not found.',
+      entries: managerEntries,
+    };
+  }
+  if (managerEntries[index]?.current) {
+    return {
+      ok: false,
+      message: 'The current anime stays anchored while you are watching it.',
+      entries: managerEntries,
+    };
+  }
+  const targetIndex = Math.min(state.activeMediaIds.length - 1, Math.max(0, index + direction));
+  if (targetIndex === index) {
+    return { ok: true, entries: managerEntries };
+  }
+  const nextActiveMediaIds = [...state.activeMediaIds];
+  const [entry] = nextActiveMediaIds.splice(index, 1);
+  if (entry) {
+    nextActiveMediaIds.splice(targetIndex, 0, entry);
+  }
+  const nextState = { ...state, activeMediaIds: nextActiveMediaIds, mergedRevision: null };
+  writeAutoSyncState(statePath, nextState);
+  return { ok: true, entries: toManagerEntries(nextState, currentMediaId), rebuildRequired: true };
+}
+
+export function removeCharacterDictionaryManagedEntry(
+  userDataPath: string,
+  mediaId: number,
+  currentMediaId?: number | null,
+): CharacterDictionaryManagerMutationResult {
+  const statePath = getAutoSyncStatePath(userDataPath);
+  const state = readAutoSyncState(statePath);
+  const managerEntries = toManagerEntries(state, currentMediaId);
+  const index = state.activeMediaIds.findIndex((entry) => entry.mediaId === mediaId);
+  if (index < 0) {
+    return {
+      ok: false,
+      message: 'Character dictionary entry not found.',
+      entries: managerEntries,
+    };
+  }
+  if (managerEntries[index]?.current) {
+    return {
+      ok: false,
+      message: 'The current anime stays loaded while you are watching it.',
+      entries: managerEntries,
+    };
+  }
+  const nextState = {
+    ...state,
+    activeMediaIds: state.activeMediaIds.filter((entry) => entry.mediaId !== mediaId),
+    mergedRevision: null,
+  };
+  writeAutoSyncState(statePath, nextState);
+  return { ok: true, entries: toManagerEntries(nextState, currentMediaId), rebuildRequired: true };
+}
+
+export function replaceCharacterDictionaryManagedEntry(
+  userDataPath: string,
+  mediaId: number,
+  replacement: { mediaId: number; mediaTitle: string },
+): CharacterDictionaryManagerMutationResult {
+  const statePath = getAutoSyncStatePath(userDataPath);
+  const state = readAutoSyncState(statePath);
+  const index = state.activeMediaIds.findIndex((entry) => entry.mediaId === mediaId);
+  if (index < 0) {
+    return {
+      ok: false,
+      message: 'Character dictionary entry not found.',
+      entries: toManagerEntries(state),
+    };
+  }
+  const normalizedReplacementMediaId = normalizeMediaId(replacement.mediaId);
+  const mediaTitle = replacement.mediaTitle.trim();
+  if (normalizedReplacementMediaId === null || !mediaTitle) {
+    return {
+      ok: false,
+      message: 'Invalid replacement AniList media.',
+      entries: toManagerEntries(state),
+    };
+  }
+  const replacementEntry = {
+    mediaId: normalizedReplacementMediaId,
+    label: buildActiveMediaLabel(normalizedReplacementMediaId, mediaTitle),
+  };
+  const nextActiveMediaIds = state.activeMediaIds
+    .map((entry, entryIndex) => (entryIndex === index ? replacementEntry : entry))
+    .filter(
+      (entry, entryIndex, entries) =>
+        entries.findIndex((candidate) => candidate.mediaId === entry.mediaId) === entryIndex,
+    );
+  const nextState = {
+    ...state,
+    activeMediaIds: nextActiveMediaIds,
+    mergedRevision: null,
+  };
+  writeAutoSyncState(statePath, nextState);
+  return { ok: true, entries: toManagerEntries(nextState), rebuildRequired: true };
+}
+
 function arraysEqual(left: number[], right: number[]): boolean {
   if (left.length !== right.length) return false;
   for (let i = 0; i < left.length; i += 1) {
@@ -205,9 +381,10 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
 ): {
   scheduleSync: () => void;
   runSyncNow: () => Promise<void>;
+  getCurrentMediaId: () => number | null;
 } {
   const dictionariesDir = path.join(deps.userDataPath, 'character-dictionaries');
-  const statePath = path.join(dictionariesDir, 'auto-sync-state.json');
+  const statePath = getAutoSyncStatePath(deps.userDataPath);
   const schedule = deps.schedule ?? ((fn, delayMs) => setTimeout(fn, delayMs));
   const clearSchedule = deps.clearSchedule ?? ((timer) => clearTimeout(timer));
   const debounceMs = 800;
@@ -216,6 +393,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let syncInFlight = false;
   let runQueued = false;
+  let activeCurrentMediaId: number | null = null;
 
   const withOperationTimeout = async <T>(label: string, promise: Promise<T>): Promise<T> => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -238,6 +416,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
   const runSyncOnce = async (): Promise<void> => {
     const config = deps.getConfig();
     if (!config.enabled) {
+      activeCurrentMediaId = null;
       return;
     }
 
@@ -250,6 +429,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
         onChecking: ({ mediaId, mediaTitle }) => {
           currentMediaId = mediaId;
           currentMediaTitle = mediaTitle;
+          activeCurrentMediaId = mediaId;
           deps.onSyncStatus?.({
             phase: 'checking',
             mediaId,
@@ -260,6 +440,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
         onGenerating: ({ mediaId, mediaTitle }) => {
           currentMediaId = mediaId;
           currentMediaTitle = mediaTitle;
+          activeCurrentMediaId = mediaId;
           deps.onSyncStatus?.({
             phase: 'generating',
             mediaId,
@@ -270,6 +451,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
       });
       currentMediaId = snapshot.mediaId;
       currentMediaTitle = snapshot.mediaTitle;
+      activeCurrentMediaId = snapshot.mediaId;
       const state = readAutoSyncState(statePath);
       const staleMediaIds = new Set(
         (snapshot.staleMediaIds ?? [])
@@ -453,5 +635,6 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
     runSyncNow: async () => {
       await runSyncOnce();
     },
+    getCurrentMediaId: () => activeCurrentMediaId,
   };
 }

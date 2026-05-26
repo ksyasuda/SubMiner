@@ -465,6 +465,11 @@ function registerModalOpenHandlers(): void {
       await characterDictionaryModal.openCharacterDictionaryModal();
     });
   });
+  window.electronAPI.onOpenCharacterDictionaryManager(() => {
+    runGuardedAsync('character-dictionary-manager:open', async () => {
+      await characterDictionaryModal.openCharacterDictionaryManagerModal();
+    });
+  });
   window.electronAPI.onOpenSessionHelp(() => {
     runGuarded('session-help:open', () => {
       sessionHelpModal.openSessionHelpModal(keyboardHandlers.getSessionHelpOpeningInfo());

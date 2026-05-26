@@ -1106,11 +1106,85 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
           }
           return getDictionaryEntryNames(entry).some((name) => name.startsWith("SubMiner Character Dictionary"));
         }
-        const exactPrimaryMatches = collectExactHeadwordMatches(dictionaryEntries, token, true);
+        function parseSubMinerMediaIdFromString(value) {
+          const imageMatch = value.match(/\bimg\/m(\d+)-/i);
+          if (imageMatch) {
+            const parsed = Number.parseInt(imageMatch[1], 10);
+            if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
+          }
+          const titleMatch = value.match(/SubMiner Character Dictionary[^\d]*(?:AniList\s*)?(\d+)/i);
+          if (titleMatch) {
+            const parsed = Number.parseInt(titleMatch[1], 10);
+            if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
+          }
+          return null;
+        }
+        function parseSubMinerMediaIdCandidate(value) {
+          if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) {
+            return value;
+          }
+          if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+            const parsed = Number.parseInt(value.trim(), 10);
+            if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
+          }
+          return null;
+        }
+        function collectSubMinerMediaIds(value, target) {
+          if (typeof value === 'string') {
+            const parsed = parseSubMinerMediaIdFromString(value);
+            if (parsed !== null) { target.add(parsed); }
+            return;
+          }
+          if (!value || typeof value !== 'object') {
+            return;
+          }
+          if (Array.isArray(value)) {
+            for (const item of value) { collectSubMinerMediaIds(item, target); }
+            return;
+          }
+          const mediaIdCandidates = [
+            value.subminerMediaId,
+            value.subMinerMediaId,
+            value.characterDictionaryMediaId,
+            value.data?.subminerMediaId,
+            value.data?.subMinerMediaId,
+            value.data?.characterDictionaryMediaId
+          ];
+          for (const candidate of mediaIdCandidates) {
+            const parsed = parseSubMinerMediaIdCandidate(candidate);
+            if (parsed !== null) { target.add(parsed); }
+          }
+          for (const child of Object.values(value)) {
+            collectSubMinerMediaIds(child, target);
+          }
+        }
+        function getSubMinerMediaIds(entry) {
+          const mediaIds = new Set();
+          collectSubMinerMediaIds(entry, mediaIds);
+          return mediaIds;
+        }
+        function isCurrentMediaNameDictionaryEntry(entry) {
+          if (!isNameDictionaryEntry(entry)) {
+            return false;
+          }
+          if (currentCharacterDictionaryMediaId === null) {
+            return true;
+          }
+          const mediaIds = getSubMinerMediaIds(entry);
+          return mediaIds.size === 0 || mediaIds.has(currentCharacterDictionaryMediaId);
+        }
+        const currentMediaDictionaryEntries =
+          currentCharacterDictionaryMediaId === null
+            ? (dictionaryEntries || [])
+            : (dictionaryEntries || []).filter((entry) => {
+                if (!isNameDictionaryEntry(entry)) { return true; }
+                return isCurrentMediaNameDictionaryEntry(entry);
+              });
+        const exactPrimaryMatches = collectExactHeadwordMatches(currentMediaDictionaryEntries, token, true);
         let matchedNameDictionary = false;
         if (includeNameMatchMetadata) {
-          for (const dictionaryEntry of dictionaryEntries || []) {
-            if (!isNameDictionaryEntry(dictionaryEntry)) { continue; }
+          for (const dictionaryEntry of currentMediaDictionaryEntries || []) {
+            if (!isCurrentMediaNameDictionaryEntry(dictionaryEntry)) { continue; }
             for (const match of exactPrimaryMatches) {
               if (match.dictionaryEntry !== dictionaryEntry) { continue; }
               matchedNameDictionary = true;
@@ -1121,13 +1195,14 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
         }
         const preferredMatch = exactPrimaryMatches[0];
         if (preferredMatch) {
-          const exactFrequencyMatches = collectExactHeadwordMatches(dictionaryEntries, token, false)
+          const exactFrequencyMatches = collectExactHeadwordMatches(currentMediaDictionaryEntries, token, false)
             .filter((match) => sameHeadword(match, preferredMatch));
           return {
             term: preferredMatch.headword.term,
             reading: preferredMatch.headword.reading,
             wordClasses: normalizeWordClasses(preferredMatch.headword),
-            isNameMatch: matchedNameDictionary || isNameDictionaryEntry(preferredMatch.dictionaryEntry),
+            isNameMatch:
+              matchedNameDictionary || isCurrentMediaNameDictionaryEntry(preferredMatch.dictionaryEntry),
             frequencyRank: getBestFrequencyRankForMatches(
               exactFrequencyMatches.length > 0 ? exactFrequencyMatches : exactPrimaryMatches,
               dictionaryPriorityByName,
@@ -1144,6 +1219,7 @@ function buildYomitanScanningScript(
   profileIndex: number,
   scanLength: number,
   includeNameMatchMetadata: boolean,
+  currentCharacterDictionaryMediaId: number | null,
   dictionaryPriorityByName: Record<string, number>,
   dictionaryFrequencyModeByName: Partial<Record<string, YomitanFrequencyMode>>,
 ): string {
@@ -1169,6 +1245,11 @@ function buildYomitanScanningScript(
         });
 ${YOMITAN_SCANNING_HELPERS}
       const includeNameMatchMetadata = ${includeNameMatchMetadata ? 'true' : 'false'};
+      const currentCharacterDictionaryMediaId = ${
+        currentCharacterDictionaryMediaId !== null
+          ? String(currentCharacterDictionaryMediaId)
+          : 'null'
+      };
       const dictionaryPriorityByName = ${JSON.stringify(dictionaryPriorityByName)};
       const dictionaryFrequencyModeByName = ${JSON.stringify(dictionaryFrequencyModeByName)};
       const text = ${JSON.stringify(text)};
@@ -1320,6 +1401,7 @@ export async function requestYomitanScanTokens(
   logger: LoggerLike,
   options?: {
     includeNameMatchMetadata?: boolean;
+    currentCharacterDictionaryMediaId?: number | null;
   },
 ): Promise<YomitanScanToken[] | null> {
   const yomitanExt = deps.getYomitanExt();
@@ -1355,6 +1437,11 @@ export async function requestYomitanScanTokens(
         profileIndex,
         scanLength,
         options?.includeNameMatchMetadata === true,
+        typeof options?.currentCharacterDictionaryMediaId === 'number' &&
+          Number.isFinite(options.currentCharacterDictionaryMediaId) &&
+          options.currentCharacterDictionaryMediaId > 0
+          ? Math.floor(options.currentCharacterDictionaryMediaId)
+          : null,
         metadata?.dictionaryPriorityByName ?? {},
         metadata?.dictionaryFrequencyModeByName ?? {},
       ),

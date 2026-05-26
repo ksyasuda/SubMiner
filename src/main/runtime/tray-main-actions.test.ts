@@ -66,8 +66,7 @@ test('build tray template handler wires actions and init guards', () => {
     openTexthookerInBrowser: () => calls.push('texthooker'),
     showTexthookerPage: () => true,
     showFirstRunSetup: () => true,
-    openFirstRunSetupWindow: (force?: boolean) =>
-      calls.push(force ? 'setup-forced' : 'setup'),
+    openFirstRunSetupWindow: (force?: boolean) => calls.push(force ? 'setup-forced' : 'setup'),
     showWindowsMpvLauncherSetup: () => true,
     openYomitanSettings: () => calls.push('yomitan'),
     openConfigSettingsWindow: () => calls.push('configuration'),
@@ -118,8 +117,7 @@ test('windows mpv launcher tray action force-opens completed setup', () => {
     openTexthookerInBrowser: () => calls.push('texthooker'),
     showTexthookerPage: () => true,
     showFirstRunSetup: () => false,
-    openFirstRunSetupWindow: (force?: boolean) =>
-      calls.push(force ? 'setup-forced' : 'setup'),
+    openFirstRunSetupWindow: (force?: boolean) => calls.push(force ? 'setup-forced' : 'setup'),
     showWindowsMpvLauncherSetup: () => true,
     openYomitanSettings: () => calls.push('yomitan'),
     openConfigSettingsWindow: () => calls.push('configuration'),

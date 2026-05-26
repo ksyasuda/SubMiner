@@ -20,6 +20,7 @@ export interface OverlayShortcutRuntimeServiceInput {
   showMpvOsd: (text: string) => void;
   openRuntimeOptionsPalette: () => void;
   openCharacterDictionary: () => void;
+  openCharacterDictionaryManager: () => void;
   openJimaku: () => void;
   markAudioCard: () => Promise<void>;
   copySubtitleMultiple: (timeoutMs: number) => void;
@@ -52,6 +53,9 @@ export function createOverlayShortcutsRuntimeService(
     },
     openCharacterDictionary: () => {
       input.openCharacterDictionary();
+    },
+    openCharacterDictionaryManager: () => {
+      input.openCharacterDictionaryManager();
     },
     openJimaku: () => {
       input.openJimaku();

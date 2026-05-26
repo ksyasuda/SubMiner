@@ -152,8 +152,5 @@ test('auto sync notifications fall back to desktop when startup sequencer cannot
     },
   });
 
-  assert.deepEqual(calls, [
-    'sequencer:importing:importing',
-    'desktop:SubMiner:importing',
-  ]);
+  assert.deepEqual(calls, ['sequencer:importing:importing', 'desktop:SubMiner:importing']);
 });

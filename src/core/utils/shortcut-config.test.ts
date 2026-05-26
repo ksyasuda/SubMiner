@@ -66,7 +66,7 @@ test('normalizes fallback shortcuts when AnkiConnect flag is unset', () => {
     shortcuts: {
       mineSentence: 'KeyQ',
       openRuntimeOptions: 'Digit9',
-      openCharacterDictionary: 'Ctrl+Shift+KeyA',
+      openCharacterDictionaryManager: 'Ctrl+KeyD',
     },
   };
 
@@ -74,7 +74,7 @@ test('normalizes fallback shortcuts when AnkiConnect flag is unset', () => {
 
   assert.equal(resolved.mineSentence, 'Q');
   assert.equal(resolved.openRuntimeOptions, '9');
-  assert.equal(resolved.openCharacterDictionary, 'Ctrl+Shift+A');
+  assert.equal(resolved.openCharacterDictionaryManager, 'Ctrl+D');
 });
 
 test('preserves null shortcut overrides so defaults can be disabled', () => {

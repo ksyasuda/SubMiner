@@ -19,6 +19,7 @@ export interface SessionActionExecutorDeps {
   openRuntimeOptionsPalette: () => void;
   openSessionHelp: () => void;
   openCharacterDictionary: () => void;
+  openCharacterDictionaryManager: () => void;
   openControllerSelect: () => void;
   openControllerDebug: () => void;
   openJimaku: () => void;
@@ -97,7 +98,10 @@ export async function dispatchSessionAction(
       deps.openSessionHelp();
       return;
     case 'openCharacterDictionary':
-      deps.openCharacterDictionary();
+      deps.openCharacterDictionaryManager();
+      return;
+    case 'openCharacterDictionaryManager':
+      deps.openCharacterDictionaryManager();
       return;
     case 'openControllerSelect':
       deps.openControllerSelect();
