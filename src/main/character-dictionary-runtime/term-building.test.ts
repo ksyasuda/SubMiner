@@ -34,4 +34,5 @@ test('buildNameTerms adds surname honorifics from Japanese localized aliases', (
   assert.ok(terms.includes('馬渕勲さん'));
   assert.ok(terms.includes('馬渕'));
   assert.ok(terms.includes('馬渕さん'));
+  assert.ok(!terms.includes('송치'));
 });
