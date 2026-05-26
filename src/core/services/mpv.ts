@@ -136,6 +136,7 @@ type MpvIpcClientEventName = keyof MpvIpcClientEventMap;
 export class MpvIpcClient implements MpvClient {
   private deps: MpvIpcClientProtocolDeps;
   private transport: MpvSocketTransport;
+  private socketPath: string;
   public socket: ReturnType<MpvSocketTransport['getSocket']> = null;
   private eventBus = new EventEmitter();
   private buffer = '';
@@ -144,6 +145,7 @@ export class MpvIpcClient implements MpvClient {
   private reconnectAttempt = 0;
   private firstConnection = true;
   private hasConnectedOnce = false;
+  private socketErrorWarnedForDisconnect = false;
   public currentVideoPath = '';
   public currentMediaTitle: string | null = null;
   public currentTimePos = 0;
@@ -180,23 +182,30 @@ export class MpvIpcClient implements MpvClient {
 
   constructor(socketPath: string, deps: MpvIpcClientDeps) {
     this.deps = deps;
+    this.socketPath = socketPath;
 
     this.transport = new MpvSocketTransport({
       socketPath,
       onConnect: () => {
-        logger.debug('Connected to MPV socket');
         this.connected = true;
         this.connecting = false;
         this.socket = this.transport.getSocket();
         this.reconnectAttempt = 0;
         this.hasConnectedOnce = true;
+        this.socketErrorWarnedForDisconnect = false;
+        const resolvedConfig = this.deps.getResolvedConfig();
+        logger.info('MPV IPC socket connected', {
+          socketPath: this.socketPath,
+          autoStartOverlay: this.deps.autoStartOverlay,
+          configAutoStartOverlay: resolvedConfig.auto_start_overlay === true,
+        });
         this.setSecondarySubVisibility(false);
         subscribeToMpvProperties(this.send.bind(this));
         requestMpvInitialState(this.send.bind(this));
         this.emit('connection-change', { connected: true });
 
         const shouldAutoStart =
-          this.deps.autoStartOverlay || this.deps.getResolvedConfig().auto_start_overlay === true;
+          this.deps.autoStartOverlay || resolvedConfig.auto_start_overlay === true;
         if (this.firstConnection && shouldAutoStart) {
           logger.debug('Auto-starting overlay, hiding mpv subtitles');
           setTimeout(() => {
@@ -211,18 +220,30 @@ export class MpvIpcClient implements MpvClient {
         this.processBuffer();
       },
       onError: (err: Error) => {
-        logger.debug('MPV socket error:', err.message);
+        this.logSocketError(err);
         this.failPendingRequests();
       },
       onClose: () => {
-        logger.debug('MPV socket closed');
+        const wasConnected = this.connected;
+        const shouldQuitOnMpvShutdown = this.deps.shouldQuitOnMpvShutdown?.() === true;
+        if (wasConnected) {
+          logger.warn('MPV IPC socket closed', {
+            socketPath: this.socketPath,
+            shouldQuitOnMpvShutdown,
+          });
+        } else {
+          logger.debug('MPV IPC socket closed before first connection', {
+            socketPath: this.socketPath,
+            reconnectAttempt: this.reconnectAttempt,
+          });
+        }
         this.connected = false;
         this.connecting = false;
         this.socket = null;
         this.playbackPaused = null;
         this.emit('connection-change', { connected: false });
         this.failPendingRequests();
-        if (this.deps.shouldQuitOnMpvShutdown?.() === true) {
+        if (shouldQuitOnMpvShutdown) {
           this.deps.requestAppQuit?.();
           return;
         }
@@ -261,6 +282,13 @@ export class MpvIpcClient implements MpvClient {
   }
 
   setSocketPath(socketPath: string): void {
+    if (socketPath !== this.socketPath) {
+      logger.info('MPV IPC socket path updated', {
+        previousSocketPath: this.socketPath,
+        socketPath,
+      });
+    }
+    this.socketPath = socketPath;
     this.transport.setSocketPath(socketPath);
   }
 
@@ -299,12 +327,47 @@ export class MpvIpcClient implements MpvClient {
       getReconnectTimer: () => this.deps.getReconnectTimer(),
       setReconnectTimer: (timer) => this.deps.setReconnectTimer(timer),
       onReconnectAttempt: (attempt, delay) => {
-        logger.debug(`Attempting to reconnect to MPV (attempt ${attempt}, delay ${delay}ms)...`);
+        logger.debug(`Attempting to reconnect to MPV (attempt ${attempt}, delay ${delay}ms)...`, {
+          socketPath: this.socketPath,
+        });
       },
       connect: () => {
         this.connect();
       },
     });
+  }
+
+  private shouldLogPreConnectionFailure(): boolean {
+    const nextAttempt = this.reconnectAttempt + 1;
+    return nextAttempt <= 3 || nextAttempt % 10 === 0;
+  }
+
+  private logSocketError(err: Error): void {
+    const errorWithCode = err as Error & { code?: unknown };
+    const details = {
+      socketPath: this.socketPath,
+      reconnectAttempt: this.reconnectAttempt,
+      hasConnectedOnce: this.hasConnectedOnce,
+      message: err.message,
+      code: typeof errorWithCode.code === 'string' ? errorWithCode.code : undefined,
+    };
+
+    if (!this.hasConnectedOnce) {
+      if (this.shouldLogPreConnectionFailure()) {
+        logger.warn('MPV IPC socket error', details);
+        return;
+      }
+      logger.debug('MPV IPC socket error', details);
+      return;
+    }
+
+    if (!this.socketErrorWarnedForDisconnect) {
+      this.socketErrorWarnedForDisconnect = true;
+      logger.warn('MPV IPC socket error', details);
+      return;
+    }
+
+    logger.debug('MPV IPC socket error', details);
   }
 
   private processBuffer(): void {

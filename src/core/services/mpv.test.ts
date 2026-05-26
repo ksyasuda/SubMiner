@@ -23,6 +23,37 @@ function makeDeps(overrides: Partial<MpvIpcClientProtocolDeps> = {}): MpvIpcClie
   };
 }
 
+function captureWarnLogs(run: () => void): string[] {
+  const originalWarn = console.warn;
+  const originalLogLevel = process.env.SUBMINER_LOG_LEVEL;
+  const originalAppLog = process.env.SUBMINER_APP_LOG;
+  const messages: string[] = [];
+
+  console.warn = (...args: unknown[]) => {
+    messages.push(args.map(String).join(' '));
+  };
+  process.env.SUBMINER_LOG_LEVEL = 'warn';
+  process.env.SUBMINER_APP_LOG = process.platform === 'win32' ? 'NUL' : '/dev/null';
+
+  try {
+    run();
+  } finally {
+    console.warn = originalWarn;
+    if (originalLogLevel === undefined) {
+      delete process.env.SUBMINER_LOG_LEVEL;
+    } else {
+      process.env.SUBMINER_LOG_LEVEL = originalLogLevel;
+    }
+    if (originalAppLog === undefined) {
+      delete process.env.SUBMINER_APP_LOG;
+    } else {
+      process.env.SUBMINER_APP_LOG = originalAppLog;
+    }
+  }
+
+  return messages;
+}
+
 function invokeHandleMessage(client: MpvIpcClient, msg: unknown): Promise<void> {
   return (client as unknown as { handleMessage: (msg: unknown) => Promise<void> }).handleMessage(
     msg,
@@ -399,6 +430,51 @@ test('MpvIpcClient onClose requests app quit for managed playback', () => {
   (client as any).transport.callbacks.onClose();
 
   assert.equal(quitRequests, 1);
+});
+
+test('MpvIpcClient only warns once for repeated post-disconnect socket failures', () => {
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  (client as any).send = () => true;
+  (client as any).scheduleReconnect = () => {};
+
+  const callbacks = (client as any).transport.callbacks;
+  callbacks.onConnect();
+
+  const messages = captureWarnLogs(() => {
+    callbacks.onClose();
+    for (let index = 0; index < 3; index += 1) {
+      const error = Object.assign(new Error('connect ENOENT /tmp/mpv.sock'), {
+        code: 'ENOENT',
+      });
+      callbacks.onError(error);
+      callbacks.onClose();
+    }
+  });
+
+  assert.equal(messages.filter((message) => message.includes('MPV IPC socket closed')).length, 1);
+  assert.equal(messages.filter((message) => message.includes('MPV IPC socket error')).length, 1);
+});
+
+test('MpvIpcClient warns again after MPV reconnects and disconnects later', () => {
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  (client as any).send = () => true;
+  (client as any).scheduleReconnect = () => {};
+
+  const callbacks = (client as any).transport.callbacks;
+  callbacks.onConnect();
+
+  const messages = captureWarnLogs(() => {
+    callbacks.onClose();
+    callbacks.onError(Object.assign(new Error('connect ENOENT /tmp/mpv.sock'), { code: 'ENOENT' }));
+    callbacks.onClose();
+    callbacks.onConnect();
+    callbacks.onClose();
+    callbacks.onError(Object.assign(new Error('connect ENOENT /tmp/mpv.sock'), { code: 'ENOENT' }));
+    callbacks.onClose();
+  });
+
+  assert.equal(messages.filter((message) => message.includes('MPV IPC socket closed')).length, 2);
+  assert.equal(messages.filter((message) => message.includes('MPV IPC socket error')).length, 2);
 });
 
 test('MpvIpcClient reconnect replays property subscriptions and initial state requests', () => {
