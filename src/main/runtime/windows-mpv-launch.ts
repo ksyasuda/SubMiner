@@ -208,13 +208,15 @@ export async function launchWindowsMpv(
     if (installedPlugin?.installed && !installedPluginPrompted) {
       runtimePluginPolicy?.notifyInstalledPluginDetected?.(installedPlugin);
     }
+    const hasLogLevel = pluginRuntimeConfig?.logLevel !== undefined;
+    const hasLogRotation = pluginRuntimeConfig?.logRotation !== undefined;
     const launchEnv =
-      pluginRuntimeConfig?.logLevel || pluginRuntimeConfig?.logRotation
+      hasLogLevel || hasLogRotation
         ? {
-            ...(pluginRuntimeConfig?.logLevel
+            ...(hasLogLevel
               ? { SUBMINER_LOG_LEVEL: pluginRuntimeConfig.logLevel }
               : {}),
-            ...(pluginRuntimeConfig?.logRotation
+            ...(hasLogRotation
               ? { SUBMINER_LOG_ROTATION: String(pluginRuntimeConfig.logRotation) }
               : {}),
           }

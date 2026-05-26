@@ -393,13 +393,6 @@ export function buildIntegrationConfigOptionRegistry(
         'Optional explicit AniList access token override; leave empty to use locally stored token from setup.',
     },
     {
-      path: 'anilist.characterDictionary.enabled',
-      kind: 'boolean',
-      defaultValue: defaultConfig.anilist.characterDictionary.enabled,
-      description:
-        'Enable automatic Yomitan character dictionary sync for currently watched AniList media.',
-    },
-    {
       path: 'anilist.characterDictionary.refreshTtlHours',
       kind: 'number',
       defaultValue: defaultConfig.anilist.characterDictionary.refreshTtlHours,
@@ -426,7 +419,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'enum',
       enumValues: ['all', 'active'],
       defaultValue: defaultConfig.anilist.characterDictionary.profileScope,
-      description: 'Yomitan profile scope for dictionary enable/disable updates.',
+      description: 'Yomitan profile scope for character dictionary settings updates.',
     },
     {
       path: 'anilist.characterDictionary.collapsibleSections.description',

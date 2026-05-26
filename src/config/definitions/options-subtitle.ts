@@ -74,7 +74,7 @@ export function buildSubtitleConfigOptionRegistry(
       kind: 'boolean',
       defaultValue: defaultConfig.subtitleStyle.nameMatchEnabled,
       description:
-        'Enable subtitle token coloring for matches from the SubMiner character dictionary.',
+        'Enable character dictionary sync and subtitle token coloring for character-name matches.',
     },
     {
       path: 'subtitleStyle.nameMatchImagesEnabled',

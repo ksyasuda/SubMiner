@@ -36,7 +36,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
     execPath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
     getRuntimePluginEntrypoint: () =>
       '/Applications/SubMiner.app/Contents/Resources/plugin/subminer/main.lua',
-    defaultMpvLogPath: '/tmp/mp.log',
+    getDefaultMpvLogPath: () => '/tmp/mp.log',
     defaultMpvArgs: ['--sid=auto'],
     removeSocketPath: () => {},
     spawnMpv: (args) => {
@@ -81,7 +81,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler forwards runtime plugin conf
       aniskipEnabled: true,
       aniskipButtonKey: 'F8',
     }),
-    defaultMpvLogPath: '/tmp/mp.log',
+    getDefaultMpvLogPath: () => '/tmp/mp.log',
     defaultMpvArgs: ['--sid=auto'],
     removeSocketPath: () => {},
     spawnMpv: (args) => {
@@ -123,7 +123,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler skips bundled script when in
       source: 'default-config',
       message: null,
     }),
-    defaultMpvLogPath: '/tmp/mp.log',
+    getDefaultMpvLogPath: () => '/tmp/mp.log',
     defaultMpvArgs: ['--sid=auto'],
     removeSocketPath: () => {},
     spawnMpv: (args) => {

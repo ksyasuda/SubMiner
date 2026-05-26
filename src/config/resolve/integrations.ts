@@ -81,18 +81,6 @@ export function applyIntegrationConfig(context: ResolveContext): void {
     if (isObject(src.anilist.characterDictionary)) {
       const characterDictionary = src.anilist.characterDictionary;
 
-      const dictionaryEnabled = asBoolean(characterDictionary.enabled);
-      if (dictionaryEnabled !== undefined) {
-        resolved.anilist.characterDictionary.enabled = dictionaryEnabled;
-      } else if (characterDictionary.enabled !== undefined) {
-        warn(
-          'anilist.characterDictionary.enabled',
-          characterDictionary.enabled,
-          resolved.anilist.characterDictionary.enabled,
-          'Expected boolean.',
-        );
-      }
-
       const refreshTtlHours = asNumber(characterDictionary.refreshTtlHours);
       if (refreshTtlHours !== undefined) {
         const normalized = Math.min(24 * 365, Math.max(1, Math.floor(refreshTtlHours)));

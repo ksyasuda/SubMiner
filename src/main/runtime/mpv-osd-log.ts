@@ -1,7 +1,7 @@
 import type { MpvRuntimeClientLike } from '../../core/services/mpv';
 
 export function createAppendToMpvLogHandler(deps: {
-  logPath: string;
+  getLogPath: () => string;
   dirname: (targetPath: string) => string;
   mkdir: (targetPath: string, options: { recursive: boolean }) => Promise<void>;
   appendFile: (targetPath: string, data: string, options: { encoding: 'utf8' }) => Promise<void>;
@@ -13,9 +13,13 @@ export function createAppendToMpvLogHandler(deps: {
   const drainPendingLines = async (): Promise<void> => {
     while (pendingLines.length > 0) {
       const chunk = pendingLines.splice(0, pendingLines.length).join('');
+      const logPath = deps.getLogPath();
+      if (!logPath.trim()) {
+        continue;
+      }
       try {
-        await deps.mkdir(deps.dirname(deps.logPath), { recursive: true });
-        await deps.appendFile(deps.logPath, chunk, { encoding: 'utf8' });
+        await deps.mkdir(deps.dirname(logPath), { recursive: true });
+        await deps.appendFile(logPath, chunk, { encoding: 'utf8' });
       } catch {
         // best-effort logging
       }
@@ -35,7 +39,7 @@ export function createAppendToMpvLogHandler(deps: {
   };
 
   const appendToMpvLog = (message: string): void => {
-    if (!deps.logPath.trim()) {
+    if (!deps.getLogPath().trim()) {
       return;
     }
     pendingLines.push(`[${deps.now().toISOString()}] ${message}\n`);

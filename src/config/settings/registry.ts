@@ -63,6 +63,7 @@ export const LEGACY_HIDDEN_CONFIG_PATHS = [
   'controller.preferredGamepadLabel',
   'controller.profiles',
   'youtubeSubgen.primarySubLanguages',
+  'anilist.characterDictionary.enabled',
   'anilist.characterDictionary.refreshTtlHours',
   'anilist.characterDictionary.evictionPolicy',
   'anilist.characterDictionary.profileScope',

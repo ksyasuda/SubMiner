@@ -7,6 +7,9 @@ type ZipEntry = {
   localHeaderOffset: number;
 };
 
+const ZIP32_MAX_UINT16 = 0xffff;
+const ZIP32_MAX_UINT32 = 0xffffffff;
+
 export type StoredZipFile = {
   name: string;
   data: Buffer;
@@ -117,6 +120,14 @@ function createEndOfCentralDirectory(
   centralSize: number,
   centralStart: number,
 ): Buffer {
+  if (
+    entriesLength > ZIP32_MAX_UINT16 ||
+    centralSize > ZIP32_MAX_UINT32 ||
+    centralStart > ZIP32_MAX_UINT32
+  ) {
+    throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
+  }
+
   const end = Buffer.alloc(22);
   let cursor = 0;
   writeUint32LE(end, 0x06054b50, cursor);
@@ -156,8 +167,21 @@ export function writeStoredZip(
     for (const file of files) {
       const fileName = Buffer.from(file.name, 'utf8');
       const fileSize = file.data.length;
+      if (fileName.length > ZIP32_MAX_UINT16) {
+        throw new RangeError(`ZIP entry name too long: ${file.name}`);
+      }
+      if (fileSize > ZIP32_MAX_UINT32) {
+        throw new RangeError(`ZIP entry too large for ZIP32: ${file.name}`);
+      }
+      if (offset > ZIP32_MAX_UINT32) {
+        throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
+      }
       const fileCrc32 = crc32(file.data);
       const localHeader = createLocalFileHeader(fileName, fileCrc32, fileSize);
+      const nextOffset = offset + localHeader.length + fileSize;
+      if (nextOffset > ZIP32_MAX_UINT32) {
+        throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
+      }
       writeBuffer(fd, localHeader);
       writeBuffer(fd, file.data);
       entries.push({
@@ -166,10 +190,16 @@ export function writeStoredZip(
         size: fileSize,
         localHeaderOffset: offset,
       });
-      offset += localHeader.length + fileSize;
+      if (nextOffset > ZIP32_MAX_UINT32) {
+        throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
+      }
+      offset = nextOffset;
     }
 
     const centralStart = offset;
+    if (centralStart > ZIP32_MAX_UINT32) {
+      throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
+    }
     for (const entry of entries) {
       const centralHeader = createCentralDirectoryHeader(entry);
       writeBuffer(fd, centralHeader);

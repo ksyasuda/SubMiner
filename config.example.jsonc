@@ -389,7 +389,7 @@
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
     "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false
     "autoPauseVideoOnYomitanPopup": true, // Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes. Values: true | false
-    "nameMatchEnabled": false, // Enable subtitle token coloring for matches from the SubMiner character dictionary. Values: true | false
+    "nameMatchEnabled": false, // Enable character dictionary sync and subtitle token coloring for character-name matches. Values: true | false
     "nameMatchImagesEnabled": false, // Show small character portraits beside subtitle tokens matched from the SubMiner character dictionary. Values: true | false
     "nameMatchColor": "#f5bde6", // Hex color used when a subtitle token matches an entry from the SubMiner character dictionary.
     "nPlusOneColor": "#c6a0f6", // Color used for the single N+1 target token subtitle highlight.
@@ -594,11 +594,10 @@
     "enabled": false, // Enable AniList post-watch progress updates. Values: true | false
     "accessToken": "", // Optional explicit AniList access token override; leave empty to use locally stored token from setup.
     "characterDictionary": {
-      "enabled": false, // Enable automatic Yomitan character dictionary sync for currently watched AniList media. Values: true | false
       "refreshTtlHours": 168, // Legacy setting; merged character dictionary retention is now usage-based and this value is ignored.
       "maxLoaded": 3, // Maximum number of most-recently-used anime snapshots included in the merged Yomitan character dictionary.
       "evictionPolicy": "delete", // Legacy setting; merged character dictionary eviction is usage-based and this value is ignored. Values: disable | delete
-      "profileScope": "all", // Yomitan profile scope for dictionary enable/disable updates. Values: all | active
+      "profileScope": "all", // Yomitan profile scope for character dictionary settings updates. Values: all | active
       "collapsibleSections": {
         "description": false, // Open the Description section by default in character dictionary glossary entries. Values: true | false
         "characterInformation": false, // Open the Character Information section by default in character dictionary glossary entries. Values: true | false

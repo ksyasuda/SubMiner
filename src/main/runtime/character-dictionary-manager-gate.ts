@@ -1,7 +1,7 @@
 export type CharacterDictionaryManagerNotificationType = 'osd' | 'system' | 'both' | 'none';
 
 export const CHARACTER_DICTIONARY_MANAGER_DISABLED_MESSAGE =
-  'Enable character dictionary annotations in Settings to use the character dictionary manager.';
+  'Enable Name Match Enabled in Settings to use the character dictionary manager.';
 
 export interface CharacterDictionaryManagerGateDeps {
   isCharacterDictionaryEnabled: () => boolean;

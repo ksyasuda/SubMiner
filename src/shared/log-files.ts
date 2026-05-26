@@ -174,6 +174,7 @@ function maybePruneLogDirectory(logPath: string, retentionDays: number): void {
 }
 
 export function pruneLogDirectoryForPath(logPath: string, rotation?: unknown): void {
+  if (!logPath.trim()) return;
   maybePruneLogDirectory(logPath, getLogRetentionDays(rotation));
 }
 
@@ -209,6 +210,7 @@ export function appendLogLine(
     maxBytes?: number;
   },
 ): void {
+  if (!logPath.trim()) return;
   const retentionDays = options?.retentionDays ?? getLogRetentionDays(options?.rotation);
   const maxBytes = options?.maxBytes ?? DEFAULT_LOG_MAX_BYTES;
 

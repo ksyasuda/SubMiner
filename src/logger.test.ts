@@ -44,6 +44,8 @@ test('resolveDefaultLogFilePath uses .config on linux', () => {
 });
 
 test('setLogRotation accepts numeric retention days', () => {
+  const previous = process.env.SUBMINER_LOG_ROTATION;
+  const today = new Date().toISOString().slice(0, 10);
   setLogRotation(14);
   try {
     const resolved = resolveDefaultLogFilePath({
@@ -58,11 +60,15 @@ test('setLogRotation accepts numeric retention days', () => {
         '.config',
         'SubMiner',
         'logs',
-        `app-${new Date().toISOString().slice(0, 10)}.log`,
+        `app-${today}.log`,
       ),
     );
     assert.equal(process.env.SUBMINER_LOG_ROTATION, '14');
   } finally {
-    setLogRotation(7);
+    if (previous == null) {
+      delete process.env.SUBMINER_LOG_ROTATION;
+    } else {
+      process.env.SUBMINER_LOG_ROTATION = previous;
+    }
   }
 });

@@ -730,7 +730,7 @@ const isDev = process.argv.includes('--dev') || process.argv.includes('--debug')
 const texthookerService = new Texthooker(() => {
   const config = getResolvedConfig();
   const characterDictionaryEnabled =
-    config.anilist.characterDictionary.enabled &&
+    config.subtitleStyle.nameMatchEnabled &&
     yomitanProfilePolicy.isCharacterDictionaryEnabled();
   const knownWordColoringEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.knownWords.highlightEnabled',
@@ -2236,7 +2236,7 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     const config = getResolvedConfig().anilist.characterDictionary;
     return {
       enabled:
-        config.enabled &&
+        getResolvedConfig().subtitleStyle.nameMatchEnabled &&
         yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
         !isYoutubePlaybackActiveNow(),
       maxLoaded: config.maxLoaded,
@@ -2952,7 +2952,7 @@ function openSessionHelpOverlay(): void {
 
 function openCharacterDictionaryManagerOverlay(): void {
   openCharacterDictionaryManagerWithConfigGate({
-    isCharacterDictionaryEnabled: () => getResolvedConfig().anilist.characterDictionary.enabled,
+    isCharacterDictionaryEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
     getNotificationType: () => getResolvedConfig().ankiConnect.behavior.notificationType,
     openManager: () => {
       openOverlayHostedModalWithOsd(
@@ -3074,7 +3074,7 @@ const {
         mpvExecutablePath: getResolvedConfig().mpv.executablePath,
       }),
     getPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
-    defaultMpvLogPath: isLogFileEnabled('mpv') ? DEFAULT_MPV_LOG_PATH : '',
+    getDefaultMpvLogPath: () => (isLogFileEnabled('mpv') ? DEFAULT_MPV_LOG_PATH : ''),
     defaultMpvArgs: MPV_JELLYFIN_DEFAULT_ARGS,
     removeSocketPath: (socketPath) => {
       fs.rmSync(socketPath, { force: true });
@@ -4660,7 +4660,11 @@ const {
       markJellyfinRemotePlaybackLoadedState(activeJellyfinRemotePlayback, path);
     },
     scheduleCharacterDictionarySync: () => {
-      if (!yomitanProfilePolicy.isCharacterDictionaryEnabled() || isYoutubePlaybackActiveNow()) {
+      if (
+        !getResolvedConfig().subtitleStyle.nameMatchEnabled ||
+        !yomitanProfilePolicy.isCharacterDictionaryEnabled() ||
+        isYoutubePlaybackActiveNow()
+      ) {
         return;
       }
       characterDictionaryAutoSyncRuntime.scheduleSync();
@@ -4798,7 +4802,7 @@ const {
           getResolvedConfig().subtitleStyle.enableJlpt,
         ),
       getCharacterDictionaryEnabled: () =>
-        getResolvedConfig().anilist.characterDictionary.enabled &&
+        getResolvedConfig().subtitleStyle.nameMatchEnabled &&
         yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
         !isYoutubePlaybackActiveNow(),
       getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
@@ -5170,7 +5174,13 @@ function describeUnknownError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function exportLogsFromTray(): void {
+async function exportLogsFromTray(): Promise<void> {
+  try {
+    await flushMpvLog();
+  } catch (error) {
+    logger.warn('Failed to flush mpv log before exporting logs from tray.', error);
+  }
+
   try {
     const result = exportLogsArchive({
       platform: process.platform,
@@ -5317,7 +5327,7 @@ function refreshCurrentSessionBindings(): void {
 
 const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
-    logPath: isLogFileEnabled('mpv') ? DEFAULT_MPV_LOG_PATH : '',
+    getLogPath: () => (isLogFileEnabled('mpv') ? DEFAULT_MPV_LOG_PATH : ''),
     dirname: (targetPath) => path.dirname(targetPath),
     mkdir: async (targetPath, options) => {
       await fs.promises.mkdir(targetPath, options);
@@ -6511,7 +6521,9 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
       openYomitanSettings: () => openYomitanSettings(),
       openConfigSettingsWindow: () => openConfigSettingsWindow(),
-      exportLogs: () => exportLogsFromTray(),
+      exportLogs: () => {
+        void exportLogsFromTray();
+      },
       openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
       isJellyfinConfigured: () =>
         isJellyfinConfiguredForTrayRuntime(getJellyfinTrayDiscoveryDeps()),

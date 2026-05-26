@@ -21,7 +21,7 @@ The feature has three stages: **snapshot**, **merge**, and **match**.
 Character dictionary sync is disabled by default. To turn it on:
 
 1. Authenticate with AniList (see [AniList Integration](/anilist-integration#setup)).
-2. Set `anilist.characterDictionary.enabled` to `true` in your config.
+2. Set `subtitleStyle.nameMatchEnabled` to `true` in your config or enable **Name Match Enabled** in Settings.
 3. Start watching — SubMiner will generate a snapshot for the current media and import the merged dictionary into Yomitan automatically.
 
 ```jsonc
@@ -29,9 +29,9 @@ Character dictionary sync is disabled by default. To turn it on:
   "anilist": {
     "enabled": true,
     "accessToken": "your-token",
-    "characterDictionary": {
-      "enabled": true,
-    },
+  },
+  "subtitleStyle": {
+    "nameMatchEnabled": true,
   },
 }
 ```
@@ -102,7 +102,7 @@ Name matches are visually distinct from [N+1 targeting, frequency highlighting, 
 
 | Option                                 | Default   | Description                               |
 | -------------------------------------- | --------- | ----------------------------------------- |
-| `subtitleStyle.nameMatchEnabled`       | `false`   | Toggle character-name highlighting        |
+| `subtitleStyle.nameMatchEnabled`       | `false`   | Enable dictionary sync and highlighting   |
 | `subtitleStyle.nameMatchImagesEnabled` | `false`   | Show small AniList portraits beside names |
 | `subtitleStyle.nameMatchColor`         | `#f5bde6` | Highlight color for matched names         |
 
@@ -136,7 +136,7 @@ The three collapsible sections can be configured to start open or closed:
 
 ## Auto-Sync Lifecycle
 
-When `characterDictionary.enabled` is `true`, SubMiner runs an auto-sync routine whenever the active media changes.
+When `subtitleStyle.nameMatchEnabled` is `true`, SubMiner runs an auto-sync routine whenever the active media changes.
 
 **Phases:**
 
@@ -243,13 +243,12 @@ merged.zip
 
 | Option                                                                 | Default   | Description                                                     |
 | ---------------------------------------------------------------------- | --------- | --------------------------------------------------------------- |
-| `anilist.characterDictionary.enabled`                                  | `false`   | Enable auto-sync of character dictionary from AniList           |
 | `anilist.characterDictionary.maxLoaded`                                | `3`       | Number of recent media snapshots kept in the merged dictionary  |
 | `anilist.characterDictionary.profileScope`                             | `"all"`   | Apply dictionary to `"all"` Yomitan profiles or `"active"` only |
 | `anilist.characterDictionary.collapsibleSections.description`          | `false`   | Start Description section expanded                              |
 | `anilist.characterDictionary.collapsibleSections.characterInformation` | `false`   | Start Character Information section expanded                    |
 | `anilist.characterDictionary.collapsibleSections.voicedBy`             | `false`   | Start Voiced By section expanded                                |
-| `subtitleStyle.nameMatchEnabled`                                       | `false`   | Toggle character-name highlighting in subtitles                 |
+| `subtitleStyle.nameMatchEnabled`                                       | `false`   | Enable character-dictionary sync and name highlighting          |
 | `subtitleStyle.nameMatchImagesEnabled`                                 | `false`   | Show small AniList portraits beside matched names               |
 | `subtitleStyle.nameMatchColor`                                         | `#f5bde6` | Highlight color for character-name matches                      |
 
@@ -272,7 +271,7 @@ If you work with visual novels or want a standalone dictionary generator indepen
 
 ## Troubleshooting
 
-- **Names not highlighting:** Confirm `anilist.characterDictionary.enabled` is `true` and `subtitleStyle.nameMatchEnabled` is `true`. Check that the current media has an AniList entry — SubMiner needs a media ID to fetch characters.
+- **Names not highlighting:** Confirm `subtitleStyle.nameMatchEnabled` is `true`. Check that the current media has an AniList entry — SubMiner needs a media ID to fetch characters.
 - **Inline portraits missing:** Confirm `subtitleStyle.nameMatchImagesEnabled` is `true`. On the next character dictionary sync, SubMiner refreshes current-version snapshots that do not contain usable cached character portrait data. Portraits still require AniList to return an image and the image download to succeed.
 - **Sync seems stuck:** The auto-sync debounces for 800ms after media changes and throttles image downloads at 250ms per image. Large casts (50+ characters) take longer. Check the status bar for the current sync phase.
 - **Wrong characters showing:** Open the in-app character dictionary manager (`Ctrl/Cmd+D`) to remove/reorder loaded titles, then use **Override** to correct the active AniList match. You can also run `--dictionary-candidates`, then save the correct media with `--dictionary-select --dictionary-anilist-id <id>`. SubMiner ignores character entries from other loaded titles for subtitle name matching and inline portraits once the current media ID is known.

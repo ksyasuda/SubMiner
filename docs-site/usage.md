@@ -223,7 +223,7 @@ Setup flow:
 
 AniList character dictionary auto-sync (optional):
 
-- Enable with `anilist.characterDictionary.enabled=true` in config.
+- Enable with `subtitleStyle.nameMatchEnabled=true` in config or **Name Match Enabled** in Settings.
 - SubMiner syncs the currently watched AniList media into a per-media snapshot, then rebuilds one merged `SubMiner Character Dictionary` from the most recently used snapshots.
 - Rotation limit defaults to 3 recent media snapshots in that merged dictionary (`maxLoaded`).
 

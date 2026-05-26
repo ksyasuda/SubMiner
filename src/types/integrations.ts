@@ -64,7 +64,6 @@ export interface AnilistCharacterDictionaryCollapsibleSectionsConfig {
 }
 
 export interface AnilistCharacterDictionaryConfig {
-  enabled?: boolean;
   refreshTtlHours?: number;
   maxLoaded?: number;
   evictionPolicy?: AnilistCharacterDictionaryEvictionPolicy;

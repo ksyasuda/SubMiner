@@ -127,6 +127,8 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
           );
         }
       }
+    } else if (src.logging.files !== undefined) {
+      warn('logging.files', src.logging.files, resolved.logging.files, 'Expected object.');
     }
   }
 

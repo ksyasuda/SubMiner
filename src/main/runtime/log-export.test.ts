@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { writeStoredZip } from '../../shared/stored-zip';
 import { exportLogsArchive, maskUsernamesInLogText } from './log-export';
 
 function makeTempDir(): string {
@@ -97,6 +98,27 @@ test('exportLogsArchive exports current-day logs and masks usernames', () => {
     assert.doesNotMatch(content, /kyle/);
   } finally {
     cleanupDir(root);
+  }
+});
+
+test('writeStoredZip rejects names outside ZIP32 limits', () => {
+  const dir = makeTempDir();
+  const outputPath = path.join(dir, 'logs.zip');
+
+  try {
+    assert.throws(
+      () =>
+        writeStoredZip(outputPath, [
+          {
+            name: `${'a'.repeat(0x10000)}.log`,
+            data: Buffer.from('log\n', 'utf8'),
+          },
+        ]),
+      /ZIP entry name too long/,
+    );
+    assert.equal(fs.existsSync(outputPath), false);
+  } finally {
+    cleanupDir(dir);
   }
 });
 

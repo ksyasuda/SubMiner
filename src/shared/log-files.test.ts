@@ -7,6 +7,7 @@ import {
   applyLogFileTogglesToEnv,
   appendLogLine,
   isLogFileEnabled,
+  pruneLogDirectoryForPath,
   pruneLogFiles,
   resolveDefaultLogFilePath,
 } from './log-files';
@@ -103,6 +104,25 @@ test('appendLogLine trims oversized logs to newest bytes', () => {
     assert.match(content, /abcdefghij/);
     assert.ok(Buffer.byteLength(content) <= 48);
   } finally {
+    fs.rmSync(logsDir, { recursive: true, force: true });
+  }
+});
+
+test('empty log path operations are no-ops', () => {
+  const cwd = process.cwd();
+  const logsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-empty-log-path-'));
+  const candidate = path.join(logsDir, 'cwd.log');
+
+  try {
+    process.chdir(logsDir);
+    fs.writeFileSync(candidate, 'keep\n', 'utf8');
+
+    pruneLogDirectoryForPath('', 1);
+    appendLogLine('', 'ignored', { retentionDays: 1 });
+
+    assert.equal(fs.readFileSync(candidate, 'utf8'), 'keep\n');
+  } finally {
+    process.chdir(cwd);
     fs.rmSync(logsDir, { recursive: true, force: true });
   }
 });

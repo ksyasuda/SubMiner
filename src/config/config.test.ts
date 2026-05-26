@@ -63,7 +63,6 @@ test('loads defaults when config is missing', () => {
   assert.deepEqual(config.ankiConnect.tags, ['SubMiner']);
   assert.equal(config.ankiConnect.media.audioPadding, 0);
   assert.equal(config.anilist.enabled, false);
-  assert.equal(config.anilist.characterDictionary.enabled, false);
   assert.equal(config.subtitleStyle.nameMatchImagesEnabled, false);
   assert.equal(config.anilist.characterDictionary.refreshTtlHours, 168);
   assert.equal(config.anilist.characterDictionary.maxLoaded, 3);
@@ -824,7 +823,6 @@ test('parses anilist.characterDictionary config with clamping and enum validatio
   const config = service.getConfig();
   const warnings = service.getWarnings();
 
-  assert.equal(config.anilist.characterDictionary.enabled, true);
   assert.equal(config.anilist.characterDictionary.refreshTtlHours, 1);
   assert.equal(config.anilist.characterDictionary.maxLoaded, 20);
   assert.equal(config.anilist.characterDictionary.evictionPolicy, 'delete');
@@ -1565,6 +1563,26 @@ test('falls back for invalid logging file toggles and reports warning', () => {
 
   assert.equal(config.logging.files.mpv, DEFAULT_CONFIG.logging.files.mpv);
   assert.ok(warnings.some((warning) => warning.path === 'logging.files.mpv'));
+});
+
+test('falls back for invalid logging files object and reports warning', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "logging": {
+        "files": false
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.deepEqual(config.logging.files, DEFAULT_CONFIG.logging.files);
+  assert.ok(warnings.some((warning) => warning.path === 'logging.files'));
 });
 
 test('warns and ignores unknown top-level config keys', () => {
@@ -2603,6 +2621,7 @@ test('template generator includes known keys', () => {
   assert.doesNotMatch(output, /"clientVersion":/);
   assert.doesNotMatch(output, /"youtubeSubgen":/);
   assert.match(output, /"characterDictionary":\s*\{/);
+  assert.doesNotMatch(output, /"characterDictionary":\s*\{\s*"enabled":/);
   assert.match(output, /"preserveLineBreaks": false/);
   assert.match(output, /"knownWords"\s*:\s*\{/);
   assert.match(output, /"knownWordColor": "#a6da95"/);

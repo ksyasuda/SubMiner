@@ -110,7 +110,6 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     enabled: false,
     accessToken: '',
     characterDictionary: {
-      enabled: false,
       refreshTtlHours: 168,
       maxLoaded: 3,
       evictionPolicy: 'delete',

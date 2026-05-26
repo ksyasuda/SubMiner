@@ -260,7 +260,7 @@ test('settings registry hides app-managed and inactive config surfaces', () => {
   ]) {
     assert.equal(paths.has(hiddenPath), false, `${hiddenPath} should be hidden`);
   }
-  assert.equal(field('anilist.characterDictionary.enabled').section, 'Character Dictionary');
+  assert.equal(paths.has('anilist.characterDictionary.enabled'), false);
 });
 
 test('settings registry marks safe live config paths as hot-reloadable', () => {

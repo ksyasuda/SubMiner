@@ -326,7 +326,7 @@ test('launchWindowsMpv forwards runtime logging config to mpv and plugin', async
       binaryPath: '',
       backend: 'windows',
       logLevel: 'debug',
-      logRotation: 7,
+      logRotation: 0,
       autoStart: true,
       autoStartVisibleOverlay: false,
       autoStartPauseUntilReady: true,
@@ -344,7 +344,7 @@ test('launchWindowsMpv forwards runtime logging config to mpv and plugin', async
     /--log-file=C:\\Users\\tester\\AppData\\Roaming\\SubMiner\\logs\\mpv-2026-05-26\.log/,
   );
   assert.equal(calls[2], 'debug');
-  assert.equal(calls[3], '7');
+  assert.equal(calls[3], '0');
 });
 
 test('launchWindowsMpv skips bundled script when installed plugin is detected', async () => {

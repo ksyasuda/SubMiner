@@ -114,7 +114,7 @@ test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and log
         'ankiConnect.isKiku.fieldGrouping',
         'logging.level',
         'logging.rotation',
-        'logging.files',
+        'logging.files.mpv',
       ],
       restartRequiredFields: [],
     },

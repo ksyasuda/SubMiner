@@ -296,7 +296,6 @@ export interface ResolvedConfig {
     enabled: boolean;
     accessToken: string;
     characterDictionary: {
-      enabled: boolean;
       refreshTtlHours: number;
       maxLoaded: number;
       evictionPolicy: AnilistCharacterDictionaryEvictionPolicy;

@@ -396,7 +396,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `autoPauseVideoOnYomitanPopup`     | boolean     | Pause playback while the Yomitan popup is open, then resume when the popup closes (`true` by default).                               |
 | `hoverTokenColor`                  | string      | Hex color used for hovered subtitle token highlight in mpv (default: catppuccin mauve)                                               |
 | `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight (default: `"transparent"`); `hoverBackground` is accepted as an alias |
-| `nameMatchEnabled`                 | boolean     | Enable subtitle token coloring for matches from the SubMiner character dictionary (`false` by default)                               |
+| `nameMatchEnabled`                 | boolean     | Enable character dictionary sync and subtitle token coloring for character-name matches (`false` by default)                         |
 | `nameMatchImagesEnabled`           | boolean     | Show small cached AniList character portraits beside matched character-name tokens (`false` by default)                              |
 | `nameMatchColor`                   | string      | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                               |
 | `knownWordColor`                   | string      | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                               |
@@ -430,10 +430,10 @@ In `single` mode all highlights use `singleColor`; in `banded` mode tokens map t
 
 Character-name highlighting is separate from N+1 and frequency highlighting:
 
-- `nameMatchEnabled` controls whether SubMiner includes character-dictionary name matches in subtitle token metadata and renderer styling.
+- `nameMatchEnabled` controls whether SubMiner syncs the character dictionary and includes character-dictionary name matches in subtitle token metadata and renderer styling.
 - `nameMatchImagesEnabled` adds small circular portraits beside matched names using the AniList images already cached with character dictionary snapshots.
 - `nameMatchColor` sets the highlight color for those matched character names.
-- Matches come from the bundled SubMiner character dictionary, including AniList-synced merged dictionaries when enabled.
+- Matches come from the bundled SubMiner character dictionary, including AniList-synced merged dictionaries when name matching is enabled.
 
 Secondary subtitle defaults: `fontFamily: "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP"`, `fontSize: 24`, `fontColor: "#cad3f5"`, `textShadow: "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)"`, `backgroundColor: "transparent"`, `fontWeight: "600"`. Any property not set in `secondary` falls back to the CSS defaults.
 
@@ -1176,7 +1176,6 @@ AniList integration is opt-in and disabled by default. Enable it to allow SubMin
 | -------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `enabled`                                                      | `true`, `false`         | Enable AniList post-watch progress updates (default: `false`)                                                 |
 | `accessToken`                                                  | string                  | Optional explicit AniList access token override (default: empty string)                                       |
-| `characterDictionary.enabled`                                  | `true`, `false`         | Enable automatic import/update of the merged SubMiner character dictionary for recent AniList media           |
 | `characterDictionary.refreshTtlHours`                          | number                  | Legacy compatibility setting. Parsed and preserved, but merged dictionary retention is now usage-based        |
 | `characterDictionary.maxLoaded`                                | number                  | Maximum number of most-recently-used AniList media snapshots included in the merged dictionary (default: `3`) |
 | `characterDictionary.evictionPolicy`                           | `"delete"`, `"disable"` | Legacy compatibility setting. Parsed and preserved, but merged dictionary eviction is now usage-based         |

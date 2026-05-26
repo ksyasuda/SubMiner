@@ -163,7 +163,7 @@ export function createConfigHotReloadAppliedHandler(deps: ConfigHotReloadApplied
     if (diff.hotReloadFields.includes('logging.rotation')) {
       deps.setLogRotation?.(config.logging.rotation);
     }
-    if (diff.hotReloadFields.includes('logging.files')) {
+    if (hasAnyHotReloadField(diff, ['logging.files'])) {
       deps.setLogFileToggles?.(config.logging.files);
     }
 

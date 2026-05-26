@@ -97,7 +97,6 @@ test('anilist character dictionary fields are parsed, clamped, and enum-validate
   const { context, warnings } = createResolveContext({
     anilist: {
       characterDictionary: {
-        enabled: true,
         refreshTtlHours: 0,
         maxLoaded: 99,
         evictionPolicy: 'purge' as never,
@@ -113,7 +112,6 @@ test('anilist character dictionary fields are parsed, clamped, and enum-validate
 
   applyIntegrationConfig(context);
 
-  assert.equal(context.resolved.anilist.characterDictionary.enabled, true);
   assert.equal(context.resolved.anilist.characterDictionary.refreshTtlHours, 1);
   assert.equal(context.resolved.anilist.characterDictionary.maxLoaded, 20);
   assert.equal(context.resolved.anilist.characterDictionary.evictionPolicy, 'delete');

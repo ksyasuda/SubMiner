@@ -64,7 +64,7 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
   assert.deepEqual(calls, ['lookup:true', 'lookup:false', 'set-window', 'set-ready', 'set-init']);
 });
 
-test('tokenizer deps builder disables name matching when character dictionary is disabled', () => {
+test('tokenizer deps builder disables name matching when character dictionary runtime is disabled', () => {
   const deps = createBuildTokenizerDepsMainHandler({
     getYomitanExt: () => null,
     getYomitanParserWindow: () => null,
