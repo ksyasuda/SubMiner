@@ -123,10 +123,16 @@ import { RuntimeOptionsManager } from './runtime-options';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
 import {
   createLogger,
+  setLogFileToggles,
   setLogLevel,
-  resolveDefaultLogFilePath,
+  setLogRotation,
   type LogLevelSource,
 } from './logger';
+import {
+  isLogFileEnabled,
+  pruneLogDirectoryForPath,
+  resolveDefaultLogFilePath,
+} from './shared/log-files';
 import { createFatalErrorReporter } from './main/fatal-error';
 import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
 import {
@@ -148,6 +154,7 @@ import {
 } from './cli/args';
 import { printHelp } from './cli/help';
 import { IPC_CHANNELS, type OverlayHostedModal } from './shared/ipc/contracts';
+import { buildMpvLoggingArgs } from './shared/mpv-logging-args';
 import { AnkiConnectClient } from './anki-connect';
 import {
   getStartupModeFlags,
@@ -258,6 +265,7 @@ import {
   createMpvOsdRuntimeHandlers,
   createCycleSecondarySubModeRuntimeHandler,
 } from './main/runtime/domains/mpv';
+import { buildSubtitleTrackDiagnostics } from './main/runtime/mpv-track-diagnostics';
 import {
   createBuildCopyCurrentSubtitleMainDepsHandler,
   createBuildHandleMineSentenceDigitMainDepsHandler,
@@ -430,6 +438,7 @@ import {
   shouldQuitOnMpvShutdownForTrayState,
   shouldQuitOnWindowAllClosedForTrayState,
 } from './main/runtime/startup-tray-policy';
+import { exportLogsArchive } from './main/runtime/log-export';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
 import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
 import {
@@ -532,6 +541,7 @@ import {
 } from './main/runtime/character-dictionary-auto-sync';
 import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/character-dictionary-auto-sync-completion';
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
+import { openCharacterDictionaryManagerWithConfigGate } from './main/runtime/character-dictionary-manager-gate';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { resolveCurrentSubtitleForRenderer } from './main/runtime/current-subtitle-snapshot';
 import { createJellyfinSubtitleCacheIo } from './main/runtime/jellyfin-subtitle-cache-io';
@@ -641,7 +651,7 @@ if (process.platform === 'linux') {
 app.setName('SubMiner');
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
-const DEFAULT_MPV_LOG_FILE = resolveDefaultLogFilePath({
+const DEFAULT_MPV_LOG_FILE = resolveDefaultLogFilePath('mpv', {
   platform: process.platform,
   homeDir: os.homedir(),
   appDataDir: process.env.APPDATA,
@@ -1295,17 +1305,24 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
     await ensureYoutubePlaybackRuntimeReady();
   },
   resolveYoutubePlaybackUrl: (url, format) => resolveYoutubePlaybackUrl(url, format),
-  launchWindowsMpv: (playbackUrl, args) =>
-    launchWindowsMpv(
+  launchWindowsMpv: (playbackUrl, args) => {
+    const config = getResolvedConfig();
+    setLogFileToggles(config.logging.files);
+    const mpvLogPath = isLogFileEnabled('mpv') ? resolveDefaultLogFilePath('mpv') : '';
+    if (mpvLogPath) {
+      pruneLogDirectoryForPath(mpvLogPath, config.logging.rotation);
+    }
+    const mpvArgs = [...args, ...buildMpvLoggingArgs(config.logging.level, mpvLogPath, args)];
+    return launchWindowsMpv(
       [playbackUrl],
       createWindowsMpvLaunchDeps({
         showError: (title, content) => dialog.showErrorBox(title, content),
       }),
-      [...args, `--log-file=${DEFAULT_MPV_LOG_PATH}`],
+      mpvArgs,
       process.execPath,
       resolveBundledMpvRuntimePluginEntrypoint(),
-      getResolvedConfig().mpv.executablePath,
-      getResolvedConfig().mpv.launchMode,
+      config.mpv.executablePath,
+      config.mpv.launchMode,
       {
         detectInstalledMpvPlugin: detectWindowsInstalledMpvPlugin,
         notifyInstalledPluginDetected: logInstalledMpvPluginDetected,
@@ -1313,7 +1330,8 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
           promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(mpvPath, detection),
       },
       getMpvPluginRuntimeConfig(),
-    ),
+    );
+  },
   waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
   prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
   runYoutubePlaybackFlow: (request) => youtubeFlowRuntime.runYoutubePlaybackFlow(request),
@@ -1705,6 +1723,7 @@ const subtitleProcessingController = createSubtitleProcessingController(
 let subtitlePrefetchService: SubtitlePrefetchService | null = null;
 let subtitlePrefetchRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let lastObservedTimePos = 0;
+let lastObservedPrimarySubtitleTrackId: number | null = null;
 let cancelLinuxMpvFullscreenOverlayRefreshBurst: CancelLinuxMpvFullscreenOverlayRefreshBurst | null =
   null;
 const SEEK_THRESHOLD_SECONDS = 3;
@@ -2002,6 +2021,12 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
     },
     setLogLevel: (level) => {
       setLogLevel(level, 'config');
+    },
+    setLogRotation: (rotation) => {
+      setLogRotation(rotation);
+    },
+    setLogFileToggles: (files) => {
+      setLogFileToggles(files);
     },
   },
 );
@@ -2940,11 +2965,20 @@ function openCharacterDictionaryOverlay(): void {
 }
 
 function openCharacterDictionaryManagerOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openCharacterDictionaryManagerModalRuntime,
-    'Character dictionary manager unavailable.',
-    'Failed to open character dictionary manager.',
-  );
+  openCharacterDictionaryManagerWithConfigGate({
+    isCharacterDictionaryEnabled: () => getResolvedConfig().anilist.characterDictionary.enabled,
+    getNotificationType: () => getResolvedConfig().ankiConnect.behavior.notificationType,
+    openManager: () => {
+      openOverlayHostedModalWithOsd(
+        openCharacterDictionaryManagerModalRuntime,
+        'Character dictionary manager unavailable.',
+        'Failed to open character dictionary manager.',
+      );
+    },
+    showOsd: (message) => showMpvOsd(message),
+    showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+    logWarn: (message, error) => logger.warn(message, error),
+  });
 }
 
 function openControllerSelectOverlay(): void {
@@ -3054,7 +3088,7 @@ const {
         mpvExecutablePath: getResolvedConfig().mpv.executablePath,
       }),
     getPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
-    defaultMpvLogPath: DEFAULT_MPV_LOG_PATH,
+    defaultMpvLogPath: isLogFileEnabled('mpv') ? DEFAULT_MPV_LOG_PATH : '',
     defaultMpvArgs: MPV_JELLYFIN_DEFAULT_ARGS,
     removeSocketPath: (socketPath) => {
       fs.rmSync(socketPath, { force: true });
@@ -4312,6 +4346,8 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     getConfigWarnings: () => configService.getWarnings(),
     logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
     setLogLevel: (level: string, source: LogLevelSource) => setLogLevel(level, source),
+    setLogRotation: (rotation: number) => setLogRotation(rotation),
+    setLogFileToggles: (files) => setLogFileToggles(files),
     initRuntimeOptionsManager: () => {
       appState.runtimeOptionsManager = new RuntimeOptionsManager(
         () => configService.getConfig().ankiConnect,
@@ -4674,10 +4710,23 @@ const {
       );
     },
     onSubtitleTrackChange: (sid) => {
+      lastObservedPrimarySubtitleTrackId = sid;
+      logger.info('[mpv-subtitles] primary subtitle track changed', { sid });
       scheduleSubtitlePrefetchRefresh();
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackChange(sid);
     },
     onSubtitleTrackListChange: (trackList) => {
+      const diagnostics = buildSubtitleTrackDiagnostics(
+        lastObservedPrimarySubtitleTrackId,
+        trackList,
+      );
+      if (!diagnostics.trackListReadable) {
+        logger.warn('[mpv-subtitles] mpv reported an unreadable subtitle track list', diagnostics);
+      } else if (diagnostics.subtitleTrackCount === 0) {
+        logger.warn('[mpv-subtitles] mpv reported no subtitle tracks', diagnostics);
+      } else {
+        logger.info('[mpv-subtitles] subtitle track list updated', diagnostics);
+      }
       managedLocalSubtitleSelectionRuntime.handleSubtitleTrackListChange(trackList);
       scheduleSubtitlePrefetchRefresh();
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackListChange(trackList);
@@ -5131,6 +5180,47 @@ function openYomitanSettings(): boolean {
   return true;
 }
 
+function describeUnknownError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function exportLogsFromTray(): void {
+  try {
+    const result = exportLogsArchive({
+      platform: process.platform,
+      homeDir: os.homedir(),
+      appDataDir: app.getPath('appData'),
+    });
+    logger.info(
+      `Exported ${result.exportedFiles.length} sanitized log file(s) to ${result.zipPath}`,
+    );
+    void dialog
+      .showMessageBox({
+        type: 'info',
+        title: 'SubMiner logs exported',
+        message: 'SubMiner log export created.',
+        detail: result.zipPath,
+        buttons: ['OK', 'Show in Folder'],
+        defaultId: 0,
+        cancelId: 0,
+      })
+      .then((response) => {
+        if (response.response === 1) {
+          shell.showItemInFolder(result.zipPath);
+        }
+      });
+  } catch (error) {
+    const message = describeUnknownError(error);
+    logger.warn('Failed to export logs from tray.', error);
+    void dialog.showMessageBox({
+      type: 'error',
+      title: 'SubMiner log export failed',
+      message: 'Could not export SubMiner logs.',
+      detail: message,
+    });
+  }
+}
+
 const {
   getConfiguredShortcuts,
   registerGlobalShortcuts,
@@ -5241,7 +5331,7 @@ function refreshCurrentSessionBindings(): void {
 
 const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
-    logPath: DEFAULT_MPV_LOG_PATH,
+    logPath: isLogFileEnabled('mpv') ? DEFAULT_MPV_LOG_PATH : '',
     dirname: (targetPath) => path.dirname(targetPath),
     mkdir: async (targetPath, options) => {
       await fs.promises.mkdir(targetPath, options);
@@ -6436,6 +6526,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
       openYomitanSettings: () => openYomitanSettings(),
       openConfigSettingsWindow: () => openConfigSettingsWindow(),
+      exportLogs: () => exportLogsFromTray(),
       openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
       isJellyfinConfigured: () =>
         isJellyfinConfiguredForTrayRuntime(getJellyfinTrayDiscoveryDeps()),
