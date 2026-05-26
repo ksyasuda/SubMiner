@@ -7,6 +7,7 @@ import { selectYomitanParseTokens } from './parser-selection-stage';
 interface LoggerLike {
   error: (message: string, ...args: unknown[]) => void;
   info?: (message: string, ...args: unknown[]) => void;
+  warn?: (message: string, ...args: unknown[]) => void;
 }
 
 interface YomitanParserRuntimeDeps {
@@ -72,6 +73,7 @@ export interface YomitanAddNoteResult {
 
 const DEFAULT_YOMITAN_SCAN_LENGTH = 40;
 const yomitanProfileMetadataByWindow = new WeakMap<BrowserWindow, YomitanProfileMetadata>();
+const yomitanProfileDiagnosticsLoggedByWindow = new WeakSet<BrowserWindow>();
 const yomitanFrequencyCacheByWindow = new WeakMap<
   BrowserWindow,
   Map<string, YomitanTermFrequency[]>
@@ -532,11 +534,43 @@ async function requestYomitanProfileMetadata(
       return null;
     }
     yomitanProfileMetadataByWindow.set(parserWindow, metadata);
+    logYomitanProfileDiagnostics(parserWindow, metadata, logger);
     return metadata;
   } catch (err) {
     logger.error('Yomitan parser metadata request failed:', (err as Error).message);
     return null;
   }
+}
+
+function logYomitanProfileDiagnostics(
+  parserWindow: BrowserWindow,
+  metadata: YomitanProfileMetadata,
+  logger: LoggerLike,
+): void {
+  if (yomitanProfileDiagnosticsLoggedByWindow.has(parserWindow)) {
+    return;
+  }
+  yomitanProfileDiagnosticsLoggedByWindow.add(parserWindow);
+
+  const visibleDictionaries = metadata.dictionaries.slice(0, 8);
+  const details = {
+    profileIndex: metadata.profileIndex,
+    scanLength: metadata.scanLength,
+    dictionaryCount: metadata.dictionaries.length,
+    dictionaries: visibleDictionaries,
+    omittedDictionaryCount: Math.max(0, metadata.dictionaries.length - visibleDictionaries.length),
+  };
+
+  if (metadata.dictionaries.length === 0) {
+    const logWarning = logger.warn ?? logger.info;
+    logWarning?.(
+      'Yomitan active profile has no enabled dictionaries; lookup popups may not show definitions.',
+      details,
+    );
+    return;
+  }
+
+  logger.info?.('Yomitan active profile dictionaries loaded.', details);
 }
 
 async function ensureYomitanParserWindow(
