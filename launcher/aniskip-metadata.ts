@@ -564,7 +564,7 @@ export function buildSubminerScriptOpts(
   appPath: string,
   socketPath: string,
   aniSkipMetadata: AniSkipMetadata | null,
-  logLevel: LogLevel = 'info',
+  _logLevel: LogLevel = 'info',
   extraParts: string[] = [],
 ): string {
   const hasBinaryPath = extraParts.some((part) => part.startsWith('subminer-binary_path='));
@@ -574,9 +574,6 @@ export function buildSubminerScriptOpts(
     ...(hasSocketPath ? [] : [`subminer-socket_path=${sanitizeScriptOptValue(socketPath)}`]),
     ...extraParts.map(sanitizeScriptOptValue),
   ];
-  if (logLevel !== 'info') {
-    parts.push(`subminer-log_level=${sanitizeScriptOptValue(logLevel)}`);
-  }
   if (aniSkipMetadata && aniSkipMetadata.title) {
     parts.push(`subminer-aniskip_title=${sanitizeScriptOptValue(aniSkipMetadata.title)}`);
   }

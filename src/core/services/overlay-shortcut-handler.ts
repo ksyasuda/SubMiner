@@ -6,7 +6,6 @@ const logger = createLogger('main:overlay-shortcut-handler');
 
 export interface OverlayShortcutFallbackHandlers {
   openRuntimeOptions: () => void;
-  openCharacterDictionary: () => void;
   openCharacterDictionaryManager: () => void;
   openJimaku: () => void;
   markAudioCard: () => void;
@@ -23,7 +22,6 @@ export interface OverlayShortcutFallbackHandlers {
 export interface OverlayShortcutRuntimeDeps {
   showMpvOsd: (text: string) => void;
   openRuntimeOptions: () => void;
-  openCharacterDictionary: () => void;
   openCharacterDictionaryManager: () => void;
   openJimaku: () => void;
   markAudioCard: () => Promise<void>;
@@ -99,9 +97,6 @@ export function createOverlayShortcutRuntimeHandlers(deps: OverlayShortcutRuntim
     openRuntimeOptions: () => {
       deps.openRuntimeOptions();
     },
-    openCharacterDictionary: () => {
-      deps.openCharacterDictionary();
-    },
     openCharacterDictionaryManager: () => {
       deps.openCharacterDictionaryManager();
     },
@@ -112,7 +107,6 @@ export function createOverlayShortcutRuntimeHandlers(deps: OverlayShortcutRuntim
 
   const fallbackHandlers: OverlayShortcutFallbackHandlers = {
     openRuntimeOptions: overlayHandlers.openRuntimeOptions,
-    openCharacterDictionary: overlayHandlers.openCharacterDictionary,
     openCharacterDictionaryManager: overlayHandlers.openCharacterDictionaryManager,
     openJimaku: overlayHandlers.openJimaku,
     markAudioCard: overlayHandlers.markAudioCard,

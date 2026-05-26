@@ -4,6 +4,7 @@ import { fail } from '../log.js';
 import type {
   Args,
   Backend,
+  LauncherLoggingConfig,
   LauncherMpvConfig,
   LauncherYoutubeSubgenConfig,
   LogLevel,
@@ -106,6 +107,7 @@ function parseDictionaryAnilistId(value: string): number {
 export function createDefaultArgs(
   launcherConfig: LauncherYoutubeSubgenConfig,
   mpvConfig: LauncherMpvConfig = {},
+  loggingConfig: LauncherLoggingConfig = {},
 ): Args {
   const configuredSecondaryLangs = uniqueNormalizedLangCodes(
     launcherConfig.secondarySubLanguages ?? [],
@@ -162,6 +164,7 @@ export function createDefaultArgs(
     statsCleanupLifetime: false,
     doctor: false,
     doctorRefreshKnownWords: false,
+    logsExport: false,
     version: false,
     update: false,
     settings: false,
@@ -195,7 +198,8 @@ export function createDefaultArgs(
     texthookerOnly: false,
     texthookerOpenBrowser: false,
     useRofi: false,
-    logLevel: 'info',
+    logLevel: loggingConfig.level ?? 'warn',
+    logRotation: loggingConfig.rotation ?? 7,
     passwordStore: '',
     target: '',
     targetKind: '',
@@ -260,6 +264,10 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
   }
   if (invocations.doctorTriggered) parsed.doctor = true;
   if (invocations.doctorRefreshKnownWords) parsed.doctorRefreshKnownWords = true;
+  if (invocations.logsTriggered && !invocations.logsExport) {
+    fail('Logs command requires -e or --export.');
+  }
+  if (invocations.logsExport) parsed.logsExport = true;
   if (invocations.texthookerTriggered) parsed.texthookerOnly = true;
   if (invocations.texthookerOpenBrowser) parsed.texthookerOpenBrowser = true;
 

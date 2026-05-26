@@ -56,10 +56,6 @@ test('settings registry moves AniSkip button key into input shortcuts and hot re
 
 test('settings registry exposes character dictionary panel shortcuts dynamically', () => {
   assert.equal(
-    fields.some((candidate) => candidate.configPath === 'shortcuts.openCharacterDictionary'),
-    false,
-  );
-  assert.equal(
     field('shortcuts.openCharacterDictionaryManager').label,
     'Open Character Dictionary Manager',
   );
@@ -69,7 +65,6 @@ test('settings registry exposes character dictionary panel shortcuts dynamically
 test('settings registry hides removed modal-only fields', () => {
   for (const path of [
     'shortcuts.multiCopyTimeoutMs',
-    'shortcuts.openCharacterDictionary',
     'anilist.characterDictionary.profileScope',
     'jellyfin.directPlayContainers',
   ]) {
@@ -265,7 +260,7 @@ test('settings registry hides app-managed and inactive config surfaces', () => {
   ]) {
     assert.equal(paths.has(hiddenPath), false, `${hiddenPath} should be hidden`);
   }
-  assert.equal(field('anilist.characterDictionary.enabled').section, 'Character Dictionary');
+  assert.equal(paths.has('anilist.characterDictionary.enabled'), false);
 });
 
 test('settings registry marks safe live config paths as hot-reloadable', () => {
@@ -274,6 +269,10 @@ test('settings registry marks safe live config paths as hot-reloadable', () => {
     'stats.toggleKey',
     'stats.markWatchedKey',
     'logging.level',
+    'logging.rotation',
+    'logging.files.app',
+    'logging.files.launcher',
+    'logging.files.mpv',
     'youtube.primarySubLanguages',
     'jimaku.apiBaseUrl',
     'jimaku.languagePreference',

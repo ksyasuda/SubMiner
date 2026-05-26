@@ -61,6 +61,8 @@ const HOT_RELOAD_EXACT_OR_PREFIX_PATHS = [
   'stats.toggleKey',
   'stats.markWatchedKey',
   'logging.level',
+  'logging.rotation',
+  'logging.files',
   'youtube.primarySubLanguages',
   'jimaku',
   'subsync',

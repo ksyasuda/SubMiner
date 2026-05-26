@@ -9,6 +9,7 @@ import type {
   JellyfinItemEntry,
   JellyfinGroupEntry,
 } from './types.js';
+import { shouldForwardLogLevel } from './types.js';
 import { log, fail, getMpvLogPath } from './log.js';
 import { nowMs } from './time.js';
 import { commandExists, resolvePathMaybe, sleep } from './util.js';
@@ -1036,7 +1037,7 @@ export async function runJellyfinPlayMenu(
     fail(`MPV IPC socket not ready: ${mpvSocketPath}`);
   }
   const forwarded = ['--start', '--jellyfin-play', `--jellyfin-item-id=${itemId}`];
-  if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
+  if (shouldForwardLogLevel(args.logLevel)) forwarded.push('--log-level', args.logLevel);
   if (args.passwordStore) forwarded.push('--password-store', args.passwordStore);
   runAppCommandWithInheritLogged(appPath, forwarded, args.logLevel, 'jellyfin-play');
 }

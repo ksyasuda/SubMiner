@@ -33,7 +33,7 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'Logging',
     description: ['Controls logging verbosity.', 'Set to debug for full runtime diagnostics.'],
-    notes: ['Hot-reload: logging.level applies live while SubMiner is running.'],
+    notes: ['Hot-reload: logging.level and logging.files apply live while SubMiner is running.'],
     key: 'logging',
   },
   {

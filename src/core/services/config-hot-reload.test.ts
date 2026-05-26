@@ -25,6 +25,8 @@ test('classifyConfigHotReloadDiff treats safe nested config paths as hot-reloada
   next.stats.toggleKey = 'F8';
   next.stats.markWatchedKey = 'F9';
   next.logging.level = 'debug';
+  next.logging.rotation = 14;
+  next.logging.files.mpv = true;
   next.youtube.primarySubLanguages = ['ja', 'en'];
   next.jimaku.maxEntryResults = prev.jimaku.maxEntryResults + 1;
   next.subsync.replace = !prev.subsync.replace;
@@ -56,6 +58,8 @@ test('classifyConfigHotReloadDiff treats safe nested config paths as hot-reloada
       'mpv.aniskipButtonKey',
       'stats.markWatchedKey',
       'logging.level',
+      'logging.rotation',
+      'logging.files',
       'youtube.primarySubLanguages',
       'jimaku.maxEntryResults',
       'subsync.replace',

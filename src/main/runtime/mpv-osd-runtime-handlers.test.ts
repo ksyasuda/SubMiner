@@ -6,7 +6,7 @@ test('mpv osd runtime handlers compose append and osd logging flow', async () =>
   const calls: string[] = [];
   const runtime = createMpvOsdRuntimeHandlers({
     appendToMpvLogMainDeps: {
-      logPath: '/tmp/subminer/mpv.log',
+      getLogPath: () => '/tmp/subminer/mpv.log',
       dirname: () => '/tmp/subminer',
       mkdir: async () => {},
       appendFile: async (_targetPath: string, data: string) => {

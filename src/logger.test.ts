@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { resolveDefaultLogFilePath } from './logger';
+import { resolveDefaultLogFilePath, setLogRotation } from './logger';
 
 test('resolveDefaultLogFilePath uses APPDATA on windows', () => {
+  const today = new Date().toISOString().slice(0, 10);
   const resolved = resolveDefaultLogFilePath({
     platform: 'win32',
     homeDir: 'C:\\Users\\tester',
@@ -17,13 +18,14 @@ test('resolveDefaultLogFilePath uses APPDATA on windows', () => {
         'C:\\Users\\tester\\AppData\\Roaming',
         'SubMiner',
         'logs',
-        `app-${new Date().toISOString().slice(0, 10)}.log`,
+        `app-${today}.log`,
       ),
     ),
   );
 });
 
 test('resolveDefaultLogFilePath uses .config on linux', () => {
+  const today = new Date().toISOString().slice(0, 10);
   const resolved = resolveDefaultLogFilePath({
     platform: 'linux',
     homeDir: '/home/tester',
@@ -36,7 +38,37 @@ test('resolveDefaultLogFilePath uses .config on linux', () => {
       '.config',
       'SubMiner',
       'logs',
-      `app-${new Date().toISOString().slice(0, 10)}.log`,
+      `app-${today}.log`,
     ),
   );
+});
+
+test('setLogRotation accepts numeric retention days', () => {
+  const previous = process.env.SUBMINER_LOG_ROTATION;
+  const today = new Date().toISOString().slice(0, 10);
+  setLogRotation(14);
+  try {
+    const resolved = resolveDefaultLogFilePath({
+      platform: 'linux',
+      homeDir: '/home/tester',
+    });
+
+    assert.equal(
+      resolved,
+      path.join(
+        '/home/tester',
+        '.config',
+        'SubMiner',
+        'logs',
+        `app-${today}.log`,
+      ),
+    );
+    assert.equal(process.env.SUBMINER_LOG_ROTATION, '14');
+  } finally {
+    if (previous == null) {
+      delete process.env.SUBMINER_LOG_ROTATION;
+    } else {
+      process.env.SUBMINER_LOG_ROTATION = previous;
+    }
+  }
 });

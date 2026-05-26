@@ -48,10 +48,10 @@ From there, subtitles render as interactive, hoverable word spans and you mine c
 
 ### Ways to Launch
 
-| Approach                            | Use when                                                                                                                                            | How                                                                   |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| **`subminer` launcher**             | You want SubMiner to handle everything — launch mpv, set up the socket, start the overlay. **Recommended for most users.**                          | `subminer video.mkv`                                                  |
-| **SubMiner mpv shortcut** (Windows) | The recommended Windows entry point. Created during first-run setup, launches mpv with SubMiner's defaults.                                         | Double-click, drag a file onto it, or run `SubMiner.exe --launch-mpv` |
+| Approach                            | Use when                                                                                                                               | How                                                                   |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **`subminer` launcher**             | You want SubMiner to handle everything — launch mpv, set up the socket, start the overlay. **Recommended for most users.**             | `subminer video.mkv`                                                  |
+| **SubMiner mpv shortcut** (Windows) | The recommended Windows entry point. Created during first-run setup, launches mpv with SubMiner's defaults.                            | Double-click, drag a file onto it, or run `SubMiner.exe --launch-mpv` |
 | **mpv plugin** (all platforms)      | Bundled and injected at runtime. Provides `y` chord keybindings for controlling the overlay from within mpv. No manual install needed. | Automatic when using the launcher or shortcut                         |
 
 The mpv plugin is always available — it's bundled with SubMiner and injected at runtime. If you launch mpv yourself (without the launcher), pass `--input-ipc-server=/tmp/subminer-socket` in your mpv config for the overlay to connect.
@@ -105,6 +105,7 @@ subminer jellyfin -p              # Interactive Jellyfin library/item picker + p
 subminer jellyfin -d              # Jellyfin cast-discovery mode (background tray app)
 subminer app --stop               # Stop background app (including Jellyfin cast broadcast)
 subminer doctor                   # Dependency + config + socket diagnostics
+subminer logs -e                  # Export a sanitized log ZIP and print its path
 subminer config path              # Print active config path
 subminer config show              # Print active config contents
 subminer mpv socket               # Print active mpv socket path
@@ -143,9 +144,10 @@ SubMiner.AppImage --jellyfin-remote-announce  # Force cast-target capability ann
 SubMiner.AppImage --dictionary             # Generate character dictionary ZIP for current anime
 SubMiner.AppImage --dictionary-candidates  # List AniList candidates for current character dictionary series
 SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355  # Pin correct AniList media for series
-SubMiner.AppImage --open-character-dictionary  # Open in-app AniList selector
 SubMiner.AppImage --help                  # Show all options
 ```
+
+The tray menu includes `Export Logs`, which creates the same sanitized log ZIP as `subminer logs -e` and shows the archive path when complete.
 
 Once Jellyfin is configured, the tray menu includes `Jellyfin Discovery` for starting or stopping cast discovery in the current app session without changing config.
 
@@ -187,6 +189,7 @@ This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blan
 - `subminer jellyfin` / `subminer jf`: Jellyfin-focused workflow aliases.
 - `subminer doctor`: health checks for core dependencies and runtime paths.
 - `subminer settings`: open the SubMiner settings window (also `subminer --settings`).
+- `subminer logs -e`: export a sanitized ZIP of today's logs, or the most recent logs when no current-day log exists.
 - `subminer config`: config file helpers (`path`, `show`).
 - `subminer mpv`: mpv helpers (`status`, `socket`, `idle`).
 - `subminer dictionary <path>`: generates a Yomitan-importable character dictionary ZIP from a file/directory target.
@@ -220,7 +223,7 @@ Setup flow:
 
 AniList character dictionary auto-sync (optional):
 
-- Enable with `anilist.characterDictionary.enabled=true` in config.
+- Enable with `subtitleStyle.nameMatchEnabled=true` in config or **Name Match Enabled** in Settings.
 - SubMiner syncs the currently watched AniList media into a per-media snapshot, then rebuilds one merged `SubMiner Character Dictionary` from the most recently used snapshots.
 - Rotation limit defaults to 3 recent media snapshots in that merged dictionary (`maxLoaded`).
 

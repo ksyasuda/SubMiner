@@ -163,7 +163,7 @@ test('buildSubminerScriptOpts includes aniskip payload fields', () => {
   const payloadMatch = opts.match(/subminer-aniskip_payload=([^,]+)/);
   assert.match(opts, /subminer-binary_path=\/tmp\/SubMiner\.AppImage/);
   assert.match(opts, /subminer-socket_path=\/tmp\/subminer\.sock/);
-  assert.match(opts, /subminer-log_level=debug/);
+  assert.doesNotMatch(opts, /subminer-log_level=/);
   assert.match(opts, /subminer-aniskip_title=Frieren: Beyond Journey's End/);
   assert.match(opts, /subminer-aniskip_season=1/);
   assert.match(opts, /subminer-aniskip_episode=5/);

@@ -29,6 +29,7 @@ export interface StartupBootstrapRuntimeDeps {
   argv: string[];
   parseArgs: (argv: string[]) => CliArgs;
   setLogLevel: (level: string, source: LogLevelSource) => void;
+  setLogRotation?: (rotation: number) => void;
   forceX11Backend: (args: CliArgs) => void;
   enforceUnsupportedWaylandMode: (args: CliArgs) => void;
   getDefaultSocketPath: () => string;
@@ -95,6 +96,12 @@ interface AppReadyConfigLike {
   };
   logging?: {
     level?: 'debug' | 'info' | 'warn' | 'error';
+    rotation?: number;
+    files?: {
+      app?: boolean;
+      launcher?: boolean;
+      mpv?: boolean;
+    };
   };
 }
 
@@ -115,6 +122,10 @@ export interface AppReadyRuntimeDeps {
   getConfigWarnings: () => ConfigValidationWarning[];
   logConfigWarning: (warning: ConfigValidationWarning) => void;
   setLogLevel: (level: string, source: LogLevelSource) => void;
+  setLogRotation?: (rotation: number) => void;
+  setLogFileToggles?: (
+    files: { app?: boolean; launcher?: boolean; mpv?: boolean } | undefined,
+  ) => void;
   initRuntimeOptionsManager: () => void;
   setSecondarySubMode: (mode: SecondarySubMode) => void;
   defaultSecondarySubMode: SecondarySubMode;
@@ -263,6 +274,8 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   }
 
   deps.setLogLevel(config.logging?.level ?? 'info', 'config');
+  deps.setLogRotation?.(config.logging?.rotation ?? 7);
+  deps.setLogFileToggles?.(config.logging?.files);
   for (const warning of deps.getConfigWarnings()) {
     deps.logConfigWarning(warning);
   }

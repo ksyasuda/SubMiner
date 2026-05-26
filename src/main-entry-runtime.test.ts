@@ -313,10 +313,15 @@ test('readConfiguredWindowsMpvLaunch includes defaults for runtime plugin script
 
     assert.equal(launch.executablePath, DEFAULT_CONFIG.mpv.executablePath);
     assert.equal(launch.launchMode, DEFAULT_CONFIG.mpv.launchMode);
+    assert.equal(launch.logLevel, DEFAULT_CONFIG.logging.level);
+    assert.equal(launch.logRotation, DEFAULT_CONFIG.logging.rotation);
+    assert.deepEqual(launch.logFiles, DEFAULT_CONFIG.logging.files);
     assert.deepEqual(launch.pluginRuntimeConfig, {
       socketPath: DEFAULT_CONFIG.mpv.socketPath,
       binaryPath: DEFAULT_CONFIG.mpv.subminerBinaryPath,
       backend: DEFAULT_CONFIG.mpv.backend,
+      logLevel: DEFAULT_CONFIG.logging.level,
+      logRotation: DEFAULT_CONFIG.logging.rotation,
       autoStart: DEFAULT_CONFIG.mpv.autoStartSubMiner,
       autoStartVisibleOverlay: DEFAULT_CONFIG.auto_start_overlay,
       autoStartPauseUntilReady: DEFAULT_CONFIG.mpv.pauseUntilOverlayReady,
@@ -339,6 +344,13 @@ test('readConfiguredWindowsMpvLaunch preserves configured runtime plugin script 
         texthooker: {
           launchAtStartup: true,
         },
+        logging: {
+          level: 'debug',
+          rotation: 14,
+          files: {
+            mpv: true,
+          },
+        },
         mpv: {
           executablePath: '  C:\\tools\\mpv.exe  ',
           launchMode: 'maximized',
@@ -357,10 +369,15 @@ test('readConfiguredWindowsMpvLaunch preserves configured runtime plugin script 
 
     assert.equal(launch.executablePath, 'C:\\tools\\mpv.exe');
     assert.equal(launch.launchMode, 'maximized');
+    assert.equal(launch.logLevel, 'debug');
+    assert.equal(launch.logRotation, 14);
+    assert.equal(launch.logFiles.mpv, true);
     assert.deepEqual(launch.pluginRuntimeConfig, {
       socketPath: '\\\\.\\pipe\\custom-subminer-socket',
       binaryPath: 'C:\\SubMiner\\Custom.exe',
       backend: 'windows',
+      logLevel: 'debug',
+      logRotation: 14,
       autoStart: false,
       autoStartVisibleOverlay: false,
       autoStartPauseUntilReady: false,

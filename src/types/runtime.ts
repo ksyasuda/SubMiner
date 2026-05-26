@@ -468,7 +468,6 @@ export interface ElectronAPI {
   onOpenJimaku: (callback: () => void) => void;
   onOpenYoutubeTrackPicker: (callback: (payload: YoutubePickerOpenPayload) => void) => void;
   onOpenPlaylistBrowser: (callback: () => void) => void;
-  onOpenCharacterDictionary: (callback: () => void) => void;
   onOpenCharacterDictionaryManager: (callback: () => void) => void;
   onSubtitleSidebarToggle: (callback: () => void) => void;
   onPrimarySubtitleBarToggle: (callback: () => void) => void;

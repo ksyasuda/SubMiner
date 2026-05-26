@@ -40,6 +40,8 @@ export interface AppReadyRuntimeDepsFactoryInput {
   startTexthooker: AppReadyRuntimeDeps['startTexthooker'];
   log: AppReadyRuntimeDeps['log'];
   setLogLevel: AppReadyRuntimeDeps['setLogLevel'];
+  setLogRotation?: AppReadyRuntimeDeps['setLogRotation'];
+  setLogFileToggles?: AppReadyRuntimeDeps['setLogFileToggles'];
   createMecabTokenizerAndCheck: AppReadyRuntimeDeps['createMecabTokenizerAndCheck'];
   createSubtitleTimingTracker: AppReadyRuntimeDeps['createSubtitleTimingTracker'];
   createImmersionTracker?: AppReadyRuntimeDeps['createImmersionTracker'];
@@ -107,6 +109,8 @@ export function createAppReadyRuntimeDeps(
     startTexthooker: params.startTexthooker,
     log: params.log,
     setLogLevel: params.setLogLevel,
+    setLogRotation: params.setLogRotation,
+    setLogFileToggles: params.setLogFileToggles,
     createMecabTokenizerAndCheck: params.createMecabTokenizerAndCheck,
     createSubtitleTimingTracker: params.createSubtitleTimingTracker,
     createImmersionTracker: params.createImmersionTracker,

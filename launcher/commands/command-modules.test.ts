@@ -6,6 +6,7 @@ import type { LauncherCommandContext } from './context.js';
 import { runConfigCommand } from './config-command.js';
 import { runDictionaryCommand } from './dictionary-command.js';
 import { runDoctorCommand } from './doctor-command.js';
+import { runLogsCommand } from './logs-command.js';
 import { runMpvPreAppCommand } from './mpv-command.js';
 import { runAppPassthroughCommand } from './app-command.js';
 import { runStatsCommand } from './stats-command.js';
@@ -169,6 +170,33 @@ test('doctor command forwards refresh-known-words to app binary', () => {
   assert.deepEqual(forwarded, [['--refresh-known-words']]);
 });
 
+test('logs command exports logs and writes archive path', () => {
+  const writes: string[] = [];
+  const context = createContext();
+  context.args.logsExport = true;
+  context.processAdapter = {
+    ...context.processAdapter,
+    writeStdout: (text) => writes.push(text),
+  };
+
+  const handled = runLogsCommand(context, {
+    exportLogsArchive: () => ({
+      zipPath: '/tmp/subminer-logs.zip',
+      exportedFiles: ['/tmp/app.log'],
+      mode: 'current-day',
+    }),
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(writes, ['/tmp/subminer-logs.zip\n']);
+});
+
+test('logs command ignores unrelated launcher commands', () => {
+  const context = createContext();
+
+  assert.equal(runLogsCommand(context), false);
+});
+
 test('app command starts default macOS background app detached from launcher', () => {
   const context = createContext();
   context.args.appPassthrough = true;
@@ -185,7 +213,7 @@ test('app command starts default macOS background app detached from launcher', (
   });
 
   assert.equal(handled, true);
-  assert.deepEqual(calls, ['detached:/tmp/subminer.app:info']);
+  assert.deepEqual(calls, ['detached:/tmp/subminer.app:warn']);
 });
 
 test('app command starts default Linux background app detached from launcher', () => {
@@ -204,7 +232,7 @@ test('app command starts default Linux background app detached from launcher', (
   });
 
   assert.equal(handled, true);
-  assert.deepEqual(calls, ['detached:/tmp/subminer.app:info']);
+  assert.deepEqual(calls, ['detached:/tmp/subminer.app:warn']);
 });
 
 test('app command keeps explicit passthrough args attached', () => {

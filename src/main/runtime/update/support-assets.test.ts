@@ -63,7 +63,7 @@ test('buildProtectedSupportAssetsCommand cleans up temporary extraction director
 
 test('updateSupportAssetsFromRelease updates only the Linux rofi theme', async () => {
   const xdgDataHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-xdg-data-'));
-  const dataDir = path.join(xdgDataHome, 'SubMiner');
+  const dataDir = path.posix.join(xdgDataHome, 'SubMiner');
   fs.mkdirSync(path.join(dataDir, 'themes'), { recursive: true });
   fs.mkdirSync(path.join(dataDir, 'plugin/subminer'), { recursive: true });
   fs.writeFileSync(path.join(dataDir, 'themes/subminer.rasi'), 'old theme\n');

@@ -33,7 +33,6 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'toggleSubtitleSidebar',
   'openRuntimeOptions',
   'openSessionHelp',
-  'openCharacterDictionary',
   'openCharacterDictionaryManager',
   'openControllerSelect',
   'openControllerDebug',

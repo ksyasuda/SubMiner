@@ -601,6 +601,47 @@ test('requestYomitanScanTokens prefers parseText tokenization over termsFind fra
   assert.ok(scripts.some((script) => script.includes('termsFind')));
 });
 
+test('requestYomitanScanTokens warns when active Yomitan profile has no dictionaries', async () => {
+  const warnings: Array<{ message: string; details: unknown }> = [];
+  const deps = createDeps(async (script) => {
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [],
+            },
+          },
+        ],
+      };
+    }
+    if (script.includes('parseText')) {
+      return [];
+    }
+    if (script.includes('termsFind')) {
+      return [];
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens('字幕', deps, {
+    error: () => undefined,
+    warn: (message, details) => warnings.push({ message, details }),
+  });
+
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0]!.message, /no enabled dictionaries/);
+  assert.deepEqual(warnings[0]!.details, {
+    profileIndex: 0,
+    scanLength: 40,
+    dictionaryCount: 0,
+    dictionaries: [],
+    omittedDictionaryCount: 0,
+  });
+});
+
 test('requestYomitanScanTokens keeps scanner metadata when parse spans agree', async () => {
   const deps = createDeps(async (script) => {
     if (script.includes('optionsGetFull')) {

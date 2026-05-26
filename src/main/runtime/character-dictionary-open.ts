@@ -53,17 +53,6 @@ type OpenCharacterDictionaryModalDeps = Omit<
   'channel' | 'retryWarning'
 >;
 
-export async function openCharacterDictionaryModal(
-  deps: OpenCharacterDictionaryModalDeps,
-): Promise<boolean> {
-  return await openCharacterDictionaryModalChannel({
-    ...deps,
-    channel: IPC_CHANNELS.event.characterDictionaryOpen,
-    retryWarning:
-      'Character dictionary modal did not acknowledge modal open on first attempt; retrying dedicated modal window.',
-  });
-}
-
 export async function openCharacterDictionaryManagerModal(
   deps: OpenCharacterDictionaryModalDeps,
 ): Promise<boolean> {

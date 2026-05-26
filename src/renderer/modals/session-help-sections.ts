@@ -204,8 +204,6 @@ function describeSessionAction(
       return 'Open runtime options';
     case 'openSessionHelp':
       return 'Open session help';
-    case 'openCharacterDictionary':
-      return 'Open AniList override selector';
     case 'openCharacterDictionaryManager':
       return 'Open character dictionary manager';
     case 'openControllerSelect':
@@ -256,7 +254,6 @@ function sectionForSessionBinding(binding: CompiledSessionBinding): string {
       return 'Subtitle sync';
     case 'openRuntimeOptions':
     case 'openJimaku':
-    case 'openCharacterDictionary':
     case 'openCharacterDictionaryManager':
     case 'openControllerSelect':
     case 'openControllerDebug':

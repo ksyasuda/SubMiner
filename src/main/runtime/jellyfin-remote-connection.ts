@@ -48,7 +48,7 @@ export type LaunchMpvForJellyfinDeps = {
   getRuntimePluginEntrypoint?: () => string | null | undefined;
   getInstalledPluginDetection?: () => InstalledMpvPluginDetection;
   getPluginRuntimeConfig?: () => SubminerPluginRuntimeScriptOptConfig;
-  defaultMpvLogPath: string;
+  getDefaultMpvLogPath: () => string;
   defaultMpvArgs: readonly string[];
   removeSocketPath: (socketPath: string) => void;
   spawnMpv: (args: string[]) => SpawnedProcessLike;
@@ -85,13 +85,14 @@ export function createLaunchMpvIdleForJellyfinPlaybackHandler(deps: LaunchMpvFor
     if (installedPlugin?.installed && installedPlugin.path) {
       deps.logInfo(`Using installed mpv plugin for Jellyfin playback: ${installedPlugin.path}`);
     }
+    const defaultMpvLogPath = deps.getDefaultMpvLogPath().trim();
     const mpvArgs = [
       ...deps.defaultMpvArgs,
       ...buildMpvLaunchModeArgs(deps.getLaunchMode()),
       ...(runtimePluginEntrypoint ? [`--script=${runtimePluginEntrypoint}`] : []),
       '--idle=yes',
       scriptOpts,
-      `--log-file=${deps.defaultMpvLogPath}`,
+      ...(defaultMpvLogPath ? [`--log-file=${defaultMpvLogPath}`] : []),
       `--input-ipc-server=${socketPath}`,
     ];
     const proc = deps.spawnMpv(mpvArgs);

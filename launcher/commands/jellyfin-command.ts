@@ -2,6 +2,7 @@ import { fail } from '../log.js';
 import { runAppCommandWithInherit } from '../mpv.js';
 import { commandExists } from '../util.js';
 import { runJellyfinPlayMenu } from '../jellyfin.js';
+import { shouldForwardLogLevel } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
 
 export async function runJellyfinCommand(context: LauncherCommandContext): Promise<boolean> {
@@ -18,7 +19,7 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
 
   if (args.jellyfin) {
     const forwarded = ['--jellyfin'];
-    if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
+    if (shouldForwardLogLevel(args.logLevel)) forwarded.push('--log-level', args.logLevel);
     appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
     return true;
@@ -42,7 +43,7 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
       '--jellyfin-password',
       password,
     ];
-    if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
+    if (shouldForwardLogLevel(args.logLevel)) forwarded.push('--log-level', args.logLevel);
     appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
     return true;
@@ -50,7 +51,7 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
 
   if (args.jellyfinLogout) {
     const forwarded = ['--jellyfin-logout'];
-    if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
+    if (shouldForwardLogLevel(args.logLevel)) forwarded.push('--log-level', args.logLevel);
     appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
     return true;
@@ -69,7 +70,7 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
 
   if (args.jellyfinDiscovery) {
     const forwarded = ['--background', '--jellyfin-remote-announce'];
-    if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
+    if (shouldForwardLogLevel(args.logLevel)) forwarded.push('--log-level', args.logLevel);
     appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
     return true;

@@ -4,6 +4,7 @@ import os from 'node:os';
 import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
 import { buildMpvLaunchModeArgs } from '../src/shared/mpv-launch-mode.js';
+import { buildMpvLoggingArgs } from '../src/shared/mpv-logging-args.js';
 import {
   isAppControlServerAvailable as checkAppControlServerAvailable,
   sendAppControlCommand,
@@ -14,7 +15,11 @@ import {
   type InstalledMpvPluginDetection,
 } from '../src/main/runtime/first-run-setup-plugin.js';
 import type { LogLevel, Backend, Args, MpvTrack, PluginRuntimeConfig } from './types.js';
-import { DEFAULT_MPV_SUBMINER_ARGS, DEFAULT_YOUTUBE_YTDL_FORMAT } from './types.js';
+import {
+  DEFAULT_MPV_SUBMINER_ARGS,
+  DEFAULT_YOUTUBE_YTDL_FORMAT,
+  shouldForwardLogLevel,
+} from './types.js';
 import { appendToAppLog, getAppLogPath, log, fail, getMpvLogPath } from './log.js';
 import { buildSubminerScriptOpts, resolveAniSkipMetadataForFile } from './aniskip-metadata.js';
 import { buildPluginRuntimeScriptOptParts } from './config/plugin-runtime-config.js';
@@ -951,7 +956,7 @@ export async function startMpv(
     );
   }
   mpvArgs.push(`--script-opts=${scriptOpts}`);
-  mpvArgs.push(`--log-file=${getMpvLogPath()}`);
+  mpvArgs.push(...buildMpvLoggingArgs(args.logLevel, getMpvLogPath(), mpvArgs));
 
   try {
     fs.rmSync(socketPath, { force: true });
@@ -1031,7 +1036,7 @@ export async function startOverlay(
     socketPath,
     ...extraAppArgs,
   ];
-  if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
+  if (shouldForwardLogLevel(args.logLevel)) overlayArgs.push('--log-level', args.logLevel);
   if (args.useTexthooker) overlayArgs.push('--texthooker');
 
   const controlResult = await sendAppControlCommand(overlayArgs, {
@@ -1176,7 +1181,7 @@ export function launchTexthookerOnly(
 ): never {
   const overlayArgs = ['--texthooker'];
   if (args.texthookerOpenBrowser) overlayArgs.push('--open-browser');
-  if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
+  if (shouldForwardLogLevel(args.logLevel)) overlayArgs.push('--log-level', args.logLevel);
 
   log('info', args.logLevel, 'Launching texthooker mode...');
   const result = runSyncAppCommand(appPath, overlayArgs, true);
@@ -1254,7 +1259,7 @@ function stopManagedOverlayApp(args: Args): void {
   log('info', args.logLevel, 'Stopping SubMiner overlay...');
 
   const stopArgs = ['--stop'];
-  if (args.logLevel !== 'info') stopArgs.push('--log-level', args.logLevel);
+  if (shouldForwardLogLevel(args.logLevel)) stopArgs.push('--log-level', args.logLevel);
 
   const target = resolveAppSpawnTarget(state.appPath, stopArgs);
   const result = spawnSync(target.command, target.args, {
@@ -1306,6 +1311,8 @@ function buildAppEnv(
     ...baseEnv,
     SUBMINER_APP_LOG: getAppLogPath(),
     SUBMINER_MPV_LOG: getMpvLogPath(),
+    SUBMINER_LOG_LEVEL: extraEnv.SUBMINER_LOG_LEVEL ?? baseEnv.SUBMINER_LOG_LEVEL,
+    SUBMINER_LOG_ROTATION: extraEnv.SUBMINER_LOG_ROTATION ?? baseEnv.SUBMINER_LOG_ROTATION,
   };
   delete env.ELECTRON_RUN_AS_NODE;
   clearTransportedAppArgs(env);
@@ -1326,10 +1333,13 @@ function buildAppEnv(
 }
 
 export function buildMpvEnv(
-  args: Pick<Args, 'backend'>,
+  args: Pick<Args, 'backend' | 'logLevel' | 'logRotation'>,
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
-  const env = buildAppEnv(baseEnv);
+  const env = buildAppEnv(baseEnv, {
+    SUBMINER_LOG_LEVEL: args.logLevel,
+    SUBMINER_LOG_ROTATION: String(args.logRotation),
+  });
   if (!shouldForceX11MpvBackend(args, env)) {
     return env;
   }
@@ -1586,13 +1596,13 @@ export function runAppCommandWithInheritLogged(
 
 export function launchAppStartDetached(appPath: string, logLevel: LogLevel): void {
   const startArgs = ['--start'];
-  if (logLevel !== 'info') startArgs.push('--log-level', logLevel);
+  if (shouldForwardLogLevel(logLevel)) startArgs.push('--log-level', logLevel);
   launchAppCommandDetached(appPath, startArgs, logLevel, 'start');
 }
 
 export function launchAppBackgroundDetached(appPath: string, logLevel: LogLevel): void {
   const startArgs = ['--start', '--background'];
-  if (logLevel !== 'info') startArgs.push('--log-level', logLevel);
+  if (shouldForwardLogLevel(logLevel)) startArgs.push('--log-level', logLevel);
   launchAppCommandDetached(appPath, startArgs, logLevel, 'app', {
     [BACKGROUND_CHILD_ENV]: '1',
   });
@@ -1615,6 +1625,22 @@ export function launchAppCommandDetached(
     `${label}: launching detached app with args: ${[target.command, ...target.args].join(' ')}`,
   );
   const appLogPath = getAppLogPath();
+  if (!appLogPath) {
+    try {
+      const proc = spawn(target.command, target.args, {
+        stdio: 'ignore',
+        detached: true,
+        env: buildAppEnv(process.env, { ...target.env, ...extraEnv }),
+      });
+      proc.once('error', (error) => {
+        log('warn', logLevel, `${label}: failed to launch detached app: ${error.message}`);
+      });
+      proc.unref();
+    } catch (error) {
+      log('warn', logLevel, `${label}: failed to launch detached app: ${(error as Error).message}`);
+    }
+    return;
+  }
   fs.mkdirSync(path.dirname(appLogPath), { recursive: true });
   const stdoutFd = fs.openSync(appLogPath, 'a');
   const stderrFd = fs.openSync(appLogPath, 'a');
@@ -1673,7 +1699,7 @@ export function launchMpvIdleDetached(
         runtimeScriptOpts,
       )}`,
     );
-    mpvArgs.push(`--log-file=${getMpvLogPath()}`);
+    mpvArgs.push(...buildMpvLoggingArgs(args.logLevel, getMpvLogPath(), mpvArgs));
     mpvArgs.push(`--input-ipc-server=${socketPath}`);
     const mpvTarget = resolveCommandInvocation('mpv', mpvArgs, {
       normalizeWindowsShellArgs: false,

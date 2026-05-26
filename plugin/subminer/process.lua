@@ -172,13 +172,29 @@ function M.create(ctx)
 		return trimmed
 	end
 
-	local function has_matching_mpv_ipc_socket(target_socket_path)
+	local function get_mpv_ipc_socket_match(target_socket_path)
 		local expected_socket = normalize_socket_path(target_socket_path or opts.socket_path)
 		local active_socket = normalize_socket_path(mp.get_property("input-ipc-server"))
+		return {
+			expected_socket = expected_socket,
+			active_socket = active_socket,
+			matching = expected_socket ~= nil and active_socket ~= nil and expected_socket == active_socket,
+		}
+	end
+
+	local function has_matching_mpv_ipc_socket(target_socket_path)
+		local match = get_mpv_ipc_socket_match(target_socket_path)
+		return match.matching
+	end
+
+	local function describe_mpv_ipc_socket_match(target_socket_path)
+		local match = get_mpv_ipc_socket_match(target_socket_path)
+		local expected_socket = match.expected_socket or "<empty>"
+		local active_socket = match.active_socket or "<empty>"
 		if expected_socket == nil or active_socket == nil then
-			return false
+			return "expected=" .. expected_socket .. "; active=" .. active_socket .. "; matching=no"
 		end
-		return expected_socket == active_socket
+		return "expected=" .. expected_socket .. "; active=" .. active_socket .. "; matching=" .. (match.matching and "yes" or "no")
 	end
 
 	local function resolve_backend(override_backend)
@@ -822,6 +838,7 @@ function M.create(ctx)
 
 	return {
 		build_command_args = build_command_args,
+		describe_mpv_ipc_socket_match = describe_mpv_ipc_socket_match,
 		has_matching_mpv_ipc_socket = has_matching_mpv_ipc_socket,
 		run_control_command_async = run_control_command_async,
 		record_visible_overlay_visibility = record_visible_overlay_visibility,

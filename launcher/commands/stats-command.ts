@@ -4,6 +4,7 @@ import path from 'node:path';
 import { runAppCommandAttached } from '../mpv.js';
 import { nowMs } from '../time.js';
 import { sleep } from '../util.js';
+import { shouldForwardLogLevel } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
 
 type StatsCommandResponse = {
@@ -156,7 +157,7 @@ export async function runStatsCommand(
     if (args.statsCleanupLifetime) {
       forwarded.push('--stats-cleanup-lifetime');
     }
-    if (args.logLevel !== 'info') {
+    if (shouldForwardLogLevel(args.logLevel)) {
       forwarded.push('--log-level', args.logLevel);
     }
     const attachedExitPromise = resolvedDeps.runAppCommandAttached(

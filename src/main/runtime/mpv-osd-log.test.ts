@@ -5,7 +5,7 @@ import { createAppendToMpvLogHandler, createShowMpvOsdHandler } from './mpv-osd-
 test('append mpv log writes timestamped message', () => {
   const writes: string[] = [];
   const { appendToMpvLog, flushMpvLog } = createAppendToMpvLogHandler({
-    logPath: '/tmp/subminer/mpv.log',
+    getLogPath: () => '/tmp/subminer/mpv.log',
     dirname: (targetPath: string) => {
       writes.push(`dirname:${targetPath}`);
       return '/tmp/subminer';
@@ -29,10 +29,31 @@ test('append mpv log writes timestamped message', () => {
   });
 });
 
+test('append mpv log observes path changes', async () => {
+  const writes: string[] = [];
+  let logPath = '';
+  const { appendToMpvLog, flushMpvLog } = createAppendToMpvLogHandler({
+    getLogPath: () => logPath,
+    dirname: () => '/tmp/subminer',
+    mkdir: async () => {},
+    appendFile: async (targetPath: string, data: string) => {
+      writes.push(`${targetPath}:${data.trimEnd()}`);
+    },
+    now: () => new Date('2026-02-20T00:00:00.000Z'),
+  });
+
+  appendToMpvLog('disabled');
+  logPath = '/tmp/subminer/mpv.log';
+  appendToMpvLog('enabled');
+  await flushMpvLog();
+
+  assert.deepEqual(writes, ['/tmp/subminer/mpv.log:[2026-02-20T00:00:00.000Z] enabled']);
+});
+
 test('append mpv log queues multiple messages and flush waits for pending write', async () => {
   const writes: string[] = [];
   const { appendToMpvLog, flushMpvLog } = createAppendToMpvLogHandler({
-    logPath: '/tmp/subminer/mpv.log',
+    getLogPath: () => '/tmp/subminer/mpv.log',
     dirname: () => '/tmp/subminer',
     mkdir: async () => {
       writes.push('mkdir');
@@ -76,7 +97,7 @@ test('append mpv log queues multiple messages and flush waits for pending write'
 
 test('append mpv log swallows async filesystem errors', async () => {
   const { appendToMpvLog, flushMpvLog } = createAppendToMpvLogHandler({
-    logPath: '/tmp/subminer/mpv.log',
+    getLogPath: () => '/tmp/subminer/mpv.log',
     dirname: () => '/tmp/subminer',
     mkdir: async () => {
       throw new Error('disk error');

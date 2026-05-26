@@ -111,15 +111,15 @@ test('detectInstalledFirstRunPlugin ignores legacy loader file', () => {
 
 test('detectInstalledFirstRunPluginCandidates returns all legacy autoload entries without script opts', () => {
   withTempDir((root) => {
-    const homeDir = path.join(root, 'home');
-    const xdgConfigHome = path.join(root, 'xdg');
+    const homeDir = path.posix.join(root, 'home');
+    const xdgConfigHome = path.posix.join(root, 'xdg');
     const installPaths = resolveDefaultMpvInstallPaths('linux', homeDir, xdgConfigHome);
     const directoryInstall = installPaths.pluginDir;
-    const legacyScript = path.join(installPaths.scriptsDir, 'subminer.lua');
-    const legacyLoader = path.join(installPaths.scriptsDir, 'subminer-loader.lua');
+    const legacyScript = path.posix.join(installPaths.scriptsDir, 'subminer.lua');
+    const legacyLoader = path.posix.join(installPaths.scriptsDir, 'subminer-loader.lua');
 
     fs.mkdirSync(directoryInstall, { recursive: true });
-    fs.writeFileSync(path.join(directoryInstall, 'main.lua'), '-- plugin');
+    fs.writeFileSync(path.posix.join(directoryInstall, 'main.lua'), '-- plugin');
     fs.writeFileSync(legacyScript, '-- legacy plugin');
     fs.writeFileSync(legacyLoader, '-- legacy loader');
     fs.mkdirSync(path.dirname(installPaths.pluginConfigPath), { recursive: true });
@@ -203,9 +203,15 @@ test('detectInstalledMpvPlugin prefers Windows portable plugin and parses versio
 
 test('detectInstalledMpvPlugin detects Linux legacy single-file plugin without version', () => {
   withTempDir((root) => {
-    const homeDir = path.join(root, 'home');
-    const legacyPath = path.join(homeDir, '.config', 'mpv', 'scripts', 'subminer-loader.lua');
-    fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+    const homeDir = path.posix.join(root, 'home');
+    const legacyPath = path.posix.join(
+      homeDir,
+      '.config',
+      'mpv',
+      'scripts',
+      'subminer-loader.lua',
+    );
+    fs.mkdirSync(path.posix.dirname(legacyPath), { recursive: true });
     fs.writeFileSync(legacyPath, '-- legacy');
 
     const detection = detectInstalledMpvPlugin({

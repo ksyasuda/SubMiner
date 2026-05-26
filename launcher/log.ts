@@ -1,6 +1,14 @@
 import type { LogLevel } from './types.js';
-import { DEFAULT_MPV_LOG_FILE, getDefaultLauncherLogFile } from './types.js';
-import { appendLogLine, resolveDefaultLogFilePath } from '../src/shared/log-files.js';
+import { getDefaultLauncherLogFile } from './types.js';
+import {
+  appendLogLine,
+  DEFAULT_LOG_ROTATION,
+  isLogFileEnabled,
+  normalizeLogRotation,
+  pruneLogDirectoryForPath,
+  resolveDefaultLogFilePath,
+  type LogRotation,
+} from '../src/shared/log-files.js';
 
 export const COLORS = {
   red: '\x1b[0;31m',
@@ -22,25 +30,36 @@ export function shouldLog(level: LogLevel, configured: LogLevel): boolean {
 }
 
 export function getMpvLogPath(): string {
+  if (!isLogFileEnabled('mpv')) return '';
   const envPath = process.env.SUBMINER_MPV_LOG?.trim();
-  if (envPath) return envPath;
-  return DEFAULT_MPV_LOG_FILE;
+  const logPath = envPath || resolveDefaultLogFilePath('mpv');
+  pruneLogDirectoryForPath(logPath, getLogRotation());
+  return logPath;
 }
 
 export function getLauncherLogPath(): string {
+  if (!isLogFileEnabled('launcher')) return '';
   const envPath = process.env.SUBMINER_LAUNCHER_LOG?.trim();
   if (envPath) return envPath;
   return getDefaultLauncherLogFile();
 }
 
 export function getAppLogPath(): string {
+  if (!isLogFileEnabled('app')) return '';
   const envPath = process.env.SUBMINER_APP_LOG?.trim();
   if (envPath) return envPath;
   return resolveDefaultLogFilePath('app');
 }
 
+function getLogRotation(): LogRotation {
+  return normalizeLogRotation(process.env.SUBMINER_LOG_ROTATION) ?? DEFAULT_LOG_ROTATION;
+}
+
 function appendTimestampedLog(logPath: string, message: string): void {
-  appendLogLine(logPath, `[${new Date().toISOString()}] ${message}`);
+  if (!logPath.trim()) return;
+  appendLogLine(logPath, `[${new Date().toISOString()}] ${message}`, {
+    rotation: getLogRotation(),
+  });
 }
 
 export function appendToMpvLog(message: string): void {

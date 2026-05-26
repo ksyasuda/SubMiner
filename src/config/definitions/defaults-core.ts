@@ -28,7 +28,13 @@ export const CORE_DEFAULT_CONFIG: Pick<
     port: 6678,
   },
   logging: {
-    level: 'info',
+    level: 'warn',
+    rotation: 7,
+    files: {
+      app: true,
+      launcher: true,
+      mpv: false,
+    },
   },
   texthooker: {
     launchAtStartup: false,

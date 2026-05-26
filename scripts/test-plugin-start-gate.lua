@@ -547,6 +547,15 @@ local function has_osd_message(messages, target)
 	return false
 end
 
+local function has_log_containing(logs, target)
+	for _, message in ipairs(logs) do
+		if type(message) == "string" and message:find(target, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
 local function count_osd_message(messages, target)
 	local count = 0
 	for _, message in ipairs(messages) do
@@ -2168,6 +2177,13 @@ do
 	assert_true(
 		not has_property_set(recorded.property_sets, "pause", true),
 		"pause-until-ready gate should not arm when socket_path does not match"
+	)
+	assert_true(
+		has_log_containing(
+			recorded.logs,
+			"Skipping auto-start: input-ipc-server does not match configured socket_path (expected=/tmp/subminer-socket; active=/tmp/other.sock; matching=no)"
+		),
+		"socket mismatch log should include expected and active ipc sockets"
 	)
 end
 

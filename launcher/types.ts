@@ -1,7 +1,11 @@
 import path from 'node:path';
 import os from 'node:os';
 import type { MpvBackend, MpvLaunchMode } from '../src/types/config.js';
-import { resolveDefaultLogFilePath } from '../src/shared/log-files.js';
+import {
+  resolveDefaultLogFilePath,
+  type LogFileToggles,
+  type LogRotation,
+} from '../src/shared/log-files.js';
 export { VIDEO_EXTENSIONS } from '../src/shared/video-extensions.js';
 
 export const ROFI_THEME_FILE = 'subminer.rasi';
@@ -67,6 +71,9 @@ export const DEFAULT_MPV_SUBMINER_ARGS = [
 ] as const;
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export function shouldForwardLogLevel(level: LogLevel): boolean {
+  return level === 'debug' || level === 'error';
+}
 export type Backend = 'auto' | 'hyprland' | 'sway' | 'x11' | 'macos' | 'windows';
 export type JimakuLanguagePreference = 'ja' | 'en' | 'none';
 
@@ -106,6 +113,7 @@ export interface Args {
   texthookerOpenBrowser: boolean;
   useRofi: boolean;
   logLevel: LogLevel;
+  logRotation: LogRotation;
   passwordStore: string;
   target: string;
   targetKind: '' | 'file' | 'url';
@@ -132,6 +140,7 @@ export interface Args {
   dictionaryTarget?: string;
   doctor: boolean;
   doctorRefreshKnownWords: boolean;
+  logsExport: boolean;
   version: boolean;
   update?: boolean;
   settings: boolean;
@@ -186,10 +195,17 @@ export interface LauncherMpvConfig {
   aniskipButtonKey?: string;
 }
 
+export interface LauncherLoggingConfig {
+  level?: LogLevel;
+  rotation?: LogRotation;
+  files?: Partial<LogFileToggles>;
+}
+
 export interface PluginRuntimeConfig {
   socketPath: string;
   binaryPath: string;
   backend: Backend;
+  logLevel?: LogLevel;
   autoStart: boolean;
   autoStartVisibleOverlay: boolean;
   autoStartPauseUntilReady: boolean;

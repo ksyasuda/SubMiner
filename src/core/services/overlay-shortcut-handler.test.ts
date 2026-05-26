@@ -46,9 +46,6 @@ function createDeps(overrides: Partial<OverlayShortcutRuntimeDeps> = {}) {
     openRuntimeOptions: () => {
       calls.push('openRuntimeOptions');
     },
-    openCharacterDictionary: () => {
-      calls.push('openCharacterDictionary');
-    },
     openCharacterDictionaryManager: () => {
       calls.push('openCharacterDictionaryManager');
     },
@@ -163,7 +160,6 @@ test('runOverlayShortcutLocalFallback dispatches matching single-step actions', 
     },
     {
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
-      openCharacterDictionary: () => handled.push('openCharacterDictionary'),
       openCharacterDictionaryManager: () => handled.push('openCharacterDictionaryManager'),
       openJimaku: () => handled.push('openJimaku'),
       markAudioCard: () => handled.push('markAudioCard'),
@@ -197,7 +193,6 @@ test('runOverlayShortcutLocalFallback leaves multi-step numeric shortcuts for re
     (_input, accelerator) => accelerator === 'Ctrl+M',
     {
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
-      openCharacterDictionary: () => handled.push('openCharacterDictionary'),
       openCharacterDictionaryManager: () => handled.push('openCharacterDictionaryManager'),
       openJimaku: () => handled.push('openJimaku'),
       markAudioCard: () => handled.push('markAudioCard'),
@@ -218,7 +213,6 @@ test('runOverlayShortcutLocalFallback leaves multi-step numeric shortcuts for re
     (_input, accelerator) => accelerator === 'Ctrl+N',
     {
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
-      openCharacterDictionary: () => handled.push('openCharacterDictionary'),
       openCharacterDictionaryManager: () => handled.push('openCharacterDictionaryManager'),
       openJimaku: () => handled.push('openJimaku'),
       markAudioCard: () => handled.push('markAudioCard'),
@@ -256,7 +250,6 @@ test('runOverlayShortcutLocalFallback passes allowWhenRegistered for secondary-s
     },
     {
       openRuntimeOptions: () => {},
-      openCharacterDictionary: () => {},
       openCharacterDictionaryManager: () => {},
       openJimaku: () => {},
       markAudioCard: () => {},
@@ -293,7 +286,6 @@ test('runOverlayShortcutLocalFallback allows registered-global jimaku shortcut',
     },
     {
       openRuntimeOptions: () => {},
-      openCharacterDictionary: () => {},
       openCharacterDictionaryManager: () => {},
       openJimaku: () => {},
       markAudioCard: () => {},
@@ -320,9 +312,6 @@ test('runOverlayShortcutLocalFallback returns false when no action matches', () 
 
   const result = runOverlayShortcutLocalFallback({} as Electron.Input, shortcuts, () => false, {
     openRuntimeOptions: () => {
-      called = true;
-    },
-    openCharacterDictionary: () => {
       called = true;
     },
     openCharacterDictionaryManager: () => {
@@ -410,7 +399,6 @@ test('registerOverlayShortcutsRuntime reports active shortcuts when configured',
       mineSentenceMultiple: () => {},
       toggleSecondarySub: () => {},
       markAudioCard: () => {},
-      openCharacterDictionary: () => {},
       openCharacterDictionaryManager: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
@@ -438,7 +426,6 @@ test('unregisterOverlayShortcutsRuntime clears pending shortcut work when active
       mineSentenceMultiple: () => {},
       toggleSecondarySub: () => {},
       markAudioCard: () => {},
-      openCharacterDictionary: () => {},
       openCharacterDictionaryManager: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},

@@ -16,7 +16,6 @@ test('overlay shortcuts runtime main deps builder maps lifecycle and action call
     isOverlayShortcutContextActive: () => false,
     showMpvOsd: (text) => calls.push(`osd:${text}`),
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
-    openCharacterDictionary: () => calls.push('character-dictionary'),
     openCharacterDictionaryManager: () => calls.push('character-dictionary-manager'),
     openJimaku: () => calls.push('jimaku'),
     markAudioCard: async () => {
@@ -49,7 +48,6 @@ test('overlay shortcuts runtime main deps builder maps lifecycle and action call
   assert.equal(shortcutsRegistered, true);
   deps.showMpvOsd('x');
   deps.openRuntimeOptionsPalette();
-  deps.openCharacterDictionary();
   deps.openCharacterDictionaryManager();
   deps.openJimaku();
   await deps.markAudioCard();
@@ -67,7 +65,6 @@ test('overlay shortcuts runtime main deps builder maps lifecycle and action call
     'registered:true',
     'osd:x',
     'runtime-options',
-    'character-dictionary',
     'character-dictionary-manager',
     'jimaku',
     'mark-audio',

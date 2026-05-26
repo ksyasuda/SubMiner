@@ -1,6 +1,8 @@
 import fs from 'node:fs';
-import { DEFAULT_CONFIG, generateConfigTemplate } from './config';
-import { resolveConfigExampleOutputPaths } from './generate-config-example';
+import {
+  generateConfigExampleTemplate,
+  resolveConfigExampleOutputPaths,
+} from './generate-config-example';
 
 export type ConfigExampleVerificationResult = {
   docsSiteDetected: boolean;
@@ -21,7 +23,7 @@ export function verifyConfigExampleArtifacts(options?: {
 }): ConfigExampleVerificationResult {
   const existsSync = options?.deps?.existsSync ?? fs.existsSync;
   const readFileSync = options?.deps?.readFileSync ?? fs.readFileSync;
-  const template = options?.template ?? generateConfigTemplate(DEFAULT_CONFIG);
+  const template = options?.template ?? generateConfigExampleTemplate();
   const outputPaths = resolveConfigExampleOutputPaths({
     cwd: options?.cwd,
     docsSiteDirName: options?.docsSiteDirName,

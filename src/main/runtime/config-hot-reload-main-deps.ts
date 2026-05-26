@@ -75,6 +75,8 @@ export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
   refreshSubtitlePrefetch?: () => void;
   refreshCurrentSubtitle?: () => void;
   setLogLevel?: (level: ResolvedConfig['logging']['level']) => void;
+  setLogRotation?: (rotation: ResolvedConfig['logging']['rotation']) => void;
+  setLogFileToggles?: (files: ResolvedConfig['logging']['files']) => void;
 }) {
   return () => ({
     setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) =>
@@ -93,6 +95,10 @@ export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
     refreshSubtitlePrefetch: () => deps.refreshSubtitlePrefetch?.(),
     refreshCurrentSubtitle: () => deps.refreshCurrentSubtitle?.(),
     setLogLevel: (level: ResolvedConfig['logging']['level']) => deps.setLogLevel?.(level),
+    setLogRotation: (rotation: ResolvedConfig['logging']['rotation']) =>
+      deps.setLogRotation?.(rotation),
+    setLogFileToggles: (files: ResolvedConfig['logging']['files']) =>
+      deps.setLogFileToggles?.(files),
   });
 }
 

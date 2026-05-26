@@ -1,4 +1,5 @@
 import { runAppCommandWithInherit } from '../mpv.js';
+import { shouldForwardLogLevel } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
 
 interface DictionaryCommandDeps {
@@ -35,7 +36,7 @@ export function runDictionaryCommand(
   if (typeof args.dictionaryTarget === 'string' && args.dictionaryTarget.trim()) {
     forwarded.push('--dictionary-target', args.dictionaryTarget);
   }
-  if (args.logLevel !== 'info') {
+  if (shouldForwardLogLevel(args.logLevel)) {
     forwarded.push('--log-level', args.logLevel);
   }
 

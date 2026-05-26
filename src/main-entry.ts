@@ -31,8 +31,29 @@ import {
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
 import { runStatsDaemonControlFromProcess } from './stats-daemon-entry';
 import { createFatalErrorReporter, registerFatalErrorHandlers } from './main/fatal-error';
+import { buildMpvLoggingArgs } from './shared/mpv-logging-args';
+import {
+  applyLogFileTogglesToEnv,
+  isLogFileEnabled,
+  appendLogLine,
+  pruneLogDirectoryForPath,
+  resolveDefaultLogFilePath,
+  type LogRotation,
+} from './shared/log-files';
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
+
+function appendWindowsMpvLaunchLog(message: string, logRotation?: LogRotation): void {
+  if (!isLogFileEnabled('app')) {
+    return;
+  }
+  const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  appendLogLine(
+    process.env.SUBMINER_APP_LOG?.trim() || resolveDefaultLogFilePath('app'),
+    `[subminer] - ${timestamp} - INFO - [main:windows-mpv-launch] ${message}`,
+    { rotation: logRotation },
+  );
+}
 
 function applySanitizedEnv(sanitizedEnv: NodeJS.ProcessEnv): void {
   if (sanitizedEnv.NODE_NO_WARNINGS) {
@@ -216,6 +237,14 @@ async function runEntryProcess(): Promise<void> {
     applySanitizedEnv(sanitizedEnv);
     await app.whenReady();
     const configuredMpvLaunch = readConfiguredWindowsMpvLaunch(userDataPath);
+    const extraArgs = normalizeLaunchMpvExtraArgs(process.argv);
+    applyLogFileTogglesToEnv(configuredMpvLaunch.logFiles);
+    const mpvLogPath = isLogFileEnabled('mpv')
+      ? process.env.SUBMINER_MPV_LOG?.trim() || resolveDefaultLogFilePath('mpv')
+      : '';
+    if (mpvLogPath) {
+      pruneLogDirectoryForPath(mpvLogPath, configuredMpvLaunch.logRotation);
+    }
     const result = await launchWindowsMpv(
       normalizeLaunchMpvTargets(process.argv),
       createWindowsMpvLaunchDeps({
@@ -223,8 +252,9 @@ async function runEntryProcess(): Promise<void> {
         showError: (title, content) => {
           dialog.showErrorBox(title, content);
         },
+        logInfo: (message) => appendWindowsMpvLaunchLog(message, configuredMpvLaunch.logRotation),
       }),
-      normalizeLaunchMpvExtraArgs(process.argv),
+      [...extraArgs, ...buildMpvLoggingArgs(configuredMpvLaunch.logLevel, mpvLogPath, extraArgs)],
       process.execPath,
       resolveBundledWindowsMpvPluginEntrypoint(),
       configuredMpvLaunch.executablePath,

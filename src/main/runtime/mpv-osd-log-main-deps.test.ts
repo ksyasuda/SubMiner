@@ -8,7 +8,7 @@ import {
 test('append to mpv log main deps map filesystem functions and log path', async () => {
   const calls: string[] = [];
   const deps = createBuildAppendToMpvLogMainDepsHandler({
-    logPath: '/tmp/mpv.log',
+    getLogPath: () => '/tmp/mpv.log',
     dirname: (targetPath) => {
       calls.push(`dirname:${targetPath}`);
       return '/tmp';
@@ -22,7 +22,7 @@ test('append to mpv log main deps map filesystem functions and log path', async 
     now: () => new Date('2026-02-20T00:00:00.000Z'),
   })();
 
-  assert.equal(deps.logPath, '/tmp/mpv.log');
+  assert.equal(deps.getLogPath(), '/tmp/mpv.log');
   assert.equal(deps.dirname('/tmp/mpv.log'), '/tmp');
   await deps.mkdir('/tmp', { recursive: true });
   await deps.appendFile('/tmp/mpv.log', 'line', { encoding: 'utf8' });

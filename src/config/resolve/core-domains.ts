@@ -100,6 +100,36 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
         'Expected debug, info, warn, or error.',
       );
     }
+
+    const logRotation = src.logging.rotation;
+    if (typeof logRotation === 'number' && Number.isInteger(logRotation) && logRotation > 0) {
+      resolved.logging.rotation = logRotation;
+    } else if (src.logging.rotation !== undefined) {
+      warn(
+        'logging.rotation',
+        src.logging.rotation,
+        resolved.logging.rotation,
+        'Expected a positive whole number of days.',
+      );
+    }
+
+    if (isObject(src.logging.files)) {
+      for (const key of ['app', 'launcher', 'mpv'] as const) {
+        const enabled = asBoolean(src.logging.files[key]);
+        if (enabled !== undefined) {
+          resolved.logging.files[key] = enabled;
+        } else if (src.logging.files[key] !== undefined) {
+          warn(
+            `logging.files.${key}`,
+            src.logging.files[key],
+            resolved.logging.files[key],
+            'Expected boolean.',
+          );
+        }
+      }
+    } else if (src.logging.files !== undefined) {
+      warn('logging.files', src.logging.files, resolved.logging.files, 'Expected object.');
+    }
   }
 
   applyControllerConfig(context);

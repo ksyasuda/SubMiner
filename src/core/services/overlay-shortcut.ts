@@ -10,7 +10,6 @@ export interface OverlayShortcutHandlers {
   mineSentenceMultiple: (timeoutMs: number) => void;
   toggleSecondarySub: () => void;
   markAudioCard: () => void;
-  openCharacterDictionary: () => void;
   openCharacterDictionaryManager: () => void;
   openRuntimeOptions: () => void;
   openJimaku: () => void;

@@ -27,7 +27,7 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
       getLaunchMode: () => 'normal',
       platform: 'linux',
       execPath: process.execPath,
-      defaultMpvLogPath: '/tmp/test-mpv.log',
+      getDefaultMpvLogPath: () => '/tmp/test-mpv.log',
       defaultMpvArgs: [],
       removeSocketPath: () => {},
       spawnMpv: () => ({ unref: () => {} }) as never,

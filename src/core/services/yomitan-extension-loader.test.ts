@@ -135,7 +135,7 @@ test('ensureExtensionCopy refreshes copied extension when display files change',
     'old display code',
   );
 
-  const result = ensureExtensionCopy(sourceDir, userDataRoot);
+  const result = ensureExtensionCopy(sourceDir, userDataRoot, { platform: 'linux' });
 
   assert.equal(result.targetDir, targetDir);
   assert.equal(result.copied, true);
@@ -170,7 +170,9 @@ test('ensureExtensionCopyAsync refreshes copied extension without completing syn
   );
 
   let completed = false;
-  const resultPromise = ensureExtensionCopyAsync(sourceDir, userDataRoot).then((result) => {
+  const resultPromise = ensureExtensionCopyAsync(sourceDir, userDataRoot, {
+    platform: 'linux',
+  }).then((result) => {
     completed = true;
     return result;
   });
@@ -233,9 +235,9 @@ test('ensureExtensionCopyAsync shares an in-flight refresh for the same copied e
   });
 
   try {
-    const first = ensureExtensionCopyAsync(sourceDir, userDataRoot);
+    const first = ensureExtensionCopyAsync(sourceDir, userDataRoot, { platform: 'linux' });
     await firstCopyStartedPromise;
-    const second = ensureExtensionCopyAsync(sourceDir, userDataRoot);
+    const second = ensureExtensionCopyAsync(sourceDir, userDataRoot, { platform: 'linux' });
 
     releaseFirstCopy();
     const results = await Promise.all([first, second]);

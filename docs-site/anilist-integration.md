@@ -98,12 +98,11 @@ All AniList API calls go through a shared rate limiter that enforces a sliding w
 | ------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `enabled`                                   | `true`, `false`     | Enable AniList post-watch progress updates (default: `false`)                                                |
 | `accessToken`                               | string              | Explicit AniList access token override; when blank, SubMiner uses the stored encrypted token (default: `""`) |
-| `characterDictionary.enabled`               | `true`, `false`     | Enable auto-sync of the merged character dictionary from AniList (default: `false`)                          |
 | `characterDictionary.maxLoaded`             | number              | Number of recent media snapshots kept in the merged dictionary (default: `3`)                                |
 | `characterDictionary.profileScope`          | `"all"`, `"active"` | Apply dictionary to all Yomitan profiles or only the active one                                              |
 | `characterDictionary.collapsibleSections.*` | `true`, `false`     | Control which dictionary entry sections start expanded                                                       |
 
-See the [Character Dictionary](/character-dictionary) page for full details on the character dictionary feature, including name generation, matching, auto-sync lifecycle, and dictionary entry format.
+See the [Character Dictionary](/character-dictionary) page for full details on the character dictionary feature, including name generation, matching, auto-sync lifecycle, and dictionary entry format. Character dictionary sync follows `subtitleStyle.nameMatchEnabled`.
 
 ## CLI Commands
 

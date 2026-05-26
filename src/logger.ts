@@ -1,5 +1,11 @@
 import {
   appendLogLine,
+  applyLogFileTogglesToEnv,
+  DEFAULT_LOG_ROTATION,
+  isLogFileEnabled,
+  normalizeLogRotation,
+  type LogFileToggles,
+  type LogRotation,
   resolveDefaultLogFilePath as resolveSharedDefaultLogFilePath,
 } from './shared/log-files';
 
@@ -24,10 +30,11 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 40,
 };
 
-const DEFAULT_LOG_LEVEL: LogLevel = 'info';
+const DEFAULT_LOG_LEVEL: LogLevel = 'warn';
 
 let cliLogLevel: LogLevel | undefined;
 let configLogLevel: LogLevel | undefined;
+let configLogRotation: LogRotation = DEFAULT_LOG_ROTATION;
 
 function pad(value: number): string {
   return String(value).padStart(2, '0');
@@ -74,6 +81,15 @@ export function setLogLevel(level: string | undefined, source: LogLevelSource = 
   } else {
     configLogLevel = normalized;
   }
+}
+
+export function setLogRotation(rotation: unknown): void {
+  configLogRotation = normalizeLogRotation(rotation) ?? DEFAULT_LOG_ROTATION;
+  process.env.SUBMINER_LOG_ROTATION = String(configLogRotation);
+}
+
+export function setLogFileToggles(files: Partial<LogFileToggles> | undefined): void {
+  applyLogFileTogglesToEnv(files);
 }
 
 function normalizeError(error: Error): { message: string; stack?: string } {
@@ -124,12 +140,16 @@ export function resolveDefaultLogFilePath(options?: {
   platform?: NodeJS.Platform;
   homeDir?: string;
   appDataDir?: string;
+  rotation?: unknown;
 }): string {
   return resolveSharedDefaultLogFilePath('app', options);
 }
 
 function appendToLogFile(line: string): void {
-  appendLogLine(resolveLogFilePath(), line);
+  if (!isLogFileEnabled('app')) {
+    return;
+  }
+  appendLogLine(resolveLogFilePath(), line, { rotation: configLogRotation });
 }
 
 function emit(level: LogLevel, scope: string, message: string, meta: unknown[]): void {

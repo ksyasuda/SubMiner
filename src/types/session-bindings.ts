@@ -16,7 +16,6 @@ export type SessionActionId =
   | 'markAudioCard'
   | 'openRuntimeOptions'
   | 'openSessionHelp'
-  | 'openCharacterDictionary'
   | 'openCharacterDictionaryManager'
   | 'openControllerSelect'
   | 'openControllerDebug'
@@ -67,10 +66,16 @@ export interface CompiledSessionActionBinding extends CompiledSessionBindingBase
 
 export type CompiledSessionBinding = CompiledMpvCommandBinding | CompiledSessionActionBinding;
 
+export interface PluginSessionActionBinding extends CompiledSessionActionBinding {
+  cliArgs?: string[];
+}
+
+export type PluginSessionBinding = CompiledMpvCommandBinding | PluginSessionActionBinding;
+
 export interface PluginSessionBindingsArtifact {
   version: 1;
   generatedAt: string;
   numericSelectionTimeoutMs: number;
-  bindings: CompiledSessionBinding[];
+  bindings: PluginSessionBinding[];
   warnings: SessionBindingWarning[];
 }

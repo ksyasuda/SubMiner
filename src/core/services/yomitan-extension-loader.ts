@@ -142,6 +142,10 @@ export async function loadYomitanExtension(
     }
 
     targetSession = session.fromPath(resolvedProfilePath);
+    logger.info('Loading Yomitan extension from external profile', {
+      profilePath: resolvedProfilePath,
+      extensionPath: extPath,
+    });
   } else {
     const searchPaths = getYomitanExtensionSearchPaths({
       explicitPath: deps.extensionPath,
@@ -174,6 +178,10 @@ export async function loadYomitanExtension(
       logger.debug(`Copied yomitan extension to ${extensionCopy.targetDir}`);
     }
     extPath = extensionCopy.targetDir;
+    logger.info('Loading bundled Yomitan extension', {
+      extensionPath: extPath,
+      copied: extensionCopy.copied,
+    });
   }
 
   clearParserState();
@@ -191,6 +199,12 @@ export async function loadYomitanExtension(
           }),
     );
     deps.setYomitanExtension(extension);
+    logger.info('Yomitan extension loaded', {
+      extensionId: extension.id,
+      extensionName: extension.name,
+      extensionPath: extPath,
+      externalProfile: externalProfilePath.length > 0,
+    });
     return extension;
   } catch (err) {
     logger.error('Failed to load Yomitan extension:', (err as Error).message);

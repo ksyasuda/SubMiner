@@ -139,9 +139,10 @@ export async function updateAppImageFromRelease(options: {
     };
   }
 
-  const tempPath = path.join(
-    path.dirname(options.appImagePath),
-    `.${path.basename(options.appImagePath)}.update`,
+  const appImagePathApi = options.appImagePath.startsWith('/') ? path.posix : path;
+  const tempPath = appImagePathApi.join(
+    appImagePathApi.dirname(options.appImagePath),
+    `.${appImagePathApi.basename(options.appImagePath)}.update`,
   );
   try {
     await fsDeps.writeFile(tempPath, data);

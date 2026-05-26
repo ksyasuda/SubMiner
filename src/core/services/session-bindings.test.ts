@@ -4,7 +4,7 @@ import type { Keybinding } from '../../types';
 import type { ConfiguredShortcuts } from '../utils/shortcut-config';
 import { DEFAULT_CONFIG, DEFAULT_KEYBINDINGS, SPECIAL_COMMANDS } from '../../config/definitions';
 import { resolveConfiguredShortcuts } from '../utils/shortcut-config';
-import { compileSessionBindings } from './session-bindings';
+import { buildPluginSessionBindingsArtifact, compileSessionBindings } from './session-bindings';
 
 function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): ConfiguredShortcuts {
   return {
@@ -220,10 +220,7 @@ test('compileSessionBindings keeps only the character dictionary manager bound b
 
   const characterDictionaryBindings = result.bindings.flatMap((binding) => {
     if (binding.actionType !== 'session-action') return [];
-    if (
-      binding.actionId !== 'openCharacterDictionary' &&
-      binding.actionId !== 'openCharacterDictionaryManager'
-    ) {
+    if (binding.actionId !== 'openCharacterDictionaryManager') {
       return [];
     }
     return [
@@ -470,4 +467,52 @@ test('compileSessionBindings wires every configured shortcut key into the shared
     result.bindings.map((binding) => binding.sourcePath).sort(),
     shortcutKeys.map((key) => `shortcuts.${key}`).sort(),
   );
+});
+
+test('buildPluginSessionBindingsArtifact emits CLI args for plugin-bound session actions', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts({
+      openCharacterDictionaryManager: 'Ctrl+D',
+    }),
+    keybindings: [
+      createKeybinding('Ctrl+Alt+KeyR', [
+        `${SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX}anki.autoUpdateNewCards:prev`,
+      ]),
+    ],
+    platform: 'linux',
+  });
+
+  const artifact = buildPluginSessionBindingsArtifact({
+    bindings: result.bindings,
+    warnings: result.warnings,
+    numericSelectionTimeoutMs: 2500,
+    now: new Date('2026-05-26T00:00:00.000Z'),
+  });
+  const byActionId = new Map(
+    artifact.bindings.flatMap((binding) =>
+      binding.actionType === 'session-action' ? [[binding.actionId, binding]] : [],
+    ),
+  );
+  const compiledManagerBinding = result.bindings.find(
+    (binding) =>
+      binding.actionType === 'session-action' &&
+      binding.actionId === 'openCharacterDictionaryManager',
+  );
+
+  assert.equal(compiledManagerBinding && 'cliArgs' in compiledManagerBinding, false);
+  const managerCliArgs = byActionId.get('openCharacterDictionaryManager')?.cliArgs;
+  const cycleCliArgs = byActionId.get('cycleRuntimeOption')?.cliArgs;
+
+  assert.equal(managerCliArgs?.[0], '--session-action');
+  assert.deepEqual(JSON.parse(managerCliArgs?.[1] ?? ''), {
+    actionId: 'openCharacterDictionaryManager',
+  });
+  assert.equal(cycleCliArgs?.[0], '--session-action');
+  assert.deepEqual(JSON.parse(cycleCliArgs?.[1] ?? ''), {
+    actionId: 'cycleRuntimeOption',
+    payload: {
+      runtimeOptionId: 'anki.autoUpdateNewCards',
+      direction: -1,
+    },
+  });
 });

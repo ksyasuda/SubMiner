@@ -93,6 +93,14 @@ export interface UpdatesConfig {
   channel?: UpdateChannel;
 }
 
+export type LogRotation = number;
+
+export interface LogFilesConfig {
+  app?: boolean;
+  launcher?: boolean;
+  mpv?: boolean;
+}
+
 export interface ShortcutsConfig {
   toggleVisibleOverlayGlobal?: string | null;
   copySubtitle?: string | null;
@@ -143,6 +151,8 @@ export interface Config {
   updates?: UpdatesConfig;
   logging?: {
     level?: 'debug' | 'info' | 'warn' | 'error';
+    rotation?: LogRotation;
+    files?: LogFilesConfig;
   };
 }
 
@@ -286,7 +296,6 @@ export interface ResolvedConfig {
     enabled: boolean;
     accessToken: string;
     characterDictionary: {
-      enabled: boolean;
       refreshTtlHours: number;
       maxLoaded: number;
       evictionPolicy: AnilistCharacterDictionaryEvictionPolicy;
@@ -372,6 +381,8 @@ export interface ResolvedConfig {
   updates: Required<UpdatesConfig>;
   logging: {
     level: 'debug' | 'info' | 'warn' | 'error';
+    rotation: LogRotation;
+    files: Required<LogFilesConfig>;
   };
 }
 

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AnkiConnectClient } from './anki-connect';
+import { setLogLevel } from './logger';
 
 test('AnkiConnectClient disables keep-alive agents to avoid stale socket retries', () => {
   const client = new AnkiConnectClient('http://127.0.0.1:8765') as unknown as {
@@ -36,6 +37,7 @@ test('AnkiConnectClient includes action name in retry logs', async () => {
 
   const originalInfo = console.info;
   const messages: string[] = [];
+  setLogLevel('info');
   try {
     console.info = (...args: unknown[]) => {
       messages.push(args.map((value) => String(value)).join(' '));
@@ -46,6 +48,7 @@ test('AnkiConnectClient includes action name in retry logs', async () => {
     assert.match(messages.join('\n'), /AnkiConnect notesInfo retry 1\/3 after 200ms delay/);
   } finally {
     console.info = originalInfo;
+    setLogLevel(undefined);
   }
 });
 

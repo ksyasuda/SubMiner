@@ -30,8 +30,12 @@ export function detectSupportAssetDataDirs(options: {
   xdgDataHome?: string;
 }): string[] {
   if (options.platform === 'linux') {
-    const xdgDataHome = options.xdgDataHome || path.join(options.homeDir, '.local/share');
-    return [path.join(xdgDataHome, 'SubMiner'), '/usr/local/share/SubMiner', '/usr/share/SubMiner'];
+    const xdgDataHome = options.xdgDataHome || path.posix.join(options.homeDir, '.local/share');
+    return [
+      path.posix.join(xdgDataHome, 'SubMiner'),
+      '/usr/local/share/SubMiner',
+      '/usr/share/SubMiner',
+    ];
   }
   return [];
 }

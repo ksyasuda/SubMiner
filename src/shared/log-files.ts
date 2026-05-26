@@ -3,14 +3,34 @@ import os from 'node:os';
 import path from 'node:path';
 
 export type LogKind = 'app' | 'launcher' | 'mpv';
+export type LogRotation = number;
+export type LogFileToggles = Record<LogKind, boolean>;
 
 export const DEFAULT_LOG_RETENTION_DAYS = 7;
 export const DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024;
+export const DEFAULT_LOG_ROTATION: LogRotation = DEFAULT_LOG_RETENTION_DAYS;
+export const DEFAULT_LOG_FILE_TOGGLES: LogFileToggles = {
+  app: true,
+  launcher: true,
+  mpv: false,
+};
 
 const TRUNCATED_MARKER = '[truncated older log content]\n';
 const prunedDirectories = new Set<string>();
 const NS_PER_MS = 1_000_000n;
 const MS_PER_DAY = 86_400_000n;
+
+const LOG_ENABLED_ENV_BY_KIND: Record<LogKind, string> = {
+  app: 'SUBMINER_APP_LOG_ENABLED',
+  launcher: 'SUBMINER_LAUNCHER_LOG_ENABLED',
+  mpv: 'SUBMINER_MPV_LOG_ENABLED',
+};
+
+const LOG_PATH_ENV_BY_KIND: Record<LogKind, string> = {
+  app: 'SUBMINER_APP_LOG',
+  launcher: 'SUBMINER_LAUNCHER_LOG',
+  mpv: 'SUBMINER_MPV_LOG',
+};
 
 function floorDiv(left: number, right: number): number {
   return Math.floor(left / right);
@@ -54,10 +74,56 @@ export function resolveDefaultLogFilePath(
     homeDir?: string;
     appDataDir?: string;
     now?: Date;
+    rotation?: unknown;
   },
 ): string {
-  const date = (options?.now ?? new Date()).toISOString().slice(0, 10);
-  return path.join(resolveLogBaseDir(options), 'logs', `${kind}-${date}.log`);
+  const now = options?.now ?? new Date();
+  const suffix = now.toISOString().slice(0, 10);
+  return path.join(resolveLogBaseDir(options), 'logs', `${kind}-${suffix}.log`);
+}
+
+export function normalizeLogRotation(rotation: unknown): LogRotation | undefined {
+  const parsed =
+    typeof rotation === 'number'
+      ? rotation
+      : typeof rotation === 'string' && /^\d+$/.test(rotation.trim())
+        ? Number(rotation.trim())
+        : Number.NaN;
+  if (!Number.isInteger(parsed) || parsed <= 0) return undefined;
+  return parsed;
+}
+
+export function normalizeLogFileEnabled(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return undefined;
+}
+
+export function isLogFileEnabled(kind: LogKind, env: NodeJS.ProcessEnv = process.env): boolean {
+  const configured = normalizeLogFileEnabled(env[LOG_ENABLED_ENV_BY_KIND[kind]]);
+  if (configured !== undefined) return configured;
+  const explicitPath = env[LOG_PATH_ENV_BY_KIND[kind]]?.trim();
+  if (explicitPath) return true;
+  return DEFAULT_LOG_FILE_TOGGLES[kind];
+}
+
+export function applyLogFileTogglesToEnv(
+  files: Partial<LogFileToggles> | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  for (const kind of Object.keys(LOG_ENABLED_ENV_BY_KIND) as LogKind[]) {
+    const explicitPath = env[LOG_PATH_ENV_BY_KIND[kind]]?.trim();
+    const enabled = files?.[kind] ?? (explicitPath ? true : DEFAULT_LOG_FILE_TOGGLES[kind]);
+    env[LOG_ENABLED_ENV_BY_KIND[kind]] = String(enabled);
+  }
+}
+
+export function getLogRetentionDays(rotation: unknown): number {
+  const normalized = normalizeLogRotation(rotation) ?? DEFAULT_LOG_ROTATION;
+  return normalized;
 }
 
 export function pruneLogFiles(
@@ -107,6 +173,11 @@ function maybePruneLogDirectory(logPath: string, retentionDays: number): void {
   prunedDirectories.add(key);
 }
 
+export function pruneLogDirectoryForPath(logPath: string, rotation?: unknown): void {
+  if (!logPath.trim()) return;
+  maybePruneLogDirectory(logPath, getLogRetentionDays(rotation));
+}
+
 function trimLogFileToMaxBytes(logPath: string, maxBytes: number): void {
   if (!Number.isFinite(maxBytes) || maxBytes <= 0) return;
 
@@ -135,10 +206,12 @@ export function appendLogLine(
   line: string,
   options?: {
     retentionDays?: number;
+    rotation?: unknown;
     maxBytes?: number;
   },
 ): void {
-  const retentionDays = options?.retentionDays ?? DEFAULT_LOG_RETENTION_DAYS;
+  if (!logPath.trim()) return;
+  const retentionDays = options?.retentionDays ?? getLogRetentionDays(options?.rotation);
   const maxBytes = options?.maxBytes ?? DEFAULT_LOG_MAX_BYTES;
 
   try {

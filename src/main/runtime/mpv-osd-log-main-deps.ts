@@ -5,7 +5,7 @@ type ShowMpvOsdMainDeps = Parameters<typeof createShowMpvOsdHandler>[0];
 
 export function createBuildAppendToMpvLogMainDepsHandler(deps: AppendToMpvLogMainDeps) {
   return (): AppendToMpvLogMainDeps => ({
-    logPath: deps.logPath,
+    getLogPath: () => deps.getLogPath(),
     dirname: (targetPath: string) => deps.dirname(targetPath),
     mkdir: (targetPath: string, options: { recursive: boolean }) => deps.mkdir(targetPath, options),
     appendFile: (targetPath: string, data: string, options: { encoding: 'utf8' }) =>

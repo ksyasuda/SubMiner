@@ -1,7 +1,9 @@
 import path from 'node:path';
 import packageJson from '../package.json';
+import { applyLogFileTogglesToEnv } from '../src/shared/log-files.js';
 import {
   loadLauncherJellyfinConfig,
+  loadLauncherLoggingConfig,
   loadLauncherMpvConfig,
   loadLauncherYoutubeSubgenConfig,
   parseArgs,
@@ -16,6 +18,7 @@ import { runConfigCommand } from './commands/config-command.js';
 import { runMpvPostAppCommand, runMpvPreAppCommand } from './commands/mpv-command.js';
 import { runAppPassthroughCommand, runTexthookerCommand } from './commands/app-command.js';
 import { runDictionaryCommand } from './commands/dictionary-command.js';
+import { runLogsCommand } from './commands/logs-command.js';
 import { runStatsCommand } from './commands/stats-command.js';
 import { runJellyfinCommand } from './commands/jellyfin-command.js';
 import { runPlaybackCommand } from './commands/playback-command.js';
@@ -61,7 +64,19 @@ async function main(): Promise<void> {
   const scriptName = path.basename(scriptPath);
   const launcherConfig = loadLauncherYoutubeSubgenConfig();
   const launcherMpvConfig = loadLauncherMpvConfig();
-  const args = parseArgs(process.argv.slice(2), scriptName, launcherConfig, launcherMpvConfig);
+  const launcherLoggingConfig = loadLauncherLoggingConfig();
+  applyLogFileTogglesToEnv(launcherLoggingConfig.files);
+  process.env.SUBMINER_LOG_ROTATION =
+    launcherLoggingConfig.rotation !== undefined
+      ? String(launcherLoggingConfig.rotation)
+      : (process.env.SUBMINER_LOG_ROTATION ?? '7');
+  const args = parseArgs(
+    process.argv.slice(2),
+    scriptName,
+    launcherConfig,
+    launcherMpvConfig,
+    launcherLoggingConfig,
+  );
 
   if (args.version) {
     console.log(`SubMiner ${APP_VERSION}`);
@@ -84,6 +99,10 @@ async function main(): Promise<void> {
   }
 
   if (await runMpvPreAppCommand(context)) {
+    return;
+  }
+
+  if (runLogsCommand(context)) {
     return;
   }
 

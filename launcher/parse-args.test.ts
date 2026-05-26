@@ -244,3 +244,18 @@ test('parseArgs maps doctor refresh-known-words flag', () => {
   assert.equal(parsed.doctor, true);
   assert.equal(parsed.doctorRefreshKnownWords, true);
 });
+
+test('parseArgs maps logs export flag', () => {
+  const parsed = parseArgs(['logs', '-e'], 'subminer', {});
+
+  assert.equal(parsed.logsExport, true);
+});
+
+test('parseArgs requires an explicit logs action', () => {
+  const exit = withProcessExitIntercept(() => {
+    parseArgs(['logs'], 'subminer', {});
+  });
+
+  assert.equal(exit.code, 1);
+  assert.match(exit.stderr, /Logs command requires -e or --export/);
+});

@@ -460,11 +460,6 @@ function registerModalOpenHandlers(): void {
       window.electronAPI.notifyOverlayModalOpened('runtime-options');
     });
   });
-  window.electronAPI.onOpenCharacterDictionary(() => {
-    runGuardedAsync('character-dictionary:open', async () => {
-      await characterDictionaryModal.openCharacterDictionaryModal();
-    });
-  });
   window.electronAPI.onOpenCharacterDictionaryManager(() => {
     runGuardedAsync('character-dictionary-manager:open', async () => {
       await characterDictionaryModal.openCharacterDictionaryManagerModal();
