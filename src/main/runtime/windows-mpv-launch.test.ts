@@ -269,11 +269,13 @@ test('launchWindowsMpv reports missing mpv path', async () => {
 
 test('launchWindowsMpv spawns detached mpv with targets', async () => {
   const calls: string[] = [];
+  const logs: string[] = [];
   const result = await launchWindowsMpv(
     ['C:\\video.mkv'],
     createDeps({
       getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
       fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
+      logInfo: (message) => logs.push(message),
       spawnDetached: async (command, args) => {
         calls.push(command);
         calls.push(args.join('|'));
@@ -290,6 +292,59 @@ test('launchWindowsMpv spawns detached mpv with targets', async () => {
     'C:\\mpv\\mpv.exe',
     '--player-operation-mode=pseudo-gui|--force-window=immediate|--script=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua|--input-ipc-server=\\\\.\\pipe\\subminer-socket|--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us|--sub-auto=fuzzy|--sub-file-paths=subs;subtitles|--sid=auto|--secondary-sid=auto|--sub-visibility=no|--secondary-sub-visibility=no|--script-opts=subminer-binary_path=C:\\SubMiner\\SubMiner.exe,subminer-socket_path=\\\\.\\pipe\\subminer-socket|C:\\video.mkv',
   ]);
+  assert.match(logs[0] ?? '', /mpvPath=C:\\mpv\\mpv\.exe/);
+  assert.match(logs[0] ?? '', /inputIpcServer=\\\\\.\\pipe\\subminer-socket/);
+  assert.match(
+    logs[0] ?? '',
+    /bundledPlugin=C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main\.lua/,
+  );
+  assert.match(logs[0] ?? '', /installedPlugin=none/);
+});
+
+test('launchWindowsMpv forwards runtime logging config to mpv and plugin', async () => {
+  const calls: string[] = [];
+  const result = await launchWindowsMpv(
+    ['C:\\video.mkv'],
+    createDeps({
+      getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
+      fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
+      spawnDetached: async (command, args, env) => {
+        calls.push(command);
+        calls.push(args.join('|'));
+        calls.push(env?.SUBMINER_LOG_LEVEL ?? '');
+        calls.push(env?.SUBMINER_LOG_ROTATION ?? '');
+      },
+    }),
+    ['--log-file=C:\\Users\\tester\\AppData\\Roaming\\SubMiner\\logs\\mpv-2026-05-26.log'],
+    'C:\\SubMiner\\SubMiner.exe',
+    'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    '',
+    'normal',
+    undefined,
+    {
+      socketPath: '\\\\.\\pipe\\subminer-socket',
+      binaryPath: '',
+      backend: 'windows',
+      logLevel: 'debug',
+      logRotation: 7,
+      autoStart: true,
+      autoStartVisibleOverlay: false,
+      autoStartPauseUntilReady: true,
+      texthookerEnabled: false,
+      aniskipEnabled: true,
+      aniskipButtonKey: 'TAB',
+    },
+  );
+
+  assert.equal(result.ok, true);
+  assert.match(calls[1] ?? '', /--msg-level=all=warn,subminer=debug/);
+  assert.doesNotMatch(calls[1] ?? '', /subminer-log_level=debug/);
+  assert.match(
+    calls[1] ?? '',
+    /--log-file=C:\\Users\\tester\\AppData\\Roaming\\SubMiner\\logs\\mpv-2026-05-26\.log/,
+  );
+  assert.equal(calls[2], 'debug');
+  assert.equal(calls[3], '7');
 });
 
 test('launchWindowsMpv skips bundled script when installed plugin is detected', async () => {
