@@ -13,13 +13,17 @@
 
 - **Character Portraits:** Character-name subtitle matches can now show optional inline AniList character portraits. Manual AniList title overrides are scoped per media directory so separate season folders keep independent character dictionary selections.
 
+- **Log Export:** Sanitized log ZIP archives can be exported from the tray menu or by running `subminer logs -e`, with home-directory usernames redacted from the exported contents.
+
+- **Logging Configuration:** SubMiner's logging level is now forwarded into launcher-started and Windows shortcut-started mpv sessions, controlling mpv log verbosity and plugin script logging. The new `logging.rotation` config sets daily log retention (default 7 days), and `logging.files` toggles let you enable or disable per-component log files; mpv logs are off by default unless explicitly enabled for debugging.
+
 ### Changed
 
 - **Subtitle Appearance:** Primary and secondary subtitle appearance now use color controls plus CSS declaration editors, saved as `subtitleStyle.css` and `subtitleStyle.secondary.css`. Sidebar appearance is configured via `subtitleSidebar.css`. The default subtitle font stack is updated to `Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP`. Existing configs are migrated automatically.
 
 - **Known-Word Colors:** Known-word and N+1 annotation colors moved to `subtitleStyle.knownWordColor` and `subtitleStyle.nPlusOneColor`. Legacy Anki color keys remain accepted with deprecation warnings. N+1 highlighting is preserved for configs that already had it enabled; new configs leave it disabled unless `ankiConnect.nPlusOne.enabled` is set explicitly.
 
-- **Character Dictionary:** A new `Ctrl/Cmd+D` manager modal lets you remove, reorder, or override loaded dictionary entries. The in-app AniList title selector now waits for an explicit search rather than triggering automatically; the search box is prefilled from the current filename guess so it can be edited before confirming an override. Lookup entries are scoped to generated Japanese name aliases only, so raw romanized or English aliases no longer appear as separate results.
+- **Character Dictionary:** A new `Ctrl/Cmd+D` manager modal lets you remove, reorder, or override loaded dictionary entries. Entries are scoped to the current AniList media and generated Japanese name aliases only, so raw romanized or English aliases no longer appear as separate results. The in-app AniList title selector now waits for an explicit search rather than triggering automatically; the search box is prefilled from the current filename guess. The manager is blocked with a notice when character dictionary annotations are disabled, and `subtitleStyle.nameMatchEnabled` is the sole switch for enabling name matching and dictionary builds.
 
 - **Linux Updater:** Tray "Check for Updates" now installs the new AppImage automatically via `electron-updater`, matching the macOS and Windows update flow. System-package-managed AppImages (e.g. AUR `/opt/SubMiner`) and non-AppImage launches fall back to the GitHub-asset flow.
 
