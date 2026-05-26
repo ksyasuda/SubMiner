@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PartOfSpeech } from '../../types';
+import { setLogLevel } from '../../logger';
 import { createTokenizerDepsRuntime, TokenizerServiceDeps, tokenizeSubtitle } from './tokenizer';
 
 function makeDeps(overrides: Partial<TokenizerServiceDeps> = {}): TokenizerServiceDeps {
@@ -1865,6 +1866,7 @@ test('tokenizeSubtitle uses Yomitan parser result when available and drops no-he
 test('tokenizeSubtitle logs selected Yomitan groups when debug toggle is enabled', async () => {
   const infoLogs: string[] = [];
   const originalInfo = console.info;
+  setLogLevel('info');
   console.info = (...args: unknown[]) => {
     infoLogs.push(args.map((value) => String(value)).join(' '));
   };
@@ -1912,6 +1914,7 @@ test('tokenizeSubtitle logs selected Yomitan groups when debug toggle is enabled
     );
   } finally {
     console.info = originalInfo;
+    setLogLevel(undefined);
   }
 
   assert.ok(infoLogs.some((line) => line.includes('Selected Yomitan token groups')));
