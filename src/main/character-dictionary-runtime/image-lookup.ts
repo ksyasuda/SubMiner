@@ -262,10 +262,7 @@ export function createCharacterDictionaryImageLookup(deps: {
       refreshIfNeeded();
       const scopedMediaId = normalizeLookupMediaId(mediaId ?? deps.getCurrentMediaId?.() ?? null);
       if (scopedMediaId !== null) {
-        const scopedImage = indexByMediaId.get(scopedMediaId)?.get(normalizedTerm);
-        if (scopedImage) {
-          return scopedImage;
-        }
+        return indexByMediaId.get(scopedMediaId)?.get(normalizedTerm) ?? null;
       }
       return index.get(normalizedTerm) ?? null;
     },

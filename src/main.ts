@@ -6077,13 +6077,23 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         }
         return result;
       },
-      moveCharacterDictionaryManagedEntry: async (mediaId: number, direction: 1 | -1) =>
-        moveCharacterDictionaryManagedEntry(
+      moveCharacterDictionaryManagedEntry: async (mediaId: number, direction: 1 | -1) => {
+        const result = moveCharacterDictionaryManagedEntry(
           USER_DATA_PATH,
           mediaId,
           direction,
           characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
-        ),
+        );
+        if (result.ok && result.rebuildRequired) {
+          try {
+            await characterDictionaryAutoSyncRuntime.runSyncNow();
+            characterDictionaryImageLookup.invalidate();
+          } catch (error) {
+            logger.warn('Failed to rebuild character dictionary after manager reorder:', error);
+          }
+        }
+        return result;
+      },
       appendClipboardVideoToQueue: () => appendClipboardVideoToQueue(),
       ...playlistBrowserMainDeps,
       getImmersionTracker: () => appState.immersionTracker,

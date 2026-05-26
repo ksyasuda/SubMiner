@@ -250,9 +250,9 @@ export function moveCharacterDictionaryManagedEntry(
   if (entry) {
     nextActiveMediaIds.splice(targetIndex, 0, entry);
   }
-  const nextState = { ...state, activeMediaIds: nextActiveMediaIds };
+  const nextState = { ...state, activeMediaIds: nextActiveMediaIds, mergedRevision: null };
   writeAutoSyncState(statePath, nextState);
-  return { ok: true, entries: toManagerEntries(nextState, currentMediaId) };
+  return { ok: true, entries: toManagerEntries(nextState, currentMediaId), rebuildRequired: true };
 }
 
 export function removeCharacterDictionaryManagedEntry(

@@ -180,3 +180,38 @@ test('createCharacterDictionaryImageLookup can scope duplicate names to the curr
 
   assert.equal(lookup.get('カズ', 21202)?.alt, 'Kazuma');
 });
+
+test('createCharacterDictionaryImageLookup does not fall back globally on scoped miss', () => {
+  const outputDir = makeTempDir();
+  const snapshot: CharacterDictionarySnapshot = {
+    formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
+    mediaId: 115230,
+    mediaTitle: 'Tower of God',
+    entryCount: 1,
+    updatedAt: 1_700_000_000_000,
+    termEntries: [
+      [
+        'カズ',
+        'かず',
+        'name primary',
+        '',
+        75,
+        [
+          {
+            type: 'structured-content',
+            content: { tag: 'img', path: 'img/m115230-c1.png', alt: 'Kaz' },
+          },
+        ],
+        0,
+        '',
+      ],
+    ],
+    images: [{ path: 'img/m115230-c1.png', dataBase64: 'TOWER' }],
+  };
+  writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
+
+  const lookup = createCharacterDictionaryImageLookup({ outputDir });
+
+  assert.equal(lookup.get('カズ', 21202), null);
+  assert.equal(lookup.get('カズ')?.alt, 'Kaz');
+});

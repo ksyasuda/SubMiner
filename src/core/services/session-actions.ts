@@ -98,7 +98,7 @@ export async function dispatchSessionAction(
       deps.openSessionHelp();
       return;
     case 'openCharacterDictionary':
-      deps.openCharacterDictionary();
+      deps.openCharacterDictionaryManager();
       return;
     case 'openCharacterDictionaryManager':
       deps.openCharacterDictionaryManager();

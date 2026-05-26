@@ -53,7 +53,13 @@ test('character dictionary manager snapshots, reorders, and removes MRU entries'
       { mediaId: 130298, label: '130298 - Eminence', title: 'Eminence', current: false },
       { mediaId: 115230, label: '115230 - Tower of God', title: 'Tower of God', current: false },
     ],
+    rebuildRequired: true,
   });
+  const reorderedState = JSON.parse(fs.readFileSync(statePath, 'utf8')) as {
+    mergedRevision: string | null;
+  };
+  assert.equal(reorderedState.mergedRevision, null);
+
   assert.deepEqual(removeCharacterDictionaryManagedEntry(userDataPath, 115230), {
     ok: true,
     entries: [

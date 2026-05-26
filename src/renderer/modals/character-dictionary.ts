@@ -304,25 +304,36 @@ export function createCharacterDictionaryModal(
 
   async function moveManagedEntry(mediaId: number, direction: 1 | -1): Promise<void> {
     setStatus('Updating entry order...');
-    const result = await window.electronAPI.moveCharacterDictionaryManagedEntry(mediaId, direction);
-    managerSnapshot = { entries: result.entries };
-    renderManager();
-    setStatus(result.ok ? 'Entry order updated.' : result.message, !result.ok);
+    try {
+      const result = await window.electronAPI.moveCharacterDictionaryManagedEntry(
+        mediaId,
+        direction,
+      );
+      managerSnapshot = { entries: result.entries };
+      renderManager();
+      setStatus(result.ok ? 'Entry order updated.' : result.message, !result.ok);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
   }
 
   async function removeManagedEntry(mediaId: number): Promise<void> {
     setStatus('Removing entry...');
-    const result = await window.electronAPI.removeCharacterDictionaryManagedEntry(mediaId);
-    managerSnapshot = { entries: result.entries };
-    renderManager();
-    setStatus(
-      result.ok
-        ? result.rebuildRequired
-          ? 'Entry removed. Merged dictionary rebuilt.'
-          : 'Entry removed.'
-        : result.message,
-      !result.ok,
-    );
+    try {
+      const result = await window.electronAPI.removeCharacterDictionaryManagedEntry(mediaId);
+      managerSnapshot = { entries: result.entries };
+      renderManager();
+      setStatus(
+        result.ok
+          ? result.rebuildRequired
+            ? 'Entry removed. Merged dictionary rebuilt.'
+            : 'Entry removed.'
+          : result.message,
+        !result.ok,
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
   }
 
   async function openManagedOverride(entry: CharacterDictionaryManagerEntry): Promise<void> {
