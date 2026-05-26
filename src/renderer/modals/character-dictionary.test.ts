@@ -360,6 +360,105 @@ test('character dictionary manager reports failed reorder IPC calls', async () =
   }
 });
 
+test('character dictionary manager reports pending refresh after removal', async () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const overlay = createNodeStub();
+  const modalNode = createNodeStub(true);
+  const managedEntries = createNodeStub();
+  const status = createNodeStub();
+  const state = createRendererState();
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getCharacterDictionaryManagerSnapshot: async () => ({
+          entries: [
+            { mediaId: 21202, label: '21202 - KonoSuba', title: 'KonoSuba', current: true },
+            {
+              mediaId: 115230,
+              label: '115230 - Tower of God',
+              title: 'Tower of God',
+              current: false,
+            },
+          ],
+        }),
+        moveCharacterDictionaryManagedEntry: async () => ({ ok: true, entries: [] }),
+        removeCharacterDictionaryManagedEntry: async () => ({
+          ok: true,
+          entries: [
+            { mediaId: 21202, label: '21202 - KonoSuba', title: 'KonoSuba', current: true },
+          ],
+          rebuildRequired: true,
+        }),
+        getCharacterDictionarySelection: async () => ({
+          seriesKey: '',
+          guessTitle: null,
+          current: null,
+          override: null,
+          candidates: [],
+        }),
+        setCharacterDictionarySelection: async () => ({
+          ok: false,
+          seriesKey: '',
+          selected: { id: 0, title: '', episodes: null },
+          staleMediaIds: [],
+        }),
+        notifyOverlayModalClosed: () => {},
+        notifyOverlayModalOpened: () => {},
+      } as never,
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createElementStub(),
+    },
+  });
+
+  try {
+    const modal = createCharacterDictionaryModal(
+      {
+        state,
+        dom: {
+          overlay,
+          characterDictionaryModal: modalNode,
+          characterDictionaryClose: createNodeStub(),
+          characterDictionarySummary: createNodeStub(),
+          characterDictionaryCurrent: createNodeStub(),
+          characterDictionarySearchInput: createNodeStub(),
+          characterDictionarySearchButton: createNodeStub(),
+          characterDictionaryCandidates: createNodeStub(),
+          characterDictionaryStatus: status,
+          characterDictionarySearchPanel: createNodeStub(),
+          characterDictionaryManagerPanel: createNodeStub(true),
+          characterDictionaryOverrideTab: createNodeStub(),
+          characterDictionaryManageTab: createNodeStub(),
+          characterDictionaryManagedEntries: managedEntries,
+        },
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => false },
+        syncSettingsModalSubtitleSuppression: () => {},
+      },
+    );
+
+    await modal.openCharacterDictionaryManagerModal();
+    const secondEntry = managedEntries.children[1] as { children: unknown[] };
+    const controls = secondEntry.children[1] as {
+      children: Array<{ dispatchEvent: (event: string, payload?: unknown) => void }>;
+    };
+    controls.children[3]?.dispatchEvent('click', { stopPropagation: () => {} });
+    await flushAsyncWork();
+
+    assert.equal(status.textContent, 'Entry removed. Merged dictionary will refresh shortly.');
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+});
+
 test('character dictionary modal loads candidates and applies selected override', async () => {
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;

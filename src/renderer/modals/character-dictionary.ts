@@ -326,7 +326,7 @@ export function createCharacterDictionaryModal(
       setStatus(
         result.ok
           ? result.rebuildRequired
-            ? 'Entry removed. Merged dictionary rebuilt.'
+            ? 'Entry removed. Merged dictionary will refresh shortly.'
             : 'Entry removed.'
           : result.message,
         !result.ok,
