@@ -1,3 +1,5 @@
+import type { SessionActionDispatchRequest } from '../types/runtime';
+
 export interface CliArgs {
   background: boolean;
   managedPlayback: boolean;
@@ -44,6 +46,7 @@ export interface CliArgs {
   shiftSubDelayNextLine: boolean;
   cycleRuntimeOptionId?: string;
   cycleRuntimeOptionDirection?: 1 | -1;
+  sessionAction?: SessionActionDispatchRequest;
   copySubtitleCount?: number;
   mineSentenceCount?: number;
   anilistStatus: boolean;
@@ -212,6 +215,31 @@ export function parseArgs(argv: string[]): CliArgs {
     return null;
   };
 
+  const parseSessionAction = (value: string | undefined): SessionActionDispatchRequest | null => {
+    if (!value) return null;
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+      const actionId = (parsed as { actionId?: unknown }).actionId;
+      if (typeof actionId !== 'string' || actionId.length === 0) return null;
+      const payload = (parsed as { payload?: unknown }).payload;
+      if (
+        payload !== undefined &&
+        (!payload || typeof payload !== 'object' || Array.isArray(payload))
+      ) {
+        return null;
+      }
+      return payload === undefined
+        ? { actionId: actionId as SessionActionDispatchRequest['actionId'] }
+        : {
+            actionId: actionId as SessionActionDispatchRequest['actionId'],
+            payload: payload as SessionActionDispatchRequest['payload'],
+          };
+    } catch {
+      return null;
+    }
+  };
+
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (!arg || !arg.startsWith('--')) continue;
@@ -283,6 +311,12 @@ export function parseArgs(argv: string[]): CliArgs {
         args.cycleRuntimeOptionId = parsed.id;
         args.cycleRuntimeOptionDirection = parsed.direction;
       }
+    } else if (arg.startsWith('--session-action=')) {
+      const parsed = parseSessionAction(arg.slice('--session-action='.length));
+      if (parsed) args.sessionAction = parsed;
+    } else if (arg === '--session-action') {
+      const parsed = parseSessionAction(readValue(argv[i + 1]));
+      if (parsed) args.sessionAction = parsed;
     } else if (arg.startsWith('--copy-subtitle-count=')) {
       const value = Number(arg.split('=', 2)[1]);
       if (Number.isInteger(value) && value > 0) args.copySubtitleCount = value;
@@ -527,6 +561,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.shiftSubDelayPrevLine ||
     args.shiftSubDelayNextLine ||
     args.cycleRuntimeOptionId !== undefined ||
+    args.sessionAction !== undefined ||
     args.copySubtitleCount !== undefined ||
     args.mineSentenceCount !== undefined ||
     args.anilistStatus ||
@@ -602,6 +637,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.shiftSubDelayPrevLine &&
     !args.shiftSubDelayNextLine &&
     args.cycleRuntimeOptionId === undefined &&
+    args.sessionAction === undefined &&
     args.copySubtitleCount === undefined &&
     args.mineSentenceCount === undefined &&
     !args.anilistStatus &&
@@ -668,6 +704,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.shiftSubDelayPrevLine ||
     args.shiftSubDelayNextLine ||
     args.cycleRuntimeOptionId !== undefined ||
+    args.sessionAction !== undefined ||
     args.copySubtitleCount !== undefined ||
     args.mineSentenceCount !== undefined ||
     args.dictionary ||
@@ -728,6 +765,7 @@ export function shouldRunYomitanOnlyStartup(args: CliArgs): boolean {
     !args.shiftSubDelayPrevLine &&
     !args.shiftSubDelayNextLine &&
     args.cycleRuntimeOptionId === undefined &&
+    args.sessionAction === undefined &&
     args.copySubtitleCount === undefined &&
     args.mineSentenceCount === undefined &&
     !args.anilistStatus &&
@@ -793,6 +831,7 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.shiftSubDelayPrevLine ||
     args.shiftSubDelayNextLine ||
     args.cycleRuntimeOptionId !== undefined ||
+    args.sessionAction !== undefined ||
     args.copySubtitleCount !== undefined ||
     args.mineSentenceCount !== undefined
   );

@@ -4,6 +4,7 @@ import type {
   CompiledMpvCommandBinding,
   CompiledSessionActionBinding,
   CompiledSessionBinding,
+  PluginSessionBinding,
   PluginSessionBindingsArtifact,
   SessionActionId,
   SessionBindingWarning,
@@ -344,6 +345,22 @@ function getBindingFingerprint(binding: CompiledSessionBinding): string {
   return `session:${binding.actionId}:${JSON.stringify(binding.payload ?? null)}`;
 }
 
+function buildSessionActionCliArgs(binding: CompiledSessionActionBinding): string[] {
+  const request =
+    binding.payload === undefined
+      ? { actionId: binding.actionId }
+      : { actionId: binding.actionId, payload: binding.payload };
+  return ['--session-action', JSON.stringify(request)];
+}
+
+function toPluginSessionBinding(binding: CompiledSessionBinding): PluginSessionBinding {
+  if (binding.actionType !== 'session-action') {
+    return binding;
+  }
+
+  return { ...binding, cliArgs: buildSessionActionCliArgs(binding) };
+}
+
 export function compileSessionBindings(input: CompileSessionBindingsInput): {
   bindings: CompiledSessionBinding[];
   warnings: SessionBindingWarning[];
@@ -516,7 +533,7 @@ export function buildPluginSessionBindingsArtifact(input: {
     version: 1,
     generatedAt: (input.now ?? new Date()).toISOString(),
     numericSelectionTimeoutMs: input.numericSelectionTimeoutMs,
-    bindings: input.bindings,
+    bindings: input.bindings.map(toPluginSessionBinding),
     warnings: input.warnings,
   };
 }

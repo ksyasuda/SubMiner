@@ -182,7 +182,35 @@ function M.create(ctx)
 		return bindings
 	end
 
-	local function build_cli_args(action_id, payload)
+	local function normalize_cli_args(cli_args)
+		if type(cli_args) ~= "table" then
+			return nil
+		end
+
+		local normalized = {}
+		for _, arg in ipairs(cli_args) do
+			if type(arg) ~= "string" and type(arg) ~= "number" then
+				return nil
+			end
+			local value = tostring(arg)
+			if value == "" then
+				return nil
+			end
+			normalized[#normalized + 1] = value
+		end
+
+		if #normalized == 0 then
+			return nil
+		end
+		return normalized
+	end
+
+	local function build_cli_args(action_id, payload, artifact_cli_args)
+		local cli_args = normalize_cli_args(artifact_cli_args)
+		if cli_args then
+			return cli_args
+		end
+
 		if action_id == "toggleVisibleOverlay" then
 			return { "--toggle-visible-overlay" }
 		elseif action_id == "toggleStatsOverlay" then
@@ -225,6 +253,8 @@ function M.create(ctx)
 			return { "--open-session-help" }
 		elseif action_id == "openCharacterDictionary" then
 			return { "--open-character-dictionary" }
+		elseif action_id == "openCharacterDictionaryManager" then
+			return { "--open-character-dictionary" }
 		elseif action_id == "openControllerSelect" then
 			return { "--open-controller-select" }
 		elseif action_id == "openControllerDebug" then
@@ -251,13 +281,13 @@ function M.create(ctx)
 		return nil
 	end
 
-	local function invoke_cli_action(action_id, payload)
+	local function invoke_cli_action(action_id, payload, artifact_cli_args)
 		if not process.check_binary_available() then
 			show_osd("Error: binary not found")
 			return
 		end
 
-		local cli_args = build_cli_args(action_id, payload)
+		local cli_args = build_cli_args(action_id, payload, artifact_cli_args)
 		if not cli_args then
 			subminer_log("warn", "session-bindings", "No CLI mapping for action: " .. tostring(action_id))
 			return
@@ -312,7 +342,7 @@ function M.create(ctx)
 			return
 		end
 
-		invoke_cli_action(binding.actionId, binding.payload)
+		invoke_cli_action(binding.actionId, binding.payload, binding.cliArgs)
 	end
 
 	local function load_artifact()

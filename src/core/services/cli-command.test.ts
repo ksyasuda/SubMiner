@@ -785,6 +785,30 @@ test('handleCliCommand dispatches cycle-runtime-option session action', async ()
   });
 });
 
+test('handleCliCommand dispatches generic session action payloads', async () => {
+  let request: unknown = null;
+  const { deps } = createDeps({
+    dispatchSessionAction: async (nextRequest) => {
+      request = nextRequest;
+    },
+  });
+
+  handleCliCommand(
+    makeArgs({
+      sessionAction: {
+        actionId: 'openCharacterDictionaryManager',
+      },
+    }),
+    'initial',
+    deps,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(request, {
+    actionId: 'openCharacterDictionaryManager',
+  });
+});
+
 test('handleCliCommand dispatches mark-watched session action', async () => {
   let request: unknown = null;
   const { deps } = createDeps({

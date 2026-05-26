@@ -105,6 +105,8 @@ test('parseArgs captures session action forwarding flags', () => {
     '--shift-sub-delay-next-line',
     '--cycle-runtime-option',
     'anki.autoUpdateNewCards:prev',
+    '--session-action',
+    '{"actionId":"openCharacterDictionaryManager"}',
     '--copy-subtitle-count',
     '3',
     '--mine-sentence-count=2',
@@ -122,6 +124,7 @@ test('parseArgs captures session action forwarding flags', () => {
   assert.equal(args.shiftSubDelayNextLine, true);
   assert.equal(args.cycleRuntimeOptionId, 'anki.autoUpdateNewCards');
   assert.equal(args.cycleRuntimeOptionDirection, -1);
+  assert.deepEqual(args.sessionAction, { actionId: 'openCharacterDictionaryManager' });
   assert.equal(args.copySubtitleCount, 3);
   assert.equal(args.mineSentenceCount, 2);
   assert.equal(hasExplicitCommand(args), true);
@@ -281,6 +284,18 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(hasExplicitCommand(cycleRuntimeOption), true);
   assert.equal(shouldStartApp(cycleRuntimeOption), true);
   assert.equal(commandNeedsOverlayRuntime(cycleRuntimeOption), true);
+
+  const sessionAction = parseArgs([
+    '--session-action',
+    '{"actionId":"cycleRuntimeOption","payload":{"runtimeOptionId":"anki.autoUpdateNewCards","direction":-1}}',
+  ]);
+  assert.deepEqual(sessionAction.sessionAction, {
+    actionId: 'cycleRuntimeOption',
+    payload: { runtimeOptionId: 'anki.autoUpdateNewCards', direction: -1 },
+  });
+  assert.equal(hasExplicitCommand(sessionAction), true);
+  assert.equal(shouldStartApp(sessionAction), true);
+  assert.equal(commandNeedsOverlayRuntime(sessionAction), true);
 
   const toggleStatsOverlayRuntime = parseArgs(['--toggle-stats-overlay']);
   assert.equal(commandNeedsOverlayRuntime(toggleStatsOverlayRuntime), true);

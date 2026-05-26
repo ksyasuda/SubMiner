@@ -245,6 +245,24 @@ local ctx = {
 						actionType = "session-action",
 						actionId = "openCharacterDictionary",
 					},
+					{
+						key = {
+							code = "KeyD",
+							modifiers = { "ctrl" },
+						},
+						actionType = "session-action",
+						actionId = "openCharacterDictionaryManager",
+						cliArgs = { "--session-action", '{"actionId":"openCharacterDictionaryManager"}' },
+					},
+					{
+						key = {
+							code = "F12",
+							modifiers = { "ctrl", "alt" },
+						},
+						actionType = "session-action",
+						actionId = "openFuturePanel",
+						cliArgs = { "--session-action", '{"actionId":"openFuturePanel"}' },
+					},
 				},
 			}, nil
 		end,
@@ -366,6 +384,42 @@ assert_true(character_dictionary_call ~= nil, "character dictionary binding shou
 assert_true(
 	character_dictionary_call[2] == "--open-character-dictionary",
 	"character dictionary binding should pass CLI flag"
+)
+
+local character_dictionary_manager = find_binding("Ctrl+d")
+assert_true(
+	character_dictionary_manager ~= nil,
+	"character dictionary manager binding should be registered"
+)
+
+character_dictionary_manager.fn()
+local character_dictionary_manager_call = recorded.async_calls[#recorded.async_calls]
+assert_true(
+	character_dictionary_manager_call ~= nil,
+	"character dictionary manager binding should invoke CLI action"
+)
+assert_true(
+	character_dictionary_manager_call[2] == "--session-action",
+	"character dictionary manager binding should use generic session action CLI flag"
+)
+assert_true(
+	character_dictionary_manager_call[3] == '{"actionId":"openCharacterDictionaryManager"}',
+	"character dictionary manager binding should pass generated session action payload"
+)
+
+local future_panel = find_binding("Ctrl+Alt+F12")
+assert_true(future_panel ~= nil, "artifact CLI binding should be registered without plugin mapping")
+
+future_panel.fn()
+local future_panel_call = recorded.async_calls[#recorded.async_calls]
+assert_true(future_panel_call ~= nil, "artifact CLI binding should invoke CLI action")
+assert_true(
+	future_panel_call[2] == "--session-action",
+	"artifact CLI binding should pass generic session action CLI flag"
+)
+assert_true(
+	future_panel_call[3] == '{"actionId":"openFuturePanel"}',
+	"artifact CLI binding should pass generated session action payload"
 )
 
 starter.fn()

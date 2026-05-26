@@ -384,7 +384,13 @@ export function handleCliCommand(
     deps.log(`Starting MPV IPC connection on socket: ${socketPath}`);
   }
 
-  if (args.toggle || args.toggleVisibleOverlay) {
+  if (args.sessionAction) {
+    dispatchCliSessionAction(
+      args.sessionAction,
+      `sessionAction:${args.sessionAction.actionId}`,
+      'Session action failed',
+    );
+  } else if (args.toggle || args.toggleVisibleOverlay) {
     deps.toggleVisibleOverlay();
   } else if (args.togglePrimarySubtitleBar) {
     deps.togglePrimarySubtitleBar();
