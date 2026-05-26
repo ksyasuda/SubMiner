@@ -36,7 +36,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
     execPath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
     getRuntimePluginEntrypoint: () =>
       '/Applications/SubMiner.app/Contents/Resources/plugin/subminer/main.lua',
-    getDefaultMpvLogPath: () => '/tmp/mp.log',
+    getDefaultMpvLogPath: () => ' /tmp/mp.log ',
     defaultMpvArgs: ['--sid=auto'],
     removeSocketPath: () => {},
     spawnMpv: (args) => {
@@ -59,6 +59,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
       '--script=/Applications/SubMiner.app/Contents/Resources/plugin/subminer/main.lua',
     ),
   );
+  assert.ok(spawnedArgs[0]!.includes('--log-file=/tmp/mp.log'));
   assert.ok(spawnedArgs[0]!.some((arg) => arg.includes('--input-ipc-server=/tmp/subminer.sock')));
   assert.ok(logs.some((entry) => entry.includes('Launched mpv for Jellyfin playback')));
 });
