@@ -3,6 +3,7 @@ import {
   addRomanizedKanaAliases,
   buildReading,
   buildReadingFromRomanized,
+  containsKanji,
   hasKanaOnly,
   isRomanizedName,
   splitJapaneseName,
@@ -39,6 +40,25 @@ function expandRawNameVariants(rawName: string): string[] {
   return [...variants];
 }
 
+function isJapaneseNameSplitCandidate(name: string): boolean {
+  const compact = name.replace(/[\s\u3000・･·•]/g, '');
+  return (
+    containsKanji(compact) && /^[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff々〆ヵヶー]+$/.test(compact)
+  );
+}
+
+function addJapaneseNameParts(character: CharacterRecord, name: string, terms: Set<string>): void {
+  if (!isJapaneseNameSplitCandidate(name)) return;
+
+  const nameParts = splitJapaneseName(name, character.firstNameHint, character.lastNameHint);
+  if (nameParts.family) {
+    terms.add(nameParts.family);
+  }
+  if (nameParts.given) {
+    terms.add(nameParts.given);
+  }
+}
+
 export function buildNameTerms(character: CharacterRecord): string[] {
   const base = new Set<string>();
   const romanizedBase = new Set<string>();
@@ -72,6 +92,10 @@ export function buildNameTerms(character: CharacterRecord): string[] {
         for (const part of splitByMiddleDot) {
           target.add(part);
         }
+      }
+
+      if (target === base) {
+        addJapaneseNameParts(character, name, base);
       }
     }
   }
