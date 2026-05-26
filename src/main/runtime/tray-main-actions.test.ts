@@ -50,6 +50,7 @@ test('build tray template handler wires actions and init guards', () => {
       handlers.openWindowsMpvLauncherSetup();
       handlers.openYomitanSettings();
       handlers.openConfigSettings();
+      handlers.exportLogs();
       handlers.openJellyfinSetup();
       handlers.toggleJellyfinDiscovery(true);
       handlers.openAnilistSetup();
@@ -70,6 +71,7 @@ test('build tray template handler wires actions and init guards', () => {
     showWindowsMpvLauncherSetup: () => true,
     openYomitanSettings: () => calls.push('yomitan'),
     openConfigSettingsWindow: () => calls.push('configuration'),
+    exportLogs: () => calls.push('export-logs'),
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
     isJellyfinConfigured: () => true,
     isJellyfinDiscoveryActive: () => false,
@@ -94,6 +96,7 @@ test('build tray template handler wires actions and init guards', () => {
     'setup-forced',
     'yomitan',
     'configuration',
+    'export-logs',
     'jellyfin',
     'jellyfin-discovery:true',
     'anilist',
@@ -121,6 +124,7 @@ test('windows mpv launcher tray action force-opens completed setup', () => {
     showWindowsMpvLauncherSetup: () => true,
     openYomitanSettings: () => calls.push('yomitan'),
     openConfigSettingsWindow: () => calls.push('configuration'),
+    exportLogs: () => calls.push('export-logs'),
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
     isJellyfinConfigured: () => false,
     isJellyfinDiscoveryActive: () => false,

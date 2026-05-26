@@ -37,6 +37,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
     showWindowsMpvLauncherSetup: boolean;
     openYomitanSettings: () => void;
     openConfigSettings: () => void;
+    exportLogs: () => void;
     openJellyfinSetup: () => void;
     showJellyfinDiscovery: boolean;
     jellyfinDiscoveryActive: boolean;
@@ -55,6 +56,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
   showWindowsMpvLauncherSetup: () => boolean;
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
+  exportLogs: () => void;
   openJellyfinSetupWindow: () => void;
   isJellyfinConfigured: () => boolean;
   isJellyfinDiscoveryActive: () => boolean;
@@ -77,6 +79,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
     showWindowsMpvLauncherSetup: deps.showWindowsMpvLauncherSetup,
     openYomitanSettings: deps.openYomitanSettings,
     openConfigSettingsWindow: deps.openConfigSettingsWindow,
+    exportLogs: deps.exportLogs,
     openJellyfinSetupWindow: deps.openJellyfinSetupWindow,
     isJellyfinConfigured: deps.isJellyfinConfigured,
     isJellyfinDiscoveryActive: deps.isJellyfinDiscoveryActive,

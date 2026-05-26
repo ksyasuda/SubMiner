@@ -41,6 +41,8 @@ export interface CliInvocations {
   doctorTriggered: boolean;
   doctorLogLevel: string | null;
   doctorRefreshKnownWords: boolean;
+  logsTriggered: boolean;
+  logsExport: boolean;
   texthookerTriggered: boolean;
   texthookerLogLevel: string | null;
   texthookerOpenBrowser: boolean;
@@ -91,6 +93,7 @@ function getTopLevelCommand(argv: string[]): { name: string; index: number } | n
     'config',
     'settings',
     'mpv',
+    'logs',
     'dictionary',
     'dict',
     'stats',
@@ -158,6 +161,8 @@ export function parseCliPrograms(
   let statsLogLevel: string | null = null;
   let doctorLogLevel: string | null = null;
   let doctorRefreshKnownWords = false;
+  let logsTriggered = false;
+  let logsExport = false;
   let texthookerLogLevel: string | null = null;
   let texthookerOpenBrowser = false;
   let doctorTriggered = false;
@@ -295,6 +300,15 @@ export function parseCliPrograms(
     });
 
   commandProgram
+    .command('logs')
+    .description('Log file helpers')
+    .option('-e, --export', 'Export sanitized log archive')
+    .action((options: Record<string, unknown>) => {
+      logsTriggered = true;
+      logsExport = options.export === true;
+    });
+
+  commandProgram
     .command('config')
     .description('Config file helpers (path|show)')
     .argument('[action]', 'path|show')
@@ -388,6 +402,8 @@ export function parseCliPrograms(
       doctorTriggered,
       doctorLogLevel,
       doctorRefreshKnownWords,
+      logsTriggered,
+      logsExport,
       texthookerTriggered,
       texthookerLogLevel,
       texthookerOpenBrowser,
