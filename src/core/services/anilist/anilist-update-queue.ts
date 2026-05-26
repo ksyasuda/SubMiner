@@ -108,7 +108,8 @@ export function createAnilistUpdateQueue(
 
   return {
     enqueue(key: string, title: string, episode: number, season: number | null = null): void {
-      const existing = pending.find((item) => item.key === key);
+      const existing =
+        pending.find((item) => item.key === key) || deadLetter.find((item) => item.key === key);
       if (existing) {
         return;
       }
@@ -145,6 +146,9 @@ export function createAnilistUpdateQueue(
     markFailure(key: string, reason: string, nowMs: number = Date.now()): void {
       const item = pending.find((candidate) => candidate.key === key);
       if (!item) {
+        return;
+      }
+      if (item.attemptCount > 0 && item.nextAttemptAt > nowMs) {
         return;
       }
       item.attemptCount += 1;
