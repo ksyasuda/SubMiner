@@ -1,9 +1,12 @@
 import type { MpvBackend } from '../types/config';
+import type { LogRotation } from './log-files';
 
 export interface SubminerPluginRuntimeScriptOptConfig {
   socketPath: string;
   binaryPath?: string;
   backend: MpvBackend;
+  logLevel?: 'debug' | 'info' | 'warn' | 'error';
+  logRotation?: LogRotation;
   autoStart: boolean;
   autoStartVisibleOverlay: boolean;
   autoStartPauseUntilReady: boolean;

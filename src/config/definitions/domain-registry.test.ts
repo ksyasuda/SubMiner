@@ -92,6 +92,7 @@ test('config option registry includes critical paths and has unique entries', ()
 
   for (const requiredPath of [
     'logging.level',
+    'logging.files.mpv',
     'annotationWebsocket.enabled',
     'controller.enabled',
     'controller.scrollPixelsPerSecond',

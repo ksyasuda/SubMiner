@@ -40,6 +40,7 @@ function validBackendOrDefault(value: unknown, fallback: Backend): Backend {
 
 export function parsePluginRuntimeConfigFromMainConfig(
   root: Record<string, unknown> | null,
+  logLevel: LogLevel = 'info',
 ): PluginRuntimeConfig {
   const mpvConfig = root ? parseLauncherMpvConfig(root) : {};
   const texthooker = rootObject(root, 'texthooker');
@@ -48,6 +49,7 @@ export function parsePluginRuntimeConfigFromMainConfig(
     socketPath: mpvConfig.socketPath ?? DEFAULT_SOCKET_PATH,
     binaryPath: mpvConfig.subminerBinaryPath ?? '',
     backend: validBackendOrDefault(mpvConfig.backend, 'auto'),
+    logLevel,
     autoStart: booleanOrDefault(mpvConfig.autoStartSubMiner, true),
     autoStartVisibleOverlay: booleanOrDefault(root?.auto_start_overlay, false),
     autoStartPauseUntilReady: booleanOrDefault(mpvConfig.pauseUntilOverlayReady, true),
@@ -65,7 +67,7 @@ export function buildPluginRuntimeScriptOptParts(
 }
 
 export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig {
-  const parsed = parsePluginRuntimeConfigFromMainConfig(readLauncherMainConfigObject());
+  const parsed = parsePluginRuntimeConfigFromMainConfig(readLauncherMainConfigObject(), logLevel);
 
   log(
     'debug',

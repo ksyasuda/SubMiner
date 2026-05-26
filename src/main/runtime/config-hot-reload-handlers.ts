@@ -20,6 +20,8 @@ type ConfigHotReloadAppliedDeps = {
   refreshSubtitlePrefetch?: () => void;
   refreshCurrentSubtitle?: () => void;
   setLogLevel?: (level: ResolvedConfig['logging']['level']) => void;
+  setLogRotation?: (rotation: ResolvedConfig['logging']['rotation']) => void;
+  setLogFileToggles?: (files: ResolvedConfig['logging']['files']) => void;
 };
 
 type ConfigHotReloadMessageDeps = {
@@ -157,6 +159,12 @@ export function createConfigHotReloadAppliedHandler(deps: ConfigHotReloadApplied
 
     if (diff.hotReloadFields.includes('logging.level')) {
       deps.setLogLevel?.(config.logging.level);
+    }
+    if (diff.hotReloadFields.includes('logging.rotation')) {
+      deps.setLogRotation?.(config.logging.rotation);
+    }
+    if (diff.hotReloadFields.includes('logging.files')) {
+      deps.setLogFileToggles?.(config.logging.files);
     }
 
     if (diff.hotReloadFields.length > 0) {

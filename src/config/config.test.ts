@@ -1462,6 +1462,50 @@ test('accepts valid logging.level', () => {
   assert.equal(config.logging.level, 'warn');
 });
 
+test('accepts valid logging.rotation', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "logging": {
+        "rotation": 14
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.logging.rotation, 14);
+});
+
+test('accepts valid logging file toggles', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "logging": {
+        "files": {
+          "app": false,
+          "launcher": true,
+          "mpv": true
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.deepEqual(config.logging.files, {
+    app: false,
+    launcher: true,
+    mpv: true,
+  });
+});
+
 test('falls back for invalid logging.level and reports warning', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
@@ -1480,6 +1524,48 @@ test('falls back for invalid logging.level and reports warning', () => {
 
   assert.equal(config.logging.level, DEFAULT_CONFIG.logging.level);
   assert.ok(warnings.some((warning) => warning.path === 'logging.level'));
+});
+
+test('falls back for invalid logging.rotation and reports warning', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "logging": {
+        "rotation": 0
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.logging.rotation, DEFAULT_CONFIG.logging.rotation);
+  assert.ok(warnings.some((warning) => warning.path === 'logging.rotation'));
+});
+
+test('falls back for invalid logging file toggles and reports warning', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "logging": {
+        "files": {
+          "mpv": "yes"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.logging.files.mpv, DEFAULT_CONFIG.logging.files.mpv);
+  assert.ok(warnings.some((warning) => warning.path === 'logging.files.mpv'));
 });
 
 test('warns and ignores unknown top-level config keys', () => {
@@ -2527,7 +2613,7 @@ test('template generator includes known keys', () => {
   assert.match(output, /auto-generated from src\/config\/definitions.ts/);
   assert.match(
     output,
-    /"level": "info",? \/\/ Minimum log level for runtime logging\. Values: debug \| info \| warn \| error/,
+    /"level": "warn",? \/\/ Minimum log level for runtime logging\. Values: debug \| info \| warn \| error/,
   );
   assert.match(
     output,

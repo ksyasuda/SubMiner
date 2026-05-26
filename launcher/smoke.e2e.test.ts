@@ -23,6 +23,8 @@ type SmokeCase = {
   artifactsDir: string;
   binDir: string;
   xdgConfigHome: string;
+  appDataDir: string;
+  localAppDataDir: string;
   homeDir: string;
   socketDir: string;
   socketPath: string;
@@ -61,6 +63,8 @@ function createSmokeCase(name: string): SmokeCase {
   const artifactsDir = path.join(root, 'artifacts');
   const binDir = path.join(root, 'bin');
   const xdgConfigHome = path.join(root, 'xdg');
+  const appDataDir = path.join(root, 'AppData', 'Roaming');
+  const localAppDataDir = path.join(root, 'AppData', 'Local');
   const homeDir = path.join(root, 'home');
   const socketDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-smoke-sock-'));
   const socketPath = path.join(socketDir, 'subminer.sock');
@@ -73,7 +77,7 @@ function createSmokeCase(name: string): SmokeCase {
   fs.mkdirSync(binDir, { recursive: true });
   fs.writeFileSync(videoPath, 'fake video fixture');
 
-  const configDir = getDefaultConfigDir({ xdgConfigHome, homeDir });
+  const configDir = getDefaultConfigDir({ xdgConfigHome, appDataDir, homeDir });
   fs.mkdirSync(configDir, { recursive: true });
   fs.writeFileSync(path.join(configDir, 'config.jsonc'), JSON.stringify({ mpv: { socketPath } }));
   const setupState = createDefaultSetupState();
@@ -159,6 +163,8 @@ process.exit(0);
     artifactsDir,
     binDir,
     xdgConfigHome,
+    appDataDir,
+    localAppDataDir,
     homeDir,
     socketDir,
     socketPath,
@@ -174,6 +180,8 @@ function makeTestEnv(smokeCase: SmokeCase): NodeJS.ProcessEnv {
     ...process.env,
     HOME: smokeCase.homeDir,
     XDG_CONFIG_HOME: smokeCase.xdgConfigHome,
+    APPDATA: smokeCase.appDataDir,
+    LOCALAPPDATA: smokeCase.localAppDataDir,
     SUBMINER_APPIMAGE_PATH: smokeCase.fakeAppPath,
     SUBMINER_MPV_LOG: smokeCase.mpvOverlayLogPath,
   };
@@ -410,7 +418,7 @@ test(
       const env = makeTestEnv(smokeCase);
       const result = runLauncher(
         smokeCase,
-        ['--backend', 'x11', '--start-overlay', smokeCase.videoPath],
+        ['--backend', 'x11', '--log-level', 'info', '--start-overlay', smokeCase.videoPath],
         env,
         'overlay-start-stop',
       );

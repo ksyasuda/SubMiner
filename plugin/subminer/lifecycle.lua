@@ -126,7 +126,9 @@ function M.create(ctx)
 			subminer_log(
 				"info",
 				"lifecycle",
-				"Skipping auto-start: input-ipc-server does not match configured socket_path"
+				"Skipping auto-start: input-ipc-server does not match configured socket_path ("
+					.. process.describe_mpv_ipc_socket_match(opts.socket_path)
+					.. ")"
 			)
 			schedule_aniskip_fetch("file-loaded", 0)
 			return

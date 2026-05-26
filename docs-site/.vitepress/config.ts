@@ -19,18 +19,26 @@ type VersionManifest = {
   versions: Array<{ version: string; path: string }>;
 };
 
-const base = normalizeBase(process.env.SUBMINER_DOCS_BASE ?? '/');
-const outDir = process.env.SUBMINER_DOCS_OUT_DIR;
-const docsSourceDir = process.env.SUBMINER_DOCS_SOURCE_DIR ?? process.cwd();
-const localArchiveDir = resolve(
-  process.env.SUBMINER_DOCS_LOCAL_ARCHIVE_DIR ??
-    join(docsSourceDir, '..', '.tmp/docs-versioned-site'),
-);
-const channel = normalizeChannel(process.env.SUBMINER_DOCS_CHANNEL);
-const docsVersion = process.env.SUBMINER_DOCS_VERSION;
-const latestStable = process.env.SUBMINER_DOCS_LATEST_STABLE ?? 'v0.14.0';
+function optionalEnv(value: string | undefined): string | undefined {
+  return value && value !== 'undefined' ? value : undefined;
+}
+
+const base = normalizeBase(optionalEnv(process.env.SUBMINER_DOCS_BASE) ?? '/');
+const outDir = optionalEnv(process.env.SUBMINER_DOCS_OUT_DIR);
+const docsSourceDir = optionalEnv(process.env.SUBMINER_DOCS_SOURCE_DIR) ?? process.cwd();
+const channel = normalizeChannel(optionalEnv(process.env.SUBMINER_DOCS_CHANNEL));
+const docsVersion = optionalEnv(process.env.SUBMINER_DOCS_VERSION);
+const latestStable = optionalEnv(process.env.SUBMINER_DOCS_LATEST_STABLE) ?? 'v0.14.0';
 const versionManifest = parseVersionManifest(process.env.SUBMINER_DOCS_VERSION_MANIFEST);
-const versionLinkOrigin = process.env.SUBMINER_DOCS_VERSION_LINK_ORIGIN ?? 'production';
+const versionLinkOrigin =
+  optionalEnv(process.env.SUBMINER_DOCS_VERSION_LINK_ORIGIN) ?? 'production';
+
+function getLocalArchiveDir(): string {
+  return resolve(
+    optionalEnv(process.env.SUBMINER_DOCS_LOCAL_ARCHIVE_DIR) ??
+      join(docsSourceDir, '..', '.tmp/docs-versioned-site'),
+  );
+}
 
 function normalizeBase(value: string): string {
   if (!value || value === '/') return '/';
@@ -43,7 +51,7 @@ function normalizeChannel(value: string | undefined): DocsChannel {
 }
 
 function parseVersionManifest(value: string | undefined): VersionManifest {
-  if (!value) {
+  if (!value || value === 'undefined') {
     return {
       latestStable,
       channels: [
@@ -218,6 +226,7 @@ function isFile(path: string): boolean {
 function archiveFileForPathname(pathname: string): string | null {
   if (!shouldHandleLocalVersionRoute(pathname)) return null;
 
+  const localArchiveDir = getLocalArchiveDir();
   const routePath = decodeURIComponent(pathname).replace(/^\/+/, '');
   const filePath = resolve(localArchiveDir, routePath);
   if (filePath !== localArchiveDir && !filePath.startsWith(`${localArchiveDir}${sep}`)) {
@@ -234,7 +243,11 @@ function archiveFileForPathname(pathname: string): string | null {
 }
 
 function serveLocalArchiveRoute(pathname: string, response: DevServerResponse): boolean {
-  if (versionLinkOrigin !== 'local') return false;
+  if (
+    (optionalEnv(process.env.SUBMINER_DOCS_VERSION_LINK_ORIGIN) ?? versionLinkOrigin) !== 'local'
+  ) {
+    return false;
+  }
 
   const filePath = archiveFileForPathname(pathname);
   if (!filePath) return false;

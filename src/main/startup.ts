@@ -7,6 +7,7 @@ export interface StartupBootstrapRuntimeFactoryDeps {
   argv: string[];
   parseArgs: (argv: string[]) => CliArgs;
   setLogLevel: (level: string, source: LogLevelSource) => void;
+  setLogRotation?: (rotation: number) => void;
   forceX11Backend: (args: CliArgs) => void;
   enforceUnsupportedWaylandMode: (args: CliArgs) => void;
   shouldStartApp: (args: CliArgs) => boolean;
@@ -35,6 +36,7 @@ export function createStartupBootstrapRuntimeDeps(
     argv: params.argv,
     parseArgs: params.parseArgs,
     setLogLevel: params.setLogLevel,
+    setLogRotation: params.setLogRotation,
     forceX11Backend: (args: CliArgs) => params.forceX11Backend(args),
     enforceUnsupportedWaylandMode: (args: CliArgs) => params.enforceUnsupportedWaylandMode(args),
     getDefaultSocketPath: params.getDefaultSocketPath,

@@ -184,6 +184,11 @@ const PATH_ORDER = new Map<string, number>(
     'mpv.launchMode',
     'mpv.executablePath',
     'mpv.aniskipButtonKey',
+    'logging.level',
+    'logging.rotation',
+    'logging.files.app',
+    'logging.files.launcher',
+    'logging.files.mpv',
   ].map((path, index) => [path, index]),
 );
 
@@ -667,6 +672,8 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     path === 'stats.toggleKey' ||
     path === 'stats.markWatchedKey' ||
     path === 'logging.level' ||
+    path === 'logging.rotation' ||
+    pathStartsWith(path, 'logging.files') ||
     path === 'youtube.primarySubLanguages' ||
     pathStartsWith(path, 'jimaku') ||
     pathStartsWith(path, 'subsync')

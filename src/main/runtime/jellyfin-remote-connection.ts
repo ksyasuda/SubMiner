@@ -91,7 +91,7 @@ export function createLaunchMpvIdleForJellyfinPlaybackHandler(deps: LaunchMpvFor
       ...(runtimePluginEntrypoint ? [`--script=${runtimePluginEntrypoint}`] : []),
       '--idle=yes',
       scriptOpts,
-      `--log-file=${deps.defaultMpvLogPath}`,
+      ...(deps.defaultMpvLogPath.trim() ? [`--log-file=${deps.defaultMpvLogPath}`] : []),
       `--input-ipc-server=${socketPath}`,
     ];
     const proc = deps.spawnMpv(mpvArgs);

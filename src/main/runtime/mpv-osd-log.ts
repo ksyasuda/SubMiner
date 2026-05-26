@@ -35,6 +35,9 @@ export function createAppendToMpvLogHandler(deps: {
   };
 
   const appendToMpvLog = (message: string): void => {
+    if (!deps.logPath.trim()) {
+      return;
+    }
     pendingLines.push(`[${deps.now().toISOString()}] ${message}\n`);
     void scheduleDrain();
   };

@@ -362,7 +362,9 @@ test('dev server serves local archive files for local version links', async () =
   process.env.SUBMINER_DOCS_VERSION_LINK_ORIGIN = 'local';
   process.env.SUBMINER_DOCS_LOCAL_ARCHIVE_DIR = archiveDir;
   try {
-    const { default: localDevConfig } = await import('./.vitepress/config?local-dev-redirects');
+    const { default: localDevConfig } = await import(
+      `./.vitepress/config?local-dev-redirects-${Date.now()}`
+    );
     let routeHandler:
       | ((req: { url?: string }, res: DevRedirectResponse, next: () => void) => void)
       | undefined;

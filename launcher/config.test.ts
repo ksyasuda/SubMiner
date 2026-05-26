@@ -13,6 +13,7 @@ test('launcher root help lists subcommands', () => {
   assert.match(output, /doctor/);
   assert.match(output, /config/);
   assert.match(output, /mpv/);
+  assert.match(output, /logs/);
   assert.match(output, /dictionary\|dict/);
   assert.match(output, /texthooker/);
   assert.match(output, /app\|bin/);

@@ -84,6 +84,30 @@ export function buildCoreConfigOptionRegistry(
       description: 'Minimum log level for runtime logging.',
     },
     {
+      path: 'logging.rotation',
+      kind: 'number',
+      defaultValue: defaultConfig.logging.rotation,
+      description: 'Number of days of app, launcher, and mpv logs to retain.',
+    },
+    {
+      path: 'logging.files.app',
+      kind: 'boolean',
+      defaultValue: defaultConfig.logging.files.app,
+      description: 'Write SubMiner app runtime logs.',
+    },
+    {
+      path: 'logging.files.launcher',
+      kind: 'boolean',
+      defaultValue: defaultConfig.logging.files.launcher,
+      description: 'Write launcher command logs.',
+    },
+    {
+      path: 'logging.files.mpv',
+      kind: 'boolean',
+      defaultValue: defaultConfig.logging.files.mpv,
+      description: 'Write mpv player logs. Enable temporarily when debugging mpv/plugin startup.',
+    },
+    {
       path: 'youtube.primarySubLanguages',
       kind: 'string',
       defaultValue: defaultConfig.youtube.primarySubLanguages.join(','),

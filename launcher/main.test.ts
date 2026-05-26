@@ -124,6 +124,29 @@ test('short version flag prints installed app version without requiring app bina
   });
 });
 
+test('logs export writes sanitized archive without requiring app binary', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const logsDir =
+      process.platform === 'win32'
+        ? path.join(xdgConfigHome, 'SubMiner', 'logs')
+        : path.join(homeDir, '.config', 'SubMiner', 'logs');
+    fs.mkdirSync(logsDir, { recursive: true });
+    fs.writeFileSync(path.join(logsDir, 'app-2026-W21.log'), `/home/kyle/video.mkv\n`, 'utf8');
+
+    const result = runLauncher(['logs', '-e'], makeTestEnv(homeDir, xdgConfigHome));
+
+    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    const zipPath = result.stdout.trim();
+    assert.match(zipPath, /subminer-logs-.+\.zip$/);
+    assert.equal(fs.existsSync(zipPath), true);
+    const archive = fs.readFileSync(zipPath);
+    assert.equal(archive.includes(Buffer.from('/home/kyle')), false);
+    assert.equal(archive.includes(Buffer.from('/home/<user>')), true);
+  });
+});
+
 test('config path prefers jsonc over json for same directory', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
@@ -395,7 +418,7 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
   });
 });
 
-test('launcher forwards non-info log level into mpv plugin script opts', { timeout: 15000 }, () => {
+test('launcher forwards non-info log level into mpv logging args', { timeout: 15000 }, () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
@@ -429,6 +452,11 @@ test('launcher forwards non-info log level into mpv plugin script opts', { timeo
           socketPath,
           autoStartSubMiner: true,
           pauseUntilOverlayReady: true,
+        },
+        logging: {
+          files: {
+            mpv: true,
+          },
         },
       }),
     );
@@ -468,7 +496,9 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
     const result = runLauncher(['--log-level', 'debug', videoPath], env);
 
     assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-    assert.match(fs.readFileSync(mpvArgsPath, 'utf8'), /--script-opts=.*subminer-log_level=debug/);
+    const mpvArgs = fs.readFileSync(mpvArgsPath, 'utf8');
+    assert.match(mpvArgs, /--msg-level=all=warn,subminer=debug/);
+    assert.doesNotMatch(mpvArgs, /--script-opts=.*subminer-log_level=debug/);
   });
 });
 

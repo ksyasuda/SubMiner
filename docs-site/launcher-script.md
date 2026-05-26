@@ -64,6 +64,7 @@ subminer video.mkv                      # play a specific file (default plugin c
 subminer https://youtu.be/...           # YouTube playback (requires yt-dlp)
 subminer --backend x11 video.mkv        # Force x11 backend for a specific file
 subminer -u                             # check for SubMiner updates
+subminer logs -e                        # export sanitized log ZIP
 subminer stats                          # open immersion dashboard
 subminer stats -b                       # start background stats daemon
 ```
@@ -78,6 +79,7 @@ subminer stats -b                       # start background stats daemon
 | `subminer stats cleanup`                   | Backfill vocabulary metadata and prune stale rows                  |
 | `subminer doctor`                          | Dependency + config + socket diagnostics                           |
 | `subminer settings`                        | Open the SubMiner settings window                                  |
+| `subminer logs -e`                         | Export a sanitized log ZIP and print its path                      |
 | `subminer config path`                     | Print active config file path                                      |
 | `subminer config show`                     | Print active config contents                                       |
 | `subminer mpv status`                      | Check mpv socket readiness                                         |

@@ -51,6 +51,13 @@ test('createDefaultArgs seeds mpv profile from launcher config', () => {
   assert.equal(parsed.profile, 'anime');
 });
 
+test('createDefaultArgs seeds log level from launcher logging config', () => {
+  const parsed = createDefaultArgs({}, {}, { level: 'debug', rotation: 14 });
+
+  assert.equal(parsed.logLevel, 'debug');
+  assert.equal(parsed.logRotation, 14);
+});
+
 test('applyRootOptionsToArgs appends CLI mpv profile to configured profile', () => {
   const parsed = createDefaultArgs({}, { profile: 'anime' });
 
@@ -131,6 +138,8 @@ test('applyInvocationsToArgs maps config and jellyfin invocation state', () => {
     doctorTriggered: false,
     doctorLogLevel: null,
     doctorRefreshKnownWords: false,
+    logsTriggered: false,
+    logsExport: false,
     texthookerTriggered: false,
     texthookerLogLevel: null,
     texthookerOpenBrowser: false,
@@ -175,6 +184,8 @@ test('applyInvocationsToArgs maps settings invocation to settings window', () =>
     doctorTriggered: false,
     doctorLogLevel: null,
     doctorRefreshKnownWords: false,
+    logsTriggered: false,
+    logsExport: false,
     texthookerTriggered: false,
     texthookerLogLevel: null,
     texthookerOpenBrowser: false,
@@ -212,6 +223,8 @@ test('applyInvocationsToArgs fails when config invocation has no action', () => 
       doctorTriggered: false,
       doctorLogLevel: null,
       doctorRefreshKnownWords: false,
+      logsTriggered: false,
+      logsExport: false,
       texthookerTriggered: false,
       texthookerLogLevel: null,
       texthookerOpenBrowser: false,
@@ -247,6 +260,8 @@ test('applyInvocationsToArgs maps texthooker browser-open request', () => {
     doctorTriggered: false,
     doctorLogLevel: null,
     doctorRefreshKnownWords: false,
+    logsTriggered: false,
+    logsExport: false,
     texthookerTriggered: true,
     texthookerLogLevel: null,
     texthookerOpenBrowser: true,

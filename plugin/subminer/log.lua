@@ -21,7 +21,7 @@ function M.create(ctx)
 	end
 
 	local function should_log(level)
-		local current = normalize_log_level(opts.log_level)
+		local current = normalize_log_level(os.getenv("SUBMINER_LOG_LEVEL"))
 		local target = normalize_log_level(level)
 		return LOG_LEVEL_PRIORITY[target] >= LOG_LEVEL_PRIORITY[current]
 	end

@@ -36,6 +36,7 @@ function createContext(): LauncherCommandContext {
       texthookerOpenBrowser: false,
       useRofi: false,
       logLevel: 'info',
+      logRotation: 7,
       passwordStore: '',
       target: 'https://www.youtube.com/watch?v=65Ovd7t8sNw',
       targetKind: 'url',
@@ -55,6 +56,7 @@ function createContext(): LauncherCommandContext {
       stats: false,
       doctor: false,
       doctorRefreshKnownWords: false,
+      logsExport: false,
       version: false,
       settings: false,
       configPath: false,
@@ -321,6 +323,7 @@ test('plugin auto-start playback attaches a warm background app through the laun
 test('plugin auto-start attach mode reuses launcher-resolved config dir for app control', async () => {
   const context = createContext();
   const originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
+  const originalAppData = process.env.APPDATA;
   const xdgConfigHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-xdg-'));
   const expectedConfigDir = path.join(xdgConfigHome, 'SubMiner');
   fs.mkdirSync(expectedConfigDir, { recursive: true });
@@ -347,6 +350,7 @@ test('plugin auto-start attach mode reuses launcher-resolved config dir for app 
 
   try {
     process.env.XDG_CONFIG_HOME = xdgConfigHome;
+    process.env.APPDATA = xdgConfigHome;
 
     await runPlaybackCommandWithDeps(context, {
       ensurePlaybackSetupReady: async () => {},
@@ -375,6 +379,11 @@ test('plugin auto-start attach mode reuses launcher-resolved config dir for app 
       delete process.env.XDG_CONFIG_HOME;
     } else {
       process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
+    }
+    if (originalAppData === undefined) {
+      delete process.env.APPDATA;
+    } else {
+      process.env.APPDATA = originalAppData;
     }
     fs.rmSync(xdgConfigHome, { recursive: true, force: true });
   }

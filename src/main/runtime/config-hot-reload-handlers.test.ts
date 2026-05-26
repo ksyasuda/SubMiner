@@ -73,6 +73,8 @@ test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and log
   config.ankiConnect.isLapis.sentenceCardModel = 'Sentence Card Custom';
   config.ankiConnect.isKiku.fieldGrouping = 'manual';
   config.logging.level = 'debug';
+  config.logging.rotation = 14;
+  config.logging.files.mpv = true;
   const calls: string[] = [];
   const ankiPatches: unknown[] = [];
 
@@ -90,6 +92,8 @@ test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and log
     refreshSubtitlePrefetch: () => calls.push('refresh:prefetch'),
     refreshCurrentSubtitle: () => calls.push('refresh:subtitle'),
     setLogLevel: (level) => calls.push(`log:${level}`),
+    setLogRotation: (rotation) => calls.push(`rotation:${rotation}`),
+    setLogFileToggles: (files) => calls.push(`files:${files.mpv}`),
   });
 
   applyHotReload(
@@ -109,6 +113,8 @@ test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and log
         'ankiConnect.isLapis.sentenceCardModel',
         'ankiConnect.isKiku.fieldGrouping',
         'logging.level',
+        'logging.rotation',
+        'logging.files',
       ],
       restartRequiredFields: [],
     },
@@ -135,6 +141,8 @@ test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and log
   assert.ok(calls.includes('refresh:prefetch'));
   assert.ok(calls.includes('refresh:subtitle'));
   assert.ok(calls.includes('log:debug'));
+  assert.ok(calls.includes('rotation:14'));
+  assert.ok(calls.includes('files:true'));
   assert.ok(calls.includes('broadcast:config:hot-reload'));
 });
 

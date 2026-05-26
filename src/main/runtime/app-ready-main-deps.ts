@@ -22,6 +22,8 @@ export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeD
     startTexthooker: deps.startTexthooker,
     log: deps.log,
     setLogLevel: deps.setLogLevel,
+    setLogRotation: deps.setLogRotation,
+    setLogFileToggles: deps.setLogFileToggles,
     createMecabTokenizerAndCheck: deps.createMecabTokenizerAndCheck,
     createSubtitleTimingTracker: deps.createSubtitleTimingTracker,
     createImmersionTracker: deps.createImmersionTracker,

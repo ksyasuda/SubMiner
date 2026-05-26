@@ -1,12 +1,14 @@
 import { fail } from './log.js';
 import type {
   Args,
+  LauncherLoggingConfig,
   LauncherJellyfinConfig,
   LauncherMpvConfig,
   LauncherYoutubeSubgenConfig,
   LogLevel,
   PluginRuntimeConfig,
 } from './types.js';
+import { normalizeLogRotation } from '../src/shared/log-files.js';
 import {
   applyInvocationsToArgs,
   applyRootOptionsToArgs,
@@ -52,6 +54,52 @@ export function loadLauncherMpvConfig(): LauncherMpvConfig {
   return parseLauncherMpvConfig(root);
 }
 
+function parseLogLevelConfig(value: unknown): LogLevel | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'debug' ||
+    normalized === 'info' ||
+    normalized === 'warn' ||
+    normalized === 'error'
+  ) {
+    return normalized;
+  }
+  return undefined;
+}
+
+function parseLogRotationConfig(value: unknown): LauncherLoggingConfig['rotation'] {
+  return normalizeLogRotation(value);
+}
+
+function parseLogFileConfig(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+export function loadLauncherLoggingConfig(): LauncherLoggingConfig {
+  const root = readLauncherMainConfigObject();
+  if (!root) return {};
+  const logging =
+    root.logging && typeof root.logging === 'object' && !Array.isArray(root.logging)
+      ? (root.logging as Record<string, unknown>)
+      : null;
+  const files =
+    logging?.files && typeof logging.files === 'object' && !Array.isArray(logging.files)
+      ? (logging.files as Record<string, unknown>)
+      : null;
+  return {
+    level: parseLogLevelConfig(logging?.level),
+    rotation: parseLogRotationConfig(logging?.rotation),
+    files: files
+      ? {
+          app: parseLogFileConfig(files.app),
+          launcher: parseLogFileConfig(files.launcher),
+          mpv: parseLogFileConfig(files.mpv),
+        }
+      : undefined,
+  };
+}
+
 export function hasLauncherExternalYomitanProfileConfig(): boolean {
   return readExternalYomitanProfilePath(readLauncherMainConfigObject()) !== null;
 }
@@ -65,9 +113,10 @@ export function parseArgs(
   scriptName: string,
   launcherConfig: LauncherYoutubeSubgenConfig,
   launcherMpvConfig: LauncherMpvConfig = {},
+  launcherLoggingConfig: LauncherLoggingConfig = {},
 ): Args {
   const topLevelCommand = resolveTopLevelCommand(argv);
-  const parsed = createDefaultArgs(launcherConfig, launcherMpvConfig);
+  const parsed = createDefaultArgs(launcherConfig, launcherMpvConfig, launcherLoggingConfig);
 
   if (topLevelCommand && (topLevelCommand.name === 'app' || topLevelCommand.name === 'bin')) {
     parsed.appPassthrough = true;

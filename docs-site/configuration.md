@@ -193,14 +193,24 @@ Control the minimum log level for runtime output:
 ```json
 {
   "logging": {
-    "level": "info"
+    "level": "warn",
+    "rotation": 7,
+    "files": {
+      "app": true,
+      "launcher": true,
+      "mpv": false
+    }
   }
 }
 ```
 
-| Option  | Values                                   | Description                                               |
-| ------- | ---------------------------------------- | --------------------------------------------------------- |
-| `level` | `"debug"`, `"info"`, `"warn"`, `"error"` | Minimum log level for runtime logging (default: `"info"`) |
+| Option           | Values                                   | Description                                                          |
+| ---------------- | ---------------------------------------- | -------------------------------------------------------------------- |
+| `level`          | `"debug"`, `"info"`, `"warn"`, `"error"` | Minimum log level for runtime logging (default: `"warn"`)            |
+| `rotation`       | positive integer                         | Number of days of app, launcher, and mpv logs to retain (default: 7) |
+| `files.app`      | boolean                                  | Write SubMiner app runtime logs (default: `true`)                    |
+| `files.launcher` | boolean                                  | Write launcher command logs (default: `true`)                        |
+| `files.mpv`      | boolean                                  | Write mpv player logs. Enable temporarily for mpv/plugin debugging.  |
 
 ### Updates
 
@@ -630,26 +640,26 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option                        | Values           | Description                                                                                                                                   |
-| ----------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `toggleVisibleOverlayGlobal`  | string \| `null` | Global accelerator for toggling visible subtitle overlay (default: `"Alt+Shift+O"`)                                                           |
-| `copySubtitle`                | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                                                                    |
-| `copySubtitleMultiple`        | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                                                                       |
-| `updateLastCardFromClipboard` | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                                                                |
-| `triggerFieldGrouping`        | string \| `null` | Accelerator for Kiku field grouping on last card (default: `"CommandOrControl+G"`; only active when `behavior.autoUpdateNewCards` is `false`) |
-| `triggerSubsync`              | string \| `null` | Accelerator for running Subsync (default: `"Ctrl+Alt+S"`)                                                                                     |
-| `mineSentence`                | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`)                                                |
-| `mineSentenceMultiple`        | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)                                                         |
-| `multiCopyTimeoutMs`          | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                                                               |
-| `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                                       |
-| `markAudioCard`               | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                                       |
-| `openCharacterDictionaryManager` | string \| `null` | Opens the loaded character dictionary manager (default: `"CommandOrControl+D"`)                                                             |
-| `openRuntimeOptions`          | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                           |
-| `openSessionHelp`             | string \| `null` | Opens the in-overlay session help modal (default: `"CommandOrControl+Slash"`)                                                                 |
-| `openControllerSelect`        | string \| `null` | Opens the controller config/remap modal (default: `"Alt+C"`)                                                                                  |
-| `openControllerDebug`         | string \| `null` | Opens the controller debug modal (default: `"Alt+Shift+C"`)                                                                                   |
-| `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                     |
-| `toggleSubtitleSidebar`       | string \| `null` | Dispatches the subtitle sidebar toggle action (default: `"Backslash"`). `subtitleSidebar.toggleKey` remains the primary bare-key setting.     |
+| Option                           | Values           | Description                                                                                                                                   |
+| -------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toggleVisibleOverlayGlobal`     | string \| `null` | Global accelerator for toggling visible subtitle overlay (default: `"Alt+Shift+O"`)                                                           |
+| `copySubtitle`                   | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                                                                    |
+| `copySubtitleMultiple`           | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                                                                       |
+| `updateLastCardFromClipboard`    | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                                                                |
+| `triggerFieldGrouping`           | string \| `null` | Accelerator for Kiku field grouping on last card (default: `"CommandOrControl+G"`; only active when `behavior.autoUpdateNewCards` is `false`) |
+| `triggerSubsync`                 | string \| `null` | Accelerator for running Subsync (default: `"Ctrl+Alt+S"`)                                                                                     |
+| `mineSentence`                   | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`)                                                |
+| `mineSentenceMultiple`           | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)                                                         |
+| `multiCopyTimeoutMs`             | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                                                               |
+| `toggleSecondarySub`             | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                                       |
+| `markAudioCard`                  | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                                       |
+| `openCharacterDictionaryManager` | string \| `null` | Opens the loaded character dictionary manager (default: `"CommandOrControl+D"`)                                                               |
+| `openRuntimeOptions`             | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                           |
+| `openSessionHelp`                | string \| `null` | Opens the in-overlay session help modal (default: `"CommandOrControl+Slash"`)                                                                 |
+| `openControllerSelect`           | string \| `null` | Opens the controller config/remap modal (default: `"Alt+C"`)                                                                                  |
+| `openControllerDebug`            | string \| `null` | Opens the controller debug modal (default: `"Alt+Shift+C"`)                                                                                   |
+| `openJimaku`                     | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                     |
+| `toggleSubtitleSidebar`          | string \| `null` | Dispatches the subtitle sidebar toggle action (default: `"Backslash"`). `subtitleSidebar.toggleKey` remains the primary bare-key setting.     |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 
