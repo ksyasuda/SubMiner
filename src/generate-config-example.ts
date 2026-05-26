@@ -1,6 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { DEFAULT_CONFIG, generateConfigTemplate } from './config';
+import { DEFAULT_CONFIG, deepCloneConfig, generateConfigTemplate } from './config';
+import { getDefaultMpvSocketPath } from './shared/mpv-socket-path';
+
+const CONFIG_EXAMPLE_PLATFORM: NodeJS.Platform = 'win32';
+
+export function generateConfigExampleTemplate(): string {
+  const config = deepCloneConfig(DEFAULT_CONFIG);
+  config.mpv.socketPath = getDefaultMpvSocketPath(CONFIG_EXAMPLE_PLATFORM);
+  return generateConfigTemplate(config);
+}
 
 type ConfigExampleFsDeps = {
   existsSync?: (candidate: string) => boolean;
@@ -54,7 +63,7 @@ export function writeConfigExampleArtifacts(
 }
 
 function main(): void {
-  const template = generateConfigTemplate(DEFAULT_CONFIG);
+  const template = generateConfigExampleTemplate();
   writeConfigExampleArtifacts(template);
 }
 

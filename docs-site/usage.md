@@ -144,7 +144,6 @@ SubMiner.AppImage --jellyfin-remote-announce  # Force cast-target capability ann
 SubMiner.AppImage --dictionary             # Generate character dictionary ZIP for current anime
 SubMiner.AppImage --dictionary-candidates  # List AniList candidates for current character dictionary series
 SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355  # Pin correct AniList media for series
-SubMiner.AppImage --open-character-dictionary  # Open in-app AniList selector
 SubMiner.AppImage --help                  # Show all options
 ```
 

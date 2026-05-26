@@ -34,7 +34,6 @@ function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
     },
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     openSessionHelp: () => calls.push('session-help'),
-    openCharacterDictionary: () => calls.push('character-dictionary'),
     openCharacterDictionaryManager: () => calls.push('character-dictionary-manager'),
     openControllerSelect: () => calls.push('controller-select'),
     openControllerDebug: () => calls.push('controller-debug'),

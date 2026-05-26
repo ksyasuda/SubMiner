@@ -133,7 +133,6 @@ export const IPC_CHANNELS = {
     keyboardModeToggleRequested: 'keyboard-mode-toggle:requested',
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
     sessionHelpOpen: 'session-help:open',
-    characterDictionaryOpen: 'character-dictionary:open',
     characterDictionaryManagerOpen: 'character-dictionary:manager-open',
     controllerSelectOpen: 'controller-select:open',
     controllerDebugOpen: 'controller-debug:open',

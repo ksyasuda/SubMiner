@@ -34,7 +34,6 @@ export interface CliArgs {
   toggleSubtitleSidebar: boolean;
   openRuntimeOptions: boolean;
   openSessionHelp: boolean;
-  openCharacterDictionary: boolean;
   openControllerSelect: boolean;
   openControllerDebug: boolean;
   openJimaku: boolean;
@@ -142,7 +141,6 @@ export function parseArgs(argv: string[]): CliArgs {
     toggleSubtitleSidebar: false,
     openRuntimeOptions: false,
     openSessionHelp: false,
-    openCharacterDictionary: false,
     openControllerSelect: false,
     openControllerDebug: false,
     openJimaku: false,
@@ -289,7 +287,6 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--toggle-subtitle-sidebar') args.toggleSubtitleSidebar = true;
     else if (arg === '--open-runtime-options') args.openRuntimeOptions = true;
     else if (arg === '--open-session-help') args.openSessionHelp = true;
-    else if (arg === '--open-character-dictionary') args.openCharacterDictionary = true;
     else if (arg === '--open-controller-select') args.openControllerSelect = true;
     else if (arg === '--open-controller-debug') args.openControllerDebug = true;
     else if (arg === '--open-jimaku') args.openJimaku = true;
@@ -550,7 +547,6 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||
-    args.openCharacterDictionary ||
     args.openControllerSelect ||
     args.openControllerDebug ||
     args.openJimaku ||
@@ -626,7 +622,6 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
     !args.openSessionHelp &&
-    !args.openCharacterDictionary &&
     !args.openControllerSelect &&
     !args.openControllerDebug &&
     !args.openJimaku &&
@@ -693,7 +688,6 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.toggleSubtitleSidebar ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||
-    args.openCharacterDictionary ||
     args.openControllerSelect ||
     args.openControllerDebug ||
     args.openJimaku ||
@@ -754,7 +748,6 @@ export function shouldRunYomitanOnlyStartup(args: CliArgs): boolean {
     !args.toggleSubtitleSidebar &&
     !args.openRuntimeOptions &&
     !args.openSessionHelp &&
-    !args.openCharacterDictionary &&
     !args.openControllerSelect &&
     !args.openControllerDebug &&
     !args.openJimaku &&
@@ -820,7 +813,6 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.markAudioCard ||
     args.openRuntimeOptions ||
     args.openSessionHelp ||
-    args.openCharacterDictionary ||
     args.openControllerSelect ||
     args.openControllerDebug ||
     args.openJimaku ||

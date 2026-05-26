@@ -239,14 +239,6 @@ local ctx = {
 					},
 					{
 						key = {
-							code = "KeyA",
-							modifiers = { "alt", "meta" },
-						},
-						actionType = "session-action",
-						actionId = "openCharacterDictionary",
-					},
-					{
-						key = {
 							code = "KeyD",
 							modifiers = { "ctrl" },
 						},
@@ -374,17 +366,6 @@ play_next.fn()
 local play_next_call = recorded.async_calls[#recorded.async_calls]
 assert_true(play_next_call ~= nil, "play-next binding should invoke CLI action")
 assert_true(play_next_call[2] == "--play-next-subtitle", "play-next binding should pass CLI flag")
-
-local character_dictionary = find_binding("Alt+Meta+a")
-assert_true(character_dictionary ~= nil, "character dictionary binding should be registered")
-
-character_dictionary.fn()
-local character_dictionary_call = recorded.async_calls[#recorded.async_calls]
-assert_true(character_dictionary_call ~= nil, "character dictionary binding should invoke CLI action")
-assert_true(
-	character_dictionary_call[2] == "--open-character-dictionary",
-	"character dictionary binding should pass CLI flag"
-)
 
 local character_dictionary_manager = find_binding("Ctrl+d")
 assert_true(

@@ -100,6 +100,36 @@ test('exportLogsArchive exports current-day logs and masks usernames', () => {
   }
 });
 
+test('exportLogsArchive ignores older dated logs when current-day dated logs exist', () => {
+  const root = makeTempDir();
+  const logsDir = path.join(root, 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+
+  try {
+    const currentLog = writeLog(
+      logsDir,
+      'app-2026-05-25.log',
+      'current day\n',
+      '2026-05-25T18:00:00Z',
+    );
+    writeLog(logsDir, 'app-2026-05-24.log', 'previous day touched today\n', '2026-05-25T18:00:00Z');
+
+    const result = exportLogsArchive({
+      logsDir,
+      outputDir: root,
+      now: new Date('2026-05-25T20:00:00.000Z'),
+    });
+
+    assert.equal(result.mode, 'current-day');
+    assert.deepEqual(result.exportedFiles, [currentLog]);
+
+    const entries = readStoredZipEntries(result.zipPath);
+    assert.deepEqual([...entries.keys()], ['logs/app-2026-05-25.log']);
+  } finally {
+    cleanupDir(root);
+  }
+});
+
 test('exportLogsArchive falls back to newest log per kind', () => {
   const root = makeTempDir();
   const logsDir = path.join(root, 'logs');

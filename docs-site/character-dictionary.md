@@ -179,7 +179,7 @@ SubMiner uses `guessit` to infer the anime title from the active filename before
 
 Use the in-app selector or CLI to pin the correct AniList media for the whole series:
 
-- In-app: open the manager with `Ctrl/Cmd+D`, use the **Override** tab/button, edit the prefilled title if needed, then search and choose the correct result. The CLI flag `--open-character-dictionary` still opens the selector directly.
+- In-app: open the manager with `Ctrl/Cmd+D`, use the **Override** tab/button, edit the prefilled title if needed, then search and choose the correct result.
 - CLI: `--dictionary-candidates` still lists matches for the current filename guess.
 
 ```bash
@@ -194,7 +194,7 @@ SubMiner.AppImage --dictionary-candidates --dictionary-target "/path/to/episode.
 SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355 --dictionary-target "/path/to/episode.mkv"
 
 # Open the in-app selector from the running app
-subminer app --open-character-dictionary
+subminer app --session-action '{"actionId":"openCharacterDictionaryManager"}'
 ```
 
 Manual selections are stored in `character-dictionaries/anilist-overrides.json` using a series key derived from the episode's parent directory plus the filename guess. Later episodes in the same directory use the selected AniList ID automatically, while separate season directories can keep separate overrides and character dictionaries. When the override replaces a previous wrong match, SubMiner removes that stale media ID from the merged dictionary's active set and rebuilds/imports the merged character dictionary.

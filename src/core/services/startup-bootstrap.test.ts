@@ -41,7 +41,6 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     openJimaku: false,
     openYoutubePicker: false,
     openPlaylistBrowser: false,
-    openCharacterDictionary: false,
     replayCurrentSubtitle: false,
     playNextSubtitle: false,
     shiftSubDelayPrevLine: false,

@@ -220,10 +220,7 @@ test('compileSessionBindings keeps only the character dictionary manager bound b
 
   const characterDictionaryBindings = result.bindings.flatMap((binding) => {
     if (binding.actionType !== 'session-action') return [];
-    if (
-      binding.actionId !== 'openCharacterDictionary' &&
-      binding.actionId !== 'openCharacterDictionaryManager'
-    ) {
+    if (binding.actionId !== 'openCharacterDictionaryManager') {
       return [];
     }
     return [

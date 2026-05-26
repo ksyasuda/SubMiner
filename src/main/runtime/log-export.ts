@@ -9,7 +9,8 @@ type LogCandidate = {
   name: string;
   kind: string;
   mtimeMs: number;
-  dateKeys: Set<string>;
+  mtimeDateKey: string;
+  fileDateKey: string | null;
 };
 
 export type ExportLogsResult = {
@@ -76,16 +77,13 @@ function buildCandidate(logsDir: string, entry: string): LogCandidate | null {
   }
   if (!stats.isFile()) return null;
 
-  const dateKeys = new Set<string>([localDateKey(stats.mtime)]);
-  const fromName = filenameDateKey(entry);
-  if (fromName) dateKeys.add(fromName);
-
   return {
     path: candidatePath,
     name: entry,
     kind: fileKind(entry),
     mtimeMs: stats.mtimeMs,
-    dateKeys,
+    mtimeDateKey: localDateKey(stats.mtime),
+    fileDateKey: filenameDateKey(entry),
   };
 }
 
@@ -105,7 +103,9 @@ function listLogCandidates(logsDir: string): LogCandidate[] {
 
 function selectMostRecentPerKind(candidates: LogCandidate[]): LogCandidate[] {
   const byKind = new Map<string, LogCandidate>();
-  for (const candidate of [...candidates].sort((left, right) => right.mtimeMs - left.mtimeMs)) {
+  for (const candidate of [...candidates].sort(
+    (left, right) => candidateFreshnessMs(right) - candidateFreshnessMs(left),
+  )) {
     if (!byKind.has(candidate.kind)) {
       byKind.set(candidate.kind, candidate);
     }
@@ -113,14 +113,28 @@ function selectMostRecentPerKind(candidates: LogCandidate[]): LogCandidate[] {
   return [...byKind.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
+function candidateFreshnessMs(candidate: LogCandidate): number {
+  if (candidate.fileDateKey) {
+    return Date.parse(`${candidate.fileDateKey}T23:59:59.999Z`);
+  }
+  return candidate.mtimeMs;
+}
+
 function selectLogCandidates(
   candidates: LogCandidate[],
   now: Date,
 ): { mode: ExportLogsResult['mode']; selected: LogCandidate[] } {
   const today = localDateKey(now);
-  const currentDay = candidates.filter((candidate) => candidate.dateKeys.has(today));
-  if (currentDay.length > 0) {
-    return { mode: 'current-day', selected: currentDay };
+  const currentDated = candidates.filter((candidate) => candidate.fileDateKey === today);
+  if (currentDated.length > 0) {
+    return { mode: 'current-day', selected: currentDated };
+  }
+
+  const currentUndated = candidates.filter(
+    (candidate) => candidate.fileDateKey === null && candidate.mtimeDateKey === today,
+  );
+  if (currentUndated.length > 0) {
+    return { mode: 'current-day', selected: currentUndated };
   }
   return { mode: 'most-recent', selected: selectMostRecentPerKind(candidates) };
 }

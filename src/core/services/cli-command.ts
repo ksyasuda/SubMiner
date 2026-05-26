@@ -496,12 +496,6 @@ export function handleCliCommand(
       'openSessionHelp',
       'Open session help failed',
     );
-  } else if (args.openCharacterDictionary) {
-    dispatchCliSessionAction(
-      { actionId: 'openCharacterDictionaryManager' },
-      'openCharacterDictionaryManager',
-      'Open character dictionary failed',
-    );
   } else if (args.openControllerSelect) {
     dispatchCliSessionAction(
       { actionId: 'openControllerSelect' },

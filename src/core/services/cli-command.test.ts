@@ -41,7 +41,6 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     refreshKnownWords: false,
     openRuntimeOptions: false,
     openSessionHelp: false,
-    openCharacterDictionary: false,
     openControllerSelect: false,
     openControllerDebug: false,
     openJimaku: false,
@@ -822,22 +821,6 @@ test('handleCliCommand dispatches mark-watched session action', async () => {
 
   assert.deepEqual(request, {
     actionId: 'markWatched',
-  });
-});
-
-test('handleCliCommand opens character dictionary manager from CLI flag', async () => {
-  let request: unknown = null;
-  const { deps } = createDeps({
-    dispatchSessionAction: async (nextRequest) => {
-      request = nextRequest;
-    },
-  });
-
-  handleCliCommand(makeArgs({ openCharacterDictionary: true }), 'initial', deps);
-  await new Promise((resolve) => setImmediate(resolve));
-
-  assert.deepEqual(request, {
-    actionId: 'openCharacterDictionaryManager',
   });
 });
 

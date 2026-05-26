@@ -509,10 +509,7 @@ import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './mai
 import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
 import { openSubsyncManualModal as openSubsyncManualModalRuntime } from './main/runtime/subsync-open';
 import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
-import {
-  openCharacterDictionaryManagerModal as openCharacterDictionaryManagerModalRuntime,
-  openCharacterDictionaryModal as openCharacterDictionaryModalRuntime,
-} from './main/runtime/character-dictionary-open';
+import { openCharacterDictionaryManagerModal as openCharacterDictionaryManagerModalRuntime } from './main/runtime/character-dictionary-open';
 import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
 import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
@@ -1932,9 +1929,6 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
     openRuntimeOptionsPalette: () => {
       openRuntimeOptionsPalette();
     },
-    openCharacterDictionary: () => {
-      openCharacterDictionaryOverlay();
-    },
     openCharacterDictionaryManager: () => {
       openCharacterDictionaryManagerOverlay();
     },
@@ -2953,14 +2947,6 @@ function openSessionHelpOverlay(): void {
     openSessionHelpModalRuntime,
     'Session help overlay unavailable.',
     'Failed to open session help overlay.',
-  );
-}
-
-function openCharacterDictionaryOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openCharacterDictionaryModalRuntime,
-    'Character dictionary overlay unavailable.',
-    'Failed to open character dictionary overlay.',
   );
 }
 
@@ -5847,7 +5833,6 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJimaku: () => openJimakuOverlay(),
     openSessionHelp: () => openSessionHelpOverlay(),
-    openCharacterDictionary: () => openCharacterDictionaryOverlay(),
     openCharacterDictionaryManager: () => openCharacterDictionaryManagerOverlay(),
     openControllerSelect: () => openControllerSelectOverlay(),
     openControllerDebug: () => openControllerDebugOverlay(),

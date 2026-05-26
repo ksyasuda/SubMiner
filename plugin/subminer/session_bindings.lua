@@ -251,10 +251,8 @@ function M.create(ctx)
 			return { "--open-youtube-picker" }
 		elseif action_id == "openSessionHelp" then
 			return { "--open-session-help" }
-		elseif action_id == "openCharacterDictionary" then
-			return { "--open-character-dictionary" }
 		elseif action_id == "openCharacterDictionaryManager" then
-			return { "--open-character-dictionary" }
+			return { "--session-action", '{"actionId":"openCharacterDictionaryManager"}' }
 		elseif action_id == "openControllerSelect" then
 			return { "--open-controller-select" }
 		elseif action_id == "openControllerDebug" then

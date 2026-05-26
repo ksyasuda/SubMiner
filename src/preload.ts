@@ -156,9 +156,6 @@ function createLatestValueIpcListenerWithPayload<T>(
 
 const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
 const onOpenSessionHelpEvent = createQueuedIpcListener(IPC_CHANNELS.event.sessionHelpOpen);
-const onOpenCharacterDictionaryEvent = createQueuedIpcListener(
-  IPC_CHANNELS.event.characterDictionaryOpen,
-);
 const onOpenCharacterDictionaryManagerEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.characterDictionaryManagerOpen,
 );
@@ -390,7 +387,6 @@ const electronAPI: ElectronAPI = {
   onOpenJimaku: onOpenJimakuEvent,
   onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
   onOpenPlaylistBrowser: onOpenPlaylistBrowserEvent,
-  onOpenCharacterDictionary: onOpenCharacterDictionaryEvent,
   onOpenCharacterDictionaryManager: onOpenCharacterDictionaryManagerEvent,
   onSubtitleSidebarToggle: onSubtitleSidebarToggleEvent,
   onPrimarySubtitleBarToggle: onPrimarySubtitleBarToggleEvent,

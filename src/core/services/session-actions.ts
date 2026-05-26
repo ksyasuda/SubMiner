@@ -18,7 +18,6 @@ export interface SessionActionExecutorDeps {
   markActiveVideoWatched: () => Promise<boolean>;
   openRuntimeOptionsPalette: () => void;
   openSessionHelp: () => void;
-  openCharacterDictionary: () => void;
   openCharacterDictionaryManager: () => void;
   openControllerSelect: () => void;
   openControllerDebug: () => void;
@@ -96,9 +95,6 @@ export async function dispatchSessionAction(
       return;
     case 'openSessionHelp':
       deps.openSessionHelp();
-      return;
-    case 'openCharacterDictionary':
-      deps.openCharacterDictionaryManager();
       return;
     case 'openCharacterDictionaryManager':
       deps.openCharacterDictionaryManager();

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import {
+  generateConfigExampleTemplate,
   resolveConfigExampleOutputPaths,
   writeConfigExampleArtifacts,
 } from './generate-config-example';
@@ -79,4 +80,10 @@ test('writeConfigExampleArtifacts creates parent directories for resolved output
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }
+});
+
+test('generateConfigExampleTemplate uses the canonical example socket path', () => {
+  const template = generateConfigExampleTemplate();
+
+  assert.match(template, /"socketPath": "\\\\\\\\.\\\\pipe\\\\subminer-socket"/);
 });
