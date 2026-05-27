@@ -114,10 +114,7 @@ async function getCurrentSecondarySubTextForSentenceCard(
   if (mpvClient.requestProperty) {
     try {
       const latestSecondaryText = await mpvClient.requestProperty('secondary-sub-text');
-      const normalizedLatest = normalizeSecondarySubText(latestSecondaryText, primaryText);
-      if (normalizedLatest) {
-        return normalizedLatest;
-      }
+      return normalizeSecondarySubText(latestSecondaryText, primaryText);
     } catch {
       // Fall back to the cached secondary subtitle below.
     }

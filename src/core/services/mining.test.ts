@@ -156,6 +156,38 @@ test('mineSentenceCard refreshes secondary subtitle text before creating card', 
   assert.deepEqual(created, [{ sentence: '日本語字幕', secondarySub: 'English subtitle' }]);
 });
 
+test('mineSentenceCard does not fall back to stale cached secondary subtitle after successful refresh', async () => {
+  const created: Array<{ sentence: string; secondarySub?: string }> = [];
+
+  await mineSentenceCard({
+    ankiIntegration: {
+      updateLastAddedFromClipboard: async () => {},
+      triggerFieldGroupingForLastAddedCard: async () => {},
+      markLastCardAsAudioCard: async () => {},
+      createSentenceCard: async (sentence, _startTime, _endTime, secondarySub) => {
+        created.push({ sentence, secondarySub });
+        return true;
+      },
+    },
+    mpvClient: {
+      connected: true,
+      currentSubText: '日本語字幕',
+      currentSubStart: 10,
+      currentSubEnd: 12,
+      currentSecondarySubText: 'stale cached subtitle',
+      requestProperty: async (name: string) => {
+        if (name === 'secondary-sub-text') {
+          return '';
+        }
+        return null;
+      },
+    },
+    showMpvOsd: () => {},
+  });
+
+  assert.deepEqual(created, [{ sentence: '日本語字幕', secondarySub: undefined }]);
+});
+
 test('handleMultiCopyDigit copies available history and reports truncation', () => {
   const osd: string[] = [];
   const copied: string[] = [];
