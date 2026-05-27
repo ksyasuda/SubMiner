@@ -360,6 +360,7 @@ See `config.example.jsonc` for detailed configuration options.
 
 | Option                             | Values  | Description                                                                                                                          |
 | ---------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `primaryDefaultMode`               | string  | Default primary subtitle bar visibility mode: `"hidden"`, `"visible"`, or `"hover"` (default: `"visible"`)                          |
 | `subtitleStyle.css`                | object  | CSS declaration object applied to primary subtitles after normal style defaults. Use CSS property names such as `font-size`.         |
 | `secondary.css`                    | object  | CSS declaration object applied to secondary subtitles after normal secondary style defaults.                                          |
 | `enableJlpt`                       | boolean | Enable JLPT level underline styling (`false` by default)                                                                             |
@@ -1377,6 +1378,9 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
 | `retention.dailyRollupsDays`   | integer (`0`-`36500`)               | Daily rollup retention window. Default `0` (keep all).                                                      |
 | `retention.monthlyRollupsDays` | integer (`0`-`36500`)               | Monthly rollup retention window. Default `0` (keep all).                                                    |
 | `retention.vacuumIntervalDays` | integer (`0`-`3650`)                | Minimum spacing between `VACUUM` passes. `0` disables vacuum. Default `0` (disabled).                       |
+| `lifetimeSummaries.global`     | `true`, `false`                     | Maintain global lifetime stats rows (default: `true`).                                                              |
+| `lifetimeSummaries.anime`      | `true`, `false`                     | Maintain per-anime lifetime stats rows (default: `true`).                                                           |
+| `lifetimeSummaries.media`      | `true`, `false`                     | Maintain per-media lifetime stats rows (default: `true`).                                                           |
 
 You can also disable immersion tracking for a single session using:
 
@@ -1406,6 +1410,7 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
 {
   "stats": {
     "toggleKey": "Backquote",
+    "markWatchedKey": "KeyW",
     "serverPort": 6969,
     "autoStartServer": true,
     "autoOpenBrowser": false
@@ -1416,6 +1421,7 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
 | Option            | Values            | Description                                                                                                          |
 | ----------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `stats.toggleKey` | Electron key code | Overlay-local key code used to toggle the stats overlay. Default `Backquote`.                                        |
+| `markWatchedKey`  | Electron key code | Key code to mark the current video as watched and advance to the next playlist entry. Default `KeyW`.                |
 | `serverPort`      | integer           | Localhost port for the browser stats UI. Default `6969`.                                                             |
 | `autoStartServer` | `true`, `false`   | Start the local stats HTTP server automatically once immersion tracking is active. Default `true`.                   |
 | `autoOpenBrowser` | `true`, `false`   | When `subminer stats` starts the server on demand, also open the dashboard in your default browser. Default `false`. |
@@ -1435,17 +1441,31 @@ Configure the mpv executable, profile, and window state for SubMiner-managed mpv
 {
   "mpv": {
     "executablePath": "",
+    "launchMode": "normal",
     "profile": "",
-    "launchMode": "normal"
+    "socketPath": "\\\\.\\pipe\\subminer-socket",
+    "backend": "auto",
+    "autoStartSubMiner": true,
+    "pauseUntilOverlayReady": true,
+    "subminerBinaryPath": "",
+    "aniskipEnabled": true,
+    "aniskipButtonKey": "TAB"
   }
 }
 ```
 
-| Option           | Values                                        | Description                                                                                                                         |
-| ---------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `executablePath` | string                                        | Absolute path to `mpv.exe` for Windows launch flows. Leave empty to auto-discover from `SUBMINER_MPV_PATH` or `PATH` (default `""`) |
-| `profile`        | string                                        | mpv profile name passed as `--profile=<name>`. Leave empty to pass no profile (default `""`)                                        |
-| `launchMode`     | `"normal"` \| `"maximized"` \| `"fullscreen"` | Window state when SubMiner spawns mpv (default `"normal"`)                                                                          |
+| Option                  | Values                                                              | Description                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `executablePath`        | string                                                              | Absolute path to `mpv.exe` for Windows launch flows. Leave empty to auto-discover from `SUBMINER_MPV_PATH` or `PATH` (default `""`) |
+| `profile`               | string                                                              | mpv profile name passed as `--profile=<name>`. Leave empty to pass no profile (default `""`)                                        |
+| `launchMode`            | `"normal"` \| `"maximized"` \| `"fullscreen"`                       | Window state when SubMiner spawns mpv (default `"normal"`)                                                                          |
+| `socketPath`            | string                                                              | mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin (default: `\\\\.\\pipe\\subminer-socket`)          |
+| `backend`               | `"auto"` \| `"hyprland"` \| `"sway"` \| `"x11"` \| `"macos"` \| `"windows"` | Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform (default: `"auto"`)                     |
+| `autoStartSubMiner`     | `true`, `false`                                                     | Start SubMiner in the background when SubMiner-managed mpv loads a file (default: `true`)                                           |
+| `pauseUntilOverlayReady`| `true`, `false`                                                     | Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness (default: `true`)                    |
+| `subminerBinaryPath`    | string                                                              | SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path (default: `""`)        |
+| `aniskipEnabled`        | `true`, `false`                                                     | Enable AniSkip intro detection and skip markers in the bundled mpv plugin (default: `true`)                                         |
+| `aniskipButtonKey`      | string                                                              | mpv key used to trigger the AniSkip button while the skip marker is visible (default: `"TAB"`)                                      |
 
 If `mpv.profile` is configured and the launcher also receives `--profile`, SubMiner passes both as a comma-separated mpv profile list.
 

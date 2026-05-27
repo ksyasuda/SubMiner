@@ -14,6 +14,8 @@ SubMiner connects to mpv via a Unix socket (or named pipe on Windows). If the so
 
 SubMiner retries the connection automatically with increasing delays (200 ms, 500 ms, 1 s, 2 s on first connect; 1 s, 2 s, 5 s, 10 s on reconnect). If mpv exits and restarts, the overlay reconnects without needing a restart.
 
+If the overlay never appears at all, see [Playback Startup Flow](./architecture#playback-startup-flow) for how a managed launch starts mpv and brings up the overlay.
+
 ## Logging and App Mode
 
 - Default log output is `info`.

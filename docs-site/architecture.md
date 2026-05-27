@@ -269,6 +269,43 @@ For domains migrated to reducer-style transitions (for example AniList token/que
 - Reducer boundary: when a domain has transition helpers in `src/main/state.ts`, new callsites should route updates through those helpers instead of ad-hoc object mutation in `main.ts` or composers.
 - Tests for migrated domains should assert both the intended field changes and non-targeted field invariants.
 
+## Playback Startup Flow
+
+Before the app boots, something has to launch mpv, inject the plugin, and bring the overlay up. SubMiner-managed launches own this step — the `subminer` launcher, the app's own playback, and the packaged Windows shortcut all follow the same path. The launcher reads `config.jsonc`, spawns mpv with the IPC socket and the bundled plugin, and passes runtime settings as `--script-opts`. The plugin never reads a config file: the shipped `subminer.conf` is intentionally empty so command-line opts always win.
+
+Once mpv is up, exactly one of two triggers brings up the overlay. On a first launch the plugin's `file-loaded` hook self-starts the app once the socket is ready (because the launcher injected `auto_start=yes`). When the app is already running — or for explicit `--start-overlay` and YouTube flows — the launcher instead attaches over the control socket and suppresses the plugin's auto-start, so the two never fire together. Both converge on the same app bring-up, which then runs the Program Lifecycle below.
+
+```mermaid
+flowchart TB
+  classDef entry fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:2px,font-weight:bold
+  classDef extrt fill:#eed49f,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef decision fill:#f5a97f,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef proc fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef app fill:#b7bdf8,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef overlay fill:#8bd5ca,stroke:#494d64,color:#24273a,stroke-width:1.5px
+
+  Entry["Managed launch<br/>subminer CLI · app · Windows shortcut"]:::entry
+  Entry --> Cfg["Launcher reads config.jsonc<br/>→ plugin runtime config"]:::extrt
+  Cfg --> Spawn["Spawn mpv<br/>--input-ipc-server=/tmp/subminer-socket<br/>--script=plugin/subminer/main.lua<br/>--script-opts=subminer-… (auto_start, backend, …)"]:::proc
+  Spawn --> Boot["Plugin boot · read_options('subminer')<br/>empty subminer.conf; CLI opts win"]:::extrt
+  Boot --> Sock["mpv IPC socket ready"]:::proc
+  Sock --> Who{"Overlay trigger"}:::decision
+
+  Who -->|"app already running, or<br/>--start-overlay / YouTube"| Attach["Launcher startOverlay()<br/>attach via control socket<br/>plugin auto-start suppressed"]:::proc
+  Who -->|"first launch, auto_start=yes"| Self["Plugin file-loaded hook<br/>polls socket → process.start_overlay()"]:::extrt
+
+  Attach --> AppUp
+  Self --> AppUp
+
+  AppUp["Spawn / attach SubMiner app<br/>--start --managed-playback --socket … --backend …"]:::app
+  AppUp --> Ctrl["App control server up<br/>/tmp/subminer-control-* dedupes a 2nd launch"]:::app
+  Ctrl --> Life["app.whenReady → Program Lifecycle (below)"]:::app
+  Life --> Conn["MpvIpcClient connects to /tmp/subminer-socket"]:::overlay
+  Conn --> Show["Transparent overlay over mpv<br/>Yomitan lookup · mine"]:::overlay
+```
+
+The runtime sockets in this flow are detailed in [IPC + Runtime Contracts](./ipc-contracts#runtime-sockets).
+
 ## Program Lifecycle
 
 - **Module-level init:** Before `app.ready`, the composition root registers protocols, sets platform flags, constructs all services, and wires dependency injection. `runAndApplyStartupState()` parses CLI args and detects the compositor backend.

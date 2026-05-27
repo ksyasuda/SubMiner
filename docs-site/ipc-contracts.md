@@ -36,6 +36,37 @@ flowchart TB
   style E fill:#ed8796,stroke:#494d64,color:#24273a,stroke-width:1.5px
 ```
 
+## Runtime Sockets
+
+The renderer↔main bridge above lives *inside* the Electron app. A separate set of OS sockets connects the app to the other runtimes — mpv and the launcher/plugin. These carry no renderer payloads and bypass the contract/validator layer; they are command and property channels between processes.
+
+- **mpv IPC socket** (`/tmp/subminer-socket`, or `\\.\pipe\subminer-socket` on Windows): the `MpvIpcClient` in the main process connects here to send JSON commands and subscribe to playback/subtitle properties via `observe_property`. Created by mpv's `--input-ipc-server`.
+- **App control socket** (`/tmp/subminer-control-<uid>-<hash>.sock`, or a named pipe on Windows): the launcher and the mpv plugin send CLI-style commands (`--start`, `--show-visible-overlay`, `--texthooker`) to a running app here. It also dedupes a second `subminer` invocation into the existing instance instead of launching twice.
+
+```mermaid
+flowchart LR
+  classDef extrt fill:#eed49f,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef app fill:#b7bdf8,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef ext fill:#a6da95,stroke:#494d64,color:#24273a,stroke-width:1.5px
+
+  subgraph MpvProc["mpv process"]
+    direction TB
+    Mpv["mpv core"]:::ext
+    Plugin["SubMiner plugin (Lua)"]:::extrt
+  end
+
+  Launcher["Launcher CLI"]:::extrt
+  App["SubMiner app (Electron main)"]:::app
+
+  App <-->|"mpv IPC socket · /tmp/subminer-socket<br/>JSON commands + property observe"| Mpv
+  Launcher -->|"app control socket · /tmp/subminer-control-*<br/>--start, --show-visible-overlay, …"| App
+  Plugin -->|"app control socket<br/>spawn / attach"| App
+
+  style MpvProc fill:#363a4f,stroke:#494d64,color:#cad3f5
+```
+
+How these sockets are established during launch is covered in [Playback Startup Flow](./architecture#playback-startup-flow).
+
 ## Core Surfaces
 
 | File | Role |

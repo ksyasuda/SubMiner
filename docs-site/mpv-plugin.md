@@ -163,6 +163,8 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 
 ## Lifecycle
 
+For how the plugin's auto-start fits into the full launch sequence — including when the launcher starts the overlay instead of the plugin — see [Playback Startup Flow](./architecture#playback-startup-flow).
+
 - **File loaded**: If `auto_start=yes`, the plugin starts the overlay, then defers AniSkip lookup until after startup delay.
 - **Auto-start pause gate**: If `auto_start_visible_overlay=yes` and `auto_start_pause_until_ready=yes`, launcher starts mpv paused and the plugin resumes playback after SubMiner reports tokenization-ready (with timeout fallback).
 - **Duplicate auto-start events**: Repeated `file-loaded` hooks while overlay is already running are ignored for auto-start triggers (prevents duplicate start attempts).
