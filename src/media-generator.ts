@@ -322,10 +322,9 @@ export class MediaGenerator {
   ): Promise<Buffer> {
     const { fps = 10, maxWidth = 640, maxHeight, crf = 35, leadingStillDuration = 0 } = options;
     const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
-    const start = Math.max(0, startTime);
-    const duration = endTime - startTime + safePadding;
-    const effectiveLeadingPadding = Math.min(safePadding, start);
-    const totalLeadingStillDuration = Math.max(0, leadingStillDuration) + effectiveLeadingPadding;
+    const start = Math.max(0, startTime - safePadding);
+    const duration = endTime - start + safePadding;
+    const totalLeadingStillDuration = Math.max(0, leadingStillDuration);
 
     const clampedCrf = Math.max(0, Math.min(63, crf));
 
