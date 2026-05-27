@@ -14,12 +14,7 @@ test('resolveDefaultLogFilePath uses APPDATA on windows', () => {
   assert.equal(
     path.normalize(resolved),
     path.normalize(
-      path.join(
-        'C:\\Users\\tester\\AppData\\Roaming',
-        'SubMiner',
-        'logs',
-        `app-${today}.log`,
-      ),
+      path.join('C:\\Users\\tester\\AppData\\Roaming', 'SubMiner', 'logs', `app-${today}.log`),
     ),
   );
 });
@@ -33,13 +28,7 @@ test('resolveDefaultLogFilePath uses .config on linux', () => {
 
   assert.equal(
     resolved,
-    path.join(
-      '/home/tester',
-      '.config',
-      'SubMiner',
-      'logs',
-      `app-${today}.log`,
-    ),
+    path.join('/home/tester', '.config', 'SubMiner', 'logs', `app-${today}.log`),
   );
 });
 
@@ -55,13 +44,7 @@ test('setLogRotation accepts numeric retention days', () => {
 
     assert.equal(
       resolved,
-      path.join(
-        '/home/tester',
-        '.config',
-        'SubMiner',
-        'logs',
-        `app-${today}.log`,
-      ),
+      path.join('/home/tester', '.config', 'SubMiner', 'logs', `app-${today}.log`),
     );
     assert.equal(process.env.SUBMINER_LOG_ROTATION, '14');
   } finally {

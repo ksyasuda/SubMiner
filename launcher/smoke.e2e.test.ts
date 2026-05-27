@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -275,6 +276,31 @@ async function waitForFile(filePath: string, timeoutMs = 1500): Promise<void> {
   throw new Error(`Timed out waiting for file ${filePath} after ${timeoutMs}ms`);
 }
 
+async function waitForSocketReady(socketPath: string, timeoutMs = 1500): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!fs.existsSync(socketPath)) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      continue;
+    }
+    const ready = await new Promise<boolean>((resolve) => {
+      const socket = new net.Socket();
+      socket.once('connect', () => {
+        socket.end();
+        resolve(true);
+      });
+      socket.once('error', () => {
+        socket.destroy();
+        resolve(false);
+      });
+      socket.connect(socketPath);
+    });
+    if (ready) return true;
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
+}
+
 async function startFakeControlServer(
   smokeCase: SmokeCase,
 ): Promise<{ socketPath: string; logPath: string; stop: () => Promise<void> }> {
@@ -379,7 +405,7 @@ test('launcher mpv status returns ready when socket is connectable', async () =>
     });
 
     try {
-      await new Promise<void>((resolve) => setTimeout(resolve, 120));
+      await waitForSocketReady(smokeCase.socketPath);
       const result = runLauncher(
         smokeCase,
         ['mpv', 'status', '--log-level', 'debug'],

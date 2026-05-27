@@ -204,13 +204,7 @@ test('detectInstalledMpvPlugin prefers Windows portable plugin and parses versio
 test('detectInstalledMpvPlugin detects Linux legacy single-file plugin without version', () => {
   withTempDir((root) => {
     const homeDir = path.posix.join(root, 'home');
-    const legacyPath = path.posix.join(
-      homeDir,
-      '.config',
-      'mpv',
-      'scripts',
-      'subminer-loader.lua',
-    );
+    const legacyPath = path.posix.join(homeDir, '.config', 'mpv', 'scripts', 'subminer-loader.lua');
     fs.mkdirSync(path.posix.dirname(legacyPath), { recursive: true });
     fs.writeFileSync(legacyPath, '-- legacy');
 

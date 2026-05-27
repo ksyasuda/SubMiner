@@ -92,7 +92,10 @@ test('knownWords.highlightEnabled does not implicitly enable nPlusOne', () => {
   applyAnkiConnectResolution(context);
 
   assert.equal(context.resolved.ankiConnect.knownWords.highlightEnabled, true);
-  assert.equal(context.resolved.ankiConnect.nPlusOne.enabled, DEFAULT_CONFIG.ankiConnect.nPlusOne.enabled);
+  assert.equal(
+    context.resolved.ankiConnect.nPlusOne.enabled,
+    DEFAULT_CONFIG.ankiConnect.nPlusOne.enabled,
+  );
 });
 
 test('explicit nPlusOne.enabled is respected regardless of highlightEnabled', () => {

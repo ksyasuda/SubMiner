@@ -213,9 +213,7 @@ export async function launchWindowsMpv(
     const launchEnv =
       hasLogLevel || hasLogRotation
         ? {
-            ...(hasLogLevel
-              ? { SUBMINER_LOG_LEVEL: pluginRuntimeConfig.logLevel }
-              : {}),
+            ...(hasLogLevel ? { SUBMINER_LOG_LEVEL: pluginRuntimeConfig.logLevel } : {}),
             ...(hasLogRotation
               ? { SUBMINER_LOG_ROTATION: String(pluginRuntimeConfig.logRotation) }
               : {}),

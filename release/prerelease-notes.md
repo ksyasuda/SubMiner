@@ -17,6 +17,8 @@
 
 - **Logging Configuration:** SubMiner's logging level is now forwarded into launcher-started and Windows shortcut-started mpv sessions, controlling mpv log verbosity and plugin script logging. The new `logging.rotation` config sets daily log retention (default 7 days), and `logging.files` toggles let you enable or disable per-component log files; mpv logs are off by default unless explicitly enabled for debugging.
 
+- **Yomitan Popup Visibility:** The new `subtitleStyle.primaryVisibleOnYomitanPopup` option keeps hover-mode primary subtitles visible while a Yomitan lookup popup is open.
+
 ### Changed
 
 - **Subtitle Appearance:** Primary and secondary subtitle appearance now use color controls plus CSS declaration editors, saved as `subtitleStyle.css` and `subtitleStyle.secondary.css`. Sidebar appearance is configured via `subtitleSidebar.css`. The default subtitle font stack is updated to `Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP`. Existing configs are migrated automatically.
@@ -63,13 +65,13 @@
 
 - **Controller:** Controller config and debug shortcuts now stay closed while controller support is disabled, with a notice to enable `controller.enabled`. Learn mode can be entered from the edit pencil or binding badge, remaps are saved per controller profile, and individual bindings can be reset to their defaults.
 
-- **AniList Progress:** Progress threshold checks now use fresh playback position data so updates fire correctly when playback reaches or skips past the watched threshold. Season-specific results are preferred for multi-season files, and a clear message is shown when the matched season is not in Planning or Watching status.
+- **AniList Progress:** Progress threshold checks now use fresh playback position data so updates fire correctly when playback reaches or skips past the watched threshold. Season-specific results are preferred for multi-season files, and a clear message is shown when the matched season is not in Planning or Watching status. Repeated missing-token checks no longer rapidly exhaust AniList retry attempts or create duplicate dead-letter entries for the same episode.
 
-- **Anki:** Sentence-audio padding is now opt-in by default. When padding is configured, animated AVIF freeze-frame duration is correctly aligned to the word audio length without double-counting sentence padding. Multi-line sentence mining stays aligned when repeated subtitle text appears in the selected history range. Manual clipboard card updates from YouTube playback now use mpv's resolved stream URLs for generated audio and images.
+- **Anki:** Sentence-audio padding is now opt-in by default. When padding is configured, animated AVIF freeze-frame duration is correctly aligned to the word audio length without double-counting sentence audio padding. Multi-line sentence mining stays aligned when repeated subtitle text appears in the selected history range. Manual clipboard card updates from YouTube playback now use mpv's resolved stream URLs for generated audio and images. Sentence cards now refresh the current secondary subtitle before saving so the translation field contains the loaded subtitle rather than repeating the primary text. Kiku duplicate-card detection correctly groups fields, modal-open acknowledgement races no longer cancel the merge flow, and merged fields follow Kiku's group ordering, sentence-audio, furigana, and tag semantics.
 
 - **YouTube:** Primary subtitles are now downloaded to temporary local files so the primary bar and sidebar read the same source, with cleanup on reload and quit. False subtitle load failure notifications are suppressed after SubMiner confirms the selected track loaded. Launcher-managed playback commands create the tray icon even when attaching to an already-running process, and app-owned YouTube playback no longer lets the mpv plugin start a second SubMiner instance.
 
-- **Character Dictionary:** Surname honorifics are now matched for Japanese localized aliases embedded in AniList alternative names (e.g. Korean-source characters whose Japanese name appears in parentheses), and cached snapshots are regenerated to include them. Cached media matches are reused when loading a title with an existing snapshot, avoiding redundant AniList search requests on repeat visits. The visible subtitle overlay is suppressed as soon as the character dictionary modal opens, including while AniList lookup is loading or returns no results.
+- **Character Dictionary:** Surname honorifics are now matched for Japanese localized aliases embedded in AniList alternative names (e.g. Korean-source characters whose Japanese name appears in parentheses), and cached snapshots are regenerated to include them. Cached media matches are reused when loading a title with an existing snapshot, avoiding redundant AniList search requests on repeat visits. The visible subtitle overlay is suppressed as soon as the character dictionary modal opens, including while AniList lookup is loading or returns no results. Character dictionary manager keyboard shortcuts are now correctly forwarded to the mpv plugin.
 
 - **Updater:** Update checks are more stable across platforms: Linux uses GitHub release metadata instead of the native Electron updater; `subminer -u` can update independently of the tray app; macOS update dialogs reliably appear in the foreground; builds that cannot apply native updates show a manual-install message instead of a restart prompt; Windows retains the native NSIS update path while routing updater HTTP through the main process; and macOS updater metadata mismatches from conflicting ZIP filenames are resolved.
 
@@ -81,7 +83,7 @@
 
 - **Playback:** The first subtitle is primed before autoplay resumes so the overlay renders text before video playback begins. Launcher-owned videos quit SubMiner when playback ends while background and tray sessions stay alive.
 
-- **Subtitle Frequency:** Frequency highlighting is preserved for determiner-led noun compounds like `その場` while standalone determiners are still filtered.
+- **Subtitle Frequency:** Frequency highlighting is preserved for determiner-led noun compounds like `その場` while standalone determiners are still filtered. Frequency annotations are also corrected for Yomitan single-token compounds with internal particles such as `目の前`, while pure grammar and kana helper spans remain unannotated.
 
 - **Shortcuts:** Native mpv menu shortcuts are disabled during managed macOS playback so configured SubMiner shortcuts also work while mpv has focus. Session shortcuts including `stats.markWatchedKey` are correctly wired through mpv. The visible overlay receives focus when entering multi-line copy/mine selection so number keys work on macOS and Windows.
 
@@ -89,7 +91,7 @@
 
 - **Stats:** In-player stats layering is fixed so delete confirmations, overlay modals, and update-check dialogs appear above the stats window. Jellyfin playback stats are grouped under item metadata instead of stream URLs, so watched episodes merge with matching local library titles and display clean names.
 
-- **Sidebar:** Yomitan lookup popups opened from the subtitle sidebar now correctly pause playback when popup auto-pause is enabled.
+- **Sidebar:** Yomitan lookup popups opened from the subtitle sidebar now correctly pause playback when popup auto-pause is enabled. Yomitan-enriched cards mined from the sidebar now use audio and images from the clicked subtitle line rather than the current primary line.
 
 - **Discord Rich Presence:** Presence no longer falls back to Jellyfin stream URLs; Jellyfin playback titles are primed before loading tokenized streams so presence shows the show/episode title.
 
@@ -104,6 +106,10 @@
 ### Docs
 
 - **Versioned Docs:** Stable docs are now published at the site root with current development docs under `/main/`. Fixed versioned docs navigation so archived pages keep local links under the selected version, the version switcher no longer nests paths incorrectly, local dev version routes serve warmed archive files instead of redirecting to production, and internal README files no longer break archived builds.
+
+- **Configuration Reference:** All previously undocumented config options are now covered, including `subtitleStyle.primaryDefaultMode`, `stats.markWatchedKey`, `immersionTracking.lifetimeSummaries.*`, and all seven `mpv.*` launcher options. Updated known-word cache docs and examples to recommend expression/word fields.
+
+- **Architecture Docs:** Added a Playback Startup Flow diagram showing how managed launches inject the plugin, establish the IPC socket, and bring up the overlay via the two convergent triggers. Added a Runtime Sockets section and diagram to the IPC + Runtime Contracts page, with cross-reference pointers in the MPV Plugin and Troubleshooting pages.
 
 ## Installation
 
