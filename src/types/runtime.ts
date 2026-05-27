@@ -29,6 +29,7 @@ import type {
   ResolvedSubtitleSidebarConfig,
   SecondarySubMode,
   SubtitleData,
+  SubtitleMiningContext,
   SubtitlePosition,
   SubtitleSidebarSnapshot,
   SubtitleRendererStyleConfig,
@@ -413,7 +414,7 @@ export interface ElectronAPI {
   onSubtitleAss: (callback: (assText: string) => void) => void;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   openYomitanSettings: () => void;
-  recordYomitanLookup: () => void;
+  recordYomitanLookup: (context?: SubtitleMiningContext | null) => void;
   getSubtitlePosition: () => Promise<SubtitlePosition | null>;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
   getMecabStatus: () => Promise<MecabStatus>;

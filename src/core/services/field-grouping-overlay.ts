@@ -8,6 +8,10 @@ interface WindowLike {
   };
 }
 
+const KIKU_FIELD_GROUPING_MODAL_OPEN_TIMEOUT_MS = 1500;
+const KIKU_FIELD_GROUPING_MODAL_RETRY_WARNING =
+  'Kiku field grouping modal did not acknowledge modal open on first attempt; retrying dedicated modal window.';
+
 export interface FieldGroupingOverlayRuntimeOptions<T extends string> {
   getMainWindow: () => WindowLike | null;
   getVisibleOverlayVisible: () => boolean;
@@ -15,10 +19,13 @@ export interface FieldGroupingOverlayRuntimeOptions<T extends string> {
   getResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
   setResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
   getRestoreVisibleOverlayOnModalClose: () => Set<T>;
+  waitForModalOpen?: (modal: T, timeoutMs: number) => Promise<boolean>;
+  handleOverlayModalClosed?: (modal: T) => void;
+  logWarn?: (message: string) => void;
   sendToVisibleOverlay?: (
     channel: string,
     payload?: unknown,
-    runtimeOptions?: { restoreOnModalClose?: T },
+    runtimeOptions?: { restoreOnModalClose?: T; preferModalWindow?: boolean },
   ) => boolean;
 }
 
@@ -28,7 +35,7 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
   sendToVisibleOverlay: (
     channel: string,
     payload?: unknown,
-    runtimeOptions?: { restoreOnModalClose?: T },
+    runtimeOptions?: { restoreOnModalClose?: T; preferModalWindow?: boolean },
   ) => boolean;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
@@ -37,7 +44,7 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
   const sendToVisibleOverlay = (
     channel: string,
     payload?: unknown,
-    runtimeOptions?: { restoreOnModalClose?: T },
+    runtimeOptions?: { restoreOnModalClose?: T; preferModalWindow?: boolean },
   ): boolean => {
     if (options.sendToVisibleOverlay) {
       const wasVisible = options.getVisibleOverlayVisible();
@@ -58,6 +65,43 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
     });
   };
 
+  const sendKikuFieldGroupingRequest = async (
+    data: KikuFieldGroupingRequestData,
+  ): Promise<boolean> => {
+    const kikuModal = 'kiku' as T;
+    const sendOpen = (): boolean =>
+      sendToVisibleOverlay('kiku:field-grouping-request', data, {
+        restoreOnModalClose: kikuModal,
+        preferModalWindow: true,
+      });
+
+    if (!options.waitForModalOpen) {
+      return sendOpen();
+    }
+
+    if (!sendOpen()) {
+      return false;
+    }
+    if (await options.waitForModalOpen(kikuModal, KIKU_FIELD_GROUPING_MODAL_OPEN_TIMEOUT_MS)) {
+      return true;
+    }
+
+    options.logWarn?.(KIKU_FIELD_GROUPING_MODAL_RETRY_WARNING);
+    if (!sendOpen()) {
+      options.handleOverlayModalClosed?.(kikuModal);
+      return false;
+    }
+
+    const opened = await options.waitForModalOpen(
+      kikuModal,
+      KIKU_FIELD_GROUPING_MODAL_OPEN_TIMEOUT_MS,
+    );
+    if (!opened) {
+      options.handleOverlayModalClosed?.(kikuModal);
+    }
+    return opened;
+  };
+
   const createFieldGroupingCallback = (): ((
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>) => {
@@ -67,6 +111,7 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
       getResolver: options.getResolver,
       setResolver: options.setResolver,
       sendToVisibleOverlay,
+      sendKikuFieldGroupingRequest,
     });
   };
 

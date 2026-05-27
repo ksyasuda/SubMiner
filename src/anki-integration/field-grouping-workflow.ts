@@ -4,12 +4,14 @@ import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 export interface FieldGroupingWorkflowNoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
+  tags?: string[];
 }
 
 export interface FieldGroupingWorkflowDeps {
   client: {
     notesInfo(noteIds: number[]): Promise<unknown>;
     updateNoteFields(noteId: number, fields: Record<string, string>): Promise<void>;
+    addTags(noteIds: number[], tags: string[]): Promise<void>;
     deleteNotes(noteIds: number[]): Promise<void>;
   };
   getConfig: () => {
@@ -156,6 +158,11 @@ export class FieldGroupingWorkflow {
       await this.deps.addConfiguredTagsToNote(keepNoteId);
     }
 
+    const tagsToAdd = this.getMergeTagsToAdd(keepNoteInfo, deleteNoteInfo);
+    if (tagsToAdd.length > 0) {
+      await this.deps.client.addTags([keepNoteId], tagsToAdd);
+    }
+
     if (deleteDuplicate) {
       await this.deps.client.deleteNotes([deleteNoteId]);
       this.deps.removeTrackedNoteId(deleteNoteId);
@@ -198,6 +205,24 @@ export class FieldGroupingWorkflow {
   private getExpression(noteInfo: FieldGroupingWorkflowNoteInfo): string {
     const fields = this.deps.extractFields(noteInfo.fields);
     return getPreferredWordValueFromExtractedFields(fields, this.deps.getConfig());
+  }
+
+  private getMergeTagsToAdd(
+    keepNoteInfo: FieldGroupingWorkflowNoteInfo,
+    deleteNoteInfo: FieldGroupingWorkflowNoteInfo,
+  ): string[] {
+    const targetTags = new Set((keepNoteInfo.tags ?? []).map((tag) => tag.trim()).filter(Boolean));
+    const unwantedSourceTags = new Set(['leech', 'marked', 'potential_leech']);
+    const tagsToAdd: string[] = [];
+
+    for (const rawTag of deleteNoteInfo.tags ?? []) {
+      const tag = rawTag.trim();
+      if (!tag || targetTags.has(tag) || unwantedSourceTags.has(tag)) continue;
+      targetTags.add(tag);
+      tagsToAdd.push(tag);
+    }
+
+    return tagsToAdd;
   }
 
   private async resolveFieldGroupingCallback(): Promise<

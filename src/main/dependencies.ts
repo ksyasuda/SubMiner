@@ -96,6 +96,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getAnilistQueueStatus: IpcDepsRuntimeOptions['getAnilistQueueStatus'];
   retryAnilistQueueNow: IpcDepsRuntimeOptions['retryAnilistQueueNow'];
   runAnilistPostWatchUpdateOnManualMark?: IpcDepsRuntimeOptions['runAnilistPostWatchUpdateOnManualMark'];
+  recordSubtitleMiningContext?: IpcDepsRuntimeOptions['recordSubtitleMiningContext'];
   getCharacterDictionarySelection?: IpcDepsRuntimeOptions['getCharacterDictionarySelection'];
   setCharacterDictionarySelection?: IpcDepsRuntimeOptions['setCharacterDictionarySelection'];
   getCharacterDictionaryManagerSnapshot?: IpcDepsRuntimeOptions['getCharacterDictionaryManagerSnapshot'];
@@ -273,6 +274,7 @@ export function createMainIpcRuntimeServiceDeps(
     getAnilistQueueStatus: params.getAnilistQueueStatus,
     retryAnilistQueueNow: params.retryAnilistQueueNow,
     runAnilistPostWatchUpdateOnManualMark: params.runAnilistPostWatchUpdateOnManualMark,
+    recordSubtitleMiningContext: params.recordSubtitleMiningContext,
     getCharacterDictionarySelection: params.getCharacterDictionarySelection,
     setCharacterDictionarySelection: params.setCharacterDictionarySelection,
     getCharacterDictionaryManagerSnapshot: params.getCharacterDictionaryManagerSnapshot,

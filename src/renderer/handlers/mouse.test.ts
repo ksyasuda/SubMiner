@@ -970,6 +970,89 @@ test('window blur reclaims overlay focus while a yomitan popup remains visible o
   }
 });
 
+test('yomitan popup visibility marks primary subtitle hover hold while enabled', () => {
+  const ctx = createMouseTestContext();
+  (ctx.state as { primaryVisibleOnYomitanPopup?: boolean }).primaryVisibleOnYomitanPopup = true;
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousDocument = (globalThis as { document?: unknown }).document;
+  const previousMutationObserver = (globalThis as { MutationObserver?: unknown }).MutationObserver;
+  const previousNode = (globalThis as { Node?: unknown }).Node;
+  const windowListeners = new Map<string, Array<() => void>>();
+  const bodyClassList = createClassList();
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: () => void) => {
+        const bucket = windowListeners.get(type) ?? [];
+        bucket.push(listener);
+        windowListeners.set(type, bucket);
+      },
+      electronAPI: {
+        setIgnoreMouseEvents: () => {},
+      },
+      focus: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      body: { classList: bodyClassList },
+      querySelectorAll: () => [],
+      querySelector: () => null,
+      visibilityState: 'visible',
+    },
+  });
+  Object.defineProperty(globalThis, 'MutationObserver', {
+    configurable: true,
+    value: class {
+      observe() {}
+    },
+  });
+  Object.defineProperty(globalThis, 'Node', {
+    configurable: true,
+    value: {
+      ELEMENT_NODE: 1,
+    },
+  });
+
+  try {
+    const handlers = createMouseHandlers(ctx as never, {
+      modalStateReader: {
+        isAnySettingsModalOpen: () => false,
+        isAnyModalOpen: () => false,
+      },
+      applyYPercent: () => {},
+      getCurrentYPercent: () => 10,
+      persistSubtitlePositionPatch: () => {},
+      getSubtitleHoverAutoPauseEnabled: () => false,
+      getYomitanPopupAutoPauseEnabled: () => false,
+      getPlaybackPaused: async () => false,
+      sendMpvCommand: () => {},
+    });
+
+    handlers.setupYomitanObserver();
+
+    for (const listener of windowListeners.get(YOMITAN_POPUP_SHOWN_EVENT) ?? []) {
+      listener();
+    }
+    assert.equal(bodyClassList.contains('primary-sub-visible-on-yomitan-popup'), true);
+
+    for (const listener of windowListeners.get(YOMITAN_POPUP_HIDDEN_EVENT) ?? []) {
+      listener();
+    }
+    assert.equal(bodyClassList.contains('primary-sub-visible-on-yomitan-popup'), false);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    Object.defineProperty(globalThis, 'MutationObserver', {
+      configurable: true,
+      value: previousMutationObserver,
+    });
+    Object.defineProperty(globalThis, 'Node', { configurable: true, value: previousNode });
+  }
+});
+
 test('restorePointerInteractionState re-enables subtitle hover when pointer is already over subtitles', () => {
   const ctx = createMouseTestContext();
   const originalWindow = globalThis.window;

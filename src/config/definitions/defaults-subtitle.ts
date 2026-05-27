@@ -8,6 +8,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
     preserveLineBreaks: false,
     autoPauseVideoOnHover: true,
     autoPauseVideoOnYomitanPopup: true,
+    primaryVisibleOnYomitanPopup: true,
     hoverTokenColor: '#f4dbd6',
     hoverTokenBackgroundColor: 'transparent',
     nameMatchEnabled: false,

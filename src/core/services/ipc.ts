@@ -9,6 +9,7 @@ import type {
   ResolvedControllerConfig,
   RuntimeOptionId,
   RuntimeOptionValue,
+  SubtitleMiningContext,
   SubtitleSidebarSnapshot,
   SubtitlePosition,
   SubsyncManualRunRequest,
@@ -95,6 +96,7 @@ export interface IpcServiceDeps {
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
   runAnilistPostWatchUpdateOnManualMark?: () => Promise<void>;
+  recordSubtitleMiningContext?: (context: SubtitleMiningContext | null) => void;
   getCharacterDictionarySelection?: (searchTitle?: string) => Promise<unknown>;
   setCharacterDictionarySelection?: (
     mediaId: number,
@@ -175,6 +177,43 @@ interface IpcMainRegistrar {
   handle: (channel: string, listener: (event: unknown, ...args: unknown[]) => unknown) => void;
 }
 
+function parseSubtitleMiningContext(payload: unknown): SubtitleMiningContext | null {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const record = payload as Record<string, unknown>;
+  const source = record.source;
+  const text = record.text;
+  const startTime = record.startTime;
+  const endTime = record.endTime;
+  const capturedAtMs = record.capturedAtMs;
+
+  if (
+    source !== 'subtitle-sidebar' ||
+    typeof text !== 'string' ||
+    text.trim().length === 0 ||
+    typeof startTime !== 'number' ||
+    typeof endTime !== 'number' ||
+    !Number.isFinite(startTime) ||
+    !Number.isFinite(endTime) ||
+    endTime <= startTime
+  ) {
+    return null;
+  }
+
+  const parsed: SubtitleMiningContext = {
+    source: 'subtitle-sidebar',
+    text,
+    startTime,
+    endTime,
+  };
+  if (typeof capturedAtMs === 'number' && Number.isFinite(capturedAtMs)) {
+    parsed.capturedAtMs = capturedAtMs;
+  }
+  return parsed;
+}
+
 export interface IpcDepsRuntimeOptions {
   getMainWindow: () => WindowLike | null;
   getVisibleOverlayVisibility: () => boolean;
@@ -230,6 +269,7 @@ export interface IpcDepsRuntimeOptions {
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
   runAnilistPostWatchUpdateOnManualMark?: () => Promise<void>;
+  recordSubtitleMiningContext?: (context: SubtitleMiningContext | null) => void;
   getCharacterDictionarySelection?: (searchTitle?: string) => Promise<unknown>;
   setCharacterDictionarySelection?: (
     mediaId: number,
@@ -257,6 +297,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     onOverlayModalOpened: options.onOverlayModalOpened,
     onOverlayMouseInteractionChanged: options.onOverlayMouseInteractionChanged,
     openYomitanSettings: options.openYomitanSettings,
+    recordSubtitleMiningContext: options.recordSubtitleMiningContext,
     quitApp: options.quitApp,
     toggleDevTools: () => {
       const mainWindow = options.getMainWindow();
@@ -423,7 +464,15 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     deps.openYomitanSettings();
   });
 
-  ipc.on(IPC_CHANNELS.command.recordYomitanLookup, () => {
+  ipc.on(IPC_CHANNELS.command.recordYomitanLookup, (_event: unknown, payload: unknown) => {
+    try {
+      deps.recordSubtitleMiningContext?.(parseSubtitleMiningContext(payload));
+    } catch (error) {
+      console.warn(
+        'Failed to record subtitle mining context:',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
     deps.immersionTracker?.recordYomitanLookup();
   });
 

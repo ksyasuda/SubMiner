@@ -25,6 +25,7 @@ interface YomitanTokenInput {
   surface: string;
   reading?: string;
   headword?: string;
+  frequencyRank?: number;
   isNameMatch?: boolean;
   wordClasses?: string[];
 }
@@ -57,6 +58,7 @@ function makeDepsFromYomitanTokens(
                 startPos,
                 endPos,
                 isNameMatch: token.isNameMatch ?? false,
+                frequencyRank: token.frequencyRank,
                 wordClasses: token.wordClasses,
               };
             });
@@ -4277,6 +4279,64 @@ test('tokenizeSubtitle keeps frequency for content-led merged token with trailin
   assert.equal(result.tokens?.[0]?.surface, '張り切ってん');
   assert.equal(result.tokens?.[0]?.pos1, '動詞|助詞|接続詞');
   assert.equal(result.tokens?.[0]?.frequencyRank, 5468);
+});
+
+test('tokenizeSubtitle keeps Yomitan frequency for noun-particle-noun compounds', async () => {
+  const result = await tokenizeSubtitle(
+    '目の前',
+    makeDepsFromYomitanTokens(
+      [{ surface: '目の前', reading: 'めのまえ', headword: '目の前', frequencyRank: 581 }],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        tokenizeWithMecab: async () => [
+          {
+            headword: '目',
+            surface: '目',
+            reading: 'メ',
+            startPos: 0,
+            endPos: 1,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '一般',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: 'の',
+            surface: 'の',
+            reading: 'ノ',
+            startPos: 1,
+            endPos: 2,
+            partOfSpeech: PartOfSpeech.particle,
+            pos1: '助詞',
+            pos2: '連体化',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+          {
+            headword: '前',
+            surface: '前',
+            reading: 'マエ',
+            startPos: 2,
+            endPos: 3,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '副詞可能',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ],
+      },
+    ),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.surface, '目の前');
+  assert.equal(result.tokens?.[0]?.pos1, '名詞|助詞');
+  assert.equal(result.tokens?.[0]?.frequencyRank, 581);
 });
 
 test('tokenizeSubtitle keeps frequency for ordinal prefix-noun tokens', async () => {

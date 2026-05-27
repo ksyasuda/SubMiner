@@ -104,6 +104,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.subtitleStyle.preserveLineBreaks, false);
   assert.equal(config.subtitleStyle.autoPauseVideoOnHover, true);
   assert.equal(config.subtitleStyle.autoPauseVideoOnYomitanPopup, true);
+  assert.equal(config.subtitleStyle.primaryVisibleOnYomitanPopup, true);
   assert.equal(config.subtitleSidebar.enabled, true);
   assert.equal(config.subtitleSidebar.pauseVideoOnHover, true);
   assert.equal(config.subtitleStyle.hoverTokenColor, '#f4dbd6');
@@ -542,6 +543,44 @@ test('parses subtitleStyle.autoPauseVideoOnYomitanPopup and warns on invalid val
     invalidService
       .getWarnings()
       .some((warning) => warning.path === 'subtitleStyle.autoPauseVideoOnYomitanPopup'),
+  );
+});
+
+test('parses subtitleStyle.primaryVisibleOnYomitanPopup and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "primaryVisibleOnYomitanPopup": false
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.primaryVisibleOnYomitanPopup, false);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "primaryVisibleOnYomitanPopup": "yes"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.primaryVisibleOnYomitanPopup,
+    DEFAULT_CONFIG.subtitleStyle.primaryVisibleOnYomitanPopup,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.primaryVisibleOnYomitanPopup'),
   );
 });
 

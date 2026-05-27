@@ -81,6 +81,7 @@ export interface SubtitleStyleConfig {
   preserveLineBreaks?: boolean;
   autoPauseVideoOnHover?: boolean;
   autoPauseVideoOnYomitanPopup?: boolean;
+  primaryVisibleOnYomitanPopup?: boolean;
   hoverTokenColor?: string;
   hoverTokenBackgroundColor?: string;
   nameMatchEnabled?: boolean;
@@ -215,6 +216,14 @@ export interface SubtitleSidebarSnapshot {
     endTime: number | null;
   };
   config: SubtitleSidebarSnapshotConfig;
+}
+
+export interface SubtitleMiningContext {
+  source: 'subtitle-sidebar';
+  text: string;
+  startTime: number;
+  endTime: number;
+  capturedAtMs?: number;
 }
 
 export interface SubtitleHoverTokenPayload {

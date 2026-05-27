@@ -1,4 +1,9 @@
-import type { SubtitleCue, SubtitleData, SubtitleSidebarSnapshot } from '../../types';
+import type {
+  SubtitleCue,
+  SubtitleData,
+  SubtitleMiningContext,
+  SubtitleSidebarSnapshot,
+} from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 import {
@@ -201,6 +206,7 @@ export function createSubtitleSidebarModal(
   let subtitleSidebarFocusedWithin = false;
   let subtitleSidebarYomitanPopupVisible = false;
   let subtitleSidebarPauseHeldByYomitanPopup = false;
+  let lastSubtitleSidebarLookupCueIndex = -1;
 
   function restoreEmbeddedSidebarPassthrough(): void {
     syncOverlayMouseIgnoreState(ctx);
@@ -213,7 +219,73 @@ export function createSubtitleSidebarModal(
   function clearSidebarInteractionState(): void {
     subtitleSidebarHovered = false;
     subtitleSidebarFocusedWithin = false;
+    lastSubtitleSidebarLookupCueIndex = -1;
     syncSidebarInteractionState();
+  }
+
+  function findCueIndexFromNode(node: Node | null): number | null {
+    if (!node || typeof Element === 'undefined') {
+      return null;
+    }
+    const element = node instanceof Element ? node : node.parentElement;
+    const row = element?.closest<HTMLElement>('.subtitle-sidebar-item') ?? null;
+    if (!row) {
+      return null;
+    }
+    const index = Number.parseInt(row.dataset.index ?? '', 10);
+    if (!Number.isInteger(index) || index < 0 || index >= ctx.state.subtitleSidebarCues.length) {
+      return null;
+    }
+    return index;
+  }
+
+  function rememberLookupCueFromTarget(target: EventTarget | null): void {
+    if (typeof Node === 'undefined') {
+      return;
+    }
+    if (!(target instanceof Node)) {
+      return;
+    }
+    const index = findCueIndexFromNode(target);
+    if (index === null) {
+      return;
+    }
+    lastSubtitleSidebarLookupCueIndex = index;
+  }
+
+  function getSubtitleSidebarMiningContext(): SubtitleMiningContext | null {
+    if (!ctx.state.subtitleSidebarModalOpen) {
+      return null;
+    }
+
+    const selection = window.getSelection?.() ?? null;
+    const selectionIndex =
+      findCueIndexFromNode(selection?.anchorNode ?? null) ??
+      findCueIndexFromNode(selection?.focusNode ?? null);
+    const index =
+      selectionIndex ??
+      (lastSubtitleSidebarLookupCueIndex >= 0 ? lastSubtitleSidebarLookupCueIndex : null);
+    if (index === null) {
+      return null;
+    }
+
+    const cue = ctx.state.subtitleSidebarCues[index];
+    if (
+      !cue ||
+      !Number.isFinite(cue.startTime) ||
+      !Number.isFinite(cue.endTime) ||
+      cue.endTime <= cue.startTime
+    ) {
+      return null;
+    }
+
+    return {
+      source: 'subtitle-sidebar',
+      text: cue.text,
+      startTime: cue.startTime,
+      endTime: cue.endTime,
+      capturedAtMs: Date.now(),
+    };
   }
 
   function setStatus(message: string): void {
@@ -653,6 +725,12 @@ export function createSubtitleSidebarModal(
     ctx.dom.subtitleSidebarList.addEventListener('wheel', () => {
       ctx.state.subtitleSidebarManualScrollUntilMs = nowForUiTiming() + MANUAL_SCROLL_HOLD_MS;
     });
+    ctx.dom.subtitleSidebarList.addEventListener('pointerover', (event) => {
+      rememberLookupCueFromTarget(event.target);
+    });
+    ctx.dom.subtitleSidebarList.addEventListener('focusin', (event) => {
+      rememberLookupCueFromTarget(event.target);
+    });
     ctx.dom.subtitleSidebarContent.addEventListener('mouseenter', async () => {
       subtitleSidebarHovered = true;
       syncSidebarInteractionState();
@@ -677,6 +755,9 @@ export function createSubtitleSidebarModal(
     });
     ctx.dom.subtitleSidebarContent.addEventListener('mouseleave', () => {
       subtitleSidebarHovered = false;
+      if (!subtitleSidebarFocusedWithin) {
+        lastSubtitleSidebarLookupCueIndex = -1;
+      }
       syncSidebarInteractionState();
       if (ctx.state.isOverSubtitleSidebar) {
         restoreEmbeddedSidebarPassthrough();
@@ -700,6 +781,7 @@ export function createSubtitleSidebarModal(
       }
 
       subtitleSidebarFocusedWithin = false;
+      lastSubtitleSidebarLookupCueIndex = -1;
       syncSidebarInteractionState();
       if (ctx.state.isOverSubtitleSidebar) {
         restoreEmbeddedSidebarPassthrough();
@@ -736,5 +818,6 @@ export function createSubtitleSidebarModal(
     },
     handleSubtitleUpdated,
     seekToCue,
+    getSubtitleSidebarMiningContext,
   };
 }

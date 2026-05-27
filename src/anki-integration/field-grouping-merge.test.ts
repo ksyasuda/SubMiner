@@ -74,13 +74,13 @@ function makeNote(noteId: number, fields: Record<string, string>): FieldGrouping
   };
 }
 
-test('getGroupableFieldNames includes configured fields without duplicating ExpressionAudio', () => {
+test('getGroupableFieldNames includes Kiku context fields and omits word audio fields', () => {
   const { collaborator } = createCollaborator({
     config: {
       fields: {
         image: 'Illustration',
         sentence: 'SentenceText',
-        audio: 'ExpressionAudio',
+        audio: 'CustomWordAudio',
         miscInfo: 'ExtraInfo',
       },
     },
@@ -97,33 +97,84 @@ test('getGroupableFieldNames includes configured fields without duplicating Expr
   ]);
 });
 
-test('computeFieldGroupingMergedFields syncs a custom audio field from merged SentenceAudio', async () => {
-  const { collaborator } = createCollaborator({
-    config: {
-      fields: {
-        audio: 'CustomAudio',
-      },
-    },
-  });
+test('computeFieldGroupingMergedFields groups both notes and sorts by descending group id when keeping original', async () => {
+  const { collaborator } = createCollaborator();
 
   const merged = await collaborator.computeFieldGroupingMergedFields(
-    1,
-    2,
-    makeNote(1, {
-      SentenceAudio: '[sound:keep.mp3]',
-      CustomAudio: '[sound:stale.mp3]',
+    300,
+    200,
+    makeNote(300, {
+      Sentence: 'original sentence',
+      SentenceAudio: '[sound:original-a.mp3] [sound:original-b.mp3]',
+      Picture: '<img src="original.png">',
+      MiscInfo: 'original misc',
+      ExpressionAudio: '[sound:word.mp3]',
     }),
-    makeNote(2, {
+    makeNote(200, {
+      Sentence: 'new sentence',
       SentenceAudio: '[sound:new.mp3]',
+      Picture: '<img src="new.png">',
+      MiscInfo: 'new misc',
     }),
     false,
   );
 
   assert.equal(
-    merged.SentenceAudio,
-    '<span data-group-id="1">[sound:keep.mp3]</span><span data-group-id="2">[sound:new.mp3]</span>',
+    merged.Sentence,
+    '<span data-group-id="300">original sentence</span><span data-group-id="200">new sentence</span>',
   );
-  assert.equal(merged.CustomAudio, merged.SentenceAudio);
+  assert.equal(
+    merged.SentenceAudio,
+    '<span data-group-id="300">[sound:original-a.mp3] [sound:original-b.mp3]</span><span data-group-id="200">[sound:new.mp3]</span>',
+  );
+  assert.equal(
+    merged.Picture,
+    '<img data-group-id="300" src="original.png"><img data-group-id="200" src="new.png">',
+  );
+  assert.equal(
+    merged.MiscInfo,
+    '<span data-group-id="300">original misc</span><span data-group-id="200">new misc</span>',
+  );
+  assert.equal('ExpressionAudio' in merged, false);
+});
+
+test('computeFieldGroupingMergedFields sorts original before new when merging original into a newer target', async () => {
+  const { collaborator } = createCollaborator();
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    200,
+    300,
+    makeNote(200, {
+      Sentence: 'new sentence',
+      SentenceAudio: '[sound:new.mp3]',
+      Picture: '<img src="new.png">',
+      MiscInfo: 'new misc',
+    }),
+    makeNote(300, {
+      Sentence: 'original sentence',
+      SentenceAudio: '[sound:original.mp3]',
+      Picture: '<img src="original.png">',
+      MiscInfo: 'original misc',
+    }),
+    false,
+  );
+
+  assert.equal(
+    merged.Sentence,
+    '<span data-group-id="300">original sentence</span><span data-group-id="200">new sentence</span>',
+  );
+  assert.equal(
+    merged.SentenceAudio,
+    '<span data-group-id="300">[sound:original.mp3]</span><span data-group-id="200">[sound:new.mp3]</span>',
+  );
+  assert.equal(
+    merged.Picture,
+    '<img data-group-id="300" src="original.png"><img data-group-id="200" src="new.png">',
+  );
+  assert.equal(
+    merged.MiscInfo,
+    '<span data-group-id="300">original misc</span><span data-group-id="200">new misc</span>',
+  );
 });
 
 test('computeFieldGroupingMergedFields keeps strict fields when source is empty and warns on malformed spans', async () => {
@@ -147,7 +198,7 @@ test('computeFieldGroupingMergedFields keeps strict fields when source is empty 
 
   assert.equal(
     merged.Sentence,
-    '<span data-group-id="3"><span data-group-id="abc">keep sentence</span></span><span data-group-id="4">source sentence</span>',
+    '<span data-group-id="4">source sentence</span><span data-group-id="3"><span data-group-id="abc">keep sentence</span></span>',
   );
   assert.equal(merged.SentenceAudio, '<span data-group-id="4">[sound:source.mp3]</span>');
   assert.equal(warnings.length, 4);
@@ -198,4 +249,22 @@ test('computeFieldGroupingMergedFields uses generated media only when includeGen
   assert.equal(withMedia.SentenceAudio, '<span data-group-id="11">[sound:generated.mp3]</span>');
   assert.equal(withMedia.Picture, '<img data-group-id="11" src="generated.png">');
   assert.equal(withMedia.MiscInfo, '<span data-group-id="11">generated misc</span>');
+});
+
+test('computeFieldGroupingMergedFields clears SentenceFurigana when either note lacks it', async () => {
+  const { collaborator } = createCollaborator();
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, {
+      SentenceFurigana: 'original furigana',
+    }),
+    makeNote(200, {
+      SentenceFurigana: '',
+    }),
+    false,
+  );
+
+  assert.equal(merged.SentenceFurigana, '');
 });

@@ -1,5 +1,6 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
+import type { SubtitleMiningContext } from '../types/subtitle';
 
 export interface NoteUpdateWorkflowNoteInfo {
   noteId: number;
@@ -65,10 +66,14 @@ export interface NoteUpdateWorkflowDeps {
   getAnimatedImageLeadInSeconds: (noteInfo: NoteUpdateWorkflowNoteInfo) => Promise<number>;
   mergeFieldValue: (existing: string, newValue: string, overwrite: boolean) => string;
   generateAudioFilename: () => string;
-  generateAudio: () => Promise<Buffer | null>;
+  generateAudio: (context?: SubtitleMiningContext) => Promise<Buffer | null>;
   generateImageFilename: () => string;
-  generateImage: (animatedLeadInSeconds?: number) => Promise<Buffer | null>;
+  generateImage: (
+    animatedLeadInSeconds?: number,
+    context?: SubtitleMiningContext,
+  ) => Promise<Buffer | null>;
   formatMiscInfoPattern: (fallbackFilename: string, startTimeSeconds?: number) => string;
+  consumeSubtitleMiningContext?: () => SubtitleMiningContext | null;
   addConfiguredTagsToNote: (noteId: number) => Promise<void>;
   showNotification: (noteId: number, label: string | number) => Promise<void>;
   showOsdNotification: (message: string) => void;
@@ -79,8 +84,61 @@ export interface NoteUpdateWorkflowDeps {
   logError: (message: string, ...args: unknown[]) => void;
 }
 
+function normalizeSubtitleContextText(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function hasUsableSubtitleContextTiming(context: SubtitleMiningContext): boolean {
+  return (
+    Number.isFinite(context.startTime) &&
+    Number.isFinite(context.endTime) &&
+    context.endTime > context.startTime
+  );
+}
+
+function subtitleContextMatchesSentence(contextText: string, noteSentence: string): boolean {
+  const normalizedContext = normalizeSubtitleContextText(contextText);
+  const normalizedSentence = normalizeSubtitleContextText(noteSentence);
+  if (!normalizedContext || !normalizedSentence) {
+    return false;
+  }
+  return (
+    normalizedContext === normalizedSentence ||
+    normalizedContext.includes(normalizedSentence) ||
+    normalizedSentence.includes(normalizedContext)
+  );
+}
+
 export class NoteUpdateWorkflow {
   constructor(private readonly deps: NoteUpdateWorkflowDeps) {}
+
+  private consumeMatchingSubtitleMiningContext(
+    fields: Record<string, string>,
+    sentenceField: string,
+    configuredSentenceField?: string,
+  ): SubtitleMiningContext | null {
+    const context = this.deps.consumeSubtitleMiningContext?.() ?? null;
+    if (!context || !hasUsableSubtitleContextTiming(context)) {
+      return null;
+    }
+
+    const candidateFields = [
+      sentenceField,
+      configuredSentenceField,
+      DEFAULT_ANKI_CONNECT_CONFIG.fields.sentence,
+    ];
+    const noteSentence = candidateFields
+      .map((fieldName) => (fieldName ? fields[fieldName.toLowerCase()] : undefined))
+      .find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+
+    if (!noteSentence || subtitleContextMatchesSentence(context.text, noteSentence)) {
+      return context;
+    }
+    return null;
+  }
 
   async execute(noteId: number, options?: { skipKikuFieldGrouping?: boolean }): Promise<void> {
     this.deps.beginUpdateProgress('Updating card');
@@ -121,8 +179,13 @@ export class NoteUpdateWorkflow {
       let updatePerformed = false;
       let miscInfoFilename: string | null = null;
       const sentenceField = sentenceCardConfig.sentenceField;
+      const subtitleMiningContext = this.consumeMatchingSubtitleMiningContext(
+        fields,
+        sentenceField,
+        config.fields?.sentence,
+      );
 
-      const currentSubtitleText = this.deps.getCurrentSubtitleText();
+      const currentSubtitleText = subtitleMiningContext?.text ?? this.deps.getCurrentSubtitleText();
       if (sentenceField && currentSubtitleText) {
         const processedSentence = this.deps.processSentence(currentSubtitleText, fields);
         updatedFields[sentenceField] = processedSentence;
@@ -132,7 +195,7 @@ export class NoteUpdateWorkflow {
       if (config.media?.generateAudio) {
         try {
           const audioFilename = this.deps.generateAudioFilename();
-          const audioBuffer = await this.deps.generateAudio();
+          const audioBuffer = await this.deps.generateAudio(subtitleMiningContext ?? undefined);
 
           if (audioBuffer) {
             await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
@@ -158,7 +221,10 @@ export class NoteUpdateWorkflow {
         try {
           const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
           const imageFilename = this.deps.generateImageFilename();
-          const imageBuffer = await this.deps.generateImage(animatedLeadInSeconds);
+          const imageBuffer = await this.deps.generateImage(
+            animatedLeadInSeconds,
+            subtitleMiningContext ?? undefined,
+          );
 
           if (imageBuffer) {
             await this.deps.client.storeMediaFile(imageFilename, imageBuffer);
@@ -189,7 +255,7 @@ export class NoteUpdateWorkflow {
       if (config.fields?.miscInfo) {
         const miscInfo = this.deps.formatMiscInfoPattern(
           miscInfoFilename || '',
-          this.deps.getCurrentSubtitleStart(),
+          subtitleMiningContext?.startTime ?? this.deps.getCurrentSubtitleStart(),
         );
         const miscInfoField = this.deps.resolveConfiguredFieldName(
           noteInfo,

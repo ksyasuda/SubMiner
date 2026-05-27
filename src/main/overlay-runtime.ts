@@ -64,6 +64,7 @@ export function createOverlayModalRuntimeService(
 ): OverlayModalRuntime {
   const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
   const modalOpenWaiters = new Map<OverlayHostedModal, Array<(opened: boolean) => void>>();
+  const openedModals = new Set<OverlayHostedModal>();
   let modalActive = false;
   let mainWindowMousePassthroughForcedByModal = false;
   let mainWindowHiddenByModal = false;
@@ -375,6 +376,7 @@ export function createOverlayModalRuntimeService(
   };
 
   const handleOverlayModalClosed = (modal: OverlayHostedModal): void => {
+    openedModals.delete(modal);
     if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
     restoreVisibleOverlayOnModalClose.delete(modal);
     const modalWindow = deps.getModalWindow();
@@ -392,6 +394,7 @@ export function createOverlayModalRuntimeService(
 
   const notifyOverlayModalOpened = (modal: OverlayHostedModal): void => {
     if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
+    openedModals.add(modal);
     const waiters = modalOpenWaiters.get(modal) ?? [];
     modalOpenWaiters.delete(modal);
     for (const resolve of waiters) {
@@ -420,6 +423,10 @@ export function createOverlayModalRuntimeService(
 
   const waitForModalOpen = async (modal: OverlayHostedModal, timeoutMs: number): Promise<boolean> =>
     await new Promise<boolean>((resolve) => {
+      if (openedModals.has(modal)) {
+        resolve(true);
+        return;
+      }
       const waiters = modalOpenWaiters.get(modal) ?? [];
       const finish = (opened: boolean): void => {
         clearTimeout(timeout);

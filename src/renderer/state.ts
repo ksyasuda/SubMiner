@@ -114,6 +114,7 @@ export type RendererState = {
   preserveSubtitleLineBreaks: boolean;
   autoPauseVideoOnSubtitleHover: boolean;
   autoPauseVideoOnYomitanPopup: boolean;
+  primaryVisibleOnYomitanPopup: boolean;
   frequencyDictionaryEnabled: boolean;
   frequencyDictionaryTopX: number;
   frequencyDictionaryMode: 'single' | 'banded';
@@ -225,6 +226,7 @@ export function createRendererState(): RendererState {
     preserveSubtitleLineBreaks: false,
     autoPauseVideoOnSubtitleHover: false,
     autoPauseVideoOnYomitanPopup: false,
+    primaryVisibleOnYomitanPopup: true,
     frequencyDictionaryEnabled: false,
     frequencyDictionaryTopX: 1000,
     frequencyDictionaryMode: 'single',

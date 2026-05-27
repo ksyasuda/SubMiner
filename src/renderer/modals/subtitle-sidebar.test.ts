@@ -113,6 +113,88 @@ test('findActiveSubtitleCueIndex prefers current subtitle timing over near-futur
   assert.equal(findActiveSubtitleCueIndex(cues, { text: 'previous', startTime: 231 }, 233, 0), 0);
 });
 
+test('subtitle sidebar mining context resolves selected row cue timing', () => {
+  const globals = globalThis as typeof globalThis & {
+    Element?: unknown;
+    Node?: unknown;
+    window?: unknown;
+  };
+  const previousElement = globals.Element;
+  const previousNode = globals.Node;
+  const previousWindow = globals.window;
+
+  class FakeNode {
+    parentElement: FakeElement | null = null;
+  }
+  class FakeElement extends FakeNode {
+    dataset: Record<string, string> = {};
+
+    closest(selector: string) {
+      return selector === '.subtitle-sidebar-item' ? this : null;
+    }
+  }
+
+  const row = new FakeElement();
+  row.dataset.index = '1';
+  const textNode = new FakeNode();
+  textNode.parentElement = row;
+
+  Object.defineProperty(globalThis, 'Node', { configurable: true, value: FakeNode });
+  Object.defineProperty(globalThis, 'Element', { configurable: true, value: FakeElement });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      getSelection: () => ({ anchorNode: textNode, focusNode: null }),
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    state.subtitleSidebarModalOpen = true;
+    state.subtitleSidebarCues = [
+      { startTime: 1, endTime: 2, text: 'current line' },
+      { startTime: 3, endTime: 5, text: 'sidebar previous line' },
+    ];
+    const modal = createSubtitleSidebarModal(
+      {
+        dom: {
+          overlay: { classList: createClassList() },
+          subtitleSidebarModal: {
+            classList: createClassList(),
+            setAttribute: () => {},
+            style: { setProperty: () => {} },
+            addEventListener: () => {},
+          },
+          subtitleSidebarContent: {
+            classList: createClassList(),
+            getBoundingClientRect: () => ({ width: 420 }),
+            style: { setProperty: () => {} },
+          },
+          subtitleSidebarClose: { addEventListener: () => {} },
+          subtitleSidebarStatus: { textContent: '' },
+          subtitleSidebarList: createListStub(),
+        },
+        state,
+      } as never,
+      {
+        modalStateReader: { isAnyModalOpen: () => false },
+      },
+    );
+
+    const context = modal.getSubtitleSidebarMiningContext();
+
+    assert.equal(context?.source, 'subtitle-sidebar');
+    assert.equal(context?.text, 'sidebar previous line');
+    assert.equal(context?.startTime, 3);
+    assert.equal(context?.endTime, 5);
+    assert.equal(typeof context?.capturedAtMs, 'number');
+  } finally {
+    Object.defineProperty(globalThis, 'Element', { configurable: true, value: previousElement });
+    Object.defineProperty(globalThis, 'Node', { configurable: true, value: previousNode });
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+  }
+});
+
 test('applySidebarCssDeclarations clears declarations removed by config reload', () => {
   const removed: string[] = [];
   const style = {

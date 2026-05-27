@@ -29,7 +29,7 @@ import {
 } from './types/anki';
 import { AiConfig } from './types/integrations';
 import { MpvClient } from './types/runtime';
-import { NPlusOneMatchMode } from './types/subtitle';
+import type { NPlusOneMatchMode, SubtitleMiningContext } from './types/subtitle';
 import { DEFAULT_ANKI_CONNECT_CONFIG } from './config';
 import {
   getConfiguredWordFieldCandidates,
@@ -149,6 +149,7 @@ export class AnkiIntegration {
   private aiConfig: AiConfig;
   private recordCardsMinedCallback: ((count: number, noteIds?: number[]) => void) | null = null;
   private knownWordCacheUpdatedCallback: (() => void) | null = null;
+  private consumeSubtitleMiningContextCallback: (() => SubtitleMiningContext | null) | null = null;
   private noteIdRedirects = new Map<number, number>();
   private trackedDuplicateNoteIds = new Map<number, number[]>();
 
@@ -453,11 +454,13 @@ export class AnkiIntegration {
       mergeFieldValue: (existing, newValue, overwrite) =>
         this.mergeFieldValue(existing, newValue, overwrite),
       generateAudioFilename: () => this.generateAudioFilename(),
-      generateAudio: () => this.generateAudio(),
+      generateAudio: (context) => this.generateAudio(context),
       generateImageFilename: () => this.generateImageFilename(),
-      generateImage: (animatedLeadInSeconds) => this.generateImage(animatedLeadInSeconds),
+      generateImage: (animatedLeadInSeconds, context) =>
+        this.generateImage(animatedLeadInSeconds, context),
       formatMiscInfoPattern: (fallbackFilename, startTimeSeconds) =>
         this.formatMiscInfoPattern(fallbackFilename, startTimeSeconds),
+      consumeSubtitleMiningContext: () => this.consumeSubtitleMiningContext(),
       addConfiguredTagsToNote: (noteId) => this.addConfiguredTagsToNote(noteId),
       showNotification: (noteId, label) => this.showNotification(noteId, label),
       showOsdNotification: (message) => this.showOsdNotification(message),
@@ -474,6 +477,7 @@ export class AnkiIntegration {
       client: {
         notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
         updateNoteFields: (noteId, fields) => this.client.updateNoteFields(noteId, fields),
+        addTags: (noteIds, tags) => this.client.addTags(noteIds, tags),
         deleteNotes: (noteIds) => this.client.deleteNotes(noteIds),
       },
       getConfig: () => this.config,
@@ -673,7 +677,55 @@ export class AnkiIntegration {
     return `${prefix}<b>${highlightedText}</b>${suffix}`;
   }
 
-  private async generateAudio(): Promise<Buffer | null> {
+  private consumeSubtitleMiningContext(): SubtitleMiningContext | null {
+    if (!this.consumeSubtitleMiningContextCallback) {
+      return null;
+    }
+
+    try {
+      return this.consumeSubtitleMiningContextCallback();
+    } catch (error) {
+      log.warn('Subtitle mining context callback failed:', (error as Error).message);
+      return null;
+    }
+  }
+
+  private getSubtitleMediaRange(context?: SubtitleMiningContext): {
+    startTime: number;
+    endTime: number;
+  } {
+    if (
+      context &&
+      Number.isFinite(context.startTime) &&
+      Number.isFinite(context.endTime) &&
+      context.endTime > context.startTime
+    ) {
+      return {
+        startTime: context.startTime,
+        endTime: context.endTime,
+      };
+    }
+
+    if (
+      Number.isFinite(this.mpvClient.currentSubStart) &&
+      Number.isFinite(this.mpvClient.currentSubEnd) &&
+      this.mpvClient.currentSubEnd > this.mpvClient.currentSubStart
+    ) {
+      return {
+        startTime: this.mpvClient.currentSubStart,
+        endTime: this.mpvClient.currentSubEnd,
+      };
+    }
+
+    const currentTime = this.mpvClient.currentTimePos || 0;
+    const fallback = this.getFallbackDurationSeconds() / 2;
+    return {
+      startTime: currentTime - fallback,
+      endTime: currentTime + fallback,
+    };
+  }
+
+  private async generateAudio(context?: SubtitleMiningContext): Promise<Buffer | null> {
     const mpvClient = this.mpvClient;
     if (!mpvClient || !mpvClient.currentVideoPath) {
       return null;
@@ -683,15 +735,7 @@ export class AnkiIntegration {
     if (!videoPath) {
       return null;
     }
-    let startTime = mpvClient.currentSubStart;
-    let endTime = mpvClient.currentSubEnd;
-
-    if (startTime === undefined || endTime === undefined) {
-      const currentTime = mpvClient.currentTimePos || 0;
-      const fallback = this.getFallbackDurationSeconds() / 2;
-      startTime = currentTime - fallback;
-      endTime = currentTime + fallback;
-    }
+    const { startTime, endTime } = this.getSubtitleMediaRange(context);
 
     return this.mediaGenerator.generateAudio(
       videoPath,
@@ -702,7 +746,10 @@ export class AnkiIntegration {
     );
   }
 
-  private async generateImage(animatedLeadInSeconds = 0): Promise<Buffer | null> {
+  private async generateImage(
+    animatedLeadInSeconds = 0,
+    context?: SubtitleMiningContext,
+  ): Promise<Buffer | null> {
     if (!this.mpvClient || !this.mpvClient.currentVideoPath) {
       return null;
     }
@@ -711,22 +758,16 @@ export class AnkiIntegration {
     if (!videoPath) {
       return null;
     }
-    const timestamp = this.mpvClient.currentTimePos || 0;
+    const mediaRange = this.getSubtitleMediaRange(context);
+    const timestamp = context
+      ? mediaRange.startTime + (mediaRange.endTime - mediaRange.startTime) / 2
+      : this.mpvClient.currentTimePos || 0;
 
     if (this.config.media?.imageType === 'avif') {
-      let startTime = this.mpvClient.currentSubStart;
-      let endTime = this.mpvClient.currentSubEnd;
-
-      if (startTime === undefined || endTime === undefined) {
-        const fallback = this.getFallbackDurationSeconds() / 2;
-        startTime = timestamp - fallback;
-        endTime = timestamp + fallback;
-      }
-
       return this.mediaGenerator.generateAnimatedImage(
         videoPath,
-        startTime,
-        endTime,
+        mediaRange.startTime,
+        mediaRange.endTime,
         this.config.media?.audioPadding,
         {
           fps: this.config.media?.animatedFps,
@@ -1064,16 +1105,46 @@ export class AnkiIntegration {
     endTime: number,
     secondarySubText?: string,
   ): Promise<boolean> {
-    return this.cardCreationService.createSentenceCard(
+    const trackedDuplicateNoteIdsBeforeCreate = new Set(this.trackedDuplicateNoteIds.keys());
+    const created = await this.cardCreationService.createSentenceCard(
       sentence,
       startTime,
       endTime,
       secondarySubText,
     );
+    if (
+      created &&
+      this.shouldTriggerFieldGroupingAfterLocalSentenceCardCreate(
+        trackedDuplicateNoteIdsBeforeCreate,
+      )
+    ) {
+      try {
+        await this.fieldGroupingService.triggerFieldGroupingForLastAddedCard();
+      } catch (error) {
+        log.warn('Failed to trigger field grouping after sentence card creation:', error);
+      }
+    }
+    return created;
   }
 
   trackDuplicateNoteIdsForNote(noteId: number, duplicateNoteIds: number[]): void {
     this.trackedDuplicateNoteIds.set(noteId, [...duplicateNoteIds]);
+  }
+
+  private shouldTriggerFieldGroupingAfterLocalSentenceCardCreate(
+    trackedDuplicateNoteIdsBeforeCreate: Set<number>,
+  ): boolean {
+    const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
+    if (!sentenceCardConfig.kikuEnabled || sentenceCardConfig.kikuFieldGrouping === 'disabled') {
+      return false;
+    }
+
+    for (const noteId of this.trackedDuplicateNoteIds.keys()) {
+      if (!trackedDuplicateNoteIdsBeforeCreate.has(noteId)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private async findDuplicateNote(
@@ -1285,6 +1356,10 @@ export class AnkiIntegration {
 
   setKnownWordCacheUpdatedCallback(callback: (() => void) | null): void {
     this.knownWordCacheUpdatedCallback = callback;
+  }
+
+  setSubtitleMiningContextConsumer(callback: (() => SubtitleMiningContext | null) | null): void {
+    this.consumeSubtitleMiningContextCallback = callback;
   }
 
   resolveCurrentNoteId(noteId: number): number {

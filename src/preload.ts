@@ -55,6 +55,7 @@ import type {
   ControllerPreferenceUpdate,
   ResolvedControllerConfig,
   SessionNumericSelectionStartPayload,
+  SubtitleMiningContext,
   YoutubePickerOpenPayload,
   YoutubePickerResolveRequest,
   YoutubePickerResolveResult,
@@ -262,8 +263,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.send(IPC_CHANNELS.command.openYomitanSettings);
   },
 
-  recordYomitanLookup: () => {
-    ipcRenderer.send(IPC_CHANNELS.command.recordYomitanLookup);
+  recordYomitanLookup: (context?: SubtitleMiningContext | null) => {
+    ipcRenderer.send(IPC_CHANNELS.command.recordYomitanLookup, context ?? null);
   },
 
   getSubtitlePosition: (): Promise<SubtitlePosition | null> =>

@@ -7,7 +7,7 @@ type FieldGroupingOverlayMainDeps<TModal extends string> = Omit<
   sendToActiveOverlayWindow: (
     channel: string,
     payload?: unknown,
-    runtimeOptions?: { restoreOnModalClose?: TModal },
+    runtimeOptions?: { restoreOnModalClose?: TModal; preferModalWindow?: boolean },
   ) => boolean;
 };
 
@@ -31,7 +31,7 @@ export function createBuildFieldGroupingOverlayMainDepsHandler<TModal extends st
     sendToVisibleOverlay: (
       channel: string,
       payload?: unknown,
-      runtimeOptions?: { restoreOnModalClose?: TModal },
+      runtimeOptions?: { restoreOnModalClose?: TModal; preferModalWindow?: boolean },
     ) => deps.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
   });
 }

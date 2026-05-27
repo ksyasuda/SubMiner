@@ -288,6 +288,48 @@ test('AnkiIntegration does not allocate proxy server when proxy transport is dis
   assert.equal(privateState.runtime.proxyServer, null);
 });
 
+test('AnkiIntegration triggers field grouping after a local duplicate sentence card is created', async () => {
+  const integration = new AnkiIntegration(
+    {
+      isKiku: {
+        enabled: true,
+        fieldGrouping: 'manual',
+      },
+    } as never,
+    {} as never,
+    {} as never,
+  );
+
+  let groupingTriggered = 0;
+  const internals = integration as unknown as {
+    cardCreationService: {
+      createSentenceCard: (
+        sentence: string,
+        startTime: number,
+        endTime: number,
+        secondarySubText?: string,
+      ) => Promise<boolean>;
+    };
+    fieldGroupingService: {
+      triggerFieldGroupingForLastAddedCard: () => Promise<void>;
+    };
+  };
+  internals.cardCreationService = {
+    createSentenceCard: async () => {
+      integration.trackDuplicateNoteIdsForNote(42, [7]);
+      return true;
+    },
+  };
+  internals.fieldGroupingService = {
+    triggerFieldGroupingForLastAddedCard: async () => {
+      groupingTriggered += 1;
+    },
+  };
+
+  assert.equal(await integration.createSentenceCard('duplicate sentence', 0, 1), true);
+  assert.equal(groupingTriggered, 1);
+});
+
 test('AnkiIntegration marks partial update notifications as failures in OSD mode', async () => {
   const osdMessages: string[] = [];
   const integration = new AnkiIntegration(
@@ -316,7 +358,7 @@ test('AnkiIntegration marks partial update notifications as failures in OSD mode
   assert.deepEqual(osdMessages, ['x Updated card: taberu (image failed)']);
 });
 
-test('FieldGroupingMergeCollaborator synchronizes ExpressionAudio from merged SentenceAudio', async () => {
+test('FieldGroupingMergeCollaborator keeps SentenceAudio grouped without overwriting ExpressionAudio', async () => {
   const collaborator = createFieldGroupingMergeCollaborator();
 
   const merged = await collaborator.computeFieldGroupingMergedFields(
@@ -340,9 +382,9 @@ test('FieldGroupingMergeCollaborator synchronizes ExpressionAudio from merged Se
 
   assert.equal(
     merged.SentenceAudio,
-    '<span data-group-id="101">[sound:keep.mp3]</span><span data-group-id="202">[sound:new.mp3]</span>',
+    '<span data-group-id="202">[sound:new.mp3]</span><span data-group-id="101">[sound:keep.mp3]</span>',
   );
-  assert.equal(merged.ExpressionAudio, merged.SentenceAudio);
+  assert.equal('ExpressionAudio' in merged, false);
 });
 
 test('FieldGroupingMergeCollaborator uses generated media fallback when source lacks audio', async () => {
@@ -374,7 +416,7 @@ test('FieldGroupingMergeCollaborator uses generated media fallback when source l
   assert.equal(merged.SentenceAudio, '<span data-group-id="22">[sound:generated.mp3]</span>');
 });
 
-test('FieldGroupingMergeCollaborator deduplicates identical sentence, audio, and image values when merging into a new duplicate card', async () => {
+test('FieldGroupingMergeCollaborator keeps independent groups for identical sentence, audio, and image values', async () => {
   const collaborator = createFieldGroupingMergeCollaborator();
 
   const merged = await collaborator.computeFieldGroupingMergedFields(
@@ -400,10 +442,19 @@ test('FieldGroupingMergeCollaborator deduplicates identical sentence, audio, and
     false,
   );
 
-  assert.equal(merged.Sentence, '<span data-group-id="202">same sentence</span>');
-  assert.equal(merged.SentenceAudio, '<span data-group-id="202">[sound:same.mp3]</span>');
-  assert.equal(merged.Picture, '<img data-group-id="202" src="same.png">');
-  assert.equal(merged.ExpressionAudio, merged.SentenceAudio);
+  assert.equal(
+    merged.Sentence,
+    '<span data-group-id="202">same sentence</span><span data-group-id="101">same sentence</span>',
+  );
+  assert.equal(
+    merged.SentenceAudio,
+    '<span data-group-id="202">[sound:same.mp3]</span><span data-group-id="101">[sound:same.mp3]</span>',
+  );
+  assert.equal(
+    merged.Picture,
+    '<img data-group-id="202" src="same.png"><img data-group-id="101" src="same.png">',
+  );
+  assert.equal('ExpressionAudio' in merged, false);
 });
 
 test('AnkiIntegration.formatMiscInfoPattern avoids leaking Jellyfin api_key query params', () => {

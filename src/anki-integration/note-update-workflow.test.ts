@@ -5,6 +5,7 @@ import {
   type NoteUpdateWorkflowDeps,
   type NoteUpdateWorkflowNoteInfo,
 } from './note-update-workflow';
+import type { SubtitleMiningContext } from '../types/subtitle';
 
 function createWorkflowHarness() {
   const updates: Array<{ noteId: number; fields: Record<string, string> }> = [];
@@ -202,4 +203,73 @@ test('NoteUpdateWorkflow passes animated image lead-in when syncing avif to word
   await harness.workflow.execute(42);
 
   assert.equal(receivedLeadInSeconds, 1.25);
+});
+
+test('NoteUpdateWorkflow uses subtitle sidebar context for sentence media timing', async () => {
+  const harness = createWorkflowHarness();
+  const sidebarContext = {
+    source: 'subtitle-sidebar' as const,
+    text: 'sidebar previous line',
+    startTime: 10,
+    endTime: 12,
+    capturedAtMs: 123,
+  };
+  let audioContext: unknown = null;
+  let imageContext: unknown = null;
+  let miscInfoStartTime: number | undefined;
+
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'taberu' },
+          Sentence: { value: 'sidebar previous line' },
+          SentenceAudio: { value: '' },
+          Picture: { value: '' },
+          MiscInfo: { value: '' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+  harness.deps.getConfig = () => ({
+    fields: {
+      sentence: 'Sentence',
+      image: 'Picture',
+      miscInfo: 'MiscInfo',
+    },
+    media: {
+      generateAudio: true,
+      generateImage: true,
+      imageType: 'avif',
+    },
+    behavior: {},
+  });
+  harness.deps.getCurrentSubtitleText = () => 'current primary line';
+  harness.deps.getCurrentSubtitleStart = () => 20;
+  harness.deps.getResolvedSentenceAudioFieldName = () => 'SentenceAudio';
+  harness.deps.generateAudio = async (context?: SubtitleMiningContext) => {
+    audioContext = context ?? null;
+    return Buffer.from('audio');
+  };
+  harness.deps.generateImage = async (_leadInSeconds?: number, context?: SubtitleMiningContext) => {
+    imageContext = context ?? null;
+    return Buffer.from('image');
+  };
+  harness.deps.formatMiscInfoPattern = (_fallbackFilename, startTimeSeconds) => {
+    miscInfoStartTime = startTimeSeconds;
+    return `start:${startTimeSeconds}`;
+  };
+  (
+    harness.deps as NoteUpdateWorkflowDeps & {
+      consumeSubtitleMiningContext: () => typeof sidebarContext | null;
+    }
+  ).consumeSubtitleMiningContext = () => sidebarContext;
+
+  await harness.workflow.execute(42);
+
+  assert.equal(harness.updates.length, 1);
+  assert.equal(harness.updates[0]?.fields.Sentence, 'sidebar previous line');
+  assert.deepEqual(audioContext, sidebarContext);
+  assert.deepEqual(imageContext, sidebarContext);
+  assert.equal(miscInfoStartTime, 10);
 });

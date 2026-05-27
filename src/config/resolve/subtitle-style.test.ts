@@ -128,6 +128,33 @@ test('subtitleStyle autoPauseVideoOnYomitanPopup falls back on invalid value', (
   );
 });
 
+test('subtitleStyle primaryVisibleOnYomitanPopup falls back on invalid value', () => {
+  const valid = createResolveContext({
+    subtitleStyle: {
+      primaryVisibleOnYomitanPopup: false,
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.equal(valid.context.resolved.subtitleStyle.primaryVisibleOnYomitanPopup, false);
+
+  const { context, warnings } = createResolveContext({
+    subtitleStyle: {
+      primaryVisibleOnYomitanPopup: 'invalid' as unknown as boolean,
+    },
+  });
+
+  applySubtitleDomainConfig(context);
+
+  assert.equal(context.resolved.subtitleStyle.primaryVisibleOnYomitanPopup, true);
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.primaryVisibleOnYomitanPopup' &&
+        warning.message === 'Expected boolean.',
+    ),
+  );
+});
+
 test('subtitleStyle primaryDefaultMode accepts valid values and warns on invalid', () => {
   const valid = createResolveContext({
     subtitleStyle: {

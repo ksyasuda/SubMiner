@@ -51,9 +51,6 @@ export class FieldGroupingMergeCollaborator {
     fields.push('Picture');
     if (config.fields?.image) fields.push(config.fields?.image);
     if (config.fields?.sentence) fields.push(config.fields?.sentence);
-    if (config.fields?.audio && config.fields?.audio.toLowerCase() !== 'expressionaudio') {
-      fields.push(config.fields?.audio);
-    }
     const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
     const sentenceAudioField = sentenceCardConfig.audioField;
     if (!fields.includes(sentenceAudioField)) fields.push(sentenceAudioField);
@@ -94,12 +91,6 @@ export class FieldGroupingMergeCollaborator {
       }
     }
 
-    if (!sourceFields['SentenceFurigana'] && sourceFields['Sentence']) {
-      sourceFields['SentenceFurigana'] = sourceFields['Sentence'];
-    }
-    if (!sourceFields['Sentence'] && sourceFields['SentenceFurigana']) {
-      sourceFields['Sentence'] = sourceFields['SentenceFurigana'];
-    }
     if (!sourceFields[configuredWordField] && sourceFields['Expression']) {
       sourceFields[configuredWordField] = sourceFields['Expression'];
     }
@@ -112,13 +103,6 @@ export class FieldGroupingMergeCollaborator {
     if (!sourceFields['Word'] && sourceFields[configuredWordField]) {
       sourceFields['Word'] = sourceFields[configuredWordField];
     }
-    if (!sourceFields['SentenceAudio'] && sourceFields['ExpressionAudio']) {
-      sourceFields['SentenceAudio'] = sourceFields['ExpressionAudio'];
-    }
-    if (!sourceFields['ExpressionAudio'] && sourceFields['SentenceAudio']) {
-      sourceFields['ExpressionAudio'] = sourceFields['SentenceAudio'];
-    }
-
     if (
       config.fields?.sentence &&
       !sourceFields[config.fields?.sentence] &&
@@ -169,6 +153,20 @@ export class FieldGroupingMergeCollaborator {
       const isStrictField = this.shouldUseStrictSpanGrouping(keepFieldName);
       if (!existingValue.trim() && !newValue.trim()) continue;
 
+      if (keepFieldNormalized === 'sentencefurigana') {
+        mergedFields[keepFieldName] =
+          existingValue.trim() && newValue.trim()
+            ? this.applyFieldGrouping(
+                existingValue,
+                newValue,
+                keepNoteId,
+                deleteNoteId,
+                keepFieldName,
+              )
+            : '';
+        continue;
+      }
+
       if (isStrictField) {
         mergedFields[keepFieldName] = this.applyFieldGrouping(
           existingValue,
@@ -191,29 +189,6 @@ export class FieldGroupingMergeCollaborator {
       }
     }
 
-    const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
-    const resolvedSentenceAudioField = this.deps.resolveFieldName(
-      keepFieldNames,
-      sentenceCardConfig.audioField || 'SentenceAudio',
-    );
-    const resolvedExpressionAudioField = this.deps.resolveFieldName(
-      keepFieldNames,
-      config.fields?.audio || 'ExpressionAudio',
-    );
-    if (
-      resolvedSentenceAudioField &&
-      resolvedExpressionAudioField &&
-      resolvedExpressionAudioField !== resolvedSentenceAudioField
-    ) {
-      const mergedSentenceAudioValue =
-        mergedFields[resolvedSentenceAudioField] ||
-        keepNoteInfo.fields[resolvedSentenceAudioField]?.value ||
-        '';
-      if (mergedSentenceAudioValue.trim()) {
-        mergedFields[resolvedExpressionAudioField] = mergedSentenceAudioValue;
-      }
-    }
-
     return mergedFields;
   }
 
@@ -228,22 +203,14 @@ export class FieldGroupingMergeCollaborator {
   }
 
   private extractUngroupedValue(value: string): string {
-    const groupedSpanRegex = /<span\s+data-group-id="[^"]*">[\s\S]*?<\/span>/gi;
-    const ungrouped = value.replace(groupedSpanRegex, '').trim();
+    const ungrouped = this.extractUngroupedRemainder(value);
     if (ungrouped) return ungrouped;
     return value.trim();
   }
 
-  private extractLastSoundTag(value: string): string {
-    const matches = value.match(/\[sound:[^\]]+\]/g);
-    if (!matches || matches.length === 0) return '';
-    return matches[matches.length - 1]!;
-  }
-
-  private extractLastImageTag(value: string): string {
-    const matches = value.match(/<img\b[^>]*>/gi);
-    if (!matches || matches.length === 0) return '';
-    return matches[matches.length - 1]!;
+  private extractUngroupedRemainder(value: string): string {
+    const groupedSpanRegex = /<span\b[^>]*data-group-id="[^"]*"[^>]*>[\s\S]*?<\/span>/gi;
+    return value.replace(groupedSpanRegex, '').trim();
   }
 
   private extractImageTags(value: string): string[] {
@@ -274,7 +241,7 @@ export class FieldGroupingMergeCollaborator {
       }
     }
 
-    const spanRegex = /<span\s+data-group-id="(\d+)"[^>]*>([\s\S]*?)<\/span>/gi;
+    const spanRegex = /<span\b[^>]*data-group-id="(\d+)"[^>]*>([\s\S]*?)<\/span>/gi;
     let match;
     while ((match = spanRegex.exec(value)) !== null) {
       const groupId = Number(match[1]);
@@ -298,25 +265,16 @@ export class FieldGroupingMergeCollaborator {
     fieldName: string,
   ): { groupId: number; content: string }[] {
     const entries = this.extractSpanEntries(value, fieldName);
-    if (entries.length === 0) {
-      const ungrouped = this.normalizeStrictGroupedValue(
-        this.extractUngroupedValue(value),
-        fieldName,
-      );
-      if (ungrouped) {
-        entries.push({ groupId: fallbackGroupId, content: ungrouped });
-      }
+    const ungroupedSource =
+      entries.length > 0
+        ? this.extractUngroupedRemainder(value)
+        : this.extractUngroupedValue(value);
+    const ungrouped = this.normalizeStrictGroupedValue(ungroupedSource, fieldName);
+    if (ungrouped) {
+      entries.push({ groupId: fallbackGroupId, content: ungrouped });
     }
 
-    const unique: { groupId: number; content: string }[] = [];
-    const seen = new Set<string>();
-    for (const entry of entries) {
-      const key = entry.content;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      unique.push(entry);
-    }
-    return unique;
+    return entries;
   }
 
   private parsePictureEntries(
@@ -351,27 +309,11 @@ export class FieldGroupingMergeCollaborator {
     if (!ungrouped) return '';
 
     const normalizedField = fieldName.toLowerCase();
-    if (normalizedField === 'sentenceaudio' || normalizedField === 'expressionaudio') {
-      const lastSoundTag = this.extractLastSoundTag(ungrouped);
-      if (!lastSoundTag) {
-        this.deps.warnFieldParseOnce(fieldName, 'missing-sound-tag');
-      }
-      return lastSoundTag || ungrouped;
-    }
-
-    if (normalizedField === 'picture') {
-      const lastImageTag = this.extractLastImageTag(ungrouped);
-      if (!lastImageTag) {
-        this.deps.warnFieldParseOnce(fieldName, 'missing-image-tag');
-      }
-      return lastImageTag || ungrouped;
+    if (normalizedField === 'sentenceaudio' && !/\[sound:[^\]]+\]/.test(ungrouped)) {
+      this.deps.warnFieldParseOnce(fieldName, 'missing-sound-tag');
     }
 
     return ungrouped;
-  }
-
-  private getPictureDedupKey(tag: string): string {
-    return tag.replace(/\sdata-group-id="[^"]*"/gi, '').trim();
   }
 
   private getStrictSpanGroupingFields(): Set<string> {
@@ -390,6 +332,16 @@ export class FieldGroupingMergeCollaborator {
     return this.getStrictSpanGroupingFields().has(normalized);
   }
 
+  private isPictureField(fieldName: string): boolean {
+    const normalized = fieldName.toLowerCase();
+    const configuredImageField = this.deps.getConfig().fields?.image?.toLowerCase();
+    return normalized === 'picture' || normalized === configuredImageField;
+  }
+
+  private sortEntriesByGroupIdDescending<T extends { groupId: number }>(entries: T[]): T[] {
+    return [...entries].sort((a, b) => b.groupId - a.groupId);
+  }
+
   private applyFieldGrouping(
     existingValue: string,
     newValue: string,
@@ -398,24 +350,15 @@ export class FieldGroupingMergeCollaborator {
     fieldName: string,
   ): string {
     if (this.shouldUseStrictSpanGrouping(fieldName)) {
-      if (fieldName.toLowerCase() === 'picture') {
+      if (this.isPictureField(fieldName)) {
         const keepEntries = this.parsePictureEntries(existingValue, keepGroupId);
         const sourceEntries = this.parsePictureEntries(newValue, sourceGroupId);
         if (keepEntries.length === 0 && sourceEntries.length === 0) {
           return existingValue || newValue;
         }
-        const mergedTags = keepEntries.map((entry) =>
-          this.ensureImageGroupId(entry.tag, entry.groupId),
-        );
-        const seen = new Set(mergedTags.map((tag) => this.getPictureDedupKey(tag)));
-        for (const entry of sourceEntries) {
-          const normalized = this.ensureImageGroupId(entry.tag, entry.groupId);
-          const dedupKey = this.getPictureDedupKey(normalized);
-          if (seen.has(dedupKey)) continue;
-          seen.add(dedupKey);
-          mergedTags.push(normalized);
-        }
-        return mergedTags.join('');
+        return this.sortEntriesByGroupIdDescending([...keepEntries, ...sourceEntries])
+          .map((entry) => entry.tag)
+          .join('');
       }
 
       const keepEntries = this.parseStrictEntries(existingValue, keepGroupId, fieldName);
@@ -423,19 +366,7 @@ export class FieldGroupingMergeCollaborator {
       if (keepEntries.length === 0 && sourceEntries.length === 0) {
         return existingValue || newValue;
       }
-      if (sourceEntries.length === 0) {
-        return keepEntries
-          .map((entry) => `<span data-group-id="${entry.groupId}">${entry.content}</span>`)
-          .join('');
-      }
-      const merged = [...keepEntries];
-      const seen = new Set(keepEntries.map((entry) => entry.content));
-      for (const entry of sourceEntries) {
-        const key = entry.content;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        merged.push(entry);
-      }
+      const merged = this.sortEntriesByGroupIdDescending([...keepEntries, ...sourceEntries]);
       if (merged.length === 0) return existingValue;
       return merged
         .map((entry) => `<span data-group-id="${entry.groupId}">${entry.content}</span>`)

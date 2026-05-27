@@ -6,6 +6,7 @@ import type { KikuDuplicateCardInfo, KikuFieldGroupingChoice } from '../types/an
 type NoteInfo = {
   noteId: number;
   fields: Record<string, { value: string }>;
+  tags?: string[];
 };
 
 type ManualChoice = {
@@ -23,6 +24,7 @@ type FieldGroupingCallback = (data: {
 function createWorkflowHarness() {
   const updates: Array<{ noteId: number; fields: Record<string, string> }> = [];
   const deleted: number[][] = [];
+  const addedTags: Array<{ noteIds: number[]; tags: string[] }> = [];
   const statuses: string[] = [];
   const rememberedMerges: Array<{ deletedNoteId: number; keptNoteId: number }> = [];
   const mergeCalls: Array<{
@@ -48,6 +50,9 @@ function createWorkflowHarness() {
         ),
       updateNoteFields: async (noteId: number, fields: Record<string, string>) => {
         updates.push({ noteId, fields });
+      },
+      addTags: async (noteIds: number[], tags: string[]) => {
+        addedTags.push({ noteIds, tags });
       },
       deleteNotes: async (noteIds: number[]) => {
         deleted.push(noteIds);
@@ -117,6 +122,7 @@ function createWorkflowHarness() {
     workflow: new FieldGroupingWorkflow(deps),
     updates,
     deleted,
+    addedTags,
     rememberedMerges,
     statuses,
     mergeCalls,
@@ -143,6 +149,31 @@ test('FieldGroupingWorkflow auto merge updates keep note and deletes duplicate b
   assert.deepEqual(harness.deleted, [[2]]);
   assert.deepEqual(harness.rememberedMerges, [{ deletedNoteId: 2, keptNoteId: 1 }]);
   assert.equal(harness.statuses.length, 1);
+});
+
+test('FieldGroupingWorkflow merges source tags into target and filters special source tags', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.client.notesInfo = async (noteIds: number[]) =>
+    noteIds.map((noteId) => ({
+      noteId,
+      fields: {
+        Expression: { value: `word-${noteId}` },
+        Sentence: { value: `line-${noteId}` },
+      },
+      tags:
+        noteId === 1 ? ['kinkoi', 'marked'] : ['SubMiner', 'marked', 'leech', 'potential_leech'],
+    }));
+
+  await harness.workflow.handleAuto(1, 2, {
+    noteId: 2,
+    fields: {
+      Expression: { value: 'word-2' },
+      Sentence: { value: 'line-2' },
+    },
+    tags: ['SubMiner', 'marked', 'leech', 'potential_leech'],
+  });
+
+  assert.deepEqual(harness.addedTags, [{ noteIds: [1], tags: ['SubMiner'] }]);
 });
 
 test('FieldGroupingWorkflow manual mode returns false when callback unavailable', async () => {

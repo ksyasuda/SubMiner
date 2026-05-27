@@ -1205,6 +1205,12 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   );
   assert.match(primaryHoverVisibleBlock, /opacity:\s*1;/);
 
+  const primaryHoverYomitanPopupVisibleBlock = extractClassBlock(
+    cssText,
+    'body.primary-sub-visible-on-yomitan-popup #subtitleContainer.primary-sub-hover',
+  );
+  assert.match(primaryHoverYomitanPopupVisibleBlock, /opacity:\s*1;/);
+
   const secondaryEmbeddedHoverBlock = extractClassBlock(
     cssText,
     'body.subtitle-sidebar-embedded-open #secondarySubContainer.secondary-sub-hover',

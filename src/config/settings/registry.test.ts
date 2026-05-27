@@ -15,6 +15,8 @@ test('settings registry splits viewing into appearance and behavior categories',
   assert.equal(field('subtitleStyle.fontSize').category, 'appearance');
   assert.equal(field('subtitleStyle.primaryDefaultMode').category, 'behavior');
   assert.equal(field('subtitleStyle.primaryDefaultMode').section, 'Subtitle Behavior');
+  assert.equal(field('subtitleStyle.primaryVisibleOnYomitanPopup').category, 'behavior');
+  assert.equal(field('subtitleStyle.primaryVisibleOnYomitanPopup').section, 'Subtitle Behavior');
   assert.equal(field('secondarySub.defaultMode').category, 'behavior');
   assert.equal(field('subtitlePosition.yPercent').label, 'Subtitle Position');
   assert.equal(field('subtitleStyle.frequencyDictionary.mode').label, 'Frequency Mode');
@@ -28,7 +30,14 @@ test('settings registry splits viewing into appearance and behavior categories',
   assert.equal(field('mpv.profile').section, 'mpv Playback');
   assert.ok(
     fields.findIndex((candidate) => candidate.configPath === 'subtitleStyle.primaryDefaultMode') <
-      fields.findIndex((candidate) => candidate.configPath === 'secondarySub.defaultMode'),
+      fields.findIndex(
+        (candidate) => candidate.configPath === 'subtitleStyle.primaryVisibleOnYomitanPopup',
+      ),
+  );
+  assert.ok(
+    fields.findIndex(
+      (candidate) => candidate.configPath === 'subtitleStyle.primaryVisibleOnYomitanPopup',
+    ) < fields.findIndex((candidate) => candidate.configPath === 'secondarySub.defaultMode'),
   );
 });
 

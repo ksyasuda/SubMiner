@@ -113,6 +113,7 @@ import type {
   SecondarySubMode,
   SubtitleCue,
   SubtitleData,
+  SubtitleMiningContext,
   SubtitlePosition,
   UpdateChannel,
   WindowGeometry,
@@ -730,8 +731,7 @@ const isDev = process.argv.includes('--dev') || process.argv.includes('--debug')
 const texthookerService = new Texthooker(() => {
   const config = getResolvedConfig();
   const characterDictionaryEnabled =
-    config.subtitleStyle.nameMatchEnabled &&
-    yomitanProfilePolicy.isCharacterDictionaryEnabled();
+    config.subtitleStyle.nameMatchEnabled && yomitanProfilePolicy.isCharacterDictionaryEnabled();
   const knownWordColoringEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.knownWords.highlightEnabled',
     config.ankiConnect.knownWords.highlightEnabled,
@@ -908,6 +908,7 @@ const {
   appState,
   appLifecycleApp,
 } = bootServices;
+let pendingSubtitleMiningContext: SubtitleMiningContext | null = null;
 const configSettingsFields = buildConfigSettingsRegistry(DEFAULT_CONFIG);
 notifyAnilistTokenStoreWarning = (message: string) => {
   logger.warn(`[AniList] ${message}`);
@@ -2181,6 +2182,9 @@ const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHos
     setResolver: (resolver) => setFieldGroupingResolver(resolver),
     getRestoreVisibleOverlayOnModalClose: () =>
       overlayModalRuntime.getRestoreVisibleOverlayOnModalClose(),
+    waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
+    handleOverlayModalClosed: (modal) => overlayModalRuntime.handleOverlayModalClosed(modal),
+    logWarn: (message) => logger.warn(message),
     sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
       overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
   })(),
@@ -4190,6 +4194,14 @@ const immersionTrackerStartupMainDeps: Parameters<
 const createImmersionTrackerStartup = createImmersionTrackerStartupHandler(
   createBuildImmersionTrackerStartupMainDepsHandler(immersionTrackerStartupMainDeps)(),
 );
+const recordSubtitleMiningContext = (context: SubtitleMiningContext | null): void => {
+  pendingSubtitleMiningContext = context;
+};
+const consumePendingSubtitleMiningContext = (): SubtitleMiningContext | null => {
+  const context = pendingSubtitleMiningContext;
+  pendingSubtitleMiningContext = null;
+  return context;
+};
 const recordTrackedCardsMined = (count: number, noteIds?: number[]): void => {
   ensureImmersionTrackerStarted();
   appState.immersionTracker?.recordCardsMined(count, noteIds);
@@ -5153,6 +5165,7 @@ function initializeOverlayRuntime(): void {
   appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(
     refreshCurrentSubtitleAfterKnownWordUpdate,
   );
+  appState.ankiIntegration?.setSubtitleMiningContextConsumer(consumePendingSubtitleMiningContext);
   syncOverlayMpvSubtitleSuppression();
 }
 
@@ -5948,6 +5961,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       },
       onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
       openYomitanSettings: () => openYomitanSettings(),
+      recordSubtitleMiningContext: (context) => recordSubtitleMiningContext(context),
       quitApp: () => requestAppQuit(),
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
       tokenizeCurrentSubtitle: async () => {
@@ -6197,6 +6211,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
         appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(
           refreshCurrentSubtitleAfterKnownWordUpdate,
+        );
+        appState.ankiIntegration?.setSubtitleMiningContextConsumer(
+          consumePendingSubtitleMiningContext,
         );
       },
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),

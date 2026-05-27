@@ -580,7 +580,7 @@ registerModalOpenHandlers();
 registerKeyboardCommandHandlers();
 registerYomitanLookupListener(window, () => {
   runGuarded('yomitan:lookup', () => {
-    window.electronAPI.recordYomitanLookup();
+    window.electronAPI.recordYomitanLookup(subtitleSidebarModal.getSubtitleSidebarMiningContext());
   });
 });
 

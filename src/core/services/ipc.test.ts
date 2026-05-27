@@ -630,6 +630,83 @@ test('registerIpcHandlers forwards yomitan lookup tracking commands to immersion
   assert.deepEqual(calls, ['lookup']);
 });
 
+test('registerIpcHandlers forwards valid subtitle sidebar mining context', () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const contexts: unknown[] = [];
+  const deps = createRegisterIpcDeps() as IpcServiceDeps & {
+    recordSubtitleMiningContext: (context: unknown | null) => void;
+  };
+  deps.recordSubtitleMiningContext = (context) => {
+    contexts.push(context);
+  };
+
+  registerIpcHandlers(deps, registrar);
+
+  const handler = handlers.on.get(IPC_CHANNELS.command.recordYomitanLookup);
+  assert.equal(typeof handler, 'function');
+
+  handler?.(
+    {},
+    {
+      source: 'subtitle-sidebar',
+      text: 'sidebar previous line',
+      startTime: 10,
+      endTime: 12,
+      capturedAtMs: 123,
+    },
+  );
+
+  assert.deepEqual(contexts, [
+    {
+      source: 'subtitle-sidebar',
+      text: 'sidebar previous line',
+      startTime: 10,
+      endTime: 12,
+      capturedAtMs: 123,
+    },
+  ]);
+});
+
+test('registerIpcHandlers records yomitan lookup when subtitle context recording fails', () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: string[] = [];
+  const warnings: unknown[][] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args);
+  };
+  const deps = createRegisterIpcDeps({
+    immersionTracker: createFakeImmersionTracker({
+      recordYomitanLookup: () => {
+        calls.push('lookup');
+      },
+    }),
+  }) as IpcServiceDeps & {
+    recordSubtitleMiningContext: (context: unknown | null) => void;
+  };
+  deps.recordSubtitleMiningContext = () => {
+    throw new Error('context write failed');
+  };
+
+  try {
+    registerIpcHandlers(deps, registrar);
+
+    const handler = handlers.on.get(IPC_CHANNELS.command.recordYomitanLookup);
+    assert.equal(typeof handler, 'function');
+
+    assert.doesNotThrow(() => {
+      handler?.({}, { source: 'subtitle-sidebar', text: 'line', startTime: 1, endTime: 2 });
+    });
+
+    assert.deepEqual(calls, ['lookup']);
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0]?.[0], 'Failed to record subtitle mining context:');
+    assert.equal(warnings[0]?.[1], 'context write failed');
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
 test('registerIpcHandlers returns empty stats overview shape without a tracker', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   registerIpcHandlers(createRegisterIpcDeps(), registrar);

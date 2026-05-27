@@ -168,6 +168,7 @@ const PATH_ORDER = new Map<string, number>(
     'subtitleStyle.hoverTokenBackgroundColor',
     'subtitleStyle.css',
     'subtitleStyle.primaryDefaultMode',
+    'subtitleStyle.primaryVisibleOnYomitanPopup',
     'subtitleStyle.secondary.fontColor',
     'subtitleStyle.secondary.backgroundColor',
     'subtitleStyle.secondary.css',
@@ -218,6 +219,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'subtitleSidebar.pauseVideoOnHover': 'Pause Video On Hover - Sidebar',
   'subtitleStyle.autoPauseVideoOnHover': 'Pause Video On Hover - Subtitles',
   'subtitleStyle.autoPauseVideoOnYomitanPopup': 'Pause Video On Yomitan Popup',
+  'subtitleStyle.primaryVisibleOnYomitanPopup': 'Keep Primary Visible On Yomitan Popup',
   'subtitleStyle.primaryDefaultMode': 'Primary Subtitle Visibility Mode',
   'subtitleStyle.frequencyDictionary.mode': 'Frequency Mode',
   'subtitleStyle.css': 'CSS Declarations',
@@ -251,6 +253,8 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
     'CSS declarations applied to secondary subtitles. Includes color, background-color, and all font properties.',
   'subtitleSidebar.css':
     'CSS declarations applied to the subtitle sidebar. Includes color, background-color, all font properties, and sidebar CSS variables.',
+  'subtitleStyle.primaryVisibleOnYomitanPopup':
+    'When primary subtitles are in hover mode, keep the primary subtitle bar visible while a Yomitan popup is open.',
   'websocket.enabled':
     'Built-in subtitle WebSocket server mode. Auto starts the built-in server only when mpv_websocket is not detected; otherwise it defers to the plugin.',
   'discordPresence.updateIntervalMs':
@@ -359,7 +363,10 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (path.startsWith('subtitleStyle.secondary.')) {
     return { category: 'appearance', section: 'Secondary Subtitle Appearance' };
   }
-  if (path === 'subtitleStyle.primaryDefaultMode') {
+  if (
+    path === 'subtitleStyle.primaryDefaultMode' ||
+    path === 'subtitleStyle.primaryVisibleOnYomitanPopup'
+  ) {
     return { category: 'behavior', section: 'Subtitle Behavior' };
   }
   if (path.startsWith('subtitleStyle.')) {
@@ -603,6 +610,7 @@ function isFeatureToggle(field: ConfigSettingsField): boolean {
 }
 
 function fieldTypeRank(field: ConfigSettingsField): number {
+  if (field.configPath === 'subtitleStyle.primaryVisibleOnYomitanPopup') return 2;
   if (field.control !== 'boolean') return 2;
   return isFeatureToggle(field) ? 0 : 1;
 }

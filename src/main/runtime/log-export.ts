@@ -11,6 +11,7 @@ type LogCandidate = {
   mtimeMs: number;
   mtimeDateKey: string;
   fileDateKey: string | null;
+  fileWeekKey: string | null;
 };
 
 export type ExportLogsResult = {
@@ -38,8 +39,19 @@ function localDateKey(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+function localWeekKey(date: Date): string {
+  const startOfYear = new Date(date.getFullYear(), 0, 1);
+  const dayOfYear =
+    Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  return `${date.getFullYear()}-W${pad(Math.max(1, Math.ceil(dayOfYear / 7)))}`;
+}
+
 function filenameDateKey(fileName: string): string | null {
   return fileName.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? null;
+}
+
+function filenameWeekKey(fileName: string): string | null {
+  return fileName.match(/\d{4}-W\d{2}/)?.[0] ?? null;
 }
 
 function fileKind(fileName: string): string {
@@ -84,6 +96,7 @@ function buildCandidate(logsDir: string, entry: string): LogCandidate | null {
     mtimeMs: stats.mtimeMs,
     mtimeDateKey: localDateKey(stats.mtime),
     fileDateKey: filenameDateKey(entry),
+    fileWeekKey: filenameWeekKey(entry),
   };
 }
 
@@ -117,6 +130,14 @@ function candidateFreshnessMs(candidate: LogCandidate): number {
   if (candidate.fileDateKey) {
     return Date.parse(`${candidate.fileDateKey}T23:59:59.999Z`);
   }
+  if (candidate.fileWeekKey) {
+    const match = candidate.fileWeekKey.match(/^(\d{4})-W(\d{2})$/);
+    if (match) {
+      const year = Number(match[1]);
+      const week = Number(match[2]);
+      return Date.UTC(year, 0, week * 7, 23, 59, 59, 999);
+    }
+  }
   return candidate.mtimeMs;
 }
 
@@ -128,6 +149,12 @@ function selectLogCandidates(
   const currentDated = candidates.filter((candidate) => candidate.fileDateKey === today);
   if (currentDated.length > 0) {
     return { mode: 'current-day', selected: currentDated };
+  }
+
+  const currentWeek = localWeekKey(now);
+  const currentWeekly = candidates.filter((candidate) => candidate.fileWeekKey === currentWeek);
+  if (currentWeekly.length > 0) {
+    return { mode: 'current-day', selected: currentWeekly };
   }
 
   const currentUndated = candidates.filter(

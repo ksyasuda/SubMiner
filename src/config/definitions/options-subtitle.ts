@@ -58,6 +58,13 @@ export function buildSubtitleConfigOptionRegistry(
         'Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes.',
     },
     {
+      path: 'subtitleStyle.primaryVisibleOnYomitanPopup',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleStyle.primaryVisibleOnYomitanPopup,
+      description:
+        'Keep the primary subtitle bar visible while a Yomitan popup is open when primary subtitles are in hover mode.',
+    },
+    {
       path: 'subtitleStyle.hoverTokenColor',
       kind: 'string',
       defaultValue: defaultConfig.subtitleStyle.hoverTokenColor,
