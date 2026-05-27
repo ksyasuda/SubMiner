@@ -6,12 +6,19 @@ import test from 'node:test';
 
 const {
   LINUX_FFMPEG_LIBRARY,
+  MACOS_WINDOW_HELPER,
   default: afterPack,
   stageLinuxAppImageSharedLibrary,
+  verifyMacOSWindowHelper,
 } = require('./electron-builder-after-pack.cjs') as {
   LINUX_FFMPEG_LIBRARY: string;
+  MACOS_WINDOW_HELPER: string;
   default: (context: { appOutDir: string; electronPlatformName: string }) => Promise<void>;
   stageLinuxAppImageSharedLibrary: (context: {
+    appOutDir: string;
+    electronPlatformName: string;
+  }) => Promise<boolean>;
+  verifyMacOSWindowHelper: (context: {
     appOutDir: string;
     electronPlatformName: string;
   }) => Promise<boolean>;
@@ -60,6 +67,53 @@ test('stageLinuxAppImageSharedLibrary skips non-Linux packaging contexts', async
 
     assert.equal(staged, false);
     assert.equal(fs.existsSync(targetLibraryPath), false);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('verifyMacOSWindowHelper accepts packaged macOS helper binary', async () => {
+  const workspace = createWorkspace('subminer-after-pack-macos-helper');
+  const appOutDir = path.join(workspace, 'SubMiner-darwin-arm64');
+  const helperPath = path.join(
+    appOutDir,
+    'SubMiner.app',
+    'Contents',
+    'Resources',
+    'scripts',
+    MACOS_WINDOW_HELPER,
+  );
+
+  fs.mkdirSync(path.dirname(helperPath), { recursive: true });
+  fs.writeFileSync(helperPath, 'compiled helper', 'utf8');
+  fs.chmodSync(helperPath, 0o755);
+
+  try {
+    const verified = await verifyMacOSWindowHelper({
+      appOutDir,
+      electronPlatformName: 'darwin',
+    });
+
+    assert.equal(verified, true);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('verifyMacOSWindowHelper throws when macOS helper binary is missing', async () => {
+  const workspace = createWorkspace('subminer-after-pack-macos-helper-missing');
+  const appOutDir = path.join(workspace, 'SubMiner-darwin-arm64');
+
+  fs.mkdirSync(path.join(appOutDir, 'SubMiner.app', 'Contents', 'Resources'), { recursive: true });
+
+  try {
+    await assert.rejects(
+      verifyMacOSWindowHelper({
+        appOutDir,
+        electronPlatformName: 'darwin',
+      }),
+      /macOS packaging requires get-mpv-window-macos/,
+    );
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }

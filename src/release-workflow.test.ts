@@ -190,6 +190,14 @@ test('release packaging stages generated launcher as an app resource', () => {
   assert.match(packageJson.scripts['build:launcher'] ?? '', /--banner='#!\/usr\/bin\/env bun'/);
 });
 
+test('release packaging does not reference removed Windows window helper script', () => {
+  assert.ok(
+    !(packageJson.build?.extraResources ?? []).some((resource) =>
+      [resource.from, resource.to].some((value) => value?.includes('get-mpv-window-windows.ps1')),
+    ),
+  );
+});
+
 test('Makefile clean preserves committed prerelease notes', () => {
   assert.match(makefile, /PRERELEASE_NOTES_BACKUP/);
   assert.match(makefile, /release\/prerelease-notes\.md/);
