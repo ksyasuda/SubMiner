@@ -89,7 +89,7 @@
       "rightStickPress": 10, // Raw button index used for controller R3 input.
       "leftTrigger": 6, // Raw button index used for controller L2 input.
       "rightTrigger": 7 // Raw button index used for controller R2 input.
-    }, // Semantic button-name reference mapping used for legacy configs and debug output. Updating it does not rewrite existing raw binding descriptors.
+    }, // Semantic button-name reference mapping used for debug output. Updating it does not rewrite existing raw binding descriptors.
     "bindings": {
       "toggleLookup": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
@@ -531,7 +531,7 @@
       "refreshMinutes": 1440, // Minutes between known-word cache refreshes.
       "addMinedWordsImmediately": true, // Immediately append newly mined card words into the known-word cache. Values: true | false
       "matchMode": "headword", // Known-word matching strategy for subtitle annotations. Cache matches always receive known-word highlighting even when POS filters suppress other annotation types. Values: headword | surface
-      "decks": {} // Decks and fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word", "Word Reading"] }.
+      "decks": {} // Decks and expression/word fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word"] }.
     }, // Known words setting.
     "behavior": {
       "overwriteAudio": true, // When updating an existing card, overwrite the audio field instead of skipping it. Values: true | false
@@ -594,9 +594,7 @@
     "enabled": false, // Enable AniList post-watch progress updates. Values: true | false
     "accessToken": "", // Optional explicit AniList access token override; leave empty to use locally stored token from setup.
     "characterDictionary": {
-      "refreshTtlHours": 168, // Legacy setting; merged character dictionary retention is now usage-based and this value is ignored.
       "maxLoaded": 3, // Maximum number of most-recently-used anime snapshots included in the merged Yomitan character dictionary.
-      "evictionPolicy": "delete", // Legacy setting; merged character dictionary eviction is usage-based and this value is ignored. Values: disable | delete
       "profileScope": "all", // Yomitan profile scope for character dictionary settings updates. Values: all | active
       "collapsibleSections": {
         "description": false, // Open the Description section by default in character dictionary glossary entries. Values: true | false

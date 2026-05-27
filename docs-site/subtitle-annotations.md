@@ -12,7 +12,7 @@ N+1 highlighting identifies sentences where you know every word except one, maki
 
 **How it works:**
 
-1. SubMiner queries your Anki decks for existing `Expression` / `Word` field values.
+1. SubMiner queries your configured Anki decks for expression/word fields such as `Expression` or `Word`.
 2. The results are cached locally (`known-words-cache.json`) and refreshed on a configurable interval.
 3. When a subtitle line appears, each token is checked against the cache.
 4. If exactly one unknown word remains in the sentence, it is highlighted with `subtitleStyle.nPlusOneColor` (default: `#c6a0f6`).
@@ -24,12 +24,14 @@ N+1 highlighting identifies sentences where you know every word except one, maki
 | ----------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ankiConnect.knownWords.highlightEnabled` | `false`      | Enable known-word cache lookups used by N+1 highlighting                                                                                                      |
 | `ankiConnect.knownWords.refreshMinutes`   | `1440`       | Minutes between Anki cache refreshes                                                                                                                          |
-| `ankiConnect.knownWords.decks`            | `{}`         | Deck→fields map for known-word cache queries (legacy fallback: `ankiConnect.deck`)                                                                            |
+| `ankiConnect.knownWords.decks`            | `{}`         | Deck→fields map for known-word cache queries                                                                                                                  |
 | `ankiConnect.knownWords.matchMode`        | `"headword"` | `"headword"` (dictionary form) or `"surface"` (raw text)                                                                                                      |
-| `ankiConnect.nPlusOne.enabled`            | `false`      | Enable N+1 target highlighting. Existing configs with known-word highlighting enabled are treated as enabled for compatibility unless this is explicitly set. |
+| `ankiConnect.nPlusOne.enabled`            | `false`      | Enable N+1 target highlighting                                                                                                                               |
 | `ankiConnect.nPlusOne.minSentenceWords`   | `3`          | Minimum tokens in a sentence for N+1 to trigger                                                                                                               |
 | `subtitleStyle.nPlusOneColor`             | `#c6a0f6`    | Color for the single unknown target word                                                                                                                      |
 | `subtitleStyle.knownWordColor`            | `#a6da95`    | Color for already-known tokens                                                                                                                                |
+
+Prefer expression/word fields for `ankiConnect.knownWords.decks`. Reading-only fields can mark unrelated homophones as known, so only include them when that tradeoff is intentional.
 
 ::: tip
 Set `refreshMinutes` to `1440` (24 hours) for daily sync if your Anki collection is large.

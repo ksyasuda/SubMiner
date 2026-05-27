@@ -188,7 +188,7 @@ export function buildCoreConfigOptionRegistry(
       kind: 'object',
       defaultValue: defaultConfig.controller.buttonIndices,
       description:
-        'Semantic button-name reference mapping used for legacy configs and debug output. Updating it does not rewrite existing raw binding descriptors.',
+        'Semantic button-name reference mapping used for debug output. Updating it does not rewrite existing raw binding descriptors.',
     },
     {
       path: 'controller.buttonIndices.select',

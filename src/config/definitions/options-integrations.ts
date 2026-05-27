@@ -304,7 +304,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'object',
       defaultValue: defaultConfig.ankiConnect.knownWords.decks,
       description:
-        'Decks and fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word", "Word Reading"] }.',
+        'Decks and expression/word fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word"] }.',
     },
     {
       path: 'ankiConnect.isKiku.fieldGrouping',
@@ -393,26 +393,11 @@ export function buildIntegrationConfigOptionRegistry(
         'Optional explicit AniList access token override; leave empty to use locally stored token from setup.',
     },
     {
-      path: 'anilist.characterDictionary.refreshTtlHours',
-      kind: 'number',
-      defaultValue: defaultConfig.anilist.characterDictionary.refreshTtlHours,
-      description:
-        'Legacy setting; merged character dictionary retention is now usage-based and this value is ignored.',
-    },
-    {
       path: 'anilist.characterDictionary.maxLoaded',
       kind: 'number',
       defaultValue: defaultConfig.anilist.characterDictionary.maxLoaded,
       description:
         'Maximum number of most-recently-used anime snapshots included in the merged Yomitan character dictionary.',
-    },
-    {
-      path: 'anilist.characterDictionary.evictionPolicy',
-      kind: 'enum',
-      enumValues: ['disable', 'delete'],
-      defaultValue: defaultConfig.anilist.characterDictionary.evictionPolicy,
-      description:
-        'Legacy setting; merged character dictionary eviction is usage-based and this value is ignored.',
     },
     {
       path: 'anilist.characterDictionary.profileScope',
@@ -664,54 +649,6 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'number',
       defaultValue: defaultConfig.ai.requestTimeoutMs,
       description: 'Timeout in milliseconds for shared AI provider requests.',
-    },
-    {
-      path: 'youtubeSubgen.whisperBin',
-      kind: 'string',
-      defaultValue: defaultConfig.youtubeSubgen.whisperBin,
-      description:
-        'Legacy compatibility path kept for external subtitle fallback tools; not used by default.',
-    },
-    {
-      path: 'youtubeSubgen.whisperModel',
-      kind: 'string',
-      defaultValue: defaultConfig.youtubeSubgen.whisperModel,
-      description:
-        'Legacy compatibility model path kept for external subtitle fallback tooling; not used by default.',
-    },
-    {
-      path: 'youtubeSubgen.whisperVadModel',
-      kind: 'string',
-      defaultValue: defaultConfig.youtubeSubgen.whisperVadModel,
-      description:
-        'Legacy compatibility VAD path kept for external subtitle fallback tooling; not used by default.',
-    },
-    {
-      path: 'youtubeSubgen.whisperThreads',
-      kind: 'number',
-      defaultValue: defaultConfig.youtubeSubgen.whisperThreads,
-      description: 'Legacy thread tuning for subtitle fallback tooling; not used by default.',
-    },
-    {
-      path: 'youtubeSubgen.fixWithAi',
-      kind: 'boolean',
-      defaultValue: defaultConfig.youtubeSubgen.fixWithAi,
-      description:
-        'Legacy subtitle fallback post-processing switch kept for compatibility; use is currently disabled by default.',
-    },
-    {
-      path: 'youtubeSubgen.ai.model',
-      kind: 'string',
-      defaultValue: defaultConfig.youtubeSubgen.ai.model,
-      description:
-        'Optional model override for legacy subtitle fallback post-processing; not used by default.',
-    },
-    {
-      path: 'youtubeSubgen.ai.systemPrompt',
-      kind: 'string',
-      defaultValue: defaultConfig.youtubeSubgen.ai.systemPrompt,
-      description:
-        'Optional system prompt override for legacy subtitle fallback post-processing; not used by default.',
     },
   ];
 }

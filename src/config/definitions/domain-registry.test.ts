@@ -35,9 +35,7 @@ function collectConfigLeafPaths(config: ResolvedConfig): string[] {
 }
 
 // DEFAULT_CONFIG leaves that intentionally do not have a curated
-// CONFIG_OPTION_REGISTRY entry. The generated config.example.jsonc still
-// includes these paths, but their inline comments fall back to an auto-
-// humanized key name instead of a written description.
+// CONFIG_OPTION_REGISTRY entry.
 //
 // Current intentional gaps:
 //   - subtitleStyle.*: thin wrappers around standard CSS properties; the
@@ -49,6 +47,8 @@ function collectConfigLeafPaths(config: ResolvedConfig): string[] {
 // an allowlist entry. Only allowlist a path when the registry is genuinely
 // the wrong surface for it.
 const UNDOCUMENTED_LEAVES: ReadonlySet<string> = new Set([
+  'anilist.characterDictionary.evictionPolicy',
+  'anilist.characterDictionary.refreshTtlHours',
   'keybindings',
   'subtitleStyle.backdropFilter',
   'subtitleStyle.backgroundColor',
@@ -85,6 +85,13 @@ const UNDOCUMENTED_LEAVES: ReadonlySet<string> = new Set([
   'subtitleStyle.textShadow',
   'subtitleStyle.WebkitTextStroke',
   'subtitleStyle.wordSpacing',
+  'youtubeSubgen.ai.model',
+  'youtubeSubgen.ai.systemPrompt',
+  'youtubeSubgen.fixWithAi',
+  'youtubeSubgen.whisperBin',
+  'youtubeSubgen.whisperModel',
+  'youtubeSubgen.whisperThreads',
+  'youtubeSubgen.whisperVadModel',
 ]);
 
 test('config option registry includes critical paths and has unique entries', () => {
