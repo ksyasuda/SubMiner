@@ -21,7 +21,7 @@ For most users, start with this minimal configuration:
     "deck": "YourDeckName",
     "knownWords": {
       "decks": {
-        "YourDeckName": ["Word", "Word Reading", "Expression"]
+        "YourDeckName": ["Word"]
       }
     },
     "fields": {
@@ -33,7 +33,7 @@ For most users, start with this minimal configuration:
 }
 ```
 
-`ankiConnect.deck` is still accepted for backward-compatible polling scope and legacy known-word fallback behavior. For known-word cache scope, prefer `ankiConnect.knownWords.decks` with deck-to-fields mapping.
+Use the known-word deck map to choose which Anki decks and note fields feed the known-word cache.
 
 Then customize as needed using the sections below.
 
@@ -54,7 +54,7 @@ The Settings window groups options by workflow instead of mirroring the raw conf
 
 Each field still writes to its current `config.jsonc` path. For example, subtitle hover pause appears under **Behavior** / playback behavior, but saves to `subtitleStyle.autoPauseVideoOnHover`. Anki-aware fields can query AnkiConnect for deck names, note types, and field names, and keybinding fields use click-to-learn controls instead of raw text boxes.
 
-The Settings window preserves existing JSONC comments, trailing commas, unrelated keys, and unsupported legacy options. Resetting a field removes the explicit config path so the built-in default applies.
+The Settings window preserves existing JSONC comments, trailing commas, and unrelated keys. Resetting a field removes the explicit config path so the built-in default applies.
 
 Secret fields do not display stored values. They show whether a value is configured; entering a new value writes it, and reset clears the explicit path. Prefer command-based secret options such as `ai.apiKeyCommand` when available.
 
@@ -94,35 +94,10 @@ On macOS, these validation warnings also open a native dialog with full details 
 
 SubMiner watches the active config file (`config.jsonc` or `config.json`) while running and applies supported updates automatically.
 
-Hot-reloadable fields:
-
-- `subtitleStyle`
-- `subtitleSidebar`
-- `keybindings`
-- `shortcuts`
-- `secondarySub.defaultMode`
-- `stats.toggleKey`
-- `stats.markWatchedKey`
-- `logging.level`
-- `youtube.primarySubLanguages`
-- `jimaku.*`
-- `subsync.*`
-- `ankiConnect.ai.enabled`
-- `ankiConnect.behavior.autoUpdateNewCards`
-- `ankiConnect.knownWords.highlightEnabled`
-- `ankiConnect.knownWords.refreshMinutes`
-- `ankiConnect.knownWords.addMinedWordsImmediately`
-- `ankiConnect.knownWords.matchMode`
-- `ankiConnect.knownWords.decks`
-- `ankiConnect.nPlusOne.enabled`
-- `ankiConnect.nPlusOne.minSentenceWords`
-- `ankiConnect.fields.word`
-- `ankiConnect.fields.audio`
-- `ankiConnect.fields.image`
-- `ankiConnect.fields.sentence`
-- `ankiConnect.fields.miscInfo`
-- `ankiConnect.isLapis.sentenceCardModel`
-- `ankiConnect.isKiku.fieldGrouping`
+Hot-reloadable settings include subtitle appearance, sidebar controls, keybindings,
+logging level, selected source-language preferences, Jimaku/Subsync settings, and
+the Anki known-word, N+1, field, sentence-card, and Kiku options listed in the
+reference tables below.
 
 When these values change, SubMiner applies them live. Invalid config edits are rejected and the previous valid runtime config remains active.
 
@@ -175,7 +150,7 @@ The configuration file includes several main sections:
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
 - [**Subtitle Sync**](#subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
 - [**AniList**](#anilist) - Optional post-watch progress updates
-- [**Yomitan**](#yomitan) - Reuse an external read-only Yomitan profile via `yomitan.externalProfilePath`
+- [**Yomitan**](#yomitan) - Reuse an external read-only Yomitan profile
 - [**Jellyfin**](#jellyfin) - Optional Jellyfin auth, library listing, and playback launch
 - [**Discord Rich Presence**](#discord-rich-presence) - Optional Discord activity card updates
 - [**Immersion Tracking**](#immersion-tracking) - Track subtitle sessions and mining activity in SQLite
@@ -229,7 +204,7 @@ Configure automatic update checks and update notifications:
 
 | Option               | Values                                        | Description                                                                                         |
 | -------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `enabled`            | `true`, `false`                               | Enable automatic background update checks. Manual tray and `subminer -u` checks are always allowed. |
+| `updates.enabled`    | `true`, `false`                               | Enable automatic background update checks. Manual tray and `subminer -u` checks are always allowed. |
 | `checkIntervalHours` | number                                        | Minimum hours between automatic update checks. Default `24`.                                        |
 | `notificationType`   | `"system"` \| `"osd"` \| `"both"` \| `"none"` | How SubMiner announces available updates. Default `"system"`.                                       |
 | `channel`            | `"stable"` \| `"prerelease"`                  | Release channel used for update checks. Use `"prerelease"` to test beta/RC releases.                |
@@ -299,8 +274,8 @@ See `config.example.jsonc` for detailed configuration options.
 
 | Option    | Values                    | Description                                         |
 | --------- | ------------------------- | --------------------------------------------------- |
-| `enabled` | `true`, `false`, `"auto"` | Built-in subtitle websocket mode (default: `false`) |
-| `port`    | number                    | WebSocket server port (default: 6677)               |
+| `websocket.enabled` | `true`, `false`, `"auto"` | Built-in subtitle websocket mode (default: `false`) |
+| `websocket.port`    | number                    | WebSocket server port (default: 6677)               |
 
 ### Annotation WebSocket
 
@@ -319,8 +294,8 @@ This stream includes subtitle text plus token metadata (N+1, known-word, frequen
 
 | Option    | Values          | Description                                                    |
 | --------- | --------------- | -------------------------------------------------------------- |
-| `enabled` | `true`, `false` | Toggle annotated websocket stream (independent of `websocket`) |
-| `port`    | number          | Annotation websocket port (default: 6678)                      |
+| `annotationWebsocket.enabled` | `true`, `false` | Toggle annotated websocket stream (independent of `websocket`) |
+| `annotationWebsocket.port`    | number          | Annotation websocket port (default: 6678)                      |
 
 ### Texthooker
 
@@ -353,10 +328,10 @@ See `config.example.jsonc` for detailed configuration options.
 ```json
 {
   "subtitleStyle": {
-    "fontColor": "#cad3f5",
-    "backgroundColor": "transparent",
     "css": {
       "font-family": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP",
+      "color": "#cad3f5",
+      "background-color": "transparent",
       "font-size": "35px",
       "font-weight": "600",
       "line-height": "1.35",
@@ -366,13 +341,15 @@ See `config.example.jsonc` for detailed configuration options.
       "text-rendering": "geometricPrecision",
       "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)",
       "font-style": "normal",
-      "backdrop-filter": "blur(6px)"
+      "backdrop-filter": "blur(6px)",
+      "--subtitle-hover-token-color": "#f4dbd6",
+      "--subtitle-hover-token-background-color": "transparent"
     },
     "secondary": {
-      "fontColor": "#cad3f5",
-      "backgroundColor": "transparent",
       "css": {
         "font-family": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP",
+        "color": "#cad3f5",
+        "background-color": "transparent",
         "font-size": "24px",
         "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)"
       }
@@ -381,49 +358,47 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option                             | Values      | Description                                                                                                                          |
-| ---------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `fontFamily`                       | string      | CSS font-family value (default: `"Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP"`)                                   |
-| `fontSize`                         | number (px) | Font size in pixels (default: `35`)                                                                                                  |
-| `fontColor`                        | string      | Any CSS color value (default: `"#cad3f5"`)                                                                                           |
-| `css`                              | object      | CSS declarations applied to subtitles after normal style defaults; the settings window writes textbox edits here                     |
-| `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"600"`)                                                               |
-| `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                                       |
-| `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"transparent"`)                                                                  |
-| `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                                             |
-| `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.                   |
-| `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                           |
-| `autoPauseVideoOnYomitanPopup`     | boolean     | Pause playback while the Yomitan popup is open, then resume when the popup closes (`true` by default).                               |
-| `hoverTokenColor`                  | string      | Hex color used for hovered subtitle token highlight in mpv (default: catppuccin mauve)                                               |
-| `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight (default: `"transparent"`); `hoverBackground` is accepted as an alias |
-| `nameMatchEnabled`                 | boolean     | Enable character dictionary sync and subtitle token coloring for character-name matches (`false` by default)                         |
-| `nameMatchImagesEnabled`           | boolean     | Show small cached AniList character portraits beside matched character-name tokens (`false` by default)                              |
-| `nameMatchColor`                   | string      | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                               |
-| `knownWordColor`                   | string      | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                               |
-| `nPlusOneColor`                    | string      | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                                     |
-| `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                                           |
-| `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths.           |
-| `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                                              |
-| `frequencyDictionary.mode`         | string      | `"single"` or `"banded"` (`"single"` by default)                                                                                     |
-| `frequencyDictionary.matchMode`    | string      | `"headword"` or `"surface"` (`"headword"` by default)                                                                                |
-| `frequencyDictionary.singleColor`  | string      | Color used for all highlighted tokens in single mode                                                                                 |
-| `frequencyDictionary.bandedColors` | string[]    | Array of five hex colors used for ranked bands in banded mode                                                                        |
-| `jlptColors`                       | object      | JLPT level underline colors object (`N1`..`N5`)                                                                                      |
-| `secondary`                        | object      | Override any of the above for secondary subtitles (optional), including `secondary.css` declarations                                 |
+| Option                             | Values  | Description                                                                                                                          |
+| ---------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `subtitleStyle.css`                | object  | CSS declaration object applied to primary subtitles after normal style defaults. Use CSS property names such as `font-size`.         |
+| `secondary.css`                    | object  | CSS declaration object applied to secondary subtitles after normal secondary style defaults.                                          |
+| `enableJlpt`                       | boolean | Enable JLPT level underline styling (`false` by default)                                                                             |
+| `preserveLineBreaks`               | boolean | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.                   |
+| `autoPauseVideoOnHover`            | boolean | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                           |
+| `autoPauseVideoOnYomitanPopup`     | boolean | Pause playback while the Yomitan popup is open, then resume when the popup closes (`true` by default).                               |
+| `nameMatchEnabled`                 | boolean | Enable character dictionary sync and subtitle token coloring for character-name matches (`false` by default)                         |
+| `nameMatchImagesEnabled`           | boolean | Show small cached AniList character portraits beside matched character-name tokens (`false` by default)                              |
+| `nameMatchColor`                   | string  | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                               |
+| `knownWordColor`                   | string  | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                               |
+| `nPlusOneColor`                    | string  | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                                     |
+| `frequencyDictionary.enabled`      | boolean | Enable frequency highlighting from dictionary lookups (`false` by default)                                                           |
+| `frequencyDictionary.sourcePath`   | string  | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths.           |
+| `frequencyDictionary.topX`         | number  | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                                              |
+| `frequencyDictionary.mode`         | string  | `"single"` or `"banded"` (`"single"` by default)                                                                                     |
+| `frequencyDictionary.matchMode`    | string  | `"headword"` or `"surface"` (`"headword"` by default)                                                                                |
+| `frequencyDictionary.singleColor`  | string  | Color used for all highlighted tokens in single mode                                                                                 |
+| `frequencyDictionary.bandedColors` | string[] | Array of five hex colors used for ranked bands in banded mode                                                                        |
+| `jlptColors`                       | object  | JLPT level underline colors object (`N1`..`N5`)                                                                                      |
+
+Subtitle CSS custom properties:
+
+| CSS Property                                  | Default       | Description                              |
+| --------------------------------------------- | ------------- | ---------------------------------------- |
+| `--subtitle-hover-token-color`                | `#f4dbd6`     | Hovered subtitle token text color        |
+| `--subtitle-hover-token-background-color`     | `transparent` | Hovered subtitle token background color  |
 
 The Settings window keeps subtitle color controls separate, then saves CSS textboxes to
-`subtitleStyle.css`, `subtitleStyle.secondary.css`, and `subtitleSidebar.css`. The generated example
-uses that same CSS declaration shape; existing top-level style keys such as `fontSize` and
-`textShadow` remain supported for hand-written or older configs.
+the primary subtitle, secondary subtitle, and sidebar CSS objects. The generated example
+uses that same CSS declaration shape.
 
 Frequency dictionary highlighting uses the same dictionary file format as JLPT bundle lookups (`term_meta_bank_*.json` under discovered dictionary directories). A token is highlighted when it has a positive integer `frequencyRank` (lower is more common) and the rank is within `topX`.
 
 Lookup behavior:
 
-- Set `frequencyDictionary.sourcePath` to a directory containing `term_meta_bank_*.json` for a fully custom source.
+- Point the source path at a directory containing `term_meta_bank_*.json` for a fully custom source.
 - If `sourcePath` is missing or empty, SubMiner searches default install/runtime locations for `frequency-dictionary` directories (for example app resources, user data paths, and current working directory).
 - In both cases, only terms with a valid `frequencyRank` are used; everything else falls back to no highlighting.
-- `frequencyDictionary.matchMode` controls which token text is used for frequency lookups: `headword` (dictionary form) or `surface` (visible subtitle text).
+- Match mode controls which token text is used for frequency lookups: `headword` (dictionary form) or `surface` (visible subtitle text).
 - Frequency highlighting skips tokens that look like non-lexical SFX/interjection noise (for example kana reduplication or short kana endings like `っ`), even when dictionary ranks exist.
 
 In `single` mode all highlights use `singleColor`; in `banded` mode tokens map to five ascending color bands from most common to least common inside the topX window.
@@ -435,7 +410,7 @@ Character-name highlighting is separate from N+1 and frequency highlighting:
 - `nameMatchColor` sets the highlight color for those matched character names.
 - Matches come from the bundled SubMiner character dictionary, including AniList-synced merged dictionaries when name matching is enabled.
 
-Secondary subtitle defaults: `fontFamily: "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP"`, `fontSize: 24`, `fontColor: "#cad3f5"`, `textShadow: "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)"`, `backgroundColor: "transparent"`, `fontWeight: "600"`. Any property not set in `secondary` falls back to the CSS defaults.
+Secondary subtitle styling lives in the secondary subtitle CSS object. Any CSS property not set there falls back to the secondary subtitle defaults, then the normal renderer defaults.
 
 **See `config.example.jsonc`** for the complete list of subtitle style configuration options.
 
@@ -452,30 +427,36 @@ Configure the parsed-subtitle sidebar modal.
     "toggleKey": "Backslash",
     "pauseVideoOnHover": true,
     "autoScroll": true,
-    "fontFamily": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP",
-    "fontSize": 16
+    "css": {
+      "font-family": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP",
+      "font-size": "16px",
+      "color": "#cad3f5",
+      "background-color": "rgba(73, 77, 100, 0.9)",
+      "--subtitle-sidebar-max-width": "420px"
+    }
   }
 }
 ```
 
-| Option                      | Values    | Description                                                                                             |
-| --------------------------- | --------- | ------------------------------------------------------------------------------------------------------- |
-| `enabled`                   | boolean   | Enable subtitle sidebar support (`true` by default)                                                     |
-| `autoOpen`                  | boolean   | Open sidebar automatically on overlay startup (`false` by default)                                      |
-| `layout`                    | string    | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space to mimic browser-like layout |
-| `toggleKey`                 | string    | `KeyboardEvent.code` used to open/close the sidebar (default: `"Backslash"`)                            |
-| `pauseVideoOnHover`         | boolean   | Pause playback while hovering the sidebar cue list (`true` by default)                                  |
-| `autoScroll`                | boolean   | Keep the active cue in view while playback advances                                                     |
-| `maxWidth`                  | number    | Maximum sidebar width in CSS pixels (default: `420`)                                                    |
-| `opacity`                   | number    | Sidebar opacity between `0` and `1` (default: `0.95`)                                                   |
-| `backgroundColor`           | string    | Sidebar shell background color                                                                          |
-| `textColor`                 | hex color | Default cue text color                                                                                  |
-| `fontFamily`                | string    | CSS `font-family` value applied to sidebar cue text                                                     |
-| `fontSize`                  | number    | Base sidebar cue font size in CSS pixels (default: `16`)                                                |
-| `timestampColor`            | hex color | Cue timestamp color                                                                                     |
-| `activeLineColor`           | hex color | Active cue text color                                                                                   |
-| `activeLineBackgroundColor` | string    | Active cue background color                                                                             |
-| `hoverLineBackgroundColor`  | string    | Hovered cue background color                                                                            |
+| Option              | Values  | Description                                                                                             |
+| ------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| `subtitleSidebar.enabled` | boolean | Enable subtitle sidebar support (`true` by default)                                                     |
+| `autoOpen`          | boolean | Open sidebar automatically on overlay startup (`false` by default)                                      |
+| `layout`            | string  | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space to mimic browser-like layout |
+| `subtitleSidebar.toggleKey` | string  | `KeyboardEvent.code` used to open/close the sidebar (default: `"Backslash"`)                            |
+| `pauseVideoOnHover` | boolean | Pause playback while hovering the sidebar cue list (`true` by default)                                  |
+| `autoScroll`        | boolean | Keep the active cue in view while playback advances                                                     |
+| `subtitleSidebar.css` | object  | CSS declaration object applied to the sidebar. Use CSS properties plus sidebar custom properties below. |
+
+Sidebar CSS custom properties:
+
+| CSS Property                                      | Default                         | Description                           |
+| ------------------------------------------------- | ------------------------------- | ------------------------------------- |
+| `--subtitle-sidebar-max-width`                    | `420px`                         | Maximum sidebar width                 |
+| `--subtitle-sidebar-timestamp-color`              | `#a5adcb`                       | Cue timestamp color                   |
+| `--subtitle-sidebar-active-line-color`            | `#f5bde6`                       | Active cue text color                 |
+| `--subtitle-sidebar-active-background-color`      | `rgba(138, 173, 244, 0.22)`     | Active cue background color           |
+| `--subtitle-sidebar-hover-background-color`       | `rgba(54, 58, 79, 0.84)`        | Hovered cue background color          |
 
 The sidebar is only available when the active subtitle source has been parsed into a cue list. Default colors use Catppuccin Macchiato with a semi-transparent shell so the panel stays readable without feeling like an opaque settings dialog.
 
@@ -539,7 +520,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `autoLoadSecondarySub`  | `true`, `false`                    | Auto-detect and load matching secondary subtitle track |
 | `defaultMode`           | `"hidden"`, `"visible"`, `"hover"` | Initial display mode (default: `"hover"`)              |
 
-`secondarySub.secondarySubLanguages` also acts as the fallback secondary-language priority for managed startup subtitle selection on local playback and YouTube playback.
+The secondary-subtitle language list also acts as the fallback secondary-language priority for managed startup subtitle selection on local playback and YouTube playback.
 
 **Display modes:**
 
@@ -646,7 +627,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `copySubtitle`                   | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                                                                    |
 | `copySubtitleMultiple`           | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                                                                       |
 | `updateLastCardFromClipboard`    | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                                                                |
-| `triggerFieldGrouping`           | string \| `null` | Accelerator for Kiku field grouping on last card (default: `"CommandOrControl+G"`; only active when `behavior.autoUpdateNewCards` is `false`) |
+| `triggerFieldGrouping`           | string \| `null` | Accelerator for Kiku field grouping on last card (default: `"CommandOrControl+G"`; only active when automatic card updates are disabled)      |
 | `triggerSubsync`                 | string \| `null` | Accelerator for running Subsync (default: `"Ctrl+Alt+S"`)                                                                                     |
 | `mineSentence`                   | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`)                                                |
 | `mineSentenceMultiple`           | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)                                                         |
@@ -684,7 +665,7 @@ Important behavior:
 - Learned bindings are saved under `controller.profiles` for the selected controller id. Global `controller.bindings` remains the fallback for controllers without a profile.
 - `Alt+Shift+C` opens the debug modal by default, and you can remap that shortcut through `shortcuts.openControllerDebug`.
 - The debug modal shows raw axes/button values plus a ready-to-copy `buttonIndices` config block.
-- `controller.buttonIndices` is a semantic reference/legacy mapping. Changing it does not rewrite the raw numeric descriptor values already stored under `controller.bindings`.
+- The button-index map is a semantic reference mapping. Changing it does not rewrite the raw numeric descriptor values already stored under controller bindings.
 - Turning keyboard-only mode off clears the keyboard-only token highlight state.
 - Closing the Yomitan popup clears the temporary native text-selection fill, but keeps controller token selection active.
 
@@ -773,11 +754,11 @@ If you bind a discrete action to an axis manually, include `direction`:
 }
 ```
 
-Treat `controller.buttonIndices` as reference-only unless you are still using legacy semantic bindings or copying values from the debug modal. Updating `controller.buttonIndices` alone does not rewrite the hardcoded raw numeric values already present in `controller.bindings` or `controller.profiles.*.bindings`. If you need a real remap, prefer the `Alt+C` learn flow so both the source and the descriptor shape stay correct.
+Treat the button-index map as reference-only unless you are copying values from the debug modal. Updating it alone does not rewrite the hardcoded raw numeric values already present in controller bindings or controller profiles. If you need a real remap, prefer the `Alt+C` learn flow so both the source and the descriptor shape stay correct.
 
 If you choose to bind `L2` or `R2` manually, set `triggerInputMode` to `analog` and tune `triggerDeadzone` when your controller reports triggers as analog values instead of digital pressed/not-pressed buttons. `auto` accepts either style and remains the default.
 
-If one controller reports non-standard raw button numbers, override `controller.profiles["<controller id>"].buttonIndices` using values from the `Alt+Shift+C` debug modal. Use global `controller.buttonIndices` only when the mapping should apply to every controller without a profile.
+If one controller reports non-standard raw button numbers, override that controller profile's button-index map using values from the `Alt+Shift+C` debug modal. Use the global button-index map only when the mapping should apply to every controller without a profile.
 
 If you update this controller documentation or the generated controller examples, run `bun run docs:test` and `bun run docs:build` before merging.
 
@@ -785,14 +766,14 @@ Tune `scrollPixelsPerSecond`, `horizontalJumpPixels`, deadzones, repeat timing, 
 
 ### Manual Card Update Shortcuts
 
-When `behavior.autoUpdateNewCards` is set to `false`, new cards are detected but not automatically updated. Use these keyboard shortcuts for manual control:
+When automatic card updates are disabled, new cards are detected but not automatically updated. Use these keyboard shortcuts for manual control:
 
 | Shortcut       | Action                                                                                                             |
 | -------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `Ctrl+C`       | Copy the current subtitle line to clipboard (preserves line breaks)                                                |
 | `Ctrl+Shift+C` | Enter multi-copy mode. Press `1-9` to copy that many recent lines, or `Esc` to cancel. Timeout: 3 seconds          |
 | `Ctrl+V`       | Update the last added Anki card using subtitles from clipboard                                                     |
-| `Ctrl+G`       | Trigger Kiku duplicate field grouping for the last added card (only when `behavior.autoUpdateNewCards` is `false`) |
+| `Ctrl+G`       | Trigger Kiku duplicate field grouping for the last added card (only when automatic card updates are disabled)      |
 | `Ctrl+S`       | Create a sentence card from the current subtitle line                                                              |
 | `Ctrl+Shift+S` | Enter multi-mine mode. Press `1-9` to create a sentence card from that many recent lines, or `Esc` to cancel       |
 | `Ctrl+Shift+V` | Cycle secondary subtitle display mode (hidden → visible → hover)                                                   |
@@ -838,16 +819,11 @@ When config hot-reload updates shortcut/keybinding/style values, close and reope
 
 Use the runtime options palette to toggle settings live while SubMiner is running. These changes are session-only and reset on restart.
 
-Current runtime options:
+Current runtime options cover automatic card updates, known-word highlighting,
+JLPT underlines, frequency highlighting, known-word match mode, and Kiku field
+grouping mode.
 
-- `ankiConnect.behavior.autoUpdateNewCards` (`On` / `Off`)
-- `ankiConnect.knownWords.highlightEnabled` (`On` / `Off`)
-- `subtitleStyle.enableJlpt` (`On` / `Off`)
-- `subtitleStyle.frequencyDictionary.enabled` (`On` / `Off`)
-- `ankiConnect.knownWords.matchMode` (`headword` / `surface`)
-- `ankiConnect.isKiku.fieldGrouping` (`auto` / `manual` / `disabled`)
-
-Annotation toggles (`nPlusOne`, `enableJlpt`, `frequencyDictionary.enabled`) only apply to new subtitle lines after the toggle. The currently displayed line is not re-tokenized in place.
+Annotation toggles only apply to new subtitle lines after the toggle. The currently displayed line is not re-tokenized in place.
 
 Default shortcut: `Ctrl+Shift+O`
 
@@ -879,7 +855,7 @@ This is the single, shared connection to an OpenAI-compatible LLM endpoint. Conf
 
 | Option             | Values               | Description                                                                          |
 | ------------------ | -------------------- | ------------------------------------------------------------------------------------ |
-| `enabled`          | `true`, `false`      | Enable shared AI provider features (default: `false`)                                |
+| `ai.enabled`      | `true`, `false`      | Enable shared AI provider features (default: `false`)                                |
 | `apiKey`           | string               | Static API key for the shared provider                                               |
 | `apiKeyCommand`    | string               | Shell command used to resolve the API key (preferred over a plaintext `apiKey`)      |
 | `model`            | string               | Default model identifier requested from the provider (default: `openai/gpt-4o-mini`) |
@@ -889,7 +865,7 @@ This is the single, shared connection to an OpenAI-compatible LLM endpoint. Conf
 
 SubMiner uses the shared provider for:
 
-- Anki translation/enrichment when `ankiConnect.ai.enabled` is `true`
+- Anki translation/enrichment when Anki AI is enabled
 
 ### AnkiConnect
 
@@ -965,7 +941,7 @@ This example is intentionally compact. The option table below documents availabl
 
 | Option                                            | Values                                  | Description                                                                                                                                                                                         |
 | ------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`                                         | `true`, `false`                         | Enable AnkiConnect integration (default: `true`)                                                                                                                                                    |
+| `ankiConnect.enabled`                             | `true`, `false`                         | Enable AnkiConnect integration (default: `true`)                                                                                                                                                    |
 | `url`                                             | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                                                                                              |
 | `pollingRate`                                     | number (ms)                             | How often to check for new cards in polling mode (default: `3000`; ignored for direct proxy `addNote`/`addNotes` updates)                                                                           |
 | `proxy.enabled`                                   | `true`, `false`                         | Enable local AnkiConnect-compatible proxy for push-based auto-enrichment (default: `true`)                                                                                                          |
@@ -973,8 +949,7 @@ This example is intentionally compact. The option table below documents availabl
 | `proxy.port`                                      | number                                  | Bind port for local AnkiConnect proxy (default: `8766`)                                                                                                                                             |
 | `proxy.upstreamUrl`                               | string (URL)                            | Upstream AnkiConnect URL that proxy forwards to (default: `http://127.0.0.1:8765`)                                                                                                                  |
 | `tags`                                            | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                                                                       |
-| `ankiConnect.deck`                                | string                                  | Legacy Anki polling/compatibility scope. Newer known-word cache scoping should use `ankiConnect.knownWords.decks`.                                                                                  |
-| `ankiConnect.knownWords.decks`                    | object                                  | Deck→fields mapping for known-word cache queries (for example `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                                                                                       |
+| `ankiConnect.deck`                                | string                                  | Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to search all decks.                                                                                                |
 | `fields.word`                                     | string                                  | Card field for mined word / expression text (default: `Expression`)                                                                                                                                 |
 | `fields.audio`                                    | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                                                                             |
 | `fields.image`                                    | string                                  | Card field for images (default: `Picture`)                                                                                                                                                          |
@@ -999,15 +974,15 @@ This example is intentionally compact. The option table below documents availabl
 | `media.audioPadding`                              | number (seconds)                        | Optional padding around audio clip timing (default: `0`). Animated AVIF clips freeze the first frame during leading audio padding.                                                                  |
 | `media.fallbackDuration`                          | number (seconds)                        | Default duration if timing unavailable (default: `3.0`)                                                                                                                                             |
 | `media.maxMediaDuration`                          | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                                                                                               |
-| `behavior.overwriteAudio`                         | `true`, `false`                         | Replace existing audio on updates; when `false`, new audio is appended/prepended per `behavior.mediaInsertMode`; manual clipboard updates always replace generated sentence audio (default: `true`) |
-| `behavior.overwriteImage`                         | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `behavior.mediaInsertMode` (default: `true`)                                                                |
+| `behavior.overwriteAudio`                         | `true`, `false`                         | Replace existing audio on updates; when `false`, new audio is appended/prepended using the configured media insert mode; manual clipboard updates always replace generated sentence audio (default: `true`) |
+| `behavior.overwriteImage`                         | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended using the configured media insert mode (default: `true`)                                                        |
 | `behavior.mediaInsertMode`                        | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                                                                               |
 | `behavior.highlightWord`                          | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                                                                            |
 | `ankiConnect.knownWords.highlightEnabled`         | `true`, `false`                         | Enable fast local highlighting for words already known in Anki (default: `false`)                                                                                                                   |
 | `ankiConnect.knownWords.addMinedWordsImmediately` | `true`, `false`                         | Add words from successful mines into the local known-word cache immediately (default: `true`)                                                                                                       |
 | `ankiConnect.knownWords.matchMode`                | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text.                                                       |
 | `ankiConnect.knownWords.refreshMinutes`           | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                                                                        |
-| `ankiConnect.knownWords.decks`                    | object                                  | Deck→fields mapping used for known-word cache query scope (e.g. `{ "Kaishi 1.5k": ["Word", "Word Reading"] }`).                                                                                     |
+| `ankiConnect.knownWords.decks`                    | object                                  | Deck→fields mapping used for known-word cache query scope (e.g. `{ "Kaishi 1.5k": ["Word"] }`).                                                                                                     |
 | `ankiConnect.nPlusOne.enabled`                    | `true`, `false`                         | Enable N+1 subtitle highlighting (highlights the one unknown word in a sentence). Independent from `knownWords.highlightEnabled`. Requires known-word cache data (default: `false`).                |
 | `ankiConnect.nPlusOne.minSentenceWords`           | number                                  | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                                                                              |
 | `behavior.notificationType`                       | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                                                                                 |
@@ -1044,22 +1019,21 @@ SubMiner is intentionally built for [Kiku](https://kiku.youyoumu.my.id/) and [La
 
 ### N+1 Word Highlighting
 
-When `ankiConnect.knownWords.highlightEnabled` is enabled, SubMiner builds a local cache of known words from Anki to highlight already learned tokens in subtitle rendering.
+When known-word highlighting is enabled, SubMiner builds a local cache of known words from Anki to highlight already learned tokens in subtitle rendering.
 
 Known-word cache policy:
 
 - Initial sync runs when the integration starts if the cache is missing or stale.
-- `ankiConnect.knownWords.refreshMinutes` controls the minimum time between refreshes; between refreshes, cached words are reused without querying Anki.
+- The refresh interval controls the minimum time between syncs; between refreshes, cached words are reused without querying Anki.
 - `subtitleStyle.nPlusOneColor` sets the color for the single target token when exactly one eligible unknown word exists.
-- `ankiConnect.nPlusOne.minSentenceWords` sets the minimum token count required in a sentence for N+1 highlighting (default: `3`).
+- The N+1 minimum sentence-word setting controls the token count required before N+1 highlighting can trigger.
 - `subtitleStyle.knownWordColor` sets the known-word highlight color for tokens already in Anki.
-- `ankiConnect.knownWords.decks` accepts an object keyed by deck name. If omitted or empty, it falls back to the legacy `ankiConnect.deck` single-deck scope.
+- The known-word deck map accepts an object keyed by deck name.
+- Prefer expression/word fields such as `Expression` or `Word`. Avoid reading-only fields unless you intentionally want homophone readings to count as known words.
 - Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
 - The cache is automatically invalidated when the configured scope changes (for example, when deck changes).
-- Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set `ankiConnect.knownWords.matchMode` to `"surface"` for raw subtitle text matching.
+- Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set known-word matching to `"surface"` for raw subtitle text matching.
 - A known-word cache match always receives known-word highlighting, even when part-of-speech filters suppress N+1, frequency, or JLPT annotations for that token.
-- Legacy moved keys under `ankiConnect.nPlusOne` (`highlightEnabled`, `refreshMinutes`, `matchMode`, `decks`, `knownWord`) and older `ankiConnect.behavior.nPlusOne*` keys are deprecated and only kept for backward compatibility.
-- Legacy top-level `ankiConnect` migration keys (for example `audioField`, `generateAudio`, `imageType`) are compatibility-only, validated before mapping, and ignored with a warning when invalid.
 - If AnkiConnect is unreachable, the cache remains in its previous state and an on-screen/system status message is shown.
 - Known-word sync activity is logged at `INFO`/`DEBUG` level with the `anki` logger scope and includes scope, notes returned, and word counts.
 
@@ -1158,9 +1132,7 @@ AniList integration is opt-in and disabled by default. Enable it to allow SubMin
     "accessToken": "",
     "characterDictionary": {
       "enabled": false,
-      "refreshTtlHours": 168,
       "maxLoaded": 3,
-      "evictionPolicy": "delete",
       "profileScope": "all",
       "collapsibleSections": {
         "description": false,
@@ -1174,11 +1146,9 @@ AniList integration is opt-in and disabled by default. Enable it to allow SubMin
 
 | Option                                                         | Values                  | Description                                                                                                   |
 | -------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `enabled`                                                      | `true`, `false`         | Enable AniList post-watch progress updates (default: `false`)                                                 |
+| `anilist.enabled`                                              | `true`, `false`         | Enable AniList post-watch progress updates (default: `false`)                                                 |
 | `accessToken`                                                  | string                  | Optional explicit AniList access token override (default: empty string)                                       |
-| `characterDictionary.refreshTtlHours`                          | number                  | Legacy compatibility setting. Parsed and preserved, but merged dictionary retention is now usage-based        |
 | `characterDictionary.maxLoaded`                                | number                  | Maximum number of most-recently-used AniList media snapshots included in the merged dictionary (default: `3`) |
-| `characterDictionary.evictionPolicy`                           | `"delete"`, `"disable"` | Legacy compatibility setting. Parsed and preserved, but merged dictionary eviction is now usage-based         |
 | `characterDictionary.collapsibleSections.description`          | `true`, `false`         | Open the Description section by default in generated dictionary entries                                       |
 | `characterDictionary.collapsibleSections.characterInformation` | `true`, `false`         | Open the Character Information section by default in generated dictionary entries                             |
 | `characterDictionary.collapsibleSections.voicedBy`             | `true`, `false`         | Open the Voiced by section by default in generated dictionary entries                                         |
@@ -1205,7 +1175,7 @@ Current post-watch behavior:
 Setup flow details:
 
 1. Set `anilist.enabled` to `true`.
-2. Leave `anilist.accessToken` empty and restart SubMiner (or run `--anilist-setup`) to trigger setup.
+2. Leave the AniList access-token field empty and restart SubMiner (or run `--anilist-setup`) to trigger setup.
 3. Approve access in AniList.
 4. Callback flow returns to SubMiner via `subminer://anilist-setup?...`, and SubMiner stores the token automatically.
    - Encryption backend: Linux defaults to `gnome-libsecret`.
@@ -1213,7 +1183,7 @@ Setup flow details:
 
 Token + detection notes:
 
-- `anilist.accessToken` can be set directly in config; when blank, SubMiner uses the locally stored encrypted token from setup.
+- The AniList access token can be set directly in config; when blank, SubMiner uses the locally stored encrypted token from setup.
 - Detection quality is best when `guessit` is installed and available on `PATH`.
 - When `guessit` cannot parse or is missing, SubMiner falls back automatically to internal filename parsing.
 
@@ -1249,7 +1219,7 @@ External-profile mode behavior:
 - SubMiner does not open its own Yomitan settings window in this mode.
 - SubMiner does not import, delete, or update dictionaries/settings in the external profile.
 - SubMiner character-dictionary features are fully disabled in this mode, including auto-sync, manual generation, and subtitle-side character-dictionary annotations.
-- First-run setup does not require any internal dictionaries while this mode is configured. If you later launch without `yomitan.externalProfilePath`, setup will require at least one internal Yomitan dictionary unless SubMiner already finds one.
+- First-run setup does not require any internal dictionaries while this mode is configured. If you later launch without an external Yomitan profile, setup will require at least one internal Yomitan dictionary unless SubMiner already finds one.
 
 ### Jellyfin
 
@@ -1275,13 +1245,13 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 
 | Option                     | Values          | Description                                                                                                  |
 | -------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------ |
-| `enabled`                  | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`)                                              |
+| `jellyfin.enabled`         | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`)                                              |
 | `serverUrl`                | string (URL)    | Jellyfin server base URL                                                                                     |
 | `recentServers`            | string[]        | Recent Jellyfin server URLs shown in setup; entries are trimmed, deduped, and capped at 5                    |
 | `username`                 | string          | Default username used by `--jellyfin-login`                                                                  |
 | `defaultLibraryId`         | string          | Default library id for `--jellyfin-items` when CLI value is omitted                                          |
 | `remoteControlEnabled`     | `true`, `false` | Enable Jellyfin cast/remote-control session support                                                          |
-| `remoteControlAutoConnect` | `true`, `false` | Auto-connect Jellyfin remote session on app startup (requires `jellyfin.enabled` and `remoteControlEnabled`) |
+| `remoteControlAutoConnect` | `true`, `false` | Auto-connect Jellyfin remote session on app startup (requires Jellyfin integration and remote control) |
 | `autoAnnounce`             | `true`, `false` | Auto-run cast-target visibility announce check on connect (default: `false`)                                 |
 | `pullPictures`             | `true`, `false` | Enable poster/icon fetching for launcher Jellyfin pickers                                                    |
 | `iconCacheDir`             | string          | Cache directory for launcher-fetched Jellyfin poster icons                                                   |
@@ -1289,7 +1259,7 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | `directPlayContainers`     | string[]        | Container allowlist for direct play decisions                                                                |
 | `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                                                   |
 
-Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup. The legacy `jellyfin.accessToken`, `jellyfin.userId`, `jellyfin.clientName`, `jellyfin.deviceId`, `jellyfin.clientVersion`, and `jellyfin.remoteControlDeviceName` config keys are not resolver-backed settings in the current runtime. SubMiner reports the Jellyfin client as `SubMiner`, derives the Jellyfin device id and visible device name from the OS hostname, and owns the client version internally. The Settings window also hides low-level default library fields (`defaultLibraryId`) so normal setup stays focused on server, auth, playback, and remote-control behavior.
+Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup. SubMiner reports the Jellyfin client as `SubMiner`, derives the Jellyfin device id and visible device name from the OS hostname, and owns the client version internally. The Settings window also hides low-level default library fields (`defaultLibraryId`) so normal setup stays focused on server, auth, playback, and remote-control behavior.
 
 - On Linux, token storage defaults to `gnome-libsecret` for `safeStorage`. Override with `--password-store=<backend>` on launcher/app invocations when needed.
 
@@ -1304,7 +1274,7 @@ Launcher subcommands:
 
 See [Jellyfin Integration](/jellyfin-integration) for the full setup and cast-to-device guide.
 
-Jellyfin remote auto-connect runs only when all three are `true`: `jellyfin.enabled`, `jellyfin.remoteControlEnabled`, and `jellyfin.remoteControlAutoConnect`.
+Jellyfin remote auto-connect runs only when Jellyfin integration, remote control, and remote auto-connect are all enabled.
 
 Jellyfin playback auto-launched through SubMiner loads the mpv plugin the same way regular playback does, and shows the visible subtitle overlay automatically so `subtitleStyle` applies to subtitles selected from Jellyfin.
 
@@ -1327,7 +1297,7 @@ Discord Rich Presence is enabled by default. SubMiner publishes a polished activ
 
 | Option             | Values                                           | Description                                                |
 | ------------------ | ------------------------------------------------ | ---------------------------------------------------------- |
-| `enabled`          | `true`, `false`                                  | Enable Discord Rich Presence updates (default: `true`)     |
+| `discordPresence.enabled` | `true`, `false`                                  | Enable Discord Rich Presence updates (default: `true`)     |
 | `presenceStyle`    | `"default"`, `"meme"`, `"japanese"`, `"minimal"` | Card text preset (default: `"default"`)                    |
 | `updateIntervalMs` | number                                           | Minimum interval between activity updates in milliseconds  |
 | `debounceMs`       | number                                           | Debounce window for bursty playback events in milliseconds |
@@ -1392,7 +1362,7 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
 
 | Option                         | Values                              | Description                                                                                                 |
 | ------------------------------ | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `enabled`                      | `true`, `false`                     | Enable immersion tracking. Defaults to `true`.                                                              |
+| `immersionTracking.enabled`    | `true`, `false`                     | Enable immersion tracking. Defaults to `true`.                                                              |
 | `dbPath`                       | string                              | Optional SQLite database path. Leave empty to use default app-data path at `<config dir>/immersion.sqlite`. |
 | `batchSize`                    | integer (`1`-`10000`)               | Buffered writes per transaction. Default `25`.                                                              |
 | `flushIntervalMs`              | integer (`50`-`60000`)              | Maximum queue delay before flush. Default `500ms`.                                                          |
@@ -1445,7 +1415,7 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
 
 | Option            | Values            | Description                                                                                                          |
 | ----------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `toggleKey`       | Electron key code | Overlay-local key code used to toggle the stats overlay. Default `Backquote`.                                        |
+| `stats.toggleKey` | Electron key code | Overlay-local key code used to toggle the stats overlay. Default `Backquote`.                                        |
 | `serverPort`      | integer           | Localhost port for the browser stats UI. Default `6969`.                                                             |
 | `autoStartServer` | `true`, `false`   | Start the local stats HTTP server automatically once immersion tracking is active. Default `true`.                   |
 | `autoOpenBrowser` | `true`, `false`   | When `subminer stats` starts the server on demand, also open the dashboard in your default browser. Default `false`. |
@@ -1507,14 +1477,14 @@ Current launcher behavior:
 - If YouTube/mpv already exposes an authoritative matching subtitle track, SubMiner reuses it; otherwise it downloads and injects only the missing side.
 - SubMiner loads the primary subtitle plus a best-effort secondary subtitle.
 - Playback waits only for primary subtitle readiness; secondary failures do not block playback.
-- English secondary subtitles are selected from `secondarySub.secondarySubLanguages` when primary language matches are unavailable.
+- English secondary subtitles are selected from the secondary-subtitle language list when primary language matches are unavailable.
 - Native mpv secondary subtitle rendering stays hidden during this flow so the SubMiner overlay remains the visible secondary subtitle surface.
 - If primary subtitle loading fails, use `Ctrl+Alt+C` to open the subtitle modal and pick a track.
 
 Language targets are derived from subtitle config:
 
 - primary track: `youtube.primarySubLanguages` (falls back to `["ja","jpn"]`)
-- secondary track: `secondarySub.secondarySubLanguages` (falls back to English when empty)
+- secondary track: secondary-subtitle language list (falls back to English when empty)
 - Local playback uses the same priorities after mpv reports subtitle track metadata, so sidecar/internal mixed sets can override an incorrect initial `sid=auto` pick.
 - Tracks are resolved and loaded before mpv starts; the older launcher mode switch has been removed.
 

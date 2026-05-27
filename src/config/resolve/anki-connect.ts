@@ -758,8 +758,6 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
       'Expected boolean.',
     );
     context.resolved.ankiConnect.nPlusOne.enabled = DEFAULT_CONFIG.ankiConnect.nPlusOne.enabled;
-  } else if (context.resolved.ankiConnect.knownWords.highlightEnabled === true) {
-    context.resolved.ankiConnect.nPlusOne.enabled = true;
   } else {
     context.resolved.ankiConnect.nPlusOne.enabled = DEFAULT_CONFIG.ankiConnect.nPlusOne.enabled;
   }

@@ -84,7 +84,7 @@ test('accepts knownWords.addMinedWordsImmediately boolean override', () => {
   );
 });
 
-test('enables n+1 for existing configs with known-word highlighting enabled', () => {
+test('knownWords.highlightEnabled does not implicitly enable nPlusOne', () => {
   const { context } = makeContext({
     knownWords: { highlightEnabled: true },
   });
@@ -92,10 +92,10 @@ test('enables n+1 for existing configs with known-word highlighting enabled', ()
   applyAnkiConnectResolution(context);
 
   assert.equal(context.resolved.ankiConnect.knownWords.highlightEnabled, true);
-  assert.equal(context.resolved.ankiConnect.nPlusOne.enabled, true);
+  assert.equal(context.resolved.ankiConnect.nPlusOne.enabled, DEFAULT_CONFIG.ankiConnect.nPlusOne.enabled);
 });
 
-test('keeps explicit n+1 disabled when known-word highlighting is enabled', () => {
+test('explicit nPlusOne.enabled is respected regardless of highlightEnabled', () => {
   const { context } = makeContext({
     knownWords: { highlightEnabled: true },
     nPlusOne: { enabled: false },
