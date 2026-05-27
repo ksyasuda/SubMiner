@@ -63,6 +63,8 @@ function buildMacosHelper() {
     return;
   }
 
+  ensureDir(scriptsOutputDir);
+
   try {
     execFileSync('swiftc', ['-O', macosHelperSourcePath, '-o', macosHelperBinaryPath], {
       stdio: 'inherit',
