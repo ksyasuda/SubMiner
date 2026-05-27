@@ -246,7 +246,8 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'ankiConnect.media.audioPadding',
       kind: 'number',
       defaultValue: defaultConfig.ankiConnect.media.audioPadding,
-      description: 'Seconds of padding appended to both ends of generated sentence audio.',
+      description:
+        'Seconds of padding appended to both ends of generated sentence audio and animated AVIF clips.',
     },
     {
       path: 'ankiConnect.media.fallbackDuration',
