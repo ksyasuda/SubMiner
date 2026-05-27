@@ -25,6 +25,7 @@ interface MpvClientLike {
   currentSubStart: number;
   currentSubEnd: number;
   currentSecondarySubText?: string;
+  requestProperty?: (name: string) => Promise<unknown>;
 }
 
 export function handleMultiCopyDigit(
@@ -95,6 +96,35 @@ function getSecondarySubTextForMinedBlocks(
   return getCurrentSecondarySubText();
 }
 
+function normalizeSecondarySubText(text: unknown, primaryText: string): string | undefined {
+  if (typeof text !== 'string') {
+    return undefined;
+  }
+  const trimmed = text.trim();
+  if (!trimmed || trimmed === primaryText.trim()) {
+    return undefined;
+  }
+  return trimmed;
+}
+
+async function getCurrentSecondarySubTextForSentenceCard(
+  mpvClient: MpvClientLike,
+): Promise<string | undefined> {
+  const primaryText = mpvClient.currentSubText;
+  if (mpvClient.requestProperty) {
+    try {
+      const latestSecondaryText = await mpvClient.requestProperty('secondary-sub-text');
+      const normalizedLatest = normalizeSecondarySubText(latestSecondaryText, primaryText);
+      if (normalizedLatest) {
+        return normalizedLatest;
+      }
+    } catch {
+      // Fall back to the cached secondary subtitle below.
+    }
+  }
+  return normalizeSecondarySubText(mpvClient.currentSecondarySubText, primaryText);
+}
+
 export async function updateLastCardFromClipboard(deps: {
   ankiIntegration: AnkiIntegrationLike | null;
   readClipboardText: () => string;
@@ -141,11 +171,12 @@ export async function mineSentenceCard(deps: {
     return false;
   }
 
+  const secondarySubText = await getCurrentSecondarySubTextForSentenceCard(mpvClient);
   return await anki.createSentenceCard(
     mpvClient.currentSubText,
     mpvClient.currentSubStart,
     mpvClient.currentSubEnd,
-    mpvClient.currentSecondarySubText || undefined,
+    secondarySubText,
   );
 }
 

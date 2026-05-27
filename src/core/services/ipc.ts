@@ -465,7 +465,14 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   });
 
   ipc.on(IPC_CHANNELS.command.recordYomitanLookup, (_event: unknown, payload: unknown) => {
-    deps.recordSubtitleMiningContext?.(parseSubtitleMiningContext(payload));
+    try {
+      deps.recordSubtitleMiningContext?.(parseSubtitleMiningContext(payload));
+    } catch (error) {
+      console.warn(
+        'Failed to record subtitle mining context:',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
     deps.immersionTracker?.recordYomitanLookup();
   });
 

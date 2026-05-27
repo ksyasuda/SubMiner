@@ -357,7 +357,7 @@ export class FieldGroupingMergeCollaborator {
           return existingValue || newValue;
         }
         return this.sortEntriesByGroupIdDescending([...keepEntries, ...sourceEntries])
-          .map((entry) => this.ensureImageGroupId(entry.tag, entry.groupId))
+          .map((entry) => entry.tag)
           .join('');
       }
 
