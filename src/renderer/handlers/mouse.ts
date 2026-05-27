@@ -5,6 +5,7 @@ import {
   YOMITAN_POPUP_MOUSE_ENTER_EVENT,
   YOMITAN_POPUP_MOUSE_LEAVE_EVENT,
   YOMITAN_POPUP_SHOWN_EVENT,
+  PRIMARY_SUB_VISIBLE_ON_YOMITAN_POPUP_CLASS,
   isYomitanPopupVisible,
   isYomitanPopupIframe,
 } from '../yomitan-popup.js';
@@ -44,10 +45,21 @@ export function createMouseHandlers(
     return typeof document !== 'undefined' && isYomitanPopupVisible(document);
   }
 
+  function syncPrimaryVisibleOnYomitanPopupClass(popupVisible: boolean): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    document.body?.classList?.toggle(
+      PRIMARY_SUB_VISIBLE_ON_YOMITAN_POPUP_CLASS,
+      popupVisible && ctx.state.primaryVisibleOnYomitanPopup,
+    );
+  }
+
   function syncPopupVisibilityState(assumeVisible = false): boolean {
     const popupVisible = assumeVisible || getPopupVisibilityFromDom();
     yomitanPopupVisible = popupVisible;
     ctx.state.yomitanPopupVisible = popupVisible;
+    syncPrimaryVisibleOnYomitanPopupClass(popupVisible);
     return popupVisible;
   }
 
@@ -293,6 +305,7 @@ export function createMouseHandlers(
 
     yomitanPopupVisible = false;
     ctx.state.yomitanPopupVisible = false;
+    syncPrimaryVisibleOnYomitanPopupClass(false);
     popupPauseRequestId += 1;
     maybeResumeYomitanPopupPause();
     maybeResumeHoverPause();

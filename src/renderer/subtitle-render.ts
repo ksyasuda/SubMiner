@@ -6,6 +6,7 @@ import type {
   SubtitleRendererStyleConfig,
 } from '../types';
 import type { RendererContext } from './context';
+import { PRIMARY_SUB_VISIBLE_ON_YOMITAN_POPUP_CLASS } from './yomitan-popup.js';
 
 type FrequencyRenderSettings = {
   enabled: boolean;
@@ -256,6 +257,13 @@ function applySubtitleCssDeclarations(
   replaceInlineStyleDeclarations(
     container,
     pickInlineStyleDeclarations(declarations, CONTAINER_STYLE_KEYS),
+  );
+}
+
+function syncPrimaryVisibleOnYomitanPopupClass(ctx: RendererContext): void {
+  document.body?.classList?.toggle(
+    PRIMARY_SUB_VISIBLE_ON_YOMITAN_POPUP_CLASS,
+    ctx.state.yomitanPopupVisible && ctx.state.primaryVisibleOnYomitanPopup,
   );
 }
 
@@ -805,6 +813,8 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     ctx.state.preserveSubtitleLineBreaks = style.preserveLineBreaks ?? false;
     ctx.state.autoPauseVideoOnSubtitleHover = style.autoPauseVideoOnHover ?? false;
     ctx.state.autoPauseVideoOnYomitanPopup = style.autoPauseVideoOnYomitanPopup ?? false;
+    ctx.state.primaryVisibleOnYomitanPopup = style.primaryVisibleOnYomitanPopup ?? true;
+    syncPrimaryVisibleOnYomitanPopupClass(ctx);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n1-color', jlptColors.N1);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n2-color', jlptColors.N2);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n3-color', jlptColors.N3);

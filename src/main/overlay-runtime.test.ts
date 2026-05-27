@@ -804,6 +804,28 @@ test('waitForModalOpen resolves true after modal acknowledgement', async () => {
   assert.equal(await pending, true);
 });
 
+test('waitForModalOpen resolves true when modal acknowledgement arrives before waiter registration', async () => {
+  const modalWindow = createMockWindow();
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => null,
+    getModalWindow: () => modalWindow as never,
+    createModalWindow: () => modalWindow as never,
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  runtime.sendToActiveOverlayWindow(
+    'kiku:field-grouping-request',
+    {},
+    {
+      restoreOnModalClose: 'kiku',
+    },
+  );
+  runtime.notifyOverlayModalOpened('kiku');
+
+  assert.equal(await runtime.waitForModalOpen('kiku', 5), true);
+});
+
 test('waitForModalOpen resolves false on timeout', async () => {
   const runtime = createOverlayModalRuntimeService({
     getMainWindow: () => null,

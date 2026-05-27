@@ -5,7 +5,6 @@
  * Copy to %APPDATA%/SubMiner/config.jsonc on Windows, or $XDG_CONFIG_HOME/SubMiner/config.jsonc (or ~/.config/SubMiner/config.jsonc) on Linux/macOS.
  */
 {
-
   // ==========================================
   // Visible Overlay Auto-Start
   // Show the visible subtitle overlay automatically after managed mpv playback starts SubMiner.
@@ -19,7 +18,7 @@
   // ==========================================
   "texthooker": {
     "launchAtStartup": false, // Launch texthooker server automatically when SubMiner starts. Values: true | false
-    "openBrowser": false // Open the texthooker page in the default browser when the server starts. Values: true | false
+    "openBrowser": false, // Open the texthooker page in the default browser when the server starts. Values: true | false
   }, // Configure texthooker startup launch and browser opening behavior.
 
   // ==========================================
@@ -29,7 +28,7 @@
   // ==========================================
   "websocket": {
     "enabled": false, // Built-in subtitle websocket server mode. Values: auto | true | false
-    "port": 6677 // Built-in subtitle websocket server port.
+    "port": 6677, // Built-in subtitle websocket server port.
   }, // Built-in WebSocket server broadcasts subtitle text to connected clients.
 
   // ==========================================
@@ -39,7 +38,7 @@
   // ==========================================
   "annotationWebsocket": {
     "enabled": false, // Annotated subtitle websocket server enabled state. Values: true | false
-    "port": 6678 // Annotated subtitle websocket server port.
+    "port": 6678, // Annotated subtitle websocket server port.
   }, // Dedicated annotated subtitle websocket for bundled texthooker and token-aware clients.
 
   // ==========================================
@@ -54,8 +53,8 @@
     "files": {
       "app": true, // Write SubMiner app runtime logs. Values: true | false
       "launcher": true, // Write launcher command logs. Values: true | false
-      "mpv": false // Write mpv player logs. Enable temporarily when debugging mpv/plugin startup. Values: true | false
-    } // Files setting.
+      "mpv": false, // Write mpv player logs. Enable temporarily when debugging mpv/plugin startup. Values: true | false
+    }, // Files setting.
   }, // Controls logging verbosity.
 
   // ==========================================
@@ -88,66 +87,66 @@
       "leftStickPress": 9, // Raw button index used for controller L3 input.
       "rightStickPress": 10, // Raw button index used for controller R3 input.
       "leftTrigger": 6, // Raw button index used for controller L2 input.
-      "rightTrigger": 7 // Raw button index used for controller R2 input.
+      "rightTrigger": 7, // Raw button index used for controller R2 input.
     }, // Semantic button-name reference mapping used for debug output. Updating it does not rewrite existing raw binding descriptors.
     "bindings": {
       "toggleLookup": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-        "buttonIndex": 0 // Raw button index captured for this discrete controller action.
+        "buttonIndex": 0, // Raw button index captured for this discrete controller action.
       }, // Controller binding descriptor for toggling lookup. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "closeLookup": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-        "buttonIndex": 1 // Raw button index captured for this discrete controller action.
+        "buttonIndex": 1, // Raw button index captured for this discrete controller action.
       }, // Controller binding descriptor for closing lookup. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "toggleKeyboardOnlyMode": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-        "buttonIndex": 3 // Raw button index captured for this discrete controller action.
+        "buttonIndex": 3, // Raw button index captured for this discrete controller action.
       }, // Controller binding descriptor for toggling keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "mineCard": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-        "buttonIndex": 2 // Raw button index captured for this discrete controller action.
+        "buttonIndex": 2, // Raw button index captured for this discrete controller action.
       }, // Controller binding descriptor for mining the active card. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "quitMpv": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-        "buttonIndex": 6 // Raw button index captured for this discrete controller action.
+        "buttonIndex": 6, // Raw button index captured for this discrete controller action.
       }, // Controller binding descriptor for quitting mpv. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "previousAudio": {
-        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+        "kind": "none", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
       }, // Controller binding descriptor for previous Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "nextAudio": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-        "buttonIndex": 5 // Raw button index captured for this discrete controller action.
+        "buttonIndex": 5, // Raw button index captured for this discrete controller action.
       }, // Controller binding descriptor for next Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "playCurrentAudio": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-        "buttonIndex": 4 // Raw button index captured for this discrete controller action.
+        "buttonIndex": 4, // Raw button index captured for this discrete controller action.
       }, // Controller binding descriptor for playing the current Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "toggleMpvPause": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-        "buttonIndex": 9 // Raw button index captured for this discrete controller action.
+        "buttonIndex": 9, // Raw button index captured for this discrete controller action.
       }, // Controller binding descriptor for toggling mpv play/pause. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "leftStickHorizontal": {
         "kind": "axis", // Analog binding input source kind. Values: none | axis
         "axisIndex": 0, // Raw axis index captured for this analog controller action.
-        "dpadFallback": "horizontal" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
+        "dpadFallback": "horizontal", // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
       }, // Axis binding descriptor used for left/right token selection. Use Alt+C learn mode or set a raw axis descriptor manually.
       "leftStickVertical": {
         "kind": "axis", // Analog binding input source kind. Values: none | axis
         "axisIndex": 1, // Raw axis index captured for this analog controller action.
-        "dpadFallback": "vertical" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
+        "dpadFallback": "vertical", // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
       }, // Axis binding descriptor used for primary popup scrolling. Use Alt+C learn mode or set a raw axis descriptor manually.
       "rightStickHorizontal": {
         "kind": "axis", // Analog binding input source kind. Values: none | axis
         "axisIndex": 3, // Raw axis index captured for this analog controller action.
-        "dpadFallback": "none" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
+        "dpadFallback": "none", // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
       }, // Axis binding descriptor reserved for alternate right-stick mappings. Use Alt+C learn mode or set a raw axis descriptor manually.
       "rightStickVertical": {
         "kind": "axis", // Analog binding input source kind. Values: none | axis
         "axisIndex": 4, // Raw axis index captured for this analog controller action.
-        "dpadFallback": "none" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
-      } // Axis binding descriptor used for popup page jumps. Use Alt+C learn mode or set a raw axis descriptor manually.
+        "dpadFallback": "none", // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
+      }, // Axis binding descriptor used for popup page jumps. Use Alt+C learn mode or set a raw axis descriptor manually.
     }, // Raw controller binding descriptors saved by Alt+C learn mode. For discrete axis bindings, kind "axis" requires axisIndex and direction.
-    "profiles": {} // Per-controller binding and button-index overrides keyed by the controller id reported by the Gamepad API.
+    "profiles": {}, // Per-controller binding and button-index overrides keyed by the controller id reported by the Gamepad API.
   }, // Gamepad support for the visible overlay while keyboard-only mode is active.
 
   // ==========================================
@@ -161,7 +160,7 @@
     "mecab": true, // Warm up MeCab tokenizer at startup. Values: true | false
     "yomitanExtension": true, // Warm up Yomitan extension at startup. Values: true | false
     "subtitleDictionaries": true, // Warm up subtitle dictionaries at startup. Values: true | false
-    "jellyfinRemoteSession": false // Warm up Jellyfin remote session at startup. Values: true | false
+    "jellyfinRemoteSession": false, // Warm up Jellyfin remote session at startup. Values: true | false
   }, // Background warmup controls for MeCab, Yomitan, dictionaries, and Jellyfin session.
 
   // ==========================================
@@ -173,7 +172,7 @@
     "enabled": true, // Run automatic update checks in the background. Values: true | false
     "checkIntervalHours": 24, // Minimum hours between automatic update checks.
     "notificationType": "system", // How SubMiner announces available updates. Values: system | osd | both | none
-    "channel": "stable" // Release channel used for update checks. Values: stable | prerelease
+    "channel": "stable", // Release channel used for update checks. Values: stable | prerelease
   }, // Automatic update check behavior.
 
   // ==========================================
@@ -199,7 +198,7 @@
     "openSessionHelp": "CommandOrControl+Slash", // Accelerator that opens the session help / keybinding cheatsheet.
     "openControllerSelect": "Alt+C", // Accelerator that opens the controller selection and learn-mode modal.
     "openControllerDebug": "Alt+Shift+C", // Accelerator that opens the controller debug modal with live axis/button readouts.
-    "toggleSubtitleSidebar": "Backslash" // Accelerator that toggles the subtitle sidebar visibility.
+    "toggleSubtitleSidebar": "Backslash", // Accelerator that toggles the subtitle sidebar visibility.
   }, // Overlay keyboard shortcuts. Set a shortcut to null to disable.
 
   // ==========================================
@@ -211,122 +210,76 @@
   "keybindings": [
     {
       "key": "Space", // Key setting.
-      "command": [
-        "cycle",
-        "pause"
-      ] // Command setting.
+      "command": ["cycle", "pause"], // Command setting.
     },
     {
       "key": "KeyF", // Key setting.
-      "command": [
-        "cycle",
-        "fullscreen"
-      ] // Command setting.
+      "command": ["cycle", "fullscreen"], // Command setting.
     },
     {
       "key": "KeyJ", // Key setting.
-      "command": [
-        "cycle",
-        "sid"
-      ] // Command setting.
+      "command": ["cycle", "sid"], // Command setting.
     },
     {
       "key": "Shift+KeyJ", // Key setting.
-      "command": [
-        "cycle",
-        "secondary-sid"
-      ] // Command setting.
+      "command": ["cycle", "secondary-sid"], // Command setting.
     },
     {
       "key": "ArrowRight", // Key setting.
-      "command": [
-        "seek",
-        5
-      ] // Command setting.
+      "command": ["seek", 5], // Command setting.
     },
     {
       "key": "ArrowLeft", // Key setting.
-      "command": [
-        "seek",
-        -5
-      ] // Command setting.
+      "command": ["seek", -5], // Command setting.
     },
     {
       "key": "ArrowUp", // Key setting.
-      "command": [
-        "seek",
-        60
-      ] // Command setting.
+      "command": ["seek", 60], // Command setting.
     },
     {
       "key": "ArrowDown", // Key setting.
-      "command": [
-        "seek",
-        -60
-      ] // Command setting.
+      "command": ["seek", -60], // Command setting.
     },
     {
       "key": "Shift+KeyH", // Key setting.
-      "command": [
-        "sub-seek",
-        -1
-      ] // Command setting.
+      "command": ["sub-seek", -1], // Command setting.
     },
     {
       "key": "Shift+KeyL", // Key setting.
-      "command": [
-        "sub-seek",
-        1
-      ] // Command setting.
+      "command": ["sub-seek", 1], // Command setting.
     },
     {
       "key": "Shift+BracketRight", // Key setting.
-      "command": [
-        "__sub-delay-next-line"
-      ] // Command setting.
+      "command": ["__sub-delay-next-line"], // Command setting.
     },
     {
       "key": "Shift+BracketLeft", // Key setting.
-      "command": [
-        "__sub-delay-prev-line"
-      ] // Command setting.
+      "command": ["__sub-delay-prev-line"], // Command setting.
     },
     {
       "key": "Ctrl+Alt+KeyC", // Key setting.
-      "command": [
-        "__youtube-picker-open"
-      ] // Command setting.
+      "command": ["__youtube-picker-open"], // Command setting.
     },
     {
       "key": "Ctrl+Alt+KeyP", // Key setting.
-      "command": [
-        "__playlist-browser-open"
-      ] // Command setting.
+      "command": ["__playlist-browser-open"], // Command setting.
     },
     {
       "key": "Ctrl+Shift+KeyH", // Key setting.
-      "command": [
-        "__replay-subtitle"
-      ] // Command setting.
+      "command": ["__replay-subtitle"], // Command setting.
     },
     {
       "key": "Ctrl+Shift+KeyL", // Key setting.
-      "command": [
-        "__play-next-subtitle"
-      ] // Command setting.
+      "command": ["__play-next-subtitle"], // Command setting.
     },
     {
       "key": "KeyQ", // Key setting.
-      "command": [
-        "quit"
-      ] // Command setting.
+      "command": ["quit"], // Command setting.
     },
     {
       "key": "Ctrl+KeyW", // Key setting.
-      "command": [
-        "quit"
-      ] // Command setting.
-    }
+      "command": ["quit"], // Command setting.
+    },
   ], // Default and custom keybindings that are merged with built-in defaults.
 
   // ==========================================
@@ -338,7 +291,7 @@
   "secondarySub": {
     "secondarySubLanguages": [], // Language code priority list used to auto-select a secondary subtitle track when available.
     "autoLoadSecondarySub": false, // Automatically load a matching secondary subtitle when the primary subtitle loads. Values: true | false
-    "defaultMode": "hover" // Default visibility mode for the secondary subtitle bar. Values: hidden | visible | hover
+    "defaultMode": "hover", // Default visibility mode for the secondary subtitle bar. Values: hidden | visible | hover
   }, // Dual subtitle track options.
 
   // ==========================================
@@ -350,7 +303,7 @@
     "alass_path": "", // Optional absolute path to the alass binary used by subsync. Leave empty to auto-discover from PATH.
     "ffsubsync_path": "", // Optional absolute path to the ffsubsync binary used by subsync. Leave empty to auto-discover from PATH.
     "ffmpeg_path": "", // Optional absolute path to the ffmpeg binary used by subsync. Leave empty to auto-discover from PATH.
-    "replace": true // Replace the active subtitle file when sync completes. Values: true | false
+    "replace": true, // Replace the active subtitle file when sync completes. Values: true | false
   }, // Subsync engine and executable paths.
 
   // ==========================================
@@ -358,7 +311,7 @@
   // Initial vertical subtitle position from the bottom.
   // ==========================================
   "subtitlePosition": {
-    "yPercent": 10 // Vertical position of the subtitle overlay expressed as a percentage from the bottom of the screen.
+    "yPercent": 10, // Vertical position of the subtitle overlay expressed as a percentage from the bottom of the screen.
   }, // Initial vertical subtitle position from the bottom.
 
   // ==========================================
@@ -383,12 +336,13 @@
       "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
       "backdrop-filter": "blur(6px)", // Backdrop filter setting.
       "--subtitle-hover-token-color": "#f4dbd6", // Subtitle hover token color setting.
-      "--subtitle-hover-token-background-color": "transparent" // Subtitle hover token background color setting.
+      "--subtitle-hover-token-background-color": "transparent", // Subtitle hover token background color setting.
     }, // CSS declaration object applied to primary subtitles after normal subtitle style defaults.
     "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
     "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false
     "autoPauseVideoOnYomitanPopup": true, // Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes. Values: true | false
+    "primaryVisibleOnYomitanPopup": true, // Keep the primary subtitle bar visible while a Yomitan popup is open when primary subtitles are in hover mode. Values: true | false
     "nameMatchEnabled": false, // Enable character dictionary sync and subtitle token coloring for character-name matches. Values: true | false
     "nameMatchImagesEnabled": false, // Show small character portraits beside subtitle tokens matched from the SubMiner character dictionary. Values: true | false
     "nameMatchColor": "#f5bde6", // Hex color used when a subtitle token matches an entry from the SubMiner character dictionary.
@@ -399,7 +353,7 @@
       "N2": "#f5a97f", // N2 setting.
       "N3": "#f9e2af", // N3 setting.
       "N4": "#8bd5ca", // N4 setting.
-      "N5": "#8aadf4" // N5 setting.
+      "N5": "#8aadf4", // N5 setting.
     }, // Jlpt colors setting.
     "frequencyDictionary": {
       "enabled": false, // Enable frequency-dictionary-based highlighting based on token rank. Values: true | false
@@ -408,13 +362,7 @@
       "mode": "single", // single: use one color for all matching tokens. banded: use color ramp by frequency band. Values: single | banded
       "matchMode": "headword", // headword: frequency lookup uses dictionary form. surface: lookup uses subtitle-visible token text. Values: headword | surface
       "singleColor": "#f5a97f", // Color used when frequencyDictionary.mode is `single`.
-      "bandedColors": [
-        "#ed8796",
-        "#f5a97f",
-        "#f9e2af",
-        "#8bd5ca",
-        "#8aadf4"
-      ] // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
+      "bandedColors": ["#ed8796", "#f5a97f", "#f9e2af", "#8bd5ca", "#8aadf4"], // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
     }, // Frequency dictionary setting.
     "secondary": {
       "css": {
@@ -430,9 +378,9 @@
         "font-kerning": "normal", // Font kerning setting.
         "text-rendering": "geometricPrecision", // Text rendering setting.
         "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
-        "backdrop-filter": "blur(6px)" // Backdrop filter setting.
-      } // CSS declaration object applied to secondary subtitles after normal subtitle style defaults.
-    } // Secondary setting.
+        "backdrop-filter": "blur(6px)", // Backdrop filter setting.
+      }, // CSS declaration object applied to secondary subtitles after normal subtitle style defaults.
+    }, // Secondary setting.
   }, // Primary and secondary subtitle styling.
 
   // ==========================================
@@ -457,8 +405,8 @@
       "--subtitle-sidebar-timestamp-color": "#a5adcb", // Subtitle sidebar timestamp color setting.
       "--subtitle-sidebar-active-line-color": "#f5bde6", // Subtitle sidebar active line color setting.
       "--subtitle-sidebar-active-background-color": "rgba(138, 173, 244, 0.22)", // Subtitle sidebar active background color setting.
-      "--subtitle-sidebar-hover-background-color": "rgba(54, 58, 79, 0.84)" // Subtitle sidebar hover background color setting.
-    } // CSS declaration object applied to the subtitle sidebar. Includes color, background-color, and all font properties.
+      "--subtitle-sidebar-hover-background-color": "rgba(54, 58, 79, 0.84)", // Subtitle sidebar hover background color setting.
+    }, // CSS declaration object applied to the subtitle sidebar. Includes color, background-color, and all font properties.
   }, // Parsed-subtitle sidebar cue list styling, behavior, and toggle key.
 
   // ==========================================
@@ -472,7 +420,7 @@
     "model": "openai/gpt-4o-mini", // Default model identifier requested from the shared AI provider.
     "baseUrl": "https://openrouter.ai/api", // Base URL for the shared OpenAI-compatible AI provider.
     "systemPrompt": "You are a translation engine. Return only the translated text with no explanations.", // Default system prompt sent with shared AI provider requests.
-    "requestTimeoutMs": 15000 // Timeout in milliseconds for shared AI provider requests.
+    "requestTimeoutMs": 15000, // Timeout in milliseconds for shared AI provider requests.
   }, // Canonical OpenAI-compatible provider transport settings shared by Anki and YouTube subtitle fixing.
 
   // ==========================================
@@ -490,11 +438,9 @@
       "enabled": true, // Enable local AnkiConnect-compatible proxy for push-based auto-enrichment. Values: true | false
       "host": "127.0.0.1", // Bind host for local AnkiConnect proxy.
       "port": 8766, // Bind port for local AnkiConnect proxy.
-      "upstreamUrl": "http://127.0.0.1:8765" // Upstream AnkiConnect URL proxied by local AnkiConnect proxy.
+      "upstreamUrl": "http://127.0.0.1:8765", // Upstream AnkiConnect URL proxied by local AnkiConnect proxy.
     }, // Proxy setting.
-    "tags": [
-      "SubMiner"
-    ], // Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.
+    "tags": ["SubMiner"], // Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.
     "deck": "", // Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to search all decks.
     "fields": {
       "word": "Expression", // Card field for the mined word or expression text.
@@ -502,12 +448,12 @@
       "image": "Picture", // Card field that receives the captured screenshot or animated image.
       "sentence": "Sentence", // Card field that receives the source sentence text.
       "miscInfo": "MiscInfo", // Card field that receives the miscellaneous info pattern (see ankiConnect.metadata.pattern).
-      "translation": "SelectionText" // Card field that receives the current selection or translated text.
+      "translation": "SelectionText", // Card field that receives the current selection or translated text.
     }, // Fields setting.
     "ai": {
       "enabled": false, // Enable AI provider usage for Anki translation/enrichment flows. Values: true | false
       "model": "", // Optional model override for Anki AI translation/enrichment flows.
-      "systemPrompt": "" // Optional system prompt override for Anki AI translation/enrichment flows.
+      "systemPrompt": "", // Optional system prompt override for Anki AI translation/enrichment flows.
     }, // Ai setting.
     "media": {
       "generateAudio": true, // Generate sentence audio for mined cards. Values: true | false
@@ -524,14 +470,14 @@
       "syncAnimatedImageToWordAudio": true, // For animated AVIF images, prepend a frozen first frame matching the existing word-audio duration so motion starts with sentence audio. Values: true | false
       "audioPadding": 0, // Seconds of padding appended to both ends of generated sentence audio.
       "fallbackDuration": 3, // Fallback clip duration in seconds when subtitle timing data is unavailable.
-      "maxMediaDuration": 30 // Maximum allowed media clip duration in seconds.
+      "maxMediaDuration": 30, // Maximum allowed media clip duration in seconds.
     }, // Media setting.
     "knownWords": {
       "highlightEnabled": false, // Enable fast local highlighting for words already known in Anki. Values: true | false
       "refreshMinutes": 1440, // Minutes between known-word cache refreshes.
       "addMinedWordsImmediately": true, // Immediately append newly mined card words into the known-word cache. Values: true | false
       "matchMode": "headword", // Known-word matching strategy for subtitle annotations. Cache matches always receive known-word highlighting even when POS filters suppress other annotation types. Values: headword | surface
-      "decks": {} // Decks and expression/word fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word"] }.
+      "decks": {}, // Decks and expression/word fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word"] }.
     }, // Known words setting.
     "behavior": {
       "overwriteAudio": true, // When updating an existing card, overwrite the audio field instead of skipping it. Values: true | false
@@ -539,24 +485,24 @@
       "mediaInsertMode": "append", // Whether new media is appended after or prepended before existing field contents on update. Values: append | prepend
       "highlightWord": true, // Bold the mined word inside the sentence field on the saved Anki card. Values: true | false
       "notificationType": "osd", // Notification surface used to announce mining and update outcomes. Values: osd | system | both | none
-      "autoUpdateNewCards": true // Automatically update newly added cards. Values: true | false
+      "autoUpdateNewCards": true, // Automatically update newly added cards. Values: true | false
     }, // Behavior setting.
     "nPlusOne": {
       "enabled": false, // Enable N+1 subtitle highlighting (highlights the one unknown word in a sentence). Requires known-word cache data. Values: true | false
-      "minSentenceWords": 3 // Minimum sentence word count required for N+1 targeting (default: 3).
+      "minSentenceWords": 3, // Minimum sentence word count required for N+1 targeting (default: 3).
     }, // N plus one setting.
     "metadata": {
-      "pattern": "[SubMiner] %f (%t)" // Template used to render the miscInfo field. Placeholders include %f (filename) and %t (timestamp).
+      "pattern": "[SubMiner] %f (%t)", // Template used to render the miscInfo field. Placeholders include %f (filename) and %t (timestamp).
     }, // Metadata setting.
     "isLapis": {
       "enabled": false, // Enable Lapis-specific mining behaviors and sentence card model targeting. Values: true | false
-      "sentenceCardModel": "Lapis" // Note type name used by Lapis sentence cards.
+      "sentenceCardModel": "Lapis", // Note type name used by Lapis sentence cards.
     }, // Is lapis setting.
     "isKiku": {
       "enabled": false, // Enable Kiku-specific mining behaviors (duplicate handling, field grouping). Values: true | false
       "fieldGrouping": "disabled", // Kiku duplicate-card field grouping mode. Values: auto | manual | disabled
-      "deleteDuplicateInAuto": true // When Kiku field grouping is "auto", delete the duplicate source card after grouping completes. Values: true | false
-    } // Is kiku setting.
+      "deleteDuplicateInAuto": true, // When Kiku field grouping is "auto", delete the duplicate source card after grouping completes. Values: true | false
+    }, // Is kiku setting.
   }, // Automatic Anki updates and media generation options.
 
   // ==========================================
@@ -569,7 +515,7 @@
     "apiKey": "", // Jimaku API key. Optional but recommended for higher rate limits. Get one for free at https://jimaku.cc.
     "apiKeyCommand": "", // Shell command that prints the Jimaku API key to stdout. Used instead of apiKey to avoid storing the key in plain text.
     "languagePreference": "ja", // Preferred language used in Jimaku search. Values: ja | en | none
-    "maxEntryResults": 10 // Maximum Jimaku search results returned.
+    "maxEntryResults": 10, // Maximum Jimaku search results returned.
   }, // Jimaku API configuration and defaults.
 
   // ==========================================
@@ -578,10 +524,7 @@
   // Hot-reload: primarySubLanguages applies to the next YouTube subtitle load.
   // ==========================================
   "youtube": {
-    "primarySubLanguages": [
-      "ja",
-      "jpn"
-    ] // Comma-separated primary subtitle language priority for managed subtitle auto-selection.
+    "primarySubLanguages": ["ja", "jpn"], // Comma-separated primary subtitle language priority for managed subtitle auto-selection.
   }, // Defaults for managed subtitle language preferences and YouTube subtitle loading.
 
   // ==========================================
@@ -599,9 +542,9 @@
       "collapsibleSections": {
         "description": false, // Open the Description section by default in character dictionary glossary entries. Values: true | false
         "characterInformation": false, // Open the Character Information section by default in character dictionary glossary entries. Values: true | false
-        "voicedBy": false // Open the Voiced by section by default in character dictionary glossary entries. Values: true | false
-      } // Collapsible sections setting.
-    } // Character dictionary setting.
+        "voicedBy": false, // Open the Voiced by section by default in character dictionary glossary entries. Values: true | false
+      }, // Collapsible sections setting.
+    }, // Character dictionary setting.
   }, // Anilist API credentials and update behavior.
 
   // ==========================================
@@ -612,7 +555,7 @@
   // In external-profile mode SubMiner will not import, delete, or modify Yomitan dictionaries/settings.
   // ==========================================
   "yomitan": {
-    "externalProfilePath": "" // Optional external Yomitan Electron profile path to use in read-only mode for shared dictionaries/settings. Example: ~/.config/gsm_overlay
+    "externalProfilePath": "", // Optional external Yomitan Electron profile path to use in read-only mode for shared dictionaries/settings. Example: ~/.config/gsm_overlay
   }, // Optional external Yomitan profile integration.
 
   // ==========================================
@@ -634,7 +577,7 @@
     "pauseUntilOverlayReady": true, // Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness. Values: true | false
     "subminerBinaryPath": "", // Optional SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path.
     "aniskipEnabled": true, // Enable AniSkip intro detection and skip markers in the bundled mpv plugin. Values: true | false
-    "aniskipButtonKey": "TAB" // mpv key used to trigger the AniSkip button while the skip marker is visible.
+    "aniskipButtonKey": "TAB", // mpv key used to trigger the AniSkip button while the skip marker is visible.
   }, // SubMiner-managed mpv launch and bundled plugin options.
 
   // ==========================================
@@ -655,16 +598,8 @@
     "pullPictures": false, // Enable Jellyfin poster/icon fetching for launcher menus. Values: true | false
     "iconCacheDir": "/tmp/subminer-jellyfin-icons", // Directory used by launcher for cached Jellyfin poster icons.
     "directPlayPreferred": true, // Try direct play before server-managed transcoding when possible. Values: true | false
-    "directPlayContainers": [
-      "mkv",
-      "mp4",
-      "webm",
-      "mov",
-      "flac",
-      "mp3",
-      "aac"
-    ], // Container allowlist for direct play decisions.
-    "transcodeVideoCodec": "h264" // Preferred transcode video codec when direct play is unavailable.
+    "directPlayContainers": ["mkv", "mp4", "webm", "mov", "flac", "mp3", "aac"], // Container allowlist for direct play decisions.
+    "transcodeVideoCodec": "h264", // Preferred transcode video codec when direct play is unavailable.
   }, // Optional Jellyfin integration for auth, browsing, and playback launch.
 
   // ==========================================
@@ -676,7 +611,7 @@
     "enabled": true, // Enable optional Discord Rich Presence updates. Values: true | false
     "presenceStyle": "default", // Presence card text preset: "default" (clean bilingual), "meme" (Mining and crafting), "japanese" (fully JP), or "minimal". Values: default | meme | japanese | minimal
     "updateIntervalMs": 3000, // Minimum interval between presence payload updates.
-    "debounceMs": 750 // Debounce delay used to collapse bursty presence updates.
+    "debounceMs": 750, // Debounce delay used to collapse bursty presence updates.
   }, // Optional Discord Rich Presence activity card updates for current playback/study session.
 
   // ==========================================
@@ -701,13 +636,13 @@
       "sessionsDays": 0, // Session retention window in days. Use 0 to keep all.
       "dailyRollupsDays": 0, // Daily rollup retention window in days. Use 0 to keep all.
       "monthlyRollupsDays": 0, // Monthly rollup retention window in days. Use 0 to keep all.
-      "vacuumIntervalDays": 0 // Minimum days between VACUUM runs. Use 0 to disable.
+      "vacuumIntervalDays": 0, // Minimum days between VACUUM runs. Use 0 to disable.
     }, // Retention setting.
     "lifetimeSummaries": {
       "global": true, // Maintain global lifetime stats rows. Values: true | false
       "anime": true, // Maintain per-anime lifetime stats rows. Values: true | false
-      "media": true // Maintain per-media lifetime stats rows. Values: true | false
-    } // Lifetime summaries setting.
+      "media": true, // Maintain per-media lifetime stats rows. Values: true | false
+    }, // Lifetime summaries setting.
   }, // Enable/disable immersion tracking.
 
   // ==========================================
@@ -720,6 +655,6 @@
     "markWatchedKey": "KeyW", // Key code to mark the current video as watched and advance to the next playlist entry.
     "serverPort": 6969, // Port for the stats HTTP server.
     "autoStartServer": true, // Automatically start the stats server on launch. Values: true | false
-    "autoOpenBrowser": false // Automatically open the stats dashboard in a browser when the server starts. Values: true | false
-  } // Local immersion stats dashboard served on localhost and available as an in-app overlay.
+    "autoOpenBrowser": false, // Automatically open the stats dashboard in a browser when the server starts. Values: true | false
+  }, // Local immersion stats dashboard served on localhost and available as an in-app overlay.
 }

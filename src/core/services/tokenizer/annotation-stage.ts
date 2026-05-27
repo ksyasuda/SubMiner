@@ -70,9 +70,8 @@ function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<strin
   if (parts.length === 0) {
     return false;
   }
-  // Frequency highlighting should be conservative: if any merged component is excluded,
-  // skip highlighting the whole token to avoid noisy merged fragments.
-  return parts.some((part) => exclusions.has(part));
+
+  return parts.every((part) => exclusions.has(part));
 }
 
 function resolvePos1Exclusions(options: AnnotationStageOptions): ReadonlySet<string> {
@@ -224,6 +223,10 @@ function isFrequencyExcludedByPos(
   pos2Exclusions: ReadonlySet<string>,
 ): boolean {
   if (isSingleKanaFrequencyNoiseToken(token.surface)) {
+    return true;
+  }
+
+  if (isKanaOnlyMixedFunctionContentToken(token, pos1Exclusions)) {
     return true;
   }
 
@@ -562,6 +565,35 @@ function isSingleKanaFrequencyNoiseToken(text: string | undefined): boolean {
 
   const chars = [...normalized];
   return chars.length === 1 && isKanaChar(chars[0]!);
+}
+
+function isKanaOnlyText(text: string | undefined): boolean {
+  if (typeof text !== 'string') {
+    return false;
+  }
+
+  const normalized = text.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  return [...normalized].every(isKanaChar);
+}
+
+function isKanaOnlyMixedFunctionContentToken(
+  token: MergedToken,
+  pos1Exclusions: ReadonlySet<string>,
+): boolean {
+  if (!isKanaOnlyText(token.surface)) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
+  return (
+    pos1Parts.length >= 2 &&
+    pos1Parts.some((part) => pos1Exclusions.has(part)) &&
+    pos1Parts.some((part) => !pos1Exclusions.has(part))
+  );
 }
 
 function isJlptEligibleToken(token: MergedToken): boolean {

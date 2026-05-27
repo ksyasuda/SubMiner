@@ -62,8 +62,9 @@ export function createFieldGroupingCallbackRuntime<T extends string>(options: {
   sendToVisibleOverlay: (
     channel: string,
     payload?: unknown,
-    runtimeOptions?: { restoreOnModalClose?: T },
+    runtimeOptions?: { restoreOnModalClose?: T; preferModalWindow?: boolean },
   ) => boolean;
+  sendKikuFieldGroupingRequest?: (data: KikuFieldGroupingRequestData) => Promise<boolean>;
 }): (data: KikuFieldGroupingRequestData) => Promise<KikuFieldGroupingChoice> {
   return createFieldGroupingCallback({
     getVisibleOverlayVisible: options.getVisibleOverlayVisible,
@@ -71,8 +72,10 @@ export function createFieldGroupingCallbackRuntime<T extends string>(options: {
     getResolver: options.getResolver,
     setResolver: options.setResolver,
     sendRequestToVisibleOverlay: (data) =>
-      options.sendToVisibleOverlay('kiku:field-grouping-request', data, {
-        restoreOnModalClose: 'kiku' as T,
-      }),
+      options.sendKikuFieldGroupingRequest
+        ? options.sendKikuFieldGroupingRequest(data)
+        : options.sendToVisibleOverlay('kiku:field-grouping-request', data, {
+            restoreOnModalClose: 'kiku' as T,
+          }),
   });
 }

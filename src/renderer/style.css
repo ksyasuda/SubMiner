@@ -694,6 +694,10 @@ body.subtitle-sidebar-embedded-open #subtitleContainer {
   opacity: 1;
 }
 
+body.primary-sub-visible-on-yomitan-popup #subtitleContainer.primary-sub-hover {
+  opacity: 1;
+}
+
 #subtitleContainer.primary-sub-hidden {
   display: none;
   pointer-events: none;

@@ -186,6 +186,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     const fallbackSubtitleStyleAutoPauseVideoOnHover = resolved.subtitleStyle.autoPauseVideoOnHover;
     const fallbackSubtitleStyleAutoPauseVideoOnYomitanPopup =
       resolved.subtitleStyle.autoPauseVideoOnYomitanPopup;
+    const fallbackSubtitleStylePrimaryVisibleOnYomitanPopup =
+      resolved.subtitleStyle.primaryVisibleOnYomitanPopup;
     const fallbackSubtitleStyleHoverTokenColor = resolved.subtitleStyle.hoverTokenColor;
     const fallbackSubtitleStyleHoverTokenBackgroundColor =
       resolved.subtitleStyle.hoverTokenBackgroundColor;
@@ -329,6 +331,27 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         (src.subtitleStyle as { autoPauseVideoOnYomitanPopup?: unknown })
           .autoPauseVideoOnYomitanPopup,
         resolved.subtitleStyle.autoPauseVideoOnYomitanPopup,
+        'Expected boolean.',
+      );
+    }
+
+    const primaryVisibleOnYomitanPopup = asBoolean(
+      (src.subtitleStyle as { primaryVisibleOnYomitanPopup?: unknown })
+        .primaryVisibleOnYomitanPopup,
+    );
+    if (primaryVisibleOnYomitanPopup !== undefined) {
+      resolved.subtitleStyle.primaryVisibleOnYomitanPopup = primaryVisibleOnYomitanPopup;
+    } else if (
+      (src.subtitleStyle as { primaryVisibleOnYomitanPopup?: unknown })
+        .primaryVisibleOnYomitanPopup !== undefined
+    ) {
+      resolved.subtitleStyle.primaryVisibleOnYomitanPopup =
+        fallbackSubtitleStylePrimaryVisibleOnYomitanPopup;
+      warn(
+        'subtitleStyle.primaryVisibleOnYomitanPopup',
+        (src.subtitleStyle as { primaryVisibleOnYomitanPopup?: unknown })
+          .primaryVisibleOnYomitanPopup,
+        resolved.subtitleStyle.primaryVisibleOnYomitanPopup,
         'Expected boolean.',
       );
     }

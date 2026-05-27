@@ -1,0 +1,1 @@
+- Fixed frequency annotations for Yomitan single-token compounds with internal particles, such as `目の前`, while keeping pure grammar/kana helper spans unannotated.

@@ -9,6 +9,7 @@ export const YOMITAN_POPUP_MOUSE_ENTER_EVENT = 'yomitan-popup-mouse-enter';
 export const YOMITAN_POPUP_MOUSE_LEAVE_EVENT = 'yomitan-popup-mouse-leave';
 export const YOMITAN_POPUP_COMMAND_EVENT = 'subminer-yomitan-popup-command';
 export const YOMITAN_LOOKUP_EVENT = 'subminer-yomitan-lookup';
+export const PRIMARY_SUB_VISIBLE_ON_YOMITAN_POPUP_CLASS = 'primary-sub-visible-on-yomitan-popup';
 
 export function registerYomitanLookupListener(
   target: EventTarget = window,

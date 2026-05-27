@@ -630,6 +630,43 @@ test('registerIpcHandlers forwards yomitan lookup tracking commands to immersion
   assert.deepEqual(calls, ['lookup']);
 });
 
+test('registerIpcHandlers forwards valid subtitle sidebar mining context', () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const contexts: unknown[] = [];
+  const deps = createRegisterIpcDeps() as IpcServiceDeps & {
+    recordSubtitleMiningContext: (context: unknown | null) => void;
+  };
+  deps.recordSubtitleMiningContext = (context) => {
+    contexts.push(context);
+  };
+
+  registerIpcHandlers(deps, registrar);
+
+  const handler = handlers.on.get(IPC_CHANNELS.command.recordYomitanLookup);
+  assert.equal(typeof handler, 'function');
+
+  handler?.(
+    {},
+    {
+      source: 'subtitle-sidebar',
+      text: 'sidebar previous line',
+      startTime: 10,
+      endTime: 12,
+      capturedAtMs: 123,
+    },
+  );
+
+  assert.deepEqual(contexts, [
+    {
+      source: 'subtitle-sidebar',
+      text: 'sidebar previous line',
+      startTime: 10,
+      endTime: 12,
+      capturedAtMs: 123,
+    },
+  ]);
+});
+
 test('registerIpcHandlers returns empty stats overview shape without a tracker', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   registerIpcHandlers(createRegisterIpcDeps(), registrar);
