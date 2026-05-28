@@ -667,6 +667,7 @@ body.subtitle-sidebar-embedded-open #subtitleContainer {
   --subtitle-frequency-band-3-color: #f9e2af;
   --subtitle-frequency-band-4-color: #8bd5ca;
   --subtitle-frequency-band-5-color: #8aadf4;
+
   text-shadow:
     -1px -1px 2px rgba(0, 0, 0, 0.95),
     1px -1px 2px rgba(0, 0, 0, 0.95),
