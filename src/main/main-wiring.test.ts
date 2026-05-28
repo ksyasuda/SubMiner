@@ -89,6 +89,65 @@ test('subtitle sidebar media path tag is assigned after prefetch succeeds', () =
   );
 });
 
+test('subtitle change re-prioritizes prefetch around live playback before tokenizing current line', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /onSubtitleChange:\s*\(text\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    refreshDiscordPresence:/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(actionBlock, /subtitlePrefetchService\?\.pause\(\);/);
+  assert.match(actionBlock, /subtitlePrefetchService\?\.onSeek\(lastObservedTimePos\);/);
+  assert.match(actionBlock, /subtitleProcessingController\.onSubtitleChange\(text\);/);
+  assert.ok(
+    actionBlock.indexOf('subtitlePrefetchService?.pause();') <
+      actionBlock.indexOf('subtitlePrefetchService?.onSeek(lastObservedTimePos);'),
+  );
+  assert.ok(
+    actionBlock.indexOf('subtitlePrefetchService?.onSeek(lastObservedTimePos);') <
+      actionBlock.indexOf('subtitleProcessingController.onSubtitleChange(text);'),
+  );
+});
+
+test('autoplay subtitle prime prefers cached annotated payload before raw fallback', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /function emitAutoplayPrimedSubtitle\([\s\S]*?\): boolean \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(
+    actionBlock,
+    /const cachedPayload = subtitleProcessingController\.consumeCachedSubtitle\(text\);/,
+  );
+  assert.match(actionBlock, /if \(cachedPayload\) \{/);
+  assert.match(actionBlock, /emitSubtitlePayload\(cachedPayload\);/);
+  assert.match(actionBlock, /const rawPayload = withCurrentSubtitleTiming\(\{ text, tokens: null \}\);/);
+  assert.ok(
+    actionBlock.indexOf('consumeCachedSubtitle(text)') <
+      actionBlock.indexOf('withCurrentSubtitleTiming({ text, tokens: null })'),
+  );
+});
+
+test('known-word updates invalidate prefetched tokenizations before refreshing current subtitle', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /const refreshCurrentSubtitleAfterKnownWordUpdate = \(\): void => \{(?<body>[\s\S]*?)\n\};/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(actionBlock, /subtitleProcessingController\.invalidateTokenizationCache\(\);/);
+  assert.match(actionBlock, /subtitlePrefetchService\?\.onSeek\(lastObservedTimePos\);/);
+  assert.match(
+    actionBlock,
+    /subtitleProcessingController\.refreshCurrentSubtitle\(appState\.currentSubText\);/,
+  );
+  assert.ok(
+    actionBlock.indexOf('subtitleProcessingController.invalidateTokenizationCache();') <
+      actionBlock.indexOf('subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);'),
+  );
+});
+
 test('manual visible overlay changes notify mpv plugin visibility state', () => {
   const source = readMainSource();
   const setBlock = source.match(

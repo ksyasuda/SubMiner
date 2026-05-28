@@ -1,10 +1,12 @@
 import type { SubtitleData } from '../../types';
 import type { SubtitleCue } from '../../types';
+import { normalizeSubtitleCacheKey } from './subtitle-processing-controller';
 
 export interface SubtitlePrefetchServiceDeps {
   cues: SubtitleCue[];
   tokenizeSubtitle: (text: string) => Promise<SubtitleData | null>;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
+  hasCachedTokenization?: (text: string) => boolean;
   isCacheFull: () => boolean;
   priorityWindowSize?: number;
 }
@@ -58,6 +60,7 @@ export function createSubtitlePrefetchService(
   async function tokenizeCueList(
     cuesToProcess: SubtitleCue[],
     runId: number,
+    warmedKeys: Set<string>,
     options: { allowWhenCacheFull?: boolean } = {},
   ): Promise<void> {
     for (const cue of cuesToProcess) {
@@ -78,6 +81,15 @@ export function createSubtitlePrefetchService(
         return;
       }
 
+      const cacheKey = normalizeSubtitleCacheKey(cue.text);
+      if (!cacheKey || warmedKeys.has(cacheKey) || deps.hasCachedTokenization?.(cue.text)) {
+        if (cacheKey) {
+          warmedKeys.add(cacheKey);
+        }
+        continue;
+      }
+      warmedKeys.add(cacheKey);
+
       try {
         const result = await deps.tokenizeSubtitle(cue.text);
         if (result && !stopped && runId === currentRunId) {
@@ -94,10 +106,11 @@ export function createSubtitlePrefetchService(
 
   async function startPrefetching(currentTimeSeconds: number, runId: number): Promise<void> {
     const cues = deps.cues;
+    const warmedKeys = new Set<string>();
 
     // Phase 1: Priority window
     const priorityCues = computePriorityWindow(cues, currentTimeSeconds, windowSize);
-    await tokenizeCueList(priorityCues, runId, { allowWhenCacheFull: true });
+    await tokenizeCueList(priorityCues, runId, warmedKeys, { allowWhenCacheFull: true });
 
     if (stopped || runId !== currentRunId) {
       return;
@@ -108,7 +121,7 @@ export function createSubtitlePrefetchService(
     const remainingCues = cues.filter(
       (cue) => cue.startTime > currentTimeSeconds && !priorityTexts.has(cue.text),
     );
-    await tokenizeCueList(remainingCues, runId);
+    await tokenizeCueList(remainingCues, runId, warmedKeys);
 
     if (stopped || runId !== currentRunId) {
       return;
@@ -118,7 +131,7 @@ export function createSubtitlePrefetchService(
     const earlierCues = cues.filter(
       (cue) => cue.startTime <= currentTimeSeconds && !priorityTexts.has(cue.text),
     );
-    await tokenizeCueList(earlierCues, runId);
+    await tokenizeCueList(earlierCues, runId, warmedKeys);
   }
 
   return {

@@ -161,6 +161,25 @@ test('AnkiIntegration.refreshKnownWordCache bypasses stale checks', async () => 
   }
 });
 
+test('AnkiIntegration.refreshKnownWordCache notifies annotation cache listeners', async () => {
+  const ctx = createIntegrationTestContext({
+    stateDirPrefix: 'subminer-anki-integration-refresh-notify-',
+  });
+  let notifications = 0;
+
+  try {
+    ctx.integration.setKnownWordCacheUpdatedCallback(() => {
+      notifications += 1;
+    });
+
+    await ctx.integration.refreshKnownWordCache();
+
+    assert.equal(notifications, 1);
+  } finally {
+    cleanupIntegrationTestContext(ctx);
+  }
+});
+
 test('AnkiIntegration.refreshKnownWordCache skips work when highlight mode is disabled', async () => {
   const ctx = createIntegrationTestContext({
     highlightEnabled: false,

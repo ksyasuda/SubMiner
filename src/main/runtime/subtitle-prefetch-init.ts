@@ -13,6 +13,7 @@ export interface SubtitlePrefetchInitControllerDeps {
   createSubtitlePrefetchService: (deps: SubtitlePrefetchServiceDeps) => SubtitlePrefetchService;
   tokenizeSubtitle: (text: string) => Promise<SubtitleData | null>;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
+  hasCachedTokenization?: (text: string) => boolean;
   isCacheFull: () => boolean;
   logInfo: (message: string) => void;
   logWarn: (message: string) => void;
@@ -67,6 +68,7 @@ export function createSubtitlePrefetchInitController(
         cues,
         tokenizeSubtitle: (text) => deps.tokenizeSubtitle(text),
         preCacheTokenization: (text, data) => deps.preCacheTokenization(text, data),
+        hasCachedTokenization: (text) => deps.hasCachedTokenization?.(text) ?? false,
         isCacheFull: () => deps.isCacheFull(),
       });
 

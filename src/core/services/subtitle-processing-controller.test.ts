@@ -236,6 +236,31 @@ test('consumeCachedSubtitle returns prefetched payload and prevents reprocessing
   assert.deepEqual(emitted, []);
 });
 
+test('hasCachedSubtitle checks prefetched entries without consuming them', async () => {
+  const emitted: SubtitleData[] = [];
+  let tokenizeCalls = 0;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.preCacheTokenization('猫\\Nです', { text: '猫\nです', tokens: [] });
+
+  assert.equal(controller.hasCachedSubtitle('猫\nです'), true);
+
+  controller.onSubtitleChange('猫\nです');
+  await flushMicrotasks();
+
+  assert.equal(tokenizeCalls, 0);
+  assert.deepEqual(emitted, [{ text: '猫\nです', tokens: [] }]);
+
+  controller.invalidateTokenizationCache();
+  assert.equal(controller.hasCachedSubtitle('猫\nです'), false);
+});
+
 test('isCacheFull returns false when cache is below limit', () => {
   const controller = createSubtitleProcessingController({
     tokenizeSubtitle: async (text) => ({ text, tokens: null }),

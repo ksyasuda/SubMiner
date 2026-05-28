@@ -1754,10 +1754,17 @@ function emitAutoplayPrimedSubtitle(mediaPath: string, text: string): boolean {
   }
 
   appState.currentSubText = text;
+  subtitlePrefetchService?.pause();
+  const cachedPayload = subtitleProcessingController.consumeCachedSubtitle(text);
+  if (cachedPayload) {
+    subtitleProcessingController.onSubtitleChange(text);
+    emitSubtitlePayload(cachedPayload);
+    return true;
+  }
+
   const rawPayload = withCurrentSubtitleTiming({ text, tokens: null });
   appState.currentSubtitleData = rawPayload;
   broadcastToOverlayWindows('subtitle:set', rawPayload);
-  subtitlePrefetchService?.pause();
   subtitleProcessingController.onSubtitleChange(text);
   return true;
 }
@@ -1834,6 +1841,7 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
   preCacheTokenization: (text, data) => {
     subtitleProcessingController.preCacheTokenization(text, data);
   },
+  hasCachedTokenization: (text) => subtitleProcessingController.hasCachedSubtitle(text),
   isCacheFull: () => subtitleProcessingController.isCacheFull(),
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
@@ -4219,6 +4227,12 @@ const recordTrackedCardsMined = (count: number, noteIds?: number[]): void => {
   appState.immersionTracker?.recordCardsMined(count, noteIds);
 };
 const refreshCurrentSubtitleAfterKnownWordUpdate = (): void => {
+  const hasCurrentSubtitle = appState.currentSubText.trim().length > 0;
+  if (hasCurrentSubtitle) {
+    subtitlePrefetchService?.pause();
+  }
+  subtitleProcessingController.invalidateTokenizationCache();
+  subtitlePrefetchService?.onSeek(lastObservedTimePos);
   subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
 };
 let hasAttemptedImmersionTrackerStartup = false;
@@ -4603,6 +4617,7 @@ const {
     },
     onSubtitleChange: (text) => {
       subtitlePrefetchService?.pause();
+      subtitlePrefetchService?.onSeek(lastObservedTimePos);
       subtitleProcessingController.onSubtitleChange(text);
     },
     refreshDiscordPresence: () => {
