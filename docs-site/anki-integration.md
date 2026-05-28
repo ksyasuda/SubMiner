@@ -36,7 +36,7 @@ In both modes, the enrichment workflow is the same:
 4. Fills the translation field from the secondary subtitle or AI.
 5. Writes metadata to the miscInfo field.
 
-Polling mode uses the query `"deck:<ankiConnect.deck>" added:1` to find recently added cards. If no deck is configured, it searches all decks.
+Polling mode uses the query `"deck:<ankiConnect.deck>" added:1` to find recently added cards. If no deck is configured, it searches all decks. In Settings, the AnkiConnect deck dropdown auto-fills from Yomitan's current mining deck when available, then falls back to the decks reported by AnkiConnect.
 Known-word sync scope is controlled by `ankiConnect.knownWords.decks`.
 
 ### Proxy Mode Setup (Yomitan / Texthooker)

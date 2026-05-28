@@ -36,6 +36,7 @@ export {
 } from './tokenizer/yomitan-parser-runtime';
 export {
   deleteYomitanDictionaryByTitle,
+  getYomitanCurrentAnkiDeckName,
   getYomitanDictionaryInfo,
   getYomitanSettingsFull,
   importYomitanDictionaryFromZip,

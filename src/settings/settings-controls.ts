@@ -3,6 +3,7 @@ import { toConfigDraftValue, toSettingsDisplayValue } from './settings-model';
 import { parseOptionalNumberInputValue } from './input-values';
 import {
   configureAnkiControls,
+  renderAnkiDeckInput,
   initializeAnkiControls,
   renderAnkiFieldInput,
   renderAnkiNoteTypeInput,
@@ -160,6 +161,10 @@ export function renderControl(
 
   if (field.control === 'known-words-decks') {
     return renderKnownWordsDecksInput(context, field);
+  }
+
+  if (field.control === 'anki-deck') {
+    return renderAnkiDeckInput(context, field);
   }
 
   if (field.control === 'anki-note-type') {

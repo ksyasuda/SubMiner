@@ -49,3 +49,10 @@ test('known word deck rename selection keeps current deck on collision', () => {
     'Core',
   );
 });
+
+test('Anki deck autofill uses inferred Yomitan deck only for untouched empty values', () => {
+  assert.equal(ankiControls.chooseAnkiDeckAutofillValue('', 'Mining', false), 'Mining');
+  assert.equal(ankiControls.chooseAnkiDeckAutofillValue('Current', 'Mining', false), null);
+  assert.equal(ankiControls.chooseAnkiDeckAutofillValue('', 'Mining', true), null);
+  assert.equal(ankiControls.chooseAnkiDeckAutofillValue('', '   ', false), null);
+});

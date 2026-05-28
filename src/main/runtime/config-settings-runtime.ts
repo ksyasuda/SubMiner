@@ -3,6 +3,7 @@ import path from 'node:path';
 import { buildConfigSettingsSnapshot } from '../../config/settings/jsonc-edit';
 import type { ConfigValidationWarning, RawConfig, ResolvedConfig } from '../../types/config';
 import type {
+  ConfigSettingsAnkiDeckResult,
   ConfigSettingsAnkiListResult,
   ConfigSettingsField,
   ConfigSettingsSaveResult,
@@ -34,6 +35,7 @@ export interface ConfigSettingsIpcChannels {
   getConfigSettingsAnkiDeckModelNames: string;
   getConfigSettingsAnkiModelNames: string;
   getConfigSettingsAnkiModelFieldNames: string;
+  getConfigSettingsYomitanAnkiDeckName: string;
 }
 
 export interface ConfigSettingsAnkiClient {
@@ -60,6 +62,7 @@ export interface ConfigSettingsRuntimeDeps<TWindow extends ConfigSettingsWindowL
   openPath(path: string): Promise<string>;
   defaultAnkiConnectUrl: string;
   createAnkiClient(url: string): ConfigSettingsAnkiClient;
+  getYomitanAnkiDeckName?: () => Promise<string | null | undefined>;
   ipcMain: ConfigSettingsIpcMainLike;
   ipcChannels: ConfigSettingsIpcChannels;
   log?: (message: string) => void;
@@ -190,6 +193,22 @@ export function createConfigSettingsRuntime<TWindow extends ConfigSettingsWindow
     };
   }
 
+  async function getYomitanAnkiDeckName(): Promise<ConfigSettingsAnkiDeckResult> {
+    if (!deps.getYomitanAnkiDeckName) {
+      return { ok: true, value: '' };
+    }
+    try {
+      const value = await deps.getYomitanAnkiDeckName();
+      return { ok: true, value: typeof value === 'string' ? value.trim() : '' };
+    } catch (error) {
+      return {
+        ok: false,
+        value: '',
+        error: error instanceof Error ? error.message : 'Failed to query Yomitan.',
+      };
+    }
+  }
+
   function registerHandlers(): void {
     deps.ipcMain.handle(deps.ipcChannels.getConfigSettingsSnapshot, () => getSnapshot());
     deps.ipcMain.handle(deps.ipcChannels.saveConfigSettingsPatch, (_event, patch: unknown) => {
@@ -235,6 +254,9 @@ export function createConfigSettingsRuntime<TWindow extends ConfigSettingsWindow
           ? getAnkiList(draftUrl, (client) => client.modelFieldNames(normalizedModelName))
           : invalidAnkiListResult('Note type is required.');
       },
+    );
+    deps.ipcMain.handle(deps.ipcChannels.getConfigSettingsYomitanAnkiDeckName, () =>
+      getYomitanAnkiDeckName(),
     );
   }
 

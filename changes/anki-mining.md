@@ -6,3 +6,5 @@ area: anki
 - Fixed Kiku duplicate-card detection so local duplicate sentence cards trigger the manual modal or auto merge, modal-open acknowledgement races no longer cancel the flow, and merged fields follow Kiku's group ordering, sentence-audio, furigana, and tag semantics.
 - Fixed manual clipboard card updates from YouTube playback so generated audio and images use mpv's resolved stream URLs instead of the YouTube page URL.
 - Sentence cards now refresh the current secondary subtitle before saving, so the translation field uses the loaded subtitle instead of repeating the primary text.
+- Fixed immediate known-word cache append when no default Anki mining deck is configured but multiple known-word deck field mappings are present.
+- Added an AnkiConnect deck dropdown at the top of Mining & Anki settings that auto-fills from Yomitan's current mining deck when available.

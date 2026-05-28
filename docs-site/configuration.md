@@ -52,7 +52,7 @@ The Settings window groups options by workflow instead of mirroring the raw conf
 - Tracking & App
 - Advanced
 
-Each field still writes to its current `config.jsonc` path. For example, subtitle hover pause appears under **Behavior** / playback behavior, but saves to `subtitleStyle.autoPauseVideoOnHover`. Anki-aware fields can query AnkiConnect for deck names, note types, and field names, and keybinding fields use click-to-learn controls instead of raw text boxes.
+Each field still writes to its current `config.jsonc` path. For example, subtitle hover pause appears under **Behavior** / playback behavior, but saves to `subtitleStyle.autoPauseVideoOnHover`. Anki-aware fields can query AnkiConnect for deck names, note types, and field names. The AnkiConnect deck field also reads Yomitan's current mining deck and auto-fills an empty setting when one is found. Keybinding fields use click-to-learn controls instead of raw text boxes.
 
 The Settings window preserves existing JSONC comments, trailing commas, and unrelated keys. Resetting a field removes the explicit config path so the built-in default applies.
 
@@ -96,8 +96,8 @@ SubMiner watches the active config file (`config.jsonc` or `config.json`) while 
 
 Hot-reloadable settings include subtitle appearance, sidebar controls, keybindings,
 logging level, selected source-language preferences, Jimaku/Subsync settings, and
-the Anki known-word, N+1, field, sentence-card, and Kiku options listed in the
-reference tables below.
+the Anki deck, known-word, N+1, field, sentence-card, and Kiku options listed
+in the reference tables below.
 
 When these values change, SubMiner applies them live. Invalid config edits are rejected and the previous valid runtime config remains active.
 
@@ -105,7 +105,7 @@ Restart-required changes:
 
 - Any other config sections still require restart.
 - Shared top-level `ai` provider settings still require restart.
-- AnkiConnect transport/proxy/media/deck/tag fields still require restart unless listed above.
+- AnkiConnect transport/proxy/media/tag fields still require restart unless listed above.
 - SubMiner shows an on-screen/system notification listing restart-required sections when they change.
 
 ### Configuration Options Overview
@@ -951,7 +951,7 @@ This example is intentionally compact. The option table below documents availabl
 | `proxy.port`                                      | number                                  | Bind port for local AnkiConnect proxy (default: `8766`)                                                                                                                                                     |
 | `proxy.upstreamUrl`                               | string (URL)                            | Upstream AnkiConnect URL that proxy forwards to (default: `http://127.0.0.1:8765`)                                                                                                                          |
 | `tags`                                            | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                                                                               |
-| `ankiConnect.deck`                                | string                                  | Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to search all decks.                                                                                                        |
+| `ankiConnect.deck`                                | string                                  | Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to search all decks. In Settings, this dropdown auto-fills from Yomitan's current mining deck when available.               |
 | `fields.word`                                     | string                                  | Card field for mined word / expression text (default: `Expression`)                                                                                                                                         |
 | `fields.audio`                                    | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                                                                                     |
 | `fields.image`                                    | string                                  | Card field for images (default: `Picture`)                                                                                                                                                                  |

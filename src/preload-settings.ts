@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
+  ConfigSettingsAnkiDeckResult,
   ConfigSettingsAnkiListResult,
   ConfigSettingsAPI,
   ConfigSettingsPatch,
@@ -17,6 +18,7 @@ const SETTINGS_IPC_CHANNELS = {
   getAnkiDeckModelNames: 'config-settings:anki-deck-model-names',
   getAnkiModelNames: 'config-settings:anki-model-names',
   getAnkiModelFieldNames: 'config-settings:anki-model-field-names',
+  getYomitanAnkiDeckName: 'config-settings:yomitan-anki-deck-name',
 } as const;
 
 const configSettingsAPI: ConfigSettingsAPI = {
@@ -45,6 +47,8 @@ const configSettingsAPI: ConfigSettingsAPI = {
     draftUrl?: string,
   ): Promise<ConfigSettingsAnkiListResult> =>
     ipcRenderer.invoke(SETTINGS_IPC_CHANNELS.getAnkiModelFieldNames, modelName, draftUrl),
+  getYomitanAnkiDeckName: (): Promise<ConfigSettingsAnkiDeckResult> =>
+    ipcRenderer.invoke(SETTINGS_IPC_CHANNELS.getYomitanAnkiDeckName),
 };
 
 contextBridge.exposeInMainWorld('configSettingsAPI', configSettingsAPI);

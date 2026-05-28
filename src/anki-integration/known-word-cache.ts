@@ -326,7 +326,18 @@ export class KnownWordCacheManager {
             : null;
 
       if (!selectedDeckEntry) {
-        return null;
+        const configuredFields = trimmedDeckEntries.flatMap(([, fields]) =>
+          Array.isArray(fields) ? fields : [],
+        );
+        const normalizedFields = [
+          ...new Set(
+            configuredFields
+              .map(String)
+              .map((field) => field.trim())
+              .filter((field) => field.length > 0),
+          ),
+        ];
+        return normalizedFields.length > 0 ? normalizedFields : this.getDefaultKnownWordFields();
       }
 
       const deckFields = selectedDeckEntry[1];

@@ -18,6 +18,7 @@ test('settings preload exposes Anki lookup helpers', () => {
     'getAnkiDeckModelNames',
     'getAnkiModelNames',
     'getAnkiModelFieldNames',
+    'getYomitanAnkiDeckName',
   ]) {
     assert.match(source, new RegExp(`${method}:`));
   }

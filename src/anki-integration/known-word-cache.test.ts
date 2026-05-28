@@ -520,6 +520,36 @@ test('KnownWordCacheManager uses the current deck fields for immediate append', 
   }
 });
 
+test('KnownWordCacheManager uses all configured deck fields for immediate append without a current deck', () => {
+  const config: AnkiConnectConfig = {
+    deck: '',
+    fields: {
+      word: 'Expression',
+    },
+    knownWords: {
+      highlightEnabled: true,
+      decks: {
+        'Kaishi 1.5k': ['Word'],
+        Minecraft: ['Expression', 'Word'],
+      },
+    },
+  };
+  const { manager, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    manager.appendFromNoteInfo({
+      noteId: 1,
+      fields: {
+        Expression: { value: '別人' },
+      },
+    });
+
+    assert.equal(manager.isKnownWord('別人'), true);
+  } finally {
+    cleanup();
+  }
+});
+
 test('KnownWordCacheManager reports immediate append cache clears as mutations', () => {
   const config: AnkiConnectConfig = {
     fields: {

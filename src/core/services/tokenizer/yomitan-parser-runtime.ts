@@ -1897,6 +1897,73 @@ export async function syncYomitanDefaultAnkiServer(
   }
 }
 
+function readDeckName(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function getYomitanDeckFromProfileOptions(profileOptions: Record<string, unknown>): string {
+  const anki = profileOptions.anki;
+  if (!isObject(anki)) {
+    return '';
+  }
+
+  const cardFormats = Array.isArray(anki.cardFormats) ? anki.cardFormats : [];
+  const enabledCardFormats = cardFormats
+    .filter((cardFormat): cardFormat is Record<string, unknown> => isObject(cardFormat))
+    .filter((cardFormat) => cardFormat.enabled !== false);
+
+  const termDeck = enabledCardFormats.find(
+    (cardFormat) => cardFormat.type === 'term' && readDeckName(cardFormat.deck).length > 0,
+  );
+  if (termDeck) {
+    return readDeckName(termDeck.deck);
+  }
+
+  const firstDeck = enabledCardFormats
+    .map((cardFormat) => readDeckName(cardFormat.deck))
+    .find((deckName) => deckName.length > 0);
+  if (firstDeck) {
+    return firstDeck;
+  }
+
+  const terms = anki.terms;
+  if (isObject(terms)) {
+    const legacyTermDeck = readDeckName(terms.deck);
+    if (legacyTermDeck) {
+      return legacyTermDeck;
+    }
+  }
+
+  const kanji = anki.kanji;
+  return isObject(kanji) ? readDeckName(kanji.deck) : '';
+}
+
+export function extractYomitanCurrentAnkiDeckName(optionsFull: Record<string, unknown>): string {
+  const profiles = Array.isArray(optionsFull.profiles) ? optionsFull.profiles : [];
+  if (profiles.length === 0) {
+    return '';
+  }
+
+  const profileCurrent =
+    typeof optionsFull.profileCurrent === 'number' && Number.isFinite(optionsFull.profileCurrent)
+      ? Math.max(0, Math.floor(optionsFull.profileCurrent))
+      : 0;
+  const targetProfile = profiles[profileCurrent];
+  if (!isObject(targetProfile) || !isObject(targetProfile.options)) {
+    return '';
+  }
+
+  return getYomitanDeckFromProfileOptions(targetProfile.options as Record<string, unknown>);
+}
+
+export async function getYomitanCurrentAnkiDeckName(
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<string> {
+  const optionsFull = await getYomitanSettingsFull(deps, logger);
+  return optionsFull ? extractYomitanCurrentAnkiDeckName(optionsFull) : '';
+}
+
 function buildYomitanInvokeScript(actionLiteral: string, paramsLiteral: string): string {
   return `
     (async () => {
