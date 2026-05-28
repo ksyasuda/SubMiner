@@ -151,6 +151,7 @@ test('settings registry exposes mpv aniskip button as an mpv key learn control',
 });
 
 test('settings registry exposes specialized controls for config-assisted inputs', () => {
+  assert.equal(field('ankiConnect.deck').control, 'anki-deck');
   assert.equal(field('ankiConnect.knownWords.decks').control, 'known-words-decks');
   assert.equal(field('ankiConnect.isLapis.sentenceCardModel').control, 'anki-note-type');
   assert.equal(field('ankiConnect.fields.word').control, 'anki-field');
@@ -228,6 +229,7 @@ test('settings registry routes playback-related integrations into integrations',
 test('settings registry puts feature toggles first, then other toggles alphabetically', () => {
   const ankiConnect = fields.filter((candidate) => candidate.section === 'AnkiConnect');
   assert.equal(ankiConnect[0]?.configPath, 'ankiConnect.enabled');
+  assert.equal(ankiConnect[1]?.configPath, 'ankiConnect.deck');
   assert.ok(
     ankiConnect.findIndex((candidate) => candidate.configPath === 'ankiConnect.enabled') <
       ankiConnect.findIndex((candidate) => candidate.configPath === 'ankiConnect.pollingRate'),
@@ -236,6 +238,14 @@ test('settings registry puts feature toggles first, then other toggles alphabeti
     fields.findIndex((candidate) => candidate.section === 'AnkiConnect') <
       fields.findIndex((candidate) => candidate.section === 'AnkiConnect Proxy'),
   );
+  const miningSections = [
+    ...new Set(
+      fields
+        .filter((candidate) => candidate.category === 'mining-anki')
+        .map((candidate) => candidate.section),
+    ),
+  ];
+  assert.equal(miningSections[0], 'AnkiConnect');
 
   const kikuLapis = fields.filter((candidate) => candidate.section === 'Kiku/Lapis Features');
   assert.deepEqual(
@@ -288,6 +298,7 @@ test('settings registry marks safe live config paths as hot-reloadable', () => {
     'jimaku.maxEntryResults',
     'subsync.replace',
     'ankiConnect.behavior.autoUpdateNewCards',
+    'ankiConnect.deck',
     'ankiConnect.knownWords.highlightEnabled',
     'ankiConnect.knownWords.refreshMinutes',
     'ankiConnect.knownWords.addMinedWordsImmediately',

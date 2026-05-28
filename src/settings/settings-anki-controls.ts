@@ -17,6 +17,11 @@ const state: {
   modelFieldNames: Map<string, string[]>;
   modelFieldNamesLoading: Set<string>;
   modelFieldNamesErrors: Map<string, string>;
+  yomitanAnkiDeckName: string | null;
+  yomitanAnkiDeckNameLoading: boolean;
+  yomitanAnkiDeckNameError: string | null;
+  ankiDeckNameManuallySelected: boolean;
+  ankiDeckNameAutofilled: boolean;
   noteFieldModelName: string;
   ankiConnectUrl: string;
   noteFieldModelNameManuallySelected: boolean;
@@ -35,6 +40,11 @@ const state: {
   modelFieldNames: new Map(),
   modelFieldNamesLoading: new Set(),
   modelFieldNamesErrors: new Map(),
+  yomitanAnkiDeckName: null,
+  yomitanAnkiDeckNameLoading: false,
+  yomitanAnkiDeckNameError: null,
+  ankiDeckNameManuallySelected: false,
+  ankiDeckNameAutofilled: false,
   noteFieldModelName: '',
   ankiConnectUrl: '',
   noteFieldModelNameManuallySelected: false,
@@ -49,6 +59,11 @@ export function configureAnkiControls(options: { requestRender: () => void }): v
 export function initializeAnkiControls(_values: Record<string, ConfigSettingsSnapshotValue>): void {
   state.noteFieldModelName = '';
   state.noteFieldModelNameManuallySelected = false;
+  state.yomitanAnkiDeckName = null;
+  state.yomitanAnkiDeckNameLoading = false;
+  state.yomitanAnkiDeckNameError = null;
+  state.ankiDeckNameManuallySelected = false;
+  state.ankiDeckNameAutofilled = false;
 }
 
 export function selectPreferredNoteFieldModelName(
@@ -88,6 +103,16 @@ export function chooseKnownWordsDeckRenameValue(
     return currentDeckName;
   }
   return nextDeckName;
+}
+
+export function chooseAnkiDeckAutofillValue(
+  currentDeckName: string,
+  inferredDeckName: string,
+  manuallySelected: boolean,
+): string | null {
+  const current = currentDeckName.trim();
+  const inferred = inferredDeckName.trim();
+  return !manuallySelected && current.length === 0 && inferred.length > 0 ? inferred : null;
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -192,6 +217,28 @@ async function loadAnkiDeckNames(draftUrl?: string): Promise<void> {
       state.deckNamesLoading = false;
       requestRender();
     }
+  }
+}
+
+async function loadYomitanAnkiDeckName(): Promise<void> {
+  if (state.yomitanAnkiDeckName !== null || state.yomitanAnkiDeckNameLoading) return;
+  state.yomitanAnkiDeckNameLoading = true;
+  try {
+    const result = await window.configSettingsAPI.getYomitanAnkiDeckName();
+    if (result.ok) {
+      state.yomitanAnkiDeckName = result.value.trim();
+      state.yomitanAnkiDeckNameError = null;
+    } else {
+      state.yomitanAnkiDeckName = '';
+      state.yomitanAnkiDeckNameError = result.error ?? 'Failed to read Yomitan Anki deck.';
+    }
+  } catch (error) {
+    state.yomitanAnkiDeckName = '';
+    state.yomitanAnkiDeckNameError =
+      error instanceof Error ? error.message : 'Failed to read Yomitan Anki deck.';
+  } finally {
+    state.yomitanAnkiDeckNameLoading = false;
+    requestRender();
   }
 }
 
@@ -404,6 +451,54 @@ export function renderAnkiNoteTypeInput(
   if (state.modelNamesError) {
     const hint = createElement('div', 'control-hint error');
     hint.textContent = state.modelNamesError;
+    wrap.append(hint);
+  }
+  return wrap;
+}
+
+export function renderAnkiDeckInput(
+  context: SettingsControlContext,
+  field: ConfigSettingsField,
+): HTMLElement {
+  const draftUrl = getDraftAnkiConnectUrl(context);
+  void loadAnkiDeckNames(draftUrl);
+  void loadYomitanAnkiDeckName();
+
+  const currentValue = context.valueForField(field);
+  let current = typeof currentValue === 'string' ? currentValue.trim() : '';
+  const inferred = state.yomitanAnkiDeckName ?? '';
+  const autofillValue =
+    state.ankiDeckNameAutofilled === false
+      ? chooseAnkiDeckAutofillValue(current, inferred, state.ankiDeckNameManuallySelected)
+      : null;
+  if (autofillValue !== null) {
+    state.ankiDeckNameAutofilled = true;
+    current = autofillValue;
+    context.updateDraft(field.configPath, autofillValue);
+  }
+
+  const select = createElement('select', 'config-input') as HTMLSelectElement;
+  addOption(select, '', state.deckNamesLoading ? 'Loading Decks...' : 'Select Deck');
+  for (const deckName of uniqueSorted([...(state.deckNames ?? []), current])) {
+    if (!deckName) continue;
+    addOption(select, deckName);
+  }
+  select.value = current;
+  select.addEventListener('change', () => {
+    state.ankiDeckNameManuallySelected = true;
+    state.ankiDeckNameAutofilled = true;
+    context.updateDraft(field.configPath, select.value);
+  });
+
+  const wrap = createElement('div', 'stacked-control');
+  wrap.append(select);
+  if (state.deckNamesError) {
+    const hint = createElement('div', 'control-hint error');
+    hint.textContent = state.deckNamesError;
+    wrap.append(hint);
+  } else if (state.yomitanAnkiDeckNameError && !state.yomitanAnkiDeckNameLoading) {
+    const hint = createElement('div', 'control-hint');
+    hint.textContent = state.yomitanAnkiDeckNameError;
     wrap.append(hint);
   }
   return wrap;

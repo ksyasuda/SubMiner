@@ -23,6 +23,7 @@ export type ConfigSettingsControl =
   | 'key-code'
   | 'mpv-key'
   | 'known-words-decks'
+  | 'anki-deck'
   | 'anki-note-type'
   | 'anki-field'
   | 'mpv-keybindings'
@@ -96,10 +97,17 @@ export interface ConfigSettingsAPI {
     modelName: string,
     draftUrl?: string,
   ): Promise<ConfigSettingsAnkiListResult>;
+  getYomitanAnkiDeckName(): Promise<ConfigSettingsAnkiDeckResult>;
 }
 
 export interface ConfigSettingsAnkiListResult {
   ok: boolean;
   values: string[];
+  error?: string;
+}
+
+export interface ConfigSettingsAnkiDeckResult {
+  ok: boolean;
+  value: string;
   error?: string;
 }

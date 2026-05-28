@@ -6,6 +6,7 @@ import test from 'node:test';
 import * as vm from 'node:vm';
 import {
   addYomitanNoteViaSearch,
+  extractYomitanCurrentAnkiDeckName,
   getYomitanDictionaryInfo,
   importYomitanDictionaryFromZip,
   deleteYomitanDictionaryByTitle,
@@ -179,6 +180,51 @@ test('syncYomitanDefaultAnkiServer no-ops for empty target url', async () => {
 
   assert.equal(updated, false);
   assert.equal(executeCount, 0);
+});
+
+test('extractYomitanCurrentAnkiDeckName prefers the active profile first term card format deck', () => {
+  assert.equal(
+    extractYomitanCurrentAnkiDeckName({
+      profileCurrent: 1,
+      profiles: [
+        {
+          options: {
+            anki: {
+              cardFormats: [{ type: 'term', deck: 'Inactive' }],
+            },
+          },
+        },
+        {
+          options: {
+            anki: {
+              cardFormats: [
+                { type: 'kanji', deck: 'Kanji' },
+                { type: 'term', deck: 'Mining' },
+              ],
+            },
+          },
+        },
+      ],
+    }),
+    'Mining',
+  );
+});
+
+test('extractYomitanCurrentAnkiDeckName falls back to legacy term deck', () => {
+  assert.equal(
+    extractYomitanCurrentAnkiDeckName({
+      profiles: [
+        {
+          options: {
+            anki: {
+              terms: { deck: 'Legacy Mining' },
+            },
+          },
+        },
+      ],
+    }),
+    'Legacy Mining',
+  );
 });
 
 test('requestYomitanTermFrequencies returns normalized frequency entries', async () => {

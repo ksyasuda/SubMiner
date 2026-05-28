@@ -17,7 +17,6 @@ type Leaf = {
 };
 
 export const LEGACY_HIDDEN_CONFIG_PATHS = [
-  'ankiConnect.deck',
   'ankiConnect.wordField',
   'ankiConnect.audioField',
   'ankiConnect.imageField',
@@ -129,11 +128,11 @@ const SECTION_ORDER = new Map<string, number>(
     'Subtitle Sidebar Behavior',
     'YouTube Playback Settings',
     'mpv Playback',
+    'AnkiConnect',
     'Note Fields',
     'Media Capture',
     'Kiku/Lapis Features',
     'Anki AI',
-    'AnkiConnect',
     'AnkiConnect Proxy',
     'Jimaku',
     'Subtitle Sync',
@@ -159,6 +158,7 @@ const SECTION_ORDER = new Map<string, number>(
 const PATH_ORDER = new Map<string, number>(
   [
     'ankiConnect.enabled',
+    'ankiConnect.deck',
     'ankiConnect.proxy.enabled',
     'ankiConnect.isLapis.enabled',
     'ankiConnect.isKiku.enabled',
@@ -494,6 +494,7 @@ function controlForPath(path: string, value: unknown): ConfigSettingsControl {
   if (SECRET_PATHS.has(path)) return 'secret';
   if (getSubtitleCssScopeForPath(path)) return 'css-declarations';
   if (path === 'keybindings') return 'mpv-keybindings';
+  if (path === 'ankiConnect.deck') return 'anki-deck';
   if (path === 'ankiConnect.knownWords.decks') return 'known-words-decks';
   if (path === 'ankiConnect.isLapis.sentenceCardModel') return 'anki-note-type';
   if (path.startsWith('ankiConnect.fields.')) return 'anki-field';
@@ -611,6 +612,7 @@ function isFeatureToggle(field: ConfigSettingsField): boolean {
 
 function fieldTypeRank(field: ConfigSettingsField): number {
   if (field.configPath === 'subtitleStyle.primaryVisibleOnYomitanPopup') return 2;
+  if (field.configPath === 'ankiConnect.deck') return 1;
   if (field.control !== 'boolean') return 2;
   return isFeatureToggle(field) ? 0 : 1;
 }
@@ -661,6 +663,7 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     pathStartsWith(path, 'subtitleStyle') ||
     pathStartsWith(path, 'subtitleSidebar') ||
     path === 'secondarySub.defaultMode' ||
+    path === 'ankiConnect.deck' ||
     path === 'ankiConnect.ai.enabled' ||
     path === 'ankiConnect.behavior.autoUpdateNewCards' ||
     path === 'ankiConnect.knownWords.highlightEnabled' ||

@@ -66,6 +66,7 @@ const HOT_RELOAD_EXACT_OR_PREFIX_PATHS = [
   'youtube.primarySubLanguages',
   'jimaku',
   'subsync',
+  'ankiConnect.deck',
   'ankiConnect.behavior.autoUpdateNewCards',
   'ankiConnect.knownWords.highlightEnabled',
   'ankiConnect.knownWords.refreshMinutes',

@@ -86,6 +86,9 @@ function buildAnkiRuntimeConfigPatch(
   if (diff.hotReloadFields.includes('ankiConnect.behavior.autoUpdateNewCards')) {
     patch.behavior = { autoUpdateNewCards: config.ankiConnect.behavior.autoUpdateNewCards };
   }
+  if (diff.hotReloadFields.includes('ankiConnect.deck')) {
+    patch.deck = config.ankiConnect.deck;
+  }
   if (hasAnyHotReloadField(diff, ['ankiConnect.knownWords'])) {
     patch.knownWords = config.ankiConnect.knownWords;
   }

@@ -113,6 +113,7 @@ export const IPC_CHANNELS = {
     getConfigSettingsAnkiDeckModelNames: 'config-settings:anki-deck-model-names',
     getConfigSettingsAnkiModelNames: 'config-settings:anki-model-names',
     getConfigSettingsAnkiModelFieldNames: 'config-settings:anki-model-field-names',
+    getConfigSettingsYomitanAnkiDeckName: 'config-settings:yomitan-anki-deck-name',
   },
   event: {
     subtitleSet: 'subtitle:set',

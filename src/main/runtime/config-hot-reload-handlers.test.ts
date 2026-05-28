@@ -60,6 +60,7 @@ test('createConfigHotReloadAppliedHandler runs all hot-reload effects', () => {
 test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and logging changes', () => {
   const config = deepCloneConfig(DEFAULT_CONFIG);
   config.ankiConnect.behavior.autoUpdateNewCards = false;
+  config.ankiConnect.deck = 'Mining';
   config.ankiConnect.knownWords.highlightEnabled = true;
   config.ankiConnect.knownWords.refreshMinutes = 90;
   config.ankiConnect.knownWords.decks = { Anime: ['Mining'] };
@@ -100,6 +101,7 @@ test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and log
     {
       hotReloadFields: [
         'ankiConnect.behavior.autoUpdateNewCards',
+        'ankiConnect.deck',
         'ankiConnect.knownWords.highlightEnabled',
         'ankiConnect.knownWords.refreshMinutes',
         'ankiConnect.knownWords.decks',
@@ -123,6 +125,7 @@ test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and log
 
   assert.deepEqual(ankiPatches, [
     {
+      deck: 'Mining',
       behavior: { autoUpdateNewCards: false },
       knownWords: config.ankiConnect.knownWords,
       nPlusOne: config.ankiConnect.nPlusOne,

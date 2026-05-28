@@ -350,6 +350,7 @@ import {
   saveSubtitlePosition as saveSubtitlePositionCore,
   addYomitanNoteViaSearch,
   clearYomitanParserCachesForWindow,
+  getYomitanCurrentAnkiDeckName as getYomitanCurrentAnkiDeckNameCore,
   syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore,
   sendMpvCommandRuntime,
   setMpvSubVisibilityRuntime,
@@ -2067,6 +2068,17 @@ const configSettingsRuntime = createConfigSettingsRuntime({
   onHotReloadApplied: applyConfigHotReloadDiff,
   defaultAnkiConnectUrl: DEFAULT_CONFIG.ankiConnect.url,
   createAnkiClient: (url) => new AnkiConnectClient(url),
+  getYomitanAnkiDeckName: async () => {
+    await yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
+    return getYomitanCurrentAnkiDeckNameCore(getYomitanParserRuntimeDeps(), {
+      error: (message, ...args) => {
+        logger.error(message, ...args);
+      },
+      info: (message, ...args) => {
+        logger.info(message, ...args);
+      },
+    });
+  },
   getSettingsWindow: () => appState.configSettingsWindow,
   setSettingsWindow: (window) => {
     appState.configSettingsWindow = window as BrowserWindow | null;
