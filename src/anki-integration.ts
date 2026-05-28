@@ -526,7 +526,9 @@ export class AnkiIntegration {
   }
 
   private isKnownWordCacheEnabled(): boolean {
-    return this.config.knownWords?.highlightEnabled === true;
+    return (
+      this.config.knownWords?.highlightEnabled === true || this.config.nPlusOne?.enabled === true
+    );
   }
 
   private getConfiguredAnkiTags(): string[] {

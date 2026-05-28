@@ -19,6 +19,7 @@ interface IntegrationTestContext {
 function createIntegrationTestContext(
   options: {
     highlightEnabled?: boolean;
+    nPlusOneEnabled?: boolean;
     onFindNotes?: () => Promise<number[]>;
     onNotesInfo?: () => Promise<unknown[]>;
     stateDirPrefix?: string;
@@ -59,6 +60,12 @@ function createIntegrationTestContext(
       knownWords: {
         highlightEnabled: options.highlightEnabled ?? true,
       },
+      nPlusOne:
+        options.nPlusOneEnabled === undefined
+          ? undefined
+          : {
+              enabled: options.nPlusOneEnabled,
+            },
     },
     {} as never,
     {} as never,
@@ -174,6 +181,28 @@ test('AnkiIntegration.refreshKnownWordCache notifies annotation cache listeners'
 
     await ctx.integration.refreshKnownWordCache();
 
+    assert.equal(notifications, 1);
+  } finally {
+    cleanupIntegrationTestContext(ctx);
+  }
+});
+
+test('AnkiIntegration.refreshKnownWordCache notifies when n+1 is enabled without highlights', async () => {
+  const ctx = createIntegrationTestContext({
+    highlightEnabled: false,
+    nPlusOneEnabled: true,
+    stateDirPrefix: 'subminer-anki-integration-nplusone-notify-',
+  });
+  let notifications = 0;
+
+  try {
+    ctx.integration.setKnownWordCacheUpdatedCallback(() => {
+      notifications += 1;
+    });
+
+    await ctx.integration.refreshKnownWordCache();
+
+    assert.equal(ctx.calls.findNotes, 1);
     assert.equal(notifications, 1);
   } finally {
     cleanupIntegrationTestContext(ctx);
