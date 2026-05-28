@@ -260,14 +260,18 @@ You will receive a list of FRAGMENT entries below. Each fragment has metadata (t
 
    </details>
    Do not include the Internal section at all in MODE: release-notes; internal fragments will not be present in the input for that mode.
-4. Each bullet should:
-   - Lead with a short feature/area name in title case followed by a colon, e.g. "Playlist browser:", "Windows overlay:", "Stats dashboard:". Pick the name from the fragment's bullet content, not the raw 'area:' slug.
+4. Each top-level change item should:
+   - Lead with a short feature/area name in title case. Pick the name from the fragment's bullet content, not the raw 'area:' slug.
    - Be written in user-facing language. Drop implementation jargon, internal class names, file paths, and PR numbers.
    - Be merged with related bullets when possible. If five fragments all touch Windows overlay z-order/focus/restore, write one or two bullets that summarize the overall improvement instead of five.
    - Drop bullets that only describe PR housekeeping, CodeRabbit follow-ups, or test-only changes that don't affect users.
    - Preserve the substance of breaking changes that remain breaking after applying the Release Outcome Rules. Do not soften or omit them.
-5. Do not invent features. Every bullet must be grounded in the input fragments.
-6. Do not include the version heading (## v...) — that wrapper is added by the caller.
+5. In MODE: changelog, each item may be a conventional single-level bullet, e.g. "- Playlist Browser: Adds faster saved-show browsing."
+6. In MODE: release-notes, use short top-level change bullets with two or three nested bullets when an item needs explanation.
+   Nested bullets should cover the change, user benefit, and any user action or compatibility note when useful. Do not require the exact nested labels; natural phrasing is fine. Omit the action bullet when no action is needed.
+   Keep nested bullets short, concrete, and readable by non-technical users. Avoid paragraph-style release-note bullets.
+7. Do not invent features. Every bullet must be grounded in the input fragments.
+8. Do not include the version heading (## v...) — that wrapper is added by the caller.
 
 The input begins below.
 

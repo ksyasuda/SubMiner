@@ -43,6 +43,14 @@ function fragmentTypesInPrompt(input: string): string[] {
     .map((line) => line.slice('type: '.length).trim());
 }
 
+function assertReleaseNotesPromptRequestsNestedBullets(input: string): void {
+  assert.match(input, /In MODE: release-notes, use short top-level change bullets/);
+  assert.match(input, /Nested bullets should cover the change, user benefit, and any user action/);
+  assert.match(input, /Do not require the exact nested labels/);
+  assert.match(input, /Keep nested bullets short, concrete, and readable by non-technical users/);
+  assert.match(input, /Avoid paragraph-style release-note bullets/);
+}
+
 function defaultPolishedBody(input: string): string {
   const mode = modeFromPrompt(input);
   const types = fragmentTypesInPrompt(input);
@@ -437,6 +445,12 @@ test('writeChangelogArtifacts prompts Claude to summarize the final stable outco
         /Multiple fixes within the same prerelease cycle should collapse into one current-state bullet/,
       );
     }
+
+    const releaseNotesPrompt = stub.calls.find(
+      (call) => modeFromPrompt(call.input) === 'release-notes',
+    );
+    assert.ok(releaseNotesPrompt, 'expected a release-notes Claude invocation');
+    assertReleaseNotesPromptRequestsNestedBullets(releaseNotesPrompt.input);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }
@@ -706,6 +720,7 @@ test('writePrereleaseNotesForVersion prompts Claude to revise stale prerelease b
       prompt,
       /Multiple fixes within the same prerelease cycle should collapse into one current-state bullet/,
     );
+    assertReleaseNotesPromptRequestsNestedBullets(prompt);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }

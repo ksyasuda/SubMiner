@@ -35,6 +35,7 @@ How fragments turn into a release:
 
 - At release time, `bun run changelog:build` (and `bun run changelog:prerelease-notes`) pipes every pending fragment through `claude -p` to merge related items, drop noise, and rewrite into a clean user-facing release body. Write fragments as raw, informative notes — don't worry about polished prose, deduping across PRs, or line-by-line phrasing. The polish step handles all of that.
 - The polish step treats pending fragments as the final release outcome, not prerelease history. If a feature is added and then renamed or fixed before the stable cut, ship the final feature bullet instead of separate prerelease-only breaking/fix entries.
+- GitHub release notes and prerelease notes use short top-level items with nested bullets for the change, user benefit, and any useful action note. The stable `CHANGELOG.md` can stay in compact single-line bullets.
 - `internal` fragments stay in `CHANGELOG.md` (inside a collapsed `<details>` block) but are dropped from the GitHub release notes entirely.
 - The polished `CHANGELOG.md` and `release/release-notes.md` are committed and reviewed before tagging — edit the Markdown by hand if Claude misses something.
 
