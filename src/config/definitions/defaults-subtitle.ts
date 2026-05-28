@@ -23,7 +23,8 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
     wordSpacing: 0,
     fontKerning: 'normal',
     textRendering: 'geometricPrecision',
-    textShadow: '0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)',
+    textShadow:
+      '-1px -1px 2px rgba(0,0,0,0.95), 1px -1px 2px rgba(0,0,0,0.95), -1px 1px 2px rgba(0,0,0,0.95), 1px 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.5)',
     paintOrder: '',
     WebkitTextStroke: '',
     fontStyle: 'normal',
@@ -41,7 +42,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
     frequencyDictionary: {
       enabled: false,
       sourcePath: '',
-      topX: 1000,
+      topX: 10000,
       mode: 'single',
       matchMode: 'headword',
       singleColor: '#f5a97f',
@@ -57,7 +58,8 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
       wordSpacing: 0,
       fontKerning: 'normal',
       textRendering: 'geometricPrecision',
-      textShadow: '0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)',
+      textShadow:
+        '-1px -1px 2px rgba(0,0,0,0.95), 1px -1px 2px rgba(0,0,0,0.95), -1px 1px 2px rgba(0,0,0,0.95), 1px 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.5)',
       paintOrder: '',
       WebkitTextStroke: '',
       backgroundColor: 'transparent',

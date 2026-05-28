@@ -380,7 +380,7 @@
       "word-spacing": "0", // Word spacing setting.
       "font-kerning": "normal", // Font kerning setting.
       "text-rendering": "geometricPrecision", // Text rendering setting.
-      "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
+      "text-shadow": "-1px -1px 2px rgba(0,0,0,0.95), 1px -1px 2px rgba(0,0,0,0.95), -1px 1px 2px rgba(0,0,0,0.95), 1px 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.5)", // Text shadow setting.
       "backdrop-filter": "blur(6px)", // Backdrop filter setting.
       "--subtitle-hover-token-color": "#f4dbd6", // Subtitle hover token color setting.
       "--subtitle-hover-token-background-color": "transparent" // Subtitle hover token background color setting.
@@ -405,7 +405,7 @@
     "frequencyDictionary": {
       "enabled": false, // Enable frequency-dictionary-based highlighting based on token rank. Values: true | false
       "sourcePath": "", // Optional absolute path to a frequency dictionary directory. If empty, built-in discovery search paths are used.
-      "topX": 1000, // Only color tokens with frequency rank <= topX (default: 1000).
+      "topX": 10000, // Only color tokens with frequency rank <= topX (default: 10000).
       "mode": "single", // single: use one color for all matching tokens. banded: use color ramp by frequency band. Values: single | banded
       "matchMode": "headword", // headword: frequency lookup uses dictionary form. surface: lookup uses subtitle-visible token text. Values: headword | surface
       "singleColor": "#f5a97f", // Color used when frequencyDictionary.mode is `single`.
@@ -430,7 +430,7 @@
         "word-spacing": "0", // Word spacing setting.
         "font-kerning": "normal", // Font kerning setting.
         "text-rendering": "geometricPrecision", // Text rendering setting.
-        "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)", // Text shadow setting.
+        "text-shadow": "-1px -1px 2px rgba(0,0,0,0.95), 1px -1px 2px rgba(0,0,0,0.95), -1px 1px 2px rgba(0,0,0,0.95), 1px 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.5)", // Text shadow setting.
         "backdrop-filter": "blur(6px)" // Backdrop filter setting.
       } // CSS declaration object applied to secondary subtitles after normal subtitle style defaults.
     } // Secondary setting.
