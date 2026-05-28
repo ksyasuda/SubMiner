@@ -13,10 +13,11 @@ export interface SubtitleProcessingController {
   invalidateTokenizationCache: () => void;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
   consumeCachedSubtitle: (text: string) => SubtitleData | null;
+  hasCachedSubtitle: (text: string) => boolean;
   isCacheFull: () => boolean;
 }
 
-function normalizeSubtitleCacheKey(text: string): string {
+export function normalizeSubtitleCacheKey(text: string): string {
   return text.replace(/\r\n/g, '\n').replace(/\\N/g, '\n').replace(/\\n/g, '\n').trim();
 }
 
@@ -151,6 +152,9 @@ export function createSubtitleProcessingController(
       lastEmittedText = text;
       refreshRequested = false;
       return cached;
+    },
+    hasCachedSubtitle: (text: string) => {
+      return tokenizationCache.has(normalizeSubtitleCacheKey(text));
     },
     isCacheFull: () => {
       return tokenizationCache.size >= SUBTITLE_TOKENIZATION_CACHE_LIMIT;

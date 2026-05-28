@@ -242,3 +242,59 @@ test('prefetch service pause/resume halts and continues tokenization', async () 
 
   assert.ok(tokenizeCalls > callsWhenPaused + 1, 'Should resume tokenizing after unpause');
 });
+
+test('prefetch service skips cues already present in tokenization cache', async () => {
+  const cues = makeCues(5);
+  const tokenizedTexts: string[] = [];
+
+  const service = createSubtitlePrefetchService({
+    cues,
+    tokenizeSubtitle: async (text) => {
+      tokenizedTexts.push(text);
+      return { text, tokens: [] };
+    },
+    preCacheTokenization: () => {},
+    hasCachedTokenization: (text) => text === 'line-0' || text === 'line-1',
+    isCacheFull: () => false,
+    priorityWindowSize: 3,
+  });
+
+  service.start(0);
+  for (let i = 0; i < 10; i += 1) {
+    await flushMicrotasks();
+  }
+  service.stop();
+
+  assert.ok(!tokenizedTexts.includes('line-0'));
+  assert.ok(!tokenizedTexts.includes('line-1'));
+  assert.ok(tokenizedTexts.includes('line-2'));
+});
+
+test('prefetch service deduplicates repeated cue text within a run', async () => {
+  const cues: SubtitleCue[] = [
+    { startTime: 0, endTime: 1, text: 'same' },
+    { startTime: 1, endTime: 2, text: 'same' },
+    { startTime: 2, endTime: 3, text: 'other' },
+  ];
+  const tokenizedTexts: string[] = [];
+
+  const service = createSubtitlePrefetchService({
+    cues,
+    tokenizeSubtitle: async (text) => {
+      tokenizedTexts.push(text);
+      return { text, tokens: [] };
+    },
+    preCacheTokenization: () => {},
+    isCacheFull: () => false,
+    priorityWindowSize: 3,
+  });
+
+  service.start(0);
+  for (let i = 0; i < 10; i += 1) {
+    await flushMicrotasks();
+  }
+  service.stop();
+
+  assert.deepEqual(tokenizedTexts.filter((text) => text === 'same'), ['same']);
+  assert.ok(tokenizedTexts.includes('other'));
+});

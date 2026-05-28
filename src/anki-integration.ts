@@ -526,7 +526,9 @@ export class AnkiIntegration {
   }
 
   private isKnownWordCacheEnabled(): boolean {
-    return this.config.knownWords?.highlightEnabled === true;
+    return (
+      this.config.knownWords?.highlightEnabled === true || this.config.nPlusOne?.enabled === true
+    );
   }
 
   private getConfiguredAnkiTags(): string[] {
@@ -549,7 +551,11 @@ export class AnkiIntegration {
   }
 
   async refreshKnownWordCache(): Promise<void> {
-    return this.knownWordCache.refresh(true);
+    const shouldNotify = this.isKnownWordCacheEnabled();
+    await this.knownWordCache.refresh(true);
+    if (shouldNotify) {
+      this.notifyKnownWordCacheUpdated();
+    }
   }
 
   private appendKnownWordsFromNoteInfo(noteInfo: NoteInfo): void {
