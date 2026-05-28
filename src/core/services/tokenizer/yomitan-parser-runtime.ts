@@ -1908,15 +1908,18 @@ function getYomitanDeckFromProfileOptions(profileOptions: Record<string, unknown
   }
 
   const cardFormats = Array.isArray(anki.cardFormats) ? anki.cardFormats : [];
-  const termDeck = cardFormats
+  const enabledCardFormats = cardFormats
     .filter((cardFormat): cardFormat is Record<string, unknown> => isObject(cardFormat))
-    .find((cardFormat) => cardFormat.type === 'term' && readDeckName(cardFormat.deck).length > 0);
+    .filter((cardFormat) => cardFormat.enabled !== false);
+
+  const termDeck = enabledCardFormats.find(
+    (cardFormat) => cardFormat.type === 'term' && readDeckName(cardFormat.deck).length > 0,
+  );
   if (termDeck) {
     return readDeckName(termDeck.deck);
   }
 
-  const firstDeck = cardFormats
-    .filter((cardFormat): cardFormat is Record<string, unknown> => isObject(cardFormat))
+  const firstDeck = enabledCardFormats
     .map((cardFormat) => readDeckName(cardFormat.deck))
     .find((deckName) => deckName.length > 0);
   if (firstDeck) {

@@ -210,6 +210,27 @@ test('extractYomitanCurrentAnkiDeckName prefers the active profile first term ca
   );
 });
 
+test('extractYomitanCurrentAnkiDeckName ignores disabled card format decks', () => {
+  assert.equal(
+    extractYomitanCurrentAnkiDeckName({
+      profiles: [
+        {
+          options: {
+            anki: {
+              cardFormats: [
+                { type: 'term', deck: 'Disabled Term', enabled: false },
+                { type: 'kanji', deck: 'Disabled Kanji', enabled: false },
+                { type: 'term', deck: 'Mining', enabled: true },
+              ],
+            },
+          },
+        },
+      ],
+    }),
+    'Mining',
+  );
+});
+
 test('extractYomitanCurrentAnkiDeckName falls back to legacy term deck', () => {
   assert.equal(
     extractYomitanCurrentAnkiDeckName({
