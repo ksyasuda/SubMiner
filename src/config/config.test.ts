@@ -22,7 +22,7 @@ import {
 const DEFAULT_SUBTITLE_FONT_FAMILY =
   'Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP';
 const DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY = DEFAULT_SUBTITLE_FONT_FAMILY;
-const DEFAULT_SUBTITLE_TEXT_SHADOW = '0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)';
+const DEFAULT_SUBTITLE_TEXT_SHADOW = '-1px -1px 2px rgba(0,0,0,0.95), 1px -1px 2px rgba(0,0,0,0.95), -1px 1px 2px rgba(0,0,0,0.95), 1px 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.5)';
 const SUBTITLE_CSS_SCOPES: SubtitleCssScope[] = ['primary', 'secondary', 'sidebar'];
 
 function makeTempDir(): string {

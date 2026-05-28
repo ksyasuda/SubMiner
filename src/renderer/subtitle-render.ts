@@ -89,7 +89,7 @@ function sanitizeSubtitleHoverTokenBackgroundColor(value: unknown): string {
 
 const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {
   enabled: false,
-  topX: 1000,
+  topX: 10000,
   mode: 'single',
   singleColor: '#f5a97f',
   bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#8bd5ca', '#8aadf4'],

@@ -127,7 +127,7 @@ export function buildSubtitleConfigOptionRegistry(
       path: 'subtitleStyle.frequencyDictionary.topX',
       kind: 'number',
       defaultValue: defaultConfig.subtitleStyle.frequencyDictionary.topX,
-      description: 'Only color tokens with frequency rank <= topX (default: 1000).',
+      description: 'Only color tokens with frequency rank <= topX (default: 10000).',
     },
     {
       path: 'subtitleStyle.frequencyDictionary.mode',

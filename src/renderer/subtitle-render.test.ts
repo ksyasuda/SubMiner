@@ -909,8 +909,8 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
     assert.doesNotMatch(plainJlptBlock, /text-decoration\s*:[^;]*\bunderline\b/i);
     assert.match(
       plainJlptBlock,
-      new RegExp(`border-bottom:\\s*2px\\s+solid\\s+var\\(--subtitle-jlpt-n${level}-color,`),
-      `JLPT level must paint a permanent 2px border-bottom in the level color`,
+      new RegExp(`border-bottom:\\s*3px\\s+solid\\s+var\\(--subtitle-jlpt-n${level}-color,`),
+      `JLPT level must paint a permanent 3px border-bottom in the level color`,
     );
 
     // JLPT tagging must communicate level *only* via the underline; it must
@@ -973,6 +973,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   assert.match(characterImageTokenBlock, /display:\s*inline-block;/);
   assert.match(characterImageTokenBlock, /position:\s*relative;/);
   assert.match(characterImageTokenBlock, /padding-left:\s*1\.08em;/);
+  assert.match(characterImageTokenBlock, /margin-left:\s*0\.18em;/);
 
   const characterImageBlock = extractClassBlock(cssText, '#subtitleRoot .word-character-image');
   assert.match(characterImageBlock, /position:\s*absolute;/);
@@ -1186,7 +1187,7 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   assert.match(secondaryRootBlock, /-webkit-text-stroke:\s*0\.45px rgba\(0,\s*0,\s*0,\s*0\.7\);/);
   assert.match(
     secondaryRootBlock,
-    /text-shadow:\s*0 2px 4px rgba\(0,\s*0,\s*0,\s*0\.95\),\s*0 0 8px rgba\(0,\s*0,\s*0,\s*0\.8\),\s*0 0 16px rgba\(0,\s*0,\s*0,\s*0\.55\);/,
+    /text-shadow:\s*-1px -1px 2px rgba\(0,\s*0,\s*0,\s*0\.95\),\s*1px -1px 2px rgba\(0,\s*0,\s*0,\s*0\.95\),\s*-1px 1px 2px rgba\(0,\s*0,\s*0,\s*0\.95\),\s*1px 1px 2px rgba\(0,\s*0,\s*0,\s*0\.95\),\s*0 0 8px rgba\(0,\s*0,\s*0,\s*0\.5\);/,
   );
 
   const secondaryHoverBaseBlock = extractClassBlock(

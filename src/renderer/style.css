@@ -668,8 +668,11 @@ body.subtitle-sidebar-embedded-open #subtitleContainer {
   --subtitle-frequency-band-4-color: #8bd5ca;
   --subtitle-frequency-band-5-color: #8aadf4;
   text-shadow:
-    2px 2px 4px rgba(0, 0, 0, 0.8),
-    -1px -1px 2px rgba(0, 0, 0, 0.5);
+    -1px -1px 2px rgba(0, 0, 0, 0.95),
+    1px -1px 2px rgba(0, 0, 0, 0.95),
+    -1px 1px 2px rgba(0, 0, 0, 0.95),
+    1px 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 8px rgba(0, 0, 0, 0.5);
   /* Enable text selection for Yomitan */
   user-select: text;
   cursor: text;
@@ -817,6 +820,7 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
   display: inline-block;
   position: relative;
   padding-left: 1.08em;
+  margin-left: 0.18em;
   vertical-align: baseline;
 }
 
@@ -837,7 +841,8 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 
 #subtitleRoot .word.word-jlpt-n1 {
   text-decoration-line: none;
-  border-bottom: 2px solid var(--subtitle-jlpt-n1-color, #ed8796);
+  border-bottom: 3px solid var(--subtitle-jlpt-n1-color, #ed8796);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 
 #subtitleRoot .word.word-jlpt-n1[data-jlpt-level]::after {
@@ -846,7 +851,8 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 
 #subtitleRoot .word.word-jlpt-n2 {
   text-decoration-line: none;
-  border-bottom: 2px solid var(--subtitle-jlpt-n2-color, #f5a97f);
+  border-bottom: 3px solid var(--subtitle-jlpt-n2-color, #f5a97f);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 
 #subtitleRoot .word.word-jlpt-n2[data-jlpt-level]::after {
@@ -855,7 +861,8 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 
 #subtitleRoot .word.word-jlpt-n3 {
   text-decoration-line: none;
-  border-bottom: 2px solid var(--subtitle-jlpt-n3-color, #f9e2af);
+  border-bottom: 3px solid var(--subtitle-jlpt-n3-color, #f9e2af);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 
 #subtitleRoot .word.word-jlpt-n3[data-jlpt-level]::after {
@@ -864,7 +871,8 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 
 #subtitleRoot .word.word-jlpt-n4 {
   text-decoration-line: none;
-  border-bottom: 2px solid var(--subtitle-jlpt-n4-color, #a6e3a1);
+  border-bottom: 3px solid var(--subtitle-jlpt-n4-color, #a6e3a1);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 
 #subtitleRoot .word.word-jlpt-n4[data-jlpt-level]::after {
@@ -873,7 +881,8 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 
 #subtitleRoot .word.word-jlpt-n5 {
   text-decoration-line: none;
-  border-bottom: 2px solid var(--subtitle-jlpt-n5-color, #8aadf4);
+  border-bottom: 3px solid var(--subtitle-jlpt-n5-color, #8aadf4);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 
 #subtitleRoot .word.word-jlpt-n5[data-jlpt-level]::after {
@@ -1186,9 +1195,11 @@ body.layer-modal #overlay {
   -webkit-text-stroke: 0.45px rgba(0, 0, 0, 0.7);
   paint-order: stroke fill;
   text-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.95),
-    0 0 8px rgba(0, 0, 0, 0.8),
-    0 0 16px rgba(0, 0, 0, 0.55);
+    -1px -1px 2px rgba(0, 0, 0, 0.95),
+    1px -1px 2px rgba(0, 0, 0, 0.95),
+    -1px 1px 2px rgba(0, 0, 0, 0.95),
+    1px 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 8px rgba(0, 0, 0, 0.5);
   user-select: text;
   cursor: text;
 }
