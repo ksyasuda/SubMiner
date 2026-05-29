@@ -20,24 +20,25 @@ The feature has three stages: **snapshot**, **merge**, and **match**.
 
 Character dictionary sync is disabled by default. To turn it on:
 
-1. Authenticate with AniList (see [AniList Integration](/anilist-integration#setup)).
-2. Set `subtitleStyle.nameMatchEnabled` to `true` in your config or enable **Name Match Enabled** in Settings.
-3. Start watching — SubMiner will generate a snapshot for the current media and import the merged dictionary into Yomitan automatically.
+1. Enable **Name Match** in Settings → Subtitle Style, or set `subtitleStyle.nameMatchEnabled: true` in your config.
+2. Start watching — SubMiner queries AniList's public GraphQL API (no authentication required) and imports the merged dictionary into Yomitan automatically.
+3. Optionally enable **Name Match Images** (Settings → Subtitle Style) to show inline circular character portraits next to matched names in subtitles.
 
 ```jsonc
 {
-  "anilist": {
-    "enabled": true,
-    "accessToken": "your-token",
-  },
   "subtitleStyle": {
     "nameMatchEnabled": true,
+    "nameMatchImagesEnabled": true, // optional — inline portraits
   },
 }
 ```
 
 ::: tip
 The first sync for a media title takes a few seconds while character data and portraits are fetched from AniList. Subsequent launches reuse the cached media match and snapshot without a fresh AniList lookup.
+:::
+
+::: info
+AniList character data is fetched via public GraphQL queries — no account or access token is needed. AniList authentication is only required for the separate [watch-progress sync](/anilist-integration) feature.
 :::
 
 ::: warning
@@ -105,6 +106,25 @@ Name matches are visually distinct from [N+1 targeting, frequency highlighting, 
 | `subtitleStyle.nameMatchEnabled`       | `false`   | Enable dictionary sync and highlighting   |
 | `subtitleStyle.nameMatchImagesEnabled` | `false`   | Show small AniList portraits beside names |
 | `subtitleStyle.nameMatchColor`         | `#f5bde6` | Highlight color for matched names         |
+
+## Inline Character Portraits
+
+When `subtitleStyle.nameMatchImagesEnabled` is enabled, SubMiner injects a small circular portrait image directly into the subtitle line next to each matched character name.
+
+Portraits are sourced from the local snapshot — they are embedded at snapshot-generation time and served from the cached ZIP, so no network request happens during playback. Images are downloaded from AniList CDN once per character and stored in `character-dictionaries/img/`.
+
+If a snapshot was generated before portrait data was available (e.g. during an earlier version or offline sync), SubMiner detects the missing image data on the next media match and automatically refreshes the snapshot so portraits are included in the next merged dictionary build.
+
+**To enable:**
+
+- Settings → Subtitle Style → **Name Match Images**, or
+- `subtitleStyle.nameMatchImagesEnabled: true` in config.
+
+The portrait size is controlled by the surrounding subtitle font size and renders as a circle clipped from the character's AniList cover image.
+
+::: tip
+Inline portraits help you quickly associate names with faces while building vocabulary — especially useful for shows with large casts where you're still learning who's who.
+:::
 
 ## Dictionary Entries
 
@@ -281,5 +301,5 @@ If you work with visual novels or want a standalone dictionary generator indepen
 ## Related
 
 - [Subtitle Annotations](/subtitle-annotations) — how name matches interact with N+1, frequency, and JLPT layers
-- [AniList Integration](/anilist-integration) — authentication, episode tracking, and AniList settings
+- [AniList Integration](/anilist-integration) — watch-progress sync and AniList authentication (separate from character dictionary)
 - [Configuration Reference](/configuration) — full config options
