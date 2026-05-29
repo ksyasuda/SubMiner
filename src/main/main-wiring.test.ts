@@ -122,7 +122,10 @@ test('autoplay subtitle prime prefers cached annotated payload before raw fallba
   );
   assert.match(actionBlock, /if \(cachedPayload\) \{/);
   assert.match(actionBlock, /emitSubtitlePayload\(cachedPayload\);/);
-  assert.match(actionBlock, /const rawPayload = withCurrentSubtitleTiming\(\{ text, tokens: null \}\);/);
+  assert.match(
+    actionBlock,
+    /const rawPayload = withCurrentSubtitleTiming\(\{ text, tokens: null \}\);/,
+  );
   assert.ok(
     actionBlock.indexOf('consumeCachedSubtitle(text)') <
       actionBlock.indexOf('withCurrentSubtitleTiming({ text, tokens: null })'),
@@ -144,7 +147,9 @@ test('known-word updates invalidate prefetched tokenizations before refreshing c
   );
   assert.ok(
     actionBlock.indexOf('subtitleProcessingController.invalidateTokenizationCache();') <
-      actionBlock.indexOf('subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);'),
+      actionBlock.indexOf(
+        'subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);',
+      ),
   );
 });
 

@@ -489,6 +489,7 @@ function renderReleaseNotes(
     '',
     '- Linux: `SubMiner.AppImage`',
     '- macOS: `SubMiner-*.dmg` and `SubMiner-*.zip`',
+    '- Windows: `SubMiner-*.exe` and `SubMiner-*-win.zip`',
     '- Optional extras: `subminer-assets.tar.gz` and the `subminer` launcher',
     '',
     'Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.',

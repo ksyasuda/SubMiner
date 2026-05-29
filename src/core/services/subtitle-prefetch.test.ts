@@ -295,6 +295,9 @@ test('prefetch service deduplicates repeated cue text within a run', async () =>
   }
   service.stop();
 
-  assert.deepEqual(tokenizedTexts.filter((text) => text === 'same'), ['same']);
+  assert.deepEqual(
+    tokenizedTexts.filter((text) => text === 'same'),
+    ['same'],
+  );
   assert.ok(tokenizedTexts.includes('other'));
 });

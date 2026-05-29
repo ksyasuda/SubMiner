@@ -179,6 +179,7 @@ test('writeChangelogArtifacts ignores README, groups fragments by type, writes r
     assert.match(releaseNotes, /## Highlights\n### Added\n- Polished: added entry\./);
     assert.match(releaseNotes, /### Fixed\n- Polished: fixed entry\./);
     assert.match(releaseNotes, /## Installation\n\nSee the README and docs\/installation guide/);
+    assert.match(releaseNotes, /- Windows: `SubMiner-\*\.exe` and `SubMiner-\*-win\.zip`/);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }
