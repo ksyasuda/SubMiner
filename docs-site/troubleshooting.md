@@ -232,6 +232,15 @@ Japanese word boundaries depend on Yomitan parser output. If segmentation seems 
 - Verify Yomitan dictionaries are installed and active.
 - Note that CJK characters without spaces are segmented using parser heuristics, which is not always perfect.
 
+## Character Dictionary
+
+Character names from AniList are matched and highlighted in subtitles via the bundled Yomitan. See [Character Dictionary](/character-dictionary) for setup and the full troubleshooting list — the most common issues:
+
+- **Names not highlighting:** Confirm `subtitleStyle.nameMatchEnabled` is `true`, and that the current media resolved to an AniList entry (SubMiner needs a media ID to fetch characters). No AniList account or token is required — character data uses public GraphQL queries.
+- **Inline portraits missing:** Confirm `subtitleStyle.nameMatchImagesEnabled` is `true`. Portraits also require AniList to return an image and the download to succeed during snapshot generation.
+- **Wrong characters showing:** Open the in-app manager (`Ctrl/Cmd+D`) and use **Override** to pin the correct AniList match for the series.
+- **Feature unavailable:** If `yomitan.externalProfilePath` is set, SubMiner runs in read-only external-profile mode and its character-dictionary features are disabled.
+
 ## Media Generation
 
 **"FFmpeg not found"**
@@ -324,11 +333,28 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
 
 ### Hyprland
 
-SubMiner's overlay is a transparent, frameless, always-on-top Electron window. Hyprland needs window rules to keep it transparent and borderless, and `pass` bindings to forward global shortcuts to SubMiner.
+SubMiner's overlay is a transparent, frameless, always-on-top Electron window. SubMiner tries to apply the floating, borderless, no-shadow, and no-blur properties itself each time it places the overlay. It detects Hyprland's active config provider and uses Lua `hl.dsp.window.*` dispatchers for recent Hyprland Lua configs, or the legacy dispatcher syntax for older hyprlang configs. On many configurations that is enough, but if your Hyprland version doesn't honor those runtime dispatches — or a broad rule in your config forces opacity/blur on every window — add explicit window rules so the overlay is exempt. You also need `pass` bindings to forward global shortcuts to SubMiner (see below).
 
 **Overlay is not transparent or has a visible border**
 
-Add these window rules to your `hyprland.conf`:
+Add a window rule matching SubMiner's window class. Recent Hyprland uses the Lua config format:
+
+```lua
+hl.window_rule({
+  match = { class = "^SubMiner$" },
+  float = true,
+  border_size = 0,
+  xray = false,
+  no_shadow = true,
+  no_blur = true,
+  no_dim = true,
+  opaque = true,
+  dim_around = false,
+  opacity = "1.0 override 1.0 override",
+})
+```
+
+On older Hyprland releases that still use the hyprlang config (`hyprland.conf`), use the equivalent `windowrule` lines:
 
 ```ini
 windowrule = float on, match:class SubMiner
@@ -338,7 +364,7 @@ windowrule = no_shadow on, match:class SubMiner
 windowrule = no_blur on, match:class SubMiner
 ```
 
-Without `xray off override`, the compositor may render the transparent overlay incorrectly — you might see a solid background or visual artifacts instead of the mpv video underneath.
+If you still see a solid background or visual artifacts instead of the mpv video underneath, the culprit is almost always a global opacity/blur rule applying to the overlay — the `opaque`/`opacity` and `no_blur` fields above override it.
 
 **Global shortcuts not working**
 
@@ -363,3 +389,20 @@ For more details, see the Hyprland docs on [global keybinds](https://wiki.hypr.l
 
 - **Accessibility permission**: Required for window tracking. Grant it in System Settings > Privacy & Security > Accessibility.
 - **Gatekeeper**: If macOS blocks SubMiner, right-click the app and select "Open" to bypass the warning, or remove the quarantine attribute: `xattr -d com.apple.quarantine /path/to/SubMiner.app`
+
+## See Also
+
+Feature-specific issues are covered in each feature's own page:
+
+- [Anki Integration](/anki-integration) — card creation, field mapping, and AnkiConnect setup
+- [AniList Integration](/anilist-integration) — watch-progress sync and authentication
+- [Character Dictionary](/character-dictionary) — AniList character name matching and inline portraits
+- [Jellyfin Integration](/jellyfin-integration) — remote playback and library connection
+- [Jimaku Integration](/jimaku-integration) — subtitle fetching and API rate limits
+- [YouTube Integration](/youtube-integration) — subtitle generation and playback
+- [Immersion Tracking](/immersion-tracking) — telemetry and session logging
+- [WebSocket / Texthooker API](/websocket-texthooker-api) — external texthooker clients
+- [Subtitle Annotations](/subtitle-annotations) — N+1, frequency, JLPT, and name-match layers
+- [Subtitle Sidebar](/subtitle-sidebar) — sidebar navigation and behavior
+- [Configuration Reference](/configuration) — full config options
+- [Shortcuts](/shortcuts) — keybinding reference
