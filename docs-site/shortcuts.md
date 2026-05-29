@@ -67,7 +67,7 @@ These control playback and subtitle display. They require overlay window focus.
 | `Right-click + drag` | Reposition subtitles (on subtitle area)             |
 | `Ctrl/Cmd+A`         | Append clipboard video path to mpv playlist         |
 
-These keybindings can be overridden or disabled via the `keybindings` config array. The playlist browser opens a split overlay modal with sibling video files on the left and the live mpv playlist on the right.
+The mpv-command rows above (`Space`, `F`, `J`, `Shift+J`, the seek/sub-seek/sub-delay keys, replay/play-next, and quit) are merged from the `keybindings` config array and can be remapped or disabled there. `V`, `Ctrl/Cmd+A`, and the mouse actions are built-in overlay behaviors and are not part of the `keybindings` array. The playlist browser opens a split overlay modal with sibling video files on the left and the live mpv playlist on the right.
 
 On macOS managed playback, SubMiner disables mpv's menu-bar shortcuts so configured SubMiner shortcuts like `Cmd+Shift+O` reach the mpv plugin instead of opening native mpv menu actions.
 
@@ -86,6 +86,7 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`                      |
 | `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey`                     |
 | `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`                               |
+| `W`                | Mark current video watched and advance to next in queue  | `stats.markWatchedKey`                          |
 
 The stats toggle is handled inside the focused visible overlay window. It is configurable through the top-level `stats.toggleKey` setting and defaults to `Backquote`.
 

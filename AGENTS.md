@@ -13,6 +13,8 @@ Start here, then leave this file.
 
 `docs-site/` is user-facing. Do not treat it as the canonical internal source of truth.
 
+`CLAUDE.md` is a symlink to this file — there is one project instruction file, not two.
+
 ## Quick Start
 
 - Init workspace: `git submodule update --init --recursive`
@@ -42,6 +44,20 @@ Start here, then leave this file.
 - Runtime-compat / dist-sensitive: `bun run test:runtime:compat`
 - Docs-only: `bun run docs:test`, then `bun run docs:build`
 
+## Docs Upkeep
+
+- Docs ship with the change, not after. If a change alters behavior, defaults, flags, shortcuts, ports, or APIs, update the matching docs in the same PR. Touching code without reconciling its docs is an incomplete change.
+- Source of truth for config defaults is the generated `config.example.jsonc`. Never write a default value into prose you didn't read from it — and don't restate the same default across multiple docs; cite/link to one place so there's a single thing to update.
+- Trigger map (touch left → update right):
+  - `src/config/definitions/**` (schema/defaults/template) → `bun run generate:config-example`, then reconcile `docs-site/configuration.md` + any feature doc that cites that default
+  - shortcuts/keybindings (`shortcuts.*`, `keybindings`, `stats.*Key`, `subtitleSidebar.toggleKey`, controller bindings) → `docs-site/shortcuts.md`
+  - CLI flags/subcommands (`src/cli/args.ts`, `launcher/**`) → `docs-site/usage.md` + relevant integration doc
+  - feature behavior (anki / jellyfin / jimaku / anilist / youtube / immersion / stats / websocket / sidebar / character-dictionary / annotations) → matching `docs-site/<feature>.md`
+  - architecture / IPC / workflow / internal process → internal `docs/` (system of record)
+  - feature set / requirements / install flow → `README.md`
+- Removing or renaming a config key: grep `docs-site/` and `docs/` for the old key and any value it documented; legacy/hidden keys (`LEGACY_HIDDEN_CONFIG_PATHS`) should not appear in user docs as current settings.
+- Verify after doc edits: `bun run verify:config-example` (if config touched), `bun run docs:test`, `bun run docs:build`.
+
 ## Sensitive Files
 
 - Launcher source of truth: `launcher/*.ts`
@@ -52,7 +68,8 @@ Start here, then leave this file.
 
 ## Release / PR Notes
 
-- User-visible PRs need one fragment in `changes/*.md`
+- User-visible PRs need one fragment in `changes/*.md` — format and rules in [`changes/README.md`](./changes/README.md) (`type` + `area` keys required; apply the `skip-changelog` label to opt out)
+- User-visible docs changes get a `type: docs` fragment
 - CI enforces `bun run changelog:lint` and `bun run changelog:pr-check`
 - PR review helpers:
   - `gh pr view --json number,title,url --jq '"PR #\\(.number): \\(.title)\\n\\(.url)"'`
@@ -63,4 +80,4 @@ Start here, then leave this file.
 - Use Codex background for long jobs; tmux only when persistence/interaction is required
 - CI red: `gh run list/view`, rerun, fix, repeat until green
 - TypeScript: keep files small; follow existing patterns
-- Swift: use workspace helper/daemon; validate `swift build` + tests
+- Only Swift is the `scripts/get-mpv-window-macos.swift` helper (macOS mpv window detection); validate via `bun test scripts/get-mpv-window-macos.test.ts`

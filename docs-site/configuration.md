@@ -339,7 +339,7 @@ See `config.example.jsonc` for detailed configuration options.
       "word-spacing": "0",
       "font-kerning": "normal",
       "text-rendering": "geometricPrecision",
-      "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)",
+      "text-shadow": "-1px -1px 2px rgba(0,0,0,0.95), 1px -1px 2px rgba(0,0,0,0.95), -1px 1px 2px rgba(0,0,0,0.95), 1px 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.5)",
       "font-style": "normal",
       "backdrop-filter": "blur(6px)",
       "--subtitle-hover-token-color": "#f4dbd6",
@@ -351,7 +351,7 @@ See `config.example.jsonc` for detailed configuration options.
         "color": "#cad3f5",
         "background-color": "transparent",
         "font-size": "24px",
-        "text-shadow": "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.55)"
+        "text-shadow": "-1px -1px 2px rgba(0,0,0,0.95), 1px -1px 2px rgba(0,0,0,0.95), -1px 1px 2px rgba(0,0,0,0.95), 1px 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.5)"
       }
     }
   }
@@ -375,7 +375,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `nPlusOneColor`                    | string   | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                             |
 | `frequencyDictionary.enabled`      | boolean  | Enable frequency highlighting from dictionary lookups (`false` by default)                                                   |
 | `frequencyDictionary.sourcePath`   | string   | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths.   |
-| `frequencyDictionary.topX`         | number   | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                                      |
+| `frequencyDictionary.topX`         | number   | Only color tokens whose frequency rank is `<= topX` (`10000` by default)                                                     |
 | `frequencyDictionary.mode`         | string   | `"single"` or `"banded"` (`"single"` by default)                                                                             |
 | `frequencyDictionary.matchMode`    | string   | `"headword"` or `"surface"` (`"headword"` by default)                                                                        |
 | `frequencyDictionary.singleColor`  | string   | Color used for all highlighted tokens in single mode                                                                         |
@@ -897,8 +897,8 @@ Enable automatic Anki card creation and updates with media generation:
     },
     "ai": {
       "enabled": false,
-      "model": "openai/gpt-4o-mini",
-      "systemPrompt": "Translate mined sentence text only."
+      "model": "",
+      "systemPrompt": ""
     },
     "media": {
       "generateAudio": true,
@@ -906,11 +906,11 @@ Enable automatic Anki card creation and updates with media generation:
       "imageType": "static",
       "imageFormat": "jpg",
       "imageQuality": 92,
-      "imageMaxWidth": 1280,
-      "imageMaxHeight": 720,
+      "imageMaxWidth": 0,
+      "imageMaxHeight": 0,
       "animatedFps": 10,
       "animatedMaxWidth": 640,
-      "animatedMaxHeight": 360,
+      "animatedMaxHeight": 0,
       "animatedCrf": 35,
       "audioPadding": 0,
       "fallbackDuration": 3,
@@ -925,8 +925,8 @@ Enable automatic Anki card creation and updates with media generation:
       "pattern": "[SubMiner] %f (%t)"
     },
     "isLapis": {
-      "enabled": true,
-      "sentenceCardModel": "Japanese sentences"
+      "enabled": false,
+      "sentenceCardModel": "Lapis"
     },
     "isKiku": {
       "enabled": false,
@@ -1133,7 +1133,6 @@ AniList integration is opt-in and disabled by default. Enable it to allow SubMin
     "enabled": true,
     "accessToken": "",
     "characterDictionary": {
-      "enabled": false,
       "maxLoaded": 3,
       "profileScope": "all",
       "collapsibleSections": {

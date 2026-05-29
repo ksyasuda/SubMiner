@@ -24,7 +24,7 @@ This page documents those integration points and shows how to build custom consu
 
 ## Enable and Configure the Services
 
-SubMiner's integration ports are configured in `config.jsonc`.
+SubMiner's integration ports are configured in `config.jsonc`. All three services are **off by default** — the block below shows the values to set to turn them on.
 
 ```jsonc
 {
@@ -45,9 +45,9 @@ SubMiner's integration ports are configured in `config.jsonc`.
 
 ### How startup behaves
 
-- `websocket.enabled: "auto"` starts the basic subtitle websocket unless SubMiner detects the external `mpv_websocket` plugin.
-- `annotationWebsocket` is independent from `websocket` and stays enabled unless you explicitly disable it.
-- `texthooker.launchAtStartup` starts the local HTTP UI automatically.
+- `websocket.enabled` defaults to `false`. Set it to `"auto"` to start the basic subtitle websocket unless SubMiner detects the external `mpv_websocket` plugin, or `true` to always start it.
+- `annotationWebsocket.enabled` defaults to `false` and is independent from `websocket`. Set it to `true` to start the annotated stream.
+- `texthooker.launchAtStartup` defaults to `false`. Set it to `true` to start the local HTTP UI automatically.
 - `texthooker.openBrowser` controls whether SubMiner opens the texthooker page in your browser when it starts.
 
 If you use the [mpv plugin](/mpv-plugin), it can also start a texthooker-only helper process. The launcher derives the plugin's texthooker setting from your SubMiner config (`texthooker.launchAtStartup`) and injects it at runtime — there is no plugin config file to edit.

@@ -18,7 +18,7 @@ If the overlay never appears at all, see [Playback Startup Flow](./architecture#
 
 ## Logging and App Mode
 
-- Default log output is `info`.
+- Default log output is `warn`.
 - Use `--log-level` for more/less output.
 - Use `--dev`/`--debug` only to force app/dev mode (for example to get dev behavior from the overlay/app); they do not change log verbosity.
 - You can combine both, for example `SubMiner.AppImage --start --dev --log-level debug`, when you need maximum diagnostics.
@@ -46,7 +46,7 @@ If the overlay never appears at all, see [Playback Startup Flow](./architecture#
 
 2. Reduce rendering pressure:
 
-- lower `subtitleStyle.fontSize`
+- lower `subtitleStyle.css["font-size"]`
 - keep overlay complexity minimal during heavy CPU periods
 
 3. Reduce media overhead:
@@ -66,7 +66,9 @@ If the overlay never appears at all, see [Playback Startup Flow](./architecture#
 ```json
 {
   "subtitleStyle": {
-    "fontSize": 30,
+    "css": {
+      "font-size": "30px"
+    },
     "enableJlpt": false,
     "frequencyDictionary": {
       "enabled": false
@@ -95,7 +97,7 @@ If the overlay never appears at all, see [Playback Startup Flow](./architecture#
 
 - Confirm only one SubMiner instance is running.
 - Check whether bottlenecks are `ffmpeg`, `yt-dlp`, or sync tooling in system monitor.
-- Use `info` logs by default; keep `debug` for targeted diagnosis.
+- Keep the default `warn` level for normal use; raise to `info` or `debug` only for targeted diagnosis.
 - Reproduce once with `SubMiner.AppImage --start --log-level debug` and open DevTools (`y` then `d`) if freezes recur.
 
 **"Failed to parse MPV message"**

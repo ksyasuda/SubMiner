@@ -74,7 +74,7 @@ SubMiner looks up each token's `frequencyRank` from `term_meta_bank_*.json` file
 | Option                                           | Default      | Description                                                      |
 | ------------------------------------------------ | ------------ | ---------------------------------------------------------------- |
 | `subtitleStyle.frequencyDictionary.enabled`      | `false`      | Enable frequency highlighting                                    |
-| `subtitleStyle.frequencyDictionary.topX`         | `1000`       | Max frequency rank to highlight                                  |
+| `subtitleStyle.frequencyDictionary.topX`         | `10000`      | Max frequency rank to highlight                                  |
 | `subtitleStyle.frequencyDictionary.mode`         | `"single"`   | `"single"` or `"banded"`                                         |
 | `subtitleStyle.frequencyDictionary.matchMode`    | `"headword"` | `"headword"` or `"surface"`                                      |
 | `subtitleStyle.frequencyDictionary.singleColor`  | `#f5a97f`    | Color for single mode                                            |
