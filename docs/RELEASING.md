@@ -33,7 +33,7 @@
    `bun run build`
    When validating auto-update metadata, also run the relevant platform package
    build and confirm `release/` contains the generated updater metadata
-   (`*.yml`) and blockmaps (`*.blockmap`).
+   (`latest*.yml`) and blockmaps (`*.blockmap`).
 8. If `docs-site/` changed, also run:
    `bun run docs:test`
    `bun run docs:build`
@@ -55,7 +55,7 @@
    `bun run test:env`
    `bun run build`
    When validating packaged updater output, confirm the platform build writes
-   `*.yml` and `*.blockmap` files under `release/`.
+   `latest*.yml` and `*.blockmap` files under `release/`.
 5. Commit the prerelease prep (package.json version bump + the generated
    `release/prerelease-notes.md`). CI does not regenerate notes — it uses the
    committed file — so review it before committing. If you add more
@@ -87,7 +87,7 @@ Notes:
 - Keep Cloudflare Pages Git auto-deploy disabled for `docs.subminer.moe`. Production docs are direct-uploaded by Wrangler from GitHub Actions with `--branch main`.
 - AUR publish is best-effort: the workflow retries transient SSH clone/push failures, then warns and leaves the GitHub Release green if AUR still fails. Follow up with a manual `git push aur master` from the AUR checkout when needed.
 - Required GitHub Actions secret: `AUR_SSH_PRIVATE_KEY`. Add the matching public key to your AUR account before relying on the automation.
-- Release and prerelease workflows upload updater metadata (`*.yml`) and blockmaps (`*.blockmap`) alongside platform artifacts. Do not remove those files while `electron-updater` is enabled.
+- Release and prerelease workflows upload updater metadata (`latest*.yml`) and blockmaps (`*.blockmap`) alongside platform artifacts. Do not remove those files while `electron-updater` is enabled.
 - macOS tray app updates use the standard `electron-updater`/Squirrel path. Keep `latest-mac.yml`, the macOS `SubMiner-<version>-mac.zip`, and ZIP blockmap published; Squirrel uses the ZIP payload even when the DMG remains the user-facing installer.
 - macOS update metadata and full ZIP downloads are routed through `/usr/bin/curl` before Squirrel installation to avoid Electron main-process network crashes on update checks.
 - Windows tray app updates use the standard `electron-updater`/NSIS path. Keep `latest.yml`, the Windows NSIS installer, and installer blockmap published; updater HTTP is routed through main-process fetch to avoid Electron main-process network crashes during update checks.

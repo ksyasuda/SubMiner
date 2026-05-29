@@ -105,12 +105,17 @@ test('release workflow generates release notes from committed changelog output',
 test('release workflow includes the Windows installer in checksums and uploaded assets', () => {
   assert.match(
     releaseWorkflow,
-    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz release\/\*\.yml release\/\*\.blockmap dist\/launcher\/subminer\)/,
+    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz release\/latest\*\.yml release\/\*\.blockmap dist\/launcher\/subminer\)/,
   );
   assert.match(
     releaseWorkflow,
-    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/\*\.yml[\s\S]*release\/\*\.blockmap[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
+    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/latest\*\.yml[\s\S]*release\/\*\.blockmap[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
   );
+});
+
+test('release workflow uploads updater metadata without builder debug YAML files', () => {
+  assert.match(releaseWorkflow, /release\/latest\*\.yml/);
+  assert.doesNotMatch(releaseWorkflow, /release\/\*\.yml/);
 });
 
 test('release package metadata enables GitHub updater metadata without builder uploads', () => {
