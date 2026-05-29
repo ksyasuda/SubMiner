@@ -19,10 +19,12 @@ export interface HyprlandPlacementBounds {
 }
 
 export interface HyprlandPlacementDispatchOptions {
+  configProvider?: HyprlandConfigProvider;
   promote?: boolean;
 }
 
 type ExecFileSync = typeof execFileSync;
+export type HyprlandConfigProvider = 'hyprlang' | 'lua';
 
 export function shouldAttemptHyprlandWindowPlacement(
   platform: NodeJS.Platform = process.platform,
@@ -75,35 +77,86 @@ export function buildHyprlandPlacementDispatches(
   }
 
   const windowAddress = `address:${client.address}`;
+  const configProvider = options.configProvider ?? 'hyprlang';
   const dispatches: string[][] = [];
   if (client.floating !== true) {
-    dispatches.push(['dispatch', 'setfloating', windowAddress]);
+    dispatches.push(
+      configProvider === 'lua'
+        ? luaWindowDispatch('float', windowAddress, ['action = "on"'])
+        : ['dispatch', 'setfloating', windowAddress],
+    );
   }
   if (client.pinned === true) {
-    dispatches.push(['dispatch', 'pin', windowAddress]);
+    dispatches.push(
+      configProvider === 'lua'
+        ? luaWindowDispatch('pin', windowAddress, ['action = "off"'])
+        : ['dispatch', 'pin', windowAddress],
+    );
   }
   const roundedBounds = roundPlacementBounds(bounds);
   if (roundedBounds) {
-    dispatches.push([
-      'dispatch',
-      'movewindowpixel',
-      `exact ${roundedBounds.x} ${roundedBounds.y},${windowAddress}`,
-    ]);
-    dispatches.push([
-      'dispatch',
-      'resizewindowpixel',
-      `exact ${roundedBounds.width} ${roundedBounds.height},${windowAddress}`,
-    ]);
-    dispatches.push(['dispatch', 'setprop', `${windowAddress} rounding 0`]);
-    dispatches.push(['dispatch', 'setprop', `${windowAddress} border_size 0`]);
-    dispatches.push(['dispatch', 'setprop', `${windowAddress} no_shadow 1`]);
-    dispatches.push(['dispatch', 'setprop', `${windowAddress} no_blur 1`]);
-    dispatches.push(['dispatch', 'setprop', `${windowAddress} decorate 0`]);
+    if (configProvider === 'lua') {
+      dispatches.push(
+        luaWindowDispatch('move', windowAddress, [
+          `x = ${roundedBounds.x}`,
+          `y = ${roundedBounds.y}`,
+        ]),
+      );
+      dispatches.push(
+        luaWindowDispatch('resize', windowAddress, [
+          `x = ${roundedBounds.width}`,
+          `y = ${roundedBounds.height}`,
+        ]),
+      );
+      dispatches.push(luaWindowSetProp(windowAddress, 'rounding', '0'));
+      dispatches.push(luaWindowSetProp(windowAddress, 'border_size', '0'));
+      dispatches.push(luaWindowSetProp(windowAddress, 'no_shadow', '1'));
+      dispatches.push(luaWindowSetProp(windowAddress, 'no_blur', '1'));
+      dispatches.push(luaWindowSetProp(windowAddress, 'decorate', '0'));
+    } else {
+      dispatches.push([
+        'dispatch',
+        'movewindowpixel',
+        `exact ${roundedBounds.x} ${roundedBounds.y},${windowAddress}`,
+      ]);
+      dispatches.push([
+        'dispatch',
+        'resizewindowpixel',
+        `exact ${roundedBounds.width} ${roundedBounds.height},${windowAddress}`,
+      ]);
+      dispatches.push(['dispatch', 'setprop', `${windowAddress} rounding 0`]);
+      dispatches.push(['dispatch', 'setprop', `${windowAddress} border_size 0`]);
+      dispatches.push(['dispatch', 'setprop', `${windowAddress} no_shadow 1`]);
+      dispatches.push(['dispatch', 'setprop', `${windowAddress} no_blur 1`]);
+      dispatches.push(['dispatch', 'setprop', `${windowAddress} decorate 0`]);
+    }
   }
   if (options.promote !== false) {
-    dispatches.push(['dispatch', 'alterzorder', `top,${windowAddress}`]);
+    dispatches.push(
+      configProvider === 'lua'
+        ? luaWindowDispatch('alter_zorder', windowAddress, ['mode = "top"'])
+        : ['dispatch', 'alterzorder', `top,${windowAddress}`],
+    );
   }
   return dispatches;
+}
+
+function luaWindowDispatch(name: string, windowAddress: string, fields: string[]): string[] {
+  return [
+    'dispatch',
+    `hl.dsp.window.${name}({ ${[...fields, `window = ${luaString(windowAddress)}`].join(', ')} })`,
+  ];
+}
+
+function luaWindowSetProp(windowAddress: string, prop: string, value: string): string[] {
+  return luaWindowDispatch('set_prop', windowAddress, [
+    `prop = ${luaString(prop)}`,
+    `value = ${luaString(value)}`,
+  ]);
+}
+
+function luaString(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
 function roundPlacementBounds(
@@ -154,7 +207,9 @@ export function ensureHyprlandWindowFloatingByTitle(options: {
       return false;
     }
 
+    const configProvider = detectHyprlandConfigProvider(run);
     const dispatches = buildHyprlandPlacementDispatches(client, options.bounds, {
+      configProvider,
       promote: options.promote,
     });
     for (const args of dispatches) {
@@ -164,4 +219,28 @@ export function ensureHyprlandWindowFloatingByTitle(options: {
   } catch {
     return false;
   }
+}
+
+function detectHyprlandConfigProvider(run: ExecFileSync): HyprlandConfigProvider {
+  try {
+    return parseHyprlandConfigProvider(
+      String(run('hyprctl', ['-j', 'status'], { encoding: 'utf-8' })),
+    );
+  } catch {
+    return 'hyprlang';
+  }
+}
+
+function parseHyprlandConfigProvider(output: string): HyprlandConfigProvider {
+  const payloadStart = output.indexOf('{');
+  if (payloadStart < 0) {
+    return 'hyprlang';
+  }
+
+  const parsed = JSON.parse(output.slice(payloadStart)) as unknown;
+  return isHyprlandStatusPayload(parsed) && parsed.configProvider === 'lua' ? 'lua' : 'hyprlang';
+}
+
+function isHyprlandStatusPayload(value: unknown): value is { configProvider?: unknown } {
+  return Boolean(value) && typeof value === 'object';
 }
