@@ -1,10 +1,39 @@
 import type { WindowGeometry } from '../../types';
 
+type OverlayBoundsWindow = {
+  isDestroyed: () => boolean;
+  getBounds: () => WindowGeometry;
+};
+
+function sameGeometry(a: WindowGeometry | null | undefined, b: WindowGeometry): boolean {
+  return a?.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+export function hasLiveOverlayWindowBoundsMismatch(
+  windows: Array<OverlayBoundsWindow | null | undefined>,
+  geometry: WindowGeometry,
+): boolean {
+  return windows.some((window) => {
+    if (!window || window.isDestroyed()) {
+      return false;
+    }
+    return !sameGeometry(window.getBounds(), geometry);
+  });
+}
+
 export function createUpdateVisibleOverlayBoundsHandler(deps: {
+  getCurrentOverlayWindowBounds?: () => WindowGeometry | null;
+  shouldRefreshUnchangedGeometry?: (geometry: WindowGeometry) => boolean;
   setOverlayWindowBounds: (geometry: WindowGeometry) => void;
   afterSetOverlayWindowBounds?: (geometry: WindowGeometry) => void;
 }) {
   return (geometry: WindowGeometry): void => {
+    if (
+      sameGeometry(deps.getCurrentOverlayWindowBounds?.(), geometry) &&
+      deps.shouldRefreshUnchangedGeometry?.(geometry) !== true
+    ) {
+      return;
+    }
     deps.setOverlayWindowBounds(geometry);
     deps.afterSetOverlayWindowBounds?.(geometry);
   };

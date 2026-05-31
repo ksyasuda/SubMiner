@@ -10,6 +10,7 @@ test('overlay window config explicitly disables renderer sandbox for preload com
 
   assert.equal(options.title, 'SubMiner Overlay');
   assert.equal(options.backgroundColor, '#00000000');
+  assert.equal(options.paintWhenInitiallyHidden, true);
   assert.equal(options.webPreferences?.sandbox, false);
   assert.equal(options.webPreferences?.backgroundThrottling, false);
 });
@@ -34,6 +35,59 @@ test('Linux visible overlay window allows compositor resize for mpv-sized placem
 
     assert.equal(visibleOptions.resizable, true);
     assert.equal(modalOptions.resizable, false);
+  } finally {
+    if (originalPlatformDescriptor) {
+      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+    }
+  }
+});
+
+test('Linux visible overlay window stays managed so native apps can cover it', () => {
+  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+
+  Object.defineProperty(process, 'platform', {
+    configurable: true,
+    value: 'linux',
+  });
+
+  try {
+    const visibleOptions = buildOverlayWindowOptions('visible', {
+      isDev: false,
+      yomitanSession: null,
+    });
+    const modalOptions = buildOverlayWindowOptions('modal', {
+      isDev: false,
+      yomitanSession: null,
+    });
+
+    assert.equal(visibleOptions.alwaysOnTop, false);
+    assert.equal(visibleOptions.focusable, true);
+    assert.equal(modalOptions.focusable, true);
+  } finally {
+    if (originalPlatformDescriptor) {
+      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+    }
+  }
+});
+
+test('Linux fullscreen visible overlay window uses X11 override-redirect-friendly options', () => {
+  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+
+  Object.defineProperty(process, 'platform', {
+    configurable: true,
+    value: 'linux',
+  });
+
+  try {
+    const visibleOptions = buildOverlayWindowOptions('visible', {
+      isDev: false,
+      linuxX11FullscreenOverlay: true,
+      yomitanSession: null,
+    });
+
+    assert.equal(visibleOptions.alwaysOnTop, true);
+    assert.equal(visibleOptions.focusable, false);
+    assert.equal(visibleOptions.resizable, false);
   } finally {
     if (originalPlatformDescriptor) {
       Object.defineProperty(process, 'platform', originalPlatformDescriptor);

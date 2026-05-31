@@ -47,25 +47,43 @@ function hasVisibleTextContent(element: HTMLElement): boolean {
   return Boolean(element.textContent && element.textContent.trim().length > 0);
 }
 
-function collectContentRect(ctx: RendererContext): OverlayContentRect | null {
-  let combinedRect: OverlayContentRect | null = null;
+function hasArea(rect: OverlayContentRect): boolean {
+  return rect.width > 0 && rect.height > 0;
+}
 
+function collectInteractiveRects(ctx: RendererContext): OverlayContentRect[] {
+  const rects: OverlayContentRect[] = [];
   const subtitleHasContent = hasVisibleTextContent(ctx.dom.subtitleRoot);
   if (subtitleHasContent) {
-    const subtitleRect = toMeasuredRect(ctx.dom.subtitleRoot.getBoundingClientRect());
-    if (subtitleRect) {
-      combinedRect = subtitleRect;
+    const subtitleRect = toMeasuredRect(ctx.dom.subtitleContainer.getBoundingClientRect());
+    if (subtitleRect && hasArea(subtitleRect)) {
+      rects.push(subtitleRect);
     }
   }
 
   const secondaryHasContent = hasVisibleTextContent(ctx.dom.secondarySubRoot);
   if (secondaryHasContent) {
     const secondaryRect = toMeasuredRect(ctx.dom.secondarySubContainer.getBoundingClientRect());
-    if (secondaryRect) {
-      combinedRect = combinedRect ? unionRects(combinedRect, secondaryRect) : secondaryRect;
+    if (secondaryRect && hasArea(secondaryRect)) {
+      rects.push(secondaryRect);
     }
   }
 
+  if (ctx.state?.subtitleSidebarModalOpen) {
+    const sidebarRect = toMeasuredRect(ctx.dom.subtitleSidebarContent.getBoundingClientRect());
+    if (sidebarRect && hasArea(sidebarRect)) {
+      rects.push(sidebarRect);
+    }
+  }
+
+  return rects;
+}
+
+function collectContentRect(rects: OverlayContentRect[]): OverlayContentRect | null {
+  let combinedRect: OverlayContentRect | null = null;
+  for (const rect of rects) {
+    combinedRect = combinedRect ? unionRects(combinedRect, rect) : rect;
+  }
   if (!combinedRect) {
     return null;
   }
@@ -86,6 +104,7 @@ export function createOverlayContentMeasurementReporter(ctx: RendererContext) {
       return;
     }
 
+    const interactiveRects = collectInteractiveRects(ctx);
     const measurement: OverlayContentMeasurement = {
       layer: ctx.platform.overlayLayer,
       measuredAtMs: Date.now(),
@@ -94,7 +113,8 @@ export function createOverlayContentMeasurementReporter(ctx: RendererContext) {
         height: window.innerHeight,
       },
       // Explicit null rect signals "no content yet", and main should use fallback bounds.
-      contentRect: collectContentRect(ctx),
+      contentRect: collectContentRect(interactiveRects),
+      interactiveRects,
     };
 
     window.electronAPI.reportOverlayContentBounds(measurement);

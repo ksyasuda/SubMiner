@@ -70,6 +70,18 @@ export abstract class BaseWindowTracker {
     return false;
   }
 
+  getTargetWindowMediaSourceId(): string | null {
+    return null;
+  }
+
+  getTargetWindowNativeId(): string | null {
+    return null;
+  }
+
+  raiseTargetWindow(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
   protected updateTargetWindowFocused(focused: boolean): void {
     if (this.targetWindowFocused === focused) {
       return;

@@ -58,6 +58,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   onOverlayModalClosed: IpcDepsRuntimeOptions['onOverlayModalClosed'];
   onOverlayModalOpened?: IpcDepsRuntimeOptions['onOverlayModalOpened'];
   onOverlayMouseInteractionChanged?: IpcDepsRuntimeOptions['onOverlayMouseInteractionChanged'];
+  onOverlayInteractiveHint?: IpcDepsRuntimeOptions['onOverlayInteractiveHint'];
   onYoutubePickerResolve: IpcDepsRuntimeOptions['onYoutubePickerResolve'];
   openYomitanSettings: IpcDepsRuntimeOptions['openYomitanSettings'];
   quitApp: IpcDepsRuntimeOptions['quitApp'];
@@ -66,6 +67,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getCurrentSubtitleRaw: IpcDepsRuntimeOptions['getCurrentSubtitleRaw'];
   getCurrentSubtitleAss: IpcDepsRuntimeOptions['getCurrentSubtitleAss'];
   getSubtitleSidebarSnapshot?: IpcDepsRuntimeOptions['getSubtitleSidebarSnapshot'];
+  getSubtitleSidebarOpen?: IpcDepsRuntimeOptions['getSubtitleSidebarOpen'];
   getPlaybackPaused: IpcDepsRuntimeOptions['getPlaybackPaused'];
   focusMainWindow?: IpcDepsRuntimeOptions['focusMainWindow'];
   getSubtitlePosition: IpcDepsRuntimeOptions['getSubtitlePosition'];
@@ -236,6 +238,7 @@ export function createMainIpcRuntimeServiceDeps(
     onOverlayModalClosed: params.onOverlayModalClosed,
     onOverlayModalOpened: params.onOverlayModalOpened,
     onOverlayMouseInteractionChanged: params.onOverlayMouseInteractionChanged,
+    onOverlayInteractiveHint: params.onOverlayInteractiveHint,
     onYoutubePickerResolve: params.onYoutubePickerResolve,
     openYomitanSettings: params.openYomitanSettings,
     quitApp: params.quitApp,
@@ -244,6 +247,7 @@ export function createMainIpcRuntimeServiceDeps(
     getCurrentSubtitleRaw: params.getCurrentSubtitleRaw,
     getCurrentSubtitleAss: params.getCurrentSubtitleAss,
     getSubtitleSidebarSnapshot: params.getSubtitleSidebarSnapshot,
+    getSubtitleSidebarOpen: params.getSubtitleSidebarOpen,
     getPlaybackPaused: params.getPlaybackPaused,
     getSubtitlePosition: params.getSubtitlePosition,
     getSubtitleStyle: params.getSubtitleStyle,

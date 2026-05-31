@@ -15,19 +15,32 @@ function createClassList() {
   };
 }
 
+function replaceGlobalProperty(key: 'window' | 'document', value: unknown): () => void {
+  const original = Object.getOwnPropertyDescriptor(globalThis, key);
+  Object.defineProperty(globalThis, key, {
+    configurable: true,
+    writable: true,
+    value,
+  });
+  return () => {
+    if (original) {
+      Object.defineProperty(globalThis, key, original);
+      return;
+    }
+    delete (globalThis as Record<string, unknown>)[key];
+  };
+}
+
 test('idle visible overlay starts click-through on platforms that toggle mouse ignore', () => {
   const classList = createClassList();
   const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
-  const originalWindow = globalThis.window;
 
-  Object.assign(globalThis, {
-    window: {
+  const restoreWindow = replaceGlobalProperty('window', {
       electronAPI: {
         setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
           ignoreCalls.push({ ignore, forward: options?.forward });
         },
       },
-    },
   });
 
   try {
@@ -58,23 +71,20 @@ test('idle visible overlay starts click-through on platforms that toggle mouse i
     assert.equal(classList.contains('interactive'), false);
     assert.deepEqual(ignoreCalls, [{ ignore: true, forward: true }]);
   } finally {
-    Object.assign(globalThis, { window: originalWindow });
+    restoreWindow();
   }
 });
 
 test('youtube picker keeps overlay interactive even when subtitle hover is inactive', () => {
   const classList = createClassList();
   const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
-  const originalWindow = globalThis.window;
 
-  Object.assign(globalThis, {
-    window: {
+  const restoreWindow = replaceGlobalProperty('window', {
       electronAPI: {
         setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
           ignoreCalls.push({ ignore, forward: options?.forward });
         },
       },
-    },
   });
 
   try {
@@ -105,18 +115,15 @@ test('youtube picker keeps overlay interactive even when subtitle hover is inact
     assert.equal(classList.contains('interactive'), true);
     assert.deepEqual(ignoreCalls, [{ ignore: false, forward: undefined }]);
   } finally {
-    Object.assign(globalThis, { window: originalWindow });
+    restoreWindow();
   }
 });
 
 test('visible yomitan popup host keeps overlay interactive even when cached popup state is false', () => {
   const classList = createClassList();
   const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
-  const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
 
-  Object.assign(globalThis, {
-    window: {
+  const restoreWindow = replaceGlobalProperty('window', {
       electronAPI: {
         setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
           ignoreCalls.push({ ignore, forward: options?.forward });
@@ -127,14 +134,13 @@ test('visible yomitan popup host keeps overlay interactive even when cached popu
         display: 'block',
         opacity: '1',
       }),
-    },
-    document: {
+  });
+  const restoreDocument = replaceGlobalProperty('document', {
       querySelectorAll: (selector: string) =>
         selector ===
         '[data-subminer-yomitan-popup-host="true"][data-subminer-yomitan-popup-visible="true"]'
           ? [{ getAttribute: () => 'true' }]
           : [],
-    },
   });
 
   try {
@@ -165,6 +171,97 @@ test('visible yomitan popup host keeps overlay interactive even when cached popu
     assert.equal(classList.contains('interactive'), true);
     assert.deepEqual(ignoreCalls, [{ ignore: false, forward: undefined }]);
   } finally {
-    Object.assign(globalThis, { window: originalWindow, document: originalDocument });
+    restoreDocument();
+    restoreWindow();
+  }
+});
+
+test('Linux subtitle hover does not report whole-window interactive hint', () => {
+  const classList = createClassList();
+  const interactiveHints: boolean[] = [];
+
+  const restoreWindow = replaceGlobalProperty('window', {
+      electronAPI: {
+        reportOverlayInteractive: (interactive: boolean) => {
+          interactiveHints.push(interactive);
+        },
+      },
+  });
+
+  try {
+    syncOverlayMouseIgnoreState({
+      dom: {
+        overlay: { classList },
+      },
+      platform: {
+        isLinuxPlatform: true,
+        shouldToggleMouseIgnore: false,
+      },
+      state: {
+        isOverSubtitle: true,
+        isOverSubtitleSidebar: false,
+        yomitanPopupVisible: false,
+        controllerSelectModalOpen: false,
+        controllerDebugModalOpen: false,
+        jimakuModalOpen: false,
+        youtubePickerModalOpen: false,
+        kikuModalOpen: false,
+        runtimeOptionsModalOpen: false,
+        subsyncModalOpen: false,
+        sessionHelpModalOpen: false,
+        subtitleSidebarModalOpen: false,
+        subtitleSidebarConfig: null,
+      },
+    } as never);
+
+    assert.equal(classList.contains('interactive'), true);
+    assert.deepEqual(interactiveHints, [false]);
+  } finally {
+    restoreWindow();
+  }
+});
+
+test('Linux modal state reports whole-window interactive hint', () => {
+  const classList = createClassList();
+  const interactiveHints: boolean[] = [];
+
+  const restoreWindow = replaceGlobalProperty('window', {
+      electronAPI: {
+        reportOverlayInteractive: (interactive: boolean) => {
+          interactiveHints.push(interactive);
+        },
+      },
+  });
+
+  try {
+    syncOverlayMouseIgnoreState({
+      dom: {
+        overlay: { classList },
+      },
+      platform: {
+        isLinuxPlatform: true,
+        shouldToggleMouseIgnore: false,
+      },
+      state: {
+        isOverSubtitle: false,
+        isOverSubtitleSidebar: false,
+        yomitanPopupVisible: false,
+        controllerSelectModalOpen: false,
+        controllerDebugModalOpen: false,
+        jimakuModalOpen: false,
+        youtubePickerModalOpen: false,
+        kikuModalOpen: false,
+        runtimeOptionsModalOpen: true,
+        subsyncModalOpen: false,
+        sessionHelpModalOpen: false,
+        subtitleSidebarModalOpen: false,
+        subtitleSidebarConfig: null,
+      },
+    } as never);
+
+    assert.equal(classList.contains('interactive'), true);
+    assert.deepEqual(interactiveHints, [true]);
+  } finally {
+    restoreWindow();
   }
 });

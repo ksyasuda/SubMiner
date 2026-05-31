@@ -11,12 +11,18 @@ export function buildOverlayWindowOptions(
   kind: OverlayWindowKind,
   options: {
     isDev: boolean;
+    linuxX11FullscreenOverlay?: boolean;
     yomitanSession?: Session | null;
   },
 ): BrowserWindowConstructorOptions {
   const showNativeDebugFrame = process.platform === 'win32' && options.isDev;
-  const shouldStartAlwaysOnTop = !(process.platform === 'win32' && kind === 'visible');
-  const shouldAllowCompositorResize = process.platform === 'linux' && kind === 'visible';
+  const isLinuxVisibleOverlay = process.platform === 'linux' && kind === 'visible';
+  const isLinuxFullscreenOverlay =
+    isLinuxVisibleOverlay && options.linuxX11FullscreenOverlay === true;
+  const shouldStartAlwaysOnTop =
+    !(process.platform === 'win32' && kind === 'visible') &&
+    (!isLinuxVisibleOverlay || isLinuxFullscreenOverlay);
+  const shouldAllowCompositorResize = isLinuxVisibleOverlay && !isLinuxFullscreenOverlay;
 
   return {
     show: false,
@@ -26,13 +32,14 @@ export function buildOverlayWindowOptions(
     x: 0,
     y: 0,
     transparent: true,
+    paintWhenInitiallyHidden: true,
     backgroundColor: '#00000000',
     frame: false,
     alwaysOnTop: shouldStartAlwaysOnTop,
     skipTaskbar: true,
     resizable: shouldAllowCompositorResize,
     hasShadow: false,
-    focusable: true,
+    focusable: !isLinuxFullscreenOverlay,
     acceptFirstMouse: true,
     ...(process.platform === 'win32' ? { thickFrame: showNativeDebugFrame } : {}),
     webPreferences: {

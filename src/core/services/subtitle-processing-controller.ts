@@ -27,9 +27,10 @@ export function createSubtitleProcessingController(
   const SUBTITLE_TOKENIZATION_CACHE_LIMIT = 256;
   let latestText = '';
   let lastEmittedText = '';
+  let cacheGeneration = 0;
+  let lastEmittedGeneration = 0;
   let processing = false;
   let staleDropCount = 0;
-  let refreshRequested = false;
   const tokenizationCache = new Map<string, SubtitleData>();
   const now = deps.now ?? (() => Date.now());
 
@@ -65,19 +66,19 @@ export function createSubtitleProcessingController(
     void (async () => {
       while (true) {
         const text = latestText;
-        const forceRefresh = refreshRequested;
-        refreshRequested = false;
+        const generation = cacheGeneration;
         const startedAtMs = now();
 
         if (!text.trim()) {
           deps.emitSubtitle({ text, tokens: null });
           lastEmittedText = text;
+          lastEmittedGeneration = generation;
           break;
         }
 
         let output: SubtitleData = { text, tokens: null };
         try {
-          const cachedTokenized = forceRefresh ? null : getCachedTokenization(text);
+          const cachedTokenized = getCachedTokenization(text);
           if (cachedTokenized) {
             output = cachedTokenized;
           } else {
@@ -99,8 +100,16 @@ export function createSubtitleProcessingController(
           continue;
         }
 
+        if (generation !== cacheGeneration) {
+          deps.logDebug?.(
+            `Dropped stale subtitle tokenization result after cache invalidation; elapsed=${now() - startedAtMs}ms`,
+          );
+          continue;
+        }
+
         deps.emitSubtitle(output);
         lastEmittedText = text;
+        lastEmittedGeneration = generation;
         deps.logDebug?.(
           `Subtitle tokenization delivered; elapsed=${now() - startedAtMs}ms, staleDrops=${staleDropCount}`,
         );
@@ -112,7 +121,10 @@ export function createSubtitleProcessingController(
       })
       .finally(() => {
         processing = false;
-        if (refreshRequested || latestText !== lastEmittedText) {
+        if (
+          latestText !== lastEmittedText ||
+          (latestText.trim() && cacheGeneration !== lastEmittedGeneration)
+        ) {
           processLatest();
         }
       });
@@ -133,11 +145,17 @@ export function createSubtitleProcessingController(
       if (!latestText.trim()) {
         return;
       }
-      refreshRequested = true;
+      if (
+        processing ||
+        (latestText === lastEmittedText && cacheGeneration === lastEmittedGeneration)
+      ) {
+        return;
+      }
       processLatest();
     },
     invalidateTokenizationCache: () => {
       tokenizationCache.clear();
+      cacheGeneration += 1;
     },
     preCacheTokenization: (text: string, data: SubtitleData) => {
       setCachedTokenization(text, data);
@@ -150,7 +168,7 @@ export function createSubtitleProcessingController(
 
       latestText = text;
       lastEmittedText = text;
-      refreshRequested = false;
+      lastEmittedGeneration = cacheGeneration;
       return cached;
     },
     hasCachedSubtitle: (text: string) => {

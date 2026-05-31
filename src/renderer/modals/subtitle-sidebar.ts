@@ -196,6 +196,8 @@ export function createSubtitleSidebarModal(
   ctx: RendererContext,
   options: {
     modalStateReader: Pick<ModalStateReader, 'isAnyModalOpen'>;
+    onVisibilityChanged?: (visible: boolean) => void;
+    shouldRestoreOpenOnStartup?: () => Promise<boolean>;
   },
 ) {
   let snapshotPollInterval: ReturnType<typeof setTimeout> | null = null;
@@ -648,13 +650,16 @@ export function createSubtitleSidebarModal(
     startSnapshotPolling();
     syncEmbeddedSidebarLayout();
     restoreEmbeddedSidebarPassthrough();
+    window.electronAPI.notifyOverlayModalOpened?.('subtitle-sidebar');
+    options.onVisibilityChanged?.(true);
   }
 
   async function autoOpenSubtitleSidebarOnStartup(): Promise<void> {
     const snapshot = await refreshSnapshot();
+    const shouldRestoreOpen = (await options.shouldRestoreOpenOnStartup?.()) === true;
     if (
       !snapshot.config.enabled ||
-      !snapshot.config.autoOpen ||
+      (!snapshot.config.autoOpen && !shouldRestoreOpen) ||
       ctx.state.subtitleSidebarModalOpen
     ) {
       return;
@@ -677,6 +682,8 @@ export function createSubtitleSidebarModal(
       ctx.dom.overlay.classList.remove('interactive');
     }
     restoreEmbeddedSidebarPassthrough();
+    window.electronAPI.notifyOverlayModalClosed?.('subtitle-sidebar');
+    options.onVisibilityChanged?.(false);
   }
 
   async function toggleSubtitleSidebarModal(): Promise<void> {

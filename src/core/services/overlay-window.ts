@@ -78,7 +78,9 @@ export function ensureOverlayWindowLevel(window: BrowserWindow): void {
     window.moveTop();
     return;
   }
-  window.setAlwaysOnTop(true);
+  // Linux/X11 overlays start managed and only assert topmost while mpv owns the overlay layer.
+  // Focus loss releases this again so native Wayland apps can cover the overlay on KDE.
+  window.setAlwaysOnTop(true, 'screen-saver', 1);
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   ensureHyprlandWindowFloatingByTitle({ title: window.getTitle() });
   window.moveTop();
@@ -106,13 +108,16 @@ export function createOverlayWindow(
     isOverlayVisible: (kind: OverlayWindowKind) => boolean;
     tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
     forwardTabToMpv: () => void;
+    linuxX11FullscreenOverlay?: boolean;
     onVisibleWindowBlurred?: () => void;
+    onVisibleWindowFocused?: () => void;
     onWindowContentReady?: () => void;
-    onWindowClosed: (kind: OverlayWindowKind) => void;
+    onWindowClosed: (kind: OverlayWindowKind, window: BrowserWindow) => void;
     yomitanSession?: Session | null;
   },
 ): BrowserWindow {
   const window = new ElectronBrowserWindow(buildOverlayWindowOptions(kind, options));
+  window.setSkipTaskbar(true);
   (window as BrowserWindow & { [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean })[
     OVERLAY_WINDOW_CONTENT_READY_FLAG
   ] = false;
@@ -172,7 +177,7 @@ export function createOverlayWindow(
   window.hide();
 
   window.on('closed', () => {
-    options.onWindowClosed(kind);
+    options.onWindowClosed(kind, window);
   });
 
   window.on('blur', () => {
@@ -190,6 +195,11 @@ export function createOverlayWindow(
       onVisibleOverlayBlur:
         kind === 'visible' ? () => options.onVisibleWindowBlurred?.() : undefined,
     });
+  });
+
+  window.on('focus', () => {
+    if (window.isDestroyed() || kind !== 'visible') return;
+    options.onVisibleWindowFocused?.();
   });
 
   if (options.isDev && kind === 'visible') {

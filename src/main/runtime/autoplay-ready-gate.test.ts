@@ -311,3 +311,58 @@ test('autoplay ready gate drops deferred readiness after media changes before fl
 
   assert.deepEqual(commands, []);
 });
+
+test('autoplay ready gate passes the pending subtitle signal to the readiness predicate', async () => {
+  const commands: Array<Array<string | boolean>> = [];
+  let targetReadyText: string | null = null;
+  let observedText: string | null = null;
+  let observedRequestedAtMs: number | null = null;
+  let now = 1_000;
+
+  const gate = createAutoplayReadyGate({
+    isAppOwnedFlowInFlight: () => false,
+    getCurrentMediaPath: () => '/media/video.mkv',
+    getCurrentVideoPath: () => null,
+    getPlaybackPaused: () => true,
+    getMpvClient: () =>
+      ({
+        connected: true,
+        requestProperty: async () => true,
+        send: ({ command }: { command: Array<string | boolean> }) => {
+          commands.push(command);
+        },
+      }) as never,
+    signalPluginAutoplayReady: () => {
+      commands.push(['script-message', 'subminer-autoplay-ready']);
+    },
+    isSignalTargetReady: ((signal: { payload: { text: string }; requestedAtMs: number }) => {
+      observedText = signal.payload.text;
+      observedRequestedAtMs = signal.requestedAtMs;
+      return targetReadyText === signal.payload.text;
+    }) as never,
+    now: () => now,
+    schedule: (callback) => {
+      queueMicrotask(callback);
+      return 1 as never;
+    },
+    logDebug: () => {},
+  });
+
+  gate.maybeSignalPluginAutoplayReady({ text: '字幕', tokens: null }, { forceWhilePaused: true });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(observedText, '字幕');
+  assert.equal(observedRequestedAtMs, 1_000);
+  assert.deepEqual(commands, []);
+
+  now = 2_000;
+  targetReadyText = '字幕';
+  gate.flushPendingAutoplayReadySignal();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(observedRequestedAtMs, 1_000);
+  assert.deepEqual(
+    commands.filter((command) => command[0] === 'script-message'),
+    [['script-message', 'subminer-autoplay-ready']],
+  );
+});

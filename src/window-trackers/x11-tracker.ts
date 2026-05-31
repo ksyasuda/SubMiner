@@ -63,10 +63,32 @@ export function parseX11WindowPid(raw: string): number | null {
   return Number.isInteger(pid) ? pid : null;
 }
 
+export function normalizeX11WindowId(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    return BigInt(trimmed).toString();
+  } catch {
+    return null;
+  }
+}
+
+export function parseX11RootActiveWindowId(raw: string): string | null {
+  const match = raw.match(/window id #\s*(\S+)/i);
+  if (!match) {
+    return null;
+  }
+  return normalizeX11WindowId(match[1]!);
+}
+
 export class X11WindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private readonly targetMpvSocketPath: string | null;
   private readonly runCommand: CommandRunner;
+  private targetWindowId: string | null = null;
+  private targetWindowPid: number | null = null;
   private pollInFlight = false;
   private currentPollIntervalMs = 750;
   private readonly stablePollIntervalMs = 250;
@@ -87,6 +109,38 @@ export class X11WindowTracker extends BaseWindowTracker {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
+  }
+
+  override getTargetWindowMediaSourceId(): string | null {
+    const normalizedWindowId = this.targetWindowId
+      ? normalizeX11WindowId(this.targetWindowId)
+      : null;
+    return normalizedWindowId ? `window:${normalizedWindowId}:0` : null;
+  }
+
+  override getTargetWindowNativeId(): string | null {
+    return this.targetWindowId ? normalizeX11WindowId(this.targetWindowId) : null;
+  }
+
+  override async raiseTargetWindow(): Promise<boolean> {
+    const targetWindowId = this.targetWindowId;
+    if (!targetWindowId) {
+      return false;
+    }
+    let raised = false;
+    try {
+      await this.runCommand('xdotool', ['windowactivate', targetWindowId]);
+      raised = true;
+    } catch {
+      // Some WMs reject activation but accept a plain restack below.
+    }
+    try {
+      await this.runCommand('xdotool', ['windowraise', targetWindowId]);
+      raised = true;
+    } catch {
+      // Keep any successful activation result.
+    }
+    return raised;
   }
 
   private resetPollInterval(intervalMs: number): void {
@@ -132,9 +186,14 @@ export class X11WindowTracker extends BaseWindowTracker {
 
     const windowId = await this.findTargetWindowId(windowIdList);
     if (!windowId) {
+      this.targetWindowId = null;
+      this.targetWindowPid = null;
       this.updateGeometry(null);
       return;
     }
+    this.targetWindowId = windowId;
+    const targetPid = this.targetWindowPid ?? (await this.getWindowPid(windowId));
+    this.targetWindowPid = targetPid;
 
     const winInfo = await this.runCommand('xwininfo', ['-id', windowId]);
     const geometry = parseX11WindowGeometry(winInfo);
@@ -143,7 +202,9 @@ export class X11WindowTracker extends BaseWindowTracker {
       return;
     }
 
-    this.updateGeometry(geometry);
+    const focused = await this.isWindowActive(windowId, targetPid);
+    this.updateGeometry(geometry, focused);
+    this.updateTargetWindowFocused(focused);
     if (this.pollInterval && this.currentPollIntervalMs !== this.stablePollIntervalMs) {
       this.currentPollIntervalMs = this.stablePollIntervalMs;
       this.resetPollInterval(this.currentPollIntervalMs);
@@ -151,12 +212,20 @@ export class X11WindowTracker extends BaseWindowTracker {
   }
 
   private async findTargetWindowId(windowIds: string[]): Promise<string | null> {
+    this.targetWindowId = null;
+    this.targetWindowPid = null;
     if (!this.targetMpvSocketPath) {
-      return windowIds[0] ?? null;
+      const windowId = windowIds[0] ?? null;
+      if (windowId) {
+        this.targetWindowPid = await this.getWindowPid(windowId);
+      }
+      return windowId;
     }
 
     for (const windowId of windowIds) {
-      if (await this.isWindowForTargetSocket(windowId)) {
+      const pid = await this.getTargetSocketWindowPid(windowId);
+      if (pid !== null) {
+        this.targetWindowPid = pid;
         return windowId;
       }
     }
@@ -164,21 +233,58 @@ export class X11WindowTracker extends BaseWindowTracker {
     return null;
   }
 
-  private async isWindowForTargetSocket(windowId: string): Promise<boolean> {
+  private async getTargetSocketWindowPid(windowId: string): Promise<number | null> {
     const pid = await this.getWindowPid(windowId);
     if (pid === null) {
-      return false;
+      return null;
     }
 
     const commandLine = await this.getWindowCommandLine(pid);
     if (!commandLine) {
-      return false;
+      return null;
     }
 
-    return (
+    const matchesTargetSocket =
       commandLine.includes(`--input-ipc-server=${this.targetMpvSocketPath}`) ||
-      commandLine.includes(`--input-ipc-server ${this.targetMpvSocketPath}`)
-    );
+      commandLine.includes(`--input-ipc-server ${this.targetMpvSocketPath}`);
+    return matchesTargetSocket ? pid : null;
+  }
+
+  private async isWindowActive(windowId: string, targetPid: number | null): Promise<boolean> {
+    const activeWindowId = await this.getX11ActiveWindowId();
+    if (!activeWindowId) {
+      return true;
+    }
+    const normalizedTarget = normalizeX11WindowId(windowId);
+    const normalizedActive = normalizeX11WindowId(activeWindowId);
+    if (!normalizedTarget || !normalizedActive) {
+      return true;
+    }
+    if (targetPid !== null) {
+      const activePid = await this.getWindowPid(normalizedActive);
+      if (activePid !== null) {
+        return activePid === targetPid;
+      }
+    }
+    return normalizedTarget === normalizedActive;
+  }
+
+  private async getX11ActiveWindowId(): Promise<string | null> {
+    try {
+      const rootActiveWindow = parseX11RootActiveWindowId(
+        await this.runCommand('xprop', ['-root', '_NET_ACTIVE_WINDOW']),
+      );
+      if (rootActiveWindow) {
+        return rootActiveWindow;
+      }
+    } catch {
+      // Fall back below. Some minimal WMs do not expose _NET_ACTIVE_WINDOW.
+    }
+    try {
+      return normalizeX11WindowId(await this.runCommand('xdotool', ['getactivewindow']));
+    } catch {
+      return null;
+    }
   }
 
   private async getWindowPid(windowId: string): Promise<number | null> {

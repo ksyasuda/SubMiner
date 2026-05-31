@@ -236,6 +236,7 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
   const previousWindow = globals.window;
   const previousDocument = globals.document;
   const mpvCommands: Array<Array<string | number>> = [];
+  const modalNotifications: string[] = [];
 
   const snapshot: SubtitleSidebarSnapshot = {
     cues: [
@@ -279,6 +280,12 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
         getSubtitleSidebarSnapshot: async () => snapshot,
         sendMpvCommand: (command: Array<string | number>) => {
           mpvCommands.push(command);
+        },
+        notifyOverlayModalOpened: (modal: string) => {
+          modalNotifications.push(`open:${modal}`);
+        },
+        notifyOverlayModalClosed: (modal: string) => {
+          modalNotifications.push(`close:${modal}`);
         },
       } as unknown as ElectronAPI,
     },
@@ -329,9 +336,13 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
       },
       state,
     };
+    const visibilityChanges: boolean[] = [];
 
     const modal = createSubtitleSidebarModal(ctx as never, {
       modalStateReader: { isAnyModalOpen: () => false },
+      onVisibilityChanged: (visible) => {
+        visibilityChanges.push(visible);
+      },
     });
 
     await modal.openSubtitleSidebarModal();
@@ -345,9 +356,14 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
     assert.equal(contentStyleValues.get('font-size'), '22px');
     assert.equal(contentStyle.color, '#ffffff');
     assert.equal(contentStyleValues.get('--subtitle-sidebar-timestamp-color'), '#aaaaaa');
+    assert.deepEqual(visibilityChanges, [true]);
 
     modal.seekToCue(snapshot.cues[0]!);
     assert.deepEqual(mpvCommands.at(-1), ['seek', 1.08, 'absolute+exact']);
+
+    modal.closeSubtitleSidebarModal();
+    assert.deepEqual(visibilityChanges, [true, false]);
+    assert.deepEqual(modalNotifications, ['open:subtitle-sidebar', 'close:subtitle-sidebar']);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
@@ -754,6 +770,104 @@ test('subtitle sidebar auto-open on startup only opens when enabled and configur
     await modal.autoOpenSubtitleSidebarOnStartup();
 
     assert.equal(state.subtitleSidebarModalOpen, false);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+});
+
+test('subtitle sidebar auto-open restores previously open sidebar after renderer replacement', async () => {
+  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+  const previousWindow = globals.window;
+  const previousDocument = globals.document;
+
+  const snapshot: SubtitleSidebarSnapshot = {
+    cues: [{ startTime: 1, endTime: 2, text: 'first' }],
+    currentSubtitle: {
+      text: 'first',
+      startTime: 1,
+      endTime: 2,
+    },
+    config: {
+      enabled: true,
+      autoOpen: false,
+      layout: 'overlay',
+      toggleKey: 'Backslash',
+      pauseVideoOnHover: false,
+      autoScroll: true,
+      maxWidth: 420,
+      opacity: 0.92,
+      backgroundColor: 'rgba(54, 58, 79, 0.88)',
+      textColor: '#cad3f5',
+      fontFamily: '"Iosevka Aile", sans-serif',
+      fontSize: 17,
+      timestampColor: '#a5adcb',
+      activeLineColor: '#f5bde6',
+      activeLineBackgroundColor: 'rgba(138, 173, 244, 0.22)',
+      hoverLineBackgroundColor: 'rgba(54, 58, 79, 0.84)',
+    },
+  };
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getSubtitleSidebarSnapshot: async () => snapshot,
+        sendMpvCommand: () => {},
+      } as unknown as ElectronAPI,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createCueRow(),
+      body: {
+        classList: createClassList(),
+      },
+      documentElement: {
+        style: {
+          setProperty: () => {},
+        },
+      },
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const modalClassList = createClassList(['hidden']);
+    const cueList = createListStub();
+    const ctx = {
+      dom: {
+        overlay: { classList: createClassList() },
+        subtitleSidebarModal: {
+          classList: modalClassList,
+          setAttribute: () => {},
+          style: { setProperty: () => {} },
+          addEventListener: () => {},
+        },
+        subtitleSidebarContent: {
+          classList: createClassList(),
+          getBoundingClientRect: () => ({ width: 420 }),
+        },
+        subtitleSidebarClose: { addEventListener: () => {} },
+        subtitleSidebarStatus: { textContent: '' },
+        subtitleSidebarList: cueList,
+      },
+      state,
+    };
+
+    const modal = createSubtitleSidebarModal(ctx as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      shouldRestoreOpenOnStartup: async () => true,
+    });
+
+    await modal.autoOpenSubtitleSidebarOnStartup();
+
+    assert.equal(state.subtitleSidebarModalOpen, true);
+    assert.equal(modalClassList.contains('hidden'), false);
+    assert.equal(cueList.children.length, 1);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });

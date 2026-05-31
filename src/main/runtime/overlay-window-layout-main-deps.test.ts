@@ -10,8 +10,13 @@ test('overlay window layout main deps builders map callbacks', () => {
   const calls: string[] = [];
 
   const visible = createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
+    getCurrentOverlayWindowBounds: () => {
+      calls.push('visible-current');
+      return null;
+    },
     setOverlayWindowBounds: () => calls.push('visible'),
   })();
+  assert.equal(visible.getCurrentOverlayWindowBounds?.(), null);
   visible.setOverlayWindowBounds({ x: 0, y: 0, width: 1, height: 1 });
 
   const level = createBuildEnsureOverlayWindowLevelMainDepsHandler({
@@ -42,6 +47,7 @@ test('overlay window layout main deps builders map callbacks', () => {
   order.ensureOverlayWindowLevel({});
 
   assert.deepEqual(calls, [
+    'visible-current',
     'visible',
     'ensure-suppressed-check',
     'ensure',

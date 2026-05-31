@@ -45,6 +45,22 @@ import {
   clearLinuxMpvFullscreenOverlayRefreshTimeouts,
   updateLinuxMpvFullscreenOverlayRefreshBurst,
 } from './main/runtime/linux-mpv-fullscreen-overlay-refresh';
+import {
+  resolveLinuxVisibleOverlayWindowModeAction,
+  shouldExitFullscreenOverrideForTrackedGeometry,
+  type LinuxVisibleOverlayWindowMode,
+} from './main/runtime/linux-visible-overlay-window-mode';
+import {
+  ensureLinuxOverlayZOrderKeepAliveLoop,
+  shouldRunLinuxOverlayZOrderKeepAlive,
+  tickLinuxOverlayZOrderKeepAlive,
+} from './main/runtime/linux-overlay-zorder-keepalive';
+import {
+  ensureLinuxOverlayPointerInteractionLoop,
+  mapOverlayMeasurementForPointerInteraction,
+  tickLinuxOverlayPointerInteraction,
+} from './main/runtime/linux-overlay-pointer-interaction';
+import { createLinuxX11CursorPointReader } from './main/runtime/linux-x11-cursor-point';
 import { mergeAiConfig } from './ai/config';
 
 function getPasswordStoreArg(argv: string[]): string | null {
@@ -156,6 +172,11 @@ import {
 import { printHelp } from './cli/help';
 import { IPC_CHANNELS, type OverlayHostedModal } from './shared/ipc/contracts';
 import { buildMpvLoggingArgs } from './shared/mpv-logging-args';
+import {
+  MPV_X11_BACKEND_ARGS,
+  applyX11EnvOverrides,
+  shouldForceX11WaylandSession,
+} from './shared/mpv-x11-backend';
 import { AnkiConnectClient } from './anki-connect';
 import {
   getStartupModeFlags,
@@ -233,6 +254,7 @@ import {
   createEnforceOverlayLayerOrderHandler,
   createEnsureOverlayWindowLevelHandler,
   createUpdateVisibleOverlayBoundsHandler,
+  hasLiveOverlayWindowBoundsMismatch,
   createLoadSubtitlePositionHandler,
   createSaveSubtitlePositionHandler,
   createAppendClipboardVideoToQueueHandler,
@@ -288,6 +310,7 @@ import {
 import {
   enforceUnsupportedWaylandMode,
   forceX11Backend,
+  shouldForceX11ElectronBackend,
   generateDefaultConfigFile,
   resolveConfiguredShortcuts,
   resolveKeybindings,
@@ -393,6 +416,7 @@ import {
 import { createAutoplayReadyGate } from './main/runtime/autoplay-ready-gate';
 import { selectAutoplayStartupCue } from './main/runtime/autoplay-subtitle-primer';
 import { createAutoplayTokenizationWarmRelease } from './main/runtime/autoplay-tokenization-warm-release';
+import { isVisibleOverlayAutoplayTargetReady } from './main/runtime/visible-overlay-autoplay-readiness';
 import { createManagedLocalSubtitleSelectionRuntime } from './main/runtime/local-subtitle-selection';
 import {
   buildFirstRunSetupHtml,
@@ -645,6 +669,15 @@ if (process.platform === 'linux') {
   );
   app.commandLine.appendSwitch('password-store', passwordStore);
   createLogger('main').debug(`Applied --password-store ${passwordStore}`);
+  // Pin the overlay to XWayland on unsupported Wayland sessions (everything except
+  // Hyprland/Sway). `setAlwaysOnTop`/`moveTop` are no-ops under a native Wayland surface,
+  // so the overlay can only stay above mpv under X11/XWayland. The command-line switch is
+  // applied at module load (before app init) so it reliably wins over the late env-var
+  // fallback in forceX11Backend().
+  if (shouldForceX11ElectronBackend(process.env)) {
+    app.commandLine.appendSwitch('ozone-platform-hint', 'x11');
+    createLogger('main').debug('Forced ozone-platform-hint=x11 for XWayland overlay stacking');
+  }
 }
 
 app.setName('SubMiner');
@@ -703,6 +736,22 @@ const MPV_JELLYFIN_DEFAULT_ARGS = [
   '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
   '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
 ] as const;
+
+/**
+ * Spawn a SubMiner-managed mpv (Jellyfin/YouTube) detached. On unsupported Wayland
+ * sessions it is pinned to XWayland — Wayland-hint env stripped and an X11 GPU context
+ * appended — so the XWayland overlay can stay above it, matching the `subminer` launcher.
+ */
+function spawnManagedMpvProcess(args: string[]): ReturnType<typeof spawn> {
+  if (!shouldForceX11WaylandSession(process.env)) {
+    return spawn('mpv', args, { detached: true, stdio: 'ignore' });
+  }
+  return spawn('mpv', [...args, ...MPV_X11_BACKEND_ARGS], {
+    detached: true,
+    stdio: 'ignore',
+    env: applyX11EnvOverrides({ ...process.env }),
+  });
+}
 
 let activeJellyfinRemotePlayback: ActiveJellyfinRemotePlaybackState | null = null;
 let activeJellyfinSubtitleDelayKey: { itemId: string; streamIndex: number } | null = null;
@@ -1183,13 +1232,20 @@ const autoplayReadyGate = createAutoplayReadyGate({
   signalPluginAutoplayReady: () => {
     sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
   },
-  isSignalTargetReady: () => {
-    if (!overlayManager.getVisibleOverlayVisible()) {
-      return true;
-    }
-    const overlayWindow = overlayManager.getMainWindow();
-    return Boolean(overlayWindow && isOverlayWindowContentReady(overlayWindow));
-  },
+  isSignalTargetReady: (signal) =>
+    isTokenizationWarmupReady() &&
+    isVisibleOverlayAutoplayTargetReady(
+      {
+        getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+        isOverlayWindowReady: () => {
+          const overlayWindow = overlayManager.getMainWindow();
+          return Boolean(overlayWindow && isOverlayWindowContentReady(overlayWindow));
+        },
+        getLatestVisibleMeasurement: () =>
+          overlayContentMeasurementStore.getLatestByLayer('visible'),
+      },
+      signal,
+    ),
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
   logDebug: (message) => logger.debug(message),
 });
@@ -1704,6 +1760,25 @@ function emitSubtitlePayload(payload: SubtitleData): void {
   autoplayReadyGate.maybeSignalPluginAutoplayReady(timedPayload, { forceWhilePaused: true });
   subtitlePrefetchService?.resume();
 }
+function getCurrentAutoplaySubtitlePayload(): SubtitleData | null {
+  const payload = appState.currentSubtitleData;
+  if (!payload?.text.trim()) {
+    return null;
+  }
+  if (payload.text !== appState.currentSubText) {
+    return null;
+  }
+  return payload;
+}
+
+function signalCurrentSubtitleAutoplayReady(): void {
+  autoplayReadyGate.flushPendingAutoplayReadySignal();
+  const payload = getCurrentAutoplaySubtitlePayload();
+  if (!payload) {
+    return;
+  }
+  autoplayReadyGate.maybeSignalPluginAutoplayReady(payload, { forceWhilePaused: true });
+}
 const buildSubtitleProcessingControllerMainDepsHandler =
   createBuildSubtitleProcessingControllerMainDepsHandler({
     tokenizeSubtitle: async (text: string) =>
@@ -1725,6 +1800,13 @@ let lastObservedTimePos = 0;
 let lastObservedPrimarySubtitleTrackId: number | null = null;
 let cancelLinuxMpvFullscreenOverlayRefreshBurst: CancelLinuxMpvFullscreenOverlayRefreshBurst | null =
   null;
+let linuxVisibleOverlayWindowMode: LinuxVisibleOverlayWindowMode = 'managed';
+let linuxTrackedMpvFullscreen = false;
+let linuxTrackedMpvFullscreenChangedAtMs = 0;
+let linuxVisibleOverlayOwnerBindingKey: string | null = null;
+const linuxVisibleOverlayOwnerBindingQueues = new WeakMap<BrowserWindow, Promise<void>>();
+let linuxVisibleOverlayWindowModeSwitchToken = 0;
+let subtitleSidebarRequestedOpen = false;
 const SEEK_THRESHOLD_SECONDS = 3;
 const AUTOPLAY_SUBTITLE_PRIME_LOOKAHEAD_SECONDS = 2;
 let autoplaySubtitlePrimedMediaPath: string | null = null;
@@ -1762,9 +1844,6 @@ function emitAutoplayPrimedSubtitle(mediaPath: string, text: string): boolean {
     return true;
   }
 
-  const rawPayload = withCurrentSubtitleTiming({ text, tokens: null });
-  appState.currentSubtitleData = rawPayload;
-  broadcastToOverlayWindows('subtitle:set', rawPayload);
   subtitleProcessingController.onSubtitleChange(text);
   return true;
 }
@@ -2410,6 +2489,9 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     showOverlayLoadingOsd: (message: string) => {
       showMpvOsd(message);
     },
+    hideNonNativeOverlayWhenTargetUnfocused: () =>
+      shouldRunLinuxOverlayZOrderKeepAlive() &&
+      linuxVisibleOverlayWindowMode === 'fullscreen-override',
     resolveFallbackBounds: () => {
       const cursorPoint = screen.getCursorScreenPoint();
       const display = screen.getDisplayNearestPoint(cursorPoint);
@@ -2428,6 +2510,8 @@ const VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
 const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] as const;
 const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
 const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
+const LINUX_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 1_500;
+const LINUX_VISIBLE_OVERLAY_FULLSCREEN_GEOMETRY_GRACE_MS = 1_200;
 const MACOS_VISIBLE_OVERLAY_FOREGROUND_PROBE_TIMEOUT_MS = 1_200;
 let visibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
@@ -2436,7 +2520,12 @@ let windowsVisibleOverlayZOrderSyncQueued = false;
 let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
 let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
 let lastWindowsVisibleOverlayBlurredAtMs = 0;
+let lastLinuxVisibleOverlayFollowedMpvAtMs = 0;
 let visibleOverlayInteractionActive = false;
+// Renderer-reported interactive hint (Linux only): true while a Yomitan popup/modal
+// region is interactive, so the cursor poll keeps the overlay interactive even when the cursor
+// moves off measured subtitle/sidebar rects onto the popup.
+let linuxOverlayInteractiveHint = false;
 let macOSVisibleOverlayForegroundProbeActive = false;
 let macOSVisibleOverlayForegroundProbeToken = 0;
 let macOSVisibleOverlayForegroundProbeTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -2451,6 +2540,12 @@ const handleStatsOverlayVisibilityChanged = createStatsOverlayVisibilityChangeHa
   getMainWindow: () => overlayManager.getMainWindow(),
   updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
 });
+
+function resetVisibleOverlayInputState(): void {
+  visibleOverlayInteractionActive = false;
+  linuxOverlayInteractiveHint = false;
+  overlayContentMeasurementStore.clear('visible');
+}
 
 function clearVisibleOverlayBlurRefreshTimeouts(): void {
   for (const timeout of visibleOverlayBlurRefreshTimeouts) {
@@ -2509,16 +2604,61 @@ function startMacOSVisibleOverlayForegroundProbe(): void {
     });
 }
 
-function getWindowsNativeWindowHandle(window: BrowserWindow): string {
+function getNativeWindowHandleDecimal(window: BrowserWindow): string {
   const handle = window.getNativeWindowHandle();
   return handle.length >= 8
     ? handle.readBigUInt64LE(0).toString()
     : BigInt(handle.readUInt32LE(0)).toString();
 }
 
+function getWindowsNativeWindowHandle(window: BrowserWindow): string {
+  return getNativeWindowHandleDecimal(window);
+}
+
 function getWindowsNativeWindowHandleNumber(window: BrowserWindow): number {
   const handle = window.getNativeWindowHandle();
   return handle.length >= 8 ? Number(handle.readBigUInt64LE(0)) : handle.readUInt32LE(0);
+}
+
+function enqueueVisibleOverlayX11OwnerBindingOperation(
+  window: BrowserWindow,
+  args: string[],
+  onError?: (error: Error) => void,
+): void {
+  const previous = linuxVisibleOverlayOwnerBindingQueues.get(window) ?? Promise.resolve();
+  const operation = previous
+    .catch(() => {})
+    .then(
+      () =>
+        new Promise<void>((resolve) => {
+          if (window.isDestroyed()) {
+            resolve();
+            return;
+          }
+          execFile('xprop', args, (error) => {
+            if (error) {
+              onError?.(error);
+            }
+            resolve();
+          });
+        }),
+    );
+  const queued = operation.finally(() => {
+    if (linuxVisibleOverlayOwnerBindingQueues.get(window) === queued) {
+      linuxVisibleOverlayOwnerBindingQueues.delete(window);
+    }
+  });
+  linuxVisibleOverlayOwnerBindingQueues.set(window, queued);
+}
+
+function clearVisibleOverlayX11OwnerBinding(window: BrowserWindow): void {
+  if (window.isDestroyed()) return;
+  enqueueVisibleOverlayX11OwnerBindingOperation(window, [
+    '-id',
+    getNativeWindowHandleDecimal(window),
+    '-remove',
+    'WM_TRANSIENT_FOR',
+  ]);
 }
 
 function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | null): number | null {
@@ -2552,7 +2692,12 @@ function createOverlayWindowTracker(override?: string | null, targetMpvSocketPat
 
 function bindVisibleOverlayOwner(): void {
   const mainWindow = overlayManager.getMainWindow();
-  if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (process.platform === 'linux') {
+    bindVisibleOverlayToTrackedX11Window(mainWindow);
+    return;
+  }
+  if (process.platform !== 'win32') return;
   const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
   const targetSocketPath = appState.mpvSocketPath;
   const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(targetSocketPath);
@@ -2584,6 +2729,13 @@ function bindVisibleOverlayOwner(): void {
 
 function releaseVisibleOverlayOwner(): void {
   const mainWindow = overlayManager.getMainWindow();
+  if (process.platform === 'linux') {
+    linuxVisibleOverlayOwnerBindingKey = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      clearVisibleOverlayX11OwnerBinding(mainWindow);
+    }
+    return;
+  }
   if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
   const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
   if (!clearWindowsOverlayOwner(overlayHwnd)) {
@@ -2820,6 +2972,86 @@ function scheduleVisibleOverlayBlurRefresh(): void {
 }
 
 ensureWindowsVisibleOverlayForegroundPollLoop();
+
+const linuxX11CursorPointReader = createLinuxX11CursorPointReader();
+
+const linuxOverlayZOrderKeepAliveDeps = {
+  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  getMainWindow: () => overlayManager.getMainWindow(),
+  isTrackingMpvWindow: () => Boolean(appState.windowTracker?.isTracking()),
+  isMpvWindowFocused: () => appState.windowTracker?.isTargetWindowFocused?.() !== false,
+  isOverlayWindowFocused: () => overlayManager.getMainWindow()?.isFocused() === true,
+  shouldSuppressReassert: () =>
+    overlayModalInputState.getModalInputExclusive() ||
+    appState.statsOverlayVisible ||
+    (visibleOverlayInteractionActive && overlayManager.getMainWindow()?.isFocused() !== true),
+  raiseMpvWindow: () => {
+    if (
+      lastLinuxVisibleOverlayFollowedMpvAtMs > 0 &&
+      Date.now() - lastLinuxVisibleOverlayFollowedMpvAtMs <=
+        LINUX_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS
+    ) {
+      return Promise.resolve(false);
+    }
+    lastLinuxVisibleOverlayFollowedMpvAtMs = Date.now();
+    return appState.windowTracker?.raiseTargetWindow?.() ?? Promise.resolve(false);
+  },
+  releaseOverlayLayerOrder: () => {
+    const mainWindow = overlayManager.getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.setAlwaysOnTop(false);
+    mainWindow.setFullScreen?.(false);
+    mainWindow.setVisibleOnAllWorkspaces?.(false, { visibleOnFullScreen: false });
+    if (linuxVisibleOverlayWindowMode === 'fullscreen-override' && mainWindow.isVisible()) {
+      mainWindow.hide();
+    }
+  },
+  enforceOverlayLayerOrder: () => {
+    enforceOverlayLayerOrder();
+  },
+  focusOverlayWindow: () => {
+    const mainWindow = overlayManager.getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isFocused()) return;
+    mainWindow.focus();
+  },
+};
+
+function requestLinuxOverlayZOrderFollow(): void {
+  if (!shouldRunLinuxOverlayZOrderKeepAlive()) return;
+  void tickLinuxOverlayZOrderKeepAlive(linuxOverlayZOrderKeepAliveDeps).catch((error) => {
+    logger.debug(
+      'Failed to follow tracked mpv behind focused overlay:',
+      error instanceof Error ? error.message : String(error),
+    );
+  });
+}
+
+ensureLinuxOverlayZOrderKeepAliveLoop(linuxOverlayZOrderKeepAliveDeps);
+
+const linuxOverlayPointerInteractionDeps = {
+  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  getMainWindow: () => overlayManager.getMainWindow(),
+  getCursorScreenPoint: () =>
+    linuxX11CursorPointReader.getCursorScreenPoint(screen.getCursorScreenPoint()),
+  getSubtitleMeasurement: () => {
+    const measurement = overlayContentMeasurementStore.getLatestByLayer('visible');
+    return mapOverlayMeasurementForPointerInteraction(measurement);
+  },
+  getRendererInteractiveHint: () => linuxOverlayInteractiveHint,
+  shouldSuspend: () =>
+    overlayModalInputState.getModalInputExclusive() || appState.statsOverlayVisible,
+  getInteractionActive: () => visibleOverlayInteractionActive,
+  setInteractionActive: (active: boolean) => {
+    visibleOverlayInteractionActive = active;
+    overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+  },
+};
+
+function tickLinuxOverlayPointerInteractionNow(): void {
+  tickLinuxOverlayPointerInteraction(linuxOverlayPointerInteractionDeps);
+}
+
+ensureLinuxOverlayPointerInteractionLoop(linuxOverlayPointerInteractionDeps);
 
 const buildGetRuntimeOptionsStateMainDepsHandler = createBuildGetRuntimeOptionsStateMainDepsHandler(
   {
@@ -3103,11 +3335,7 @@ const {
     removeSocketPath: (socketPath) => {
       fs.rmSync(socketPath, { force: true });
     },
-    spawnMpv: (args) =>
-      spawn('mpv', args, {
-        detached: true,
-        stdio: 'ignore',
-      }),
+    spawnMpv: (args) => spawnManagedMpvProcess(args),
     logWarn: (message, error) => logger.warn(message, error),
     logInfo: (message) => logger.info(message),
   },
@@ -4733,6 +4961,9 @@ const {
             getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
           },
           overlayVisibilityRuntime,
+          syncVisibleOverlayMpvFullscreenMode: (nextFullscreen) =>
+            syncLinuxVisibleOverlayMpvFullscreenMode(nextFullscreen),
+          getOverlayInteractionActive: () => visibleOverlayInteractionActive,
           ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
         },
         cancelLinuxMpvFullscreenOverlayRefreshBurst,
@@ -4948,12 +5179,7 @@ signalAutoplayReadyFromWarmTokenization = createAutoplayTokenizationWarmRelease(
   getCurrentMediaPath: () =>
     appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
   primeCurrentSubtitle: (mediaPath) => primeCurrentSubtitleForAutoplay(mediaPath),
-  signalAutoplayReady: () => {
-    autoplayReadyGate.maybeSignalPluginAutoplayReady(
-      { text: '__warm__', tokens: null },
-      { forceWhilePaused: true },
-    );
-  },
+  signalAutoplayReady: () => signalCurrentSubtitleAutoplayReady(),
   warn: (message, error) => logger.warn(message, error),
 });
 tokenizeSubtitleDeferred = tokenizeSubtitle;
@@ -5004,6 +5230,10 @@ function getCurrentOverlayGeometry(): WindowGeometry {
   return getOverlayGeometryFallback();
 }
 
+function getCurrentTrackedOverlayGeometry(): WindowGeometry | null {
+  return appState.windowTracker?.getGeometry() ?? null;
+}
+
 function geometryMatches(a: WindowGeometry | null, b: WindowGeometry | null): boolean {
   if (!a || !b) return false;
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
@@ -5011,12 +5241,53 @@ function geometryMatches(a: WindowGeometry | null, b: WindowGeometry | null): bo
 
 function applyOverlayRegions(geometry: WindowGeometry): void {
   lastOverlayWindowGeometry = geometry;
+  maybeExitLinuxFullscreenOverrideForTrackedGeometry(geometry);
   overlayManager.setOverlayWindowBounds(geometry);
   overlayManager.setModalWindowBounds(geometry);
 }
 
+function shouldExitLinuxFullscreenOverrideForGeometry(geometry: WindowGeometry): boolean {
+  if (!shouldRunLinuxOverlayZOrderKeepAlive()) {
+    return false;
+  }
+  if (
+    linuxTrackedMpvFullscreenChangedAtMs > 0 &&
+    Date.now() - linuxTrackedMpvFullscreenChangedAtMs <
+      LINUX_VISIBLE_OVERLAY_FULLSCREEN_GEOMETRY_GRACE_MS
+  ) {
+    return false;
+  }
+
+  const displayBounds = screen.getDisplayMatching(geometry).bounds;
+  return shouldExitFullscreenOverrideForTrackedGeometry({
+    currentMode: linuxVisibleOverlayWindowMode,
+    trackedFullscreen: linuxTrackedMpvFullscreen,
+    geometry,
+    displayBounds,
+  });
+}
+
+function maybeExitLinuxFullscreenOverrideForTrackedGeometry(geometry: WindowGeometry): void {
+  if (!shouldExitLinuxFullscreenOverrideForGeometry(geometry)) {
+    return;
+  }
+
+  logger.debug(
+    'Tracked mpv geometry no longer covers its display; exiting Linux fullscreen overlay override',
+  );
+  syncLinuxVisibleOverlayMpvFullscreenMode(false);
+}
+
 const buildUpdateVisibleOverlayBoundsMainDepsHandler =
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
+    getCurrentOverlayWindowBounds: () => lastOverlayWindowGeometry,
+    shouldRefreshUnchangedGeometry: (geometry) =>
+      shouldExitLinuxFullscreenOverrideForGeometry(geometry) ||
+      (process.platform === 'linux' &&
+        hasLiveOverlayWindowBoundsMismatch(
+          [overlayManager.getMainWindow(), overlayManager.getModalWindow()],
+          geometry,
+        )),
     setOverlayWindowBounds: (geometry) => applyOverlayRegions(geometry),
     afterSetOverlayWindowBounds: () => {
       if (!overlayManager.getVisibleOverlayVisible()) {
@@ -5053,6 +5324,10 @@ const buildEnsureOverlayWindowLevelMainDepsHandler =
     },
     ensureOverlayWindowLevelCore: (window) => ensureOverlayWindowLevelCore(window as BrowserWindow),
     afterEnsureOverlayWindowLevel: () => {
+      const mainWindow = overlayManager.getMainWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        moveVisibleOverlayAboveTrackedPlaybackWindow(mainWindow);
+      }
       promoteStatsOverlayAbovePlayback();
     },
   });
@@ -5065,6 +5340,66 @@ function syncPrimaryOverlayWindowLayer(layer: 'visible'): void {
   const mainWindow = overlayManager.getMainWindow();
   if (!mainWindow || mainWindow.isDestroyed()) return;
   syncOverlayWindowLayer(mainWindow, layer);
+}
+
+function moveVisibleOverlayAboveTrackedPlaybackWindow(window: BrowserWindow): void {
+  if (process.platform !== 'linux') return;
+  if (window !== overlayManager.getMainWindow()) return;
+
+  bindVisibleOverlayToTrackedX11Window(window);
+
+  const mediaSourceId = appState.windowTracker?.getTargetWindowMediaSourceId?.();
+  if (!mediaSourceId) return;
+
+  try {
+    window.moveAbove(mediaSourceId);
+  } catch (error) {
+    logger.debug(
+      'Failed to move visible overlay above tracked playback window:',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
+function bindVisibleOverlayToTrackedX11Window(window: BrowserWindow): void {
+  const targetWindowId = appState.windowTracker?.getTargetWindowNativeId?.();
+  if (!targetWindowId) {
+    if (linuxVisibleOverlayOwnerBindingKey !== null) {
+      clearVisibleOverlayX11OwnerBinding(window);
+    }
+    linuxVisibleOverlayOwnerBindingKey = null;
+    return;
+  }
+
+  const overlayWindowId = getNativeWindowHandleDecimal(window);
+  const bindingKey = `${overlayWindowId}:${targetWindowId}`;
+  if (linuxVisibleOverlayOwnerBindingKey === bindingKey) {
+    return;
+  }
+  linuxVisibleOverlayOwnerBindingKey = bindingKey;
+
+  enqueueVisibleOverlayX11OwnerBindingOperation(
+    window,
+    [
+      '-id',
+      overlayWindowId,
+      '-f',
+      'WM_TRANSIENT_FOR',
+      '32x',
+      '-set',
+      'WM_TRANSIENT_FOR',
+      targetWindowId,
+    ],
+    (error) => {
+      if (linuxVisibleOverlayOwnerBindingKey === bindingKey) {
+        linuxVisibleOverlayOwnerBindingKey = null;
+      }
+      logger.debug(
+        'Failed to bind visible overlay as transient for tracked X11 playback window:',
+        error instanceof Error ? error.message : String(error),
+      );
+    },
+  );
 }
 
 const buildEnforceOverlayLayerOrderMainDepsHandler =
@@ -5176,6 +5511,85 @@ function createMainWindow(): BrowserWindow {
     }
   }
   return window;
+}
+
+function createLinuxVisibleOverlayWindowForCurrentMode(token: number, fullscreen: boolean): void {
+  if (token !== linuxVisibleOverlayWindowModeSwitchToken) {
+    return;
+  }
+  if (!overlayManager.getVisibleOverlayVisible()) {
+    return;
+  }
+  const existingWindow = overlayManager.getMainWindow();
+  if (existingWindow && !existingWindow.isDestroyed()) {
+    return;
+  }
+
+  resetVisibleOverlayInputState();
+  createMainWindow();
+  const trackedGeometry = getCurrentTrackedOverlayGeometry();
+  if (trackedGeometry) {
+    overlayManager.setOverlayWindowBounds(trackedGeometry);
+  }
+  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+  void ensureOverlayMpvSubtitlesHidden();
+  if (appState.currentSubText.trim()) {
+    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+  }
+  logger.debug(
+    `Switched Linux visible overlay window mode to ${linuxVisibleOverlayWindowMode} for mpv fullscreen=${fullscreen}`,
+  );
+}
+
+function syncLinuxVisibleOverlayMpvFullscreenMode(fullscreen: boolean): void {
+  if (!shouldRunLinuxOverlayZOrderKeepAlive()) {
+    return;
+  }
+  if (linuxTrackedMpvFullscreen !== fullscreen) {
+    linuxTrackedMpvFullscreenChangedAtMs = Date.now();
+  }
+  linuxTrackedMpvFullscreen = fullscreen;
+  const currentWindow = overlayManager.getMainWindow();
+  const hasLiveWindow = Boolean(currentWindow && !currentWindow.isDestroyed());
+  const action = resolveLinuxVisibleOverlayWindowModeAction({
+    currentMode: linuxVisibleOverlayWindowMode,
+    fullscreen,
+    hasLiveWindow,
+    visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
+  });
+
+  linuxVisibleOverlayWindowMode = action.nextMode;
+  linuxVisibleOverlayOwnerBindingKey = null;
+  linuxVisibleOverlayWindowModeSwitchToken += 1;
+  const token = linuxVisibleOverlayWindowModeSwitchToken;
+  if (!action.shouldCreateWindow && !action.shouldDestroyCurrentWindow) {
+    return;
+  }
+
+  const previousWindow = currentWindow;
+  if (action.shouldDestroyCurrentWindow && previousWindow && !previousWindow.isDestroyed()) {
+    previousWindow.once('closed', () => {
+      if (overlayManager.getMainWindow() === previousWindow) {
+        overlayManager.setMainWindow(null);
+      }
+      if (action.createWindowTiming === 'after-current-destroyed') {
+        createLinuxVisibleOverlayWindowForCurrentMode(token, fullscreen);
+      }
+    });
+    previousWindow.hide();
+    previousWindow.destroy();
+  }
+
+  if (!action.shouldCreateWindow) {
+    logger.debug(
+      `Recorded Linux visible overlay window mode ${action.nextMode} for hidden mpv fullscreen=${fullscreen}`,
+    );
+    return;
+  }
+
+  if (action.createWindowTiming === 'now') {
+    createLinuxVisibleOverlayWindowForCurrentMode(token, fullscreen);
+  }
 }
 
 function ensureTray(): void {
@@ -5957,6 +6371,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         }
       },
       onOverlayModalClosed: (modal, senderWindow) => {
+        if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
+          subtitleSidebarRequestedOpen = false;
+        }
         const modalWindow = overlayManager.getModalWindow();
         if (
           senderWindow &&
@@ -5969,7 +6386,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         }
         handleOverlayModalClosed(modal);
       },
-      onOverlayModalOpened: (modal) => {
+      onOverlayModalOpened: (modal, senderWindow) => {
+        if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
+          subtitleSidebarRequestedOpen = true;
+        }
         overlayModalRuntime.notifyOverlayModalOpened(modal);
       },
       onOverlayMouseInteractionChanged: (active, senderWindow) => {
@@ -5985,6 +6405,13 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         }
         visibleOverlayInteractionActive = active;
         overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+      },
+      onOverlayInteractiveHint: (interactive, senderWindow) => {
+        const mainWindow = overlayManager.getMainWindow();
+        if (!mainWindow || senderWindow !== mainWindow) {
+          return;
+        }
+        linuxOverlayInteractiveHint = interactive;
       },
       onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
       openYomitanSettings: () => openYomitanSettings(),
@@ -6004,6 +6431,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       },
       getCurrentSubtitleRaw: () => appState.currentSubText,
       getCurrentSubtitleAss: () => appState.currentSubAssText,
+      getSubtitleSidebarOpen: () => subtitleSidebarRequestedOpen,
       getSubtitleSidebarSnapshot: async () => {
         const currentSubtitle = {
           text: appState.currentSubText,
@@ -6138,7 +6566,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getAnkiConnectStatus: () => appState.ankiIntegration !== null,
       getRuntimeOptions: () => getRuntimeOptionsState(),
       reportOverlayContentBounds: (payload: unknown) => {
-        overlayContentMeasurementStore.report(payload);
+        if (overlayContentMeasurementStore.report(payload)) {
+          tickLinuxOverlayPointerInteractionNow();
+          autoplayReadyGate.flushPendingAutoplayReadySignal();
+        }
       },
       getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
       clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
@@ -6500,7 +6931,12 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
       tryHandleOverlayShortcutLocalFallback: (input) =>
         overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
       forwardTabToMpv: () => sendMpvCommandRuntime(appState.mpvClient, ['keypress', 'TAB']),
+      getLinuxX11FullscreenOverlay: () =>
+        shouldRunLinuxOverlayZOrderKeepAlive() &&
+        linuxTrackedMpvFullscreen &&
+        linuxVisibleOverlayWindowMode === 'fullscreen-override',
       onVisibleWindowBlurred: () => scheduleVisibleOverlayBlurRefresh(),
+      onVisibleWindowFocused: () => requestLinuxOverlayZOrderFollow(),
       onWindowContentReady: () => {
         overlayVisibilityRuntime.updateVisibleOverlayVisibility();
         if (appState.currentSubText.trim()) {
@@ -6508,15 +6944,23 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
         }
         autoplayReadyGate.flushPendingAutoplayReadySignal();
       },
-      onWindowClosed: (windowKind) => {
+      onWindowClosed: (windowKind, window) => {
         if (windowKind === 'visible') {
+          if (overlayManager.getMainWindow() !== window) {
+            return;
+          }
           cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
           overlayManager.setMainWindow(null);
         } else {
+          if (overlayManager.getModalWindow() !== window) {
+            return;
+          }
           overlayManager.setModalWindow(null);
         }
       },
     },
+    getMainWindow: () => overlayManager.getMainWindow(),
+    isWindowDestroyed: (window) => window.isDestroyed(),
     setMainWindow: (window) => overlayManager.setMainWindow(window),
     setModalWindow: (window) => overlayManager.setModalWindow(window),
   });
@@ -6776,6 +7220,7 @@ function setVisibleOverlayVisible(visible: boolean): void {
   if (!visible) {
     autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
+    resetVisibleOverlayInputState();
   }
   if (visible) {
     void ensureOverlayMpvSubtitlesHidden();

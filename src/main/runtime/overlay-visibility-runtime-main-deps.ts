@@ -31,6 +31,8 @@ export function createBuildOverlayVisibilityRuntimeMainDepsHandler(
     isMacOSPlatform: () => deps.isMacOSPlatform(),
     isWindowsPlatform: () => deps.isWindowsPlatform(),
     showOverlayLoadingOsd: (message: string) => deps.showOverlayLoadingOsd(message),
+    hideNonNativeOverlayWhenTargetUnfocused: () =>
+      deps.hideNonNativeOverlayWhenTargetUnfocused?.() ?? false,
     resolveFallbackBounds: () => deps.resolveFallbackBounds(),
   });
 }

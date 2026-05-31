@@ -30,6 +30,7 @@ export interface OverlayVisibilityRuntimeDeps {
   isWindowsPlatform: () => boolean;
   showOverlayLoadingOsd: (message: string) => void;
   resolveFallbackBounds: () => WindowGeometry;
+  hideNonNativeOverlayWhenTargetUnfocused?: () => boolean;
 }
 
 export interface OverlayVisibilityRuntimeService {
@@ -86,6 +87,8 @@ export function createOverlayVisibilityRuntimeService(
         resetOverlayLoadingOsdSuppression: () => {
           lastOverlayLoadingOsdAtMs = null;
         },
+        hideNonNativeOverlayWhenTargetUnfocused:
+          deps.hideNonNativeOverlayWhenTargetUnfocused?.() ?? false,
         resolveFallbackBounds: () => deps.resolveFallbackBounds(),
       });
     },

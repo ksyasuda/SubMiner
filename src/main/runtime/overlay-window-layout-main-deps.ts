@@ -14,6 +14,9 @@ export function createBuildUpdateVisibleOverlayBoundsMainDepsHandler(
   deps: UpdateVisibleOverlayBoundsMainDeps,
 ) {
   return (): UpdateVisibleOverlayBoundsMainDeps => ({
+    getCurrentOverlayWindowBounds: () => deps.getCurrentOverlayWindowBounds?.() ?? null,
+    shouldRefreshUnchangedGeometry: (geometry) =>
+      deps.shouldRefreshUnchangedGeometry?.(geometry) ?? false,
     setOverlayWindowBounds: (geometry) => deps.setOverlayWindowBounds(geometry),
     afterSetOverlayWindowBounds: (geometry) => deps.afterSetOverlayWindowBounds?.(geometry),
   });

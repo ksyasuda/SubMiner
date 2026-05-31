@@ -26,11 +26,10 @@ function isYomitanPopupInteractionActive(state: RendererState): boolean {
 }
 
 export function syncOverlayMouseIgnoreState(ctx: RendererContext): void {
+  const shouldKeepWindowInteractive =
+    isYomitanPopupInteractionActive(ctx.state) || isBlockingOverlayModalOpen(ctx.state);
   const shouldStayInteractive =
-    ctx.state.isOverSubtitle ||
-    ctx.state.isOverSubtitleSidebar ||
-    isYomitanPopupInteractionActive(ctx.state) ||
-    isBlockingOverlayModalOpen(ctx.state);
+    ctx.state.isOverSubtitle || ctx.state.isOverSubtitleSidebar || shouldKeepWindowInteractive;
 
   if (shouldStayInteractive) {
     ctx.dom.overlay.classList.add('interactive');
@@ -38,6 +37,12 @@ export function syncOverlayMouseIgnoreState(ctx: RendererContext): void {
     ctx.dom.overlay.classList.remove('interactive');
   }
   if (!ctx.platform?.shouldToggleMouseIgnore) {
+    // On Linux the main process owns window passthrough via a cursor poll (Electron can't
+    // forward mouse-move through a click-through window on X11). Report the interactive hint
+    // only for popups/modals that sit off measured hit rects; subtitles/sidebar use the poll.
+    if (ctx.platform?.isLinuxPlatform) {
+      window.electronAPI.reportOverlayInteractive?.(shouldKeepWindowInteractive);
+    }
     return;
   }
 

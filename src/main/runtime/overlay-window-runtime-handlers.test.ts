@@ -27,6 +27,8 @@ test('overlay window runtime handlers compose create/main/modal handlers', () =>
       onWindowClosed: (kind) => calls.push(`closed:${kind}`),
       getYomitanSession: () => yomitanSession,
     },
+    getMainWindow: () => mainWindow,
+    isWindowDestroyed: () => false,
     setMainWindow: (window) => {
       mainWindow = window;
     },

@@ -28,10 +28,12 @@ export function createHandleMpvSubtitleChangeHandler(deps: {
       deps.onSubtitleChange(text);
       (deps.emitImmediateSubtitle ?? deps.broadcastSubtitle)(immediatePayload);
     } else {
-      deps.broadcastSubtitle({
-        text,
-        tokens: null,
-      });
+      if (!text.trim()) {
+        deps.broadcastSubtitle({
+          text,
+          tokens: null,
+        });
+      }
       deps.onSubtitleChange(text);
     }
     deps.refreshDiscordPresence();

@@ -18,6 +18,7 @@ test('overlay window factory main deps builders return mapped handlers', () => {
     isOverlayVisible: (kind) => kind === 'visible',
     tryHandleOverlayShortcutLocalFallback: () => false,
     forwardTabToMpv: () => calls.push('forward-tab'),
+    onVisibleWindowFocused: () => calls.push('visible-focus'),
     onWindowClosed: (kind) => calls.push(`closed:${kind}`),
     getYomitanSession: () => yomitanSession,
   });
@@ -27,12 +28,17 @@ test('overlay window factory main deps builders return mapped handlers', () => {
   assert.equal(overlayDeps.isOverlayVisible('visible'), true);
   assert.equal(overlayDeps.getYomitanSession(), yomitanSession);
   overlayDeps.forwardTabToMpv();
+  overlayDeps.onVisibleWindowFocused?.();
 
   const buildMainDeps = createBuildCreateMainWindowMainDepsHandler({
+    getMainWindow: () => null,
+    isWindowDestroyed: () => false,
     createOverlayWindow: () => ({ id: 'visible' }),
     setMainWindow: () => calls.push('set-main'),
   });
   const mainDeps = buildMainDeps();
+  assert.equal(mainDeps.getMainWindow(), null);
+  assert.equal(mainDeps.isWindowDestroyed({ id: 'visible' }), false);
   mainDeps.setMainWindow(null);
 
   const buildModalDeps = createBuildCreateModalWindowMainDepsHandler({
@@ -42,5 +48,5 @@ test('overlay window factory main deps builders return mapped handlers', () => {
   const modalDeps = buildModalDeps();
   modalDeps.setModalWindow(null);
 
-  assert.deepEqual(calls, ['forward-tab', 'set-main', 'set-modal']);
+  assert.deepEqual(calls, ['forward-tab', 'visible-focus', 'set-main', 'set-modal']);
 });

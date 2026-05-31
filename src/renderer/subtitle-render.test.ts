@@ -57,6 +57,7 @@ class FakeElement {
   dataset: Record<string, string> = {};
   style = new FakeStyleDeclaration();
   className = '';
+  replaceChildrenCalls = 0;
   private ownTextContent = '';
 
   constructor(public tagName: string) {}
@@ -97,6 +98,7 @@ class FakeElement {
   }
 
   replaceChildren(): void {
+    this.replaceChildrenCalls += 1;
     this.childNodes = [];
     this.ownTextContent = '';
   }
@@ -342,6 +344,130 @@ test('renderSubtitle skips character image when name-match rendering is disabled
     assert.equal(word.className, 'word');
     assert.equal(word.textContent, 'アクア');
     assert.equal(word.childNodes.length, 0);
+  } finally {
+    restoreDocument();
+  }
+});
+
+test('renderSubtitle skips identical primary subtitle DOM replacement', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer: new FakeElement('div'),
+        secondarySubRoot: new FakeElement('div'),
+        secondarySubContainer: new FakeElement('div'),
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.renderSubtitle({ text: '字幕', tokens: null });
+    renderer.renderSubtitle({ text: '字幕', tokens: null });
+    renderer.renderSubtitle({ text: '字幕2', tokens: null });
+
+    assert.equal(subtitleRoot.replaceChildrenCalls, 2);
+    assert.equal(subtitleRoot.textContent, '字幕2');
+  } finally {
+    restoreDocument();
+  }
+});
+
+test('renderSubtitle keeps tokenized subtitle when stale plain payload repeats same text', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer: new FakeElement('div'),
+        secondarySubRoot: new FakeElement('div'),
+        secondarySubContainer: new FakeElement('div'),
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.renderSubtitle({
+      text: 'アクア',
+      tokens: [createToken({ surface: 'アクア', headword: 'アクア', reading: 'あくあ' })],
+    });
+    renderer.renderSubtitle({ text: 'アクア', tokens: null });
+
+    assert.equal(subtitleRoot.replaceChildrenCalls, 1);
+    assert.equal(collectWordNodes(subtitleRoot).length, 1);
+    assert.equal(subtitleRoot.textContent, 'アクア');
+  } finally {
+    restoreDocument();
+  }
+});
+
+test('renderSubtitle accepts repeated plain payload after style invalidates tokenized render', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer: new FakeElement('div'),
+        secondarySubRoot: new FakeElement('div'),
+        secondarySubContainer: new FakeElement('div'),
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.renderSubtitle({
+      text: 'アクア',
+      tokens: [createToken({ surface: 'アクア', headword: 'アクア', reading: 'あくあ' })],
+    });
+    renderer.applySubtitleStyle({ fontColor: '#fff' } as never);
+    renderer.renderSubtitle({ text: 'アクア', tokens: null });
+
+    assert.equal(subtitleRoot.replaceChildrenCalls, 2);
+    assert.equal(collectWordNodes(subtitleRoot).length, 0);
+    assert.equal(subtitleRoot.textContent, 'アクア');
+  } finally {
+    restoreDocument();
+  }
+});
+
+test('renderSubtitle re-renders identical text after style changes affect token output', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const ctx = {
+      state: {
+        ...createRendererState(),
+        nameMatchEnabled: false,
+      },
+      dom: {
+        subtitleRoot,
+        subtitleContainer: new FakeElement('div'),
+        secondarySubRoot: new FakeElement('div'),
+        secondarySubContainer: new FakeElement('div'),
+      },
+    } as never;
+    const subtitle = {
+      text: 'アクア',
+      tokens: [
+        {
+          ...createToken({ surface: 'アクア', headword: 'アクア', reading: 'あくあ' }),
+          isNameMatch: true,
+        } as MergedToken,
+      ],
+    };
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.renderSubtitle(subtitle);
+    renderer.applySubtitleStyle({ nameMatchEnabled: true } as never);
+    renderer.renderSubtitle(subtitle);
+
+    const [word] = collectWordNodes(subtitleRoot);
+    assert.equal(subtitleRoot.replaceChildrenCalls, 2);
+    assert.ok(word?.className.includes('word-name-match'));
   } finally {
     restoreDocument();
   }
@@ -1230,6 +1356,13 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   );
   assert.match(secondaryHoverWindowsBlock, /top:\s*40px;/);
   assert.match(secondaryHoverWindowsBlock, /padding-top:\s*0;/);
+
+  const sidebarSettingsModalBlock = extractClassBlock(
+    cssText,
+    'body.settings-modal-open .subtitle-sidebar-modal',
+  );
+  assert.match(sidebarSettingsModalBlock, /display:\s*none !important;/);
+  assert.match(sidebarSettingsModalBlock, /pointer-events:\s*none !important;/);
 
   const subtitleSidebarListBlock = extractClassBlock(cssText, '.subtitle-sidebar-list');
   assert.doesNotMatch(subtitleSidebarListBlock, /scroll-behavior:\s*smooth;/);
