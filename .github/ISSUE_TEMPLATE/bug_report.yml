@@ -1,0 +1,105 @@
+name: Bug Report
+description: Report something that is broken or behaving incorrectly
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report! Please search [existing issues](https://github.com/ksyasuda/SubMiner/issues?q=is%3Aissue) first to avoid duplicates.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including what you expected to happen instead.
+      placeholder: When I open the Yomitan popup, the overlay freezes...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal, ordered steps that reliably trigger the bug.
+      placeholder: |
+        1. Launch `subminer`
+        2. Play a video in MPV
+        3. Hover a word and press ...
+        4. See error
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of SubMiner is affected?
+      options:
+        - Overlay / Yomitan popup
+        - Anki mining
+        - Subtitle annotations
+        - Subtitle sidebar
+        - Immersion tracking / stats
+        - Launcher / CLI
+        - MPV plugin
+        - Jellyfin integration
+        - Jimaku integration
+        - AniList integration
+        - YouTube integration
+        - Character dictionary
+        - WebSocket / texthooker API
+        - Configuration
+        - Documentation
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: SubMiner version
+      description: Output of `subminer --version`, or the release tag / commit you are running.
+      placeholder: v0.15.0
+    validations:
+      required: true
+
+  - type: input
+    id: compositor
+    attributes:
+      label: Compositor (Linux only)
+      description: SubMiner's overlay supports Hyprland and sway. Name yours (and version if known). Leave blank on macOS / Windows.
+      placeholder: Hyprland 0.55
+    validations:
+      required: false
+
+  - type: input
+    id: mpv-version
+    attributes:
+      label: MPV version
+      description: Output of `mpv --version` (first line).
+      placeholder: mpv 0.38.0
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / console output
+      description: |
+        Relevant logs. For verbose output, run `electron . --dev --log-level debug`.
+        This will be rendered as code automatically — no backticks needed.
+      render: shell
+    validations:
+      required: false
