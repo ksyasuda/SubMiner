@@ -70,6 +70,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getSubtitleSidebarOpen?: IpcDepsRuntimeOptions['getSubtitleSidebarOpen'];
   getPlaybackPaused: IpcDepsRuntimeOptions['getPlaybackPaused'];
   focusMainWindow?: IpcDepsRuntimeOptions['focusMainWindow'];
+  activatePlaybackWindowForOverlayInteraction?: IpcDepsRuntimeOptions['activatePlaybackWindowForOverlayInteraction'];
   getSubtitlePosition: IpcDepsRuntimeOptions['getSubtitlePosition'];
   getSubtitleStyle: IpcDepsRuntimeOptions['getSubtitleStyle'];
   saveSubtitlePosition: IpcDepsRuntimeOptions['saveSubtitlePosition'];
@@ -264,6 +265,7 @@ export function createMainIpcRuntimeServiceDeps(
     saveControllerConfig: params.saveControllerConfig,
     saveControllerPreference: params.saveControllerPreference,
     focusMainWindow: params.focusMainWindow ?? (() => {}),
+    activatePlaybackWindowForOverlayInteraction: params.activatePlaybackWindowForOverlayInteraction,
     getSecondarySubMode: params.getSecondarySubMode,
     getMpvClient: params.getMpvClient,
     runSubsyncManual: params.runSubsyncManual,

@@ -103,12 +103,14 @@ function installKeyboardTestGlobals() {
   const previousMutationObserver = (globalThis as { MutationObserver?: unknown }).MutationObserver;
   const previousCustomEvent = (globalThis as { CustomEvent?: unknown }).CustomEvent;
   const previousMouseEvent = (globalThis as { MouseEvent?: unknown }).MouseEvent;
+  const previousElement = (globalThis as { Element?: unknown }).Element;
 
   const documentListeners = new Map<string, Array<(event: unknown) => void>>();
   const windowListeners = new Map<string, Array<(event: unknown) => void>>();
   const commandEvents: CommandEventDetail[] = [];
   const mpvCommands: Array<Array<string | number>> = [];
   const sessionActions: Array<{ actionId: string; payload?: unknown }> = [];
+  const interactionActivations: string[] = [];
   let sessionBindings: CompiledSessionBinding[] = [];
   let getSessionBindingsImpl: () => Promise<CompiledSessionBinding[]> = async () => sessionBindings;
   let playbackPausedResponse: boolean | null = false;
@@ -179,6 +181,14 @@ function installKeyboardTestGlobals() {
     }
   }
 
+  class TestElement {
+    tagName = 'DIV';
+
+    closest(_selector: string): unknown {
+      return null;
+    }
+  }
+
   Object.defineProperty(globalThis, 'CustomEvent', {
     configurable: true,
     value: TestCustomEvent,
@@ -187,6 +197,11 @@ function installKeyboardTestGlobals() {
   Object.defineProperty(globalThis, 'MouseEvent', {
     configurable: true,
     value: TestMouseEvent,
+  });
+
+  Object.defineProperty(globalThis, 'Element', {
+    configurable: true,
+    value: TestElement,
   });
 
   Object.defineProperty(globalThis, 'window', {
@@ -241,6 +256,10 @@ function installKeyboardTestGlobals() {
         focusMainWindow: () => {
           focusMainWindowCalls += 1;
           return Promise.resolve();
+        },
+        activatePlaybackWindowForOverlayInteraction: async () => {
+          interactionActivations.push('activate-playback-window');
+          return true;
         },
         notifyOverlayModalOpened: (modal: string) => {
           openedModalNotifications.push(modal);
@@ -303,6 +322,18 @@ function installKeyboardTestGlobals() {
     }
   }
 
+  function dispatchDocumentMouseDown(event: { button: number; target?: unknown }): void {
+    const listeners = documentListeners.get('mousedown') ?? [];
+    const mouseEvent = {
+      button: event.button,
+      target: event.target ?? null,
+      preventDefault: () => {},
+    };
+    for (const listener of listeners) {
+      listener(mouseEvent);
+    }
+  }
+
   function dispatchFocusInOnPopup(): void {
     const listeners = documentListeners.get('focusin') ?? [];
     const focusEvent = {
@@ -335,6 +366,10 @@ function installKeyboardTestGlobals() {
       configurable: true,
       value: previousMouseEvent,
     });
+    Object.defineProperty(globalThis, 'Element', {
+      configurable: true,
+      value: previousElement,
+    });
   }
 
   const overlay = {
@@ -348,10 +383,12 @@ function installKeyboardTestGlobals() {
     mpvCommands,
     sessionActions,
     overlay,
+    interactionActivations,
     overlayFocusCalls,
     focusMainWindowCalls: () => focusMainWindowCalls,
     windowFocusCalls: () => windowFocusCalls,
     dispatchKeydown,
+    dispatchDocumentMouseDown,
     dispatchFocusInOnPopup,
     dispatchWindowEvent,
     setPopupVisible: (value: boolean) => {
@@ -368,6 +405,11 @@ function installKeyboardTestGlobals() {
     },
     setSessionBindings: (value: CompiledSessionBinding[]) => {
       sessionBindings = value;
+    },
+    createInteractiveTarget: () => {
+      const target = new TestElement();
+      target.closest = (selector: string) => (selector.includes('.modal') ? target : null);
+      return target;
     },
     setGetSessionBindings: (value: () => Promise<CompiledSessionBinding[]>) => {
       getSessionBindingsImpl = value;
@@ -560,6 +602,39 @@ test('mpv input forwarding waits for session bindings before resolving setup', a
       fallbackUsed: true,
       fallbackUnavailable: false,
     });
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('right-clicking non-interactive overlay content raises playback window before toggling pause', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchDocumentMouseDown({ button: 2 });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.interactionActivations, ['activate-playback-window']);
+    assert.deepEqual(testGlobals.mpvCommands.slice(-1), [['cycle', 'pause']]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('right-clicking interactive overlay controls does not raise playback window or toggle pause', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  const interactiveTarget = testGlobals.createInteractiveTarget();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchDocumentMouseDown({ button: 2, target: interactiveTarget });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.interactionActivations, []);
+    assert.deepEqual(testGlobals.mpvCommands, []);
   } finally {
     testGlobals.restore();
   }

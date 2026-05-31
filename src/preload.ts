@@ -356,6 +356,10 @@ const electronAPI: ElectronAPI = {
   getCurrentSecondarySub: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getCurrentSecondarySub),
   focusMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.request.focusMainWindow) as Promise<void>,
+  activatePlaybackWindowForOverlayInteraction: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.request.activatePlaybackWindowForOverlayInteraction,
+    ) as Promise<boolean>,
   getSubtitleStyle: (): Promise<SubtitleStyleConfig | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitleStyle),
   onSubsyncManualOpen: onSubsyncManualOpenEvent,

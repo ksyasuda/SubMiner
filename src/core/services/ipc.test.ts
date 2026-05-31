@@ -143,6 +143,7 @@ function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServ
     getSecondarySubMode: () => 'hover',
     getCurrentSecondarySub: () => '',
     focusMainWindow: () => {},
+    activatePlaybackWindowForOverlayInteraction: () => false,
     runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
     getAnkiConnectStatus: () => false,
     getRuntimeOptions: () => [],
@@ -247,6 +248,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     getSecondarySubMode: () => 'hover',
     getMpvClient: () => null,
     focusMainWindow: () => {},
+    activatePlaybackWindowForOverlayInteraction: () => false,
     runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
     getAnkiConnectStatus: () => false,
     getRuntimeOptions: () => ({}),
@@ -649,6 +651,27 @@ test('registerIpcHandlers exposes subtitle sidebar snapshot request', async () =
   const handler = handlers.handle.get(IPC_CHANNELS.request.getSubtitleSidebarSnapshot);
   assert.ok(handler);
   assert.deepEqual(await handler!({}), snapshot);
+});
+
+test('registerIpcHandlers exposes playback window activation request', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: string[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      activatePlaybackWindowForOverlayInteraction: async () => {
+        calls.push('activate');
+        return true;
+      },
+    }),
+    registrar,
+  );
+
+  const handler = handlers.handle.get(
+    IPC_CHANNELS.request.activatePlaybackWindowForOverlayInteraction,
+  );
+  assert.ok(handler);
+  assert.equal(await handler!({}), true);
+  assert.deepEqual(calls, ['activate']);
 });
 
 test('registerIpcHandlers forwards yomitan lookup tracking commands to immersion tracker', () => {

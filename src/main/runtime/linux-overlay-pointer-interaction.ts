@@ -38,6 +38,8 @@ export type LinuxOverlayPointerInteractionDeps = {
   getRendererInteractiveHint: () => boolean;
   /** True when a modal/stats overlay owns input — leave interaction state to that logic. */
   shouldSuspend: () => boolean;
+  /** True when a separate app window should stay above the overlay. */
+  shouldSuppressInteraction?: () => boolean;
   getInteractionActive: () => boolean;
   setInteractionActive: (active: boolean) => void;
 };
@@ -57,6 +59,17 @@ export function mapOverlayMeasurementForPointerInteraction(
     contentRect: measurement.contentRect,
     ...(measurement.interactiveRects ? { interactiveRects: measurement.interactiveRects } : {}),
   };
+}
+
+export function shouldSuppressPointerInteractionForForegroundWindow(options: {
+  hasForegroundSeparateWindow: boolean;
+  isTrackingMpvWindow: boolean;
+  isMpvWindowFocused: boolean;
+  isOverlayWindowFocused: boolean;
+}): boolean {
+  if (options.hasForegroundSeparateWindow) return true;
+  if (!options.isTrackingMpvWindow) return false;
+  return !options.isMpvWindowFocused && !options.isOverlayWindowFocused;
 }
 
 function isCursorOverRect(
@@ -92,7 +105,7 @@ export function isCursorOverSubtitle(
       ? measurement.interactiveRects
       : measurement.contentRect
         ? [measurement.contentRect]
-      : [];
+        : [];
 
   return rects.some((rect) => isCursorOverRect(cursor, bounds, viewport, rect));
 }
@@ -112,6 +125,7 @@ export function resolveDesiredOverlayInteractive(
     return null;
   }
 
+  if (deps.shouldSuppressInteraction?.()) return false;
   if (deps.getRendererInteractiveHint()) return true;
   return isCursorOverSubtitle(
     deps.getCursorScreenPoint(),

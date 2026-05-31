@@ -28,6 +28,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     },
     logSubtitleTimingError: () => calls.push('subtitle-error'),
     setCurrentSubText: (text) => calls.push(`set-sub:${text}`),
+    getImmediateSubtitlePayload: (text) => ({ text, tokens: [] }),
     broadcastSubtitle: (payload) => calls.push(`broadcast-sub:${payload.text}`),
     onSubtitleChange: (text) => calls.push(`subtitle-change:${text}`),
     refreshDiscordPresence: () => calls.push('presence-refresh'),
@@ -82,7 +83,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
 
   assert.ok(calls.includes('set-sub:line'));
   assert.ok(calls.includes('reset-sidebar-layout'));
-  assert.equal(calls.includes('broadcast-sub:line'), false);
+  assert.equal(calls.includes('broadcast-sub:line'), true);
   assert.ok(calls.includes('subtitle-change:line'));
   assert.ok(calls.includes('subtitle-track-change'));
   assert.ok(calls.includes('subtitle-track-list-change'));

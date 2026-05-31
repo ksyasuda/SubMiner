@@ -452,6 +452,7 @@ export interface ElectronAPI {
   getSecondarySubMode: () => Promise<SecondarySubMode>;
   getCurrentSecondarySub: () => Promise<string>;
   focusMainWindow: () => Promise<void>;
+  activatePlaybackWindowForOverlayInteraction: () => Promise<boolean>;
   getSubtitleStyle: () => Promise<SubtitleRendererStyleConfig | null>;
   onSubsyncManualOpen: (callback: (payload: SubsyncManualPayload) => void) => void;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;

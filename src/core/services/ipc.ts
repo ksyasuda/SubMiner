@@ -86,6 +86,7 @@ export interface IpcServiceDeps {
   getSecondarySubMode: () => unknown;
   getCurrentSecondarySub: () => string;
   focusMainWindow: () => void;
+  activatePlaybackWindowForOverlayInteraction?: () => boolean | Promise<boolean>;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
   onYoutubePickerResolve: (
     request: YoutubePickerResolveRequest,
@@ -267,6 +268,7 @@ export interface IpcDepsRuntimeOptions {
   getSecondarySubMode: () => unknown;
   getMpvClient: () => MpvClientLike | null;
   focusMainWindow: () => void;
+  activatePlaybackWindowForOverlayInteraction?: () => boolean | Promise<boolean>;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
   onYoutubePickerResolve: (
     request: YoutubePickerResolveRequest,
@@ -357,6 +359,8 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
       if (!mainWindow || mainWindow.isDestroyed()) return;
       mainWindow.focus();
     },
+    activatePlaybackWindowForOverlayInteraction:
+      options.activatePlaybackWindowForOverlayInteraction ?? (() => false),
     runSubsyncManual: options.runSubsyncManual,
     onYoutubePickerResolve: options.onYoutubePickerResolve,
     getAnkiConnectStatus: options.getAnkiConnectStatus,
@@ -651,6 +655,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.focusMainWindow, () => {
     deps.focusMainWindow();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.activatePlaybackWindowForOverlayInteraction, async () => {
+    return (await deps.activatePlaybackWindowForOverlayInteraction?.()) ?? false;
   });
 
   ipc.handle(IPC_CHANNELS.request.runSubsyncManual, async (_event, request: unknown) => {

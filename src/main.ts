@@ -58,6 +58,7 @@ import {
 import {
   ensureLinuxOverlayPointerInteractionLoop,
   mapOverlayMeasurementForPointerInteraction,
+  shouldSuppressPointerInteractionForForegroundWindow,
   tickLinuxOverlayPointerInteraction,
 } from './main/runtime/linux-overlay-pointer-interaction';
 import { createLinuxX11CursorPointReader } from './main/runtime/linux-x11-cursor-point';
@@ -609,7 +610,10 @@ import {
   createCreateJellyfinSetupWindowHandler,
 } from './main/runtime/setup-window-factory';
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
-import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './main/runtime/settings-window-z-order';
+import {
+  hasLiveSeparateWindow,
+  shouldSuppressVisibleOverlayRaiseForSeparateWindow,
+} from './main/runtime/settings-window-z-order';
 import {
   isSameYoutubeMediaPath,
   isYoutubeMediaPath,
@@ -911,7 +915,7 @@ const bootServices = createMainBootServices({
         !shouldSuppressVisibleOverlayRaiseForSeparateWindow({
           window,
           mainWindow: overlayManager.getMainWindow(),
-          separateWindows: [appState.configSettingsWindow, appState.yomitanSettingsWindow],
+          separateWindows: getOverlayForegroundSeparateWindows(),
         }),
     }),
   createOverlayModalInputState,
@@ -961,6 +965,17 @@ const {
 } = bootServices;
 let pendingSubtitleMiningContext: SubtitleMiningContext | null = null;
 const configSettingsFields = buildConfigSettingsRegistry(DEFAULT_CONFIG);
+
+function getOverlayForegroundSeparateWindows(): BrowserWindow[] {
+  return [
+    appState.configSettingsWindow,
+    appState.yomitanSettingsWindow,
+    appState.anilistSetupWindow,
+    appState.jellyfinSetupWindow,
+    appState.firstRunSetupWindow,
+  ].filter((window): window is BrowserWindow => Boolean(window));
+}
+
 notifyAnilistTokenStoreWarning = (message: string) => {
   logger.warn(`[AniList] ${message}`);
   try {
@@ -2636,7 +2651,7 @@ function enqueueVisibleOverlayX11OwnerBindingOperation(
             resolve();
             return;
           }
-          execFile('xprop', args, (error) => {
+          execFile('xprop', args, { timeout: 1500 }, (error) => {
             if (error) {
               onError?.(error);
             }
@@ -2985,6 +3000,7 @@ const linuxOverlayZOrderKeepAliveDeps = {
   shouldSuppressReassert: () =>
     overlayModalInputState.getModalInputExclusive() ||
     appState.statsOverlayVisible ||
+    hasLiveSeparateWindow(getOverlayForegroundSeparateWindows()) ||
     (visibleOverlayInteractionActive && overlayManager.getMainWindow()?.isFocused() !== true),
   raiseMpvWindow: () => {
     if (
@@ -3041,6 +3057,13 @@ const linuxOverlayPointerInteractionDeps = {
   getRendererInteractiveHint: () => linuxOverlayInteractiveHint,
   shouldSuspend: () =>
     overlayModalInputState.getModalInputExclusive() || appState.statsOverlayVisible,
+  shouldSuppressInteraction: () =>
+    shouldSuppressPointerInteractionForForegroundWindow({
+      hasForegroundSeparateWindow: hasLiveSeparateWindow(getOverlayForegroundSeparateWindows()),
+      isTrackingMpvWindow: Boolean(appState.windowTracker?.isTracking()),
+      isMpvWindowFocused: appState.windowTracker?.isTargetWindowFocused?.() !== false,
+      isOverlayWindowFocused: overlayManager.getMainWindow()?.isFocused() === true,
+    }),
   getInteractionActive: () => visibleOverlayInteractionActive,
   setInteractionActive: (active: boolean) => {
     visibleOverlayInteractionActive = active;
@@ -5319,7 +5342,7 @@ const buildEnsureOverlayWindowLevelMainDepsHandler =
         shouldSuppressVisibleOverlayRaiseForSeparateWindow({
           window,
           mainWindow,
-          separateWindows: [appState.configSettingsWindow, appState.yomitanSettingsWindow],
+          separateWindows: getOverlayForegroundSeparateWindows(),
         })
       );
     },
@@ -6369,6 +6392,20 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         if (!mainWindow || mainWindow.isDestroyed()) return;
         if (!mainWindow.isFocused()) {
           mainWindow.focus();
+        }
+      },
+      activatePlaybackWindowForOverlayInteraction: async () => {
+        try {
+          const raised = (await appState.windowTracker?.raiseTargetWindow?.()) ?? false;
+          enforceOverlayLayerOrder();
+          return raised;
+        } catch (error) {
+          logger.debug(
+            'Failed to raise tracked mpv window for overlay interaction:',
+            error instanceof Error ? error.message : String(error),
+          );
+          enforceOverlayLayerOrder();
+          return false;
         }
       },
       onOverlayModalClosed: (modal, senderWindow) => {

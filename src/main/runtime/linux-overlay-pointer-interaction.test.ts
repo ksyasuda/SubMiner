@@ -5,6 +5,7 @@ import {
   isCursorOverSubtitle,
   mapOverlayMeasurementForPointerInteraction,
   resolveDesiredOverlayInteractive,
+  shouldSuppressPointerInteractionForForegroundWindow,
   tickLinuxOverlayPointerInteraction,
 } from './linux-overlay-pointer-interaction';
 
@@ -153,6 +154,48 @@ test('mapOverlayMeasurementForPointerInteraction preserves renderer interactive 
   });
 });
 
+test('shouldSuppressPointerInteractionForForegroundWindow suppresses hover when another app is foreground', () => {
+  assert.equal(
+    shouldSuppressPointerInteractionForForegroundWindow({
+      hasForegroundSeparateWindow: false,
+      isTrackingMpvWindow: true,
+      isMpvWindowFocused: false,
+      isOverlayWindowFocused: false,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldSuppressPointerInteractionForForegroundWindow({
+      hasForegroundSeparateWindow: false,
+      isTrackingMpvWindow: true,
+      isMpvWindowFocused: true,
+      isOverlayWindowFocused: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldSuppressPointerInteractionForForegroundWindow({
+      hasForegroundSeparateWindow: false,
+      isTrackingMpvWindow: true,
+      isMpvWindowFocused: false,
+      isOverlayWindowFocused: true,
+    }),
+    false,
+  );
+});
+
+test('shouldSuppressPointerInteractionForForegroundWindow suppresses hover for separate app windows', () => {
+  assert.equal(
+    shouldSuppressPointerInteractionForForegroundWindow({
+      hasForegroundSeparateWindow: true,
+      isTrackingMpvWindow: true,
+      isMpvWindowFocused: true,
+      isOverlayWindowFocused: false,
+    }),
+    true,
+  );
+});
+
 test('resolveDesiredOverlayInteractive: false when overlay hidden, null when suspended/no window', () => {
   assert.equal(
     resolveDesiredOverlayInteractive(makeDeps({ getVisibleOverlayVisible: () => false }).deps),
@@ -190,4 +233,20 @@ test('tick does not flip state when suspended (returns null)', () => {
   });
   tickLinuxOverlayPointerInteraction(deps);
   assert.deepEqual(calls, []);
+});
+
+test('tick clears active hover while a separate SubMiner window suppresses overlay interaction', () => {
+  const calls: boolean[] = [];
+  const { deps, state } = makeDeps({
+    getInteractionActive: () => true,
+    shouldSuppressInteraction: () => true,
+    setInteractionActive: (active) => {
+      calls.push(active);
+      state.active = active;
+    },
+  });
+
+  state.active = true;
+  tickLinuxOverlayPointerInteraction(deps);
+  assert.deepEqual(calls, [false]);
 });

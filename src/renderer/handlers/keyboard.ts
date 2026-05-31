@@ -1218,7 +1218,12 @@ export function createKeyboardHandlers(
     document.addEventListener('mousedown', (e: MouseEvent) => {
       if (e.button === 2 && !isInteractiveTarget(e.target)) {
         e.preventDefault();
-        window.electronAPI.sendMpvCommand(['cycle', 'pause']);
+        void window.electronAPI
+          .activatePlaybackWindowForOverlayInteraction()
+          .catch(() => false)
+          .finally(() => {
+            window.electronAPI.sendMpvCommand(['cycle', 'pause']);
+          });
       }
     });
 

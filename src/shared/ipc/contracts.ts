@@ -66,6 +66,7 @@ export const IPC_CHANNELS = {
     getCurrentSecondarySub: 'get-current-secondary-sub',
     youtubePickerResolve: 'youtube:picker-resolve',
     focusMainWindow: 'focus-main-window',
+    activatePlaybackWindowForOverlayInteraction: 'overlay:activate-playback-window',
     runSubsyncManual: 'subsync:run-manual',
     getAnkiConnectStatus: 'get-anki-connect-status',
     getRuntimeOptions: 'runtime-options:get',
