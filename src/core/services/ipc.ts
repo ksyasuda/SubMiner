@@ -63,7 +63,7 @@ export interface IpcServiceDeps {
   getCurrentSubtitleAss: () => string;
   getSubtitleSidebarSnapshot?: () => Promise<SubtitleSidebarSnapshot>;
   getSubtitleSidebarOpen?: () => boolean;
-  getPlaybackPaused: () => boolean | null;
+  getPlaybackPaused: () => boolean | null | Promise<boolean | null>;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
@@ -249,7 +249,7 @@ export interface IpcDepsRuntimeOptions {
   getCurrentSubtitleAss: () => string;
   getSubtitleSidebarSnapshot?: () => Promise<SubtitleSidebarSnapshot>;
   getSubtitleSidebarOpen?: () => boolean;
-  getPlaybackPaused: () => boolean | null;
+  getPlaybackPaused: () => boolean | null | Promise<boolean | null>;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
   saveSubtitlePosition: (position: SubtitlePosition) => void;

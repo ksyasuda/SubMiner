@@ -61,6 +61,7 @@ import {
   tickLinuxOverlayPointerInteraction,
 } from './main/runtime/linux-overlay-pointer-interaction';
 import { createLinuxX11CursorPointReader } from './main/runtime/linux-x11-cursor-point';
+import { resolveFreshPlaybackPaused } from './main/runtime/playback-paused-state';
 import { mergeAiConfig } from './ai/config';
 
 function getPasswordStoreArg(argv: string[]): string | null {
@@ -6532,7 +6533,11 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           };
         }
       },
-      getPlaybackPaused: () => appState.playbackPaused,
+      getPlaybackPaused: () =>
+        resolveFreshPlaybackPaused({
+          getCachedPlaybackPaused: () => appState.playbackPaused,
+          getMpvClient: () => appState.mpvClient,
+        }),
       getSubtitlePosition: () => loadSubtitlePosition(),
       getSubtitleStyle: () => {
         const resolvedConfig = getResolvedConfig();

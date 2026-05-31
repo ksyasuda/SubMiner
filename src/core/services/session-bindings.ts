@@ -358,6 +358,13 @@ function toPluginSessionBinding(binding: CompiledSessionBinding): PluginSessionB
     return binding;
   }
 
+  if (
+    (binding.actionId === 'copySubtitleMultiple' || binding.actionId === 'mineSentenceMultiple') &&
+    binding.payload?.count === undefined
+  ) {
+    return binding;
+  }
+
   return { ...binding, cliArgs: buildSessionActionCliArgs(binding) };
 }
 
