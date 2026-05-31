@@ -82,7 +82,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
 
   assert.ok(calls.includes('set-sub:line'));
   assert.ok(calls.includes('reset-sidebar-layout'));
-  assert.ok(calls.includes('broadcast-sub:line'));
+  assert.equal(calls.includes('broadcast-sub:line'), false);
   assert.ok(calls.includes('subtitle-change:line'));
   assert.ok(calls.includes('subtitle-track-change'));
   assert.ok(calls.includes('subtitle-track-list-change'));
