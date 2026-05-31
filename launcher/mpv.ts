@@ -6,6 +6,12 @@ import { spawn, spawnSync } from 'node:child_process';
 import { buildMpvLaunchModeArgs } from '../src/shared/mpv-launch-mode.js';
 import { buildMpvLoggingArgs } from '../src/shared/mpv-logging-args.js';
 import {
+  MPV_X11_BACKEND_ARGS,
+  applyX11EnvOverrides,
+  getLinuxDesktopEnv,
+  shouldForceX11MpvBackend as shouldForceX11MpvBackendForBackend,
+} from '../src/shared/mpv-x11-backend.js';
+import {
   isAppControlServerAvailable as checkAppControlServerAvailable,
   sendAppControlCommand,
 } from '../src/shared/app-control-client.js';
@@ -458,39 +464,8 @@ export function detectBackend(
   fail('Could not detect display backend');
 }
 
-type LinuxDesktopEnv = {
-  xdgCurrentDesktop: string;
-  xdgSessionDesktop: string;
-  hasWayland: boolean;
-};
-
-function getLinuxDesktopEnv(env: NodeJS.ProcessEnv): LinuxDesktopEnv {
-  const xdgCurrentDesktop = (env.XDG_CURRENT_DESKTOP || '').toLowerCase();
-  const xdgSessionDesktop = (env.XDG_SESSION_DESKTOP || '').toLowerCase();
-  const xdgSessionType = (env.XDG_SESSION_TYPE || '').toLowerCase();
-  return {
-    xdgCurrentDesktop,
-    xdgSessionDesktop,
-    hasWayland: Boolean(env.WAYLAND_DISPLAY) || xdgSessionType === 'wayland',
-  };
-}
-
 function shouldForceX11MpvBackend(args: Pick<Args, 'backend'>, env: NodeJS.ProcessEnv): boolean {
-  if (process.platform !== 'linux' || !env.DISPLAY?.trim()) {
-    return false;
-  }
-
-  const linuxDesktopEnv = getLinuxDesktopEnv(env);
-  const supportedWaylandBackend =
-    Boolean(env.HYPRLAND_INSTANCE_SIGNATURE || env.SWAYSOCK) ||
-    linuxDesktopEnv.xdgCurrentDesktop.includes('hyprland') ||
-    linuxDesktopEnv.xdgCurrentDesktop.includes('sway') ||
-    linuxDesktopEnv.xdgSessionDesktop.includes('hyprland') ||
-    linuxDesktopEnv.xdgSessionDesktop.includes('sway');
-  return (
-    args.backend === 'x11' ||
-    (args.backend === 'auto' && linuxDesktopEnv.hasWayland && !supportedWaylandBackend)
-  );
+  return shouldForceX11MpvBackendForBackend(args.backend, env);
 }
 
 function resolveAppBinaryCandidate(candidate: string, pathModule: PathModule = path): string {
@@ -1344,11 +1319,7 @@ export function buildMpvEnv(
     return env;
   }
 
-  delete env.WAYLAND_DISPLAY;
-  delete env.HYPRLAND_INSTANCE_SIGNATURE;
-  delete env.SWAYSOCK;
-  env.XDG_SESSION_TYPE = 'x11';
-  return env;
+  return applyX11EnvOverrides(env);
 }
 
 export function buildMpvBackendArgs(
@@ -1358,7 +1329,7 @@ export function buildMpvBackendArgs(
   if (!shouldForceX11MpvBackend(args, baseEnv)) {
     return [];
   }
-  return ['--vo=gpu', '--gpu-api=opengl', '--gpu-context=x11egl,x11'];
+  return [...MPV_X11_BACKEND_ARGS];
 }
 
 export function buildConfiguredMpvDefaultArgs(
