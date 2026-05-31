@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://docs.subminer.moe
+    about: Setup, configuration, and feature docs — check here before filing an issue.
+  - name: Troubleshooting guide
+    url: https://docs.subminer.moe/troubleshooting
+    about: Common problems and fixes (Hyprland rules, MPV detection, Anki connection, etc.).

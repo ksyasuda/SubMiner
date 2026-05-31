@@ -1,0 +1,59 @@
+name: Feature Request
+description: Suggest a new feature or an improvement to an existing one
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! Please search [existing issues](https://github.com/ksyasuda/SubMiner/issues?q=is%3Aissue) first to avoid duplicates.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem are you trying to solve? What is missing or frustrating today?
+      placeholder: When mining a card I have to manually switch to Anki because...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or change you'd like to see.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Related area
+      description: Which part of SubMiner does this relate to?
+      options:
+        - Overlay / Yomitan popup
+        - Anki mining
+        - Subtitle annotations
+        - Subtitle sidebar
+        - Immersion tracking / stats
+        - Launcher / CLI
+        - MPV plugin
+        - Jellyfin integration
+        - Jimaku integration
+        - AniList integration
+        - YouTube integration
+        - Character dictionary
+        - WebSocket / texthooker API
+        - Configuration
+        - Documentation
+        - Other / new area
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you currently use or other approaches you've thought about.
+    validations:
+      required: false
