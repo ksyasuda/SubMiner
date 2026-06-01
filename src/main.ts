@@ -571,7 +571,11 @@ import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/charac
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { openCharacterDictionaryManagerWithConfigGate } from './main/runtime/character-dictionary-manager-gate';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
-import { resolveCurrentSubtitleForRenderer } from './main/runtime/current-subtitle-snapshot';
+import {
+  primeVisibleOverlaySubtitleFromMpv,
+  resolveCurrentSubtitleForRenderer,
+} from './main/runtime/current-subtitle-snapshot';
+import { restoreLinuxOverlayWindowShape } from './main/runtime/linux-overlay-window-shape';
 import { createJellyfinSubtitleCacheIo } from './main/runtime/jellyfin-subtitle-cache-io';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import {
@@ -1885,6 +1889,39 @@ async function primeCurrentSubtitleForAutoplay(mediaPath: string): Promise<void>
   emitAutoplayPrimedSubtitle(mediaPath, text);
 }
 
+async function primeCurrentSubtitleForVisibleOverlay(): Promise<void> {
+  await primeVisibleOverlaySubtitleFromMpv({
+    getMpvClient: () => appState.mpvClient,
+    setCurrentSubText: (text) => {
+      appState.currentSubText = text;
+    },
+    getCurrentSubtitleData: () => appState.currentSubtitleData,
+    consumeCachedSubtitle: (text) => subtitleProcessingController.consumeCachedSubtitle(text),
+    onSubtitleChange: (text) => {
+      subtitlePrefetchService?.pause();
+      subtitlePrefetchService?.onSeek(lastObservedTimePos);
+      subtitleProcessingController.onSubtitleChange(text);
+    },
+    refreshCurrentSubtitle: (text) => {
+      subtitlePrefetchService?.pause();
+      subtitlePrefetchService?.onSeek(lastObservedTimePos);
+      subtitleProcessingController.refreshCurrentSubtitle(text);
+    },
+    emitSubtitle: (payload) => emitSubtitlePayload(payload),
+    setCurrentSecondarySubText: (text) => {
+      if (appState.mpvClient) {
+        appState.mpvClient.currentSecondarySubText = text;
+      }
+    },
+    emitSecondarySubtitle: (text) => {
+      broadcastToOverlayWindows('secondary-subtitle:set', text);
+    },
+    logDebug: (message) => {
+      logger.debug(message);
+    },
+  });
+}
+
 async function primeAutoplaySubtitleFromParsedCues(
   mediaPath: string,
   cues: SubtitleCue[],
@@ -2577,12 +2614,15 @@ function resetVisibleOverlayInputState(): void {
   overlayContentMeasurementStore.clear('visible');
   const mainWindow = overlayManager.getMainWindow();
   if (process.platform === 'linux' && mainWindow && !mainWindow.isDestroyed()) {
-    (
-      mainWindow as BrowserWindow & {
-        setShape?: (rects: Array<{ x: number; y: number; width: number; height: number }>) => void;
-      }
-    ).setShape?.([]);
+    restoreLinuxOverlayWindowShape(mainWindow);
   }
+}
+
+function restoreVisibleOverlayWindowShapeForShow(): void {
+  if (process.platform !== 'linux') {
+    return;
+  }
+  restoreLinuxOverlayWindowShape(overlayManager.getMainWindow());
 }
 
 function clearVisibleOverlayBlurRefreshTimeouts(): void {
@@ -5406,6 +5446,9 @@ const buildUpdateVisibleOverlayBoundsMainDepsHandler =
       if (!mainWindow || mainWindow.isDestroyed()) {
         return;
       }
+      if (process.platform === 'linux') {
+        restoreLinuxOverlayWindowShape(mainWindow);
+      }
       ensureOverlayWindowLevel(mainWindow);
     },
   });
@@ -7347,7 +7390,9 @@ function setVisibleOverlayVisible(visible: boolean): void {
     resetVisibleOverlayInputState();
   }
   if (visible) {
+    restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
+    void primeCurrentSubtitleForVisibleOverlay();
   }
   setVisibleOverlayVisibleHandler(visible);
   notifyMpvPluginVisibleOverlayVisibility(visible);
@@ -7361,7 +7406,9 @@ function toggleVisibleOverlay(): void {
     autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   } else {
+    restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
+    void primeCurrentSubtitleForVisibleOverlay();
   }
   toggleVisibleOverlayHandler();
   notifyMpvPluginVisibleOverlayVisibility(nextVisible);
@@ -7373,7 +7420,9 @@ function setOverlayVisible(visible: boolean): void {
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   }
   if (visible) {
+    restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
+    void primeCurrentSubtitleForVisibleOverlay();
   }
   setOverlayVisibleHandler(visible);
   notifyMpvPluginVisibleOverlayVisibility(visible);

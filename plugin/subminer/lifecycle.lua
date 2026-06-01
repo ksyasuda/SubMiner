@@ -68,7 +68,12 @@ function M.create(ctx)
 		state.pending_visible_overlay_hide_generation = (state.pending_visible_overlay_hide_generation or 0) + 1
 	end
 
+	local resolve_auto_start_visible_overlay_enabled
+
 	local function hide_visible_overlay_after_end_file()
+		if state.visible_overlay_requested == true and not resolve_auto_start_visible_overlay_enabled() then
+			return
+		end
 		if not state.auto_play_ready_signal_seen then
 			process.hide_visible_overlay()
 			return
@@ -97,6 +102,14 @@ function M.create(ctx)
 			raw_auto_start = opts["auto-start"]
 		end
 		return options_helper.coerce_bool(raw_auto_start, false)
+	end
+
+	resolve_auto_start_visible_overlay_enabled = function()
+		local raw_visible_overlay = opts.auto_start_visible_overlay
+		if raw_visible_overlay == nil then
+			raw_visible_overlay = opts["auto-start-visible-overlay"]
+		end
+		return options_helper.coerce_bool(raw_visible_overlay, false)
 	end
 
 	local function next_auto_start_retry_generation()

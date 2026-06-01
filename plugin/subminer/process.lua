@@ -39,6 +39,9 @@ function M.create(ctx)
 			end
 			return "show-visible-overlay"
 		end
+		if state.visible_overlay_requested == true then
+			return nil
+		end
 		return "hide-visible-overlay"
 	end
 
@@ -730,6 +733,14 @@ function M.create(ctx)
 					show_osd("Toggle failed")
 				end
 			end)
+			return
+		end
+		if not state.overlay_running then
+			state.suppress_ready_overlay_restore = false
+			disarm_auto_play_ready_gate({ resume_playback = false })
+			start_overlay({
+				show_visible_overlay = true,
+			})
 			return
 		end
 		state.suppress_ready_overlay_restore = true

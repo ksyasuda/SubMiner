@@ -712,6 +712,41 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "yes",
+			auto_start_visible_overlay = "no",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/manual-episode-01.mkv",
+		media_title = "Manual Episode 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for manual warm playlist visibility scenario: " .. tostring(err))
+	recorded.script_messages["subminer-toggle"]()
+	recorded.script_messages["subminer-autoplay-ready"]()
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "/media/manual-episode-02.mkv"
+	scenario.media_title = "Manual Episode 2"
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_control_calls(recorded.async_calls, "--hide-visible-overlay") == 0,
+		"manual visible overlay should remain visible across warm playlist auto-start reattach"
+	)
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"manual warm playlist visibility reuse should not issue another --start command"
+	)
+end
+
+do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "yes",
 			socket_path = "/tmp/subminer-socket",
@@ -2099,7 +2134,9 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
+			socket_path = "/tmp/subminer-socket",
 		},
+		input_ipc_server = "/tmp/subminer-socket",
 		files = {
 			[binary_path] = true,
 		},
@@ -2107,9 +2144,30 @@ do
 	assert_true(recorded ~= nil, "plugin failed to load for manual toggle command scenario: " .. tostring(err))
 	assert_true(recorded.script_messages["subminer-toggle"] ~= nil, "subminer-toggle script message not registered")
 	recorded.script_messages["subminer-toggle"]()
+	local start_call = find_start_call(recorded.async_calls)
 	assert_true(
-		count_control_calls(recorded.async_calls, "--toggle-visible-overlay") == 1,
-		"script-message toggle should issue explicit visible-overlay toggle command"
+		start_call ~= nil,
+		"first manual toggle from a stopped overlay should start SubMiner with mpv attachment"
+	)
+	assert_true(
+		call_has_arg(start_call, "--managed-playback"),
+		"first manual toggle should attach managed playback so subtitles reach the overlay"
+	)
+	assert_true(
+		call_has_arg(start_call, "--socket") and call_has_arg(start_call, "/tmp/subminer-socket"),
+		"first manual toggle should pass the active mpv socket to SubMiner"
+	)
+	assert_true(
+		call_has_arg(start_call, "--show-visible-overlay"),
+		"first manual toggle should start directly into visible overlay state"
+	)
+	assert_true(
+		not call_has_arg(start_call, "--hide-visible-overlay"),
+		"first manual toggle should not start hidden"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--toggle-visible-overlay") == 0,
+		"first manual toggle should not issue a bare visible-overlay toggle before mpv is attached"
 	)
 	assert_true(
 		count_control_calls(recorded.async_calls, "--toggle") == 0,

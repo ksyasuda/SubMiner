@@ -290,6 +290,60 @@ test('manual visible overlay changes notify mpv plugin visibility state', () => 
   assert.match(toggleBlock, /notifyMpvPluginVisibleOverlayVisibility\(nextVisible\);/);
 });
 
+test('manual visible overlay show primes current subtitle from mpv before relying on live events', () => {
+  const source = readMainSource();
+  const setBlock = source.match(
+    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+  const toggleBlock = source.match(
+    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(setBlock);
+  assert.ok(toggleBlock);
+  assert.match(
+    setBlock,
+    /if \(visible\) \{\s+restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);\s+void primeCurrentSubtitleForVisibleOverlay\(\);/,
+  );
+  assert.match(
+    toggleBlock,
+    /else \{\s+restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);\s+void primeCurrentSubtitleForVisibleOverlay\(\);/,
+  );
+});
+
+test('Linux visible overlay show/reset does not leave an empty X11 window shape', () => {
+  const source = readMainSource();
+  const resetBlock = source.match(
+    /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+  const setBlock = source.match(
+    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(resetBlock);
+  assert.ok(setBlock);
+  assert.match(resetBlock, /restoreLinuxOverlayWindowShape\(mainWindow\);/);
+  assert.doesNotMatch(source, /setShape\?\.\(\[\]\)|setShape\(\[\]\)/);
+  assert.match(
+    setBlock,
+    /if \(visible\) \{\s+restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);/,
+  );
+});
+
+test('Linux visible overlay bounds refresh restores X11 shape after applying mpv geometry', () => {
+  const source = readMainSource();
+  const afterBoundsBlock = source.match(
+    /afterSetOverlayWindowBounds:\s*\(\) => \{(?<body>[\s\S]*?)\n    \},/,
+  )?.groups?.body;
+
+  assert.ok(afterBoundsBlock);
+  assert.match(afterBoundsBlock, /restoreLinuxOverlayWindowShape\(mainWindow\);/);
+  assert.ok(
+    afterBoundsBlock.indexOf('restoreLinuxOverlayWindowShape(mainWindow);') <
+      afterBoundsBlock.indexOf('ensureOverlayWindowLevel(mainWindow);'),
+  );
+});
+
 test('main process uses one shared mpv plugin runtime config helper', () => {
   const source = readMainSource();
   assert.match(source, /function getMpvPluginRuntimeConfig\(\)/);
