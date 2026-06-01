@@ -56,14 +56,14 @@ function readFfmpegArgs(argsPath: string): string[] {
   return fs.readFileSync(argsPath, 'utf8').trim().split('\n');
 }
 
-test('buildAnimatedImageVideoFilter prepends a cloned first frame when lead-in is provided', () => {
+test('buildAnimatedImageVideoFilter holds lead-in until the next frame after the audio boundary', () => {
   assert.equal(
     buildAnimatedImageVideoFilter({
-      fps: 10,
+      fps: 24,
       maxWidth: 640,
       leadingStillDuration: 1.25,
     }),
-    'tpad=start_duration=1.25:start_mode=clone,fps=10,scale=w=640:h=-2',
+    'tpad=start_duration=1.2916666666666667:start_mode=clone,fps=24,scale=w=640:h=-2',
   );
 });
 
@@ -76,12 +76,12 @@ test('generateAnimatedImage includes leading audio padding in the source range',
 
     const args = readFfmpegArgs(argsPath);
     assert.equal(args[args.indexOf('-ss') + 1], '9.5');
-    assert.equal(args[args.indexOf('-t') + 1], '3');
+    assert.equal(args[args.indexOf('-t') + 1], '3.1');
     assert.equal(args[args.indexOf('-vf') + 1], 'fps=10,scale=w=640:h=-2');
   });
 });
 
-test('generateAnimatedImage defaults to unpadded sentence timing', async () => {
+test('generateAnimatedImage defaults to unpadded source start and holds through the next frame', async () => {
   await withStubbedFfmpeg(async (generator, argsPath) => {
     await generator.generateAnimatedImage('/video.mp4', 10, 12, undefined, {
       fps: 10,
@@ -90,7 +90,21 @@ test('generateAnimatedImage defaults to unpadded sentence timing', async () => {
 
     const args = readFfmpegArgs(argsPath);
     assert.equal(args[args.indexOf('-ss') + 1], '10');
-    assert.equal(args[args.indexOf('-t') + 1], '2');
+    assert.equal(args[args.indexOf('-t') + 1], '2.1');
+    assert.equal(args[args.indexOf('-vf') + 1], 'fps=10,scale=w=640:h=-2');
+  });
+});
+
+test('generateAnimatedImage rounds fractional source duration through the next frame boundary', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateAnimatedImage('/video.mp4', 10, 12.04, undefined, {
+      fps: 10,
+      maxWidth: 640,
+    });
+
+    const args = readFfmpegArgs(argsPath);
+    assert.equal(args[args.indexOf('-ss') + 1], '10');
+    assert.equal(args[args.indexOf('-t') + 1], '2.1');
     assert.equal(args[args.indexOf('-vf') + 1], 'fps=10,scale=w=640:h=-2');
   });
 });
@@ -105,10 +119,10 @@ test('generateAnimatedImage keeps word-audio lead-in separate from audio padding
 
     const args = readFfmpegArgs(argsPath);
     assert.equal(args[args.indexOf('-ss') + 1], '9.5');
-    assert.equal(args[args.indexOf('-t') + 1], '3');
+    assert.equal(args[args.indexOf('-t') + 1], '3.1');
     assert.equal(
       args[args.indexOf('-vf') + 1],
-      'tpad=start_duration=1.25:start_mode=clone,fps=10,scale=w=640:h=-2',
+      'tpad=start_duration=1.3:start_mode=clone,fps=10,scale=w=640:h=-2',
     );
   });
 });
@@ -122,7 +136,7 @@ test('generateAnimatedImage clips padded source range at the start of media', as
 
     const args = readFfmpegArgs(argsPath);
     assert.equal(args[args.indexOf('-ss') + 1], '0');
-    assert.equal(args[args.indexOf('-t') + 1], '1.7');
+    assert.equal(args[args.indexOf('-t') + 1], '1.8');
     assert.equal(args[args.indexOf('-vf') + 1], 'fps=10,scale=w=640:h=-2');
   });
 });
