@@ -24,6 +24,20 @@ import { createLogger } from './logger';
 
 const log = createLogger('media');
 
+function normalizeAnimatedImageFps(fps: number | undefined): number {
+  const fallbackFps = 10;
+  const safeFps = typeof fps === 'number' && Number.isFinite(fps) ? fps : fallbackFps;
+  return Math.max(1, Math.min(60, safeFps));
+}
+
+function roundDurationUpToNextFrameBoundary(seconds: number, fps: number): number {
+  if (!(Number.isFinite(seconds) && seconds > 0)) {
+    return 0;
+  }
+
+  return (Math.floor(seconds * fps + 1e-9) + 1) / fps;
+}
+
 export function buildAnimatedImageVideoFilter(options: {
   fps?: number;
   maxWidth?: number;
@@ -31,11 +45,15 @@ export function buildAnimatedImageVideoFilter(options: {
   leadingStillDuration?: number;
 }): string {
   const { fps = 10, maxWidth = 640, maxHeight, leadingStillDuration = 0 } = options;
-  const clampedFps = Math.max(1, Math.min(60, fps));
+  const clampedFps = normalizeAnimatedImageFps(fps);
+  const alignedLeadingStillDuration = roundDurationUpToNextFrameBoundary(
+    leadingStillDuration,
+    clampedFps,
+  );
   const vfParts: string[] = [];
 
-  if (leadingStillDuration > 0) {
-    vfParts.push(`tpad=start_duration=${leadingStillDuration}:start_mode=clone`);
+  if (alignedLeadingStillDuration > 0) {
+    vfParts.push(`tpad=start_duration=${alignedLeadingStillDuration}:start_mode=clone`);
   }
 
   vfParts.push(`fps=${clampedFps}`);
@@ -321,9 +339,10 @@ export class MediaGenerator {
     } = {},
   ): Promise<Buffer> {
     const { fps = 10, maxWidth = 640, maxHeight, crf = 35, leadingStillDuration = 0 } = options;
+    const clampedFps = normalizeAnimatedImageFps(fps);
     const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
     const start = Math.max(0, startTime - safePadding);
-    const duration = endTime - start + safePadding;
+    const duration = roundDurationUpToNextFrameBoundary(endTime - start + safePadding, clampedFps);
     const totalLeadingStillDuration = Math.max(0, leadingStillDuration);
 
     const clampedCrf = Math.max(0, Math.min(63, crf));
@@ -359,7 +378,7 @@ export class MediaGenerator {
           videoPath,
           '-vf',
           buildAnimatedImageVideoFilter({
-            fps,
+            fps: clampedFps,
             maxWidth,
             maxHeight,
             leadingStillDuration: totalLeadingStillDuration,
