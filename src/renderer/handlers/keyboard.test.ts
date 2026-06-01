@@ -322,17 +322,30 @@ function installKeyboardTestGlobals() {
     }
   }
 
-  function dispatchDocumentMouseDown(event: { button: number; target?: unknown }): void {
+  function dispatchMousedown(event: {
+    button: number;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+    altKey?: boolean;
+    shiftKey?: boolean;
+    target?: unknown;
+  }): void {
     const listeners = documentListeners.get('mousedown') ?? [];
     const mouseEvent = {
       button: event.button,
-      target: event.target ?? null,
+      ctrlKey: event.ctrlKey ?? false,
+      metaKey: event.metaKey ?? false,
+      altKey: event.altKey ?? false,
+      shiftKey: event.shiftKey ?? false,
       preventDefault: () => {},
+      target: event.target ?? null,
     };
     for (const listener of listeners) {
       listener(mouseEvent);
     }
   }
+
+  const dispatchDocumentMouseDown = dispatchMousedown;
 
   function dispatchFocusInOnPopup(): void {
     const listeners = documentListeners.get('focusin') ?? [];
@@ -389,6 +402,7 @@ function installKeyboardTestGlobals() {
     windowFocusCalls: () => windowFocusCalls,
     dispatchKeydown,
     dispatchDocumentMouseDown,
+    dispatchMousedown,
     dispatchFocusInOnPopup,
     dispatchWindowEvent,
     setPopupVisible: (value: boolean) => {
@@ -1031,6 +1045,31 @@ test('paused configured subtitle-jump keybinding re-applies pause after backward
       ['sub-seek', -1],
       ['set_property', 'pause', 'yes'],
     ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('configured mouse button keybinding dispatches through overlay mouse handling', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'MBTN_BACK',
+        key: { code: 'MBTN_BACK', modifiers: [] },
+        actionType: 'mpv-command',
+        command: ['sub-seek', -1],
+      },
+    ] as never);
+    testGlobals.setPlaybackPausedResponse(false);
+
+    testGlobals.dispatchMousedown({ button: 3 });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.mpvCommands.slice(-1), [['sub-seek', -1]]);
   } finally {
     testGlobals.restore();
   }

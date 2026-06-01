@@ -57,6 +57,11 @@ const KEY_NAME_MAP: Record<string, string> = {
   Super: 'Meta',
   Meta: 'Meta',
   Backspace: 'Backspace',
+  MBTN_LEFT: 'Mouse Left',
+  MBTN_MID: 'Mouse Middle',
+  MBTN_RIGHT: 'Mouse Right',
+  MBTN_BACK: 'Mouse Back',
+  MBTN_FORWARD: 'Mouse Forward',
 };
 
 function normalizeKeyToken(token: string): string {

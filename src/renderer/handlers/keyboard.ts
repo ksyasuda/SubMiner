@@ -37,6 +37,13 @@ export function createKeyboardHandlers(
   const CHORD_TIMEOUT_MS = 1000;
   const MPV_INPUT_FORWARDING_CONFIG_LOAD_TIMEOUT_MS = 50;
   const KEYBOARD_SELECTED_WORD_CLASS = 'keyboard-selected';
+  const MOUSE_BUTTON_CODE_BY_BUTTON: Record<number, string> = {
+    0: 'MBTN_LEFT',
+    1: 'MBTN_MID',
+    2: 'MBTN_RIGHT',
+    3: 'MBTN_BACK',
+    4: 'MBTN_FORWARD',
+  };
   let pendingSelectionAnchorAfterSubtitleSeek: 'start' | 'end' | null = null;
   let pendingLookupRefreshAfterSubtitleSeek = false;
   let resetSelectionToStartOnNextSubtitleSync = false;
@@ -78,6 +85,19 @@ export function createKeyboardHandlers(
     if (e.shiftKey) parts.push('Shift');
     if (e.metaKey) parts.push('Meta');
     parts.push(e.code);
+    return parts.join('+');
+  }
+
+  function mouseEventToString(e: MouseEvent): string | null {
+    const code = MOUSE_BUTTON_CODE_BY_BUTTON[e.button];
+    if (!code) return null;
+
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    if (e.metaKey) parts.push('Meta');
+    parts.push(code);
     return parts.join('+');
   }
 
@@ -1216,6 +1236,14 @@ export function createKeyboardHandlers(
     });
 
     document.addEventListener('mousedown', (e: MouseEvent) => {
+      const mouseString = mouseEventToString(e);
+      const binding = mouseString ? ctx.state.sessionBindingMap.get(mouseString) : undefined;
+      if (binding) {
+        e.preventDefault();
+        dispatchSessionBinding(binding);
+        return;
+      }
+
       if (e.button === 2 && !isInteractiveTarget(e.target)) {
         e.preventDefault();
         void window.electronAPI

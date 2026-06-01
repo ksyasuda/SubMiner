@@ -4,6 +4,7 @@ import {
   buildMpvKeybindingConfigValue,
   createMpvKeybindingRows,
   keyboardEventToConfigKey,
+  mouseEventToConfigKey,
   parseMpvCommandText,
   type KeyInputMode,
   type MpvKeybindingRow,
@@ -16,6 +17,18 @@ let requestRender = (): void => undefined;
 
 export function configureKeybindingControls(options: { requestRender: () => void }): void {
   requestRender = options.requestRender;
+}
+
+export function shouldUseLearnedMouseBinding(
+  next: string,
+  mode: KeyInputMode,
+  event: MouseEvent,
+  button: HTMLButtonElement,
+): boolean {
+  return Boolean(
+    !(event.target === button && event.button === 0) &&
+    !(mode === 'dom-code' && event.button === 0),
+  );
 }
 
 function startKeyLearning(
@@ -58,6 +71,15 @@ function startKeyLearning(
   };
   onBlur = (): void => stop();
   onMouseDown = (event: MouseEvent): void => {
+    const next = mouseEventToConfigKey(event, mode);
+    if (next && shouldUseLearnedMouseBinding(next, mode, event, button)) {
+      event.preventDefault();
+      event.stopPropagation();
+      stop();
+      onValue(next);
+      return;
+    }
+
     if (event.target !== button) {
       stop();
     }

@@ -571,13 +571,15 @@ See `config.example.jsonc` for detailed configuration options and more examples.
     { "key": "ArrowRight", "command": ["seek", 5] },
     { "key": "ArrowLeft", "command": ["seek", -5] },
     { "key": "Shift+ArrowRight", "command": ["seek", 30] },
+    { "key": "MBTN_BACK", "command": ["sub-seek", -1] },
+    { "key": "MBTN_FORWARD", "command": ["sub-seek", 1] },
     { "key": "KeyR", "command": ["script-binding", "immersive/auto-replay"] },
     { "key": "KeyA", "command": ["script-message", "ankiconnect-add-note"] }
   ]
 }
 ```
 
-**Key format:** Use `KeyboardEvent.code` values (`Space`, `ArrowRight`, `KeyR`, etc.) with optional modifiers (`Ctrl+`, `Alt+`, `Shift+`, `Meta+`).
+**Key format:** Use `KeyboardEvent.code` values (`Space`, `ArrowRight`, `KeyR`, etc.) with optional modifiers (`Ctrl+`, `Alt+`, `Shift+`, `Meta+`). Mouse buttons use mpv button names: `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, and `MBTN_FORWARD`.
 
 **Disable a default binding:** Set command to `null`:
 

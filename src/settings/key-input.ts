@@ -11,6 +11,14 @@ export interface KeyboardInputLike {
   metaKey: boolean;
 }
 
+export interface MouseInputLike {
+  button: number;
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  metaKey: boolean;
+}
+
 export interface MpvKeybindingRow {
   defaultKey: string;
   key: string;
@@ -77,6 +85,14 @@ const MPV_KEY_BY_CODE: Record<string, string> = {
   Slash: '/',
   Space: 'SPACE',
   Tab: 'TAB',
+};
+
+const MPV_MOUSE_BUTTON_BY_BUTTON: Record<number, string> = {
+  0: 'MBTN_LEFT',
+  1: 'MBTN_MID',
+  2: 'MBTN_RIGHT',
+  3: 'MBTN_BACK',
+  4: 'MBTN_FORWARD',
 };
 
 function commandEquals(a: Keybinding['command'], b: Keybinding['command']): boolean {
@@ -150,6 +166,24 @@ export function keyboardEventToConfigKey(
   if (input.shiftKey) parts.push('Shift');
   if (input.metaKey) parts.push('Meta');
   return [...parts, input.code].join('+');
+}
+
+export function mouseEventToConfigKey(input: MouseInputLike, mode: KeyInputMode): string | null {
+  if (mode !== 'dom-code') {
+    return null;
+  }
+
+  const key = MPV_MOUSE_BUTTON_BY_BUTTON[input.button];
+  if (!key) {
+    return null;
+  }
+
+  const parts: string[] = [];
+  if (input.ctrlKey) parts.push('Ctrl');
+  if (input.altKey) parts.push('Alt');
+  if (input.shiftKey) parts.push('Shift');
+  if (input.metaKey) parts.push('Meta');
+  return [...parts, key].join('+');
 }
 
 export function createMpvKeybindingRows(

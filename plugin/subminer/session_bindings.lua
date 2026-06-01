@@ -24,6 +24,11 @@ local KEY_NAME_MAP = {
 	BracketLeft = "[",
 	BracketRight = "]",
 	Backquote = "`",
+	MBTN_LEFT = "MBTN_LEFT",
+	MBTN_MID = "MBTN_MID",
+	MBTN_RIGHT = "MBTN_RIGHT",
+	MBTN_BACK = "MBTN_BACK",
+	MBTN_FORWARD = "MBTN_FORWARD",
 }
 
 local MODIFIER_MAP = {

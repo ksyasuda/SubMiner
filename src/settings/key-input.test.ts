@@ -5,6 +5,7 @@ import {
   buildMpvKeybindingConfigValue,
   createMpvKeybindingRows,
   keyboardEventToConfigKey,
+  mouseEventToConfigKey,
 } from './key-input';
 
 test('keyboardEventToConfigKey formats Electron accelerators from learned input', () => {
@@ -72,6 +73,23 @@ test('keyboardEventToConfigKey formats mpv key bindings from learned input', () 
       'mpv-key',
     ),
     'Ctrl+Shift+K',
+  );
+});
+
+test('mouseEventToConfigKey formats mpv mouse buttons from learned input', () => {
+  assert.equal(
+    mouseEventToConfigKey(
+      { button: 3, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false },
+      'dom-code',
+    ),
+    'MBTN_BACK',
+  );
+  assert.equal(
+    mouseEventToConfigKey(
+      { button: 4, ctrlKey: false, altKey: true, shiftKey: true, metaKey: false },
+      'dom-code',
+    ),
+    'Alt+Shift+MBTN_FORWARD',
   );
 });
 

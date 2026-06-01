@@ -30,6 +30,13 @@ type DraftBinding = {
 };
 
 const MODIFIER_ORDER: SessionKeyModifier[] = ['ctrl', 'alt', 'shift', 'meta'];
+const MPV_MOUSE_BUTTON_CODES = new Set([
+  'MBTN_LEFT',
+  'MBTN_MID',
+  'MBTN_RIGHT',
+  'MBTN_BACK',
+  'MBTN_FORWARD',
+]);
 
 const SESSION_SHORTCUT_ACTIONS: Array<{
   key: keyof Omit<ConfiguredShortcuts, 'multiCopyTimeoutMs'>;
@@ -64,9 +71,18 @@ function isValidCommandEntry(value: unknown): value is string | number {
   return typeof value === 'string' || typeof value === 'number';
 }
 
-function normalizeCodeToken(token: string): string | null {
+function normalizeCodeToken(
+  token: string,
+  options: { allowMouseButtons?: boolean } = {},
+): string | null {
   const normalized = token.trim();
   if (!normalized) return null;
+  if (options.allowMouseButtons === true) {
+    const normalizedMouse = normalized.toUpperCase();
+    if (MPV_MOUSE_BUTTON_CODES.has(normalizedMouse)) {
+      return normalizedMouse;
+    }
+  }
   if (/^[a-z]$/i.test(normalized)) {
     return `Key${normalized.toUpperCase()}`;
   }
@@ -238,7 +254,7 @@ function parseDomKeyString(
     };
   }
 
-  const code = normalizeCodeToken(keyToken);
+  const code = normalizeCodeToken(keyToken, { allowMouseButtons: true });
   if (!code) {
     return {
       key: null,

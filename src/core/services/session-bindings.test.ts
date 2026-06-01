@@ -162,6 +162,46 @@ test('compileSessionBindings resolves CommandOrControl in DOM key strings per pl
   );
 });
 
+test('compileSessionBindings supports mpv mouse button keybindings', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts(),
+    keybindings: [
+      createKeybinding('MBTN_BACK', ['sub-seek', -1]),
+      createKeybinding('Shift+MBTN_FORWARD', ['sub-seek', 1]),
+    ],
+    platform: 'win32',
+  });
+
+  assert.deepEqual(result.warnings, []);
+  assert.deepEqual(
+    result.bindings.map((binding) => ({
+      code: binding.key.code,
+      modifiers: binding.key.modifiers,
+      command: binding.actionType === 'mpv-command' ? binding.command : null,
+    })),
+    [
+      { code: 'MBTN_BACK', modifiers: [], command: ['sub-seek', -1] },
+      { code: 'MBTN_FORWARD', modifiers: ['shift'], command: ['sub-seek', 1] },
+    ],
+  );
+});
+
+test('compileSessionBindings keeps mouse buttons scoped to keybindings', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts({
+      openJimaku: 'MBTN_BACK',
+    }),
+    keybindings: [createKeybinding('MBTN_BACK', ['sub-seek', -1])],
+    platform: 'win32',
+  });
+
+  assert.deepEqual(result.bindings.map((binding) => binding.sourcePath), ['keybindings[0].key']);
+  assert.deepEqual(
+    result.warnings.map((warning) => `${warning.kind}:${warning.path}`),
+    ['unsupported:shortcuts.openJimaku'],
+  );
+});
+
 test('compileSessionBindings drops conflicting bindings that canonicalize to the same key', () => {
   const result = compileSessionBindings({
     shortcuts: createShortcuts({
