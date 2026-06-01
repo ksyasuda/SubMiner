@@ -75,18 +75,66 @@ test('overlay modal input state restores main window focus on deactivation', () 
   const calls: string[] = [];
   const state = createOverlayModalInputState({
     getModalWindow: () => modalWindow as never,
-    syncOverlayShortcutsForModal: () => {},
-    syncOverlayVisibilityForModal: () => {},
+    syncOverlayShortcutsForModal: (isActive) => {
+      calls.push(`shortcuts:${isActive}`);
+    },
+    syncOverlayVisibilityForModal: () => {
+      calls.push('visibility');
+    },
     restoreMainWindowFocus: () => {
       calls.push('restore-focus');
     },
   });
 
   state.handleModalInputStateChange(true);
-  assert.deepEqual(calls, []);
+  calls.length = 0;
 
   state.handleModalInputStateChange(false);
-  assert.deepEqual(calls, ['restore-focus']);
+  assert.deepEqual(calls, ['shortcuts:false', 'visibility', 'restore-focus', 'visibility']);
+});
+
+test('overlay modal input state schedules visibility settle burst after focus restore', () => {
+  const modalWindow = createModalWindow();
+  const calls: string[] = [];
+  const scheduled: Array<{ delayMs: number; callback: () => void }> = [];
+  const state = createOverlayModalInputState({
+    getModalWindow: () => modalWindow as never,
+    syncOverlayShortcutsForModal: () => {},
+    syncOverlayVisibilityForModal: () => {
+      calls.push('visibility');
+    },
+    restoreMainWindowFocus: () => {
+      calls.push('restore-focus');
+    },
+    schedulePostRestoreVisibilitySync: (callback, delayMs) => {
+      scheduled.push({ callback, delayMs });
+      return scheduled.length as never;
+    },
+    clearPostRestoreVisibilitySync: () => {},
+  });
+
+  state.handleModalInputStateChange(true);
+  calls.length = 0;
+
+  state.handleModalInputStateChange(false);
+
+  assert.deepEqual(
+    scheduled.map((entry) => entry.delayMs),
+    [50, 150, 300, 600, 1000],
+  );
+  for (const entry of scheduled) {
+    entry.callback();
+  }
+  assert.deepEqual(calls, [
+    'visibility',
+    'restore-focus',
+    'visibility',
+    'visibility',
+    'visibility',
+    'visibility',
+    'visibility',
+    'visibility',
+  ]);
 });
 
 test('overlay modal input state is idempotent for unchanged state', () => {

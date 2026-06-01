@@ -7,6 +7,15 @@ type MpvClientLike = {
   send: (payload: { command: Array<string | boolean> }) => void;
 };
 
+type AutoplayReadyOptions = { forceWhilePaused?: boolean };
+
+export type AutoplayReadySignal = {
+  mediaPath: string;
+  payload: SubtitleData;
+  requestedAtMs: number;
+  options?: AutoplayReadyOptions;
+};
+
 export type AutoplayReadyGateDeps = {
   isAppOwnedFlowInFlight: () => boolean;
   getCurrentMediaPath: () => string | null;
@@ -14,7 +23,8 @@ export type AutoplayReadyGateDeps = {
   getPlaybackPaused: () => boolean | null;
   getMpvClient: () => MpvClientLike | null;
   signalPluginAutoplayReady: () => void;
-  isSignalTargetReady?: () => boolean;
+  isSignalTargetReady?: (signal: AutoplayReadySignal) => boolean;
+  now?: () => number;
   schedule: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   logDebug: (message: string) => void;
 };
@@ -22,11 +32,8 @@ export type AutoplayReadyGateDeps = {
 export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
   let autoPlayReadySignalMediaPath: string | null = null;
   let autoPlayReadySignalGeneration = 0;
-  let pendingAutoplayReadySignal: {
-    mediaPath: string;
-    payload: SubtitleData;
-    options?: { forceWhilePaused?: boolean };
-  } | null = null;
+  let pendingAutoplayReadySignal: AutoplayReadySignal | null = null;
+  const now = deps.now ?? (() => Date.now());
 
   const invalidatePendingAutoplayReadyFallbacks = (): void => {
     autoPlayReadySignalMediaPath = null;
@@ -34,7 +41,8 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
     autoPlayReadySignalGeneration += 1;
   };
 
-  const isSignalTargetReady = (): boolean => deps.isSignalTargetReady?.() ?? true;
+  const isSignalTargetReady = (signal: AutoplayReadySignal): boolean =>
+    deps.isSignalTargetReady?.(signal) ?? true;
 
   const getSignalMediaPath = (): string =>
     deps.getCurrentMediaPath()?.trim() || deps.getCurrentVideoPath()?.trim() || '__unknown__';
@@ -45,23 +53,23 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
     autoPlayReadySignalGeneration += 1;
   };
 
-  const maybeSignalPluginAutoplayReady = (
-    payload: SubtitleData,
-    options?: { forceWhilePaused?: boolean },
-  ): void => {
-    if (deps.isAppOwnedFlowInFlight()) {
-      deps.logDebug('[autoplay-ready] suppressed while app-owned YouTube flow is active');
+  const setPendingAutoplayReadySignal = (signal: AutoplayReadySignal): void => {
+    if (
+      pendingAutoplayReadySignal &&
+      pendingAutoplayReadySignal.mediaPath === signal.mediaPath &&
+      pendingAutoplayReadySignal.payload.text === signal.payload.text &&
+      pendingAutoplayReadySignal.requestedAtMs <= signal.requestedAtMs
+    ) {
       return;
     }
-    if (!payload.text.trim()) {
-      return;
-    }
+    pendingAutoplayReadySignal = signal;
+  };
 
-    const mediaPath = getSignalMediaPath();
-    const duplicateMediaSignal = autoPlayReadySignalMediaPath === mediaPath;
+  const releaseAutoplayReadySignal = (signal: AutoplayReadySignal): void => {
+    const mediaPath = signal.mediaPath;
     const releaseRetryDelayMs = 200;
     const maxReleaseAttempts = resolveAutoplayReadyMaxReleaseAttempts({
-      forceWhilePaused: options?.forceWhilePaused === true,
+      forceWhilePaused: signal.options?.forceWhilePaused === true,
       retryDelayMs: releaseRetryDelayMs,
     });
     let releaseUnpauseSent = false;
@@ -129,18 +137,6 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
       })();
     };
 
-    if (duplicateMediaSignal) {
-      pendingAutoplayReadySignal = null;
-      return;
-    }
-    if (!isSignalTargetReady()) {
-      pendingAutoplayReadySignal = { mediaPath, payload, options };
-      deps.logDebug(
-        `[autoplay-ready] deferred until signal target is ready for media ${mediaPath}`,
-      );
-      return;
-    }
-
     pendingAutoplayReadySignal = null;
     autoPlayReadySignalMediaPath = mediaPath;
     const playbackGeneration = ++autoPlayReadySignalGeneration;
@@ -148,20 +144,56 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
     attemptRelease(playbackGeneration, 0);
   };
 
+  const maybeReleaseAutoplayReadySignal = (signal: AutoplayReadySignal): void => {
+    if (autoPlayReadySignalMediaPath === signal.mediaPath) {
+      pendingAutoplayReadySignal = null;
+      return;
+    }
+    if (!isSignalTargetReady(signal)) {
+      setPendingAutoplayReadySignal(signal);
+      deps.logDebug(
+        `[autoplay-ready] deferred until signal target is ready for media ${signal.mediaPath}`,
+      );
+      return;
+    }
+
+    releaseAutoplayReadySignal(signal);
+  };
+
+  const maybeSignalPluginAutoplayReady = (
+    payload: SubtitleData,
+    options?: AutoplayReadyOptions,
+  ): void => {
+    if (deps.isAppOwnedFlowInFlight()) {
+      deps.logDebug('[autoplay-ready] suppressed while app-owned YouTube flow is active');
+      return;
+    }
+    if (!payload.text.trim()) {
+      return;
+    }
+
+    maybeReleaseAutoplayReadySignal({
+      mediaPath: getSignalMediaPath(),
+      payload,
+      requestedAtMs: now(),
+      options,
+    });
+  };
+
   const flushPendingAutoplayReadySignal = (): void => {
-    if (!pendingAutoplayReadySignal || !isSignalTargetReady()) {
+    if (!pendingAutoplayReadySignal) {
       return;
     }
 
     const pendingSignal = pendingAutoplayReadySignal;
-    pendingAutoplayReadySignal = null;
     if (getSignalMediaPath() !== pendingSignal.mediaPath) {
+      pendingAutoplayReadySignal = null;
       deps.logDebug(
         `[autoplay-ready] dropped deferred signal for stale media ${pendingSignal.mediaPath}`,
       );
       return;
     }
-    maybeSignalPluginAutoplayReady(pendingSignal.payload, pendingSignal.options);
+    maybeReleaseAutoplayReadySignal(pendingSignal);
   };
 
   return {

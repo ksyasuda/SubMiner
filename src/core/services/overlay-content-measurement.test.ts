@@ -58,6 +58,50 @@ test('overlay measurement store keeps latest payload for visible layer', () => {
   assert.equal(store.getLatestByLayer('visible')?.contentRect?.width, 400);
 });
 
+test('overlay measurement store clears stale visible measurements', () => {
+  const store = createOverlayContentMeasurementStore({
+    now: () => 1000,
+    warn: () => {
+      // noop
+    },
+  });
+
+  store.report({
+    layer: 'visible',
+    measuredAtMs: 900,
+    viewport: { width: 1280, height: 720 },
+    contentRect: { x: 50, y: 60, width: 400, height: 80 },
+    interactiveRects: [{ x: 50, y: 60, width: 400, height: 80 }],
+  });
+
+  assert.notEqual(store.getLatestByLayer('visible'), null);
+
+  store.clear('visible');
+
+  assert.equal(store.getLatestByLayer('visible'), null);
+});
+
+test('sanitizeOverlayContentMeasurement preserves separate interactive rects', () => {
+  const measurement = sanitizeOverlayContentMeasurement(
+    {
+      layer: 'visible',
+      measuredAtMs: 100,
+      viewport: { width: 1920, height: 1080 },
+      contentRect: { x: 50, y: 60, width: 400, height: 80 },
+      interactiveRects: [
+        { x: 50, y: 60, width: 400, height: 80 },
+        { x: 100, y: 900, width: 500, height: 90 },
+      ],
+    },
+    500,
+  );
+
+  assert.deepEqual(measurement?.interactiveRects, [
+    { x: 50, y: 60, width: 400, height: 80 },
+    { x: 100, y: 900, width: 500, height: 90 },
+  ]);
+});
+
 test('overlay measurement store rate-limits invalid payload warnings', () => {
   let now = 1_000;
   const warnings: string[] = [];

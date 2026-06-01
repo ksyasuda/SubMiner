@@ -143,6 +143,7 @@ function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServ
     getSecondarySubMode: () => 'hover',
     getCurrentSecondarySub: () => '',
     focusMainWindow: () => {},
+    activatePlaybackWindowForOverlayInteraction: () => false,
     runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
     getAnkiConnectStatus: () => false,
     getRuntimeOptions: () => [],
@@ -247,6 +248,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     getSecondarySubMode: () => 'hover',
     getMpvClient: () => null,
     focusMainWindow: () => {},
+    activatePlaybackWindowForOverlayInteraction: () => false,
     runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
     getAnkiConnectStatus: () => false,
     getRuntimeOptions: () => ({}),
@@ -312,6 +314,28 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
   assert.equal(deps.getPlaybackPaused(), true);
 });
 
+test('createIpcDepsRuntime ignores overlay content reports from stale visible renderers', () => {
+  const mainWindow = { id: 'main', isDestroyed: () => false } as never;
+  const staleWindow = { id: 'stale', isDestroyed: () => false } as never;
+  const reports: unknown[] = [];
+  const deps = createIpcDepsRuntime({
+    getMainWindow: () => mainWindow,
+    reportOverlayContentBounds: (payload: unknown) => {
+      reports.push(payload);
+    },
+  } as unknown as Parameters<typeof createIpcDepsRuntime>[0]);
+
+  const report = deps.reportOverlayContentBounds as (
+    payload: unknown,
+    senderWindow: unknown,
+  ) => void;
+  report({ source: 'stale' }, staleWindow);
+  report({ source: 'main' }, mainWindow);
+  report({ source: 'missing' }, null);
+
+  assert.deepEqual(reports, [{ source: 'main' }]);
+});
+
 test('registerIpcHandlers maps setIgnoreMouseEvents to overlay interaction active state', () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const calls: string[] = [];
@@ -332,6 +356,27 @@ test('registerIpcHandlers maps setIgnoreMouseEvents to overlay interaction activ
   handler?.({}, false, {});
 
   assert.deepEqual(calls, ['overlay-interaction:false', 'overlay-interaction:true']);
+});
+
+test('registerIpcHandlers passes sender window to overlay content bounds reports', () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const senderWindows: unknown[] = [];
+
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      reportOverlayContentBounds: ((_payload: unknown, senderWindow: unknown) => {
+        senderWindows.push(senderWindow);
+      }) as IpcServiceDeps['reportOverlayContentBounds'],
+    }),
+    registrar,
+  );
+
+  const handler = handlers.on.get(IPC_CHANNELS.command.reportOverlayContentBounds);
+  assert.equal(typeof handler, 'function');
+
+  handler?.({}, { layer: 'visible' });
+
+  assert.deepEqual(senderWindows, [null]);
 });
 
 test('registerIpcHandlers runs AniList update after manual mark watched succeeds', async () => {
@@ -606,6 +651,27 @@ test('registerIpcHandlers exposes subtitle sidebar snapshot request', async () =
   const handler = handlers.handle.get(IPC_CHANNELS.request.getSubtitleSidebarSnapshot);
   assert.ok(handler);
   assert.deepEqual(await handler!({}), snapshot);
+});
+
+test('registerIpcHandlers exposes playback window activation request', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: string[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      activatePlaybackWindowForOverlayInteraction: async () => {
+        calls.push('activate');
+        return true;
+      },
+    }),
+    registrar,
+  );
+
+  const handler = handlers.handle.get(
+    IPC_CHANNELS.request.activatePlaybackWindowForOverlayInteraction,
+  );
+  assert.ok(handler);
+  assert.equal(await handler!({}), true);
+  assert.deepEqual(calls, ['activate']);
 });
 
 test('registerIpcHandlers forwards yomitan lookup tracking commands to immersion tracker', () => {

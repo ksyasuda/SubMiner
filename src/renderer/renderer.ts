@@ -142,6 +142,11 @@ const sessionHelpModal = createSessionHelpModal(ctx, {
 });
 const subtitleSidebarModal = createSubtitleSidebarModal(ctx, {
   modalStateReader: { isAnyModalOpen },
+  shouldRestoreOpenOnStartup: async () =>
+    ctx.platform.overlayLayer === 'visible' && (await window.electronAPI.getSubtitleSidebarOpen()),
+  onVisibilityChanged: () => {
+    measurementReporter.emitNow();
+  },
 });
 const kikuModal = createKikuModal(ctx, {
   modalStateReader: { isAnyModalOpen },
@@ -596,15 +601,16 @@ async function init(): Promise<void> {
     syncOverlayMouseIgnoreState(ctx);
   }
 
-  window.electronAPI.onSubtitle((data: SubtitleData) => {
-    runGuarded('subtitle:update', () => {
-      lastSubtitlePreview = truncateForErrorLog(getSubtitleTextForPreview(data));
-      keyboardHandlers.handleSubtitleContentUpdated();
-      subtitleRenderer.renderSubtitle(data);
-      subtitleSidebarModal.handleSubtitleUpdated(data);
-      measurementReporter.schedule();
-    });
-  });
+  await keyboardHandlers.setupMpvInputForwarding();
+
+  const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();
+  subtitleRenderer.applySubtitleStyle(initialSubtitleStyle);
+  subtitleRenderer.updatePrimarySubMode(initialSubtitleStyle?.primaryDefaultMode ?? 'visible');
+  positioning.applyStoredSubtitlePosition(
+    await window.electronAPI.getSubtitlePosition(),
+    'startup',
+  );
+  measurementReporter.schedule();
 
   window.electronAPI.onSubtitlePosition((position: SubtitlePosition | null) => {
     runGuarded('subtitle-position:update', () => {
@@ -618,8 +624,6 @@ async function init(): Promise<void> {
     });
   });
 
-  await keyboardHandlers.setupMpvInputForwarding();
-
   let initialSubtitle: SubtitleData | string = '';
   try {
     initialSubtitle = await window.electronAPI.getCurrentSubtitle();
@@ -629,7 +633,20 @@ async function init(): Promise<void> {
   lastSubtitlePreview = truncateForErrorLog(getSubtitleTextForPreview(initialSubtitle));
   keyboardHandlers.handleSubtitleContentUpdated();
   subtitleRenderer.renderSubtitle(initialSubtitle);
-  measurementReporter.schedule();
+  positioning.applyYPercent(positioning.getCurrentYPercent());
+  measurementReporter.emitNow();
+
+  window.electronAPI.onSubtitle((data: SubtitleData) => {
+    runGuarded('subtitle:update', () => {
+      lastSubtitlePreview = truncateForErrorLog(getSubtitleTextForPreview(data));
+      keyboardHandlers.handleSubtitleContentUpdated();
+      subtitleRenderer.renderSubtitle(data);
+      positioning.applyYPercent(positioning.getCurrentYPercent());
+      measurementReporter.emitNow();
+      subtitleSidebarModal.handleSubtitleUpdated(data);
+      measurementReporter.schedule();
+    });
+  });
 
   window.electronAPI.onSecondarySub((text: string) => {
     runGuarded('secondary-subtitle:update', () => {
@@ -713,17 +730,8 @@ async function init(): Promise<void> {
   }
   startControllerPolling();
 
-  const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();
-  subtitleRenderer.applySubtitleStyle(initialSubtitleStyle);
-  subtitleRenderer.updatePrimarySubMode(initialSubtitleStyle?.primaryDefaultMode ?? 'visible');
   await subtitleSidebarModal.refreshSubtitleSidebarSnapshot();
   await subtitleSidebarModal.autoOpenSubtitleSidebarOnStartup();
-
-  positioning.applyStoredSubtitlePosition(
-    await window.electronAPI.getSubtitlePosition(),
-    'startup',
-  );
-  measurementReporter.schedule();
 
   measurementReporter.emitNow();
 }
@@ -775,7 +783,8 @@ function setupDragDropToMpvQueue(): void {
 
     const droppedVideoPaths = collectDroppedVideoPaths(event.dataTransfer);
     const droppedSubtitlePaths = collectDroppedSubtitlePaths(event.dataTransfer);
-    const loadCommands = buildMpvLoadfileCommands(droppedVideoPaths, event.shiftKey);
+    const appendDroppedVideos = event.shiftKey;
+    const loadCommands = buildMpvLoadfileCommands(droppedVideoPaths, appendDroppedVideos);
     const subtitleCommands = buildMpvSubtitleAddCommands(droppedSubtitlePaths);
     for (const command of loadCommands) {
       window.electronAPI.sendMpvCommand(command);
@@ -785,7 +794,7 @@ function setupDragDropToMpvQueue(): void {
     }
     const osdParts: string[] = [];
     if (loadCommands.length > 0) {
-      const action = event.shiftKey ? 'Queued' : 'Loaded';
+      const action = appendDroppedVideos ? 'Queued' : 'Loaded';
       osdParts.push(`${action} ${loadCommands.length} file${loadCommands.length === 1 ? '' : 's'}`);
     }
     if (subtitleCommands.length > 0) {

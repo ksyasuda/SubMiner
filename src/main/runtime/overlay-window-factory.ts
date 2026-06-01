@@ -13,9 +13,11 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
       isOverlayVisible: (windowKind: OverlayWindowKind) => boolean;
       tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
       forwardTabToMpv: () => void;
+      linuxX11FullscreenOverlay?: boolean;
       onVisibleWindowBlurred?: () => void;
+      onVisibleWindowFocused?: () => void;
       onWindowContentReady?: () => void;
-      onWindowClosed: (windowKind: OverlayWindowKind) => void;
+      onWindowClosed: (windowKind: OverlayWindowKind, window: TWindow) => void;
       yomitanSession?: Session | null;
     },
   ) => TWindow;
@@ -26,9 +28,11 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
   isOverlayVisible: (windowKind: OverlayWindowKind) => boolean;
   tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
   forwardTabToMpv: () => void;
+  getLinuxX11FullscreenOverlay?: () => boolean;
   onVisibleWindowBlurred?: () => void;
+  onVisibleWindowFocused?: () => void;
   onWindowContentReady?: () => void;
-  onWindowClosed: (windowKind: OverlayWindowKind) => void;
+  onWindowClosed: (windowKind: OverlayWindowKind, window: TWindow) => void;
   getYomitanSession?: () => Session | null;
 }) {
   return (kind: OverlayWindowKind): TWindow => {
@@ -40,7 +44,10 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
       isOverlayVisible: deps.isOverlayVisible,
       tryHandleOverlayShortcutLocalFallback: deps.tryHandleOverlayShortcutLocalFallback,
       forwardTabToMpv: deps.forwardTabToMpv,
+      linuxX11FullscreenOverlay:
+        kind === 'visible' ? deps.getLinuxX11FullscreenOverlay?.() : undefined,
       onVisibleWindowBlurred: deps.onVisibleWindowBlurred,
+      onVisibleWindowFocused: deps.onVisibleWindowFocused,
       onWindowContentReady: deps.onWindowContentReady,
       onWindowClosed: deps.onWindowClosed,
       yomitanSession: deps.getYomitanSession?.() ?? null,
@@ -49,10 +56,16 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
 }
 
 export function createCreateMainWindowHandler<TWindow>(deps: {
+  getMainWindow: () => TWindow | null;
+  isWindowDestroyed: (window: TWindow) => boolean;
   createOverlayWindow: (kind: OverlayWindowKind) => TWindow;
   setMainWindow: (window: TWindow | null) => void;
 }) {
   return (): TWindow => {
+    const existingWindow = deps.getMainWindow();
+    if (existingWindow && !deps.isWindowDestroyed(existingWindow)) {
+      return existingWindow;
+    }
     const window = deps.createOverlayWindow('visible');
     deps.setMainWindow(window);
     return window;

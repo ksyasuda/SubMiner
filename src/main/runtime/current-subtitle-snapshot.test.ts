@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SubtitleData } from '../../types';
-import { resolveCurrentSubtitleForRenderer } from './current-subtitle-snapshot';
+import {
+  primeVisibleOverlaySubtitleFromMpv,
+  resolveCurrentSubtitleForRenderer,
+} from './current-subtitle-snapshot';
 
 function withTiming(payload: SubtitleData): SubtitleData {
   return {
@@ -57,4 +60,96 @@ test('renderer current subtitle snapshot tokenizes uncached subtitles when token
   assert.equal(payload.text, '新しい字幕');
   assert.equal(payload.startTime, 1);
   assert.deepEqual(payload.tokens, [{ text: '新' }]);
+});
+
+test('visible overlay subtitle prime refreshes current text from mpv before showing overlay', async () => {
+  const calls: string[] = [];
+
+  await primeVisibleOverlaySubtitleFromMpv({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => {
+        calls.push(`request:${name}`);
+        return '国内外から';
+      },
+    }),
+    setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getCurrentSubtitleData: () => null,
+    consumeCachedSubtitle: () => null,
+    onSubtitleChange: (text) => calls.push(`change:${text}`),
+    refreshCurrentSubtitle: (text) => calls.push(`refresh:${text}`),
+    emitSubtitle: (payload) => calls.push(`emit:${payload.text}`),
+  });
+
+  assert.deepEqual(calls, ['request:sub-text', 'set:国内外から', 'refresh:国内外から']);
+});
+
+test('visible overlay subtitle prime repaints cached current subtitle immediately', async () => {
+  const calls: string[] = [];
+  const cachedPayload: SubtitleData = { text: '字幕', tokens: [{ text: '字' } as never] };
+
+  await primeVisibleOverlaySubtitleFromMpv({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async () => '字幕',
+    }),
+    setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getCurrentSubtitleData: () => cachedPayload,
+    consumeCachedSubtitle: () => null,
+    onSubtitleChange: (text) => calls.push(`change:${text}`),
+    refreshCurrentSubtitle: (text) => calls.push(`refresh:${text}`),
+    emitSubtitle: (payload) => calls.push(`emit:${payload.text}:${payload.tokens?.length ?? 0}`),
+  });
+
+  assert.deepEqual(calls, ['set:字幕', 'emit:字幕:1', 'refresh:字幕']);
+});
+
+test('visible overlay subtitle prime clears stale subtitle when mpv has no current text', async () => {
+  const calls: string[] = [];
+
+  await primeVisibleOverlaySubtitleFromMpv({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async () => '',
+    }),
+    setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getCurrentSubtitleData: () => ({ text: 'old', tokens: null }),
+    consumeCachedSubtitle: () => null,
+    onSubtitleChange: (text) => calls.push(`change:${text}`),
+    refreshCurrentSubtitle: (text) => calls.push(`refresh:${text}`),
+    emitSubtitle: (payload) => calls.push(`emit:${payload.text}:${payload.tokens}`),
+  });
+
+  assert.deepEqual(calls, ['set:', 'change:', 'emit::null']);
+});
+
+test('visible overlay subtitle prime refreshes secondary subtitle when available', async () => {
+  const calls: string[] = [];
+
+  await primeVisibleOverlaySubtitleFromMpv({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => {
+        calls.push(`request:${name}`);
+        return name === 'secondary-sub-text' ? 'from abroad' : '国内外から';
+      },
+    }),
+    setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getCurrentSubtitleData: () => null,
+    consumeCachedSubtitle: () => null,
+    onSubtitleChange: (text) => calls.push(`change:${text}`),
+    refreshCurrentSubtitle: (text) => calls.push(`refresh:${text}`),
+    emitSubtitle: (payload) => calls.push(`emit:${payload.text}`),
+    setCurrentSecondarySubText: (text) => calls.push(`set-secondary:${text}`),
+    emitSecondarySubtitle: (text) => calls.push(`emit-secondary:${text}`),
+  });
+
+  assert.deepEqual(calls, [
+    'request:sub-text',
+    'set:国内外から',
+    'refresh:国内外から',
+    'request:secondary-sub-text',
+    'set-secondary:from abroad',
+    'emit-secondary:from abroad',
+  ]);
 });

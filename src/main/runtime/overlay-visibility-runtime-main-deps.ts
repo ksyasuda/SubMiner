@@ -10,6 +10,7 @@ export function createBuildOverlayVisibilityRuntimeMainDepsHandler(
     getModalActive: () => deps.getModalActive(),
     getVisibleOverlayVisible: () => deps.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => deps.getForceMousePassthrough(),
+    getNonNativeInputRegionActive: () => deps.getNonNativeInputRegionActive?.() ?? false,
     getSuspendVisibleOverlay: () => deps.getSuspendVisibleOverlay?.() ?? false,
     getOverlayInteractionActive: () => deps.getOverlayInteractionActive?.() ?? false,
     getWindowTracker: () => deps.getWindowTracker(),
@@ -31,6 +32,8 @@ export function createBuildOverlayVisibilityRuntimeMainDepsHandler(
     isMacOSPlatform: () => deps.isMacOSPlatform(),
     isWindowsPlatform: () => deps.isWindowsPlatform(),
     showOverlayLoadingOsd: (message: string) => deps.showOverlayLoadingOsd(message),
+    hideNonNativeOverlayWhenTargetUnfocused: () =>
+      deps.hideNonNativeOverlayWhenTargetUnfocused?.() ?? false,
     resolveFallbackBounds: () => deps.resolveFallbackBounds(),
   });
 }

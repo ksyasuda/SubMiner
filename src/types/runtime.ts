@@ -329,6 +329,7 @@ export interface OverlayContentMeasurement {
     height: number;
   };
   contentRect: OverlayContentRect | null;
+  interactiveRects?: OverlayContentRect[];
 }
 
 export interface MecabStatus {
@@ -410,9 +411,11 @@ export interface ElectronAPI {
   getCurrentSubtitleRaw: () => Promise<string>;
   getCurrentSubtitleAss: () => Promise<string>;
   getSubtitleSidebarSnapshot: () => Promise<SubtitleSidebarSnapshot>;
+  getSubtitleSidebarOpen: () => Promise<boolean>;
   getPlaybackPaused: () => Promise<boolean | null>;
   onSubtitleAss: (callback: (assText: string) => void) => void;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
+  reportOverlayInteractive: (interactive: boolean) => void;
   openYomitanSettings: () => void;
   recordYomitanLookup: (context?: SubtitleMiningContext | null) => void;
   getSubtitlePosition: () => Promise<SubtitlePosition | null>;
@@ -449,6 +452,7 @@ export interface ElectronAPI {
   getSecondarySubMode: () => Promise<SecondarySubMode>;
   getCurrentSecondarySub: () => Promise<string>;
   focusMainWindow: () => Promise<void>;
+  activatePlaybackWindowForOverlayInteraction: () => Promise<boolean>;
   getSubtitleStyle: () => Promise<SubtitleRendererStyleConfig | null>;
   onSubsyncManualOpen: (callback: (payload: SubsyncManualPayload) => void) => void;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;

@@ -516,3 +516,28 @@ test('buildPluginSessionBindingsArtifact emits CLI args for plugin-bound session
     },
   });
 });
+
+test('buildPluginSessionBindingsArtifact preserves plugin selector CLI for no-count multi-line actions', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts({
+      copySubtitleMultiple: 'Ctrl+Shift+C',
+      mineSentenceMultiple: 'Ctrl+Shift+S',
+    }),
+    keybindings: [],
+    platform: 'linux',
+  });
+
+  const artifact = buildPluginSessionBindingsArtifact({
+    bindings: result.bindings,
+    warnings: result.warnings,
+    numericSelectionTimeoutMs: 2500,
+  });
+  const byActionId = new Map(
+    artifact.bindings.flatMap((binding) =>
+      binding.actionType === 'session-action' ? [[binding.actionId, binding]] : [],
+    ),
+  );
+
+  assert.equal(byActionId.get('copySubtitleMultiple')?.cliArgs, undefined);
+  assert.equal(byActionId.get('mineSentenceMultiple')?.cliArgs, undefined);
+});

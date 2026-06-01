@@ -103,7 +103,7 @@ test('subtitle processing falls back to plain subtitle when tokenization returns
   assert.deepEqual(emitted, [{ text: 'fallback', tokens: null }]);
 });
 
-test('subtitle processing can refresh current subtitle without text change', async () => {
+test('subtitle processing ignores duplicate current subtitle refresh without cache invalidation', async () => {
   const emitted: SubtitleData[] = [];
   let tokenizeCalls = 0;
   const controller = createSubtitleProcessingController({
@@ -119,10 +119,57 @@ test('subtitle processing can refresh current subtitle without text change', asy
   controller.refreshCurrentSubtitle();
   await flushMicrotasks();
 
+  assert.equal(tokenizeCalls, 1);
+  assert.deepEqual(emitted, [{ text: 'same', tokens: [] }]);
+});
+
+test('subtitle processing coalesces refresh requests while current subtitle is processing', async () => {
+  const emitted: SubtitleData[] = [];
+  let tokenizeCalls = 0;
+  let resolveTokenization: ((value: SubtitleData | null) => void) | undefined;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return await new Promise<SubtitleData | null>((resolve) => {
+        resolveTokenization = () => resolve({ text, tokens: [] });
+      });
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('same');
+  controller.refreshCurrentSubtitle();
+  controller.refreshCurrentSubtitle('same');
+  assert.ok(resolveTokenization);
+  resolveTokenization({ text: 'same', tokens: [] });
+  await flushMicrotasks();
+  await flushMicrotasks();
+
+  assert.equal(tokenizeCalls, 1);
+  assert.deepEqual(emitted, [{ text: 'same', tokens: [] }]);
+});
+
+test('subtitle processing refresh re-tokenizes after cache invalidation', async () => {
+  const emitted: SubtitleData[] = [];
+  let tokenizeCalls = 0;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [{ value: tokenizeCalls } as never] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('same');
+  await flushMicrotasks();
+  controller.invalidateTokenizationCache();
+  controller.refreshCurrentSubtitle();
+  await flushMicrotasks();
+
   assert.equal(tokenizeCalls, 2);
   assert.deepEqual(emitted, [
-    { text: 'same', tokens: [] },
-    { text: 'same', tokens: [] },
+    { text: 'same', tokens: [{ value: 1 } as never] },
+    { text: 'same', tokens: [{ value: 2 } as never] },
   ]);
 });
 

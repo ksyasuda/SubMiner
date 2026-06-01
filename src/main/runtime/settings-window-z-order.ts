@@ -1,9 +1,16 @@
 type SeparateWindowLike = {
   isDestroyed(): boolean;
+  isVisible?: () => boolean;
 };
 
-function hasLiveSeparateWindow(windows: Array<SeparateWindowLike | null | undefined>): boolean {
-  return windows.some((window) => Boolean(window && !window.isDestroyed()));
+export function hasLiveSeparateWindow(
+  windows: Array<SeparateWindowLike | null | undefined>,
+): boolean {
+  return windows.some(
+    (window) =>
+      Boolean(window && !window.isDestroyed()) &&
+      (typeof window?.isVisible !== 'function' || window.isVisible()),
+  );
 }
 
 export function shouldSuppressVisibleOverlayRaiseForSeparateWindow(options: {

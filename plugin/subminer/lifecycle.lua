@@ -2,6 +2,7 @@ local M = {}
 
 local AUTO_START_SOCKET_RETRY_DELAY_SECONDS = 0.2
 local AUTO_START_SOCKET_RETRY_MAX_ATTEMPTS = 25
+local WARM_END_FILE_HIDE_DELAY_SECONDS = 0.25
 
 function M.create(ctx)
 	local mp = ctx.mp
@@ -58,6 +59,40 @@ function M.create(ctx)
 		end)
 	end
 
+	local function clear_pending_visible_overlay_hide()
+		local timer = state.pending_visible_overlay_hide_timer
+		if timer and timer.kill then
+			timer:kill()
+		end
+		state.pending_visible_overlay_hide_timer = nil
+		state.pending_visible_overlay_hide_generation = (state.pending_visible_overlay_hide_generation or 0) + 1
+	end
+
+	local resolve_auto_start_visible_overlay_enabled
+
+	local function hide_visible_overlay_after_end_file()
+		if state.visible_overlay_requested == true and not resolve_auto_start_visible_overlay_enabled() then
+			return
+		end
+		if not state.auto_play_ready_signal_seen then
+			process.hide_visible_overlay()
+			return
+		end
+
+		clear_pending_visible_overlay_hide()
+		local generation = (state.pending_visible_overlay_hide_generation or 0) + 1
+		state.pending_visible_overlay_hide_generation = generation
+		state.pending_visible_overlay_hide_timer = mp.add_timeout(WARM_END_FILE_HIDE_DELAY_SECONDS, function()
+			if state.pending_visible_overlay_hide_generation ~= generation then
+				return
+			end
+			state.pending_visible_overlay_hide_timer = nil
+			if state.overlay_running then
+				process.hide_visible_overlay()
+			end
+		end)
+	end
+
 	local function resolve_auto_start_enabled()
 		local raw_auto_start = opts.auto_start
 		if raw_auto_start == nil then
@@ -67,6 +102,14 @@ function M.create(ctx)
 			raw_auto_start = opts["auto-start"]
 		end
 		return options_helper.coerce_bool(raw_auto_start, false)
+	end
+
+	resolve_auto_start_visible_overlay_enabled = function()
+		local raw_visible_overlay = opts.auto_start_visible_overlay
+		if raw_visible_overlay == nil then
+			raw_visible_overlay = opts["auto-start-visible-overlay"]
+		end
+		return options_helper.coerce_bool(raw_visible_overlay, false)
 	end
 
 	local function next_auto_start_retry_generation()
@@ -103,6 +146,11 @@ function M.create(ctx)
 		return true
 	end
 
+	local function should_rearm_pause_until_ready(same_media_loaded)
+		return not same_media_loaded
+			and not (state.overlay_running and state.auto_play_ready_signal_seen == true)
+	end
+
 	local function start_overlay_when_socket_ready(generation, media_identity, same_media_loaded, attempt)
 		if generation ~= state.auto_start_retry_generation then
 			return
@@ -137,7 +185,7 @@ function M.create(ctx)
 		process.start_overlay({
 			auto_start_trigger = true,
 			socket_path = opts.socket_path,
-			rearm_pause_until_ready = not same_media_loaded,
+			rearm_pause_until_ready = should_rearm_pause_until_ready(same_media_loaded),
 		})
 		-- Give the overlay process a moment to initialize before querying AniSkip.
 		schedule_aniskip_fetch("overlay-start", 0.8)
@@ -155,6 +203,7 @@ function M.create(ctx)
 	end
 
 	local function on_file_loaded()
+		clear_pending_visible_overlay_hide()
 		local media_identity = resolve_media_identity()
 		local media_title = resolve_media_title()
 		local retry_generation = next_auto_start_retry_generation()
@@ -242,6 +291,8 @@ function M.create(ctx)
 		aniskip.clear_aniskip_state()
 		hover.clear_hover_overlay()
 		process.disarm_auto_play_ready_gate()
+		clear_pending_visible_overlay_hide()
+		state.auto_play_ready_signal_seen = false
 		state.current_media_identity = nil
 		state.current_media_title = nil
 		state.pending_reload_media_identity = nil
@@ -277,7 +328,7 @@ function M.create(ctx)
 			state.app_managed_playback_pending = false
 			state.app_managed_playback_active = false
 			if state.overlay_running and reason ~= "quit" then
-				process.hide_visible_overlay()
+				hide_visible_overlay_after_end_file()
 			end
 		end)
 		mp.register_event("shutdown", function()

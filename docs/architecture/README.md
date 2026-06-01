@@ -19,6 +19,7 @@ The desktop app keeps `src/main.ts` as composition root and pushes behavior into
 
 - [Domains](./domains.md) - who owns what
 - [Layering](./layering.md) - how modules should depend on each other
+- [Subtitle Overlay Priming](./subtitle-overlay-priming.md) - visible-overlay subtitle startup flow
 - Public contributor summary: [`docs-site/architecture.md`](../../docs-site/architecture.md)
 
 ## Current Shape

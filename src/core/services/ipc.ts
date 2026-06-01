@@ -49,6 +49,10 @@ export interface IpcServiceDeps {
     active: boolean,
     senderWindow: ElectronBrowserWindow | null,
   ) => void;
+  onOverlayInteractiveHint?: (
+    interactive: boolean,
+    senderWindow: ElectronBrowserWindow | null,
+  ) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleDevTools: () => void;
@@ -58,7 +62,8 @@ export interface IpcServiceDeps {
   getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
   getSubtitleSidebarSnapshot?: () => Promise<SubtitleSidebarSnapshot>;
-  getPlaybackPaused: () => boolean | null;
+  getSubtitleSidebarOpen?: () => boolean;
+  getPlaybackPaused: () => boolean | null | Promise<boolean | null>;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
@@ -81,6 +86,7 @@ export interface IpcServiceDeps {
   getSecondarySubMode: () => unknown;
   getCurrentSecondarySub: () => string;
   focusMainWindow: () => void;
+  activatePlaybackWindowForOverlayInteraction?: () => boolean | Promise<boolean>;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
   onYoutubePickerResolve: (
     request: YoutubePickerResolveRequest,
@@ -89,7 +95,10 @@ export interface IpcServiceDeps {
   getRuntimeOptions: () => unknown;
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => unknown;
-  reportOverlayContentBounds: (payload: unknown) => void;
+  reportOverlayContentBounds: (
+    payload: unknown,
+    senderWindow: ElectronBrowserWindow | null,
+  ) => void;
   getAnilistStatus: () => unknown;
   clearAnilistToken: () => void;
   openAnilistSetup: () => void;
@@ -229,6 +238,10 @@ export interface IpcDepsRuntimeOptions {
     active: boolean,
     senderWindow: ElectronBrowserWindow | null,
   ) => void;
+  onOverlayInteractiveHint?: (
+    interactive: boolean,
+    senderWindow: ElectronBrowserWindow | null,
+  ) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleVisibleOverlay: () => void;
@@ -236,7 +249,8 @@ export interface IpcDepsRuntimeOptions {
   getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
   getSubtitleSidebarSnapshot?: () => Promise<SubtitleSidebarSnapshot>;
-  getPlaybackPaused: () => boolean | null;
+  getSubtitleSidebarOpen?: () => boolean;
+  getPlaybackPaused: () => boolean | null | Promise<boolean | null>;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
@@ -254,6 +268,7 @@ export interface IpcDepsRuntimeOptions {
   getSecondarySubMode: () => unknown;
   getMpvClient: () => MpvClientLike | null;
   focusMainWindow: () => void;
+  activatePlaybackWindowForOverlayInteraction?: () => boolean | Promise<boolean>;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
   onYoutubePickerResolve: (
     request: YoutubePickerResolveRequest,
@@ -296,6 +311,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     onOverlayModalClosed: options.onOverlayModalClosed,
     onOverlayModalOpened: options.onOverlayModalOpened,
     onOverlayMouseInteractionChanged: options.onOverlayMouseInteractionChanged,
+    onOverlayInteractiveHint: options.onOverlayInteractiveHint,
     openYomitanSettings: options.openYomitanSettings,
     recordSubtitleMiningContext: options.recordSubtitleMiningContext,
     quitApp: options.quitApp,
@@ -310,6 +326,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     getCurrentSubtitleRaw: options.getCurrentSubtitleRaw,
     getCurrentSubtitleAss: options.getCurrentSubtitleAss,
     getSubtitleSidebarSnapshot: options.getSubtitleSidebarSnapshot,
+    getSubtitleSidebarOpen: options.getSubtitleSidebarOpen ?? (() => false),
     getPlaybackPaused: options.getPlaybackPaused,
     getSubtitlePosition: options.getSubtitlePosition,
     getSubtitleStyle: options.getSubtitleStyle,
@@ -342,13 +359,21 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
       if (!mainWindow || mainWindow.isDestroyed()) return;
       mainWindow.focus();
     },
+    activatePlaybackWindowForOverlayInteraction:
+      options.activatePlaybackWindowForOverlayInteraction ?? (() => false),
     runSubsyncManual: options.runSubsyncManual,
     onYoutubePickerResolve: options.onYoutubePickerResolve,
     getAnkiConnectStatus: options.getAnkiConnectStatus,
     getRuntimeOptions: options.getRuntimeOptions,
     setRuntimeOption: options.setRuntimeOption,
     cycleRuntimeOption: options.cycleRuntimeOption,
-    reportOverlayContentBounds: options.reportOverlayContentBounds,
+    reportOverlayContentBounds: (payload, senderWindow) => {
+      const mainWindow = options.getMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (!senderWindow || senderWindow !== (mainWindow as unknown as ElectronBrowserWindow))
+        return;
+      options.reportOverlayContentBounds(payload);
+    },
     getAnilistStatus: options.getAnilistStatus,
     clearAnilistToken: options.clearAnilistToken,
     openAnilistSetup: options.openAnilistSetup,
@@ -526,6 +551,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     return await deps.getSubtitleSidebarSnapshot();
   });
 
+  ipc.handle(IPC_CHANNELS.request.getSubtitleSidebarOpen, () => {
+    return deps.getSubtitleSidebarOpen?.() ?? false;
+  });
+
   ipc.handle(IPC_CHANNELS.request.getPlaybackPaused, () => {
     return deps.getPlaybackPaused();
   });
@@ -628,6 +657,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     deps.focusMainWindow();
   });
 
+  ipc.handle(IPC_CHANNELS.request.activatePlaybackWindowForOverlayInteraction, async () => {
+    return (await deps.activatePlaybackWindowForOverlayInteraction?.()) ?? false;
+  });
+
   ipc.handle(IPC_CHANNELS.request.runSubsyncManual, async (_event, request: unknown) => {
     const parsedRequest = parseSubsyncManualRunRequest(request);
     if (!parsedRequest) {
@@ -668,8 +701,17 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     return deps.cycleRuntimeOption(parsedId, parsedDirection);
   });
 
-  ipc.on(IPC_CHANNELS.command.reportOverlayContentBounds, (_event: unknown, payload: unknown) => {
-    deps.reportOverlayContentBounds(payload);
+  ipc.on(IPC_CHANNELS.command.reportOverlayContentBounds, (event: unknown, payload: unknown) => {
+    const senderWindow =
+      electron.BrowserWindow?.fromWebContents((event as IpcMainEvent).sender) ?? null;
+    deps.reportOverlayContentBounds(payload, senderWindow);
+  });
+
+  ipc.on(IPC_CHANNELS.command.reportOverlayInteractive, (event: unknown, interactive: unknown) => {
+    if (typeof interactive !== 'boolean') return;
+    const senderWindow =
+      electron.BrowserWindow?.fromWebContents((event as IpcMainEvent).sender) ?? null;
+    deps.onOverlayInteractiveHint?.(interactive, senderWindow);
   });
 
   ipc.handle(IPC_CHANNELS.request.getAnilistStatus, () => {

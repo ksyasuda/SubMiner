@@ -1218,6 +1218,11 @@ body.settings-modal-open #secondarySubContainer {
   pointer-events: none !important;
 }
 
+body.settings-modal-open .subtitle-sidebar-modal {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .secondary-sub-hidden {
   display: none !important;
 }

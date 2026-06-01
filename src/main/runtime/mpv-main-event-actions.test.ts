@@ -12,7 +12,7 @@ import {
   createHandleMpvTimePosChangeHandler,
 } from './mpv-main-event-actions';
 
-test('subtitle change handler updates state, broadcasts, and forwards', () => {
+test('subtitle change handler updates state and forwards uncached text without raw broadcast', () => {
   const calls: string[] = [];
   const handler = createHandleMpvSubtitleChangeHandler({
     setCurrentSubText: (text) => calls.push(`set:${text}`),
@@ -23,7 +23,22 @@ test('subtitle change handler updates state, broadcasts, and forwards', () => {
   });
 
   handler({ text: 'line' });
-  assert.deepEqual(calls, ['set:line', 'broadcast:line', 'process:line', 'presence']);
+  assert.deepEqual(calls, ['set:line', 'process:line', 'presence']);
+});
+
+test('subtitle change handler clears immediately for empty subtitle text', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvSubtitleChangeHandler({
+    setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getImmediateSubtitlePayload: () => null,
+    broadcastSubtitle: (payload) =>
+      calls.push(`broadcast:${payload.text}:${payload.tokens === null ? 'plain' : 'annotated'}`),
+    onSubtitleChange: (text) => calls.push(`process:${text}`),
+    refreshDiscordPresence: () => calls.push('presence'),
+  });
+
+  handler({ text: '' });
+  assert.deepEqual(calls, ['set:', 'broadcast::plain', 'process:', 'presence']);
 });
 
 test('subtitle change handler broadcasts cached annotated payload immediately when available', () => {

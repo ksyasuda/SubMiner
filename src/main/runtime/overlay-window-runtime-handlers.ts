@@ -15,6 +15,8 @@ type CreateOverlayWindowMainDeps<TWindow> = Parameters<
 
 export function createOverlayWindowRuntimeHandlers<TWindow>(deps: {
   createOverlayWindowDeps: CreateOverlayWindowMainDeps<TWindow>;
+  getMainWindow: () => TWindow | null;
+  isWindowDestroyed: (window: TWindow) => boolean;
   setMainWindow: (window: TWindow | null) => void;
   setModalWindow: (window: TWindow | null) => void;
 }) {
@@ -23,6 +25,8 @@ export function createOverlayWindowRuntimeHandlers<TWindow>(deps: {
   );
   const createMainWindow = createCreateMainWindowHandler<TWindow>(
     createBuildCreateMainWindowMainDepsHandler<TWindow>({
+      getMainWindow: () => deps.getMainWindow(),
+      isWindowDestroyed: (window) => deps.isWindowDestroyed(window),
       createOverlayWindow: (kind) => createOverlayWindow(kind),
       setMainWindow: (window) => deps.setMainWindow(window),
     })(),

@@ -18,9 +18,10 @@ test('create overlay window handler forwards options and kind', () => {
       assert.equal(options.isOverlayVisible('modal'), false);
       assert.equal(options.yomitanSession, yomitanSession);
       options.forwardTabToMpv();
+      options.onVisibleWindowFocused?.();
       options.onRuntimeOptionsChanged();
       options.setOverlayDebugVisualizationEnabled(true);
-      options.onWindowClosed(kind);
+      options.onWindowClosed(kind, window);
       return window;
     },
     isDev: true,
@@ -30,7 +31,9 @@ test('create overlay window handler forwards options and kind', () => {
     isOverlayVisible: (kind) => kind === 'visible',
     tryHandleOverlayShortcutLocalFallback: () => false,
     forwardTabToMpv: () => calls.push('forward-tab'),
-    onWindowClosed: (kind) => calls.push(`closed:${kind}`),
+    onVisibleWindowFocused: () => calls.push('visible-focus'),
+    onWindowClosed: (kind, closedWindow) =>
+      calls.push(`closed:${kind}:${(closedWindow as { id: number }).id}`),
     getYomitanSession: () => yomitanSession,
   });
 
@@ -38,25 +41,49 @@ test('create overlay window handler forwards options and kind', () => {
   assert.deepEqual(calls, [
     'kind:visible',
     'forward-tab',
+    'visible-focus',
     'runtime-options',
     'debug:true',
-    'closed:visible',
+    'closed:visible:1',
   ]);
 });
 
 test('create main window handler stores visible window', () => {
   const calls: string[] = [];
   const visibleWindow = { id: 'visible' };
+  let mainWindow: typeof visibleWindow | null = null;
   const createMainWindow = createCreateMainWindowHandler({
+    getMainWindow: () => mainWindow,
+    isWindowDestroyed: () => false,
     createOverlayWindow: (kind) => {
       calls.push(`create:${kind}`);
       return visibleWindow;
     },
-    setMainWindow: (window) => calls.push(`set:${(window as { id: string }).id}`),
+    setMainWindow: (window) => {
+      mainWindow = window;
+      calls.push(`set:${(window as { id: string }).id}`);
+    },
   });
 
   assert.equal(createMainWindow(), visibleWindow);
   assert.deepEqual(calls, ['create:visible', 'set:visible']);
+});
+
+test('create main window handler reuses an existing live visible window', () => {
+  const calls: string[] = [];
+  const existingWindow = { id: 'existing' };
+  const createMainWindow = createCreateMainWindowHandler({
+    getMainWindow: () => existingWindow,
+    isWindowDestroyed: () => false,
+    createOverlayWindow: (kind) => {
+      calls.push(`create:${kind}`);
+      return { id: 'created' };
+    },
+    setMainWindow: (window) => calls.push(`set:${(window as { id: string }).id}`),
+  });
+
+  assert.equal(createMainWindow(), existingWindow);
+  assert.deepEqual(calls, []);
 });
 
 test('create modal window handler stores modal window', () => {

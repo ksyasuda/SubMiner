@@ -5,6 +5,7 @@ const logger = createLogger('main:overlay-content-measurement');
 const MAX_VIEWPORT = 10000;
 const MAX_RECT_DIMENSION = 10000;
 const MAX_RECT_OFFSET = 50000;
+const MAX_INTERACTIVE_RECTS = 8;
 const MAX_FUTURE_TIMESTAMP_MS = 60_000;
 const INVALID_LOG_THROTTLE_MS = 10_000;
 
@@ -26,6 +27,7 @@ export function sanitizeOverlayContentMeasurement(
       width?: unknown;
       height?: unknown;
     } | null;
+    interactiveRects?: unknown;
   };
 
   if (candidate.layer !== 'visible') {
@@ -53,11 +55,21 @@ export function sanitizeOverlayContentMeasurement(
     return null;
   }
 
+  let interactiveRects: OverlayContentRect[] | undefined;
+  if (candidate.interactiveRects !== undefined) {
+    const sanitizedRects = sanitizeOverlayInteractiveRects(candidate.interactiveRects);
+    if (!sanitizedRects) {
+      return null;
+    }
+    interactiveRects = sanitizedRects;
+  }
+
   return {
     layer: candidate.layer,
     measuredAtMs,
     viewport: { width: viewportWidth, height: viewportHeight },
     contentRect,
+    ...(interactiveRects !== undefined ? { interactiveRects } : {}),
   };
 }
 
@@ -92,6 +104,22 @@ function sanitizeOverlayContentRect(rect: unknown): OverlayContentRect | null {
   }
 
   return { x, y, width, height };
+}
+
+function sanitizeOverlayInteractiveRects(rects: unknown): OverlayContentRect[] | null {
+  if (!Array.isArray(rects) || rects.length > MAX_INTERACTIVE_RECTS) {
+    return null;
+  }
+
+  const sanitized: OverlayContentRect[] = [];
+  for (const rect of rects) {
+    const sanitizedRect = sanitizeOverlayContentRect(rect);
+    if (!sanitizedRect) {
+      return null;
+    }
+    sanitized.push(sanitizedRect);
+  }
+  return sanitized;
 }
 
 function readFiniteInRange(value: unknown, min: number, max: number): number {
@@ -140,7 +168,12 @@ export function createOverlayContentMeasurementStore(options?: {
     return latestByLayer[layer];
   }
 
+  function clear(layer: OverlayLayer): void {
+    latestByLayer[layer] = null;
+  }
+
   return {
+    clear,
     getLatestByLayer,
     report,
   };

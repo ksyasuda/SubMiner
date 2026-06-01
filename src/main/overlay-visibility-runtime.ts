@@ -11,6 +11,7 @@ export interface OverlayVisibilityRuntimeDeps {
   getModalActive: () => boolean;
   getVisibleOverlayVisible: () => boolean;
   getForceMousePassthrough: () => boolean;
+  getNonNativeInputRegionActive?: () => boolean;
   getSuspendVisibleOverlay?: () => boolean;
   getOverlayInteractionActive?: () => boolean;
   getWindowTracker: () => BaseWindowTracker | null;
@@ -30,6 +31,7 @@ export interface OverlayVisibilityRuntimeDeps {
   isWindowsPlatform: () => boolean;
   showOverlayLoadingOsd: (message: string) => void;
   resolveFallbackBounds: () => WindowGeometry;
+  hideNonNativeOverlayWhenTargetUnfocused?: () => boolean;
 }
 
 export interface OverlayVisibilityRuntimeService {
@@ -53,6 +55,7 @@ export function createOverlayVisibilityRuntimeService(
         visibleOverlayVisible,
         modalActive: deps.getModalActive(),
         forceMousePassthrough,
+        nonNativeInputRegionActive: deps.getNonNativeInputRegionActive?.() ?? false,
         suspendVisibleOverlay,
         overlayInteractionActive: deps.getOverlayInteractionActive?.() ?? false,
         mainWindow,
@@ -86,6 +89,8 @@ export function createOverlayVisibilityRuntimeService(
         resetOverlayLoadingOsdSuppression: () => {
           lastOverlayLoadingOsdAtMs = null;
         },
+        hideNonNativeOverlayWhenTargetUnfocused:
+          deps.hideNonNativeOverlayWhenTargetUnfocused?.() ?? false,
         resolveFallbackBounds: () => deps.resolveFallbackBounds(),
       });
     },

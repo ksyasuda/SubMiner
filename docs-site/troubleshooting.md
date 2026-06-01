@@ -326,14 +326,14 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
 
 ### Linux
 
-- **Wayland (Hyprland/Sway only)**: Native Wayland support is limited to Hyprland and Sway. Window tracking uses compositor-specific commands (`hyprctl` / `swaymsg`). If these are not on `PATH`, tracking will fail silently. Other Wayland compositors are not supported — both mpv and SubMiner must run under X11 or Xwayland instead.
-- **X11 / Xwayland**: Requires `xdotool` and `xwininfo`. If missing, the overlay cannot track the mpv window position. This is the required backend for any Wayland compositor other than Hyprland or Sway — both mpv and SubMiner must be running under X11/Xwayland for window tracking to work.
+- **Wayland (Hyprland/Sway only)**: Native Wayland support is limited to Hyprland and Sway. Window tracking uses compositor-specific commands (`hyprctl` / `swaymsg`). If these are not on `PATH`, tracking will fail silently. Other Wayland compositors (KDE Plasma, GNOME, …) are not supported natively — both mpv and SubMiner must run under X11 or Xwayland instead. On those sessions SubMiner forces XWayland automatically for itself and for every mpv it launches (see [KDE Plasma & other Wayland compositors](#kde-plasma--other-wayland-compositors)).
+- **X11 / Xwayland**: Requires `xdotool`, `xprop`, and `xwininfo`. If missing, the overlay cannot track the mpv window position. This is the required backend for any Wayland compositor other than Hyprland or Sway — both mpv and SubMiner must be running under X11/Xwayland for window tracking _and_ for the overlay to stay above mpv (Wayland forbids clients from controlling window stacking). SubMiner uses a managed X11 overlay while mpv is windowed, switches to an override-redirect X11 overlay while tracked mpv is fullscreen, and hides/releases that overlay when another X11/Xwayland app takes focus. The visible overlay stays hidden until SubMiner has tracked mpv geometry, so startup should not create a display-sized fallback overlay while tokenization warms up.
 - **Tray icon missing**: SubMiner creates an Electron tray icon in `--background` mode, but Linux trays require a StatusNotifier/AppIndicator host. Hyprland does not provide one by itself; enable a tray in Waybar, Hyprpanel, or another panel. If Electron cannot register the tray, SubMiner logs a warning that mentions the missing tray host.
-- **Mouse passthrough**: On Linux, Electron's mouse passthrough is unreliable. SubMiner keeps pointer events enabled, meaning you may need to toggle the overlay off to interact with mpv controls underneath.
+- **Mouse passthrough**: On Linux X11/Xwayland, SubMiner uses `xdotool` to poll the cursor and only enables overlay input while the cursor is over subtitle or popup regions. Outside those regions, pointer input passes through to mpv. Native Wayland compositors other than Hyprland/Sway cannot provide the stacking control SubMiner needs.
 
 ### Hyprland
 
-SubMiner's overlay is a transparent, frameless, always-on-top Electron window. SubMiner tries to apply the floating, borderless, no-shadow, and no-blur properties itself each time it places the overlay. It detects Hyprland's active config provider and uses Lua `hl.dsp.window.*` dispatchers for recent Hyprland Lua configs, or the legacy dispatcher syntax for older hyprlang configs. On many configurations that is enough, but if your Hyprland version doesn't honor those runtime dispatches — or a broad rule in your config forces opacity/blur on every window — add explicit window rules so the overlay is exempt. You also need `pass` bindings to forward global shortcuts to SubMiner (see below).
+SubMiner's overlay is a transparent, frameless Electron window that must be kept above mpv. SubMiner tries to apply the floating, borderless, no-shadow, and no-blur properties itself each time it places the overlay. It detects Hyprland's active config provider and uses Lua `hl.dsp.window.*` dispatchers for recent Hyprland Lua configs, or the legacy dispatcher syntax for older hyprlang configs. On many configurations that is enough, but if your Hyprland version doesn't honor those runtime dispatches — or a broad rule in your config forces opacity/blur on every window — add explicit window rules so the overlay is exempt. You also need `pass` bindings to forward global shortcuts to SubMiner (see below).
 
 **Overlay is not transparent or has a visible border**
 
@@ -384,6 +384,35 @@ Without these rules, Hyprland intercepts the keypresses before they reach SubMin
 SubMiner watches mpv's `fullscreen` property and refreshes the overlay geometry when it changes. If the overlay still does not move or rise above fullscreen mpv, confirm that the mpv IPC socket is connected and that `hyprctl -j clients` and `hyprctl -j monitors` work from the same environment that launched SubMiner.
 
 For more details, see the Hyprland docs on [global keybinds](https://wiki.hypr.land/Configuring/Binds/#global-keybinds) and [window rules](https://wiki.hypr.land/Configuring/Window-Rules/).
+
+### KDE Plasma & other Wayland compositors
+
+On any Wayland session that is not Hyprland or Sway (KDE Plasma, GNOME, and others), the overlay can only stay above mpv when both processes run under **XWayland** — the Wayland protocol forbids clients from controlling window stacking, so the overlay's "always on top" becomes a no-op on a native Wayland surface.
+
+SubMiner handles this automatically:
+
+- It launches its own window under XWayland (it sets `--ozone-platform-hint=x11`).
+- Every mpv it launches (via the `subminer` launcher, Jellyfin, or YouTube) is pinned to XWayland too — Wayland environment hints are stripped and an X11 GPU context (`--gpu-context=x11egl,x11`) is applied.
+- While mpv is windowed, the overlay is a managed X11 window owned by the tracked mpv window (`WM_TRANSIENT_FOR`), so it stays above mpv while other foreground X11/Xwayland apps can still cover both windows.
+- While tracked mpv is fullscreen, SubMiner swaps the visible overlay to a focusable-false X11 override-redirect window. That path can stay above the active fullscreen mpv window without requiring a KDE/KWin-specific rule, and SubMiner hides/releases it when mpv is no longer the active X11/Xwayland window.
+- The visible overlay is shown inactive on Linux, so normal hover should not steal keyboard focus from mpv.
+- During startup and fullscreen transitions, SubMiner waits for tracked mpv geometry before showing the visible overlay and skips the fullscreen restack hide/show path after mpv leaves fullscreen. That avoids a temporary full-screen overlay or black window while the subtitle tokenizer and Yomitan warmups finish.
+- If the subtitle sidebar is open during a windowed/fullscreen transition, SubMiner restores it on the replacement overlay window. Subtitle hit regions are also refreshed as soon as the first measured subtitle line is reported, so hover and Yomitan lookup should work on the first visible line.
+
+Requirements: `xdotool`, `xprop`, and `xwininfo` must be installed. SubMiner uses root `_NET_ACTIVE_WINDOW` from `xprop` for focus detection and falls back to `xdotool getactivewindow` when that signal is unavailable.
+
+**Overlay sits behind mpv / pause-on-hover and Yomitan stop working**
+
+This almost always means mpv came up as a **native Wayland** window that the XWayland overlay cannot cover. It happens when mpv is launched **manually** (your own command), because SubMiner can only force XWayland on the mpv processes it launches itself. Fix it one of these ways:
+
+- Launch playback through SubMiner (the `subminer` launcher or the tray), which forces XWayland for you, or
+- Force XWayland in your own mpv invocation, e.g. `mpv --gpu-context=x11egl …`, or launch with `WAYLAND_DISPLAY= mpv …`, or set `gpu-context=x11egl` in your `mpv.conf`.
+
+To confirm mpv is on XWayland, `xdotool search --class mpv` should return a window id (a native Wayland mpv returns nothing).
+
+**Overlay stays above an unrelated foreground app**
+
+SubMiner can only detect focus for X11/Xwayland windows in this mode. If a native Wayland app covers mpv but the overlay stays visible, run that app under Xwayland too or use Hyprland/Sway native support. Generic X11 cannot observe native Wayland foreground windows.
 
 ### macOS
 

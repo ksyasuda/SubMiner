@@ -18,6 +18,10 @@ function setOverlayWindowOpacity(window: BrowserWindow, opacity: number): void {
 
 function releaseOverlayWindowLevel(window: BrowserWindow): void {
   window.setAlwaysOnTop(false);
+  const fullscreenWindow = window as BrowserWindow & {
+    setFullScreen?: (fullscreen: boolean) => void;
+  };
+  fullscreenWindow.setFullScreen?.(false);
   const allWorkspacesWindow = window as BrowserWindow & {
     setVisibleOnAllWorkspaces?: (
       visible: boolean,
@@ -64,6 +68,7 @@ export function updateVisibleOverlayVisibility(args: {
   visibleOverlayVisible: boolean;
   modalActive?: boolean;
   forceMousePassthrough?: boolean;
+  nonNativeInputRegionActive?: boolean;
   suspendVisibleOverlay?: boolean;
   overlayInteractionActive?: boolean;
   mainWindow: BrowserWindow | null;
@@ -87,6 +92,7 @@ export function updateVisibleOverlayVisibility(args: {
   markOverlayLoadingOsdShown?: () => void;
   resetOverlayLoadingOsdSuppression?: () => void;
   resolveFallbackBounds?: () => WindowGeometry;
+  hideNonNativeOverlayWhenTargetUnfocused?: boolean;
 }): void {
   if (!args.mainWindow || args.mainWindow.isDestroyed()) {
     return;
@@ -120,9 +126,9 @@ export function updateVisibleOverlayVisibility(args: {
   const showPassiveVisibleOverlay = (): boolean => {
     const forceMousePassthrough = args.forceMousePassthrough === true;
     const wasVisible = mainWindow.isVisible();
-    const isVisibleOverlayFocused =
-      overlayInteractionActive ||
-      (typeof mainWindow.isFocused === 'function' && mainWindow.isFocused());
+    const isVisibleOverlayWindowFocused =
+      typeof mainWindow.isFocused === 'function' && mainWindow.isFocused();
+    const isVisibleOverlayFocused = overlayInteractionActive || isVisibleOverlayWindowFocused;
     const windowTracker = args.windowTracker;
     const canReportMacOSTargetMinimized =
       args.isMacOSPlatform && typeof windowTracker?.isTargetWindowMinimized === 'function';
@@ -181,12 +187,23 @@ export function updateVisibleOverlayVisibility(args: {
       !isTrackedWindowsTargetMinimized &&
       (args.windowTracker.isTracking() || args.windowTracker.getGeometry() !== null);
     const shouldForcePassiveReshow = args.isWindowsPlatform && !wasVisible;
-    const isNonNativePassiveOverlay =
-      !args.isWindowsPlatform && !args.isMacOSPlatform && !overlayInteractionActive;
+    const isNonNativeOverlay = !args.isWindowsPlatform && !args.isMacOSPlatform;
+    const isNonNativePassiveOverlay = isNonNativeOverlay && !overlayInteractionActive;
+    const hasNonNativeInputRegion =
+      isNonNativePassiveOverlay && args.nonNativeInputRegionActive === true;
+    const isTrackedNonNativeTargetFocused =
+      !args.isWindowsPlatform && !args.isMacOSPlatform && !!args.windowTracker
+        ? (args.windowTracker.isTargetWindowFocused?.() ?? true)
+        : true;
+    const shouldReleaseNonNativeOverlayLevel =
+      isNonNativeOverlay &&
+      !!args.windowTracker &&
+      !isVisibleOverlayFocused &&
+      !isTrackedNonNativeTargetFocused;
     const shouldIgnoreMouseEvents =
       shouldUseMacOSMousePassthrough ||
       forceMousePassthrough ||
-      isNonNativePassiveOverlay ||
+      (isNonNativePassiveOverlay && !hasNonNativeInputRegion) ||
       (shouldDefaultToPassthrough && (!isVisibleOverlayFocused || shouldForcePassiveReshow));
     const shouldBindTrackedWindowsOverlay = args.isWindowsPlatform && !!args.windowTracker;
     const shouldKeepTrackedWindowsOverlayTopmost =
@@ -214,6 +231,11 @@ export function updateVisibleOverlayVisibility(args: {
       // On Windows, z-order is enforced by the OS via the owner window mechanism
       // (SetWindowLongPtr GWLP_HWNDPARENT). The overlay is always above mpv
       // without any manual z-order management.
+    } else if (shouldReleaseNonNativeOverlayLevel) {
+      releaseOverlayWindowLevel(mainWindow);
+      if (args.hideNonNativeOverlayWhenTargetUnfocused && wasVisible) {
+        mainWindow.hide();
+      }
     } else if (!forceMousePassthrough || args.isMacOSPlatform) {
       args.ensureOverlayWindowLevel(mainWindow);
     } else {
@@ -223,7 +245,6 @@ export function updateVisibleOverlayVisibility(args: {
       const hasWebContents =
         typeof (mainWindow as unknown as { webContents?: unknown }).webContents === 'object';
       if (
-        args.isWindowsPlatform &&
         hasWebContents &&
         !isOverlayWindowContentReady(mainWindow as unknown as import('electron').BrowserWindow)
       ) {
@@ -238,7 +259,11 @@ export function updateVisibleOverlayVisibility(args: {
           setOverlayWindowOpacity(mainWindow, 0);
         }
         mainWindow.showInactive();
-        mainWindow.setIgnoreMouseEvents(true, { forward: true });
+        if (hasNonNativeInputRegion) {
+          mainWindow.setIgnoreMouseEvents(false);
+        } else {
+          mainWindow.setIgnoreMouseEvents(true, { forward: true });
+        }
         if (args.isWindowsPlatform) {
           scheduleWindowsOverlayReveal(
             mainWindow,
@@ -277,16 +302,7 @@ export function updateVisibleOverlayVisibility(args: {
       mainWindow.focus();
     }
 
-    if (
-      !args.isWindowsPlatform &&
-      !args.isMacOSPlatform &&
-      !forceMousePassthrough &&
-      overlayInteractionActive
-    ) {
-      mainWindow.focus();
-    }
-
-    return !shouldReleaseMacOSOverlayLevel;
+    return !shouldReleaseNonNativeOverlayLevel;
   };
 
   const shouldEnforceVisibleOverlayLayerOrder = (shouldEnforceLayerOrder: boolean): boolean =>
@@ -385,9 +401,9 @@ export function updateVisibleOverlayVisibility(args: {
       return;
     }
     args.setTrackerNotReadyWarningShown(false);
-    args.syncPrimaryOverlayWindowLayer('visible');
-    showPassiveVisibleOverlay();
-    args.enforceOverlayLayerOrder();
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    releaseOverlayWindowLevel(mainWindow);
+    mainWindow.hide();
     args.syncOverlayShortcuts();
     return;
   }

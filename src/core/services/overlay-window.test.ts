@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ensureOverlayWindowLevel } from './overlay-window';
 import {
   handleOverlayWindowBeforeInputEvent,
   handleOverlayWindowBlurred,
@@ -166,6 +167,49 @@ test('handleOverlayWindowBlurred skips macOS visible overlay restacking after fo
   assert.deepEqual(calls, []);
 });
 
+test('handleOverlayWindowBlurred skips Linux visible overlay restacking after focus loss', () => {
+  const calls: string[] = [];
+
+  const handled = handleOverlayWindowBlurred({
+    kind: 'visible',
+    windowVisible: true,
+    isOverlayVisible: () => true,
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    moveWindowTop: () => {
+      calls.push('move-top');
+    },
+    platform: 'linux',
+  });
+
+  assert.equal(handled, false);
+  assert.deepEqual(calls, []);
+});
+
+test('handleOverlayWindowBlurred notifies Linux visible overlay blur callback without restacking', () => {
+  const calls: string[] = [];
+
+  const handled = handleOverlayWindowBlurred({
+    kind: 'visible',
+    windowVisible: true,
+    isOverlayVisible: () => true,
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    moveWindowTop: () => {
+      calls.push('move-top');
+    },
+    onVisibleOverlayBlur: () => {
+      calls.push('visible-blur');
+    },
+    platform: 'linux',
+  });
+
+  assert.equal(handled, false);
+  assert.deepEqual(calls, ['visible-blur']);
+});
+
 test('handleOverlayWindowBlurred notifies macOS visible overlay blur callback without restacking', () => {
   const calls: string[] = [];
 
@@ -189,24 +233,8 @@ test('handleOverlayWindowBlurred notifies macOS visible overlay blur callback wi
   assert.deepEqual(calls, ['visible-blur']);
 });
 
-test('handleOverlayWindowBlurred preserves active visible/modal window stacking', () => {
+test('handleOverlayWindowBlurred preserves modal window stacking', () => {
   const calls: string[] = [];
-
-  assert.equal(
-    handleOverlayWindowBlurred({
-      kind: 'visible',
-      windowVisible: true,
-      isOverlayVisible: () => true,
-      ensureOverlayWindowLevel: () => {
-        calls.push('ensure-visible');
-      },
-      moveWindowTop: () => {
-        calls.push('move-visible');
-      },
-      platform: 'linux',
-    }),
-    true,
-  );
 
   assert.equal(
     handleOverlayWindowBlurred({
@@ -223,5 +251,40 @@ test('handleOverlayWindowBlurred preserves active visible/modal window stacking'
     true,
   );
 
-  assert.deepEqual(calls, ['ensure-visible', 'move-visible', 'ensure-modal']);
+  assert.deepEqual(calls, ['ensure-modal']);
+});
+
+test('ensureOverlayWindowLevel promotes Linux overlay above fullscreen mpv without changing workspaces', () => {
+  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', {
+    configurable: true,
+    value: 'linux',
+  });
+
+  const calls: string[] = [];
+
+  try {
+    ensureOverlayWindowLevel({
+      getTitle: () => 'SubMiner Overlay',
+      moveTop: () => calls.push('move-top'),
+      setAlwaysOnTop: (flag: boolean, level?: string, relativeLevel?: number) => {
+        calls.push(`always-on-top:${flag}:${level ?? 'none'}:${relativeLevel ?? 0}`);
+      },
+      setVisibleOnAllWorkspaces: (flag: boolean, options?: { visibleOnFullScreen?: boolean }) => {
+        calls.push(
+          `all-workspaces:${flag}:${options?.visibleOnFullScreen === true ? 'fullscreen' : 'plain'}`,
+        );
+      },
+    } as never);
+  } finally {
+    if (originalPlatformDescriptor) {
+      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+    }
+  }
+
+  assert.deepEqual(calls, [
+    'always-on-top:true:screen-saver:1',
+    'all-workspaces:true:fullscreen',
+    'move-top',
+  ]);
 });

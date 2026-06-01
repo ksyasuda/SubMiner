@@ -653,9 +653,32 @@ function renderPlainTextPreserveLineBreaks(root: ParentNode, text: string): void
 }
 
 export function createSubtitleRenderer(ctx: RendererContext) {
-  function renderSubtitle(data: SubtitleData | string): void {
-    ctx.dom.subtitleRoot.replaceChildren();
+  let lastPrimarySubtitleRenderKey: string | null = null;
+  let lastPrimarySubtitleNormalizedText: string | null = null;
+  let lastPrimarySubtitleRenderedTokenized = false;
 
+  function getPrimarySubtitleRenderKey(
+    text: string,
+    normalized: string,
+    tokens: MergedToken[] | null,
+  ): string {
+    if (!shouldRenderTokenizedSubtitle(tokens?.length ?? 0) || !tokens) {
+      return JSON.stringify({
+        mode: 'plain',
+        text: normalized,
+      });
+    }
+
+    return JSON.stringify({
+      mode: 'tokens',
+      text,
+      tokens,
+      settings: getTokenRenderSettings(),
+      preserveSubtitleLineBreaks: ctx.state.preserveSubtitleLineBreaks,
+    });
+  }
+
+  function renderSubtitle(data: SubtitleData | string): void {
     let text: string;
     let tokens: MergedToken[] | null;
 
@@ -669,9 +692,30 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       return;
     }
 
+    const normalized = normalizeSubtitle(text, true, !ctx.state.preserveSubtitleLineBreaks);
+    const hasRenderableTokens =
+      shouldRenderTokenizedSubtitle(tokens?.length ?? 0) && Boolean(tokens);
+    if (
+      lastPrimarySubtitleRenderKey !== null &&
+      !hasRenderableTokens &&
+      lastPrimarySubtitleRenderedTokenized &&
+      normalized === lastPrimarySubtitleNormalizedText
+    ) {
+      return;
+    }
+
+    const renderKey = getPrimarySubtitleRenderKey(text, normalized, tokens);
+    if (renderKey === lastPrimarySubtitleRenderKey) {
+      return;
+    }
+    lastPrimarySubtitleRenderKey = renderKey;
+    lastPrimarySubtitleNormalizedText = normalized;
+    lastPrimarySubtitleRenderedTokenized = hasRenderableTokens;
+
+    ctx.dom.subtitleRoot.replaceChildren();
+
     if (!text) return;
 
-    const normalized = normalizeSubtitle(text, true, !ctx.state.preserveSubtitleLineBreaks);
     if (shouldRenderTokenizedSubtitle(tokens?.length ?? 0) && tokens) {
       renderWithTokens(
         ctx.dom.subtitleRoot,
@@ -753,6 +797,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
 
   function applySubtitleStyle(style: SubtitleRendererStyleConfig | null): void {
     if (!style) return;
+    lastPrimarySubtitleRenderKey = null;
 
     const styleDeclarations = style as Record<string, unknown>;
     applyInlineStyleDeclarations(ctx.dom.subtitleRoot, styleDeclarations, CONTAINER_STYLE_KEYS);

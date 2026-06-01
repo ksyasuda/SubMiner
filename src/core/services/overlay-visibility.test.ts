@@ -62,6 +62,9 @@ function createMainWindowRecorder(options: { emitShowImmediately?: boolean } = {
     setAlwaysOnTop: (flag: boolean) => {
       calls.push(`always-on-top:${flag}`);
     },
+    setFullScreen: (fullscreen: boolean) => {
+      calls.push(`fullscreen:${fullscreen}`);
+    },
     setVisibleOnAllWorkspaces: (flag: boolean, options?: { visibleOnFullScreen?: boolean }) => {
       calls.push(
         `all-workspaces:${flag}:${options?.visibleOnFullScreen === true ? 'fullscreen' : 'plain'}`,
@@ -259,6 +262,50 @@ test('non-native passive overlay stays click-through after subsequent visibility
   assert.ok(calls.includes('mouse-ignore:true:forward'));
 });
 
+test('non-native shaped input region stays mouse-enabled without focusing the overlay', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+    isTargetWindowFocused: () => true,
+  };
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: false,
+    isWindowsPlatform: false,
+    overlayInteractionActive: false,
+    nonNativeInputRegionActive: true,
+    showOverlayLoadingOsd: () => {},
+    resolveFallbackBounds: () => ({ x: 12, y: 24, width: 640, height: 360 }),
+  } as never);
+
+  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('show-inactive'));
+  assert.ok(!calls.includes('show'));
+  assert.ok(!calls.includes('focus'));
+  assert.equal(calls.includes('mouse-ignore:true:forward'), false);
+});
+
 test('suspended visible overlay hides without refreshing bounds or z-order', () => {
   const { window, calls } = createMainWindowRecorder();
   const tracker: WindowTrackerStub = {
@@ -306,7 +353,7 @@ test('suspended visible overlay hides without refreshing bounds or z-order', () 
   assert.ok(!calls.includes('focus'));
 });
 
-test('untracked non-macOS overlay shows passively when no tracker exists', () => {
+test('untracked Linux overlay stays hidden when no tracker exists', () => {
   const { window, calls } = createMainWindowRecorder();
   let trackerWarning = false;
 
@@ -341,7 +388,8 @@ test('untracked non-macOS overlay shows passively when no tracker exists', () =>
   } as never);
 
   assert.equal(trackerWarning, false);
-  assert.ok(calls.includes('show-inactive'));
+  assert.ok(calls.includes('hide'));
+  assert.ok(!calls.includes('show-inactive'));
   assert.ok(!calls.includes('show'));
   assert.ok(!calls.includes('focus'));
   assert.ok(!calls.includes('osd'));
@@ -382,6 +430,184 @@ test('passive Linux visible overlay does not take keyboard focus', () => {
   assert.ok(calls.includes('show-inactive'));
   assert.ok(!calls.includes('show'));
   assert.ok(!calls.includes('focus'));
+});
+
+test('passive Linux tracked overlay releases global topmost when mpv loses focus', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+    isTargetWindowFocused: () => false,
+  };
+
+  window.show();
+  calls.length = 0;
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: false,
+    isWindowsPlatform: false,
+  } as never);
+
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('always-on-top:false'));
+  assert.ok(calls.includes('fullscreen:false'));
+  assert.ok(calls.includes('all-workspaces:false:plain'));
+  assert.ok(!calls.includes('hide'));
+  assert.ok(!calls.includes('ensure-level'));
+  assert.ok(!calls.includes('enforce-order'));
+});
+
+test('passive Linux fullscreen override overlay hides when mpv loses focus', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+    isTargetWindowFocused: () => false,
+  };
+
+  window.show();
+  calls.length = 0;
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    hideNonNativeOverlayWhenTargetUnfocused: true,
+    isMacOSPlatform: false,
+    isWindowsPlatform: false,
+  } as never);
+
+  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('always-on-top:false'));
+  assert.ok(calls.includes('hide'));
+  assert.ok(!calls.includes('ensure-level'));
+  assert.ok(!calls.includes('enforce-order'));
+});
+
+test('Linux active overlay interaction does not focus the overlay over fullscreen mpv', () => {
+  const { window, calls, setFocused } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+    isTargetWindowFocused: () => true,
+  };
+
+  window.show();
+  setFocused(false);
+  calls.length = 0;
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: false,
+    isWindowsPlatform: false,
+    overlayInteractionActive: true,
+  } as never);
+
+  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('ensure-level'));
+  assert.ok(calls.includes('enforce-order'));
+  assert.ok(!calls.includes('focus'));
+});
+
+test('Linux active hover keeps global topmost when mpv loses focus and overlay is not focused', () => {
+  const { window, calls, setFocused } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+    isTargetWindowFocused: () => false,
+  };
+
+  window.show();
+  setFocused(false);
+  calls.length = 0;
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: false,
+    isWindowsPlatform: false,
+    overlayInteractionActive: true,
+  } as never);
+
+  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(!calls.includes('always-on-top:false'));
+  assert.ok(!calls.includes('all-workspaces:false:plain'));
+  assert.ok(calls.includes('ensure-level'));
+  assert.ok(calls.includes('enforce-order'));
 });
 
 test('tracked non-macOS overlay reapplies bounds after first show', () => {
@@ -591,6 +817,51 @@ test('Windows visible overlay waits for content-ready before first reveal', () =
       },
       isMacOSPlatform: false,
       isWindowsPlatform: true,
+    } as never);
+
+  run();
+
+  assert.ok(!calls.includes('show-inactive'));
+  assert.ok(!calls.includes('show'));
+
+  setContentReady(true);
+  run();
+
+  assert.ok(calls.includes('show-inactive'));
+});
+
+test('Linux visible overlay waits for content-ready before first reveal', () => {
+  const { window, calls, setContentReady } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+  };
+  setContentReady(false);
+
+  const run = () =>
+    updateVisibleOverlayVisibility({
+      visibleOverlayVisible: true,
+      mainWindow: window as never,
+      windowTracker: tracker as never,
+      trackerNotReadyWarningShown: false,
+      setTrackerNotReadyWarningShown: () => {},
+      updateVisibleOverlayBounds: () => {
+        calls.push('update-bounds');
+      },
+      ensureOverlayWindowLevel: () => {
+        calls.push('ensure-level');
+      },
+      syncPrimaryOverlayWindowLayer: () => {
+        calls.push('sync-layer');
+      },
+      enforceOverlayLayerOrder: () => {
+        calls.push('enforce-order');
+      },
+      syncOverlayShortcuts: () => {
+        calls.push('sync-shortcuts');
+      },
+      isMacOSPlatform: false,
+      isWindowsPlatform: false,
     } as never);
 
   run();

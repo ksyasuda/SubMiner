@@ -10,6 +10,7 @@ import { getAppControlSocketPath } from '../src/shared/app-control';
 import { withProcessExitIntercept } from './test-support/exit-intercept.js';
 import {
   buildConfiguredMpvDefaultArgs,
+  buildRuntimeExtraScriptOptParts,
   buildMpvBackendArgs,
   buildMpvEnv,
   cleanupPlaybackSession,
@@ -22,6 +23,7 @@ import {
   runAppCommandCaptureOutput,
   resolveLauncherRuntimePluginPath,
   resolveLauncherRuntimePluginPlan,
+  shouldResolveAniSkipMetadataForLaunch,
   shouldResolveAniSkipMetadata,
   stopOverlay,
   startOverlay,
@@ -372,6 +374,43 @@ test('resolveLauncherRuntimePluginPlan reports missing bundled plugin when no in
   assert.equal(plan.scriptPath, null);
   assert.equal(plan.installedPlugin.installed, false);
   assert.match(plan.errorMessage ?? '', /Packaged mpv plugin assets were not found/);
+});
+
+test('buildRuntimeExtraScriptOptParts marks launcher-owned startup pause gate', () => {
+  assert.deepEqual(
+    buildRuntimeExtraScriptOptParts('/tmp/video.mkv', 'file', {
+      startPaused: true,
+      runtimePluginConfig: {
+        socketPath: '/tmp/subminer.sock',
+        binaryPath: '',
+        backend: 'auto',
+        autoStart: true,
+        autoStartVisibleOverlay: true,
+        autoStartPauseUntilReady: true,
+        texthookerEnabled: false,
+        aniskipEnabled: true,
+        aniskipButtonKey: 'TAB',
+      },
+    }),
+    ['subminer-auto_start_pause_until_ready_owns_initial_pause=yes'],
+  );
+});
+
+test('shouldResolveAniSkipMetadataForLaunch respects disabled runtime plugin AniSkip', () => {
+  assert.equal(
+    shouldResolveAniSkipMetadataForLaunch('/tmp/video.mkv', 'file', undefined, {
+      socketPath: '/tmp/subminer.sock',
+      binaryPath: '',
+      backend: 'auto',
+      autoStart: true,
+      autoStartVisibleOverlay: true,
+      autoStartPauseUntilReady: true,
+      texthookerEnabled: false,
+      aniskipEnabled: false,
+      aniskipButtonKey: 'TAB',
+    }),
+    false,
+  );
 });
 
 test('launchTexthookerOnly exits non-zero when app binary cannot be spawned', () => {

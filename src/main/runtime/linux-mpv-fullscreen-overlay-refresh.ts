@@ -2,6 +2,7 @@ type LinuxMpvFullscreenOverlayWindow = {
   hide: () => void;
   isDestroyed: () => boolean;
   isVisible: () => boolean;
+  setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   showInactive: () => void;
 };
 
@@ -13,6 +14,8 @@ export type LinuxMpvFullscreenOverlayRefreshDeps = {
   overlayVisibilityRuntime: {
     updateVisibleOverlayVisibility: () => void;
   };
+  syncVisibleOverlayMpvFullscreenMode?: (fullscreen: boolean) => void;
+  getOverlayInteractionActive?: () => boolean;
   ensureOverlayWindowLevel: (window: LinuxMpvFullscreenOverlayWindow) => void;
 };
 export type CancelLinuxMpvFullscreenOverlayRefreshBurst = () => void;
@@ -28,13 +31,21 @@ function clearLinuxMpvFullscreenOverlayRefreshTimeouts(): void {
 }
 
 function refreshLinuxVisibleOverlayAfterMpvFullscreenChange(
+  fullscreen: boolean,
   deps: LinuxMpvFullscreenOverlayRefreshDeps,
 ): void {
-  if (process.platform !== 'linux' || !deps.overlayManager.getVisibleOverlayVisible()) {
+  if (process.platform !== 'linux') {
     return;
   }
 
+  deps.syncVisibleOverlayMpvFullscreenMode?.(fullscreen);
+  if (!deps.overlayManager.getVisibleOverlayVisible()) {
+    return;
+  }
   deps.overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+  if (!fullscreen) {
+    return;
+  }
 
   const mainWindow = deps.overlayManager.getMainWindow();
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) {
@@ -43,10 +54,16 @@ function refreshLinuxVisibleOverlayAfterMpvFullscreenChange(
 
   mainWindow.hide();
   mainWindow.showInactive();
+  if (deps.getOverlayInteractionActive?.() === true) {
+    mainWindow.setIgnoreMouseEvents(false);
+  } else {
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+  }
   deps.ensureOverlayWindowLevel(mainWindow);
 }
 
 export function scheduleLinuxVisibleOverlayFullscreenRefreshBurst(
+  isFullscreen: boolean,
   deps: LinuxMpvFullscreenOverlayRefreshDeps,
 ): CancelLinuxMpvFullscreenOverlayRefreshBurst {
   if (process.platform !== 'linux') {
@@ -59,7 +76,7 @@ export function scheduleLinuxVisibleOverlayFullscreenRefreshBurst(
       linuxMpvFullscreenOverlayRefreshTimeouts = linuxMpvFullscreenOverlayRefreshTimeouts.filter(
         (timeout) => timeout !== refreshTimeout,
       );
-      refreshLinuxVisibleOverlayAfterMpvFullscreenChange(deps);
+      refreshLinuxVisibleOverlayAfterMpvFullscreenChange(isFullscreen, deps);
     }, delayMs);
     refreshTimeout.unref?.();
     linuxMpvFullscreenOverlayRefreshTimeouts.push(refreshTimeout);
@@ -68,13 +85,13 @@ export function scheduleLinuxVisibleOverlayFullscreenRefreshBurst(
 }
 
 export function updateLinuxMpvFullscreenOverlayRefreshBurst(
-  _isFullscreen: boolean,
+  isFullscreen: boolean,
   deps: LinuxMpvFullscreenOverlayRefreshDeps,
   cancelCurrentBurst: CancelLinuxMpvFullscreenOverlayRefreshBurst | null,
 ): CancelLinuxMpvFullscreenOverlayRefreshBurst | null {
   cancelCurrentBurst?.();
 
-  return scheduleLinuxVisibleOverlayFullscreenRefreshBurst(deps);
+  return scheduleLinuxVisibleOverlayFullscreenRefreshBurst(isFullscreen, deps);
 }
 
 export { clearLinuxMpvFullscreenOverlayRefreshTimeouts };

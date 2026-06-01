@@ -6,6 +6,12 @@ import { spawn, spawnSync } from 'node:child_process';
 import { buildMpvLaunchModeArgs } from '../src/shared/mpv-launch-mode.js';
 import { buildMpvLoggingArgs } from '../src/shared/mpv-logging-args.js';
 import {
+  MPV_X11_BACKEND_ARGS,
+  applyX11EnvOverrides,
+  getLinuxDesktopEnv,
+  shouldForceX11MpvBackend as shouldForceX11MpvBackendForBackend,
+} from '../src/shared/mpv-x11-backend.js';
+import {
   isAppControlServerAvailable as checkAppControlServerAvailable,
   sendAppControlCommand,
 } from '../src/shared/app-control-client.js';
@@ -458,39 +464,8 @@ export function detectBackend(
   fail('Could not detect display backend');
 }
 
-type LinuxDesktopEnv = {
-  xdgCurrentDesktop: string;
-  xdgSessionDesktop: string;
-  hasWayland: boolean;
-};
-
-function getLinuxDesktopEnv(env: NodeJS.ProcessEnv): LinuxDesktopEnv {
-  const xdgCurrentDesktop = (env.XDG_CURRENT_DESKTOP || '').toLowerCase();
-  const xdgSessionDesktop = (env.XDG_SESSION_DESKTOP || '').toLowerCase();
-  const xdgSessionType = (env.XDG_SESSION_TYPE || '').toLowerCase();
-  return {
-    xdgCurrentDesktop,
-    xdgSessionDesktop,
-    hasWayland: Boolean(env.WAYLAND_DISPLAY) || xdgSessionType === 'wayland',
-  };
-}
-
 function shouldForceX11MpvBackend(args: Pick<Args, 'backend'>, env: NodeJS.ProcessEnv): boolean {
-  if (process.platform !== 'linux' || !env.DISPLAY?.trim()) {
-    return false;
-  }
-
-  const linuxDesktopEnv = getLinuxDesktopEnv(env);
-  const supportedWaylandBackend =
-    Boolean(env.HYPRLAND_INSTANCE_SIGNATURE || env.SWAYSOCK) ||
-    linuxDesktopEnv.xdgCurrentDesktop.includes('hyprland') ||
-    linuxDesktopEnv.xdgCurrentDesktop.includes('sway') ||
-    linuxDesktopEnv.xdgSessionDesktop.includes('hyprland') ||
-    linuxDesktopEnv.xdgSessionDesktop.includes('sway');
-  return (
-    args.backend === 'x11' ||
-    (args.backend === 'auto' && linuxDesktopEnv.hasWayland && !supportedWaylandBackend)
-  );
+  return shouldForceX11MpvBackendForBackend(args.backend, env);
 }
 
 function resolveAppBinaryCandidate(candidate: string, pathModule: PathModule = path): string {
@@ -862,6 +837,50 @@ export function shouldResolveAniSkipMetadata(
   return !isYoutubeTarget(target);
 }
 
+type StartMpvOptions = {
+  startPaused?: boolean;
+  disableYoutubeSubtitleAutoLoad?: boolean;
+  runtimePluginPath?: string | null;
+  runtimePluginConfig?: PluginRuntimeConfig;
+};
+
+export function shouldResolveAniSkipMetadataForLaunch(
+  target: string,
+  targetKind: 'file' | 'url',
+  preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
+  runtimePluginConfig?: PluginRuntimeConfig,
+): boolean {
+  if (runtimePluginConfig?.aniskipEnabled === false) {
+    return false;
+  }
+  return shouldResolveAniSkipMetadata(target, targetKind, preloadedSubtitles);
+}
+
+export function buildRuntimeExtraScriptOptParts(
+  target: string,
+  targetKind: 'file' | 'url',
+  options?: Pick<
+    StartMpvOptions,
+    'startPaused' | 'disableYoutubeSubtitleAutoLoad' | 'runtimePluginConfig'
+  >,
+): string[] {
+  const launcherOwnsAutoplayReadyInitialPause =
+    options?.startPaused === true &&
+    options.runtimePluginConfig?.autoStart === true &&
+    options.runtimePluginConfig.autoStartVisibleOverlay === true &&
+    options.runtimePluginConfig.autoStartPauseUntilReady === true;
+  return [
+    ...(launcherOwnsAutoplayReadyInitialPause
+      ? ['subminer-auto_start_pause_until_ready_owns_initial_pause=yes']
+      : []),
+    ...(targetKind === 'url' &&
+    isYoutubeTarget(target) &&
+    options?.disableYoutubeSubtitleAutoLoad === true
+      ? ['subminer-auto_start_pause_until_ready=no']
+      : []),
+  ];
+}
+
 export async function startMpv(
   target: string,
   targetKind: 'file' | 'url',
@@ -869,12 +888,7 @@ export async function startMpv(
   socketPath: string,
   appPath: string,
   preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
-  options?: {
-    startPaused?: boolean;
-    disableYoutubeSubtitleAutoLoad?: boolean;
-    runtimePluginPath?: string | null;
-    runtimePluginConfig?: PluginRuntimeConfig;
-  },
+  options?: StartMpvOptions,
 ): Promise<void> {
   if (targetKind === 'file' && (!fs.existsSync(target) || !fs.statSync(target).isFile())) {
     fail(`Video file not found: ${target}`);
@@ -932,15 +946,15 @@ export async function startMpv(
   if (options?.startPaused) {
     mpvArgs.push('--pause=yes');
   }
-  const aniSkipMetadata = shouldResolveAniSkipMetadata(target, targetKind, preloadedSubtitles)
+  const aniSkipMetadata = shouldResolveAniSkipMetadataForLaunch(
+    target,
+    targetKind,
+    preloadedSubtitles,
+    options?.runtimePluginConfig,
+  )
     ? await resolveAniSkipMetadataForFile(target)
     : null;
-  const extraScriptOpts =
-    targetKind === 'url' &&
-    isYoutubeTarget(target) &&
-    options?.disableYoutubeSubtitleAutoLoad === true
-      ? ['subminer-auto_start_pause_until_ready=no']
-      : [];
+  const extraScriptOpts = buildRuntimeExtraScriptOptParts(target, targetKind, options);
   const runtimeScriptOpts = options?.runtimePluginConfig
     ? buildPluginRuntimeScriptOptParts(options.runtimePluginConfig, appPath)
     : [`subminer-binary_path=${appPath}`, `subminer-socket_path=${socketPath}`];
@@ -1344,11 +1358,7 @@ export function buildMpvEnv(
     return env;
   }
 
-  delete env.WAYLAND_DISPLAY;
-  delete env.HYPRLAND_INSTANCE_SIGNATURE;
-  delete env.SWAYSOCK;
-  env.XDG_SESSION_TYPE = 'x11';
-  return env;
+  return applyX11EnvOverrides(env);
 }
 
 export function buildMpvBackendArgs(
@@ -1358,7 +1368,7 @@ export function buildMpvBackendArgs(
   if (!shouldForceX11MpvBackend(args, baseEnv)) {
     return [];
   }
-  return ['--vo=gpu', '--gpu-api=opengl', '--gpu-context=x11egl,x11'];
+  return [...MPV_X11_BACKEND_ARGS];
 }
 
 export function buildConfiguredMpvDefaultArgs(
