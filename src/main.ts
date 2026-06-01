@@ -65,6 +65,8 @@ import {
   tickLinuxOverlayPointerInteraction,
 } from './main/runtime/linux-overlay-pointer-interaction';
 import { createLinuxX11CursorPointReader } from './main/runtime/linux-x11-cursor-point';
+import { focusMacOSOverlayWindow } from './main/runtime/macos-overlay-window-focus';
+import { restoreMacOSMpvFocusAfterModalClose } from './main/runtime/macos-modal-focus-handoff';
 import { resolveFreshPlaybackPaused } from './main/runtime/playback-paused-state';
 import { mergeAiConfig } from './ai/config';
 
@@ -946,6 +948,25 @@ const bootServices = createMainBootServices({
     return createOverlayModalRuntimeService(buildHandler(), {
       onModalStateChange: (isActive: boolean) =>
         overlayModalInputState.handleModalInputStateChange(isActive),
+      // On macOS, after the last modal closes the post-close visibility sync hides the overlay
+      // when neither it nor mpv is focused, and keyboard focus is left in limbo (mpv keys like
+      // shift-to-unpause stop working). Programmatically focusing mpv from our background helper
+      // is refused by macOS (most visibly in native fullscreen), so instead resign SubMiner's
+      // active status — exactly what a manual click does — handing focus back to the previously
+      // active app (mpv). The overlay is already hidden at this point, so app.hide() hides nothing
+      // visible; once mpv is focused the tracker re-shows the overlay above it.
+      onFinalModalClosed: () => {
+        void restoreMacOSMpvFocusAfterModalClose({
+          platform: process.platform,
+          focusMpv: async () => {
+            app.hide();
+          },
+          getWindowTracker: () => appState.windowTracker,
+          updateVisibleOverlayVisibility: () =>
+            overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+          warn: (message, details) => logger.warn(message, details),
+        });
+      },
     });
   },
   createAppState,
@@ -1259,6 +1280,16 @@ const autoplayReadyGate = createAutoplayReadyGate({
     if (process.platform !== 'darwin' || !overlayManager.getVisibleOverlayVisible()) {
       return;
     }
+    // Renderer-side recovery alone cannot wake subtitle hover on macOS: the overlay only
+    // receives mouse-moved events while it is the key window of the frontmost app, and mpv
+    // is frontmost once playback starts. Activate the overlay window first so the broadcast's
+    // setIgnoreMouseEvents toggling actually takes effect, mirroring a manual subtitle click.
+    focusMacOSOverlayWindow({
+      platform: process.platform,
+      getOverlayWindow: () => overlayManager.getMainWindow(),
+      stealAppFocus: () => app.focus({ steal: true }),
+      warn: (message, details) => logger.warn(message, details),
+    });
     broadcastToOverlayWindows(IPC_CHANNELS.event.overlayPointerRecoveryRequest);
   },
   isSignalTargetReady: (signal) =>
