@@ -68,6 +68,7 @@ export function updateVisibleOverlayVisibility(args: {
   visibleOverlayVisible: boolean;
   modalActive?: boolean;
   forceMousePassthrough?: boolean;
+  nonNativeInputRegionActive?: boolean;
   suspendVisibleOverlay?: boolean;
   overlayInteractionActive?: boolean;
   mainWindow: BrowserWindow | null;
@@ -188,6 +189,8 @@ export function updateVisibleOverlayVisibility(args: {
     const shouldForcePassiveReshow = args.isWindowsPlatform && !wasVisible;
     const isNonNativeOverlay = !args.isWindowsPlatform && !args.isMacOSPlatform;
     const isNonNativePassiveOverlay = isNonNativeOverlay && !overlayInteractionActive;
+    const hasNonNativeInputRegion =
+      isNonNativePassiveOverlay && args.nonNativeInputRegionActive === true;
     const isTrackedNonNativeTargetFocused =
       !args.isWindowsPlatform && !args.isMacOSPlatform && !!args.windowTracker
         ? (args.windowTracker.isTargetWindowFocused?.() ?? true)
@@ -200,7 +203,7 @@ export function updateVisibleOverlayVisibility(args: {
     const shouldIgnoreMouseEvents =
       shouldUseMacOSMousePassthrough ||
       forceMousePassthrough ||
-      isNonNativePassiveOverlay ||
+      (isNonNativePassiveOverlay && !hasNonNativeInputRegion) ||
       (shouldDefaultToPassthrough && (!isVisibleOverlayFocused || shouldForcePassiveReshow));
     const shouldBindTrackedWindowsOverlay = args.isWindowsPlatform && !!args.windowTracker;
     const shouldKeepTrackedWindowsOverlayTopmost =
@@ -256,7 +259,11 @@ export function updateVisibleOverlayVisibility(args: {
           setOverlayWindowOpacity(mainWindow, 0);
         }
         mainWindow.showInactive();
-        mainWindow.setIgnoreMouseEvents(true, { forward: true });
+        if (hasNonNativeInputRegion) {
+          mainWindow.setIgnoreMouseEvents(false);
+        } else {
+          mainWindow.setIgnoreMouseEvents(true, { forward: true });
+        }
         if (args.isWindowsPlatform) {
           scheduleWindowsOverlayReveal(
             mainWindow,

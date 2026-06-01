@@ -15,6 +15,24 @@ test('resolveFreshPlaybackPaused prefers the live mpv pause property over cached
   assert.equal(paused, true);
 });
 
+test('resolveFreshPlaybackPaused trusts cached paused state without probing mpv', async () => {
+  let requestCount = 0;
+
+  const paused = await resolveFreshPlaybackPaused({
+    getCachedPlaybackPaused: () => true,
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async () => {
+        requestCount += 1;
+        return false;
+      },
+    }),
+  });
+
+  assert.equal(paused, true);
+  assert.equal(requestCount, 0);
+});
+
 test('resolveFreshPlaybackPaused normalizes mpv pause property strings and numbers', async () => {
   const values: Array<[unknown, boolean]> = [
     ['yes', true],
@@ -45,6 +63,9 @@ test('resolveFreshPlaybackPaused falls back to cached state when mpv is unavaila
     }),
     true,
   );
+});
+
+test('resolveFreshPlaybackPaused treats cached playing state as unknown when live state is unavailable', async () => {
   assert.equal(
     await resolveFreshPlaybackPaused({
       getCachedPlaybackPaused: () => false,
@@ -55,6 +76,6 @@ test('resolveFreshPlaybackPaused falls back to cached state when mpv is unavaila
         },
       }),
     }),
-    false,
+    null,
   );
 });

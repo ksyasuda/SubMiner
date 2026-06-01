@@ -50,6 +50,25 @@ function M.create(ctx)
 		return options_helper.coerce_bool(raw_pause_until_ready, false)
 	end
 
+	local function resolve_pause_until_ready_owns_initial_pause()
+		local raw_owns_initial_pause = opts.auto_start_pause_until_ready_owns_initial_pause
+		if raw_owns_initial_pause == nil then
+			raw_owns_initial_pause = opts["auto-start-pause-until-ready-owns-initial-pause"]
+		end
+		return options_helper.coerce_bool(raw_owns_initial_pause, false)
+	end
+
+	local function consume_pause_until_ready_initial_pause_ownership()
+		if state.auto_play_ready_initial_pause_ownership_consumed then
+			return false
+		end
+		if not resolve_pause_until_ready_owns_initial_pause() then
+			return false
+		end
+		state.auto_play_ready_initial_pause_ownership_consumed = true
+		return true
+	end
+
 	local function resolve_texthooker_enabled(override_value)
 		if override_value ~= nil then
 			return options_helper.coerce_bool(override_value, false)
@@ -260,7 +279,8 @@ function M.create(ctx)
 			clear_auto_play_ready_osd_timer()
 		end
 		if not was_armed then
-			state.auto_play_ready_should_resume_playback = mp.get_property_native("pause") ~= true
+			state.auto_play_ready_should_resume_playback = consume_pause_until_ready_initial_pause_ownership()
+				or mp.get_property_native("pause") ~= true
 		end
 		state.auto_play_ready_gate_armed = true
 		mp.set_property_native("pause", true)
@@ -290,6 +310,7 @@ function M.create(ctx)
 	end
 
 	local function notify_auto_play_ready()
+		state.auto_play_ready_signal_seen = true
 		local released_ready_gate = release_auto_play_ready_gate("tokenization-ready")
 		local force_ready_overlay_restore = state.force_ready_overlay_restore == true
 		state.force_ready_overlay_restore = false
@@ -601,6 +622,7 @@ function M.create(ctx)
 					end
 
 					state.overlay_running = false
+					state.auto_play_ready_signal_seen = false
 					subminer_log("error", "process", "Overlay start failed after retries: " .. reason)
 					show_osd("Overlay start failed")
 					release_auto_play_ready_gate("overlay-start-failed")
@@ -653,6 +675,7 @@ function M.create(ctx)
 
 		state.overlay_running = false
 		state.texthooker_running = false
+		state.auto_play_ready_signal_seen = false
 		disarm_auto_play_ready_gate()
 		show_osd("Stopped")
 	end
@@ -773,6 +796,7 @@ function M.create(ctx)
 
 			state.overlay_running = false
 			state.texthooker_running = false
+			state.auto_play_ready_signal_seen = false
 			state.suppress_ready_overlay_restore = false
 			state.force_ready_overlay_restore = true
 			disarm_auto_play_ready_gate({ resume_playback = false })
@@ -795,6 +819,7 @@ function M.create(ctx)
 				}, function(success, result, error)
 					if not success or (result and result.status ~= 0) then
 						state.overlay_running = false
+						state.auto_play_ready_signal_seen = false
 						subminer_log(
 							"error",
 							"process",

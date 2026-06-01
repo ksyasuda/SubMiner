@@ -783,7 +783,8 @@ function setupDragDropToMpvQueue(): void {
 
     const droppedVideoPaths = collectDroppedVideoPaths(event.dataTransfer);
     const droppedSubtitlePaths = collectDroppedSubtitlePaths(event.dataTransfer);
-    const loadCommands = buildMpvLoadfileCommands(droppedVideoPaths, event.shiftKey);
+    const appendDroppedVideos = event.shiftKey;
+    const loadCommands = buildMpvLoadfileCommands(droppedVideoPaths, appendDroppedVideos);
     const subtitleCommands = buildMpvSubtitleAddCommands(droppedSubtitlePaths);
     for (const command of loadCommands) {
       window.electronAPI.sendMpvCommand(command);
@@ -793,7 +794,7 @@ function setupDragDropToMpvQueue(): void {
     }
     const osdParts: string[] = [];
     if (loadCommands.length > 0) {
-      const action = event.shiftKey ? 'Queued' : 'Loaded';
+      const action = appendDroppedVideos ? 'Queued' : 'Loaded';
       osdParts.push(`${action} ${loadCommands.length} file${loadCommands.length === 1 ? '' : 's'}`);
     }
     if (subtitleCommands.length > 0) {

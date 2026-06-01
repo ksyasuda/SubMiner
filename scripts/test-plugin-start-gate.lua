@@ -13,6 +13,7 @@ local function run_plugin_scenario(config)
 		property_sets = {},
 		periodic_timers = {},
 		timeouts = {},
+		timeout_handles = {},
 	}
 
 	local function make_mp_stub()
@@ -139,15 +140,17 @@ local function run_plugin_scenario(config)
 			recorded.timeouts[#recorded.timeouts + 1] = seconds
 			local timeout = {
 				killed = false,
+				callback = callback,
 			}
 			function timeout:kill()
 				self.killed = true
 			end
 
 			local delay = tonumber(seconds) or 0
-			if callback and delay < 5 then
+			if callback and delay < 5 and not config.defer_timeouts then
 				callback()
 			end
+			recorded.timeout_handles[#recorded.timeout_handles + 1] = timeout
 			return timeout
 		end
 
@@ -612,6 +615,15 @@ local function fire_event(recorded, name, ...)
 	end
 end
 
+local function fire_pending_timeouts(recorded)
+	for _, timeout in ipairs(recorded.timeout_handles or {}) do
+		if not timeout.killed and timeout.callback then
+			timeout.killed = true
+			timeout.callback()
+		end
+	end
+end
+
 local function fire_observer(recorded, name, value)
 	local listeners = recorded.observers[name] or {}
 	for _, listener in ipairs(listeners) do
@@ -647,10 +659,50 @@ do
 	assert_true(recorded ~= nil, "plugin failed to load for cold-start scenario: " .. tostring(err))
 	assert_true(recorded.script_messages["subminer-start"] ~= nil, "subminer-start script message not registered")
 	recorded.script_messages["subminer-start"]("texthooker=no")
-	assert_true(find_start_call(recorded.async_calls) ~= nil, "expected cold-start to invoke --start command when process is absent")
+	assert_true(
+		find_start_call(recorded.async_calls) ~= nil,
+		"expected cold-start to invoke --start command when process is absent"
+	)
 	assert_true(
 		not has_sync_command(recorded.sync_calls, "ps"),
 		"expected cold-start start command to avoid synchronous process list scan"
+	)
+end
+
+do
+	local scenario = {
+		process_list = "",
+		defer_timeouts = true,
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/episode-01.mkv",
+		media_title = "Episode 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for warm playlist visibility scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "/media/episode-02.mkv"
+	scenario.media_title = "Episode 2"
+	fire_event(recorded, "file-loaded")
+	fire_pending_timeouts(recorded)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--hide-visible-overlay") == 0,
+		"warm playlist advance should cancel the end-file hide before it hides the next video's overlay"
+	)
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"warm playlist visibility reuse should not issue another --start command"
 	)
 end
 
@@ -714,13 +766,13 @@ do
 		"new media after prior playback should reuse the running overlay"
 	)
 	assert_true(
-		count_property_set(recorded.property_sets, "pause", true) == 2,
-		"new media after prior playback should re-arm pause-until-ready"
+		count_property_set(recorded.property_sets, "pause", true) == 1,
+		"new media after prior ready playback should not re-arm pause-until-ready"
 	)
 	recorded.script_messages["subminer-autoplay-ready"]()
 	assert_true(
-		count_property_set(recorded.property_sets, "pause", false) == 2,
-		"new media after prior playback should resume only after readiness"
+		count_property_set(recorded.property_sets, "pause", false) == 1,
+		"new media after prior ready playback should not wait for another readiness signal"
 	)
 end
 
@@ -1797,6 +1849,61 @@ do
 	assert_true(
 		count_property_set(recorded.property_sets, "pause", false) == 0,
 		"pre-paused pause-until-ready should leave playback paused when ready"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			auto_start_pause_until_ready_owns_initial_pause = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		paused = true,
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for launcher-owned pause-until-ready scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(recorded.script_messages["subminer-autoplay-ready"] ~= nil, "subminer-autoplay-ready script message not registered")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		has_property_set(recorded.property_sets, "pause", false),
+		"launcher-owned initial pause should resume when autoplay-ready arrives"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			auto_start_pause_until_ready_owns_initial_pause = "yes",
+			auto_start_pause_until_ready_timeout_seconds = 0.1,
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		paused = true,
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for launcher-owned pause timeout scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		has_property_set(recorded.property_sets, "pause", false),
+		"launcher-owned initial pause should resume when autoplay-ready timeout fires"
 	)
 end
 

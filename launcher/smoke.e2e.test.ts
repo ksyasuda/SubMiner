@@ -559,6 +559,7 @@ test(
             socketPath: smokeCase.socketPath,
             autoStartSubMiner: true,
             pauseUntilOverlayReady: true,
+            aniskipEnabled: false,
           },
         }),
       );
@@ -582,6 +583,10 @@ test(
       assert.equal(result.status, unixSocketDenied ? 3 : 0);
       assert.equal(Array.isArray(mpvFirstArgs), true);
       assert.equal((mpvFirstArgs as string[]).includes('--pause=yes'), true);
+      assert.match(
+        (mpvFirstArgs as string[]).find((arg) => arg.startsWith('--script-opts=')) ?? '',
+        /subminer-auto_start_pause_until_ready_owns_initial_pause=yes/,
+      );
       assert.match(result.stdout, /pause mpv until overlay and tokenization are ready/i);
     });
   },

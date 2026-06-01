@@ -262,6 +262,50 @@ test('non-native passive overlay stays click-through after subsequent visibility
   assert.ok(calls.includes('mouse-ignore:true:forward'));
 });
 
+test('non-native shaped input region stays mouse-enabled without focusing the overlay', () => {
+  const { window, calls } = createMainWindowRecorder();
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+    isTargetWindowFocused: () => true,
+  };
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: tracker as never,
+    trackerNotReadyWarningShown: false,
+    setTrackerNotReadyWarningShown: () => {},
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: false,
+    isWindowsPlatform: false,
+    overlayInteractionActive: false,
+    nonNativeInputRegionActive: true,
+    showOverlayLoadingOsd: () => {},
+    resolveFallbackBounds: () => ({ x: 12, y: 24, width: 640, height: 360 }),
+  } as never);
+
+  assert.ok(calls.includes('mouse-ignore:false:plain'));
+  assert.ok(calls.includes('show-inactive'));
+  assert.ok(!calls.includes('show'));
+  assert.ok(!calls.includes('focus'));
+  assert.equal(calls.includes('mouse-ignore:true:forward'), false);
+});
+
 test('suspended visible overlay hides without refreshing bounds or z-order', () => {
   const { window, calls } = createMainWindowRecorder();
   const tracker: WindowTrackerStub = {

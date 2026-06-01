@@ -1,6 +1,6 @@
 /*
   SubMiner - All-in-one sentence mining overlay
-  Copyright (C) 2024 sudacode
+  Copyright (C) 2026 sudacode
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -56,9 +56,12 @@ import {
   tickLinuxOverlayZOrderKeepAlive,
 } from './main/runtime/linux-overlay-zorder-keepalive';
 import {
+  applyLinuxOverlayInputShape,
+  applyLinuxOverlayPointerInteractionMousePassthrough,
   ensureLinuxOverlayPointerInteractionLoop,
+  type ForegroundSuppressionGraceState,
   mapOverlayMeasurementForPointerInteraction,
-  shouldSuppressPointerInteractionForForegroundWindow,
+  resolveForegroundSuppressionWithGrace,
   tickLinuxOverlayPointerInteraction,
 } from './main/runtime/linux-overlay-pointer-interaction';
 import { createLinuxX11CursorPointReader } from './main/runtime/linux-x11-cursor-point';
@@ -2473,6 +2476,8 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getModalActive: () => overlayModalInputState.getModalInputExclusive(),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => appState.statsOverlayVisible,
+    getNonNativeInputRegionActive: () =>
+      process.platform === 'linux' && linuxOverlayInputShapeActive,
     getSuspendVisibleOverlay: () => appState.statsOverlayVisible,
     getOverlayInteractionActive: () => visibleOverlayInteractionActive,
     getWindowTracker: () => appState.windowTracker,
@@ -2528,6 +2533,10 @@ const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
 const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
 const LINUX_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 1_500;
 const LINUX_VISIBLE_OVERLAY_FULLSCREEN_GEOMETRY_GRACE_MS = 1_200;
+// Ignore transient "neither mpv nor overlay is the active window" blips before suppressing
+// subtitle pointer interaction. Right after playback starts the overlay can briefly become the
+// X11 active window, which would otherwise leave subtitles inert for a poll cycle (~1s).
+const LINUX_POINTER_FOREGROUND_SUPPRESS_GRACE_MS = 500;
 const MACOS_VISIBLE_OVERLAY_FOREGROUND_PROBE_TIMEOUT_MS = 1_200;
 let visibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
@@ -2537,7 +2546,11 @@ let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> 
 let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
 let lastWindowsVisibleOverlayBlurredAtMs = 0;
 let lastLinuxVisibleOverlayFollowedMpvAtMs = 0;
+const linuxPointerForegroundSuppressionGrace: ForegroundSuppressionGraceState = {
+  lossSinceMs: null,
+};
 let visibleOverlayInteractionActive = false;
+let linuxOverlayInputShapeActive = false;
 // Renderer-reported interactive hint (Linux only): true while a Yomitan popup/modal
 // region is interactive, so the cursor poll keeps the overlay interactive even when the cursor
 // moves off measured subtitle/sidebar rects onto the popup.
@@ -2559,8 +2572,17 @@ const handleStatsOverlayVisibilityChanged = createStatsOverlayVisibilityChangeHa
 
 function resetVisibleOverlayInputState(): void {
   visibleOverlayInteractionActive = false;
+  linuxOverlayInputShapeActive = false;
   linuxOverlayInteractiveHint = false;
   overlayContentMeasurementStore.clear('visible');
+  const mainWindow = overlayManager.getMainWindow();
+  if (process.platform === 'linux' && mainWindow && !mainWindow.isDestroyed()) {
+    (
+      mainWindow as BrowserWindow & {
+        setShape?: (rects: Array<{ x: number; y: number; width: number; height: number }>) => void;
+      }
+    ).setShape?.([]);
+  }
 }
 
 function clearVisibleOverlayBlurRefreshTimeouts(): void {
@@ -2991,6 +3013,73 @@ ensureWindowsVisibleOverlayForegroundPollLoop();
 
 const linuxX11CursorPointReader = createLinuxX11CursorPointReader();
 
+function getLinuxOverlayPointerMeasurement() {
+  const measurement = overlayContentMeasurementStore.getLatestByLayer('visible');
+  return mapOverlayMeasurementForPointerInteraction(measurement);
+}
+
+function shouldSuspendLinuxOverlayPointerInteraction(): boolean {
+  return overlayModalInputState.getModalInputExclusive() || appState.statsOverlayVisible;
+}
+
+function shouldSuppressLinuxOverlayPointerInteraction(): boolean {
+  return resolveForegroundSuppressionWithGrace({
+    hasForegroundSeparateWindow: hasLiveSeparateWindow(getOverlayForegroundSeparateWindows()),
+    isTrackingMpvWindow: Boolean(appState.windowTracker?.isTracking()),
+    isMpvWindowFocused: appState.windowTracker?.isTargetWindowFocused?.() !== false,
+    isOverlayWindowFocused: overlayManager.getMainWindow()?.isFocused() === true,
+    nowMs: Date.now(),
+    graceMs: LINUX_POINTER_FOREGROUND_SUPPRESS_GRACE_MS,
+    state: linuxPointerForegroundSuppressionGrace,
+  });
+}
+
+function shouldUseLinuxOverlayInputShape(): boolean {
+  // Electron's setShape is a *bounding* shape: outside the given rects no pixels are drawn, so
+  // it clips the visible subtitle (and makes a dragged subtitle vanish behind the shaped
+  // region). There is no input-only region API on Linux, so selective hit-testing is handled by
+  // the main-process cursor poll instead. Keep this off to avoid clipping the overlay.
+  return false;
+}
+
+function applyLinuxOverlayInputShapeFromLatestMeasurement(): boolean {
+  if (!shouldUseLinuxOverlayInputShape()) {
+    linuxOverlayInputShapeActive = false;
+    return false;
+  }
+
+  const result = applyLinuxOverlayInputShape({
+    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    getMainWindow: () => overlayManager.getMainWindow(),
+    getSubtitleMeasurement: getLinuxOverlayPointerMeasurement,
+    getRendererInteractiveHint: () => linuxOverlayInteractiveHint,
+    shouldSuspend: shouldSuspendLinuxOverlayPointerInteraction,
+    shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
+  });
+  linuxOverlayInputShapeActive = result.active;
+  return result.handled;
+}
+
+function updateLinuxOverlayPointerInteractionActive(active: boolean): void {
+  visibleOverlayInteractionActive = active;
+  if (
+    process.platform === 'linux' &&
+    applyLinuxOverlayPointerInteractionMousePassthrough({
+      active,
+      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      getMainWindow: () => overlayManager.getMainWindow(),
+      shouldSuspend: shouldSuspendLinuxOverlayPointerInteraction,
+      shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
+      updateVisibleOverlayVisibility: () =>
+        overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+    })
+  ) {
+    return;
+  }
+
+  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+}
+
 const linuxOverlayZOrderKeepAliveDeps = {
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
   getMainWindow: () => overlayManager.getMainWindow(),
@@ -3050,28 +3139,19 @@ const linuxOverlayPointerInteractionDeps = {
   getMainWindow: () => overlayManager.getMainWindow(),
   getCursorScreenPoint: () =>
     linuxX11CursorPointReader.getCursorScreenPoint(screen.getCursorScreenPoint()),
-  getSubtitleMeasurement: () => {
-    const measurement = overlayContentMeasurementStore.getLatestByLayer('visible');
-    return mapOverlayMeasurementForPointerInteraction(measurement);
-  },
+  getSubtitleMeasurement: getLinuxOverlayPointerMeasurement,
   getRendererInteractiveHint: () => linuxOverlayInteractiveHint,
-  shouldSuspend: () =>
-    overlayModalInputState.getModalInputExclusive() || appState.statsOverlayVisible,
-  shouldSuppressInteraction: () =>
-    shouldSuppressPointerInteractionForForegroundWindow({
-      hasForegroundSeparateWindow: hasLiveSeparateWindow(getOverlayForegroundSeparateWindows()),
-      isTrackingMpvWindow: Boolean(appState.windowTracker?.isTracking()),
-      isMpvWindowFocused: appState.windowTracker?.isTargetWindowFocused?.() !== false,
-      isOverlayWindowFocused: overlayManager.getMainWindow()?.isFocused() === true,
-    }),
+  shouldSuspend: shouldSuspendLinuxOverlayPointerInteraction,
+  shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
+  shouldUseInputShape: shouldUseLinuxOverlayInputShape,
   getInteractionActive: () => visibleOverlayInteractionActive,
-  setInteractionActive: (active: boolean) => {
-    visibleOverlayInteractionActive = active;
-    overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-  },
+  setInteractionActive: updateLinuxOverlayPointerInteractionActive,
 };
 
 function tickLinuxOverlayPointerInteractionNow(): void {
+  if (applyLinuxOverlayInputShapeFromLatestMeasurement()) {
+    return;
+  }
   tickLinuxOverlayPointerInteraction(linuxOverlayPointerInteractionDeps);
 }
 
@@ -4987,7 +5067,8 @@ const {
           overlayVisibilityRuntime,
           syncVisibleOverlayMpvFullscreenMode: (nextFullscreen) =>
             syncLinuxVisibleOverlayMpvFullscreenMode(nextFullscreen),
-          getOverlayInteractionActive: () => visibleOverlayInteractionActive,
+          getOverlayInteractionActive: () =>
+            visibleOverlayInteractionActive || linuxOverlayInputShapeActive,
           ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
         },
         cancelLinuxMpvFullscreenOverlayRefreshBurst,
@@ -6450,6 +6531,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           return;
         }
         linuxOverlayInteractiveHint = interactive;
+        applyLinuxOverlayInputShapeFromLatestMeasurement();
       },
       onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
       openYomitanSettings: () => openYomitanSettings(),

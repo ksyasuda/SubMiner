@@ -837,6 +837,50 @@ export function shouldResolveAniSkipMetadata(
   return !isYoutubeTarget(target);
 }
 
+type StartMpvOptions = {
+  startPaused?: boolean;
+  disableYoutubeSubtitleAutoLoad?: boolean;
+  runtimePluginPath?: string | null;
+  runtimePluginConfig?: PluginRuntimeConfig;
+};
+
+export function shouldResolveAniSkipMetadataForLaunch(
+  target: string,
+  targetKind: 'file' | 'url',
+  preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
+  runtimePluginConfig?: PluginRuntimeConfig,
+): boolean {
+  if (runtimePluginConfig?.aniskipEnabled === false) {
+    return false;
+  }
+  return shouldResolveAniSkipMetadata(target, targetKind, preloadedSubtitles);
+}
+
+export function buildRuntimeExtraScriptOptParts(
+  target: string,
+  targetKind: 'file' | 'url',
+  options?: Pick<
+    StartMpvOptions,
+    'startPaused' | 'disableYoutubeSubtitleAutoLoad' | 'runtimePluginConfig'
+  >,
+): string[] {
+  const launcherOwnsAutoplayReadyInitialPause =
+    options?.startPaused === true &&
+    options.runtimePluginConfig?.autoStart === true &&
+    options.runtimePluginConfig.autoStartVisibleOverlay === true &&
+    options.runtimePluginConfig.autoStartPauseUntilReady === true;
+  return [
+    ...(launcherOwnsAutoplayReadyInitialPause
+      ? ['subminer-auto_start_pause_until_ready_owns_initial_pause=yes']
+      : []),
+    ...(targetKind === 'url' &&
+    isYoutubeTarget(target) &&
+    options?.disableYoutubeSubtitleAutoLoad === true
+      ? ['subminer-auto_start_pause_until_ready=no']
+      : []),
+  ];
+}
+
 export async function startMpv(
   target: string,
   targetKind: 'file' | 'url',
@@ -844,12 +888,7 @@ export async function startMpv(
   socketPath: string,
   appPath: string,
   preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
-  options?: {
-    startPaused?: boolean;
-    disableYoutubeSubtitleAutoLoad?: boolean;
-    runtimePluginPath?: string | null;
-    runtimePluginConfig?: PluginRuntimeConfig;
-  },
+  options?: StartMpvOptions,
 ): Promise<void> {
   if (targetKind === 'file' && (!fs.existsSync(target) || !fs.statSync(target).isFile())) {
     fail(`Video file not found: ${target}`);
@@ -907,15 +946,15 @@ export async function startMpv(
   if (options?.startPaused) {
     mpvArgs.push('--pause=yes');
   }
-  const aniSkipMetadata = shouldResolveAniSkipMetadata(target, targetKind, preloadedSubtitles)
+  const aniSkipMetadata = shouldResolveAniSkipMetadataForLaunch(
+    target,
+    targetKind,
+    preloadedSubtitles,
+    options?.runtimePluginConfig,
+  )
     ? await resolveAniSkipMetadataForFile(target)
     : null;
-  const extraScriptOpts =
-    targetKind === 'url' &&
-    isYoutubeTarget(target) &&
-    options?.disableYoutubeSubtitleAutoLoad === true
-      ? ['subminer-auto_start_pause_until_ready=no']
-      : [];
+  const extraScriptOpts = buildRuntimeExtraScriptOptParts(target, targetKind, options);
   const runtimeScriptOpts = options?.runtimePluginConfig
     ? buildPluginRuntimeScriptOptParts(options.runtimePluginConfig, appPath)
     : [`subminer-binary_path=${appPath}`, `subminer-socket_path=${socketPath}`];

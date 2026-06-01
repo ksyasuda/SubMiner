@@ -18,6 +18,11 @@ export async function resolveFreshPlaybackPaused(deps: {
   getCachedPlaybackPaused: () => boolean | null;
   getMpvClient: () => PlaybackPausedMpvClient | null;
 }): Promise<boolean | null> {
+  const cachedPaused = deps.getCachedPlaybackPaused();
+  if (cachedPaused === true) {
+    return true;
+  }
+
   const client = deps.getMpvClient();
   if (client?.connected === true && typeof client.requestProperty === 'function') {
     try {
@@ -26,9 +31,9 @@ export async function resolveFreshPlaybackPaused(deps: {
         return livePaused;
       }
     } catch {
-      // Fall back to the last observed mpv pause event.
+      // Avoid trusting a stale cached "playing" state for hover auto-pause.
     }
   }
 
-  return deps.getCachedPlaybackPaused();
+  return cachedPaused === false ? null : cachedPaused;
 }

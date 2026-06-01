@@ -11,6 +11,7 @@ export interface OverlayVisibilityRuntimeDeps {
   getModalActive: () => boolean;
   getVisibleOverlayVisible: () => boolean;
   getForceMousePassthrough: () => boolean;
+  getNonNativeInputRegionActive?: () => boolean;
   getSuspendVisibleOverlay?: () => boolean;
   getOverlayInteractionActive?: () => boolean;
   getWindowTracker: () => BaseWindowTracker | null;
@@ -54,6 +55,7 @@ export function createOverlayVisibilityRuntimeService(
         visibleOverlayVisible,
         modalActive: deps.getModalActive(),
         forceMousePassthrough,
+        nonNativeInputRegionActive: deps.getNonNativeInputRegionActive?.() ?? false,
         suspendVisibleOverlay,
         overlayInteractionActive: deps.getOverlayInteractionActive?.() ?? false,
         mainWindow,

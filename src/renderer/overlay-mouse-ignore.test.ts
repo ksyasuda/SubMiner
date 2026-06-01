@@ -36,11 +36,11 @@ test('idle visible overlay starts click-through on platforms that toggle mouse i
   const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
 
   const restoreWindow = replaceGlobalProperty('window', {
-      electronAPI: {
-        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
-          ignoreCalls.push({ ignore, forward: options?.forward });
-        },
+    electronAPI: {
+      setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+        ignoreCalls.push({ ignore, forward: options?.forward });
       },
+    },
   });
 
   try {
@@ -80,11 +80,11 @@ test('youtube picker keeps overlay interactive even when subtitle hover is inact
   const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
 
   const restoreWindow = replaceGlobalProperty('window', {
-      electronAPI: {
-        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
-          ignoreCalls.push({ ignore, forward: options?.forward });
-        },
+    electronAPI: {
+      setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+        ignoreCalls.push({ ignore, forward: options?.forward });
       },
+    },
   });
 
   try {
@@ -124,23 +124,23 @@ test('visible yomitan popup host keeps overlay interactive even when cached popu
   const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
 
   const restoreWindow = replaceGlobalProperty('window', {
-      electronAPI: {
-        setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
-          ignoreCalls.push({ ignore, forward: options?.forward });
-        },
+    electronAPI: {
+      setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+        ignoreCalls.push({ ignore, forward: options?.forward });
       },
-      getComputedStyle: () => ({
-        visibility: 'visible',
-        display: 'block',
-        opacity: '1',
-      }),
+    },
+    getComputedStyle: () => ({
+      visibility: 'visible',
+      display: 'block',
+      opacity: '1',
+    }),
   });
   const restoreDocument = replaceGlobalProperty('document', {
-      querySelectorAll: (selector: string) =>
-        selector ===
-        '[data-subminer-yomitan-popup-host="true"][data-subminer-yomitan-popup-visible="true"]'
-          ? [{ getAttribute: () => 'true' }]
-          : [],
+    querySelectorAll: (selector: string) =>
+      selector ===
+      '[data-subminer-yomitan-popup-host="true"][data-subminer-yomitan-popup-visible="true"]'
+        ? [{ getAttribute: () => 'true' }]
+        : [],
   });
 
   try {
@@ -176,16 +176,16 @@ test('visible yomitan popup host keeps overlay interactive even when cached popu
   }
 });
 
-test('Linux subtitle hover does not report whole-window interactive hint', () => {
+test('Linux subtitle hover keeps root passive and does not report whole-window interactive hint', () => {
   const classList = createClassList();
   const interactiveHints: boolean[] = [];
 
   const restoreWindow = replaceGlobalProperty('window', {
-      electronAPI: {
-        reportOverlayInteractive: (interactive: boolean) => {
-          interactiveHints.push(interactive);
-        },
+    electronAPI: {
+      reportOverlayInteractive: (interactive: boolean) => {
+        interactiveHints.push(interactive);
       },
+    },
   });
 
   try {
@@ -214,7 +214,7 @@ test('Linux subtitle hover does not report whole-window interactive hint', () =>
       },
     } as never);
 
-    assert.equal(classList.contains('interactive'), true);
+    assert.equal(classList.contains('interactive'), false);
     assert.deepEqual(interactiveHints, [false]);
   } finally {
     restoreWindow();
@@ -226,11 +226,11 @@ test('Linux modal state reports whole-window interactive hint', () => {
   const interactiveHints: boolean[] = [];
 
   const restoreWindow = replaceGlobalProperty('window', {
-      electronAPI: {
-        reportOverlayInteractive: (interactive: boolean) => {
-          interactiveHints.push(interactive);
-        },
+    electronAPI: {
+      reportOverlayInteractive: (interactive: boolean) => {
+        interactiveHints.push(interactive);
       },
+    },
   });
 
   try {
