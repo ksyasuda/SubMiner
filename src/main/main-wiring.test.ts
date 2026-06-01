@@ -72,16 +72,32 @@ test('manual visible overlay toggles only release current-media autoplay when hi
   );
 });
 
-test('manual visible overlay hide clears stale overlay input state', () => {
+test('all visible overlay hide paths clear stale overlay input state', () => {
   const source = readMainSource();
-  const actionBlock = source.match(
+  const setVisibleBlock = source.match(
     /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
+  const toggleBlock = source.match(
+    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+  const setOverlayBlock = source.match(
+    /function setOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
 
-  assert.ok(actionBlock);
+  assert.ok(setVisibleBlock);
+  assert.ok(toggleBlock);
+  assert.ok(setOverlayBlock);
   assert.match(
-    actionBlock,
+    setVisibleBlock,
     /if \(!visible\) \{\s+autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);\s+cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);\s+resetVisibleOverlayInputState\(\);/,
+  );
+  assert.match(
+    toggleBlock,
+    /if \(!nextVisible\) \{\s+autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);\s+cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);\s+resetVisibleOverlayInputState\(\);/,
+  );
+  assert.match(
+    setOverlayBlock,
+    /if \(!visible\) \{\s+resetVisibleOverlayInputState\(\);\s+autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);\s+cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
   );
 });
 

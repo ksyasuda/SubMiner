@@ -7405,6 +7405,7 @@ function toggleVisibleOverlay(): void {
   if (!nextVisible) {
     autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
+    resetVisibleOverlayInputState();
   } else {
     restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
@@ -7416,6 +7417,7 @@ function toggleVisibleOverlay(): void {
 }
 function setOverlayVisible(visible: boolean): void {
   if (!visible) {
+    resetVisibleOverlayInputState();
     autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   }
