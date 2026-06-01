@@ -1255,6 +1255,12 @@ const autoplayReadyGate = createAutoplayReadyGate({
   signalPluginAutoplayReady: () => {
     sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
   },
+  requestOverlayPointerRecovery: () => {
+    if (process.platform !== 'darwin' || !overlayManager.getVisibleOverlayVisible()) {
+      return;
+    }
+    broadcastToOverlayWindows(IPC_CHANNELS.event.overlayPointerRecoveryRequest);
+  },
   isSignalTargetReady: (signal) =>
     isTokenizationWarmupReady() &&
     isVisibleOverlayAutoplayTargetReady(

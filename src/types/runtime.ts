@@ -404,6 +404,7 @@ export interface SessionNumericSelectionStartPayload {
 export interface ElectronAPI {
   getOverlayLayer: () => 'visible' | 'modal' | null;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
+  onOverlayPointerRecoveryRequested: (callback: () => void) => void;
   onVisibility: (callback: (visible: boolean) => void) => void;
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => void;
   getOverlayVisibility: () => Promise<boolean>;

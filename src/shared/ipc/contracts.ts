@@ -120,6 +120,7 @@ export const IPC_CHANNELS = {
   },
   event: {
     subtitleSet: 'subtitle:set',
+    overlayPointerRecoveryRequest: 'overlay:pointer-recovery-request',
     subtitleVisibility: 'mpv:subVisibility',
     subtitlePositionSet: 'subtitle-position:set',
     subtitleAssSet: 'subtitle-ass:set',

@@ -601,6 +601,18 @@ async function init(): Promise<void> {
     syncOverlayMouseIgnoreState(ctx);
   }
 
+  window.electronAPI.onOverlayPointerRecoveryRequested(() => {
+    runGuarded('overlay:pointer-recovery', () => {
+      if (!ctx.platform.isMacOSPlatform || !ctx.platform.shouldToggleMouseIgnore) {
+        return;
+      }
+      if (isAnyModalOpen()) {
+        return;
+      }
+      mouseHandlers.restorePointerInteractionState();
+    });
+  });
+
   await keyboardHandlers.setupMpvInputForwarding();
 
   const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();

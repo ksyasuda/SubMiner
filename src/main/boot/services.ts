@@ -219,6 +219,7 @@ export function createMainBootServices<
       params.getSyncOverlayVisibilityForModal()();
     },
     restoreMainWindowFocus: () => {
+      if (params.platform === 'darwin') return;
       const mainWindow = overlayManager.getMainWindow();
       if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) return;
       try {

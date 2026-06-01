@@ -23,6 +23,7 @@ export type AutoplayReadyGateDeps = {
   getPlaybackPaused: () => boolean | null;
   getMpvClient: () => MpvClientLike | null;
   signalPluginAutoplayReady: () => void;
+  requestOverlayPointerRecovery?: () => void;
   isSignalTargetReady?: (signal: AutoplayReadySignal) => boolean;
   now?: () => number;
   schedule: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
@@ -141,6 +142,7 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
     autoPlayReadySignalMediaPath = mediaPath;
     const playbackGeneration = ++autoPlayReadySignalGeneration;
     deps.signalPluginAutoplayReady();
+    deps.requestOverlayPointerRecovery?.();
     attemptRelease(playbackGeneration, 0);
   };
 
