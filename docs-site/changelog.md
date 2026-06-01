@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.15.1 (2026-05-31)
+
+**Fixed**
+
+- **Linux Overlay Stacking**: Fixed the overlay intermittently dropping behind mpv on KDE Plasma and other non-Hyprland/Sway Wayland sessions; restored subtitle hover, pause-on-hover, and Yomitan lookups on X11/XWayland; the overlay now correctly layers above/below mpv based on fullscreen state, yields to foreground windows (Settings, Yomitan, AniList, etc.), and avoids startup flashes and fullscreen transition glitches.
+- **Linux Overlay (Hyprland Lua)**: Fixed overlay placement on Hyprland 0.55+ when using a Lua-based config.
+- **Manual Overlay Startup**: Fixed manual visible-overlay startup from mpv — now correctly attaches to playback, keeps the window bounds synced with mpv, and primes current subtitles before showing.
+- **Playlist Transitions**: Reused the warm overlay when mpv advances to the next playlist item, avoiding a redundant tokenization pause and preserving visible subtitles across tracks.
+- **macOS Overlay**: Fixed the visible subtitle overlay staying click-through after pause-until-ready releases playback; restored mpv focus after closing modal windows so subtitles and keybinds resume without clicking the player.
+- **Mouse Keybindings**: Fixed keybinding capture and runtime handling for mouse buttons, including side buttons like `MBTN_BACK` and `MBTN_FORWARD`.
+- **Windows mpv Shortcut**: Fixed the Windows `SubMiner mpv` shortcut so videos attach to an already-running background app instead of spawning a second process.
+
+**Docs**
+
+- **Troubleshooting**: Updated Hyprland overlay docs with current Lua (`hl.window_rule`) and legacy config syntax; added troubleshooting for KDE/Wayland and other non-Hyprland/Sway Wayland sessions; added a Character Dictionary troubleshooting section; added a "See Also" index linking each feature's troubleshooting page.
+
 ## v0.15.0 (2026-05-29)
 
 **Breaking Changes**
