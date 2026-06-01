@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
 import { isLogFileEnabled } from '../../shared/log-files';
 import { buildMpvLaunchModeArgs } from '../../shared/mpv-launch-mode';
@@ -13,6 +14,11 @@ export interface WindowsMpvLaunchDeps {
   runWhere: () => { status: number | null; stdout: string; error?: Error };
   fileExists: (candidate: string) => boolean;
   spawnDetached: (command: string, args: string[], env?: NodeJS.ProcessEnv) => Promise<void>;
+  isAppControlServerAvailable?: () => Promise<boolean>;
+  sendAppControlCommand?: (
+    argv: string[],
+  ) => Promise<{ ok: boolean; unavailable?: boolean; error?: string }>;
+  waitForSocketReady?: (socketPath: string, timeoutMs: number) => Promise<boolean>;
   showError: (title: string, content: string) => void;
   logInfo?: (message: string) => void;
 }
@@ -81,6 +87,44 @@ export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps, configuredMpvP
 }
 
 const DEFAULT_WINDOWS_MPV_SOCKET = '\\\\.\\pipe\\subminer-socket';
+const RUNNING_APP_ATTACH_SOCKET_WAIT_MS = 10000;
+
+async function sleepMs(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function canConnectSocket(socketPath: string): Promise<boolean> {
+  return await new Promise<boolean>((resolve) => {
+    const socket = net.createConnection(socketPath);
+    let settled = false;
+
+    const finish = (value: boolean): void => {
+      if (settled) return;
+      settled = true;
+      try {
+        socket.destroy();
+      } catch {
+        // ignore
+      }
+      resolve(value);
+    };
+
+    socket.once('connect', () => finish(true));
+    socket.once('error', () => finish(false));
+    socket.setTimeout(400, () => finish(false));
+  });
+}
+
+async function waitForSocketReady(socketPath: string, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await canConnectSocket(socketPath)) {
+      return true;
+    }
+    await sleepMs(150);
+  }
+  return false;
+}
 
 function readExtraArgValue(extraArgs: string[], flag: string): string | undefined {
   let value: string | undefined;
@@ -101,6 +145,31 @@ function readExtraArgValue(extraArgs: string[], flag: string): string | undefine
   return value;
 }
 
+export function resolveWindowsMpvInputIpcServer(extraArgs: string[] = []): string {
+  return readExtraArgValue(extraArgs, '--input-ipc-server') ?? DEFAULT_WINDOWS_MPV_SOCKET;
+}
+
+export function buildWindowsRunningAppAttachArgs(
+  socketPath: string,
+  runtimeConfig: SubminerPluginRuntimeScriptOptConfig,
+): string[] {
+  const args = ['--start', '--managed-playback'];
+  if (runtimeConfig.logLevel && runtimeConfig.logLevel !== 'info') {
+    args.push('--log-level', runtimeConfig.logLevel);
+  }
+  if (runtimeConfig.backend) {
+    args.push('--backend', runtimeConfig.backend);
+  }
+  args.push('--socket', socketPath);
+  args.push(
+    runtimeConfig.autoStartVisibleOverlay ? '--show-visible-overlay' : '--hide-visible-overlay',
+  );
+  if (runtimeConfig.texthookerEnabled) {
+    args.push('--texthooker');
+  }
+  return args;
+}
+
 export function buildWindowsMpvLaunchArgs(
   targets: string[],
   extraArgs: string[] = [],
@@ -110,8 +179,7 @@ export function buildWindowsMpvLaunchArgs(
   pluginRuntimeConfig?: SubminerPluginRuntimeScriptOptConfig,
 ): string[] {
   const launchIdle = targets.length === 0;
-  const inputIpcServer =
-    readExtraArgValue(extraArgs, '--input-ipc-server') ?? DEFAULT_WINDOWS_MPV_SOCKET;
+  const inputIpcServer = resolveWindowsMpvInputIpcServer(extraArgs);
   const scriptEntrypoint =
     typeof pluginEntrypointPath === 'string' && pluginEntrypointPath.trim().length > 0
       ? `--script=${pluginEntrypointPath.trim()}`
@@ -210,6 +278,16 @@ export async function launchWindowsMpv(
     }
     const hasLogLevel = pluginRuntimeConfig?.logLevel !== undefined;
     const hasLogRotation = pluginRuntimeConfig?.logRotation !== undefined;
+    const shouldAttachRunningApp =
+      targets.length > 0 &&
+      pluginRuntimeConfig?.autoStart === true &&
+      deps.isAppControlServerAvailable !== undefined &&
+      deps.sendAppControlCommand !== undefined &&
+      (await deps.isAppControlServerAvailable());
+    const effectivePluginRuntimeConfig =
+      shouldAttachRunningApp && pluginRuntimeConfig
+        ? { ...pluginRuntimeConfig, autoStart: false }
+        : pluginRuntimeConfig;
     const launchEnv =
       hasLogLevel || hasLogRotation
         ? {
@@ -219,16 +297,15 @@ export async function launchWindowsMpv(
               : {}),
           }
         : undefined;
+    const inputIpcServer = resolveWindowsMpvInputIpcServer(extraArgs);
     const launchArgs = buildWindowsMpvLaunchArgs(
       targets,
       extraArgs,
       binaryPath,
       runtimePluginEntrypointPath,
       launchMode,
-      pluginRuntimeConfig,
+      effectivePluginRuntimeConfig,
     );
-    const inputIpcServer =
-      readExtraArgValue(launchArgs, '--input-ipc-server') ?? DEFAULT_WINDOWS_MPV_SOCKET;
     deps.logInfo?.(
       [
         `Launching mpv: mpvPath=${mpvPath}`,
@@ -236,9 +313,28 @@ export async function launchWindowsMpv(
         `bundledPlugin=${runtimePluginEntrypointPath ?? 'not injected'}`,
         `installedPlugin=${installedPlugin?.installed ? (installedPlugin.path ?? 'unknown') : 'none'}`,
         `targets=${targets.length}`,
+        `attachRunningApp=${shouldAttachRunningApp ? 'yes' : 'no'}`,
       ].join('; '),
     );
     await deps.spawnDetached(mpvPath, launchArgs, launchEnv);
+    if (shouldAttachRunningApp && pluginRuntimeConfig) {
+      const socketReady = await (deps.waitForSocketReady ?? waitForSocketReady)(
+        inputIpcServer,
+        RUNNING_APP_ATTACH_SOCKET_WAIT_MS,
+      );
+      if (!socketReady) {
+        deps.logInfo?.(`MPV IPC socket was not ready before running app attach: ${inputIpcServer}`);
+      }
+      const attachArgs = buildWindowsRunningAppAttachArgs(inputIpcServer, pluginRuntimeConfig);
+      const controlResult = await deps.sendAppControlCommand?.(attachArgs);
+      if (controlResult?.ok) {
+        deps.logInfo?.('Attached launched mpv session to running SubMiner app via control socket');
+      } else {
+        deps.logInfo?.(
+          `Running SubMiner app attach failed: ${controlResult?.error ?? 'unknown error'}`,
+        );
+      }
+    }
     return { ok: true, mpvPath };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -250,6 +346,10 @@ export async function launchWindowsMpv(
 export function createWindowsMpvLaunchDeps(options: {
   getEnv?: (name: string) => string | undefined;
   fileExists?: (candidate: string) => boolean;
+  isAppControlServerAvailable?: () => Promise<boolean>;
+  sendAppControlCommand?: (
+    argv: string[],
+  ) => Promise<{ ok: boolean; unavailable?: boolean; error?: string }>;
   showError: (title: string, content: string) => void;
   logInfo?: (message: string) => void;
 }): WindowsMpvLaunchDeps {
@@ -267,6 +367,9 @@ export function createWindowsMpvLaunchDeps(options: {
       };
     },
     fileExists: options.fileExists ?? defaultWindowsMpvFileExists,
+    isAppControlServerAvailable: options.isAppControlServerAvailable,
+    sendAppControlCommand: options.sendAppControlCommand,
+    waitForSocketReady,
     logInfo: options.logInfo,
     spawnDetached: (command, args, env) =>
       new Promise((resolve, reject) => {

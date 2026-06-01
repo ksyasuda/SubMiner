@@ -253,6 +253,122 @@ test('buildWindowsMpvLaunchArgs keeps Windows ipc default unless explicitly over
   assert.match(scriptOpts ?? '', /subminer-socket_path=\\\\\.\\pipe\\subminer-socket/);
 });
 
+test('launchWindowsMpv attaches a launched video to a running app and disables plugin auto-start', async () => {
+  const spawnedArgs: string[][] = [];
+  const controlArgv: string[][] = [];
+  const waitedSockets: Array<{ socketPath: string; timeoutMs: number }> = [];
+  const logs: string[] = [];
+  const result = await launchWindowsMpv(
+    ['C:\\video.mkv'],
+    createDeps({
+      getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
+      fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
+      isAppControlServerAvailable: async () => true,
+      waitForSocketReady: async (socketPath, timeoutMs) => {
+        waitedSockets.push({ socketPath, timeoutMs });
+        return true;
+      },
+      sendAppControlCommand: async (argv) => {
+        controlArgv.push(argv);
+        return { ok: true };
+      },
+      logInfo: (message) => logs.push(message),
+      spawnDetached: async (_command, args) => {
+        spawnedArgs.push(args);
+      },
+    }),
+    ['--input-ipc-server', '\\\\.\\pipe\\warm-subminer'],
+    'C:\\SubMiner\\SubMiner.exe',
+    'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    '',
+    'normal',
+    undefined,
+    {
+      socketPath: '\\\\.\\pipe\\ignored-config-socket',
+      binaryPath: '',
+      backend: 'windows',
+      logLevel: 'debug',
+      logRotation: 7,
+      autoStart: true,
+      autoStartVisibleOverlay: true,
+      autoStartPauseUntilReady: true,
+      texthookerEnabled: true,
+      aniskipEnabled: true,
+      aniskipButtonKey: 'TAB',
+    },
+  );
+
+  assert.equal(result.ok, true);
+  const scriptOpts = spawnedArgs[0]?.find((arg) => arg.startsWith('--script-opts='));
+  assert.match(scriptOpts ?? '', /subminer-auto_start=no/);
+  assert.match(scriptOpts ?? '', /subminer-socket_path=\\\\\.\\pipe\\warm-subminer/);
+  assert.deepEqual(waitedSockets, [{ socketPath: '\\\\.\\pipe\\warm-subminer', timeoutMs: 10000 }]);
+  assert.deepEqual(controlArgv, [
+    [
+      '--start',
+      '--managed-playback',
+      '--log-level',
+      'debug',
+      '--backend',
+      'windows',
+      '--socket',
+      '\\\\.\\pipe\\warm-subminer',
+      '--show-visible-overlay',
+      '--texthooker',
+    ],
+  ]);
+  assert.ok(logs.some((line) => line.includes('attachRunningApp=yes')));
+  assert.ok(logs.some((line) => line.includes('Attached launched mpv session')));
+});
+
+test('launchWindowsMpv leaves plugin auto-start enabled when no running app control socket exists', async () => {
+  const spawnedArgs: string[][] = [];
+  let controlCalls = 0;
+  let waitCalls = 0;
+  const result = await launchWindowsMpv(
+    ['C:\\video.mkv'],
+    createDeps({
+      getEnv: (name) => (name === 'SUBMINER_MPV_PATH' ? 'C:\\mpv\\mpv.exe' : undefined),
+      fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
+      isAppControlServerAvailable: async () => false,
+      waitForSocketReady: async () => {
+        waitCalls += 1;
+        return true;
+      },
+      sendAppControlCommand: async () => {
+        controlCalls += 1;
+        return { ok: true };
+      },
+      spawnDetached: async (_command, args) => {
+        spawnedArgs.push(args);
+      },
+    }),
+    [],
+    'C:\\SubMiner\\SubMiner.exe',
+    'C:\\Program Files\\SubMiner\\resources\\plugin\\subminer\\main.lua',
+    '',
+    'normal',
+    undefined,
+    {
+      socketPath: '\\\\.\\pipe\\subminer-socket',
+      binaryPath: '',
+      backend: 'windows',
+      autoStart: true,
+      autoStartVisibleOverlay: true,
+      autoStartPauseUntilReady: true,
+      texthookerEnabled: false,
+      aniskipEnabled: true,
+      aniskipButtonKey: 'TAB',
+    },
+  );
+
+  assert.equal(result.ok, true);
+  const scriptOpts = spawnedArgs[0]?.find((arg) => arg.startsWith('--script-opts='));
+  assert.match(scriptOpts ?? '', /subminer-auto_start=yes/);
+  assert.equal(waitCalls, 0);
+  assert.equal(controlCalls, 0);
+});
+
 test('launchWindowsMpv reports missing mpv path', async () => {
   const errors: string[] = [];
   const result = await launchWindowsMpv(

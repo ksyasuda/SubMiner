@@ -21,7 +21,7 @@ import {
 } from './main-entry-runtime';
 import { requestSingleInstanceLockEarly } from './main/early-single-instance';
 import { readConfiguredWindowsMpvLaunch } from './main-entry-launch-config';
-import { sendAppControlCommand } from './shared/app-control-client';
+import { isAppControlServerAvailable, sendAppControlCommand } from './shared/app-control-client';
 import {
   detectInstalledFirstRunPluginCandidates,
   detectInstalledMpvPlugin,
@@ -249,6 +249,16 @@ async function runEntryProcess(): Promise<void> {
       normalizeLaunchMpvTargets(process.argv),
       createWindowsMpvLaunchDeps({
         getEnv: (name) => process.env[name],
+        isAppControlServerAvailable: () =>
+          isAppControlServerAvailable({
+            configDir: userDataPath,
+            timeoutMs: 350,
+          }),
+        sendAppControlCommand: (argv) =>
+          sendAppControlCommand(argv, {
+            configDir: userDataPath,
+            timeoutMs: 1000,
+          }),
         showError: (title, content) => {
           dialog.showErrorBox(title, content);
         },
