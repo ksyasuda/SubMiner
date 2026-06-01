@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ensureOverlayWindowLevel } from './overlay-window';
+import { ensureOverlayWindowLevel, updateOverlayWindowBounds } from './overlay-window';
 import {
   handleOverlayWindowBeforeInputEvent,
   handleOverlayWindowBlurred,
@@ -287,4 +287,38 @@ test('ensureOverlayWindowLevel promotes Linux overlay above fullscreen mpv witho
     'all-workspaces:true:fullscreen',
     'move-top',
   ]);
+});
+
+test('updateOverlayWindowBounds aligns Linux overlay content bounds to mpv geometry', () => {
+  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+  const originalHyprlandSignature = process.env.HYPRLAND_INSTANCE_SIGNATURE;
+  Object.defineProperty(process, 'platform', {
+    configurable: true,
+    value: 'linux',
+  });
+  delete process.env.HYPRLAND_INSTANCE_SIGNATURE;
+
+  const calls: Array<{ x: number; y: number; width: number; height: number }> = [];
+  try {
+    updateOverlayWindowBounds({ x: 0, y: 0, width: 3440, height: 1440 }, {
+      isDestroyed: () => false,
+      getTitle: () => 'SubMiner Overlay',
+      getBounds: () => ({ x: 0, y: 0, width: 3440, height: 1440 }),
+      getContentBounds: () => ({ x: 0, y: 14, width: 3440, height: 1426 }),
+      setBounds: (bounds: { x: number; y: number; width: number; height: number }) => {
+        calls.push(bounds);
+      },
+    } as never);
+  } finally {
+    if (originalPlatformDescriptor) {
+      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+    }
+    if (originalHyprlandSignature === undefined) {
+      delete process.env.HYPRLAND_INSTANCE_SIGNATURE;
+    } else {
+      process.env.HYPRLAND_INSTANCE_SIGNATURE = originalHyprlandSignature;
+    }
+  }
+
+  assert.deepEqual(calls, [{ x: 0, y: -14, width: 3440, height: 1454 }]);
 });

@@ -99,6 +99,37 @@ test('live overlay bounds mismatch forces refresh after window manager restore d
   );
 });
 
+test('live overlay bounds mismatch compares content bounds when compositor adds insets', () => {
+  const geometry = { x: 0, y: 0, width: 3440, height: 1440 };
+
+  assert.equal(
+    hasLiveOverlayWindowBoundsMismatch(
+      [
+        {
+          isDestroyed: () => false,
+          getBounds: () => ({ ...geometry }),
+          getContentBounds: () => ({ x: 0, y: 14, width: 3440, height: 1426 }),
+        },
+      ],
+      geometry,
+    ),
+    true,
+  );
+  assert.equal(
+    hasLiveOverlayWindowBoundsMismatch(
+      [
+        {
+          isDestroyed: () => false,
+          getBounds: () => ({ x: 0, y: -14, width: 3440, height: 1454 }),
+          getContentBounds: () => ({ ...geometry }),
+        },
+      ],
+      geometry,
+    ),
+    false,
+  );
+});
+
 test('ensure overlay window level handler delegates to core', () => {
   const calls: string[] = [];
   const ensureLevel = createEnsureOverlayWindowLevelHandler({

@@ -4,6 +4,7 @@ import type { WindowGeometry } from '../types';
 import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from '../core/services/overlay-window-flags';
 
 const MODAL_REVEAL_FALLBACK_DELAY_MS = 250;
+const MODAL_POST_SHOW_BOUNDS_RECONCILE_DELAY_MS = 50;
 
 function requestOverlayApplicationFocus(): void {
   try {
@@ -144,6 +145,24 @@ export function createOverlayModalRuntimeService(
     window.moveTop();
   };
 
+  const reconcileModalWindowBounds = (window: BrowserWindow): void => {
+    const modalWindow = deps.getModalWindow();
+    if (!modalWindow || modalWindow !== window || window.isDestroyed()) {
+      return;
+    }
+    deps.setModalWindowBounds(deps.getModalGeometry());
+  };
+
+  const scheduleModalWindowBoundsReconcile = (window: BrowserWindow): void => {
+    const timeout = setTimeout(() => {
+      if (window.isDestroyed() || !window.isVisible()) {
+        return;
+      }
+      reconcileModalWindowBounds(window);
+    }, MODAL_POST_SHOW_BOUNDS_RECONCILE_DELAY_MS);
+    timeout.unref?.();
+  };
+
   const sendOrQueueForWindow = (
     window: BrowserWindow,
     sendNow: (window: BrowserWindow) => void,
@@ -187,6 +206,8 @@ export function createOverlayModalRuntimeService(
     if (!window.webContents.isFocused()) {
       window.webContents.focus();
     }
+    reconcileModalWindowBounds(window);
+    scheduleModalWindowBoundsReconcile(window);
   };
 
   const ensureModalWindowInteractive = (window: BrowserWindow): void => {
@@ -198,6 +219,8 @@ export function createOverlayModalRuntimeService(
     if (window.isVisible()) {
       window.focus();
       window.webContents.focus();
+      reconcileModalWindowBounds(window);
+      scheduleModalWindowBoundsReconcile(window);
       return;
     }
 

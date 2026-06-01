@@ -230,6 +230,7 @@ test('sendToActiveOverlayWindow targets modal window with full geometry and trac
   runtime.notifyOverlayModalOpened('runtime-options');
   assert.equal(window.getShowCount(), 1);
   assert.equal(window.isFocused(), true);
+  assert.deepEqual(calls, ['bounds:10,20,300,200', 'bounds:10,20,300,200']);
   assert.deepEqual(window.alwaysOnTopCalls, ['top:true:screen-saver:3']);
   assert.deepEqual(window.sent, [['runtime-options:open']]);
 });

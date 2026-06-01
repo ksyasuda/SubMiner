@@ -56,7 +56,12 @@ export function updateOverlayWindowBounds(
   } = {},
 ): void {
   if (!geometry || !window || window.isDestroyed()) return;
-  const bounds = normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen);
+  const bounds = normalizeOverlayWindowBoundsForPlatform(
+    geometry,
+    process.platform,
+    screen,
+    window,
+  );
   window.setBounds(bounds);
   ensureHyprlandWindowFloatingByTitle({
     title: window.getTitle(),

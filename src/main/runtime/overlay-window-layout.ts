@@ -3,10 +3,23 @@ import type { WindowGeometry } from '../../types';
 type OverlayBoundsWindow = {
   isDestroyed: () => boolean;
   getBounds: () => WindowGeometry;
+  getContentBounds?: () => WindowGeometry;
 };
 
 function sameGeometry(a: WindowGeometry | null | undefined, b: WindowGeometry): boolean {
   return a?.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+function getWindowAlignmentBounds(window: OverlayBoundsWindow): WindowGeometry | null {
+  try {
+    return window.getContentBounds?.() ?? window.getBounds();
+  } catch {
+    try {
+      return window.getBounds();
+    } catch {
+      return null;
+    }
+  }
 }
 
 export function hasLiveOverlayWindowBoundsMismatch(
@@ -17,7 +30,7 @@ export function hasLiveOverlayWindowBoundsMismatch(
     if (!window || window.isDestroyed()) {
       return false;
     }
-    return !sameGeometry(window.getBounds(), geometry);
+    return !sameGeometry(getWindowAlignmentBounds(window), geometry);
   });
 }
 

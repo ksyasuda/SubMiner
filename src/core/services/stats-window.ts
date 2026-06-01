@@ -10,6 +10,7 @@ import {
   promoteStatsWindowLevel,
   promoteVisibleStatsWindowAboveOverlay,
   resolveStatsWindowOuterBoundsForContent,
+  scheduleStatsWindowPostShowReconciles,
   showStatsNativeConfirmDialog,
   shouldHideStatsWindowForInput,
   STATS_WINDOW_TITLE,
@@ -58,6 +59,25 @@ function syncStatsWindowBounds(
   return outerBounds;
 }
 
+function reconcileStatsWindowBounds(window: BrowserWindow, options: StatsWindowOptions): void {
+  if (window.isDestroyed() || !window.isVisible()) {
+    return;
+  }
+  const placementBounds = syncStatsWindowBounds(window, options.resolveBounds());
+  if (placementBounds) {
+    ensureHyprlandWindowFloatingByTitle({ title: STATS_WINDOW_TITLE, bounds: placementBounds });
+  }
+}
+
+function scheduleStatsWindowBoundsReconcile(
+  window: BrowserWindow,
+  options: StatsWindowOptions,
+): void {
+  scheduleStatsWindowPostShowReconciles(() => {
+    reconcileStatsWindowBounds(window, options);
+  });
+}
+
 function showStatsWindow(window: BrowserWindow, options: StatsWindowOptions): void {
   const bounds = options.resolveBounds();
   let placementBounds = syncStatsWindowBounds(window, bounds);
@@ -71,6 +91,8 @@ function showStatsWindow(window: BrowserWindow, options: StatsWindowOptions): vo
   }
   options.onVisibilityChanged?.(true);
   promoteStatsOverlayAbovePlayback();
+  reconcileStatsWindowBounds(window, options);
+  scheduleStatsWindowBoundsReconcile(window, options);
 }
 
 export function promoteStatsOverlayAbovePlayback(): boolean {
