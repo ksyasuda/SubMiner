@@ -2,12 +2,14 @@ import { execFileSync } from 'node:child_process';
 
 export interface HyprlandPlacementClient {
   address?: string;
+  at?: [number, number];
   floating?: boolean;
   hidden?: boolean;
   initialTitle?: string;
   mapped?: boolean;
   pid?: number;
   pinned?: boolean;
+  size?: [number, number];
   title?: string;
 }
 
@@ -41,6 +43,10 @@ function parseHyprlandClients(output: string): HyprlandPlacementClient[] {
 
   const parsed = JSON.parse(output.slice(payloadStart)) as unknown;
   return Array.isArray(parsed) ? (parsed as HyprlandPlacementClient[]) : [];
+}
+
+function readHyprlandPlacementClients(run: ExecFileSync): HyprlandPlacementClient[] {
+  return parseHyprlandClients(String(run('hyprctl', ['-j', 'clients'], { encoding: 'utf-8' })));
 }
 
 export function findHyprlandWindowForPlacement(
@@ -97,15 +103,15 @@ export function buildHyprlandPlacementDispatches(
   if (roundedBounds) {
     if (configProvider === 'lua') {
       dispatches.push(
-        luaWindowDispatch('move', windowAddress, [
-          `x = ${roundedBounds.x}`,
-          `y = ${roundedBounds.y}`,
-        ]),
-      );
-      dispatches.push(
         luaWindowDispatch('resize', windowAddress, [
           `x = ${roundedBounds.width}`,
           `y = ${roundedBounds.height}`,
+        ]),
+      );
+      dispatches.push(
+        luaWindowDispatch('move', windowAddress, [
+          `x = ${roundedBounds.x}`,
+          `y = ${roundedBounds.y}`,
         ]),
       );
       dispatches.push(luaWindowSetProp(windowAddress, 'rounding', '0'));
@@ -116,13 +122,13 @@ export function buildHyprlandPlacementDispatches(
     } else {
       dispatches.push([
         'dispatch',
-        'movewindowpixel',
-        `exact ${roundedBounds.x} ${roundedBounds.y},${windowAddress}`,
+        'resizewindowpixel',
+        `exact ${roundedBounds.width} ${roundedBounds.height},${windowAddress}`,
       ]);
       dispatches.push([
         'dispatch',
-        'resizewindowpixel',
-        `exact ${roundedBounds.width} ${roundedBounds.height},${windowAddress}`,
+        'movewindowpixel',
+        `exact ${roundedBounds.x} ${roundedBounds.y},${windowAddress}`,
       ]);
       dispatches.push(['dispatch', 'setprop', `${windowAddress} rounding 0`]);
       dispatches.push(['dispatch', 'setprop', `${windowAddress} border_size 0`]);
@@ -181,6 +187,91 @@ function roundPlacementBounds(
     : null;
 }
 
+function isFiniteTuple(value: unknown): value is [number, number] {
+  return (
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    typeof value[0] === 'number' &&
+    typeof value[1] === 'number' &&
+    Number.isFinite(value[0]) &&
+    Number.isFinite(value[1])
+  );
+}
+
+export function getHyprlandClientPlacementBounds(
+  client: HyprlandPlacementClient,
+): HyprlandPlacementBounds | null {
+  if (!isFiniteTuple(client.at) || !isFiniteTuple(client.size)) {
+    return null;
+  }
+
+  return roundPlacementBounds({
+    x: client.at[0],
+    y: client.at[1],
+    width: client.size[0],
+    height: client.size[1],
+  });
+}
+
+export function hyprlandPlacementBoundsMatch(
+  actual: HyprlandPlacementBounds | null,
+  target: HyprlandPlacementBounds | null,
+  tolerancePx = 1,
+): boolean {
+  const roundedActual = roundPlacementBounds(actual);
+  const roundedTarget = roundPlacementBounds(target);
+  if (!roundedActual || !roundedTarget) {
+    return false;
+  }
+
+  return (
+    Math.abs(roundedActual.x - roundedTarget.x) <= tolerancePx &&
+    Math.abs(roundedActual.y - roundedTarget.y) <= tolerancePx &&
+    Math.abs(roundedActual.width - roundedTarget.width) <= tolerancePx &&
+    Math.abs(roundedActual.height - roundedTarget.height) <= tolerancePx
+  );
+}
+
+function clientMatchesPlacementBounds(
+  client: HyprlandPlacementClient,
+  bounds: HyprlandPlacementBounds,
+): boolean | null {
+  const actual = getHyprlandClientPlacementBounds(client);
+  return actual ? hyprlandPlacementBoundsMatch(actual, bounds) : null;
+}
+
+export function hasHyprlandWindowPlacementBoundsMismatch(options: {
+  title: string;
+  bounds?: HyprlandPlacementBounds | null;
+  platform?: NodeJS.Platform;
+  env?: NodeJS.ProcessEnv;
+  pid?: number;
+  execFileSync?: ExecFileSync;
+}): boolean {
+  if (!shouldAttemptHyprlandWindowPlacement(options.platform, options.env)) {
+    return false;
+  }
+
+  const targetBounds = roundPlacementBounds(options.bounds);
+  if (!targetBounds) {
+    return false;
+  }
+
+  const run = options.execFileSync ?? execFileSync;
+  try {
+    const client = findHyprlandWindowForPlacement(readHyprlandPlacementClients(run), {
+      pid: options.pid ?? process.pid,
+      title: options.title,
+    });
+    if (!client) {
+      return false;
+    }
+    return clientMatchesPlacementBounds(client, targetBounds) === false;
+  } catch {
+    return false;
+  }
+}
+
 export function ensureHyprlandWindowFloatingByTitle(options: {
   title: string;
   bounds?: HyprlandPlacementBounds | null;
@@ -196,9 +287,7 @@ export function ensureHyprlandWindowFloatingByTitle(options: {
 
   const run = options.execFileSync ?? execFileSync;
   try {
-    const clients = parseHyprlandClients(
-      String(run('hyprctl', ['-j', 'clients'], { encoding: 'utf-8' })),
-    );
+    const clients = readHyprlandPlacementClients(run);
     const client = findHyprlandWindowForPlacement(clients, {
       pid: options.pid ?? process.pid,
       title: options.title,
@@ -208,12 +297,37 @@ export function ensureHyprlandWindowFloatingByTitle(options: {
     }
 
     const configProvider = detectHyprlandConfigProvider(run);
+    const targetBounds = roundPlacementBounds(options.bounds);
+    const shouldVerifyBounds =
+      targetBounds !== null && clientMatchesPlacementBounds(client, targetBounds) === false;
     const dispatches = buildHyprlandPlacementDispatches(client, options.bounds, {
       configProvider,
       promote: options.promote,
     });
     for (const args of dispatches) {
       run('hyprctl', args, { stdio: 'ignore' });
+    }
+    if (shouldVerifyBounds) {
+      try {
+        const refreshedClient = findHyprlandWindowForPlacement(readHyprlandPlacementClients(run), {
+          pid: options.pid ?? process.pid,
+          title: options.title,
+        });
+        if (
+          refreshedClient &&
+          targetBounds &&
+          clientMatchesPlacementBounds(refreshedClient, targetBounds) === false
+        ) {
+          for (const args of buildHyprlandPlacementDispatches(refreshedClient, targetBounds, {
+            configProvider,
+            promote: options.promote,
+          })) {
+            run('hyprctl', args, { stdio: 'ignore' });
+          }
+        }
+      } catch {
+        // Best-effort reconciliation: the initial placement dispatches already ran.
+      }
     }
     return dispatches.length > 0;
   } catch {

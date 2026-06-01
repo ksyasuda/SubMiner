@@ -8,6 +8,7 @@ import type { WindowGeometry } from '../../types';
 const DEFAULT_STATS_WINDOW_WIDTH = 900;
 const DEFAULT_STATS_WINDOW_HEIGHT = 700;
 export const STATS_WINDOW_TITLE = 'SubMiner Stats';
+const STATS_POST_SHOW_RECONCILE_DELAYS_MS = [50, 150, 300, 600] as const;
 
 type StatsWindowLevelController = Pick<BrowserWindow, 'setAlwaysOnTop' | 'moveTop'> &
   Partial<Pick<BrowserWindow, 'setVisibleOnAllWorkspaces' | 'setFullScreenable'>>;
@@ -26,6 +27,14 @@ type StatsNativeConfirmDialogPresenter<WindowT> = {
 type StatsWindowBoundsController = Pick<BrowserWindow, 'getBounds' | 'getContentBounds'>;
 type StatsWindowPresentationController = Pick<BrowserWindow, 'show' | 'focus'> &
   Partial<Pick<BrowserWindow, 'showInactive'>>;
+type StatsWindowReconcileScheduler = {
+  setTimeout: (
+    callback: () => void,
+    delayMs: number,
+  ) => {
+    unref?: () => void;
+  };
+};
 
 function isBareToggleKeyInput(input: Electron.Input, toggleKey: string): boolean {
   return (
@@ -187,6 +196,16 @@ export function presentStatsWindow(
 
   window.show();
   window.focus();
+}
+
+export function scheduleStatsWindowPostShowReconciles(
+  reconcile: () => void,
+  scheduler: StatsWindowReconcileScheduler = globalThis,
+): void {
+  for (const delayMs of STATS_POST_SHOW_RECONCILE_DELAYS_MS) {
+    const timeout = scheduler.setTimeout(reconcile, delayMs);
+    timeout.unref?.();
+  }
 }
 
 export function buildStatsWindowLoadFileOptions(apiBaseUrl?: string): {

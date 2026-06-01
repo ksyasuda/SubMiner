@@ -9,6 +9,7 @@ import {
   promoteVisibleStatsWindowAboveOverlay,
   promoteStatsWindowLevel,
   resolveStatsWindowOuterBoundsForContent,
+  scheduleStatsWindowPostShowReconciles,
   showStatsNativeConfirmDialog,
   shouldHideStatsWindowForInput,
 } from './stats-window-runtime';
@@ -401,4 +402,40 @@ test('presentStatsWindow shows and focuses on non-macOS platforms', () => {
   );
 
   assert.deepEqual(calls, ['show', 'focus']);
+});
+
+test('scheduleStatsWindowPostShowReconciles retries placement after a reused hidden window is remapped', () => {
+  const calls: string[] = [];
+
+  scheduleStatsWindowPostShowReconciles(
+    () => {
+      calls.push('reconcile');
+    },
+    {
+      setTimeout: (callback, delayMs) => {
+        calls.push(`timer:${delayMs}`);
+        callback();
+        return {
+          unref: () => {
+            calls.push(`unref:${delayMs}`);
+          },
+        };
+      },
+    },
+  );
+
+  assert.deepEqual(calls, [
+    'timer:50',
+    'reconcile',
+    'unref:50',
+    'timer:150',
+    'reconcile',
+    'unref:150',
+    'timer:300',
+    'reconcile',
+    'unref:300',
+    'timer:600',
+    'reconcile',
+    'unref:600',
+  ]);
 });

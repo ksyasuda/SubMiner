@@ -7,6 +7,22 @@ test('normalizeOverlayWindowBoundsForPlatform returns original geometry outside 
   assert.deepEqual(normalizeOverlayWindowBoundsForPlatform(geometry, 'linux', null), geometry);
 });
 
+test('normalizeOverlayWindowBoundsForPlatform compensates Linux content insets', () => {
+  assert.deepEqual(
+    normalizeOverlayWindowBoundsForPlatform(
+      { x: 0, y: 0, width: 3440, height: 1440 },
+      'linux',
+      null,
+      {
+        isDestroyed: () => false,
+        getBounds: () => ({ x: 0, y: 0, width: 3440, height: 1440 }),
+        getContentBounds: () => ({ x: 0, y: 14, width: 3440, height: 1426 }),
+      },
+    ),
+    { x: 0, y: -14, width: 3440, height: 1454 },
+  );
+});
+
 test('normalizeOverlayWindowBoundsForPlatform returns original geometry on Windows when screen is unavailable', () => {
   const geometry = { x: 150, y: 90, width: 1200, height: 675 };
   assert.deepEqual(normalizeOverlayWindowBoundsForPlatform(geometry, 'win32', null), geometry);

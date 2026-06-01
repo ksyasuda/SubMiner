@@ -4,6 +4,7 @@ import {
   buildHyprlandPlacementDispatches,
   ensureHyprlandWindowFloatingByTitle,
   findHyprlandWindowForPlacement,
+  hasHyprlandWindowPlacementBoundsMismatch,
   shouldAttemptHyprlandWindowPlacement,
 } from './hyprland-window-placement';
 
@@ -83,8 +84,8 @@ test('buildHyprlandPlacementDispatches force-aligns floating overlay windows to 
       },
     ),
     [
-      ['dispatch', 'movewindowpixel', 'exact 0 0,address:0xabc'],
       ['dispatch', 'resizewindowpixel', 'exact 1920 1080,address:0xabc'],
+      ['dispatch', 'movewindowpixel', 'exact 0 0,address:0xabc'],
       ['dispatch', 'setprop', 'address:0xabc rounding 0'],
       ['dispatch', 'setprop', 'address:0xabc border_size 0'],
       ['dispatch', 'setprop', 'address:0xabc no_shadow 1'],
@@ -116,8 +117,8 @@ test('buildHyprlandPlacementDispatches emits Lua dispatchers for Lua-config Hypr
     [
       ['dispatch', 'hl.dsp.window.float({ action = "on", window = "address:0xabc" })'],
       ['dispatch', 'hl.dsp.window.pin({ action = "off", window = "address:0xabc" })'],
-      ['dispatch', 'hl.dsp.window.move({ x = 0, y = 0, window = "address:0xabc" })'],
       ['dispatch', 'hl.dsp.window.resize({ x = 1920, y = 1080, window = "address:0xabc" })'],
+      ['dispatch', 'hl.dsp.window.move({ x = 0, y = 0, window = "address:0xabc" })'],
       [
         'dispatch',
         'hl.dsp.window.set_prop({ prop = "rounding", value = "0", window = "address:0xabc" })',
@@ -177,8 +178,8 @@ test('buildHyprlandPlacementDispatches can update placement without raising z-or
       { promote: false },
     ),
     [
-      ['dispatch', 'movewindowpixel', 'exact 0 0,address:0xabc'],
       ['dispatch', 'resizewindowpixel', 'exact 1920 1080,address:0xabc'],
+      ['dispatch', 'movewindowpixel', 'exact 0 0,address:0xabc'],
       ['dispatch', 'setprop', 'address:0xabc rounding 0'],
       ['dispatch', 'setprop', 'address:0xabc border_size 0'],
       ['dispatch', 'setprop', 'address:0xabc no_shadow 1'],
@@ -286,8 +287,8 @@ test('ensureHyprlandWindowFloatingByTitle dispatches exact Hyprland geometry whe
     [
       ['-j', 'clients'],
       ['-j', 'status'],
-      ['dispatch', 'movewindowpixel', 'exact 0 0,address:0xmatch'],
       ['dispatch', 'resizewindowpixel', 'exact 1920 1080,address:0xmatch'],
+      ['dispatch', 'movewindowpixel', 'exact 0 0,address:0xmatch'],
       ['dispatch', 'setprop', 'address:0xmatch rounding 0'],
       ['dispatch', 'setprop', 'address:0xmatch border_size 0'],
       ['dispatch', 'setprop', 'address:0xmatch no_shadow 1'],
@@ -340,8 +341,8 @@ test('ensureHyprlandWindowFloatingByTitle dispatches Lua syntax for Lua-config H
     [
       ['-j', 'clients'],
       ['-j', 'status'],
-      ['dispatch', 'hl.dsp.window.move({ x = 0, y = 0, window = "address:0xmatch" })'],
       ['dispatch', 'hl.dsp.window.resize({ x = 1920, y = 1080, window = "address:0xmatch" })'],
+      ['dispatch', 'hl.dsp.window.move({ x = 0, y = 0, window = "address:0xmatch" })'],
       [
         'dispatch',
         'hl.dsp.window.set_prop({ prop = "rounding", value = "0", window = "address:0xmatch" })',
@@ -363,6 +364,100 @@ test('ensureHyprlandWindowFloatingByTitle dispatches Lua syntax for Lua-config H
         'hl.dsp.window.set_prop({ prop = "decorate", value = "0", window = "address:0xmatch" })',
       ],
       ['dispatch', 'hl.dsp.window.alter_zorder({ mode = "top", window = "address:0xmatch" })'],
+    ],
+  );
+});
+
+test('hasHyprlandWindowPlacementBoundsMismatch compares compositor client bounds', () => {
+  const mismatch = hasHyprlandWindowPlacementBoundsMismatch({
+    title: 'SubMiner Overlay',
+    platform: 'linux',
+    env: {
+      HYPRLAND_INSTANCE_SIGNATURE: 'abc',
+    },
+    pid: 456,
+    bounds: {
+      x: 0,
+      y: 0,
+      width: 3440,
+      height: 1440,
+    },
+    execFileSync: ((command: string, args: string[]) => {
+      assert.equal(command, 'hyprctl');
+      assert.deepEqual(args, ['-j', 'clients']);
+      return JSON.stringify([
+        {
+          address: '0xmatch',
+          pid: 456,
+          title: 'SubMiner Overlay',
+          mapped: true,
+          floating: true,
+          at: [0, 14],
+          size: [3440, 1426],
+        },
+      ]);
+    }) as never,
+  });
+
+  assert.equal(mismatch, true);
+});
+
+test('ensureHyprlandWindowFloatingByTitle retries when compositor bounds stay misaligned', () => {
+  let clientReads = 0;
+  const calls: unknown[][] = [];
+  const placed = ensureHyprlandWindowFloatingByTitle({
+    title: 'SubMiner Overlay',
+    platform: 'linux',
+    env: {
+      HYPRLAND_INSTANCE_SIGNATURE: 'abc',
+    },
+    pid: 456,
+    bounds: {
+      x: 0,
+      y: 0,
+      width: 3440,
+      height: 1440,
+    },
+    execFileSync: ((command: string, args: string[], options: unknown) => {
+      calls.push([command, args, options]);
+      if (args.join(' ') === '-j clients') {
+        clientReads += 1;
+        return JSON.stringify([
+          {
+            address: '0xmatch',
+            pid: 456,
+            title: 'SubMiner Overlay',
+            mapped: true,
+            floating: true,
+            pinned: false,
+            at: clientReads === 1 ? [10, 58] : [0, 14],
+            size: clientReads === 1 ? [3420, 1372] : [3440, 1426],
+          },
+        ]);
+      }
+      if (args.join(' ') === '-j status') {
+        return JSON.stringify({ configProvider: 'hyprlang' });
+      }
+      return '';
+    }) as never,
+  });
+
+  assert.equal(placed, true);
+  assert.equal(clientReads, 2);
+  assert.deepEqual(
+    calls
+      .map(([, args]) => args)
+      .filter(
+        (args) =>
+          Array.isArray(args) &&
+          args[0] === 'dispatch' &&
+          (args[1] === 'resizewindowpixel' || args[1] === 'movewindowpixel'),
+      ),
+    [
+      ['dispatch', 'resizewindowpixel', 'exact 3440 1440,address:0xmatch'],
+      ['dispatch', 'movewindowpixel', 'exact 0 0,address:0xmatch'],
+      ['dispatch', 'resizewindowpixel', 'exact 3440 1440,address:0xmatch'],
+      ['dispatch', 'movewindowpixel', 'exact 0 0,address:0xmatch'],
     ],
   );
 });

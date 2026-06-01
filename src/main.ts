@@ -396,6 +396,8 @@ import {
   acquireYoutubeSubtitleTrack,
   acquireYoutubeSubtitleTracks,
 } from './core/services/youtube/generate';
+import { hasHyprlandWindowPlacementBoundsMismatch } from './core/services/hyprland-window-placement';
+import { normalizeOverlayWindowBoundsForPlatform } from './core/services/overlay-window-bounds';
 import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import { startStatsServer } from './core/services/stats-server';
@@ -5429,16 +5431,33 @@ function maybeExitLinuxFullscreenOverrideForTrackedGeometry(geometry: WindowGeom
   syncLinuxVisibleOverlayMpvFullscreenMode(false);
 }
 
+function hasHyprlandOverlayWindowPlacementMismatch(geometry: WindowGeometry): boolean {
+  if (process.platform !== 'linux') {
+    return false;
+  }
+
+  return [overlayManager.getMainWindow(), overlayManager.getModalWindow()].some((window) => {
+    if (!window || window.isDestroyed()) {
+      return false;
+    }
+    return hasHyprlandWindowPlacementBoundsMismatch({
+      title: window.getTitle(),
+      bounds: normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen, window),
+    });
+  });
+}
+
 const buildUpdateVisibleOverlayBoundsMainDepsHandler =
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
     getCurrentOverlayWindowBounds: () => lastOverlayWindowGeometry,
     shouldRefreshUnchangedGeometry: (geometry) =>
       shouldExitLinuxFullscreenOverrideForGeometry(geometry) ||
       (process.platform === 'linux' &&
-        hasLiveOverlayWindowBoundsMismatch(
+        (hasLiveOverlayWindowBoundsMismatch(
           [overlayManager.getMainWindow(), overlayManager.getModalWindow()],
           geometry,
-        )),
+        ) ||
+          hasHyprlandOverlayWindowPlacementMismatch(geometry))),
     setOverlayWindowBounds: (geometry) => applyOverlayRegions(geometry),
     afterSetOverlayWindowBounds: () => {
       if (!overlayManager.getVisibleOverlayVisible()) {
