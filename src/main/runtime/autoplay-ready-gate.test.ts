@@ -95,6 +95,48 @@ test('autoplay ready gate retry loop does not re-signal plugin readiness', async
   );
 });
 
+test('autoplay ready gate requests overlay pointer recovery when media readiness is signaled', async () => {
+  const commands: Array<Array<string | boolean>> = [];
+  let pointerRecoveryRequests = 0;
+
+  const gate = createAutoplayReadyGate({
+    isAppOwnedFlowInFlight: () => false,
+    getCurrentMediaPath: () => '/media/video.mkv',
+    getCurrentVideoPath: () => null,
+    getPlaybackPaused: () => true,
+    getMpvClient: () =>
+      ({
+        connected: true,
+        requestProperty: async () => true,
+        send: ({ command }: { command: Array<string | boolean> }) => {
+          commands.push(command);
+        },
+      }) as never,
+    signalPluginAutoplayReady: () => {
+      commands.push(['script-message', 'subminer-autoplay-ready']);
+    },
+    requestOverlayPointerRecovery: () => {
+      pointerRecoveryRequests += 1;
+    },
+    schedule: (callback) => {
+      queueMicrotask(callback);
+      return 1 as never;
+    },
+    logDebug: () => {},
+  });
+
+  gate.maybeSignalPluginAutoplayReady({ text: '字幕', tokens: null }, { forceWhilePaused: true });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  gate.maybeSignalPluginAutoplayReady(
+    { text: '字幕その2', tokens: null },
+    { forceWhilePaused: true },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(pointerRecoveryRequests, 1);
+});
+
 test('autoplay ready gate does not unpause again after a later manual pause on the same media', async () => {
   const commands: Array<Array<string | boolean>> = [];
   let playbackPaused = true;

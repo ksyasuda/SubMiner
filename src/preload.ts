@@ -203,6 +203,9 @@ const onSubtitleSetEvent = createLatestValueIpcListenerWithPayload<SubtitleData>
   IPC_CHANNELS.event.subtitleSet,
   (payload) => payload as SubtitleData,
 );
+const onOverlayPointerRecoveryRequestEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.overlayPointerRecoveryRequest,
+);
 const onSubtitleVisibilityEvent = createLatestValueIpcListenerWithPayload<boolean>(
   IPC_CHANNELS.event.subtitleVisibility,
   (payload) => payload === true,
@@ -225,6 +228,7 @@ const electronAPI: ElectronAPI = {
   onSubtitle: (callback: (data: SubtitleData) => void) => {
     onSubtitleSetEvent(callback);
   },
+  onOverlayPointerRecoveryRequested: onOverlayPointerRecoveryRequestEvent,
 
   onVisibility: (callback: (visible: boolean) => void) => {
     onSubtitleVisibilityEvent(callback);

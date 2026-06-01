@@ -54,6 +54,7 @@ type RevealFallbackHandle = NonNullable<Parameters<typeof globalThis.clearTimeou
 
 export interface OverlayModalRuntimeOptions {
   onModalStateChange?: (isActive: boolean) => void;
+  onFinalModalClosed?: () => void;
   scheduleRevealFallback?: (callback: () => void, delayMs: number) => RevealFallbackHandle;
   clearRevealFallback?: (timeout: RevealFallbackHandle) => void;
 }
@@ -387,7 +388,8 @@ export function createOverlayModalRuntimeService(
       }
       modalWindowPrimedForImmediateShow = false;
       mainWindowMousePassthroughForcedByModal = false;
-      mainWindowHiddenByModal = false;
+      setMainWindowVisibilityForModal(false);
+      options.onFinalModalClosed?.();
       notifyModalStateChange(false);
     }
   };
