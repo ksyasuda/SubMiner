@@ -231,6 +231,14 @@ local ctx = {
 					},
 					{
 						key = {
+							code = "MBTN_BACK",
+							modifiers = {},
+						},
+						actionType = "mpv-command",
+						command = { "sub-seek", -1 },
+					},
+					{
+						key = {
 							code = "KeyW",
 							modifiers = {},
 						},
@@ -317,6 +325,7 @@ local expected_mpv_bindings = {
 	{ keys = "L", command = { "sub-seek", 1 } },
 	{ keys = "q", command = { "quit" } },
 	{ keys = "Ctrl+w", command = { "quit" } },
+	{ keys = "MBTN_BACK", command = { "sub-seek", -1 } },
 }
 
 for _, expected in ipairs(expected_mpv_bindings) do

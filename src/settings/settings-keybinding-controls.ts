@@ -4,6 +4,7 @@ import {
   buildMpvKeybindingConfigValue,
   createMpvKeybindingRows,
   keyboardEventToConfigKey,
+  mouseEventToConfigKey,
   parseMpvCommandText,
   type KeyInputMode,
   type MpvKeybindingRow,
@@ -58,6 +59,15 @@ function startKeyLearning(
   };
   onBlur = (): void => stop();
   onMouseDown = (event: MouseEvent): void => {
+    const next = mouseEventToConfigKey(event, mode);
+    if (next && !(event.target === button && event.button === 0)) {
+      event.preventDefault();
+      event.stopPropagation();
+      stop();
+      onValue(next);
+      return;
+    }
+
     if (event.target !== button) {
       stop();
     }

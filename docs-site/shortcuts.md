@@ -152,9 +152,13 @@ The `keybindings` array overrides or extends the overlay's built-in key handling
   "keybindings": [
     { "key": "f", "command": ["cycle", "fullscreen"] },
     { "key": "m", "command": ["cycle", "mute"] },
+    { "key": "MBTN_BACK", "command": ["sub-seek", -1] },
+    { "key": "MBTN_FORWARD", "command": ["sub-seek", 1] },
     { "key": "Space", "command": null }, // disable default Space → pause
   ],
 }
 ```
+
+Mouse keybinding names are `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, and `MBTN_FORWARD`.
 
 Both `shortcuts`, `keybindings`, and `subtitleSidebar` are [hot-reloadable](/configuration#hot-reload-behavior) — changes take effect without restarting SubMiner.
