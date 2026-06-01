@@ -389,8 +389,13 @@ export function createOverlayModalRuntimeService(
       modalWindowPrimedForImmediateShow = false;
       mainWindowMousePassthroughForcedByModal = false;
       setMainWindowVisibilityForModal(false);
-      options.onFinalModalClosed?.();
-      notifyModalStateChange(false);
+      try {
+        options.onFinalModalClosed?.();
+      } catch {
+        // Modal state still needs to deactivate if focus handoff fails.
+      } finally {
+        notifyModalStateChange(false);
+      }
     }
   };
 

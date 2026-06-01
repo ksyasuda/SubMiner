@@ -21,10 +21,13 @@ test('focusMacOSMpvProcess fronts the running mpv process with osascript', async
   ]);
 });
 
-test('focusMacOSMpvProcess resolves when osascript fails', async () => {
-  await focusMacOSMpvProcess({
-    execFile: (_command, _args, _options, callback) => {
-      callback(new Error('not allowed'));
-    },
-  });
+test('focusMacOSMpvProcess rejects when osascript fails', async () => {
+  await assert.rejects(
+    focusMacOSMpvProcess({
+      execFile: (_command, _args, _options, callback) => {
+        callback(new Error('not allowed'));
+      },
+    }),
+    /not allowed/,
+  );
 });

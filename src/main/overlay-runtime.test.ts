@@ -498,6 +498,44 @@ test('modal window path runs final close handoff before modal input deactivates'
   ]);
 });
 
+test('modal runtime deactivates modal state when final close handoff throws', () => {
+  const mainWindow = createMockWindow();
+  mainWindow.visible = true;
+  const modalWindow = createMockWindow();
+  const events: string[] = [];
+  const runtime = createOverlayModalRuntimeService(
+    {
+      getMainWindow: () => mainWindow as never,
+      getModalWindow: () => modalWindow as never,
+      createModalWindow: () => modalWindow as never,
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => {},
+    },
+    {
+      onFinalModalClosed: (): void => {
+        events.push('handoff');
+        throw new Error('handoff failed');
+      },
+      onModalStateChange: (active: boolean): void => {
+        events.push(`state:${active}`);
+      },
+    },
+  );
+
+  runtime.sendToActiveOverlayWindow(
+    'youtube:picker-open',
+    { sessionId: 'yt-1' },
+    {
+      restoreOnModalClose: 'youtube-track-picker',
+      preferModalWindow: true,
+    },
+  );
+  runtime.notifyOverlayModalOpened('youtube-track-picker');
+
+  assert.doesNotThrow(() => runtime.handleOverlayModalClosed('youtube-track-picker'));
+  assert.deepEqual(events, ['state:true', 'handoff', 'state:false']);
+});
+
 test('modal runtime notifies callers when modal input state becomes active/inactive', () => {
   const window = createMockWindow();
   const state: boolean[] = [];

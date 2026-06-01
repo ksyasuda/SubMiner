@@ -23,8 +23,12 @@ export async function focusMacOSMpvProcess(deps: MacOSMpvFocusDeps = {}): Promis
       });
     });
 
-  await new Promise<void>((resolve) => {
-    execFile('/usr/bin/osascript', ['-e', FOCUS_MPV_PROCESS_SCRIPT], { timeout: 2000 }, () => {
+  await new Promise<void>((resolve, reject) => {
+    execFile('/usr/bin/osascript', ['-e', FOCUS_MPV_PROCESS_SCRIPT], { timeout: 2000 }, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
       resolve();
     });
   });
