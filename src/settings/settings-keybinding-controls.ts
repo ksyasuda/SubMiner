@@ -19,6 +19,18 @@ export function configureKeybindingControls(options: { requestRender: () => void
   requestRender = options.requestRender;
 }
 
+export function shouldUseLearnedMouseBinding(
+  next: string,
+  mode: KeyInputMode,
+  event: MouseEvent,
+  button: HTMLButtonElement,
+): boolean {
+  return Boolean(
+    !(event.target === button && event.button === 0) &&
+    !(mode === 'dom-code' && event.button === 0),
+  );
+}
+
 function startKeyLearning(
   button: HTMLButtonElement,
   mode: KeyInputMode,
@@ -60,7 +72,7 @@ function startKeyLearning(
   onBlur = (): void => stop();
   onMouseDown = (event: MouseEvent): void => {
     const next = mouseEventToConfigKey(event, mode);
-    if (next && !(event.target === button && event.button === 0)) {
+    if (next && shouldUseLearnedMouseBinding(next, mode, event, button)) {
       event.preventDefault();
       event.stopPropagation();
       stop();
