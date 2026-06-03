@@ -34,7 +34,7 @@ plugin/
 src/
   ai/                      # AI translation provider utilities (client, config)
   main-entry.ts           # Background-mode bootstrap wrapper before loading main.js
-  main.ts                  # Entry point — delegates to runtime composers/domain modules
+  main.ts                  # Entry point - delegates to runtime composers/domain modules
   preload.ts               # Electron preload bridge
   types.ts                 # Shared type definitions
   main/                    # Main-process composition/runtime adapters
@@ -226,17 +226,17 @@ Most runtime code follows a dependency-injection pattern:
 
 The composition root (`src/main.ts`) delegates to focused modules in `src/main/` and `src/main/runtime/composers/`:
 
-- `startup.ts` — argv/env processing and bootstrap flow
-- `app-lifecycle.ts` — Electron lifecycle event registration
-- `startup-lifecycle.ts` — app-ready initialization sequence
-- `state.ts` — centralized application runtime state container
-- `ipc-runtime.ts` — IPC channel registration and handler wiring
-- `cli-runtime.ts` — CLI command parsing and dispatch
-- `overlay-runtime.ts` — overlay window selection and modal state management
-- `subsync-runtime.ts` — subsync command orchestration
-- `runtime/composers/anilist-tracking-composer.ts` — AniList media tracking/probe/retry wiring
-- `runtime/composers/jellyfin-runtime-composer.ts` — Jellyfin config/client/playback/command/setup composition wiring
-- `runtime/composers/mpv-runtime-composer.ts` — MPV event/factory/tokenizer/warmup wiring
+- `startup.ts` - argv/env processing and bootstrap flow
+- `app-lifecycle.ts` - Electron lifecycle event registration
+- `startup-lifecycle.ts` - app-ready initialization sequence
+- `state.ts` - centralized application runtime state container
+- `ipc-runtime.ts` - IPC channel registration and handler wiring
+- `cli-runtime.ts` - CLI command parsing and dispatch
+- `overlay-runtime.ts` - overlay window selection and modal state management
+- `subsync-runtime.ts` - subsync command orchestration
+- `runtime/composers/anilist-tracking-composer.ts` - AniList media tracking/probe/retry wiring
+- `runtime/composers/jellyfin-runtime-composer.ts` - Jellyfin config/client/playback/command/setup composition wiring
+- `runtime/composers/mpv-runtime-composer.ts` - MPV event/factory/tokenizer/warmup wiring
 
 Composer modules share contract conventions via `src/main/runtime/composers/contracts.ts`:
 
@@ -271,9 +271,9 @@ For domains migrated to reducer-style transitions (for example AniList token/que
 
 ## Playback Startup Flow
 
-Before the app boots, something has to launch mpv, inject the plugin, and bring the overlay up. SubMiner-managed launches own this step — the `subminer` launcher, the app's own playback, and the packaged Windows shortcut all follow the same path. The launcher reads `config.jsonc`, spawns mpv with the IPC socket and the bundled plugin, and passes runtime settings as `--script-opts`. The plugin never reads a config file: the shipped `subminer.conf` is intentionally empty so command-line opts always win.
+Before the app boots, something has to launch mpv, inject the plugin, and bring the overlay up. SubMiner-managed launches own this step - the `subminer` launcher, the app's own playback, and the packaged Windows shortcut all follow the same path. The launcher reads `config.jsonc`, spawns mpv with the IPC socket and the bundled plugin, and passes runtime settings as `--script-opts`. The plugin never reads a config file: the shipped `subminer.conf` is intentionally empty so command-line opts always win.
 
-Once mpv is up, exactly one of two triggers brings up the overlay. On a first launch the plugin's `file-loaded` hook self-starts the app once the socket is ready (because the launcher injected `auto_start=yes`). When the app is already running — or for explicit `--start-overlay` and YouTube flows — the launcher instead attaches over the control socket and suppresses the plugin's auto-start, so the two never fire together. Both converge on the same app bring-up, which then runs the Program Lifecycle below.
+Once mpv is up, exactly one of two triggers brings up the overlay. On a first launch the plugin's `file-loaded` hook self-starts the app once the socket is ready (because the launcher injected `auto_start=yes`). When the app is already running - or for explicit `--start-overlay` and YouTube flows - the launcher instead attaches over the control socket and suppresses the plugin's auto-start, so the two never fire together. Both converge on the same app bring-up, which then runs the Program Lifecycle below.
 
 ```mermaid
 flowchart TB

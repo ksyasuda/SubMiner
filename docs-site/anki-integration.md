@@ -6,7 +6,7 @@ This project is built primarily for [Kiku](https://kiku.youyoumu.my.id/) and [La
 ::: tip New to these terms?
 - **Anki** is the flashcard app where your study cards live.
 - **AnkiConnect** is a free add-on that lets other programs (like SubMiner) talk to Anki over a local connection. SubMiner needs it installed to add or edit cards.
-- A **note type** (also called a "model") is the template that defines what a card looks like — for example the Kiku or Lapis templates many Japanese learners use.
+- A **note type** (also called a "model") is the template that defines what a card looks like - for example the Kiku or Lapis templates many Japanese learners use.
 - A **field** is one labeled slot in that template, such as `Sentence`, `Expression`, or `Picture`. SubMiner fills these fields when it mines a card.
 :::
 
@@ -22,9 +22,9 @@ AnkiConnect listens on `http://127.0.0.1:8765` by default. If you changed the po
 
 When you add a word via Yomitan, SubMiner detects the new card and fills in the sentence, audio, image, and translation fields automatically. Two detection methods are available:
 
-**Proxy mode** (default) — SubMiner runs a local *proxy*: a small middleman server that sits between Yomitan and Anki. Yomitan sends new cards to SubMiner, SubMiner enriches them, then passes them along to Anki. This makes enrichment instant.
+**Proxy mode** (default) - SubMiner runs a local *proxy*: a small middleman server that sits between Yomitan and Anki. Yomitan sends new cards to SubMiner, SubMiner enriches them, then passes them along to Anki. This makes enrichment instant.
 
-**Polling mode** (fallback, when the proxy is disabled) — SubMiner asks AnkiConnect every few seconds whether any new cards were added, then enriches them. Simpler setup, but with a short delay (~3 seconds).
+**Polling mode** (fallback, when the proxy is disabled) - SubMiner asks AnkiConnect every few seconds whether any new cards were added, then enriches them. Simpler setup, but with a short delay (~3 seconds).
 
 Use proxy mode if you want immediate enrichment. Use polling mode if your Yomitan instance is external (browser-based) or you prefer minimal configuration.
 

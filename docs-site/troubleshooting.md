@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Common issues and how to resolve them. Most problems fall into one of a few buckets — the overlay shows but subtitles don't (see [MPV Connection](#mpv-connection)), cards aren't being created or come out empty (see [AnkiConnect](#ankiconnect)), or word lookups don't appear (see [Yomitan](#yomitan)). If an error message popped up on screen, search this page for the exact text — most headings below are quoted error strings.
+Common issues and how to resolve them. Most problems fall into one of a few buckets - the overlay shows but subtitles don't (see [MPV Connection](#mpv-connection)), cards aren't being created or come out empty (see [AnkiConnect](#ankiconnect)), or word lookups don't appear (see [Yomitan](#yomitan)). If an error message popped up on screen, search this page for the exact text - most headings below are quoted error strings.
 
 ## MPV Connection
 
@@ -102,7 +102,7 @@ If the overlay never appears at all, see [Playback Startup Flow](./architecture#
 
 **"Failed to parse MPV message"**
 
-Logged when a malformed JSON line arrives from the mpv socket. Usually harmless — SubMiner skips the bad line and continues. If it happens constantly, check that nothing else is writing to the same socket path.
+Logged when a malformed JSON line arrives from the mpv socket. Usually harmless - SubMiner skips the bad line and continues. If it happens constantly, check that nothing else is writing to the same socket path.
 
 ## Updates
 
@@ -132,7 +132,7 @@ The detected launcher is installed in a protected path such as `/usr/local/bin/s
 
 **"AnkiConnect: unable to connect"**
 
-First confirm you've completed the [Anki Integration prerequisites](/anki-integration#prerequisites) — Anki must be running with the AnkiConnect add-on installed.
+First confirm you've completed the [Anki Integration prerequisites](/anki-integration#prerequisites) - Anki must be running with the AnkiConnect add-on installed.
 
 SubMiner connects to the active Anki endpoint:
 
@@ -148,7 +148,7 @@ SubMiner retries with exponential backoff (up to 5 s) and suppresses repeated er
 
 **Cards are created but fields are empty**
 
-Field names in your config must match your Anki note type exactly (case-sensitive). Check `ankiConnect.fields` — for example, if your note type uses `SentenceAudio` but your config says `Audio`, the field will not be populated.
+Field names in your config must match your Anki note type exactly (case-sensitive). Check `ankiConnect.fields` - for example, if your note type uses `SentenceAudio` but your config says `Audio`, the field will not be populated.
 
 See [Anki Integration](/anki-integration) for the full field mapping reference.
 
@@ -169,7 +169,7 @@ Shown when SubMiner tries to update a card that no longer exists, or when AnkiCo
 
 **Overlay appears but clicks pass through / cannot interact**
 
-- Make sure you are hovering over subtitle text — the overlay only becomes interactive when the cursor is over a subtitle.
+- Make sure you are hovering over subtitle text - the overlay only becomes interactive when the cursor is over a subtitle.
 - On macOS/Windows: toggle the overlay off and back on (`Alt+Shift+O`) to re-enable pointer events.
 - On Linux: mouse event handling is unreliable in some Electron/compositor combinations. If clicks consistently fail, toggle the overlay off, click the underlying mpv window, then toggle it back on.
 
@@ -208,7 +208,7 @@ If you installed from the AppImage and see this error, the package may be incomp
 
 **Yomitan lookup popup does not appear when hovering words or triggering lookup**
 
-- Verify Yomitan loaded successfully — check the terminal output for "Loaded Yomitan extension".
+- Verify Yomitan loaded successfully - check the terminal output for "Loaded Yomitan extension".
 - Yomitan requires dictionaries to be installed. Open Yomitan settings (`Alt+Shift+Y` or `SubMiner.AppImage --yomitan`) and confirm at least one dictionary is imported.
 - If `yomitan.externalProfilePath` is set, import/check dictionaries in the external app/profile instead. SubMiner treats that profile as read-only and does not open its own Yomitan settings window.
 - If the overlay shows subtitles but hover lookup never resolves on tokens, the tokenizer may have failed. See the MeCab section below.
@@ -234,9 +234,9 @@ Japanese word boundaries depend on Yomitan parser output. If segmentation seems 
 
 ## Character Dictionary
 
-Character names from AniList are matched and highlighted in subtitles via the bundled Yomitan. See [Character Dictionary](/character-dictionary) for setup and the full troubleshooting list — the most common issues:
+Character names from AniList are matched and highlighted in subtitles via the bundled Yomitan. See [Character Dictionary](/character-dictionary) for setup and the full troubleshooting list - the most common issues:
 
-- **Names not highlighting:** Confirm `subtitleStyle.nameMatchEnabled` is `true`, and that the current media resolved to an AniList entry (SubMiner needs a media ID to fetch characters). No AniList account or token is required — character data uses public GraphQL queries.
+- **Names not highlighting:** Confirm `subtitleStyle.nameMatchEnabled` is `true`, and that the current media resolved to an AniList entry (SubMiner needs a media ID to fetch characters). No AniList account or token is required - character data uses public GraphQL queries.
 - **Inline portraits missing:** Confirm `subtitleStyle.nameMatchImagesEnabled` is `true`. Portraits also require AniList to return an image and the download to succeed during snapshot generation.
 - **Wrong characters showing:** Open the in-app manager (`Ctrl/Cmd+D`) and use **Override** to pin the correct AniList match for the series.
 - **Feature unavailable:** If `yomitan.externalProfilePath` is set, SubMiner runs in read-only external-profile mode and its character-dictionary features are disabled.
@@ -269,7 +269,7 @@ Global shortcuts (`Alt+Shift+O`, `Alt+Shift+Y`) may conflict with other applicat
 
 - Check your DE/WM keybinding settings for conflicts.
 - Change the shortcut in your config under `shortcuts.toggleVisibleOverlayGlobal`.
-- On Wayland, global shortcut registration has limitations depending on the compositor. Only Hyprland and Sway are supported natively — see the [Hyprland](#hyprland) section below for shortcut passthrough rules. Other Wayland compositors require X11/Xwayland.
+- On Wayland, global shortcut registration has limitations depending on the compositor. Only Hyprland and Sway are supported natively - see the [Hyprland](#hyprland) section below for shortcut passthrough rules. Other Wayland compositors require X11/Xwayland.
 
 **Overlay keybindings not working**
 
@@ -326,14 +326,14 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
 
 ### Linux
 
-- **Wayland (Hyprland/Sway only)**: Native Wayland support is limited to Hyprland and Sway. Window tracking uses compositor-specific commands (`hyprctl` / `swaymsg`). If these are not on `PATH`, tracking will fail silently. Other Wayland compositors (KDE Plasma, GNOME, …) are not supported natively — both mpv and SubMiner must run under X11 or Xwayland instead. On those sessions SubMiner forces XWayland automatically for itself and for every mpv it launches (see [KDE Plasma & other Wayland compositors](#kde-plasma--other-wayland-compositors)).
-- **X11 / Xwayland**: Requires `xdotool`, `xprop`, and `xwininfo`. If missing, the overlay cannot track the mpv window position. This is the required backend for any Wayland compositor other than Hyprland or Sway — both mpv and SubMiner must be running under X11/Xwayland for window tracking _and_ for the overlay to stay above mpv (Wayland forbids clients from controlling window stacking). SubMiner uses a managed X11 overlay while mpv is windowed, switches to an override-redirect X11 overlay while tracked mpv is fullscreen, and hides/releases that overlay when another X11/Xwayland app takes focus. The visible overlay stays hidden until SubMiner has tracked mpv geometry, so startup should not create a display-sized fallback overlay while tokenization warms up.
+- **Wayland (Hyprland/Sway only)**: Native Wayland support is limited to Hyprland and Sway. Window tracking uses compositor-specific commands (`hyprctl` / `swaymsg`). If these are not on `PATH`, tracking will fail silently. Other Wayland compositors (KDE Plasma, GNOME, …) are not supported natively - both mpv and SubMiner must run under X11 or Xwayland instead. On those sessions SubMiner forces XWayland automatically for itself and for every mpv it launches (see [KDE Plasma & other Wayland compositors](#kde-plasma--other-wayland-compositors)).
+- **X11 / Xwayland**: Requires `xdotool`, `xprop`, and `xwininfo`. If missing, the overlay cannot track the mpv window position. This is the required backend for any Wayland compositor other than Hyprland or Sway - both mpv and SubMiner must be running under X11/Xwayland for window tracking _and_ for the overlay to stay above mpv (Wayland forbids clients from controlling window stacking). SubMiner uses a managed X11 overlay while mpv is windowed, switches to an override-redirect X11 overlay while tracked mpv is fullscreen, and hides/releases that overlay when another X11/Xwayland app takes focus. The visible overlay stays hidden until SubMiner has tracked mpv geometry, so startup should not create a display-sized fallback overlay while tokenization warms up.
 - **Tray icon missing**: SubMiner creates an Electron tray icon in `--background` mode, but Linux trays require a StatusNotifier/AppIndicator host. Hyprland does not provide one by itself; enable a tray in Waybar, Hyprpanel, or another panel. If Electron cannot register the tray, SubMiner logs a warning that mentions the missing tray host.
 - **Mouse passthrough**: On Linux X11/Xwayland, SubMiner uses `xdotool` to poll the cursor and only enables overlay input while the cursor is over subtitle or popup regions. Outside those regions, pointer input passes through to mpv. Native Wayland compositors other than Hyprland/Sway cannot provide the stacking control SubMiner needs.
 
 ### Hyprland
 
-SubMiner's overlay is a transparent, frameless Electron window that must be kept above mpv. SubMiner tries to apply the floating, borderless, no-shadow, and no-blur properties itself each time it places the overlay. It detects Hyprland's active config provider and uses Lua `hl.dsp.window.*` dispatchers for recent Hyprland Lua configs, or the legacy dispatcher syntax for older hyprlang configs. On many configurations that is enough, but if your Hyprland version doesn't honor those runtime dispatches — or a broad rule in your config forces opacity/blur on every window — add explicit window rules so the overlay is exempt. You also need `pass` bindings to forward global shortcuts to SubMiner (see below).
+SubMiner's overlay is a transparent, frameless Electron window that must be kept above mpv. SubMiner tries to apply the floating, borderless, no-shadow, and no-blur properties itself each time it places the overlay. It detects Hyprland's active config provider and uses Lua `hl.dsp.window.*` dispatchers for recent Hyprland Lua configs, or the legacy dispatcher syntax for older hyprlang configs. On many configurations that is enough, but if your Hyprland version doesn't honor those runtime dispatches - or a broad rule in your config forces opacity/blur on every window - add explicit window rules so the overlay is exempt. You also need `pass` bindings to forward global shortcuts to SubMiner (see below).
 
 **Overlay is not transparent or has a visible border**
 
@@ -364,7 +364,7 @@ windowrule = no_shadow on, match:class SubMiner
 windowrule = no_blur on, match:class SubMiner
 ```
 
-If you still see a solid background or visual artifacts instead of the mpv video underneath, the culprit is almost always a global opacity/blur rule applying to the overlay — the `opaque`/`opacity` and `no_blur` fields above override it.
+If you still see a solid background or visual artifacts instead of the mpv video underneath, the culprit is almost always a global opacity/blur rule applying to the overlay - the `opaque`/`opacity` and `no_blur` fields above override it.
 
 **Global shortcuts not working**
 
@@ -387,12 +387,12 @@ For more details, see the Hyprland docs on [global keybinds](https://wiki.hypr.l
 
 ### KDE Plasma & other Wayland compositors
 
-On any Wayland session that is not Hyprland or Sway (KDE Plasma, GNOME, and others), the overlay can only stay above mpv when both processes run under **XWayland** — the Wayland protocol forbids clients from controlling window stacking, so the overlay's "always on top" becomes a no-op on a native Wayland surface.
+On any Wayland session that is not Hyprland or Sway (KDE Plasma, GNOME, and others), the overlay can only stay above mpv when both processes run under **XWayland** - the Wayland protocol forbids clients from controlling window stacking, so the overlay's "always on top" becomes a no-op on a native Wayland surface.
 
 SubMiner handles this automatically:
 
 - It launches its own window under XWayland (it sets `--ozone-platform-hint=x11`).
-- Every mpv it launches (via the `subminer` launcher, Jellyfin, or YouTube) is pinned to XWayland too — Wayland environment hints are stripped and an X11 GPU context (`--gpu-context=x11egl,x11`) is applied.
+- Every mpv it launches (via the `subminer` launcher, Jellyfin, or YouTube) is pinned to XWayland too - Wayland environment hints are stripped and an X11 GPU context (`--gpu-context=x11egl,x11`) is applied.
 - While mpv is windowed, the overlay is a managed X11 window owned by the tracked mpv window (`WM_TRANSIENT_FOR`), so it stays above mpv while other foreground X11/Xwayland apps can still cover both windows.
 - While tracked mpv is fullscreen, SubMiner swaps the visible overlay to a focusable-false X11 override-redirect window. That path can stay above the active fullscreen mpv window without requiring a KDE/KWin-specific rule, and SubMiner hides/releases it when mpv is no longer the active X11/Xwayland window.
 - The visible overlay is shown inactive on Linux, so normal hover should not steal keyboard focus from mpv.
@@ -423,15 +423,15 @@ SubMiner can only detect focus for X11/Xwayland windows in this mode. If a nativ
 
 Feature-specific issues are covered in each feature's own page:
 
-- [Anki Integration](/anki-integration) — card creation, field mapping, and AnkiConnect setup
-- [AniList Integration](/anilist-integration) — watch-progress sync and authentication
-- [Character Dictionary](/character-dictionary) — AniList character name matching and inline portraits
-- [Jellyfin Integration](/jellyfin-integration) — remote playback and library connection
-- [Jimaku Integration](/jimaku-integration) — subtitle fetching and API rate limits
-- [YouTube Integration](/youtube-integration) — subtitle generation and playback
-- [Immersion Tracking](/immersion-tracking) — telemetry and session logging
-- [WebSocket / Texthooker API](/websocket-texthooker-api) — external texthooker clients
-- [Subtitle Annotations](/subtitle-annotations) — N+1, frequency, JLPT, and name-match layers
-- [Subtitle Sidebar](/subtitle-sidebar) — sidebar navigation and behavior
-- [Configuration Reference](/configuration) — full config options
-- [Shortcuts](/shortcuts) — keybinding reference
+- [Anki Integration](/anki-integration) - card creation, field mapping, and AnkiConnect setup
+- [AniList Integration](/anilist-integration) - watch-progress sync and authentication
+- [Character Dictionary](/character-dictionary) - AniList character name matching and inline portraits
+- [Jellyfin Integration](/jellyfin-integration) - remote playback and library connection
+- [Jimaku Integration](/jimaku-integration) - subtitle fetching and API rate limits
+- [YouTube Integration](/youtube-integration) - subtitle generation and playback
+- [Immersion Tracking](/immersion-tracking) - telemetry and session logging
+- [WebSocket / Texthooker API](/websocket-texthooker-api) - external texthooker clients
+- [Subtitle Annotations](/subtitle-annotations) - N+1, frequency, JLPT, and name-match layers
+- [Subtitle Sidebar](/subtitle-sidebar) - sidebar navigation and behavior
+- [Configuration Reference](/configuration) - full config options
+- [Shortcuts](/shortcuts) - keybinding reference

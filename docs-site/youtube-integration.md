@@ -4,8 +4,8 @@ SubMiner auto-loads Japanese subtitles when you play a YouTube URL, giving you t
 
 ## Requirements
 
-- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** must be installed and on your `PATH`. yt-dlp is a free command-line tool that reads YouTube video and subtitle info; SubMiner calls it behind the scenes. (`PATH` is the list of folders your system searches for programs — most installers add yt-dlp to it automatically. If yours did not, set `SUBMINER_YTDLP_BIN` to the full path of the yt-dlp binary.)
-- mpv with `--input-ipc-server` configured (handled automatically when you launch playback through the `subminer` launcher — no manual setup needed).
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** must be installed and on your `PATH`. yt-dlp is a free command-line tool that reads YouTube video and subtitle info; SubMiner calls it behind the scenes. (`PATH` is the list of folders your system searches for programs - most installers add yt-dlp to it automatically. If yours did not, set `SUBMINER_YTDLP_BIN` to the full path of the yt-dlp binary.)
+- mpv with `--input-ipc-server` configured (handled automatically when you launch playback through the `subminer` launcher - no manual setup needed).
 
 ## How It Works
 
@@ -32,7 +32,7 @@ flowchart TD
     C[Track discovery]:::action
     D{Auto or manual selection?}:::step
     E[Auto-select best tracks]:::action
-    F[Manual picker — Ctrl+Alt+C]:::action
+    F[Manual picker - Ctrl+Alt+C]:::action
     G[Download subtitle files]:::action
     H[Convert TimedText to VTT]:::enrich
     I[Normalize auto-caption duplicates]:::enrich

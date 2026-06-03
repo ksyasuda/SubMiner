@@ -1,12 +1,12 @@
 # Keyboard Shortcuts
 
-This page is the complete reference for every keystroke SubMiner responds to. If you are just getting started, focus on the **Mining Shortcuts** and **Overlay Controls** sections — those cover the day-to-day mining loop. The rest can wait until you need them.
+This page is the complete reference for every keystroke SubMiner responds to. If you are just getting started, focus on the **Mining Shortcuts** and **Overlay Controls** sections - those cover the day-to-day mining loop. The rest can wait until you need them.
 
 A few terms used throughout:
 
-- **Overlay** — the transparent SubMiner window that sits on top of mpv and shows the interactive subtitles. Most shortcuts only work while this window has focus (click the video once if a shortcut seems to do nothing).
-- **`Ctrl/Cmd`** — use `Ctrl` on Windows/Linux and `Cmd` (⌘) on macOS. In the config file this is written as `CommandOrControl`.
-- **Accelerator** — Electron's name for a shortcut string like `Alt+Shift+O`.
+- **Overlay** - the transparent SubMiner window that sits on top of mpv and shows the interactive subtitles. Most shortcuts only work while this window has focus (click the video once if a shortcut seems to do nothing).
+- **`Ctrl/Cmd`** - use `Ctrl` on Windows/Linux and `Cmd` (⌘) on macOS. In the config file this is written as `CommandOrControl`.
+- **Accelerator** - Electron's name for a shortcut string like `Alt+Shift+O`.
 
 All shortcuts are configurable in `config.jsonc` under `shortcuts` and `keybindings`. Set any shortcut to `null` to disable it.
 
@@ -105,7 +105,7 @@ Controller input only drives the overlay while keyboard-only mode is enabled. Th
 
 ## MPV Plugin Chords
 
-When the mpv plugin is installed, all commands use a `y` chord prefix — press `y`, then the second key within 1 second.
+When the mpv plugin is installed, all commands use a `y` chord prefix - press `y`, then the second key within 1 second.
 
 | Chord | Action                                 |
 | ----- | -------------------------------------- |
@@ -161,4 +161,4 @@ The `keybindings` array overrides or extends the overlay's built-in key handling
 
 Mouse keybinding names are `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, and `MBTN_FORWARD`.
 
-Both `shortcuts`, `keybindings`, and `subtitleSidebar` are [hot-reloadable](/configuration#hot-reload-behavior) — changes take effect without restarting SubMiner.
+Both `shortcuts`, `keybindings`, and `subtitleSidebar` are [hot-reloadable](/configuration#hot-reload-behavior) - changes take effect without restarting SubMiner.

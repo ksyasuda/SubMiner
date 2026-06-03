@@ -1,12 +1,12 @@
 # Installation
 
-SubMiner is a desktop app that draws an interactive layer — an **overlay** — on top of the [mpv](https://mpv.io) video player. As you watch native Japanese media, you can click or hover any word in the subtitles to look it up, then turn it into an Anki flashcard without pausing to switch apps. Building flashcards from real content you're watching is called **sentence mining**, and it's what SubMiner is built for. It bundles its own copy of **Yomitan** (a pop-up dictionary) and talks to **AnkiConnect** (an add-on that lets other programs add cards to Anki) so cards get filled in automatically.
+SubMiner is a desktop app that draws an interactive layer - an **overlay** - on top of the [mpv](https://mpv.io) video player. As you watch native Japanese media, you can click or hover any word in the subtitles to look it up, then turn it into an Anki flashcard without pausing to switch apps. Building flashcards from real content you're watching is called **sentence mining**, and it's what SubMiner is built for. It bundles its own copy of **Yomitan** (a pop-up dictionary) and talks to **AnkiConnect** (an add-on that lets other programs add cards to Anki) so cards get filled in automatically.
 
 Three steps to get started:
 
-1. **Install requirements** — mpv and a few optional extras
-2. **Install SubMiner** — from the AUR, or download from GitHub Releases
-3. **Launch the app** — first-run setup walks you through dictionaries, the launcher, and everything else
+1. **Install requirements** - mpv and a few optional extras
+2. **Install SubMiner** - from the AUR, or download from GitHub Releases
+3. **Launch the app** - first-run setup walks you through dictionaries, the launcher, and everything else
 
 ## 1. Install Requirements
 
@@ -29,14 +29,14 @@ Only **mpv** is strictly required to run SubMiner. Everything else enhances the 
 
 ### Linux
 
-**Window backend** — you need one of these depending on your compositor:
+**Window backend** - you need one of these depending on your compositor:
 
-- **Hyprland** — native Wayland support (uses `hyprctl`)
-- **Sway** — native Wayland support (uses `swaymsg`)
-- **X11 / Xwayland** — for X11 sessions or any other Wayland compositor (uses `xdotool` and `xwininfo`)
+- **Hyprland** - native Wayland support (uses `hyprctl`)
+- **Sway** - native Wayland support (uses `swaymsg`)
+- **X11 / Xwayland** - for X11 sessions or any other Wayland compositor (uses `xdotool` and `xwininfo`)
 
 ::: warning Wayland support is compositor-specific
-Wayland has no universal API for window positioning — each compositor exposes its own IPC, so SubMiner needs a dedicated backend per compositor. Only Hyprland and Sway have native Wayland backends. If you run a different Wayland compositor (GNOME, KDE Plasma, river, etc.), both mpv **and** SubMiner must run under X11 or Xwayland. The `subminer` launcher handles this automatically when `--backend x11` is set or the X11 backend is auto-detected.
+Wayland has no universal API for window positioning - each compositor exposes its own IPC, so SubMiner needs a dedicated backend per compositor. Only Hyprland and Sway have native Wayland backends. If you run a different Wayland compositor (GNOME, KDE Plasma, river, etc.), both mpv **and** SubMiner must run under X11 or Xwayland. The `subminer` launcher handles this automatically when `--backend x11` is set or the X11 backend is auto-detected.
 :::
 
 <details>
@@ -69,7 +69,7 @@ sudo apt install yt-dlp fzf rofi chafa ffmpegthumbnailer
 sudo apt install xdotool x11-utils
 # Optional: subtitle sync
 pip install ffsubsync
-# alass is not in apt — install via cargo: cargo install alass-cli
+# alass is not in apt - install via cargo: cargo install alass-cli
 ```
 
 </details>
@@ -94,7 +94,7 @@ pip install ffsubsync
 
 ### macOS
 
-macOS 11 (Big Sur) or later. Accessibility permission — the macOS setting that lets one app observe and position another app's windows — is required so the overlay can follow the mpv window (see [step 2](#macos-dmg)).
+macOS 11 (Big Sur) or later. Accessibility permission - the macOS setting that lets one app observe and position another app's windows - is required so the overlay can follow the mpv window (see [step 2](#macos-dmg)).
 
 ```bash
 brew install mpv ffmpeg
@@ -111,7 +111,7 @@ pip install ffsubsync
 
 Windows 10 or later. Install [`mpv`](https://mpv.io/installation/) and [`ffmpeg`](https://ffmpeg.org/download.html) and ensure both are on `PATH`. Optionally install [MeCab for Windows](https://taku910.github.io/mecab/#download) with the UTF-8 dictionary.
 
-No compositor tools or window helpers are needed — native window tracking is built in.
+No compositor tools or window helpers are needed - native window tracking is built in.
 
 ## 2. Install SubMiner
 
@@ -172,8 +172,8 @@ If you prefer to install it manually, see [manual launcher install](#manual-laun
 
 Download the latest installer from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest):
 
-- `SubMiner-<version>.exe` — installer (recommended)
-- `SubMiner-<version>-win.zip` — portable fallback
+- `SubMiner-<version>.exe` - installer (recommended)
+- `SubMiner-<version>-win.zip` - portable fallback
 
 Make sure `mpv.exe` is on your `PATH`, or set `mpv.executablePath` in the config during first-run setup.
 
@@ -240,18 +240,18 @@ subminer app --setup
 # Linux (AppImage directly)
 ~/.local/bin/SubMiner.AppImage --setup
 
-# macOS — launch SubMiner.app from /Applications, or:
+# macOS - launch SubMiner.app from /Applications, or:
 subminer app --setup
 ```
 
-On **Windows**, just run `SubMiner.exe` — the setup wizard opens automatically on first launch.
+On **Windows**, just run `SubMiner.exe` - the setup wizard opens automatically on first launch.
 
 The setup wizard walks you through:
 
-- **Config file** — auto-created at `~/.config/SubMiner/config.jsonc` (Linux/macOS) or `%APPDATA%\SubMiner\config.jsonc` (Windows)
-- **Yomitan dictionaries** — import at least one dictionary so word lookups work
-- **Bun + `subminer` launcher** _(optional)_ — installs the command-line launcher into a writable PATH directory
-- **Windows shortcut** _(Windows only)_ — create a `SubMiner mpv` Start Menu/Desktop shortcut
+- **Config file** - auto-created at `~/.config/SubMiner/config.jsonc` (Linux/macOS) or `%APPDATA%\SubMiner\config.jsonc` (Windows)
+- **Yomitan dictionaries** - import at least one dictionary so word lookups work
+- **Bun + `subminer` launcher** _(optional)_ - installs the command-line launcher into a writable PATH directory
+- **Windows shortcut** _(Windows only)_ - create a `SubMiner mpv` Start Menu/Desktop shortcut
 
 The `Finish setup` button requires a config file and at least one Yomitan dictionary. Bun and the launcher are optional and never block setup completion.
 
@@ -268,7 +268,7 @@ subminer video.mkv
 
 You should see the overlay appear over mpv. If subtitles are loaded, they will appear as interactive text in the overlay.
 
-On **Windows**, the recommended way to play video is with the **SubMiner mpv** shortcut created during setup — double-click it, or drag a video file onto it.
+On **Windows**, the recommended way to play video is with the **SubMiner mpv** shortcut created during setup - double-click it, or drag a video file onto it.
 
 ### Verify Setup
 
@@ -285,7 +285,7 @@ This checks for the app binary, mpv, ffmpeg, config file, and socket path. Fix a
 If you plan to mine Anki cards:
 
 1. Install [Anki](https://apps.ankiweb.net/)
-2. Install [AnkiConnect](https://ankiweb.net/shared/info/2055492159) — open Anki → **Tools → Add-ons → Get Add-ons** → enter code `2055492159`
+2. Install [AnkiConnect](https://ankiweb.net/shared/info/2055492159) - open Anki → **Tools → Add-ons → Get Add-ons** → enter code `2055492159`
 3. Restart Anki and keep it running while using SubMiner
 
 AnkiConnect listens on `http://127.0.0.1:8765` by default. SubMiner connects automatically with no extra config needed.
@@ -310,9 +310,9 @@ The tray "Check for Updates" entry installs the new app automatically on Linux, 
 
 SubMiner is an overlay that sits on top of mpv. It connects to mpv through an IPC socket, renders subtitles as interactive text using a bundled Yomitan dictionary engine, and optionally creates Anki flashcards via AnkiConnect.
 
-The `subminer` launcher handles mpv IPC socket setup automatically. If you launch mpv yourself or from another tool, you must pass `--input-ipc-server=/tmp/subminer-socket` (or `\\.\pipe\subminer-socket` on Windows) — without it the overlay starts but subtitles won't appear.
+The `subminer` launcher handles mpv IPC socket setup automatically. If you launch mpv yourself or from another tool, you must pass `--input-ipc-server=/tmp/subminer-socket` (or `\\.\pipe\subminer-socket` on Windows) - without it the overlay starts but subtitles won't appear.
 
-The bundled mpv plugin is injected at runtime automatically — you don't need to install it separately. It provides in-player keybindings (the `y` chord) for controlling the overlay from within mpv. See [MPV Plugin](/mpv-plugin) for the full keybinding and configuration reference.
+The bundled mpv plugin is injected at runtime automatically - you don't need to install it separately. It provides in-player keybindings (the `y` chord) for controlling the overlay from within mpv. See [MPV Plugin](/mpv-plugin) for the full keybinding and configuration reference.
 
 ## Platform Notes
 
@@ -330,7 +330,7 @@ Ensure `mecab` is available on your PATH when launching SubMiner.
 
 - The **SubMiner mpv** shortcut is the recommended way to launch playback. It starts `mpv.exe` with the right IPC socket and subtitle defaults.
 - First-run setup adds only `%LOCALAPPDATA%\SubMiner\bin` to the HKCU user PATH. It does not add `SubMiner.exe` to PATH.
-- IPC socket on Windows is `\\.\pipe\subminer-socket` — do not use `/tmp/subminer-socket`.
+- IPC socket on Windows is `\\.\pipe\subminer-socket` - do not use `/tmp/subminer-socket`.
 - Config is stored at `%APPDATA%\SubMiner\config.jsonc`.
 
 ## Manual Launcher Install
@@ -374,4 +374,4 @@ cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
 
 Override with `SUBMINER_ROFI_THEME=/absolute/path/to/theme.rasi`.
 
-Next: [Usage](/usage) — learn about the `subminer` wrapper, keybindings, and YouTube playback.
+Next: [Usage](/usage) - learn about the `subminer` wrapper, keybindings, and YouTube playback.

@@ -2,7 +2,11 @@
 
 SubMiner annotates subtitle tokens in real time as they appear in the overlay. Four annotation layers work together to surface useful context while you watch: **N+1 highlighting**, **character-name highlighting**, **frequency highlighting**, and **JLPT tagging**.
 
-All four are opt-in and configured under `subtitleStyle`, `ankiConnect.knownWords`, and `ankiConnect.nPlusOne` in your config. They apply independently — you can enable any combination.
+All four are opt-in and configured under `subtitleStyle`, `ankiConnect.knownWords`, and `ankiConnect.nPlusOne` in your config. They apply independently - you can enable any combination.
+
+::: tip Tokenization
+SubMiner's primary tokenizer is Yomitan itself - subtitle text is tokenized based entirely on the dictionaries you have installed in Yomitan. Installing many large dictionaries can increase noise and slow down lookups, so be selective about which dictionaries you install and their priority order.
+:::
 
 Before any of those layers render, SubMiner strips annotation metadata from tokens that are usually just subtitle glue or annotation noise. Standalone particles, auxiliaries, adnominals, common explanatory endings like `んです` / `のだ`, merged trailing quote-particle forms like `...って`, auxiliary-stem grammar tails like `そうだ` (MeCab POS3 `助動詞語幹`), repeated kana interjections, and similar non-lexical helper tokens remain hoverable in the subtitle text, but they render as plain tokens without known-word, N+1, frequency, JLPT, or name-match annotation styling.
 
@@ -39,7 +43,7 @@ Set `refreshMinutes` to `1440` (24 hours) for daily sync if your Anki collection
 
 ## Character-Name Highlighting
 
-Character-name matches are built from the active merged SubMiner character dictionary, which auto-syncs character data from AniList for your recently-watched titles. When the current AniList media ID is known, SubMiner ignores loaded entries from other titles for subtitle name matching and inline portraits. Matching names are highlighted in subtitles and become available for hover-driven Yomitan character profiles — portraits, roles, voice actors, and biographical detail.
+Character-name matches are built from the active merged SubMiner character dictionary, which auto-syncs character data from AniList for your recently-watched titles. When the current AniList media ID is known, SubMiner ignores loaded entries from other titles for subtitle name matching and inline portraits. Matching names are highlighted in subtitles and become available for hover-driven Yomitan character profiles - portraits, roles, voice actors, and biographical detail.
 
 **How it works:**
 
@@ -60,12 +64,12 @@ For full details on dictionary generation, name variant expansion, auto-sync lif
 
 ## Frequency Highlighting
 
-Frequency highlighting colors tokens based on how common they are, using dictionary frequency rank data. This helps you spot high-value vocabulary at a glance.
+Frequency highlighting colors tokens based on how common they are, using dictionary frequency rank data. This helps you spot high-value vocabulary at a glance. Frequency ranks are sourced from the **highest-ranked frequency dictionary** installed in Yomitan - other frequency dictionaries are not consulted.
 
 **Modes:**
 
-- **Single** — all highlighted tokens share one color (`singleColor`).
-- **Banded** — tokens are assigned to five color bands from most common to least common within the `topX` window.
+- **Single** - all highlighted tokens share one color (`singleColor`).
+- **Banded** - tokens are assigned to five color bands from most common to least common within the `topX` window.
 
 SubMiner looks up each token's `frequencyRank` from `term_meta_bank_*.json` files. Only tokens with a positive rank at or below `topX` are highlighted.
 
@@ -130,14 +134,14 @@ All annotation layers can be toggled at runtime via the mpv command menu without
 - `subtitleStyle.enableJlpt` (`On` / `Off`)
 - `subtitleStyle.frequencyDictionary.enabled` (`On` / `Off`)
 
-Toggles only apply to new subtitle lines after the change — the currently displayed line is not re-tokenized in place.
+Toggles only apply to new subtitle lines after the change - the currently displayed line is not re-tokenized in place.
 
 ## Rendering Priority
 
 When multiple annotations apply to the same token, the visual priority is:
 
-1. **N+1 target** (highest) — the single unknown word in an N+1 sentence
-2. **Character-name match** — dictionary-driven character-name token styling
-3. **Known-word color** — already-learned token tint
-4. **Frequency highlight** — common-word coloring (not applied when N+1/character-name/known-word already matched)
-5. **JLPT underline** — level-based underline (stacks with the above since it uses underline rather than text color)
+1. **N+1 target** (highest) - the single unknown word in an N+1 sentence
+2. **Character-name match** - dictionary-driven character-name token styling
+3. **Known-word color** - already-learned token tint
+4. **Frequency highlight** - common-word coloring (not applied when N+1/character-name/known-word already matched)
+5. **JLPT underline** - level-based underline (stacks with the above since it uses underline rather than text color)

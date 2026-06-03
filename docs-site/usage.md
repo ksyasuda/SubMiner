@@ -8,7 +8,7 @@ Play a video with SubMiner:
 subminer video.mkv
 ```
 
-On **Windows**, use the **SubMiner mpv** shortcut created during first-run setup — double-click it, or drag a video file onto it.
+On **Windows**, use the **SubMiner mpv** shortcut created during first-run setup - double-click it, or drag a video file onto it.
 
 That's the simplest way to get started. The `subminer` launcher handles mpv, the IPC socket, and the overlay automatically.
 
@@ -41,20 +41,20 @@ Field names must match your Anki note type exactly (case-sensitive). See [Anki I
 When you launch SubMiner, it wires up mpv and the overlay for you:
 
 1. SubMiner starts the overlay app in the background
-2. mpv runs with an **IPC socket** at `/tmp/subminer-socket` — a small local channel two programs use to talk to each other, so the overlay can ask mpv what subtitle is on screen right now
+2. mpv runs with an **IPC socket** at `/tmp/subminer-socket` - a small local channel two programs use to talk to each other, so the overlay can ask mpv what subtitle is on screen right now
 3. The overlay connects and subscribes to subtitle changes
 
-From there, subtitles render as interactive, hoverable word spans and you mine cards directly from the overlay. For the overlay anatomy and the full mining loop — word lookup, card creation, annotations — see [Mining Workflow](/mining-workflow).
+From there, subtitles render as interactive, hoverable word spans and you mine cards directly from the overlay. For the overlay anatomy and the full mining loop - word lookup, card creation, annotations - see [Mining Workflow](/mining-workflow).
 
 ### Ways to Launch
 
 | Approach                            | Use when                                                                                                                               | How                                                                   |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| **`subminer` launcher**             | You want SubMiner to handle everything — launch mpv, set up the socket, start the overlay. **Recommended for most users.**             | `subminer video.mkv`                                                  |
+| **`subminer` launcher**             | You want SubMiner to handle everything - launch mpv, set up the socket, start the overlay. **Recommended for most users.**             | `subminer video.mkv`                                                  |
 | **SubMiner mpv shortcut** (Windows) | The recommended Windows entry point. Created during first-run setup, launches mpv with SubMiner's defaults.                            | Double-click, drag a file onto it, or run `SubMiner.exe --launch-mpv` |
 | **mpv plugin** (all platforms)      | Bundled and injected at runtime. Provides `y` chord keybindings for controlling the overlay from within mpv. No manual install needed. | Automatic when using the launcher or shortcut                         |
 
-The mpv plugin is always available — it's bundled with SubMiner and injected at runtime. If you launch mpv yourself (without the launcher), pass `--input-ipc-server=/tmp/subminer-socket` in your mpv config for the overlay to connect.
+The mpv plugin is always available - it's bundled with SubMiner and injected at runtime. If you launch mpv yourself (without the launcher), pass `--input-ipc-server=/tmp/subminer-socket` in your mpv config for the overlay to connect.
 
 ## Live Config Reload
 
@@ -301,7 +301,7 @@ SubMiner supports gamepad/controller input for couch-friendly usage via the Chro
 1. Connect a controller before or after launching SubMiner.
 2. Set `controller.enabled` to `true` in your config.
 3. Press `Alt+C` in the overlay by default to pick the controller you want to save and remap any action inline.
-4. Enable keyboard-only mode — press `Y` on the controller (default binding) or use the overlay keybinding.
+4. Enable keyboard-only mode - press `Y` on the controller (default binding) or use the overlay keybinding.
 5. Click the binding badge, edit pencil, or `Learn` on the overlay action you want, then press the matching button, trigger, or stick direction on the controller.
 6. Use the left stick to navigate subtitle tokens and scroll the popup; use the right stick vertically for popup page jumps.
 7. Press `A` to look up the selected word, `X` to mine a card, `B` to close the popup.
@@ -333,7 +333,7 @@ By default SubMiner uses the first connected controller after controller support
 
 Learn mode ignores already-held inputs and waits for the next fresh button press or axis direction, which avoids accidental captures when you open the modal mid-input.
 
-All button and axis mappings are configurable under the `controller` config block. Learned remaps are saved under `controller.profiles` for the selected controller id. See [Configuration — Controller Support](/configuration#controller-support) for the full options.
+All button and axis mappings are configurable under the `controller` config block. Learned remaps are saved under `controller.profiles` for the selected controller id. See [Configuration - Controller Support](/configuration#controller-support) for the full options.
 
 ## Keybindings
 
@@ -361,4 +361,4 @@ Hovering over subtitle text pauses mpv by default; leaving resumes it. Yomitan p
 - Drop video files onto the overlay to replace current playback.
 - Hold `Shift` while dropping to append to the playlist instead.
 
-Next: [Mining Workflow](/mining-workflow) — word lookup, card creation, and the full mining loop.
+Next: [Mining Workflow](/mining-workflow) - word lookup, card creation, and the full mining loop.

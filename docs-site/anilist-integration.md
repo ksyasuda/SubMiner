@@ -4,7 +4,7 @@ SubMiner can sync your watch progress to [AniList](https://anilist.co) automatic
 
 AniList data also powers two additional features: [cover art](#cover-art) for the stats dashboard and the [Character Dictionary](/character-dictionary) for in-overlay name lookup.
 
-[AniList](https://anilist.co) is a free website for tracking which anime you have watched. An **access token** is a private key SubMiner stores so it can update your list on your behalf — you approve it once during setup, and you never paste a password into SubMiner.
+[AniList](https://anilist.co) is a free website for tracking which anime you have watched. An **access token** is a private key SubMiner stores so it can update your list on your behalf - you approve it once during setup, and you never paste a password into SubMiner.
 
 ## Setup
 

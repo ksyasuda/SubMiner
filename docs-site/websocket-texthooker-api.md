@@ -1,6 +1,6 @@
 # WebSocket / Texthooker API & Integration
 
-**Who this page is for:** developers and tinkerers who want to consume SubMiner's live subtitle stream from their own tools — a browser tab, an automation script, or another mpv plugin. If you just want subtitles in a browser tab for Yomitan, skip to [Texthooker Integration Guide](#texthooker-integration-guide); the rest is reference for building custom clients.
+**Who this page is for:** developers and tinkerers who want to consume SubMiner's live subtitle stream from their own tools - a browser tab, an automation script, or another mpv plugin. If you just want subtitles in a browser tab for Yomitan, skip to [Texthooker Integration Guide](#texthooker-integration-guide); the rest is reference for building custom clients.
 
 A *texthooker* is a page/tool that receives the text currently on screen so a dictionary extension (like Yomitan) can look words up. SubMiner ships its own texthooker UI and also broadcasts subtitle text over local WebSockets that any client can connect to.
 
@@ -24,7 +24,7 @@ This page documents those integration points and shows how to build custom consu
 
 ## Enable and Configure the Services
 
-SubMiner's integration ports are configured in `config.jsonc`. All three services are **off by default** — the block below shows the values to set to turn them on.
+SubMiner's integration ports are configured in `config.jsonc`. All three services are **off by default** - the block below shows the values to set to turn them on.
 
 ```jsonc
 {
@@ -50,7 +50,7 @@ SubMiner's integration ports are configured in `config.jsonc`. All three service
 - `texthooker.launchAtStartup` defaults to `false`. Set it to `true` to start the local HTTP UI automatically.
 - `texthooker.openBrowser` controls whether SubMiner opens the texthooker page in your browser when it starts.
 
-If you use the [mpv plugin](/mpv-plugin), it can also start a texthooker-only helper process. The launcher derives the plugin's texthooker setting from your SubMiner config (`texthooker.launchAtStartup`) and injects it at runtime — there is no plugin config file to edit.
+If you use the [mpv plugin](/mpv-plugin), it can also start a texthooker-only helper process. The launcher derives the plugin's texthooker setting from your SubMiner config (`texthooker.launchAtStartup`) and injects it at runtime - there is no plugin config file to edit.
 
 ## Developer API Documentation
 
@@ -368,7 +368,7 @@ ws.on('message', async (raw) => {
 ## Related Pages
 
 - [Configuration](/configuration#websocket-server)
-- [Mining Workflow — Texthooker](/mining-workflow#texthooker)
+- [Mining Workflow - Texthooker](/mining-workflow#texthooker)
 - [MPV Plugin](/mpv-plugin)
 - [Launcher Script](/launcher-script)
 - [Anki Integration](/anki-integration#proxy-mode-setup-yomitan--texthooker)

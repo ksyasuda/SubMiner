@@ -24,7 +24,7 @@ features:
       src: /assets/mpv.svg
       alt: mpv icon
     title: Built for mpv
-    details: Tracks subtitles via mpv IPC in real time. Launch with the wrapper script or the mpv plugin — no external bridge needed.
+    details: Tracks subtitles via mpv IPC in real time. Launch with the wrapper script or the mpv plugin - no external bridge needed.
     link: /usage
     linkText: How it works
   - icon:
@@ -45,14 +45,14 @@ features:
       src: /assets/highlight.svg
       alt: Highlight icon
     title: Reading Annotations
-    details: N+1 targeting, character-name matching, frequency highlighting, and JLPT tagging — all layered on subtitle text in real time.
+    details: N+1 targeting, character-name matching, frequency highlighting, and JLPT tagging - all layered on subtitle text in real time.
     link: /subtitle-annotations
     linkText: Annotation details
   - icon:
       src: /assets/video.svg
       alt: Video playback icon
     title: YouTube Playback
-    details: Play YouTube URLs or ytsearch targets directly — SubMiner automatically selects and loads subtitles for the video.
+    details: Play YouTube URLs or ytsearch targets directly - SubMiner automatically selects and loads subtitles for the video.
     link: /usage#youtube-playback
     linkText: YouTube playback
   - icon:
@@ -66,14 +66,14 @@ features:
       src: /assets/subtitle-download.svg
       alt: Subtitle download icon
     title: Subtitle Download & Sync
-    details: Search and pull subtitles from Jimaku, then retime subtitles with alass or ffsubsync — all from the overlay.
+    details: Search and pull subtitles from Jimaku, then retime subtitles with alass or ffsubsync - all from the overlay.
     link: /jimaku-integration
     linkText: Jimaku integration
   - icon:
       src: /assets/tokenization.svg
       alt: Tracking chart icon
     title: Stats Dashboard
-    details: Browse session history, streak calendars, vocabulary frequency, and per-series progress in a local dashboard — then mine cards straight from your viewing history.
+    details: Browse session history, streak calendars, vocabulary frequency, and per-series progress in a local dashboard - then mine cards straight from your viewing history.
     link: /immersion-tracking
     linkText: Dashboard & tracking
   - icon:

@@ -1,6 +1,6 @@
 # Character Dictionary
 
-SubMiner can build a Yomitan-compatible character dictionary from [AniList](https://anilist.co) metadata so that character names in subtitles are recognized, highlighted, and enrichable with context — portraits, roles, voice actors, and biographical detail — without leaving the overlay. (AniList is an online anime/manga database; SubMiner pulls each show's character list from it.)
+SubMiner can build a Yomitan-compatible character dictionary from [AniList](https://anilist.co) metadata so that character names in subtitles are recognized, highlighted, and enrichable with context - portraits, roles, voice actors, and biographical detail - without leaving the overlay. (AniList is an online anime/manga database; SubMiner pulls each show's character list from it.)
 
 This is helpful because proper names rarely appear in normal dictionaries, so character names would otherwise be flagged as "unknown" words and clutter your mining. Recognizing them keeps your N+1 highlighting focused on real vocabulary.
 
@@ -10,25 +10,25 @@ The dictionary is generated per-media, merged across your recently-watched title
 
 The feature has three stages: **snapshot**, **merge**, and **match**.
 
-1. **Snapshot** — When you start watching a new title, SubMiner queries the AniList GraphQL API for the media's character list. Each character's names, reading, role, description, birthday, voice actors, and portrait are fetched and saved as a local JSON snapshot in `character-dictionaries/snapshots/anilist-{mediaId}.json`. Images are downloaded and base64-encoded into the snapshot.
+1. **Snapshot** - When you start watching a new title, SubMiner queries the AniList GraphQL API for the media's character list. Each character's names, reading, role, description, birthday, voice actors, and portrait are fetched and saved as a local JSON snapshot in `character-dictionaries/snapshots/anilist-{mediaId}.json`. Images are downloaded and base64-encoded into the snapshot.
 
-2. **Merge** — SubMiner maintains a most-recently-used list of media IDs (default: 3). Snapshots from those titles are merged into a single Yomitan ZIP — `character-dictionaries/merged.zip` — which is always named "SubMiner Character Dictionary" so Yomitan treats it as a single stable dictionary across rebuilds.
+2. **Merge** - SubMiner maintains a most-recently-used list of media IDs (default: 3). Snapshots from those titles are merged into a single Yomitan ZIP - `character-dictionaries/merged.zip` - which is always named "SubMiner Character Dictionary" so Yomitan treats it as a single stable dictionary across rebuilds.
 
-3. **Match** — During subtitle rendering, Yomitan scans subtitle text against all loaded dictionaries including the character dictionary. SubMiner only accepts character entries for the current AniList media when that media ID is known, then flags matching tokens with `isNameMatch` and highlights them in the overlay with a distinct color.
+3. **Match** - During subtitle rendering, Yomitan scans subtitle text against all loaded dictionaries including the character dictionary. SubMiner only accepts character entries for the current AniList media when that media ID is known, then flags matching tokens with `isNameMatch` and highlights them in the overlay with a distinct color.
 
 ## Enabling the Feature
 
 Character dictionary sync is disabled by default. To turn it on:
 
 1. Enable **Name Match** in Settings → Subtitle Style, or set `subtitleStyle.nameMatchEnabled: true` in your config.
-2. Start watching — SubMiner queries AniList's public GraphQL API (no authentication required) and imports the merged dictionary into Yomitan automatically.
+2. Start watching - SubMiner queries AniList's public GraphQL API (no authentication required) and imports the merged dictionary into Yomitan automatically.
 3. Optionally enable **Name Match Images** (Settings → Subtitle Style) to show inline circular character portraits next to matched names in subtitles.
 
 ```jsonc
 {
   "subtitleStyle": {
     "nameMatchEnabled": true,
-    "nameMatchImagesEnabled": true, // optional — inline portraits
+    "nameMatchImagesEnabled": true, // optional - inline portraits
   },
 }
 ```
@@ -38,7 +38,7 @@ The first sync for a media title takes a few seconds while character data and po
 :::
 
 ::: info
-AniList character data is fetched via public GraphQL queries — no account or access token is needed. AniList authentication is only required for the separate [watch-progress sync](/anilist-integration) feature.
+AniList character data is fetched via public GraphQL queries - no account or access token is needed. AniList authentication is only required for the separate [watch-progress sync](/anilist-integration) feature.
 :::
 
 ::: warning
@@ -60,7 +60,7 @@ A single character produces many searchable terms so that names are recognized r
 
 - ア・リ・ス → アリス (combined), plus individual segments
 
-**Honorific suffixes** — each base name is expanded with 15 common suffixes:
+**Honorific suffixes** - each base name is expanded with 15 common suffixes:
 
 | Honorific | Reading    |
 | --------- | ---------- |
@@ -80,16 +80,16 @@ A single character produces many searchable terms so that names are recognized r
 | 社長      | しゃちょう |
 | 部長      | ぶちょう   |
 
-**Romanized names** — names stored in romaji on AniList are converted to kana aliases so they can match against Japanese subtitle text.
+**Romanized names** - names stored in romaji on AniList are converted to kana aliases so they can match against Japanese subtitle text.
 
-This means a character like "太郎" generates entries for 太郎, 太郎さん, 太郎先生, 太郎君, 太郎ちゃん, and so on — all with correct readings.
+This means a character like "太郎" generates entries for 太郎, 太郎さん, 太郎先生, 太郎君, 太郎ちゃん, and so on - all with correct readings.
 
 ## Name Matching
 
 Name matching runs inside Yomitan's scanning pipeline during subtitle tokenization.
 
 1. Yomitan receives subtitle text and scans for dictionary matches.
-2. Entries from "SubMiner Character Dictionary" are checked with exact primary-source matching — the token must match the entry's `originalText` with `isPrimary: true` and `matchType: 'exact'`.
+2. Entries from "SubMiner Character Dictionary" are checked with exact primary-source matching - the token must match the entry's `originalText` with `isPrimary: true` and `matchType: 'exact'`.
 3. When the current AniList media ID is known, entries whose embedded media ID belongs to a different title are ignored for name matching and inline portraits.
 4. Matched tokens are flagged `isNameMatch: true` and forwarded to the renderer.
 5. If `subtitleStyle.nameMatchEnabled` is enabled, the renderer applies the name-match highlight color (default: `#f5bde6`).
@@ -111,7 +111,7 @@ Name matches are visually distinct from [N+1 targeting, frequency highlighting, 
 
 When `subtitleStyle.nameMatchImagesEnabled` is enabled, SubMiner injects a small circular portrait image directly into the subtitle line next to each matched character name.
 
-Portraits are sourced from the local snapshot — they are embedded at snapshot-generation time and served from the cached ZIP, so no network request happens during playback. Images are downloaded from AniList CDN once per character and stored in `character-dictionaries/img/`.
+Portraits are sourced from the local snapshot - they are embedded at snapshot-generation time and served from the cached ZIP, so no network request happens during playback. Images are downloaded from AniList CDN once per character and stored in `character-dictionaries/img/`.
 
 If a snapshot was generated before portrait data was available (e.g. during an earlier version or offline sync), SubMiner detects the missing image data on the next media match and automatically refreshes the snapshot so portraits are included in the next merged dictionary build.
 
@@ -123,20 +123,20 @@ If a snapshot was generated before portrait data was available (e.g. during an e
 The portrait size is controlled by the surrounding subtitle font size and renders as a circle clipped from the character's AniList cover image.
 
 ::: tip
-Inline portraits help you quickly associate names with faces while building vocabulary — especially useful for shows with large casts where you're still learning who's who.
+Inline portraits help you quickly associate names with faces while building vocabulary - especially useful for shows with large casts where you're still learning who's who.
 :::
 
 ## Dictionary Entries
 
 Each character entry in the Yomitan dictionary includes structured content:
 
-- **Name** — the matched Japanese name form
-- **Known names** — generated non-honorific Japanese aliases for that character, excluding raw romanized/English aliases from lookup results
-- **Role badge** — color-coded by role: main (score 100), supporting (90), side (80), background (70)
-- **Portrait** — character image from AniList, embedded in the ZIP
-- **Description** — biography text from AniList (collapsible)
-- **Character information** — age, birthday, gender, blood type (collapsible)
-- **Voiced by** — voice actor name and portrait (collapsible)
+- **Name** - the matched Japanese name form
+- **Known names** - generated non-honorific Japanese aliases for that character, excluding raw romanized/English aliases from lookup results
+- **Role badge** - color-coded by role: main (score 100), supporting (90), side (80), background (70)
+- **Portrait** - character image from AniList, embedded in the ZIP
+- **Description** - biography text from AniList (collapsible)
+- **Character information** - age, birthday, gender, blood type (collapsible)
+- **Voiced by** - voice actor name and portrait (collapsible)
 
 The three collapsible sections can be configured to start open or closed:
 
@@ -160,12 +160,12 @@ When `subtitleStyle.nameMatchEnabled` is `true`, SubMiner runs an auto-sync rout
 
 **Phases:**
 
-1. **checking** — Is there already a cached snapshot for this media ID?
-2. **generating** — No cache hit: fetch characters from AniList GraphQL, download portraits (250ms throttle between image requests), save snapshot JSON.
-3. **syncing** — Add the media ID to the most-recently-used list. Evict old entries beyond `maxLoaded`.
-4. **building** — Merge active snapshots into a single Yomitan ZIP. A SHA-1 revision hash is computed from the media set — if it matches the previously imported revision, the import is skipped.
-5. **importing** — Push the ZIP into Yomitan. Waits for Yomitan mutation readiness (7-second timeout per operation).
-6. **ready** — Dictionary is live. Character names will match on the next subtitle line.
+1. **checking** - Is there already a cached snapshot for this media ID?
+2. **generating** - No cache hit: fetch characters from AniList GraphQL, download portraits (250ms throttle between image requests), save snapshot JSON.
+3. **syncing** - Add the media ID to the most-recently-used list. Evict old entries beyond `maxLoaded`.
+4. **building** - Merge active snapshots into a single Yomitan ZIP. A SHA-1 revision hash is computed from the media set - if it matches the previously imported revision, the import is skipped.
+5. **importing** - Push the ZIP into Yomitan. Waits for Yomitan mutation readiness (7-second timeout per operation).
+6. **ready** - Dictionary is live. Character names will match on the next subtitle line.
 
 **State tracking** is persisted in `character-dictionaries/auto-sync-state.json`. AniList media matches are cached separately in `character-dictionaries/anilist-resolution-cache.json` so snapshot hits do not need another AniList search.
 
@@ -274,9 +274,9 @@ merged.zip
 
 ## Reference Implementation
 
-SubMiner's character dictionary builder is inspired by the [Japanese Character Name Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary) project — a standalone Rust web service that generates Yomitan character dictionaries from AniList and VNDB data.
+SubMiner's character dictionary builder is inspired by the [Japanese Character Name Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary) project - a standalone Rust web service that generates Yomitan character dictionaries from AniList and VNDB data.
 
-The reference implementation covers similar ground — name variant generation, honorific expansion, structured Yomitan content, portrait embedding — and additionally supports VNDB as a data source for visual novel characters. Key differences:
+The reference implementation covers similar ground - name variant generation, honorific expansion, structured Yomitan content, portrait embedding - and additionally supports VNDB as a data source for visual novel characters. Key differences:
 
 |                        | SubMiner                                     | Reference Implementation              |
 | ---------------------- | -------------------------------------------- | ------------------------------------- |
@@ -291,7 +291,7 @@ If you work with visual novels or want a standalone dictionary generator indepen
 
 ## Troubleshooting
 
-- **Names not highlighting:** Confirm `subtitleStyle.nameMatchEnabled` is `true`. Check that the current media has an AniList entry — SubMiner needs a media ID to fetch characters.
+- **Names not highlighting:** Confirm `subtitleStyle.nameMatchEnabled` is `true`. Check that the current media has an AniList entry - SubMiner needs a media ID to fetch characters.
 - **Inline portraits missing:** Confirm `subtitleStyle.nameMatchImagesEnabled` is `true`. On the next character dictionary sync, SubMiner refreshes current-version snapshots that do not contain usable cached character portrait data. Portraits still require AniList to return an image and the image download to succeed.
 - **Sync seems stuck:** The auto-sync debounces for 800ms after media changes and throttles image downloads at 250ms per image. Large casts (50+ characters) take longer. Check the status bar for the current sync phase.
 - **Wrong characters showing:** Open the in-app character dictionary manager (`Ctrl/Cmd+D`) to remove/reorder loaded titles, then use **Override** to correct the active AniList match. You can also run `--dictionary-candidates`, then save the correct media with `--dictionary-select --dictionary-anilist-id <id>`. SubMiner ignores character entries from other loaded titles for subtitle name matching and inline portraits once the current media ID is known.
@@ -300,6 +300,6 @@ If you work with visual novels or want a standalone dictionary generator indepen
 
 ## Related
 
-- [Subtitle Annotations](/subtitle-annotations) — how name matches interact with N+1, frequency, and JLPT layers
-- [AniList Integration](/anilist-integration) — watch-progress sync and AniList authentication (separate from character dictionary)
-- [Configuration Reference](/configuration) — full config options
+- [Subtitle Annotations](/subtitle-annotations) - how name matches interact with N+1, frequency, and JLPT layers
+- [AniList Integration](/anilist-integration) - watch-progress sync and AniList authentication (separate from character dictionary)
+- [Configuration Reference](/configuration) - full config options

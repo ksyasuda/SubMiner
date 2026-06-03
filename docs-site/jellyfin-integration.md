@@ -1,12 +1,12 @@
 # Jellyfin Integration
 
-[Jellyfin](https://jellyfin.org) is a free, self-hosted media server — think of it as your own private streaming service for video you own. If you keep your anime on a Jellyfin server, SubMiner can play episodes through mpv with the full mining overlay.
+[Jellyfin](https://jellyfin.org) is a free, self-hosted media server - think of it as your own private streaming service for video you own. If you keep your anime on a Jellyfin server, SubMiner can play episodes through mpv with the full mining overlay.
 
 ::: tip Who needs this?
 This page is only relevant if you already run (or have access to) a Jellyfin server. If you watch local files or YouTube, you can skip it. The in-app setup window (`subminer jellyfin`) is the easiest starting point.
 :::
 
-SubMiner can act as a **cast-to-device target** for Jellyfin (similar to jellyfin-mpv-shim). Sign in once, turn on discovery, and SubMiner shows up in the "Play on…" / cast menu of any Jellyfin app — web, phone, or TV. Pick an episode, cast it to SubMiner, and it plays in SubMiner's mpv window with the full overlay and Yomitan click-to-lookup.
+SubMiner can act as a **cast-to-device target** for Jellyfin (similar to jellyfin-mpv-shim). Sign in once, turn on discovery, and SubMiner shows up in the "Play on…" / cast menu of any Jellyfin app - web, phone, or TV. Pick an episode, cast it to SubMiner, and it plays in SubMiner's mpv window with the full overlay and Yomitan click-to-lookup.
 
 This is the recommended way to use Jellyfin with SubMiner. A terminal-only option is covered in [Launcher playback](#launcher-playback) at the end.
 
@@ -28,7 +28,7 @@ Open the tray menu and click **Configure Jellyfin**. In the window that opens, e
 
 On success, SubMiner:
 
-- saves an encrypted session token — your password is never stored,
+- saves an encrypted session token - your password is never stored,
 - turns the Jellyfin integration on, and
 - remembers the server and username for next time.
 
@@ -38,12 +38,12 @@ Reopen this window any time to switch servers or **Logout**.
 
 Discovery is what makes SubMiner appear as a cast target. Two ways to enable it:
 
-- **For the current session** — open the tray menu and tick **Jellyfin Discovery**. (This item appears once you've signed in.)
-- **Automatically on every launch** — already on by default. After your first sign-in, SubMiner auto-connects to Jellyfin at startup, so the cast target is ready without touching the tray. You can change this under [Settings](#settings).
+- **For the current session** - open the tray menu and tick **Jellyfin Discovery**. (This item appears once you've signed in.)
+- **Automatically on every launch** - already on by default. After your first sign-in, SubMiner auto-connects to Jellyfin at startup, so the cast target is ready without touching the tray. You can change this under [Settings](#settings).
 
 ### 4. Cast from any Jellyfin app
 
-In the Jellyfin web UI or mobile app, start playing something, open the **cast / "Play on"** menu, and pick your device — SubMiner appears there named after your computer's hostname. Playback opens in SubMiner.
+In the Jellyfin web UI or mobile app, start playing something, open the **cast / "Play on"** menu, and pick your device - SubMiner appears there named after your computer's hostname. Playback opens in SubMiner.
 
 From then on, pause / resume / seek / stop and audio or subtitle track changes you make in the Jellyfin app are mirrored in SubMiner, and your watch progress syncs back to Jellyfin (now-playing and resume position).
 
@@ -63,7 +63,7 @@ All Jellyfin options live under **Settings → Integrations → Jellyfin** (open
 | Setting                         | Default | What it does                                                                                                          |
 | ------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
 | **Enabled**                     | Off     | Turns the Jellyfin integration on. Switched on for you when you sign in.                                              |
-| **Server Url**                  | —       | Your Jellyfin server. Filled in when you sign in.                                                                     |
+| **Server Url**                  | -       | Your Jellyfin server. Filled in when you sign in.                                                                     |
 | **Remote Control Enabled**      | On      | Lets SubMiner act as a cast target.                                                                                   |
 | **Remote Control Auto Connect** | On      | Connects to Jellyfin at startup so discovery is automatic. Turn off if you'd rather start it from the tray each time. |
 | **Auto Announce**               | Off     | Re-broadcasts visibility on connect. Enable if your device is slow to appear in the cast menu.                        |
@@ -88,14 +88,14 @@ See [Configuration](/configuration) for the full list (transcode codec, direct-p
 **SubMiner doesn't appear in the cast menu**
 
 - Make sure SubMiner is running.
-- Make sure you're signed in — reopen **Configure Jellyfin** and log in again if your token expired.
+- Make sure you're signed in - reopen **Configure Jellyfin** and log in again if your token expired.
 - Make sure discovery is on (tray **Jellyfin Discovery**, or **Remote Control Auto Connect** in settings).
 - Make sure SubMiner and the Jellyfin client point at the same server.
 
 **Casting starts but nothing plays**
 
 - Confirm the item plays normally in another Jellyfin client.
-- If mpv was closed, give it a moment — SubMiner launches it on demand and retries.
+- If mpv was closed, give it a moment - SubMiner launches it on demand and retries.
 
 **SubMiner keeps disconnecting**
 
@@ -104,7 +104,7 @@ See [Configuration](/configuration) for the full list (transcode codec, direct-p
 ## Security notes
 
 - The Jellyfin session (access token + user ID) is kept in SubMiner's local encrypted token storage. Your password is used only to log in and is never saved.
-- Treat the token storage and your `config.jsonc` as secrets — don't commit them.
+- Treat the token storage and your `config.jsonc` as secrets - don't commit them.
 - Advanced/headless: the `SUBMINER_JELLYFIN_ACCESS_TOKEN` and `SUBMINER_JELLYFIN_USER_ID` environment variables can supply a session without the sign-in window.
 
 ## Launcher playback

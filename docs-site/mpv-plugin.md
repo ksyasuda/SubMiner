@@ -2,7 +2,7 @@
 
 **What this is:** mpv is the video player SubMiner overlays subtitles on. The SubMiner mpv plugin is a small Lua script that runs *inside* mpv and gives you in-player keybindings to control the SubMiner overlay (start/stop/toggle, skip intro, etc.) without leaving the player window.
 
-**Who needs this page:** Most users never touch the plugin directly — SubMiner-managed launches (the app, the `subminer` launcher, or the Windows shortcut) inject the bundled plugin automatically for that session, so there is nothing to install into mpv's global `scripts` directory. Read on if you launch mpv from another tool and want SubMiner's in-player controls, or you want to script mpv against SubMiner.
+**Who needs this page:** Most users never touch the plugin directly - SubMiner-managed launches (the app, the `subminer` launcher, or the Windows shortcut) inject the bundled plugin automatically for that session, so there is nothing to install into mpv's global `scripts` directory. Read on if you launch mpv from another tool and want SubMiner's in-player controls, or you want to script mpv against SubMiner.
 
 The plugin ships as a modular Lua package under `plugin/subminer/` (entry point `init.lua`, which loads `main.lua` and sibling modules). Earlier releases shipped a single global `main.lua`; runtime loading replaces it.
 
@@ -27,7 +27,7 @@ input-ipc-server=\\.\pipe\subminer-socket
 
 ## Keybindings
 
-Most plugin actions use a `y` chord prefix — press `y`, then the second key (a "chord"):
+Most plugin actions use a `y` chord prefix - press `y`, then the second key (a "chord"):
 
 | Chord            | Action                                 |
 | ---------------- | -------------------------------------- |
@@ -48,7 +48,7 @@ The bare `v` binding is a forced mpv binding. It overrides mpv's default primary
 
 ## Shared Shortcuts (Session Bindings)
 
-The `y-*` chords above are built into the plugin. Everything else you configure under [`shortcuts.*`](/shortcuts) — plus any custom [`keybindings`](/configuration) and the stats toggle/mark-watched keys — is **injected into mpv at runtime**, so the same shortcut works both inside mpv and in the SubMiner overlay. You do not edit any mpv config to enable them.
+The `y-*` chords above are built into the plugin. Everything else you configure under [`shortcuts.*`](/shortcuts) - plus any custom [`keybindings`](/configuration) and the stats toggle/mark-watched keys - is **injected into mpv at runtime**, so the same shortcut works both inside mpv and in the SubMiner overlay. You do not edit any mpv config to enable them.
 
 How it works:
 
@@ -58,11 +58,11 @@ How it works:
 
 Because the bindings come from the same configuration the overlay uses, you maintain one set of shortcuts for both surfaces.
 
-Live updates: changing a shortcut in the app rewrites `session-bindings.json` and sends the plugin a `subminer-reload-session-bindings` script message, so mpv re-registers the bindings immediately — no mpv restart required.
+Live updates: changing a shortcut in the app rewrites `session-bindings.json` and sends the plugin a `subminer-reload-session-bindings` script message, so mpv re-registers the bindings immediately - no mpv restart required.
 
 Notes:
 
-- Accelerators are normalized per platform — `CommandOrControl` resolves to `Cmd` on macOS and `Ctrl` elsewhere.
+- Accelerators are normalized per platform - `CommandOrControl` resolves to `Cmd` on macOS and `Ctrl` elsewhere.
 - Multi-line actions (`copySubtitleMultiple`, `mineSentenceMultiple`) register temporary `1`–`9` digit follow-up bindings after the trigger key, with `Esc` to cancel.
 - If two shortcuts compile to the same key, or an accelerator can't be mapped to an mpv key, the app logs a warning and skips that binding instead of registering a broken one.
 
@@ -110,14 +110,14 @@ Packaged Windows plugin installs also rewrite `socket_path` to `\\.\pipe\submine
 
 When `backend=auto`, the plugin detects the window manager:
 
-1. **macOS** — detected via platform or `OSTYPE`.
-2. **Hyprland** — detected via `HYPRLAND_INSTANCE_SIGNATURE`.
-3. **Sway** — detected via `SWAYSOCK`.
-4. **X11** — detected via `XDG_SESSION_TYPE=x11` or `DISPLAY`.
-5. **Fallback** — defaults to X11 with a warning.
+1. **macOS** - detected via platform or `OSTYPE`.
+2. **Hyprland** - detected via `HYPRLAND_INSTANCE_SIGNATURE`.
+3. **Sway** - detected via `SWAYSOCK`.
+4. **X11** - detected via `XDG_SESSION_TYPE=x11` or `DISPLAY`.
+5. **Fallback** - defaults to X11 with a warning.
 
 ::: tip Wayland is compositor-specific
-Native Wayland support is only available for Hyprland and Sway. If you use a different Wayland compositor, auto-detection will fall back to X11 — both mpv and SubMiner must be running under Xwayland, and `xdotool` and `xwininfo` must be installed.
+Native Wayland support is only available for Hyprland and Sway. If you use a different Wayland compositor, auto-detection will fall back to X11 - both mpv and SubMiner must be running under Xwayland, and `xdotool` and `xwininfo` must be installed.
 :::
 
 ## Script Messages
@@ -163,7 +163,7 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 
 ## Lifecycle
 
-For how the plugin's auto-start fits into the full launch sequence — including when the launcher starts the overlay instead of the plugin — see [Playback Startup Flow](./architecture#playback-startup-flow).
+For how the plugin's auto-start fits into the full launch sequence - including when the launcher starts the overlay instead of the plugin - see [Playback Startup Flow](./architecture#playback-startup-flow).
 
 - **File loaded**: If `auto_start=yes`, the plugin starts the overlay, then defers AniSkip lookup until after startup delay.
 - **Auto-start pause gate**: If `auto_start_visible_overlay=yes` and `auto_start_pause_until_ready=yes`, launcher starts mpv paused and the plugin resumes playback after SubMiner reports tokenization-ready (with timeout fallback).
@@ -181,4 +181,4 @@ The plugin is useful when you:
 - Want on-demand overlay control without the wrapper.
 - Use mpv's built-in file browser or playlist features.
 
-You can install both — the plugin provides chord keybindings for convenience, while the wrapper handles the full lifecycle.
+You can install both - the plugin provides chord keybindings for convenience, while the wrapper handles the full lifecycle.

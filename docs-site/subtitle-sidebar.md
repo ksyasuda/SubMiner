@@ -10,7 +10,7 @@ When SubMiner parses the active subtitle source into a cue list, the sidebar bec
 
 - The active cue is highlighted and kept in view as playback advances (when `autoScroll` is `true`).
 - Clicking any cue seeks mpv to that timestamp.
-- The sidebar stays synchronized with the overlay — media transitions and subtitle source changes update both simultaneously.
+- The sidebar stays synchronized with the overlay - media transitions and subtitle source changes update both simultaneously.
 
 The sidebar only appears when a parsed cue list is available. External subtitle sources that SubMiner cannot parse (for example, embedded ASS tracks rendered directly by mpv) will not populate the sidebar.
 
@@ -18,9 +18,9 @@ The sidebar only appears when a parsed cue list is available. External subtitle 
 
 Two layout modes are available via `subtitleSidebar.layout`:
 
-**`overlay`** (default) — The sidebar floats over mpv as a panel. It does not affect the player window size or position.
+**`overlay`** (default) - The sidebar floats over mpv as a panel. It does not affect the player window size or position.
 
-**`embedded`** — Reserves space on the right side of the player and shifts the video area to mimic a split-pane layout. Useful if you want the cue list visible without it covering the video. If you see unexpected positioning in your environment, switch back to `overlay` to isolate the issue.
+**`embedded`** - Reserves space on the right side of the player and shifts the video area to mimic a split-pane layout. Useful if you want the cue list visible without it covering the video. If you see unexpected positioning in your environment, switch back to `overlay` to isolate the issue.
 
 ## Configuration
 

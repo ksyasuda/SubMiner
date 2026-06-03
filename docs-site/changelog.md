@@ -6,7 +6,7 @@
 
 - **Linux Overlay Stacking**: Fixed the overlay intermittently dropping behind mpv on KDE Plasma and other non-Hyprland/Sway Wayland sessions; restored subtitle hover, pause-on-hover, and Yomitan lookups on X11/XWayland; the overlay now correctly layers above/below mpv based on fullscreen state, yields to foreground windows (Settings, Yomitan, AniList, etc.), and avoids startup flashes and fullscreen transition glitches.
 - **Linux Overlay (Hyprland Lua)**: Fixed overlay placement on Hyprland 0.55+ when using a Lua-based config.
-- **Manual Overlay Startup**: Fixed manual visible-overlay startup from mpv — now correctly attaches to playback, keeps the window bounds synced with mpv, and primes current subtitles before showing.
+- **Manual Overlay Startup**: Fixed manual visible-overlay startup from mpv - now correctly attaches to playback, keeps the window bounds synced with mpv, and primes current subtitles before showing.
 - **Playlist Transitions**: Reused the warm overlay when mpv advances to the next playlist item, avoiding a redundant tokenization pause and preserving visible subtitles across tracks.
 - **macOS Overlay**: Fixed the visible subtitle overlay staying click-through after pause-until-ready releases playback; restored mpv focus after closing modal windows so subtitles and keybinds resume without clicking the player.
 - **Mouse Keybindings**: Fixed keybinding capture and runtime handling for mouse buttons, including side buttons like `MBTN_BACK` and `MBTN_FORWARD`.
@@ -25,7 +25,7 @@
   - Subsync now always opens the manual subtitle picker regardless of any previously set default mode
 - **N+1 Highlighting:**
   - N+1 highlighting now has its own dedicated `ankiConnect.nPlusOne.enabled` option, separate from known-word highlighting
-  - It is no longer enabled automatically when known-word highlighting is on — enable it explicitly to keep N+1 annotations
+  - It is no longer enabled automatically when known-word highlighting is on - enable it explicitly to keep N+1 annotations
 
 **Added**
 
@@ -177,7 +177,7 @@
 
 **Added**
 
-- **Character Dictionary:** Added AniList-based character dictionary selection for resolving title mismatches — open it in-app with the new `Ctrl+Alt+A` shortcut or from the CLI with `subminer dictionary --candidates` / `--select`. Series-scoped overrides replace stale entries in the merged dictionary.
+- **Character Dictionary:** Added AniList-based character dictionary selection for resolving title mismatches - open it in-app with the new `Ctrl+Alt+A` shortcut or from the CLI with `subminer dictionary --candidates` / `--select`. Series-scoped overrides replace stale entries in the merged dictionary.
 - **Primary Subtitle Bar:** Added a `V` shortcut and mpv plugin binding to toggle the primary subtitle bar without affecting mpv's native subtitle visibility.
 - **Texthooker:** Added `subminer texthooker -o` and a tray menu item to open the local texthooker page in the default browser.
 
@@ -231,7 +231,7 @@
 **Internal**
 
 - Replaced the changelog renderer with an AI polish pass that merges related fragments and writes user-facing release notes. `CHANGELOG.md` keeps internal items in a collapsed `<details>` block; GitHub release notes omit them entirely.
-- Release CI no longer auto-builds pending `changes/*.md` fragments on tag. Tagging now fails fast if fragments remain — run `bun run changelog:build` (requires the `claude` CLI) and commit before tagging.
+- Release CI no longer auto-builds pending `changes/*.md` fragments on tag. Tagging now fails fast if fragments remain - run `bun run changelog:build` (requires the `claude` CLI) and commit before tagging.
 
 </details>
 
@@ -255,8 +255,8 @@
 - Stats: Episode detail hides card events whose Anki notes have been deleted, instead of showing phantom mining activity.
 - Stats: Trend and watch-time charts share a unified theme with horizontal gridlines and larger ticks for legibility.
 - Stats: Overview, Library, Trends, Sessions, and Vocabulary now use generic "title" wording so YouTube videos and anime live comfortably side by side in the dashboard.
-- Stats: Session timeline no longer plots seek-forward/seek-backward markers — they were too noisy on sessions with lots of rewinds.
-- Stats: Replaced the "Library — Per Day" section on the Stats → Trends page with a "Library — Summary" section. The new section shows a top-10 watch-time leaderboard chart and a sortable per-title table (watch time, videos, sessions, cards, words, lookups, lookups/100w, date range), all scoped to the current date range selector.
+- Stats: Session timeline no longer plots seek-forward/seek-backward markers - they were too noisy on sessions with lots of rewinds.
+- Stats: Replaced the "Library - Per Day" section on the Stats → Trends page with a "Library - Summary" section. The new section shows a top-10 watch-time leaderboard chart and a sortable per-title table (watch time, videos, sessions, cards, words, lookups, lookups/100w, date range), all scoped to the current date range selector.
 
 **Fixed**
 

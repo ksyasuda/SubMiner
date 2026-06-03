@@ -2,12 +2,12 @@
 
 SubMiner can log your watching and mining activity to a local SQLite database, then surface it in the built-in stats dashboard. Tracking is enabled by default and can be turned off if you do not want local analytics.
 
-"Immersion" here means time spent watching and reading native Japanese content. **All data stays on your computer** — nothing is uploaded anywhere. (SQLite is just a single-file database; you do not need to install or manage anything.)
+"Immersion" here means time spent watching and reading native Japanese content. **All data stays on your computer** - nothing is uploaded anywhere. (SQLite is just a single-file database; you do not need to install or manage anything.)
 
 When enabled, SubMiner records per-session statistics (watch time, subtitle lines seen, words encountered, cards mined) and maintains exact lifetime summary tables plus daily/monthly rollups. You can view that data in SubMiner's stats UI or query the database directly with any SQLite tool.
 
 ::: tip For most users
-Just leave tracking on and use the built-in [Stats Dashboard](#stats-dashboard). The retention, performance, SQL, and schema sections further down are reference material for advanced users who want to inspect or tune the database — you can safely skip them.
+Just leave tracking on and use the built-in [Stats Dashboard](#stats-dashboard). The retention, performance, SQL, and schema sections further down are reference material for advanced users who want to inspect or tune the database - you can safely skip them.
 :::
 
 Episode completion for local `watched` state uses the shared `DEFAULT_MIN_WATCH_RATIO` (`85%`) value from `src/shared/watch-threshold.ts`.
@@ -98,9 +98,9 @@ Stats server config lives under `stats`:
 
 The Vocabulary tab's word detail panel shows example lines from your viewing history. Each example line with a valid source file offers three mining buttons:
 
-- **Mine Word** — performs a full Yomitan dictionary lookup for the word (definition, reading, pitch accent, etc.) via a short-lived hidden helper, then enriches the card with sentence audio, a screenshot or animated AVIF clip, the highlighted sentence, and metadata extracted from the source video file. Requires Anki and Yomitan dictionaries to be loaded.
-- **Mine Sentence** — creates a sentence card directly with the `IsSentenceCard` flag set (for Lapis/Kiku workflows), along with audio, image, and translation from the secondary subtitle if available.
-- **Mine Audio** — creates an audio-only card with the `IsAudioCard` flag, attaching only the sentence audio clip.
+- **Mine Word** - performs a full Yomitan dictionary lookup for the word (definition, reading, pitch accent, etc.) via a short-lived hidden helper, then enriches the card with sentence audio, a screenshot or animated AVIF clip, the highlighted sentence, and metadata extracted from the source video file. Requires Anki and Yomitan dictionaries to be loaded.
+- **Mine Sentence** - creates a sentence card directly with the `IsSentenceCard` flag set (for Lapis/Kiku workflows), along with audio, image, and translation from the secondary subtitle if available.
+- **Mine Audio** - creates an audio-only card with the `IsAudioCard` flag, attaching only the sentence audio clip.
 
 All three modes respect your `ankiConnect` config: deck, model, field mappings, media settings (static vs AVIF, quality, dimensions), audio padding, metadata pattern, and tags. Media generation runs in parallel for faster card creation.
 
@@ -281,11 +281,11 @@ LIMIT ?;
 
 Core tables:
 
-- `imm_videos` — video key/title/source metadata
-- `imm_sessions` — session UUID, video reference, timing/status, final denormalized totals
-- `imm_session_telemetry` — high-frequency session aggregates over time
-- `imm_session_events` — event stream with compact numeric event types
-- `imm_subtitle_lines` — persisted subtitle text and timing per session/video
+- `imm_videos` - video key/title/source metadata
+- `imm_sessions` - session UUID, video reference, timing/status, final denormalized totals
+- `imm_session_telemetry` - high-frequency session aggregates over time
+- `imm_session_events` - event stream with compact numeric event types
+- `imm_subtitle_lines` - persisted subtitle text and timing per session/video
 
 Lifetime summary tables:
 
@@ -306,5 +306,5 @@ Vocabulary tables:
 
 Media-art tables:
 
-- `imm_media_art` — per-video cover metadata plus shared blob reference
-- `imm_cover_art_blobs` — deduplicated image bytes keyed by blob hash
+- `imm_media_art` - per-video cover metadata plus shared blob reference
+- `imm_cover_art_blobs` - deduplicated image bytes keyed by blob hash

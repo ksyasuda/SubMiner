@@ -3,7 +3,7 @@
 The `subminer` launcher is an all-in-one script that handles video selection, mpv startup, and overlay management. It is the recommended way to use SubMiner on Linux and macOS because it guarantees mpv is launched with the correct IPC socket and SubMiner defaults. It's a Bun script distributed as a release asset alongside the AppImage and DMG.
 
 ::: tip Windows users
-On Windows, the recommended way to launch playback is the **SubMiner mpv** shortcut created during first-run setup — double-click it, drag a file onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See [Windows mpv Shortcut](/usage#windows-mpv-shortcut) for details.
+On Windows, the recommended way to launch playback is the **SubMiner mpv** shortcut created during first-run setup - double-click it, drag a file onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See [Windows mpv Shortcut](/usage#windows-mpv-shortcut) for details.
 :::
 
 ## Video Picker
@@ -121,4 +121,4 @@ With default plugin settings (`auto_start=yes`, `auto_start_visible_overlay=yes`
 
 - Default log level is `info`
 - `--background` mode defaults to `warn` unless `--log-level` is explicitly set
-- `--dev` / `--debug` control app behavior, not logging verbosity — use `--log-level` for that
+- `--dev` / `--debug` control app behavior, not logging verbosity - use `--log-level` for that

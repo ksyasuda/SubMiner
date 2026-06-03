@@ -8,7 +8,7 @@ outline: [2, 3]
 import { withBase } from 'vitepress';
 </script>
 
-SubMiner is configured through a single file (`config.jsonc`). Most settings are also editable from the in-app **Settings** window — you rarely need to edit the file by hand. This page is the full reference: it explains the Settings window, where the config file lives, and documents every option grouped by topic. New to SubMiner? The Quick Start below plus the [Settings window](#settings) cover everything most users need.
+SubMiner is configured through a single file (`config.jsonc`). Most settings are also editable from the in-app **Settings** window - you rarely need to edit the file by hand. This page is the full reference: it explains the Settings window, where the config file lives, and documents every option grouped by topic. New to SubMiner? The Quick Start below plus the [Settings window](#settings) cover everything most users need.
 
 ## Quick Start
 
@@ -39,7 +39,7 @@ Then customize as needed using the sections below.
 
 ## Settings
 
-SubMiner includes a dedicated **Settings** window accessible from the tray menu, the app `--settings` flag, or launcher commands such as `subminer --settings` and `subminer settings`. It is the primary way to configure SubMiner — all changes are written directly to `config.jsonc`, so manual file editing is not required for most users.
+SubMiner includes a dedicated **Settings** window accessible from the tray menu, the app `--settings` flag, or launcher commands such as `subminer --settings` and `subminer settings`. It is the primary way to configure SubMiner - all changes are written directly to `config.jsonc`, so manual file editing is not required for most users.
 
 The Settings window groups options by workflow instead of mirroring the raw config-file shape:
 
@@ -223,7 +223,7 @@ Control whether the overlay automatically becomes visible when it connects to mp
 | -------------------- | --------------- | ----------------------------------------------------- |
 | `auto_start_overlay` | `true`, `false` | Auto-show overlay on mpv connection (default: `true`) |
 
-When you launch through the SubMiner app or the `subminer` wrapper, the launcher reads these settings from this config and injects them into the mpv plugin at runtime — there is no separate plugin config file to edit. `auto_start_overlay` controls whether the visible overlay shows on auto-start. Two related keys in the `mpv` block tune startup behavior: `mpv.autoStartSubMiner` starts the overlay automatically when a file loads, and `mpv.pauseUntilOverlayReady` pauses mpv on visible auto-start until SubMiner signals overlay/tokenization readiness.
+When you launch through the SubMiner app or the `subminer` wrapper, the launcher reads these settings from this config and injects them into the mpv plugin at runtime - there is no separate plugin config file to edit. `auto_start_overlay` controls whether the visible overlay shows on auto-start. Two related keys in the `mpv` block tune startup behavior: `mpv.autoStartSubMiner` starts the overlay automatically when a file loads, and `mpv.pauseUntilOverlayReady` pauses mpv on visible auto-start until SubMiner signals overlay/tokenization readiness.
 
 On Windows, packaged plugin installs also rewrite the plugin socket path to `\\.\pipe\subminer-socket`.
 
@@ -526,9 +526,9 @@ The secondary-subtitle language list also acts as the fallback secondary-languag
 
 **Display modes:**
 
-- **hidden** — Secondary subtitles not shown
-- **visible** — Always visible at top of overlay
-- **hover** — Only visible when hovering over the subtitle area (default)
+- **hidden** - Secondary subtitles not shown
+- **visible** - Always visible at top of overlay
+- **hover** - Only visible when hovering over the subtitle area (default)
 
 **See `config.example.jsonc`** for additional secondary subtitle configuration options.
 
@@ -1101,8 +1101,8 @@ Set `openBrowser` to `false` to only print the URL without opening a browser.
 
 Sync the active subtitle track from the overlay picker using `alass` or `ffsubsync`. Both are **optional external tools** that must be installed separately and available on your `PATH` (or configured via the path options below).
 
-- [`alass`](https://github.com/kaegi/alass) — fast, audio-independent sync using a secondary subtitle as reference
-- [`ffsubsync`](https://github.com/smacke/ffsubsync) — audio-based sync using the video file as reference
+- [`alass`](https://github.com/kaegi/alass) - fast, audio-independent sync using a secondary subtitle as reference
+- [`ffsubsync`](https://github.com/smacke/ffsubsync) - audio-based sync using the video file as reference
 
 ```json
 {
@@ -1473,9 +1473,9 @@ If `mpv.profile` is configured and the launcher also receives `--profile`, SubMi
 
 Launch mode behavior:
 
-- **`normal`** — mpv opens at its default window size with no extra flags.
-- **`maximized`** — mpv starts maximized via `--window-maximized=yes`, keeping taskbar access.
-- **`fullscreen`** — mpv starts in true fullscreen via `--fullscreen`.
+- **`normal`** - mpv opens at its default window size with no extra flags.
+- **`maximized`** - mpv starts maximized via `--window-maximized=yes`, keeping taskbar access.
+- **`fullscreen`** - mpv starts in true fullscreen via `--fullscreen`.
 
 ### YouTube Playback Settings
 
