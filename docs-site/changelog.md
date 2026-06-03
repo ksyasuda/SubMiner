@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.15.2 (2026-06-02)
+
+**Changed**
+- Yomitan: Updated the bundled Yomitan build to the latest vendored revision.
+
+**Fixed**
+- Anki - Animated AVIF: Clip timing no longer starts or ends early; word-audio lead-in and clip duration are now aligned to frame boundaries.
+- Overlay (Hyprland): Fixed fullscreen overlay alignment - modal, stats, and sidebar content no longer shift below the mpv window.
+- Overlay (macOS): Subtitle bars are now interactive immediately after autoplay starts with "wait for overlay to be ready" enabled, without requiring a manual click.
+- Overlay (macOS): Fixed overlay, subtitles, and subtitle sidebar staying hidden after a modal closes until the user clicked the mpv window; focus is now restored to mpv when the last modal closes, so playback shortcuts and the overlay reappear correctly - including in native fullscreen.
+
 ## v0.15.1 (2026-05-31)
 
 **Fixed**
