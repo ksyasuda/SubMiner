@@ -207,6 +207,6 @@ test('overlay notification cards use larger display dimensions', () => {
     overlayNotificationCss,
     /\.overlay-notification-card\.has-image\s*\{[^}]*min-height:\s*88px;/s,
   );
-  assert.match(overlayNotificationCss, /\.overlay-notification-image\s*\{[^}]*width:\s*56px;/s);
+  assert.match(overlayNotificationCss, /\.overlay-notification-image\s*\{[^}]*width:\s*100px;/s);
   assert.match(overlayNotificationCss, /\.overlay-notification-image\s*\{[^}]*height:\s*56px;/s);
 });

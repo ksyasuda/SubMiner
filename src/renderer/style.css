@@ -240,7 +240,7 @@ body:focus-visible,
 }
 
 .overlay-notification-image {
-  width: 56px;
+  width: 100px;
   height: 56px;
   align-self: center;
   display: block;
