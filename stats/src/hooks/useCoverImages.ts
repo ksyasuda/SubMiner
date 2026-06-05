@@ -52,7 +52,13 @@ export function useCoverImages(sessions: SessionSummary[]): CoverImageMap {
       }, getCoverRetryDelayMs(attempt));
     }
 
-    setImages({});
+    if (requests.animeIds.length === 0 && requests.videoIds.length === 0) {
+      setImages({});
+      return () => {
+        cancelled = true;
+      };
+    }
+
     void load(requests.animeIds, requests.videoIds, 0);
 
     return () => {

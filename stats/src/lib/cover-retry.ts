@@ -5,6 +5,7 @@ export function appendCoverRetryToken(src: string, retryToken = 0): string {
 
   const normalizedToken = String(Math.trunc(retryToken));
   try {
+    // Dummy base lets URL parse relative API paths; it is never returned as a real host.
     const url = new URL(src, 'http://subminer.local');
     url.searchParams.set(COVER_RETRY_PARAM, normalizedToken);
     if (src.startsWith('/')) {

@@ -148,7 +148,7 @@ body:focus-visible,
 
 .mining-image-toast {
   position: absolute;
-  top: 16px;
+  top: 80px;
   right: 16px;
   padding: 6px;
   border-radius: 10px;

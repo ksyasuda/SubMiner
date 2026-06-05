@@ -71,8 +71,9 @@ test('buildBucketDeleteHandler deletes every session in the bucket when confirm 
   assert.equal(onErrorCalled, false);
 });
 
-test('buildBucketDeleteHandler signals onStart after confirm, before deleting', async () => {
+test('buildBucketDeleteHandler signals deleted session IDs after confirm, before deleting', async () => {
   const events: string[] = [];
+  let startedIds: number[] | null = null;
 
   const bucket = makeBucket([
     makeSession({ sessionId: 11 }),
@@ -91,8 +92,9 @@ test('buildBucketDeleteHandler signals onStart after confirm, before deleting', 
       events.push('confirm');
       return true;
     },
-    onStart: (count) => {
-      events.push(`start:${count}`);
+    onStart: (ids) => {
+      startedIds = ids;
+      events.push('start');
     },
     onSuccess: () => {
       events.push('success');
@@ -104,7 +106,8 @@ test('buildBucketDeleteHandler signals onStart after confirm, before deleting', 
 
   await handler();
 
-  assert.deepEqual(events, ['confirm', 'start:3', 'delete', 'success']);
+  assert.deepEqual(events, ['confirm', 'start', 'delete', 'success']);
+  assert.deepEqual(startedIds, [11, 22, 33]);
 });
 
 test('buildBucketDeleteHandler does not call onStart when confirm returns false', async () => {

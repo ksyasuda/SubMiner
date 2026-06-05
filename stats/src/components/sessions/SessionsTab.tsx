@@ -30,7 +30,7 @@ export interface BucketDeleteDeps {
   apiClient: { deleteSessions: (ids: number[]) => Promise<void> };
   confirm: (title: string, count: number) => boolean | Promise<boolean>;
   /** Called once confirmation passes, just before the delete request begins. */
-  onStart?: (count: number) => void;
+  onStart?: (sessionIds: number[]) => void;
   onSuccess: (deletedIds: number[]) => void;
   onError: (message: string) => void;
 }
@@ -48,7 +48,7 @@ export function buildBucketDeleteHandler(deps: BucketDeleteDeps): () => Promise<
     const ids = bucket.sessions.map((s) => s.sessionId);
     try {
       if (!(await confirm(title, ids.length))) return;
-      onStart?.(ids.length);
+      onStart?.(ids);
       await client.deleteSessions(ids);
       onSuccess(ids);
     } catch (err) {
@@ -74,9 +74,8 @@ export function SessionsTab({
   const [search, setSearch] = useState('');
   const [visibleSessions, setVisibleSessions] = useState<SessionSummary[]>([]);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
+  const [deletingSessionIds, setDeletingSessionIds] = useState<Set<number>>(() => new Set());
   const [deletingBucketKey, setDeletingBucketKey] = useState<string | null>(null);
-  const [deletingCount, setDeletingCount] = useState(0);
 
   useEffect(() => {
     setVisibleSessions(sessions);
@@ -135,8 +134,11 @@ export function SessionsTab({
     if (!confirmed) return;
 
     setDeleteError(null);
-    setDeletingSessionId(session.sessionId);
-    setDeletingCount(1);
+    setDeletingSessionIds((prev) => {
+      const next = new Set(prev);
+      next.add(session.sessionId);
+      return next;
+    });
     try {
       await apiClient.deleteSession(session.sessionId);
       setVisibleSessions((prev) => prev.filter((item) => item.sessionId !== session.sessionId));
@@ -144,8 +146,11 @@ export function SessionsTab({
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete session.');
     } finally {
-      setDeletingSessionId(null);
-      setDeletingCount(0);
+      setDeletingSessionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(session.sessionId);
+        return next;
+      });
     }
   };
 
@@ -156,7 +161,12 @@ export function SessionsTab({
       bucket,
       apiClient,
       confirm: confirmBucketDelete,
-      onStart: (count) => setDeletingCount(count),
+      onStart: (ids) =>
+        setDeletingSessionIds((prev) => {
+          const next = new Set(prev);
+          for (const id of ids) next.add(id);
+          return next;
+        }),
       onSuccess: (ids) => {
         const deleted = new Set(ids);
         setVisibleSessions((prev) => prev.filter((s) => !deleted.has(s.sessionId)));
@@ -174,7 +184,11 @@ export function SessionsTab({
       await handler();
     } finally {
       setDeletingBucketKey(null);
-      setDeletingCount(0);
+      setDeletingSessionIds((prev) => {
+        const next = new Set(prev);
+        for (const session of bucket.sessions) next.delete(session.sessionId);
+        return next;
+      });
     }
   };
 
@@ -219,7 +233,7 @@ export function SessionsTab({
                           setExpandedId(expandedId === s.sessionId ? null : s.sessionId)
                         }
                         onDelete={() => void handleDeleteSession(s)}
-                        deleteDisabled={deletingSessionId === s.sessionId}
+                        deleteDisabled={deletingSessionIds.has(s.sessionId)}
                         onNavigateToMediaDetail={onNavigateToMediaDetail}
                       />
                       {expandedId === s.sessionId && (
@@ -288,7 +302,7 @@ export function SessionsTab({
                                   setExpandedId(expandedId === s.sessionId ? null : s.sessionId)
                                 }
                                 onDelete={() => void handleDeleteSession(s)}
-                                deleteDisabled={deletingSessionId === s.sessionId}
+                                deleteDisabled={deletingSessionIds.has(s.sessionId)}
                                 onNavigateToMediaDetail={onNavigateToMediaDetail}
                               />
                               {expandedId === s.sessionId && (
@@ -315,7 +329,7 @@ export function SessionsTab({
         </div>
       )}
 
-      <DeleteProgressToast count={deletingCount} />
+      <DeleteProgressToast count={deletingSessionIds.size} />
     </div>
   );
 }
