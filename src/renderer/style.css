@@ -259,14 +259,19 @@ body:focus-visible,
 }
 
 .overlay-notification-card.has-image {
-  grid-template-columns: 56px minmax(0, 1fr) 22px;
+  /* Reserve a real track for the thumbnail so it never overlaps the text.
+     minmax(0, 100px) lets the column shrink the image on narrow notifications
+     instead of letting it spill into the content column. */
+  grid-template-columns: minmax(0, 100px) minmax(0, 1fr) 22px;
   min-height: 88px;
   padding-left: 14px;
 }
 
 .overlay-notification-image {
-  width: 100px;
-  height: 56px;
+  width: 100%;
+  max-width: 100px;
+  aspect-ratio: 100 / 56;
+  height: auto;
   align-self: center;
   display: block;
   border-radius: 7px;
