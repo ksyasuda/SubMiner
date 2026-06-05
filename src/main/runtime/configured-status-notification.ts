@@ -1,4 +1,5 @@
 import type { NotificationType, OverlayNotificationPayload } from '../../types/notification';
+import { shouldShowDesktop, shouldShowOverlay, shouldShowOsd } from './notification-routing';
 
 export interface ConfiguredStatusNotificationDeps {
   getNotificationType: () => NotificationType | undefined;
@@ -15,18 +16,6 @@ export interface ConfiguredStatusNotificationOptions {
   persistent?: boolean;
   desktop?: boolean;
   delivery?: 'notification' | 'feedback';
-}
-
-function shouldShowOverlay(type: NotificationType): boolean {
-  return type === 'overlay' || type === 'both';
-}
-
-function shouldShowOsd(type: NotificationType): boolean {
-  return type === 'osd' || type === 'osd-system';
-}
-
-function shouldShowDesktop(type: NotificationType): boolean {
-  return type === 'system' || type === 'both' || type === 'osd-system';
 }
 
 export function getPlaybackFeedbackNotificationOptions(
@@ -60,12 +49,9 @@ export function notifyConfiguredStatus(
     return;
   }
 
-  if (deps.isOverlayReady?.() === false) {
-    deps.showOsd(message);
-    return;
-  }
+  const overlayReady = deps.isOverlayReady?.() !== false;
 
-  if (showOverlay) {
+  if (showOverlay && overlayReady) {
     if (deps.showOverlayNotification) {
       deps.showOverlayNotification({
         id: options.id,
@@ -77,6 +63,8 @@ export function notifyConfiguredStatus(
     } else if (desktopEnabled && !shouldShowDesktop(type)) {
       deps.showDesktopNotification(options.title ?? 'SubMiner', { body: message });
     }
+  } else if (showOverlay && !showOsd) {
+    deps.showOsd(message);
   }
 
   if (showOsd) {

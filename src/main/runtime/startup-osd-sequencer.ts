@@ -1,4 +1,5 @@
 import type { NotificationType, OverlayNotificationPayload } from '../../types/notification';
+import { shouldShowDesktop, shouldShowOverlay, shouldShowOsd } from './notification-routing';
 
 export interface StartupOsdSequencerCharacterDictionaryEvent {
   phase: 'checking' | 'generating' | 'syncing' | 'building' | 'importing' | 'ready' | 'failed';
@@ -19,18 +20,6 @@ interface StartupStatusNotificationOptions {
   variant: OverlayNotificationPayload['variant'];
   persistent: boolean;
   desktop?: boolean;
-}
-
-function shouldShowOsd(type: NotificationType): boolean {
-  return type === 'osd' || type === 'osd-system';
-}
-
-function shouldShowOverlay(type: NotificationType): boolean {
-  return type === 'overlay' || type === 'both';
-}
-
-function shouldShowDesktop(type: NotificationType): boolean {
-  return type === 'system' || type === 'both' || type === 'osd-system';
 }
 
 export function createStartupOsdSequencer(deps: StartupOsdSequencerDeps): {

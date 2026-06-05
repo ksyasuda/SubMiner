@@ -611,6 +611,7 @@ import {
   notifyConfiguredStatus,
   type ConfiguredStatusNotificationOptions,
 } from './main/runtime/configured-status-notification';
+import { resolveOverlayReadinessNotificationType } from './main/runtime/notification-routing';
 import { createUpdateDialogPresenter } from './main/runtime/update/update-dialogs';
 import {
   runUpdateCliCommand,
@@ -3340,10 +3341,7 @@ function isVisibleOverlayContentReady(): boolean {
 
 function getConfiguredStatusNotificationType(): NotificationType {
   const configuredType = getResolvedConfig().ankiConnect.behavior.notificationType;
-  if (configuredType === 'none' || isVisibleOverlayContentReady()) {
-    return configuredType;
-  }
-  return 'osd';
+  return resolveOverlayReadinessNotificationType(configuredType, isVisibleOverlayContentReady());
 }
 
 function sendOverlayNotificationEvent(payload: OverlayNotificationEventPayload): void {
@@ -3417,7 +3415,13 @@ function showYoutubeFlowStatusNotification(message: string): void {
 }
 
 function showOverlayLoadingStatusNotification(message: string): void {
-  showMpvOsd(message);
+  showConfiguredStatusNotification(message, {
+    id: 'overlay-loading-status',
+    title: 'SubMiner',
+    variant: 'progress',
+    persistent: true,
+    desktop: false,
+  });
 }
 
 const buildBroadcastRuntimeOptionsChangedMainDepsHandler =

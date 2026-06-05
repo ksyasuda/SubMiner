@@ -1,6 +1,7 @@
 import type { CharacterDictionaryAutoSyncStatusEvent } from './character-dictionary-auto-sync';
 import type { StartupOsdSequencerCharacterDictionaryEvent } from './startup-osd-sequencer';
 import type { NotificationType, OverlayNotificationPayload } from '../../types/notification';
+import { shouldShowDesktop, shouldShowOverlay, shouldShowOsd } from './notification-routing';
 
 export type CharacterDictionaryAutoSyncNotificationEvent = CharacterDictionaryAutoSyncStatusEvent;
 
@@ -14,18 +15,6 @@ export interface CharacterDictionaryAutoSyncNotificationDeps {
       event: StartupOsdSequencerCharacterDictionaryEvent,
     ) => boolean;
   };
-}
-
-function shouldShowOsd(type: NotificationType): boolean {
-  return type === 'osd' || type === 'osd-system';
-}
-
-function shouldShowOverlay(type: NotificationType): boolean {
-  return type === 'overlay' || type === 'both';
-}
-
-function shouldShowDesktop(type: NotificationType): boolean {
-  return type === 'system' || type === 'both' || type === 'osd-system';
 }
 
 function isTerminalPhase(phase: CharacterDictionaryAutoSyncNotificationEvent['phase']): boolean {

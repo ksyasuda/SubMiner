@@ -27,7 +27,7 @@ test('notifyConfiguredStatus routes both to overlay and system without osd', () 
   ]);
 });
 
-test('notifyConfiguredStatus routes pre-overlay status to osd only', () => {
+test('notifyConfiguredStatus routes pre-overlay both status to osd and desktop', () => {
   const calls: string[] = [];
 
   notifyConfiguredStatus('Overlay loading...', {
@@ -42,7 +42,25 @@ test('notifyConfiguredStatus routes pre-overlay status to osd only', () => {
       calls.push(`desktop:${title}:${options.body ?? ''}`),
   });
 
-  assert.deepEqual(calls, ['osd:Overlay loading...']);
+  assert.deepEqual(calls, ['osd:Overlay loading...', 'desktop:SubMiner:Overlay loading...']);
+});
+
+test('notifyConfiguredStatus routes pre-overlay system status to desktop only', () => {
+  const calls: string[] = [];
+
+  notifyConfiguredStatus('Overlay loading...', {
+    getNotificationType: () => 'system',
+    isOverlayReady: () => false,
+    showOsd: (message) => {
+      calls.push(`osd:${message}`);
+    },
+    showOverlayNotification: (payload) =>
+      calls.push(`overlay:${payload.id ?? ''}:${payload.body ?? ''}`),
+    showDesktopNotification: (title, options) =>
+      calls.push(`desktop:${title}:${options.body ?? ''}`),
+  });
+
+  assert.deepEqual(calls, ['desktop:SubMiner:Overlay loading...']);
 });
 
 test('notifyConfiguredStatus keeps osd-system on legacy surfaces', () => {
