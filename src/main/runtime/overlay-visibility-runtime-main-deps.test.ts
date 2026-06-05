@@ -36,6 +36,7 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
     isMacOSPlatform: () => true,
     isWindowsPlatform: () => false,
     showOverlayLoadingOsd: () => calls.push('overlay-loading-osd'),
+    dismissOverlayLoadingOsd: () => calls.push('dismiss-overlay-loading-osd'),
     resolveFallbackBounds: () => ({ x: 0, y: 0, width: 20, height: 20 }),
   })();
 
@@ -60,6 +61,7 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
   assert.equal(deps.isMacOSPlatform(), true);
   assert.equal(deps.isWindowsPlatform(), false);
   deps.showOverlayLoadingOsd('Overlay loading...');
+  deps.dismissOverlayLoadingOsd?.();
   assert.deepEqual(deps.resolveFallbackBounds(), { x: 0, y: 0, width: 20, height: 20 });
   assert.equal(trackerNotReadyWarningShown, true);
   assert.deepEqual(calls, [
@@ -71,5 +73,6 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
     'enforce-order',
     'sync-shortcuts',
     'overlay-loading-osd',
+    'dismiss-overlay-loading-osd',
   ]);
 });

@@ -85,7 +85,7 @@ function findChildByClass(element: FakeElement, className: string): FakeElement 
 }
 
 const overlayNotificationCss = readFileSync(
-  path.join(process.cwd(), 'src/renderer/style.css'),
+  path.join(__dirname, '..', 'renderer', 'style.css'),
   'utf8',
 );
 
@@ -202,7 +202,7 @@ test('overlay notification cards use larger display dimensions', () => {
     overlayNotificationCss,
     /\.overlay-notification-stack\s*\{[^}]*width:\s*min\(420px,\s*calc\(100vw - 32px\)\);/s,
   );
-  assert.match(overlayNotificationCss, /\.overlay-notification-card\s*\{[^}]*min-height:\s*76px;/s);
+  assert.match(overlayNotificationCss, /\.overlay-notification-card\s*\{[^}]*min-height:\s*72px;/s);
   assert.match(
     overlayNotificationCss,
     /\.overlay-notification-card\.has-image\s*\{[^}]*min-height:\s*88px;/s,

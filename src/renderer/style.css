@@ -176,26 +176,20 @@ body:focus-visible,
 }
 
 .overlay-notification-card {
-  /* Accent color is overridden per variant and drives the bar, icon, and borders. */
+  /* Accent color is overridden per variant and drives the icon and border tint. */
   --overlay-notification-accent: var(--ctp-blue);
 
   position: relative;
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) 22px;
-  gap: 11px;
+  gap: 12px;
   align-items: start;
-  min-height: 76px;
-  padding: 16px 16px 16px 20px;
-  border-radius: 11px;
-  border: 1px solid color-mix(in srgb, var(--overlay-notification-accent) 24%, var(--ctp-surface1));
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--overlay-notification-accent) 9%, var(--ctp-surface0)),
-    var(--ctp-mantle)
-  );
-  box-shadow:
-    0 14px 32px -10px rgba(24, 25, 38, 0.75),
-    0 1px 0 rgba(202, 211, 245, 0.05) inset;
+  min-height: 72px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--overlay-notification-accent) 45%, var(--ctp-surface1));
+  background: var(--ctp-base);
+  box-shadow: 0 12px 28px -12px rgba(24, 25, 38, 0.7);
   color: var(--ctp-text);
   overflow: hidden;
 }
@@ -226,18 +220,6 @@ body:focus-visible,
   animation-name: overlay-notification-leave-top;
 }
 
-.overlay-notification-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 11px;
-  bottom: 11px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--overlay-notification-accent);
-  box-shadow: 0 0 11px -1px var(--overlay-notification-accent);
-}
-
 .overlay-notification-card.info {
   --overlay-notification-accent: var(--ctp-blue);
 }
@@ -264,7 +246,6 @@ body:focus-visible,
      instead of letting it spill into the content column. */
   grid-template-columns: minmax(0, 100px) minmax(0, 1fr) 22px;
   min-height: 88px;
-  padding-left: 14px;
 }
 
 .overlay-notification-image {

@@ -88,6 +88,7 @@ export function updateVisibleOverlayVisibility(args: {
   isMacOSPlatform?: boolean;
   isWindowsPlatform?: boolean;
   showOverlayLoadingOsd?: (message: string) => void;
+  dismissOverlayLoadingOsd?: () => void;
   shouldShowOverlayLoadingOsd?: () => boolean;
   markOverlayLoadingOsdShown?: () => void;
   resetOverlayLoadingOsdSuppression?: () => void;
@@ -320,6 +321,12 @@ export function updateVisibleOverlayVisibility(args: {
     args.showOverlayLoadingOsd('Overlay loading...');
     args.markOverlayLoadingOsdShown?.();
   };
+  const maybeDismissOverlayLoadingOsd = (): void => {
+    if (!args.isMacOSPlatform) {
+      return;
+    }
+    args.dismissOverlayLoadingOsd?.();
+  };
 
   const refreshNonNativeOverlayBoundsAfterFirstShow = (geometry: WindowGeometry | null): void => {
     if (
@@ -350,6 +357,7 @@ export function updateVisibleOverlayVisibility(args: {
   if (!args.visibleOverlayVisible) {
     args.setTrackerNotReadyWarningShown(false);
     args.resetOverlayLoadingOsdSuppression?.();
+    maybeDismissOverlayLoadingOsd();
     if (args.isWindowsPlatform) {
       clearPendingWindowsOverlayReveal(mainWindow);
       setOverlayWindowOpacity(mainWindow, 0);
@@ -372,6 +380,7 @@ export function updateVisibleOverlayVisibility(args: {
       return;
     }
     args.setTrackerNotReadyWarningShown(false);
+    maybeDismissOverlayLoadingOsd();
     const geometry = args.windowTracker.getGeometry();
     if (geometry) {
       args.updateVisibleOverlayBounds(geometry);
@@ -432,6 +441,7 @@ export function updateVisibleOverlayVisibility(args: {
     (mainWindow.isVisible() || hasRetainedTrackedGeometry)
   ) {
     args.setTrackerNotReadyWarningShown(false);
+    maybeDismissOverlayLoadingOsd();
     const geometry = args.windowTracker.getGeometry();
     if (geometry) {
       args.updateVisibleOverlayBounds(geometry);

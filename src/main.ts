@@ -2654,6 +2654,9 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     showOverlayLoadingOsd: (message: string) => {
       showOverlayLoadingStatusNotification(message);
     },
+    dismissOverlayLoadingOsd: () => {
+      dismissOverlayNotification('overlay-loading-status');
+    },
     hideNonNativeOverlayWhenTargetUnfocused: () =>
       shouldRunLinuxOverlayZOrderKeepAlive() &&
       linuxVisibleOverlayWindowMode === 'fullscreen-override',
