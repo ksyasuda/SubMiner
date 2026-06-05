@@ -605,6 +605,79 @@ test('split maintenance helpers update anime metadata and watched state', () => 
   }
 });
 
+test('deleteSessions refreshes only rollups affected by deleted sessions', () => {
+  const { db, dbPath } = createDb();
+
+  try {
+    const keepVideoId = getOrCreateVideoRecord(db, 'local:/tmp/rollup-keep.mkv', {
+      canonicalTitle: 'Rollup Keep',
+      sourcePath: '/tmp/rollup-keep.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const dropVideoId = getOrCreateVideoRecord(db, 'local:/tmp/rollup-drop.mkv', {
+      canonicalTitle: 'Rollup Drop',
+      sourcePath: '/tmp/rollup-drop.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const keepStartedAtMs = 1_700_000_000_000;
+    const dropStartedAtMs = 1_700_086_400_000;
+    const keepSessionId = startSessionRecord(db, keepVideoId, keepStartedAtMs).sessionId;
+    const dropSessionId = startSessionRecord(db, dropVideoId, dropStartedAtMs).sessionId;
+    finalizeSessionMetrics(db, keepSessionId, keepStartedAtMs, {
+      activeWatchedMs: 30_000,
+      cardsMined: 1,
+    });
+    finalizeSessionMetrics(db, dropSessionId, dropStartedAtMs, {
+      activeWatchedMs: 60_000,
+      cardsMined: 2,
+    });
+
+    const keepDay = getLocalEpochDay(db, keepStartedAtMs);
+    const dropDay = getLocalEpochDay(db, dropStartedAtMs);
+    const keepMonth = 202311;
+    const dropMonth = 202311;
+
+    const insertDaily = db.prepare(`
+      INSERT INTO imm_daily_rollups (
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertMonthly = db.prepare(`
+      INSERT INTO imm_monthly_rollups (
+        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    insertDaily.run(keepDay, keepVideoId, 1, 0.5, 3, 6, 1, keepStartedAtMs, keepStartedAtMs);
+    insertDaily.run(dropDay, dropVideoId, 1, 1, 3, 6, 2, dropStartedAtMs, dropStartedAtMs);
+    insertMonthly.run(keepMonth, keepVideoId, 1, 0.5, 3, 6, 1, keepStartedAtMs, keepStartedAtMs);
+    insertMonthly.run(dropMonth, dropVideoId, 1, 1, 3, 6, 2, dropStartedAtMs, dropStartedAtMs);
+
+    deleteSessions(db, [dropSessionId]);
+
+    const dailyRows = db
+      .prepare('SELECT rollup_day, video_id, total_cards FROM imm_daily_rollups ORDER BY video_id')
+      .all() as Array<{ rollup_day: number; video_id: number; total_cards: number }>;
+    const monthlyRows = db
+      .prepare(
+        'SELECT rollup_month, video_id, total_cards FROM imm_monthly_rollups ORDER BY video_id',
+      )
+      .all() as Array<{ rollup_month: number; video_id: number; total_cards: number }>;
+
+    assert.deepEqual(dailyRows, [{ rollup_day: keepDay, video_id: keepVideoId, total_cards: 1 }]);
+    assert.deepEqual(monthlyRows, [
+      { rollup_month: keepMonth, video_id: keepVideoId, total_cards: 1 },
+    ]);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('split maintenance helpers delete multiple sessions and whole videos with dependent rows', () => {
   const { db, dbPath, stmts } = createDb();
 

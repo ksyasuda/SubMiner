@@ -6,6 +6,7 @@ import { StreakCalendar } from './StreakCalendar';
 import { RecentSessions } from './RecentSessions';
 import { TrackingSnapshot } from './TrackingSnapshot';
 import { TrendChart } from '../trends/TrendChart';
+import { DeleteProgressToast } from '../common/DeleteProgressToast';
 import { buildOverviewSummary, buildStreakCalendar } from '../../lib/dashboard-data';
 import { apiClient } from '../../lib/api-client';
 import { getStatsClient } from '../../hooks/useStatsApi';
@@ -153,6 +154,8 @@ export function OverviewTab({ onNavigateToMediaDetail, onNavigateToSession }: Ov
         onDeleteAnimeGroup={handleDeleteAnimeGroup}
         deletingIds={deletingIds}
       />
+
+      <DeleteProgressToast count={deletingIds.size} />
     </div>
   );
 }

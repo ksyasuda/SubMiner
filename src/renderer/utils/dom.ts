@@ -4,6 +4,8 @@ export type RendererDom = {
   overlay: HTMLElement;
   controllerStatusToast: HTMLDivElement;
   overlayErrorToast: HTMLDivElement;
+  miningImageToast: HTMLDivElement;
+  miningImageToastImage: HTMLImageElement;
   secondarySubContainer: HTMLElement;
   secondarySubRoot: HTMLElement;
 
@@ -134,6 +136,8 @@ export function resolveRendererDom(): RendererDom {
     overlay: getRequiredElement<HTMLElement>('overlay'),
     controllerStatusToast: getRequiredElement<HTMLDivElement>('controllerStatusToast'),
     overlayErrorToast: getRequiredElement<HTMLDivElement>('overlayErrorToast'),
+    miningImageToast: getRequiredElement<HTMLDivElement>('miningImageToast'),
+    miningImageToastImage: getRequiredElement<HTMLImageElement>('miningImageToastImage'),
     secondarySubContainer: getRequiredElement<HTMLElement>('secondarySubContainer'),
     secondarySubRoot: getRequiredElement<HTMLElement>('secondarySubRoot'),
 

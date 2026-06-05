@@ -833,6 +833,56 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 404);
   });
 
+  it('POST /api/stats/covers batches stored cover art without fetching missing art', async () => {
+    let ensureCoverArtCalls = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        getCoverArt: async (videoId: number) =>
+          videoId === 7
+            ? {
+                videoId,
+                anilistId: null,
+                coverUrl: null,
+                coverBlob: Buffer.from([0x89, 0x50]),
+                titleRomaji: null,
+                titleEnglish: null,
+                episodesTotal: null,
+                fetchedAtMs: Date.now(),
+              }
+            : null,
+        ensureCoverArt: async () => {
+          ensureCoverArtCalls += 1;
+          return true;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/covers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ animeIds: [1, 99999], videoIds: [7, 99999] }),
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      anime: {
+        1: {
+          contentType: 'image/jpeg',
+          dataUrl: 'data:image/jpeg;base64,/9j/2Q==',
+        },
+        99999: null,
+      },
+      media: {
+        7: {
+          contentType: 'image/jpeg',
+          dataUrl: 'data:image/jpeg;base64,iVA=',
+        },
+        99999: null,
+      },
+    });
+    assert.equal(ensureCoverArtCalls, 0);
+  });
+
   it('GET /api/stats/anime/:animeId/words returns top words for an anime', async () => {
     let seenArgs: unknown[] = [];
     const app = createStatsApp(

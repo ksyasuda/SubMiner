@@ -1,4 +1,5 @@
 import { BASE_URL } from './api-client';
+import { appendCoverRetryToken } from './cover-retry';
 import type { MediaLibraryItem } from '../types/stats';
 
 export interface MediaLibraryGroup {
@@ -22,8 +23,8 @@ export function resolveMediaArtworkUrl(
   return normalized.length > 0 ? normalized : null;
 }
 
-export function resolveMediaCoverApiUrl(videoId: number): string {
-  return `${BASE_URL}/api/stats/media/${videoId}/cover`;
+export function resolveMediaCoverApiUrl(videoId: number, retryToken = 0): string {
+  return appendCoverRetryToken(`${BASE_URL}/api/stats/media/${videoId}/cover`, retryToken);
 }
 
 export function summarizeMediaLibraryGroups(groups: MediaLibraryGroup[]): {

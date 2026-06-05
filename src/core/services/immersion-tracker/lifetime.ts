@@ -60,6 +60,34 @@ interface RetainedSessionRow {
   mediaBufferEvents: number;
 }
 
+const RETAINED_SESSION_METRICS_CTE = `
+  retained_sessions AS (
+    SELECT
+      s.session_id,
+      s.video_id,
+      v.anime_id,
+      s.started_at_ms,
+      s.ended_at_ms,
+      MAX(COALESCE(t.active_watched_ms, s.active_watched_ms, 0), 0) AS active_ms,
+      MAX(COALESCE(t.cards_mined, s.cards_mined, 0), 0) AS cards_mined,
+      MAX(COALESCE(t.lines_seen, s.lines_seen, 0), 0) AS lines_seen,
+      MAX(COALESCE(t.tokens_seen, s.tokens_seen, 0), 0) AS tokens_seen,
+      CASE WHEN v.watched > 0 THEN 1 ELSE 0 END AS completed
+    FROM imm_sessions s
+    JOIN imm_videos v
+      ON v.video_id = s.video_id
+    LEFT JOIN imm_session_telemetry t
+      ON t.telemetry_id = (
+        SELECT telemetry_id
+        FROM imm_session_telemetry
+        WHERE session_id = s.session_id
+        ORDER BY sample_ms DESC, telemetry_id DESC
+        LIMIT 1
+      )
+    WHERE s.ended_at_ms IS NOT NULL
+  )
+`;
+
 function hasRetainedPriorSession(
   db: DatabaseSync,
   videoId: number,
@@ -154,54 +182,150 @@ function rebuildLifetimeSummariesInternal(
   db: DatabaseSync,
   rebuiltAtMs: number,
 ): LifetimeRebuildSummary {
-  const rows = db
-    .prepare(
-      `
-      SELECT
-        session_id AS sessionId,
-        video_id AS videoId,
-        started_at_ms AS startedAtMs,
-        ended_at_ms AS endedAtMs,
-        ended_media_ms AS lastMediaMs,
-        total_watched_ms AS totalWatchedMs,
-        active_watched_ms AS activeWatchedMs,
-        lines_seen AS linesSeen,
-        tokens_seen AS tokensSeen,
-        cards_mined AS cardsMined,
-        lookup_count AS lookupCount,
-        lookup_hits AS lookupHits,
-        yomitan_lookup_count AS yomitanLookupCount,
-        pause_count AS pauseCount,
-        pause_ms AS pauseMs,
-        seek_forward_count AS seekForwardCount,
-        seek_backward_count AS seekBackwardCount,
-        media_buffer_events AS mediaBufferEvents
-      FROM imm_sessions
-      WHERE ended_at_ms IS NOT NULL
-      ORDER BY started_at_ms ASC, session_id ASC
-      `,
-    )
-    .all() as Array<
-    Omit<RetainedSessionRow, 'startedAtMs' | 'endedAtMs' | 'lastMediaMs'> & {
-      startedAtMs: number | string;
-      endedAtMs: number | string;
-      lastMediaMs: number | string | null;
-    }
-  >;
-  const sessions = rows.map((row) => ({
-    ...row,
-    startedAtMs: row.startedAtMs,
-    endedAtMs: row.endedAtMs,
-    lastMediaMs: row.lastMediaMs === null ? null : Number(row.lastMediaMs),
-  })) as RetainedSessionRow[];
+  const rebuiltAtDbMs = toDbTimestamp(rebuiltAtMs);
+  const appliedSessions = Number(
+    (
+      db
+        .prepare('SELECT COUNT(*) AS total FROM imm_sessions WHERE ended_at_ms IS NOT NULL')
+        .get() as { total: number }
+    ).total,
+  );
 
   resetLifetimeSummaries(db, rebuiltAtMs);
-  for (const session of sessions) {
-    applySessionLifetimeSummary(db, toRebuildSessionState(session), session.endedAtMs);
-  }
+
+  db.prepare(
+    `
+    INSERT INTO imm_lifetime_applied_sessions (
+      session_id,
+      applied_at_ms,
+      CREATED_DATE,
+      LAST_UPDATE_DATE
+    )
+    SELECT
+      session_id,
+      ended_at_ms,
+      ?,
+      ?
+    FROM imm_sessions
+    WHERE ended_at_ms IS NOT NULL
+    `,
+  ).run(rebuiltAtDbMs, rebuiltAtDbMs);
+
+  db.prepare(
+    `
+    WITH ${RETAINED_SESSION_METRICS_CTE}
+    INSERT INTO imm_lifetime_media (
+      video_id,
+      total_sessions,
+      total_active_ms,
+      total_cards,
+      total_lines_seen,
+      total_tokens_seen,
+      completed,
+      first_watched_ms,
+      last_watched_ms,
+      CREATED_DATE,
+      LAST_UPDATE_DATE
+    )
+    SELECT
+      video_id,
+      COUNT(*) AS total_sessions,
+      COALESCE(SUM(active_ms), 0) AS total_active_ms,
+      COALESCE(SUM(cards_mined), 0) AS total_cards,
+      COALESCE(SUM(lines_seen), 0) AS total_lines_seen,
+      COALESCE(SUM(tokens_seen), 0) AS total_tokens_seen,
+      MAX(completed) AS completed,
+      MIN(started_at_ms) AS first_watched_ms,
+      MAX(ended_at_ms) AS last_watched_ms,
+      ? AS CREATED_DATE,
+      ? AS LAST_UPDATE_DATE
+    FROM retained_sessions
+    GROUP BY video_id
+    `,
+  ).run(rebuiltAtDbMs, rebuiltAtDbMs);
+
+  db.prepare(
+    `
+    WITH ${RETAINED_SESSION_METRICS_CTE}
+    INSERT INTO imm_lifetime_anime (
+      anime_id,
+      total_sessions,
+      total_active_ms,
+      total_cards,
+      total_lines_seen,
+      total_tokens_seen,
+      episodes_started,
+      episodes_completed,
+      first_watched_ms,
+      last_watched_ms,
+      CREATED_DATE,
+      LAST_UPDATE_DATE
+    )
+    SELECT
+      anime_id,
+      COUNT(*) AS total_sessions,
+      COALESCE(SUM(active_ms), 0) AS total_active_ms,
+      COALESCE(SUM(cards_mined), 0) AS total_cards,
+      COALESCE(SUM(lines_seen), 0) AS total_lines_seen,
+      COALESCE(SUM(tokens_seen), 0) AS total_tokens_seen,
+      COUNT(DISTINCT video_id) AS episodes_started,
+      COUNT(DISTINCT CASE WHEN completed > 0 THEN video_id END) AS episodes_completed,
+      MIN(started_at_ms) AS first_watched_ms,
+      MAX(ended_at_ms) AS last_watched_ms,
+      ? AS CREATED_DATE,
+      ? AS LAST_UPDATE_DATE
+    FROM retained_sessions
+    WHERE anime_id IS NOT NULL
+    GROUP BY anime_id
+    `,
+  ).run(rebuiltAtDbMs, rebuiltAtDbMs);
+
+  db.prepare(
+    `
+    WITH ${RETAINED_SESSION_METRICS_CTE},
+    anime_completion AS (
+      SELECT
+        rs.anime_id,
+        MAX(a.episodes_total) AS episodes_total,
+        COUNT(DISTINCT CASE WHEN rs.completed > 0 THEN rs.video_id END) AS completed_videos
+      FROM retained_sessions rs
+      JOIN imm_anime a
+        ON a.anime_id = rs.anime_id
+      WHERE rs.anime_id IS NOT NULL
+      GROUP BY rs.anime_id
+    )
+    UPDATE imm_lifetime_global
+    SET
+      total_sessions = (SELECT COUNT(*) FROM retained_sessions),
+      total_active_ms = (SELECT COALESCE(SUM(active_ms), 0) FROM retained_sessions),
+      total_cards = (SELECT COALESCE(SUM(cards_mined), 0) FROM retained_sessions),
+      active_days = (
+        SELECT COUNT(DISTINCT CAST(
+          julianday(CAST(started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5
+          AS INTEGER
+        ))
+        FROM retained_sessions
+      ),
+      episodes_started = (SELECT COUNT(DISTINCT video_id) FROM retained_sessions),
+      episodes_completed = (
+        SELECT COUNT(DISTINCT CASE WHEN completed > 0 THEN video_id END)
+        FROM retained_sessions
+      ),
+      anime_completed = (
+        SELECT COUNT(*)
+        FROM anime_completion
+        WHERE episodes_total IS NOT NULL
+          AND episodes_total > 0
+          AND completed_videos >= episodes_total
+      ),
+      last_rebuilt_ms = ?,
+      LAST_UPDATE_DATE = ?
+    WHERE global_id = 1
+    `,
+  ).run(rebuiltAtDbMs, rebuiltAtDbMs);
 
   return {
-    appliedSessions: sessions.length,
+    appliedSessions,
     rebuiltAtMs,
   };
 }

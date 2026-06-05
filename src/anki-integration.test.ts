@@ -406,6 +406,47 @@ test('AnkiIntegration marks partial update notifications as failures in OSD mode
   assert.deepEqual(osdMessages, ['x Updated card: taberu (image failed)']);
 });
 
+test('AnkiIntegration emits a mining image data URL to the overlay for OSD notifications', async () => {
+  const osdMessages: string[] = [];
+  const overlayImages: string[] = [];
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'osd',
+      },
+    },
+    {} as never,
+    { currentVideoPath: '/tmp/video.mkv', currentTimePos: 12 } as never,
+    (text) => {
+      osdMessages.push(text);
+    },
+  );
+  integration.setMiningImageOverlayCallback((image) => {
+    overlayImages.push(image);
+  });
+
+  const internals = integration as unknown as {
+    mediaGenerator: {
+      generateNotificationIcon: (path: string, timestamp: number) => Promise<Buffer>;
+    };
+    showNotification: (
+      noteId: number,
+      label: string | number,
+      errorSuffix?: string,
+    ) => Promise<void>;
+  };
+  internals.mediaGenerator = {
+    generateNotificationIcon: async () => Buffer.from('frame-bytes'),
+  } as never;
+
+  await internals.showNotification(7, 'taberu');
+
+  assert.deepEqual(osdMessages, ['✓ Updated card: taberu']);
+  assert.deepEqual(overlayImages, [
+    `data:image/png;base64,${Buffer.from('frame-bytes').toString('base64')}`,
+  ]);
+});
+
 test('FieldGroupingMergeCollaborator keeps SentenceAudio grouped without overwriting ExpressionAudio', async () => {
   const collaborator = createFieldGroupingMergeCollaborator();
 

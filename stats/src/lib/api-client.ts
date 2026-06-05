@@ -23,7 +23,9 @@ import type {
   EpisodeDetailData,
   StatsAnkiNoteInfo,
   StatsExcludedWord,
+  StatsCoverImagesData,
 } from '../types/stats';
+import { appendCoverRetryToken } from './cover-retry';
 
 type StatsLocationLike = Pick<Location, 'protocol' | 'origin' | 'search'>;
 
@@ -63,6 +65,16 @@ async function fetchResponse(path: string, init?: RequestInit): Promise<Response
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetchResponse(path);
   return res.json() as Promise<T>;
+}
+
+function uniquePositiveIds(ids: number[]): number[] {
+  const uniqueIds = new Set<number>();
+  for (const id of ids) {
+    if (Number.isFinite(id) && id > 0) {
+      uniqueIds.add(Math.floor(id));
+    }
+  }
+  return Array.from(uniqueIds).sort((a, b) => a - b);
 }
 
 export const apiClient = {
@@ -116,7 +128,22 @@ export const apiClient = {
     fetchJson<AnimeWord[]>(`/api/stats/anime/${animeId}/words?limit=${limit}`),
   getAnimeRollups: (animeId: number, limit = 90) =>
     fetchJson<DailyRollup[]>(`/api/stats/anime/${animeId}/rollups?limit=${limit}`),
-  getAnimeCoverUrl: (animeId: number) => `${BASE_URL}/api/stats/anime/${animeId}/cover`,
+  getAnimeCoverUrl: (animeId: number, retryToken = 0) =>
+    appendCoverRetryToken(`${BASE_URL}/api/stats/anime/${animeId}/cover`, retryToken),
+  getCoverImages: async (params: {
+    animeIds: number[];
+    videoIds: number[];
+  }): Promise<StatsCoverImagesData> => {
+    const res = await fetchResponse('/api/stats/covers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        animeIds: uniquePositiveIds(params.animeIds),
+        videoIds: uniquePositiveIds(params.videoIds),
+      }),
+    });
+    return res.json() as Promise<StatsCoverImagesData>;
+  },
   getStreakCalendar: (days = 90) =>
     fetchJson<StreakCalendarDay[]>(`/api/stats/streak-calendar?days=${days}`),
   getEpisodesPerDay: (limit = 90) =>
@@ -175,6 +202,7 @@ export const apiClient = {
         episodes: number | null;
         season: string | null;
         seasonYear: number | null;
+        description: string | null;
         coverImage: { large: string | null; medium: string | null } | null;
         title: { romaji: string | null; english: string | null; native: string | null } | null;
       }>

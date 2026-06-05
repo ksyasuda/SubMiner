@@ -41,8 +41,10 @@ export function fullReading(headword: string, storedReading: string): string {
   const chars = [...headword];
 
   let i = 0;
-  while (i < chars.length && (isHiragana(chars[i]) || isKatakana(chars[i]))) {
-    leadingKana.push(katakanaToHiragana(chars[i]));
+  while (i < chars.length) {
+    const ch = chars[i]!;
+    if (!isHiragana(ch) && !isKatakana(ch)) break;
+    leadingKana.push(katakanaToHiragana(ch));
     i++;
   }
 
@@ -51,8 +53,10 @@ export function fullReading(headword: string, storedReading: string): string {
   }
 
   let j = chars.length - 1;
-  while (j > i && (isHiragana(chars[j]) || isKatakana(chars[j]))) {
-    trailingKana.unshift(katakanaToHiragana(chars[j]));
+  while (j > i) {
+    const ch = chars[j]!;
+    if (!isHiragana(ch) && !isKatakana(ch)) break;
+    trailingKana.unshift(katakanaToHiragana(ch));
     j--;
   }
 

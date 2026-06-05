@@ -82,6 +82,16 @@ export interface StatsExcludedWord {
   reading: string;
 }
 
+export interface StatsCoverImage {
+  contentType: string;
+  dataUrl: string;
+}
+
+export interface StatsCoverImagesData {
+  anime: Record<string, StatsCoverImage | null>;
+  media: Record<string, StatsCoverImage | null>;
+}
+
 export interface KanjiEntry {
   kanjiId: number;
   kanji: string;

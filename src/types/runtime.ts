@@ -343,6 +343,11 @@ export interface ClipboardAppendResult {
   message: string;
 }
 
+export interface MiningImagePayload {
+  /** Screenshot of the mined frame as a data URL (e.g. `data:image/png;base64,...`). */
+  image: string;
+}
+
 export interface ConfigHotReloadPayload {
   keybindings: Keybinding[];
   sessionBindings: CompiledSessionBinding[];
@@ -541,6 +546,7 @@ export interface ElectronAPI {
   ) => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;
+  onMiningImage: (callback: (payload: MiningImagePayload) => void) => void;
 }
 
 declare global {

@@ -132,7 +132,6 @@ test('AnimeOverviewStats renders aggregate Yomitan lookup metrics', () => {
         episodeCount: 3,
         lastWatchedMs: 0,
       }}
-      avgSessionMs={20_000}
       knownWordsSummary={null}
     />,
   );

@@ -5,6 +5,7 @@ import type { MediaLibraryItem } from '../types/stats';
 import {
   groupMediaLibraryItems,
   resolveMediaArtworkUrl,
+  resolveMediaCoverApiUrl,
   summarizeMediaLibraryGroups,
 } from './media-library-grouping';
 import { CoverImage } from '../components/library/CoverImage';
@@ -170,6 +171,13 @@ test('MediaCard uses the proxied cover endpoint instead of metadata artwork urls
 
   assert.match(markup, /src="http:\/\/127\.0\.0\.1:6969\/api\/stats\/media\/1\/cover"/);
   assert.doesNotMatch(markup, /https:\/\/i\.ytimg\.com\/vi\/yt-1\/hqdefault\.jpg/);
+});
+
+test('resolveMediaCoverApiUrl appends retry tokens for late cover refreshes', () => {
+  assert.equal(
+    resolveMediaCoverApiUrl(youtubeEpisodeA.videoId, 2),
+    'http://127.0.0.1:6969/api/stats/media/1/cover?coverRetry=2',
+  );
 });
 
 test('MediaCard prefers youtube video title over canonical fallback url slug', () => {

@@ -27,6 +27,16 @@ type StatsExcludedWordPayload = {
   reading: string;
 };
 
+type StatsCoverImagePayload = {
+  contentType: 'image/jpeg';
+  dataUrl: string;
+} | null;
+
+type StatsCoverBatchBody = {
+  animeIds?: unknown;
+  videoIds?: unknown;
+};
+
 function parseIntQuery(raw: string | undefined, fallback: number, maxLimit?: number): number {
   if (raw === undefined) return fallback;
   const n = Number(raw);
@@ -71,6 +81,31 @@ function parseExcludedWordsBody(body: unknown): StatsExcludedWordPayload[] | nul
     words.push({ headword, word, reading });
   }
   return words;
+}
+
+function parsePositiveIdList(raw: unknown, maxItems = 100): number[] {
+  if (!Array.isArray(raw)) return [];
+
+  const ids = new Set<number>();
+  for (const rawId of raw) {
+    const id = typeof rawId === 'number' ? rawId : typeof rawId === 'string' ? Number(rawId) : NaN;
+    if (Number.isFinite(id) && id > 0) {
+      ids.add(Math.floor(id));
+      if (ids.size >= maxItems) break;
+    }
+  }
+
+  return Array.from(ids).sort((a, b) => a - b);
+}
+
+function coverImagePayload(
+  art: { coverBlob?: Uint8Array | null } | null | undefined,
+): StatsCoverImagePayload {
+  if (!art?.coverBlob) return null;
+  return {
+    contentType: 'image/jpeg',
+    dataUrl: `data:image/jpeg;base64,${Buffer.from(art.coverBlob).toString('base64')}`,
+  };
 }
 
 function resolveStatsNoteFieldName(
@@ -705,6 +740,27 @@ export function createStatsApp(
     if (!body?.anilistId) return c.body(null, 400);
     await tracker.reassignAnimeAnilist(animeId, body);
     return c.json({ ok: true });
+  });
+
+  app.post('/api/stats/covers', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as StatsCoverBatchBody | null;
+    const animeIds = parsePositiveIdList(body?.animeIds);
+    const videoIds = parsePositiveIdList(body?.videoIds);
+    const anime: Record<string, StatsCoverImagePayload> = {};
+    const media: Record<string, StatsCoverImagePayload> = {};
+
+    await Promise.all(
+      animeIds.map(async (animeId) => {
+        anime[String(animeId)] = coverImagePayload(await tracker.getAnimeCoverArt(animeId));
+      }),
+    );
+    await Promise.all(
+      videoIds.map(async (videoId) => {
+        media[String(videoId)] = coverImagePayload(await tracker.getCoverArt(videoId));
+      }),
+    );
+
+    return c.json({ anime, media });
   });
 
   app.get('/api/stats/anime/:animeId/cover', async (c) => {

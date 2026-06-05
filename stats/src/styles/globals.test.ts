@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const css = readFileSync(fileURLToPath(new URL('./globals.css', import.meta.url)), 'utf8');

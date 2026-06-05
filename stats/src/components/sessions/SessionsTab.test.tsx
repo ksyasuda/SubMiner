@@ -71,6 +71,63 @@ test('buildBucketDeleteHandler deletes every session in the bucket when confirm 
   assert.equal(onErrorCalled, false);
 });
 
+test('buildBucketDeleteHandler signals onStart after confirm, before deleting', async () => {
+  const events: string[] = [];
+
+  const bucket = makeBucket([
+    makeSession({ sessionId: 11 }),
+    makeSession({ sessionId: 22 }),
+    makeSession({ sessionId: 33 }),
+  ]);
+
+  const handler = buildBucketDeleteHandler({
+    bucket,
+    apiClient: {
+      deleteSessions: async () => {
+        events.push('delete');
+      },
+    },
+    confirm: () => {
+      events.push('confirm');
+      return true;
+    },
+    onStart: (count) => {
+      events.push(`start:${count}`);
+    },
+    onSuccess: () => {
+      events.push('success');
+    },
+    onError: () => {
+      events.push('error');
+    },
+  });
+
+  await handler();
+
+  assert.deepEqual(events, ['confirm', 'start:3', 'delete', 'success']);
+});
+
+test('buildBucketDeleteHandler does not call onStart when confirm returns false', async () => {
+  let startCalled = false;
+
+  const bucket = makeBucket([makeSession({ sessionId: 1 }), makeSession({ sessionId: 2 })]);
+
+  const handler = buildBucketDeleteHandler({
+    bucket,
+    apiClient: { deleteSessions: async () => {} },
+    confirm: () => false,
+    onStart: () => {
+      startCalled = true;
+    },
+    onSuccess: () => {},
+    onError: () => {},
+  });
+
+  await handler();
+
+  assert.equal(startCalled, false);
+});
+
 test('buildBucketDeleteHandler is a no-op when confirm returns false', async () => {
   let deleteCalled = false;
   let successCalled = false;

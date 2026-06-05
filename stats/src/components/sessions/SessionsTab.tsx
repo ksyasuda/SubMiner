@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSessions } from '../../hooks/useSessions';
 import { SessionRow } from './SessionRow';
 import { SessionDetail } from './SessionDetail';
+import { DeleteProgressToast } from '../common/DeleteProgressToast';
 import { apiClient } from '../../lib/api-client';
 import { confirmBucketDelete, confirmSessionDelete } from '../../lib/delete-confirm';
 import { formatDuration, formatNumber, formatSessionDayLabel } from '../../lib/formatters';
@@ -28,6 +29,8 @@ export interface BucketDeleteDeps {
   bucket: SessionBucket;
   apiClient: { deleteSessions: (ids: number[]) => Promise<void> };
   confirm: (title: string, count: number) => boolean | Promise<boolean>;
+  /** Called once confirmation passes, just before the delete request begins. */
+  onStart?: (count: number) => void;
   onSuccess: (deletedIds: number[]) => void;
   onError: (message: string) => void;
 }
@@ -39,12 +42,13 @@ export interface BucketDeleteDeps {
  * rendering the full SessionsTab or mocking React state.
  */
 export function buildBucketDeleteHandler(deps: BucketDeleteDeps): () => Promise<void> {
-  const { bucket, apiClient: client, confirm, onSuccess, onError } = deps;
+  const { bucket, apiClient: client, confirm, onStart, onSuccess, onError } = deps;
   return async () => {
     const title = bucket.representativeSession.canonicalTitle ?? 'this episode';
     const ids = bucket.sessions.map((s) => s.sessionId);
     try {
       if (!(await confirm(title, ids.length))) return;
+      onStart?.(ids.length);
       await client.deleteSessions(ids);
       onSuccess(ids);
     } catch (err) {
@@ -72,6 +76,7 @@ export function SessionsTab({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
   const [deletingBucketKey, setDeletingBucketKey] = useState<string | null>(null);
+  const [deletingCount, setDeletingCount] = useState(0);
 
   useEffect(() => {
     setVisibleSessions(sessions);
@@ -131,6 +136,7 @@ export function SessionsTab({
 
     setDeleteError(null);
     setDeletingSessionId(session.sessionId);
+    setDeletingCount(1);
     try {
       await apiClient.deleteSession(session.sessionId);
       setVisibleSessions((prev) => prev.filter((item) => item.sessionId !== session.sessionId));
@@ -139,6 +145,7 @@ export function SessionsTab({
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete session.');
     } finally {
       setDeletingSessionId(null);
+      setDeletingCount(0);
     }
   };
 
@@ -149,6 +156,7 @@ export function SessionsTab({
       bucket,
       apiClient,
       confirm: confirmBucketDelete,
+      onStart: (count) => setDeletingCount(count),
       onSuccess: (ids) => {
         const deleted = new Set(ids);
         setVisibleSessions((prev) => prev.filter((s) => !deleted.has(s.sessionId)));
@@ -166,6 +174,7 @@ export function SessionsTab({
       await handler();
     } finally {
       setDeletingBucketKey(null);
+      setDeletingCount(0);
     }
   };
 
@@ -305,6 +314,8 @@ export function SessionsTab({
           {search.trim() ? 'No sessions matching your search.' : 'No sessions recorded yet.'}
         </div>
       )}
+
+      <DeleteProgressToast count={deletingCount} />
     </div>
   );
 }

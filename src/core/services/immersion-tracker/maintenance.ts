@@ -1,6 +1,6 @@
 import type { DatabaseSync } from './sqlite';
 import { nowMs } from './time';
-import { subtractDbTimestamp, toDbTimestamp } from './query-shared';
+import { makePlaceholders, subtractDbTimestamp, toDbTimestamp } from './query-shared';
 
 const ROLLUP_STATE_KEY = 'last_rollup_sample_ms';
 const DAILY_MS = 86_400_000;
@@ -18,6 +18,12 @@ interface RollupGroupRow {
 
 interface RollupTelemetryResult {
   maxSampleMs: number | null;
+}
+
+export interface RollupGroup {
+  rollupDay: number;
+  rollupMonth: number;
+  videoId: number;
 }
 
 interface RawRetentionResult {
@@ -164,6 +170,26 @@ function upsertDailyRollupsForGroups(
   }
 
   const upsertStmt = db.prepare(`
+    WITH matching_sessions AS (
+      SELECT *
+      FROM imm_sessions
+      WHERE CAST(julianday(CAST(started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) = ?
+        AND video_id = ?
+    ),
+    session_metrics AS (
+      SELECT
+        t.session_id,
+        MAX(t.active_watched_ms) AS max_active_ms,
+        MAX(t.lines_seen) AS max_lines,
+        MAX(t.tokens_seen) AS max_tokens,
+        MAX(t.cards_mined) AS max_cards,
+        MAX(t.lookup_count) AS max_lookups,
+        MAX(t.lookup_hits) AS max_hits
+      FROM imm_session_telemetry t
+      JOIN matching_sessions s
+        ON s.session_id = t.session_id
+      GROUP BY t.session_id
+    )
     INSERT INTO imm_daily_rollups (
       rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
       total_tokens_seen, total_cards, cards_per_hour,
@@ -197,20 +223,8 @@ function upsertDailyRollupsForGroups(
       END AS lookup_hit_rate,
       ? AS CREATED_DATE,
       ? AS LAST_UPDATE_DATE
-    FROM imm_sessions s
-    LEFT JOIN (
-      SELECT
-        t.session_id,
-        MAX(t.active_watched_ms) AS max_active_ms,
-        MAX(t.lines_seen) AS max_lines,
-        MAX(t.tokens_seen) AS max_tokens,
-        MAX(t.cards_mined) AS max_cards,
-        MAX(t.lookup_count) AS max_lookups,
-        MAX(t.lookup_hits) AS max_hits
-      FROM imm_session_telemetry t
-      GROUP BY t.session_id
-    ) sm ON s.session_id = sm.session_id
-    WHERE CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) = ? AND s.video_id = ?
+    FROM matching_sessions s
+    LEFT JOIN session_metrics sm ON s.session_id = sm.session_id
     GROUP BY rollup_day, s.video_id
     ON CONFLICT (rollup_day, video_id) DO UPDATE SET
       total_sessions = excluded.total_sessions,
@@ -226,7 +240,7 @@ function upsertDailyRollupsForGroups(
   `);
 
   for (const { rollupDay, videoId } of groups) {
-    upsertStmt.run(rollupNowMs, rollupNowMs, rollupDay, videoId);
+    upsertStmt.run(rollupDay, videoId, rollupNowMs, rollupNowMs);
   }
 }
 
@@ -240,6 +254,24 @@ function upsertMonthlyRollupsForGroups(
   }
 
   const upsertStmt = db.prepare(`
+    WITH matching_sessions AS (
+      SELECT *
+      FROM imm_sessions
+      WHERE CAST(strftime('%Y%m', CAST(started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) = ?
+        AND video_id = ?
+    ),
+    session_metrics AS (
+      SELECT
+        t.session_id,
+        MAX(t.active_watched_ms) AS max_active_ms,
+        MAX(t.lines_seen) AS max_lines,
+        MAX(t.tokens_seen) AS max_tokens,
+        MAX(t.cards_mined) AS max_cards
+      FROM imm_session_telemetry t
+      JOIN matching_sessions s
+        ON s.session_id = t.session_id
+      GROUP BY t.session_id
+    )
     INSERT INTO imm_monthly_rollups (
       rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
       total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
@@ -254,18 +286,8 @@ function upsertMonthlyRollupsForGroups(
       COALESCE(SUM(COALESCE(sm.max_cards, s.cards_mined)), 0) AS total_cards,
       ? AS CREATED_DATE,
       ? AS LAST_UPDATE_DATE
-    FROM imm_sessions s
-    LEFT JOIN (
-      SELECT
-        t.session_id,
-        MAX(t.active_watched_ms) AS max_active_ms,
-        MAX(t.lines_seen) AS max_lines,
-        MAX(t.tokens_seen) AS max_tokens,
-        MAX(t.cards_mined) AS max_cards
-      FROM imm_session_telemetry t
-      GROUP BY t.session_id
-    ) sm ON s.session_id = sm.session_id
-    WHERE CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) = ? AND s.video_id = ?
+    FROM matching_sessions s
+    LEFT JOIN session_metrics sm ON s.session_id = sm.session_id
     GROUP BY rollup_month, s.video_id
     ON CONFLICT (rollup_month, video_id) DO UPDATE SET
       total_sessions = excluded.total_sessions,
@@ -278,8 +300,80 @@ function upsertMonthlyRollupsForGroups(
   `);
 
   for (const { rollupMonth, videoId } of groups) {
-    upsertStmt.run(rollupNowMs, rollupNowMs, rollupMonth, videoId);
+    upsertStmt.run(rollupMonth, videoId, rollupNowMs, rollupNowMs);
   }
+}
+
+export function getRollupGroupsForSessions(db: DatabaseSync, sessionIds: number[]): RollupGroup[] {
+  if (sessionIds.length === 0) {
+    return [];
+  }
+
+  const placeholders = makePlaceholders(sessionIds);
+  const rows = db
+    .prepare(
+      `
+        SELECT DISTINCT
+          CAST(julianday(CAST(started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS rollup_day,
+          CAST(strftime('%Y%m', CAST(started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) AS rollup_month,
+          video_id
+        FROM imm_sessions
+        WHERE session_id IN (${placeholders})
+        UNION
+        SELECT DISTINCT
+          CAST(CAST(started_at_ms AS REAL) / 86400000 AS INTEGER) AS rollup_day,
+          CAST(strftime('%Y%m', CAST(started_at_ms AS REAL) / 1000, 'unixepoch') AS INTEGER) AS rollup_month,
+          video_id
+        FROM imm_sessions
+        WHERE session_id IN (${placeholders})
+      `,
+    )
+    .all(...sessionIds, ...sessionIds) as RollupGroupRow[];
+
+  return rows.map((row) => ({
+    rollupDay: row.rollup_day,
+    rollupMonth: row.rollup_month,
+    videoId: row.video_id,
+  }));
+}
+
+export function refreshRollupsForGroupsInTransaction(
+  db: DatabaseSync,
+  groups: RollupGroup[],
+): void {
+  if (groups.length === 0) {
+    return;
+  }
+
+  const rollupNowMs = toDbTimestamp(nowMs());
+  const dailyGroups = dedupeGroups(
+    groups.map((group) => ({
+      rollupDay: group.rollupDay,
+      videoId: group.videoId,
+    })),
+  );
+  const monthlyGroups = dedupeGroups(
+    groups.map((group) => ({
+      rollupMonth: group.rollupMonth,
+      videoId: group.videoId,
+    })),
+  );
+  const deleteDailyStmt = db.prepare(
+    'DELETE FROM imm_daily_rollups WHERE rollup_day = ? AND video_id = ?',
+  );
+  const deleteMonthlyStmt = db.prepare(
+    'DELETE FROM imm_monthly_rollups WHERE rollup_month = ? AND video_id = ?',
+  );
+
+  for (const { rollupDay, videoId } of dailyGroups) {
+    deleteDailyStmt.run(rollupDay, videoId);
+  }
+  for (const { rollupMonth, videoId } of monthlyGroups) {
+    deleteMonthlyStmt.run(rollupMonth, videoId);
+  }
+
+  upsertDailyRollupsForGroups(db, dailyGroups, rollupNowMs);
+  upsertMonthlyRollupsForGroups(db, monthlyGroups, rollupNowMs);
 }
 
 function getAffectedRollupGroups(

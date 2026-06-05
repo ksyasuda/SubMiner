@@ -32,6 +32,43 @@ test('resolveStatsBaseUrl keeps legacy localhost fallback for file mode without 
   assert.equal(baseUrl, 'http://127.0.0.1:6969');
 });
 
+test('getAnimeCoverUrl appends retry tokens for late cover refreshes', () => {
+  const getAnimeCoverUrl = apiClient.getAnimeCoverUrl as (
+    animeId: number,
+    retryToken?: number,
+  ) => string;
+
+  assert.equal(
+    getAnimeCoverUrl(42, 3),
+    'http://127.0.0.1:6969/api/stats/anime/42/cover?coverRetry=3',
+  );
+});
+
+test('getCoverImages batches anime and media cover requests', async () => {
+  const originalFetch = globalThis.fetch;
+  let seenUrl = '';
+  let seenMethod = '';
+  let seenBody = '';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    seenUrl = String(input);
+    seenMethod = init?.method ?? 'GET';
+    seenBody = String(init?.body ?? '');
+    return new Response(JSON.stringify({ anime: {}, media: {} }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    await apiClient.getCoverImages({ animeIds: [1, 1, 2], videoIds: [7, 7, 8] });
+    assert.equal(seenUrl, `${BASE_URL}/api/stats/covers`);
+    assert.equal(seenMethod, 'POST');
+    assert.deepEqual(JSON.parse(seenBody), { animeIds: [1, 2], videoIds: [7, 8] });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('deleteSession sends a DELETE request to the session endpoint', async () => {
   const originalFetch = globalThis.fetch;
   let seenUrl = '';

@@ -3266,6 +3266,10 @@ function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
   overlayManager.broadcastToOverlayWindows(channel, ...args);
 }
 
+function broadcastMiningImageToOverlay(image: string): void {
+  broadcastToOverlayWindows(IPC_CHANNELS.event.miningImage, { image });
+}
+
 const buildBroadcastRuntimeOptionsChangedMainDepsHandler =
   createBuildBroadcastRuntimeOptionsChangedMainDepsHandler({
     broadcastRuntimeOptionsChangedRuntime,
@@ -5811,6 +5815,7 @@ function initializeOverlayRuntime(): void {
     refreshCurrentSubtitleAfterKnownWordUpdate,
   );
   appState.ankiIntegration?.setSubtitleMiningContextConsumer(consumePendingSubtitleMiningContext);
+  appState.ankiIntegration?.setMiningImageOverlayCallback(broadcastMiningImageToOverlay);
   syncOverlayMpvSubtitleSuppression();
 }
 
@@ -6896,6 +6901,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         appState.ankiIntegration?.setSubtitleMiningContextConsumer(
           consumePendingSubtitleMiningContext,
         );
+        appState.ankiIntegration?.setMiningImageOverlayCallback(broadcastMiningImageToOverlay);
       },
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       showDesktopNotification,
