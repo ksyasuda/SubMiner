@@ -1101,7 +1101,7 @@ export function createStatsApp(
     }
 
     const model = ankiConfig.isLapis?.sentenceCardModel || 'Basic';
-    const deck = ankiConfig.deck ?? 'Default';
+    const deck = ankiConfig.deck?.trim() || 'Default';
     const tags = ankiConfig.tags ?? ['SubMiner'];
 
     try {

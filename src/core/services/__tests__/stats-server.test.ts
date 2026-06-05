@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import type { AddressInfo } from 'node:net';
 import { createStatsApp, startStatsServer } from '../stats-server.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 
@@ -332,6 +333,57 @@ function withTempDir<T>(fn: (dir: string) => Promise<T> | T): Promise<T> | T {
   }
   fs.rmSync(dir, { recursive: true, force: true });
   return result;
+}
+
+type CapturedAnkiRequest = {
+  action?: string;
+  params?: {
+    note?: {
+      deckName?: string;
+      modelName?: string;
+      fields?: Record<string, string>;
+      tags?: string[];
+    };
+  };
+};
+
+async function withFakeAnkiConnect<T>(
+  fn: (requests: CapturedAnkiRequest[], url: string) => Promise<T>,
+): Promise<T> {
+  const requests: CapturedAnkiRequest[] = [];
+  const server = http.createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+    req.on('end', () => {
+      const payload = JSON.parse(Buffer.concat(chunks).toString('utf8')) as CapturedAnkiRequest;
+      requests.push(payload);
+
+      let body: unknown = { result: null, error: null };
+      if (payload.action === 'addNote') {
+        if (!payload.params?.note?.deckName) {
+          body = { result: null, error: 'deck was not found: ' };
+        } else {
+          body = { result: 12345, error: null };
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(body));
+    });
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    return await fn(requests, `http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
+  }
 }
 
 describe('stats server API routes', () => {
@@ -1033,6 +1085,68 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.ok(Array.isArray(body));
+  });
+
+  it('POST /api/stats/mine-card falls back to Default deck for empty deck config', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+
+      await withFakeAnkiConnect(async (requests, url) => {
+        const app = createStatsApp(createMockTracker(), {
+          ankiConnectConfig: {
+            url,
+            deck: '',
+            tags: ['SubMiner'],
+            fields: {
+              word: 'Expression',
+              audio: 'ExpressionAudio',
+              image: 'Picture',
+              sentence: 'Sentence',
+              miscInfo: 'MiscInfo',
+              translation: 'SelectionText',
+            },
+            media: {
+              generateAudio: false,
+              generateImage: false,
+            },
+            isLapis: {
+              enabled: true,
+              sentenceCardModel: 'Lapis Morph',
+            },
+            isKiku: {
+              enabled: true,
+              fieldGrouping: 'manual',
+              deleteDuplicateInAuto: true,
+            },
+          },
+        });
+
+        const res = await app.request('/api/stats/mine-card?mode=sentence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath,
+            startMs: 1_000,
+            endMs: 2_000,
+            sentence: '猫を見た',
+            word: '猫',
+            secondaryText: 'I saw a cat',
+            videoTitle: 'Episode 1',
+          }),
+        });
+
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+        assert.equal(body.noteId, 12345);
+
+        const addNoteRequest = requests.find((request) => request.action === 'addNote');
+        assert.equal(addNoteRequest?.params?.note?.deckName, 'Default');
+        assert.equal(addNoteRequest?.params?.note?.modelName, 'Lapis Morph');
+        assert.equal(addNoteRequest?.params?.note?.fields?.Sentence, '<b>猫</b>を見た');
+        assert.equal(addNoteRequest?.params?.note?.fields?.IsSentenceCard, 'x');
+      });
+    });
   });
 
   it('GET /api/stats/episode/:videoId/detail returns episode detail', async () => {
