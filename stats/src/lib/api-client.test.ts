@@ -88,6 +88,28 @@ test('deleteSession sends a DELETE request to the session endpoint', async () =>
   }
 });
 
+test('searchSentences encodes realtime sentence search requests', async () => {
+  const originalFetch = globalThis.fetch;
+  let seenUrl = '';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    seenUrl = String(input);
+    return new Response(JSON.stringify([]), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    await apiClient.searchSentences('猫 食べる', 25);
+    assert.equal(
+      seenUrl,
+      `${BASE_URL}/api/stats/sentences/search?q=%E7%8C%AB+%E9%A3%9F%E3%81%B9%E3%82%8B&limit=25`,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('deleteSession throws when the stats API delete request fails', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () =>

@@ -360,7 +360,7 @@ See `config.example.jsonc` for detailed configuration options.
 
 | Option                             | Values   | Description                                                                                                                  |
 | ---------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `primaryDefaultMode`               | string   | Default primary subtitle bar visibility mode: `"hidden"`, `"visible"`, or `"hover"` (default: `"visible"`)                 |
+| `primaryDefaultMode`               | string   | Default primary subtitle bar visibility mode: `"hidden"`, `"visible"`, or `"hover"` (default: `"visible"`)                   |
 | `subtitleStyle.css`                | object   | CSS declaration object applied to primary subtitles after normal style defaults. Use CSS property names such as `font-size`. |
 | `secondary.css`                    | object   | CSS declaration object applied to secondary subtitles after normal secondary style defaults.                                 |
 | `enableJlpt`                       | boolean  | Enable JLPT level underline styling (`false` by default)                                                                     |
@@ -516,11 +516,11 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option                  | Values                             | Description                                            |
-| ----------------------- | ---------------------------------- | ------------------------------------------------------ |
-| `secondarySubLanguages` | string[]                           | Language codes to auto-load (e.g., `["eng", "en"]`)    |
-| `autoLoadSecondarySub`  | `true`, `false`                    | Auto-detect and load matching secondary subtitle track |
-| `defaultMode`           | `"hidden"`, `"visible"`, `"hover"` | Initial display mode (default: `"hover"`)              |
+| Option                  | Values                             | Description                                                                                                         |
+| ----------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `secondarySubLanguages` | string[]                           | Language codes to auto-load (e.g., `["eng", "en"]`); non-Signs/Songs tracks are preferred when several tracks match |
+| `autoLoadSecondarySub`  | `true`, `false`                    | Auto-detect and load matching secondary subtitle track                                                              |
+| `defaultMode`           | `"hidden"`, `"visible"`, `"hover"` | Initial display mode (default: `"hover"`)                                                                           |
 
 The secondary-subtitle language list also acts as the fallback secondary-language priority for managed startup subtitle selection on local playback and YouTube playback.
 
@@ -1380,9 +1380,9 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
 | `retention.dailyRollupsDays`   | integer (`0`-`36500`)               | Daily rollup retention window. Default `0` (keep all).                                                      |
 | `retention.monthlyRollupsDays` | integer (`0`-`36500`)               | Monthly rollup retention window. Default `0` (keep all).                                                    |
 | `retention.vacuumIntervalDays` | integer (`0`-`3650`)                | Minimum spacing between `VACUUM` passes. `0` disables vacuum. Default `0` (disabled).                       |
-| `lifetimeSummaries.global`     | `true`, `false`                     | Maintain global lifetime stats rows (default: `true`).                                                              |
-| `lifetimeSummaries.anime`      | `true`, `false`                     | Maintain per-anime lifetime stats rows (default: `true`).                                                           |
-| `lifetimeSummaries.media`      | `true`, `false`                     | Maintain per-media lifetime stats rows (default: `true`).                                                           |
+| `lifetimeSummaries.global`     | `true`, `false`                     | Maintain global lifetime stats rows (default: `true`).                                                      |
+| `lifetimeSummaries.anime`      | `true`, `false`                     | Maintain per-anime lifetime stats rows (default: `true`).                                                   |
+| `lifetimeSummaries.media`      | `true`, `false`                     | Maintain per-media lifetime stats rows (default: `true`).                                                   |
 
 You can also disable immersion tracking for a single session using:
 
@@ -1433,7 +1433,7 @@ Usage notes:
 - The browser UI is served at `http://127.0.0.1:<serverPort>`.
 - The overlay toggle is local to the focused visible overlay window; it is not registered as a global OS shortcut.
 - The dashboard reads from the same immersion-tracking database, so keep `immersionTracking.enabled` on if you want data to appear.
-- The UI includes Overview, Library, Trends, Vocabulary, and Sessions tabs.
+- The UI includes Overview, Library, Trends, Vocabulary, Search, and Sessions tabs.
 
 ### MPV Launcher
 
@@ -1456,18 +1456,18 @@ Configure the mpv executable, profile, and window state for SubMiner-managed mpv
 }
 ```
 
-| Option                  | Values                                                              | Description                                                                                                                         |
-| ----------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `executablePath`        | string                                                              | Absolute path to `mpv.exe` for Windows launch flows. Leave empty to auto-discover from `SUBMINER_MPV_PATH` or `PATH` (default `""`) |
-| `profile`               | string                                                              | mpv profile name passed as `--profile=<name>`. Leave empty to pass no profile (default `""`)                                        |
-| `launchMode`            | `"normal"` \| `"maximized"` \| `"fullscreen"`                       | Window state when SubMiner spawns mpv (default `"normal"`)                                                                          |
-| `socketPath`            | string                                                              | mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin (default: `\\\\.\\pipe\\subminer-socket`)          |
-| `backend`               | `"auto"` \| `"hyprland"` \| `"sway"` \| `"x11"` \| `"macos"` \| `"windows"` | Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform (default: `"auto"`)                     |
-| `autoStartSubMiner`     | `true`, `false`                                                     | Start SubMiner in the background when SubMiner-managed mpv loads a file (default: `true`)                                           |
-| `pauseUntilOverlayReady`| `true`, `false`                                                     | Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness (default: `true`)                    |
-| `subminerBinaryPath`    | string                                                              | SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path (default: `""`)        |
-| `aniskipEnabled`        | `true`, `false`                                                     | Enable AniSkip intro detection and skip markers in the bundled mpv plugin (default: `true`)                                         |
-| `aniskipButtonKey`      | string                                                              | mpv key used to trigger the AniSkip button while the skip marker is visible (default: `"TAB"`)                                      |
+| Option                   | Values                                                                      | Description                                                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `executablePath`         | string                                                                      | Absolute path to `mpv.exe` for Windows launch flows. Leave empty to auto-discover from `SUBMINER_MPV_PATH` or `PATH` (default `""`) |
+| `profile`                | string                                                                      | mpv profile name passed as `--profile=<name>`. Leave empty to pass no profile (default `""`)                                        |
+| `launchMode`             | `"normal"` \| `"maximized"` \| `"fullscreen"`                               | Window state when SubMiner spawns mpv (default `"normal"`)                                                                          |
+| `socketPath`             | string                                                                      | mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin (default: `\\\\.\\pipe\\subminer-socket`)          |
+| `backend`                | `"auto"` \| `"hyprland"` \| `"sway"` \| `"x11"` \| `"macos"` \| `"windows"` | Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform (default: `"auto"`)                     |
+| `autoStartSubMiner`      | `true`, `false`                                                             | Start SubMiner in the background when SubMiner-managed mpv loads a file (default: `true`)                                           |
+| `pauseUntilOverlayReady` | `true`, `false`                                                             | Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness (default: `true`)                    |
+| `subminerBinaryPath`     | string                                                                      | SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path (default: `""`)        |
+| `aniskipEnabled`         | `true`, `false`                                                             | Enable AniSkip intro detection and skip markers in the bundled mpv plugin (default: `true`)                                         |
+| `aniskipButtonKey`       | string                                                                      | mpv key used to trigger the AniSkip button while the skip marker is visible (default: `"TAB"`)                                      |
 
 If `mpv.profile` is configured and the launcher also receives `--profile`, SubMiner passes both as a comma-separated mpv profile list.
 

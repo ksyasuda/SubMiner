@@ -30,6 +30,11 @@ const VocabularyTab = lazy(() =>
     default: module.VocabularyTab,
   })),
 );
+const SearchTab = lazy(() =>
+  import('./components/search/SearchTab').then((module) => ({
+    default: module.SearchTab,
+  })),
+);
 const SessionsTab = lazy(() =>
   import('./components/sessions/SessionsTab').then((module) => ({
     default: module.SessionsTab,
@@ -236,6 +241,19 @@ export function App() {
                     onRemoveExclusion={removeExclusion}
                     onClearExclusions={clearAll}
                   />
+                </Suspense>
+              </section>
+            ) : null}
+            {mountedTabs.has('search') ? (
+              <section
+                id="panel-search"
+                role="tabpanel"
+                aria-labelledby="tab-search"
+                hidden={activeTab !== 'search'}
+                className="animate-fade-in"
+              >
+                <Suspense fallback={<LoadingSurface label="Loading search..." />}>
+                  <SearchTab />
                 </Suspense>
               </section>
             ) : null}

@@ -35,6 +35,7 @@ import {
   getSessionTimeline,
   getSessionWordsByLine,
   getWordOccurrences,
+  searchSubtitleSentences,
   upsertCoverArt,
 } from '../query.js';
 import {
@@ -3680,6 +3681,101 @@ test('getWordOccurrences maps a normalized word back to anime, video, and subtit
         occurrenceCount: 2,
       },
     ]);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('searchSubtitleSentences searches known subtitle lines and returns media context', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Dungeon Meshi',
+      canonicalTitle: 'Dungeon Meshi',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: '{"source":"test"}',
+    });
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/dungeon-meshi-01.mkv', {
+      canonicalTitle: 'Episode 1',
+      sourcePath: '/tmp/Dungeon Meshi 01.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'Dungeon Meshi 01.mkv',
+      parsedTitle: 'Dungeon Meshi',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":1}',
+    });
+    const { sessionId } = startSessionRecord(db, videoId, 3_000_000);
+
+    db.prepare(
+      `INSERT INTO imm_subtitle_lines (
+        session_id, event_id, video_id, anime_id, line_index, segment_start_ms, segment_end_ms,
+        text, secondary_text, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      sessionId,
+      null,
+      videoId,
+      animeId,
+      7,
+      4_000,
+      5_500,
+      '魔物を食べるなんて信じられない',
+      'I cannot believe we are eating monsters',
+      3_000,
+      3_000,
+    );
+    db.prepare(
+      `INSERT INTO imm_subtitle_lines (
+        session_id, event_id, video_id, anime_id, line_index, segment_start_ms, segment_end_ms,
+        text, secondary_text, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      sessionId,
+      null,
+      videoId,
+      animeId,
+      8,
+      6_000,
+      7_000,
+      'これは別の行です',
+      'Another line',
+      2_000,
+      2_000,
+    );
+
+    const rows = searchSubtitleSentences(db, '魔物 食べる', 10);
+
+    assert.deepEqual(rows, [
+      {
+        animeId,
+        animeTitle: 'Dungeon Meshi',
+        sourcePath: '/tmp/Dungeon Meshi 01.mkv',
+        secondaryText: 'I cannot believe we are eating monsters',
+        videoId,
+        videoTitle: 'Episode 1',
+        sessionId,
+        lineIndex: 7,
+        segmentStartMs: 4_000,
+        segmentEndMs: 5_500,
+        text: '魔物を食べるなんて信じられない',
+      },
+    ]);
+
+    assert.deepEqual(searchSubtitleSentences(db, 'monsters', 10), []);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

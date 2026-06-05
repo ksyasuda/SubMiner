@@ -4445,7 +4445,7 @@ const startLocalStatsServer = (): void => {
       tracker,
       knownWordCachePath: path.join(USER_DATA_PATH, 'known-words-cache.json'),
       mpvSocketPath: appState.mpvSocketPath,
-      ankiConnectConfig: getResolvedConfig().ankiConnect,
+      getAnkiConnectConfig: () => getResolvedConfig().ankiConnect,
       anilistRateLimiter,
       resolveAnkiNoteId: (noteId: number) =>
         appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,

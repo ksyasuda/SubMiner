@@ -115,6 +115,20 @@ export interface VocabularyOccurrenceEntry {
   occurrenceCount: number;
 }
 
+export interface SentenceSearchResult {
+  animeId: number | null;
+  animeTitle: string | null;
+  videoId: number;
+  videoTitle: string;
+  sourcePath: string | null;
+  secondaryText: string | null;
+  sessionId: number;
+  lineIndex: number;
+  segmentStartMs: number | null;
+  segmentEndMs: number | null;
+  text: string;
+}
+
 export interface OverviewData {
   sessions: SessionSummary[];
   rollups: DailyRollup[];

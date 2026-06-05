@@ -13,6 +13,7 @@ test('App lazy-loads non-overview tabs and detail surfaces behind Suspense bound
   assert.match(source, /lazy\(\(\) =>\s*import\('\.\/components\/anime\/AnimeTab'\)/);
   assert.match(source, /lazy\(\(\) =>\s*import\('\.\/components\/trends\/TrendsTab'\)/);
   assert.match(source, /lazy\(\(\) =>\s*import\('\.\/components\/vocabulary\/VocabularyTab'\)/);
+  assert.match(source, /lazy\(\(\) =>\s*import\('\.\/components\/search\/SearchTab'\)/);
   assert.match(source, /lazy\(\(\) =>\s*import\('\.\/components\/sessions\/SessionsTab'\)/);
   assert.match(source, /lazy\(\(\) =>\s*import\('\.\/components\/library\/MediaDetailView'\)/);
   assert.match(source, /lazy\(\(\) =>\s*import\('\.\/components\/vocabulary\/WordDetailPanel'\)/);
@@ -23,6 +24,7 @@ test('App lazy-loads non-overview tabs and detail surfaces behind Suspense bound
     source,
     /import \{ VocabularyTab \} from '\.\/components\/vocabulary\/VocabularyTab';/,
   );
+  assert.doesNotMatch(source, /import \{ SearchTab \} from '\.\/components\/search\/SearchTab';/);
   assert.doesNotMatch(
     source,
     /import \{ SessionsTab \} from '\.\/components\/sessions\/SessionsTab';/,

@@ -149,6 +149,11 @@ function getSubtitleTrackIdentity(track: SubtitleTrackCandidate): string {
   return `id:${track.id}`;
 }
 
+function isSignsOrSongsSubtitleTrack(track: SubtitleTrackCandidate): boolean {
+  const label = `${track.title} ${track.externalFilename ?? ''}`.toLowerCase();
+  return /\b(signs?|songs?)\b/.test(label);
+}
+
 function pickSecondarySubtitleTrackId(
   tracks: Array<Record<string, unknown>>,
   preferredLanguages: string[],
@@ -177,12 +182,19 @@ function pickSecondarySubtitleTrackId(
   const uniqueTracks = [...dedupedTracks.values()];
 
   for (const language of normalizedLanguages) {
-    const selectedMatch = uniqueTracks.find((track) => track.selected && track.lang === language);
+    const languageTracks = uniqueTracks.filter((track) => track.lang === language);
+    if (languageTracks.length === 0) {
+      continue;
+    }
+    const cleanTracks = languageTracks.filter((track) => !isSignsOrSongsSubtitleTrack(track));
+    const candidateTracks = cleanTracks.length > 0 ? cleanTracks : languageTracks;
+
+    const selectedMatch = candidateTracks.find((track) => track.selected);
     if (selectedMatch) {
       return selectedMatch.id;
     }
 
-    const match = uniqueTracks.find((track) => track.lang === language);
+    const match = candidateTracks[0];
     if (match) {
       return match.id;
     }

@@ -7,6 +7,7 @@ import type {
   KanjiOccurrenceRow,
   KanjiStatsRow,
   KanjiWordRow,
+  SentenceSearchResultRow,
   SessionEventRow,
   SimilarWordRow,
   StatsExcludedWordRow,
@@ -20,6 +21,19 @@ import { nowMs } from './time';
 
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR = 4;
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN = 100;
+
+function splitSearchTerms(query: string): string[] {
+  return query
+    .trim()
+    .split(/\s+/)
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function escapeLikeTerm(term: string): string {
+  return term.replace(/[\\%_]/g, (match) => `\\${match}`);
+}
 
 function toVocabularyToken(row: VocabularyStatsRow): MergedToken {
   const partOfSpeech =
@@ -209,6 +223,54 @@ export function getKanjiOccurrences(
       `,
     )
     .all(kanji, limit, offset) as unknown as KanjiOccurrenceRow[];
+}
+
+export function searchSubtitleSentences(
+  db: DatabaseSync,
+  query: string,
+  limit = 50,
+): SentenceSearchResultRow[] {
+  const terms = splitSearchTerms(query);
+  if (terms.length === 0) return [];
+
+  const clauses: string[] = [];
+  const params: string[] = [];
+  for (const term of terms) {
+    const likeTerm = `%${escapeLikeTerm(term)}%`;
+    clauses.push(`
+      (
+        l.text LIKE ? ESCAPE '\\'
+        OR v.canonical_title LIKE ? ESCAPE '\\'
+        OR COALESCE(a.canonical_title, '') LIKE ? ESCAPE '\\'
+      )
+    `);
+    params.push(likeTerm, likeTerm, likeTerm);
+  }
+
+  return db
+    .prepare(
+      `
+        SELECT
+          l.anime_id AS animeId,
+          a.canonical_title AS animeTitle,
+          l.video_id AS videoId,
+          v.canonical_title AS videoTitle,
+          v.source_path AS sourcePath,
+          l.secondary_text AS secondaryText,
+          l.session_id AS sessionId,
+          l.line_index AS lineIndex,
+          l.segment_start_ms AS segmentStartMs,
+          l.segment_end_ms AS segmentEndMs,
+          l.text AS text
+        FROM imm_subtitle_lines l
+        JOIN imm_videos v ON v.video_id = l.video_id
+        LEFT JOIN imm_anime a ON a.anime_id = l.anime_id
+        WHERE ${clauses.join(' AND ')}
+        ORDER BY l.CREATED_DATE DESC, l.line_id DESC
+        LIMIT ?
+      `,
+    )
+    .all(...params, limit) as unknown as SentenceSearchResultRow[];
 }
 
 export function getSessionEvents(

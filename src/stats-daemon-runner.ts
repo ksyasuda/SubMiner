@@ -195,7 +195,7 @@ async function main(): Promise<void> {
       staticDir: statsDistPath,
       tracker,
       knownWordCachePath,
-      ankiConnectConfig: config.ankiConnect,
+      getAnkiConnectConfig: () => configService.reloadConfig().ankiConnect,
       addYomitanNote: async (word: string) =>
         await invokeStatsWordHelper({
           helperScriptPath: wordHelperScriptPath,

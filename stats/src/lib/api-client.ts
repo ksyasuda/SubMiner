@@ -6,6 +6,7 @@ import type {
   SessionTimelinePoint,
   SessionEvent,
   VocabularyEntry,
+  SentenceSearchResult,
   KanjiEntry,
   VocabularyOccurrenceEntry,
   MediaLibraryItem,
@@ -114,6 +115,13 @@ export const apiClient = {
   getWordOccurrences: (headword: string, word: string, reading: string, limit = 50, offset = 0) =>
     fetchJson<VocabularyOccurrenceEntry[]>(
       `/api/stats/vocabulary/occurrences?headword=${encodeURIComponent(headword)}&word=${encodeURIComponent(word)}&reading=${encodeURIComponent(reading)}&limit=${limit}&offset=${offset}`,
+    ),
+  searchSentences: (query: string, limit = 50) =>
+    fetchJson<SentenceSearchResult[]>(
+      `/api/stats/sentences/search?${new URLSearchParams({
+        q: query,
+        limit: String(limit),
+      }).toString()}`,
     ),
   getKanji: (limit = 100) => fetchJson<KanjiEntry[]>(`/api/stats/kanji?limit=${limit}`),
   getKanjiOccurrences: (kanji: string, limit = 50, offset = 0) =>
