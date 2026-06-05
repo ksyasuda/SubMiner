@@ -29,6 +29,7 @@ import {
 } from './types/anki';
 import { AiConfig } from './types/integrations';
 import { MpvClient } from './types/runtime';
+import type { NotificationType, OverlayNotificationPayload } from './types/notification';
 import type { NPlusOneMatchMode, SubtitleMiningContext } from './types/subtitle';
 import { DEFAULT_ANKI_CONNECT_CONFIG } from './config';
 import {
@@ -130,6 +131,8 @@ export class AnkiIntegration {
   private osdCallback: ((text: string) => void) | null = null;
   private notificationCallback: ((title: string, options: NotificationOptions) => void) | null =
     null;
+  private overlayNotificationCallback: ((payload: OverlayNotificationPayload) => void) | null =
+    null;
   private updateInProgress = false;
   private uiFeedbackState: UiFeedbackState = createUiFeedbackState();
   private parseWarningKeys = new Set<string>();
@@ -166,6 +169,7 @@ export class AnkiIntegration {
     knownWordCacheStatePath?: string,
     aiConfig: AiConfig = {},
     recordCardsMined?: (count: number, noteIds?: number[]) => void,
+    overlayNotificationCallback?: (payload: OverlayNotificationPayload) => void,
   ) {
     this.config = normalizeAnkiIntegrationConfig(config);
     this.aiConfig = { ...aiConfig };
@@ -175,6 +179,7 @@ export class AnkiIntegration {
     this.mpvClient = mpvClient;
     this.osdCallback = osdCallback || null;
     this.notificationCallback = notificationCallback || null;
+    this.overlayNotificationCallback = overlayNotificationCallback || null;
     this.fieldGroupingCallback = fieldGroupingCallback || null;
     this.recordCardsMinedCallback = recordCardsMined ?? null;
     this.knownWordCache = this.createKnownWordCache(knownWordCacheStatePath);
@@ -335,7 +340,7 @@ export class AnkiIntegration {
             options,
           ),
       },
-      showOsdNotification: (text: string) => this.showOsdNotification(text),
+      showOsdNotification: (text: string) => this.showStatusNotification(text),
       showUpdateResult: (message: string, success: boolean) =>
         this.showUpdateResult(message, success),
       showStatusNotification: (message: string) => this.showStatusNotification(message),
@@ -387,7 +392,7 @@ export class AnkiIntegration {
       getDeck: () => this.config.deck,
       withUpdateProgress: <T>(initialMessage: string, action: () => Promise<T>) =>
         this.withUpdateProgress(initialMessage, action),
-      showOsdNotification: (text: string) => this.showOsdNotification(text),
+      showOsdNotification: (text: string) => this.showStatusNotification(text),
       findNotes: async (query, options) =>
         (await this.client.findNotes(query, options)) as number[],
       notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown as NoteInfo[],
@@ -463,7 +468,7 @@ export class AnkiIntegration {
       consumeSubtitleMiningContext: () => this.consumeSubtitleMiningContext(),
       addConfiguredTagsToNote: (noteId) => this.addConfiguredTagsToNote(noteId),
       showNotification: (noteId, label) => this.showNotification(noteId, label),
-      showOsdNotification: (message) => this.showOsdNotification(message),
+      showOsdNotification: (message) => this.showStatusNotification(message),
       beginUpdateProgress: (initialMessage) => this.beginUpdateProgress(initialMessage),
       endUpdateProgress: () => this.endUpdateProgress(),
       logWarn: (...args) => log.warn(args[0] as string, ...args.slice(1)),
@@ -510,7 +515,7 @@ export class AnkiIntegration {
       },
       showStatusNotification: (message) => this.showStatusNotification(message),
       showNotification: (noteId, label) => this.showNotification(noteId, label),
-      showOsdNotification: (message) => this.showOsdNotification(message),
+      showOsdNotification: (message) => this.showStatusNotification(message),
       logError: (...args) => log.error(args[0] as string, ...args.slice(1)),
       logInfo: (...args) => log.info(args[0] as string, ...args.slice(1)),
       truncateSentence: (sentence) => this.truncateSentence(sentence),
@@ -860,9 +865,12 @@ export class AnkiIntegration {
 
   private showStatusNotification(message: string): void {
     showStatusNotification(message, {
-      getNotificationType: () => this.config.behavior?.notificationType,
+      getNotificationType: () => this.getNotificationType(),
       showOsd: (text: string) => {
         this.showOsdNotification(text);
+      },
+      showOverlayNotification: (payload) => {
+        this.overlayNotificationCallback?.(payload);
       },
       showSystemNotification: (title: string, options: NotificationOptions) => {
         if (this.notificationCallback) {
@@ -872,19 +880,51 @@ export class AnkiIntegration {
     });
   }
 
+  private getNotificationType(): NotificationType {
+    return this.config.behavior?.notificationType ?? 'overlay';
+  }
+
+  private shouldUseOsdNotifications(): boolean {
+    const type = this.getNotificationType();
+    return type === 'osd' || type === 'osd-system';
+  }
+
+  private shouldUseOverlayNotifications(): boolean {
+    const type = this.getNotificationType();
+    return type === 'overlay' || type === 'both';
+  }
+
   private beginUpdateProgress(initialMessage: string): void {
+    if (!this.shouldUseOsdNotifications()) {
+      if (this.shouldUseOverlayNotifications()) {
+        this.overlayNotificationCallback?.({
+          id: 'anki-update-progress',
+          title: 'Anki update',
+          body: initialMessage,
+          variant: 'progress',
+          persistent: false,
+        });
+      }
+      return;
+    }
     beginUpdateProgress(this.uiFeedbackState, initialMessage, (text: string) => {
       this.showOsdNotification(text);
     });
   }
 
   private endUpdateProgress(): void {
+    if (!this.shouldUseOsdNotifications()) {
+      return;
+    }
     endUpdateProgress(this.uiFeedbackState, (timer) => {
       clearInterval(timer);
     });
   }
 
   private clearUpdateProgress(): void {
+    if (!this.shouldUseOsdNotifications()) {
+      return;
+    }
     clearUpdateProgress(this.uiFeedbackState, (timer) => {
       clearInterval(timer);
     });
@@ -894,6 +934,23 @@ export class AnkiIntegration {
     initialMessage: string,
     action: () => Promise<T>,
   ): Promise<T> {
+    if (!this.shouldUseOsdNotifications()) {
+      this.updateInProgress = true;
+      if (this.shouldUseOverlayNotifications()) {
+        this.overlayNotificationCallback?.({
+          id: 'anki-update-progress',
+          title: 'Anki update',
+          body: initialMessage,
+          variant: 'progress',
+          persistent: false,
+        });
+      }
+      try {
+        return await action();
+      } finally {
+        this.updateInProgress = false;
+      }
+    }
     return withUpdateProgress(
       this.uiFeedbackState,
       {
@@ -1017,15 +1074,28 @@ export class AnkiIntegration {
       ? `Updated card: ${label} (${errorSuffix})`
       : `Updated card: ${label}`;
 
-    const type = this.config.behavior?.notificationType || 'osd';
+    const type = this.getNotificationType();
 
-    if (type === 'osd' || type === 'both') {
+    if (type === 'osd' || type === 'osd-system') {
       this.showUpdateResult(message, errorSuffix === undefined);
     } else {
       this.clearUpdateProgress();
     }
 
-    if ((type === 'system' || type === 'both') && this.notificationCallback) {
+    if ((type === 'overlay' || type === 'both') && this.overlayNotificationCallback) {
+      this.overlayNotificationCallback({
+        id: 'anki-update-progress',
+        title: 'Anki Card Updated',
+        body: message,
+        variant: errorSuffix === undefined ? 'success' : 'error',
+        persistent: false,
+      });
+    }
+
+    if (
+      (type === 'system' || type === 'both' || type === 'osd-system') &&
+      this.notificationCallback
+    ) {
       let notificationIconPath: string | undefined;
 
       if (this.mpvClient && this.mpvClient.currentVideoPath) {

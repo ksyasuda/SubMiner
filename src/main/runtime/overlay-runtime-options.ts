@@ -5,6 +5,7 @@ import type {
 } from '../../types/anki';
 import type { BrowserWindow } from 'electron';
 import type { WindowGeometry } from '../../types/runtime';
+import type { OverlayNotificationPayload } from '../../types/notification';
 import type { BaseWindowTracker } from '../../window-trackers';
 
 type OverlayRuntimeOptions = {
@@ -31,6 +32,7 @@ type OverlayRuntimeOptions = {
   } | null;
   setAnkiIntegration: (integration: unknown | null) => void;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -64,6 +66,7 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
   } | null;
   setAnkiIntegration: (integration: unknown | null) => void;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -91,6 +94,7 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
     getRuntimeOptionsManager: deps.getRuntimeOptionsManager,
     setAnkiIntegration: deps.setAnkiIntegration,
     showDesktopNotification: deps.showDesktopNotification,
+    showOverlayNotification: deps.showOverlayNotification,
     createFieldGroupingCallback: deps.createFieldGroupingCallback,
     getKnownWordCacheStatePath: deps.getKnownWordCacheStatePath,
     shouldStartAnkiIntegration: deps.shouldStartAnkiIntegration,

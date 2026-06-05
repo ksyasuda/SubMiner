@@ -1,4 +1,5 @@
 import type { AnkiConnectConfig } from '../../types';
+import type { OverlayNotificationPayload } from '../../types/notification';
 import type { createBuildInitializeOverlayRuntimeOptionsHandler } from './overlay-runtime-options';
 
 type OverlayRuntimeOptionsMainDeps = Parameters<
@@ -37,6 +38,7 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
   createWindowTracker?: OverlayRuntimeOptionsMainDeps['createWindowTracker'];
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: OverlayRuntimeOptionsMainDeps['createFieldGroupingCallback'];
   getKnownWordCacheStatePath: () => string;
   shouldStartAnkiIntegration: () => boolean;
@@ -72,6 +74,7 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
       deps.appState.ankiIntegration = integration;
     },
     showDesktopNotification: deps.showDesktopNotification,
+    showOverlayNotification: deps.showOverlayNotification,
     createFieldGroupingCallback: () => deps.createFieldGroupingCallback(),
     getKnownWordCacheStatePath: () => deps.getKnownWordCacheStatePath(),
     shouldStartAnkiIntegration: () => deps.shouldStartAnkiIntegration(),

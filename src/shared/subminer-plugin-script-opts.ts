@@ -10,6 +10,7 @@ export interface SubminerPluginRuntimeScriptOptConfig {
   autoStart: boolean;
   autoStartVisibleOverlay: boolean;
   autoStartPauseUntilReady: boolean;
+  osdMessages: boolean;
   texthookerEnabled: boolean;
 }
 
@@ -41,6 +42,7 @@ export function buildSubminerPluginRuntimeScriptOptParts(
     `subminer-auto_start_pause_until_ready=${boolScriptOpt(
       runtimeConfig.autoStartPauseUntilReady,
     )}`,
+    `subminer-osd_messages=${boolScriptOpt(runtimeConfig.osdMessages)}`,
     `subminer-texthooker_enabled=${boolScriptOpt(runtimeConfig.texthookerEnabled)}`,
   ];
 }

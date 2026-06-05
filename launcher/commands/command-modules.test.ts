@@ -45,6 +45,7 @@ function createContext(overrides: Partial<LauncherCommandContext> = {}): Launche
       autoStart: true,
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
+      osdMessages: false,
       texthookerEnabled: false,
     },
     appPath: '/tmp/subminer.app',

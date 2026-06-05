@@ -406,6 +406,40 @@ test('AnkiIntegration marks partial update notifications as failures in OSD mode
   assert.deepEqual(osdMessages, ['x Updated card: taberu (image failed)']);
 });
 
+test('AnkiIntegration routes workflow status notifications through configured surfaces', async () => {
+  const osdMessages: string[] = [];
+  const desktopMessages: string[] = [];
+  const overlayMessages: string[] = [];
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'both',
+      },
+    },
+    {} as never,
+    {} as never,
+    (text) => {
+      osdMessages.push(text);
+    },
+    (title, options) => {
+      desktopMessages.push(`${title}:${options.body ?? ''}`);
+    },
+    undefined,
+    undefined,
+    {},
+    undefined,
+    (payload) => {
+      overlayMessages.push(`${payload.title}:${payload.body ?? ''}:${payload.variant ?? ''}`);
+    },
+  );
+
+  assert.equal(await integration.createSentenceCard('食べる', 0, 1), false);
+
+  assert.deepEqual(osdMessages, []);
+  assert.deepEqual(overlayMessages, ['SubMiner:No video loaded:info']);
+  assert.deepEqual(desktopMessages, ['SubMiner:No video loaded']);
+});
+
 test('FieldGroupingMergeCollaborator keeps SentenceAudio grouped without overwriting ExpressionAudio', async () => {
   const collaborator = createFieldGroupingMergeCollaborator();
 

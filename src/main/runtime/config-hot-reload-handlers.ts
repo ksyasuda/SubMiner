@@ -5,6 +5,7 @@ import { resolveConfiguredShortcuts } from '../../core/utils/shortcut-config';
 import { DEFAULT_CONFIG, DEFAULT_KEYBINDINGS } from '../../config';
 import type { AnkiConnectConfig } from '../../types/anki';
 import type { ConfigHotReloadPayload, ResolvedConfig, SecondarySubMode } from '../../types';
+import type { NotificationType, OverlayNotificationPayload } from '../../types/notification';
 
 type ConfigHotReloadAppliedDeps = {
   setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) => void;
@@ -26,7 +27,9 @@ type ConfigHotReloadAppliedDeps = {
 };
 
 type ConfigHotReloadMessageDeps = {
+  getNotificationType?: () => NotificationType | undefined;
   showMpvOsd: (message: string) => void;
+  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   showDesktopNotification: (title: string, options: { body: string }) => void;
 };
 
@@ -183,8 +186,23 @@ export function createConfigHotReloadAppliedHandler(deps: ConfigHotReloadApplied
 
 export function createConfigHotReloadMessageHandler(deps: ConfigHotReloadMessageDeps) {
   return (message: string): void => {
-    deps.showMpvOsd(message);
-    deps.showDesktopNotification('SubMiner', { body: message });
+    const type = deps.getNotificationType?.() ?? 'osd-system';
+    if (type === 'none') {
+      return;
+    }
+    if (type === 'overlay' || type === 'both') {
+      deps.showOverlayNotification?.({
+        title: 'SubMiner',
+        body: message,
+        variant: 'warning',
+      });
+    }
+    if (type === 'osd' || type === 'osd-system') {
+      deps.showMpvOsd(message);
+    }
+    if (type === 'system' || type === 'both' || type === 'osd-system') {
+      deps.showDesktopNotification('SubMiner', { body: message });
+    }
   };
 }
 

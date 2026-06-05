@@ -1,4 +1,9 @@
 import { ResolvedConfig } from '../../types/config';
+import {
+  NOTIFICATION_TYPE_VALUES,
+  OVERLAY_NOTIFICATION_POSITION_VALUES,
+  SETTINGS_NOTIFICATION_TYPE_VALUES,
+} from '../../types/notification';
 import { ConfigOptionRegistryEntry } from './shared';
 
 export function buildCoreConfigOptionRegistry(
@@ -484,9 +489,11 @@ export function buildCoreConfigOptionRegistry(
     {
       path: 'updates.notificationType',
       kind: 'enum',
-      enumValues: ['system', 'osd', 'both', 'none'],
+      enumValues: NOTIFICATION_TYPE_VALUES,
+      settingsEnumValues: SETTINGS_NOTIFICATION_TYPE_VALUES,
       defaultValue: defaultConfig.updates.notificationType,
-      description: 'How SubMiner announces available updates.',
+      description:
+        'How SubMiner announces available updates. overlay shows notifications on the overlay, system uses OS notifications, both uses overlay and system. osd and osd-system are legacy config-file-only values.',
     },
     {
       path: 'updates.channel',
@@ -494,6 +501,13 @@ export function buildCoreConfigOptionRegistry(
       enumValues: ['stable', 'prerelease'],
       defaultValue: defaultConfig.updates.channel,
       description: 'Release channel used for update checks.',
+    },
+    {
+      path: 'notifications.overlayPosition',
+      kind: 'enum',
+      enumValues: OVERLAY_NOTIFICATION_POSITION_VALUES,
+      defaultValue: defaultConfig.notifications.overlayPosition,
+      description: 'Position for in-overlay notification cards.',
     },
     {
       path: 'shortcuts.multiCopyTimeoutMs',

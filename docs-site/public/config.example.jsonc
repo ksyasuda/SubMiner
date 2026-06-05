@@ -172,9 +172,18 @@
   "updates": {
     "enabled": true, // Run automatic update checks in the background. Values: true | false
     "checkIntervalHours": 24, // Minimum hours between automatic update checks.
-    "notificationType": "system", // How SubMiner announces available updates. Values: system | osd | both | none
+    "notificationType": "system", // How SubMiner announces available updates. overlay shows notifications on the overlay, system uses OS notifications, both uses overlay and system. osd and osd-system are legacy config-file-only values. Values: overlay | system | both | none | osd | osd-system
     "channel": "stable" // Release channel used for update checks. Values: stable | prerelease
   }, // Automatic update check behavior.
+
+  // ==========================================
+  // Notifications
+  // Overlay notification display behavior.
+  // Hot-reload: position changes apply to the next overlay notification.
+  // ==========================================
+  "notifications": {
+    "overlayPosition": "top-right" // Position for in-overlay notification cards. Values: top-left | top | top-right
+  }, // Overlay notification display behavior.
 
   // ==========================================
   // Keyboard Shortcuts
@@ -539,7 +548,7 @@
       "overwriteImage": true, // When updating an existing card, overwrite the image field instead of skipping it. Values: true | false
       "mediaInsertMode": "append", // Whether new media is appended after or prepended before existing field contents on update. Values: append | prepend
       "highlightWord": true, // Bold the mined word inside the sentence field on the saved Anki card. Values: true | false
-      "notificationType": "osd", // Notification surface used to announce mining and update outcomes. Values: osd | system | both | none
+      "notificationType": "overlay", // Notification surface used to announce mining and update outcomes. overlay shows notifications on the overlay, system uses OS notifications, both uses overlay and system. osd and osd-system are legacy config-file-only values. Values: overlay | system | both | none | osd | osd-system
       "autoUpdateNewCards": true // Automatically update newly added cards. Values: true | false
     }, // Behavior setting.
     "nPlusOne": {

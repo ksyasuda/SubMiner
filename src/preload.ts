@@ -59,6 +59,7 @@ import type {
   YoutubePickerOpenPayload,
   YoutubePickerResolveRequest,
   YoutubePickerResolveResult,
+  OverlayNotificationEventPayload,
 } from './types';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 
@@ -206,6 +207,11 @@ const onSubtitleSetEvent = createLatestValueIpcListenerWithPayload<SubtitleData>
 const onOverlayPointerRecoveryRequestEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.overlayPointerRecoveryRequest,
 );
+const onOverlayNotificationEvent =
+  createQueuedIpcListenerWithPayload<OverlayNotificationEventPayload>(
+    IPC_CHANNELS.event.overlayNotification,
+    (payload) => payload as OverlayNotificationEventPayload,
+  );
 const onSubtitleVisibilityEvent = createLatestValueIpcListenerWithPayload<boolean>(
   IPC_CHANNELS.event.subtitleVisibility,
   (payload) => payload === true,
@@ -229,6 +235,10 @@ const electronAPI: ElectronAPI = {
     onSubtitleSetEvent(callback);
   },
   onOverlayPointerRecoveryRequested: onOverlayPointerRecoveryRequestEvent,
+  onOverlayNotification: onOverlayNotificationEvent,
+  sendOverlayNotificationAction: (notificationId: string, actionId: string) => {
+    ipcRenderer.send(IPC_CHANNELS.command.overlayNotificationAction, { notificationId, actionId });
+  },
 
   onVisibility: (callback: (visible: boolean) => void) => {
     onSubtitleVisibilityEvent(callback);

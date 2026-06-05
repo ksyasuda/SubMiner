@@ -1,4 +1,5 @@
 import { RuntimeOptionId, RuntimeOptionValue, SubsyncManualPayload } from '../types';
+import type { OverlayNotificationPayload } from '../types/notification';
 import { SubsyncResolvedConfig } from '../subsync/utils';
 import type { SubsyncRuntimeDeps } from '../core/services/subsync-runner';
 import type { IpcDepsRuntimeOptions } from '../core/services/ipc';
@@ -124,6 +125,7 @@ export interface AnkiJimakuIpcRuntimeServiceDepsParams {
   setAnkiIntegration: AnkiJimakuIpcRuntimeOptions['setAnkiIntegration'];
   getKnownWordCacheStatePath: AnkiJimakuIpcRuntimeOptions['getKnownWordCacheStatePath'];
   showDesktopNotification: AnkiJimakuIpcRuntimeOptions['showDesktopNotification'];
+  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: AnkiJimakuIpcRuntimeOptions['createFieldGroupingCallback'];
   broadcastRuntimeOptionsChanged: AnkiJimakuIpcRuntimeOptions['broadcastRuntimeOptionsChanged'];
   getFieldGroupingResolver: AnkiJimakuIpcRuntimeOptions['getFieldGroupingResolver'];
@@ -221,6 +223,7 @@ export interface MpvCommandRuntimeServiceDepsParams {
   openYoutubeTrackPicker: HandleMpvCommandFromIpcOptions['openYoutubeTrackPicker'];
   openPlaylistBrowser: HandleMpvCommandFromIpcOptions['openPlaylistBrowser'];
   showMpvOsd: HandleMpvCommandFromIpcOptions['showMpvOsd'];
+  showPlaybackFeedback?: HandleMpvCommandFromIpcOptions['showPlaybackFeedback'];
   mpvReplaySubtitle: HandleMpvCommandFromIpcOptions['mpvReplaySubtitle'];
   mpvPlayNextSubtitle: HandleMpvCommandFromIpcOptions['mpvPlayNextSubtitle'];
   shiftSubDelayToAdjacentSubtitle: HandleMpvCommandFromIpcOptions['shiftSubDelayToAdjacentSubtitle'];
@@ -309,6 +312,7 @@ export function createAnkiJimakuIpcRuntimeServiceDeps(
     setAnkiIntegration: params.setAnkiIntegration,
     getKnownWordCacheStatePath: params.getKnownWordCacheStatePath,
     showDesktopNotification: params.showDesktopNotification,
+    showOverlayNotification: params.showOverlayNotification,
     createFieldGroupingCallback: params.createFieldGroupingCallback,
     broadcastRuntimeOptionsChanged: params.broadcastRuntimeOptionsChanged,
     getFieldGroupingResolver: params.getFieldGroupingResolver,
@@ -414,6 +418,7 @@ export function createMpvCommandRuntimeServiceDeps(
     openPlaylistBrowser: params.openPlaylistBrowser,
     runtimeOptionsCycle: params.runtimeOptionsCycle,
     showMpvOsd: params.showMpvOsd,
+    showPlaybackFeedback: params.showPlaybackFeedback,
     mpvReplaySubtitle: params.mpvReplaySubtitle,
     mpvPlayNextSubtitle: params.mpvPlayNextSubtitle,
     shiftSubDelayToAdjacentSubtitle: params.shiftSubDelayToAdjacentSubtitle,

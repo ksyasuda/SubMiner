@@ -45,6 +45,10 @@ import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js'
 import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
+import {
+  createOverlayNotificationRenderer,
+  handleOverlayNotificationEvent,
+} from './overlay-notifications.js';
 import { createRendererState } from './state.js';
 import { createSubtitleRenderer } from './subtitle-render.js';
 import { isYomitanPopupVisible, registerYomitanLookupListener } from './yomitan-popup.js';
@@ -112,6 +116,9 @@ function syncSettingsModalSubtitleSuppression(): void {
 
 const subtitleRenderer = createSubtitleRenderer(ctx);
 const measurementReporter = createOverlayContentMeasurementReporter(ctx);
+const overlayNotifications = createOverlayNotificationRenderer(ctx, {
+  onChanged: () => measurementReporter.schedule(),
+});
 const positioning = createPositioningController(ctx);
 const runtimeOptionsModal = createRuntimeOptionsModal(ctx, {
   modalStateReader: { isAnyModalOpen },
@@ -610,6 +617,11 @@ async function init(): Promise<void> {
         return;
       }
       mouseHandlers.restorePointerInteractionState();
+    });
+  });
+  window.electronAPI.onOverlayNotification((payload) => {
+    runGuarded('overlay:notification', () => {
+      handleOverlayNotificationEvent(overlayNotifications, payload);
     });
   });
 

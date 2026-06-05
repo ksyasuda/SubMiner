@@ -222,3 +222,35 @@ test('startup OSD keeps dictionary progress pending when mpv osd is unavailable'
     'Character dictionary ready for Frieren',
   ]);
 });
+
+test('startup notifications route tokenization and annotation status to overlay and system without osd for both', () => {
+  const calls: string[] = [];
+  const sequencer = createStartupOsdSequencer({
+    getNotificationType: () => 'both',
+    showOsd: (message) => {
+      calls.push(`osd:${message}`);
+    },
+    showOverlayNotification: (payload) => {
+      calls.push(
+        `overlay:${payload.id}:${payload.title}:${payload.body}:${payload.variant}:${payload.persistent ? 'pin' : 'auto'}`,
+      );
+    },
+    showDesktopNotification: (title, options) => {
+      calls.push(`desktop:${title}:${options.body ?? ''}`);
+    },
+  });
+
+  sequencer.showTokenizationLoading('Loading subtitle tokenization...');
+  sequencer.markTokenizationReady();
+  sequencer.showAnnotationLoading('Loading subtitle annotations |');
+  sequencer.markAnnotationLoadingComplete('Subtitle annotations loaded');
+
+  assert.deepEqual(calls, [
+    'overlay:startup-tokenization:Subtitle tokenization:Loading subtitle tokenization...:progress:pin',
+    'overlay:startup-tokenization:Subtitle tokenization:Subtitle tokenization ready:success:auto',
+    'desktop:SubMiner:Subtitle tokenization ready',
+    'overlay:startup-subtitle-annotations:Subtitle annotations:Loading subtitle annotations |:progress:pin',
+    'overlay:startup-subtitle-annotations:Subtitle annotations:Subtitle annotations loaded:success:auto',
+    'desktop:SubMiner:Subtitle annotations loaded',
+  ]);
+});

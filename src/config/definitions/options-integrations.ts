@@ -1,5 +1,9 @@
 import { ResolvedConfig } from '../../types/config';
 import { MPV_LAUNCH_MODE_VALUES } from '../../shared/mpv-launch-mode';
+import {
+  NOTIFICATION_TYPE_VALUES,
+  SETTINGS_NOTIFICATION_TYPE_VALUES,
+} from '../../types/notification';
 import { ConfigOptionRegistryEntry, RuntimeOptionRegistryEntry } from './shared';
 
 export function buildIntegrationConfigOptionRegistry(
@@ -158,9 +162,11 @@ export function buildIntegrationConfigOptionRegistry(
     {
       path: 'ankiConnect.behavior.notificationType',
       kind: 'enum',
-      enumValues: ['osd', 'system', 'both', 'none'],
+      enumValues: NOTIFICATION_TYPE_VALUES,
+      settingsEnumValues: SETTINGS_NOTIFICATION_TYPE_VALUES,
       defaultValue: defaultConfig.ankiConnect.behavior.notificationType,
-      description: 'Notification surface used to announce mining and update outcomes.',
+      description:
+        'Notification surface used to announce mining and update outcomes. overlay shows notifications on the overlay, system uses OS notifications, both uses overlay and system. osd and osd-system are legacy config-file-only values.',
     },
     {
       path: 'ankiConnect.media.syncAnimatedImageToWordAudio',

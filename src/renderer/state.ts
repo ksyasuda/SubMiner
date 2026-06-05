@@ -31,6 +31,7 @@ export type ChordAction =
 export type RendererState = {
   isOverSubtitle: boolean;
   isOverSubtitleSidebar: boolean;
+  isOverOverlayNotification: boolean;
   isDragging: boolean;
   dragStartY: number;
   startYPercent: number;
@@ -143,6 +144,7 @@ export function createRendererState(): RendererState {
   return {
     isOverSubtitle: false,
     isOverSubtitleSidebar: false,
+    isOverOverlayNotification: false,
     isDragging: false,
     dragStartY: 0,
     startYPercent: 0,

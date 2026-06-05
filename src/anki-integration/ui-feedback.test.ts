@@ -1,9 +1,10 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
+import test from 'node:test';
 import {
   beginUpdateProgress,
   createUiFeedbackState,
   showProgressTick,
+  showStatusNotification,
   showUpdateResult,
 } from './ui-feedback';
 
@@ -64,4 +65,39 @@ test('showUpdateResult renders failed updates with an x marker', () => {
     'Creating sentence card |',
     'x Sentence card failed: deck missing',
   ]);
+});
+
+test('showStatusNotification falls back to system when overlay delivery is unavailable', () => {
+  const calls: string[] = [];
+
+  showStatusNotification('Waiting for card update', {
+    getNotificationType: () => 'overlay',
+    showOsd: (message) => {
+      calls.push(`osd:${message}`);
+    },
+    showSystemNotification: (title, options) => {
+      calls.push(`system:${title}:${options.body}`);
+    },
+  });
+
+  assert.deepEqual(calls, ['system:SubMiner:Waiting for card update']);
+});
+
+test('showStatusNotification does not duplicate system notifications for both', () => {
+  const calls: string[] = [];
+
+  showStatusNotification('Card updated', {
+    getNotificationType: () => 'both',
+    showOsd: (message) => {
+      calls.push(`osd:${message}`);
+    },
+    showOverlayNotification: (payload) => {
+      calls.push(`overlay:${payload.body}`);
+    },
+    showSystemNotification: (title, options) => {
+      calls.push(`system:${title}:${options.body}`);
+    },
+  });
+
+  assert.deepEqual(calls, ['overlay:Card updated', 'system:SubMiner:Card updated']);
 });

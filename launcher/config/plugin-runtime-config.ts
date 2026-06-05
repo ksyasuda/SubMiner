@@ -16,10 +16,9 @@ function booleanOrDefault(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
 }
 
-function nonEmptyStringOrDefault(value: unknown, fallback: string): string {
-  if (typeof value !== 'string') return fallback;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : fallback;
+function pluginOsdMessagesFromNotificationType(root: Record<string, unknown> | null): boolean {
+  const notificationType = rootObject(rootObject(root, 'ankiConnect'), 'behavior').notificationType;
+  return notificationType === 'osd' || notificationType === 'osd-system';
 }
 
 function validBackendOrDefault(value: unknown, fallback: Backend): Backend {
@@ -53,6 +52,7 @@ export function parsePluginRuntimeConfigFromMainConfig(
     autoStart: booleanOrDefault(mpvConfig.autoStartSubMiner, true),
     autoStartVisibleOverlay: booleanOrDefault(root?.auto_start_overlay, false),
     autoStartPauseUntilReady: booleanOrDefault(mpvConfig.pauseUntilOverlayReady, true),
+    osdMessages: pluginOsdMessagesFromNotificationType(root),
     texthookerEnabled: booleanOrDefault(texthooker.launchAtStartup, false),
   };
 }
@@ -70,7 +70,7 @@ export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig
   log(
     'debug',
     logLevel,
-    `Using mpv plugin settings from SubMiner config: socket_path=${parsed.socketPath}, backend=${parsed.backend}, auto_start=${parsed.autoStart}, auto_start_visible_overlay=${parsed.autoStartVisibleOverlay}, auto_start_pause_until_ready=${parsed.autoStartPauseUntilReady}, texthooker_enabled=${parsed.texthookerEnabled}`,
+    `Using mpv plugin settings from SubMiner config: socket_path=${parsed.socketPath}, backend=${parsed.backend}, auto_start=${parsed.autoStart}, auto_start_visible_overlay=${parsed.autoStartVisibleOverlay}, auto_start_pause_until_ready=${parsed.autoStartPauseUntilReady}, osd_messages=${parsed.osdMessages}, texthooker_enabled=${parsed.texthookerEnabled}`,
   );
   return parsed;
 }

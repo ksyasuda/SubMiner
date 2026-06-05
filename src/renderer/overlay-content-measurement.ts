@@ -76,6 +76,15 @@ function collectInteractiveRects(ctx: RendererContext): OverlayContentRect[] {
     }
   }
 
+  if (ctx.dom.overlayNotificationStack?.children.length > 0) {
+    const notificationRect = toMeasuredRect(
+      ctx.dom.overlayNotificationStack.getBoundingClientRect(),
+    );
+    if (notificationRect && hasArea(notificationRect)) {
+      rects.push(notificationRect);
+    }
+  }
+
   return rects;
 }
 

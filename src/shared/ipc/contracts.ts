@@ -41,6 +41,7 @@ export const IPC_CHANNELS = {
     reportOverlayContentBounds: 'overlay-content-bounds:report',
     reportOverlayInteractive: 'overlay-interactive:report',
     overlayModalOpened: 'overlay:modal-opened',
+    overlayNotificationAction: 'overlay:notification-action',
     toggleStatsOverlay: 'stats:toggle-overlay',
     markActiveVideoWatched: 'immersion:mark-active-video-watched',
     dispatchSessionAction: 'session-action:dispatch',
@@ -144,6 +145,7 @@ export const IPC_CHANNELS = {
     subtitleSidebarToggle: 'subtitle-sidebar:toggle',
     primarySubtitleBarToggle: 'primary-subtitle-bar:toggle',
     configHotReload: 'config:hot-reload',
+    overlayNotification: 'overlay:notification',
   },
 } as const;
 

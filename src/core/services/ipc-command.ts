@@ -25,6 +25,7 @@ export interface HandleMpvCommandFromIpcOptions {
   openPlaylistBrowser: () => void | Promise<void>;
   runtimeOptionsCycle: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   showMpvOsd: (text: string) => void;
+  showPlaybackFeedback?: (text: string) => void;
   mpvReplaySubtitle: () => void;
   mpvPlayNextSubtitle: () => void;
   shiftSubDelayToAdjacentSubtitle: (direction: 'next' | 'previous') => Promise<void>;
@@ -68,13 +69,14 @@ function showResolvedProxyCommandOsd(
 ): void {
   const template = resolveProxyCommandOsdTemplate(command);
   if (!template) return;
+  const showFeedback = options.showPlaybackFeedback ?? options.showMpvOsd;
 
   const emit = async () => {
     try {
       const resolved = await options.resolveProxyCommandOsd?.(command);
-      options.showMpvOsd(resolved || template);
+      showFeedback(resolved || template);
     } catch {
-      options.showMpvOsd(template);
+      showFeedback(template);
     }
   };
 
@@ -138,6 +140,15 @@ export function handleMpvCommandFromIpc(
     const result = options.runtimeOptionsCycle(id, direction);
     if (!result.ok && result.error) {
       options.showMpvOsd(result.error);
+    }
+    return;
+  }
+
+  if (first === 'show-text') {
+    const message = (typeof command[1] === 'string' ? command[1] : String(command[1] ?? '')).trim();
+    if (message) {
+      const showFeedback = options.showPlaybackFeedback ?? options.showMpvOsd;
+      showFeedback(message);
     }
     return;
   }

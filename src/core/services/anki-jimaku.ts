@@ -10,6 +10,7 @@ import {
   JimakuMediaInfo,
   KikuFieldGroupingChoice,
   KikuFieldGroupingRequestData,
+  OverlayNotificationPayload,
 } from '../../types';
 import { sortJimakuFiles } from '../../jimaku/utils';
 import type { AnkiJimakuIpcDeps } from './anki-jimaku-ipc';
@@ -40,6 +41,7 @@ export interface AnkiJimakuIpcRuntimeOptions {
   setAnkiIntegration: (integration: AnkiIntegration | null) => void;
   getKnownWordCacheStatePath: () => string;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -103,6 +105,8 @@ export function registerAnkiJimakuIpcRuntime(
           options.createFieldGroupingCallback(),
           options.getKnownWordCacheStatePath(),
           mergeAiConfig(config.ai, config.ankiConnect?.ai) as AiConfig,
+          undefined,
+          options.showOverlayNotification,
         );
         integration.start();
         options.setAnkiIntegration(integration);

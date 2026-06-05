@@ -28,6 +28,7 @@ export interface ConfigOptionRegistryEntry {
   defaultValue: unknown;
   description: string;
   enumValues?: readonly string[];
+  settingsEnumValues?: readonly string[];
   runtime?: RuntimeOptionRegistryEntry;
 }
 

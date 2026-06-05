@@ -29,7 +29,10 @@ export function syncOverlayMouseIgnoreState(ctx: RendererContext): void {
   const shouldKeepWindowInteractive =
     isYomitanPopupInteractionActive(ctx.state) || isBlockingOverlayModalOpen(ctx.state);
   const shouldStayInteractive =
-    ctx.state.isOverSubtitle || ctx.state.isOverSubtitleSidebar || shouldKeepWindowInteractive;
+    ctx.state.isOverSubtitle ||
+    ctx.state.isOverSubtitleSidebar ||
+    ctx.state.isOverOverlayNotification ||
+    shouldKeepWindowInteractive;
   const shouldMarkOverlayInteractive = ctx.platform?.isLinuxPlatform
     ? shouldKeepWindowInteractive
     : shouldStayInteractive;

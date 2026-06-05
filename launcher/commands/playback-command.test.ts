@@ -82,6 +82,7 @@ function createContext(): LauncherCommandContext {
       autoStart: true,
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
+      osdMessages: false,
       texthookerEnabled: false,
     },
     appPath: '/tmp/SubMiner.AppImage',
@@ -207,6 +208,7 @@ test('plugin auto-start playback leaves app lifetime to managed-playback owner',
     autoStart: true,
     autoStartVisibleOverlay: false,
     autoStartPauseUntilReady: false,
+    osdMessages: false,
     texthookerEnabled: false,
   };
   const appPath = context.appPath ?? '';
@@ -268,6 +270,7 @@ test('plugin auto-start playback attaches a warm background app through the laun
     autoStart: true,
     autoStartVisibleOverlay: true,
     autoStartPauseUntilReady: true,
+    osdMessages: false,
     texthookerEnabled: true,
   };
   const calls: string[] = [];
@@ -335,6 +338,7 @@ test('plugin auto-start attach mode reuses launcher-resolved config dir for app 
     autoStart: true,
     autoStartVisibleOverlay: true,
     autoStartPauseUntilReady: true,
+    osdMessages: false,
     texthookerEnabled: true,
   };
   let availabilityConfigDir: string | undefined;
@@ -395,6 +399,7 @@ test('plugin auto-start attach mode omits texthooker flag when CLI texthooker is
     autoStart: true,
     autoStartVisibleOverlay: true,
     autoStartPauseUntilReady: true,
+    osdMessages: false,
     texthookerEnabled: true,
   };
   const calls: string[] = [];

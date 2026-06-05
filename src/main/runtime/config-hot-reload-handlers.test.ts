@@ -265,6 +265,23 @@ test('createConfigHotReloadMessageHandler mirrors message to OSD and desktop not
   assert.deepEqual(calls, ['osd:Config reload failed', 'notify:SubMiner:Config reload failed']);
 });
 
+test('createConfigHotReloadMessageHandler routes message through configured notification surfaces', () => {
+  const calls: string[] = [];
+  const handleMessage = createConfigHotReloadMessageHandler({
+    getNotificationType: () => 'both',
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    showOverlayNotification: (payload) =>
+      calls.push(`overlay:${payload.title}:${payload.body}:${payload.variant}`),
+    showDesktopNotification: (title, options) => calls.push(`notify:${title}:${options.body}`),
+  });
+
+  handleMessage('Config reload failed');
+  assert.deepEqual(calls, [
+    'overlay:SubMiner:Config reload failed:warning',
+    'notify:SubMiner:Config reload failed',
+  ]);
+});
+
 test('buildRestartRequiredConfigMessage formats changed fields', () => {
   assert.equal(
     buildRestartRequiredConfigMessage(['websocket', 'subtitleStyle']),

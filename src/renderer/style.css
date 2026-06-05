@@ -146,6 +146,226 @@ body:focus-visible,
   transform: translateY(0);
 }
 
+.overlay-notification-stack {
+  position: absolute;
+  top: 16px;
+  width: min(360px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
+  z-index: 1350;
+}
+
+.overlay-notification-stack.position-top-left {
+  left: 16px;
+  right: auto;
+  transform: none;
+}
+
+.overlay-notification-stack.position-top {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+.overlay-notification-stack.position-top-right {
+  left: auto;
+  right: 16px;
+  transform: none;
+}
+
+.overlay-notification-card {
+  /* Accent color is overridden per variant and drives the bar, icon, and borders. */
+  --overlay-notification-accent: var(--ctp-blue);
+
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 22px;
+  gap: 11px;
+  align-items: start;
+  min-height: 64px;
+  padding: 13px 14px 13px 17px;
+  border-radius: 11px;
+  border: 1px solid color-mix(in srgb, var(--overlay-notification-accent) 24%, var(--ctp-surface1));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--overlay-notification-accent) 9%, var(--ctp-surface0)),
+    var(--ctp-mantle)
+  );
+  box-shadow:
+    0 14px 32px -10px rgba(24, 25, 38, 0.75),
+    0 1px 0 rgba(202, 211, 245, 0.05) inset;
+  color: var(--ctp-text);
+  overflow: hidden;
+  animation: overlay-notification-enter 140ms ease-out;
+}
+
+.overlay-notification-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 11px;
+  bottom: 11px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--overlay-notification-accent);
+  box-shadow: 0 0 11px -1px var(--overlay-notification-accent);
+}
+
+.overlay-notification-card.info {
+  --overlay-notification-accent: var(--ctp-blue);
+}
+
+.overlay-notification-card.progress {
+  --overlay-notification-accent: var(--ctp-sky);
+}
+
+.overlay-notification-card.success {
+  --overlay-notification-accent: var(--ctp-green);
+}
+
+.overlay-notification-card.warning {
+  --overlay-notification-accent: var(--ctp-yellow);
+}
+
+.overlay-notification-card.error {
+  --overlay-notification-accent: var(--ctp-red);
+}
+
+.overlay-notification-icon {
+  width: 22px;
+  height: 22px;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--overlay-notification-accent) 16%, transparent);
+  color: var(--overlay-notification-accent);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.overlay-notification-card.info .overlay-notification-icon::before {
+  content: 'i';
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+}
+
+.overlay-notification-card.success .overlay-notification-icon::before {
+  content: '\2713';
+}
+
+.overlay-notification-card.warning .overlay-notification-icon::before {
+  content: '!';
+}
+
+.overlay-notification-card.error .overlay-notification-icon::before {
+  content: '\2715';
+  font-size: 11px;
+}
+
+.overlay-notification-card.progress .overlay-notification-icon::before {
+  content: '';
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--overlay-notification-accent) 28%, transparent);
+  border-top-color: var(--overlay-notification-accent);
+  animation: overlay-notification-spin 0.75s linear infinite;
+}
+
+.overlay-notification-content {
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.overlay-notification-title {
+  color: var(--ctp-text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.1px;
+}
+
+.overlay-notification-body {
+  margin-top: 4px;
+  color: var(--ctp-subtext0);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.overlay-notification-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.overlay-notification-action {
+  min-height: 27px;
+  padding: 4px 11px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--overlay-notification-accent) 35%, var(--ctp-surface2));
+  background: color-mix(in srgb, var(--overlay-notification-accent) 12%, var(--ctp-surface0));
+  color: var(--ctp-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.overlay-notification-action:hover {
+  border-color: var(--overlay-notification-accent);
+  background: color-mix(in srgb, var(--overlay-notification-accent) 24%, var(--ctp-surface0));
+}
+
+.overlay-notification-close {
+  width: 22px;
+  height: 22px;
+  align-self: start;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ctp-overlay1);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.overlay-notification-close:hover {
+  background: color-mix(in srgb, var(--ctp-red) 18%, transparent);
+  color: var(--ctp-red);
+}
+
+@keyframes overlay-notification-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes overlay-notification-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .modal {
   position: absolute;
   inset: 0;

@@ -36,6 +36,7 @@ import type {
   SubtitleSidebarConfig,
   SubtitleStyleConfig,
 } from './subtitle';
+import type { NotificationType, OverlayNotificationPosition } from './notification';
 
 export interface WebSocketConfig {
   enabled?: boolean | 'auto';
@@ -83,7 +84,7 @@ export interface StartupWarmupsConfig {
   jellyfinRemoteSession?: boolean;
 }
 
-export type UpdateNotificationType = 'system' | 'osd' | 'both' | 'none';
+export type UpdateNotificationType = NotificationType;
 export type UpdateChannel = 'stable' | 'prerelease';
 
 export interface UpdatesConfig {
@@ -91,6 +92,10 @@ export interface UpdatesConfig {
   checkIntervalHours?: number;
   notificationType?: UpdateNotificationType;
   channel?: UpdateChannel;
+}
+
+export interface NotificationsConfig {
+  overlayPosition?: OverlayNotificationPosition;
 }
 
 export type LogRotation = number;
@@ -149,6 +154,7 @@ export interface Config {
   immersionTracking?: ImmersionTrackingConfig;
   stats?: StatsConfig;
   updates?: UpdatesConfig;
+  notifications?: NotificationsConfig;
   logging?: {
     level?: 'debug' | 'info' | 'warn' | 'error';
     rotation?: LogRotation;
@@ -247,7 +253,7 @@ export interface ResolvedConfig {
       overwriteImage: boolean;
       mediaInsertMode: 'append' | 'prepend';
       highlightWord: boolean;
-      notificationType: 'osd' | 'system' | 'both' | 'none';
+      notificationType: NotificationType;
       autoUpdateNewCards: boolean;
     };
     metadata: {
@@ -379,6 +385,7 @@ export interface ResolvedConfig {
     autoOpenBrowser: boolean;
   };
   updates: Required<UpdatesConfig>;
+  notifications: Required<NotificationsConfig>;
   logging: {
     level: 'debug' | 'info' | 'warn' | 'error';
     rotation: LogRotation;

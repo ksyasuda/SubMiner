@@ -15,6 +15,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'subsync'
   | 'startupWarmups'
   | 'updates'
+  | 'notifications'
   | 'auto_start_overlay'
 > = {
   subtitlePosition: { yPercent: 10 },
@@ -128,6 +129,9 @@ export const CORE_DEFAULT_CONFIG: Pick<
     checkIntervalHours: 24,
     notificationType: 'system',
     channel: 'stable',
+  },
+  notifications: {
+    overlayPosition: 'top-right',
   },
   auto_start_overlay: true,
 };

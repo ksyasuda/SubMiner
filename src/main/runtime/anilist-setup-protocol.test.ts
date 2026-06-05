@@ -19,6 +19,24 @@ test('createNotifyAnilistSetupHandler sends OSD when mpv client exists', () => {
   assert.deepEqual(calls, ['osd:AniList login success']);
 });
 
+test('createNotifyAnilistSetupHandler routes through configured notification surfaces', () => {
+  const calls: string[] = [];
+  const notify = createNotifyAnilistSetupHandler({
+    getNotificationType: () => 'both',
+    hasMpvClient: () => true,
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    showOverlayNotification: (payload) =>
+      calls.push(`overlay:${payload.title}:${payload.body}:${payload.variant}`),
+    showDesktopNotification: (title, options) => calls.push(`notify:${title}:${options.body}`),
+    logInfo: () => calls.push('log'),
+  });
+  notify('AniList login success');
+  assert.deepEqual(calls, [
+    'overlay:SubMiner AniList:AniList login success:success',
+    'notify:SubMiner AniList:AniList login success',
+  ]);
+});
+
 test('createConsumeAnilistSetupTokenFromUrlHandler delegates with deps', () => {
   const consume = createConsumeAnilistSetupTokenFromUrlHandler({
     consumeAnilistSetupCallbackUrl: (input) => input.rawUrl.includes('access_token=ok'),

@@ -16,6 +16,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
     },
     cycleRuntimeOption: () => ({ ok: false as const, error: 'x' }),
     showMpvOsd: (text) => calls.push(`osd:${text}`),
+    showPlaybackFeedback: (text) => calls.push(`feedback:${text}`),
     replayCurrentSubtitle: () => calls.push('replay'),
     playNextSubtitle: () => calls.push('next'),
     shiftSubDelayToAdjacentSubtitle: async (direction) => {
@@ -34,6 +35,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
   void deps.openPlaylistBrowser();
   assert.deepEqual(deps.cycleRuntimeOption('anki.nPlusOneMatchMode', 1), { ok: false, error: 'x' });
   deps.showMpvOsd('hello');
+  deps.showPlaybackFeedback?.('primary');
   deps.replayCurrentSubtitle();
   deps.playNextSubtitle();
   void deps.shiftSubDelayToAdjacentSubtitle('next');
@@ -48,6 +50,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
     'youtube-picker',
     'playlist-browser',
     'osd:hello',
+    'feedback:primary',
     'replay',
     'next',
     'shift:next',

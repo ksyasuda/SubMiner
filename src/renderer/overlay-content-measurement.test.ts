@@ -166,3 +166,88 @@ test('overlay measurement includes open subtitle sidebar bounds as an interactiv
     }
   }
 });
+
+test('overlay measurement includes overlay notification stack bounds as an interactive rect', () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const reports: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    writable: true,
+    value: {
+      innerWidth: 1920,
+      innerHeight: 1080,
+      electronAPI: {
+        reportOverlayContentBounds: (payload: unknown) => {
+          reports.push(payload);
+        },
+      },
+    },
+  });
+
+  try {
+    const reporter = createOverlayContentMeasurementReporter({
+      platform: { overlayLayer: 'visible' },
+      state: { subtitleSidebarModalOpen: false },
+      dom: {
+        subtitleRoot: makeElement('', {
+          left: 0,
+          top: 0,
+          width: 0,
+          height: 0,
+        } as DOMRect),
+        subtitleContainer: makeElement('', {
+          left: 0,
+          top: 0,
+          width: 0,
+          height: 0,
+        } as DOMRect),
+        secondarySubRoot: makeElement('', {
+          left: 0,
+          top: 0,
+          width: 0,
+          height: 0,
+        } as DOMRect),
+        secondarySubContainer: makeElement('', {
+          left: 0,
+          top: 0,
+          width: 0,
+          height: 0,
+        } as DOMRect),
+        overlayNotificationStack: {
+          children: [{}, {}],
+          getBoundingClientRect: () =>
+            ({
+              left: 1540,
+              top: 16,
+              width: 360,
+              height: 220,
+            }) as DOMRect,
+        },
+      },
+    } as never);
+
+    reporter.emitNow();
+
+    const measuredAtMs = (reports[0] as { measuredAtMs?: unknown } | undefined)?.measuredAtMs;
+    if (typeof measuredAtMs !== 'number') {
+      assert.fail('Expected report timestamp.');
+    }
+
+    assert.deepEqual(reports, [
+      {
+        layer: 'visible',
+        measuredAtMs,
+        viewport: { width: 1920, height: 1080 },
+        contentRect: { x: 1540, y: 16, width: 360, height: 220 },
+        interactiveRects: [{ x: 1540, y: 16, width: 360, height: 220 }],
+      },
+    ]);
+  } finally {
+    if (originalWindow) {
+      Object.defineProperty(globalThis, 'window', originalWindow);
+    } else {
+      delete (globalThis as { window?: unknown }).window;
+    }
+  }
+});
