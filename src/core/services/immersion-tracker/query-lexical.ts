@@ -21,6 +21,15 @@ import { nowMs } from './time';
 
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR = 4;
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN = 100;
+const SENTENCE_SEARCH_DEFAULT_LIMIT = 50;
+const SENTENCE_SEARCH_MAX_LIMIT = 100;
+
+function resolveSentenceSearchLimit(limit: number): number {
+  if (!Number.isFinite(limit)) return SENTENCE_SEARCH_DEFAULT_LIMIT;
+  const normalized = Math.floor(limit);
+  if (normalized <= 0) return SENTENCE_SEARCH_DEFAULT_LIMIT;
+  return Math.min(normalized, SENTENCE_SEARCH_MAX_LIMIT);
+}
 
 function splitSearchTerms(query: string): string[] {
   return query
@@ -228,10 +237,11 @@ export function getKanjiOccurrences(
 export function searchSubtitleSentences(
   db: DatabaseSync,
   query: string,
-  limit = 50,
+  limit = SENTENCE_SEARCH_DEFAULT_LIMIT,
 ): SentenceSearchResultRow[] {
   const terms = splitSearchTerms(query);
   if (terms.length === 0) return [];
+  const resolvedLimit = resolveSentenceSearchLimit(limit);
 
   const clauses: string[] = [];
   const params: string[] = [];
@@ -270,7 +280,7 @@ export function searchSubtitleSentences(
         LIMIT ?
       `,
     )
-    .all(...params, limit) as unknown as SentenceSearchResultRow[];
+    .all(...params, resolvedLimit) as unknown as SentenceSearchResultRow[];
 }
 
 export function getSessionEvents(

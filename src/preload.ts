@@ -223,7 +223,7 @@ const onSecondarySubtitleModeEvent = createLatestValueIpcListenerWithPayload<Sec
   IPC_CHANNELS.event.secondarySubtitleMode,
   (payload) => payload as SecondarySubMode,
 );
-const onMiningImageEvent = createQueuedIpcListenerWithPayload<MiningImagePayload>(
+const onMiningImageEvent = createLatestValueIpcListenerWithPayload<MiningImagePayload>(
   IPC_CHANNELS.event.miningImage,
   (payload) => payload as MiningImagePayload,
 );

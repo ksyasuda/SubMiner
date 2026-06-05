@@ -39,6 +39,7 @@ import {
   upsertCoverArt,
 } from '../query.js';
 import {
+  getLocalEpochDay,
   getShiftedLocalDaySec,
   getStartOfLocalDayTimestamp,
   toDbTimestamp,
@@ -3776,6 +3777,8 @@ test('searchSubtitleSentences searches known subtitle lines and returns media co
     ]);
 
     assert.deepEqual(searchSubtitleSentences(db, 'monsters', 10), []);
+    assert.doesNotThrow(() => searchSubtitleSentences(db, '魔物', Number.POSITIVE_INFINITY));
+    assert.equal(searchSubtitleSentences(db, '魔物', -1).length, 1);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -4196,8 +4199,14 @@ test('deleteSession removes zero-session media from library and trends', () => {
 
     const startedAtMs = 9_000_000;
     const endedAtMs = startedAtMs + 120_000;
-    const rollupDay = Math.floor(startedAtMs / 86_400_000);
-    const rollupMonth = 197001;
+    const rollupDay = getLocalEpochDay(db, startedAtMs);
+    const rollupMonth = (
+      db
+        .prepare(
+          "SELECT CAST(strftime('%Y%m', CAST(? AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) AS rollupMonth",
+        )
+        .get(startedAtMs) as { rollupMonth: number }
+    ).rollupMonth;
     const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
 
     db.prepare(

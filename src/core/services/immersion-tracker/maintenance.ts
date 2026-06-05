@@ -319,16 +319,9 @@ export function getRollupGroupsForSessions(db: DatabaseSync, sessionIds: number[
           video_id
         FROM imm_sessions
         WHERE session_id IN (${placeholders})
-        UNION
-        SELECT DISTINCT
-          CAST(CAST(started_at_ms AS REAL) / 86400000 AS INTEGER) AS rollup_day,
-          CAST(strftime('%Y%m', CAST(started_at_ms AS REAL) / 1000, 'unixepoch') AS INTEGER) AS rollup_month,
-          video_id
-        FROM imm_sessions
-        WHERE session_id IN (${placeholders})
       `,
     )
-    .all(...sessionIds, ...sessionIds) as RollupGroupRow[];
+    .all(...sessionIds) as RollupGroupRow[];
 
   return rows.map((row) => ({
     rollupDay: row.rollup_day,

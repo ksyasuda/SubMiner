@@ -34,6 +34,15 @@ test('overlay preload buffers only latest subtitle state until renderer listener
   assert.match(source, /onSubtitle:\s*\(callback:[\s\S]+?onSubtitleSetEvent\(callback\);/);
 });
 
+test('overlay preload buffers only latest mining image payload before listener registration', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'src', 'preload.ts'), 'utf8');
+
+  assert.match(
+    source,
+    /const onMiningImageEvent =\s*createLatestValueIpcListenerWithPayload<MiningImagePayload>\(\s*IPC_CHANNELS\.event\.miningImage,/,
+  );
+});
+
 test('overlay preload exposes queued pointer recovery requests', () => {
   const source = fs.readFileSync(path.join(process.cwd(), 'src', 'preload.ts'), 'utf8');
 
